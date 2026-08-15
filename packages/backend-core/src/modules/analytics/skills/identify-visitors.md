@@ -119,3 +119,9 @@ Rows older than 30 days keep `end_user_id = NULL`. `analytics_get_contact_journe
 ## How widget chats fit in
 
 The chat widget does its own identity resolution (via `verifiedExternalId` + `userHash` on the widget channel's secret — a *different* secret from the tracker's; see `skill://conv/setup-chat-widget`). Note the widget hash covers `externalId` **only**, not the visitor, so it can be server-rendered without a round-trip — the opposite of the tracker's visitor-bound hash above. When the widget creates or resolves an `end_users` row, it also writes the bridge row using its own `visitorId`. Because the widget and the analytics tracker share the same `localStorage` key (`mn.vid`) for their visitor id, a visitor who first opened the chat widget already has their analytics history linked — no additional `identify` call needed for that path.
+
+### Don't route both surfaces through `window.mn.identify`
+
+Both bundles install `window.mn.identify` and the second one to load chains to the first, so a single call reaches both — but each verifies a different payload against a different secret, so one of them always rejects. The failure is lopsided: the widget logs `identify failed` in the console, while the tracker posts with `sendBeacon` and drops it **silently**, leaving only `identify.rejected: hmac_mismatch` in the server log. An empty contact journey with no client-side error is the symptom.
+
+On a page running both, identify the widget through its script-tag attributes (`data-external-id` + `data-user-hash`, server-rendered) and keep `window.mn.identify(externalId, userHash, { email })` for the tracker alone. Each surface then gets its own credential over its own path. The unsolved case is an SPA that signs in without a reload, where the widget has no script tag to re-render — until per-surface hashes land, identify it on the next full page load.

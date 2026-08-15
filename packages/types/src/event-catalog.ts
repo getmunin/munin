@@ -6,6 +6,7 @@ export const CMS_EVENT_TYPES = [
   'cms.entry.published',
   'cms.entry.unpublished',
   'cms.entry.scheduled',
+  'cms.entry.archived',
   'cms.entry.deleted',
 ] as const;
 
@@ -45,6 +46,7 @@ export const CONVERSATION_EVENT_TYPES = [
   'conversation.message.sent',
   'conversation.message.body_revised',
   'conversation.message.opened',
+  'conversation.message.read',
   'conversation.voice.call_ended',
 ] as const;
 

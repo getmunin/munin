@@ -25,8 +25,8 @@ If you find yourself thinking "I'll poll the API every 30 seconds," subscribe in
 
 Returns event type strings grouped by module. The catalog at time of writing:
 
-- **CMS** — `cms.collection.created`, `cms.collection.fields_changed`, `cms.entry.created`, `cms.entry.updated`, `cms.entry.published`, `cms.entry.unpublished`, `cms.entry.scheduled`, `cms.entry.deleted`
-- **Conv** — `conversation.created`, `conversation.subject_changed`, `conversation.status_changed`, `conversation.assigned`, `conversation.released`, `conversation.taken_over`, `conversation.agent_mode_changed`, `conversation.handover_requested`, `conversation.handover_resolved`, `conversation.greet_requested`, `conversation.message.received`, `conversation.message.sent`, `conversation.message.body_revised`, `conversation.message.opened`, `conversation.voice.call_ended`
+- **CMS** — `cms.collection.created`, `cms.collection.fields_changed`, `cms.entry.created`, `cms.entry.updated`, `cms.entry.published`, `cms.entry.unpublished`, `cms.entry.scheduled`, `cms.entry.archived`, `cms.entry.deleted`
+- **Conv** — `conversation.created`, `conversation.subject_changed`, `conversation.status_changed`, `conversation.assigned`, `conversation.released`, `conversation.taken_over`, `conversation.agent_mode_changed`, `conversation.handover_requested`, `conversation.handover_resolved`, `conversation.greet_requested`, `conversation.message.received`, `conversation.message.sent`, `conversation.message.body_revised`, `conversation.message.opened`, `conversation.message.read`, `conversation.voice.call_ended`
 - **CRM** — `crm.contact.created`, `crm.contact.updated`, `crm.company.created`, `crm.deal.created`, `crm.deal.stage_changed`, `crm.activity.logged`, `crm.merge_proposal.proposed`
 - **KB** — `kb.document.created`, `kb.document.updated`, `kb.document.deleted`
 - **Outreach** — `outreach.proposal.created`, `outreach.proposal.updated`, `outreach.proposal.sent`, `outreach.proposal.dismissed`

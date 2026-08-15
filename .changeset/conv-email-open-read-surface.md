@@ -25,7 +25,9 @@ Three changes close that:
 - `conversation.message.opened` is added to the event-type catalog. The pixel has been
   emitting it all along, but it was absent from `webhooks_list_event_types` and the
   `skill://webhooks/subscribe-to-events` docs, so the only way to subscribe was to guess
-  the string.
+  the string. `conversation.message.read` (widget read receipts, emitted by the realtime
+  gateway) and `cms.entry.archived` (emitted alongside the already-listed `unpublished`
+  and `scheduled` transitions) were missing for the same reason and are now listed too.
 
 Also adds `skill://conv/track-email-opens`, which documents enabling `trackOpens`,
 reading both surfaces, and the under- and over-counting that pixel tracking carries

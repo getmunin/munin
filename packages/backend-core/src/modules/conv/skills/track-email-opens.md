@@ -60,7 +60,8 @@ matters when reporting:
 
 Note that `seenAt` on the same message is a **different** signal: it is the chat
 widget's read receipt, set when the recipient scrolls the message into view in the
-widget panel. Email opens and widget reads never both apply to one message.
+widget panel, and reported separately as `conversation.message.read`. Email opens and
+widget reads never both apply to one message.
 
 **Across a channel.** `conv_get_email_open_stats` aggregates deliveries in a window:
 

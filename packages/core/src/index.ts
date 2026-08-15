@@ -25,6 +25,8 @@ export {
   randomToken,
   signHmac,
   verifyHmac,
+  identityHashPayload,
+  legacyIdentityHashPayload,
   timingSafeEqual,
   readEncryptionKey,
   setEncryptionKeySql,

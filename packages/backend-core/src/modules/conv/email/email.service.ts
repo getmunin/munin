@@ -22,6 +22,7 @@ import {
   type EmailChannelConfigInputT,
   type SendLimits,
 } from '@getmunin/types';
+import { findOrCreateEndUserByEmail } from '../end-user-by-email.ts';
 
 export { EmailChannelConfigInput };
 export type { EmailChannelConfigInputT };
@@ -420,7 +421,13 @@ export class EmailService {
   ): Promise<typeof schema.convContacts.$inferSelect> {
     const lower = email.trim().toLowerCase();
     const cleanName = name?.trim() || null;
-    const endUser = await this.findOrCreateEndUserByEmail(tx, orgId, lower, cleanName);
+    const endUserId = await findOrCreateEndUserByEmail(
+      tx,
+      orgId,
+      lower,
+      cleanName,
+      'email-inbound',
+    );
 
     const existing = await tx
       .select()
@@ -431,7 +438,7 @@ export class EmailService {
       if (existing[0].endUserId) return existing[0];
       const [patched] = await tx
         .update(schema.convContacts)
-        .set({ endUserId: endUser.id, updatedAt: new Date() })
+        .set({ endUserId, updatedAt: new Date() })
         .where(eq(schema.convContacts.id, existing[0].id))
         .returning();
       return patched ?? existing[0];
@@ -443,7 +450,7 @@ export class EmailService {
           orgId,
           email: lower,
           name: cleanName,
-          endUserId: endUser.id,
+          endUserId,
           metadata: {},
         })
         .returning();
@@ -453,42 +460,6 @@ export class EmailService {
         .select()
         .from(schema.convContacts)
         .where(and(eq(schema.convContacts.orgId, orgId), eq(schema.convContacts.email, lower)))
-        .limit(1);
-      if (reread[0]) return reread[0];
-      throw err;
-    }
-  }
-
-  private async findOrCreateEndUserByEmail(
-    tx: Db | Tx,
-    orgId: string,
-    email: string,
-    name: string | null,
-  ): Promise<typeof schema.endUsers.$inferSelect> {
-    const externalId = `email:${email}`;
-    const existing = await tx
-      .select()
-      .from(schema.endUsers)
-      .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, externalId)))
-      .limit(1);
-    if (existing[0]) return existing[0];
-    try {
-      const [created] = await tx
-        .insert(schema.endUsers)
-        .values({
-          orgId,
-          externalId,
-          email,
-          name,
-          metadata: { source: 'email-inbound' },
-        })
-        .returning();
-      return created!;
-    } catch (err) {
-      const reread = await tx
-        .select()
-        .from(schema.endUsers)
-        .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, externalId)))
         .limit(1);
       if (reread[0]) return reread[0];
       throw err;

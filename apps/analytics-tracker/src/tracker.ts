@@ -57,8 +57,12 @@ interface MuninGlobal {
   trackSearch: (query: string, resultCount: number, opts?: SearchOpts) => void;
   trackEntry: (token: string, attrs?: TrackAttrs) => void;
   getVisitorId: () => string;
-  identify: (externalId: string, userHash: string) => void;
+  identify: (externalId: string, userHash: string, traits?: IdentifyTraits) => void;
   ready: boolean;
+}
+
+interface IdentifyTraits {
+  email?: string | null;
 }
 
 interface IdentifyPayload {
@@ -66,6 +70,7 @@ interface IdentifyPayload {
   visitorId: string;
   externalId: string;
   userHash: string;
+  email?: string;
 }
 
 const VISITOR_KEY = 'mn.vid';
@@ -351,7 +356,7 @@ function warn(message: string, ...detail: unknown[]): void {
     true,
   );
 
-  function identify(externalId: string, userHash: string): void {
+  function identify(externalId: string, userHash: string, traits?: IdentifyTraits): void {
     if (!externalId || !userHash) {
       warn('identify requires externalId and userHash');
       return;
@@ -362,6 +367,8 @@ function warn(message: string, ...detail: unknown[]): void {
       externalId,
       userHash,
     };
+    const email = traits?.email?.trim();
+    if (email) payload.email = email;
     post(identifyUrl, payload);
   }
 
@@ -422,11 +429,12 @@ function warn(message: string, ...detail: unknown[]): void {
   mn.trackEntry = trackEntry;
   mn.getVisitorId = (): string => visitorId;
   const previousIdentify = mn.identify;
-  mn.identify = (externalId: string, userHash: string): void => {
-    identify(externalId, userHash);
+  mn.identify = (externalId: string, userHash: string, traits?: IdentifyTraits): void => {
+    identify(externalId, userHash, traits);
     if (previousIdentify) {
       try {
-        previousIdentify(externalId, userHash);
+        if (traits) previousIdentify(externalId, userHash, traits);
+        else previousIdentify(externalId, userHash);
       } catch (err) {
         warn('forward identify:', err);
       }

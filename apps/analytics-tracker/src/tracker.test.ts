@@ -68,7 +68,7 @@ interface MnApi {
   trackSearch: (query: string, resultCount: number, opts?: Record<string, unknown>) => void;
   trackEntry: (token: string, attrs?: Record<string, unknown>) => void;
   getVisitorId: () => string;
-  identify: (externalId: string, userHash: string) => void;
+  identify: (externalId: string, userHash: string, traits?: { email?: string | null }) => void;
   ready: boolean;
 }
 
@@ -285,6 +285,26 @@ describe('identify', () => {
     mn().identify('user_9', 'hash9');
     expect(prior).toHaveBeenCalledWith('user_9', 'hash9');
     expect(await beaconsFor(key, '/v1/a/identify')).toHaveLength(1);
+  });
+
+  it('forwards traits to a pre-existing window.mn.identify only when given', async () => {
+    const prior = vi.fn();
+    (window as { mn?: { identify?: unknown } }).mn = { identify: prior };
+    await loadTracker();
+    mn().identify('user_10', 'hash10', { email: 'Kari@Example.no' });
+    expect(prior).toHaveBeenCalledWith('user_10', 'hash10', { email: 'Kari@Example.no' });
+  });
+
+  it('sends a trimmed email trait, and omits the field when there is none', async () => {
+    const key = await loadTracker();
+    beacons = [];
+    mn().identify('user_11', 'hash11', { email: '  kari@example.no  ' });
+    mn().identify('user_12', 'hash12', { email: '   ' });
+    mn().identify('user_13', 'hash13');
+    const payloads = await beaconsFor(key, '/v1/a/identify');
+    expect(payloads[0]).toMatchObject({ externalId: 'user_11', email: 'kari@example.no' });
+    expect(payloads[1]).not.toHaveProperty('email');
+    expect(payloads[2]).not.toHaveProperty('email');
   });
 });
 

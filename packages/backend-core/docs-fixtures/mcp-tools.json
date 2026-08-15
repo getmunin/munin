@@ -570,7 +570,7 @@
   {
     "name": "analytics_rotate_tracker_identity_secret",
     "title": "Analytics: Rotate tracker identity verification secret",
-    "description": "Mint a fresh HMAC secret for verifying visitor-identity claims sent to `/v1/a/identify`. Returns the plaintext secret once; store it server-side and use it to compute `userHash = HMAC_SHA256('${externalId}:${visitorId}', secret)` — the hash binds the visitor, so read `visitorId` from `window.mn.getVisitorId()` first — before calling `window.mn.identify(externalId, userHash)` from the browser. The previous secret is replaced immediately — any in-flight identify calls signed with it will fail.",
+    "description": "Mint a fresh HMAC secret for verifying visitor-identity claims sent to `/v1/a/identify`. Returns the plaintext secret once; store it server-side and use it to sign the identity payload — the fields `['mn.identity.v1', externalId, visitorId, email]`, each prefixed with its UTF-8 byte length, concatenated. The hash binds the visitor, so read `visitorId` from `window.mn.getVisitorId()` first, then call `window.mn.identify(externalId, userHash, { email })` from the browser. The email is optional and may be omitted from both the payload and the call, but including it is what links a visitor to the identity the email channel created for the same address. See `skill://analytics/identify-visitors`. The previous secret is replaced immediately — any in-flight identify calls signed with it will fail.",
     "audiences": [
       "admin"
     ],
@@ -1009,7 +1009,7 @@
   {
     "name": "analytics_get_contact_journey",
     "title": "Analytics: Get a contact’s view journey",
-    "description": "Chronological list of page-view and search events recorded for one identified visitor. Pass either `contactId` (resolved through `crm_contacts.endUserId`) or `endUserId` directly. Returns the ordered event timeline — what the lead looked at before they reached out, what they searched for, etc. Visitors are linked to an end-user identity by the chat-widget on first chat, or via `window.mn.identify(externalId, userHash)`. Events recorded under a `visitor_id` *before* that link was established are still included retroactively — the link is resolved at read time — so the journey spans the visitor's anonymous history too. Pass `trackerId` (from `analytics_list_trackers`) to narrow the timeline to one site or app.",
+    "description": "Chronological list of page-view and search events recorded for one identified visitor. Pass either `contactId` (resolved through `crm_contacts.endUserId`) or `endUserId` directly. Returns the ordered event timeline — what the lead looked at before they reached out, what they searched for, etc. Visitors are linked to an end-user identity by the chat-widget on first chat, or via `window.mn.identify(externalId, userHash, { email })`. Events recorded under a `visitor_id` *before* that link was established are still included retroactively — the link is resolved at read time — so the journey spans the visitor's anonymous history too. Pass `trackerId` (from `analytics_list_trackers`) to narrow the timeline to one site or app.",
     "audiences": [
       "admin"
     ],

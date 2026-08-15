@@ -17,8 +17,10 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import { schema, type Db, type Tx } from '@getmunin/db';
 import {
   hashSecret,
+  identityHashPayload,
   isWellFormedKey,
   keyPrefix,
+  legacyIdentityHashPayload,
   looksLikeBot,
   parseEnvBool,
   verifyHmac,
@@ -28,7 +30,11 @@ import { DB } from '../common/db/db.module.ts';
 import { AnalyticsService } from '../modules/analytics/analytics.service.ts';
 import { canonicalizeSubjectId } from '../modules/analytics/canonical-subject.ts';
 import { GeoIpService } from '../modules/analytics/geoip.service.ts';
-import { linkVisitorToEndUser } from '../modules/analytics/visitor-identity.ts';
+import {
+  linkVisitorToEndUser,
+  normalizeIdentityEmail,
+  resolveIdentifiedEndUser,
+} from '../modules/analytics/visitor-identity.ts';
 
 const TRANSPARENT_GIF = Buffer.from(
   'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
@@ -94,6 +100,7 @@ const IdentifyBodySchema = z.object({
   visitorId: z.string().min(1).max(64),
   externalId: z.string().min(1).max(256),
   userHash: z.string().min(1).max(256),
+  email: z.string().email().max(320).optional(),
 });
 
 @PublicController('v1/a', { throttle: true })
@@ -238,43 +245,42 @@ export class AnalyticsTrackerController {
       );
       return;
     }
-    const ok = verifyHmac(
-      `${body.externalId}:${body.visitorId}`,
-      secret,
-      body.userHash.toLowerCase(),
-    );
+    const signature = body.userHash.toLowerCase();
+    const canonical = identityHashPayload({
+      externalId: body.externalId,
+      visitorId: body.visitorId,
+      email: body.email ?? null,
+    });
+    const ok =
+      verifyHmac(canonical, secret, signature) ||
+      (body.email === undefined &&
+        verifyHmac(
+          legacyIdentityHashPayload(body.externalId, body.visitorId),
+          secret,
+          signature,
+        ));
     if (!ok) {
       this.logger.warn(`identify.rejected: hmac_mismatch tracker=${tracker.trackerId}`);
       return;
     }
 
+    const email = normalizeIdentityEmail(body.email);
+
     try {
       await this.db.transaction(async (tx: Tx) => {
         await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
-        const existing = await tx
-          .select({ id: schema.endUsers.id })
-          .from(schema.endUsers)
-          .where(
-            and(
-              eq(schema.endUsers.orgId, tracker.orgId),
-              eq(schema.endUsers.externalId, body.externalId),
-            ),
-          )
-          .limit(1);
-        let endUserId: string;
-        if (existing[0]) {
-          endUserId = existing[0].id;
-        } else {
-          const [created] = await tx
-            .insert(schema.endUsers)
-            .values({
-              orgId: tracker.orgId,
-              externalId: body.externalId,
-            })
-            .returning({ id: schema.endUsers.id });
-          endUserId = created!.id;
+        const resolution = await resolveIdentifiedEndUser(
+          tx,
+          tracker.orgId,
+          body.externalId,
+          email,
+        );
+        if (resolution.outcome === 'email-held-by-another-identity') {
+          this.logger.warn(
+            `identify.email_conflict: tracker=${tracker.trackerId} end_user=${resolution.endUserId} left unlinked from its email, which belongs to a different identity — needs a manual merge`,
+          );
         }
-        await linkVisitorToEndUser(tx, tracker.orgId, body.visitorId, endUserId);
+        await linkVisitorToEndUser(tx, tracker.orgId, body.visitorId, resolution.endUserId);
       });
     } catch (err) {
       this.logger.warn(`identify.persist_failed: ${(err as Error).message}`);

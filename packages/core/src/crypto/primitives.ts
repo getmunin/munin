@@ -19,6 +19,20 @@ export function verifyHmac(payload: string | Buffer, secret: string, signature: 
   return timingSafeEqual(expected, signature);
 }
 
+export function identityHashPayload(parts: {
+  externalId: string;
+  visitorId: string;
+  email?: string | null;
+}): string {
+  return ['mn.identity.v1', parts.externalId, parts.visitorId, parts.email ?? '']
+    .map((field) => `${Buffer.byteLength(field, 'utf8')}:${field}`)
+    .join('');
+}
+
+export function legacyIdentityHashPayload(externalId: string, visitorId: string): string {
+  return `${externalId}:${visitorId}`;
+}
+
 export function timingSafeEqual(a: string, b: string): boolean {
   const aBuf = Buffer.from(a);
   const bBuf = Buffer.from(b);

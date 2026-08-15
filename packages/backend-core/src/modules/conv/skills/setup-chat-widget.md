@@ -133,7 +133,7 @@ function userHash(externalId: string, secret: string): string {
 }
 ```
 
-The widget hash covers `externalId` **only** — no visitor binding. That's a deliberate contrast with the analytics tracker, whose identify hash binds the visitor (`HMAC(\`${externalId}:${visitorId}\`)`, see `skill://analytics/identify-visitors`) and therefore needs a per-session browser round-trip. Because the widget hash is static per user, you can **server-render it** into the embed with no round-trip:
+The widget hash covers `externalId` **only** — no visitor binding. That's a deliberate contrast with the analytics tracker, whose identify hash binds the visitor and the email (a length-prefixed `mn.identity.v1` payload, see `skill://analytics/identify-visitors`) and therefore needs a per-session browser round-trip. Because the widget hash is static per user, you can **server-render it** into the embed with no round-trip:
 
 ```html
 <script async
@@ -150,6 +150,17 @@ The widget hash covers `externalId` **only** — no visitor binding. That's a de
 Set `requireVerifiedIdentity: true` on the channel (`conv_create_widget_channel` / `conv_update_widget_channel`) to reject unverified sessions outright; the default (`false`) allows anonymous ingest alongside verified ones.
 
 Because the widget and the analytics tracker share the same `localStorage` visitor id (`mn.vid`), identifying a visitor to the widget also stitches their prior anonymous analytics history — no separate `window.mn.identify` call needed for that visitor.
+
+### Running the widget and the analytics tracker on the same page
+
+Both bundles install `window.mn.identify`, and whichever loads second chains to the first — so one call reaches both. But they verify **different hashes against different secrets**: the widget checks `externalId` against the widget channel's secret, the tracker checks the visitor-bound payload against the tracker's. A hash minted for one is always rejected by the other, and the two fail differently: the widget logs `identify failed` to the console, while the tracker posts with `sendBeacon` and fails **silently** — the only trace is `identify.rejected: hmac_mismatch` in the server log.
+
+So don't route both through the JS call. Give each surface its own channel:
+
+- **Widget** — `data-external-id` + `data-user-hash` on the embed script tag, server-rendered. No round-trip, no `window.mn.identify`.
+- **Tracker** — `window.mn.identify(externalId, trackerHash, { email })`, after the `getVisitorId()` round-trip.
+
+That covers every page where the user is known at render time. The gap is an SPA that signs a user in without a reload: the widget has already mounted anonymously and needs the JS path — which is also what claims an anonymous chat session for the now-known user — and that is exactly when the collision bites. Until the widget's `identify` moves to its own `window.mn.widget` namespace, identify it on the next full page load, or re-render the embed with the identity attributes.
 
 ### Sharing a session across subdomains
 

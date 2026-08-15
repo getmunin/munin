@@ -3,6 +3,7 @@ import { createDb, type Db } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import {
   hashSecret,
+  identityHashPayload,
   randomToken,
   signHmac,
   verifyHmac,
@@ -48,6 +49,27 @@ describe('signHmac / verifyHmac', () => {
   it('rejects mismatched secret', () => {
     const sig = signHmac('hello', 'secret');
     expect(verifyHmac('hello', 'other-secret', sig)).toBe(false);
+  });
+});
+
+describe('identityHashPayload', () => {
+  it('cannot be shifted between fields by a value containing the separator', () => {
+    expect(
+      identityHashPayload({ externalId: 'email:a@b.no', visitorId: 'v1' }),
+    ).not.toBe(identityHashPayload({ externalId: 'email', visitorId: 'a@b.no:v1' }));
+  });
+  it('separates a signed email from an absent one', () => {
+    expect(identityHashPayload({ externalId: 'a', visitorId: 'v', email: 'x@y.no' })).not.toBe(
+      identityHashPayload({ externalId: 'a', visitorId: 'v' }),
+    );
+  });
+  it('treats a null email as absent', () => {
+    expect(identityHashPayload({ externalId: 'a', visitorId: 'v', email: null })).toBe(
+      identityHashPayload({ externalId: 'a', visitorId: 'v' }),
+    );
+  });
+  it('counts bytes, not code units, so multibyte values stay unambiguous', () => {
+    expect(identityHashPayload({ externalId: 'æ', visitorId: 'v' })).toContain('2:æ');
   });
 });
 

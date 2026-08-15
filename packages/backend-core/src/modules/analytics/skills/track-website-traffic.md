@@ -139,7 +139,7 @@ The full API on `window.mn`:
 | `mn.trackSearch(query, resultCount, opts?)` | A search event (see below). |
 | `mn.trackEntry(token, attrs?)` | A CMS entry view — see `skill://analytics/track-cms-views`. |
 | `mn.getVisitorId()` | The `visitor_id` this browser is sending. |
-| `mn.identify(externalId, userHash)` | Link the visitor to a known user — see `skill://analytics/identify-visitors`. |
+| `mn.identify(externalId, userHash, traits?)` | Link the visitor to a known user; pass `{ email }` (signed) to join up with the identity the email channel created — see `skill://analytics/identify-visitors`. |
 
 ## 3b. Search events from any search box
 

@@ -3,11 +3,12 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import { buildApiKey, hashSecret, keyPrefix, signHmac } from '@getmunin/core';
+import { buildApiKey, hashSecret, identityHashPayload, keyPrefix, signHmac } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { createApp } from '../../bootstrap-app.ts';
 import { AppModule } from '../../app.module.ts';
+import { findOrCreateEndUserByEmail } from '../conv/end-user-by-email.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -80,6 +81,27 @@ const skipReason = TEST_URL
       await transport.close();
       await c.close();
     }
+  }
+
+  async function mintIdentityTracker(
+    name: string,
+  ): Promise<{ trackerKey: string; identityVerificationSecret: string }> {
+    return withClient(adminKey, async (c) =>
+      parseToolResult<{ trackerKey: string; identityVerificationSecret: string }>(
+        await c.callTool({ name: 'analytics_create_tracker', arguments: { name } }),
+      ),
+    );
+  }
+
+  async function postIdentify(
+    trackerKey: string,
+    body: { visitorId: string; externalId: string; userHash: string; email?: string },
+  ): Promise<Response> {
+    return fetch(`${baseUrl}/v1/a/identify`, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({ key: trackerKey, ...body }),
+    });
   }
 
   it('mint tracker → tracker.js served → pixel + beacon record rows; bot/invalid key dropped', async () => {
@@ -1234,6 +1256,144 @@ const skipReason = TEST_URL
     expect(journey.some((e) => e.kind === 'view' && e.subjectId === 'docs/getting-started')).toBe(
       true,
     );
+  }, 30_000);
+
+  it('identify with a signed email converges on the identity the email channel already created', async () => {
+    const minted = await mintIdentityTracker('email-trait tracker');
+    const email = 'kari.nordmann@example.no';
+
+    const [provisional] = await db
+      .insert(schema.endUsers)
+      .values({ orgId, externalId: `email:${email}`, email, name: 'Kari Nordmann' })
+      .returning({ id: schema.endUsers.id });
+
+    const visitorId = 'visitor-email-trait-1';
+    const externalId = 'axo-9001';
+    const res = await postIdentify(minted.trackerKey, {
+      visitorId,
+      externalId,
+      email,
+      userHash: signHmac(
+        identityHashPayload({ externalId, visitorId, email }),
+        minted.identityVerificationSecret,
+      ),
+    });
+    expect(res.status).toBe(204);
+
+    await waitFor(async () => {
+      const rows = await db
+        .select({ id: schema.endUsers.id })
+        .from(schema.endUsers)
+        .where(sql`org_id = ${orgId} AND external_id = ${externalId}`)
+        .limit(1);
+      return rows.length > 0;
+    });
+
+    const holders = await db
+      .select({ id: schema.endUsers.id, externalId: schema.endUsers.externalId })
+      .from(schema.endUsers)
+      .where(sql`org_id = ${orgId} AND lower(email) = ${email}`);
+    expect(holders).toHaveLength(1);
+    expect(holders[0]!.id).toBe(provisional!.id);
+    expect(holders[0]!.externalId).toBe(externalId);
+
+    const bridge = await db
+      .select({ endUserId: schema.analyticsVisitorIdentities.endUserId })
+      .from(schema.analyticsVisitorIdentities)
+      .where(sql`org_id = ${orgId} AND visitor_id = ${visitorId}`)
+      .limit(1);
+    expect(bridge[0]?.endUserId).toBe(provisional!.id);
+  }, 30_000);
+
+  it('an inbound email reuses the identity that identify created, instead of forking a second one', async () => {
+    const minted = await mintIdentityTracker('email-first tracker');
+    const email = 'ola.nordmann@example.no';
+    const visitorId = 'visitor-email-trait-2';
+    const externalId = 'axo-9002';
+
+    const res = await postIdentify(minted.trackerKey, {
+      visitorId,
+      externalId,
+      email,
+      userHash: signHmac(
+        identityHashPayload({ externalId, visitorId, email }),
+        minted.identityVerificationSecret,
+      ),
+    });
+    expect(res.status).toBe(204);
+    await waitFor(async () => {
+      const rows = await db
+        .select({ id: schema.endUsers.id })
+        .from(schema.endUsers)
+        .where(sql`org_id = ${orgId} AND external_id = ${externalId}`)
+        .limit(1);
+      return rows.length > 0;
+    });
+
+    const resolved = await findOrCreateEndUserByEmail(db, orgId, email, null, 'email-inbound');
+
+    const holders = await db
+      .select({ id: schema.endUsers.id, externalId: schema.endUsers.externalId })
+      .from(schema.endUsers)
+      .where(sql`org_id = ${orgId} AND lower(email) = ${email}`);
+    expect(holders).toHaveLength(1);
+    expect(resolved).toBe(holders[0]!.id);
+    expect(holders[0]!.externalId).toBe(externalId);
+  }, 30_000);
+
+  it('rejects an email the caller did not sign, and leaves a rival identity holding that email alone', async () => {
+    const minted = await mintIdentityTracker('email-conflict tracker');
+    const email = 'delt.postkasse@example.no';
+
+    const [rival] = await db
+      .insert(schema.endUsers)
+      .values({ orgId, externalId: 'axo-owner-1', email })
+      .returning({ id: schema.endUsers.id });
+
+    const visitorId = 'visitor-email-trait-3';
+    const externalId = 'axo-9003';
+    const unsigned = await postIdentify(minted.trackerKey, {
+      visitorId,
+      externalId,
+      email,
+      userHash: signHmac(
+        identityHashPayload({ externalId, visitorId }),
+        minted.identityVerificationSecret,
+      ),
+    });
+    expect(unsigned.status).toBe(204);
+    await new Promise((r) => setTimeout(r, 100));
+    const unsignedRows = await db
+      .select({ id: schema.endUsers.id })
+      .from(schema.endUsers)
+      .where(sql`org_id = ${orgId} AND external_id = ${externalId}`);
+    expect(unsignedRows).toHaveLength(0);
+
+    const signed = await postIdentify(minted.trackerKey, {
+      visitorId,
+      externalId,
+      email,
+      userHash: signHmac(
+        identityHashPayload({ externalId, visitorId, email }),
+        minted.identityVerificationSecret,
+      ),
+    });
+    expect(signed.status).toBe(204);
+    await waitFor(async () => {
+      const rows = await db
+        .select({ id: schema.endUsers.id })
+        .from(schema.endUsers)
+        .where(sql`org_id = ${orgId} AND external_id = ${externalId}`)
+        .limit(1);
+      return rows.length > 0;
+    });
+
+    const holders = await db
+      .select({ id: schema.endUsers.id })
+      .from(schema.endUsers)
+      .where(sql`org_id = ${orgId} AND lower(email) = ${email}`);
+    expect(holders).toHaveLength(1);
+    expect(holders[0]!.id).toBe(rival!.id);
   }, 30_000);
 
   it('requireVerifiedIdentity drops unidentified beacons; verified beacons persist', async () => {

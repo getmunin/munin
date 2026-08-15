@@ -160,7 +160,7 @@ So don't route both through the JS call. Give each surface its own channel:
 - **Widget** — `data-external-id` + `data-user-hash` on the embed script tag, server-rendered. No round-trip, no `window.mn.identify`.
 - **Tracker** — `window.mn.identify(externalId, trackerHash, { email })`, after the `getVisitorId()` round-trip.
 
-That covers every page where the user is known at render time. The gap is an SPA that signs a user in without a reload: the widget has already mounted anonymously and needs the JS path, which is exactly when the collision bites. Until per-surface hashes land, identify the widget on the next full page load, or re-render the embed with the identity attributes.
+That covers every page where the user is known at render time. The gap is an SPA that signs a user in without a reload: the widget has already mounted anonymously and needs the JS path — which is also what claims an anonymous chat session for the now-known user — and that is exactly when the collision bites. Until the widget's `identify` moves to its own `window.mn.widget` namespace, identify it on the next full page load, or re-render the embed with the identity attributes.
 
 ### Sharing a session across subdomains
 

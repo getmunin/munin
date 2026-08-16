@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/dashboard-pages",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "license": "MIT",
   "description": "Munin dashboard page components shared between OSS and cloud Next apps.",
   "publishConfig": {

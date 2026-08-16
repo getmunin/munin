@@ -19,8 +19,10 @@ export function normalizeIdentityEmail(email: string | null | undefined): string
   return trimmed ? trimmed : null;
 }
 
+const SYNTHETIC_ID_PREFIXES = ['email:', 'phone:', 'anon:'];
+
 function isProvisionalIdentity(externalId: string | null): boolean {
-  return externalId === null || externalId.startsWith('email:');
+  return externalId === null || SYNTHETIC_ID_PREFIXES.some((p) => externalId.startsWith(p));
 }
 
 async function findByExternalId(tx: Tx | Db, orgId: string, externalId: string) {

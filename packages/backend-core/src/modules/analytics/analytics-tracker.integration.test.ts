@@ -1258,6 +1258,51 @@ const skipReason = TEST_URL
     );
   }, 30_000);
 
+  it('adopts an anonymous widget identity that already carries the address', async () => {
+    const minted = await mintIdentityTracker('anon-adopt tracker');
+    const email = 'anon.holder@example.no';
+
+    const [anon] = await db
+      .insert(schema.endUsers)
+      .values({
+        orgId,
+        externalId: `anon:${'sess-' + Math.abs(orgId.length * 7919)}`,
+        email,
+        name: 'Kjell (widget session)',
+      })
+      .returning({ id: schema.endUsers.id });
+
+    const visitorId = 'visitor-anon-adopt';
+    const externalId = 'axo-anon-1';
+    const res = await postIdentify(minted.trackerKey, {
+      visitorId,
+      externalId,
+      email,
+      userHash: signHmac(
+        identityHashPayload({ externalId, visitorId, email }),
+        minted.identityVerificationSecret,
+      ),
+    });
+    expect(res.status).toBe(204);
+
+    await waitFor(async () => {
+      const rows = await db
+        .select({ id: schema.endUsers.id })
+        .from(schema.endUsers)
+        .where(sql`org_id = ${orgId} AND external_id = ${externalId}`)
+        .limit(1);
+      return rows.length > 0;
+    });
+
+    const holders = await db
+      .select({ id: schema.endUsers.id, externalId: schema.endUsers.externalId })
+      .from(schema.endUsers)
+      .where(sql`org_id = ${orgId} AND lower(email) = ${email}`);
+    expect(holders).toHaveLength(1);
+    expect(holders[0]!.id).toBe(anon!.id);
+    expect(holders[0]!.externalId).toBe(externalId);
+  }, 30_000);
+
   it('identify with a signed email converges on the identity the email channel already created', async () => {
     const minted = await mintIdentityTracker('email-trait tracker');
     const email = 'kari.nordmann@example.no';

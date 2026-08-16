@@ -1,5 +1,38 @@
 # @getmunin/backend-core
 
+## 5.0.2
+
+### Patch Changes
+
+- b48db08: Treat anonymous and phone-derived identities as provisional when resolving `identify`
+
+  `identify` refused to adopt an `end_users` row whose `external_id` was an `anon:<session>` key, because only `email:` prefixes and `NULL` counted as provisional. Those anon keys are throwaway widget-session ids, not real identities — and the chat widget stamps the visitor's email onto them through visitor enrichment, so they routinely hold an address.
+
+  The result: a visitor who chatted with the widget and later signed in hit the conflict branch instead of the adoption branch. `identify` created a second row with no email, logged `identify.email_conflict`, and did so on every subsequent call — the web journey could never join the email identity, which is the exact split this feature exists to close. `phone:` keys had the same gap.
+
+  Both prefixes are now provisional alongside `email:`, so the anonymous row is promoted in place to the caller's real external id: the row id never changes, everything already attached to it stays attached, and the throwaway key is retired as a side effect. Existing rows heal on the next identify; no migration required.
+
+  Note that migration `0069`'s keeper ordering shares the blind spot — it ranks `anon:` as a real id when choosing which duplicate survives — so a deploy that merged duplicates may have kept an anon-keyed row. That is cosmetic rather than harmful: the merge itself repointed every reference correctly, and the first identify after this fix promotes the key.
+
+- b48db08: Drain the curator queue to empty, and spread scheduled sweeps across the fleet
+
+  A curator backlog could sit untouched for hours and then run all at once. Two causes, both fixed here.
+
+  `triggerPoll` drops a trigger while a poll is already in flight, and `pollOnce` claimed exactly one job per trigger. So when the scheduler enqueued four sweeps for an org in the same second, four `curator_job.pending` events arrived, the first started a poll, and the other three were swallowed — one job ran and the rest waited for something to poll again. Nothing does, until the next realtime reconnect. In practice that meant a restart: jobs enqueued at 00:00 were observed starting at 06:38 the same morning, still on `attempt 1/5`, for every org at once.
+
+  The poll loop now keeps claiming until the queue comes back empty (`drainCuratorQueue`), so a burst of enqueues drains steadily instead of pooling. It re-checks `beforeGenerate` between jobs, so a host that revokes permission mid-drain — a quota gate, a rate limiter — is honoured on the next job rather than after the whole backlog. It stops early on a provider error, since the next job would only fail the same way, and pauses after 25 jobs so one org's backlog can't monopolise a shared provider; the remainder is re-queued behind the other orgs.
+
+  The other cause is the scheduler itself: `runSweep` walked every org and enqueued with the same `next_attempt_at`, so an entire fleet's weekly sweep landed on one instant. Sweeps now spread their enqueues over a window that scales with fleet size (60s per org, capped at 4h) — a single-org deployment is unaffected, a 100-org fleet spreads over ~99 minutes. Retry backoff in `fail()` gained the same treatment: it was `30s · 2^attempts` with no jitter, so jobs that failed together retried together forever. It is now multiplied by a random 1–2×.
+
+- Updated dependencies [b48db08]
+  - @getmunin/agent-runtime@5.0.2
+  - @getmunin/core@5.0.2
+  - @getmunin/db@5.0.2
+  - @getmunin/types@5.0.2
+  - @getmunin/mcp-toolkit@5.0.2
+  - @getmunin/inspector-app@5.0.2
+  - @getmunin/emails@5.0.2
+
 ## 5.0.1
 
 ### Patch Changes

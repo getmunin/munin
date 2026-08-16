@@ -56,6 +56,7 @@ import { ReplicaLockManager } from './replica-lock.ts';
 import { runWebImportJob } from './web-import.handler.ts';
 import { AgentHealthService } from './agent-health.service.ts';
 import { createMeteringProvider } from './usage-metering.ts';
+import { createDrainScheduler, type DrainScheduler } from './drain-scheduler.ts';
 
 interface TaskHandlerContext {
   job: CuratorJob;
@@ -79,6 +80,7 @@ const CURATOR_LEASE_SECONDS = 600;
 const CURATOR_MAX_SCHEDULED_DELAY_MS = 24 * 60 * 60 * 1000;
 const CONVERSATION_SWEEP_LIMIT = 50;
 const CURATOR_MAX_TOOL_ITERATIONS = 16;
+const CURATOR_DRAIN_SPACING_MS = 5_000;
 
 const BASE_END_USER_AGENT_SCOPES: readonly string[] = [
   'conv:read',
@@ -161,6 +163,9 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
   private readonly holderId: string;
   private readonly lockManager: ReplicaLockManager | null;
   private readonly options?: AgentHostRunnerOptions;
+  private readonly drainScheduler: DrainScheduler = createDrainScheduler(
+    CURATOR_DRAIN_SPACING_MS,
+  );
 
   constructor(
     @Inject(AGENT_CONFIG_REPOSITORY) private readonly repo: AgentConfigRepository,
@@ -737,6 +742,17 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       );
     };
 
+    let cancelDrain: (() => void) | null = null;
+    const scheduleDrain = (): void => {
+      if (cancelDrain) return;
+      cancelDrain = this.drainScheduler.enqueue(() => {
+        cancelDrain = null;
+        if (stopped) return;
+        log.info('realtime connected — draining queue');
+        triggerPoll();
+      });
+    };
+
     return {
       onPending(event) {
         if (stopped) return;
@@ -757,11 +773,12 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       },
       onConnected() {
         if (stopped) return;
-        log.info('realtime connected — draining queue');
-        triggerPoll();
+        scheduleDrain();
       },
       async stop() {
         stopped = true;
+        cancelDrain?.();
+        cancelDrain = null;
         for (const t of scheduledByJob.values()) clearTimeout(t);
         scheduledByJob.clear();
         await Promise.allSettled([...inFlight]);

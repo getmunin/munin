@@ -17,6 +17,10 @@ interface OpenAIResponse {
 
 const CACHE_CONTROL = { type: 'ephemeral' } as const;
 
+const RATE_LIMIT_MAX_RETRIES = 4;
+const RATE_LIMIT_BASE_DELAY_MS = 500;
+const RATE_LIMIT_MAX_DELAY_MS = 15_000;
+
 export const openAiCompatibleProvider: Provider = async ({
   config,
   messages,
@@ -39,14 +43,11 @@ export const openAiCompatibleProvider: Provider = async ({
     body.response_format = { type: 'json_object' };
   }
 
-  const res = await safeFetch(url, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${config.provider.apiKey}`,
-    },
+  const res = await postChatCompletion({
+    url,
+    apiKey: config.provider.apiKey,
     body: JSON.stringify(body),
-    signal: abortSignal,
+    abortSignal,
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -77,6 +78,69 @@ export const openAiCompatibleProvider: Provider = async ({
     finishReason,
   };
 };
+
+async function postChatCompletion(args: {
+  url: string;
+  apiKey: string;
+  body: string;
+  abortSignal?: AbortSignal;
+}): Promise<Awaited<ReturnType<typeof safeFetch>>> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await safeFetch(args.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${args.apiKey}`,
+      },
+      body: args.body,
+      signal: args.abortSignal,
+    });
+    if (res.status !== 429 || attempt >= RATE_LIMIT_MAX_RETRIES) return res;
+    const retryAfter = res.headers.get('retry-after');
+    await sleep(rateLimitRetryDelayMs(retryAfter, attempt), args.abortSignal);
+  }
+}
+
+export function rateLimitRetryDelayMs(
+  retryAfter: string | null,
+  attempt: number,
+  random: () => number = Math.random,
+): number {
+  const backoff = Math.min(RATE_LIMIT_BASE_DELAY_MS * 2 ** attempt, RATE_LIMIT_MAX_DELAY_MS);
+  const requested = parseRetryAfterMs(retryAfter);
+  const wait = requested === null ? backoff : Math.max(requested, backoff);
+  return Math.min(RATE_LIMIT_MAX_DELAY_MS, Math.round(wait * (1 + random())));
+}
+
+export function parseRetryAfterMs(retryAfter: string | null): number | null {
+  if (!retryAfter) return null;
+  const seconds = Number(retryAfter);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  const at = Date.parse(retryAfter);
+  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null;
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortReason(signal));
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      reject(abortReason(signal));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+function abortReason(signal?: AbortSignal): Error {
+  return signal?.reason instanceof Error ? signal.reason : new Error('aborted');
+}
 
 export type ProviderErrorCode =
   | 'provider_auth'

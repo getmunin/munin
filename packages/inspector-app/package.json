@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/inspector-app",
-  "version": "5.0.1",
+  "version": "5.0.2",
   "license": "MIT",
   "description": "Munin Inspector MCP App: the ui://munin/inspector panel bundle rendered inline by MCP App hosts.",
   "publishConfig": {

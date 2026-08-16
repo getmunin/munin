@@ -1,5 +1,38 @@
 # @getmunin/agent-host
 
+## 5.0.2
+
+### Patch Changes
+
+- b48db08: Retry provider 429s with jittered backoff, and stagger curator drains across orgs
+
+  A hosted deploy put every org's agent runner on one shared provider key and one shared per-minute token budget. When the backend container respawned, all runners reconnected to the realtime bus inside the same second and each immediately drained its curator queue. Individual curator jobs cost 15k–85k tokens, so a handful of concurrent drains blew straight through the provider's tokens-per-minute quota and came back `429 INSUFFICIENT QUOTA`.
+
+  Two things then made a one-second burst look like an outage. `openAiCompatibleProvider` surfaced the first 429 as a `ProviderError`, and `AgentHealthService` opened an `llm_provider` alert on it — which only resolves on a later _success_, so the dashboard's "agent runner offline — provider rate limit hit" banner stayed up for hours after the provider had recovered. Four orgs sat degraded that way with no further failing traffic.
+
+  `openAiCompatibleProvider` now retries a 429 up to four times before raising, waiting `500ms · 2^attempt` (capped at 15s), never less than a `Retry-After` header asks for, and multiplied by a random 1–2× jitter so concurrent callers don't retry in lockstep. Every caller inherits this: chat, curator jobs, and any host-supplied provider that wraps the built-in one. Other statuses are untouched — a 401 or 404 still fails on the first attempt, since retrying a bad key or a missing model only delays the real signal.
+
+  `AgentHostRunner` now routes the on-connect curator drain through a shared scheduler that spaces drains 5s apart, so a twelve-org boot spreads over a minute instead of firing at `t=0`. A single reconnect after the spacing window has passed is not delayed at all, and a runner that stops with a drain still pending cancels it.
+
+- b48db08: Drain the curator queue to empty, and spread scheduled sweeps across the fleet
+
+  A curator backlog could sit untouched for hours and then run all at once. Two causes, both fixed here.
+
+  `triggerPoll` drops a trigger while a poll is already in flight, and `pollOnce` claimed exactly one job per trigger. So when the scheduler enqueued four sweeps for an org in the same second, four `curator_job.pending` events arrived, the first started a poll, and the other three were swallowed — one job ran and the rest waited for something to poll again. Nothing does, until the next realtime reconnect. In practice that meant a restart: jobs enqueued at 00:00 were observed starting at 06:38 the same morning, still on `attempt 1/5`, for every org at once.
+
+  The poll loop now keeps claiming until the queue comes back empty (`drainCuratorQueue`), so a burst of enqueues drains steadily instead of pooling. It re-checks `beforeGenerate` between jobs, so a host that revokes permission mid-drain — a quota gate, a rate limiter — is honoured on the next job rather than after the whole backlog. It stops early on a provider error, since the next job would only fail the same way, and pauses after 25 jobs so one org's backlog can't monopolise a shared provider; the remainder is re-queued behind the other orgs.
+
+  The other cause is the scheduler itself: `runSweep` walked every org and enqueued with the same `next_attempt_at`, so an entire fleet's weekly sweep landed on one instant. Sweeps now spread their enqueues over a window that scales with fleet size (60s per org, capped at 4h) — a single-org deployment is unaffected, a 100-org fleet spreads over ~99 minutes. Retry backoff in `fail()` gained the same treatment: it was `30s · 2^attempts` with no jitter, so jobs that failed together retried together forever. It is now multiplied by a random 1–2×.
+
+- Updated dependencies [b48db08]
+- Updated dependencies [b48db08]
+- Updated dependencies [b48db08]
+  - @getmunin/agent-runtime@5.0.2
+  - @getmunin/backend-core@5.0.2
+  - @getmunin/core@5.0.2
+  - @getmunin/db@5.0.2
+  - @getmunin/types@5.0.2
+
 ## 5.0.1
 
 ### Patch Changes

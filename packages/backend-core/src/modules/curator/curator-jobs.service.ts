@@ -26,6 +26,11 @@ export type CuratorJobStatus = (typeof CURATOR_JOB_STATUSES)[number];
 
 const BACKOFF_BASE_MS = 30_000;
 
+export function jitteredBackoffMs(attempts: number, random: () => number = Math.random): number {
+  const base = BACKOFF_BASE_MS * Math.pow(2, Math.max(0, attempts - 1));
+  return Math.round(base * (1 + random()));
+}
+
 export interface CuratorJobDto {
   id: string;
   orgId: string;
@@ -253,7 +258,7 @@ export class CuratorJobsService {
         : reachedMax
           ? 'dead'
           : 'pending';
-    const backoffMs = BACKOFF_BASE_MS * Math.pow(2, Math.max(0, current.attempts - 1));
+    const backoffMs = jitteredBackoffMs(current.attempts);
     const nextAt = status === 'pending' ? new Date(Date.now() + backoffMs) : current.nextAttemptAt;
 
     const [row] = await ctx.db

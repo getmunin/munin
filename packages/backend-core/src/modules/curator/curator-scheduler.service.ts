@@ -34,6 +34,14 @@ interface SweepDef {
   dedupeKey: string;
 }
 
+const SWEEP_SPREAD_SECONDS_PER_ORG = 60;
+const SWEEP_SPREAD_MAX_SECONDS = 4 * 60 * 60;
+
+export function sweepSpreadSeconds(orgCount: number): number {
+  const span = Math.max(orgCount - 1, 0) * SWEEP_SPREAD_SECONDS_PER_ORG;
+  return Math.min(span, SWEEP_SPREAD_MAX_SECONDS);
+}
+
 @Injectable()
 export class CuratorSchedulerService implements OnModuleInit {
   private readonly logger = new Logger(CuratorSchedulerService.name);
@@ -122,9 +130,16 @@ export class CuratorSchedulerService implements OnModuleInit {
       .from(schema.orgs);
     if (orgs.length === 0) return;
 
+    const spreadSeconds = sweepSpreadSeconds(orgs.length);
+    if (spreadSeconds > 0) {
+      this.logger.log(
+        `${sweep.name} spreading ${orgs.length} orgs over ${Math.round(spreadSeconds / 60)} min`,
+      );
+    }
+
     for (const org of orgs) {
       try {
-        await this.enqueueAsOrg(org.id, sweep);
+        await this.enqueueAsOrg(org.id, sweep, Math.floor(Math.random() * spreadSeconds));
       } catch (err) {
         this.logger.warn(
           `${sweep.name} enqueue failed for org ${org.id}: ${describe(err)}`,
@@ -133,7 +148,11 @@ export class CuratorSchedulerService implements OnModuleInit {
     }
   }
 
-  private async enqueueAsOrg(orgId: string, sweep: SweepDef): Promise<void> {
+  private async enqueueAsOrg(
+    orgId: string,
+    sweep: SweepDef,
+    delaySeconds: number,
+  ): Promise<void> {
     await this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
       await tx.execute(sql`SELECT set_config('app.org_id', ${orgId}, true)`);
@@ -146,6 +165,7 @@ export class CuratorSchedulerService implements OnModuleInit {
           userPrompt: sweep.userPrompt,
           sourceEventType: `scheduler.${sweep.name}`,
           dedupeKey: sweep.dedupeKey,
+          delaySeconds,
         });
         if (result.alreadyPending) {
           this.logger.log(

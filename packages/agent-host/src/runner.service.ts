@@ -57,6 +57,7 @@ import { runWebImportJob } from './web-import.handler.ts';
 import { AgentHealthService } from './agent-health.service.ts';
 import { createMeteringProvider } from './usage-metering.ts';
 import { createDrainScheduler, type DrainScheduler } from './drain-scheduler.ts';
+import { drainCuratorQueue } from './curator-drain.ts';
 
 interface TaskHandlerContext {
   job: CuratorJob;
@@ -81,6 +82,7 @@ const CURATOR_MAX_SCHEDULED_DELAY_MS = 24 * 60 * 60 * 1000;
 const CONVERSATION_SWEEP_LIMIT = 50;
 const CURATOR_MAX_TOOL_ITERATIONS = 16;
 const CURATOR_DRAIN_SPACING_MS = 5_000;
+const CURATOR_DRAIN_MAX_JOBS = 25;
 
 const BASE_END_USER_AGENT_SCOPES: readonly string[] = [
   'conv:read',
@@ -577,7 +579,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     const smartModel = opts.smartModel;
     const fastModel = opts.fastModel;
 
-    const executeOne = async (job: CuratorJob): Promise<void> => {
+    const executeOne = async (job: CuratorJob): Promise<boolean> => {
       log.info(`running ${job.jobUri} for ${job.id} (attempt ${job.attempts}/${job.maxAttempts})`);
       let result: SkillPassResult;
       const jobMcp = openAdminAgentMcpClient({
@@ -643,7 +645,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
         await opts.rest
           .failCuratorJob(job.id, { error: message })
           .catch((e) => log.error(`fail-report failed: ${describe(e)}`));
-        return;
+        return false;
       }
 
       if (result.ok) {
@@ -663,7 +665,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
             { orgId: opts.orgId },
           ).catch((e) => log.warn(`recordSuccess failed: ${describe(e)}`));
         }
-        return;
+        return false;
       }
 
       const retryable =
@@ -690,45 +692,54 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       await opts.rest
         .failCuratorJob(job.id, failBody)
         .catch((e) => log.error(`fail-report failed: ${describe(e)}`));
+      return result.skipped === 'provider_error';
+    };
+
+    const admit = async (): Promise<boolean> => {
+      if (!this.options?.beforeGenerate) return true;
+      const verdict = await runWithServiceContext(
+        this.db,
+        opts.id,
+        () =>
+          this.options!.beforeGenerate!({
+            orgId: opts.orgId,
+            config: opts.config,
+            managed: opts.managed,
+            trigger: 'scheduled',
+          }),
+        { orgId: opts.orgId },
+      ).catch((err): { allowed: boolean; reason?: string } => {
+        log.warn(`beforeGenerate failed, proceeding: ${describe(err)}`);
+        return { allowed: true };
+      });
+      if (!verdict.allowed) {
+        log.info(`scheduled work suppressed: ${verdict.reason ?? 'gate denied'}`);
+        return false;
+      }
+      return true;
     };
 
     const pollOnce = async (): Promise<void> => {
       if (stopped) return;
-      if (this.options?.beforeGenerate) {
-        const verdict = await runWithServiceContext(
-          this.db,
-          opts.id,
-          () =>
-            this.options!.beforeGenerate!({
-              orgId: opts.orgId,
-              config: opts.config,
-              managed: opts.managed,
-              trigger: 'scheduled',
-            }),
-          { orgId: opts.orgId },
-        ).catch((err): { allowed: boolean; reason?: string } => {
-          log.warn(`beforeGenerate failed, proceeding: ${describe(err)}`);
-          return { allowed: true };
-        });
-        if (!verdict.allowed) {
-          log.info(`scheduled work suppressed: ${verdict.reason ?? 'gate denied'}`);
-          return;
-        }
+      const outcome = await drainCuratorQueue<CuratorJob>({
+        admit,
+        claim: () =>
+          opts.rest.claimCuratorJobs({
+            holder: this.holderId,
+            limit: 1,
+            leaseSeconds: CURATOR_LEASE_SECONDS,
+          }),
+        execute: executeOne,
+        maxJobs: CURATOR_DRAIN_MAX_JOBS,
+        isStopped: () => stopped,
+        onClaimError: (err) => log.warn(`claim failed: ${describe(err)}`),
+      });
+      if (outcome === 'paused') {
+        log.info(`drained ${CURATOR_DRAIN_MAX_JOBS} jobs — re-queueing the rest behind other orgs`);
+        scheduleDrain('batch limit');
       }
-      let jobs: CuratorJob[];
-      try {
-        jobs = await opts.rest.claimCuratorJobs({
-          holder: this.holderId,
-          limit: 1,
-          leaseSeconds: CURATOR_LEASE_SECONDS,
-        });
-      } catch (err) {
-        log.warn(`claim failed: ${describe(err)}`);
-        return;
-      }
-      for (const job of jobs) {
-        if (stopped) break;
-        await executeOne(job);
+      if (outcome === 'provider_unhealthy') {
+        log.warn('provider unhealthy — leaving the rest of the queue for the next drain');
       }
     };
 
@@ -743,12 +754,12 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     };
 
     let cancelDrain: (() => void) | null = null;
-    const scheduleDrain = (): void => {
+    const scheduleDrain = (reason: string): void => {
       if (cancelDrain) return;
       cancelDrain = this.drainScheduler.enqueue(() => {
         cancelDrain = null;
         if (stopped) return;
-        log.info('realtime connected — draining queue');
+        log.info(`draining queue (${reason})`);
         triggerPoll();
       });
     };
@@ -773,7 +784,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       },
       onConnected() {
         if (stopped) return;
-        scheduleDrain();
+        scheduleDrain('realtime connected');
       },
       async stop() {
         stopped = true;

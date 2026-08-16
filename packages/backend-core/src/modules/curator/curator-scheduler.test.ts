@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SchedulerRegistry } from '@nestjs/schedule';
-import { CuratorSchedulerService } from './curator-scheduler.service.ts';
+import { CuratorSchedulerService, sweepSpreadSeconds } from './curator-scheduler.service.ts';
+import { jitteredBackoffMs } from './curator-jobs.service.ts';
 
 describe('CuratorSchedulerService.onModuleInit', () => {
   beforeEach(() => {
@@ -66,5 +67,39 @@ describe('CuratorSchedulerService.onModuleInit', () => {
     const { svc, registry } = build();
     svc.onModuleInit();
     expect([...registry.getCronJobs().keys()]).toHaveLength(0);
+  });
+});
+
+describe('sweepSpreadSeconds', () => {
+  it('does not delay a single-org deployment', () => {
+    expect(sweepSpreadSeconds(0)).toBe(0);
+    expect(sweepSpreadSeconds(1)).toBe(0);
+  });
+
+  it('widens the window as the fleet grows', () => {
+    expect(sweepSpreadSeconds(13)).toBe(720);
+    expect(sweepSpreadSeconds(100)).toBe(5_940);
+  });
+
+  it('caps the window at four hours', () => {
+    expect(sweepSpreadSeconds(10_000)).toBe(4 * 60 * 60);
+  });
+});
+
+describe('jitteredBackoffMs', () => {
+  it('grows exponentially with attempts', () => {
+    const none = (): number => 0;
+    expect(jitteredBackoffMs(1, none)).toBe(30_000);
+    expect(jitteredBackoffMs(2, none)).toBe(60_000);
+    expect(jitteredBackoffMs(3, none)).toBe(120_000);
+  });
+
+  it('spreads jobs that failed together across a 1-2x window', () => {
+    expect(jitteredBackoffMs(1, () => 0)).toBe(30_000);
+    expect(jitteredBackoffMs(1, () => 1)).toBe(60_000);
+  });
+
+  it('never returns less than the base delay', () => {
+    expect(jitteredBackoffMs(0, () => 0)).toBe(30_000);
   });
 });

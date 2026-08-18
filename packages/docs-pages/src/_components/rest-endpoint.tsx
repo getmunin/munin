@@ -7,6 +7,7 @@ import { SchemaTree, type SchemaField } from './schema-tree';
 import { CurlBlock } from './curl-block';
 import type { EndpointEntry, Operation } from '../_lib/openapi';
 import { typeLabel, requestBodyFields } from '../_lib/openapi';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 export function RestEndpoint({ ep }: { ep: EndpointEntry }) {
   const responseEntries = Object.entries(ep.op.responses ?? {}).sort(([a], [b]) => a.localeCompare(b));
@@ -128,7 +129,7 @@ function schemaChipFor(r: NonNullable<Operation['responses']>[string]): string |
 }
 
 function curlFor(ep: EndpointEntry): string {
-  const base = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+  const base = stripTrailingSlashes(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001');
   let cmd = `curl -X ${ep.method.toUpperCase()} \\\n  '${base}${ep.path}'`;
   if (ep.authMode !== 'public') {
     cmd += ` \\\n  -H 'Authorization: Bearer $MUNIN_API_KEY'`;

@@ -1,5 +1,6 @@
 import { safeFetch } from '@getmunin/core';
 import type { ChatMessage, ChatToolDefinition, Provider, ProviderResponse } from '../types.ts';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 interface OpenAIChoice {
   message: ChatMessage;
@@ -27,7 +28,7 @@ export const openAiCompatibleProvider: Provider = async ({
   tools,
   abortSignal,
 }) => {
-  const url = `${config.provider.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+  const url = `${stripTrailingSlashes(config.provider.baseUrl)}/chat/completions`;
   const cacheEnabled = shouldEnablePromptCache(config);
   const body: Record<string, unknown> = {
     model: config.model,

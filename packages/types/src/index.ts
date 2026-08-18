@@ -92,3 +92,14 @@ export {
   type MessageComponent,
 } from './message-components.ts';
 export { formatPriceRange, type PriceRange } from './message-format.ts';
+export {
+  LLM_PROVIDER_PRESETS,
+  DEFAULT_LLM_PROVIDER_ID,
+  DEFAULT_LLM_PROVIDER_BASE_URL,
+  DEFAULT_LLM_FAST_MODEL,
+  llmProviderPreset,
+  llmProviderPresetForBaseUrl,
+  defaultFastModelForBaseUrl,
+  type LlmProviderPreset,
+} from './llm-providers.ts';
+export { stripTrailingSlashes } from './url.ts';

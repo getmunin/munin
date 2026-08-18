@@ -1,12 +1,13 @@
 import { OAuthConsentPage, type OAuthClientInfo } from '@getmunin/dashboard-pages';
 import { redirectIfSetupIncomplete } from '@getmunin/dashboard-pages/server';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 interface PageProps {
   params: Promise<{ locale: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+const API_URL = stripTrailingSlashes(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001');
 
 async function fetchClientInfo(clientId: string): Promise<OAuthClientInfo | null> {
   if (!clientId) return null;

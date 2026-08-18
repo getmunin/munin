@@ -82,6 +82,12 @@ function warn(message: string, ...detail: unknown[]): void {
   console.warn(LOG_PREFIX + message, ...detail);
 }
 
+function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === '/') end -= 1;
+  return value.slice(0, end);
+}
+
 (function init(): void {
   const doc = document;
   const script = doc.currentScript as HTMLScriptElement | null;
@@ -104,7 +110,7 @@ function warn(message: string, ...detail: unknown[]): void {
       return;
     }
   }
-  apiBase = apiBase.replace(/\/+$/, '');
+  apiBase = stripTrailingSlashes(apiBase);
 
   const subjectType = script.getAttribute('data-subject-type') || 'page';
   const beaconUrl = apiBase + '/v1/a/t';

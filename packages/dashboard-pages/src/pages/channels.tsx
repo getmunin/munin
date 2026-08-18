@@ -26,6 +26,7 @@ import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 import { notify } from '../lib/notify';
 import {
+  stripTrailingSlashes,
   CreateWidgetBody,
   SetupEmailBody,
   ConfigureTwilioSmsBody,
@@ -2084,7 +2085,7 @@ function EmbedSnippetDialog({
   const [snippetCopied, setSnippetCopied] = useState(false);
   const [hashCopied, setHashCopied] = useState(false);
 
-  const host = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+  const host = stripTrailingSlashes(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001');
   const scriptSnippet = [
     `<script src="${host}/widget.js"`,
     `        data-munin-host="${host}"`,
@@ -3431,7 +3432,7 @@ function AddVoiceDialog({
 }
 
 function vapiWebhookUrl(channelId: string): string {
-  const host = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+  const host = stripTrailingSlashes(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001');
   return `${host}/v1/conversations/channels/${channelId}/webhook`;
 }
 

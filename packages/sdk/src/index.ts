@@ -79,7 +79,7 @@ export function createMuninClient(opts: MuninClientOptions): MuninClient {
     throw new Error('No fetch implementation available. Pass opts.fetch or run on Node 18+.');
   }
 
-  const trimmedBase = baseUrl.replace(/\/+$/, '');
+  const trimmedBase = stripTrailingSlashes(baseUrl);
 
   async function call<T>(
     path: string,
@@ -115,6 +115,12 @@ export function createMuninClient(opts: MuninClientOptions): MuninClient {
     revokeToken: (tokenId) =>
       call<void>(`/v1/tokens/${encodeURIComponent(tokenId)}`, { method: 'DELETE' }),
   };
+}
+
+function stripTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === '/') end -= 1;
+  return value.slice(0, end);
 }
 
 export class MuninApiError extends Error {

@@ -1,4 +1,5 @@
 import { WebSocket } from 'ws';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 export interface MessageReceivedEvent {
   conversationId: string;
@@ -97,7 +98,7 @@ export function createRealtimeClient(opts: RealtimeClientOptions): RealtimeClien
 
   function connect(): void {
     if (stopped) return;
-    const url = `${opts.baseUrl.replace(/^http/, 'ws').replace(/\/+$/, '')}/v1/realtime`;
+    const url = `${stripTrailingSlashes(opts.baseUrl.replace(/^http/, 'ws'))}/v1/realtime`;
     const socket = new WebSocket(url, {
       headers: { authorization: `Bearer ${opts.adminApiKey}` },
     });

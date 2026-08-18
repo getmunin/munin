@@ -10,6 +10,7 @@ import {
   mcpResourceUrl,
 } from '../oauth/oauth.constants.ts';
 import { authCookiePrefix } from './auth-cookies.ts';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 type BetterAuthInstance = ReturnType<typeof betterAuth>;
 
@@ -80,7 +81,7 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
     '',
   );
   const validAudiences = computeValidAudiences(opts.baseUrl, mcpResourceUrl());
-  const issuer = opts.baseUrl.replace(/\/+$/, '');
+  const issuer = stripTrailingSlashes(opts.baseUrl);
 
   const socialProviders = buildSocialProviders(opts.socialProviders);
 
@@ -207,7 +208,7 @@ export function computeValidAudiences(baseUrl: string, mcpResourceUrl?: string |
 }
 
 function addUrlVariants(variants: Set<string>, url: string): void {
-  const canonical = url.replace(/\/+$/, '');
+  const canonical = stripTrailingSlashes(url);
   if (!canonical) return;
   variants.add(canonical);
   variants.add(`${canonical}/`);
@@ -224,7 +225,7 @@ function addUrlVariants(variants: Set<string>, url: string): void {
 }
 
 function uniqueOrigins(values: string[]): string[] {
-  return Array.from(new Set(values.map((v) => v.replace(/\/+$/, ''))));
+  return Array.from(new Set(values.map((v) => stripTrailingSlashes(v))));
 }
 
 function buildSocialProviders(

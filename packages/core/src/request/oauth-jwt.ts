@@ -10,6 +10,7 @@ import {
   resolvePinnedMembership,
   type ResolvedCredential,
 } from './credentials.ts';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 type VerifyKey = Awaited<ReturnType<typeof importJWK>>;
 
@@ -145,12 +146,12 @@ async function loadVerificationKey(db: Db, kid: string): Promise<VerificationKey
 }
 
 function publicUrl(): string {
-  return (process.env.NEXT_PUBLIC_MCP_URL ?? 'http://localhost:3001/mcp').replace(/\/+$/, '');
+  return stripTrailingSlashes(process.env.NEXT_PUBLIC_MCP_URL ?? 'http://localhost:3001/mcp');
 }
 
 export function jwtIssuer(): string {
   const explicit = process.env.NEXT_PUBLIC_AUTH_URL;
-  if (explicit) return explicit.replace(/\/+$/, '');
+  if (explicit) return stripTrailingSlashes(explicit);
   try {
     return new URL(publicUrl()).origin;
   } catch {

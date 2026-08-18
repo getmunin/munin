@@ -15,6 +15,7 @@ import type {
   BookingSummary,
   BookingUpdateInput,
 } from './booking-adapter.ts';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 const DEFAULT_BASE_URL = 'https://api.gastroplanner.eu';
 const DEFAULT_SEATING_TIME = 120;
@@ -33,7 +34,7 @@ export const GastroplannerConfigInput = z.object({
     .trim()
     .url()
     .refine((u) => u.startsWith('https://'), 'baseUrl must be https')
-    .transform((u) => u.replace(/\/+$/, ''))
+    .transform((u) => stripTrailingSlashes(u))
     .default(DEFAULT_BASE_URL),
   restaurantUri: z.string().trim().min(1).max(128),
   apiToken: z.string().min(10).max(256).optional(),

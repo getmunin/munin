@@ -259,6 +259,43 @@ export class EmailService {
     return decryptString(tx, encryptedPassword);
   }
 
+  async configureChannel(
+    input: {
+      channelId?: string;
+      name: string;
+      config: EmailChannelConfigInputT;
+      defaultAgentMode?: AgentMode;
+    },
+    opts?: { rejectSecrets?: boolean },
+  ): Promise<{
+    id: string;
+    name: string;
+    type: 'email';
+    active: boolean;
+    config: EmailChannelConfigDto;
+    defaultAgentMode: AgentMode;
+  }> {
+    if (input.channelId) {
+      return this.updateChannel(
+        {
+          channelId: input.channelId,
+          name: input.name,
+          config: input.config,
+          defaultAgentMode: input.defaultAgentMode,
+        },
+        opts,
+      );
+    }
+    return this.createChannel(
+      {
+        name: input.name,
+        config: input.config,
+        defaultAgentMode: input.defaultAgentMode,
+      },
+      opts,
+    );
+  }
+
   async createChannel(
     input: {
       name: string;
@@ -336,6 +373,7 @@ export class EmailService {
         ...(input.name && { name: input.name }),
         vendor: merged.outbound.provider,
         config: storedToJsonb(merged),
+        ...(needsCredentials(merged) ? { active: false } : {}),
         ...(input.defaultAgentMode ? { defaultAgentMode: input.defaultAgentMode } : {}),
         updatedAt: new Date(),
       })

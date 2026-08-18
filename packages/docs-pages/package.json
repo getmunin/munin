@@ -27,7 +27,8 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@getmunin/backend-core": "workspace:*"
+    "@getmunin/backend-core": "workspace:*",
+    "@getmunin/types": "workspace:*"
   },
   "peerDependencies": {
     "next": "^16.0.0",

@@ -5,6 +5,7 @@ import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { ActorIdentity, type ActorType, type Audience } from './context.ts';
 import { hashSecret } from '../crypto/primitives.ts';
 import { looksLikeJwt, resolveOauthJwtAccessToken } from './oauth-jwt.ts';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 async function readMembershipsForUser(
   db: Db,
@@ -222,7 +223,7 @@ export class CredentialResolver {
 }
 
 export function oauthMcpResourceAudience(): string {
-  return (process.env.NEXT_PUBLIC_MCP_URL ?? 'http://localhost:3001/mcp').replace(/\/+$/, '');
+  return stripTrailingSlashes(process.env.NEXT_PUBLIC_MCP_URL ?? 'http://localhost:3001/mcp');
 }
 
 export function deriveAudiencesFromScopes(scopes: string[]): Audience[] {

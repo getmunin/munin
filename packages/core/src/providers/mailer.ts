@@ -1,3 +1,5 @@
+import { stripTrailingSlashes } from '@getmunin/types';
+
 export interface MailMessage {
   to: string;
   subject: string;
@@ -31,7 +33,7 @@ export class ResendMailer implements Mailer {
   constructor(opts: ResendMailerOptions) {
     this.apiKey = opts.apiKey;
     this.from = opts.from;
-    this.baseUrl = (opts.baseUrl ?? DEFAULT_RESEND_BASE).replace(/\/+$/, '');
+    this.baseUrl = stripTrailingSlashes(opts.baseUrl ?? DEFAULT_RESEND_BASE);
   }
 
   async send(msg: MailMessage): Promise<void> {

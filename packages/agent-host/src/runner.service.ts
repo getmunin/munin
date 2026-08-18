@@ -486,10 +486,11 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       onTyping: (conversationId, isTyping) =>
         this.eventBus.publishConversationTyping(orgId, conversationId, isTyping),
       onProviderError: (code, message) => {
+        const detail = withProviderContext(message, fastModel, providerBaseUrl);
         void runWithServiceContext(
           this.db,
           id,
-          () => this.health.recordFailure(id, code, message),
+          () => this.health.recordFailure(id, code, detail),
           { orgId },
         ).catch((err) =>
           this.scopedLogger(id, 'chat').warn(`recordFailure failed: ${describe(err)}`),
@@ -581,6 +582,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
 
     const executeOne = async (job: CuratorJob): Promise<boolean> => {
       log.info(`running ${job.jobUri} for ${job.id} (attempt ${job.attempts}/${job.maxAttempts})`);
+      const model = tierFor(job.jobUri) === 'fast' ? fastModel : smartModel;
       let result: SkillPassResult;
       const jobMcp = openAdminAgentMcpClient({
         db: this.db,
@@ -600,8 +602,6 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
         },
       };
       try {
-        const tier = tierFor(job.jobUri);
-        const model = tier === 'fast' ? fastModel : smartModel;
         const ctx: TaskHandlerContext = {
           job,
           mcp: jobMcp,
@@ -682,10 +682,15 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
         failBody.code = result.code;
         if (result.failedStep) failBody.failedStep = result.failedStep;
         const code = result.code;
+        const detail = withProviderContext(
+          result.error ?? result.skipped,
+          model,
+          opts.providerBaseUrl,
+        );
         await runWithServiceContext(
           this.db,
           opts.id,
-          () => this.health.recordFailure(opts.id, code, result.error ?? result.skipped),
+          () => this.health.recordFailure(opts.id, code, detail),
           { orgId: opts.orgId },
         ).catch((e) => log.warn(`recordFailure failed: ${describe(e)}`));
       }
@@ -838,6 +843,10 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
 
 function describe(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function withProviderContext(message: string, model: string, providerBaseUrl: string): string {
+  return `${message} (model=${model}, provider=${providerBaseUrl})`;
 }
 
 const PROGRESS_THROTTLE_MS = 750;

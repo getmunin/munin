@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { cn, Eyebrow } from '@getmunin/ui';
 import { buildMcpSetups, DEFAULT_DOCS_HOST, MCP_SETUPS, type McpSetup } from '../../data/mcp-setups';
 import { RECIPES } from '../../data/recipes';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 export function GetStarted() {
   const t = useTranslations('dashboard.getStarted');
@@ -14,7 +15,7 @@ export function GetStarted() {
   const [mcpHost, setMcpHost] = useState<string | null>(null);
 
   useEffect(() => {
-    const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+    const apiBase = stripTrailingSlashes(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001');
     const url = `${apiBase}/.well-known/oauth-protected-resource`;
     let cancelled = false;
     void fetch(url, { credentials: 'omit' })

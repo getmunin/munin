@@ -16,6 +16,7 @@ import type {
 } from './commerce-adapter.ts';
 import { ConnectorVendorError, type ConnectorFetch, REQUEST_TIMEOUT_MS } from '../connectors/http.ts';
 import { broadSearchLimit, rankByTokenCoverage } from './product-ranking.ts';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 export const MagentoConfigInput = z.object({
   baseUrl: z
@@ -23,7 +24,7 @@ export const MagentoConfigInput = z.object({
     .trim()
     .url()
     .refine((u) => u.startsWith('https://'), 'baseUrl must be https')
-    .transform((u) => u.replace(/\/+$/, '')),
+    .transform((u) => stripTrailingSlashes(u)),
   accessToken: z.string().min(10).max(256).optional(),
 });
 

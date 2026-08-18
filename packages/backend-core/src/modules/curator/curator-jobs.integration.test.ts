@@ -312,6 +312,70 @@ const skipReason = TEST_URL
     expect((fail.body as { status: string }).status).toBe('dead');
   });
 
+  it('parks a provider failure without spending an attempt', async () => {
+    const enq = await call('/v1/curator/jobs', {
+      method: 'POST',
+      body: { jobUri: 'skill://kb/review-content', userPrompt: 'provider mismatch' },
+    });
+    const job = (enq.body as { job: { id: string } }).job;
+
+    await call('/v1/curator/jobs/claim', {
+      method: 'POST',
+      body: { holder: 'sidecar-test' },
+    });
+
+    const fail = await call(`/v1/curator/jobs/${job.id}/fail`, {
+      method: 'POST',
+      body: {
+        error: 'provider returned 404: model gpt-oss-120b',
+        retryable: true,
+        code: 'provider_model_not_found',
+      },
+    });
+    const failBody = fail.body as { status: string; attempts: number };
+    expect(failBody.status).toBe('failed_retryable');
+    expect(failBody.attempts).toBe(0);
+  });
+
+  it('still lets a job die once its own attempts are exhausted', async () => {
+    const enq = await call('/v1/curator/jobs', {
+      method: 'POST',
+      body: {
+        jobUri: 'skill://kb/review-content',
+        userPrompt: 'provider then genuine failure',
+        maxAttempts: 2,
+      },
+    });
+    const job = (enq.body as { job: { id: string } }).job;
+
+    await db
+      .update(schema.curatorJobs)
+      .set({ attempts: 2, leaseExpiresAt: null, leaseHolder: null })
+      .where(sql`id = ${job.id}`);
+
+    const parked = await call(`/v1/curator/jobs/${job.id}/fail`, {
+      method: 'POST',
+      body: { error: 'provider auth failing', retryable: true, code: 'provider_auth' },
+    });
+    expect((parked.body as { attempts: number }).attempts).toBe(1);
+
+    const dead = await call(`/v1/curator/jobs/${job.id}/fail`, {
+      method: 'POST',
+      body: { error: 'still broken', retryable: true },
+    });
+    expect((dead.body as { status: string }).status).toBe('pending');
+
+    await db
+      .update(schema.curatorJobs)
+      .set({ attempts: 2 })
+      .where(sql`id = ${job.id}`);
+    const finalFail = await call(`/v1/curator/jobs/${job.id}/fail`, {
+      method: 'POST',
+      body: { error: 'still broken', retryable: true },
+    });
+    expect((finalFail.body as { status: string }).status).toBe('dead');
+  });
+
   it('isolates jobs across orgs (RLS)', async () => {
     await call('/v1/curator/jobs', {
       method: 'POST',

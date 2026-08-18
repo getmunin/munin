@@ -1,5 +1,6 @@
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { WebhookDispatcher } from '@getmunin/core';
+import { defaultFastModelForBaseUrl } from '@getmunin/types';
 import { AGENT_CONFIG_REPOSITORY, DEFAULT_PROVIDER_AVAILABLE } from './injection-tokens.ts';
 import type {
   AgentConfigPatch,
@@ -8,6 +9,7 @@ import type {
 } from './config.repository.ts';
 import { validateProviderCredentials } from './provider-auth.ts';
 import { AgentHealthService, type AgentHealthRecorder } from './agent-health.service.ts';
+import { AgentModelsService, type ProviderModelLister } from './models.service.ts';
 
 export interface AgentConfigDto {
   id: string;
@@ -31,6 +33,7 @@ export class AgentConfigService {
     @Inject(AGENT_CONFIG_REPOSITORY) private readonly repo: AgentConfigRepository,
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(AgentHealthService) private readonly health: AgentHealthRecorder,
+    @Inject(AgentModelsService) private readonly models: ProviderModelLister,
     @Optional()
     @Inject(DEFAULT_PROVIDER_AVAILABLE)
     private readonly defaultProviderAvailable: boolean = false,
@@ -46,24 +49,35 @@ export class AgentConfigService {
     const id = this.repo.resolveCurrentId();
     const before = await this.repo.read(id);
 
+    const credentialsTouched =
+      input.providerBaseUrl !== undefined || input.providerApiKey !== undefined;
+    const baseUrl = input.providerBaseUrl ?? before.providerBaseUrl;
+    const apiKey =
+      input.providerApiKey !== undefined
+        ? input.providerApiKey
+        : await this.repo.readDecryptedProviderKey(id);
+    if (input.providerApiKey !== undefined) this.models.invalidate(id);
+
     let credentialsValidated = false;
-    if (input.providerBaseUrl !== undefined || input.providerApiKey !== undefined) {
-      const baseUrl = input.providerBaseUrl ?? before.providerBaseUrl;
-      const apiKey =
-        input.providerApiKey !== undefined
-          ? input.providerApiKey
-          : await this.repo.readDecryptedProviderKey(id);
-      if (apiKey) {
-        await validateProviderCredentials(baseUrl, apiKey);
-        credentialsValidated = true;
-      }
+    if (credentialsTouched && apiKey) {
+      await validateProviderCredentials(baseUrl, apiKey);
+      credentialsValidated = true;
     }
 
-    const modelChanged =
-      (input.fastModel !== undefined && input.fastModel !== before.fastModel) ||
-      (input.smartModel !== undefined && input.smartModel !== before.smartModel);
+    const patch = await this.resolveModels({
+      id,
+      input,
+      before,
+      baseUrl,
+      apiKey,
+      credentialsTouched,
+    });
 
-    const after = await this.repo.update(id, input);
+    const modelChanged =
+      (patch.fastModel !== undefined && patch.fastModel !== before.fastModel) ||
+      (patch.smartModel !== undefined && patch.smartModel !== before.smartModel);
+
+    const after = await this.repo.update(id, patch);
 
     await this.webhooks.emit({
       type: 'agent.config.updated',
@@ -78,6 +92,79 @@ export class AgentConfigService {
 
     return toDto(after, this.defaultProviderAvailable);
   }
+
+  private async resolveModels(args: {
+    id: string;
+    input: AgentConfigPatch;
+    before: AgentConfigRow;
+    baseUrl: string;
+    apiKey: string | null;
+    credentialsTouched: boolean;
+  }): Promise<AgentConfigPatch> {
+    const { id, input, before, baseUrl, apiKey, credentialsTouched } = args;
+    const modelsTouched = input.fastModel !== undefined || input.smartModel !== undefined;
+    if (!apiKey || (!credentialsTouched && !modelsTouched)) return input;
+
+    const offered = await this.offeredModels(id, baseUrl, apiKey);
+    if (!offered) return input;
+
+    if (input.fastModel !== undefined && !offered.has(input.fastModel)) {
+      throw invalidModel(input.fastModel, baseUrl);
+    }
+    if (input.smartModel != null && !offered.has(input.smartModel)) {
+      throw invalidModel(input.smartModel, baseUrl);
+    }
+
+    if (!credentialsTouched) return input;
+
+    const patch: AgentConfigPatch = { ...input };
+    if (input.fastModel === undefined && !offered.has(before.fastModel)) {
+      const replacement = fastModelFor(baseUrl, offered);
+      if (replacement) {
+        patch.fastModel = replacement;
+        this.log.log(
+          `${id}: fastModel ${before.fastModel} is not offered by ${baseUrl} — reset to ${replacement}`,
+        );
+      }
+    }
+    if (
+      input.smartModel === undefined &&
+      before.smartModel != null &&
+      !offered.has(before.smartModel)
+    ) {
+      patch.smartModel = null;
+      this.log.log(
+        `${id}: smartModel ${before.smartModel} is not offered by ${baseUrl} — cleared`,
+      );
+    }
+    return patch;
+  }
+
+  private async offeredModels(
+    id: string,
+    baseUrl: string,
+    apiKey: string,
+  ): Promise<Set<string> | null> {
+    const listed = await this.models.listForProvider(id, baseUrl, apiKey).catch((err: unknown) => {
+      this.log.warn(`model list for ${baseUrl} failed: ${describe(err)}`);
+      return null;
+    });
+    if (!listed?.supported || listed.models.length === 0) return null;
+    return new Set(listed.models.map((m) => m.id));
+  }
+}
+
+function invalidModel(model: string, baseUrl: string): BadRequestException {
+  return new BadRequestException({
+    message: `agent_config_invalid_model: ${model} is not offered by ${baseUrl}`,
+    code: 'agent_config_invalid_model',
+  });
+}
+
+function fastModelFor(baseUrl: string, offered: Set<string>): string | null {
+  const preset = defaultFastModelForBaseUrl(baseUrl);
+  if (preset && offered.has(preset)) return preset;
+  return offered.values().next().value ?? null;
 }
 
 function describe(err: unknown): string {

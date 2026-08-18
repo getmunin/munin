@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { llmProviderPreset } from '@getmunin/types';
 
 export interface AgentConfigDto {
   id: string;
@@ -42,11 +43,15 @@ export interface ProviderPreset {
 }
 
 export const PROVIDER_PRESETS = [
-  { id: 'openrouter', name: 'OpenRouter', url: 'https://openrouter.ai/api/v1' },
-  { id: 'anthropic', name: 'Anthropic', url: 'https://api.anthropic.com/v1' },
-  { id: 'openai', name: 'OpenAI', url: 'https://api.openai.com/v1' },
+  { id: 'openrouter', name: 'OpenRouter', url: presetUrl('openrouter') },
+  { id: 'anthropic', name: 'Anthropic', url: presetUrl('anthropic') },
+  { id: 'openai', name: 'OpenAI', url: presetUrl('openai') },
   { id: 'custom', name: 'Custom', url: '' },
 ] as const;
+
+function presetUrl(id: string): string {
+  return llmProviderPreset(id)?.baseUrl ?? '';
+}
 
 export type PresetId = (typeof PROVIDER_PRESETS)[number]['id'];
 

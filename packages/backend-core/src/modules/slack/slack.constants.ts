@@ -1,4 +1,5 @@
 import type { ApprovalSubjectType } from './slack-projection.ts';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 export const SLACK_MIRRORED_EVENT_TYPES: readonly string[] = [
   'conversation.created',
@@ -74,5 +75,5 @@ export function readSlackSigningSecret(): string | null {
 }
 
 export function readWebBaseUrl(): string {
-  return (process.env.MUNIN_WEB_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
+  return stripTrailingSlashes(process.env.MUNIN_WEB_URL ?? 'http://localhost:3000');
 }

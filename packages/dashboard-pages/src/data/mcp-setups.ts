@@ -1,3 +1,5 @@
+import { stripTrailingSlashes } from '@getmunin/types';
+
 export interface McpSetup {
   id: 'claude' | 'chatgpt' | 'gemini';
   label: string;
@@ -10,7 +12,7 @@ export interface McpSetup {
 const TOKEN_PLACEHOLDER = 'mn_admin_••••••••';
 
 export function buildMcpSetups(host: string, docsHost: string = DEFAULT_DOCS_HOST): McpSetup[] {
-  const docs = docsHost.replace(/\/+$/, '');
+  const docs = stripTrailingSlashes(docsHost);
   const docsBare = docs.replace(/^https?:\/\//, '');
   return [
     {
@@ -69,7 +71,7 @@ export function buildMcpSetups(host: string, docsHost: string = DEFAULT_DOCS_HOS
   ];
 }
 
-const DEFAULT_MCP_HOST = (process.env.NEXT_PUBLIC_MCP_URL ?? 'http://localhost:3001/mcp').replace(/\/+$/, '');
-export const DEFAULT_DOCS_HOST = (process.env.NEXT_PUBLIC_DOCS_URL ?? 'http://localhost:3000/docs').replace(/\/+$/, '');
+const DEFAULT_MCP_HOST = stripTrailingSlashes(process.env.NEXT_PUBLIC_MCP_URL ?? 'http://localhost:3001/mcp');
+export const DEFAULT_DOCS_HOST = stripTrailingSlashes(process.env.NEXT_PUBLIC_DOCS_URL ?? 'http://localhost:3000/docs');
 
 export const MCP_SETUPS: McpSetup[] = buildMcpSetups(DEFAULT_MCP_HOST, DEFAULT_DOCS_HOST);

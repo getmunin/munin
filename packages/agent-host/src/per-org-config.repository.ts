@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { decryptSecretSql, encryptSecretSql, getCurrentContext } from '@getmunin/core';
+import { DEFAULT_LLM_FAST_MODEL, DEFAULT_LLM_PROVIDER_BASE_URL } from '@getmunin/types';
 import { eq, isNotNull, sql } from 'drizzle-orm';
 import { agentConfig } from './schema.ts';
 import type {
@@ -8,8 +9,8 @@ import type {
   AgentConfigRow,
 } from './config.repository.ts';
 
-const DEFAULT_FAST_MODEL = 'anthropic/claude-haiku-4.5';
-const DEFAULT_PROVIDER_BASE_URL = 'https://openrouter.ai/api/v1';
+const DEFAULT_FAST_MODEL = DEFAULT_LLM_FAST_MODEL;
+const DEFAULT_PROVIDER_BASE_URL = DEFAULT_LLM_PROVIDER_BASE_URL;
 
 @Injectable()
 export class PerOrgConfigRepository implements AgentConfigRepository {

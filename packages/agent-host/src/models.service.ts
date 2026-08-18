@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { describeError, safeFetch } from '@getmunin/core';
+import { stripTrailingSlashes } from '@getmunin/types';
 import { AGENT_CONFIG_REPOSITORY } from './injection-tokens.ts';
 import type { AgentConfigRepository } from './config.repository.ts';
 import { authHeaders } from './provider-auth.ts';
@@ -24,8 +25,13 @@ interface CacheEntry {
   expiresAt: number;
 }
 
+export interface ProviderModelLister {
+  listForProvider(id: string, baseUrl: string, apiKey: string): Promise<ListModelsResult>;
+  invalidate(id: string): void;
+}
+
 @Injectable()
-export class AgentModelsService {
+export class AgentModelsService implements ProviderModelLister {
   private readonly logger = new Logger(AgentModelsService.name);
   private readonly cache = new Map<string, CacheEntry>();
 
@@ -40,18 +46,28 @@ export class AgentModelsService {
     if (!apiKey) {
       return { supported: false, models: [], fetchedAt: new Date().toISOString() };
     }
+    return this.listForProvider(id, config.providerBaseUrl, apiKey);
+  }
 
-    const cacheKey = `${id}|${config.providerBaseUrl}`;
+  async listForProvider(id: string, baseUrl: string, apiKey: string): Promise<ListModelsResult> {
+    const cacheKey = `${id}|${baseUrl}`;
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return cached.result;
 
-    const result = await this.fetchModels(config.providerBaseUrl, apiKey);
+    const result = await this.fetchModels(baseUrl, apiKey);
     this.cache.set(cacheKey, { result, expiresAt: Date.now() + CACHE_TTL_MS });
     return result;
   }
 
+  invalidate(id: string): void {
+    const prefix = `${id}|`;
+    for (const key of this.cache.keys()) {
+      if (key.startsWith(prefix)) this.cache.delete(key);
+    }
+  }
+
   private async fetchModels(baseUrl: string, apiKey: string): Promise<ListModelsResult> {
-    const url = `${baseUrl.replace(/\/+$/, '')}/models`;
+    const url = `${stripTrailingSlashes(baseUrl)}/models`;
     let res: Awaited<ReturnType<typeof safeFetch>>;
     try {
       res = await safeFetch(url, {

@@ -22,6 +22,7 @@ import {
   type OutreachVoiceCaller,
 } from '../conv/channels/outreach-voice.ts';
 import { draftFingerprint } from './proposal-fingerprint.ts';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 export { draftFingerprint } from './proposal-fingerprint.ts';
 
@@ -2227,7 +2228,7 @@ function buildUnsubscribeUrl(input: {
     contactId: input.contactId,
     campaignId: input.campaignId,
   });
-  const base = input.publicBaseUrl.replace(/\/+$/, '');
+  const base = stripTrailingSlashes(input.publicBaseUrl);
   return `${base}/v1/outreach/unsubscribe?token=${encodeURIComponent(token)}`;
 }
 

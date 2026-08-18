@@ -1,7 +1,8 @@
 import type { ComponentProps, ReactNode } from 'react';
 import { Link } from '../i18n-navigation';
+import { stripTrailingSlashes } from '@getmunin/types';
 
-const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/+$/, '');
+const APP_URL = stripTrailingSlashes(process.env.NEXT_PUBLIC_APP_URL ?? '');
 
 export function DashboardLink({
   href,

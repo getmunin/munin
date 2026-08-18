@@ -1,6 +1,7 @@
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, normalize, resolve } from 'node:path';
 import { createHash, createHmac } from 'node:crypto';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 export interface PresignedUploadHandle {
   uploadUrl: string;
@@ -47,7 +48,7 @@ export class LocalFsStorage implements AssetStorage {
 
   constructor(opts: LocalFsStorageOptions) {
     this.rootDir = resolve(opts.rootDir);
-    this.publicBaseUrl = opts.publicBaseUrl.replace(/\/+$/, '');
+    this.publicBaseUrl = stripTrailingSlashes(opts.publicBaseUrl);
     this.uploadTtlMs = opts.uploadTtlMs ?? DEFAULT_UPLOAD_TTL_MS;
     const fromEnv = process.env.MUNIN_STORAGE_LOCAL_SECRET;
     if (!fromEnv && process.env.NODE_ENV === 'production') {
@@ -154,10 +155,10 @@ export class S3CompatibleStorage implements AssetStorage {
   constructor(opts: S3CompatibleStorageOptions) {
     this.bucket = opts.bucket;
     this.region = opts.region;
-    this.endpoint = opts.endpoint.replace(/\/+$/, '');
+    this.endpoint = stripTrailingSlashes(opts.endpoint);
     this.accessKey = opts.accessKey;
     this.secretKey = opts.secretKey;
-    this.publicBaseUrl = (opts.publicBaseUrl ?? `${this.endpoint}/${this.bucket}`).replace(/\/+$/, '');
+    this.publicBaseUrl = stripTrailingSlashes(opts.publicBaseUrl ?? `${this.endpoint}/${this.bucket}`);
     this.uploadTtlSeconds = opts.uploadTtlSeconds ?? DEFAULT_S3_UPLOAD_TTL_SECONDS;
   }
 

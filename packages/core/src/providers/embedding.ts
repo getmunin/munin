@@ -1,4 +1,5 @@
 import { parseEnvInt } from '../env/index.ts';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 export interface EmbeddingProvider {
   readonly dimensions: number;
@@ -34,7 +35,7 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
   constructor(opts: OpenAIEmbeddingOptions) {
     this.apiKey = opts.apiKey;
     this.model = opts.model ?? DEFAULT_OPENAI_MODEL;
-    this.baseUrl = (opts.baseUrl ?? DEFAULT_OPENAI_BASE).replace(/\/+$/, '');
+    this.baseUrl = stripTrailingSlashes(opts.baseUrl ?? DEFAULT_OPENAI_BASE);
     this.dimensions = opts.dimensions ?? DEFAULT_DIMENSIONS;
     this.sendDimensions = opts.dimensions !== undefined;
     this.name = this.sendDimensions

@@ -1,4 +1,5 @@
 import skillsFixture from '@getmunin/backend-core/docs-fixtures/skills.json';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 export interface Skill {
   uri: string;
@@ -33,6 +34,6 @@ export function wordCount(content: string): number {
 }
 
 export function renderSkillContent(content: string): string {
-  const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+  const apiUrl = stripTrailingSlashes(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001');
   return content.replaceAll('{{API_URL}}', apiUrl);
 }

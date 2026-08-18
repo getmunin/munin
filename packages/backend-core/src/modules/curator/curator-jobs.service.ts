@@ -260,11 +260,14 @@ export class CuratorJobsService {
           : 'pending';
     const backoffMs = jitteredBackoffMs(current.attempts);
     const nextAt = status === 'pending' ? new Date(Date.now() + backoffMs) : current.nextAttemptAt;
+    const attempts =
+      status === 'failed_retryable' ? Math.max(0, current.attempts - 1) : current.attempts;
 
     const [row] = await ctx.db
       .update(schema.curatorJobs)
       .set({
         status,
+        attempts,
         nextAttemptAt: nextAt,
         leaseExpiresAt: null,
         leaseHolder: null,

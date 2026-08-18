@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Code, Copy } from 'lucide-react';
 import { useFormatter, useNow, useTranslations } from 'next-intl';
-import { CreateTrackerBody } from '@getmunin/types';
+import { stripTrailingSlashes, CreateTrackerBody } from '@getmunin/types';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
 import { LoadFailed } from '../components/load-failed';
@@ -622,7 +622,7 @@ function EmbedSnippetDialog({
   const [snippetCopied, setSnippetCopied] = useState(false);
   const [hashCopied, setHashCopied] = useState(false);
 
-  const host = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+  const host = stripTrailingSlashes(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001');
   const scriptSnippet = [
     `<script async src="${host}/tracker.js" data-key="<your tracker key>"></script>`,
     ``,

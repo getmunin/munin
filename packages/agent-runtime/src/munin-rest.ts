@@ -1,5 +1,6 @@
 import type { MessageComponent } from '@getmunin/types';
 import type { ConversationMessage } from './types.ts';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 export interface ConversationDetail {
   id: string;
@@ -186,7 +187,7 @@ function errorCodeFrom(text: string): string | null {
 }
 
 export function createMuninRestClient(opts: CreateMuninRestClientOptions): MuninRestClient {
-  const baseUrl = opts.baseUrl.replace(/\/+$/, '');
+  const baseUrl = stripTrailingSlashes(opts.baseUrl);
   const fetchImpl = opts.fetch ?? globalThis.fetch;
 
   async function call<T>(path: string, init: RequestInit = {}): Promise<T> {

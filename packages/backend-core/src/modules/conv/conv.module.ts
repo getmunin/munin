@@ -20,6 +20,7 @@ import {
 import { ChannelAdminService } from './channels/channel-admin.service.ts';
 import { ChannelAdminTools } from './channels/channel-admin.tools.ts';
 import { ChannelCredentialService } from './channels/channel-credential.service.ts';
+import { ChannelReactivationService } from './channels/channel-reactivation.service.ts';
 import { ChannelCredentialTools } from './channels/channel-credential.tools.ts';
 import { CredentialHandoffModule } from '../credential-handoff/credential-handoff.module.ts';
 import { ConnectorsModule } from '../connectors/connectors.module.ts';
@@ -84,6 +85,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     ConvSelfServiceTools,
     EmailService,
     EmailChannelProbe,
+    ChannelReactivationService,
     EmailAdminTools,
     ChannelCredentialService,
     ChannelCredentialTools,
@@ -174,6 +176,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     ConversationClaimsService,
     EmailService,
     EmailChannelProbe,
+    ChannelReactivationService,
     EmailAdapter,
     EmailAdminTools,
     MessageBirdClientService,

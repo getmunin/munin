@@ -601,6 +601,7 @@
         "create": "Create email channel",
         "editTitle": "Edit email channel",
         "editDescription": "Update the channel's name or transport. Leave a password blank to keep the stored credential — type a new one to replace it.",
+        "savedStillFailing": "Settings saved, but the connection still fails: {detail}. The channel stays deactivated until it connects.",
         "sendLimitsLabel": "Limit how much this channel sends",
         "sendLimitsHelp": "Protects the domain reputation. Messages over the limit stay queued and send automatically when capacity opens.",
         "sendLimitsPlaceholder": "no limit",

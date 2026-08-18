@@ -298,7 +298,7 @@ function TrackerRow({
       name={tracker.name}
       qualifier={qualifier}
       status={status}
-      pending={!hasFired}
+      accent={hasFired ? undefined : 'pending'}
       footerAction={
         <Button variant="outline" size="sm" onClick={onShowEmbed} className="gap-1.5">
           <Code className="size-3.5" />

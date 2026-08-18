@@ -67,6 +67,8 @@ To **update** an existing channel, pass `channelId` and only the fields you want
 
 An update that introduces a transport with no stored password — adding IMAP inbound to an outbound-only channel, for example — comes back `active: false`. Mint a credential link so the human can enter the missing password; the channel activates on save.
 
+If the channel is currently deactivated, the update also re-tests the stored credentials and reactivates the channel when SMTP and IMAP both connect — see *Reactivating a deactivated channel* below.
+
 ## Step 2b — decide what the agent does with inbound mail
 
 `defaultAgentMode` on the channel sets the posture every new conversation inherits (`conv_change_agent_mode` overrides it per conversation):
@@ -104,6 +106,13 @@ Call `conv_list_channels`. Look for the new row with `type: 'email'`, `active: t
 - **Outbound**: when an admin uses `conv_send_message` on a conversation tied to this channel, the message is enqueued in `conv_message_deliveries`. The `OutboundDeliveryWorker` drains that queue and the email adapter sends via SMTP (or the Mailer).
 - **Inbound** (if IMAP is configured): the `InboundPollWorker` ticks every 60s, fetches new UIDs, threads each message into an existing conversation (via `In-Reply-To` + `References` headers) or opens a new one. End-user senders are auto-created as `conv_contacts`.
 - **Identity**: each sender also gets an `end_users` row keyed by their address. If the same people sign in on a site running the analytics tracker, passing their signed email to `window.mn.analytics.identify` makes the two the same person, so their page-views land on the same contact as the email thread — see `skill://analytics/identify-visitors`.
+
+## Reactivating a deactivated channel
+
+Five consecutive IMAP polling failures auto-deactivate a channel and open a system alert (`conv_list_channels` shows `active: false`, `system_alerts_list` carries the failure detail). Two ways back:
+
+- **The config was wrong** — call `conv_configure_email_channel` with `channelId` and the corrected fields. The update re-tests the stored credentials: SMTP and IMAP both connecting reactivates the channel and resolves the alert, and anything else leaves it deactivated with the connection errors in the response's `probe` field. In the dashboard this is the Edit → Save button on the channel card.
+- **Nothing was wrong on our side** — the mailbox was down, the provider throttled, a certificate lapsed. There is nothing to edit, so just switch the channel back on: the Activate button on the channel card. Polling resumes on the next tick and re-deactivates the channel if the failures continue.
 
 ## Troubleshooting
 

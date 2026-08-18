@@ -60,33 +60,16 @@ export class EmailAdminTools {
     destructiveHint: true,
   })
   async setupChannel(args: z.infer<typeof SetupInput>) {
+    const channel = await this.email.configureChannel(args, { rejectSecrets: true });
+    if (channel.active) return channel;
     if (args.channelId) {
-      const updated = await this.email.updateChannel(
-        {
-          channelId: args.channelId,
-          name: args.name,
-          config: args.config,
-          defaultAgentMode: args.defaultAgentMode,
-        },
-        { rejectSecrets: true },
-      );
-      if (updated.active) return updated;
       const reactivation = await this.reactivation.reactivateIfHealthy(args.channelId);
       return {
-        ...updated,
+        ...channel,
         active: reactivation.active,
         ...(reactivation.probe ? { probe: reactivation.probe } : {}),
       };
     }
-    const channel = await this.email.createChannel(
-      {
-        name: args.name,
-        config: args.config,
-        defaultAgentMode: args.defaultAgentMode,
-      },
-      { rejectSecrets: true },
-    );
-    if (channel.active) return channel;
     const credentialLink = await this.credentials.requestLink(channel.id);
     return { ...channel, credentialLink };
   }

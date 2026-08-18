@@ -63,7 +63,9 @@ Call `conv_configure_email_channel` (admin):
 
 Returns the channel ID, type `'email'`, the redacted DTO (passwords show as `••••`), and — when SMTP or IMAP is configured — a `credentialLink` with a one-time URL. The channel stays `active: false` until the human opens the link and saves the passwords; saving verifies them against the SMTP/IMAP servers and activates the channel.
 
-To **update** an existing channel, pass `channelId` and only the fields you want to change. Stored passwords are preserved; to rotate a password, mint a link with `conv_request_channel_credentials`.
+To **update** an existing channel, pass `channelId` and only the fields you want to change. Stored passwords are preserved; to rotate a password, mint a link with `conv_request_channel_credentials` — or tell the human they can retype it directly in the channel's edit dialog in the dashboard, which accepts passwords because a person is typing them.
+
+An update that introduces a transport with no stored password — adding IMAP inbound to an outbound-only channel, for example — comes back `active: false`. Mint a credential link so the human can enter the missing password; the channel activates on save.
 
 If the channel is currently deactivated, the update also re-tests the stored credentials and reactivates the channel when SMTP and IMAP both connect — see *Reactivating a deactivated channel* below.
 

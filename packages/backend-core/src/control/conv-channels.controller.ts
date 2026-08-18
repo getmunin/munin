@@ -20,6 +20,7 @@ import { RequireRole } from './role.decorator.ts';
 import { ConvService, type ChannelDto } from '../modules/conv/conv.service.ts';
 import { WidgetAdminTools } from '../modules/conv/widget/widget.tools.ts';
 import { EmailAdminTools } from '../modules/conv/email/email.tools.ts';
+import { EmailService } from '../modules/conv/email/email.service.ts';
 import { TwilioSmsAdminService } from '../modules/conv/twilio/twilio-sms-admin.service.ts';
 import { MessageBirdSmsAdminService } from '../modules/conv/messagebird/messagebird-sms-admin.service.ts';
 import { VapiAdminService } from '../modules/conv/vapi/vapi-admin.service.ts';
@@ -97,6 +98,7 @@ export class ConvChannelsController {
     private readonly conv: ConvService,
     private readonly widgetTools: WidgetAdminTools,
     private readonly emailTools: EmailAdminTools,
+    private readonly email: EmailService,
     private readonly twilioSmsTools: TwilioSmsAdminService,
     private readonly messageBirdSmsTools: MessageBirdSmsAdminService,
     private readonly vapiTools: VapiAdminService,
@@ -187,8 +189,8 @@ export class ConvChannelsController {
   @HttpCode(200)
   async setupEmail(
     @Body() input: SetupEmailBody,
-  ): Promise<Awaited<ReturnType<EmailAdminTools['setupChannel']>>> {
-    return this.emailTools.setupChannel(input);
+  ): Promise<Awaited<ReturnType<EmailService['configureChannel']>>> {
+    return this.email.configureChannel(input);
   }
 
   @Post('email/:id/test')

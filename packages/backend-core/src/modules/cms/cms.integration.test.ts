@@ -494,7 +494,7 @@ const skipReason = TEST_URL
     expect(((await enQuery.json()) as { locale: string }).locale).toBe('en');
   }, 30_000);
 
-  it('locale variants keep their own slugs, stay linked through the translation group, and surface as _locales', async () => {
+  it('locale variants keep their own slugs, stay linked through the translation group, and surface as _locales on both the entry and list endpoints', async () => {
     const { en, nb } = await withClient(adminKey, async (c) => {
       await c.callTool({ name: 'cms_create_locale', arguments: { code: 'nb', name: 'Norsk' } });
       const enEntry = parseToolResult<{ id: string; translationGroupId: string }>(
@@ -567,6 +567,23 @@ const skipReason = TEST_URL
     };
     expect(body.slug).toBe('varlansering');
     expect(body._locales).toEqual([
+      { locale: 'en', slug: 'spring-launch' },
+      { locale: 'nb', slug: 'varlansering' },
+    ]);
+
+    const listed = await fetch(`${baseUrl}/v1/cms/${orgId}/pages?locale=nb`);
+    expect(listed.status).toBe(200);
+    const listBody = (await listed.json()) as {
+      items: Array<{ slug: string; _locales?: Array<{ locale: string; slug: string }> }>;
+    };
+    const listedNb = listBody.items.find((i) => i.slug === 'varlansering');
+    expect(listedNb?._locales).toEqual(body._locales);
+
+    const listedEn = await fetch(`${baseUrl}/v1/cms/${orgId}/pages?locale=en`);
+    const enItems = ((await listedEn.json()) as {
+      items: Array<{ slug: string; _locales?: Array<{ locale: string; slug: string }> }>;
+    }).items;
+    expect(enItems.find((i) => i.slug === 'spring-launch')?._locales).toEqual([
       { locale: 'en', slug: 'spring-launch' },
       { locale: 'nb', slug: 'varlansering' },
     ]);

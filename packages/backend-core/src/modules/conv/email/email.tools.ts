@@ -11,6 +11,10 @@ import { DB } from '../../../common/db/db.module.ts';
 import { MAILER } from '../../../common/mail/mail.module.ts';
 import { ChannelCredentialService } from '../channels/channel-credential.service.ts';
 import {
+  ChannelReactivationService,
+  type ChannelReactivator,
+} from '../channels/channel-reactivation.service.ts';
+import {
   EmailChannelProbe,
   describeSmtpError,
   smtpTransportOptions,
@@ -39,6 +43,7 @@ export class EmailAdminTools {
     @Inject(EmailService) private readonly email: EmailService,
     @Inject(EmailChannelProbe) private readonly probe: EmailChannelProbe,
     @Inject(ChannelCredentialService) private readonly credentials: ChannelCredentialService,
+    @Inject(ChannelReactivationService) private readonly reactivation: ChannelReactivator,
     @Inject(DB) private readonly serviceDb: Db,
     @Inject(MAILER) private readonly mailer: Mailer,
   ) {}
@@ -47,7 +52,7 @@ export class EmailAdminTools {
     name: 'conv_configure_email_channel',
     title: 'Conv: Configure an email channel',
     description:
-      "Create or update an email channel's transport configuration with the non-secret fields only. SMTP / IMAP passwords are rejected here: the channel is created inactive and the response includes a one-time link for a human to enter the passwords in the dashboard — the channel activates once they are saved. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host (no password needed, channel is active immediately). Set `defaultAgentMode: 'draft_only'` so the agent answers into an internal draft that a human reviews and sends, instead of replying to the sender itself — use it to run an inbox with a human in the loop, or on an outreach-only inbox where a reply must never be auto-sent.",
+      "Create or update an email channel's transport configuration with the non-secret fields only. SMTP / IMAP passwords are rejected here: the channel is created inactive and the response includes a one-time link for a human to enter the passwords in the dashboard — the channel activates once they are saved. Updating a channel that is currently deactivated (for example after repeated inbound polling failures) re-tests the stored credentials: the channel is reactivated when SMTP and IMAP both connect, and otherwise stays deactivated with the connection errors in the `probe` field of the response. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host (no password needed, channel is active immediately). Set `defaultAgentMode: 'draft_only'` so the agent answers into an internal draft that a human reviews and sends, instead of replying to the sender itself — use it to run an inbox with a human in the loop, or on an outreach-only inbox where a reply must never be auto-sent.",
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: SetupInput,
@@ -56,7 +61,7 @@ export class EmailAdminTools {
   })
   async setupChannel(args: z.infer<typeof SetupInput>) {
     if (args.channelId) {
-      return this.email.updateChannel(
+      const updated = await this.email.updateChannel(
         {
           channelId: args.channelId,
           name: args.name,
@@ -65,6 +70,13 @@ export class EmailAdminTools {
         },
         { rejectSecrets: true },
       );
+      if (updated.active) return updated;
+      const reactivation = await this.reactivation.reactivateIfHealthy(args.channelId);
+      return {
+        ...updated,
+        active: reactivation.active,
+        ...(reactivation.probe ? { probe: reactivation.probe } : {}),
+      };
     }
     const channel = await this.email.createChannel(
       {

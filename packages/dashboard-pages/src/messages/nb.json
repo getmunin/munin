@@ -207,7 +207,7 @@
       "alertOpenMessage": "<em>{reason}</em>",
       "alertReasonSingle": "{title}",
       "alertReasonMultiple": "{title} (+{count} til)",
-      "channelInboundFailing": "Innkommende henting feiler på «{name}»",
+      "channelInboundFailing": "Henting av nye meldinger feiler på «{name}»",
       "openChannelSettings": "Åpne kanalinnstillinger →"
     },
     "loadFailed": {
@@ -547,8 +547,8 @@
         "errorTitle": "Testen feilet"
       },
       "status": {
-        "deactivatedMessage": "Auto-deaktivert etter {threshold} feilede henteforsøk",
-        "failingMessage": "Innkommende henting feiler · {attempt}/{threshold} · deaktiveres ved {threshold}",
+        "deactivatedMessage": "Slått av etter {threshold} mislykkede forsøk på henting",
+        "failingMessage": "Henting feiler · {attempt}/{threshold} · slås av ved {threshold}",
         "activate": "Aktiver",
         "awaitingCredentials": "Venter på tilgang",
         "active": "Aktiv",
@@ -601,6 +601,7 @@
         "create": "Opprett e-postkanal",
         "editTitle": "Rediger e-postkanal",
         "editDescription": "Oppdater kanalens navn eller transport. La et passord stå tomt for å beholde det lagrede — skriv et nytt for å erstatte det.",
+        "savedStillFailing": "Innstillingene er lagret, men tilkoblingen feiler fortsatt: {detail}. Kanalen står deaktivert til den får kontakt.",
         "sendLimitsLabel": "Begrens hvor mye denne kanalen sender",
         "sendLimitsHelp": "Beskytter omdømmet til domenet. Meldinger over grensen blir stående i køen og sendes automatisk når det er kapasitet igjen.",
         "sendLimitsPlaceholder": "ingen grense",

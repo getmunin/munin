@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { createTransport } from 'nodemailer';
 import { ImapFlow } from 'imapflow';
 import { resolvePublicHost } from '@getmunin/core';
@@ -13,6 +13,8 @@ export interface EmailProbeResult {
 
 @Injectable()
 export class EmailChannelProbe {
+  private static readonly logger = new Logger(EmailChannelProbe.name);
+
   constructor(
     @Inject(EmailService) private readonly email: EmailService,
     @Inject(DB) private readonly db: Db,
@@ -73,13 +75,22 @@ export class EmailChannelProbe {
           ? { tls: { servername: config.inbound.host } }
           : {}),
       });
+      client.on('error', (err) => {
+        EmailChannelProbe.logger.warn(
+          `imap late error host=${config.inbound!.host} user=${config.inbound!.username}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      });
       try {
         await client.connect();
         await client.logout();
+        return 'ok';
       } catch (err) {
         return `error: ${err instanceof Error ? err.message : String(err)}`;
+      } finally {
+        client.close();
       }
-      return 'ok';
     } catch (err) {
       return `error: ${err instanceof Error ? err.message : String(err)}`;
     }

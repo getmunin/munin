@@ -759,7 +759,7 @@ function ChannelRow({
     <StatusLine tone="active" label={t('status.active')} />
   );
 
-  const footerAction = isChat ? (
+  const primaryAction = isChat ? (
     <Button variant="outline" size="sm" onClick={onShowEmbed} className="gap-1.5">
       <Code className="size-3.5" />
       {t('showEmbed')}
@@ -774,13 +774,25 @@ function ChannelRow({
     </Button>
   ) : null;
 
+  const footerAction =
+    isDeactivated && !awaitingCredentials ? (
+      <>
+        <Button size="sm" onClick={onActivate}>
+          {t('status.activate')}
+        </Button>
+        {primaryAction}
+      </>
+    ) : (
+      primaryAction
+    );
+
   return (
     <SettingsCard
       kind={kind}
       name={channel.name}
       qualifier={qualifier}
       status={status}
-      pending={awaitingCredentials}
+      accent={awaitingCredentials ? 'pending' : isDeactivated ? 'error' : alert ? 'pending' : undefined}
       footerAction={footerAction}
       footerMeta={vendorLabel}
       menu={
@@ -837,7 +849,7 @@ function ChannelRow({
       }
     >
       <p className="text-[12.5px] leading-snug text-ink-mute">{description}</p>
-      {alert && <AlertFooter alert={alert} channel={channel} onActivate={onActivate} t={t} />}
+      {alert && <AlertFooter alert={alert} channel={channel} t={t} />}
     </SettingsCard>
   );
 }
@@ -845,36 +857,23 @@ function ChannelRow({
 function AlertFooter({
   alert,
   channel,
-  onActivate,
   t,
 }: {
   alert: ChannelAlertDto;
   channel: ChannelDto;
-  onActivate: () => void;
   t: ReturnType<typeof useTranslations<'dashboard.channels'>>;
 }) {
   const isDeactivated = !channel.active;
   const attempt = alert.metadata.attemptCount ?? 1;
   const threshold = alert.metadata.threshold ?? 5;
-  const dotClass = isDeactivated ? 'bg-destructive' : 'bg-amber-500';
   const message = isDeactivated
     ? t('status.deactivatedMessage', { threshold })
     : t('status.failingMessage', { attempt, threshold });
   return (
-    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t-[1px] border-rule-soft pt-3 dark:border-rule-on-dark">
-      <div className="flex min-w-0 flex-1 items-center gap-2.5">
-        <span className={cn('size-[7px] shrink-0 rounded-full', dotClass)} aria-hidden />
-        <span className="truncate text-[13px] text-ink dark:text-foreground">{message}</span>
-        {alert.detail && (
-          <span className="hidden truncate font-mono text-[11px] text-ink-mute md:inline">
-            · {alert.detail}
-          </span>
-        )}
-      </div>
-      {isDeactivated && (
-        <Button size="sm" onClick={onActivate}>
-          {t('status.activate')}
-        </Button>
+    <div className="mt-3 border-t-[1px] border-rule-soft pt-3 dark:border-rule-on-dark">
+      <p className="truncate text-[13px] text-ink dark:text-foreground">{message}</p>
+      {alert.detail && (
+        <p className="mt-1 truncate font-mono text-[11px] text-ink-mute">{alert.detail}</p>
       )}
     </div>
   );
@@ -1151,6 +1150,17 @@ function widgetAllowlistRequired(): boolean {
   return raw === '1' || raw === 'true';
 }
 
+function probeFailureDetail(probe: { smtp: string; imap: string }): string {
+  const parts: string[] = [];
+  if (probe.smtp !== 'ok') parts.push(`SMTP — ${stripProbeErrorPrefix(probe.smtp)}`);
+  if (probe.imap.startsWith('error')) parts.push(`IMAP — ${stripProbeErrorPrefix(probe.imap)}`);
+  return parts.join(' · ');
+}
+
+function stripProbeErrorPrefix(value: string): string {
+  return value.startsWith('error: ') ? value.slice('error: '.length) : value;
+}
+
 function parsePositiveInt(raw: string): number | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
@@ -1293,12 +1303,23 @@ function EmailChannelDialog({
     setCreating(true);
     setSubmitError(null);
     try {
-      await api('/v1/conversations/channels/email', {
-        method: 'POST',
-        body: JSON.stringify(parsed.data),
-      });
-      onOpenChange(false);
+      const saved = await api<{ active: boolean; probe?: { smtp: string; imap: string } }>(
+        '/v1/conversations/channels/email',
+        { method: 'POST', body: JSON.stringify(parsed.data) },
+      );
       onSaved();
+      if (saved.probe && !saved.active) {
+        setSubmitError(
+          toFormError(
+            null,
+            t('email.savedStillFailing', {
+              detail: probeFailureDetail(saved.probe),
+            }),
+          ),
+        );
+        return;
+      }
+      onOpenChange(false);
     } catch (err) {
       setSubmitError(
         toFormError(err, translate(err) || t(isEdit ? 'errors.updateEmail' : 'errors.createEmail')),

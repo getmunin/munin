@@ -81,7 +81,7 @@ export function SettingsCard({
   name,
   qualifier,
   status,
-  pending,
+  accent,
   children,
   footerAction,
   footerMeta,
@@ -91,7 +91,7 @@ export function SettingsCard({
   name: string;
   qualifier?: string;
   status: ReactNode;
-  pending?: boolean;
+  accent?: 'pending' | 'error';
   children?: ReactNode;
   footerAction?: ReactNode;
   footerMeta?: ReactNode;
@@ -100,7 +100,8 @@ export function SettingsCard({
     <div
       className={cn(
         'flex flex-col border-[1px] border-rule-soft bg-paper p-4 dark:border-rule-on-dark dark:bg-card',
-        pending && 'border-t-[1.5px] border-t-amber-500 dark:border-t-amber-400',
+        accent === 'pending' && 'border-t-[1.5px] border-t-amber-500 dark:border-t-amber-400',
+        accent === 'error' && 'border-t-[1.5px] border-t-destructive',
       )}
     >
       <div className="flex items-center gap-2">

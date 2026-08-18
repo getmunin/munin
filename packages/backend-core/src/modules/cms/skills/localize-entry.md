@@ -93,6 +93,10 @@ Use `skill://cms/publish-entry` for each entry. There is **no atomic "publish al
 
 `GET /v1/cms/{orgId}/{collection}/{slug}?locale=nb` matches on **both** slug and locale, so ask for the slug that belongs to the locale you want. A published entry's response includes `_locales: [{ locale, slug }, …]` — every *published* variant in its group — which is what you build `hreflang` tags and a language switcher from. Drafts never appear there.
 
+`GET /v1/cms/{orgId}/{collection}?locale=nb` carries the same `_locales` sidecar on every item, resolved for the whole page in one query. That's what makes a sitemap with `hreflang` alternates buildable from list calls alone — you don't have to re-fetch each entry to learn its siblings.
+
+Both endpoints emit `_locales` whenever the group has at least one published variant, so an entry with no siblings gets a one-element array naming itself. Treat that as "no alternates": a single-element `_locales` turned into `hreflang` tags produces a self-referential `x-default`, which is a worse signal than emitting nothing. Check for a second locale before you generate the tags.
+
 There is **no server-side locale fallback**: a slug/locale pair with no published row is a `404`, not the default-locale version. That's deliberate — silently serving English under a Norwegian URL is worse than a miss. If you want a fallback, fetch the canonical locale and use its `_locales` to redirect.
 
 ## Switching the org's default locale

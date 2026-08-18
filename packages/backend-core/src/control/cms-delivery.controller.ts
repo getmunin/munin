@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { schema, type Db } from '@getmunin/db';
-import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import {
   readApiBaseUrl,
   signViewToken,
@@ -133,6 +133,7 @@ export class CmsDeliveryController {
     const trackingOn = trackingEnabled(tracking);
     const projected = rows.map((r) => ({
       id: r.id,
+      translationGroupId: r.translationGroupId,
       slug: r.slug,
       locale: r.locale,
       data: projectData(fields, r.data),
@@ -146,17 +147,23 @@ export class CmsDeliveryController {
           publishedOnly: true,
         })
       : null;
-    const items = projected.map(({ id, ...p }) => {
+    const localeMap = await this.fetchLocaleAlternatesBatch(
+      org.id,
+      projected.map((p) => p.translationGroupId),
+    );
+    const items = projected.map(({ id, translationGroupId, ...p }) => {
       const expanded = applyAssetExpansion(fields, p.data, assets);
       const assetSidecar = buildInlineAssetSidecar(fields, expanded, assets);
       let data = rewriteInlineAssets(fields, expanded, assets);
       const refSidecar = entryMap ? buildReferenceSidecar(fields, data, entryMap) : {};
       if (entryMap) data = applyReferenceExpansion(fields, data, entryMap);
+      const locales = localeMap.get(translationGroupId) ?? [];
       return {
         ...p,
         data,
         ...(Object.keys(assetSidecar).length > 0 ? { _assets: assetSidecar } : {}),
         ...(Object.keys(refSidecar).length > 0 ? { _refs: refSidecar } : {}),
+        ...(locales.length > 0 ? { _locales: locales } : {}),
         ...(trackingOn ? { _tracking: buildTracking(org.id, id) } : {}),
       };
     });
@@ -272,6 +279,36 @@ export class CmsDeliveryController {
       )
       .orderBy(schema.cmsEntries.locale);
     return rows;
+  }
+
+  private async fetchLocaleAlternatesBatch(
+    orgId: string,
+    translationGroupIds: string[],
+  ): Promise<Map<string, Array<{ locale: string; slug: string }>>> {
+    const byGroup = new Map<string, Array<{ locale: string; slug: string }>>();
+    const groupIds = [...new Set(translationGroupIds)];
+    if (groupIds.length === 0) return byGroup;
+    const rows = await this.db
+      .select({
+        translationGroupId: schema.cmsEntries.translationGroupId,
+        locale: schema.cmsEntries.locale,
+        slug: schema.cmsEntries.slug,
+      })
+      .from(schema.cmsEntries)
+      .where(
+        and(
+          eq(schema.cmsEntries.orgId, orgId),
+          inArray(schema.cmsEntries.translationGroupId, groupIds),
+          eq(schema.cmsEntries.status, 'published'),
+        ),
+      )
+      .orderBy(schema.cmsEntries.locale);
+    for (const r of rows) {
+      const existing = byGroup.get(r.translationGroupId);
+      if (existing) existing.push({ locale: r.locale, slug: r.slug });
+      else byGroup.set(r.translationGroupId, [{ locale: r.locale, slug: r.slug }]);
+    }
+    return byGroup;
   }
 
   private async renderEntry(

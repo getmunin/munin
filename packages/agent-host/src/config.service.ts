@@ -56,6 +56,7 @@ export class AgentConfigService {
       input.providerApiKey !== undefined
         ? input.providerApiKey
         : await this.repo.readDecryptedProviderKey(id);
+    if (input.providerApiKey !== undefined) this.models.invalidate(id);
 
     let credentialsValidated = false;
     if (credentialsTouched && apiKey) {

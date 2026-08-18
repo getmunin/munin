@@ -130,6 +130,24 @@ describe('AgentModelsService', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('refetches after invalidate so a rotated key cannot read a stale list', async () => {
+    const fetchMock = mockSafeFetch({ status: 200, body: { data: [{ id: 'm-1' }] } });
+    const svc = new AgentModelsService(makeRepo());
+    await svc.listForCurrentActor();
+    svc.invalidate('singleton');
+    await svc.listForCurrentActor();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves other ids cached when one id is invalidated', async () => {
+    const fetchMock = mockSafeFetch({ status: 200, body: { data: [{ id: 'm-1' }] } });
+    const svc = new AgentModelsService(makeRepo());
+    await svc.listForCurrentActor();
+    svc.invalidate('other-org');
+    await svc.listForCurrentActor();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('strips trailing slashes from the base URL before appending /models', async () => {
     const fetchMock = mockSafeFetch({ status: 200, body: { data: [] } });
     const repo = makeRepo({

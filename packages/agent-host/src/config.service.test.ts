@@ -41,8 +41,10 @@ function makeRepo(opts: {
 
 function makeModels(modelIds: string[] = []): ProviderModelLister & {
   listForProvider: ReturnType<typeof vi.fn>;
+  invalidate: ReturnType<typeof vi.fn>;
 } {
   return {
+    invalidate: vi.fn(() => undefined),
     listForProvider: vi.fn().mockResolvedValue({
       supported: modelIds.length > 0,
       models: modelIds.map((id) => ({
@@ -279,5 +281,30 @@ describe('AgentConfigService provider/model reconciliation', () => {
 
     expect(models.listForProvider).not.toHaveBeenCalled();
     expect(repo.update).toHaveBeenCalledWith('singleton', { debounceMs: 750 });
+  });
+
+  it('drops the cached model list when the provider key is replaced', async () => {
+    const anthropicRow = {
+      ...openRouterRow,
+      providerBaseUrl: ANTHROPIC,
+      fastModel: 'claude-haiku-4-5',
+    };
+    const repo = makeRepo({ before: anthropicRow, after: anthropicRow, apiKey: 'sk-old' });
+    const models = makeModels(['claude-haiku-4-5']);
+    const svc = new AgentConfigService(repo, makeWebhooks(), makeHealthStub(), models);
+
+    await svc.upsertForCurrentActor({ providerApiKey: 'sk-new' });
+
+    expect(models.invalidate).toHaveBeenCalledWith('singleton');
+  });
+
+  it('keeps the cached model list when the key is untouched', async () => {
+    const repo = makeRepo({ before: openRouterRow, after: openRouterRow, apiKey: 'sk-x' });
+    const models = makeModels(['anthropic/claude-haiku-4.5']);
+    const svc = new AgentConfigService(repo, makeWebhooks(), makeHealthStub(), models);
+
+    await svc.upsertForCurrentActor({ debounceMs: 750 });
+
+    expect(models.invalidate).not.toHaveBeenCalled();
   });
 });

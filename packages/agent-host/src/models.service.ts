@@ -1,9 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { createHash } from 'node:crypto';
 import { describeError, safeFetch } from '@getmunin/core';
 import { AGENT_CONFIG_REPOSITORY } from './injection-tokens.ts';
 import type { AgentConfigRepository } from './config.repository.ts';
-import { authHeaders } from './provider-auth.ts';
+import { authHeaders, stripTrailingSlashes } from './provider-auth.ts';
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -27,6 +26,7 @@ interface CacheEntry {
 
 export interface ProviderModelLister {
   listForProvider(id: string, baseUrl: string, apiKey: string): Promise<ListModelsResult>;
+  invalidate(id: string): void;
 }
 
 @Injectable()
@@ -49,7 +49,7 @@ export class AgentModelsService implements ProviderModelLister {
   }
 
   async listForProvider(id: string, baseUrl: string, apiKey: string): Promise<ListModelsResult> {
-    const cacheKey = `${id}|${baseUrl}|${fingerprint(apiKey)}`;
+    const cacheKey = `${id}|${baseUrl}`;
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return cached.result;
 
@@ -58,8 +58,15 @@ export class AgentModelsService implements ProviderModelLister {
     return result;
   }
 
+  invalidate(id: string): void {
+    const prefix = `${id}|`;
+    for (const key of this.cache.keys()) {
+      if (key.startsWith(prefix)) this.cache.delete(key);
+    }
+  }
+
   private async fetchModels(baseUrl: string, apiKey: string): Promise<ListModelsResult> {
-    const url = `${baseUrl.replace(/\/+$/, '')}/models`;
+    const url = `${stripTrailingSlashes(baseUrl)}/models`;
     let res: Awaited<ReturnType<typeof safeFetch>>;
     try {
       res = await safeFetch(url, {
@@ -91,10 +98,6 @@ export class AgentModelsService implements ProviderModelLister {
       fetchedAt: new Date().toISOString(),
     };
   }
-}
-
-function fingerprint(apiKey: string): string {
-  return createHash('sha256').update(apiKey).digest('hex').slice(0, 12);
 }
 
 function parseOpenAiCompatModels(body: unknown): ModelEntry[] | null {

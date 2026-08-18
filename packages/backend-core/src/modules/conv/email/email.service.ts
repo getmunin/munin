@@ -365,8 +365,10 @@ export class EmailService {
     if (channel.type !== 'email') {
       throw new BadRequestException(`channel ${input.channelId} is not an email channel`);
     }
-    const prev = jsonbToStored(channel.config);
-    const merged = await this.mergeConfig(prev, input.config);
+    const prev = tryJsonbToStored(channel.config);
+    const merged = prev
+      ? await this.mergeConfig(prev, input.config)
+      : await this.toStored(input.config);
     const [row] = await ctx.db
       .update(schema.convChannels)
       .set({
@@ -539,7 +541,23 @@ export function storedToJsonb(stored: StoredEmailChannelConfig): Record<string, 
 }
 
 export function jsonbToStored(json: Record<string, unknown>): StoredEmailChannelConfig {
-  return StoredEmailChannelConfigSchema.parse(json);
+  const parsed = StoredEmailChannelConfigSchema.safeParse(json);
+  if (!parsed.success) throw invalidStoredConfig(parsed.error);
+  return parsed.data;
+}
+
+export function tryJsonbToStored(json: Record<string, unknown>): StoredEmailChannelConfig | null {
+  const parsed = StoredEmailChannelConfigSchema.safeParse(json);
+  return parsed.success ? parsed.data : null;
+}
+
+function invalidStoredConfig(error: z.ZodError): BadRequestException {
+  const fields = [...new Set(error.issues.map((issue) => issue.path.join('.') || 'config'))];
+  return new BadRequestException({
+    message: `conv_channel_config_invalid: this email channel's saved settings are incomplete (${fields.join(', ')}) — open the channel and save its settings again to repair it`,
+    code: 'conv_channel_config_invalid',
+    fields,
+  });
 }
 
 async function decryptString(tx: Db | Tx, ciphertext: string): Promise<string> {

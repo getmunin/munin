@@ -1576,8 +1576,8 @@ function EmailChannelDialog({
           </fieldset>
           </div>
 
-          {submitError && <FormError detail={submitError} />}
-          <DialogFooter className={dialogFooterClass}>
+          {submitError && <FormError detail={submitError} pinned />}
+          <DialogFooter className={cn(dialogFooterClass, submitError && 'mt-0')}>
             <Button
               type="button"
               variant="outline"

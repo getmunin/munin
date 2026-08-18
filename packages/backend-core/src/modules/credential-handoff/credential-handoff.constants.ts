@@ -1,5 +1,7 @@
+import { stripTrailingSlashes } from '@getmunin/types';
+
 export function readWebBaseUrl(): string {
-  return (process.env.MUNIN_WEB_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
+  return stripTrailingSlashes(process.env.MUNIN_WEB_URL ?? 'http://localhost:3000');
 }
 
 export function credentialLinkUrl(token: string): string {

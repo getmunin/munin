@@ -9,6 +9,7 @@ import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
 import { STORAGE } from './common/storage/storage.token.ts';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 const JSON_BODY_LIMIT = '4mb';
 
@@ -124,7 +125,7 @@ function parseRewriteSource(raw: string | undefined): RewriteSource | null {
   if (!raw) return null;
   try {
     const u = new URL(raw);
-    const path = u.pathname.replace(/\/+$/, '');
+    const path = stripTrailingSlashes(u.pathname);
     return { host: u.hostname.toLowerCase(), externalPath: path };
   } catch {
     return null;

@@ -102,3 +102,4 @@ export {
   defaultFastModelForBaseUrl,
   type LlmProviderPreset,
 } from './llm-providers.ts';
+export { stripTrailingSlashes } from './url.ts';

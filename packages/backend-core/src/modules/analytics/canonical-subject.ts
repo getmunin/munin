@@ -1,3 +1,5 @@
+import { stripTrailingSlashes } from '@getmunin/types';
+
 export interface CanonicalSubjectContext {
   locale?: string | null;
   localeOverrides?: readonly string[];
@@ -15,7 +17,7 @@ export function canonicalizeSubjectId(
     out = match[2] ?? '/';
   }
 
-  if (out.length > 1) out = out.replace(/\/+$/, '') || '/';
+  if (out.length > 1) out = stripTrailingSlashes(out) || '/';
   return out;
 }
 

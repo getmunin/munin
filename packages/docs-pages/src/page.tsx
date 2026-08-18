@@ -2,12 +2,13 @@ import { Link } from './i18n-navigation';
 import { listEndpoints } from './_lib/openapi';
 import { mcpTools } from './_lib/mcp';
 import { skills } from './_lib/skills';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 export default function DocsHome() {
   const restCount = listEndpoints().length;
   const mcpCount = mcpTools.length;
   const skillCount = skills.length;
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+  const apiBase = stripTrailingSlashes(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001');
   return (
     <main className="docs-main">
       <header className="docs-hero">

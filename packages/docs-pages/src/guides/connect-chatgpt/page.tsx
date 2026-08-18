@@ -1,6 +1,7 @@
 import { Link } from '../../i18n-navigation';
 import { GuidesSidebar } from '../../_components/guides-sidebar';
 import { DashboardLink } from '../../_components/dashboard-link';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 export const metadata = {
   title: 'Munin · Connect ChatGPT over MCP',
@@ -8,7 +9,7 @@ export const metadata = {
 };
 
 export default function ConnectChatGPT() {
-  const mcpUrl = (process.env.NEXT_PUBLIC_MCP_URL ?? 'http://localhost:3001/mcp').replace(/\/+$/, '');
+  const mcpUrl = stripTrailingSlashes(process.env.NEXT_PUBLIC_MCP_URL ?? 'http://localhost:3001/mcp');
   return (
     <>
     <GuidesSidebar />

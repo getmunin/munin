@@ -1,3 +1,5 @@
+import { stripTrailingSlashes } from '@getmunin/types';
+
 export const MCP_INTERNAL_PATH = '/mcp';
 export const MCP_RESOURCE_PATH = MCP_INTERNAL_PATH;
 
@@ -42,12 +44,12 @@ export const RESOURCE_ADVERTISED_SCOPES = ['offline_access', ...SUPPORTED_SCOPES
 const DEFAULT_MCP_URL = 'http://localhost:3001/mcp';
 
 export function mcpResourceUrl(): string {
-  return (process.env.NEXT_PUBLIC_MCP_URL ?? DEFAULT_MCP_URL).replace(/\/+$/, '');
+  return stripTrailingSlashes(process.env.NEXT_PUBLIC_MCP_URL ?? DEFAULT_MCP_URL);
 }
 
 export function authorizationServerUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_AUTH_URL;
-  if (explicit) return explicit.replace(/\/+$/, '');
+  if (explicit) return stripTrailingSlashes(explicit);
   return parsePublicUrl().origin;
 }
 
@@ -65,7 +67,7 @@ export function mcpExternalHost(): string {
 
 export function mcpExternalPath(): string {
   const path = parsePublicUrl().pathname;
-  return path === '/' ? '' : path.replace(/\/+$/, '');
+  return path === '/' ? '' : stripTrailingSlashes(path);
 }
 
 function parsePublicUrl(): URL {

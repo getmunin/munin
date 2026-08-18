@@ -1,8 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { describeError, safeFetch } from '@getmunin/core';
+import { stripTrailingSlashes } from '@getmunin/types';
 import { AGENT_CONFIG_REPOSITORY } from './injection-tokens.ts';
 import type { AgentConfigRepository } from './config.repository.ts';
-import { authHeaders, stripTrailingSlashes } from './provider-auth.ts';
+import { authHeaders } from './provider-auth.ts';
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
 

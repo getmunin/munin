@@ -1,5 +1,6 @@
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type { McpTool, McpToolHandle, McpToolResult } from './types.ts';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 export interface OpenHttpMcpClientOptions {
   baseUrl: string;
@@ -12,7 +13,7 @@ export interface OpenedHttpMcpClient extends McpToolHandle {
 }
 
 export async function openHttpMcpClient(opts: OpenHttpMcpClientOptions): Promise<OpenedHttpMcpClient> {
-  const url = new URL(`${opts.baseUrl.replace(/\/+$/, '')}/mcp`);
+  const url = new URL(`${stripTrailingSlashes(opts.baseUrl)}/mcp`);
   const transport = new StreamableHTTPClientTransport(url, {
     requestInit: {
       headers: {

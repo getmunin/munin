@@ -20,6 +20,7 @@ import { renderOrgInviteEmail } from '@getmunin/emails';
 import { DB } from '../common/db/db.module.ts';
 import { MAILER } from '../common/mail/mail.module.ts';
 import { VALID_ROLES } from './role-guard.ts';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 const INVITE_TTL_DAYS = 7;
 const EmailSchema = z.string().email();
@@ -214,7 +215,7 @@ export class InvitationsService {
   }
 
   private buildAcceptUrl(token: string): Promise<string> {
-    const webBase = (process.env.MUNIN_WEB_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
+    const webBase = stripTrailingSlashes(process.env.MUNIN_WEB_URL ?? 'http://localhost:3000');
     return Promise.resolve(`${webBase}/accept-invite?token=${encodeURIComponent(token)}`);
   }
 

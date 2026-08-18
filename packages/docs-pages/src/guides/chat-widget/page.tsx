@@ -1,5 +1,6 @@
 import { Link } from '../../i18n-navigation';
 import { GuidesSidebar } from '../../_components/guides-sidebar';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 export const metadata = {
   title: 'Munin · Chat widget',
@@ -7,7 +8,7 @@ export const metadata = {
 };
 
 export default function WidgetGuide() {
-  const host = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+  const host = stripTrailingSlashes(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001');
   return (
     <>
     <GuidesSidebar />

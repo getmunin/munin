@@ -1,8 +1,10 @@
+import { stripTrailingSlashes } from '@getmunin/types';
+
 const LOCAL_FALLBACK = 'http://localhost:3001';
 
 export function readApiBaseUrl(): string {
   const raw = process.env.MUNIN_API_URL ?? mcpOrigin() ?? LOCAL_FALLBACK;
-  return raw.replace(/\/+$/, '');
+  return stripTrailingSlashes(raw);
 }
 
 function mcpOrigin(): string | null {

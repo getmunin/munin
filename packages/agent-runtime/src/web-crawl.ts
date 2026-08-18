@@ -1,4 +1,5 @@
 import { describeError, safeFetch } from '@getmunin/core';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 const USER_AGENT = 'Munin-Crawler/1.0 (+https://getmunin.com)';
 const DEFAULT_MAX_PAGES = 25;
@@ -482,7 +483,7 @@ export function normalizeCandidateUrl(raw: string, origin: string): string | nul
     u.hash = '';
     u.search = '';
     if (u.pathname !== '/' && u.pathname.endsWith('/')) {
-      u.pathname = u.pathname.replace(/\/+$/, '') || '/';
+      u.pathname = stripTrailingSlashes(u.pathname) || '/';
     }
     return u.toString();
   } catch (err) {

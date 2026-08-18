@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { sensitive } from '@getmunin/types';
 import { getCurrentContext } from '@getmunin/core';
 import { eq } from 'drizzle-orm';
-import { EmailService } from '../email/email.service.ts';
+import { EmailService, jsonbToStored } from '../email/email.service.ts';
 import {
   ChannelCredentialService,
   type EmailChannelTester,
@@ -163,6 +163,9 @@ const skipReason = TEST_URL
     return appDb.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
       await tx.execute(sql`SELECT set_config('app.org_id', ${orgId}, true)`);
+      await tx.execute(
+        sql`SELECT set_config('app.crypt_key', ${process.env.MUNIN_ENCRYPTION_KEY!}, true)`,
+      );
       const ctx: RequestContext = { db: tx, actor: adminActor, correlationId: randomUUID() };
       return withContext(ctx, fn);
     });
@@ -253,6 +256,164 @@ const skipReason = TEST_URL
         ),
       ),
     ).rejects.toThrow(/conv_invalid: secret fields \(outbound\.password\)/);
+  });
+
+  it('rejects passwords passed through the setup tool path when updating', async () => {
+    const email = new EmailService();
+    await expect(
+      asAdmin(() =>
+        email.configureChannel(
+          {
+            channelId,
+            name: 'Support inbox',
+            config: {
+              addressing: { fromAddress: 'support@acme.test' },
+              outbound: {
+                provider: 'smtp',
+                host: 'smtp.acme.test',
+                port: 587,
+                secure: true,
+                username: 'support@acme.test',
+              },
+              inbound: {
+                provider: 'imap',
+                host: 'imap.acme.test',
+                port: 993,
+                secure: true,
+                username: 'support@acme.test',
+                password: 'plaintext_pw',
+              },
+            },
+          },
+          { rejectSecrets: true },
+        ),
+      ),
+    ).rejects.toThrow(/conv_invalid: secret fields \(inbound\.password\)/);
+  });
+
+  it('accepts a password from the dashboard path and rotates one on an active channel', async () => {
+    const email = new EmailService();
+    const smtpConfig = (password?: string) => ({
+      addressing: { fromAddress: 'dash@acme.test' },
+      outbound: {
+        provider: 'smtp' as const,
+        host: 'smtp.acme.test',
+        port: 587,
+        secure: false,
+        username: 'dash@acme.test',
+        ...(password ? { password } : {}),
+      },
+    });
+
+    const created = await asAdmin(() =>
+      email.configureChannel({ name: 'Dashboard inbox', config: smtpConfig('first_pw') }),
+    );
+    expect(created.active).toBe(true);
+
+    await asAdmin(() =>
+      email.configureChannel({
+        channelId: created.id,
+        name: 'Dashboard inbox',
+        config: smtpConfig('rotated_pw'),
+      }),
+    );
+
+    const stored = await asAdmin(async () => {
+      const ctx = getCurrentContext();
+      const rows = await ctx.db
+        .select()
+        .from(schema.convChannels)
+        .where(eq(schema.convChannels.id, created.id))
+        .limit(1);
+      const config = jsonbToStored(rows[0]!.config);
+      const ciphertext =
+        config.outbound.provider === 'smtp' ? config.outbound.encryptedPassword : '';
+      return { ciphertext, plaintext: await email.decryptSmtpPassword(ctx.db, ciphertext) };
+    });
+    expect(stored.plaintext).toBe('rotated_pw');
+    expect(stored.ciphertext).not.toContain('rotated_pw');
+  });
+
+  it('deactivates a channel whose update leaves a required password missing, and reactivates it on entry', async () => {
+    const email = new EmailService();
+    const created = await asAdmin(() =>
+      email.configureChannel({
+        name: 'Outbound only',
+        config: {
+          addressing: { fromAddress: 'out@acme.test' },
+          outbound: {
+            provider: 'smtp',
+            host: 'smtp.acme.test',
+            port: 587,
+            secure: false,
+            username: 'out@acme.test',
+            password: 'smtp_pw',
+          },
+        },
+      }),
+    );
+    expect(created.active).toBe(true);
+
+    const withInbound = await asAdmin(() =>
+      email.configureChannel({
+        channelId: created.id,
+        name: 'Outbound only',
+        config: {
+          addressing: { fromAddress: 'out@acme.test' },
+          outbound: {
+            provider: 'smtp',
+            host: 'smtp.acme.test',
+            port: 587,
+            secure: false,
+            username: 'out@acme.test',
+          },
+          inbound: {
+            provider: 'imap',
+            host: 'imap.acme.test',
+            port: 993,
+            secure: true,
+            username: 'out@acme.test',
+          },
+        },
+      }),
+    );
+    expect(withInbound.active).toBe(false);
+
+    const applied = await asAdmin(() => channels.apply(created.id, { imapPassword: 'imap_pw' }));
+    expect(applied.ok).toBe(true);
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const rows = await db.select().from(schema.convChannels).where(sql`id = ${created.id}`);
+    expect(rows[0]!.active).toBe(true);
+  });
+
+  it('leaves a paused channel paused when its config is updated', async () => {
+    const email = new EmailService();
+    const config = {
+      addressing: { fromAddress: 'paused@acme.test' },
+      outbound: {
+        provider: 'smtp' as const,
+        host: 'smtp.acme.test',
+        port: 587,
+        secure: false,
+        username: 'paused@acme.test',
+        password: 'smtp_pw',
+      },
+    };
+    const created = await asAdmin(() =>
+      email.configureChannel({ name: 'Paused inbox', config }),
+    );
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    await db
+      .update(schema.convChannels)
+      .set({ active: false })
+      .where(sql`id = ${created.id}`);
+
+    const updated = await asAdmin(() =>
+      email.configureChannel({ channelId: created.id, name: 'Paused inbox renamed', config }),
+    );
+    expect(updated.active).toBe(false);
   });
 
   it('creates a secretless smtp channel inactive, and a mailer channel active', async () => {

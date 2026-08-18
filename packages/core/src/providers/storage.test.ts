@@ -185,6 +185,45 @@ describe('S3CompatibleStorage SigV4', () => {
     expect(handleA.uploadFields['x-amz-signature']).not.toBe(handleB.uploadFields['x-amz-signature']);
   });
 
+  it('pins an immutable Cache-Control in both the policy condition and the form field', async () => {
+    const s3 = new S3CompatibleStorage({
+      bucket: 'b',
+      region: 'r',
+      endpoint: 'https://s3.example.com',
+      accessKey: 'a',
+      secretKey: 's',
+    });
+    const handle = await s3.presignedUpload({ key: 'k.png', mime: 'image/png', sizeBytes: 10 });
+    expect(handle.uploadFields['Cache-Control']).toBe('public, max-age=31536000, immutable');
+    const policy = JSON.parse(Buffer.from(handle.uploadFields.policy!, 'base64').toString('utf8')) as {
+      conditions: unknown[];
+    };
+    const condition = policy.conditions.find(
+      (c) => typeof c === 'object' && c !== null && 'Cache-Control' in c,
+    ) as { 'Cache-Control': string } | undefined;
+    expect(condition?.['Cache-Control']).toBe(handle.uploadFields['Cache-Control']);
+  });
+
+  it('carries a cacheControl override into both the policy condition and the form field', async () => {
+    const s3 = new S3CompatibleStorage({
+      bucket: 'b',
+      region: 'r',
+      endpoint: 'https://s3.example.com',
+      accessKey: 'a',
+      secretKey: 's',
+      cacheControl: 'public, max-age=60',
+    });
+    const handle = await s3.presignedUpload({ key: 'k.png', mime: 'image/png', sizeBytes: 10 });
+    const policy = JSON.parse(Buffer.from(handle.uploadFields.policy!, 'base64').toString('utf8')) as {
+      conditions: unknown[];
+    };
+    const condition = policy.conditions.find(
+      (c) => typeof c === 'object' && c !== null && 'Cache-Control' in c,
+    ) as { 'Cache-Control': string } | undefined;
+    expect(handle.uploadFields['Cache-Control']).toBe('public, max-age=60');
+    expect(condition?.['Cache-Control']).toBe('public, max-age=60');
+  });
+
   it('respects publicBaseUrl override', () => {
     const s3 = new S3CompatibleStorage({
       bucket: 'b',
@@ -282,11 +321,12 @@ describe('S3CompatibleStorage SigV4', () => {
       const headers = calledInit?.headers as Record<string, string>;
       expect(headers['Content-Type']).toBe('image/png');
       expect(headers['Content-Length']).toBe(String(body.length));
+      expect(headers['Cache-Control']).toBe('public, max-age=31536000, immutable');
       const expectedHash = createHash('sha256').update(body).digest('hex');
       expect(headers['x-amz-content-sha256']).toBe(expectedHash);
       expect(headers['x-amz-date']).toMatch(/^\d{8}T\d{6}Z$/);
       expect(headers['Authorization']).toMatch(
-        /^AWS4-HMAC-SHA256 Credential=AKIA-test\/\d{8}\/fr-par\/s3\/aws4_request, SignedHeaders=content-length;content-type;host;x-amz-content-sha256;x-amz-date, Signature=[a-f0-9]{64}$/,
+        /^AWS4-HMAC-SHA256 Credential=AKIA-test\/\d{8}\/fr-par\/s3\/aws4_request, SignedHeaders=cache-control;content-length;content-type;host;x-amz-content-sha256;x-amz-date, Signature=[a-f0-9]{64}$/,
       );
     } finally {
       spy.mockRestore();

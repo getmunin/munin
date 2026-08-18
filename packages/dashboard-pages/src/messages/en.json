@@ -1566,7 +1566,8 @@
     "FEEDBACK_NOT_FOUND": "Suggestion not found.",
     "cms_asset_too_large": "This file is too large to upload. The maximum size is 50 MB.",
     "cms_asset_upload_failed": "The file upload didn't finish. Check your connection and try again.",
-    "cms_version_conflict": "This entry was changed elsewhere while you were editing. Reload it and try again."
+    "cms_version_conflict": "This entry was changed elsewhere while you were editing. Reload it and try again.",
+    "agent_config_invalid_model": "Your AI provider no longer offers that model. Reload the page to refresh the list, then pick a model and save again."
   },
   "footer": {
     "privacy": "Privacy",

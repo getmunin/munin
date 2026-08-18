@@ -53,6 +53,7 @@ Response (POST-style, S3):
   "uploadFields": {
     "key": "org_x/abc.jpg",
     "Content-Type": "image/jpeg",
+    "Cache-Control": "public, max-age=31536000, immutable",
     "policy": "<base64-policy>",
     "x-amz-algorithm": "AWS4-HMAC-SHA256",
     "x-amz-credential": "AKIA.../20260501/eu-west-1/s3/aws4_request",
@@ -81,7 +82,7 @@ curl -X POST "<uploadUrl>" \
      -F "file=@./spring-launch-hero.jpg"
 ```
 
-The `file` part must come **last** in the multipart body. Send every key in `uploadFields` as a form field; the embedded policy fixes the allowed byte size to exactly `sizeBytes`, so an oversized body is rejected at S3. Must complete before `uploadExpiresAt` (typically ~15 min).
+The `file` part must come **last** in the multipart body. Send every key in `uploadFields` as a form field — each one is a signed policy condition, so omitting or altering any of them makes S3 reject the POST. The embedded policy fixes the allowed byte size to exactly `sizeBytes`, so an oversized body is rejected at S3. Must complete before `uploadExpiresAt` (typically ~15 min).
 
 ## Step 3 — complete
 

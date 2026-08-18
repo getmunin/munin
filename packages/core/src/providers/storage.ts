@@ -138,9 +138,11 @@ export interface S3CompatibleStorageOptions {
   secretKey: string;
   publicBaseUrl?: string;
   uploadTtlSeconds?: number;
+  cacheControl?: string;
 }
 
 const DEFAULT_S3_UPLOAD_TTL_SECONDS = 15 * 60;
+const DEFAULT_ASSET_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 
 export class S3CompatibleStorage implements AssetStorage {
   readonly provider = 's3';
@@ -151,6 +153,7 @@ export class S3CompatibleStorage implements AssetStorage {
   private readonly accessKey: string;
   private readonly secretKey: string;
   private readonly uploadTtlSeconds: number;
+  private readonly cacheControl: string;
 
   constructor(opts: S3CompatibleStorageOptions) {
     this.bucket = opts.bucket;
@@ -160,6 +163,7 @@ export class S3CompatibleStorage implements AssetStorage {
     this.secretKey = opts.secretKey;
     this.publicBaseUrl = stripTrailingSlashes(opts.publicBaseUrl ?? `${this.endpoint}/${this.bucket}`);
     this.uploadTtlSeconds = opts.uploadTtlSeconds ?? DEFAULT_S3_UPLOAD_TTL_SECONDS;
+    this.cacheControl = opts.cacheControl ?? DEFAULT_ASSET_CACHE_CONTROL;
   }
 
   presignedUpload(opts: {
@@ -243,6 +247,7 @@ export class S3CompatibleStorage implements AssetStorage {
     const contentLength = String(body.length);
 
     const headersForSigning: Record<string, string> = {
+      'cache-control': this.cacheControl,
       'content-length': contentLength,
       'content-type': contentType,
       host,
@@ -278,6 +283,7 @@ export class S3CompatibleStorage implements AssetStorage {
       url: `${url.origin}${url.pathname}`,
       headers: {
         Authorization: authorization,
+        'Cache-Control': this.cacheControl,
         'Content-Length': contentLength,
         'Content-Type': contentType,
         'x-amz-content-sha256': payloadHash,
@@ -303,6 +309,7 @@ export class S3CompatibleStorage implements AssetStorage {
         { bucket: this.bucket },
         { key },
         { 'Content-Type': contentType },
+        { 'Cache-Control': this.cacheControl },
         ['content-length-range', sizeBytes, sizeBytes],
         { 'x-amz-algorithm': 'AWS4-HMAC-SHA256' },
         { 'x-amz-credential': credential },
@@ -317,6 +324,7 @@ export class S3CompatibleStorage implements AssetStorage {
       uploadFields: {
         key,
         'Content-Type': contentType,
+        'Cache-Control': this.cacheControl,
         policy: policyB64,
         'x-amz-algorithm': 'AWS4-HMAC-SHA256',
         'x-amz-credential': credential,
@@ -406,6 +414,7 @@ export function readAssetStorageFromEnv(): AssetStorage {
       accessKey,
       secretKey,
       publicBaseUrl: process.env.MUNIN_STORAGE_S3_PUBLIC_BASE_URL,
+      cacheControl: process.env.MUNIN_STORAGE_S3_CACHE_CONTROL,
     });
   }
   return new LocalFsStorage({

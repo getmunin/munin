@@ -1,5 +1,34 @@
 # @getmunin/backend-core
 
+## 5.3.0
+
+### Minor Changes
+
+- 55dc284: Let an MCP endpoint mounted beside `/mcp` be its own OAuth protected resource.
+
+  Everything about authorization assumed exactly one MCP resource. `/.well-known/oauth-protected-resource` served a single document, `computeValidAudiences` derived audiences from `NEXT_PUBLIC_MCP_URL` alone, and `AuthGuard` enforced `credential.audience === mcpResourceUrl()`. An endpoint mounted below `/mcp` — a separately gated toolset on its own path — was therefore indistinguishable from `/mcp` for the entire length of the authorization flow: the client fell back to the shared metadata document, requested the full advertised scope set, and the authorization request carried nothing that identified which endpoint it was for. Consent screens could only describe the whole product, and an endpoint that refuses the caller could only say so on the first `initialize` call — after consent, after a token was minted — where a host application surfaces it as a bare connection failure.
+
+  A surface is now a descriptor, `McpSurface { id, path, resourceName, scopes }`, registered through the `ADDITIONAL_MCP_SURFACES` provider token (the same optional-injection idiom as `ADDITIONAL_CREDENTIAL_RESOLVERS`) and passed to `createMuninAuthCore` as `mcpSurfaces`. `McpSurfacesModule.forRoot(surfaces)` provides the token globally, because the two Nest consumers sit in different modules — the resource-metadata controller inside `OAuthModule`, the guard at the composition root — and a host should not have to reach into either to register one. Four consumers read it:
+
+  - `OAuthResourceController` serves RFC 9728 metadata at `/.well-known/oauth-protected-resource<path>` for each registered surface, with `resource` set to the surface's own URL and `scopes_supported` limited to its own scopes. Unregistered suffixes 404 as before, and the base document is unchanged — surface scopes never appear on it, and neither does the surface's existence.
+  - `computeValidAudiences` takes a third argument of additional resource identifiers, so the authorization server stops rejecting `resource=<surface url>` with `invalid_target`. Surface resources contribute only their exact and trailing-slash forms; unlike the base resource they are not widened to their origin.
+  - The authorization server's accepted scope list is `SUPPORTED_AUTH_SCOPES` plus the registered surfaces' scopes. Deliberately _accepted but not advertised_: `RESOURCE_ADVERTISED_SCOPES` and the authorization-server metadata document stay as they are, so a surface scope is only discoverable through that surface's own metadata document.
+  - `AuthGuard` resolves the surface owning the request path and requires the audience to match that surface's resource, so a token minted for one surface is refused on `/mcp` and on every other surface. The base resource is still accepted on a surface path, which keeps tokens issued before a surface existed working. The `WWW-Authenticate` challenge now points at the surface's own metadata document rather than the base one, and audience comparison ignores a trailing slash — previously a token whose audience carried one passed audience validation at issue time and then 401'd at the guard.
+
+  Surface paths must sit below `/mcp/`; a descriptor with a duplicate id or path, a path outside `/mcp/`, or a missing id or resource name throws at startup rather than silently not matching.
+
+  `OAuthConsentPage` gains two optional props for describing a single resource instead of the whole product. `resourceInfo` supplies the resource name and its own permission rows, replacing the module/scope grouping — a surface scope no longer falls through the module map and renders as "no product permissions requested". `denial` renders the request as unauthorizable, with the reason (`not_eligible`, `no_org`) and a cancel button that returns the client to its redirect URI, instead of an authorize button that mints a token the endpoint will refuse. Deciding whether a caller is eligible stays with whoever mounts the page: the props describe presentation, and both default to null, so the existing consent flow renders exactly as before.
+
+### Patch Changes
+
+- @getmunin/inspector-app@5.3.0
+- @getmunin/core@5.3.0
+- @getmunin/db@5.3.0
+- @getmunin/types@5.3.0
+- @getmunin/mcp-toolkit@5.3.0
+- @getmunin/agent-runtime@5.3.0
+- @getmunin/emails@5.3.0
+
 ## 5.2.2
 
 ### Patch Changes

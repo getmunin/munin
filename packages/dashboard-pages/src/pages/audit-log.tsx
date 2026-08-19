@@ -13,7 +13,7 @@ import { notify } from '../lib/notify';
 import { NativeSelect } from '../components/native-select';
 import { Button, Hero, Input, SectionHead, cn } from '@getmunin/ui';
 
-type ClientKind = 'sdk' | 'cli' | 'mcp' | 'unknown';
+type ClientKind = 'sdk' | 'cli' | 'mcp' | 'dashboard' | 'widget' | 'unknown';
 
 interface AuditDto {
   id: string;
@@ -28,6 +28,7 @@ interface AuditDto {
   totalTokens: number | null;
   userAgent: string | null;
   client: ClientKind;
+  clientName: string | null;
   createdAt: string;
 }
 
@@ -146,9 +147,11 @@ export function AuditLogPage() {
           onChange={(e) => setFilters((f) => ({ ...f, client: e.target.value }))}
         >
           <option value="">{t('clientAny')}</option>
+          <option value="mcp">mcp</option>
+          <option value="dashboard">dashboard</option>
+          <option value="widget">widget</option>
           <option value="sdk">sdk</option>
           <option value="cli">cli</option>
-          <option value="mcp">mcp</option>
           <option value="unknown">unknown</option>
         </NativeSelect>
         <Button type="submit" variant="outline">
@@ -212,7 +215,7 @@ export function AuditLogPage() {
                     className="hidden md:table-cell py-3 pr-4 font-mono text-[11px] text-ink-mute"
                     title={row.userAgent ?? undefined}
                   >
-                    {row.client}
+                    {row.clientName ?? row.client}
                   </td>
                   <td className="py-3 pr-4 font-mono text-[11px] text-ink dark:text-foreground">
                     {row.tool ?? row.method ?? '—'}

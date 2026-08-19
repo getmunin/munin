@@ -9,7 +9,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { schema, type Db, type Tx } from '@getmunin/db';
-import { and, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -94,10 +94,13 @@ async function listOauthAgents(db: Db | Tx, orgId: string): Promise<TokenDto[]> 
     )
     .orderBy(desc(schema.oauthRefreshToken.createdAt));
 
+  const lastUsed = await readLastUsedByClient(db, orgId);
+
   const groups = new Map<string, TokenDto>();
   for (const row of rows) {
     const origin = row.clientName ?? row.clientId;
     const key = `${origin}:${row.userId}`;
+    const seenAt = lastUsed.get(`${row.clientId}:${row.userId}`) ?? null;
     const existing = groups.get(key);
     if (!existing) {
       groups.set(key, {
@@ -110,7 +113,7 @@ async function listOauthAgents(db: Db | Tx, orgId: string): Promise<TokenDto[]> 
         user: row.userEmail ? { name: row.userName, email: row.userEmail } : null,
         endUserId: null,
         expiresAt: row.expiresAt.toISOString(),
-        lastUsedAt: null,
+        lastUsedAt: seenAt,
         revokedAt: null,
         createdAt: row.createdAt.toISOString(),
         count: 1,
@@ -122,8 +125,31 @@ async function listOauthAgents(db: Db | Tx, orgId: string): Promise<TokenDto[]> 
     if (row.expiresAt.toISOString() > existing.expiresAt!) {
       existing.expiresAt = row.expiresAt.toISOString();
     }
+    if (seenAt && (!existing.lastUsedAt || seenAt > existing.lastUsedAt)) {
+      existing.lastUsedAt = seenAt;
+    }
   }
   return [...groups.values()];
+}
+
+type LastUsedRow = { client_id: string; actor_id: string | null; last_at: string };
+
+async function readLastUsedByClient(
+  db: Db | Tx,
+  orgId: string,
+): Promise<Map<string, string>> {
+  const rows = await db.execute<LastUsedRow>(sql`
+    SELECT client_id,
+           actor_id,
+           to_char(max(created_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS last_at
+    FROM audit_log
+    WHERE org_id = ${orgId}
+      AND client_id IS NOT NULL
+    GROUP BY client_id, actor_id
+  `);
+  const out = new Map<string, string>();
+  for (const row of rows) out.set(`${row.client_id}:${row.actor_id}`, row.last_at);
+  return out;
 }
 
 async function revokeOauthAgent(

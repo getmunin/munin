@@ -1,6 +1,6 @@
 import { Controller, Get, Inject, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { sql } from 'drizzle-orm';
+import { inArray, sql } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -43,9 +43,12 @@ type DailyRow = {
 } & Record<string, unknown>;
 
 type AgentAggRow = {
-  actor_id: string;
+  actor_type: string;
+  actor_id: string | null;
+  client_id: string | null;
   call_count: number;
-  avg_ms: number | null;
+  total_ms: number | null;
+  timed_count: number;
 } & Record<string, unknown>;
 
 type DailyAvgRow = {
@@ -111,41 +114,49 @@ export class UsageController {
     const since = addDays(startOfDay(new Date()), -(days - 1));
 
     const rows = await ctx.db.execute<AgentAggRow>(sql`
-      SELECT actor_id,
+      SELECT actor_type,
+             actor_id,
+             client_id,
              count(*)::int AS call_count,
-             avg(duration_ms)::float8 AS avg_ms
+             sum(duration_ms)::float8 AS total_ms,
+             count(duration_ms)::int AS timed_count
       FROM audit_log
       WHERE org_id = ${orgId}
         AND tool IS NOT NULL
-        AND actor_type IN ('admin_agent', 'end_user_agent')
-        AND actor_id IS NOT NULL
+        AND actor_type <> 'system'
         AND created_at >= ${since.toISOString()}::timestamptz
-      GROUP BY actor_id
+      GROUP BY actor_type, actor_id, client_id
     `);
 
-    const agentRows = await ctx.db
-      .select({
-        id: schema.agents.id,
-        name: schema.agents.name,
-        description: schema.agents.description,
-      })
-      .from(schema.agents);
-    const byId = new Map(agentRows.map((a) => [a.id, a]));
+    const labels = await resolveAgentLabels(rows);
 
-    const items: AgentUsageDto[] = rows
-      .map((r) => {
-        const agent = byId.get(r.actor_id);
-        if (!agent) return null;
-        return {
-          id: agent.id,
-          name: agent.name,
-          description: agent.description,
-          mcpCalls: Number(r.call_count) || 0,
-          avgLatencyMs: r.avg_ms == null ? null : Math.round(Number(r.avg_ms)),
-        };
-      })
-      .filter((a): a is AgentUsageDto => a !== null)
-      .sort((a, b) => b.mcpCalls - a.mcpCalls);
+    const merged = new Map<string, { dto: AgentUsageDto; totalMs: number; timed: number }>();
+    for (const row of rows) {
+      const label = labels(row);
+      const existing = merged.get(label.key);
+      const entry = existing ?? {
+        dto: {
+          id: label.key,
+          name: label.name,
+          description: label.description,
+          mcpCalls: 0,
+          avgLatencyMs: null,
+        },
+        totalMs: 0,
+        timed: 0,
+      };
+      entry.dto.mcpCalls += Number(row.call_count) || 0;
+      entry.totalMs += Number(row.total_ms) || 0;
+      entry.timed += Number(row.timed_count) || 0;
+      if (!existing) merged.set(label.key, entry);
+    }
+
+    const items: AgentUsageDto[] = [...merged.values()]
+      .map(({ dto, totalMs, timed }) => ({
+        ...dto,
+        avgLatencyMs: timed === 0 ? null : Math.round(totalMs / timed),
+      }))
+      .sort((a, b) => b.mcpCalls - a.mcpCalls || a.name.localeCompare(b.name));
 
     return { rangeDays: days, agents: items };
   }
@@ -251,6 +262,128 @@ export class UsageController {
     const previous = avgWhere(byDay, (k) => k < windowKey);
     return { current, previous, sparkline };
   }
+}
+
+const AGENT_HOST_KEY = 'agent-host';
+const AGENT_HOST_PREFIX = `${AGENT_HOST_KEY}:`;
+
+interface AgentLabel {
+  key: string;
+  name: string;
+  description: string | null;
+}
+
+async function resolveAgentLabels(
+  rows: AgentAggRow[],
+): Promise<(row: AgentAggRow) => AgentLabel> {
+  const ctx = getCurrentContext();
+  const clientIds = distinct(rows.map((r) => r.client_id));
+  const actorIds = distinct(rows.map((r) => r.actor_id));
+
+  const clientNames = new Map<string, string>();
+  if (clientIds.length > 0) {
+    const found = await ctx.db
+      .select({ clientId: schema.oauthClient.clientId, name: schema.oauthClient.name })
+      .from(schema.oauthClient)
+      .where(inArray(schema.oauthClient.clientId, clientIds));
+    for (const row of found) {
+      if (row.name) clientNames.set(row.clientId, row.name);
+    }
+  }
+
+  const userLabels = new Map<string, string>();
+  const userIds = actorIds.filter((id) => id.startsWith('usr_'));
+  if (userIds.length > 0) {
+    const found = await ctx.db
+      .select({ id: schema.users.id, name: schema.users.name, email: schema.users.email })
+      .from(schema.users)
+      .where(inArray(schema.users.id, userIds));
+    for (const row of found) userLabels.set(row.id, row.name ?? row.email);
+  }
+
+  const keyNames = new Map<string, string>();
+  const keyIds = actorIds.filter((id) => id.startsWith('akey_'));
+  if (keyIds.length > 0) {
+    const found = await ctx.db
+      .select({ id: schema.apiKeys.id, name: schema.apiKeys.name })
+      .from(schema.apiKeys)
+      .where(inArray(schema.apiKeys.id, keyIds));
+    for (const row of found) keyNames.set(row.id, row.name);
+  }
+
+  const endUserByToken = new Map<string, string>();
+  const tokenIds = actorIds.filter((id) => id.startsWith('tok_'));
+  if (tokenIds.length > 0) {
+    const found = await ctx.db
+      .select({ tokenId: schema.tokens.id, endUserId: schema.tokens.endUserId })
+      .from(schema.tokens)
+      .where(inArray(schema.tokens.id, tokenIds));
+    for (const row of found) {
+      if (row.endUserId) endUserByToken.set(row.tokenId, row.endUserId);
+    }
+  }
+
+  const endUserIds = distinct([
+    ...endUserByToken.values(),
+    ...actorIds.map((id) => agentHostEndUserId(id)),
+  ]);
+  const endUserLabels = new Map<string, string>();
+  if (endUserIds.length > 0) {
+    const found = await ctx.db
+      .select({ id: schema.endUsers.id, name: schema.endUsers.name, email: schema.endUsers.email })
+      .from(schema.endUsers)
+      .where(inArray(schema.endUsers.id, endUserIds));
+    for (const row of found) endUserLabels.set(row.id, row.name ?? row.email ?? row.id);
+  }
+
+  const endUserLabel = (endUserId: string): AgentLabel => ({
+    key: `end_user:${endUserId}`,
+    name: endUserLabels.get(endUserId) ?? endUserId,
+    description: 'end_user_agent',
+  });
+
+  return (row) => {
+    const actorId = row.actor_id;
+    if (row.client_id) {
+      const name = clientNames.get(row.client_id) ?? row.client_id;
+      return {
+        key: `oauth:${name}:${actorId ?? ''}`,
+        name,
+        description: actorId ? (userLabels.get(actorId) ?? null) : null,
+      };
+    }
+    if (!actorId) {
+      return { key: `type:${row.actor_type}`, name: row.actor_type, description: null };
+    }
+    const keyName = keyNames.get(actorId);
+    if (keyName) {
+      return { key: `key:${actorId}`, name: keyName, description: row.actor_type };
+    }
+    const tokenEndUserId = endUserByToken.get(actorId);
+    if (tokenEndUserId) return endUserLabel(tokenEndUserId);
+
+    const hostEndUserId = agentHostEndUserId(actorId);
+    if (hostEndUserId) return endUserLabel(hostEndUserId);
+
+    const userLabel = userLabels.get(actorId);
+    if (userLabel) {
+      return { key: `user:${actorId}`, name: userLabel, description: row.actor_type };
+    }
+    if (actorId.startsWith(AGENT_HOST_PREFIX)) {
+      return { key: AGENT_HOST_KEY, name: AGENT_HOST_KEY, description: row.actor_type };
+    }
+    return { key: `actor:${actorId}`, name: actorId, description: row.actor_type };
+  };
+}
+
+function agentHostEndUserId(actorId: string | null): string | null {
+  if (!actorId?.startsWith(AGENT_HOST_PREFIX)) return null;
+  const parts = actorId.split(':');
+  return parts.length === 3 ? (parts[2] ?? null) : null;
+}
+
+function distinct(values: Array<string | null>): string[] {
+  return [...new Set(values.filter((v): v is string => v !== null && v !== ''))];
 }
 
 function mapDailyRows(rows: DailyRow[]): Map<string, number> {

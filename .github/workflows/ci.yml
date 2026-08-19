@@ -265,27 +265,36 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('apps/web/package.json', 'pnpm-lock.yaml') }}
 
+      # playwright install-deps spawns its own sudo apt-get, so it takes no
+      # flags from here. A conf drop-in reaches that child: apt then waits for
+      # the dpkg lock a background apt-get holds instead of exiting 100, and
+      # gives up on a stalled mirror by itself rather than being killed
+      # mid-transaction.
+      - name: Bound apt against mirror stalls and lock contention
+        run: |
+          sudo tee /etc/apt/apt.conf.d/99-ci-bounds >/dev/null <<'CONF'
+          Acquire::Retries "3";
+          Acquire::http::Timeout "20";
+          Acquire::https::Timeout "20";
+          DPkg::Lock::Timeout "300";
+          CONF
+          sudo systemctl stop unattended-upgrades apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         timeout-minutes: 10
         run: pnpm --filter @getmunin/web exec playwright install --with-deps chromium
 
-      # install-deps shells out to apt-get, which stalls on a bad mirror often
-      # enough to matter. Without a per-attempt bound a stall burns the job's
-      # whole 15-minute budget, so each try is capped and retried.
+      # ubuntu-latest already ships Chromium's shared libraries, so on the
+      # cache-hit path this is a safety net for a future image that slims
+      # down, not a requirement. A warning keeps the net without letting the
+      # runner's apt fail the build.
       - name: Install browser deps (cache hit path)
         if: steps.playwright-cache.outputs.cache-hit == 'true'
-        timeout-minutes: 8
+        timeout-minutes: 10
         run: |
-          for attempt in 1 2 3; do
-            if timeout -k 10s 120s pnpm --filter @getmunin/web exec playwright install-deps chromium; then
-              exit 0
-            fi
-            echo "::warning::playwright install-deps failed or stalled (attempt ${attempt}/3)"
-            sleep 10
-          done
-          echo "::error::playwright install-deps failed after 3 attempts"
-          exit 1
+          timeout -k 10s 240s pnpm --filter @getmunin/web exec playwright install-deps chromium ||
+            echo "::warning::playwright install-deps was slow or failed; relying on the runner image's preinstalled libraries"
 
       - name: Run Playwright tests
         run: pnpm --filter @getmunin/web e2e

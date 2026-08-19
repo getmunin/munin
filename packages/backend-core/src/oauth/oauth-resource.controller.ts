@@ -1,4 +1,5 @@
 import { Get, Header, Inject, NotFoundException, Optional, Req } from '@nestjs/common';
+import { orgScopedMcpResourceUrl, parseOrgScopedMcpPath } from '@getmunin/core';
 import { PublicController } from '../common/auth/auth.guard.ts';
 import {
   authorizationServerUrl,
@@ -64,7 +65,21 @@ export class OAuthResourceController {
   @Header('content-type', 'application/json; charset=utf-8')
   @Header('cache-control', 'public, max-age=3600')
   surfaceMetadata(@Req() req: ResourceMetadataRequest): ProtectedResourceMetadata {
-    const surface = findMcpSurfaceForPath(this.surfaces, suffixOf(req));
+    const suffix = suffixOf(req);
+    const orgScopedResource = orgScopedResourceFor(suffix);
+    if (orgScopedResource) {
+      return {
+        resource: orgScopedResource,
+        resource_name: 'Munin',
+        resource_logo_uri: `${mcpResourceOrigin()}/icon.png`,
+        authorization_servers: [authorizationServerUrl()],
+        scopes_supported: RESOURCE_ADVERTISED_SCOPES,
+        bearer_methods_supported: ['header'],
+        resource_documentation: `${authorizationServerUrl()}/docs`,
+        resource_indicators_supported: true,
+      };
+    }
+    const surface = findMcpSurfaceForPath(this.surfaces, suffix);
     if (!surface) throw new NotFoundException('protected_resource_not_found');
     return {
       resource: mcpSurfaceResourceUrl(surface),
@@ -77,6 +92,11 @@ export class OAuthResourceController {
       resource_indicators_supported: true,
     };
   }
+}
+
+function orgScopedResourceFor(suffix: string): string | null {
+  const orgId = parseOrgScopedMcpPath(suffix);
+  return orgId ? orgScopedMcpResourceUrl(orgId) : null;
 }
 
 function suffixOf(req: ResourceMetadataRequest): string {

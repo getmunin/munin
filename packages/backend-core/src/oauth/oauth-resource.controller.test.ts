@@ -144,3 +144,64 @@ describe('OAuthResourceController with registered MCP surfaces', () => {
     ).toThrow(/below \/mcp/);
   });
 });
+
+describe('OAuthResourceController org-scoped metadata', () => {
+  const ORG_A = 'org_aaaaaaaaaaaaaaaaaaaaaa';
+  let originalUrl: string | undefined;
+  let originalAuthUrl: string | undefined;
+
+  beforeEach(() => {
+    originalUrl = process.env.NEXT_PUBLIC_MCP_URL;
+    originalAuthUrl = process.env.NEXT_PUBLIC_AUTH_URL;
+    process.env.NEXT_PUBLIC_MCP_URL = 'https://mcp.example.test';
+    process.env.NEXT_PUBLIC_AUTH_URL = 'https://mcp.example.test';
+  });
+
+  afterEach(() => {
+    if (originalUrl === undefined) delete process.env.NEXT_PUBLIC_MCP_URL;
+    else process.env.NEXT_PUBLIC_MCP_URL = originalUrl;
+    if (originalAuthUrl === undefined) delete process.env.NEXT_PUBLIC_AUTH_URL;
+    else process.env.NEXT_PUBLIC_AUTH_URL = originalAuthUrl;
+  });
+
+  it('advertises the org-scoped path as its own resource identifier', () => {
+    const meta = new OAuthResourceController().surfaceMetadata(requestFor(
+      `/.well-known/oauth-protected-resource/mcp/o/${ORG_A}`,
+    ));
+    expect(meta.resource).toBe(`https://mcp.example.test/mcp/o/${ORG_A}`);
+    expect(meta.scopes_supported).toEqual(RESOURCE_ADVERTISED_SCOPES);
+    expect(meta.authorization_servers).toEqual(['https://mcp.example.test']);
+  });
+
+  it('names no organization, so the document is not an org-existence oracle', () => {
+    const meta = new OAuthResourceController().surfaceMetadata(requestFor(
+      `/.well-known/oauth-protected-resource/mcp/o/${ORG_A}`,
+    ));
+    expect(meta.resource_name).toBe('Munin');
+    expect(JSON.stringify(meta)).not.toContain('org name');
+  });
+
+  it('serves the document without a registered surface', () => {
+    expect(() =>
+      new OAuthResourceController().surfaceMetadata(
+        requestFor(`/.well-known/oauth-protected-resource/mcp/o/${ORG_A}`),
+      ),
+    ).not.toThrow();
+  });
+
+  it('404s for an org id that is not of the minted shape', () => {
+    expect(() =>
+      new OAuthResourceController().surfaceMetadata(
+        requestFor('/.well-known/oauth-protected-resource/mcp/o/not-an-org'),
+      ),
+    ).toThrow(NotFoundException);
+  });
+
+  it('404s for a sub-path below an org-scoped resource', () => {
+    expect(() =>
+      new OAuthResourceController().surfaceMetadata(
+        requestFor(`/.well-known/oauth-protected-resource/mcp/o/${ORG_A}/media`),
+      ),
+    ).toThrow(NotFoundException);
+  });
+});

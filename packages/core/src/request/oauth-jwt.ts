@@ -10,6 +10,7 @@ import {
   type ResolvedCredential,
 } from './credentials.ts';
 import { canonicalMcpResource, mcpResourceUrls } from './mcp-resources.ts';
+import { parseOrgScopedMcpResource } from './mcp-org-scope.ts';
 import { stripTrailingSlashes } from '@getmunin/types';
 
 type VerifyKey = Awaited<ReturnType<typeof importJWK>>;
@@ -85,14 +86,15 @@ export async function resolveOauthJwtAccessToken(
   const matchedAudience = audiencesFromJwt.find((a) => isAcceptedJwtAudience(a));
   if (!matchedAudience) return null;
 
+  const audienceOrgId = parseOrgScopedMcpResource(matchedAudience);
+  const claimedOrgId = typeof payload['org_id'] === 'string' ? payload['org_id'] : null;
+  if (audienceOrgId && claimedOrgId && audienceOrgId !== claimedOrgId) return null;
+
   const scopes =
     typeof payload['scope'] === 'string' ? payload['scope'].split(/\s+/).filter(Boolean) : [];
 
   const memberships = await readMembershipsForUser(db, userId);
-  const active = resolvePinnedMembership(
-    memberships,
-    typeof payload['org_id'] === 'string' ? payload['org_id'] : null,
-  );
+  const active = resolvePinnedMembership(memberships, audienceOrgId ?? claimedOrgId);
   if (!active) return null;
 
   const { scopes: grantedScopes, audiences } = gateOauthGrantsByRole(scopes, active.role);
@@ -178,5 +180,6 @@ export function acceptedJwtAudiences(): Set<string> {
 }
 
 function isAcceptedJwtAudience(aud: string): boolean {
-  return acceptedJwtAudiences().has(aud);
+  if (acceptedJwtAudiences().has(aud)) return true;
+  return parseOrgScopedMcpResource(aud) !== null;
 }

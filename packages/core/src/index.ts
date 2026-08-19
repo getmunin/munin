@@ -26,6 +26,18 @@ export {
   registerMcpResourcePaths,
   resetMcpResourcePaths,
 } from './request/mcp-resources.ts';
+export {
+  ORG_SCOPED_MCP_PREFIX,
+  type McpOrgScopeInput,
+  type OrgScopedMcpResource,
+  currentOrgScopedMcpResource,
+  isOrgId,
+  orgScopedMcpPath,
+  orgScopedMcpResourceUrl,
+  parseOrgScopedMcpPath,
+  parseOrgScopedMcpResource,
+  withOrgScopedMcpResource,
+} from './request/mcp-org-scope.ts';
 
 export {
   hashSecret,

@@ -5,15 +5,15 @@ const ORG_ID_PATTERN = /^org_[0-9a-z]{22}$/;
 
 export const ORG_SCOPED_MCP_PREFIX = '/mcp/o/';
 
+export const ORG_SCOPE_MARKER_PREFIX = 'mcp:org:';
+
 export interface OrgScopedMcpResource {
   resource: string;
   orgId: string;
-  associationKey?: string;
 }
 
 export interface McpOrgScopeInput {
   resource?: string | null;
-  associationKey?: string | null;
 }
 
 export function isOrgId(value: string): boolean {
@@ -38,6 +38,29 @@ export function orgScopedMcpResourceUrl(orgId: string): string | null {
   return `${origin}${orgScopedMcpPath(orgId)}`;
 }
 
+export function orgScopeMarkerScope(orgId: string): string | null {
+  return isOrgId(orgId) ? `${ORG_SCOPE_MARKER_PREFIX}${orgId}` : null;
+}
+
+export function parseOrgScopeMarkerScope(scope: string): string | null {
+  const trimmed = scope.trim();
+  if (!trimmed.startsWith(ORG_SCOPE_MARKER_PREFIX)) return null;
+  const orgId = trimmed.slice(ORG_SCOPE_MARKER_PREFIX.length);
+  return isOrgId(orgId) ? orgId : null;
+}
+
+export function splitOrgScopeMarker(scopeValue: string): { orgId: string | null; scopes: string } {
+  const entries = scopeValue.split(/\s+/).filter(Boolean);
+  let orgId: string | null = null;
+  const kept: string[] = [];
+  for (const entry of entries) {
+    const marked = parseOrgScopeMarkerScope(entry);
+    if (marked) orgId ??= marked;
+    else if (!entry.startsWith(ORG_SCOPE_MARKER_PREFIX)) kept.push(entry);
+  }
+  return { orgId, scopes: kept.join(' ') };
+}
+
 export function parseOrgScopedMcpResource(resource: string): string | null {
   const origin = mcpOrigin();
   if (!origin) return null;
@@ -59,9 +82,7 @@ export function withOrgScopedMcpResource<T>(input: McpOrgScopeInput, fn: () => T
   if (!orgId) return fn();
   const resource = orgScopedMcpResourceUrl(orgId);
   if (!resource) return fn();
-  const scope: OrgScopedMcpResource = { resource, orgId };
-  if (input.associationKey) scope.associationKey = input.associationKey;
-  return OrgScopedResourceStore.run(scope, fn);
+  return OrgScopedResourceStore.run({ resource, orgId }, fn);
 }
 
 export function currentOrgScopedMcpResource(): OrgScopedMcpResource | undefined {
@@ -69,9 +90,7 @@ export function currentOrgScopedMcpResource(): OrgScopedMcpResource | undefined 
 }
 
 function mcpOrigin(): string | null {
-  const raw = stripTrailingSlashes(
-    process.env.NEXT_PUBLIC_MCP_URL ?? 'http://localhost:3001/mcp',
-  );
+  const raw = stripTrailingSlashes(process.env.NEXT_PUBLIC_MCP_URL ?? 'http://localhost:3001/mcp');
   try {
     return new URL(raw).origin;
   } catch (err) {

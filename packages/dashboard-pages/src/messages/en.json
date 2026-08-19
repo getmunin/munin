@@ -904,11 +904,14 @@
       "eyebrow": "OAuth 2.1 · authorization request",
       "title": "Authorize <client></client>?",
       "lede": "<client></client> wants to connect to Munin and act through the MCP toolset on your behalf. Review what it can reach before you decide.",
+      "resourceLede": "<client></client> wants to connect to <resource></resource> and act on your behalf. Review what it can reach before you decide.",
       "registered": "Registered {date}",
       "trustFirst": "First time you're connecting <client></client> to this account. Nothing has been shared with it yet.",
       "scopesLabel": "Requested access",
       "scopesCount": "{modules, plural, =0 {0 modules} =1 {1 module} other {# modules}} · {scopes, plural, =0 {0 scopes} =1 {1 scope} other {# scopes}}",
       "noModuleScopes": "Sign-in only — no product permissions requested.",
+      "resourceScopesCount": "{scopes, plural, =0 {0 permissions} =1 {1 permission} other {# permissions}}",
+      "noResourcePermissions": "Sign-in only — no additional permissions requested.",
       "modules": {
         "kb": "Knowledge Base",
         "conv": "Conversations",
@@ -987,6 +990,20 @@
         "panelTitle": "Nothing was shared.",
         "panelBody": "You denied the request, so no token was issued. You can close this window or start over from <client></client>.",
         "redirecting": "Returning to {host}…"
+      },
+      "blocked": {
+        "eyebrow": "OAuth 2.1 · nothing to authorize",
+        "title": "<em>Not available</em> to authorize.",
+        "sub": "<client></client> asked for access to <resource></resource>, which this account can't grant right now.",
+        "panelTitle": "<resource></resource> isn't available to this organization",
+        "reasons": {
+          "not_eligible": "This part of Munin has to be switched on for your organization before an application can connect to it. Ask whoever administers your account to enable it, then start the connection again.",
+          "no_org": "The account you're signed in with doesn't belong to an organization yet, so there is nothing for the application to connect to."
+        },
+        "switchHint": "Signed in to the wrong organization? Switch organization in the dashboard, then start the connection again.",
+        "cancel": "Cancel this request",
+        "cancelling": "Cancelling…",
+        "dashboard": "Open dashboard"
       },
       "missingParams": "Missing OAuth request. Return to the application that started the authorization flow.",
       "errors": {

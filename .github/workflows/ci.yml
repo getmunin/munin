@@ -291,10 +291,10 @@ jobs:
       # runner's apt fail the build.
       - name: Install browser deps (cache hit path)
         if: steps.playwright-cache.outputs.cache-hit == 'true'
-        timeout-minutes: 8
+        timeout-minutes: 10
         run: |
-          pnpm --filter @getmunin/web exec playwright install-deps chromium ||
-            echo "::warning::playwright install-deps failed; relying on the runner image's preinstalled libraries"
+          timeout -k 10s 240s pnpm --filter @getmunin/web exec playwright install-deps chromium ||
+            echo "::warning::playwright install-deps was slow or failed; relying on the runner image's preinstalled libraries"
 
       - name: Run Playwright tests
         run: pnpm --filter @getmunin/web e2e

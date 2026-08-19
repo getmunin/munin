@@ -23,6 +23,7 @@ import {
   type SendLimits,
 } from '@getmunin/types';
 import { findOrCreateEndUserByEmail } from '../end-user-by-email.ts';
+import { parseStoredConfig, tryParseStoredConfig } from '../channels/stored-config.ts';
 
 export { EmailChannelConfigInput };
 export type { EmailChannelConfigInputT };
@@ -541,23 +542,11 @@ export function storedToJsonb(stored: StoredEmailChannelConfig): Record<string, 
 }
 
 export function jsonbToStored(json: Record<string, unknown>): StoredEmailChannelConfig {
-  const parsed = StoredEmailChannelConfigSchema.safeParse(json);
-  if (!parsed.success) throw invalidStoredConfig(parsed.error);
-  return parsed.data;
+  return parseStoredConfig(StoredEmailChannelConfigSchema, json, 'email');
 }
 
 export function tryJsonbToStored(json: Record<string, unknown>): StoredEmailChannelConfig | null {
-  const parsed = StoredEmailChannelConfigSchema.safeParse(json);
-  return parsed.success ? parsed.data : null;
-}
-
-function invalidStoredConfig(error: z.ZodError): BadRequestException {
-  const fields = [...new Set(error.issues.map((issue) => issue.path.join('.') || 'config'))];
-  return new BadRequestException({
-    message: `conv_channel_config_invalid: this email channel's saved settings are incomplete (${fields.join(', ')}) — open the channel and save its settings again to repair it`,
-    code: 'conv_channel_config_invalid',
-    fields,
-  });
+  return tryParseStoredConfig(StoredEmailChannelConfigSchema, json);
 }
 
 async function decryptString(tx: Db | Tx, ciphertext: string): Promise<string> {

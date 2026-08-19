@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BadRequestException } from '@nestjs/common';
+import { HttpException } from '@nestjs/common';
+import { ChannelConfigInvalidError } from '../channels/stored-config.ts';
 import { jsonbToStored, tryJsonbToStored } from './email.service.ts';
 
 const COMPLETE: Record<string, unknown> = {
@@ -23,22 +24,22 @@ describe('jsonbToStored', () => {
     expect(jsonbToStored(COMPLETE).outbound.provider).toBe('smtp');
   });
 
-  it('throws a coded BadRequest naming the missing field rather than a raw ZodError', () => {
+  it('throws a transport-free domain error naming the missing field', () => {
     let thrown: unknown;
     try {
       jsonbToStored(MISSING_OUTBOUND);
     } catch (err) {
       thrown = err;
     }
-    expect(thrown).toBeInstanceOf(BadRequestException);
-    const body = (thrown as BadRequestException).getResponse() as {
-      message: string;
-      code: string;
-      fields: string[];
-    };
-    expect(body.code).toBe('conv_channel_config_invalid');
-    expect(body.fields).toEqual(['outbound']);
-    expect(body.message).toContain('conv_channel_config_invalid:');
+    expect(thrown).toBeInstanceOf(ChannelConfigInvalidError);
+    const err = thrown as ChannelConfigInvalidError;
+    expect(err.code).toBe('conv_channel_config_invalid');
+    expect(err.fieldErrors.map((fe) => fe.field)).toEqual(['outbound']);
+    expect(err.message).toContain('conv_channel_config_invalid:');
+  });
+
+  it('does not couple stored-config failures to HTTP, since workers parse configs too', () => {
+    expect(() => jsonbToStored(MISSING_OUTBOUND)).not.toThrow(HttpException);
   });
 });
 

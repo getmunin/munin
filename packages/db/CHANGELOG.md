@@ -1,5 +1,30 @@
 # @getmunin/db
 
+## 5.7.0
+
+### Minor Changes
+
+- 5818e0e: Remove the agent-as-actor identity model.
+
+  The `agents` table has never held a row — nothing in the codebase inserts into it — and neither does anything set `tokens.agent_id`. `claims.agent_id` could only be written by a claimer whose actor id starts with `agt_`, which requires `tokens.agent_id`, so agent-held claims have never existed either. Conversation claims are an operator lock: they are taken only when a human sends a message, and read only to block the AI from replying over a human (`HandoverActiveError`). "The AI is handling this conversation" is modelled by `conv_conversations.agent_mode`, which is untouched.
+
+  Dropped: the `agents` table and its RLS policy, `claims.agent_id`, `tokens.agent_id`, and `ClaimManager` from `@getmunin/core` — a generic entity-claim helper keyed on agent id with no callers in this repo or munin-cloud. `ConversationClaimsService` keeps its full behavior for user claims.
+
+  `ClaimHolderType` narrows from `'user' | 'agent'` to `'user'`, which flows through the `/v1/conversations` claim DTOs, the `conversation.taken_over` and `conversation.released` webhook payloads, and `@getmunin/agent-runtime`'s claim type. The `'agent'` value has never been emitted, so consumers switching on it only lose a dead branch — but it is a type-level break, hence the minor bump.
+
+  The migration refuses to run if any of the above turns out to be false in a real database: it raises rather than dropping when `agents` has rows or either `agent_id` column holds non-null values.
+
+### Patch Changes
+
+- 233842d: Attribute MCP activity to the agent that made it.
+
+  The usage page's "By agent" table was always empty, and the Agents page never showed a last-used time. Both read from identity that was never recorded. OAuth-authorized agents (claude.ai, Claude Code) resolve to `actor_type = 'user'` with `actor_id` set to the authorizing user — deliberately, because their permissions derive from that user's org role — so the by-agent query's `actor_type IN ('admin_agent','end_user_agent')` filter excluded them, and its join against the `agents` table dropped whatever was left: nothing in the codebase ever inserts a row there. Even with the filter widened, `actor_id` could not have separated two connectors authorized by the same person.
+
+  `audit_log` now records `client_id`, the OAuth client the credential was issued to, taken from `oauth_access_token.client_id` for opaque tokens and the `azp` claim for JWTs. The by-agent report groups on it (joined to `oauth_client` for the connector name) and no longer consults the vestigial `agents` table; admin API keys, delegated end-user agents and the in-process agent runtime resolve to their own labels instead of being filtered out. Average latency is now a call-weighted mean rather than an average of per-group averages. The Agents page derives last-used from the newest audit row per connector, so it fills in as traffic arrives rather than being hardcoded null.
+
+  The audit log's Client column also stops reporting "unknown" for traffic it can identify: browser requests classify as `dashboard`, widget callers as `widget`, and the transport-level `POST /mcp` row as `mcp` (previously only the row carrying a tool name matched). Where a row has an OAuth client, the column shows the connector's name instead of a coarse bucket.
+  - @getmunin/types@5.7.0
+
 ## 5.6.0
 
 ### Patch Changes

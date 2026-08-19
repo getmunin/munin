@@ -267,11 +267,25 @@ jobs:
 
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 10
         run: pnpm --filter @getmunin/web exec playwright install --with-deps chromium
 
+      # install-deps shells out to apt-get, which stalls on a bad mirror often
+      # enough to matter. Without a per-attempt bound a stall burns the job's
+      # whole 15-minute budget, so each try is capped and retried.
       - name: Install browser deps (cache hit path)
         if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter @getmunin/web exec playwright install-deps chromium
+        timeout-minutes: 8
+        run: |
+          for attempt in 1 2 3; do
+            if timeout -k 10s 120s pnpm --filter @getmunin/web exec playwright install-deps chromium; then
+              exit 0
+            fi
+            echo "::warning::playwright install-deps failed or stalled (attempt ${attempt}/3)"
+            sleep 10
+          done
+          echo "::error::playwright install-deps failed after 3 attempts"
+          exit 1
 
       - name: Run Playwright tests
         run: pnpm --filter @getmunin/web e2e

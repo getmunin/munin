@@ -13,7 +13,7 @@ export class ClaimedByOtherError extends Error {
   }
 }
 
-export type ClaimHolderType = 'user' | 'agent';
+export type ClaimHolderType = 'user';
 
 export interface ConversationClaim {
   conversationId: string;
@@ -35,7 +35,7 @@ export class ConversationClaimsService {
     const actor = ctx.actor!;
     const claimer = resolveClaimer(actor);
     if (!claimer) {
-      throw new Error('claim_requires_user_or_agent_actor');
+      throw new Error('claim_requires_user_actor');
     }
 
     const convRows = await ctx.db
@@ -70,8 +70,7 @@ export class ConversationClaimsService {
         orgId: actor.orgId,
         entityType: ENTITY_TYPE,
         entityId: input.conversationId,
-        userId: claimer.type === 'user' ? claimer.id : null,
-        agentId: claimer.type === 'agent' ? claimer.id : null,
+        userId: claimer.id,
         expiresAt,
       })
       .returning();
@@ -80,7 +79,7 @@ export class ConversationClaimsService {
       type: 'conversation.taken_over',
       payload: {
         conversationId: input.conversationId,
-        holderType: claimer.type,
+        holderType: 'user',
         holderId: claimer.id,
         expiresAt: expiresAt.toISOString(),
       },
@@ -104,7 +103,7 @@ export class ConversationClaimsService {
       type: 'conversation.released',
       payload: {
         conversationId: input.conversationId,
-        holderType: existing.userId ? 'user' : 'agent',
+        holderType: 'user',
         holderId: heldBy,
       },
     });
@@ -150,27 +149,23 @@ export class ConversationClaimsService {
 }
 
 function holderIdOf(row: typeof schema.claims.$inferSelect): string {
-  return (row.userId ?? row.agentId)!;
+  return row.userId!;
 }
 
 interface ResolvedClaimer {
-  type: 'user' | 'agent';
   id: string;
 }
 
 function resolveClaimer(actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>): ResolvedClaimer | null {
-  if (actor.type === 'user') return { type: 'user', id: actor.id };
-  if (actor.userId) return { type: 'user', id: actor.userId };
-  if (actor.type === 'admin_agent' && actor.id.startsWith('agt_')) {
-    return { type: 'agent', id: actor.id };
-  }
+  if (actor.type === 'user') return { id: actor.id };
+  if (actor.userId) return { id: actor.userId };
   return null;
 }
 
 function toConversationClaim(row: typeof schema.claims.$inferSelect): ConversationClaim {
   return {
     conversationId: row.entityId,
-    holderType: row.userId ? 'user' : 'agent',
+    holderType: 'user',
     holderId: holderIdOf(row),
     expiresAt: row.expiresAt.toISOString(),
     createdAt: row.createdAt.toISOString(),

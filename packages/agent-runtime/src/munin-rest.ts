@@ -9,7 +9,7 @@ export interface ConversationDetail {
   endUserId: string | null;
   assigneeUserId: string | null;
   claim: {
-    holderType: 'user' | 'agent';
+    holderType: 'user';
     holderId: string;
     expiresAt: string;
   } | null;

@@ -71,7 +71,7 @@ export class CredentialResolver {
 
     const actor = new ActorIdentity(
       type,
-      row.agentId ?? row.id,
+      row.id,
       row.orgId,
       row.scopes,
       audiences,

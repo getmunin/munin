@@ -498,6 +498,13 @@
       "when": 1787166991120,
       "tag": "0070_audit_log_client_id",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1787170669806,
+      "tag": "0071_drop_agents_table",
+      "breakpoints": true
     }
   ]
 }

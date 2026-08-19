@@ -240,29 +240,6 @@ export const endUsers = pgTable(
   }),
 );
 
-// ───────────────────────────── Agents ────────────────────────────────
-// Internal identity for any agent acting on data, used by audit/claims.
-export const agents = pgTable(
-  'agents',
-  {
-    id: id('agt'),
-    orgId: text('org_id')
-      .notNull()
-      .references(() => orgs.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    description: text('description'),
-    ownerUserId: text('owner_user_id').references(() => users.id, { onDelete: 'set null' }),
-    scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
-    rateLimitPerMin: integer('rate_limit_per_min'),
-    rateLimitPerDay: integer('rate_limit_per_day'),
-    createdAt,
-    updatedAt,
-  },
-  (t) => ({
-    orgIdx: index('agents_org_idx').on(t.orgId),
-  }),
-);
-
 // ───────────────────────────── OAuth (MCP spec) ──────────────────────
 // BetterAuth's `@better-auth/oauth-provider` plugin owns the OAuth client
 // model. The plugin runs unmodified and writes into the table below; we
@@ -389,7 +366,6 @@ export const tokens = pgTable(
     scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
     audiences: jsonb('audiences').$type<('admin' | 'self_service')[]>().notNull().default([]),
     userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
-    agentId: text('agent_id').references(() => agents.id, { onDelete: 'cascade' }),
     endUserId: text('end_user_id').references(() => endUsers.id, { onDelete: 'cascade' }),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
@@ -502,7 +478,6 @@ export const claims = pgTable(
       .references(() => orgs.id, { onDelete: 'cascade' }),
     entityType: text('entity_type').notNull(),
     entityId: text('entity_id').notNull(),
-    agentId: text('agent_id').references(() => agents.id, { onDelete: 'cascade' }),
     userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
@@ -2296,7 +2271,6 @@ export const allTables = {
   orgMembers,
   orgInvitations,
   endUsers,
-  agents,
   oauthClient,
   oauthAccessToken,
   oauthRefreshToken,

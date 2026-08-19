@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Module, type INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { AddressInfo } from 'node:net';
+import { mcpResourcePaths, resetMcpResourcePaths } from '@getmunin/core';
 import { McpSurfacesModule } from './mcp-surfaces.module.ts';
 import { OAuthResourceController } from './oauth-resource.controller.ts';
 import type { McpSurface } from './mcp-surface.ts';
@@ -50,5 +51,12 @@ describe('McpSurfacesModule', () => {
     expect(() =>
       McpSurfacesModule.forRoot([{ id: 'bad', path: '/v1/bad', resourceName: 'Bad', scopes: [] }]),
     ).toThrow(/below \/mcp/);
+  });
+
+  it('registers the surface with the token layer, which is what makes its audience acceptable', () => {
+    resetMcpResourcePaths();
+    expect(mcpResourcePaths()).not.toContain('/mcp/addon');
+    McpSurfacesModule.forRoot(SURFACES);
+    expect(mcpResourcePaths()).toContain('/mcp/addon');
   });
 });

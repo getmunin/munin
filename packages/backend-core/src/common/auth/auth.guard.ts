@@ -11,7 +11,11 @@ import {
   applyDecorators,
 } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { CredentialResolver, type ResolvedCredential } from '@getmunin/core';
+import {
+  CredentialResolver,
+  registerMcpResourcePaths,
+  type ResolvedCredential,
+} from '@getmunin/core';
 import type { Db } from '@getmunin/db';
 import { DB } from '../db/db.module.ts';
 import { Reflector } from '@nestjs/core';
@@ -72,6 +76,7 @@ export class AuthGuard implements CanActivate {
   ) {
     this.resolver = new CredentialResolver(db);
     this.surfaces = resolveMcpSurfaces(surfaces);
+    registerMcpResourcePaths(this.surfaces.map((surface) => surface.path));
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {

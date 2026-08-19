@@ -5,11 +5,11 @@ import { decodeProtectedHeader, importJWK, jwtVerify, type JWTPayload } from 'jo
 import { ActorIdentity } from './context.ts';
 import {
   gateOauthGrantsByRole,
-  oauthMcpResourceAudience,
   readMembershipsForUser,
   resolvePinnedMembership,
   type ResolvedCredential,
 } from './credentials.ts';
+import { canonicalMcpResource, mcpResourceUrls } from './mcp-resources.ts';
 import { stripTrailingSlashes } from '@getmunin/types';
 
 type VerifyKey = Awaited<ReturnType<typeof importJWK>>;
@@ -82,7 +82,8 @@ export async function resolveOauthJwtAccessToken(
     : typeof audClaim === 'string'
       ? [audClaim]
       : [];
-  if (!audiencesFromJwt.some((a) => isAcceptedJwtAudience(a))) return null;
+  const matchedAudience = audiencesFromJwt.find((a) => isAcceptedJwtAudience(a));
+  if (!matchedAudience) return null;
 
   const scopes =
     typeof payload['scope'] === 'string' ? payload['scope'].split(/\s+/).filter(Boolean) : [];
@@ -113,7 +114,7 @@ export async function resolveOauthJwtAccessToken(
   return {
     actor,
     expiresAt,
-    audience: oauthMcpResourceAudience(),
+    audience: canonicalMcpResource(matchedAudience),
   };
 }
 
@@ -168,6 +169,10 @@ export function acceptedJwtAudiences(): Set<string> {
     set.add(`${origin}/`);
   } catch (err) {
     console.warn('[credentials] publicUrl is not a parseable URL', { err });
+  }
+  for (const url of mcpResourceUrls()) {
+    set.add(url);
+    set.add(`${url}/`);
   }
   return set;
 }

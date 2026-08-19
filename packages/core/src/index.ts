@@ -19,6 +19,13 @@ export {
   type ResolvedCredential,
   readMembershipsForUser,
 } from './request/credentials.ts';
+export {
+  canonicalMcpResource,
+  mcpResourcePaths,
+  mcpResourceUrls,
+  registerMcpResourcePaths,
+  resetMcpResourcePaths,
+} from './request/mcp-resources.ts';
 
 export {
   hashSecret,

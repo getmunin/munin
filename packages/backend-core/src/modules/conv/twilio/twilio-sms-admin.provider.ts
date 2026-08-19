@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
-import { describeConfigFields } from '../channels/channel-admin.ts';
+import { describeConfigFields, parseVendorConfig } from '../channels/channel-admin.ts';
 import type {
   ChannelAdminDto,
   ChannelAdminProvider,
@@ -32,7 +32,7 @@ export class TwilioSmsAdminProvider implements ChannelAdminProvider {
   constructor(@Inject(TwilioSmsAdminService) private readonly tools: TwilioSmsAdminService) {}
 
   configure(input: ConfigureChannelInput): Promise<ChannelAdminDto> {
-    const config = ConfigSchema.parse(input.config);
+    const config = parseVendorConfig(ConfigSchema, input.config, 'twilio');
     return this.tools.configure({ channelId: input.channelId, name: input.name, ...config });
   }
 

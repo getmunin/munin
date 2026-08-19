@@ -18,6 +18,7 @@ import { DB } from '../../../common/db/db.module.ts';
 import { asRecord } from '../channels/json-shape.ts';
 import { readPendingSetup } from '../channels/channel-admin.ts';
 import { VapiClientService, VAPI_WEBHOOK_SECRET_HEADER } from './vapi-client.service.ts';
+import { parseStoredConfig } from '../channels/stored-config.ts';
 
 const REDACTED = '••••';
 
@@ -324,7 +325,7 @@ export function storedToJsonb(stored: StoredVapiConfig): Record<string, unknown>
 }
 
 export function jsonbToStored(json: Record<string, unknown>): StoredVapiConfig {
-  return StoredVapiConfigSchema.parse(json);
+  return parseStoredConfig(StoredVapiConfigSchema, json, 'voice:vapi');
 }
 
 async function encryptString(plaintext: string): Promise<string> {

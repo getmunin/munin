@@ -15,6 +15,7 @@ import { schema, type Db } from '@getmunin/db';
 import { z } from 'zod';
 import { DB } from '../../../common/db/db.module.ts';
 import { readPendingSetup } from '../channels/channel-admin.ts';
+import { parseStoredConfig } from '../channels/stored-config.ts';
 
 const REDACTED = '••••';
 
@@ -196,7 +197,7 @@ export function storedToJsonb(stored: StoredMessageBirdSmsConfig): Record<string
 }
 
 export function jsonbToStored(json: Record<string, unknown>): StoredMessageBirdSmsConfig {
-  return StoredMessageBirdSmsConfigSchema.parse(json);
+  return parseStoredConfig(StoredMessageBirdSmsConfigSchema, json, 'sms:messagebird');
 }
 
 async function encryptString(plaintext: string): Promise<string> {

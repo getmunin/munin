@@ -470,6 +470,47 @@ class StubImapFetcher implements ImapFetcher {
     expect(convs).toHaveLength(1);
     expect(convs[0]!.agentMode).toBe('draft_only');
   }, 60_000);
+
+  it('saving a full config repairs a channel whose stored config lost its outbound block', async () => {
+    const [broken] = await db
+      .insert(schema.convChannels)
+      .values({
+        orgId,
+        type: 'email',
+        vendor: 'smtp',
+        name: 'Half-configured inbox',
+        config: { addressing: { fromAddress: 'half@acme.test' } },
+      })
+      .returning();
+
+    const rawResult = await withClient(adminKey, async (c) =>
+      c.callTool({
+        name: 'conv_configure_email_channel',
+        arguments: {
+          channelId: broken!.id,
+          name: 'Half-configured inbox',
+          config: {
+            addressing: { fromAddress: 'half@acme.test', fromName: 'Acme' },
+            outbound: { provider: 'mailer' },
+          },
+        },
+      }),
+    );
+    expect((rawResult as { isError?: boolean }).isError).toBeFalsy();
+
+    const repaired = parseToolResult<{
+      id: string;
+      config: { outbound: { provider: string } };
+    }>(rawResult);
+    expect(repaired.config.outbound.provider).toBe('mailer');
+
+    const rows = await db
+      .select()
+      .from(schema.convChannels)
+      .where(eq(schema.convChannels.id, broken!.id));
+    expect((rows[0]!.config as { outbound?: unknown }).outbound).toBeDefined();
+  }, 30_000);
+
 });
 
 async function waitFor(check: () => Promise<boolean>, timeoutMs = 2000): Promise<void> {

@@ -1,5 +1,17 @@
+import { BadRequestException } from '@nestjs/common';
 import { isSensitiveSchema } from '@getmunin/types';
 import type { z } from 'zod';
+
+export function parseVendorConfig<T extends z.ZodType>(
+  schema: T,
+  config: unknown,
+  vendor: string,
+): z.infer<T> {
+  const parsed = schema.safeParse(config);
+  if (parsed.success) return parsed.data;
+  const detail = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
+  throw new BadRequestException(`conv_invalid: config for ${vendor}: ${detail}`);
+}
 
 export type ChannelAdminKind = 'voice' | 'sms';
 

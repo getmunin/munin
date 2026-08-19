@@ -6666,6 +6666,37 @@
         "security": []
       }
     },
+    "/v1/oauth/pending-org": {
+      "get": {
+        "operationId": "OAuthPendingOrgController_pending",
+        "parameters": [
+          {
+            "name": "code_challenge",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OAuthPendingOrg"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/system/alerts": {
       "get": {
         "operationId": "SystemAlertsController_list",

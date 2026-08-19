@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { createHash } from 'node:crypto';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import type { Db } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
@@ -147,5 +148,67 @@ const skipReason = TEST_URL
     const json = JSON.stringify(out);
     expect(json).not.toContain(raw);
     expect(json).not.toContain(hashSecret(raw));
+  });
+
+  it('leaves clientId unset for API keys, which have no OAuth client', async () => {
+    const raw = await insertKey({ type: 'admin' });
+    const r = new CredentialResolver(db);
+    const out = await r.resolveApiKey(raw);
+    expect(out!.actor.clientId).toBeUndefined();
+  });
+});
+
+(skipReason ? describe.skip : describe)('CredentialResolver OAuth client attribution', () => {
+  let db: Db;
+  let orgId: string;
+  let userId: string;
+
+  beforeAll(async () => {
+    await runMigrations(TEST_URL!);
+    db = createDb(TEST_URL!, { serviceRole: true });
+    const [org] = await db.insert(schema.orgs).values({ name: 'OAuth Client Test Org' }).returning();
+    orgId = org!.id;
+    const [user] = await db
+      .insert(schema.users)
+      .values({ email: `oauth-client-${Date.now()}@test.example`, name: 'OAuth Tester' })
+      .returning();
+    userId = user!.id;
+    await db
+      .insert(schema.orgMembers)
+      .values({ orgId, userId, role: 'owner', isDefault: true });
+    await db.insert(schema.oauthClient).values({
+      clientId: 'client_attribution_test',
+      name: 'Attribution Client',
+      redirectUris: ['https://example.test/cb'],
+    });
+  });
+
+  afterAll(async () => {
+    if (db) {
+      await db.delete(schema.orgs).where(sql`id = ${orgId}`);
+      await db.delete(schema.users).where(sql`id = ${userId}`);
+      await db
+        .delete(schema.oauthClient)
+        .where(sql`client_id = 'client_attribution_test'`);
+      void db.$client.end();
+    }
+  });
+
+  it('carries the OAuth client id on the actor so audit rows can name the connector', async () => {
+    const raw = `oauth-opaque-${Date.now()}`;
+    await db.insert(schema.oauthAccessToken).values({
+      token: createHash('sha256').update(raw).digest('base64url'),
+      clientId: 'client_attribution_test',
+      userId,
+      referenceId: orgId,
+      scopes: ['mcp:tools', 'kb:read'],
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const out = await new CredentialResolver(db).resolveBearerToken(raw);
+    expect(out).not.toBeNull();
+    expect(out!.actor.type).toBe('user');
+    expect(out!.actor.id).toBe(userId);
+    expect(out!.actor.clientId).toBe('client_attribution_test');
   });
 });

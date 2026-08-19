@@ -191,6 +191,19 @@ const skipReason = TEST_URL
     expect(status).toBe(401);
   });
 
+  it('records the azp claim as audit_log.client_id so the call is attributable to the connector', async () => {
+    const token = await sign({});
+    const { status } = await callMcp(token);
+    expect(status).not.toBe(401);
+
+    const rows = await db
+      .select({ clientId: schema.auditLog.clientId, actorId: schema.auditLog.actorId })
+      .from(schema.auditLog)
+      .where(eq(schema.auditLog.actorId, userId));
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((r) => r.clientId === 'test-client')).toBe(true);
+  });
+
   it('accepts a JWT pinned (org_id) to a non-default org the user belongs to', async () => {
     const token = await sign({ orgId: memberOrgId });
     const { status } = await callMcp(token);

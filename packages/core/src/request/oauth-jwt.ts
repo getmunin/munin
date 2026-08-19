@@ -99,6 +99,8 @@ export async function resolveOauthJwtAccessToken(
 
   const { scopes: grantedScopes, audiences } = gateOauthGrantsByRole(scopes, active.role);
 
+  const clientId = typeof payload['azp'] === 'string' ? payload['azp'] : undefined;
+
   const actor = new ActorIdentity(
     'user',
     userId,
@@ -109,6 +111,7 @@ export async function resolveOauthJwtAccessToken(
     undefined,
     undefined,
     userId,
+    clientId,
   );
 
   const expiresAt =

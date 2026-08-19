@@ -17,7 +17,7 @@ import {
   type McpSurface,
 } from '../oauth/mcp-surface.ts';
 import { authCookiePrefix } from './auth-cookies.ts';
-import { createDbOrgScopeStore, orgScopeStore, registerOrgScopeStore } from './org-scope-store.ts';
+import { createDbOrgScopeStore, registerOrgScopeStore } from './org-scope-store.ts';
 import { stripTrailingSlashes } from '@getmunin/types';
 
 type BetterAuthInstance = ReturnType<typeof betterAuth>;
@@ -121,14 +121,6 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
         error: 'access_denied',
         error_description: 'signed-in user is not a member of the requested organization',
       });
-    }
-    const store = orgScopeStore();
-    if (store && orgScoped.associationKey) {
-      try {
-        await store.remember(orgScoped.associationKey, membership.orgId);
-      } catch (err) {
-        console.warn('[auth] could not carry the requested org across the consent step', { err });
-      }
     }
     return membership.orgId;
   };

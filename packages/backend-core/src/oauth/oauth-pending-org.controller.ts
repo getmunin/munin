@@ -12,7 +12,7 @@ import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
-import { orgScopeStore } from '../auth/org-scope-store.ts';
+import { hasOrgScopeAssociationKey, orgScopeStore } from '../auth/org-scope-store.ts';
 
 export interface PendingAuthorizationOrgDto {
   pinned: boolean;
@@ -42,13 +42,13 @@ export class OAuthPendingOrgController {
     if (!store || !codeChallenge) return { pinned: false };
 
     const cookieHeader = req.headers['cookie'];
-    const key = store.keyFor(
+    const keys = store.keysFor(
       Array.isArray(cookieHeader) ? cookieHeader[0] : cookieHeader,
       codeChallenge,
     );
-    if (!key) return { pinned: false };
+    if (!hasOrgScopeAssociationKey(keys)) return { pinned: false };
 
-    const orgId = await store.recall(key);
+    const orgId = await store.recall(keys);
     return orgId ? { pinned: true, orgId } : { pinned: false };
   }
 }

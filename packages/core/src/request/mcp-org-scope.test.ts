@@ -2,10 +2,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   currentOrgScopedMcpResource,
   isOrgId,
+  orgScopeMarkerScope,
   orgScopedMcpPath,
   orgScopedMcpResourceUrl,
+  parseOrgScopeMarkerScope,
   parseOrgScopedMcpPath,
   parseOrgScopedMcpResource,
+  splitOrgScopeMarker,
   withOrgScopedMcpResource,
 } from './mcp-org-scope.ts';
 
@@ -90,10 +93,13 @@ describe('org-scoped MCP request scope', () => {
   it('keeps concurrent requests on their own org', async () => {
     const seen: Array<string | undefined> = [];
     const run = (orgId: string, delayTicks: number) =>
-      withOrgScopedMcpResource({ resource: `https://mcp.example.test/mcp/o/${orgId}` }, async () => {
-        for (let i = 0; i < delayTicks; i += 1) await Promise.resolve();
-        seen.push(currentOrgScopedMcpResource()?.orgId);
-      });
+      withOrgScopedMcpResource(
+        { resource: `https://mcp.example.test/mcp/o/${orgId}` },
+        async () => {
+          for (let i = 0; i < delayTicks; i += 1) await Promise.resolve();
+          seen.push(currentOrgScopedMcpResource()?.orgId);
+        },
+      );
     await Promise.all([run(ORG_A, 3), run(ORG_B, 1)]);
     expect(seen.sort()).toEqual([ORG_A, ORG_B]);
   });
@@ -111,35 +117,36 @@ describe('org-scoped MCP request scope', () => {
   });
 });
 
-describe('org-scoped MCP scope carries the association key', () => {
-  let originalMcp: string | undefined;
-
-  beforeEach(() => {
-    originalMcp = process.env.NEXT_PUBLIC_MCP_URL;
-    process.env.NEXT_PUBLIC_MCP_URL = 'https://mcp.example.test';
+describe('org marker scope', () => {
+  it('names the org in a scope a client will echo back', () => {
+    expect(orgScopeMarkerScope(ORG_A)).toBe(`mcp:org:${ORG_A}`);
+    expect(parseOrgScopeMarkerScope(`mcp:org:${ORG_A}`)).toBe(ORG_A);
+    expect(parseOrgScopeMarkerScope(` mcp:org:${ORG_A} `)).toBe(ORG_A);
   });
 
-  afterEach(() => {
-    if (originalMcp === undefined) delete process.env.NEXT_PUBLIC_MCP_URL;
-    else process.env.NEXT_PUBLIC_MCP_URL = originalMcp;
+  it('refuses to mint or read a marker for anything but an org id', () => {
+    expect(orgScopeMarkerScope('not-an-org')).toBeNull();
+    expect(parseOrgScopeMarkerScope('mcp:org:not-an-org')).toBeNull();
+    expect(parseOrgScopeMarkerScope('kb:read')).toBeNull();
+    expect(parseOrgScopeMarkerScope('mcp:organization')).toBeNull();
   });
 
-  it('exposes the association key to whoever pins the org', () => {
-    withOrgScopedMcpResource(
-      { resource: `https://mcp.example.test/mcp/o/${ORG_A}`, associationKey: 'assoc-key' },
-      () => {
-        expect(currentOrgScopedMcpResource()).toEqual({
-          orgId: ORG_A,
-          resource: `https://mcp.example.test/mcp/o/${ORG_A}`,
-          associationKey: 'assoc-key',
-        });
-      },
-    );
+  it('splits the marker out of a requested scope list', () => {
+    expect(splitOrgScopeMarker(`offline_access mcp:org:${ORG_A} kb:read`)).toEqual({
+      orgId: ORG_A,
+      scopes: 'offline_access kb:read',
+    });
+    expect(splitOrgScopeMarker(`mcp:org:${ORG_A}`)).toEqual({ orgId: ORG_A, scopes: '' });
+    expect(splitOrgScopeMarker('offline_access  kb:read')).toEqual({
+      orgId: null,
+      scopes: 'offline_access kb:read',
+    });
   });
 
-  it('omits the association key when there is none', () => {
-    withOrgScopedMcpResource({ resource: `https://mcp.example.test/mcp/o/${ORG_A}` }, () => {
-      expect(currentOrgScopedMcpResource()?.associationKey).toBeUndefined();
+  it('takes the first marker and drops every malformed one, so none reaches the provider', () => {
+    expect(splitOrgScopeMarker(`mcp:org:${ORG_A} mcp:org:${ORG_B} mcp:org:bogus kb:read`)).toEqual({
+      orgId: ORG_A,
+      scopes: 'kb:read',
     });
   });
 });

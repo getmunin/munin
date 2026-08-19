@@ -28,14 +28,18 @@ export {
 } from './request/mcp-resources.ts';
 export {
   ORG_SCOPED_MCP_PREFIX,
+  ORG_SCOPE_MARKER_PREFIX,
   type McpOrgScopeInput,
   type OrgScopedMcpResource,
   currentOrgScopedMcpResource,
   isOrgId,
+  orgScopeMarkerScope,
   orgScopedMcpPath,
   orgScopedMcpResourceUrl,
+  parseOrgScopeMarkerScope,
   parseOrgScopedMcpPath,
   parseOrgScopedMcpResource,
+  splitOrgScopeMarker,
   withOrgScopedMcpResource,
 } from './request/mcp-org-scope.ts';
 

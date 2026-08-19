@@ -98,9 +98,9 @@ describe('OAuthResourceController with registered MCP surfaces', () => {
   });
 
   it('serves a metadata document for the surface path', () => {
-    const meta = new OAuthResourceController(surfaces).surfaceMetadata(requestFor(
-      '/.well-known/oauth-protected-resource/mcp/addon',
-    ));
+    const meta = new OAuthResourceController(surfaces).surfaceMetadata(
+      requestFor('/.well-known/oauth-protected-resource/mcp/addon'),
+    );
     expect(meta.resource).toBe('https://mcp.example.test/mcp/addon');
     expect(meta.resource_name).toBe('Addon');
     expect(meta.scopes_supported).toEqual(['offline_access', 'addon:write']);
@@ -108,9 +108,9 @@ describe('OAuthResourceController with registered MCP surfaces', () => {
   });
 
   it('serves the same document for paths below the surface', () => {
-    const meta = new OAuthResourceController(surfaces).surfaceMetadata(requestFor(
-      '/.well-known/oauth-protected-resource/mcp/addon/session/1',
-    ));
+    const meta = new OAuthResourceController(surfaces).surfaceMetadata(
+      requestFor('/.well-known/oauth-protected-resource/mcp/addon/session/1'),
+    );
     expect(meta.resource).toBe('https://mcp.example.test/mcp/addon');
   });
 
@@ -165,18 +165,27 @@ describe('OAuthResourceController org-scoped metadata', () => {
   });
 
   it('advertises the org-scoped path as its own resource identifier', () => {
-    const meta = new OAuthResourceController().surfaceMetadata(requestFor(
-      `/.well-known/oauth-protected-resource/mcp/o/${ORG_A}`,
-    ));
+    const meta = new OAuthResourceController().surfaceMetadata(
+      requestFor(`/.well-known/oauth-protected-resource/mcp/o/${ORG_A}`),
+    );
     expect(meta.resource).toBe(`https://mcp.example.test/mcp/o/${ORG_A}`);
-    expect(meta.scopes_supported).toEqual(RESOURCE_ADVERTISED_SCOPES);
+    expect(meta.scopes_supported).toEqual([...RESOURCE_ADVERTISED_SCOPES, `mcp:org:${ORG_A}`]);
     expect(meta.authorization_servers).toEqual(['https://mcp.example.test']);
   });
 
+  it('advertises a marker scope so a client that ignores resource still names the org', () => {
+    const meta = new OAuthResourceController().surfaceMetadata(
+      requestFor(`/.well-known/oauth-protected-resource/mcp/o/${ORG_A}`),
+    );
+    expect(meta.scopes_supported).toContain(`mcp:org:${ORG_A}`);
+    const shared = new OAuthResourceController().metadata();
+    expect(shared.scopes_supported.some((s) => s.startsWith('mcp:org:'))).toBe(false);
+  });
+
   it('names no organization, so the document is not an org-existence oracle', () => {
-    const meta = new OAuthResourceController().surfaceMetadata(requestFor(
-      `/.well-known/oauth-protected-resource/mcp/o/${ORG_A}`,
-    ));
+    const meta = new OAuthResourceController().surfaceMetadata(
+      requestFor(`/.well-known/oauth-protected-resource/mcp/o/${ORG_A}`),
+    );
     expect(meta.resource_name).toBe('Munin');
     expect(JSON.stringify(meta)).not.toContain('org name');
   });

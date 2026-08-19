@@ -72,14 +72,6 @@ CREATE POLICY tenant_isolation ON end_users
   )
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 
--- ───────────────────────── agents ──────────────────────────────────────────
-ALTER TABLE agents ENABLE ROW LEVEL SECURITY;
-ALTER TABLE agents FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON agents;
-CREATE POLICY tenant_isolation ON agents
-  USING (app_bypass_rls() OR org_id = app_org_id())
-  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
-
 -- ───────────────────────── assistants ──────────────────────────────────────
 ALTER TABLE assistants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE assistants FORCE ROW LEVEL SECURITY;

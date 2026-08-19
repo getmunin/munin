@@ -116,14 +116,6 @@ export class ActivityController {
       .where(inArray(schema.users.id, unique));
     for (const r of userRows) out.set(r.id, { kind: 'user', label: r.name ?? r.email });
 
-    const remaining = unique.filter((id) => !out.has(id));
-    if (remaining.length > 0) {
-      const agentRows = await ctx.db
-        .select({ id: schema.agents.id, name: schema.agents.name })
-        .from(schema.agents)
-        .where(inArray(schema.agents.id, remaining));
-      for (const r of agentRows) out.set(r.id, { kind: 'agent', label: r.name });
-    }
     return out;
   }
 }

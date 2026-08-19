@@ -9,6 +9,12 @@ import {
   SUPPORTED_AUTH_SCOPES,
   mcpResourceUrl,
 } from '../oauth/oauth.constants.ts';
+import {
+  mcpSurfaceAudiences,
+  mcpSurfaceScopes,
+  resolveMcpSurfaces,
+  type McpSurface,
+} from '../oauth/mcp-surface.ts';
 import { authCookiePrefix } from './auth-cookies.ts';
 import { stripTrailingSlashes } from '@getmunin/types';
 
@@ -50,6 +56,8 @@ export interface MuninAuthCoreOptions {
 
   deleteUser?: DeleteUserConfig;
 
+  mcpSurfaces?: readonly McpSurface[];
+
   socialProviders?: {
     google?: { clientId: string; clientSecret: string };
     github?: { clientId: string; clientSecret: string };
@@ -80,7 +88,13 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
     /\/+$/,
     '',
   );
-  const validAudiences = computeValidAudiences(opts.baseUrl, mcpResourceUrl());
+  const surfaces = resolveMcpSurfaces(opts.mcpSurfaces);
+  const validAudiences = computeValidAudiences(
+    opts.baseUrl,
+    mcpResourceUrl(),
+    mcpSurfaceAudiences(surfaces),
+  );
+  const authScopes = [...SUPPORTED_AUTH_SCOPES, ...mcpSurfaceScopes(surfaces)];
   const issuer = stripTrailingSlashes(opts.baseUrl);
 
   const socialProviders = buildSocialProviders(opts.socialProviders);
@@ -120,7 +134,7 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
           consentPage: `${dashboardUrl}/dashboard/oauth/consent`,
           allowDynamicClientRegistration: true,
           allowUnauthenticatedClientRegistration: true,
-          scopes: [...SUPPORTED_AUTH_SCOPES],
+          scopes: authScopes,
           validAudiences,
           silenceWarnings: { oauthAuthServerConfig: true, openidConfig: true },
           postLogin: {
@@ -200,11 +214,23 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
   );
 }
 
-export function computeValidAudiences(baseUrl: string, mcpResourceUrl?: string | null): string[] {
+export function computeValidAudiences(
+  baseUrl: string,
+  mcpResourceUrl?: string | null,
+  additionalResources: readonly string[] = [],
+): string[] {
   const variants = new Set<string>();
   addUrlVariants(variants, baseUrl);
   if (mcpResourceUrl) addUrlVariants(variants, mcpResourceUrl);
+  for (const resource of additionalResources) addResourceVariants(variants, resource);
   return Array.from(variants);
+}
+
+function addResourceVariants(variants: Set<string>, url: string): void {
+  const canonical = stripTrailingSlashes(url);
+  if (!canonical) return;
+  variants.add(canonical);
+  variants.add(`${canonical}/`);
 }
 
 function addUrlVariants(variants: Set<string>, url: string): void {

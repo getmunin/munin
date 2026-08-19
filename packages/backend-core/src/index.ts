@@ -153,6 +153,18 @@ export {
   authorizationServerUrl,
   resourceMetadataUrl,
 } from './oauth/oauth.constants.ts';
+export { McpSurfacesModule } from './oauth/mcp-surfaces.module.ts';
+export {
+  ADDITIONAL_MCP_SURFACES,
+  findMcpSurfaceForPath,
+  mcpSurfaceAudiences,
+  mcpSurfaceMetadataUrl,
+  mcpSurfaceResourceUrl,
+  mcpSurfaceScopes,
+  normalizeMcpSurfacePath,
+  resolveMcpSurfaces,
+  type McpSurface,
+} from './oauth/mcp-surface.ts';
 
 export { HealthController } from './common/health.controller.ts';
 export { WhoamiController } from './common/whoami.controller.ts';

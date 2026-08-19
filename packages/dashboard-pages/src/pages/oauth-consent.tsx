@@ -17,8 +17,28 @@ export interface OAuthClientInfo {
   created_at: string;
 }
 
+export interface OAuthResourcePermission {
+  key: string;
+  label: string;
+  description?: string;
+  level: 'read' | 'write';
+}
+
+export interface OAuthResourceInfo {
+  id: string;
+  name: string;
+  permissions: OAuthResourcePermission[];
+}
+
+export interface OAuthConsentDenial {
+  reason: 'not_eligible' | 'no_org';
+  resourceName: string;
+}
+
 export interface OAuthConsentPageProps {
   clientInfo: OAuthClientInfo | null;
+  resourceInfo?: OAuthResourceInfo | null;
+  denial?: OAuthConsentDenial | null;
 }
 
 interface OAuthConsentResponse {
@@ -75,10 +95,15 @@ function groupScopes(scopes: string[]): ModuleScopes[] {
 }
 
 type FlowState = 'new' | 'granted' | 'denied';
+type HeaderState = FlowState | 'blocked';
 
 const REDIRECT_DELAY_MS = 1200;
 
-export function OAuthConsentPage({ clientInfo }: OAuthConsentPageProps) {
+export function OAuthConsentPage({
+  clientInfo,
+  resourceInfo = null,
+  denial = null,
+}: OAuthConsentPageProps) {
   const t = useTranslations('dashboard.oauthConsent');
   const translate = useTranslateError();
   const search = useSearchParams();
@@ -149,21 +174,36 @@ export function OAuthConsentPage({ clientInfo }: OAuthConsentPageProps) {
     }
   }
 
+  const blocked = flow === 'new' && denial !== null;
+  const resourceName = denial?.resourceName ?? resourceInfo?.name ?? '';
+
   return (
     <div className="min-h-screen bg-background">
       <main className="mx-auto flex w-full max-w-[720px] flex-col px-6 py-12 sm:py-16">
         <EditorialHeader
-          flow={flow}
+          flow={blocked ? 'blocked' : flow}
           clientName={displayName}
+          resourceName={resourceName}
         />
 
         <section className="mt-8 border-[1px] border-ink bg-paper dark:border-rule-on-dark dark:bg-card">
-          {flow === 'new' ? (
+          {blocked ? (
+            <BlockedPane
+              clientInfo={clientInfo}
+              clientId={clientId}
+              displayName={displayName}
+              denial={denial}
+              busy={busy}
+              error={error}
+              onCancel={() => void submit(false)}
+            />
+          ) : flow === 'new' ? (
             <RequestPane
               clientInfo={clientInfo}
               clientId={clientId}
               displayName={displayName}
               userName={userName}
+              resourceInfo={resourceInfo}
               groupedScopes={groupedScopes}
               totalScopeCount={totalScopeCount}
               busy={busy}
@@ -190,12 +230,31 @@ export function OAuthConsentPage({ clientInfo }: OAuthConsentPageProps) {
 }
 
 interface EditorialHeaderProps {
-  flow: FlowState;
+  flow: HeaderState;
   clientName: string;
+  resourceName: string;
 }
 
-function EditorialHeader({ flow, clientName }: EditorialHeaderProps) {
+function EditorialHeader({ flow, clientName, resourceName }: EditorialHeaderProps) {
   const t = useTranslations('dashboard.oauthConsent');
+  if (flow === 'blocked') {
+    return (
+      <header className="mb-6">
+        <div className="mb-4 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-mute">
+          {t('blocked.eyebrow')}
+        </div>
+        <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em] min-w-0 [overflow-wrap:anywhere] [word-break:break-word]">
+          {t.rich('blocked.title', { em: (chunks) => <em className="not-italic text-ink italic">{chunks}</em> })}
+        </h1>
+        <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
+          {t.rich('blocked.sub', {
+            client: () => <em className="not-italic font-medium text-ink italic">{clientName}</em>,
+            resource: () => <em className="not-italic font-medium text-ink italic">{resourceName}</em>,
+          })}
+        </p>
+      </header>
+    );
+  }
   if (flow === 'granted') {
     return (
       <header className="mb-6">
@@ -242,8 +301,9 @@ function EditorialHeader({ flow, clientName }: EditorialHeaderProps) {
         {t.rich('title', { client: () => <em className="not-italic text-cobalt italic">{clientName}</em> })}
       </h1>
       <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft">
-        {t.rich('lede', {
+        {t.rich(resourceName ? 'resourceLede' : 'lede', {
           client: () => <em className="not-italic font-medium text-ink italic">{clientName}</em>,
+          resource: () => <em className="not-italic font-medium text-ink italic">{resourceName}</em>,
         })}
       </p>
     </header>
@@ -255,6 +315,7 @@ interface RequestPaneProps {
   clientId: string;
   displayName: string;
   userName: string;
+  resourceInfo: OAuthResourceInfo | null;
   groupedScopes: ModuleScopes[];
   totalScopeCount: number;
   busy: 'allow' | 'deny' | null;
@@ -268,6 +329,7 @@ function RequestPane({
   clientId,
   displayName,
   userName,
+  resourceInfo,
   groupedScopes,
   totalScopeCount,
   busy,
@@ -276,6 +338,7 @@ function RequestPane({
   onSwitchAccount,
 }: RequestPaneProps) {
   const t = useTranslations('dashboard.oauthConsent');
+  const permissions = resourceInfo?.permissions ?? null;
   return (
     <>
       <IdentityCard clientInfo={clientInfo} clientId={clientId} displayName={displayName} />
@@ -287,11 +350,23 @@ function RequestPane({
             {t('scopesLabel')}
           </span>
           <span className="font-mono text-[11px] text-ink-soft">
-            {t('scopesCount', { modules: groupedScopes.length, scopes: totalScopeCount })}
+            {permissions
+              ? t('resourceScopesCount', { scopes: permissions.length })
+              : t('scopesCount', { modules: groupedScopes.length, scopes: totalScopeCount })}
           </span>
         </div>
 
-        {groupedScopes.length === 0 ? (
+        {permissions ? (
+          permissions.length === 0 ? (
+            <p className="pb-4 text-sm text-ink-soft">{t('noResourcePermissions')}</p>
+          ) : (
+            <ul className="border-t-[1px] border-rule-soft dark:border-rule-on-dark">
+              {permissions.map((permission) => (
+                <ResourcePermissionRow key={permission.key} permission={permission} />
+              ))}
+            </ul>
+          )
+        ) : groupedScopes.length === 0 ? (
           <p className="pb-4 text-sm text-ink-soft">{t('noModuleScopes')}</p>
         ) : (
           <ul className="border-t-[1px] border-rule-soft dark:border-rule-on-dark">
@@ -411,6 +486,93 @@ function PermissionRow({ group }: { group: ModuleScopes }) {
         {group.write && <ScopePill kind="write" label={t('actions.write')} />}
       </div>
     </li>
+  );
+}
+
+function ResourcePermissionRow({ permission }: { permission: OAuthResourcePermission }) {
+  const t = useTranslations('dashboard.oauthConsent');
+  return (
+    <li className="grid grid-cols-[1fr_auto] items-center gap-x-4 border-t-[1px] border-rule-soft py-3.5 first:border-t-0 dark:border-rule-on-dark">
+      <div className="min-w-0">
+        <div className="text-[15px] font-semibold text-ink">{permission.label}</div>
+        {permission.description && (
+          <div className="mt-1 text-[13px] leading-snug text-ink-soft">{permission.description}</div>
+        )}
+      </div>
+      <div className="inline-flex shrink-0 items-center gap-1.5">
+        <ScopePill kind={permission.level} label={t(`actions.${permission.level}`)} />
+      </div>
+    </li>
+  );
+}
+
+interface BlockedPaneProps {
+  clientInfo: OAuthClientInfo | null;
+  clientId: string;
+  displayName: string;
+  denial: OAuthConsentDenial;
+  busy: 'allow' | 'deny' | null;
+  error: string | null;
+  onCancel: () => void;
+}
+
+function BlockedPane({
+  clientInfo,
+  clientId,
+  displayName,
+  denial,
+  busy,
+  error,
+  onCancel,
+}: BlockedPaneProps) {
+  const t = useTranslations('dashboard.oauthConsent');
+  return (
+    <>
+      <IdentityCard clientInfo={clientInfo} clientId={clientId} displayName={displayName} />
+
+      <div className="flex flex-col gap-4 px-7 py-8">
+        <div className="inline-flex h-11 w-11 items-center justify-center rounded-full border-[1px] border-rule-soft bg-paper-deep text-ink-soft">
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 8v4M12 16h.01" />
+          </svg>
+        </div>
+        <div className="font-serif text-[24px] tracking-[-0.01em] [overflow-wrap:anywhere]">
+          {t.rich('blocked.panelTitle', {
+            resource: () => <em className="not-italic italic">{denial.resourceName}</em>,
+          })}
+        </div>
+        <div className="max-w-[52ch] text-sm leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
+          {t(`blocked.reasons.${denial.reason}`)}
+        </div>
+        <div className="max-w-[52ch] text-[13px] leading-relaxed text-ink-mute">
+          {t('blocked.switchHint')}
+        </div>
+      </div>
+
+      {error && (
+        <p className="px-7 pb-3 text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3 border-t-[1px] border-rule-soft px-7 py-5 dark:border-rule-on-dark">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={busy !== null}
+          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-ink px-6 font-sans text-[15px] font-medium text-paper transition hover:bg-cobalt hover:border-cobalt disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {busy === 'deny' ? t('blocked.cancelling') : t('blocked.cancel')}
+        </button>
+        <a
+          href="/dashboard"
+          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-transparent px-6 font-sans text-[15px] font-medium text-ink no-underline transition hover:bg-ink hover:text-paper"
+        >
+          {t('blocked.dashboard')}
+        </a>
+      </div>
+    </>
   );
 }
 

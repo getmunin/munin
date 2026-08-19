@@ -1,6 +1,15 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { OAuthResourceController } from './oauth-resource.controller.ts';
+import { NotFoundException } from '@nestjs/common';
+import {
+  OAuthResourceController,
+  type ResourceMetadataRequest,
+} from './oauth-resource.controller.ts';
 import { RESOURCE_ADVERTISED_SCOPES, SUPPORTED_AUTH_SCOPES } from './oauth.constants.ts';
+import type { McpSurface } from './mcp-surface.ts';
+
+function requestFor(path: string): ResourceMetadataRequest {
+  return { path, url: path };
+}
 
 describe('OAuthResourceController', () => {
   let originalUrl: string | undefined;
@@ -68,5 +77,70 @@ describe('OAuthResourceController', () => {
     for (const scope of meta.scopes_supported) {
       expect(SUPPORTED_AUTH_SCOPES).toContain(scope);
     }
+  });
+});
+
+describe('OAuthResourceController with registered MCP surfaces', () => {
+  let originalUrl: string | undefined;
+
+  const surfaces: McpSurface[] = [
+    { id: 'addon', path: '/mcp/addon', resourceName: 'Addon', scopes: ['addon:write'] },
+  ];
+
+  beforeEach(() => {
+    originalUrl = process.env.NEXT_PUBLIC_MCP_URL;
+    process.env.NEXT_PUBLIC_MCP_URL = 'https://mcp.example.test';
+  });
+
+  afterEach(() => {
+    if (originalUrl === undefined) delete process.env.NEXT_PUBLIC_MCP_URL;
+    else process.env.NEXT_PUBLIC_MCP_URL = originalUrl;
+  });
+
+  it('serves a metadata document for the surface path', () => {
+    const meta = new OAuthResourceController(surfaces).surfaceMetadata(requestFor(
+      '/.well-known/oauth-protected-resource/mcp/addon',
+    ));
+    expect(meta.resource).toBe('https://mcp.example.test/mcp/addon');
+    expect(meta.resource_name).toBe('Addon');
+    expect(meta.scopes_supported).toEqual(['offline_access', 'addon:write']);
+    expect(meta.resource_indicators_supported).toBe(true);
+  });
+
+  it('serves the same document for paths below the surface', () => {
+    const meta = new OAuthResourceController(surfaces).surfaceMetadata(requestFor(
+      '/.well-known/oauth-protected-resource/mcp/addon/session/1',
+    ));
+    expect(meta.resource).toBe('https://mcp.example.test/mcp/addon');
+  });
+
+  it('404s for a path no surface claims', () => {
+    const controller = new OAuthResourceController(surfaces);
+    expect(() =>
+      controller.surfaceMetadata(requestFor('/.well-known/oauth-protected-resource/mcp/other')),
+    ).toThrow(NotFoundException);
+  });
+
+  it('404s for every sub-path when no surface is registered', () => {
+    const controller = new OAuthResourceController();
+    expect(() =>
+      controller.surfaceMetadata(requestFor('/.well-known/oauth-protected-resource/mcp/addon')),
+    ).toThrow(NotFoundException);
+  });
+
+  it('keeps surface scopes out of the base resource document', () => {
+    const meta = new OAuthResourceController(surfaces).metadata();
+    expect(meta.resource).toBe('https://mcp.example.test');
+    expect(meta.scopes_supported).toEqual(RESOURCE_ADVERTISED_SCOPES);
+    expect(meta.scopes_supported).not.toContain('addon:write');
+  });
+
+  it('refuses to start when a surface is misconfigured', () => {
+    expect(
+      () =>
+        new OAuthResourceController([
+          { id: 'bad', path: '/v1/bad', resourceName: 'Bad', scopes: [] },
+        ]),
+    ).toThrow(/below \/mcp/);
   });
 });

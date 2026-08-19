@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ResolvedCredential } from '@getmunin/core';
 import { AuthGuard, type AuthenticatedRequest } from './auth.guard.ts';
+import type { McpSurface } from '../../oauth/mcp-surface.ts';
 
 function makeContext(req: AuthenticatedRequest & { url?: string; path?: string }) {
   const res = { setHeader: vi.fn() };
@@ -16,12 +17,15 @@ function makeContext(req: AuthenticatedRequest & { url?: string; path?: string }
   } as unknown as Parameters<AuthGuard['canActivate']>[0];
 }
 
-function makeGuard(resolverStubs: {
-  resolveSessionToken?: ReturnType<typeof vi.fn>;
-  resolveBearerToken?: ReturnType<typeof vi.fn>;
-  resolveApiKey?: ReturnType<typeof vi.fn>;
-}): AuthGuard {
-  const guard = new AuthGuard({} as never, new Reflector());
+function makeGuard(
+  resolverStubs: {
+    resolveSessionToken?: ReturnType<typeof vi.fn>;
+    resolveBearerToken?: ReturnType<typeof vi.fn>;
+    resolveApiKey?: ReturnType<typeof vi.fn>;
+  },
+  surfaces?: McpSurface[],
+): AuthGuard {
+  const guard = new AuthGuard({} as never, new Reflector(), [], surfaces);
   Object.assign((guard as unknown as { resolver: Record<string, unknown> }).resolver, {
     resolveSessionToken: resolverStubs.resolveSessionToken ?? vi.fn(),
     resolveBearerToken: resolverStubs.resolveBearerToken ?? vi.fn(),
@@ -165,5 +169,115 @@ describe('AuthGuard audience binding', () => {
       path: '/mcp',
     });
     await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('accepts an audience that differs from the resource only by a trailing slash', async () => {
+    const resolveBearerToken = vi.fn().mockResolvedValue(mcpCred('https://api.example.com/mcp/'));
+    const guard = makeGuard({ resolveBearerToken });
+    const ctx = makeContext({
+      headers: { authorization: 'Bearer some-oauth-token' },
+      url: '/mcp',
+      path: '/mcp',
+    });
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+  });
+});
+
+describe('AuthGuard audience binding for registered MCP surfaces', () => {
+  let originalMcp: string | undefined;
+  let originalAuth: string | undefined;
+
+  const surfaces: McpSurface[] = [
+    { id: 'addon', path: '/mcp/addon', resourceName: 'Addon', scopes: ['addon:write'] },
+  ];
+
+  beforeEach(() => {
+    originalMcp = process.env.NEXT_PUBLIC_MCP_URL;
+    originalAuth = process.env.NEXT_PUBLIC_AUTH_URL;
+    process.env.NEXT_PUBLIC_MCP_URL = 'https://api.example.com/mcp';
+  });
+  afterEach(() => {
+    if (originalMcp === undefined) delete process.env.NEXT_PUBLIC_MCP_URL;
+    else process.env.NEXT_PUBLIC_MCP_URL = originalMcp;
+    if (originalAuth === undefined) delete process.env.NEXT_PUBLIC_AUTH_URL;
+    else process.env.NEXT_PUBLIC_AUTH_URL = originalAuth;
+  });
+
+  function credWithAudience(audience: string): ResolvedCredential {
+    return {
+      actor: { type: 'user', scopes: ['mcp:admin'], audiences: ['admin'] } as never,
+      audience,
+    };
+  }
+
+  function contextFor(path: string) {
+    return makeContext({
+      headers: { authorization: 'Bearer some-oauth-token' },
+      url: path,
+      path,
+    });
+  }
+
+  it('accepts the surface resource on the surface path', async () => {
+    const resolveBearerToken = vi
+      .fn()
+      .mockResolvedValue(credWithAudience('https://api.example.com/mcp/addon'));
+    const guard = makeGuard({ resolveBearerToken }, surfaces);
+    await expect(guard.canActivate(contextFor('/mcp/addon'))).resolves.toBe(true);
+  });
+
+  it('still accepts the base MCP resource on the surface path', async () => {
+    const resolveBearerToken = vi
+      .fn()
+      .mockResolvedValue(credWithAudience('https://api.example.com/mcp'));
+    const guard = makeGuard({ resolveBearerToken }, surfaces);
+    await expect(guard.canActivate(contextFor('/mcp/addon'))).resolves.toBe(true);
+  });
+
+  it('rejects a surface resource presented on the base MCP endpoint', async () => {
+    const resolveBearerToken = vi
+      .fn()
+      .mockResolvedValue(credWithAudience('https://api.example.com/mcp/addon'));
+    const guard = makeGuard({ resolveBearerToken }, surfaces);
+    await expect(guard.canActivate(contextFor('/mcp'))).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('rejects one surface resource presented to another surface', async () => {
+    const resolveBearerToken = vi
+      .fn()
+      .mockResolvedValue(credWithAudience('https://api.example.com/mcp/addon'));
+    const guard = makeGuard({ resolveBearerToken }, [
+      ...surfaces,
+      { id: 'other', path: '/mcp/other', resourceName: 'Other', scopes: [] },
+    ]);
+    await expect(guard.canActivate(contextFor('/mcp/other'))).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('points the WWW-Authenticate challenge at the surface metadata document', async () => {
+    process.env.NEXT_PUBLIC_AUTH_URL = 'https://auth.example.com';
+    const guard = makeGuard({ resolveBearerToken: vi.fn().mockResolvedValue(null) }, surfaces);
+    const res = { setHeader: vi.fn() };
+    const ctx = {
+      getHandler: () => () => undefined,
+      getClass: () => class {},
+      switchToHttp: () => ({
+        getRequest: () => ({
+          headers: { authorization: 'Bearer nope' },
+          url: '/mcp/addon',
+          path: '/mcp/addon',
+        }),
+        getResponse: () => res,
+      }),
+    } as unknown as Parameters<AuthGuard['canActivate']>[0];
+
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'WWW-Authenticate',
+      'Bearer resource_metadata="https://auth.example.com/.well-known/oauth-protected-resource/mcp/addon"',
+    );
   });
 });

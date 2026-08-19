@@ -104,7 +104,10 @@ export type { ProviderPreset } from './components/agent-config/types';
 export {
   OAuthConsentPage,
   type OAuthClientInfo,
+  type OAuthConsentDenial,
   type OAuthConsentPageProps,
+  type OAuthResourceInfo,
+  type OAuthResourcePermission,
 } from './pages/oauth-consent';
 export { AgentSetupWizard } from './pages/agent-setup-wizard';
 export { AgentsPage } from './pages/agents';

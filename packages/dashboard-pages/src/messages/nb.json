@@ -904,11 +904,14 @@
       "eyebrow": "OAuth 2.1 · autoriseringsforespørsel",
       "title": "Gi <client></client> tilgang?",
       "lede": "<client></client> vil koble seg til Munin og handle gjennom MCP-verktøyene på dine vegne. Se hva applikasjonen kan nå før du bestemmer deg.",
+      "resourceLede": "<client></client> vil koble seg til <resource></resource> og handle på dine vegne. Se hva applikasjonen kan nå før du bestemmer deg.",
       "registered": "Registrert {date}",
       "trustFirst": "Første gang du kobler <client></client> til denne kontoen. Ingenting er delt med den enda.",
       "scopesLabel": "Forespurt tilgang",
       "scopesCount": "{modules, plural, =0 {0 moduler} =1 {1 modul} other {# moduler}} · {scopes, plural, =0 {0 omfang} =1 {1 omfang} other {# omfang}}",
       "noModuleScopes": "Bare innlogging — ingen produkttillatelser forespurt.",
+      "resourceScopesCount": "{scopes, plural, =0 {0 tillatelser} =1 {1 tillatelse} other {# tillatelser}}",
+      "noResourcePermissions": "Bare innlogging — ingen ekstra tillatelser forespurt.",
       "modules": {
         "kb": "Kunnskapsbase",
         "conv": "Samtaler",
@@ -987,6 +990,20 @@
         "panelTitle": "Ingenting ble delt.",
         "panelBody": "Du avslo forespørselen, så ingen token ble utstedt. Du kan lukke dette vinduet eller starte på nytt fra <client></client>.",
         "redirecting": "Returnerer til {host} …"
+      },
+      "blocked": {
+        "eyebrow": "OAuth 2.1 · ingenting å autorisere",
+        "title": "<em>Ikke tilgjengelig</em> for autorisering.",
+        "sub": "<client></client> ba om tilgang til <resource></resource>, som denne kontoen ikke kan gi akkurat nå.",
+        "panelTitle": "<resource></resource> er ikke tilgjengelig for denne organisasjonen",
+        "reasons": {
+          "not_eligible": "Denne delen av Munin må slås på for organisasjonen din før en applikasjon kan koble seg til den. Be den som administrerer kontoen om å aktivere den, og start tilkoblingen på nytt.",
+          "no_org": "Kontoen du er logget inn med tilhører ingen organisasjon ennå, så det finnes ingenting for applikasjonen å koble seg til."
+        },
+        "switchHint": "Logget inn i feil organisasjon? Bytt organisasjon i dashbordet, og start tilkoblingen på nytt.",
+        "cancel": "Avbryt forespørselen",
+        "cancelling": "Avbryter …",
+        "dashboard": "Åpne dashbordet"
       },
       "missingParams": "Mangler OAuth-forespørsel. Gå tilbake til applikasjonen som startet autoriseringen.",
       "errors": {

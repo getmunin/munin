@@ -6487,6 +6487,21 @@
         "security": []
       }
     },
+    "/.well-known/oauth-protected-resource/{path}": {
+      "get": {
+        "operationId": "OAuthResourceController_surfaceMetadata",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OAuthResource"
+        ],
+        "security": []
+      }
+    },
     "/.well-known/oauth-authorization-server": {
       "get": {
         "operationId": "OAuthAsAliasController_metadata",

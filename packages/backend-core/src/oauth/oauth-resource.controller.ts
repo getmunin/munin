@@ -1,4 +1,4 @@
-import { Get, Header } from '@nestjs/common';
+import { Get, Header, Inject, NotFoundException, Optional, Req } from '@nestjs/common';
 import { PublicController } from '../common/auth/auth.guard.ts';
 import {
   authorizationServerUrl,
@@ -6,6 +6,13 @@ import {
   mcpResourceUrl,
   RESOURCE_ADVERTISED_SCOPES,
 } from './oauth.constants.ts';
+import {
+  ADDITIONAL_MCP_SURFACES,
+  findMcpSurfaceForPath,
+  mcpSurfaceResourceUrl,
+  resolveMcpSurfaces,
+  type McpSurface,
+} from './mcp-surface.ts';
 
 interface ProtectedResourceMetadata {
   resource: string;
@@ -18,8 +25,25 @@ interface ProtectedResourceMetadata {
   resource_indicators_supported: boolean;
 }
 
+export interface ResourceMetadataRequest {
+  path?: string;
+  url?: string;
+}
+
+const METADATA_PREFIX = '/.well-known/oauth-protected-resource';
+
 @PublicController('.well-known/oauth-protected-resource')
 export class OAuthResourceController {
+  private readonly surfaces: McpSurface[];
+
+  constructor(
+    @Optional()
+    @Inject(ADDITIONAL_MCP_SURFACES)
+    surfaces?: readonly McpSurface[],
+  ) {
+    this.surfaces = resolveMcpSurfaces(surfaces);
+  }
+
   @Get()
   @Header('content-type', 'application/json; charset=utf-8')
   @Header('cache-control', 'public, max-age=3600')
@@ -35,4 +59,28 @@ export class OAuthResourceController {
       resource_indicators_supported: true,
     };
   }
+
+  @Get('*path')
+  @Header('content-type', 'application/json; charset=utf-8')
+  @Header('cache-control', 'public, max-age=3600')
+  surfaceMetadata(@Req() req: ResourceMetadataRequest): ProtectedResourceMetadata {
+    const surface = findMcpSurfaceForPath(this.surfaces, suffixOf(req));
+    if (!surface) throw new NotFoundException('protected_resource_not_found');
+    return {
+      resource: mcpSurfaceResourceUrl(surface),
+      resource_name: surface.resourceName,
+      resource_logo_uri: `${mcpResourceOrigin()}/icon.png`,
+      authorization_servers: [authorizationServerUrl()],
+      scopes_supported: ['offline_access', ...surface.scopes],
+      bearer_methods_supported: ['header'],
+      resource_documentation: surface.documentationUrl ?? `${authorizationServerUrl()}/docs`,
+      resource_indicators_supported: true,
+    };
+  }
+}
+
+function suffixOf(req: ResourceMetadataRequest): string {
+  const raw = (req.path ?? req.url ?? '').toString();
+  const at = raw.indexOf(METADATA_PREFIX);
+  return at < 0 ? raw : raw.slice(at + METADATA_PREFIX.length);
 }

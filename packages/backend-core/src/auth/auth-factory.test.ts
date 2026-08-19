@@ -77,4 +77,29 @@ describe('computeValidAudiences', () => {
     expect(computeValidAudiences('https://api.example.com', undefined)).toEqual(asOnly);
     expect(computeValidAudiences('https://api.example.com', '')).toEqual(asOnly);
   });
+
+  it('accepts additional resource identifiers so a registered surface may be targeted', () => {
+    const audiences = computeValidAudiences(
+      'https://api.getmunin.com',
+      'https://mcp.getmunin.com',
+      ['https://mcp.getmunin.com/mcp/addon'],
+    );
+    expect(audiences).toContain('https://mcp.getmunin.com/mcp/addon');
+    expect(audiences).toContain('https://mcp.getmunin.com/mcp/addon/');
+  });
+
+  it('does not widen an additional resource to its origin', () => {
+    const audiences = computeValidAudiences('https://api.example.com', null, [
+      'https://other.example.com/mcp/addon',
+    ]);
+    expect(audiences).not.toContain('https://other.example.com');
+    expect(audiences).not.toContain('https://other.example.com/');
+  });
+
+  it('ignores an empty additional resource list', () => {
+    expect(computeValidAudiences('https://api.example.com', null, [])).toEqual([
+      'https://api.example.com',
+      'https://api.example.com/',
+    ]);
+  });
 });

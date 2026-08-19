@@ -1,5 +1,52 @@
 # @getmunin/backend-core
 
+## 5.7.0
+
+### Minor Changes
+
+- 5818e0e: Remove the agent-as-actor identity model.
+
+  The `agents` table has never held a row — nothing in the codebase inserts into it — and neither does anything set `tokens.agent_id`. `claims.agent_id` could only be written by a claimer whose actor id starts with `agt_`, which requires `tokens.agent_id`, so agent-held claims have never existed either. Conversation claims are an operator lock: they are taken only when a human sends a message, and read only to block the AI from replying over a human (`HandoverActiveError`). "The AI is handling this conversation" is modelled by `conv_conversations.agent_mode`, which is untouched.
+
+  Dropped: the `agents` table and its RLS policy, `claims.agent_id`, `tokens.agent_id`, and `ClaimManager` from `@getmunin/core` — a generic entity-claim helper keyed on agent id with no callers in this repo or munin-cloud. `ConversationClaimsService` keeps its full behavior for user claims.
+
+  `ClaimHolderType` narrows from `'user' | 'agent'` to `'user'`, which flows through the `/v1/conversations` claim DTOs, the `conversation.taken_over` and `conversation.released` webhook payloads, and `@getmunin/agent-runtime`'s claim type. The `'agent'` value has never been emitted, so consumers switching on it only lose a dead branch — but it is a type-level break, hence the minor bump.
+
+  The migration refuses to run if any of the above turns out to be false in a real database: it raises rather than dropping when `agents` has rows or either `agent_id` column holds non-null values.
+
+- 54134ea: Carry the organization an org-scoped MCP connection asked for all the way to the token, for clients that send `prompt=consent` or no resource indicator on the authorize request.
+
+  An authorization started at `/mcp/o/<orgId>` was landing on the user's default organization instead of the one in the URL. The association that carries the org across the consent redirect was written from inside `consentReferenceId`, and `@better-auth/oauth-provider` returns to the consent page **before** it calls that hook whenever the request carries `prompt=consent` — so on the one leg that names an organization, nothing was ever written, and the consent leg then had nothing to recall. Verified against a live authorization server: not one association row had ever been written, and every consent bound to the default org. Downstream, `AuthGuard` refused the resulting token on the org-scoped path, so the connection came back with no tools at all.
+
+  Three changes make the org survive the round-trip:
+
+  - The association is written at the auth-request boundary, on any request that names an org, rather than from a provider hook that a prompt can skip.
+  - It is keyed on both an HMAC of the session cookie and `code_challenge` **and** an HMAC of `code_challenge` alone, so an authorization that starts before the browser has a session — the ordinary case for a first connection — is still recoverable after sign-in. Recall prefers the session-bound key. The challenge-only key is first-write-wins, so a later request cannot repoint an association an earlier one already claimed; a caller who learns another user's `code_challenge` can read which organization it named, which is an opaque id for an authorization they must already hold the URL of.
+  - The org-scoped protected-resource document advertises a marker scope, `mcp:org:<orgId>`, alongside the usual list. A client requests exactly the scopes that document advertises, so the organization now reaches the authorization server even from a client that only sends `resource` at token exchange, which is where RFC 8707 permits it and where the provider reads it. The marker is stripped from the query and body before the provider validates scopes, so it never reaches a consent screen, a stored grant, or a token, and the shared endpoint's document does not carry one.
+
+  The resource indicator remains the primary channel and takes precedence when both are present. A missing association still falls back to the default organization, where the path guard refuses the mismatch, and a signed-in user who is not a member of the requested organization is still refused at consent rather than quietly redirected elsewhere.
+
+### Patch Changes
+
+- 233842d: Attribute MCP activity to the agent that made it.
+
+  The usage page's "By agent" table was always empty, and the Agents page never showed a last-used time. Both read from identity that was never recorded. OAuth-authorized agents (claude.ai, Claude Code) resolve to `actor_type = 'user'` with `actor_id` set to the authorizing user — deliberately, because their permissions derive from that user's org role — so the by-agent query's `actor_type IN ('admin_agent','end_user_agent')` filter excluded them, and its join against the `agents` table dropped whatever was left: nothing in the codebase ever inserts a row there. Even with the filter widened, `actor_id` could not have separated two connectors authorized by the same person.
+
+  `audit_log` now records `client_id`, the OAuth client the credential was issued to, taken from `oauth_access_token.client_id` for opaque tokens and the `azp` claim for JWTs. The by-agent report groups on it (joined to `oauth_client` for the connector name) and no longer consults the vestigial `agents` table; admin API keys, delegated end-user agents and the in-process agent runtime resolve to their own labels instead of being filtered out. Average latency is now a call-weighted mean rather than an average of per-group averages. The Agents page derives last-used from the newest audit row per connector, so it fills in as traffic arrives rather than being hardcoded null.
+
+  The audit log's Client column also stops reporting "unknown" for traffic it can identify: browser requests classify as `dashboard`, widget callers as `widget`, and the transport-level `POST /mcp` row as `mcp` (previously only the row carrying a tool name matched). Where a row has an OAuth client, the column shows the connector's name instead of a coarse bucket.
+
+- Updated dependencies [5818e0e]
+- Updated dependencies [54134ea]
+- Updated dependencies [233842d]
+  - @getmunin/agent-runtime@5.7.0
+  - @getmunin/core@5.7.0
+  - @getmunin/db@5.7.0
+  - @getmunin/inspector-app@5.7.0
+  - @getmunin/mcp-toolkit@5.7.0
+  - @getmunin/types@5.7.0
+  - @getmunin/emails@5.7.0
+
 ## 5.6.0
 
 ### Minor Changes

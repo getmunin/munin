@@ -15,6 +15,7 @@ import { schema, type Db } from '@getmunin/db';
 import { z } from 'zod';
 import { DB } from '../../../common/db/db.module.ts';
 import { readPendingSetup } from '../channels/channel-admin.ts';
+import { parseStoredConfig } from '../channels/stored-config.ts';
 
 const REDACTED = '••••';
 
@@ -225,7 +226,7 @@ export function storedToJsonb(stored: StoredTwilioSmsConfig): Record<string, unk
 }
 
 export function jsonbToStored(json: Record<string, unknown>): StoredTwilioSmsConfig {
-  return StoredTwilioSmsConfigSchema.parse(json);
+  return parseStoredConfig(StoredTwilioSmsConfigSchema, json, 'sms:twilio');
 }
 
 async function encryptString(plaintext: string): Promise<string> {

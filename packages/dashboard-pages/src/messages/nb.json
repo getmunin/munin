@@ -1568,7 +1568,8 @@
     "cms_asset_too_large": "Filen er for stor til å lastes opp. Maksstørrelsen er 50 MB.",
     "cms_asset_upload_failed": "Opplastingen ble ikke fullført. Sjekk tilkoblingen og prøv igjen.",
     "cms_version_conflict": "Oppføringen ble endret et annet sted mens du redigerte. Last den inn på nytt og prøv igjen.",
-    "agent_config_invalid_model": "KI-leverandøren tilbyr ikke denne modellen lenger. Last siden på nytt for å oppdatere listen, velg en modell og lagre igjen."
+    "agent_config_invalid_model": "KI-leverandøren tilbyr ikke denne modellen lenger. Last siden på nytt for å oppdatere listen, velg en modell og lagre igjen.",
+    "conv_channel_config_invalid": "Kanalen har ufullstendige innstillinger og kan ikke brukes ennå. Åpne innstillingene, fyll ut det som mangler og lagre for å reparere den."
   },
   "footer": {
     "privacy": "Personvern",

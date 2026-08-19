@@ -23,6 +23,7 @@ import {
   type SendLimits,
 } from '@getmunin/types';
 import { findOrCreateEndUserByEmail } from '../end-user-by-email.ts';
+import { parseStoredConfig, tryParseStoredConfig } from '../channels/stored-config.ts';
 
 export { EmailChannelConfigInput };
 export type { EmailChannelConfigInputT };
@@ -365,8 +366,10 @@ export class EmailService {
     if (channel.type !== 'email') {
       throw new BadRequestException(`channel ${input.channelId} is not an email channel`);
     }
-    const prev = jsonbToStored(channel.config);
-    const merged = await this.mergeConfig(prev, input.config);
+    const prev = tryJsonbToStored(channel.config);
+    const merged = prev
+      ? await this.mergeConfig(prev, input.config)
+      : await this.toStored(input.config);
     const [row] = await ctx.db
       .update(schema.convChannels)
       .set({
@@ -539,7 +542,11 @@ export function storedToJsonb(stored: StoredEmailChannelConfig): Record<string, 
 }
 
 export function jsonbToStored(json: Record<string, unknown>): StoredEmailChannelConfig {
-  return StoredEmailChannelConfigSchema.parse(json);
+  return parseStoredConfig(StoredEmailChannelConfigSchema, json, 'email');
+}
+
+export function tryJsonbToStored(json: Record<string, unknown>): StoredEmailChannelConfig | null {
+  return tryParseStoredConfig(StoredEmailChannelConfigSchema, json);
 }
 
 async function decryptString(tx: Db | Tx, ciphertext: string): Promise<string> {

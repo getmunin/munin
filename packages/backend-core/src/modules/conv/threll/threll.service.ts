@@ -16,6 +16,7 @@ import {
   buildWebhookUrl,
   type ThrellWebhookSubscriptionSummary,
 } from './threll-client.service.ts';
+import { parseStoredConfig } from '../channels/stored-config.ts';
 
 const REDACTED = '••••';
 
@@ -267,7 +268,7 @@ export function storedToJsonb(stored: StoredThrellConfig): Record<string, unknow
 }
 
 export function jsonbToStored(json: Record<string, unknown>): StoredThrellConfig {
-  return StoredThrellConfigSchema.parse(json);
+  return parseStoredConfig(StoredThrellConfigSchema, json, 'voice:threll');
 }
 
 async function encryptString(plaintext: string): Promise<string> {

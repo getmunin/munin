@@ -1138,4 +1138,36 @@ interface OrgFixture {
       expect(Array.isArray(body)).toBe(true);
     });
   });
+
+  describe('channel with an unparseable stored config', () => {
+    it('answers 500 with a translatable code, not a bare Internal server error', async () => {
+      const [broken] = await db
+        .insert(schema.convChannels)
+        .values({
+          orgId: orgA.id,
+          type: 'email',
+          vendor: 'smtp',
+          name: 'cp-broken-config',
+          config: { addressing: { fromAddress: 'broken@example.test' } },
+        })
+        .returning();
+
+      const res = await fetch(`${baseUrl}/v1/conversations/channels/email/${broken!.id}/test`, {
+        method: 'POST',
+        headers: authHeaders(orgA.adminKey),
+      });
+
+      expect(res.status).toBe(500);
+      const body = (await res.json()) as {
+        code: string;
+        message: string;
+        fieldErrors: Array<{ field: string; message: string }>;
+      };
+      expect(body.code).toBe('conv_channel_config_invalid');
+      expect(body.fieldErrors).toEqual([
+        expect.objectContaining({ field: 'outbound' }),
+      ]);
+      expect(body.message).toContain('conv_channel_config_invalid:');
+    });
+  });
 });

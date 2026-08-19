@@ -14,6 +14,7 @@ import { createZodDto } from 'nestjs-zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
+import { ChannelConfigErrorInterceptor } from '../modules/conv/channels/stored-config.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { RoleGuard } from './role.guard.ts';
 import { RequireRole } from './role.decorator.ts';
@@ -91,7 +92,7 @@ interface ChannelListResponse {
 
 @Controller('v1/conversations/channels')
 @UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
-@UseInterceptors(TenancyInterceptor, AuditInterceptor)
+@UseInterceptors(TenancyInterceptor, AuditInterceptor, ChannelConfigErrorInterceptor)
 @RequireRole('owner', 'admin')
 export class ConvChannelsController {
   constructor(

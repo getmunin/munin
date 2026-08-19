@@ -114,7 +114,7 @@ interface ConversationListResponse {
 }
 
 interface ConversationDetailResponse extends ConversationDetail {
-  claim: { holderType: 'user' | 'agent'; holderId: string; expiresAt: string } | null;
+  claim: { holderType: 'user'; holderId: string; expiresAt: string } | null;
 }
 
 @Controller('v1/conversations')
@@ -274,7 +274,7 @@ export class ConversationsController {
   async takeOver(
     @Param('id') id: string,
     @Body() input: TakeOverBody,
-  ): Promise<{ holderType: 'user' | 'agent'; holderId: string; expiresAt: string }> {
+  ): Promise<{ holderType: 'user'; holderId: string; expiresAt: string }> {
     const ttlMs = input.ttlMinutes ? input.ttlMinutes * 60_000 : undefined;
     const claim = await translate(() => this.claims.claim({ conversationId: id, ttlMs }));
     return { holderType: claim.holderType, holderId: claim.holderId, expiresAt: claim.expiresAt };

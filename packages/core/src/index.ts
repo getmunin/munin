@@ -13,7 +13,6 @@ export {
   type EndUserAgentActorInput,
 } from './request/synth-agent-actor.ts';
 export { AuditLogger, type AuditEventInput } from './request/audit.ts';
-export { ClaimManager, type ClaimResult } from './request/claims.ts';
 export {
   CredentialResolver,
   type ResolvedCredential,

@@ -847,7 +847,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
   private async loadParentState(context: ConversationContext): Promise<ParentState> {
     const conversation = context.conversation;
     const [claim] = await this.db
-      .select({ userId: schema.claims.userId, agentId: schema.claims.agentId })
+      .select({ userId: schema.claims.userId })
       .from(schema.claims)
       .where(
         and(
@@ -860,7 +860,6 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       .limit(1);
     let claimedBy: string | null = null;
     if (claim?.userId) claimedBy = (await this.userName(claim.userId)) ?? 'a teammate';
-    else if (claim?.agentId) claimedBy = 'AI agent';
 
     const assignedTo = conversation.assigneeUserId
       ? await this.userName(conversation.assigneeUserId)
@@ -957,7 +956,6 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     if (holderType === 'user' && holderId) {
       return (await this.userName(holderId)) ?? 'a teammate';
     }
-    if (holderType === 'agent') return 'the AI agent';
     return 'a teammate';
   }
 

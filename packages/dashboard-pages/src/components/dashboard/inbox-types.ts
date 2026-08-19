@@ -49,7 +49,7 @@ export interface MessageDto {
 
 export interface ConversationDetail extends ConversationSummary {
   messages: MessageDto[];
-  claim: { holderType: 'user' | 'agent'; holderId: string; expiresAt: string } | null;
+  claim: { holderType: 'user'; holderId: string; expiresAt: string } | null;
   contactEmail: string | null;
   contactName: string | null;
   contactPhone: string | null;

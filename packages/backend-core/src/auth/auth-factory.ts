@@ -94,7 +94,9 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
     mcpResourceUrl(),
     mcpSurfaceAudiences(surfaces),
   );
-  const authScopes = [...SUPPORTED_AUTH_SCOPES, ...mcpSurfaceScopes(surfaces)];
+  const authScopes = Array.from(
+    new Set<string>([...SUPPORTED_AUTH_SCOPES, ...mcpSurfaceScopes(surfaces)]),
+  );
   const issuer = stripTrailingSlashes(opts.baseUrl);
 
   const socialProviders = buildSocialProviders(opts.socialProviders);

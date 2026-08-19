@@ -1,6 +1,6 @@
 import { Controller, Get, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, desc, eq, lt, type SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, type SQL } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -23,10 +23,11 @@ interface AuditDto {
   totalTokens: number | null;
   userAgent: string | null;
   client: ClientKind;
+  clientName: string | null;
   createdAt: string;
 }
 
-type ClientKind = 'sdk' | 'cli' | 'mcp' | 'unknown';
+export type ClientKind = 'sdk' | 'cli' | 'mcp' | 'dashboard' | 'widget' | 'unknown';
 
 const PAGE_SIZE_DEFAULT = 50;
 const PAGE_SIZE_MAX = 200;
@@ -63,7 +64,8 @@ export class AuditLogController {
       .orderBy(desc(schema.auditLog.createdAt))
       .limit(fetchTake);
 
-    const all = rows.map(toDto);
+    const clientNames = await readClientNames(rows);
+    const all = rows.map((row) => toDto(row, clientNames));
     const filtered = client ? all.filter((r) => r.client === client) : all;
     const items = filtered.slice(0, take);
     const nextCursor = filtered.length > take ? items[items.length - 1]!.createdAt : null;
@@ -71,7 +73,26 @@ export class AuditLogController {
   }
 }
 
-function toDto(row: typeof schema.auditLog.$inferSelect): AuditDto {
+async function readClientNames(
+  rows: Array<typeof schema.auditLog.$inferSelect>,
+): Promise<Map<string, string>> {
+  const ids = [...new Set(rows.map((r) => r.clientId).filter((v): v is string => !!v))];
+  const out = new Map<string, string>();
+  if (ids.length === 0) return out;
+  const found = await getCurrentContext()
+    .db.select({ clientId: schema.oauthClient.clientId, name: schema.oauthClient.name })
+    .from(schema.oauthClient)
+    .where(inArray(schema.oauthClient.clientId, ids));
+  for (const row of found) {
+    if (row.name) out.set(row.clientId, row.name);
+  }
+  return out;
+}
+
+function toDto(
+  row: typeof schema.auditLog.$inferSelect,
+  clientNames: Map<string, string>,
+): AuditDto {
   return {
     id: row.id,
     actorType: row.actorType,
@@ -85,22 +106,39 @@ function toDto(row: typeof schema.auditLog.$inferSelect): AuditDto {
     durationMs: row.durationMs,
     totalTokens: row.totalTokens,
     userAgent: row.userAgent,
-    client: classifyClient(row.userAgent, row.tool),
+    client: classifyClient(row),
+    clientName: row.clientId ? (clientNames.get(row.clientId) ?? null) : null,
     createdAt: row.createdAt.toISOString(),
   };
 }
 
-function classifyClient(userAgent: string | null, tool: string | null): ClientKind {
-  if (tool) return 'mcp';
-  if (!userAgent) return 'unknown';
-  const ua = userAgent.toLowerCase();
+export interface ClientSignals {
+  userAgent: string | null;
+  tool: string | null;
+  method: string | null;
+  actorType: string;
+}
+
+export function classifyClient(signals: ClientSignals): ClientKind {
+  if (signals.tool) return 'mcp';
+  if (isMcpTransport(signals.method)) return 'mcp';
+  if (signals.actorType === 'widget_agent') return 'widget';
+  const ua = signals.userAgent?.toLowerCase();
+  if (!ua) return 'unknown';
   if (ua.includes('@getmunin/agent-runtime') || ua.includes('@getmunin/sdk') || ua.includes('munin')) {
     return 'sdk';
   }
   if (ua.includes('curl') || ua.includes('wget') || ua.includes('httpie') || ua.includes('postman') || ua.includes('insomnia')) {
     return 'cli';
   }
+  if (ua.startsWith('mozilla/')) return 'dashboard';
   return 'unknown';
+}
+
+function isMcpTransport(method: string | null): boolean {
+  if (!method) return false;
+  const path = method.split(' ')[1];
+  return path === '/mcp' || (path?.startsWith('/mcp/') ?? false);
 }
 
 function clampLimit(value: string | undefined, fallback: number, max: number): number {

@@ -119,6 +119,7 @@ export class CredentialResolver {
       tokenRow.id,
       undefined,
       tokenRow.userId,
+      tokenRow.clientId,
     );
 
     return {

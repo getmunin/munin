@@ -449,6 +449,7 @@ export const auditLog = pgTable(
     actorType: varchar('actor_type', { length: 32 }).notNull(),
     // 'user' | 'admin_agent' | 'end_user_agent' | 'partner' | 'system'
     actorId: text('actor_id'),
+    clientId: text('client_id'),
     tool: text('tool'),
     method: text('method'),
     target: jsonb('target').$type<{ type: string; id: string }>(),
@@ -465,6 +466,7 @@ export const auditLog = pgTable(
     orgIdx: index('audit_log_org_idx').on(t.orgId, t.createdAt),
     correlationIdx: index('audit_log_correlation_idx').on(t.correlationId),
     actorIdx: index('audit_log_actor_idx').on(t.actorType, t.actorId),
+    clientIdx: index('audit_log_client_idx').on(t.orgId, t.clientId, t.createdAt),
   }),
 );
 

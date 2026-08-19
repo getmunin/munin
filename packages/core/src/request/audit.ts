@@ -23,6 +23,7 @@ export class AuditLogger {
         orgId,
         actorType: ctx.actor?.type ?? 'system',
         actorId: ctx.actor?.id ?? null,
+        clientId: ctx.actor?.clientId ?? null,
         tool: input.tool ?? null,
         method: input.method ?? null,
         target: input.target ?? null,

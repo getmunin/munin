@@ -22,6 +22,7 @@ export class ActorIdentity {
     public readonly tokenId?: string,
     public readonly partnerId?: string,
     public readonly userId?: string,
+    public readonly clientId?: string,
   ) {}
 
   hasScope(scope: string): boolean {

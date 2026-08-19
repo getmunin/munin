@@ -531,12 +531,6 @@ function BlockedPane({
       <IdentityCard clientInfo={clientInfo} clientId={clientId} displayName={displayName} />
 
       <div className="flex flex-col gap-4 px-7 py-8">
-        <div className="inline-flex h-11 w-11 items-center justify-center rounded-full border-[1px] border-rule-soft bg-paper-deep text-ink-soft">
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 8v4M12 16h.01" />
-          </svg>
-        </div>
         <div className="font-serif text-[24px] tracking-[-0.01em] [overflow-wrap:anywhere]">
           {t.rich('blocked.panelTitle', {
             resource: () => <em className="not-italic italic">{denial.resourceName}</em>,

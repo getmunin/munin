@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   Inject,
   Injectable,
+  NotFoundException,
   Optional,
   SetMetadata,
   UnauthorizedException,
@@ -13,6 +14,10 @@ import {
 import { ThrottlerGuard } from '@nestjs/throttler';
 import {
   CredentialResolver,
+  ORG_SCOPED_MCP_PREFIX,
+  orgScopedMcpPath,
+  orgScopedMcpResourceUrl,
+  parseOrgScopedMcpPath,
   registerMcpResourcePaths,
   type ResolvedCredential,
 } from '@getmunin/core';
@@ -29,7 +34,7 @@ import {
   resolveMcpSurfaces,
   type McpSurface,
 } from '../../oauth/mcp-surface.ts';
-import { sessionCookieNames } from '../../auth/auth-cookies.ts';
+import { readSessionCookie } from '../../auth/auth-cookies.ts';
 
 export const ALLOW_ANONYMOUS = 'munin:allow-anonymous';
 export const AllowAnonymous = () => SetMetadata(ALLOW_ANONYMOUS, true);
@@ -86,6 +91,11 @@ export class AuthGuard implements CanActivate {
     ]);
 
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const path = requestPath(request);
+    if (path.startsWith(ORG_SCOPED_MCP_PREFIX) && !parseOrgScopedMcpPath(path)) {
+      throw new NotFoundException('not_found');
+    }
+
     const header = request.headers['authorization'];
     const value = Array.isArray(header) ? header[0] : header;
     let credential: ResolvedCredential | null = null;
@@ -132,6 +142,14 @@ export class AuthGuard implements CanActivate {
       }
     }
 
+    const orgScopedOrgId = parseOrgScopedMcpPath(path);
+    if (orgScopedOrgId && credential.actor.orgId !== orgScopedOrgId) {
+      this.maybeSetMcpResourceMetadataHeader(context, request);
+      throw new UnauthorizedException(
+        'credential is not valid for the organization addressed by this endpoint',
+      );
+    }
+
     request.credential = credential;
     return true;
   }
@@ -140,6 +158,11 @@ export class AuthGuard implements CanActivate {
     const accepted = [mcpResourceUrl()];
     const surface = findMcpSurfaceForPath(this.surfaces, requestPath(request));
     if (surface) accepted.push(mcpSurfaceResourceUrl(surface));
+    const orgId = parseOrgScopedMcpPath(requestPath(request));
+    if (orgId) {
+      const orgResource = orgScopedMcpResourceUrl(orgId);
+      if (orgResource) accepted.push(orgResource);
+    }
     return accepted.some((resource) => isSameResourceIdentifier(resource, audience));
   }
 
@@ -149,7 +172,12 @@ export class AuthGuard implements CanActivate {
   ): void {
     if (!isMcpRequest(request)) return;
     const surface = findMcpSurfaceForPath(this.surfaces, requestPath(request));
-    const metadata = surface ? mcpSurfaceMetadataUrl(surface) : resourceMetadataUrl();
+    const orgId = parseOrgScopedMcpPath(requestPath(request));
+    const metadata = surface
+      ? mcpSurfaceMetadataUrl(surface)
+      : orgId
+        ? `${resourceMetadataUrl()}${orgScopedMcpPath(orgId)}`
+        : resourceMetadataUrl();
     const res = context
       .switchToHttp()
       .getResponse<{ setHeader?: (n: string, v: string) => void }>();
@@ -165,21 +193,6 @@ function requestPath(request: AuthenticatedRequest): string {
   const raw = (request.url ?? request.path ?? '').toString();
   const i = raw.indexOf('?');
   return i < 0 ? raw : raw.slice(0, i);
-}
-
-function readSessionCookie(cookieHeader: string | undefined): string | null {
-  if (!cookieHeader) return null;
-  const names = sessionCookieNames();
-  for (const part of cookieHeader.split(';')) {
-    const eq = part.indexOf('=');
-    if (eq < 0) continue;
-    const name = part.slice(0, eq).trim();
-    if (!names.includes(name)) continue;
-    const raw = decodeURIComponent(part.slice(eq + 1).trim());
-    const dot = raw.indexOf('.');
-    return dot >= 0 ? raw.slice(0, dot) : raw;
-  }
-  return null;
 }
 
 function looksLikeApiKey(raw: string): boolean {

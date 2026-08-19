@@ -27,6 +27,7 @@ import {
   type ErrorReporter,
 } from '../common/error-reporter/error-reporter.ts';
 import { deriveMcpAudience } from './mcp.audience.ts';
+import { OrgScopedMcpDocs } from './mcp.org-scoped.docs.ts';
 
 @Controller('mcp')
 @UseGuards(AuthGuard, McpBurstGuard)
@@ -54,6 +55,24 @@ export class McpController {
 
   @Delete()
   async del(@Req() req: Request, @Res() res: Response) {
+    return this.handle(req, res, false);
+  }
+
+  @Post('o/:orgId')
+  @OrgScopedMcpDocs()
+  async postOrgScoped(@Req() req: Request, @Res() res: Response) {
+    return this.handle(req, res, true);
+  }
+
+  @Get('o/:orgId')
+  @OrgScopedMcpDocs()
+  async getOrgScoped(@Req() req: Request, @Res() res: Response) {
+    return this.handle(req, res, false);
+  }
+
+  @Delete('o/:orgId')
+  @OrgScopedMcpDocs()
+  async delOrgScoped(@Req() req: Request, @Res() res: Response) {
     return this.handle(req, res, false);
   }
 

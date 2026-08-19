@@ -1,4 +1,5 @@
 import { stripTrailingSlashes } from '@getmunin/types';
+import { parseOrgScopedMcpResource } from './mcp-org-scope.ts';
 
 const registeredPaths = new Set<string>();
 
@@ -29,6 +30,7 @@ export function mcpResourceUrls(): string[] {
 
 export function canonicalMcpResource(audience: string): string {
   const candidate = stripTrailingSlashes(audience);
+  if (parseOrgScopedMcpResource(candidate)) return candidate;
   for (const url of mcpResourceUrls()) {
     if (candidate === url) return url;
   }

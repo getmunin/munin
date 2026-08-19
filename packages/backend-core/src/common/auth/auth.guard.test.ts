@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ResolvedCredential } from '@getmunin/core';
@@ -279,5 +279,169 @@ describe('AuthGuard audience binding for registered MCP surfaces', () => {
       'WWW-Authenticate',
       'Bearer resource_metadata="https://auth.example.com/.well-known/oauth-protected-resource/mcp/addon"',
     );
+  });
+});
+
+describe('AuthGuard org-scoped MCP endpoints', () => {
+  const ORG_A = 'org_aaaaaaaaaaaaaaaaaaaaaa';
+  const ORG_B = 'org_bbbbbbbbbbbbbbbbbbbbbb';
+  let originalMcp: string | undefined;
+  let originalAuth: string | undefined;
+
+  beforeEach(() => {
+    originalMcp = process.env.NEXT_PUBLIC_MCP_URL;
+    originalAuth = process.env.NEXT_PUBLIC_AUTH_URL;
+    process.env.NEXT_PUBLIC_MCP_URL = 'https://mcp.example.com';
+  });
+
+  afterEach(() => {
+    if (originalMcp === undefined) delete process.env.NEXT_PUBLIC_MCP_URL;
+    else process.env.NEXT_PUBLIC_MCP_URL = originalMcp;
+    if (originalAuth === undefined) delete process.env.NEXT_PUBLIC_AUTH_URL;
+    else process.env.NEXT_PUBLIC_AUTH_URL = originalAuth;
+  });
+
+  function credFor(orgId: string, audience?: string): ResolvedCredential {
+    return {
+      actor: { type: 'user', orgId, scopes: ['mcp:admin'], audiences: ['admin'] } as never,
+      ...(audience ? { audience } : {}),
+    };
+  }
+
+  function contextFor(path: string) {
+    return makeContext({
+      headers: { authorization: 'Bearer some-token' },
+      url: path,
+      path,
+    });
+  }
+
+  it('accepts an api key whose org matches the path', async () => {
+    const resolveApiKey = vi.fn().mockResolvedValue(credFor(ORG_A));
+    const guard = makeGuard({ resolveApiKey });
+    const ctx = makeContext({
+      headers: { authorization: 'Bearer mn_admin_abc123' },
+      url: `/mcp/o/${ORG_A}`,
+      path: `/mcp/o/${ORG_A}`,
+    });
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+  });
+
+  it('rejects a credential addressed at another org', async () => {
+    const resolveBearerToken = vi.fn().mockResolvedValue(credFor(ORG_B));
+    const guard = makeGuard({ resolveBearerToken });
+    await expect(guard.canActivate(contextFor(`/mcp/o/${ORG_A}`))).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('leaves the shared endpoint open to any org', async () => {
+    const resolveBearerToken = vi.fn().mockResolvedValue(credFor(ORG_B));
+    const guard = makeGuard({ resolveBearerToken });
+    await expect(guard.canActivate(contextFor('/mcp'))).resolves.toBe(true);
+  });
+
+  it('accepts the org-scoped resource as an audience on its own path', async () => {
+    const resolveBearerToken = vi
+      .fn()
+      .mockResolvedValue(credFor(ORG_A, `https://mcp.example.com/mcp/o/${ORG_A}`));
+    const guard = makeGuard({ resolveBearerToken });
+    await expect(guard.canActivate(contextFor(`/mcp/o/${ORG_A}`))).resolves.toBe(true);
+  });
+
+  it('rejects one org-scoped resource presented to another org path', async () => {
+    const resolveBearerToken = vi
+      .fn()
+      .mockResolvedValue(credFor(ORG_A, `https://mcp.example.com/mcp/o/${ORG_B}`));
+    const guard = makeGuard({ resolveBearerToken });
+    await expect(guard.canActivate(contextFor(`/mcp/o/${ORG_A}`))).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('still accepts the base resource on an org-scoped path', async () => {
+    const resolveBearerToken = vi
+      .fn()
+      .mockResolvedValue(credFor(ORG_A, 'https://mcp.example.com'));
+    const guard = makeGuard({ resolveBearerToken });
+    await expect(guard.canActivate(contextFor(`/mcp/o/${ORG_A}`))).resolves.toBe(true);
+  });
+
+  it('challenges with the org-scoped metadata document so the client re-authorizes into that org', async () => {
+    process.env.NEXT_PUBLIC_AUTH_URL = 'https://auth.example.com';
+    const resolveBearerToken = vi.fn().mockResolvedValue(credFor(ORG_B));
+    const guard = makeGuard({ resolveBearerToken });
+    const res = { setHeader: vi.fn() };
+    const ctx = {
+      getHandler: () => () => undefined,
+      getClass: () => class {},
+      switchToHttp: () => ({
+        getRequest: () => ({
+          headers: { authorization: 'Bearer some-token' },
+          url: `/mcp/o/${ORG_A}`,
+          path: `/mcp/o/${ORG_A}`,
+        }),
+        getResponse: () => res,
+      }),
+    } as unknown as Parameters<AuthGuard['canActivate']>[0];
+
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'WWW-Authenticate',
+      `Bearer resource_metadata="https://auth.example.com/.well-known/oauth-protected-resource/mcp/o/${ORG_A}"`,
+    );
+  });
+});
+
+describe('AuthGuard malformed org selectors', () => {
+  const ORG_A = 'org_aaaaaaaaaaaaaaaaaaaaaa';
+  let originalMcp: string | undefined;
+
+  beforeEach(() => {
+    originalMcp = process.env.NEXT_PUBLIC_MCP_URL;
+    process.env.NEXT_PUBLIC_MCP_URL = 'https://mcp.example.com';
+  });
+
+  afterEach(() => {
+    if (originalMcp === undefined) delete process.env.NEXT_PUBLIC_MCP_URL;
+    else process.env.NEXT_PUBLIC_MCP_URL = originalMcp;
+  });
+
+  function guardFor(orgId: string): AuthGuard {
+    return makeGuard({
+      resolveApiKey: vi.fn().mockResolvedValue({
+        actor: { type: 'user', orgId, scopes: ['*'], audiences: ['admin'] } as never,
+      }),
+    });
+  }
+
+  function contextFor(path: string) {
+    return makeContext({
+      headers: { authorization: 'Bearer mn_admin_abc123' },
+      url: path,
+      path,
+    });
+  }
+
+  it.each([
+    ['percent-encoded first character', '/mcp/o/%6frg_aaaaaaaaaaaaaaaaaaaaaa'],
+    ['uppercased org id', '/mcp/o/ORG_AAAAAAAAAAAAAAAAAAAAAA'],
+    ['null byte suffix', '/mcp/o/org_aaaaaaaaaaaaaaaaaaaaaa%00'],
+    ['no org id at all', '/mcp/o/'],
+    ['a sub-path below the org', '/mcp/o/org_aaaaaaaaaaaaaaaaaaaaaa/media'],
+  ])('rejects %s rather than serving the credential its own org', async (_label, path) => {
+    const guard = guardFor(ORG_A);
+    await expect(guard.canActivate(contextFor(path))).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('still serves the exact org-scoped path', async () => {
+    const guard = guardFor(ORG_A);
+    await expect(guard.canActivate(contextFor(`/mcp/o/${ORG_A}`))).resolves.toBe(true);
+  });
+
+  it('leaves the shared endpoint and other MCP paths alone', async () => {
+    const guard = guardFor(ORG_A);
+    await expect(guard.canActivate(contextFor('/mcp'))).resolves.toBe(true);
+    await expect(guard.canActivate(contextFor('/mcp/media'))).resolves.toBe(true);
   });
 });

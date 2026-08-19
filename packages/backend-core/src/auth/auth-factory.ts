@@ -2,8 +2,9 @@ import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { jwt, captcha } from 'better-auth/plugins';
 import { oauthProvider } from '@better-auth/oauth-provider';
+import { APIError } from 'better-auth/api';
 import { schema, type Db } from '@getmunin/db';
-import { readMembershipsForUser } from '@getmunin/core';
+import { currentOrgScopedMcpResource, readMembershipsForUser } from '@getmunin/core';
 import {
   STANDARD_OIDC_SCOPES,
   SUPPORTED_AUTH_SCOPES,
@@ -16,6 +17,7 @@ import {
   type McpSurface,
 } from '../oauth/mcp-surface.ts';
 import { authCookiePrefix } from './auth-cookies.ts';
+import { createDbOrgScopeStore, orgScopeStore, registerOrgScopeStore } from './org-scope-store.ts';
 import { stripTrailingSlashes } from '@getmunin/types';
 
 type BetterAuthInstance = ReturnType<typeof betterAuth>;
@@ -101,10 +103,34 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
 
   const socialProviders = buildSocialProviders(opts.socialProviders);
 
+  registerOrgScopeStore(createDbOrgScopeStore(opts.db, opts.authSecret));
+
   const resolveDefaultOrgId = async (userId: string): Promise<string | undefined> => {
     const memberships = await readMembershipsForUser(opts.db, userId);
     const active = memberships.find((m) => m.isDefault) ?? memberships[0];
     return active?.orgId;
+  };
+
+  const resolveConsentOrgId = async (userId: string): Promise<string | undefined> => {
+    const orgScoped = currentOrgScopedMcpResource();
+    if (!orgScoped) return await resolveDefaultOrgId(userId);
+    const memberships = await readMembershipsForUser(opts.db, userId);
+    const membership = memberships.find((m) => m.orgId === orgScoped.orgId);
+    if (!membership) {
+      throw new APIError('FORBIDDEN', {
+        error: 'access_denied',
+        error_description: 'signed-in user is not a member of the requested organization',
+      });
+    }
+    const store = orgScopeStore();
+    if (store && orgScoped.associationKey) {
+      try {
+        await store.remember(orgScoped.associationKey, membership.orgId);
+      } catch (err) {
+        console.warn('[auth] could not carry the requested org across the consent step', { err });
+      }
+    }
+    return membership.orgId;
   };
 
   return asMuninAuth(
@@ -143,7 +169,7 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
             page: `${dashboardUrl}/dashboard/oauth/consent`,
             shouldRedirect: () => false,
             consentReferenceId: async ({ user }) =>
-              user?.id ? await resolveDefaultOrgId(user.id) : undefined,
+              user?.id ? await resolveConsentOrgId(user.id) : undefined,
           },
           customAccessTokenClaims: ({ referenceId }) =>
             referenceId ? { org_id: referenceId } : {},

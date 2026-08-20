@@ -26,6 +26,34 @@ function stripVersionPrefix(path: string): string {
   return path;
 }
 
+export function readOrigin(
+  headers: Record<string, string | string[] | undefined>,
+): string | undefined {
+  const origin = firstHeader(headers['origin']);
+  if (origin && origin !== 'null') {
+    const parsed = parseOrigin(origin);
+    if (parsed) return parsed;
+  }
+  const referer = firstHeader(headers['referer']);
+  return referer ? parseOrigin(referer) : undefined;
+}
+
+function firstHeader(value: string | string[] | undefined): string | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const trimmed = raw?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function parseOrigin(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
+    return url.origin;
+  } catch {
+    return undefined;
+  }
+}
+
 function isPollingGet(path: string): boolean {
   const stripped = stripVersionPrefix(path);
   return POLLING_GET_PREFIXES.some(
@@ -78,6 +106,7 @@ export class AuditInterceptor implements NestInterceptor {
 
     const rawUa = request.headers['user-agent'];
     const userAgent = Array.isArray(rawUa) ? rawUa[0] : rawUa;
+    const origin = readOrigin(request.headers);
     const actor = getCurrentContext().actor;
     const countApiCall = actor?.type !== 'user' && !path.startsWith('/mcp');
 
@@ -97,6 +126,7 @@ export class AuditInterceptor implements NestInterceptor {
           durationMs: Date.now() - startedAt,
           totalTokens: getCurrentContext().aiTokens,
           userAgent,
+          origin,
         });
         if (countApiCall) await recordApiCall();
         return value;
@@ -111,6 +141,7 @@ export class AuditInterceptor implements NestInterceptor {
               durationMs: Date.now() - startedAt,
               totalTokens: getCurrentContext().aiTokens,
               userAgent,
+              origin,
             });
             if (countApiCall) await recordApiCall();
           })(),

@@ -11,6 +11,7 @@ export interface AuditEventInput {
   durationMs?: number;
   totalTokens?: number;
   userAgent?: string;
+  origin?: string;
 }
 
 export class AuditLogger {
@@ -34,6 +35,7 @@ export class AuditLogger {
         durationMs: input.durationMs ?? null,
         totalTokens: input.totalTokens ?? null,
         userAgent: input.userAgent ?? null,
+        origin: input.origin ?? null,
       });
     } catch (err) {
       console.error('[audit] failed to record:', err);

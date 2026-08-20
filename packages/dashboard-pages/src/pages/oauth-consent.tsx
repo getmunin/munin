@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { PageSpinner } from '@getmunin/ui';
 import { authClient } from '../auth-client';
+import { authorizationExpiresAt } from '../auth/authorization-expiry';
 import { api, ApiError } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
 
@@ -95,7 +96,7 @@ function groupScopes(scopes: string[]): ModuleScopes[] {
 }
 
 type FlowState = 'new' | 'granted' | 'denied';
-type HeaderState = FlowState | 'blocked';
+type HeaderState = FlowState | 'blocked' | 'expired';
 
 const REDIRECT_DELAY_MS = 1200;
 
@@ -129,6 +130,15 @@ export function OAuthConsentPage({
   const [flow, setFlow] = useState<FlowState>('new');
   const [busy, setBusy] = useState<'allow' | 'deny' | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const expiresAtMs = authorizationExpiresAt(search?.get('exp'));
+  const [expired, setExpired] = useState(() => expiresAtMs !== null && expiresAtMs <= Date.now());
+
+  useEffect(() => {
+    if (expiresAtMs === null || expired) return;
+    const id = window.setTimeout(() => setExpired(true), Math.max(expiresAtMs - Date.now(), 0));
+    return () => window.clearTimeout(id);
+  }, [expiresAtMs, expired]);
 
   useEffect(() => {
     if (!isPending && !session) {
@@ -174,20 +184,23 @@ export function OAuthConsentPage({
     }
   }
 
-  const blocked = flow === 'new' && denial !== null;
+  const stale = flow === 'new' && expired;
+  const blocked = flow === 'new' && !stale && denial !== null;
   const resourceName = denial?.resourceName ?? resourceInfo?.name ?? '';
 
   return (
     <div className="min-h-screen bg-background">
       <main className="mx-auto flex w-full max-w-[720px] flex-col px-6 py-12 sm:py-16">
         <EditorialHeader
-          flow={blocked ? 'blocked' : flow}
+          flow={stale ? 'expired' : blocked ? 'blocked' : flow}
           clientName={displayName}
           resourceName={resourceName}
         />
 
         <section className="mt-8 border-[1px] border-ink bg-paper dark:border-rule-on-dark dark:bg-card">
-          {blocked ? (
+          {stale ? (
+            <ExpiredPane clientInfo={clientInfo} clientId={clientId} displayName={displayName} />
+          ) : blocked ? (
             <BlockedPane
               clientInfo={clientInfo}
               clientId={clientId}
@@ -237,6 +250,23 @@ interface EditorialHeaderProps {
 
 function EditorialHeader({ flow, clientName, resourceName }: EditorialHeaderProps) {
   const t = useTranslations('dashboard.oauthConsent');
+  if (flow === 'expired') {
+    return (
+      <header className="mb-6">
+        <div className="mb-4 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-mute">
+          {t('expired.eyebrow')}
+        </div>
+        <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em] min-w-0 [overflow-wrap:anywhere] [word-break:break-word]">
+          {t.rich('expired.title', { em: (chunks) => <em className="not-italic text-ink italic">{chunks}</em> })}
+        </h1>
+        <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
+          {t.rich('expired.sub', {
+            client: () => <em className="not-italic font-medium text-ink italic">{clientName}</em>,
+          })}
+        </p>
+      </header>
+    );
+  }
   if (flow === 'blocked') {
     return (
       <header className="mb-6">
@@ -503,6 +533,39 @@ function ResourcePermissionRow({ permission }: { permission: OAuthResourcePermis
         <ScopePill kind={permission.level} label={t(`actions.${permission.level}`)} />
       </div>
     </li>
+  );
+}
+
+interface ExpiredPaneProps {
+  clientInfo: OAuthClientInfo | null;
+  clientId: string;
+  displayName: string;
+}
+
+function ExpiredPane({ clientInfo, clientId, displayName }: ExpiredPaneProps) {
+  const t = useTranslations('dashboard.oauthConsent');
+  return (
+    <>
+      <IdentityCard clientInfo={clientInfo} clientId={clientId} displayName={displayName} />
+
+      <div className="flex flex-col gap-4 px-7 py-8">
+        <div className="font-serif text-[24px] tracking-[-0.01em] [overflow-wrap:anywhere]">
+          {t('expired.panelTitle')}
+        </div>
+        <div className="max-w-[52ch] text-sm leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
+          {t('expired.body')}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 border-t-[1px] border-rule-soft px-7 py-5 dark:border-rule-on-dark">
+        <a
+          href="/dashboard"
+          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-transparent px-6 font-sans text-[15px] font-medium text-ink no-underline transition hover:bg-ink hover:text-paper"
+        >
+          {t('expired.dashboard')}
+        </a>
+      </div>
+    </>
   );
 }
 

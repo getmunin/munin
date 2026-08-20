@@ -493,6 +493,10 @@ export class ConvService {
           sql`${schema.convChannels.type} <> 'voice'`,
           sql`${schema.convConversations.lastMessageAt} > now() - make_interval(mins => ${lookbackMinutes})`,
           sql`(
+            ${schema.convConversations.runnerLeaseExpiresAt} IS NULL
+            OR ${schema.convConversations.runnerLeaseExpiresAt} < now()
+          )`,
+          sql`(
             SELECT author_type FROM conv_messages
             WHERE conversation_id = ${schema.convConversations.id}
               AND internal = false

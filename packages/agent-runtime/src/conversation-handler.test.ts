@@ -505,6 +505,128 @@ describe('createConversationHandler', () => {
     expect(postSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('skips when the last public message is already an agent reply (no double answer)', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            messages: [
+              {
+                id: 'msg_1',
+                authorType: 'end_user',
+                body: 'can I refinance with a payment default?',
+                createdAt: new Date(Date.now() - 30_000).toISOString(),
+                internal: false,
+              },
+              {
+                id: 'msg_2',
+                authorType: 'agent',
+                body: 'yes, here is how it works',
+                createdAt: new Date().toISOString(),
+                internal: false,
+              },
+            ],
+          }),
+        ),
+      ),
+    });
+    const postSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    const stubProvider: Provider = () => Promise.resolve(assistantStop('a second answer'));
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: stubProvider,
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('still replies when only an internal agent note follows the visitor message', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            messages: [
+              {
+                id: 'msg_1',
+                authorType: 'end_user',
+                body: 'can I refinance with a payment default?',
+                createdAt: new Date(Date.now() - 30_000).toISOString(),
+                internal: false,
+              },
+              {
+                id: 'msg_2',
+                authorType: 'agent',
+                body: 'routing note for staff',
+                createdAt: new Date().toISOString(),
+                internal: true,
+              },
+            ],
+          }),
+        ),
+      ),
+    });
+    const postSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    const stubProvider: Provider = () => Promise.resolve(assistantStop('yes, here is how'));
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: stubProvider,
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(postSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not post a reply from a run superseded after the provider had already answered', async () => {
+    let releaseFirst: (() => void) | null = null;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let providerCalls = 0;
+    const stubProvider: Provider = () => {
+      providerCalls += 1;
+      if (providerCalls === 1) return firstGate.then(() => assistantStop('stale answer'));
+      return Promise.resolve(assistantStop('fresh answer'));
+    };
+    const rest = buildRest();
+    const postSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    const handler = createConversationHandler({
+      config: { ...baseConfig, auditEnabled: false },
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: stubProvider,
+    });
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(providerCalls).toBe(1);
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await new Promise((r) => setTimeout(r, 0));
+    releaseFirst!();
+    await handler.flush();
+    for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 5));
+
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    expect(postSpy.mock.calls[0]![1]).toBe('fresh answer');
+  });
+
   it('skips when another runner already owns the conversation', async () => {
     const rest = buildRest();
     const postSpy = vi.fn(() => Promise.resolve());

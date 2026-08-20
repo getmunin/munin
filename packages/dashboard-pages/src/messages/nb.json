@@ -574,7 +574,8 @@
         "submit": "Lagre",
         "saved": "Tilgang lagret",
         "savedUntested": "Lagret — kunne ikke verifisere ennå: {error}",
-        "error": "Kunne ikke lagre tilgang."
+        "error": "Kunne ikke lagre tilgang.",
+        "missingFields": "Mangler: {fields}"
       },
       "emptyTitle": "Ingen kanaler ennå",
       "emptyBody": "Legg til en chat-widget- eller e-post-kanal for å begynne å motta meldinger.",
@@ -1485,6 +1486,7 @@
     "lede": "Denne engangslenken lar deg legge inn en integrasjons hemmelige tilgangsnøkler direkte, uten å dele dem i en chat.",
     "loading": "Laster …",
     "invalid": "Denne lenken er ugyldig eller utløpt.",
+    "missingFields": "Mangler i de lagrede innstillingene: {fields}",
     "for": "Tilgang for {vendor}",
     "submit": "Lagre",
     "reassurance": "Tilgangsnøklene krypteres i hvile og vises aldri igjen. Denne lenken virker én gang.",

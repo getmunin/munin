@@ -14,6 +14,7 @@ import { EmailService, jsonbToStored } from '../email/email.service.ts';
 import { EmailChannelProbe, type EmailProbeResult } from '../email/email-probe.service.ts';
 import type { StoredEmailChannelConfig } from '../email/email.service.ts';
 import { ChannelAdminService } from './channel-admin.service.ts';
+import { ChannelConfigInvalidError } from './stored-config.ts';
 import {
   CredentialHandoffService,
   type CredentialLink,
@@ -26,6 +27,17 @@ import type {
 
 export interface EmailChannelTester {
   test(config: StoredEmailChannelConfig): Promise<EmailProbeResult>;
+}
+
+function asHttpConfigError(err: unknown): Error {
+  if (err instanceof ChannelConfigInvalidError) {
+    return new BadRequestException({
+      message: err.message,
+      code: err.code,
+      fieldErrors: err.fieldErrors,
+    });
+  }
+  return err instanceof Error ? err : new Error(String(err));
 }
 
 @Injectable()
@@ -58,6 +70,23 @@ export class ChannelCredentialService implements CredentialTargetHandler {
   }
 
   async describe(targetId: string): Promise<CredentialTargetDescription | null> {
+    try {
+      return await this.describeTarget(targetId);
+    } catch (err) {
+      throw asHttpConfigError(err);
+    }
+  }
+
+  async apply(targetId: string, secrets: Record<string, string>): Promise<CredentialApplyResult> {
+    try {
+      return await this.applyToTarget(targetId, secrets);
+    } catch (err) {
+      if (err instanceof ChannelConfigInvalidError) return { ok: false, error: err.message };
+      throw err;
+    }
+  }
+
+  private async describeTarget(targetId: string): Promise<CredentialTargetDescription | null> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
       .select({ name: schema.convChannels.name, type: schema.convChannels.type, vendor: schema.convChannels.vendor })
@@ -82,7 +111,10 @@ export class ChannelCredentialService implements CredentialTargetHandler {
     };
   }
 
-  async apply(targetId: string, secrets: Record<string, string>): Promise<CredentialApplyResult> {
+  private async applyToTarget(
+    targetId: string,
+    secrets: Record<string, string>,
+  ): Promise<CredentialApplyResult> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
       .select({ type: schema.convChannels.type })

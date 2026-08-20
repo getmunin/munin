@@ -251,29 +251,6 @@ export class ConvService {
     return toChannelDto(row);
   }
 
-  async createChannel(input: {
-    type: ChannelType;
-    vendor: string;
-    name: string;
-    config?: Record<string, unknown>;
-    defaultAgentMode?: AgentMode;
-  }): Promise<ChannelDto> {
-    const ctx = getCurrentContext();
-    const actor = ctx.actor!;
-    const [row] = await ctx.db
-      .insert(schema.convChannels)
-      .values({
-        orgId: actor.orgId,
-        type: input.type,
-        vendor: input.vendor,
-        name: input.name,
-        config: input.config ?? {},
-        ...(input.defaultAgentMode ? { defaultAgentMode: input.defaultAgentMode } : {}),
-      })
-      .returning();
-    return toChannelDto(row!);
-  }
-
   async firstActiveChannel(typeHint?: ChannelType): Promise<ChannelDto | null> {
     const ctx = getCurrentContext();
     const filters: SQL[] = [eq(schema.convChannels.active, true)];

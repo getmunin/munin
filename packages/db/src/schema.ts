@@ -436,6 +436,7 @@ export const auditLog = pgTable(
     durationMs: integer('duration_ms'),
     totalTokens: integer('total_tokens'),
     userAgent: text('user_agent'),
+    origin: text('origin'),
     createdAt,
   },
   (t) => ({

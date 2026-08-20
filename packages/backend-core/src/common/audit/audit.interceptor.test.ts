@@ -17,7 +17,7 @@ import type { Db } from '@getmunin/db';
 type HttpArgumentsHost = ReturnType<ExecutionContext['switchToHttp']>;
 type RpcArgumentsHost = ReturnType<ExecutionContext['switchToRpc']>;
 type WsArgumentsHost = ReturnType<ExecutionContext['switchToWs']>;
-import { AuditInterceptor } from './audit.interceptor.ts';
+import { AuditInterceptor, readOrigin } from './audit.interceptor.ts';
 import { RateLimitService, type Bucket } from '../rate-limit/rate-limit.service.ts';
 import {
   QuotasService,
@@ -266,6 +266,47 @@ describe('AuditInterceptor token usage', () => {
     });
 
     expect(record).toHaveBeenCalledWith(expect.objectContaining({ totalTokens: undefined }));
+  });
+});
+
+describe('readOrigin', () => {
+  it('prefers the Origin header', () => {
+    expect(readOrigin({ origin: 'https://app.getmunin.com' })).toBe('https://app.getmunin.com');
+  });
+
+  it('keeps the port so two local dev surfaces stay distinguishable', () => {
+    expect(readOrigin({ origin: 'http://localhost:3000' })).toBe('http://localhost:3000');
+  });
+
+  it('falls back to the referer origin, dropping path and query', () => {
+    expect(readOrigin({ referer: 'https://docs.getmunin.com/api/try?tool=kb_search' })).toBe(
+      'https://docs.getmunin.com',
+    );
+  });
+
+  it('ignores an opaque or unparseable origin rather than storing junk', () => {
+    expect(readOrigin({ origin: 'null' })).toBeUndefined();
+    expect(readOrigin({ origin: 'not a url' })).toBeUndefined();
+    expect(readOrigin({ origin: 'file:///Users/someone/index.html' })).toBeUndefined();
+    expect(readOrigin({})).toBeUndefined();
+  });
+
+  it('records the origin alongside the audit row', async () => {
+    const { interceptor } = makeInterceptor();
+    const record = interceptor.auditRecord;
+    const request = {
+      method: 'GET',
+      url: '/v1/whoami',
+      headers: { 'user-agent': 'test', origin: 'https://custom-ui.example.com' },
+    };
+
+    await RequestContextStore.run(makeActiveContext('admin_agent'), async () => {
+      await firstValueFrom(interceptor.intercept(makeContext(request), makeNext(null)));
+    });
+
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({ origin: 'https://custom-ui.example.com' }),
+    );
   });
 });
 

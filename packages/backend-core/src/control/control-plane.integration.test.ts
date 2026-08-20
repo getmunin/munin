@@ -786,6 +786,64 @@ interface OrgFixture {
       const body = (await res.json()) as { items: unknown[]; nextCursor: string | null };
       expect(Array.isArray(body.items)).toBe(true);
     });
+
+    it('carries the oauth client name and icon for entries made by a registered agent', async () => {
+      const clientId = `cp-audit-client-${Date.now()}`;
+      const icon = 'https://cdn.example.com/claude.png';
+      await db.insert(schema.oauthClient).values({
+        clientId,
+        name: 'Claude',
+        icon,
+        redirectUris: ['https://claude.ai/api/mcp/auth_callback'],
+        referenceId: orgA.id,
+      });
+      await db.insert(schema.auditLog).values({
+        orgId: orgA.id,
+        actorType: 'admin_agent',
+        clientId,
+        tool: 'kb_search',
+        result: 'ok',
+      });
+
+      const res = await fetch(`${baseUrl}/v1/audit-logs?limit=200`, {
+        headers: authHeaders(orgA.adminKey),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        items: Array<{ tool: string | null; clientName: string | null; clientIconUrl: string | null }>;
+      };
+      const entry = body.items.find((i) => i.clientName === 'Claude');
+      expect(entry).toBeDefined();
+      expect(entry!.clientIconUrl).toBe(icon);
+
+      await db.delete(schema.oauthClient).where(eq(schema.oauthClient.clientId, clientId));
+    });
+
+    it('reports a non-dashboard browser caller as browser and names its origin', async () => {
+      const correlationId = `cp-audit-origin-${Date.now()}`;
+      await db.insert(schema.auditLog).values({
+        orgId: orgA.id,
+        actorType: 'admin_agent',
+        method: 'GET /v1/kb/documents',
+        correlationId,
+        userAgent:
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+        origin: 'https://docs.getmunin.com',
+        result: 'ok',
+      });
+
+      const res = await fetch(`${baseUrl}/v1/audit-logs?limit=200`, {
+        headers: authHeaders(orgA.adminKey),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        items: Array<{ correlationId: string | null; client: string; origin: string | null }>;
+      };
+      const entry = body.items.find((i) => i.correlationId === correlationId);
+      expect(entry).toBeDefined();
+      expect(entry!.client).toBe('browser');
+      expect(entry!.origin).toBe('https://docs.getmunin.com');
+    });
   });
 
 

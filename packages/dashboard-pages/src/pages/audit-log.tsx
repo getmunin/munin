@@ -11,9 +11,9 @@ import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 import { notify } from '../lib/notify';
 import { NativeSelect } from '../components/native-select';
+import { ClientGlyph } from '../components/client-glyph';
+import { clientLabel, clientTitle, type ClientKind } from '../lib/audit-client';
 import { Button, Hero, Input, SectionHead, cn } from '@getmunin/ui';
-
-type ClientKind = 'sdk' | 'cli' | 'mcp' | 'dashboard' | 'widget' | 'unknown';
 
 interface AuditDto {
   id: string;
@@ -27,8 +27,10 @@ interface AuditDto {
   durationMs: number | null;
   totalTokens: number | null;
   userAgent: string | null;
+  origin: string | null;
   client: ClientKind;
   clientName: string | null;
+  clientIconUrl: string | null;
   createdAt: string;
 }
 
@@ -149,6 +151,7 @@ export function AuditLogPage() {
           <option value="">{t('clientAny')}</option>
           <option value="mcp">mcp</option>
           <option value="dashboard">dashboard</option>
+          <option value="browser">browser</option>
           <option value="widget">widget</option>
           <option value="sdk">sdk</option>
           <option value="cli">cli</option>
@@ -213,9 +216,16 @@ export function AuditLogPage() {
                   </td>
                   <td
                     className="hidden md:table-cell py-3 pr-4 font-mono text-[11px] text-ink-mute"
-                    title={row.userAgent ?? undefined}
+                    title={clientTitle(row.origin, row.userAgent)}
                   >
-                    {row.clientName ?? row.client}
+                    {row.clientName ? (
+                      <span className="flex items-center gap-1.5">
+                        <ClientGlyph iconUrl={row.clientIconUrl} name={row.clientName} />
+                        <span>{row.clientName}</span>
+                      </span>
+                    ) : (
+                      clientLabel(row.client, row.origin)
+                    )}
                   </td>
                   <td className="py-3 pr-4 font-mono text-[11px] text-ink dark:text-foreground">
                     {row.tool ?? row.method ?? '—'}

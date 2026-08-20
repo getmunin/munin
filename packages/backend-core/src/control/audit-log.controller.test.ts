@@ -5,7 +5,7 @@ const CHROME =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
 
 function signals(over: Partial<ClientSignals>): ClientSignals {
-  return { userAgent: null, tool: null, method: null, actorType: 'user', ...over };
+  return { userAgent: null, tool: null, method: null, actorType: 'user', clientId: null, ...over };
 }
 
 describe('classifyClient', () => {
@@ -23,10 +23,31 @@ describe('classifyClient', () => {
     expect(classifyClient(signals({ method: 'GET /mcpx' }))).toBe('unknown');
   });
 
-  it('classifies a browser request as dashboard rather than unknown', () => {
+  it('classifies a session-authenticated browser request as dashboard', () => {
     expect(classifyClient(signals({ userAgent: CHROME, method: 'GET /v1/activity' }))).toBe(
       'dashboard',
     );
+  });
+
+  it('classifies an api-key browser caller as browser, not as our dashboard', () => {
+    expect(
+      classifyClient(
+        signals({ userAgent: CHROME, actorType: 'admin_agent', method: 'GET /v1/kb/documents' }),
+      ),
+    ).toBe('browser');
+  });
+
+  it('classifies an oauth client calling the rest api from a browser as browser', () => {
+    expect(
+      classifyClient(
+        signals({
+          userAgent: CHROME,
+          actorType: 'user',
+          clientId: 'oauth-client-1',
+          method: 'GET /v1/kb/documents',
+        }),
+      ),
+    ).toBe('browser');
   });
 
   it('classifies widget callers by actor type, whatever the browser UA says', () => {

@@ -499,7 +499,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       return tx.execute<{ message_id: string; read_at: Date | string }>(sql`
         INSERT INTO conv_message_reads (id, org_id, conversation_id, message_id, end_user_id, read_at)
         SELECT
-          'cmr_' || encode(gen_random_bytes(16), 'hex'),
+          'cvr_' || encode(gen_random_bytes(16), 'hex'),
           ${convRow.orgId},
           ${conversationId},
           m.id,

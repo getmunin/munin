@@ -949,7 +949,7 @@ export const convMessageDeliveries = pgTable(
 export const convMessageReads = pgTable(
   'conv_message_reads',
   {
-    id: id('cmr'),
+    id: id('cvr'),
     orgId: text('org_id')
       .notNull()
       .references(() => orgs.id, { onDelete: 'cascade' }),

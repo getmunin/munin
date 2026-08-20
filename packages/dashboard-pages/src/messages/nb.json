@@ -1005,6 +1005,14 @@
         "cancelling": "Avbryter …",
         "dashboard": "Åpne dashbordet"
       },
+      "expired": {
+        "eyebrow": "OAuth 2.1 · forespørselen er utløpt",
+        "title": "Denne forespørselen er <em>utløpt</em>.",
+        "sub": "<client></client> startet denne autoriseringen for lenge siden til at den kan fullføres. Ingenting ble delt, og ingenting ble autorisert.",
+        "panelTitle": "Start tilkoblingen på nytt fra applikasjonen",
+        "body": "Autorisasjonsforespørsler er kortvarige med hensikt. Gå tilbake til applikasjonen som åpnet denne siden og koble til på nytt — den sender en ny forespørsel, og da er det den du blir bedt om å godkjenne her.",
+        "dashboard": "Åpne dashbordet"
+      },
       "missingParams": "Mangler OAuth-forespørsel. Gå tilbake til applikasjonen som startet autoriseringen.",
       "errors": {
         "generic": "Noe gikk galt. Prøv igjen."

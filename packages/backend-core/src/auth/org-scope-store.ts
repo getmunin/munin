@@ -5,7 +5,7 @@ import { isOrgId } from '@getmunin/core';
 import { readSessionCookie } from './auth-cookies.ts';
 
 const IDENTIFIER_PREFIX = 'mcp-org-scope:';
-const TTL_MS = 600_000;
+const TTL_MS = 3_600_000;
 
 export interface OrgScopeAssociationKeys {
   session: string | null;
@@ -63,6 +63,15 @@ export function createDbOrgScopeStore(db: Db, secret: string): OrgScopeStore {
     return isOrgId(row.value) ? row.value : null;
   }
 
+  async function extend(associationKey: string): Promise<void> {
+    const identifier = identifierFor(associationKey);
+    if (!identifier) return;
+    await db
+      .update(schema.verifications)
+      .set({ expiresAt: new Date(Date.now() + TTL_MS) })
+      .where(eq(schema.verifications.identifier, identifier));
+  }
+
   return {
     keysFor(cookieHeader, codeChallenge) {
       return buildOrgScopeAssociationKeys(secret, cookieHeader, codeChallenge);
@@ -107,9 +116,15 @@ export function createDbOrgScopeStore(db: Db, secret: string): OrgScopeStore {
     async recall(keys: OrgScopeAssociationKeys): Promise<string | null> {
       if (keys.session) {
         const fromSession = await readOne(keys.session);
-        if (fromSession) return fromSession;
+        if (fromSession) {
+          await extend(keys.session);
+          return fromSession;
+        }
       }
-      return keys.challenge ? await readOne(keys.challenge) : null;
+      if (!keys.challenge) return null;
+      const fromChallenge = await readOne(keys.challenge);
+      if (fromChallenge) await extend(keys.challenge);
+      return fromChallenge;
     },
   };
 }

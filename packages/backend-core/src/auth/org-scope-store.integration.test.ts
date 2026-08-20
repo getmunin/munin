@@ -80,6 +80,68 @@ const skipReason = TEST_URL
     await expect(store.recall(keys('never-seen', 'never-seen-either'))).resolves.toBeNull();
   });
 
+  it('outlives the authorization request it belongs to', async () => {
+    await store.remember(keys('session-window', 'challenge-window'), ORG_A);
+    const rows = await db
+      .select({ expiresAt: schema.verifications.expiresAt })
+      .from(schema.verifications)
+      .where(eq(schema.verifications.identifier, 'mcp-org-scope:session-window'));
+    const remainingMs = rows[0]!.expiresAt.getTime() - Date.now();
+    expect(remainingMs).toBeGreaterThan(600_000);
+  });
+
+  it('pushes the expiry out on every recall, so a re-signed request cannot outlast it', async () => {
+    await store.remember(keys('session-sliding', 'challenge-sliding'), ORG_A);
+    const expiryOf = async (identifier: string) => {
+      const rows = await db
+        .select({ expiresAt: schema.verifications.expiresAt })
+        .from(schema.verifications)
+        .where(eq(schema.verifications.identifier, identifier));
+      return rows[0]!.expiresAt.getTime();
+    };
+    await db
+      .update(schema.verifications)
+      .set({ expiresAt: new Date(Date.now() + 30_000) })
+      .where(eq(schema.verifications.identifier, 'mcp-org-scope:session-sliding'));
+    const before = await expiryOf('mcp-org-scope:session-sliding');
+    await expect(store.recall(keys('session-sliding', 'challenge-sliding'))).resolves.toBe(ORG_A);
+    expect(await expiryOf('mcp-org-scope:session-sliding')).toBeGreaterThan(before);
+  });
+
+  it('pushes out the challenge-keyed expiry when that is the one that answered', async () => {
+    await store.remember(keys(null, 'challenge-sliding-anon'), ORG_A);
+    await db
+      .update(schema.verifications)
+      .set({ expiresAt: new Date(Date.now() + 30_000) })
+      .where(eq(schema.verifications.identifier, 'mcp-org-scope:challenge-sliding-anon'));
+    const rowsBefore = await db
+      .select({ expiresAt: schema.verifications.expiresAt })
+      .from(schema.verifications)
+      .where(eq(schema.verifications.identifier, 'mcp-org-scope:challenge-sliding-anon'));
+    await expect(store.recall(keys('session-absent', 'challenge-sliding-anon'))).resolves.toBe(
+      ORG_A,
+    );
+    const rowsAfter = await db
+      .select({ expiresAt: schema.verifications.expiresAt })
+      .from(schema.verifications)
+      .where(eq(schema.verifications.identifier, 'mcp-org-scope:challenge-sliding-anon'));
+    expect(rowsAfter[0]!.expiresAt.getTime()).toBeGreaterThan(rowsBefore[0]!.expiresAt.getTime());
+  });
+
+  it('does not resurrect an association that already expired', async () => {
+    await db.insert(schema.verifications).values({
+      identifier: 'mcp-org-scope:challenge-gone',
+      value: ORG_A,
+      expiresAt: new Date(Date.now() - 1000),
+    });
+    await expect(store.recall(keys(null, 'challenge-gone'))).resolves.toBeNull();
+    const rows = await db
+      .select({ expiresAt: schema.verifications.expiresAt })
+      .from(schema.verifications)
+      .where(eq(schema.verifications.identifier, 'mcp-org-scope:challenge-gone'));
+    expect(rows[0]!.expiresAt.getTime()).toBeLessThan(Date.now());
+  });
+
   it('recalls nothing once the association has expired', async () => {
     await db.insert(schema.verifications).values({
       identifier: 'mcp-org-scope:challenge-expired',

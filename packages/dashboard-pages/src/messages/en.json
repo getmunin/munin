@@ -1005,6 +1005,14 @@
         "cancelling": "Cancelling…",
         "dashboard": "Open dashboard"
       },
+      "expired": {
+        "eyebrow": "OAuth 2.1 · request expired",
+        "title": "This request has <em>expired</em>.",
+        "sub": "<client></client> started this authorization too long ago for it to be completed. Nothing was shared, and nothing was authorized.",
+        "panelTitle": "Start the connection again from the application",
+        "body": "Authorization requests are short-lived on purpose. Go back to the application that opened this page and connect again — it will send a fresh request, and this page will ask you to approve that one instead.",
+        "dashboard": "Open dashboard"
+      },
       "missingParams": "Missing OAuth request. Return to the application that started the authorization flow.",
       "errors": {
         "generic": "Something went wrong. Please try again."

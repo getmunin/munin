@@ -44,12 +44,28 @@ Mostly mechanical once you've picked an inbound mode.
      useFactory: (email: EmailAdapter, sms: SmsAdapter) => [email, sms],
      inject: [EmailAdapter, SmsAdapter] }
    ```
-6. **MCP admin tools.** Mirror `email.tools.ts`: `conv_<kind>_setup_channel`, `conv_<kind>_rotate_key` (if push-mode keys), etc. Audience `'admin'`, scope `'conv:write'`.
+6. **MCP admin tools.** Mirror `email.tools.ts`. Audience `'admin'`, scope `'conv:write'`, and name them by the rules in *Naming the provisioning tools* below — `conv_configure_<kind>_channel` for an upsert, `conv_create_<kind>_channel` + `conv_update_<kind>_channel` when create mints a key. Secret fields are rejected at the tool boundary (`rejectSecrets: true`); the channel is created inactive and the response carries a one-time credential link.
 7. **Tests.** One integration test gated on `TEST_DATABASE_URL`. Cover:
    - Channel create + key mint via MCP.
    - Inbound: stub the provider boundary (poll fetcher, webhook verifier, push request), assert conv/contact/message rows appear.
    - Outbound: enqueue a `conv_message_deliveries` row, run `OutboundDeliveryWorker.tick()`, assert success.
    - RLS isolation (provider for org A can't see / write to org B's channel).
+
+## Naming the provisioning tools
+
+The verb says what the tool's shape is, not which channel family it serves:
+
+| Tool | `channelId` | Shape |
+|---|---|---|
+| `conv_configure_email_channel` | optional | upsert — omit to create, pass to update |
+| `conv_configure_voice_sms_channel` | optional | upsert |
+| `conv_create_widget_channel` / `conv_update_widget_channel` | absent / required | separate create and update |
+
+`configure` means one tool that creates or updates. 4.76.0 unified the verbs for that shape (`conv_setup_email_channel` → `conv_configure_email_channel`, matching voice/SMS) after three verbs — `create`, `setup`, `configure` — had come to mean the same action across three families.
+
+Widget keeps a split pair because its create is not idempotent: it mints an `mn_widget_*` key and an identity-verification secret that are returned exactly once, so an upsert would change its return shape depending on whether `channelId` was passed, and a re-call would be ambiguous about whether to rotate the key. Rotation is explicit instead (`conv_rotate_widget_key`, `conv_rotate_widget_identity_secret`). Email and voice/SMS creates also hand back something one-time — a credential link — but that link is re-mintable at will via `conv_request_channel_credentials` and is not itself the secret, so create and update stay one tool.
+
+So: **upsert under `configure` only when create and update are the same write.** If create mints a credential, give it its own `create`, an `update` beside it, and explicit rotate tools. The root `CLAUDE.md` tool checklist carries the same rule.
 
 ## What NOT to do
 

@@ -1,8 +1,9 @@
 import { Get, Header, Inject, NotFoundException, Optional, Req } from '@nestjs/common';
 import {
+  MCP_BASE_PATH,
   orgScopeMarkerScope,
-  orgScopedMcpResourceUrl,
-  parseOrgScopedMcpPath,
+  orgScopedResourceUrl,
+  parseOrgScopedPath,
 } from '@getmunin/core';
 import { PublicController } from '../common/auth/auth.guard.ts';
 import {
@@ -70,17 +71,36 @@ export class OAuthResourceController {
   @Header('cache-control', 'public, max-age=3600')
   surfaceMetadata(@Req() req: ResourceMetadataRequest): ProtectedResourceMetadata {
     const suffix = suffixOf(req);
-    const orgId = parseOrgScopedMcpPath(suffix);
-    const orgScopedResource = orgId ? orgScopedMcpResourceUrl(orgId) : null;
-    if (orgId && orgScopedResource) {
+    const scoped = parseOrgScopedPath(suffix);
+    if (scoped) {
+      const orgScopedResource = orgScopedResourceUrl(scoped.basePath, scoped.orgId);
+      const marker = orgScopeMarkerScope(scoped.orgId);
+      if (!orgScopedResource || !marker)
+        throw new NotFoundException('protected_resource_not_found');
+
+      if (scoped.basePath === MCP_BASE_PATH) {
+        return {
+          resource: orgScopedResource,
+          resource_name: 'Munin',
+          resource_logo_uri: `${mcpResourceOrigin()}/icon.png`,
+          authorization_servers: [authorizationServerUrl()],
+          scopes_supported: [...RESOURCE_ADVERTISED_SCOPES, marker],
+          bearer_methods_supported: ['header'],
+          resource_documentation: `${authorizationServerUrl()}/docs`,
+          resource_indicators_supported: true,
+        };
+      }
+
+      const orgSurface = findMcpSurfaceForPath(this.surfaces, scoped.basePath);
+      if (!orgSurface) throw new NotFoundException('protected_resource_not_found');
       return {
         resource: orgScopedResource,
-        resource_name: 'Munin',
+        resource_name: orgSurface.resourceName,
         resource_logo_uri: `${mcpResourceOrigin()}/icon.png`,
         authorization_servers: [authorizationServerUrl()],
-        scopes_supported: [...RESOURCE_ADVERTISED_SCOPES, orgScopeMarkerScope(orgId)!],
+        scopes_supported: ['offline_access', ...orgSurface.scopes, marker],
         bearer_methods_supported: ['header'],
-        resource_documentation: `${authorizationServerUrl()}/docs`,
+        resource_documentation: orgSurface.documentationUrl ?? `${authorizationServerUrl()}/docs`,
         resource_indicators_supported: true,
       };
     }

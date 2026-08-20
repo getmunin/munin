@@ -1,8 +1,11 @@
 import type { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import {
+  MCP_BASE_PATH,
   type McpOrgScopeInput,
-  orgScopedMcpResourceUrl,
-  parseOrgScopedMcpResource,
+  type OrgScopedResourcePath,
+  orgScopedResourceUrl,
+  parseOrgScopedResource,
+  resourceUrlForPath,
   splitOrgScopeMarker,
   withOrgScopedMcpResource,
 } from '@getmunin/core';
@@ -37,23 +40,23 @@ export async function handleAuthRequest(
 export async function resolveMcpOrgScope(req: ExpressRequest): Promise<McpOrgScopeInput> {
   const store = orgScopeStore();
   const keys = store?.keysFor(req.headers?.['cookie'], readCodeChallenge(req)) ?? null;
-  const requestedOrgId = readRequestedOrgId(req);
+  const requested = readRequestedOrgScope(req);
 
-  if (requestedOrgId) {
+  if (requested) {
     if (store && hasOrgScopeAssociationKey(keys)) {
       try {
-        await store.remember(keys!, requestedOrgId);
+        await store.remember(keys!, requested.orgId, requested.basePath);
       } catch (err) {
         console.warn('[auth] could not carry the requested org across the consent step', { err });
       }
     }
-    return { resource: orgScopedMcpResourceUrl(requestedOrgId) };
+    return { resource: orgScopedResourceUrl(requested.basePath, requested.orgId) };
   }
 
   if (store && hasOrgScopeAssociationKey(keys)) {
     try {
-      const orgId = await store.recall(keys!);
-      if (orgId) return { resource: orgScopedMcpResourceUrl(orgId) };
+      const recalled = await store.recall(keys!);
+      if (recalled) return { resource: orgScopedResourceUrl(recalled.basePath, recalled.orgId) };
     } catch (err) {
       console.warn('[auth] could not recall the org this authorization was started for', { err });
     }
@@ -61,12 +64,13 @@ export async function resolveMcpOrgScope(req: ExpressRequest): Promise<McpOrgSco
   return { resource: null };
 }
 
-export function readRequestedOrgId(req: ExpressRequest): string | null {
+export function readRequestedOrgScope(req: ExpressRequest): OrgScopedResourcePath | null {
   const requested = readRequestedResource(req);
-  const fromResource = requested ? parseOrgScopedMcpResource(requested) : null;
+  const fromResource = requested ? parseOrgScopedResource(requested) : null;
   if (fromResource) return fromResource;
   const scope = readRequestedScope(req);
-  return scope ? splitOrgScopeMarker(scope).orgId : null;
+  const orgId = scope ? splitOrgScopeMarker(scope).orgId : null;
+  return orgId ? { basePath: MCP_BASE_PATH, orgId } : null;
 }
 
 export function readRequestedScope(req: ExpressRequest): string | null {
@@ -105,8 +109,8 @@ export function narrowAuthRequestBody(req: ExpressRequest): BodyOverride | null 
   if (!body) return null;
 
   const resource = firstString(body['resource']);
-  const narrowedResource =
-    resource && parseOrgScopedMcpResource(resource) ? mcpResourceUrl() : null;
+  const scopedResource = resource ? parseOrgScopedResource(resource) : null;
+  const narrowedResource = scopedResource ? baseResourceFor(scopedResource.basePath) : null;
   const scope = firstString(body['scope']);
   const split = scope ? splitOrgScopeMarker(scope) : null;
   const narrowedScope = split?.orgId ? split.scopes : null;
@@ -131,6 +135,10 @@ export function narrowAuthRequestBody(req: ExpressRequest): BodyOverride | null 
     else delete narrowed['scope'];
   }
   return { contentType: 'application/json', body: JSON.stringify(narrowed) };
+}
+
+function baseResourceFor(basePath: string): string | null {
+  return basePath === MCP_BASE_PATH ? mcpResourceUrl() : resourceUrlForPath(basePath);
 }
 
 export function narrowOrgMarkerQuery(req: ExpressRequest): string | null {

@@ -5,7 +5,7 @@ import {
   narrowAuthRequestBody,
   narrowOrgMarkerQuery,
   readCodeChallenge,
-  readRequestedOrgId,
+  readRequestedOrgScope,
   readRequestedResource,
   requireAuthSecret,
   resolveMcpOrgScope,
@@ -135,19 +135,19 @@ describe('org-scoped resource on auth requests', () => {
 
   it('reads the org from the marker scope when the client sends no resource', () => {
     expect(
-      readRequestedOrgId(requestWith({ query: { scope: `offline_access mcp:org:${ORG_A}` } })),
-    ).toBe(ORG_A);
-    expect(readRequestedOrgId(requestWith({ body: { scope: `mcp:org:${ORG_A} kb:read` } }))).toBe(
-      ORG_A,
-    );
+      readRequestedOrgScope(requestWith({ query: { scope: `offline_access mcp:org:${ORG_A}` } })),
+    ).toEqual({ orgId: ORG_A, basePath: '/mcp' });
     expect(
-      readRequestedOrgId(requestWith({ query: { scope: 'offline_access kb:read' } })),
+      readRequestedOrgScope(requestWith({ body: { scope: `mcp:org:${ORG_A} kb:read` } })),
+    ).toEqual({ orgId: ORG_A, basePath: '/mcp' });
+    expect(
+      readRequestedOrgScope(requestWith({ query: { scope: 'offline_access kb:read' } })),
     ).toBeNull();
   });
 
   it('prefers the resource over the marker scope when a client sends both', () => {
     expect(
-      readRequestedOrgId(
+      readRequestedOrgScope(
         requestWith({
           query: {
             resource: `https://mcp.example.test/mcp/o/${ORG_A}`,
@@ -155,14 +155,20 @@ describe('org-scoped resource on auth requests', () => {
           },
         }),
       ),
-    ).toBe(ORG_A);
+    ).toEqual({ orgId: ORG_A, basePath: '/mcp' });
   });
 
   it('ignores a marker in the replayed signed query, which the provider never signed one into', () => {
     const oauthQuery = new URLSearchParams({ scope: `mcp:org:${ORG_A}` }).toString();
     expect(
-      readRequestedOrgId(requestWith({ body: { accept: true, oauth_query: oauthQuery } })),
+      readRequestedOrgScope(requestWith({ body: { accept: true, oauth_query: oauthQuery } })),
     ).toBeNull();
+
+    expect(
+      readRequestedOrgScope(
+        requestWith({ query: { resource: `https://mcp.example.test/mcp/media/o/${ORG_A}` } }),
+      ),
+    ).toEqual({ orgId: ORG_A, basePath: '/mcp/media' });
   });
 
   it('strips the marker scope out of the authorize query the provider will validate', () => {
@@ -260,6 +266,19 @@ describe('org-scoped resource on auth requests', () => {
     });
   });
 
+  it('narrows an org-scoped surface resource to that surface, not to the base resource', () => {
+    const override = narrowAuthRequestBody(
+      requestWith({
+        body: { code: 'xyz', resource: `https://mcp.example.test/mcp/media/o/${ORG_A}` },
+        contentType: 'application/json',
+      }),
+    );
+    expect(JSON.parse(override!.body)).toEqual({
+      code: 'xyz',
+      resource: 'https://mcp.example.test/mcp/media',
+    });
+  });
+
   it('leaves the base resource and foreign-origin resources untouched', () => {
     expect(
       narrowAuthRequestBody(requestWith({ body: { resource: 'https://mcp.example.test' } })),
@@ -279,25 +298,31 @@ describe('carrying the org across the consent round-trip', () => {
   const OTHER_COOKIE = 'better-auth.session_token=attacker-session-token.signature';
   const originalMcp = process.env.NEXT_PUBLIC_MCP_URL;
   let recalls: OrgScopeAssociationKeys[];
-  let remembered: Array<{ keys: OrgScopeAssociationKeys; orgId: string }>;
+  let remembered: Array<{ keys: OrgScopeAssociationKeys; orgId: string; basePath: string }>;
 
   const SECRET = 'test-secret-for-the-association-key-000000';
   const keysOf = (cookie: string | undefined, challenge: string | undefined) =>
     buildOrgScopeAssociationKeys(SECRET, cookie, challenge);
 
-  function fakeStore(recallValue: string | null = null, failing = false): OrgScopeStore {
+  function fakeStore(
+    recallValue: string | null = null,
+    failing = false,
+    recallBasePath = '/mcp',
+  ): OrgScopeStore {
     return {
       keysFor: (cookieHeader, codeChallenge) =>
         buildOrgScopeAssociationKeys(SECRET, cookieHeader, codeChallenge),
-      remember: (keys, orgId) => {
+      remember: (keys, orgId, basePath) => {
         if (failing) return Promise.reject(new Error('store down'));
-        remembered.push({ keys, orgId });
+        remembered.push({ keys, orgId, basePath: basePath ?? '/mcp' });
         return Promise.resolve();
       },
       recall: (keys) => {
         if (failing) return Promise.reject(new Error('store down'));
         recalls.push(keys);
-        return Promise.resolve(recallValue);
+        return Promise.resolve(
+          recallValue ? { orgId: recallValue, basePath: recallBasePath } : null,
+        );
       },
     };
   }
@@ -377,7 +402,9 @@ describe('carrying the org across the consent round-trip', () => {
       request({ query: { resource, code_challenge: CHALLENGE }, cookie: COOKIE }),
     );
     expect(scope.resource).toBe(resource);
-    expect(remembered).toEqual([{ keys: keysOf(COOKIE, CHALLENGE), orgId: ORG_A }]);
+    expect(remembered).toEqual([
+      { keys: keysOf(COOKIE, CHALLENGE), orgId: ORG_A, basePath: '/mcp' },
+    ]);
   });
 
   it('writes the association for an authorize that only carries the marker scope', async () => {
@@ -389,7 +416,9 @@ describe('carrying the org across the consent round-trip', () => {
       }),
     );
     expect(scope.resource).toBe(`https://mcp.example.test/mcp/o/${ORG_A}`);
-    expect(remembered).toEqual([{ keys: keysOf(COOKIE, CHALLENGE), orgId: ORG_A }]);
+    expect(remembered).toEqual([
+      { keys: keysOf(COOKIE, CHALLENGE), orgId: ORG_A, basePath: '/mcp' },
+    ]);
   });
 
   it('writes the association before the caller has signed in', async () => {
@@ -397,7 +426,30 @@ describe('carrying the org across the consent round-trip', () => {
     await resolveMcpOrgScope(
       request({ query: { scope: `mcp:org:${ORG_A}`, code_challenge: CHALLENGE } }),
     );
-    expect(remembered).toEqual([{ keys: keysOf(undefined, CHALLENGE), orgId: ORG_A }]);
+    expect(remembered).toEqual([
+      { keys: keysOf(undefined, CHALLENGE), orgId: ORG_A, basePath: '/mcp' },
+    ]);
+  });
+
+  it('remembers which resource the org was asked for, so the token narrows to it', async () => {
+    registerOrgScopeStore(fakeStore());
+    const resource = `https://mcp.example.test/mcp/media/o/${ORG_A}`;
+    const scope = await resolveMcpOrgScope(
+      request({ query: { resource, code_challenge: CHALLENGE }, cookie: COOKIE }),
+    );
+    expect(scope.resource).toBe(resource);
+    expect(remembered).toEqual([
+      { keys: keysOf(COOKIE, CHALLENGE), orgId: ORG_A, basePath: '/mcp/media' },
+    ]);
+  });
+
+  it('recalls a surface association back to the surface resource on the consent post', async () => {
+    registerOrgScopeStore(fakeStore(ORG_A, false, '/mcp/media'));
+    const oauthQuery = new URLSearchParams({ code_challenge: CHALLENGE }).toString();
+    const scope = await resolveMcpOrgScope(
+      request({ url: '/auth/oauth2/consent', body: { oauth_query: oauthQuery }, cookie: COOKIE }),
+    );
+    expect(scope.resource).toBe(`https://mcp.example.test/mcp/media/o/${ORG_A}`);
   });
 
   it('recovers the org on the consent post, where better-auth has dropped the resource', async () => {

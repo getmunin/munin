@@ -37,25 +37,25 @@ const skipReason = TEST_URL
 
   it('recalls the org it remembered for a session', async () => {
     await store.remember(keys('session-one', 'challenge-one'), ORG_A);
-    await expect(store.recall(keys('session-one', 'challenge-one'))).resolves.toBe(ORG_A);
+    await expect(store.recall(keys('session-one', 'challenge-one'))).resolves.toEqual({ orgId: ORG_A, basePath: '/mcp' });
   });
 
   it('recalls an association written before the browser had a session', async () => {
     await store.remember(keys(null, 'challenge-anonymous'), ORG_A);
-    await expect(store.recall(keys('session-new', 'challenge-anonymous'))).resolves.toBe(ORG_A);
+    await expect(store.recall(keys('session-new', 'challenge-anonymous'))).resolves.toEqual({ orgId: ORG_A, basePath: '/mcp' });
   });
 
   it('keeps separate challenges on separate orgs', async () => {
     await store.remember(keys('session-a', 'challenge-a'), ORG_A);
     await store.remember(keys('session-b', 'challenge-b'), ORG_B);
-    await expect(store.recall(keys('session-a', 'challenge-a'))).resolves.toBe(ORG_A);
-    await expect(store.recall(keys('session-b', 'challenge-b'))).resolves.toBe(ORG_B);
+    await expect(store.recall(keys('session-a', 'challenge-a'))).resolves.toEqual({ orgId: ORG_A, basePath: '/mcp' });
+    await expect(store.recall(keys('session-b', 'challenge-b'))).resolves.toEqual({ orgId: ORG_B, basePath: '/mcp' });
   });
 
   it('replaces the org when the same session reuses a challenge', async () => {
     await store.remember(keys('session-reused', 'challenge-reused'), ORG_A);
     await store.remember(keys('session-reused', 'challenge-reused'), ORG_B);
-    await expect(store.recall(keys('session-reused', null))).resolves.toBe(ORG_B);
+    await expect(store.recall(keys('session-reused', null))).resolves.toEqual({ orgId: ORG_B, basePath: '/mcp' });
     const rows = await db
       .select({ id: schema.verifications.id })
       .from(schema.verifications)
@@ -66,14 +66,39 @@ const skipReason = TEST_URL
   it('will not let a later request repoint a challenge another request already claimed', async () => {
     await store.remember(keys('session-first', 'challenge-contested'), ORG_A);
     await store.remember(keys('session-second', 'challenge-contested'), ORG_B);
-    await expect(store.recall(keys(null, 'challenge-contested'))).resolves.toBe(ORG_A);
+    await expect(store.recall(keys(null, 'challenge-contested'))).resolves.toEqual({ orgId: ORG_A, basePath: '/mcp' });
   });
 
   it('prefers the association the recalling session started', async () => {
     await store.remember(keys(null, 'challenge-both'), ORG_B);
     await store.remember(keys('session-both', 'challenge-both'), ORG_A);
-    await expect(store.recall(keys('session-both', 'challenge-both'))).resolves.toBe(ORG_A);
-    await expect(store.recall(keys('session-unrelated', 'challenge-both'))).resolves.toBe(ORG_B);
+    await expect(store.recall(keys('session-both', 'challenge-both'))).resolves.toEqual({ orgId: ORG_A, basePath: '/mcp' });
+    await expect(store.recall(keys('session-unrelated', 'challenge-both'))).resolves.toEqual({ orgId: ORG_B, basePath: '/mcp' });
+  });
+
+  it('round-trips the resource the org was asked for', async () => {
+    await store.remember(keys('session-surface', 'challenge-surface'), ORG_A, '/mcp/media');
+    await expect(store.recall(keys('session-surface', 'challenge-surface'))).resolves.toEqual({
+      orgId: ORG_A,
+      basePath: '/mcp/media',
+    });
+  });
+
+  it('reads a row written before associations carried a resource as the shared endpoint', async () => {
+    await db.insert(schema.verifications).values({
+      identifier: 'mcp-org-scope:challenge-legacy',
+      value: ORG_A,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    await expect(store.recall(keys(null, 'challenge-legacy'))).resolves.toEqual({
+      orgId: ORG_A,
+      basePath: '/mcp',
+    });
+  });
+
+  it('refuses a base path outside the MCP tree', async () => {
+    await store.remember(keys('session-outside', 'challenge-outside'), ORG_A, '/v1/orgs');
+    await expect(store.recall(keys('session-outside', 'challenge-outside'))).resolves.toBeNull();
   });
 
   it('recalls nothing for an unknown challenge', async () => {
@@ -104,7 +129,7 @@ const skipReason = TEST_URL
       .set({ expiresAt: new Date(Date.now() + 30_000) })
       .where(eq(schema.verifications.identifier, 'mcp-org-scope:session-sliding'));
     const before = await expiryOf('mcp-org-scope:session-sliding');
-    await expect(store.recall(keys('session-sliding', 'challenge-sliding'))).resolves.toBe(ORG_A);
+    await expect(store.recall(keys('session-sliding', 'challenge-sliding'))).resolves.toEqual({ orgId: ORG_A, basePath: '/mcp' });
     expect(await expiryOf('mcp-org-scope:session-sliding')).toBeGreaterThan(before);
   });
 
@@ -118,9 +143,10 @@ const skipReason = TEST_URL
       .select({ expiresAt: schema.verifications.expiresAt })
       .from(schema.verifications)
       .where(eq(schema.verifications.identifier, 'mcp-org-scope:challenge-sliding-anon'));
-    await expect(store.recall(keys('session-absent', 'challenge-sliding-anon'))).resolves.toBe(
-      ORG_A,
-    );
+    await expect(store.recall(keys('session-absent', 'challenge-sliding-anon'))).resolves.toEqual({
+      orgId: ORG_A,
+      basePath: '/mcp',
+    });
     const rowsAfter = await db
       .select({ expiresAt: schema.verifications.expiresAt })
       .from(schema.verifications)

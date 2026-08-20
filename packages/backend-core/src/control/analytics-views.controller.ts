@@ -4,6 +4,7 @@ import {
   HttpCode,
   Headers,
   Inject,
+  Logger,
   Param,
   Post,
   Res,
@@ -13,6 +14,7 @@ import { z } from 'zod';
 import { ViewTokenError, looksLikeBot, verifyViewToken } from '@getmunin/core';
 import { PublicController } from '../common/auth/auth.guard.ts';
 import { AnalyticsService } from '../modules/analytics/analytics.service.ts';
+import { truncatedString } from '../modules/analytics/ingest-fields.ts';
 
 const TRANSPARENT_GIF = Buffer.from(
   'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
@@ -21,18 +23,18 @@ const TRANSPARENT_GIF = Buffer.from(
 
 const BeaconBodySchema = z.object({
   token: z.string(),
-  path: z.string().max(512).optional(),
-  referrer: z.string().max(512).optional(),
+  path: truncatedString(512).optional(),
+  referrer: truncatedString(512).optional(),
   visitorId: z.string().max(64).optional(),
-  locale: z.string().max(16).optional(),
+  locale: truncatedString(16).optional(),
   dwellMs: z.number().int().min(0).optional(),
   readDepth: z.number().int().min(0).max(100).optional(),
   viewId: z.string().max(64).optional(),
   utm: z
     .object({
-      source: z.string().max(128).optional(),
-      medium: z.string().max(128).optional(),
-      campaign: z.string().max(128).optional(),
+      source: truncatedString(128).optional(),
+      medium: truncatedString(128).optional(),
+      campaign: truncatedString(128).optional(),
     })
     .optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
@@ -40,6 +42,8 @@ const BeaconBodySchema = z.object({
 
 @PublicController('v1/a/v', { throttle: true })
 export class AnalyticsViewsController {
+  private readonly logger = new Logger(AnalyticsViewsController.name);
+
   constructor(@Inject(AnalyticsService) private readonly analytics: AnalyticsService) {}
 
   @Get(':token.gif')
@@ -80,7 +84,10 @@ export class AnalyticsViewsController {
   ): Promise<void> {
     if (looksLikeBot(userAgent)) return;
     const parsed = BeaconBodySchema.safeParse(rawBody);
-    if (!parsed.success) return;
+    if (!parsed.success) {
+      this.logger.warn(`entry_view.validation_failed: ${parsed.error.message}`);
+      return;
+    }
     const body = parsed.data;
 
     let payload;

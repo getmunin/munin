@@ -32,6 +32,7 @@ import { DB } from '../common/db/db.module.ts';
 import { AnalyticsService } from '../modules/analytics/analytics.service.ts';
 import { canonicalizeSubjectId } from '../modules/analytics/canonical-subject.ts';
 import { GeoIpService } from '../modules/analytics/geoip.service.ts';
+import { truncatedString } from '../modules/analytics/ingest-fields.ts';
 import {
   linkVisitorToEndUser,
   normalizeIdentityEmail,
@@ -53,6 +54,7 @@ const PixelQuerySchema = z.object({
 });
 
 const NullableString = (max: number) => z.string().max(max).nullable().optional();
+const NullableTruncated = (max: number) => truncatedString(max).nullable().optional();
 const NullableInt = (min: number, max: number) =>
   z.number().int().min(min).max(max).nullable().optional();
 
@@ -60,18 +62,18 @@ const BeaconBodySchema = z.object({
   key: z.string(),
   subjectType: z.string().min(1).max(32).nullable().optional(),
   subjectId: z.string().min(1).max(512),
-  path: NullableString(512),
-  referrer: NullableString(512),
+  path: NullableTruncated(512),
+  referrer: NullableTruncated(512),
   visitorId: NullableString(64),
-  locale: NullableString(16),
+  locale: NullableTruncated(16),
   dwellMs: z.number().int().min(0).nullable().optional(),
   readDepth: NullableInt(0, 100),
   viewId: NullableString(64),
   utm: z
     .object({
-      source: NullableString(128),
-      medium: NullableString(128),
-      campaign: NullableString(128),
+      source: NullableTruncated(128),
+      medium: NullableTruncated(128),
+      campaign: NullableTruncated(128),
     })
     .nullable()
     .optional(),
@@ -83,7 +85,7 @@ const SearchBodySchema = z.object({
   query: z.string().min(1).max(256),
   resultCount: z.number().int().min(0),
   subjectType: z.string().min(1).max(32).nullable().optional(),
-  locale: NullableString(16),
+  locale: NullableTruncated(16),
   visitorId: NullableString(64),
 });
 
@@ -163,7 +165,9 @@ export class AnalyticsTrackerController {
     if (looksLikeBot(userAgent)) return;
     const parsed = BeaconBodySchema.safeParse(rawBody);
     if (!parsed.success) {
-      this.logger.warn(`beacon.validation_failed: ${parsed.error.message}`);
+      this.logger.warn(
+        `beacon.validation_failed: ${ingestContext(rawBody)} ${parsed.error.message}`,
+      );
       return;
     }
     const body = parsed.data;
@@ -204,7 +208,9 @@ export class AnalyticsTrackerController {
     if (looksLikeBot(userAgent)) return;
     const parsed = SearchBodySchema.safeParse(rawBody);
     if (!parsed.success) {
-      this.logger.warn(`search.validation_failed: ${parsed.error.message}`);
+      this.logger.warn(
+        `search.validation_failed: ${ingestContext(rawBody)} ${parsed.error.message}`,
+      );
       return;
     }
     const body = parsed.data;
@@ -351,6 +357,13 @@ export class AnalyticsTrackerController {
       return null;
     }
   }
+}
+
+function ingestContext(rawBody: unknown): string {
+  const body = rawBody as { key?: unknown; subjectId?: unknown } | null | undefined;
+  const key = typeof body?.key === 'string' ? keyPrefix(body.key) : '(none)';
+  const subject = typeof body?.subjectId === 'string' ? body.subjectId.slice(0, 128) : '(none)';
+  return `key=${key} subjectId=${subject}`;
 }
 
 function canonicalSubject(

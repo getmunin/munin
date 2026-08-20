@@ -77,9 +77,18 @@ const VISITOR_KEY = 'mn.vid';
 const LOG_PREFIX = '[munin-tracker] ';
 const ONCE_PREFIX = 'mn.once.';
 const MAX_ENTRY_VIEWS = 10;
+const MAX_URL_FIELD = 512;
 
 function warn(message: string, ...detail: unknown[]): void {
   console.warn(LOG_PREFIX + message, ...detail);
+}
+
+function clip(value: string, max: number): string {
+  return value.length > max ? value.slice(0, max) : value;
+}
+
+function clipNullable(value: string | null, max: number): string | null {
+  return value === null ? null : clip(value, max);
 }
 
 function stripTrailingSlashes(value: string): string {
@@ -215,8 +224,11 @@ function stripTrailingSlashes(value: string): string {
       key: key!,
       subjectType: attrs.subjectType || subjectType,
       subjectId,
-      path: attrs.path || location.pathname + location.search,
-      referrer: attrs.referrer !== undefined ? attrs.referrer : initialReferrer,
+      path: clip(attrs.path || location.pathname + location.search, MAX_URL_FIELD),
+      referrer: clipNullable(
+        attrs.referrer !== undefined ? attrs.referrer : initialReferrer,
+        MAX_URL_FIELD,
+      ),
       visitorId,
       locale: locale(),
       dwellMs: attrs.dwellMs,
@@ -290,8 +302,11 @@ function stripTrailingSlashes(value: string): string {
   function sendEntry(token: string, viewId: string, attrs: TrackAttrs = {}): void {
     const payload: EntryPayload = {
       token,
-      path: attrs.path || location.pathname + location.search,
-      referrer: attrs.referrer !== undefined ? attrs.referrer : initialReferrer,
+      path: clip(attrs.path || location.pathname + location.search, MAX_URL_FIELD),
+      referrer: clipNullable(
+        attrs.referrer !== undefined ? attrs.referrer : initialReferrer,
+        MAX_URL_FIELD,
+      ),
       visitorId,
       locale: locale(),
       dwellMs: attrs.dwellMs,

@@ -316,6 +316,85 @@ describe('AuthGuard org-scoped MCP endpoints', () => {
     });
   }
 
+  const MEDIA_SURFACE: McpSurface = {
+    id: 'media',
+    path: '/mcp/media',
+    resourceName: 'Munin Media',
+    scopes: ['mcp:admin', 'media:write'],
+  };
+
+  it('enforces the org on a surface path exactly as on the shared one', async () => {
+    const resolveBearerToken = vi.fn().mockResolvedValue(credFor(ORG_B));
+    const guard = makeGuard({ resolveBearerToken }, [MEDIA_SURFACE]);
+    await expect(guard.canActivate(contextFor(`/mcp/media/o/${ORG_A}`))).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('accepts a credential whose org matches an org-scoped surface path', async () => {
+    const resolveBearerToken = vi.fn().mockResolvedValue(credFor(ORG_A));
+    const guard = makeGuard({ resolveBearerToken }, [MEDIA_SURFACE]);
+    await expect(guard.canActivate(contextFor(`/mcp/media/o/${ORG_A}`))).resolves.toBe(true);
+  });
+
+  it('accepts the surface resource as an audience on its org-scoped path', async () => {
+    const resolveBearerToken = vi
+      .fn()
+      .mockResolvedValue(credFor(ORG_A, 'https://mcp.example.com/mcp/media'));
+    const guard = makeGuard({ resolveBearerToken }, [MEDIA_SURFACE]);
+    await expect(guard.canActivate(contextFor(`/mcp/media/o/${ORG_A}`))).resolves.toBe(true);
+  });
+
+  it('accepts the org-scoped surface resource as an audience on its own path', async () => {
+    const resolveBearerToken = vi
+      .fn()
+      .mockResolvedValue(credFor(ORG_A, `https://mcp.example.com/mcp/media/o/${ORG_A}`));
+    const guard = makeGuard({ resolveBearerToken }, [MEDIA_SURFACE]);
+    await expect(guard.canActivate(contextFor(`/mcp/media/o/${ORG_A}`))).resolves.toBe(true);
+  });
+
+  it('refuses an org-scoped surface audience on another org of the same surface', async () => {
+    const resolveBearerToken = vi
+      .fn()
+      .mockResolvedValue(credFor(ORG_A, `https://mcp.example.com/mcp/media/o/${ORG_B}`));
+    const guard = makeGuard({ resolveBearerToken }, [MEDIA_SURFACE]);
+    await expect(guard.canActivate(contextFor(`/mcp/media/o/${ORG_A}`))).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('challenges with the org-scoped surface document, not the surface root', async () => {
+    process.env.NEXT_PUBLIC_AUTH_URL = 'https://auth.example.com';
+    const resolveBearerToken = vi.fn().mockResolvedValue(credFor(ORG_B));
+    const guard = makeGuard({ resolveBearerToken }, [MEDIA_SURFACE]);
+    const res = { setHeader: vi.fn() };
+    const ctx = {
+      getHandler: () => () => undefined,
+      getClass: () => class {},
+      switchToHttp: () => ({
+        getRequest: () => ({
+          headers: { authorization: 'Bearer some-token' },
+          url: `/mcp/media/o/${ORG_A}`,
+          path: `/mcp/media/o/${ORG_A}`,
+        }),
+        getResponse: () => res,
+      }),
+    } as unknown as Parameters<AuthGuard['canActivate']>[0];
+
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'WWW-Authenticate',
+      `Bearer resource_metadata="https://auth.example.com/.well-known/oauth-protected-resource/mcp/media/o/${ORG_A}"`,
+    );
+  });
+
+  it('404s a malformed org selector on a surface path', async () => {
+    const guard = makeGuard({}, [MEDIA_SURFACE]);
+    await expect(guard.canActivate(contextFor('/mcp/media/o/not-an-org'))).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
   it('accepts an api key whose org matches the path', async () => {
     const resolveApiKey = vi.fn().mockResolvedValue(credFor(ORG_A));
     const guard = makeGuard({ resolveApiKey });

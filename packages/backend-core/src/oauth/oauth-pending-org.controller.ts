@@ -48,7 +48,7 @@ export class OAuthPendingOrgController {
     );
     if (!hasOrgScopeAssociationKey(keys)) return { pinned: false };
 
-    const orgId = await store.recall(keys);
-    return orgId ? { pinned: true, orgId } : { pinned: false };
+    const recalled = await store.recall(keys);
+    return recalled ? { pinned: true, orgId: recalled.orgId } : { pinned: false };
   }
 }

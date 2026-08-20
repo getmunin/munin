@@ -14,6 +14,7 @@ const MODULE_TITLE_PREFIX: Record<string, string> = {
   conv: 'Conv',
   crm: 'CRM',
   feedback: 'Feedback',
+  identity: 'Identity',
   kb: 'KB',
   outreach: 'Outreach',
   slack: 'Slack',

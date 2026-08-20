@@ -14,6 +14,9 @@ const ListConversationsInput = z.object({
   status: StatusSchema.optional(),
   assigneeUserId: z.string().optional(),
   topicId: z.string().optional(),
+  endUserId: z.string().optional().describe(
+    "End-user identity id (from `identity_resolve`); keeps only conversations belonging to that person, across every channel they've used.",
+  ),
   handover: HandoverSchema.optional().describe(
     '`active` = waiting on a human right now, `resolved` = a handover was answered and cleared, `never` = no handover on record.',
   ),

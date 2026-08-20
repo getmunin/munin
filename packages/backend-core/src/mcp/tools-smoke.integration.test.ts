@@ -18,6 +18,7 @@ const skipReason = TEST_URL
 
 const EXPECTED_BY_MODULE: Record<string, RegExp> = {
   kb: /^kb_/,
+  identity: /^identity_/,
   conv: /^conv_/,
   crm: /^crm_/,
   cms: /^cms_/,
@@ -33,6 +34,7 @@ const EXPECTED_BY_MODULE: Record<string, RegExp> = {
 
 const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
   kb: 12,
+  identity: 2,
   conv: 25,
   crm: 25,
   cms: 20,
@@ -130,6 +132,7 @@ const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
     it('every tool with module prefix has a title that starts with the matching display label', async () => {
       const LABELS: Record<string, string> = {
         kb: 'KB:',
+        identity: 'Identity:',
         conv: 'Conv:',
         crm: 'CRM:',
         cms: 'CMS:',

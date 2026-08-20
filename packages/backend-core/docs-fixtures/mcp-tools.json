@@ -22,6 +22,73 @@
     }
   },
   {
+    "name": "identity_resolve",
+    "title": "Identity: Resolve",
+    "description": "Find the end-user identity that an email address, phone number, external id, or analytics visitor id belongs to. An end user is the durable per-person record created the first time someone reaches the org on any channel — inbound email, chat widget, or an analytics identify call — so it exists for people who have no CRM contact yet. Returns `endUserId` plus `matchedOn` naming which identifier matched, and `crmContactId` (null when no CRM contact has been created for this person). Returns `endUserId: null` when nothing matches; it never creates a record. Match order is external id, then email, then phone, then visitor id.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "identity:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        },
+        "phone": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "externalId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "visitorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "identity_get",
+    "title": "Identity: Get",
+    "description": "Read one end user with a cross-channel summary: which channel types they have written on, how many conversations they have and when the last one was, their linked analytics visitor ids, their page-view and search event counts, and the ids of their CRM contact and conversation contact if those exist. Use it to see everything the org already knows about a person before answering them. Covers only data stored in Munin — orders and bookings live in the customer's own systems and are read separately by email.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "identity:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "endUserId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "endUserId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "analytics_export_config",
     "title": "Analytics: Export tracker configuration",
     "description": "Export this org's analytics configuration — trackers and visitor-identity links — as a portable JSON payload. Low-volume, returned in one shot. Tracker identity-verification secrets are redacted (the ciphertext is useless on another server); the operator re-enters them after import. Pair with `analytics_export_events` (paginated) and feed both into `analytics_import` on another Munin server.",
@@ -2850,6 +2917,10 @@
           "type": "string"
         },
         "topicId": {
+          "type": "string"
+        },
+        "endUserId": {
+          "description": "End-user identity id (from `identity_resolve`); keeps only conversations belonging to that person, across every channel they've used.",
           "type": "string"
         },
         "handover": {

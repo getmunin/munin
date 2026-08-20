@@ -24,12 +24,12 @@ function storeHolding(associations: Record<string, string>): OrgScopeStore {
     keysFor: (cookieHeader, codeChallenge) =>
       buildOrgScopeAssociationKeys(SECRET, cookieHeader, codeChallenge),
     remember: () => Promise.resolve(),
-    recall: (keys: OrgScopeAssociationKeys) =>
-      Promise.resolve(
+    recall: (keys: OrgScopeAssociationKeys) => {
+      const orgId =
         (keys.session ? associations[keys.session] : undefined) ??
-          (keys.challenge ? associations[keys.challenge] : undefined) ??
-          null,
-      ),
+        (keys.challenge ? associations[keys.challenge] : undefined);
+      return Promise.resolve(orgId ? { orgId, basePath: '/mcp' } : null);
+    },
   };
 }
 

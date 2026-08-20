@@ -198,6 +198,31 @@ describe('OAuthResourceController org-scoped metadata', () => {
     ).not.toThrow();
   });
 
+  it('serves an org-scoped document for a registered surface', () => {
+    const surfaces = [
+      { id: 'addon', path: '/mcp/addon', resourceName: 'Addon', scopes: ['mcp:admin', 'addon:write'] },
+    ];
+    const meta = new OAuthResourceController(surfaces).surfaceMetadata(
+      requestFor(`/.well-known/oauth-protected-resource/mcp/addon/o/${ORG_A}`),
+    );
+    expect(meta.resource).toBe(`https://mcp.example.test/mcp/addon/o/${ORG_A}`);
+    expect(meta.resource_name).toBe('Addon');
+    expect(meta.scopes_supported).toEqual([
+      'offline_access',
+      'mcp:admin',
+      'addon:write',
+      `mcp:org:${ORG_A}`,
+    ]);
+  });
+
+  it('404s an org-scoped document for a surface that is not registered', () => {
+    expect(() =>
+      new OAuthResourceController().surfaceMetadata(
+        requestFor(`/.well-known/oauth-protected-resource/mcp/addon/o/${ORG_A}`),
+      ),
+    ).toThrow(NotFoundException);
+  });
+
   it('404s for an org id that is not of the minted shape', () => {
     expect(() =>
       new OAuthResourceController().surfaceMetadata(

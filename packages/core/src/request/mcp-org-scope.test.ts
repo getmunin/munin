@@ -2,6 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   currentOrgScopedMcpResource,
   isOrgId,
+  looksOrgScoped,
+  orgScopedPath,
+  orgScopedResourceUrl,
+  parseOrgScopedPath,
+  parseOrgScopedResource,
+  resourceUrlForPath,
   orgScopeMarkerScope,
   orgScopedMcpPath,
   orgScopedMcpResourceUrl,
@@ -84,6 +90,7 @@ describe('org-scoped MCP request scope', () => {
     withOrgScopedMcpResource({ resource: `https://mcp.example.test/mcp/o/${ORG_A}` }, () => {
       expect(currentOrgScopedMcpResource()).toEqual({
         orgId: ORG_A,
+        basePath: '/mcp',
         resource: `https://mcp.example.test/mcp/o/${ORG_A}`,
       });
     });
@@ -114,6 +121,73 @@ describe('org-scoped MCP request scope', () => {
     withOrgScopedMcpResource({ resource: `https://evil.example.test/mcp/o/${ORG_A}` }, () => {
       expect(currentOrgScopedMcpResource()).toBeUndefined();
     });
+  });
+});
+
+describe('org-scoped paths on any MCP resource', () => {
+  let originalMcp: string | undefined;
+
+  beforeEach(() => {
+    originalMcp = process.env.NEXT_PUBLIC_MCP_URL;
+    process.env.NEXT_PUBLIC_MCP_URL = 'https://mcp.example.test';
+  });
+
+  afterEach(() => {
+    if (originalMcp === undefined) delete process.env.NEXT_PUBLIC_MCP_URL;
+    else process.env.NEXT_PUBLIC_MCP_URL = originalMcp;
+  });
+
+  it('hangs an org off a surface path as readily as off the base path', () => {
+    expect(parseOrgScopedPath(`/mcp/o/${ORG_A}`)).toEqual({ basePath: '/mcp', orgId: ORG_A });
+    expect(parseOrgScopedPath(`/mcp/media/o/${ORG_A}`)).toEqual({
+      basePath: '/mcp/media',
+      orgId: ORG_A,
+    });
+    expect(orgScopedPath('/mcp/media', ORG_A)).toBe(`/mcp/media/o/${ORG_A}`);
+  });
+
+  it('builds and parses a surface resource identifier', () => {
+    expect(orgScopedResourceUrl('/mcp/media', ORG_A)).toBe(
+      `https://mcp.example.test/mcp/media/o/${ORG_A}`,
+    );
+    expect(parseOrgScopedResource(`https://mcp.example.test/mcp/media/o/${ORG_A}`)).toEqual({
+      basePath: '/mcp/media',
+      orgId: ORG_A,
+    });
+    expect(resourceUrlForPath('/mcp/media')).toBe('https://mcp.example.test/mcp/media');
+  });
+
+  it('refuses a base path outside the MCP tree, so no other endpoint can be org-scoped', () => {
+    expect(orgScopedPath('/v1/orgs', ORG_A)).toBeNull();
+    expect(parseOrgScopedPath(`/v1/orgs/o/${ORG_A}`)).toBeNull();
+    expect(resourceUrlForPath('/v1')).toBeNull();
+  });
+
+  it('still refuses a malformed org and a segment below one', () => {
+    expect(parseOrgScopedPath('/mcp/media/o/not-an-org')).toBeNull();
+    expect(parseOrgScopedPath(`/mcp/media/o/${ORG_A}/session/1`)).toBeNull();
+    expect(parseOrgScopedPath(`/mcp/o/${ORG_A}/media`)).toBeNull();
+    expect(parseOrgScopedPath('/mcp/media')).toBeNull();
+  });
+
+  it('flags anything that looks org-scoped, so a malformed selector can be refused', () => {
+    expect(looksOrgScoped(`/mcp/media/o/${ORG_A}`)).toBe(true);
+    expect(looksOrgScoped('/mcp/media/o/not-an-org')).toBe(true);
+    expect(looksOrgScoped('/mcp/media')).toBe(false);
+    expect(looksOrgScoped(`/v1/orgs/o/${ORG_A}`)).toBe(false);
+  });
+
+  it('carries the base path into the request scope, so the token can be narrowed to it', () => {
+    withOrgScopedMcpResource(
+      { resource: `https://mcp.example.test/mcp/media/o/${ORG_A}` },
+      () => {
+        expect(currentOrgScopedMcpResource()).toEqual({
+          orgId: ORG_A,
+          basePath: '/mcp/media',
+          resource: `https://mcp.example.test/mcp/media/o/${ORG_A}`,
+        });
+      },
+    );
   });
 });
 

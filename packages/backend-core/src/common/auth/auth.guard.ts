@@ -14,10 +14,10 @@ import {
 import { ThrottlerGuard } from '@nestjs/throttler';
 import {
   CredentialResolver,
-  ORG_SCOPED_MCP_PREFIX,
-  orgScopedMcpPath,
-  orgScopedMcpResourceUrl,
-  parseOrgScopedMcpPath,
+  looksOrgScoped,
+  orgScopedPath,
+  orgScopedResourceUrl,
+  parseOrgScopedPath,
   registerMcpResourcePaths,
   type ResolvedCredential,
 } from '@getmunin/core';
@@ -43,10 +43,7 @@ export interface PublicControllerOpts {
   throttle?: boolean;
 }
 
-export function PublicController(
-  path: string,
-  opts: PublicControllerOpts = {},
-): ClassDecorator {
+export function PublicController(path: string, opts: PublicControllerOpts = {}): ClassDecorator {
   const decorators: ClassDecorator[] = [Controller(path), AllowAnonymous()];
   if (opts.throttle) decorators.push(UseGuards(ThrottlerGuard));
   return applyDecorators(...decorators);
@@ -92,7 +89,7 @@ export class AuthGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const path = requestPath(request);
-    if (path.startsWith(ORG_SCOPED_MCP_PREFIX) && !parseOrgScopedMcpPath(path)) {
+    if (looksOrgScoped(path) && !parseOrgScopedPath(path)) {
       throw new NotFoundException('not_found');
     }
 
@@ -142,7 +139,7 @@ export class AuthGuard implements CanActivate {
       }
     }
 
-    const orgScopedOrgId = parseOrgScopedMcpPath(path);
+    const orgScopedOrgId = parseOrgScopedPath(path)?.orgId ?? null;
     if (orgScopedOrgId && credential.actor.orgId !== orgScopedOrgId) {
       this.maybeSetMcpResourceMetadataHeader(context, request);
       throw new UnauthorizedException(
@@ -158,9 +155,9 @@ export class AuthGuard implements CanActivate {
     const accepted = [mcpResourceUrl()];
     const surface = findMcpSurfaceForPath(this.surfaces, requestPath(request));
     if (surface) accepted.push(mcpSurfaceResourceUrl(surface));
-    const orgId = parseOrgScopedMcpPath(requestPath(request));
-    if (orgId) {
-      const orgResource = orgScopedMcpResourceUrl(orgId);
+    const scoped = parseOrgScopedPath(requestPath(request));
+    if (scoped) {
+      const orgResource = orgScopedResourceUrl(scoped.basePath, scoped.orgId);
       if (orgResource) accepted.push(orgResource);
     }
     return accepted.some((resource) => isSameResourceIdentifier(resource, audience));
@@ -172,11 +169,12 @@ export class AuthGuard implements CanActivate {
   ): void {
     if (!isMcpRequest(request)) return;
     const surface = findMcpSurfaceForPath(this.surfaces, requestPath(request));
-    const orgId = parseOrgScopedMcpPath(requestPath(request));
-    const metadata = surface
-      ? mcpSurfaceMetadataUrl(surface)
-      : orgId
-        ? `${resourceMetadataUrl()}${orgScopedMcpPath(orgId)}`
+    const scoped = parseOrgScopedPath(requestPath(request));
+    const orgScopedPathname = scoped ? orgScopedPath(scoped.basePath, scoped.orgId) : null;
+    const metadata = orgScopedPathname
+      ? `${resourceMetadataUrl()}${orgScopedPathname}`
+      : surface
+        ? mcpSurfaceMetadataUrl(surface)
         : resourceMetadataUrl();
     const res = context
       .switchToHttp()

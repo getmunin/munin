@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { and, eq, like, lt } from 'drizzle-orm';
 import { schema, type Db } from '@getmunin/db';
-import { isOrgId } from '@getmunin/core';
+import { MCP_BASE_PATH, isOrgId, type OrgScopedResourcePath } from '@getmunin/core';
 import { readSessionCookie } from './auth-cookies.ts';
 
 const IDENTIFIER_PREFIX = 'mcp-org-scope:';
@@ -17,8 +17,19 @@ export interface OrgScopeStore {
     cookieHeader: string | undefined,
     codeChallenge: string | null | undefined,
   ): OrgScopeAssociationKeys;
-  remember(keys: OrgScopeAssociationKeys, orgId: string): Promise<void>;
-  recall(keys: OrgScopeAssociationKeys): Promise<string | null>;
+  remember(keys: OrgScopeAssociationKeys, orgId: string, basePath?: string): Promise<void>;
+  recall(keys: OrgScopeAssociationKeys): Promise<OrgScopedResourcePath | null>;
+}
+
+export function encodeOrgScopeAssociation(orgId: string, basePath: string): string {
+  return basePath === MCP_BASE_PATH ? orgId : `${orgId} ${basePath}`;
+}
+
+export function decodeOrgScopeAssociation(value: string): OrgScopedResourcePath | null {
+  const [orgId, basePath] = value.trim().split(/\s+/, 2);
+  if (!orgId || !isOrgId(orgId)) return null;
+  if (!basePath) return { orgId, basePath: MCP_BASE_PATH };
+  return basePath.startsWith(`${MCP_BASE_PATH}/`) ? { orgId, basePath } : null;
 }
 
 export function buildOrgScopeAssociationKeys(
@@ -50,7 +61,7 @@ export function orgScopeStore(): OrgScopeStore | null {
 }
 
 export function createDbOrgScopeStore(db: Db, secret: string): OrgScopeStore {
-  async function readOne(associationKey: string): Promise<string | null> {
+  async function readOne(associationKey: string): Promise<OrgScopedResourcePath | null> {
     const identifier = identifierFor(associationKey);
     if (!identifier) return null;
     const rows = await db
@@ -60,7 +71,7 @@ export function createDbOrgScopeStore(db: Db, secret: string): OrgScopeStore {
       .limit(1);
     const row = rows[0];
     if (!row || row.expiresAt < new Date()) return null;
-    return isOrgId(row.value) ? row.value : null;
+    return decodeOrgScopeAssociation(row.value);
   }
 
   async function extend(associationKey: string): Promise<void> {
@@ -77,8 +88,14 @@ export function createDbOrgScopeStore(db: Db, secret: string): OrgScopeStore {
       return buildOrgScopeAssociationKeys(secret, cookieHeader, codeChallenge);
     },
 
-    async remember(keys: OrgScopeAssociationKeys, orgId: string): Promise<void> {
+    async remember(
+      keys: OrgScopeAssociationKeys,
+      orgId: string,
+      basePath: string = MCP_BASE_PATH,
+    ): Promise<void> {
       if (!isOrgId(orgId) || !hasOrgScopeAssociationKey(keys)) return;
+      const value = encodeOrgScopeAssociation(orgId, basePath);
+      if (!decodeOrgScopeAssociation(value)) return;
       await db
         .delete(schema.verifications)
         .where(
@@ -95,7 +112,7 @@ export function createDbOrgScopeStore(db: Db, secret: string): OrgScopeStore {
           .where(eq(schema.verifications.identifier, sessionIdentifier));
         await db.insert(schema.verifications).values({
           identifier: sessionIdentifier,
-          value: orgId,
+          value,
           expiresAt: new Date(Date.now() + TTL_MS),
         });
       }
@@ -107,13 +124,13 @@ export function createDbOrgScopeStore(db: Db, secret: string): OrgScopeStore {
           .where(eq(schema.verifications.identifier, challengeIdentifier));
         await db.insert(schema.verifications).values({
           identifier: challengeIdentifier,
-          value: orgId,
+          value,
           expiresAt: new Date(Date.now() + TTL_MS),
         });
       }
     },
 
-    async recall(keys: OrgScopeAssociationKeys): Promise<string | null> {
+    async recall(keys: OrgScopeAssociationKeys): Promise<OrgScopedResourcePath | null> {
       if (keys.session) {
         const fromSession = await readOne(keys.session);
         if (fromSession) {

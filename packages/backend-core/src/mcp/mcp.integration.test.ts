@@ -126,8 +126,12 @@ const skipReason = TEST_URL
       expect(kbSearch.annotations!.readOnlyHint).toBe(true);
       expect(kbSearch.annotations!.destructiveHint).toBe(false);
 
-      const ping = await c.callTool({ name: 'ping', arguments: { message: 'hi' } });
-      expect(JSON.stringify(ping)).toContain('hi');
+      const ping = parseToolResult<{ message: string; orgId: string; orgName: string }>(
+        await c.callTool({ name: 'ping', arguments: { message: 'hi' } }),
+      );
+      expect(ping.message).toBe('hi');
+      expect(ping.orgId).toBe(orgId);
+      expect(ping.orgName).toBe('MCP IT Org');
 
       const space = parseToolResult<{ id: string }>(
         await c.callTool({

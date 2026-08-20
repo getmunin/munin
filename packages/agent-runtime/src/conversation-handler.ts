@@ -174,9 +174,13 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       return null;
     }
     if (mode === 'greet') return delivery;
-    const last = lastInbound(detail);
+    const last = lastPublicMessage(detail);
     if (!last) {
       log.info(`skip ${detail.id}: no inbound message yet`);
+      return null;
+    }
+    if (last.authorType !== 'user' && last.authorType !== 'end_user') {
+      log.info(`skip ${detail.id}: already answered (last public message is ${last.authorType})`);
       return null;
     }
     return delivery;
@@ -307,6 +311,8 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
           abortSignal: signal,
           provider: deps.provider,
         });
+
+        if (signal.aborted) return;
 
         if (reply.body.trim().length > 0) {
           deps.onProviderSuccess?.();
@@ -609,13 +615,13 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
   };
 }
 
-function lastInbound(detail: ConversationDetail): ConversationMessage | null {
+function lastPublicMessage(
+  detail: ConversationDetail,
+): ConversationDetail['messages'][number] | null {
   for (let i = detail.messages.length - 1; i >= 0; i -= 1) {
     const m = detail.messages[i];
-    if (!m) continue;
-    if (m.authorType === 'user' || m.authorType === 'end_user') {
-      return { authorType: m.authorType, body: m.body, createdAt: m.createdAt };
-    }
+    if (!m || m.internal) continue;
+    return m;
   }
   return null;
 }

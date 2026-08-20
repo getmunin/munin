@@ -292,12 +292,11 @@ async function resolveAgentLabels(
   }
 
   const userLabels = new Map<string, string>();
-  const userIds = actorIds.filter((id) => id.startsWith('usr_'));
-  if (userIds.length > 0) {
+  if (actorIds.length > 0) {
     const found = await ctx.db
       .select({ id: schema.users.id, name: schema.users.name, email: schema.users.email })
       .from(schema.users)
-      .where(inArray(schema.users.id, userIds));
+      .where(inArray(schema.users.id, actorIds));
     for (const row of found) userLabels.set(row.id, row.name ?? row.email);
   }
 

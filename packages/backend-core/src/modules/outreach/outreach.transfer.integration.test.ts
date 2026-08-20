@@ -116,8 +116,14 @@ const skipReason = TEST_URL
     const seeded = await withClient(adminKeyA, async (c) => {
       const channel = firstJson(
         (await c.callTool({
-          name: 'conv_create_channel',
-          arguments: { type: 'email', vendor: 'smtp', name: 'Newsletter', config: {} },
+          name: 'conv_configure_email_channel',
+          arguments: {
+            name: 'Newsletter',
+            config: {
+              addressing: { fromAddress: 'newsletter@example.com' },
+              outbound: { provider: 'mailer' },
+            },
+          },
         })),
       ) as { id: string };
       const segment = firstJson(

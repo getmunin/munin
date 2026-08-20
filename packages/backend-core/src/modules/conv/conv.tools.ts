@@ -6,7 +6,6 @@ import { AGENT_MODES, CHANNEL_TYPES, ConvService, HANDOVER_FILTERS, STATUSES } f
 import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
 
 const ChannelTypeSchema = z.enum(CHANNEL_TYPES);
-const SelfContainedChannelTypeSchema = z.enum(['email', 'chat']);
 const StatusSchema = z.enum(STATUSES);
 const AgentModeSchema = z.enum(AGENT_MODES);
 const HandoverSchema = z.enum(HANDOVER_FILTERS);
@@ -71,13 +70,6 @@ const EmailOpenStatsInput = z.object({
     .max(365)
     .optional()
     .describe('Window size in days, counted back from now. Defaults to 30.'),
-});
-
-const CreateChannelInput = z.object({
-  type: SelfContainedChannelTypeSchema,
-  vendor: z.string().min(1).max(32),
-  name: z.string().min(1).max(120),
-  config: z.record(z.string(), z.unknown()).optional(),
 });
 
 const CreateTopicInput = z.object({
@@ -281,21 +273,6 @@ export class ConvAdminTools {
   })
   listChannels() {
     return this.conv.listChannels();
-  }
-
-  @McpTool({
-    name: 'conv_create_channel',
-    title: 'Conv: Create conversation channel',
-    description:
-      'Add an `email` or `chat` (widget) conversation channel whose configuration is self-contained. Channel-specific configuration goes in `config`. Voice and SMS channels are vendor-backed and rejected here — they need the credential handoff that conv_configure_voice_sms_channel performs.',
-    audiences: ['admin'],
-    scopes: ['conv:write'],
-    input: CreateChannelInput,
-    readOnlyHint: false,
-    destructiveHint: true,
-  })
-  createChannel(args: z.infer<typeof CreateChannelInput>) {
-    return this.conv.createChannel(args);
   }
 
   @McpTool({

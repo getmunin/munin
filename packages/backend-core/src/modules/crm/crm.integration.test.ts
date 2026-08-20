@@ -280,8 +280,14 @@ const skipReason = TEST_URL
       );
       const channel = parseToolResult<{ id: string }>(
         await c.callTool({
-          name: 'conv_create_channel',
-          arguments: { type: 'email', vendor: 'smtp', name: 'Outreach Channel' },
+          name: 'conv_configure_email_channel',
+          arguments: {
+            name: 'Outreach Channel',
+            config: {
+              addressing: { fromAddress: 'outreach@example.com' },
+              outbound: { provider: 'mailer' },
+            },
+          },
         }),
       );
       await c.callTool({

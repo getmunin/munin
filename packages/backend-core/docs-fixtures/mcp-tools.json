@@ -3139,55 +3139,6 @@
     }
   },
   {
-    "name": "conv_create_channel",
-    "title": "Conv: Create conversation channel",
-    "description": "Add an `email` or `chat` (widget) conversation channel whose configuration is self-contained. Channel-specific configuration goes in `config`. Voice and SMS channels are vendor-backed and rejected here — they need the credential handoff that conv_configure_voice_sms_channel performs.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "conv:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "type": {
-          "type": "string",
-          "enum": [
-            "email",
-            "chat"
-          ]
-        },
-        "vendor": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 32
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120
-        },
-        "config": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
-        }
-      },
-      "required": [
-        "type",
-        "vendor",
-        "name"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
     "name": "conv_list_topics",
     "title": "Conv: List conversation topics",
     "description": "List conversation topics (Billing, Support, Refunds, …) for your org.",

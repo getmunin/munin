@@ -512,6 +512,13 @@
       "when": 1787211085927,
       "tag": "0072_audit_log_origin",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1787221606047,
+      "tag": "0073_conv_email_channel_credential_slots",
+      "breakpoints": true
     }
   ]
 }

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import { Button, Card, CardContent, CardHeader, CardTitle, Hero, Input, Label } from '@getmunin/ui';
-import { api } from '../api';
+import { ApiError, api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
 
 interface Field {
@@ -25,7 +25,7 @@ export function CredentialEntryPage() {
   const translate = useTranslateError();
   const token = useSearchParams().get('token') ?? '';
   const [pending, setPending] = useState<Pending | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<{ message: string; fields: string[] } | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{ ok: boolean; detail?: string; retryable?: boolean } | null>(
@@ -34,7 +34,7 @@ export function CredentialEntryPage() {
 
   const load = useCallback(async () => {
     if (!token) {
-      setLoadError(t('invalid'));
+      setLoadError({ message: t('invalid'), fields: [] });
       return;
     }
     try {
@@ -42,8 +42,12 @@ export function CredentialEntryPage() {
         anonymous: true,
       });
       setPending(p);
+      setLoadError(null);
     } catch (err) {
-      setLoadError(translate(err));
+      setLoadError({
+        message: translate(err),
+        fields: err instanceof ApiError ? err.fieldErrors.map((fe) => fe.field) : [],
+      });
     }
   }, [token, t, translate]);
 
@@ -80,8 +84,13 @@ export function CredentialEntryPage() {
       <Hero eyebrow={t('eyebrow')} title={t('title')} lede={t('lede')} />
       <Card className="mt-8">
         {loadError ? (
-          <CardContent>
-            <p className="text-sm text-destructive">{loadError}</p>
+          <CardContent className="space-y-2">
+            <p className="text-sm text-destructive">{loadError.message}</p>
+            {loadError.fields.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {t('missingFields', { fields: loadError.fields.join(', ') })}
+              </p>
+            )}
           </CardContent>
         ) : done ? (
           <CardContent className="space-y-4">

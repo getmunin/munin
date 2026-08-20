@@ -1644,7 +1644,13 @@ function EnterChannelCredentialsDialog({
       else notify.info(t('enterCredentials.savedUntested', { error: res.error ?? '' }));
       onDone();
     } catch (err) {
-      setError(translate(err) || t('enterCredentials.error'));
+      const message = translate(err) || t('enterCredentials.error');
+      const fields = err instanceof ApiError ? err.fieldErrors.map((fe) => fe.field) : [];
+      setError(
+        fields.length > 0
+          ? `${message} ${t('enterCredentials.missingFields', { fields: fields.join(', ') })}`
+          : message,
+      );
     } finally {
       setSaving(false);
     }
@@ -1761,7 +1767,13 @@ function EnterVendorCredentialsDialog({
       else notify.info(t('enterCredentials.savedUntested', { error: res.error ?? '' }));
       onDone();
     } catch (err) {
-      setError(translate(err) || t('enterCredentials.error'));
+      const message = translate(err) || t('enterCredentials.error');
+      const fields = err instanceof ApiError ? err.fieldErrors.map((fe) => fe.field) : [];
+      setError(
+        fields.length > 0
+          ? `${message} ${t('enterCredentials.missingFields', { fields: fields.join(', ') })}`
+          : message,
+      );
     } finally {
       setSaving(false);
     }

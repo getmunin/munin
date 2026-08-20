@@ -545,7 +545,8 @@
         "submit": "Save",
         "saved": "Credentials saved",
         "savedUntested": "Saved — couldn't verify yet: {error}",
-        "error": "Couldn't save credentials."
+        "error": "Couldn't save credentials.",
+        "missingFields": "Missing: {fields}"
       },
       "emptyTitle": "No channels yet",
       "emptyBody": "Add a chat widget or email channel to start collecting messages.",
@@ -1485,6 +1486,7 @@
     "lede": "This one-time link lets you enter an integration's secret credentials directly, without sharing them in a chat.",
     "loading": "Loading…",
     "invalid": "This link is invalid or has expired.",
+    "missingFields": "Missing from the saved settings: {fields}",
     "for": "Credentials for {vendor}",
     "submit": "Save credentials",
     "reassurance": "Credentials are encrypted at rest and never shown again. This link works once.",

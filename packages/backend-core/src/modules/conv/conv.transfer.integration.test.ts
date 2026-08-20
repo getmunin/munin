@@ -176,8 +176,8 @@ const skipReason = TEST_URL
   it('moves channels + conversations + messages to a different org, remaps ids, redacts credentials', async () => {
     const channel = await withClient(adminKeyA, async (c) => {
       const res = await c.callTool({
-        name: 'conv_create_channel',
-        arguments: { type: 'chat', vendor: 'widget', name: 'Website widget' },
+        name: 'conv_create_widget_channel',
+        arguments: { name: 'Website widget', originAllowlist: ['https://acme.test'] },
       });
       return firstJson(res) as { id: string };
     });

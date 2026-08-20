@@ -1,6 +1,7 @@
-import { BadRequestException, Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Get, Post, Query } from '@nestjs/common';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { PublicController } from '../../common/auth/auth.guard.ts';
 import {
   CredentialHandoffService,
   type CredentialLink,
@@ -17,7 +18,7 @@ class CompleteCredentialHandoffBody extends createZodDto(
   }),
 ) {}
 
-@Controller('v1/credentials')
+@PublicController('v1/credentials', { throttle: true })
 export class CredentialHandoffController {
   constructor(private readonly handoff: CredentialHandoffService) {}
 

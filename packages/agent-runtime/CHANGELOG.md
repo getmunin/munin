@@ -1,5 +1,13 @@
 # @getmunin/agent-runtime
 
+## 5.8.0
+
+### Patch Changes
+
+- Updated dependencies [2c7e3fd]
+  - @getmunin/core@5.8.0
+  - @getmunin/types@5.8.0
+
 ## 5.7.0
 
 ### Minor Changes

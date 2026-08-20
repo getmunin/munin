@@ -203,6 +203,19 @@ describe('automatic page view', () => {
     expect(typeof views[0]!.visitorId).toBe('string');
   });
 
+  it('clips a path and referrer the ingest schema would otherwise cap', async () => {
+    const query = '?scope=' + 'a'.repeat(900);
+    setLocation(`https://site.example/dashboard/oauth/consent${query}`);
+    setReferrer(`https://site.example/login${query}`);
+    const key = await loadTracker();
+
+    const [view] = await beaconsFor(key, '/v1/a/t');
+    expect(view!.subjectId).toBe('/dashboard/oauth/consent');
+    expect(view!.path).toHaveLength(512);
+    expect(view!.path).toMatch(/^\/dashboard\/oauth\/consent\?scope=a+$/);
+    expect(view!.referrer).toHaveLength(512);
+  });
+
   it('honors a data-subject-type override', async () => {
     const key = await loadTracker({ attrs: { 'data-subject-type': 'cms_entry' } });
     const [view] = await beaconsFor(key, '/v1/a/t');

@@ -582,6 +582,72 @@ const skipReason = TEST_URL
     );
   }, 30_000);
 
+  it('records the OAuth consent view whose query string runs past the path limit', async () => {
+    const minted = await withClient(adminKey, async (c) =>
+      parseToolResult<{ id: string; trackerKey: string }>(
+        await c.callTool({
+          name: 'analytics_create_tracker',
+          arguments: { name: 'consent tracker' },
+        }),
+      ),
+    );
+    const marker = `consent-${minted.id}`;
+    const scope = encodeURIComponent(
+      [
+        'offline_access',
+        'mcp:tools',
+        'mcp:admin',
+        'kb:read',
+        'kb:write',
+        'conv:read',
+        'conv:write',
+        'crm:read',
+        'crm:write',
+        'cms:read',
+        'cms:write',
+        'outreach:read',
+        'outreach:write',
+        'connectors:read',
+        'connectors:write',
+        'commerce:read',
+        'bookings:read',
+        'bookings:write',
+        'analytics:read',
+        'analytics:write',
+        'webhooks:read',
+        'webhooks:write',
+        'feedback:read',
+        'feedback:write',
+        'system_alerts:read',
+        'system_alerts:write',
+        'slack:read',
+        'slack:write',
+      ].join(' '),
+    );
+    const path =
+      `/en/${marker}?response_type=code&client_id=claude-ai-probe` +
+      `&redirect_uri=${encodeURIComponent('https://claude.ai/api/mcp/auth_callback')}` +
+      `&code_challenge=${'c'.repeat(43)}&code_challenge_method=S256&state=${'s'.repeat(43)}` +
+      `&resource=${encodeURIComponent('https://mcp.getmunin.com/mcp')}&scope=${scope}`;
+    expect(path.length).toBeGreaterThan(512);
+
+    const status = await postBeacon(baseUrl, {
+      key: minted.trackerKey,
+      subjectId: `/en/${marker}`,
+      path,
+      locale: 'en-US',
+      visitorId: 'visitor-consent-1',
+      referrer: `https://app.getmunin.com${path}`,
+    });
+    expect(status).toBe(204);
+    await waitFor(async () => (await countTrackerEvents(db, orgId, `/${marker}`)) === 1);
+
+    const [row] = await viewRows(db, orgId, `/${marker}`);
+    expect(row?.path).toBe(path.slice(0, 512));
+    expect(row?.path).toContain(`/en/${marker}?response_type=code`);
+    expect(row?.referrer).toHaveLength(512);
+  }, 30_000);
+
   it('honors canonicalLocales when the URL prefix disagrees with the lang tag', async () => {
     const minted = await withClient(adminKey, async (c) =>
       parseToolResult<{ id: string; trackerKey: string }>(

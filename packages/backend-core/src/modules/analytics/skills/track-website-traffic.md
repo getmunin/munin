@@ -108,7 +108,7 @@ Any element with `data-mn-event` fires a view event when clicked (one delegated 
 - **Trailing slashes** are always dropped: `/pricing/` → `/pricing`.
 - **A leading locale segment** is dropped when it matches the locale the page itself reports (`<html lang>`, which every beacon already carries): `/en/pricing` on a page declaring `lang="en-US"` → `/pricing`; `/en/` → `/`. The match is exact against the full tag or its language subtag, so `/enterprise/pricing` and `/uk/pricing` (on `lang="en-GB"`) are left alone.
 
-Ids that don't start with `/` — declarative events, funnel steps, entity ids — are never rewritten, and the raw URL is always preserved in `path`, so nothing is lost.
+Ids that don't start with `/` — declarative events, funnel steps, entity ids — are never rewritten, and the raw URL is preserved in `path`, capped at 512 characters. A URL past that cap — an OAuth authorization screen carrying a long `state` and scope list is the usual one — is stored truncated; the view itself is still recorded, and `subject_id` is unaffected because it carries only the pathname.
 
 Two cases the inference can't cover: pages that set no `lang` at all, and a URL prefix that disagrees with the tag — `/no/priser` on pages declaring `lang="nb-NO"` is the classic one. Name those prefixes explicitly:
 
@@ -333,6 +333,8 @@ Or for a 1×1 pixel embedded in HTML emails / image tags:
 ```
 
 The pixel path takes `s` (subjectId, required), `t` (subjectType, defaults to `'page'`), `v` (visitorId, optional). Both routes filter known bot user-agents and rate-limit per IP.
+
+Field limits: `path` and `referrer` are stored to 512 characters, `locale` to 16, each `utm.*` to 128. Values past those are truncated rather than rejected, so an over-long URL never costs you the event. `subjectId` (512), `visitorId` (64) and `viewId` (64) are hard limits — an over-long value there is a broken caller, and truncating would merge distinct visitors or views.
 
 The beacon also accepts `viewId` — send the same value twice to enrich one row (e.g. an initial call plus a later `dwellMs`) instead of writing two. It is a per-view dedup key, not portable identity: mint a fresh uuid per view and never reuse one across visitors. Omit it and every call inserts its own row, exactly as before.
 

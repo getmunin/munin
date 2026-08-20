@@ -118,6 +118,8 @@ const skipReason = TEST_URL
     assigneeUserId?: string | null;
     endUserId?: string | null;
     lastMessageAt?: Date;
+    runnerHolder?: string;
+    runnerLeaseExpiresAt?: Date;
     messages: Array<{
       authorType: 'user' | 'agent' | 'end_user' | 'system';
       internal?: boolean;
@@ -138,6 +140,8 @@ const skipReason = TEST_URL
         agentMode: opts.agentMode ?? 'auto',
         assigneeUserId: opts.assigneeUserId ?? null,
         lastMessageAt: opts.lastMessageAt ?? new Date(),
+        runnerHolder: opts.runnerHolder ?? null,
+        runnerLeaseExpiresAt: opts.runnerLeaseExpiresAt ?? null,
       })
       .returning();
     for (const m of opts.messages) {
@@ -184,6 +188,24 @@ const skipReason = TEST_URL
         { authorType: 'end_user', offsetMs: 0 },
         { authorType: 'agent', internal: true, offsetMs: 1000 },
       ],
+    });
+    expect(await awaitingIds()).toContain(id);
+  });
+
+  it('excludes a conversation a runner is answering right now', async () => {
+    const id = await mkConv({
+      runnerHolder: 'runner-a',
+      runnerLeaseExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      messages: [{ authorType: 'end_user', offsetMs: 0 }],
+    });
+    expect(await awaitingIds()).not.toContain(id);
+  });
+
+  it('includes a conversation whose runner lease has expired', async () => {
+    const id = await mkConv({
+      runnerHolder: 'runner-a',
+      runnerLeaseExpiresAt: new Date(Date.now() - 60 * 1000),
+      messages: [{ authorType: 'end_user', offsetMs: 0 }],
     });
     expect(await awaitingIds()).toContain(id);
   });

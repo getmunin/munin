@@ -1,5 +1,58 @@
 # @getmunin/backend-core
 
+## 5.8.0
+
+### Minor Changes
+
+- 112d6de: The `ping` MCP tool now returns the organization's name alongside its id, so an agent can confirm which tenant it is connected to without a second call.
+
+### Patch Changes
+
+- 2c7e3fd: Audit log: show the agent icon in front of the client, and stop calling every browser
+  "dashboard".
+
+  `GET /v1/audit-logs` now returns `clientIconUrl` alongside `clientName`, read from the
+  OAuth client's registered logo, and the client column renders the same glyph the Agents
+  page uses (icon when the client registered one, first-letter fallback otherwise). The
+  glyph moved into a shared `ClientGlyph` component so both pages stay in sync.
+
+  `classifyClient` used to label any `Mozilla/*` user agent `dashboard`, which swept up
+  every other browser caller — a customer's own web UI, a docs "try it" console, Swagger.
+  `dashboard` now requires a session-authenticated actor with no OAuth client (only our
+  own dashboard holds a BetterAuth session cookie); every other browser caller classifies
+  as the new `browser` kind, filterable from the client dropdown. Audit rows also record
+  the calling `origin` (`Origin` header, falling back to the `Referer`'s origin), so a
+  `browser` row shows the origin host — `docs.getmunin.com` — instead of a generic label,
+  with the full origin and user agent in the cell tooltip. Existing rows keep a null
+  origin and read as the bare kind.
+
+- 3f7b9b6: Keep the org association for an org-scoped authorization alive for as long as the request can still be submitted.
+
+  The association carrying the organization across the consent redirect expired after ten minutes, the same window the provider gives its signed authorize query. Leaving a consent screen open past that and reloading it swapped the organization label for the organization switcher: the association was gone, so `GET /v1/oauth/pending-org` correctly answered `pinned: false`. In the simple case the request had expired too, so this was misleading rather than harmful — approving it fails the provider's own signature check.
+
+  The two clocks come apart when an authorization takes more than one leg, because `redirectWithPromptCode` re-signs the query on each one while the association keeps the expiry from the first. Start signed out, take a few minutes over the login, and there is a window where the re-signed request is still valid but the association has expired — the screen offers a switcher, and approving binds the token to the default organization instead of the one in the URL.
+
+  The lifetime is now an hour and every recall pushes the expiry out again, so the association outlives the request it belongs to no matter how many legs it takes. An expired row is still never resurrected. Nothing about the keying changes: one organization per `code_challenge`, first-write-wins on the challenge-only key, the session-bound key preferred on recall, and membership still verified at consent. The cost is that a row keyed on an HMAC of a `code_challenge` can now linger up to an hour after a flow ends, readable only by a caller who presents that same challenge.
+
+- 34a42b4: Analytics ingest truncates over-long URL fields instead of dropping the whole event.
+
+  `path`, `referrer`, `locale` and the `utm.*` fields were validated with a hard `z.string().max()`, so a single over-long value failed `safeParse` and the entire beacon was discarded — even though `AnalyticsService.recordView` already truncates those same fields to the same limits before insert, because the columns are `varchar`.
+
+  The OAuth consent screen hit this on every load: the tracker sends `location.pathname + location.search`, and an authorization request carrying `client_id`, `redirect_uri`, `code_challenge`, `state`, `resource` and the URL-encoded scope list runs past 800 characters — the 28-entry scope list alone encodes to 474. Both beacons for that page load (the initial view and the exit beacon carrying dwell and read depth) were rejected, so the authorization step recorded nothing and left a hole in the signup funnel at exactly the step worth measuring. A page loaded _from_ such a URL lost its own view too, because the same cap applied to `referrer`.
+
+  Those fields now parse through a transform that clips to the storage limit while still rejecting values past 8192 characters, which keeps a bound on request bodies. Hard caps stay on `subjectId`, `visitorId` and `viewId`, where an over-long value is a broken integration rather than a long URL, and where silently truncating would merge distinct visitors or views. The same fix applies to the `/v1/a/v` CMS entry-view endpoint, which was dropping malformed bodies with no log line at all.
+
+  The tracker bundle now clips `path` and `referrer` to 512 before sending, so pages running a cached bundle against an older backend degrade to a truncated path rather than a lost event. Beacon and search validation failures now log the tracker key prefix and subject id, so the next silent drop is diagnosable from the logs.
+
+- Updated dependencies [2c7e3fd]
+  - @getmunin/core@5.8.0
+  - @getmunin/db@5.8.0
+  - @getmunin/inspector-app@5.8.0
+  - @getmunin/agent-runtime@5.8.0
+  - @getmunin/mcp-toolkit@5.8.0
+  - @getmunin/types@5.8.0
+  - @getmunin/emails@5.8.0
+
 ## 5.7.0
 
 ### Minor Changes

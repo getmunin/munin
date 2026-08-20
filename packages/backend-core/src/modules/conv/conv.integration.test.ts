@@ -133,8 +133,8 @@ const skipReason = TEST_URL
     const channel = await withClient(adminKey, async (c) => {
       return parseToolResult<{ id: string }>(
         await c.callTool({
-          name: 'conv_create_channel',
-          arguments: { type: 'chat', vendor: 'munin', name: 'Web chat' },
+          name: 'conv_create_widget_channel',
+          arguments: { name: 'Web chat', originAllowlist: ['https://acme.test'] },
         }),
       );
     });
@@ -147,7 +147,7 @@ const skipReason = TEST_URL
       expect(names).not.toContain('conv_list_my_conversations');
       expect(names).not.toContain('conv_get_my_conversation');
       expect(names).not.toContain('conv_send_message_in_my_conversation');
-      expect(names).not.toContain('conv_create_channel');
+      expect(names).not.toContain('conv_create_widget_channel');
       expect(names).not.toContain('conv_change_status');
     });
 
@@ -638,19 +638,14 @@ const skipReason = TEST_URL
     });
   }, 30_000);
 
-  it('createChannel rejects vendor-backed voice and sms types, which need the credential handoff', async () => {
+  it('offers no free-form channel create tool: every channel family provisions through the tool that validates its config and hands over credentials', async () => {
     await withClient(adminKey, async (c) => {
-      for (const type of ['voice', 'sms']) {
-        const rejected = (await c.callTool({
-          name: 'conv_create_channel',
-          arguments: { type, vendor: 'twilioSms', name: `Rejected ${type}` },
-        })) as { isError?: boolean; content?: Array<{ text?: string }> };
-        expect(rejected.isError).toBe(true);
-      }
-      const channels = parseToolResult<{ name: string }[]>(
-        await c.callTool({ name: 'conv_list_channels', arguments: {} }),
-      );
-      expect(channels.map((ch) => ch.name).filter((n) => n.startsWith('Rejected'))).toEqual([]);
+      const { tools } = await c.listTools();
+      const names = tools.map((t) => t.name);
+      expect(names).not.toContain('conv_create_channel');
+      expect(names).toContain('conv_configure_email_channel');
+      expect(names).toContain('conv_create_widget_channel');
+      expect(names).toContain('conv_configure_voice_sms_channel');
     });
   }, 30_000);
 

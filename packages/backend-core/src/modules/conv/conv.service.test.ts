@@ -92,6 +92,28 @@ const skipReason = TEST_URL
     });
   }
 
+  async function insertChannel(input: {
+    type: 'email' | 'chat' | 'sms' | 'voice';
+    vendor: string;
+    name: string;
+    config?: Record<string, unknown>;
+    defaultAgentMode?: 'auto' | 'draft_only';
+  }) {
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const [row] = await db
+      .insert(schema.convChannels)
+      .values({
+        orgId,
+        type: input.type,
+        vendor: input.vendor,
+        name: input.name,
+        config: input.config ?? {},
+        ...(input.defaultAgentMode ? { defaultAgentMode: input.defaultAgentMode } : {}),
+      })
+      .returning();
+    return row!;
+  }
+
   async function eventTypes(): Promise<string[]> {
     const rows = await db.execute<{ type: string }>(
       sql`SELECT type FROM events WHERE org_id = ${orgId} ORDER BY created_at`,
@@ -100,57 +122,39 @@ const skipReason = TEST_URL
   }
 
   describe('channels', () => {
-    it('createChannel persists with type, name, config', async () => {
-      const ch = await run(() =>
-        svc.createChannel({ type: 'email', vendor: 'smtp', name: 'Support', config: { foo: 'bar' } }),
-      );
-      expect(ch.type).toBe('email');
-      expect(ch.name).toBe('Support');
-      expect(ch.config).toEqual({ foo: 'bar' });
-      expect(ch.active).toBe(true);
-    });
-
     it('listChannels returns rows in name order', async () => {
-      await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'B' }));
-      await run(() => svc.createChannel({ type: 'chat', vendor: 'munin', name: 'A' }));
+      await insertChannel({ type: 'email', vendor: 'smtp', name: 'B' });
+      await insertChannel({ type: 'chat', vendor: 'munin', name: 'A' });
       const list = await run(() => svc.listChannels());
       expect(list.map((c) => c.name)).toEqual(['A', 'B']);
     });
 
-    it('createChannel defaults agentMode to auto and persists an explicit draft_only', async () => {
-      const auto = await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'Auto' }));
-      expect(auto.defaultAgentMode).toBe('auto');
-      const draft = await run(() =>
-        svc.createChannel({
-          type: 'email',
-          vendor: 'smtp',
-          name: 'Draft',
-          defaultAgentMode: 'draft_only',
-        }),
-      );
-      expect(draft.defaultAgentMode).toBe('draft_only');
+    it('listChannels reports the stored defaultAgentMode, defaulting to auto', async () => {
+      await insertChannel({ type: 'email', vendor: 'smtp', name: 'Auto' });
+      await insertChannel({ type: 'email', vendor: 'smtp', name: 'Draft', defaultAgentMode: 'draft_only' });
       const list = await run(() => svc.listChannels());
+      expect(list.find((c) => c.name === 'Auto')!.defaultAgentMode).toBe('auto');
       expect(list.find((c) => c.name === 'Draft')!.defaultAgentMode).toBe('draft_only');
     });
 
     it('firstActiveChannel returns first by createdAt; null when none', async () => {
       const empty = await run(() => svc.firstActiveChannel());
       expect(empty).toBeNull();
-      const ch1 = await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'First' }));
-      await run(() => svc.createChannel({ type: 'chat', vendor: 'munin', name: 'Second' }));
+      const ch1 = await insertChannel({ type: 'email', vendor: 'smtp', name: 'First' });
+      await insertChannel({ type: 'chat', vendor: 'munin', name: 'Second' });
       const found = await run(() => svc.firstActiveChannel());
       expect(found!.id).toBe(ch1.id);
     });
 
     it('firstActiveChannel filters by typeHint', async () => {
-      await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'E' }));
-      const chatCh = await run(() => svc.createChannel({ type: 'chat', vendor: 'munin', name: 'C' }));
+      await insertChannel({ type: 'email', vendor: 'smtp', name: 'E' });
+      const chatCh = await insertChannel({ type: 'chat', vendor: 'munin', name: 'C' });
       const found = await run(() => svc.firstActiveChannel('chat'));
       expect(found!.id).toBe(chatCh.id);
     });
 
     it('firstActiveChannel ignores inactive channels', async () => {
-      const ch = await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'E' }));
+      const ch = await insertChannel({ type: 'email', vendor: 'smtp', name: 'E' });
       await db
         .update(schema.convChannels)
         .set({ active: false })
@@ -306,7 +310,7 @@ const skipReason = TEST_URL
 
   describe('conversations', () => {
     async function seedChannel() {
-      return run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'Support' }));
+      return insertChannel({ type: 'email', vendor: 'smtp', name: 'Support' });
     }
 
     it('createConversation rejects unknown channel and inactive channel', async () => {
@@ -357,14 +361,7 @@ const skipReason = TEST_URL
     });
 
     it('createConversation inherits the channel defaultAgentMode; explicit mode still wins', async () => {
-      const ch = await run(() =>
-        svc.createChannel({
-          type: 'email',
-          vendor: 'smtp',
-          name: 'Outreach',
-          defaultAgentMode: 'draft_only',
-        }),
-      );
+      const ch = await insertChannel({ type: 'email', vendor: 'smtp', name: 'Outreach', defaultAgentMode: 'draft_only' });
       const inherited = await run(() =>
         svc.createConversation({
           channelId: ch.id,
@@ -492,9 +489,7 @@ const skipReason = TEST_URL
   describe('messaging', () => {
     async function seedConversation(channelType: 'email' | 'chat' = 'email') {
       const vendor = channelType === 'email' ? 'smtp' : 'munin';
-      const ch = await run(() =>
-        svc.createChannel({ type: channelType, vendor, name: 'X' }),
-      );
+      const ch = await insertChannel({ type: channelType, vendor, name: 'X' });
       const conv = await run(() =>
         svc.createConversation({
           channelId: ch.id,
@@ -591,7 +586,7 @@ const skipReason = TEST_URL
 
   describe('assignment and status', () => {
     async function seedConv() {
-      const ch = await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'X' }));
+      const ch = await insertChannel({ type: 'email', vendor: 'smtp', name: 'X' });
       return run(() =>
         svc.createConversation({
           channelId: ch.id,
@@ -643,7 +638,7 @@ const skipReason = TEST_URL
     });
 
     it('inbound end_user message on outreach conv (draft_only) enqueues outreach reply-draft', async () => {
-      const ch = await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'outreach-ch' }));
+      const ch = await insertChannel({ type: 'email', vendor: 'smtp', name: 'outreach-ch' });
       const [seg] = await db
         .insert(schema.crmSegments)
         .values({
@@ -693,7 +688,7 @@ const skipReason = TEST_URL
     });
 
     it('inbound on an outreach conv with autoDraftReplies=false does NOT enqueue reply-draft', async () => {
-      const ch = await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'outreach-ch-noreply' }));
+      const ch = await insertChannel({ type: 'email', vendor: 'smtp', name: 'outreach-ch-noreply' });
       const [seg] = await db
         .insert(schema.crmSegments)
         .values({
@@ -797,7 +792,7 @@ const skipReason = TEST_URL
 
   describe('search', () => {
     it('searchMessages matches case-insensitively on body', async () => {
-      const ch = await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'X' }));
+      const ch = await insertChannel({ type: 'email', vendor: 'smtp', name: 'X' });
       const conv = await run(() =>
         svc.createConversation({
           channelId: ch.id,
@@ -819,7 +814,7 @@ const skipReason = TEST_URL
 
   describe('RLS', () => {
     it('cross-org isolation: another org cannot see this org\'s channels', async () => {
-      const mine = await run(() => svc.createChannel({ type: 'email', vendor: 'smtp', name: 'mine' }));
+      const mine = await insertChannel({ type: 'email', vendor: 'smtp', name: 'mine' });
       const [otherOrg] = await db
         .insert(schema.orgs)
         .values({ name: 'Other' })

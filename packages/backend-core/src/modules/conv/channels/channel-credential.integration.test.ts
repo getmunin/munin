@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { BadRequestException } from '@nestjs/common';
 import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
@@ -451,6 +452,47 @@ const skipReason = TEST_URL
       ),
     );
     expect(mailer.active).toBe(true);
+  });
+
+  it('answers a link for a channel whose stored config lost its credential slots with a coded, field-listing error instead of an unmapped crash', async () => {
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const [broken] = await db
+      .insert(schema.convChannels)
+      .values({
+        orgId,
+        type: 'email',
+        vendor: 'smtp',
+        name: 'Slotless inbox',
+        config: {
+          addressing: { fromAddress: 'slotless@acme.test' },
+          outbound: {
+            provider: 'smtp',
+            host: 'smtp.acme.test',
+            port: 587,
+            secure: true,
+            username: 'slotless@acme.test',
+          },
+        },
+      })
+      .returning();
+    const link = await asAdmin(() => channels.requestLink(broken!.id));
+    const token = tokenFromUrl(link.url);
+
+    const failure = await handoff.describe(token).then(
+      () => null,
+      (err: unknown) => err,
+    );
+    expect(failure).toBeInstanceOf(BadRequestException);
+    const body = (failure as BadRequestException).getResponse() as {
+      code: string;
+      fieldErrors: Array<{ field: string }>;
+    };
+    expect(body.code).toBe('conv_channel_config_invalid');
+    expect(body.fieldErrors.map((fe) => fe.field)).toContain('outbound.encryptedPassword');
+
+    const applied = await asAdmin(() => channels.apply(broken!.id, { smtpPassword: 'pw' }));
+    expect(applied.ok).toBe(false);
+    expect(applied.error).toContain('outbound.encryptedPassword');
   });
 
   it('refuses a credential link for a vendor without deferred-setup support', async () => {

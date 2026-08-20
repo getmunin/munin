@@ -22,12 +22,26 @@ interface AuditDto {
   durationMs: number | null;
   totalTokens: number | null;
   userAgent: string | null;
+  origin: string | null;
   client: ClientKind;
   clientName: string | null;
+  clientIconUrl: string | null;
   createdAt: string;
 }
 
-export type ClientKind = 'sdk' | 'cli' | 'mcp' | 'dashboard' | 'widget' | 'unknown';
+interface ClientMeta {
+  name: string | null;
+  icon: string | null;
+}
+
+export type ClientKind =
+  | 'sdk'
+  | 'cli'
+  | 'mcp'
+  | 'dashboard'
+  | 'browser'
+  | 'widget'
+  | 'unknown';
 
 const PAGE_SIZE_DEFAULT = 50;
 const PAGE_SIZE_MAX = 200;
@@ -64,8 +78,8 @@ export class AuditLogController {
       .orderBy(desc(schema.auditLog.createdAt))
       .limit(fetchTake);
 
-    const clientNames = await readClientNames(rows);
-    const all = rows.map((row) => toDto(row, clientNames));
+    const clients = await readClientMeta(rows);
+    const all = rows.map((row) => toDto(row, clients));
     const filtered = client ? all.filter((r) => r.client === client) : all;
     const items = filtered.slice(0, take);
     const nextCursor = filtered.length > take ? items[items.length - 1]!.createdAt : null;
@@ -73,26 +87,31 @@ export class AuditLogController {
   }
 }
 
-async function readClientNames(
+async function readClientMeta(
   rows: Array<typeof schema.auditLog.$inferSelect>,
-): Promise<Map<string, string>> {
+): Promise<Map<string, ClientMeta>> {
   const ids = [...new Set(rows.map((r) => r.clientId).filter((v): v is string => !!v))];
-  const out = new Map<string, string>();
+  const out = new Map<string, ClientMeta>();
   if (ids.length === 0) return out;
   const found = await getCurrentContext()
-    .db.select({ clientId: schema.oauthClient.clientId, name: schema.oauthClient.name })
+    .db.select({
+      clientId: schema.oauthClient.clientId,
+      name: schema.oauthClient.name,
+      icon: schema.oauthClient.icon,
+    })
     .from(schema.oauthClient)
     .where(inArray(schema.oauthClient.clientId, ids));
   for (const row of found) {
-    if (row.name) out.set(row.clientId, row.name);
+    out.set(row.clientId, { name: row.name ?? null, icon: row.icon ?? null });
   }
   return out;
 }
 
 function toDto(
   row: typeof schema.auditLog.$inferSelect,
-  clientNames: Map<string, string>,
+  clients: Map<string, ClientMeta>,
 ): AuditDto {
+  const client = row.clientId ? (clients.get(row.clientId) ?? null) : null;
   return {
     id: row.id,
     actorType: row.actorType,
@@ -106,8 +125,10 @@ function toDto(
     durationMs: row.durationMs,
     totalTokens: row.totalTokens,
     userAgent: row.userAgent,
+    origin: row.origin,
     client: classifyClient(row),
-    clientName: row.clientId ? (clientNames.get(row.clientId) ?? null) : null,
+    clientName: client?.name ?? null,
+    clientIconUrl: client?.icon ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -117,6 +138,7 @@ export interface ClientSignals {
   tool: string | null;
   method: string | null;
   actorType: string;
+  clientId: string | null;
 }
 
 export function classifyClient(signals: ClientSignals): ClientKind {
@@ -131,8 +153,12 @@ export function classifyClient(signals: ClientSignals): ClientKind {
   if (ua.includes('curl') || ua.includes('wget') || ua.includes('httpie') || ua.includes('postman') || ua.includes('insomnia')) {
     return 'cli';
   }
-  if (ua.startsWith('mozilla/')) return 'dashboard';
-  return 'unknown';
+  if (!ua.startsWith('mozilla/')) return 'unknown';
+  return isDashboardSession(signals) ? 'dashboard' : 'browser';
+}
+
+function isDashboardSession(signals: ClientSignals): boolean {
+  return signals.actorType === 'user' && !signals.clientId;
 }
 
 function isMcpTransport(method: string | null): boolean {

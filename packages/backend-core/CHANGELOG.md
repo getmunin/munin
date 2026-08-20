@@ -1,5 +1,84 @@
 # @getmunin/backend-core
 
+## 5.9.0
+
+### Minor Changes
+
+- 2e00517: Remove `conv_create_channel`. It took `config` as a free-form object and persisted it verbatim, with no per-type validation, no encryption and no credential slots — so an email channel created through it read as complete in `conv_list_channels` and was unusable: the stored config failed the schema every later read applied, the credential link could not describe its password fields, and the dashboard had nowhere to save them. A plaintext `password` passed in that config was stored unencrypted and echoed back, since config masking only covers `encrypted*` keys.
+
+  Both remaining types already have a tool that provisions them properly, and the type this tool made easiest to reach was the one it broke: `conv_configure_email_channel` validates the transport config, encrypts secrets and returns a credential link; `conv_create_widget_channel` mints the widget key a chat channel cannot work without. Voice and SMS were removed from this tool for the same reason in 4.76.0; nothing remained that it could create correctly. Use those tools instead, or `conv_import` when moving historical channel rows between servers.
+
+  Migration `0073_conv_email_channel_credential_slots` repairs email channels already written that way: it adds the missing `encryptedPassword` slots, deactivates the channel so an existing credential link can complete it, and drops any plaintext `password` key.
+
+- 974470b: Make the end-user identity spine addressable over MCP: `identity_resolve`, `identity_get`, and an `endUserId` filter on `conv_list_conversations`.
+
+  `end_users` is the record that actually unifies a person across channels — it is created deterministically the first time someone reaches the org by email, widget chat, or an analytics `identify` call. `crm_contacts` is derived from it and is lossy: the row is written by a curator pass that runs only when a conversation _closes_, and that pass is instructed to decline for mailing lists, auto-replies, bounces, and conversations where nothing identifying was volunteered. Until now the derived record had the full tool surface — create, update, search, lookup, merge proposals, consent, segments, activities — and the durable one had none. An agent could observe an `endUserId` only as an opaque field on a conversation, with no way to go from an email address to the identity it belongs to, which pushed agents toward `analytics_export_config` as an improvised lookup.
+
+  - `identity_resolve` takes an email, phone, external id, or analytics visitor id and returns the matching `endUserId`, which identifier matched, and `crmContactId`. It is strictly read-only: a miss returns a null `endUserId` and leaves no row behind. It is a read-only sibling of `resolveIdentifiedEndUser`, not a call into it — that function is a write path that inserts, adopts provisional identities, and declines contested emails — but it reuses the same match order so the two agree.
+  - `identity_get` returns one end user with a cross-channel summary: channel types written on, conversation count and recency, linked analytics visitor ids, view and search event counts, and the ids of the matching CRM and conversation contacts. Orders and bookings are deliberately excluded — those are live reads against a customer's own store or booking vendor, so folding them in would make every identity lookup slow and make it fail whenever a vendor is down.
+  - A null `crmContactId` now means something an agent can act on: "known person, CRM pass has not run or declined", as distinct from "unknown person". `skill://identity/look-up-a-person` spells out the difference, because conflating them is the failure mode this surface exists to prevent.
+  - Both tools are admin-audience under a new `identity:read` scope. `identity_resolve` accepts an arbitrary email, so it must never gain a self-service twin: the `commerce` and `bookings` self-service tools bind to the caller's email server-side precisely so an end-user agent cannot look up a third party, and an end-user-audience resolve would be the bypass for that whole design.
+
+  The end-user service also moves out of `end-users.controller.ts`, which was querying the database inline, into `IdentityService`, so the `/v1` controller and the MCP tools are both thin wrappers over one service. The `/v1/end-users` request and response shapes are unchanged.
+
+  Separately, `conv_message_reads` ids move from the `cmr_` prefix to `cvr_`. `cmr_` was minted by both `conv_message_reads` and `cms_references`; `cms_*` consistently uses `cm*`, so `cms_references` keeps it and conversation reads move to `cvr_`, matching `cvm_` for `conv_messages`. Existing ids are rewritten in place, which is safe because the table is a leaf with no inbound foreign keys and only the prefix changes. The prefix is minted in two places — the schema default and a raw `INSERT` in the realtime gateway — and both move. The backfill runs inside a `bypass_rls` block: `conv_message_reads` is `FORCE ROW LEVEL SECURITY`, which applies to the table owner too, so without it the update matches no rows on a real deploy while looking green in CI, where migrations connect as a superuser.
+
+  Not included, and deliberately: there is still no way to merge two end users. Ten columns reference `end_users.id` and a merge has to free the loser's unique email and external id and dedupe the `(message_id, end_user_id)` index on message reads. `resolveIdentifiedEndUser` already detects the two-identities-one-human case and names it `email-held-by-another-identity`, declining to steal the address; nothing yet surfaces or resolves that state.
+
+- 77442a5: Let any registered MCP resource be addressed per organization, not just the shared endpoint.
+
+  Org scoping was written for one path. `/mcp/o/<orgId>` was a literal prefix, the resource identifier was built from an org id alone, and the association carried an org with no record of what it was asked for — so a second MCP endpoint registered beside `/mcp` could only ever be reached at its bare path, and every connection to it bound to whichever membership was `isDefault`. A user in several organizations could hold exactly one connection to it.
+
+  An org now hangs off any resource path below `/mcp`: `<resourcePath>/o/<orgId>`. The pieces that were hardcoded to the shared endpoint are now parameterised by the resource:
+
+  - Paths and resource identifiers are parsed and built from a `{ basePath, orgId }` pair, and the request scope carries the base path so later steps know which resource the org was requested for.
+  - The protected-resource document for `<surface>/o/<orgId>` advertises that URL as its own resource identifier, with the surface's own scopes and name plus the `mcp:org:<orgId>` marker, and 404s when no surface is registered at that path.
+  - Tokens narrow to the resource the request named — a surface's own identifier rather than the shared one — so the audience the provider validates matches what the surface accepts. The shared endpoint still narrows to the configured base resource, which is not necessarily origin plus `/mcp`.
+  - The association records the base path alongside the org, so the consent leg reconstructs the same resource. A row written before this change reads back as the shared endpoint, so associations in flight across a deploy still resolve.
+  - The guard enforces the org against the credential on a surface path exactly as on the shared one, accepts the surface, the org-scoped surface and the base resource as audiences there, refuses one organization's identifier on another's path, and challenges with the org-scoped document so a client re-authorizes into the right organization instead of looping on the surface root.
+  - A malformed org selector still 404s rather than falling through to default-organization behaviour, on surface paths as well.
+
+  Only paths below `/mcp` can be org-scoped; anything else is refused when building or parsing, so this cannot be used to org-scope an unrelated endpoint.
+
+### Patch Changes
+
+- 2e00517: Fix credential-handoff links, which answered `401 invalid or expired credential` on every click in cloud.
+
+  `CredentialHandoffController` was a plain `@Controller('v1/credentials')` with no `@AllowAnonymous()`. OSS applies `AuthGuard` per controller, so the endpoint was reachable there and every integration test passed; cloud registers `AuthGuard` as a global `APP_GUARD`, so both the describe (GET) and complete (POST) requests were rejected before the handoff service ran. The entry page fetches with `anonymous: true` — correct, since the link exists for people who hold no Munin credential — which made the failure total: every link minted by `conv_request_channel_credentials`, `conv_configure_email_channel` or `connectors_request_credentials` was dead on arrival, and the auth guard's message read as if the _link_ had expired. It is now a `PublicController` with public throttling, guarded by a test that fails if any controller declares neither `AuthGuard` nor an anonymous opt-out.
+
+  A channel whose stored config is missing its credential slots now answers the link with a `conv_channel_config_invalid` 400 carrying `fieldErrors`, instead of an unmapped error that surfaced as a bare 500 — the interceptor that maps it only covers the dashboard's channel controller. The entry page names those fields, and no longer keeps showing a stale load error after a later attempt succeeds.
+
+- 692813d: Stop the agent sending two replies to one inbound message.
+
+  A visitor email could get answered twice. The recovery sweeper that picks up unanswered
+  conversations runs every 30s and had no minimum age or in-flight exclusion, so a
+  conversation whose first reply was still being generated (25s is normal for a tool-using
+  turn) was a valid candidate. Three guards should have stopped the duplicate and each had
+  a gap: the in-process abort is cooperative and `runAgent` never re-checks it after the
+  final provider response, so a superseded run still returned an answer and posted it; the
+  cross-runner lease is released immediately after posting; and the backend
+  `agent_reply_race` check only rejects a post when an agent message is newer than _the
+  caller's own snapshot_, so a run that read the conversation after the first reply landed
+  carried that reply as its own `sinceMessageId` and passed. Nothing checked that the last
+  public message was still the visitor's — `resolveDelivery` only required that some
+  inbound message existed somewhere in the thread.
+
+  Three fixes: a reply run now bails when the last non-internal message is not from the
+  visitor; `run()` checks the abort signal after generation completes and before posting;
+  and the awaiting-reply query excludes conversations holding a live runner lease.
+
+- Updated dependencies [2e00517]
+- Updated dependencies [692813d]
+- Updated dependencies [974470b]
+- Updated dependencies [77442a5]
+  - @getmunin/db@5.9.0
+  - @getmunin/agent-runtime@5.9.0
+  - @getmunin/core@5.9.0
+  - @getmunin/inspector-app@5.9.0
+  - @getmunin/mcp-toolkit@5.9.0
+  - @getmunin/types@5.9.0
+  - @getmunin/emails@5.9.0
+
 ## 5.8.0
 
 ### Minor Changes

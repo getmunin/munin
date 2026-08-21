@@ -69,6 +69,7 @@ export interface SeoPageStatsResult {
 export interface SeoUrlStatus {
   url: string;
   indexed: boolean;
+  detail: string | null;
   httpStatus: number | null;
   lastCrawledAt: string | null;
   discoveredAt: string | null;

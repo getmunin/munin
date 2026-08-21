@@ -206,6 +206,7 @@ describe('BingAdapter', () => {
     expect(status).toEqual({
       url: 'https://example.com/pricing',
       indexed: true,
+      detail: null,
       httpStatus: 200,
       lastCrawledAt: '2026-03-18T00:00:00.000Z',
       discoveredAt: '2025-11-02T00:00:00.000Z',

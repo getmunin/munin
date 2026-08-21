@@ -170,6 +170,7 @@ export class BingAdapter implements SeoAdapter {
     return {
       url: info.Url,
       indexed: info.IsPage === true,
+      detail: null,
       httpStatus: numberOrNull(info.HttpStatus),
       lastCrawledAt: parseBingDate(info.LastCrawledDate),
       discoveredAt: parseBingDate(info.DiscoveryDate),

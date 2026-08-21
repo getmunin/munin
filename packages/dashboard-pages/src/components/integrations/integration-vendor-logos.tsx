@@ -51,6 +51,17 @@ export function BingMark(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function GoogleSearchConsoleMark(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden {...props}>
+      <path d="M12 10.2v3.72h5.28a4.6 4.6 0 0 1-2 3.02l3.22 2.5C20.4 17.72 21.4 15.2 21.4 12.2c0-.72-.06-1.4-.18-2.06z" fill="#4285F4" />
+      <path d="M12 21.6c2.7 0 4.96-.9 6.5-2.16l-3.22-2.5c-.88.6-2 .96-3.28.96a5.9 5.9 0 0 1-5.54-4.06L3.1 16.4A9.97 9.97 0 0 0 12 21.6z" fill="#34A853" />
+      <path d="M6.46 13.84a5.98 5.98 0 0 1 0-3.7L3.1 7.6a9.98 9.98 0 0 0 0 8.8z" fill="#FBBC05" />
+      <path d="M12 6.36c1.48 0 2.8.52 3.84 1.5l2.86-2.86A9.6 9.6 0 0 0 12 2.4 9.97 9.97 0 0 0 3.1 7.6l3.36 2.54A5.9 5.9 0 0 1 12 6.36z" fill="#EA4335" />
+    </svg>
+  );
+}
+
 export function GastroplannerMark(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="104.6 99.1 311.9 311.9" xmlns="http://www.w3.org/2000/svg" aria-hidden {...props}>

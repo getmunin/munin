@@ -6,6 +6,7 @@ import {
   GastroplannerMark,
   CustomMcpMark,
   BingMark,
+  GoogleSearchConsoleMark,
 } from './integration-vendor-logos';
 
 export interface VendorPresentation {
@@ -51,6 +52,12 @@ export const VENDOR_PRESENTATION: Record<string, VendorPresentation> = {
     descriptionKey: 'bing',
     capabilityKeys: ['seoQueries', 'seoIndexStatus', 'seoSubmit'],
     Mark: BingMark,
+  },
+  google_search_console: {
+    categoryKey: 'seo',
+    descriptionKey: 'googleSearchConsole',
+    capabilityKeys: ['seoQueries', 'seoPages', 'seoIndexStatus'],
+    Mark: GoogleSearchConsoleMark,
   },
 };
 

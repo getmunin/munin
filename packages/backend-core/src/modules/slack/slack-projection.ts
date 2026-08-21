@@ -427,6 +427,21 @@ export function kbCandidateApprovalText(snap: KbCandidateApprovalSnapshot): stri
   return lines.join('\n');
 }
 
+export interface CmsEntryPublishedSnapshot {
+  title: string;
+  collectionSlug: string | null;
+  locale: string | null;
+  url: string | null;
+}
+
+export function cmsEntryPublishedText(snap: CmsEntryPublishedSnapshot): string {
+  const lines = [`:rocket: *Published* — *${escapeSlackText(snap.title)}*`];
+  const meta = [snap.collectionSlug, snap.locale].filter((v): v is string => !!v);
+  if (meta.length > 0) lines.push(`_${escapeSlackText(meta.join(' · '))}_`);
+  if (snap.url) lines.push(`<${snap.url}|Read it live>`);
+  return lines.join('\n');
+}
+
 export type ApprovalOutcome = 'applied' | 'sent' | 'published' | 'dismissed' | 'withdrawn';
 
 export function approvalResolvedLine(

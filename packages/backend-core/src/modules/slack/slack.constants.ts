@@ -29,6 +29,19 @@ export const SLACK_APPROVAL_EVENT_TYPES: readonly string[] = [
   'kb.curation_candidate.dismissed',
 ];
 
+export const SLACK_ANNOUNCEMENT_EVENT_TYPES: readonly string[] = ['cms.entry.published'];
+
+export function announcementSubjectRef(
+  eventType: string,
+  payload: Record<string, unknown>,
+): { subjectType: string; subjectId: string } | null {
+  if (eventType !== 'cms.entry.published') return null;
+  if (payload.previousStatus === 'published') return null;
+  const id =
+    typeof payload.entryId === 'string' && payload.entryId.length > 0 ? payload.entryId : null;
+  return id ? { subjectType: 'cms_entry', subjectId: id } : null;
+}
+
 export function approvalSubjectRef(
   eventType: string,
   payload: Record<string, unknown>,

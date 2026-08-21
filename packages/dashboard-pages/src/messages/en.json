@@ -1437,6 +1437,7 @@
         "chatBridge": "Chat · Bridge",
         "commerce": "Commerce",
         "booking": "Booking",
+        "seo": "Search",
         "connection": "Connection"
       },
       "description": {
@@ -1444,6 +1445,7 @@
         "shopify": "Orders, customers, and fulfillment — read on behalf of a customer.",
         "magento": "Read orders and customers from your Magento store.",
         "gastroplanner": "Check availability, book tables, and manage restaurant bookings.",
+        "bing": "See which searches show your site on Bing and Copilot — and push updated pages for recrawl.",
         "generic": "Read directly on behalf of a customer."
       },
       "capability": {
@@ -1453,7 +1455,10 @@
         "customersLookup": "Match a conversation to a store customer.",
         "bookingsLookup": "Find a guest's bookings and details.",
         "bookingsAvailability": "Check availability and book a table.",
-        "bookingsManage": "Change or cancel a guest's booking."
+        "bookingsManage": "Change or cancel a guest's booking.",
+        "seoQueries": "See the searches your pages are shown for.",
+        "seoIndexStatus": "Check whether a page is indexed.",
+        "seoSubmit": "Submit updated pages for recrawl."
       }
     },
     "field": {
@@ -1486,6 +1491,13 @@
           "label": "Integration access token",
           "hint": "An integration token with read access to Sales + Customers.",
           "invalid": "This doesn't look like a valid token — paste the full integration token."
+        }
+      },
+      "bing": {
+        "apiKey": {
+          "label": "API key",
+          "hint": "From Bing Webmaster Tools → Settings → API access → API key.",
+          "invalid": "This doesn't look like a valid key — paste the full API key from Bing Webmaster Tools."
         }
       },
       "gastroplanner": {

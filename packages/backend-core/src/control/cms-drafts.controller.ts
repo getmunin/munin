@@ -114,6 +114,15 @@ export class CmsDraftsController {
     });
   }
 
+  @Post(':id/unschedule')
+  @HttpCode(200)
+  async unschedule(@Param('id') id: string): Promise<EntryDto> {
+    return translate(async () => {
+      const existing = await this.cms.getEntry(id);
+      return this.cms.unscheduleEntry({ id, ifVersion: existing.version });
+    });
+  }
+
   @Post(':id/assets')
   @HttpCode(200)
   async uploadAsset(@Param('id') id: string, @Body() input: UploadAssetBody): Promise<AssetDto> {

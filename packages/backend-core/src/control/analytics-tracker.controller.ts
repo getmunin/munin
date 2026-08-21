@@ -262,17 +262,25 @@ export class AnalyticsTrackerController {
       visitorId: body.visitorId,
       email: body.email ?? null,
     });
-    const ok =
-      verifyHmac(canonical, secret, signature) ||
-      (body.email === undefined &&
-        verifyHmac(
-          legacyIdentityHashPayload(body.externalId, body.visitorId),
-          secret,
-          signature,
-        ));
-    if (!ok) {
+    const canonicalOk = verifyHmac(canonical, secret, signature);
+    const legacyOk =
+      !canonicalOk &&
+      body.email === undefined &&
+      verifyHmac(legacyIdentityHashPayload(body.externalId, body.visitorId), secret, signature);
+    if (!canonicalOk && !legacyOk) {
       this.logger.warn(`identify.rejected: hmac_mismatch tracker=${tracker.trackerId}`);
       throw new BadRequestException('identity_hash_mismatch');
+    }
+    if (legacyOk) {
+      if (body.externalId.includes(':') || body.visitorId.includes(':')) {
+        this.logger.warn(
+          `identify.rejected: legacy_hash_ambiguous tracker=${tracker.trackerId} — the externalId:visitorId payload admits more than one field split when a field contains a colon; sign the length-prefixed mn.identity.v1 payload instead (skill://analytics/identify-visitors)`,
+        );
+        throw new BadRequestException('identity_hash_ambiguous');
+      }
+      this.logger.warn(
+        `identify.legacy_hash: tracker=${tracker.trackerId} verified with the deprecated externalId:visitorId payload — re-sign with the length-prefixed mn.identity.v1 payload (skill://analytics/identify-visitors); this fallback will be removed`,
+      );
     }
 
     const email = normalizeIdentityEmail(body.email);

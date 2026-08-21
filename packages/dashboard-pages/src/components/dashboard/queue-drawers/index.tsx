@@ -5,7 +5,67 @@ import { CrmQueueDrawer } from './crm';
 import { FeedbackQueueDrawer } from './feedback';
 import { KbQueueDrawer } from './kb';
 import { OutreachQueueDrawer } from './outreach';
-import type { CmsAssetExpanded, CmsDraftDetailDto, QueueItem } from './types';
+import type {
+  CmsAssetExpanded,
+  CmsDraftDetailDto,
+  QueueItem,
+  ScheduledItem,
+} from './types';
+
+const noop = () => {};
+const noopAsync = async () => {};
+
+export function ScheduledDrawer({
+  item,
+  cmsDetail,
+  loadError,
+  onRetry,
+  pending,
+  onCancel,
+  onClose,
+}: {
+  item: ScheduledItem;
+  cmsDetail?: CmsDraftDetailDto;
+  loadError?: string;
+  onRetry: () => void;
+  pending: boolean;
+  onCancel: () => void;
+  onClose: () => void;
+}) {
+  if (item.kind === 'outreach') {
+    return (
+      <OutreachQueueDrawer
+        item={{ ...item, createdAt: item.raw.createdAt }}
+        pending={pending}
+        readOnly
+        onApprove={noop}
+        onDismiss={noop}
+        onSave={noopAsync}
+        onCancelScheduled={onCancel}
+        onClose={onClose}
+      />
+    );
+  }
+  return (
+    <CmsQueueDrawer
+      item={{ ...item, createdAt: item.raw.updatedAt }}
+      detail={cmsDetail}
+      loadError={loadError}
+      onRetry={onRetry}
+      pending={pending}
+      readOnly
+      scheduledAt={item.at}
+      onApprove={noop}
+      onDismiss={noop}
+      onSaveData={noopAsync}
+      onUploadAsset={() => Promise.reject(new Error('read-only'))}
+      onSchedule={noopAsync}
+      onCancelScheduled={onCancel}
+      onPreview={noop}
+      onClose={onClose}
+    />
+  );
+}
 
 export function QueueDrawer({
   item,
@@ -107,4 +167,4 @@ export function QueueDrawer({
   }
 }
 
-export type { QueueItem } from './types';
+export type { QueueItem, ScheduledItem } from './types';

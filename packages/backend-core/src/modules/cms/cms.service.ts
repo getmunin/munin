@@ -154,6 +154,10 @@ export interface CmsDraftEntrySummary {
   updatedAt: string;
 }
 
+export interface CmsScheduledEntrySummary extends CmsDraftEntrySummary {
+  scheduledAt: string;
+}
+
 export interface PreviewLinkDto {
   url: string | null;
   deliveryUrl: string;
@@ -437,9 +441,24 @@ export class CmsService {
   }
 
   async listDraftEntries(limit = 50): Promise<CmsDraftEntrySummary[]> {
+    const rows = await this.selectEntrySummaryRows('draft', limit, 'updated');
+    return rows.map((r) => this.toEntrySummary(r));
+  }
+
+  async listScheduledEntries(limit = 50): Promise<CmsScheduledEntrySummary[]> {
+    const rows = await this.selectEntrySummaryRows('scheduled', limit, 'scheduled');
+    return rows.flatMap((r) =>
+      r.scheduledAt ? [{ ...this.toEntrySummary(r), scheduledAt: r.scheduledAt.toISOString() }] : [],
+    );
+  }
+
+  private selectEntrySummaryRows(
+    status: EntryStatus,
+    limit: number,
+    order: 'updated' | 'scheduled',
+  ) {
     const ctx = getCurrentContext();
-    const take = clampLimit(limit, 50, 200);
-    const rows = await ctx.db
+    return ctx.db
       .select({
         id: schema.cmsEntries.id,
         collectionId: schema.cmsEntries.collectionId,
@@ -448,6 +467,7 @@ export class CmsService {
         data: schema.cmsEntries.data,
         version: schema.cmsEntries.version,
         updatedAt: schema.cmsEntries.updatedAt,
+        scheduledAt: schema.cmsEntries.scheduledAt,
         collectionName: schema.cmsCollections.name,
         collectionSlug: schema.cmsCollections.slug,
         collectionFields: schema.cmsCollections.fields,
@@ -457,28 +477,43 @@ export class CmsService {
         schema.cmsCollections,
         eq(schema.cmsCollections.id, schema.cmsEntries.collectionId),
       )
-      .where(eq(schema.cmsEntries.status, 'draft'))
-      .orderBy(desc(schema.cmsEntries.updatedAt))
-      .limit(take);
+      .where(eq(schema.cmsEntries.status, status))
+      .orderBy(
+        order === 'scheduled'
+          ? asc(schema.cmsEntries.scheduledAt)
+          : desc(schema.cmsEntries.updatedAt),
+      )
+      .limit(clampLimit(limit, 50, 200));
+  }
 
-    return rows.map((r) => {
-      const fields = (r.collectionFields ?? []) as FieldDef[];
-      const data = (r.data ?? {});
-      const derived = deriveEntryTitle(fields, data);
-      return {
-        id: r.id,
-        collectionId: r.collectionId,
-        collectionSlug: r.collectionSlug,
-        collectionName: r.collectionName,
-        slug: r.slug,
-        locale: r.locale,
-        title: derived.title ?? r.slug,
-        titleFieldName: derived.fieldName,
-        wordCount: countWordsInBody(data),
-        version: r.version,
-        updatedAt: r.updatedAt.toISOString(),
-      };
-    });
+  private toEntrySummary(r: {
+    id: string;
+    collectionId: string;
+    collectionSlug: string;
+    collectionName: string;
+    slug: string;
+    locale: string;
+    data: Record<string, unknown> | null;
+    version: number;
+    updatedAt: Date;
+    collectionFields: unknown;
+  }): CmsDraftEntrySummary {
+    const fields = (r.collectionFields ?? []) as FieldDef[];
+    const data = r.data ?? {};
+    const derived = deriveEntryTitle(fields, data);
+    return {
+      id: r.id,
+      collectionId: r.collectionId,
+      collectionSlug: r.collectionSlug,
+      collectionName: r.collectionName,
+      slug: r.slug,
+      locale: r.locale,
+      title: derived.title ?? r.slug,
+      titleFieldName: derived.fieldName,
+      wordCount: countWordsInBody(data),
+      version: r.version,
+      updatedAt: r.updatedAt.toISOString(),
+    };
   }
 
   async archiveEntry(input: { id: string; ifVersion: number }): Promise<EntryDto> {
@@ -962,6 +997,16 @@ export class CmsService {
       throw new CmsInvalidError('scheduledAt must be in the future');
     }
     return this.transition({ ...input, scheduledAt: at }, 'scheduled');
+  }
+
+  async unscheduleEntry(input: { id: string; ifVersion: number }): Promise<EntryDto> {
+    const existing = await this.loadEntryRow(input.id);
+    if (existing.status !== 'scheduled') {
+      throw new CmsInvalidError(
+        `entry ${input.id} is not scheduled (status: ${existing.status})`,
+      );
+    }
+    return this.transition(input, 'draft');
   }
 
   async deleteEntry(input: { id: string; ifVersion: number }): Promise<{ deleted: true }> {
@@ -1747,6 +1792,7 @@ export class CmsService {
       updates.scheduledAt = input.scheduledAt;
     } else if (status === 'draft') {
       updates.publishedAt = null;
+      updates.scheduledAt = null;
     } else if (status === 'archived') {
       updates.scheduledAt = null;
     }

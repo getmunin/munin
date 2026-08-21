@@ -15,8 +15,8 @@ import type {
   CmsAssetExpanded,
   CmsDraftDetailDto,
   KbCandidateDto,
-  OutreachProposalDto,
   QueueItem,
+  ScheduledItem,
 } from './queue-drawers/types';
 import {
   clearKey,
@@ -98,18 +98,57 @@ function useQueueBuilder() {
   );
 }
 
+function useScheduledBuilder() {
+  const tSched = useTranslations('dashboard.overview.scheduled');
+
+  return useCallback(
+    (q: InboxQueueResponse['queue']): ScheduledItem[] => {
+      const outreach = (q.outreachScheduled ?? []).flatMap<ScheduledItem>((o) =>
+        o.scheduledSendAt
+          ? [
+              {
+                kind: 'outreach',
+                id: o.id,
+                title: o.draftSubject ?? o.campaign?.name ?? tSched('outreachUntitled'),
+                snippet:
+                  o.delivery?.destination ?? o.contact?.email ?? tSched('unknownDestination'),
+                at: o.scheduledSendAt,
+                raw: o,
+              },
+            ]
+          : [],
+      );
+      const cms = (q.cmsScheduled ?? []).map<ScheduledItem>((c) => ({
+        kind: 'cms',
+        id: c.id,
+        title: c.title ?? tSched('cmsUntitled'),
+        snippet: tSched('cmsDestination', { collection: c.collectionName }),
+        at: c.scheduledAt,
+        raw: c,
+      }));
+      return [...outreach, ...cms].sort(
+        (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
+      );
+    },
+    [tSched],
+  );
+}
+
 export function useInboxData(): InboxController {
   const buildQueue = useQueueBuilder();
+  const buildScheduled = useScheduledBuilder();
   const translateErr = useTranslateError();
   const [items, setItems] = useState<LiveSummary[]>([]);
   const [details, setDetails] = useState<Record<string, ConversationDetail>>({});
   const [queue, setQueue] = useState<QueueItem[]>([]);
-  const [scheduledSends, setScheduledSends] = useState<OutreachProposalDto[]>([]);
+  const [scheduled, setScheduled] = useState<ScheduledItem[]>([]);
   const [kbBodies, setKbBodies] = useState<Record<string, string>>({});
   const [kbRevisedBodies, setKbRevisedBodies] = useState<Record<string, string>>({});
   const [cmsDetails, setCmsDetails] = useState<Record<string, CmsDraftDetailDto>>({});
   const [convDrawer, setConvDrawer] = useState<ConvDrawer>(null);
   const [queueDrawer, setQueueDrawer] = useState<QueueItem | null>(null);
+  const [scheduledDrawer, setScheduledDrawer] = useState<ScheduledItem | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<ScheduledItem | null>(null);
   const [reply, setReply] = useState('');
   const [draftEdit, setDraftEdit] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -127,13 +166,13 @@ export function useInboxData(): InboxController {
       setItems(res.live);
       setDetails((prev) => mergeLive(prev, res.live));
       setQueue(buildQueue(res.queue));
-      setScheduledSends(res.queue.outreachScheduled ?? []);
+      setScheduled(buildScheduled(res.queue));
       setLoadError(null);
       setHasLoadedOnce(true);
     } catch (err) {
       if (err instanceof ApiError) setLoadError(err);
     }
-  }, [buildQueue]);
+  }, [buildQueue, buildScheduled]);
 
   const retryLoad = useCallback(async () => {
     setRetrying(true);
@@ -222,12 +261,19 @@ export function useInboxData(): InboxController {
     void loadKbBody(queueDrawer.id);
   }, [queueDrawer, kbBodies, queueDetailErrors, loadKbBody]);
 
+  const cmsDetailId =
+    queueDrawer?.kind === 'cms'
+      ? queueDrawer.id
+      : scheduledDrawer?.kind === 'cms'
+        ? scheduledDrawer.id
+        : null;
+
   useEffect(() => {
-    if (!queueDrawer || queueDrawer.kind !== 'cms') return;
-    if (cmsDetails[queueDrawer.id] !== undefined) return;
-    if (queueDetailErrors[queueDrawer.id]) return;
-    void loadCmsDetail(queueDrawer.id);
-  }, [queueDrawer, cmsDetails, queueDetailErrors, loadCmsDetail]);
+    if (cmsDetailId === null) return;
+    if (cmsDetails[cmsDetailId] !== undefined) return;
+    if (queueDetailErrors[cmsDetailId]) return;
+    void loadCmsDetail(cmsDetailId);
+  }, [cmsDetailId, cmsDetails, queueDetailErrors, loadCmsDetail]);
 
   useEffect(() => {
     if (!queueDrawer || queueDrawer.kind !== 'outreach') return;
@@ -250,7 +296,8 @@ export function useInboxData(): InboxController {
       event.type.startsWith('conversation.') ||
       event.type.startsWith('kb.') ||
       event.type.startsWith('crm.merge_proposal.') ||
-      event.type.startsWith('outreach.proposal.');
+      event.type.startsWith('outreach.proposal.') ||
+      event.type.startsWith('cms.entry.');
     if (matches) void loadInbox();
     if (event.type.startsWith('conversation.')) {
       const eventConvId = event.payload['conversationId'];
@@ -597,6 +644,27 @@ export function useInboxData(): InboxController {
           method: 'POST',
           body: JSON.stringify({ reason }),
         });
+        setScheduledDrawer(null);
+        setCancelTarget(null);
+        await loadInbox();
+      } catch (err) {
+        notify.error(translateErr(err));
+        throw err;
+      } finally {
+        setPending(false);
+      }
+    },
+    [loadInbox, translateErr],
+  );
+
+  const cancelScheduledPublish = useCallback(
+    async (id: string) => {
+      setPending(true);
+      try {
+        await api(`/v1/cms/drafts/${id}/unschedule`, { method: 'POST', body: '{}' });
+        setCmsDetails((prev) => clearKey(prev, id));
+        setScheduledDrawer(null);
+        setCancelTarget(null);
         await loadInbox();
       } catch (err) {
         notify.error(translateErr(err));
@@ -642,6 +710,10 @@ export function useInboxData(): InboxController {
     setConvDrawer,
     queueDrawer,
     setQueueDrawer,
+    scheduledDrawer,
+    setScheduledDrawer,
+    cancelTarget,
+    setCancelTarget,
     reply,
     setReply,
     draftEdit,
@@ -661,8 +733,9 @@ export function useInboxData(): InboxController {
     closeConv,
     send,
     approveQueue,
-    scheduledSends,
+    scheduled,
     cancelScheduledSend,
+    cancelScheduledPublish,
     saveQueue,
     saveCmsDraft,
     uploadCmsAsset,

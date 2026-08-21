@@ -6,6 +6,7 @@ import { DB } from '../../common/db/db.module.ts';
 import { formatPhoneNumber } from '../../common/format-phone.ts';
 import { withSchedulerLock } from '../../common/scheduler-lock/index.ts';
 import { SlackApiClient, SlackApiError } from './slack-api.client.ts';
+import { slackAvatarFilename } from './slack-avatars.controller.ts';
 import { decryptSecretValue } from './slack.service.ts';
 import {
   approvalBlocks,
@@ -57,6 +58,12 @@ type DeliveryRow = typeof schema.slackDeliveries.$inferSelect;
 type LinkRow = typeof schema.slackConversationLinks.$inferSelect;
 
 class TerminalDeliveryError extends Error {}
+
+function avatarIconUrl(avatarKey: string | undefined): string | undefined {
+  if (!avatarKey) return undefined;
+  const file = slackAvatarFilename(avatarKey);
+  return file ? `${readApiBaseUrl()}/v1/slack/avatars/${file}` : undefined;
+}
 
 function slackTsIsToday(slackTs: string): boolean {
   const postedAtSec = Number.parseFloat(slackTs);
@@ -118,11 +125,18 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
                      OR earlier.subject_key = slack_deliveries.subject_key)
                 AND earlier.delivered_at IS NULL
                 AND earlier.attempt < ${MAX_ATTEMPTS}
-                AND earlier.created_at < slack_deliveries.created_at
+                AND (earlier.order_at, earlier.order_seq, earlier.created_at, earlier.id)
+                    < (slack_deliveries.order_at, slack_deliveries.order_seq,
+                       slack_deliveries.created_at, slack_deliveries.id)
             )`,
           ),
         )
-        .orderBy(schema.slackDeliveries.createdAt)
+        .orderBy(
+          schema.slackDeliveries.orderAt,
+          schema.slackDeliveries.orderSeq,
+          schema.slackDeliveries.createdAt,
+          schema.slackDeliveries.id,
+        )
         .limit(BATCH_SIZE);
       if (rows.length === 0) break;
 
@@ -301,9 +315,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         text: messageBodyText(snapshot),
         username: identity.username,
         iconEmoji: identity.iconEmoji,
-        iconUrl: identity.avatarKey
-          ? `${readApiBaseUrl()}/v1/slack/avatars/${identity.avatarKey}.png`
-          : undefined,
+        iconUrl: avatarIconUrl(identity.avatarKey),
       });
     } catch (err) {
       if (!(err instanceof SlackApiError) || err.apiError !== 'missing_scope') throw err;

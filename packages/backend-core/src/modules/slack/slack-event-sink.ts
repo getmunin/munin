@@ -32,6 +32,7 @@ export class SlackEventSink implements EventSink {
       !isApproval && typeof event.payload.conversationId === 'string'
         ? event.payload.conversationId
         : null;
+    const order = await this.messageOrder(event);
     await ctx.db.insert(schema.slackDeliveries).values({
       orgId: event.orgId,
       integrationId: integration.id,
@@ -40,6 +41,29 @@ export class SlackEventSink implements EventSink {
       conversationId,
       subjectKey: subject ? `${subject.subjectType}:${subject.subjectId}` : null,
       nextAttemptAt: new Date(),
+      ...(order ? { orderAt: order.orderAt, orderSeq: order.orderSeq } : {}),
     });
+  }
+
+  private async messageOrder(
+    event: EmittedEvent,
+  ): Promise<{ orderAt: Date; orderSeq: number } | null> {
+    const messageId = typeof event.payload.messageId === 'string' ? event.payload.messageId : null;
+    if (!messageId) return null;
+    const ctx = getCurrentContext();
+    const [message] = await ctx.db
+      .select({
+        createdAt: schema.convMessages.createdAt,
+        metadata: schema.convMessages.metadata,
+      })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.id, messageId))
+      .limit(1);
+    if (!message) return null;
+    const turn = message.metadata.voiceTurnIndex;
+    return {
+      orderAt: message.createdAt,
+      orderSeq: typeof turn === 'number' && Number.isInteger(turn) && turn >= 0 ? turn : -1,
+    };
   }
 }

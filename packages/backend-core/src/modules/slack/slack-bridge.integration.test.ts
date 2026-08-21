@@ -282,7 +282,7 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     expect(reply!.threadTs).toBe(parent!.ts);
     expect(reply!.text).toContain('I need help with my order');
     expect(reply!.username).toBe('Ada Lovelace');
-    expect(reply!.iconUrl).toContain('/v1/slack/avatars/A.png');
+    expect(reply!.iconUrl).toMatch(/\/v1\/slack\/avatars\/A\.[0-9a-f]{8}\.png$/);
     expect(reply!.iconEmoji).toBeUndefined();
     expect(reply!.text).not.toContain('*Ada Lovelace*');
 
@@ -714,6 +714,124 @@ function actionIds(blocks: unknown[] | undefined): string[] {
 
     const parent = api.posted.find((p) => !p.threadTs);
     expect(parent!.channel).toBe('C_SMS');
+  });
+
+  async function seedVoiceTurn(
+    conversationId: string,
+    turn: { index: number; role: 'user' | 'assistant'; body: string; createdAt: Date },
+  ) {
+    const [message] = await db
+      .insert(schema.convMessages)
+      .values({
+        orgId,
+        conversationId,
+        authorType: turn.role === 'user' ? 'end_user' : 'agent',
+        authorId: turn.role === 'user' ? contactId : 'threll',
+        body: turn.body,
+        internal: false,
+        createdAt: turn.createdAt,
+        metadata: {
+          threllCallId: 'call_bridge_test',
+          threllRole: turn.role,
+          voiceTurnIndex: turn.index,
+        },
+      })
+      .returning();
+    return message!.id;
+  }
+
+  async function emitReceived(messageIds: string[], conversationId: string) {
+    const dispatcher = new WebhookDispatcher();
+    dispatcher.registerSink(new SlackEventSink());
+    for (const messageId of messageIds) {
+      await run(async () => {
+        await dispatcher.emit({
+          type: 'conversation.message.received',
+          payload: { conversationId, messageId, authorType: 'end_user', internal: false },
+        });
+      });
+    }
+  }
+
+  it('mirrors voice turns in voiceTurnIndex order when transcripts arrive out of order', async () => {
+    const conversationId = await seedConversation();
+    const start = new Date('2026-08-21T09:20:29.873Z');
+    const turns = [
+      { index: 0, role: 'assistant' as const, body: 'Hei, hvordan kan jeg hjelpe deg i dag?' },
+      { index: 1, role: 'user' as const, body: 'Ja, jeg har noen spørsmål om Trell AI.' },
+      { index: 2, role: 'assistant' as const, body: 'Ja, selvfølgelig! Hva lurer' },
+      { index: 3, role: 'user' as const, body: 'og' },
+      { index: 4, role: 'user' as const, body: 'Det lurer egentlig folk til å være interessert i.' },
+    ];
+    const idByTurn = new Map<number, string>();
+    for (const turn of turns) {
+      idByTurn.set(
+        turn.index,
+        await seedVoiceTurn(conversationId, {
+          ...turn,
+          createdAt: new Date(start.getTime() + turn.index * 1000),
+        }),
+      );
+    }
+
+    const arrivalOrder = [0, 2, 1, 4, 3];
+    await emitReceived(
+      arrivalOrder.map((i) => idByTurn.get(i)!),
+      conversationId,
+    );
+
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    await worker.tick();
+
+    const replies = api.posted.filter((p) => p.threadTs);
+    expect(replies.map((r) => r.text)).toEqual(turns.map((t) => t.body));
+  });
+
+  it('falls back to voiceTurnIndex when voice turns share one createdAt', async () => {
+    const conversationId = await seedConversation();
+    const collided = new Date('2026-08-21T09:20:29.873Z');
+    const turns = [
+      { index: 0, role: 'assistant' as const, body: 'Turn zero' },
+      { index: 1, role: 'user' as const, body: 'Turn one' },
+      { index: 2, role: 'assistant' as const, body: 'Turn two' },
+      { index: 3, role: 'user' as const, body: 'Turn three' },
+    ];
+    const idByTurn = new Map<number, string>();
+    for (const turn of turns) {
+      idByTurn.set(
+        turn.index,
+        await seedVoiceTurn(conversationId, { ...turn, createdAt: collided }),
+      );
+    }
+
+    await emitReceived(
+      [3, 1, 0, 2].map((i) => idByTurn.get(i)!),
+      conversationId,
+    );
+
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    await worker.tick();
+
+    const replies = api.posted.filter((p) => p.threadTs);
+    expect(replies.map((r) => r.text)).toEqual(turns.map((t) => t.body));
+  });
+
+  it('keeps non-voice conversations in message createdAt order', async () => {
+    const conversationId = await seedConversation();
+    const first = await seedMessage(conversationId, 'First email');
+    const second = await seedMessage(conversationId, 'Second email');
+    const third = await seedMessage(conversationId, 'Third email');
+
+    await emitReceived([third, first, second], conversationId);
+
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    await worker.tick();
+
+    const replies = api.posted.filter((p) => p.threadTs);
+    expect(replies.map((r) => r.text)).toEqual(['First email', 'Second email', 'Third email']);
   });
 
   it('enqueues deliveries from the event sink only for mirrored events', async () => {

@@ -9858,7 +9858,7 @@
   {
     "name": "seo_inspect_url",
     "title": "SEO: Inspect one URL’s index status",
-    "description": "Fetch what the search engine knows about one URL on a verified property: whether it is indexed, the HTTP status seen at last crawl, when it was last crawled and first discovered, and how many inbound anchors point at it. Returns not-found when the engine holds no record for the URL.",
+    "description": "Fetch what the search engine knows about one URL on a verified property: whether it is indexed, plus whichever of `detail` (the engine’s own coverage state), `httpStatus`, `lastCrawledAt`, `discoveredAt` and `inboundAnchorCount` that engine exposes — the set differs by engine, and a null field means it is not reported rather than zero. Returns not-found when the engine holds no record for the URL.",
     "audiences": [
       "admin"
     ],
@@ -9893,7 +9893,7 @@
   {
     "name": "seo_submit_urls",
     "title": "SEO: Submit URLs for indexing",
-    "description": "Submit up to 500 URLs on a verified property to the search engine for (re)crawling, e.g. after publishing or updating a page. URLs must be under the property. Returns how many were submitted plus the remaining daily and monthly quota; the call is rejected up front when the batch exceeds the quota left, rather than partially submitting. Submissions count against a per-site daily cap, so submit only URLs whose content actually changed.",
+    "description": "Submit up to 500 URLs on a verified property to the search engine for (re)crawling, e.g. after publishing or updating a page. URLs must be under the property. Returns how many were submitted plus the remaining daily and monthly quota; the call is rejected up front when the batch exceeds the quota left, rather than partially submitting. Submissions count against a per-site daily cap, so submit only URLs whose content actually changed. Not every engine offers URL submission — Bing does, Google Search Console does not, and the call fails with a clear message for engines that don’t.",
     "audiences": [
       "admin"
     ],

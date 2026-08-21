@@ -20,12 +20,20 @@ The connector is read-live: nothing from the search engine is stored in Munin, s
 
 `connectionId` is only needed when the org has several active seo connections. `siteUrl` is only needed when the account has several verified properties — with one, it resolves itself.
 
+## Two engines, one shape
+
+Bing Webmaster Tools and Google Search Console both sit behind these tools and return the same normalized fields, so the loop below reads the same either way. Where they differ:
+
+- **Only Bing accepts `seo_submit_urls`.** Google Search Console has no URL-submission endpoint (its Indexing API covers only job postings and broadcast events), so the tool refuses for a Google connection and says so. Ask for a recrawl on Bing; for Google, publishing and an updated sitemap are what you have.
+- **`seo_inspect_url` fills different fields per engine.** Bing gives `httpStatus`, `discoveredAt` and `inboundAnchorCount`; Google gives `detail` — its coverage state, the most useful single string here ("Submitted and indexed", "Crawled - currently not indexed", "Discovered - currently not indexed"). Report the fields you got; a `null` means the engine doesn't expose it, not that the value is zero.
+- **Bing's index reaches Copilot and part of ChatGPT search**, so it is not only legacy SEO. Connecting both engines is normal, and an org can have one connection per engine.
+
 ## Read the numbers correctly
 
 Three properties of this data will mislead you if you treat it like Munin's own analytics:
 
-- **It lags.** Reporting is 2–3 days behind. A page published yesterday has no data yet, and that is not a problem to diagnose.
-- **Bing reports in whole weeks.** Each row covers the seven days ending on a Friday. So the `window` in the result is the range actually covered and is usually narrower than the `from`/`to` you asked for. Quote `window`, never the range you requested. When it is `null`, no data fell in range at all.
+- **It lags.** Reporting is 2–3 days behind on both engines. A page published yesterday has no data yet, and that is not a problem to diagnose.
+- **The `window` is what was covered, not what you asked for.** Bing aggregates into whole weeks ending Friday, and either engine simply has no rows for days it holds no data. So quote `window` from the result, never the `from`/`to` you passed. When it is `null`, nothing fell in range at all.
 - **`avgPosition` is impression-weighted and can be null.** Null means the engine reported no position for that row, not position zero. A query with 4 impressions and position 3 is noise; sort your attention by impressions.
 
 ## The loop
@@ -35,7 +43,7 @@ Three properties of this data will mislead you if you treat it like Munin's own 
 3. **Find the page that should answer.** `kb_search` and `cms_search_entries` with the query wording. Three outcomes worth distinguishing: nothing exists (write it), something exists but doesn't use the customer's words (rewrite it), or the right page exists and ranks badly for reasons content can't fix (report that, don't churn the page).
 4. **Check the page is even indexed** before rewriting it — `seo_inspect_url`. A page the engine has never crawled, or last crawled with a non-200 status, has an infrastructure problem; editing the copy will not move it.
 5. **Fix it.** `cms_update_entry` for marketing pages, `kb_create_document` or `kb_update_document` for support content. Use the customer's phrasing from step 1 in the title and opening paragraph.
-6. **Submit it.** `seo_submit_urls` with the URLs you changed. Submissions spend a per-site daily quota, so submit what changed and nothing else — never the whole sitemap "to be safe". The result reports the quota left; if the call is rejected for exceeding it, the batch was not submitted at all and there is nothing to undo.
+6. **Submit it,** on a Bing connection. `seo_submit_urls` with the URLs you changed. Submissions spend a per-site daily quota, so submit what changed and nothing else — never the whole sitemap "to be safe". The result reports the quota left; if the call is rejected for exceeding it, the batch was not submitted at all and there is nothing to undo. On a Google connection this step does not exist; say so rather than looking for another tool.
 7. **Come back later, not now.** Effects need a recrawl plus the reporting lag. Re-checking the same query an hour later tells you nothing.
 
 ## What this cannot do

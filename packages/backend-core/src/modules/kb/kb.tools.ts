@@ -81,6 +81,37 @@ const ProposeCurationCandidateInput = z.object({
   proposedTargetSpaceSlug: z.string().min(1).max(64).optional(),
 });
 
+const ProposeCurationRevisionInput = z.object({
+  revisesDocumentId: z.string().min(1),
+  draftBody: z.string().min(1).describe('The full proposed body of the revised document.'),
+  subject: z
+    .string()
+    .min(1)
+    .max(300)
+    .optional()
+    .describe("Defaults to the revised document's current title."),
+  sourceConversationId: z.string().min(1).max(64).optional(),
+  sourceMessageId: z.string().min(1).max(64).optional(),
+});
+
+const PublishCurationRevisionInput = z.object({
+  candidateDocumentId: z.string().min(1),
+  ifCandidateVersion: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe(
+      'The candidate `version` that was reviewed, binding this publish to that exact proposed text.',
+    ),
+  ifDocumentVersion: z
+    .number()
+    .int()
+    .nonnegative()
+    .describe(
+      'The revised document `version` the proposal was diffed against, so a document edited elsewhere since is not silently overwritten.',
+    ),
+});
+
 const PublishCurationCandidateInput = z.object({
   candidateDocumentId: z.string().min(1),
   targetSpaceSlug: z.string().min(1).max(64),
@@ -402,7 +433,7 @@ export class KbAdminTools {
     name: 'kb_propose_curation_candidate',
     title: 'KB: Propose curation candidate',
     description:
-      "File a draft FAQ-style document into the `kb-curation-inbox` KB space (admin audience only). Used after a curation pass over resolved-handover conversations. The space is created on first use. See `skill://kb/review-content` for the procedure. The candidate is NOT visible to end-user agents until it's promoted with `kb_publish_curation_candidate`. Fails with `kb_curation_decided` when a candidate from the same `sourceConversationId` was already dismissed or published — those conversations are closed for curation permanently.",
+      "File a draft FAQ-style document into the `kb-curation-inbox` KB space (admin audience only), for knowledge the KB does not cover at all. Used after a curation pass over resolved-handover conversations. The space is created on first use. See `skill://kb/review-content` for the procedure. To correct or extend a document that already exists, file `kb_propose_curation_revision` instead — it publishes as a new version of that document rather than a second one beside it. The candidate is NOT visible to end-user agents until it's promoted with `kb_publish_curation_candidate`. Fails with `kb_curation_decided` when a candidate from the same source message was already dismissed or published; a decision recorded before per-message curation shipped closes its whole conversation.",
     audiences: ['admin'],
     scopes: ['kb:write'],
     input: ProposeCurationCandidateInput,
@@ -414,10 +445,25 @@ export class KbAdminTools {
   }
 
   @McpTool({
+    name: 'kb_propose_curation_revision',
+    title: 'KB: Propose curation revision',
+    description:
+      "File a proposed new body for a document that already exists, into the `kb-curation-inbox` KB space (admin audience only). Use it when what you learned corrects, contradicts or extends a document rather than filling a gap — a changed rate, a superseded policy, a missing exception. Pass the full proposed body, not a patch; the reviewer sees it as a diff against the document's current text. Publishing it with `kb_publish_curation_revision` writes a new version of that same document, so `kb_list_versions` and `kb_restore_version` can roll it back. Fails with `kb_curation_decided` when a candidate from the same source message was already dismissed or published.",
+    audiences: ['admin'],
+    scopes: ['kb:write'],
+    input: ProposeCurationRevisionInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  proposeCurationRevision(args: z.infer<typeof ProposeCurationRevisionInput>) {
+    return this.kb.proposeCurationRevision(args);
+  }
+
+  @McpTool({
     name: 'kb_list_curation_candidates',
     title: 'KB: List curation candidates',
     description:
-      'List pending curation candidates — drafts filed into the `kb-curation-inbox` space by `kb_propose_curation_candidate`, awaiting review. Each row carries the proposed target space slug and source conversation id parsed from its tags. In hosts that support MCP Apps this renders an interactive review panel with per-candidate publish/dismiss actions.',
+      'List pending curation candidates awaiting review — drafts filed into the `kb-curation-inbox` space. Each row carries the source conversation id parsed from its tags, plus either a proposed target space slug (a new document) or `revisesDocumentId` with the revised document\'s current title and version (a proposed new version of an existing document). Bodies are not included; read one with `kb_get_document`. In hosts that support MCP Apps this renders an interactive review panel with per-candidate publish/dismiss actions.',
     audiences: ['admin'],
     scopes: ['kb:read'],
     input: ListCurationCandidatesInput,
@@ -467,7 +513,7 @@ export class KbAdminTools {
     name: 'kb_publish_curation_candidate',
     title: 'KB: Publish curation candidate',
     description:
-      "Promote a reviewed curation candidate into a target KB space. Copies the doc to the target space (default audiences `['admin', 'self_service']` so the self-service agent can find it), drops the `curation`/`candidate` tags, and removes the candidate from the inbox. The target space must already exist. Pass `ifVersion` (the candidate `version` that was reviewed) for optimistic concurrency; if the draft was edited since, the call fails and nothing is published.",
+      "Promote a reviewed curation candidate into a target KB space as a new document. Copies the doc to the target space (default audiences `['admin', 'self_service']` so the self-service agent can find it), drops the curation tags, and removes the candidate from the inbox. The target space is created from the slug if it does not exist yet. Pass `ifVersion` (the candidate `version` that was reviewed) for optimistic concurrency; if the draft was edited since, the call fails and nothing is published. Refuses a candidate that proposes a revision to an existing document — use `kb_publish_curation_revision` for those.",
     audiences: ['admin'],
     scopes: ['kb:write'],
     input: PublishCurationCandidateInput,
@@ -477,6 +523,22 @@ export class KbAdminTools {
   })
   publishCurationCandidate(args: z.infer<typeof PublishCurationCandidateInput>) {
     return this.kb.publishCurationCandidate(args);
+  }
+
+  @McpTool({
+    name: 'kb_publish_curation_revision',
+    title: 'KB: Publish curation revision',
+    description:
+      'Apply a reviewed revision candidate to the document it revises, as a new version of that document, then remove the candidate from the inbox. Takes two versions: `ifCandidateVersion` binds the publish to the proposed text that was reviewed, and `ifDocumentVersion` binds it to the document text that was diffed against — if either moved since, the call fails and nothing is written. Roll back with `kb_restore_version`.',
+    audiences: ['admin'],
+    scopes: ['kb:write'],
+    input: PublishCurationRevisionInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+    _meta: { ui: { visibility: ['app'] } },
+  })
+  publishCurationRevision(args: z.infer<typeof PublishCurationRevisionInput>) {
+    return this.kb.publishCurationRevision(args);
   }
 
   @McpTool({

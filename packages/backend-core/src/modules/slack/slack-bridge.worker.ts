@@ -743,16 +743,20 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       const tags = doc?.tags ?? [];
       const targetTag = tags.find((t) => t.startsWith('target:'))?.slice('target:'.length) ?? null;
       const sourceTag = tags.find((t) => t.startsWith('source:'))?.slice('source:'.length) ?? null;
+      const revisesTag =
+        tags.find((t) => t.startsWith('revises:'))?.slice('revises:'.length) ?? null;
       const target =
         targetTag ?? str(payload.proposedTargetSpaceSlug) ?? str(payload.targetSpaceSlug);
+      const revisesTitle = revisesTag ? await this.documentTitle(revisesTag) : null;
       text = kbCandidateApprovalText({
         title: doc?.title ?? str(payload.title) ?? 'Untitled draft',
         proposedTargetSpaceSlug: target,
         sourceConversationId: sourceTag ?? str(payload.sourceConversationId),
+        revisesDocumentTitle: revisesTitle,
         dashboardUrl,
       });
       fingerprint = doc ? String(doc.version) : null;
-      approveLabel = target ? `Publish to ${target}` : null;
+      approveLabel = revisesTag ? null : target ? `Publish to ${target}` : null;
       resolution = outcome
         ? { outcome, decidedByName: actorId ? await this.userName(actorId) : null }
         : null;
@@ -951,6 +955,15 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       return assistant?.name ?? null;
     }
     return null;
+  }
+
+  private async documentTitle(documentId: string): Promise<string> {
+    const [doc] = await this.db
+      .select({ title: schema.kbDocuments.title })
+      .from(schema.kbDocuments)
+      .where(eq(schema.kbDocuments.id, documentId))
+      .limit(1);
+    return doc?.title ?? documentId;
   }
 
   private async userName(userId: string): Promise<string | null> {

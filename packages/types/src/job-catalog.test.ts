@@ -40,8 +40,15 @@ describe('toolPrefixesFor', () => {
       'conv_get_conversation',
       'kb_search',
       'kb_list_documents',
+      'kb_get_document',
+      'kb_list_curation_decisions',
       'kb_propose_curation_candidate',
+      'kb_propose_curation_revision',
     ]);
+  });
+
+  it('lets the curation pass read prior decisions its own skill requires', () => {
+    expect(toolPrefixesFor('skill://kb/review-content')).toContain('kb_list_curation_decisions');
   });
   it('returns undefined for unmapped URIs', () => {
     expect(toolPrefixesFor('task://web/scrape-website')).toBeUndefined();

@@ -108,6 +108,7 @@ export interface InboxController {
   draftEdit: string | null;
   setDraftEdit: (next: string | null) => void;
   kbBodies: Record<string, string>;
+  kbRevisedBodies: Record<string, string>;
   cmsDetails: Record<string, CmsDraftDetailDto>;
   detailErrors: Record<string, string>;
   queueDetailErrors: Record<string, string>;

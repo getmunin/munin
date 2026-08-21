@@ -5491,6 +5491,47 @@
         ]
       }
     },
+    "/v1/kb/curation/candidates/{id}/publish-revision": {
+      "post": {
+        "operationId": "KbCandidatesController_publishRevision",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishRevisionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "KbCandidates"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/kb/curation/candidates/{id}/dismiss": {
       "post": {
         "operationId": "KbCandidatesController_dismiss",
@@ -9031,6 +9072,25 @@
         "required": [
           "targetSpaceSlug",
           "ifVersion"
+        ]
+      },
+      "PublishRevisionBody": {
+        "type": "object",
+        "properties": {
+          "ifCandidateVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "ifDocumentVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "ifCandidateVersion",
+          "ifDocumentVersion"
         ]
       },
       "DismissCandidateBody": {

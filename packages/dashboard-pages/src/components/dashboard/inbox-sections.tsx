@@ -255,6 +255,7 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
     draftEdit,
     setDraftEdit,
     kbBodies,
+    kbRevisedBodies,
     cmsDetails,
     detailErrors,
     queueDetailErrors,
@@ -352,6 +353,9 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
             <QueueDrawer
               item={queue.find((q) => q.id === queueDrawer.id) ?? queueDrawer}
               kbBody={queueDrawer.kind === 'kb' ? kbBodies[queueDrawer.id] : undefined}
+              kbRevisedBody={
+                queueDrawer.kind === 'kb' ? kbRevisedBodies[queueDrawer.id] : undefined
+              }
               cmsDetail={
                 queueDrawer.kind === 'cms' ? cmsDetails[queueDrawer.id] : undefined
               }

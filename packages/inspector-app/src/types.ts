@@ -87,6 +87,9 @@ export interface CurationCandidate {
   updatedAt: string;
   proposedTargetSpaceSlug: string | null;
   sourceConversationId: string | null;
+  revisesDocumentId?: string | null;
+  revisesDocumentTitle?: string | null;
+  revisesDocumentVersion?: number | null;
 }
 
 export interface KbDocument {

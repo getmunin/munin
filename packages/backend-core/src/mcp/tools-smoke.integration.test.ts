@@ -175,6 +175,7 @@ const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
     const SMOKE_LIST_TOOLS = [
       'kb_list_spaces',
       'kb_list_curation_candidates',
+      'kb_list_curation_decisions',
       'conv_list_conversation_channels',
       'conv_list_conversation_topics',
       'crm_list_contacts',

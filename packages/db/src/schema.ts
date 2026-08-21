@@ -704,6 +704,7 @@ export const kbCurationDecisions = pgTable(
       .notNull()
       .references(() => orgs.id, { onDelete: 'cascade' }),
     sourceConversationId: text('source_conversation_id'),
+    sourceMessageId: text('source_message_id'),
     candidateDocumentId: text('candidate_document_id').notNull(),
     title: text('title').notNull(),
     outcome: varchar('outcome', { length: 16 }).notNull(),
@@ -719,6 +720,10 @@ export const kbCurationDecisions = pgTable(
   },
   (t) => ({
     orgSourceIdx: index('kb_curation_decisions_org_source_idx').on(t.orgId, t.sourceConversationId),
+    orgSourceMsgIdx: index('kb_curation_decisions_org_source_msg_idx').on(
+      t.orgId,
+      t.sourceMessageId,
+    ),
     orgOutcomeIdx: index('kb_curation_decisions_org_outcome_idx').on(t.orgId, t.outcome),
   }),
 );

@@ -89,13 +89,28 @@ The prompt gives you a `conversationId`, the internal draft message id, the sent
 |---|---|
 | Formatting, line breaks, length, a typo | Nothing. Stop. |
 | Tone, greeting, sign-off, a name or other personalisation | Nothing. Stop. |
-| A **fact** — a number, a date, a policy, a name of a thing, a condition | File one candidate covering the corrected fact. |
-| Added a **caveat or exception** the draft omitted | File one candidate covering the addition. |
-| Removed a claim as wrong or not-ours | File one candidate stating the correct position. |
+| A **fact** — a number, a date, a policy, a name of a thing, a condition | Revise the document that carried the wrong fact. |
+| Added a **caveat or exception** the draft omitted | Revise the document that should have carried it. |
+| Removed a claim as wrong or not-ours | Revise the document that made the claim. |
+| Answered something no retrieved document covers | File a new candidate, as in gap mode. |
 
-When you do file, the candidate covers **what changed** — not the whole reply. The rest of the draft came from the KB and is already there; restating it creates a near-duplicate of the document that fed it. Name the retrieved document that carried the wrong fact in the body, so the operator can see which document needs fixing.
+**Prefer a revision over a new document.** The draft was assembled from the KB, so a corrected fact means an existing document is wrong — and filing a new FAQ beside it leaves the wrong text in place for the agent to find again. Read the retrieved documents with `kb_get_document`, pick the one whose text the human contradicted, and call `kb_propose_curation_revision` with the **full corrected body** of that document (not a patch, and not just the changed sentence — the reviewer sees your body diffed against the current one).
 
-Two edits are not two candidates unless they are about genuinely different things. And if the retrieved-documents list is empty, the agent answered without KB support — that is closer to gap mode, so treat the edit as a new topic.
+```jsonc
+{
+  "name": "kb_propose_curation_revision",
+  "arguments": {
+    "revisesDocumentId": "kdoc_…",
+    "draftBody": "…the document's full text, with the one fact corrected…",
+    "sourceConversationId": "ccv_…",
+    "sourceMessageId": "cvm_…"
+  }
+}
+```
+
+Change as little as the correction requires. A revision that also rewrites the tone of three unrelated paragraphs is hard to approve, so the operator dismisses it and the real correction is lost with it.
+
+Two edits are not two proposals unless they are about genuinely different things. And if the retrieved-documents list is empty, the agent answered without KB support — that is closer to gap mode, so file a new candidate instead.
 
 ## Step 4 — draft the candidate
 

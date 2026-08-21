@@ -5,6 +5,10 @@ export interface KbCandidateDto {
   version: number;
   updatedAt: string;
   proposedTargetSpaceSlug: string | null;
+  revisesDocumentId: string | null;
+  revisesDocumentTitle: string | null;
+  revisesDocumentVersion: number | null;
+  revisesDocumentBody?: string | null;
 }
 
 export interface CrmContactSummary {

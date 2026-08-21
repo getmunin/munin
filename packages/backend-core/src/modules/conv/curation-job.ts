@@ -25,8 +25,8 @@ export function buildDeltaCurationPrompt(input: {
     `conv_get_conversation(${input.conversationId}) and compare the internal draft message ` +
     `${input.draftMessageId} against the sent message ${input.sentMessageId}. ${retrieved}` +
     `Classify the difference. If it is only formatting, tone, greeting, signature or ` +
-    `personalisation, file nothing and stop. If it corrects a fact or adds knowledge the KB does ` +
-    `not cover, file one candidate via kb_propose_curation_candidate covering what the human ` +
-    `changed — not the whole reply — and name the document that carried the wrong fact.`
+    `personalisation, file nothing and stop. If it corrects a fact, revise the retrieved document ` +
+    `that carried the wrong fact via kb_propose_curation_revision. If it answers something no ` +
+    `retrieved document covers, file a new candidate instead.`
   );
 }

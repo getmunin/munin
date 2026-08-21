@@ -636,6 +636,64 @@ class StubStorage implements AssetStorage {
       expect(byId.get('d2')).toMatchObject({ title: 'Draft two', wordCount: null });
     });
 
+    it('listScheduledEntries returns only scheduled entries, soonest first', async () => {
+      const col = await seedCollection();
+      const later = await run(() =>
+        svc.createEntry({ collection: col.slug, slug: 's-later', data: { title: 'Later' } }),
+      );
+      const sooner = await run(() =>
+        svc.createEntry({ collection: col.slug, slug: 's-sooner', data: { title: 'Sooner' } }),
+      );
+      await run(() => svc.createEntry({ collection: col.slug, slug: 's-draft', data: { title: 'D' } }));
+
+      const laterAt = new Date(Date.now() + 172_800_000).toISOString();
+      const soonerAt = new Date(Date.now() + 3_600_000).toISOString();
+      await run(() =>
+        svc.scheduleEntry({ id: later.id, ifVersion: later.version, scheduledAt: laterAt }),
+      );
+      await run(() =>
+        svc.scheduleEntry({ id: sooner.id, ifVersion: sooner.version, scheduledAt: soonerAt }),
+      );
+
+      const rows = await run(() => svc.listScheduledEntries());
+      expect(rows.map((r) => r.slug)).toEqual(['s-sooner', 's-later']);
+      expect(rows[0]).toMatchObject({ title: 'Sooner', collectionName: 'Articles' });
+      expect(new Date(rows[0]!.scheduledAt).toISOString()).toBe(soonerAt);
+    });
+
+    it('scheduled entries stay out of the draft queue until unscheduled', async () => {
+      const col = await seedCollection();
+      const entry = await run(() =>
+        svc.createEntry({ collection: col.slug, slug: 'u1', data: { title: 'U' } }),
+      );
+      const scheduled = await run(() =>
+        svc.scheduleEntry({
+          id: entry.id,
+          ifVersion: entry.version,
+          scheduledAt: new Date(Date.now() + 3_600_000).toISOString(),
+        }),
+      );
+      expect((await run(() => svc.listDraftEntries())).find((d) => d.id === entry.id)).toBeUndefined();
+
+      const back = await run(() =>
+        svc.unscheduleEntry({ id: entry.id, ifVersion: scheduled.version }),
+      );
+      expect(back.status).toBe('draft');
+      expect(back.scheduledAt).toBeNull();
+      expect((await run(() => svc.listScheduledEntries())).length).toBe(0);
+      expect((await run(() => svc.listDraftEntries())).find((d) => d.id === entry.id)).toBeDefined();
+    });
+
+    it('unscheduleEntry rejects an entry that is not scheduled', async () => {
+      const col = await seedCollection();
+      const entry = await run(() =>
+        svc.createEntry({ collection: col.slug, slug: 'u2', data: { title: 'U2' } }),
+      );
+      await expect(
+        run(() => svc.unscheduleEntry({ id: entry.id, ifVersion: entry.version })),
+      ).rejects.toThrow(CmsInvalidError);
+    });
+
     it('archiveEntry transitions draft to archived and emits webhook', async () => {
       const col = await seedCollection();
       const entry = await run(() =>

@@ -85,6 +85,10 @@ export interface CmsDraftSummaryDto {
   updatedAt: string;
 }
 
+export interface CmsScheduledSummaryDto extends CmsDraftSummaryDto {
+  scheduledAt: string;
+}
+
 export interface CmsAssetExpanded {
   id: string;
   publicUrl: string;
@@ -157,27 +161,37 @@ export type QueueItem =
   | { kind: 'cms'; id: string; title: string; snippet: string; createdAt: string; raw: CmsDraftSummaryDto }
   | { kind: 'feedback'; id: string; title: string; snippet: string; createdAt: string; raw: FeedbackOutboxDto };
 
-export type QueueTone = 'kb' | 'crm' | 'out' | 'feedback' | 'cms';
-export type QueueLabelKey =
-  | 'kindKb'
-  | 'kindCrm'
-  | 'kindOutreach'
-  | 'kindFeedback'
-  | 'kindCms';
+export type ScheduledItem =
+  | {
+      kind: 'outreach';
+      id: string;
+      title: string;
+      snippet: string;
+      at: string;
+      raw: OutreachProposalDto;
+    }
+  | {
+      kind: 'cms';
+      id: string;
+      title: string;
+      snippet: string;
+      at: string;
+      raw: CmsScheduledSummaryDto;
+    };
 
-export function queueTone(item: QueueItem): QueueTone {
-  if (item.kind === 'outreach') return 'out';
-  if (item.kind === 'feedback') return 'feedback';
-  if (item.kind === 'cms') return 'cms';
-  return item.kind;
-}
+export type QueueCodeKey =
+  | 'codeKb'
+  | 'codeCrm'
+  | 'codeOutreach'
+  | 'codeFeedback'
+  | 'codeCms';
 
-export function queueLabelKey(item: QueueItem): QueueLabelKey {
-  if (item.kind === 'outreach') return 'kindOutreach';
-  if (item.kind === 'kb') return 'kindKb';
-  if (item.kind === 'feedback') return 'kindFeedback';
-  if (item.kind === 'cms') return 'kindCms';
-  return 'kindCrm';
+export function queueCodeKey(kind: QueueItem['kind']): QueueCodeKey {
+  if (kind === 'outreach') return 'codeOutreach';
+  if (kind === 'kb') return 'codeKb';
+  if (kind === 'feedback') return 'codeFeedback';
+  if (kind === 'cms') return 'codeCms';
+  return 'codeCrm';
 }
 
 export function readAssetField(

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MessageSquare } from 'lucide-react';
-import { useFormatter, useTranslations } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import {
   Button,
   Dialog,
@@ -11,15 +11,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Pill,
   Sheet,
   SheetContent,
 } from '@getmunin/ui';
-import { useRelative } from '../../lib/use-relative';
-import { QueueDrawer } from './queue-drawers';
-import { DrawerHeader, DrawerLoadFailed } from './queue-drawers/shared';
-import { queueLabelKey, queueTone } from './queue-drawers/types';
-import type { OutreachProposalDto, QueueItem } from './queue-drawers/types';
+import { useCountdown, useRelative } from '../../lib/use-relative';
+import { QueueDrawer, ScheduledDrawer } from './queue-drawers';
+import { DrawerHeader, DrawerLoadFailed, RowCode } from './queue-drawers/shared';
+import { queueCodeKey } from './queue-drawers/types';
+import type { QueueItem, ScheduledItem } from './queue-drawers/types';
 import { useInboxData } from './inbox-data';
 import { truncate } from './inbox-helpers';
 import {
@@ -35,7 +34,7 @@ import type {
 } from './inbox-types';
 
 export { useInboxData };
-export type { ConvActionError, InboxController, QueueItem };
+export type { ConvActionError, InboxController, QueueItem, ScheduledItem };
 
 export function LiveNowSection({ controller }: { controller: InboxController }) {
   const t = useTranslations('dashboard.overview.liveNow');
@@ -121,97 +120,84 @@ export function QueueSection({ controller }: { controller: InboxController }) {
   );
 }
 
-export function ScheduledSendsSection({ controller }: { controller: InboxController }) {
-  const t = useTranslations('dashboard.overview.scheduledSends');
-  const format = useFormatter();
-  const { scheduledSends, pending, cancelScheduledSend } = controller;
-  const [canceling, setCanceling] = useState<OutreachProposalDto | null>(null);
-  const [reason, setReason] = useState('');
-  if (scheduledSends.length === 0) return null;
-
-  const submitCancel = async () => {
-    if (!canceling || !reason.trim()) return;
-    try {
-      await cancelScheduledSend(canceling.id, reason.trim());
-      setCanceling(null);
-      setReason('');
-    } catch (err) {
-      console.warn('[scheduled-sends] cancel failed', err);
-    }
-  };
+export function ScheduledSection({ controller }: { controller: InboxController }) {
+  const t = useTranslations('dashboard.overview.scheduled');
+  const { scheduled, pending, setScheduledDrawer, setCancelTarget } = controller;
+  if (scheduled.length === 0) return null;
 
   return (
     <section>
       <div className="flex items-baseline justify-between gap-4 border-b-[1px] border-rule-soft pb-2.5 dark:border-rule-on-dark">
         <h2 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink dark:text-foreground">
-          {t('eyebrow')} · {scheduledSends.length}
+          {t('eyebrow')} · {scheduled.length}
         </h2>
         <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
           {t('subtitle')}
         </span>
       </div>
       <ul>
-        {scheduledSends.map((p) => (
-          <li key={p.id} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
-            <div className="group/srow flex items-center gap-4 px-4 py-3">
-              <span className="shrink-0">
-                <Pill tone="out">{t('pill')}</Pill>
-              </span>
-              <div className="min-w-0 flex-1 truncate">
-                <span className="text-sm font-medium text-ink dark:text-foreground">
-                  {p.draftSubject ?? p.campaign?.name ?? t('untitled')}
-                </span>
-                <span className="ml-2 text-sm text-ink-mute">
-                  {' '}
-                  — {p.delivery?.destination ?? p.contact?.email ?? t('unknownDestination')}
-                </span>
-              </div>
-              <span className="shrink-0 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-                {p.scheduledSendAt
-                  ? format.dateTime(new Date(p.scheduledSendAt), {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })
-                  : ''}
-              </span>
-              <div className="shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setReason('');
-                    setCanceling(p);
-                  }}
-                  disabled={pending}
-                >
-                  {t('cancel')}
-                </Button>
-              </div>
-            </div>
-          </li>
+        {scheduled.map((s) => (
+          <ScheduledRow
+            key={`${s.kind}-${s.id}`}
+            item={s}
+            pending={pending}
+            onOpen={() => setScheduledDrawer(s)}
+            onCancel={() => setCancelTarget(s)}
+          />
         ))}
       </ul>
+    </section>
+  );
+}
 
-      <Dialog
-        open={canceling !== null}
-        onOpenChange={(o) => {
-          if (!o) setCanceling(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('cancelTitle')}</DialogTitle>
-            <DialogDescription>{t('cancelDescription')}</DialogDescription>
-          </DialogHeader>
-          <form
-            className="mt-4 flex flex-col gap-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void submitCancel();
-            }}
-          >
+function ScheduledCancelDialog({ controller }: { controller: InboxController }) {
+  const t = useTranslations('dashboard.overview.scheduled');
+  const { cancelTarget, setCancelTarget, pending, cancelScheduledSend, cancelScheduledPublish } =
+    controller;
+  const [reason, setReason] = useState('');
+  const needsReason = cancelTarget?.kind === 'outreach';
+  const isCms = cancelTarget?.kind === 'cms';
+
+  useEffect(() => {
+    if (cancelTarget) setReason('');
+  }, [cancelTarget]);
+
+  const submit = async () => {
+    if (!cancelTarget) return;
+    if (needsReason && !reason.trim()) return;
+    try {
+      if (cancelTarget.kind === 'outreach') {
+        await cancelScheduledSend(cancelTarget.id, reason.trim());
+      } else {
+        await cancelScheduledPublish(cancelTarget.id);
+      }
+    } catch (err) {
+      console.warn('[scheduled] cancel failed', err);
+    }
+  };
+
+  return (
+    <Dialog
+      open={cancelTarget !== null}
+      onOpenChange={(o) => {
+        if (!o) setCancelTarget(null);
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{isCms ? t('cancelCmsTitle') : t('cancelTitle')}</DialogTitle>
+          <DialogDescription>
+            {isCms ? t('cancelCmsDescription') : t('cancelDescription')}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          {needsReason && (
             <label className="flex flex-col gap-1.5">
               <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
                 {t('cancelReasonLabel')}
@@ -224,18 +210,72 @@ export function ScheduledSendsSection({ controller }: { controller: InboxControl
                 autoFocus
               />
             </label>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setCanceling(null)}>
-                {t('cancelDismiss')}
-              </Button>
-              <Button type="submit" variant="accent" disabled={pending || !reason.trim()}>
-                {t('cancelConfirm')}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </section>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCancelTarget(null)}>
+              {t('cancelDismiss')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              disabled={pending || (needsReason && !reason.trim())}
+            >
+              {isCms ? t('cancelCmsConfirm') : t('cancelConfirm')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ScheduledRow({
+  item,
+  pending,
+  onOpen,
+  onCancel,
+}: {
+  item: ScheduledItem;
+  pending: boolean;
+  onOpen: () => void;
+  onCancel: () => void;
+}) {
+  const t = useTranslations('dashboard.overview.scheduled');
+  const tQueue = useTranslations('dashboard.overview.queue');
+  const countdown = useCountdown();
+
+  return (
+    <li className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
+      <div
+        className="group/srow flex items-center gap-4 px-4 py-3 transition-colors duration-fast ease-munin hover:bg-paper-deep cursor-pointer dark:hover:bg-secondary"
+        onClick={onOpen}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onOpen();
+          }
+        }}
+      >
+        <RowCode kind={item.kind}>{tQueue(queueCodeKey(item.kind))}</RowCode>
+        <div className="min-w-0 flex-1 truncate">
+          <span className="text-sm font-medium text-ink dark:text-foreground">{item.title}</span>
+          <span className="ml-2 text-sm text-ink-mute"> — {item.snippet}</span>
+        </div>
+        <span className="flex h-7 shrink-0 items-center whitespace-nowrap font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute group-hover/srow:hidden">
+          {countdown(item.at)}
+        </span>
+        <div
+          className="hidden shrink-0 items-center gap-2 group-hover/srow:flex focus-within:flex"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Button variant="outline" size="sm" onClick={onCancel} disabled={pending}>
+            {t('cancel')}
+          </Button>
+        </div>
+      </div>
+    </li>
   );
 }
 
@@ -248,6 +288,10 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
     queue,
     queueDrawer,
     setQueueDrawer,
+    scheduled,
+    scheduledDrawer,
+    setScheduledDrawer,
+    setCancelTarget,
     details,
     pending,
     reply,
@@ -374,6 +418,33 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
           )}
         </SheetContent>
       </Sheet>
+
+      <Sheet
+        open={scheduledDrawer !== null}
+        onOpenChange={(o) => !o && setScheduledDrawer(null)}
+      >
+        <SheetContent side="right" className="w-full max-w-[560px]">
+          {scheduledDrawer && (
+            <ScheduledDrawer
+              item={
+                scheduled.find(
+                  (s) => s.kind === scheduledDrawer.kind && s.id === scheduledDrawer.id,
+                ) ?? scheduledDrawer
+              }
+              cmsDetail={
+                scheduledDrawer.kind === 'cms' ? cmsDetails[scheduledDrawer.id] : undefined
+              }
+              loadError={queueDetailErrors[scheduledDrawer.id]}
+              onRetry={() => reloadQueueDetail(scheduledDrawer.id)}
+              pending={pending}
+              onCancel={() => setCancelTarget(scheduledDrawer)}
+              onClose={() => setScheduledDrawer(null)}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
+
+      <ScheduledCancelDialog controller={controller} />
     </>
   );
 }
@@ -499,8 +570,6 @@ function QueueRow({
 }) {
   const t = useTranslations('dashboard.overview.queue');
   const age = useRelative();
-  const tone = queueTone(item);
-  const labelKey = queueLabelKey(item);
   return (
     <li className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
       <div
@@ -515,9 +584,7 @@ function QueueRow({
           }
         }}
       >
-        <span className="shrink-0">
-          <Pill tone={tone}>{t(labelKey)}</Pill>
-        </span>
+        <RowCode kind={item.kind}>{t(queueCodeKey(item.kind))}</RowCode>
         <div className="min-w-0 flex-1 truncate">
           <span className="text-sm font-medium text-ink dark:text-foreground">{item.title}</span>
           <span className="ml-2 text-sm text-ink-mute"> — {item.snippet}</span>

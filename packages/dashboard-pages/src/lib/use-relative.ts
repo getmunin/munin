@@ -17,3 +17,17 @@ export function useRelative(): (iso: string) => string {
     [t],
   );
 }
+
+export function useCountdown(): (iso: string) => string {
+  const t = useTranslations('dashboard.overview.relative');
+  return useCallback(
+    (iso: string): string => {
+      const diff = new Date(iso).getTime() - Date.now();
+      if (diff <= 60_000) return t('imminent');
+      if (diff < 3_600_000) return t('inMinutes', { n: Math.floor(diff / 60_000) });
+      if (diff < 86_400_000) return t('inHours', { n: Math.floor(diff / 3_600_000) });
+      return t('inDays', { n: Math.floor(diff / 86_400_000) });
+    },
+    [t],
+  );
+}

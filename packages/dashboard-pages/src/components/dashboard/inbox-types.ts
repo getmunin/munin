@@ -4,14 +4,16 @@ import type {
   CmsAssetExpanded,
   CmsDraftDetailDto,
   CmsDraftSummaryDto,
+  CmsScheduledSummaryDto,
   CrmMergeProposalDto,
   FeedbackOutboxDto,
   KbCandidateDto,
   OutreachProposalDto,
   QueueItem,
+  ScheduledItem,
 } from './queue-drawers/types';
 
-export type { QueueItem };
+export type { QueueItem, ScheduledItem };
 
 export type Status = 'open' | 'snoozed' | 'closed' | 'spam';
 
@@ -77,6 +79,7 @@ export interface InboxQueueResponse {
     outreach: OutreachProposalDto[];
     outreachScheduled?: OutreachProposalDto[];
     cms: CmsDraftSummaryDto[];
+    cmsScheduled?: CmsScheduledSummaryDto[];
     feedback?: FeedbackOutboxDto[];
   };
 }
@@ -103,6 +106,10 @@ export interface InboxController {
   setConvDrawer: (next: ConvDrawer) => void;
   queueDrawer: QueueItem | null;
   setQueueDrawer: (next: QueueItem | null) => void;
+  scheduledDrawer: ScheduledItem | null;
+  setScheduledDrawer: (next: ScheduledItem | null) => void;
+  cancelTarget: ScheduledItem | null;
+  setCancelTarget: (next: ScheduledItem | null) => void;
   reply: string;
   setReply: (next: string) => void;
   draftEdit: string | null;
@@ -126,8 +133,9 @@ export interface InboxController {
     options?: { claim?: boolean; closeDrawer?: boolean; fromDraftId?: string },
   ) => Promise<void>;
   approveQueue: (item: QueueItem, sendAt?: string | null) => Promise<void>;
-  scheduledSends: OutreachProposalDto[];
+  scheduled: ScheduledItem[];
   cancelScheduledSend: (id: string, reason: string) => Promise<void>;
+  cancelScheduledPublish: (id: string) => Promise<void>;
   saveQueue: (item: QueueItem, body: string) => Promise<void>;
   saveCmsDraft: (item: QueueItem, data: Record<string, unknown>) => Promise<void>;
   uploadCmsAsset: (item: QueueItem, file: File) => Promise<CmsAssetExpanded>;

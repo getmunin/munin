@@ -12,11 +12,14 @@ import {
   DialogTitle,
   BodyDiff,
 } from '@getmunin/ui';
+import { Pill } from '@getmunin/ui';
 import { useRelative } from '../../../lib/use-relative';
 import {
   DrawerFooter,
   DrawerHeader,
   Markdown,
+  ScheduledFooter,
+  ScheduledNotice,
   toDateTimeLocalValue,
   useCmdEnter,
 } from './shared';
@@ -25,16 +28,20 @@ import type { OutreachProposalDto } from './types';
 export function OutreachQueueDrawer({
   item,
   pending,
+  readOnly = false,
   onApprove,
   onDismiss,
   onSave,
+  onCancelScheduled,
   onClose,
 }: {
   item: { id: string; title: string; snippet: string; createdAt: string; raw: OutreachProposalDto };
   pending: boolean;
+  readOnly?: boolean;
   onApprove: (sendAt?: string | null) => void;
   onDismiss: () => void;
   onSave: (body: string) => Promise<void>;
+  onCancelScheduled?: () => void;
   onClose: () => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
@@ -87,7 +94,7 @@ export function OutreachQueueDrawer({
   };
 
   useCmdEnter(() => {
-    if (pending || schedulerOpen) return;
+    if (pending || schedulerOpen || readOnly) return;
     if (editing) void saveEdit();
     else onApprove();
   });
@@ -119,6 +126,7 @@ export function OutreachQueueDrawer({
   const revisionCount = item.raw.revisionCount ?? 0;
   const stamp = (d: Date) =>
     format.dateTime(d, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const scheduledSendAt = item.raw.scheduledSendAt ? new Date(item.raw.scheduledSendAt) : null;
 
   return (
     <>
@@ -127,11 +135,19 @@ export function OutreachQueueDrawer({
         pillLabel={tQueue('kindOutreach')}
         title={item.title}
         meta={t('metaOutreach', { kind, handle, age: age(item.createdAt) })}
+        rightExtra={readOnly ? <Pill tone="review">{t('scheduledPill')}</Pill> : undefined}
         onClose={onClose}
         closeLabel={t('close')}
       />
 
       <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+        {readOnly && scheduledSendAt && (
+          <ScheduledNotice
+            headline={t('scheduledOutreachHeadline', { when: stamp(scheduledSendAt) })}
+            detail={t('scheduledOutreachDetail', { handle })}
+          />
+        )}
+
         {revisionCount > 0 && (
           <section
             className={`border-l-2 px-3 py-2 text-xs ${
@@ -201,13 +217,13 @@ export function OutreachQueueDrawer({
           )}
         </section>
 
-        {proposedSendAt && !editing && (
+        {proposedSendAt && !editing && !readOnly && (
           <p className="border-l-2 border-rule px-3 py-2 text-xs text-ink-mute">
             {t('outreachProposedSendAt', { when: stamp(proposedSendAt) })}
           </p>
         )}
 
-        {delivery && !editing && (
+        {delivery && !editing && !readOnly && (
           <p
             className={`border-l-2 px-3 py-2 text-xs ${
               delivery.destination
@@ -284,7 +300,14 @@ export function OutreachQueueDrawer({
         </DialogContent>
       </Dialog>
 
-      {editing ? (
+      {readOnly ? (
+        <ScheduledFooter
+          cancelLabel={t('scheduledOutreachCancel')}
+          onCancel={() => onCancelScheduled?.()}
+          disabled={pending || !onCancelScheduled}
+          note={t('scheduledNote')}
+        />
+      ) : editing ? (
         <DrawerFooter
           primary={{
             label: t('save'),

@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { Button, Pill, cn } from '@getmunin/ui';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import type { QueueItem } from './types';
 
 export type DrawerPillTone =
   | 'live'
@@ -188,6 +189,63 @@ export function DrawerHeader({
           {closeLabel}
         </button>
       </div>
+    </div>
+  );
+}
+
+const MODULE_GLYPHS: Record<QueueItem['kind'], React.ReactNode> = {
+  cms: <rect x="1.4" y="1.4" width="7.2" height="7.2" />,
+  outreach: <circle cx="5" cy="5" r="3.9" />,
+  kb: <circle cx="5" cy="5" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.5" />,
+  crm: <path d="M5 0.7 9.3 5 5 9.3 0.7 5Z" />,
+  feedback: <path d="M5 0.9 9.4 8.7 0.6 8.7Z" />,
+};
+
+export function RowCode({ kind, children }: { kind: QueueItem['kind']; children: string }) {
+  return (
+    <span className="flex w-14 shrink-0 items-center gap-1.5 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+      <svg
+        viewBox="0 0 10 10"
+        className="size-2 shrink-0 fill-current text-ink dark:text-foreground"
+        aria-hidden
+      >
+        {MODULE_GLYPHS[kind]}
+      </svg>
+      {children}
+    </span>
+  );
+}
+
+export function ScheduledNotice({ headline, detail }: { headline: string; detail: string }) {
+  return (
+    <section className="border-l-2 border-cobalt px-3 py-2 dark:border-cobalt-soft">
+      <p className="font-serif text-base leading-snug text-cobalt dark:text-cobalt-soft">
+        {headline}
+      </p>
+      <p className="mt-1 text-xs text-ink-mute">{detail}</p>
+    </section>
+  );
+}
+
+export function ScheduledFooter({
+  cancelLabel,
+  onCancel,
+  disabled,
+  note,
+}: {
+  cancelLabel: string;
+  onCancel: () => void;
+  disabled?: boolean;
+  note: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 border-t-[1px] border-rule-soft px-6 py-3 dark:border-rule-on-dark">
+      <Button variant="outline" size="sm" onClick={onCancel} disabled={disabled}>
+        {cancelLabel}
+      </Button>
+      <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+        {note}
+      </span>
     </div>
   );
 }

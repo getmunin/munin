@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { ChevronDown, ChevronUp, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
 import { ApiError } from '../../../api';
 import {
@@ -17,6 +17,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  Pill,
 } from '@getmunin/ui';
 import { useRelative } from '../../../lib/use-relative';
 import {
@@ -25,6 +26,8 @@ import {
   DrawerLoadFailed,
   DrawerLoadingState,
   Markdown,
+  ScheduledFooter,
+  ScheduledNotice,
   useCmdEnter,
 } from './shared';
 import { NativeSelect } from '../../native-select';
@@ -50,11 +53,14 @@ export function CmsQueueDrawer({
   loadError,
   onRetry,
   pending,
+  readOnly = false,
+  scheduledAt: scheduledPublishAt,
   onApprove,
   onDismiss,
   onSaveData,
   onUploadAsset,
   onSchedule,
+  onCancelScheduled,
   onPreview,
   onClose,
 }: {
@@ -63,11 +69,14 @@ export function CmsQueueDrawer({
   loadError: string | undefined;
   onRetry: () => void;
   pending: boolean;
+  readOnly?: boolean;
+  scheduledAt?: string;
   onApprove: () => void;
   onDismiss: () => void;
   onSaveData: (data: EditableData) => Promise<void>;
   onUploadAsset: (file: File) => Promise<CmsAssetExpanded>;
   onSchedule: (scheduledAt: string) => Promise<void>;
+  onCancelScheduled?: () => void;
   onPreview: () => void;
   onClose: () => void;
 }) {
@@ -75,6 +84,7 @@ export function CmsQueueDrawer({
   const tQueue = useTranslations('dashboard.overview.queue');
   const tCommon = useTranslations('common');
   const age = useRelative();
+  const format = useFormatter();
 
   const fields = detail?.fields ?? EMPTY_FIELDS;
   const initialData: EditableData = detail?.data ?? EMPTY_DATA;
@@ -165,6 +175,7 @@ export function CmsQueueDrawer({
   };
 
   useCmdEnter(() => {
+    if (readOnly) return;
     if (editing) {
       if (!pending) void saveEdit();
       return;
@@ -194,12 +205,26 @@ export function CmsQueueDrawer({
           collection: item.raw.collectionName,
           age: age(item.createdAt),
         })}
+        rightExtra={readOnly ? <Pill tone="review">{t('scheduledPill')}</Pill> : undefined}
         onClose={onClose}
         closeLabel={t('close')}
       />
 
       {detail ? (
         <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+          {readOnly && scheduledPublishAt && (
+            <ScheduledNotice
+              headline={t('scheduledCmsHeadline', {
+                when: format.dateTime(new Date(scheduledPublishAt), {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }),
+              })}
+              detail={t('scheduledCmsDetail', { collection: item.raw.collectionName })}
+            />
+          )}
           {fields.map((field) => (
             <FieldSection
               key={field.name}
@@ -227,7 +252,16 @@ export function CmsQueueDrawer({
         <DrawerLoadingState label={t('loading')} />
       )}
 
-      {editing ? (
+      {readOnly ? (
+        loadFailed ? null : (
+          <ScheduledFooter
+            cancelLabel={t('scheduledCmsCancel')}
+            onCancel={() => onCancelScheduled?.()}
+            disabled={pending || !onCancelScheduled}
+            note={t('scheduledNote')}
+          />
+        )
+      ) : editing ? (
         <DrawerFooter
           primary={{
             label: t('save'),

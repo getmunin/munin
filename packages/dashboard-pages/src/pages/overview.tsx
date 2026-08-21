@@ -13,7 +13,7 @@ import {
   useInboxData,
   LiveNowSection,
   QueueSection,
-  ScheduledSendsSection,
+  ScheduledSection,
   InboxDrawers,
 } from '../components/dashboard/inbox-sections';
 
@@ -64,7 +64,7 @@ export function DashboardPage() {
 
       <LiveNowSection controller={inbox} />
       <QueueSection controller={inbox} />
-      <ScheduledSendsSection controller={inbox} />
+      <ScheduledSection controller={inbox} />
 
       <UsageKpis summary={summary} />
 

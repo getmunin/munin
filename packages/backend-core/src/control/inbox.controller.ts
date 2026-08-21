@@ -32,7 +32,11 @@ import {
 } from '../modules/outreach/outreach.service.ts';
 import { FeedbackService } from '../modules/feedback/feedback.service.ts';
 import type { FeedbackOutboxDto } from '../modules/feedback/feedback.service.ts';
-import { CmsService, type CmsDraftEntrySummary } from '../modules/cms/cms.service.ts';
+import {
+  CmsService,
+  type CmsDraftEntrySummary,
+  type CmsScheduledEntrySummary,
+} from '../modules/cms/cms.service.ts';
 
 interface LiveConversation extends ConversationSummary {
   latestEndUserMessage: { body: string; createdAt: string } | null;
@@ -49,6 +53,7 @@ interface InboxQueueResponse {
     outreach: ProposalSummaryDto[];
     outreachScheduled: ProposalSummaryDto[];
     cms: CmsDraftEntrySummary[];
+    cmsScheduled: CmsScheduledEntrySummary[];
     feedback?: FeedbackOutboxDto[];
   };
 }
@@ -69,16 +74,25 @@ export class InboxController {
 
   @Get()
   async queue(): Promise<InboxQueueResponse> {
-    const [live, kbItems, crmItems, outreachItems, outreachScheduled, cmsItems, feedbackItems] =
-      await Promise.all([
-        this.loadLive(),
-        this.kb.listCurationCandidates(50),
-        this.crm.listMergeProposals({ status: 'pending', limit: 50 }),
-        this.outreach.listProposals({ status: 'pending', limit: 50 }),
-        this.outreach.listProposals({ status: 'approved', limit: 50 }),
-        this.cms.listDraftEntries(50),
-        this.feedback ? this.feedback.listPending() : Promise.resolve(undefined),
-      ]);
+    const [
+      live,
+      kbItems,
+      crmItems,
+      outreachItems,
+      outreachScheduled,
+      cmsItems,
+      cmsScheduled,
+      feedbackItems,
+    ] = await Promise.all([
+      this.loadLive(),
+      this.kb.listCurationCandidates(50),
+      this.crm.listMergeProposals({ status: 'pending', limit: 50 }),
+      this.outreach.listProposals({ status: 'pending', limit: 50 }),
+      this.outreach.listProposals({ status: 'approved', limit: 50 }),
+      this.cms.listDraftEntries(50),
+      this.cms.listScheduledEntries(50),
+      this.feedback ? this.feedback.listPending() : Promise.resolve(undefined),
+    ]);
 
     return {
       live,
@@ -88,6 +102,7 @@ export class InboxController {
         outreach: outreachItems,
         outreachScheduled,
         cms: cmsItems,
+        cmsScheduled,
         ...(feedbackItems ? { feedback: feedbackItems } : {}),
       },
     };

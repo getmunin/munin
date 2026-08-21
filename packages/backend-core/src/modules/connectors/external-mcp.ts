@@ -34,13 +34,17 @@ export interface IdentityAssertionClaims {
 }
 
 export function slugifyConnectionName(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, MAX_SLUG_LENGTH)
-    .replace(/_+$/g, '');
+  const collapsed = name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const slug = trimUnderscores(trimUnderscores(collapsed).slice(0, MAX_SLUG_LENGTH));
   return slug || 'connection';
+}
+
+function trimUnderscores(value: string): string {
+  let start = 0;
+  let end = value.length;
+  while (start < end && value[start] === '_') start += 1;
+  while (end > start && value[end - 1] === '_') end -= 1;
+  return value.slice(start, end);
 }
 
 export async function readOrgConnectorJwks(

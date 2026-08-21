@@ -10,6 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  BodyDiff,
 } from '@getmunin/ui';
 import { useRelative } from '../../../lib/use-relative';
 import {
@@ -41,6 +42,7 @@ export function OutreachQueueDrawer({
   const age = useRelative();
   const format = useFormatter();
   const initialBody = item.raw.draftBody;
+  const originalDraftBody = item.raw.originalDraftBody ?? null;
   const [editing, setEditing] = useState(false);
   const [editedBody, setEditedBody] = useState(initialBody);
   const [schedulerOpen, setSchedulerOpen] = useState(false);
@@ -148,6 +150,19 @@ export function OutreachQueueDrawer({
                 {t('outreachRevisionReason', { reason: item.raw.lastRevisionReason })}
               </p>
             )}
+          </section>
+        )}
+
+        {originalDraftBody !== null && !editing && (
+          <section className="space-y-2">
+            <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+              {t('outreachOriginalDraft')}
+            </p>
+            <BodyDiff
+              before={originalDraftBody}
+              after={editedBody}
+              unchangedLabel={t('outreachOriginalDraftUnchanged')}
+            />
           </section>
         )}
 

@@ -81,7 +81,11 @@ Treat the *last cluster* of human/agent replies as the canonical answer for that
 
 ## Delta mode — curate the edit, not the reply
 
-The prompt gives you a `conversationId`, the internal draft message id, the sent message id, and the KB documents the drafting agent retrieved. Call `conv_get_conversation(<id>)` once: `messages[]` contains both. The draft is the `internal: true` message whose `metadata.kind` is `draft_reply_sent`; the sent message carries `metadata.approvedDraft` with the draft's original body, so you can read the before/after pair without reconstructing it.
+Delta mode reaches you from two places, and the prompt says which.
+
+**From a conversation.** The prompt gives a `conversationId`, the internal draft message id, the sent message id, and the KB documents the drafting agent retrieved. Call `conv_get_conversation(<id>)` once: `messages[]` contains both. The draft is the `internal: true` message whose `metadata.kind` is `draft_reply_sent`; the sent message carries `metadata.approvedDraft` with the draft's original body, so you can read the before/after pair without reconstructing it.
+
+**From an outreach proposal.** The prompt gives a `proposalId`. Call `outreach_get_proposal(<id>)`: `originalDraftBody` is the draft as first written and `draftBody` is what the human approved. There is no retrieved-documents list here, so find the document to revise with `kb_search`. Hold this source to a higher bar — outbound copy is edited mostly for tone, length and personalisation, and a prospect's name or a rewritten opening line is never KB knowledge. Expect to file nothing unless the human corrected a fact about the product or the company.
 
 **Classify the difference before you do anything else.** Most human edits are not knowledge, and filing them anyway is how the review queue becomes noise the operator stops reading.
 

@@ -392,6 +392,8 @@
         "outreachRevised": "Endret {count}× siden utkastet ble skrevet",
         "outreachRevisedAfterReview": "Endret {count}× etter at det ble åpnet til gjennomgang — les det på nytt før du godkjenner",
         "outreachRevisionReason": "Begrunnelse — {reason}",
+        "outreachOriginalDraft": "Endret fra det opprinnelige utkastet",
+        "outreachOriginalDraftUnchanged": "Tilbake til utkastet slik det opprinnelig var skrevet.",
         "outreachProposedSendAt": "Planlagt {when} — godkjenner du nå, sendes den på det tidspunktet, ikke med en gang.",
         "outreachApproveScheduled": "Godkjenn for {when}",
         "outreachSendNow": "Send nå",

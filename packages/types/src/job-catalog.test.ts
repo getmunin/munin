@@ -44,6 +44,7 @@ describe('toolPrefixesFor', () => {
       'kb_list_curation_decisions',
       'kb_propose_curation_candidate',
       'kb_propose_curation_revision',
+      'outreach_get_proposal',
     ]);
   });
 

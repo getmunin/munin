@@ -159,6 +159,7 @@ class FakeSlackApi extends SlackApiClient {
       new EmailService(),
       [new VapiOutreachCaller(new VapiClientService(db))],
       db,
+      new CuratorJobsService(dispatcher),
     );
     const embeddingHolder = new (class extends EmbeddingProviderHolder {
       override get() {

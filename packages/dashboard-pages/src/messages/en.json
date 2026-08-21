@@ -392,6 +392,8 @@
         "outreachRevised": "Revised {count}× since it was drafted",
         "outreachRevisedAfterReview": "Revised {count}× after it was opened for review — read it again before approving",
         "outreachRevisionReason": "Reason — {reason}",
+        "outreachOriginalDraft": "Changed from the original draft",
+        "outreachOriginalDraftUnchanged": "Back to the draft as it was originally written.",
         "outreachProposedSendAt": "Scheduled for {when} — approving authorizes the send at that time, not now.",
         "outreachApproveScheduled": "Approve for {when}",
         "outreachSendNow": "Send now",

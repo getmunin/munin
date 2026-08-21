@@ -10414,6 +10414,10 @@
                       "default": true,
                       "type": "boolean"
                     },
+                    "autoCurateEdits": {
+                      "default": false,
+                      "type": "boolean"
+                    },
                     "unsubscribeRequired": {
                       "type": "boolean"
                     }

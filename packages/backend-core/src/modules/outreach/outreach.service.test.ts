@@ -68,7 +68,15 @@ const skipReason = TEST_URL
     const email = new EmailService();
     const vapiCaller = new VapiOutreachCaller(new VapiClientService(db));
     const threllCaller = new ThrellOutreachCaller(new ThrellClientService(db));
-    svc = new OutreachService(dispatcher, conv, crm, email, [vapiCaller, threllCaller], db);
+    svc = new OutreachService(
+      dispatcher,
+      conv,
+      crm,
+      email,
+      [vapiCaller, threllCaller],
+      db,
+      curatorJobs,
+    );
   });
 
   afterAll(async () => {
@@ -508,6 +516,114 @@ const skipReason = TEST_URL
       expect(rows[0]!.hasEvidence).toBe(false);
       expect(rows[0]!).not.toHaveProperty('evidence');
       expect(await run(() => svc.getProposal(p.id)).then((f) => f.evidence)).toEqual({});
+    });
+
+    async function pendingOn(name: string, opts: { autoCurateEdits?: boolean } = {}) {
+      const c = await run(() =>
+        svc.createCampaign({
+          name,
+          brief: 'b',
+          segmentId,
+          channelId,
+          enabled: true,
+          ...(opts.autoCurateEdits === undefined ? {} : { autoCurateEdits: opts.autoCurateEdits }),
+        }),
+      );
+      const p = await run(() =>
+        svc.proposeInitial({ campaignId: c.id, contactId, draftSubject: 's', draftBody: 'first' }),
+      );
+      return { campaign: c, proposal: p };
+    }
+
+    async function curationJobs(): Promise<{ user_prompt: string; dedupe_key: string | null }[]> {
+      return db.execute<{ user_prompt: string; dedupe_key: string | null }>(
+        sql`SELECT user_prompt, dedupe_key FROM curator_jobs
+            WHERE org_id = ${orgId} AND job_uri = 'skill://kb/review-content'`,
+      );
+    }
+
+    it('keeps the agent draft when a human revises, so the edit stays recoverable', async () => {
+      const p = await pending('rev-keeps-ai-original');
+      expect(p.originalDraftBody).toBeNull();
+      const revised = await runAs(reviewer(), () =>
+        svc.reviseProposal({ id: p.id, reason: 'wrong rate', draftBody: 'second' }),
+      );
+      expect(revised.originalDraftBody).toBe('first');
+      expect(revised.draftBody).toBe('second');
+
+      const again = await runAs(reviewer(), () =>
+        svc.reviseProposal({ id: p.id, reason: 'again', draftBody: 'third' }),
+      );
+      expect(again.originalDraftBody).toBe('first');
+      expect(again.draftBody).toBe('third');
+    });
+
+    it('does not treat the curator revising its own draft as a human edit', async () => {
+      const p = await pending('rev-agent-not-human');
+      const revised = await run(() =>
+        svc.reviseProposal({ id: p.id, reason: 'self-correct', draftBody: 'second' }),
+      );
+      expect(revised.originalDraftBody).toBeNull();
+    });
+
+    it('curates an approved-with-edits proposal when the campaign opts in', async () => {
+      const { proposal } = await pendingOn('rev-curate-on', { autoCurateEdits: true });
+      const revised = await runAs(reviewer(), () =>
+        svc.reviseProposal({ id: proposal.id, reason: 'rate was wrong', draftBody: 'rate is 9.4%' }),
+      );
+      await runAs(reviewer(), () =>
+        svc.approveProposal(revised.id, {
+          publicBaseUrl: 'https://test.local',
+          fingerprint: revised.draftFingerprint,
+        }),
+      );
+      const jobs = await curationJobs();
+      expect(jobs).toHaveLength(1);
+      expect(jobs[0]!.dedupe_key).toBe(`kb-curation:proposal:${revised.id}`);
+      expect(jobs[0]!.user_prompt).toContain('Delta mode');
+      expect(jobs[0]!.user_prompt).toContain(revised.id);
+    });
+
+    it('does not curate an approved-with-edits proposal when the campaign has not opted in', async () => {
+      const { proposal } = await pendingOn('rev-curate-off');
+      const revised = await runAs(reviewer(), () =>
+        svc.reviseProposal({ id: proposal.id, reason: 'rate was wrong', draftBody: 'rate is 9.4%' }),
+      );
+      await runAs(reviewer(), () =>
+        svc.approveProposal(revised.id, {
+          publicBaseUrl: 'https://test.local',
+          fingerprint: revised.draftFingerprint,
+        }),
+      );
+      expect(await curationJobs()).toEqual([]);
+    });
+
+    it('does not curate a proposal approved exactly as the agent drafted it', async () => {
+      const { proposal } = await pendingOn('rev-curate-unedited', { autoCurateEdits: true });
+      await runAs(reviewer(), () =>
+        svc.approveProposal(proposal.id, {
+          publicBaseUrl: 'https://test.local',
+          fingerprint: proposal.draftFingerprint,
+        }),
+      );
+      expect(await curationJobs()).toEqual([]);
+    });
+
+    it('does not curate an edit the human reverted back to the agent draft', async () => {
+      const { proposal } = await pendingOn('rev-curate-reverted', { autoCurateEdits: true });
+      await runAs(reviewer(), () =>
+        svc.reviseProposal({ id: proposal.id, reason: 'try', draftBody: 'second' }),
+      );
+      const back = await runAs(reviewer(), () =>
+        svc.reviseProposal({ id: proposal.id, reason: 'never mind', draftBody: 'first' }),
+      );
+      await runAs(reviewer(), () =>
+        svc.approveProposal(back.id, {
+          publicBaseUrl: 'https://test.local',
+          fingerprint: back.draftFingerprint,
+        }),
+      );
+      expect(await curationJobs()).toEqual([]);
     });
 
     it('reviseProposal rewrites the draft in place and records the revision', async () => {

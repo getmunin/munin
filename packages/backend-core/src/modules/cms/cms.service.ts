@@ -49,6 +49,7 @@ import {
   type FieldSummaryNote,
 } from './cms.summary.ts';
 import { loadAssetMap } from './cms.asset-loader.ts';
+import { entryTitle, readLiveUrlTemplate, renderLiveUrl } from './cms.live-url.ts';
 import { deriveVariantColumns, type VariantColumns } from './cms.variants.ts';
 import { loadEntryMap } from './cms.entry-loader.ts';
 import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
@@ -831,7 +832,7 @@ export class CmsService {
     if (status === 'published') {
       await this.webhooks.emit({
         type: 'cms.entry.published',
-        payload: makePayload(row!, collection.slug),
+        payload: makePublishedPayload(row!, collection, null),
       });
     }
     return toEntryDto(row!, collection.slug, collection.fields);
@@ -1760,7 +1761,7 @@ export class CmsService {
     if (status === 'published') {
       await this.webhooks.emit({
         type: 'cms.entry.published',
-        payload: makePayload(updated!, collection.slug),
+        payload: makePublishedPayload(updated!, collection, existing.status),
       });
     } else if (status === 'draft') {
       await this.webhooks.emit({
@@ -2183,6 +2184,23 @@ function makePayload(
     locale: row.locale,
     status: row.status,
     version: row.version,
+  };
+}
+
+export function makePublishedPayload(
+  row: typeof schema.cmsEntries.$inferSelect,
+  collection: { slug: string; settings: Record<string, unknown> },
+  previousStatus: string | null,
+): Record<string, unknown> {
+  return {
+    ...makePayload(row, collection.slug),
+    previousStatus,
+    title: entryTitle(row.data, row.slug),
+    url: renderLiveUrl(readLiveUrlTemplate(collection.settings), {
+      slug: row.slug,
+      locale: row.locale,
+      collectionSlug: collection.slug,
+    }),
   };
 }
 

@@ -13,7 +13,7 @@ Use this when the operator wants their team to triage Munin conversations from S
 1. Confirm the deployment has a Slack app (`slack_get_status` → `appConfigured`). If it doesn't, create the app from the manifest below and set the env vars.
 2. Call `slack_get_install_url` and have the operator open and approve the link in a browser (workspace admin required).
 3. Call `slack_set_routing` with the channel ID conversations should mirror into; have the operator `/invite` the bot to that channel.
-4. Optionally route escalations to a second channel: `slack_set_routing` with `purpose: "escalations"` and a `mention` like `<!here>`.
+4. Optionally route escalations to a second channel: `slack_set_routing` with `purpose: "escalations"` and a `mention` like `<!here>`; approvals and CMS publish announcements take their own channels the same way (`purpose: "approvals"` / `"content"`).
 5. Verify with `slack_send_test_message`, then confirm `slack_get_status` shows `connected: true`.
 
 ## Step 0 — deployment prerequisites
@@ -122,6 +122,18 @@ Routing: they land in the `approvals` channel when routed (`slack_set_routing` w
 ```
 
 Buttons act as the clicking teammate — the same account-linking rule as replies applies, and any linked org member can decide (matching the dashboard). Once resolved, the buttons disappear and the message shows the outcome and who decided.
+
+## Content announcements
+
+Publishing a CMS entry posts a one-line announcement — ":rocket: *Published* — *\<title\>*", the collection and locale, and a link to the live article. Scheduled publishes announce when the worker promotes them; re-publishing an already-published entry does not announce again. No buttons — it is news, not a decision.
+
+Routing: the `content` channel when routed, otherwise the default channel.
+
+```json
+{ "slackChannelId": "C0111...", "purpose": "content" }
+```
+
+The article link needs a live URL template on the collection (`settings.liveUrl`, e.g. `https://www.example.com/{locale}/blog/{slug}`) — without one the announcement still posts, just without a link. See `skill://cms/publish-entry`.
 
 ## Replying from Slack
 

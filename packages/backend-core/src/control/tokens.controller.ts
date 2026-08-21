@@ -52,10 +52,7 @@ export class TokensController {
   async revoke(@Param('id') id: string): Promise<void> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    if (id.startsWith('orft_')) {
-      await revokeOauthAgent(ctx.db, id, actor.orgId);
-      return;
-    }
+    if (await revokeOauthAgent(ctx.db, id, actor.orgId)) return;
     const result = await ctx.db
       .update(schema.tokens)
       .set({ revokedAt: new Date() })
@@ -156,7 +153,7 @@ async function revokeOauthAgent(
   db: Db | Tx,
   refreshTokenId: string,
   orgId: string,
-): Promise<void> {
+): Promise<boolean> {
   const rows = await db
     .select({
       clientId: schema.oauthRefreshToken.clientId,
@@ -167,9 +164,7 @@ async function revokeOauthAgent(
     .where(eq(schema.oauthRefreshToken.id, refreshTokenId))
     .limit(1);
   const row = rows[0];
-  if (!row?.userId || row.referenceId !== orgId) {
-    throw new NotFoundException(`token ${refreshTokenId} not found`);
-  }
+  if (!row?.userId || row.referenceId !== orgId) return false;
 
   const nameRow = (
     await db
@@ -207,5 +202,6 @@ async function revokeOauthAgent(
         inArray(schema.oauthAccessToken.clientId, clientIds),
       ),
     );
+  return true;
 }
 

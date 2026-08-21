@@ -479,7 +479,7 @@ interface OrgFixture {
       expect(wrongOrg.status).toBe(404);
     });
 
-    it('collapses an OAuth agent into one flock row per org, scoped by pinned reference_id, and revokes only the caller org', async () => {
+    it('collapses an OAuth agent into one flock row per org, scoped by pinned reference_id, revokes only the caller org, and revokes rows whose BetterAuth-generated id carries no orft_ prefix', async () => {
       const label = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
       const name = `Claude Code ${label}`;
       const clientA = `oauth-client-a-${label}`;
@@ -491,8 +491,13 @@ interface OrgFixture {
       await db.insert(schema.oauthClient).values(
         allClients.map((clientId) => ({ clientId, name, icon, redirectUris: ['https://example.com/cb'] })),
       );
+      const betterAuthId = (slot: string) =>
+        `${slot}${label.replace(/-/g, '')}`.padEnd(32, 'Zq0Yx').slice(0, 32);
+      const unprefixedIds = ['a', 'b', 'c', 'expired', 'revoked'].map(betterAuthId);
+      const [idA, idB, idC, idExpired, idRevoked] = unprefixedIds;
       await db.insert(schema.oauthRefreshToken).values([
         {
+          id: idA,
           token: `rt-a-${label}`,
           clientId: clientA,
           userId: orgA.userId,
@@ -501,6 +506,7 @@ interface OrgFixture {
           scopes: ['mcp:admin', 'kb:read'],
         },
         {
+          id: idB,
           token: `rt-b-${label}`,
           clientId: clientB,
           userId: orgA.userId,
@@ -509,6 +515,7 @@ interface OrgFixture {
           scopes: ['mcp:admin', 'crm:write'],
         },
         {
+          id: idC,
           token: `rt-c-${label}`,
           clientId: clientC,
           userId: orgA.userId,
@@ -517,6 +524,7 @@ interface OrgFixture {
           scopes: ['mcp:admin'],
         },
         {
+          id: idExpired,
           token: `rt-expired-${label}`,
           clientId: clientA,
           userId: orgA.userId,
@@ -525,6 +533,7 @@ interface OrgFixture {
           scopes: ['mcp:admin'],
         },
         {
+          id: idRevoked,
           token: `rt-revoked-${label}`,
           clientId: clientA,
           userId: orgA.userId,
@@ -547,7 +556,7 @@ interface OrgFixture {
       const oauthRows = tokens.filter((t) => t.origin === name);
       expect(oauthRows).toHaveLength(1);
       const agentRow = oauthRows[0]!;
-      expect(agentRow.id.startsWith('orft_')).toBe(true);
+      expect(unprefixedIds).toContain(agentRow.id);
       expect(agentRow.type).toBe('oauth_refresh');
       expect(agentRow.count).toBe(2);
       expect(agentRow.iconUrl).toBe(icon);

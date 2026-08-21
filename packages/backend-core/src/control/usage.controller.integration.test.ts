@@ -57,14 +57,23 @@ interface AgentUsageRow {
       .returning();
     otherOrgId = otherOrg!.id;
 
+    const betterAuthId = () => randomUUID().replace(/-/g, '').slice(0, 32);
     const [kjell] = await db
       .insert(schema.users)
-      .values({ email: `kjell-${randomUUID().slice(0, 8)}@test.example`, name: 'Kjell' })
+      .values({
+        id: betterAuthId(),
+        email: `kjell-${randomUUID().slice(0, 8)}@test.example`,
+        name: 'Kjell',
+      })
       .returning();
     kjellId = kjell!.id;
     const [espen] = await db
       .insert(schema.users)
-      .values({ email: `espen-${randomUUID().slice(0, 8)}@test.example`, name: 'Espen' })
+      .values({
+        id: betterAuthId(),
+        email: `espen-${randomUUID().slice(0, 8)}@test.example`,
+        name: 'Espen',
+      })
       .returning();
     espenId = espen!.id;
 
@@ -168,6 +177,16 @@ interface AgentUsageRow {
     const agents = await byAgent();
     expect(agents).toEqual([
       expect.objectContaining({ name: 'Deploy key', description: 'admin_agent', mcpCalls: 1 }),
+    ]);
+  });
+
+  it('names a dashboard user caller by name rather than echoing the raw BetterAuth id', async () => {
+    await db.delete(schema.auditLog).where(sql`org_id = ${orgId}`);
+    await seedToolCall({ actorType: 'user', actorId: kjellId, clientId: null });
+
+    const agents = await byAgent();
+    expect(agents).toEqual([
+      expect.objectContaining({ name: 'Kjell', description: 'user', mcpCalls: 1 }),
     ]);
   });
 

@@ -57,6 +57,12 @@ export interface UiController {
 
 const TYPING_IDLE_MS = 800;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const CREDIT_URL =
+  'https://www.getmunin.com/?utm_source=widget&utm_medium=referral&utm_campaign=powered_by';
+
+function creditLinkHtml(strings: Strings): string {
+  return `<a href="${escapeAttr(CREDIT_URL)}" target="_blank" rel="nofollow noopener">${escapeHtml(strings.poweredBy)} <strong>Munin</strong></a>`;
+}
 
 export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): UiController {
   const locale = pickLocale(config.locale).locale;
@@ -594,7 +600,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   }
 
   if (config.eyebrow === null) {
-    panel.welcomeEyebrowEl.innerHTML = `<a href="https://getmunin.com" target="_blank" rel="noopener noreferrer">${escapeHtml(strings.poweredBy)} <strong>Munin</strong></a>`;
+    panel.welcomeEyebrowEl.innerHTML = creditLinkHtml(strings);
   } else {
     panel.welcomeEyebrowEl.textContent = config.eyebrow;
   }
@@ -1005,7 +1011,7 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
         <span class="counter"></span>
       </div>
     </form>
-    <div class="footer-credit"><a href="https://getmunin.com" target="_blank" rel="noopener noreferrer">${escapeHtml(strings.poweredBy)} <strong>Munin</strong></a></div>
+    <div class="footer-credit">${creditLinkHtml(strings)}</div>
     <div class="voice-call" hidden>
       <button type="button" class="voice-call-min" aria-label="${escapeAttr(strings.voiceMinimizeAriaLabel)}">↙ ${escapeHtml(strings.voiceBackToChat)}</button>
       <div class="voice-call-stage">

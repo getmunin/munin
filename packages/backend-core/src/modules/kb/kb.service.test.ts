@@ -730,4 +730,261 @@ const skipReason = TEST_URL
       ).rejects.toThrow(KbInvalidError);
     });
   });
+
+  describe('curation revisions', () => {
+    const CURRENT = 'The effective rate is about 11.9%.\n\nApply with BankID.';
+    const CORRECTED = 'The effective rate is about 9.4%.\n\nApply with BankID.';
+
+    async function seedPublishedDoc(body = CURRENT) {
+      const space = await run(() => svc.createSpace({ name: 'Support FAQ', slug: 'support-faq' }));
+      return run(() =>
+        svc.createDocument({
+          spaceId: space.id,
+          title: 'Rates and fees',
+          body,
+          audiences: ['admin', 'self_service'],
+        }),
+      );
+    }
+
+    it('proposes a revision that points at the document it corrects', async () => {
+      const doc = await seedPublishedDoc();
+      const candidate = await run(() =>
+        svc.proposeCurationRevision({
+          revisesDocumentId: doc.id,
+          draftBody: CORRECTED,
+          sourceConversationId: 'ccv_rate',
+          sourceMessageId: 'cvm_rate',
+        }),
+      );
+      expect(candidate.tags).toEqual(
+        expect.arrayContaining([
+          'curation',
+          'candidate',
+          'revision',
+          `revises:${doc.id}`,
+          'source:ccv_rate',
+          'source-msg:cvm_rate',
+        ]),
+      );
+      expect(candidate.title).toBe('Rates and fees');
+      expect(candidate.audiences).toEqual(['admin']);
+
+      const [summary] = await run(() => svc.listCurationCandidates());
+      expect(summary?.revisesDocumentId).toBe(doc.id);
+      expect(summary?.revisesDocumentTitle).toBe('Rates and fees');
+      expect(summary?.revisesDocumentVersion).toBe(doc.version);
+      expect(summary?.proposedTargetSpaceSlug).toBeNull();
+
+      const detail = await run(() => svc.getCurationCandidate(candidate.id));
+      expect(detail.revisesDocumentBody).toBe(CURRENT);
+    });
+
+    it('publishes a revision as a new version of the document it revises', async () => {
+      const doc = await seedPublishedDoc();
+      const candidate = await run(() =>
+        svc.proposeCurationRevision({
+          revisesDocumentId: doc.id,
+          draftBody: CORRECTED,
+          sourceConversationId: 'ccv_rate',
+          sourceMessageId: 'cvm_rate',
+        }),
+      );
+      const published = await run(() =>
+        svc.publishCurationRevision({
+          candidateDocumentId: candidate.id,
+          ifCandidateVersion: candidate.version,
+          ifDocumentVersion: doc.version,
+        }),
+      );
+      expect(published.id).toBe(doc.id);
+      expect(published.body).toBe(CORRECTED);
+      expect(published.version).toBe(doc.version + 1);
+      expect(published.audiences).toEqual(['admin', 'self_service']);
+
+      const remaining = await run(() => svc.listCurationCandidates());
+      expect(remaining).toEqual([]);
+
+      const versions = await run(() => svc.listVersions(doc.id));
+      expect(versions.map((v) => v.version)).toEqual([doc.version + 1, doc.version]);
+
+      const decisions = await run(() => svc.listCurationDecisions());
+      expect(decisions).toHaveLength(1);
+      expect(decisions[0]).toMatchObject({
+        outcome: 'published',
+        publishedDocumentId: doc.id,
+        sourceConversationId: 'ccv_rate',
+        sourceMessageId: 'cvm_rate',
+      });
+    });
+
+    it('rolls a bad revision back through the version history', async () => {
+      const doc = await seedPublishedDoc();
+      const candidate = await run(() =>
+        svc.proposeCurationRevision({ revisesDocumentId: doc.id, draftBody: CORRECTED }),
+      );
+      const published = await run(() =>
+        svc.publishCurationRevision({
+          candidateDocumentId: candidate.id,
+          ifCandidateVersion: candidate.version,
+          ifDocumentVersion: doc.version,
+        }),
+      );
+      const restored = await run(() =>
+        svc.restoreVersion({
+          documentId: doc.id,
+          version: doc.version,
+          ifVersion: published.version,
+        }),
+      );
+      expect(restored.body).toBe(CURRENT);
+    });
+
+    it('writes nothing when the revised document moved after the diff was reviewed', async () => {
+      const doc = await seedPublishedDoc();
+      const candidate = await run(() =>
+        svc.proposeCurationRevision({ revisesDocumentId: doc.id, draftBody: CORRECTED }),
+      );
+      await run(() =>
+        svc.updateDocument({ id: doc.id, ifVersion: doc.version, body: 'edited elsewhere' }),
+      );
+      await expect(
+        run(() =>
+          svc.publishCurationRevision({
+            candidateDocumentId: candidate.id,
+            ifCandidateVersion: candidate.version,
+            ifDocumentVersion: doc.version,
+          }),
+        ),
+      ).rejects.toThrow(KbConflictError);
+      const untouched = await run(() => svc.getDocument(doc.id));
+      expect(untouched.body).toBe('edited elsewhere');
+      const stillPending = await run(() => svc.listCurationCandidates());
+      expect(stillPending).toHaveLength(1);
+    });
+
+    it('writes nothing when the proposed text moved after it was reviewed', async () => {
+      const doc = await seedPublishedDoc();
+      const candidate = await run(() =>
+        svc.proposeCurationRevision({ revisesDocumentId: doc.id, draftBody: CORRECTED }),
+      );
+      await expect(
+        run(() =>
+          svc.publishCurationRevision({
+            candidateDocumentId: candidate.id,
+            ifCandidateVersion: candidate.version + 1,
+            ifDocumentVersion: doc.version,
+          }),
+        ),
+      ).rejects.toThrow(KbConflictError);
+      const untouched = await run(() => svc.getDocument(doc.id));
+      expect(untouched.body).toBe(CURRENT);
+    });
+
+    it('refuses to publish a revision as a second, duplicate document', async () => {
+      const doc = await seedPublishedDoc();
+      const candidate = await run(() =>
+        svc.proposeCurationRevision({ revisesDocumentId: doc.id, draftBody: CORRECTED }),
+      );
+      await expect(
+        run(() =>
+          svc.publishCurationCandidate({
+            candidateDocumentId: candidate.id,
+            targetSpaceSlug: 'support-faq',
+            ifVersion: candidate.version,
+          }),
+        ),
+      ).rejects.toThrow(KbInvalidError);
+      const docs = await run(() => svc.listDocuments({}));
+      expect(docs.filter((d) => d.title === 'Rates and fees')).toHaveLength(2);
+    });
+
+    it('refuses to publish a plain candidate through the revision path', async () => {
+      const candidate = await run(() =>
+        svc.proposeCurationCandidate({ subject: 'New topic', draftBody: 'Body.' }),
+      );
+      await expect(
+        run(() =>
+          svc.publishCurationRevision({
+            candidateDocumentId: candidate.id,
+            ifCandidateVersion: candidate.version,
+            ifDocumentVersion: 1,
+          }),
+        ),
+      ).rejects.toThrow(KbInvalidError);
+    });
+
+    it('refuses to revise a candidate or an agent-runtime configuration document', async () => {
+      const doc = await seedPublishedDoc();
+      const candidate = await run(() =>
+        svc.proposeCurationRevision({ revisesDocumentId: doc.id, draftBody: CORRECTED }),
+      );
+      await expect(
+        run(() =>
+          svc.proposeCurationRevision({
+            revisesDocumentId: candidate.id,
+            draftBody: 'nested',
+          }),
+        ),
+      ).rejects.toThrow(KbInvalidError);
+    });
+
+    it('curates a second message of a conversation whose first was already decided', async () => {
+      const doc = await seedPublishedDoc();
+      const first = await run(() =>
+        svc.proposeCurationRevision({
+          revisesDocumentId: doc.id,
+          draftBody: CORRECTED,
+          sourceConversationId: 'ccv_multi',
+          sourceMessageId: 'cvm_one',
+        }),
+      );
+      await run(() =>
+        svc.dismissCurationCandidate({ id: first.id, ifVersion: first.version, reason: 'no' }),
+      );
+      await expect(
+        run(() =>
+          svc.proposeCurationRevision({
+            revisesDocumentId: doc.id,
+            draftBody: CORRECTED,
+            sourceConversationId: 'ccv_multi',
+            sourceMessageId: 'cvm_one',
+          }),
+        ),
+      ).rejects.toThrow(KbCurationDecidedError);
+      const second = await run(() =>
+        svc.proposeCurationRevision({
+          revisesDocumentId: doc.id,
+          draftBody: 'Another correction.',
+          sourceConversationId: 'ccv_multi',
+          sourceMessageId: 'cvm_two',
+        }),
+      );
+      expect(second.id).toBeTruthy();
+    });
+
+    it('lets a decision recorded without a source message still close its whole conversation', async () => {
+      const doc = await seedPublishedDoc();
+      const legacy = await run(() =>
+        svc.proposeCurationCandidate({
+          subject: 'Legacy',
+          draftBody: 'Body.',
+          sourceConversationId: 'ccv_legacy',
+        }),
+      );
+      await run(() =>
+        svc.dismissCurationCandidate({ id: legacy.id, ifVersion: legacy.version }),
+      );
+      await expect(
+        run(() =>
+          svc.proposeCurationRevision({
+            revisesDocumentId: doc.id,
+            draftBody: CORRECTED,
+            sourceConversationId: 'ccv_legacy',
+            sourceMessageId: 'cvm_new',
+          }),
+        ),
+      ).rejects.toThrow(KbCurationDecidedError);
+    });
+  });
 });

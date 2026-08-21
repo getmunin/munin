@@ -41,6 +41,7 @@ export { Label } from './components/label';
 export { Separator } from './components/separator';
 export { Toaster } from './components/sonner';
 export { Badge, badgeVariants, type BadgeProps } from './components/badge';
+export { BodyDiff } from './components/body-diff';
 export {
   Dialog,
   DialogTrigger,

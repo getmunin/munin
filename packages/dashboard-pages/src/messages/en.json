@@ -265,7 +265,9 @@
         "cmsUntitled": "Untitled draft",
         "feedbackSnippet": "{scope} feedback awaiting approval.",
         "feedbackSnippetAttributed": "{scope} feedback — attributed",
-        "feedbackScopeFallback": "Munin"
+        "feedbackScopeFallback": "Munin",
+        "kindKbRevision": "KB · REVISION",
+        "kbSnippetRevision": "Revision to “{title}”."
       },
       "scheduledSends": {
         "eyebrow": "Scheduled sends",
@@ -390,6 +392,8 @@
         "outreachRevised": "Revised {count}× since it was drafted",
         "outreachRevisedAfterReview": "Revised {count}× after it was opened for review — read it again before approving",
         "outreachRevisionReason": "Reason — {reason}",
+        "outreachOriginalDraft": "Changed from the original draft",
+        "outreachOriginalDraftUnchanged": "Back to the draft as it was originally written.",
         "outreachProposedSendAt": "Scheduled for {when} — approving authorizes the send at that time, not now.",
         "outreachApproveScheduled": "Approve for {when}",
         "outreachSendNow": "Send now",
@@ -401,7 +405,12 @@
         "outreachScheduleConfirm": "Approve & schedule",
         "outreachScheduleCancel": "Cancel",
         "outreachScheduleError": "Pick a time in the future.",
-        "productsView": "View"
+        "productsView": "View",
+        "proposalRevision": "Proposed change",
+        "metaKbRevision": "{title} · v{version} · {age}",
+        "kbRevisionApprove": "Publish new version",
+        "kbRevisionNoChange": "The proposed text matches the document as it stands. Nothing to publish.",
+        "kbRevisionPublishNote": "Publishing saves this as a new version of the existing document. The old text stays in its version history, so you can roll it back."
       },
       "relative": {
         "justNow": "just now",
@@ -1596,7 +1605,10 @@
     "cms_asset_upload_failed": "The file upload didn't finish. Check your connection and try again.",
     "cms_version_conflict": "This entry was changed elsewhere while you were editing. Reload it and try again.",
     "agent_config_invalid_model": "Your AI provider no longer offers that model. Reload the page to refresh the list, then pick a model and save again.",
-    "conv_channel_config_invalid": "This channel's saved settings are incomplete, so it can't be used yet. Open its settings, fill in what's missing and save to repair it."
+    "conv_channel_config_invalid": "This channel's saved settings are incomplete, so it can't be used yet. Open its settings, fill in what's missing and save to repair it.",
+    "conv_invalid": "This draft is no longer the one waiting on this conversation — it was already sent, or the agent has written a newer one. Reopen the conversation to see where it stands.",
+    "kb_version_conflict": "Someone changed this text while you had it open, so nothing was saved. Reopen it to see the current version and decide on that.",
+    "kb_curation_decided": "This one was already decided — published or dismissed — so it won't be proposed again. Refresh the queue."
   },
   "footer": {
     "privacy": "Privacy",
@@ -1746,6 +1758,12 @@
       "dismiss": "Dismiss",
       "dismissing": "Dismissing…",
       "published": "Published to {space}.",
+      "publishedRevision": "Saved as a new version of “{title}”.",
+      "revisionOf": "revises “{title}”",
+      "revisionEyebrow": "Proposed change",
+      "revisionTarget": "Publishes as a new version of “{title}” (now at v{version})",
+      "revisionNoChange": "The proposed text matches the document as it stands. Nothing to publish.",
+      "revisionTargetGone": "Could not load the document this revises — it may have been deleted.",
       "dismissed": "Dismissed — the draft was deleted and this conversation won't be proposed again.",
       "footClear": "Inbox clear",
       "footPending": "{count} drafts pending",

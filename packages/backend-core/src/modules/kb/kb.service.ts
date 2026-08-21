@@ -1,5 +1,5 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { schema } from '@getmunin/db';
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
@@ -57,11 +57,15 @@ export class KbCurationDecidedError extends Error {
     public readonly sourceConversationId: string,
     public readonly outcome: string,
     decidedAt: string,
+    sourceMessageId?: string | null,
   ) {
+    const from = sourceMessageId
+      ? `message ${sourceMessageId} of conversation ${sourceConversationId}`
+      : `conversation ${sourceConversationId}`;
     super(
       outcome === 'published'
-        ? `kb_curation_decided: a candidate from conversation ${sourceConversationId} was already published on ${decidedAt} — that knowledge is in the KB, so do not refile it. Create a document directly with kb_create_document if something genuinely new came up.`
-        : `kb_curation_decided: a candidate from conversation ${sourceConversationId} was dismissed on ${decidedAt} and dismissals are permanent — do not refile it. Read the decision with kb_list_curation_decisions.`,
+        ? `kb_curation_decided: a candidate from ${from} was already published on ${decidedAt} — that knowledge is in the KB, so do not refile it. Create a document directly with kb_create_document if something genuinely new came up.`
+        : `kb_curation_decided: a candidate from ${from} was dismissed on ${decidedAt} and dismissals are permanent — do not refile it. Read the decision with kb_list_curation_decisions.`,
     );
   }
 }
@@ -89,14 +93,25 @@ export interface DocumentDto {
   updatedAt: string;
 }
 
-export interface CurationCandidateSummary extends DocumentSummary {
+export interface CurationCandidateRefs {
   proposedTargetSpaceSlug: string | null;
   sourceConversationId: string | null;
+  sourceMessageId: string | null;
+  revisesDocumentId: string | null;
 }
 
-export interface CurationCandidateDto extends DocumentDto {
-  proposedTargetSpaceSlug: string | null;
-  sourceConversationId: string | null;
+export interface RevisedDocumentRef {
+  revisesDocumentTitle: string | null;
+  revisesDocumentVersion: number | null;
+}
+
+export interface CurationCandidateSummary
+  extends DocumentSummary,
+    CurationCandidateRefs,
+    RevisedDocumentRef {}
+
+export interface CurationCandidateDto extends DocumentDto, CurationCandidateRefs, RevisedDocumentRef {
+  revisesDocumentBody: string | null;
 }
 
 export type CurationOutcome = 'dismissed' | 'published';
@@ -104,6 +119,7 @@ export type CurationOutcome = 'dismissed' | 'published';
 export interface CurationDecisionDto {
   id: string;
   sourceConversationId: string | null;
+  sourceMessageId: string | null;
   candidateDocumentId: string;
   title: string;
   outcome: CurationOutcome;
@@ -405,6 +421,7 @@ export class KbService {
       const refs = extractCandidateRefs(existing.tags);
       await this.recordCurationDecision({
         sourceConversationId: refs.sourceConversationId,
+        sourceMessageId: refs.sourceMessageId,
         candidateDocumentId: existing.id,
         title: existing.title,
         outcome: 'dismissed',
@@ -426,6 +443,7 @@ export class KbService {
 
   private async recordCurationDecision(input: {
     sourceConversationId: string | null;
+    sourceMessageId?: string | null;
     candidateDocumentId: string;
     title: string;
     outcome: CurationOutcome;
@@ -437,6 +455,7 @@ export class KbService {
     await ctx.db.insert(schema.kbCurationDecisions).values({
       orgId: actor.orgId,
       sourceConversationId: input.sourceConversationId,
+      sourceMessageId: input.sourceMessageId ?? null,
       candidateDocumentId: input.candidateDocumentId,
       title: input.title,
       outcome: input.outcome,
@@ -497,7 +516,11 @@ export class KbService {
 
   async listCurationCandidates(limit?: number): Promise<CurationCandidateSummary[]> {
     const items = await this.listDocuments({ tag: 'candidate', limit: limit ?? 200 });
-    return items.map((d) => ({ ...d, ...extractCandidateRefs(d.tags) }));
+    const withRefs = items.map((d) => ({ ...d, ...extractCandidateRefs(d.tags) }));
+    const revised = await this.loadRevisedDocuments(
+      withRefs.map((c) => c.revisesDocumentId).filter((id): id is string => id !== null),
+    );
+    return withRefs.map((c) => ({ ...c, ...revisedRefOf(revised, c.revisesDocumentId) }));
   }
 
   async getCurationCandidate(id: string): Promise<CurationCandidateDto> {
@@ -505,7 +528,37 @@ export class KbService {
     if (!doc.tags.includes('candidate')) {
       throw new KbInvalidError(`document ${id} is not a curation candidate`);
     }
-    return { ...doc, ...extractCandidateRefs(doc.tags) };
+    const refs = extractCandidateRefs(doc.tags);
+    const revised = await this.loadRevisedDocuments(
+      refs.revisesDocumentId ? [refs.revisesDocumentId] : [],
+    );
+    const hit = refs.revisesDocumentId ? revised.get(refs.revisesDocumentId) : undefined;
+    return {
+      ...doc,
+      ...refs,
+      ...revisedRefOf(revised, refs.revisesDocumentId),
+      revisesDocumentBody: hit?.body ?? null,
+    };
+  }
+
+  private async loadRevisedDocuments(
+    ids: string[],
+  ): Promise<Map<string, { title: string; version: number; body: string }>> {
+    const unique = Array.from(new Set(ids));
+    if (unique.length === 0) return new Map();
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({
+        id: schema.kbDocuments.id,
+        title: schema.kbDocuments.title,
+        version: schema.kbDocuments.version,
+        body: schema.kbDocuments.body,
+      })
+      .from(schema.kbDocuments)
+      .where(inArray(schema.kbDocuments.id, unique));
+    return new Map(
+      rows.map((r) => [r.id, { title: r.title, version: r.version, body: r.body }]),
+    );
   }
 
   async proposeCurationCandidate(input: {
@@ -515,8 +568,9 @@ export class KbService {
     sourceMessageIds?: string[];
     proposedTargetSpaceSlug?: string;
   }): Promise<DocumentDto> {
+    const sourceMessageId = input.sourceMessageIds?.[0];
     if (input.sourceConversationId) {
-      await this.assertSourceNotDecided(input.sourceConversationId);
+      await this.assertSourceNotDecided(input.sourceConversationId, sourceMessageId);
     }
     const space = await this.ensureCurationInboxSpace();
     const doc = await this.createDocument({
@@ -528,6 +582,7 @@ export class KbService {
         'curation',
         'candidate',
         ...(input.sourceConversationId ? [`source:${input.sourceConversationId}`] : []),
+        ...(sourceMessageId ? [`source-msg:${sourceMessageId}`] : []),
         ...(input.proposedTargetSpaceSlug ? [`target:${input.proposedTargetSpaceSlug}`] : []),
       ]),
     });
@@ -538,6 +593,56 @@ export class KbService {
         title: doc.title,
         proposedTargetSpaceSlug: input.proposedTargetSpaceSlug ?? null,
         sourceConversationId: input.sourceConversationId ?? null,
+        spaceId: doc.spaceId,
+      },
+    });
+    return doc;
+  }
+
+  async proposeCurationRevision(input: {
+    revisesDocumentId: string;
+    draftBody: string;
+    subject?: string;
+    sourceConversationId?: string;
+    sourceMessageId?: string;
+  }): Promise<DocumentDto> {
+    const revised = await this.loadForUpdate(input.revisesDocumentId);
+    if (revised.tags.includes('candidate')) {
+      throw new KbInvalidError(
+        `document ${input.revisesDocumentId} is itself a curation candidate — revise the published document instead`,
+      );
+    }
+    if (revised.isSystem) {
+      throw new KbInvalidError(
+        `document ${input.revisesDocumentId} is agent-runtime configuration, not reference material — edit it directly with kb_update_document`,
+      );
+    }
+    if (input.sourceConversationId) {
+      await this.assertSourceNotDecided(input.sourceConversationId, input.sourceMessageId);
+    }
+    const space = await this.ensureCurationInboxSpace();
+    const doc = await this.createDocument({
+      spaceId: space.id,
+      title: input.subject ?? revised.title,
+      body: input.draftBody,
+      audiences: ['admin'],
+      tags: dedupeTags([
+        'curation',
+        'candidate',
+        'revision',
+        `revises:${revised.id}`,
+        ...(input.sourceConversationId ? [`source:${input.sourceConversationId}`] : []),
+        ...(input.sourceMessageId ? [`source-msg:${input.sourceMessageId}`] : []),
+      ]),
+    });
+    await this.webhooks.emit({
+      type: 'kb.curation_candidate.proposed',
+      payload: {
+        candidateDocumentId: doc.id,
+        title: doc.title,
+        proposedTargetSpaceSlug: null,
+        sourceConversationId: input.sourceConversationId ?? null,
+        revisesDocumentId: revised.id,
         spaceId: doc.spaceId,
       },
     });
@@ -555,6 +660,11 @@ export class KbService {
     if (!candidate.tags.includes('candidate')) {
       throw new KbInvalidError(
         `document ${input.candidateDocumentId} is not a curation candidate (missing 'candidate' tag)`,
+      );
+    }
+    if (candidate.tags.includes('revision')) {
+      throw new KbInvalidError(
+        `candidate ${input.candidateDocumentId} proposes a revision to an existing document — publish it with kb_publish_curation_revision, which writes a new version of that document instead of creating a second one`,
       );
     }
     if (candidate.version !== input.ifVersion) {
@@ -588,9 +698,7 @@ export class KbService {
     const audiences = input.audiences
       ? normaliseAudiences(input.audiences)
       : (['admin', 'self_service'] as Audience[]);
-    const carriedTags = candidate.tags.filter(
-      (t) => t !== 'curation' && t !== 'candidate' && !t.startsWith('source:') && !t.startsWith('target:'),
-    );
+    const carriedTags = stripCandidateTags(candidate.tags);
     const published = await this.createDocument({
       spaceId: targetSpace.id,
       title: candidate.title,
@@ -620,15 +728,82 @@ export class KbService {
     return published;
   }
 
-  private async assertSourceNotDecided(sourceConversationId: string): Promise<void> {
+  async publishCurationRevision(input: {
+    candidateDocumentId: string;
+    ifCandidateVersion: number;
+    ifDocumentVersion: number;
+  }): Promise<DocumentDto> {
+    const candidate = await this.loadForUpdate(input.candidateDocumentId);
+    if (!candidate.tags.includes('candidate')) {
+      throw new KbInvalidError(
+        `document ${input.candidateDocumentId} is not a curation candidate (missing 'candidate' tag)`,
+      );
+    }
+    const refs = extractCandidateRefs(candidate.tags);
+    if (!refs.revisesDocumentId) {
+      throw new KbInvalidError(
+        `candidate ${input.candidateDocumentId} does not revise an existing document — publish it with kb_publish_curation_candidate and a target space`,
+      );
+    }
+    if (candidate.version !== input.ifCandidateVersion) {
+      throw new KbConflictError(candidate.version, input.ifCandidateVersion);
+    }
+    const revised = await this.loadForUpdate(refs.revisesDocumentId);
+    if (revised.version !== input.ifDocumentVersion) {
+      throw new KbConflictError(revised.version, input.ifDocumentVersion);
+    }
+    const published = await this.updateDocument({
+      id: revised.id,
+      ifVersion: input.ifDocumentVersion,
+      body: candidate.body,
+    });
+    await this.removeDocument(candidate, { emitCandidateDismissed: false });
+    await this.recordCurationDecision({
+      sourceConversationId: refs.sourceConversationId,
+      sourceMessageId: refs.sourceMessageId,
+      candidateDocumentId: candidate.id,
+      title: candidate.title,
+      outcome: 'published',
+      reason: null,
+      publishedDocumentId: published.id,
+    });
+    await this.webhooks.emit({
+      type: 'kb.curation_candidate.published',
+      payload: {
+        candidateDocumentId: candidate.id,
+        publishedDocumentId: published.id,
+        revisedDocumentId: published.id,
+        revisedToVersion: published.version,
+        targetSpaceId: published.spaceId,
+        title: published.title,
+      },
+    });
+    return published;
+  }
+
+  private async assertSourceNotDecided(
+    sourceConversationId: string,
+    sourceMessageId?: string,
+  ): Promise<void> {
     const ctx = getCurrentContext();
     const [decided] = await ctx.db
       .select({
         outcome: schema.kbCurationDecisions.outcome,
         decidedAt: schema.kbCurationDecisions.decidedAt,
+        sourceMessageId: schema.kbCurationDecisions.sourceMessageId,
       })
       .from(schema.kbCurationDecisions)
-      .where(eq(schema.kbCurationDecisions.sourceConversationId, sourceConversationId))
+      .where(
+        and(
+          eq(schema.kbCurationDecisions.sourceConversationId, sourceConversationId),
+          sourceMessageId
+            ? or(
+                isNull(schema.kbCurationDecisions.sourceMessageId),
+                eq(schema.kbCurationDecisions.sourceMessageId, sourceMessageId),
+              )
+            : undefined,
+        ),
+      )
       .orderBy(desc(schema.kbCurationDecisions.decidedAt))
       .limit(1);
     if (!decided) return;
@@ -636,6 +811,7 @@ export class KbService {
       sourceConversationId,
       decided.outcome,
       decided.decidedAt.toISOString(),
+      decided.sourceMessageId,
     );
   }
 
@@ -961,6 +1137,7 @@ function toCurationDecisionDto(
   return {
     id: row.id,
     sourceConversationId: row.sourceConversationId,
+    sourceMessageId: row.sourceMessageId,
     candidateDocumentId: row.candidateDocumentId,
     title: row.title,
     outcome: row.outcome as CurationOutcome,
@@ -1016,19 +1193,51 @@ export const CURATION_INBOX_SLUG = 'kb-curation-inbox';
 function extractCandidateRefs(tags: string[]): {
   proposedTargetSpaceSlug: string | null;
   sourceConversationId: string | null;
+  sourceMessageId: string | null;
+  revisesDocumentId: string | null;
 } {
   let proposedTargetSpaceSlug: string | null = null;
   let sourceConversationId: string | null = null;
+  let sourceMessageId: string | null = null;
+  let revisesDocumentId: string | null = null;
   for (const t of tags) {
     if (t.startsWith('target:') && !proposedTargetSpaceSlug) {
       proposedTargetSpaceSlug = t.slice('target:'.length);
+    } else if (t.startsWith('source-msg:') && !sourceMessageId) {
+      sourceMessageId = t.slice('source-msg:'.length);
     } else if (t.startsWith('source:') && !sourceConversationId) {
       sourceConversationId = t.slice('source:'.length);
+    } else if (t.startsWith('revises:') && !revisesDocumentId) {
+      revisesDocumentId = t.slice('revises:'.length);
     }
   }
-  return { proposedTargetSpaceSlug, sourceConversationId };
+  return { proposedTargetSpaceSlug, sourceConversationId, sourceMessageId, revisesDocumentId };
 }
 
 function dedupeTags(tags: string[]): string[] {
   return Array.from(new Set(tags));
+}
+
+function revisedRefOf(
+  revised: Map<string, { title: string; version: number; body: string }>,
+  revisesDocumentId: string | null,
+): RevisedDocumentRef {
+  const hit = revisesDocumentId ? revised.get(revisesDocumentId) : undefined;
+  return {
+    revisesDocumentTitle: hit?.title ?? null,
+    revisesDocumentVersion: hit?.version ?? null,
+  };
+}
+
+function stripCandidateTags(tags: string[]): string[] {
+  return tags.filter(
+    (t) =>
+      t !== 'curation' &&
+      t !== 'candidate' &&
+      t !== 'revision' &&
+      !t.startsWith('source:') &&
+      !t.startsWith('source-msg:') &&
+      !t.startsWith('target:') &&
+      !t.startsWith('revises:'),
+  );
 }

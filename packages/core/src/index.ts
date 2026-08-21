@@ -129,6 +129,8 @@ export {
 
 export { describeError } from './errors.ts';
 
+export { normalizeForCompare, sameAfterNormalizing } from './text.ts';
+
 export {
   parseEnvBool,
   parseEnvCron,

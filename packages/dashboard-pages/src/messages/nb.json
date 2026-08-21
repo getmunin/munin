@@ -265,7 +265,9 @@
         "cmsUntitled": "Utkast uten tittel",
         "feedbackSnippet": "{scope}-tilbakemelding venter på godkjenning.",
         "feedbackSnippetAttributed": "{scope}-tilbakemelding — med navn",
-        "feedbackScopeFallback": "Munin"
+        "feedbackScopeFallback": "Munin",
+        "kindKbRevision": "KB · ENDRING",
+        "kbSnippetRevision": "Endring i «{title}»."
       },
       "scheduledSends": {
         "eyebrow": "Planlagte utsendinger",
@@ -390,6 +392,8 @@
         "outreachRevised": "Endret {count}× siden utkastet ble skrevet",
         "outreachRevisedAfterReview": "Endret {count}× etter at det ble åpnet til gjennomgang — les det på nytt før du godkjenner",
         "outreachRevisionReason": "Begrunnelse — {reason}",
+        "outreachOriginalDraft": "Endret fra det opprinnelige utkastet",
+        "outreachOriginalDraftUnchanged": "Tilbake til utkastet slik det opprinnelig var skrevet.",
         "outreachProposedSendAt": "Planlagt {when} — godkjenner du nå, sendes den på det tidspunktet, ikke med en gang.",
         "outreachApproveScheduled": "Godkjenn for {when}",
         "outreachSendNow": "Send nå",
@@ -401,7 +405,12 @@
         "outreachScheduleConfirm": "Godkjenn og planlegg",
         "outreachScheduleCancel": "Avbryt",
         "outreachScheduleError": "Velg et tidspunkt i fremtiden.",
-        "productsView": "Se"
+        "productsView": "Se",
+        "proposalRevision": "Foreslått endring",
+        "metaKbRevision": "{title} · v{version} · {age}",
+        "kbRevisionApprove": "Publiser ny versjon",
+        "kbRevisionNoChange": "Den foreslåtte teksten er identisk med dokumentet slik det står. Ingenting å publisere.",
+        "kbRevisionPublishNote": "Publisering lagrer dette som en ny versjon av dokumentet som finnes. Den gamle teksten blir liggende i versjonshistorikken, så du kan gå tilbake."
       },
       "relative": {
         "justNow": "akkurat nå",
@@ -1596,7 +1605,10 @@
     "cms_asset_upload_failed": "Opplastingen ble ikke fullført. Sjekk tilkoblingen og prøv igjen.",
     "cms_version_conflict": "Oppføringen ble endret et annet sted mens du redigerte. Last den inn på nytt og prøv igjen.",
     "agent_config_invalid_model": "KI-leverandøren tilbyr ikke denne modellen lenger. Last siden på nytt for å oppdatere listen, velg en modell og lagre igjen.",
-    "conv_channel_config_invalid": "Kanalen har ufullstendige innstillinger og kan ikke brukes ennå. Åpne innstillingene, fyll ut det som mangler og lagre for å reparere den."
+    "conv_channel_config_invalid": "Kanalen har ufullstendige innstillinger og kan ikke brukes ennå. Åpne innstillingene, fyll ut det som mangler og lagre for å reparere den.",
+    "conv_invalid": "Dette utkastet ligger ikke lenger til behandling i samtalen – det er allerede sendt, eller agenten har skrevet et nyere. Åpne samtalen på nytt for å se hvor den står.",
+    "kb_version_conflict": "Noen endret teksten mens du hadde den åpen, så ingenting ble lagret. Åpne den på nytt for å se gjeldende versjon og ta stilling til den.",
+    "kb_curation_decided": "Denne er allerede behandlet – publisert eller forkastet – og blir ikke foreslått igjen. Oppdater køen."
   },
   "footer": {
     "privacy": "Personvern",
@@ -1746,6 +1758,12 @@
       "dismiss": "Avvis",
       "dismissing": "Avviser…",
       "published": "Publisert til {space}.",
+      "publishedRevision": "Lagret som ny versjon av «{title}».",
+      "revisionOf": "endrer «{title}»",
+      "revisionEyebrow": "Foreslått endring",
+      "revisionTarget": "Publiseres som ny versjon av «{title}» (nå på v{version})",
+      "revisionNoChange": "Den foreslåtte teksten er identisk med dokumentet slik det står. Ingenting å publisere.",
+      "revisionTargetGone": "Klarte ikke å hente dokumentet dette endrer – det kan være slettet.",
       "dismissed": "Avvist — utkastet ble slettet, og samtalen foreslås ikke på nytt.",
       "footClear": "Innkurven er tom",
       "footPending": "{count} utkast venter",

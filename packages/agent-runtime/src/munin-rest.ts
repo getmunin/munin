@@ -142,7 +142,11 @@ export interface MuninRestClient {
     conversationId: string,
     input: { reason?: string; publicFallbackMessage?: string },
   ): Promise<void>;
-  setDraftReply(conversationId: string, body: string): Promise<void>;
+  setDraftReply(
+    conversationId: string,
+    body: string,
+    opts?: { retrievedDocumentIds?: string[] },
+  ): Promise<void>;
   clearDraftReply(conversationId: string): Promise<void>;
   mintDelegatedToken(endUserId: string, ttlSeconds?: number): Promise<DelegatedToken>;
   toRuntimeHistory(detail: ConversationDetail): ConversationMessage[];
@@ -295,10 +299,18 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
         },
       );
     },
-    async setDraftReply(conversationId: string, body: string): Promise<void> {
+    async setDraftReply(
+      conversationId: string,
+      body: string,
+      opts?: { retrievedDocumentIds?: string[] },
+    ): Promise<void> {
+      const payload: Record<string, unknown> = { body };
+      if (opts?.retrievedDocumentIds?.length) {
+        payload.retrievedDocumentIds = opts.retrievedDocumentIds;
+      }
       await call<unknown>(
         `/v1/conversations/${encodeURIComponent(conversationId)}/draft-reply`,
-        { method: 'POST', body: JSON.stringify({ body }) },
+        { method: 'POST', body: JSON.stringify(payload) },
       );
     },
     async clearDraftReply(conversationId: string): Promise<void> {

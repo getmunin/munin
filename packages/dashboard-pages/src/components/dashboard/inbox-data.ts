@@ -43,9 +43,13 @@ function useQueueBuilder() {
         kind: 'kb',
         id: k.id,
         title: k.title,
-        snippet: k.proposedTargetSpaceSlug
-          ? tQueue('kbSnippetProposed', { slug: k.proposedTargetSpaceSlug })
-          : tQueue('kbSnippetFallback'),
+        snippet: k.revisesDocumentId
+          ? tQueue('kbSnippetRevision', {
+              title: k.revisesDocumentTitle ?? k.title,
+            })
+          : k.proposedTargetSpaceSlug
+            ? tQueue('kbSnippetProposed', { slug: k.proposedTargetSpaceSlug })
+            : tQueue('kbSnippetFallback'),
         createdAt: k.updatedAt,
         raw: k,
       }));
@@ -102,6 +106,7 @@ export function useInboxData(): InboxController {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [scheduledSends, setScheduledSends] = useState<OutreachProposalDto[]>([]);
   const [kbBodies, setKbBodies] = useState<Record<string, string>>({});
+  const [kbRevisedBodies, setKbRevisedBodies] = useState<Record<string, string>>({});
   const [cmsDetails, setCmsDetails] = useState<Record<string, CmsDraftDetailDto>>({});
   const [convDrawer, setConvDrawer] = useState<ConvDrawer>(null);
   const [queueDrawer, setQueueDrawer] = useState<QueueItem | null>(null);
@@ -186,6 +191,10 @@ export function useInboxData(): InboxController {
         `/v1/kb/curation/candidates/${id}`,
       );
       setKbBodies((prev) => ({ ...prev, [id]: doc.body }));
+      const revisedBody = doc.revisesDocumentBody;
+      if (typeof revisedBody === 'string') {
+        setKbRevisedBodies((prev) => ({ ...prev, [id]: revisedBody }));
+      }
       setQueueDetailErrors((prev) => clearKey(prev, id));
     } catch (err) {
       setQueueDetailErrors((prev) => ({ ...prev, [id]: translateErr(err) }));
@@ -334,7 +343,11 @@ export function useInboxData(): InboxController {
   );
 
   const send = useCallback(
-    async (id: string, body: string, options: { claim?: boolean; closeDrawer?: boolean } = {}) => {
+    async (
+      id: string,
+      body: string,
+      options: { claim?: boolean; closeDrawer?: boolean; fromDraftId?: string } = {},
+    ) => {
       if (!body.trim()) return;
       const trimmed = body.trim();
       const temp: MessageDto = {
@@ -361,6 +374,7 @@ export function useInboxData(): InboxController {
       try {
         const payload: Record<string, unknown> = { body: trimmed };
         if (options.claim === false) payload.claim = false;
+        if (options.fromDraftId) payload.fromDraftId = options.fromDraftId;
         await api(`/v1/conversations/${id}/messages`, {
           method: 'POST',
           body: JSON.stringify(payload),
@@ -397,7 +411,15 @@ export function useInboxData(): InboxController {
     async (item: QueueItem, sendAt?: string | null) => {
       setPending(true);
       try {
-        if (item.kind === 'kb') {
+        if (item.kind === 'kb' && item.raw.revisesDocumentId) {
+          await api(`/v1/kb/curation/candidates/${item.id}/publish-revision`, {
+            method: 'POST',
+            body: JSON.stringify({
+              ifCandidateVersion: item.raw.version,
+              ifDocumentVersion: item.raw.revisesDocumentVersion,
+            }),
+          });
+        } else if (item.kind === 'kb') {
           const targetSlug = item.raw.proposedTargetSpaceSlug ?? 'support-faq';
           await api(`/v1/kb/curation/candidates/${item.id}/publish`, {
             method: 'POST',
@@ -625,6 +647,7 @@ export function useInboxData(): InboxController {
     draftEdit,
     setDraftEdit,
     kbBodies,
+    kbRevisedBodies,
     cmsDetails,
     detailErrors,
     queueDetailErrors,

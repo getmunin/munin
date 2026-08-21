@@ -108,6 +108,7 @@ export interface InboxController {
   draftEdit: string | null;
   setDraftEdit: (next: string | null) => void;
   kbBodies: Record<string, string>;
+  kbRevisedBodies: Record<string, string>;
   cmsDetails: Record<string, CmsDraftDetailDto>;
   detailErrors: Record<string, string>;
   queueDetailErrors: Record<string, string>;
@@ -119,7 +120,11 @@ export interface InboxController {
   takeOver: (id: string, openFullAfter?: boolean) => Promise<void>;
   release: (id: string) => Promise<void>;
   closeConv: (id: string) => Promise<void>;
-  send: (id: string, body: string, options?: { claim?: boolean; closeDrawer?: boolean }) => Promise<void>;
+  send: (
+    id: string,
+    body: string,
+    options?: { claim?: boolean; closeDrawer?: boolean; fromDraftId?: string },
+  ) => Promise<void>;
   approveQueue: (item: QueueItem, sendAt?: string | null) => Promise<void>;
   scheduledSends: OutreachProposalDto[];
   cancelScheduledSend: (id: string, reason: string) => Promise<void>;

@@ -10,6 +10,7 @@ import type { CmsAssetExpanded, CmsDraftDetailDto, QueueItem } from './types';
 export function QueueDrawer({
   item,
   kbBody,
+  kbRevisedBody,
   cmsDetail,
   loadError,
   onRetry,
@@ -25,6 +26,7 @@ export function QueueDrawer({
 }: {
   item: QueueItem;
   kbBody?: string;
+  kbRevisedBody?: string;
   cmsDetail?: CmsDraftDetailDto;
   loadError?: string;
   onRetry: () => void;
@@ -44,6 +46,7 @@ export function QueueDrawer({
         <KbQueueDrawer
           item={item}
           body={kbBody}
+          revisedBody={kbRevisedBody}
           loadError={loadError}
           onRetry={onRetry}
           pending={pending}

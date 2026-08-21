@@ -48,7 +48,11 @@ const TOOL_PREFIXES_BY_URI: ReadonlyMap<string, readonly string[]> = new Map([
       'conv_get_conversation',
       'kb_search',
       'kb_list_documents',
+      'kb_get_document',
+      'kb_list_curation_decisions',
       'kb_propose_curation_candidate',
+      'kb_propose_curation_revision',
+      'outreach_get_proposal',
     ],
   ],
   [

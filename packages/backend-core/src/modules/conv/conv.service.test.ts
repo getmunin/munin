@@ -790,6 +790,164 @@ const skipReason = TEST_URL
     });
   });
 
+  describe('KB curation trigger', () => {
+    const DRAFT = 'The effective rate is about 11.9%.';
+
+    async function seedFlaggedConvWithDraft(retrievedDocumentIds?: string[]) {
+      const ch = await insertChannel({
+        type: 'chat',
+        vendor: 'munin',
+        name: `curation-${randomUUID().slice(0, 8)}`,
+      });
+      const conv = await run(() =>
+        svc.createConversation({
+          channelId: ch.id,
+          body: 'What rate do you offer?',
+          authorType: 'end_user',
+          authorId: 'eu_test',
+          agentMode: 'draft_only',
+        }),
+      );
+      const draft = await run(() =>
+        svc.setDraftReply({ conversationId: conv.id, body: DRAFT, retrievedDocumentIds }),
+      );
+      await run(() => svc.requestHandover({ conversationId: conv.id, reason: 'draft ready' }));
+      return { conv, draft };
+    }
+
+    async function curationJobs(): Promise<{ user_prompt: string; dedupe_key: string | null }[]> {
+      return db.execute<{ user_prompt: string; dedupe_key: string | null }>(
+        sql`SELECT user_prompt, dedupe_key FROM curator_jobs
+            WHERE org_id = ${orgId} AND job_uri = 'skill://kb/review-content'`,
+      );
+    }
+
+    it('files no candidate when the human sends the agent draft unchanged', async () => {
+      const { conv, draft } = await seedFlaggedConvWithDraft();
+      await run(() =>
+        svc.sendMessage({
+          conversationId: conv.id,
+          body: DRAFT,
+          authorType: 'user',
+          authorId: userId,
+          fromDraftId: draft.id,
+        }),
+      );
+      expect(await curationJobs()).toEqual([]);
+    });
+
+    it('treats a reflowed draft as unchanged rather than as new knowledge', async () => {
+      const { conv, draft } = await seedFlaggedConvWithDraft();
+      await run(() =>
+        svc.sendMessage({
+          conversationId: conv.id,
+          body: `  The effective rate is\n  about 11.9%.  `,
+          authorType: 'user',
+          authorId: userId,
+          fromDraftId: draft.id,
+        }),
+      );
+      expect(await curationJobs()).toEqual([]);
+    });
+
+    it('curates in delta mode when the human corrects the draft, naming both messages', async () => {
+      const { conv, draft } = await seedFlaggedConvWithDraft(['kdoc_rates']);
+      const sent = await run(() =>
+        svc.sendMessage({
+          conversationId: conv.id,
+          body: 'The effective rate is about 9.4%.',
+          authorType: 'user',
+          authorId: userId,
+          fromDraftId: draft.id,
+        }),
+      );
+      const jobs = await curationJobs();
+      expect(jobs.length).toBe(1);
+      expect(jobs[0]!.dedupe_key).toBe(`kb-curation:msg:${sent.id}`);
+      expect(jobs[0]!.user_prompt).toContain('Delta mode');
+      expect(jobs[0]!.user_prompt).toContain(draft.id);
+      expect(jobs[0]!.user_prompt).toContain(sent.id);
+      expect(jobs[0]!.user_prompt).toContain('kdoc_rates');
+    });
+
+    it('curates in gap mode when a human answers without going through a draft', async () => {
+      const { conv } = await seedFlaggedConvWithDraft();
+      await run(() =>
+        svc.sendMessage({
+          conversationId: conv.id,
+          body: 'We waive the setup fee for non-profits.',
+          authorType: 'user',
+          authorId: userId,
+        }),
+      );
+      const jobs = await curationJobs();
+      expect(jobs.length).toBe(1);
+      expect(jobs[0]!.user_prompt).toContain('Gap mode');
+    });
+
+    it('stamps the approved draft on the sent message and retires the draft', async () => {
+      const { conv, draft } = await seedFlaggedConvWithDraft(['kdoc_rates']);
+      const sent = await run(() =>
+        svc.sendMessage({
+          conversationId: conv.id,
+          body: 'The effective rate is about 9.4%.',
+          authorType: 'user',
+          authorId: userId,
+          fromDraftId: draft.id,
+        }),
+      );
+      expect(sent.metadata['approvedDraft']).toEqual({
+        draftMessageId: draft.id,
+        draftBody: DRAFT,
+        edited: true,
+        retrievedDocumentIds: ['kdoc_rates'],
+      });
+      const [row] = await db.execute<{ metadata: Record<string, unknown> }>(
+        sql`SELECT metadata FROM conv_messages WHERE id = ${draft.id}`,
+      );
+      expect(row!.metadata).toEqual({ kind: 'draft_reply_sent', sentMessageId: sent.id });
+    });
+
+    it('leaves a retired draft out of the pending-draft lookup', async () => {
+      const { conv, draft } = await seedFlaggedConvWithDraft();
+      await run(() =>
+        svc.sendMessage({
+          conversationId: conv.id,
+          body: DRAFT,
+          authorType: 'user',
+          authorId: userId,
+          fromDraftId: draft.id,
+        }),
+      );
+      expect(await run(() => svc.clearDraftReply(conv.id))).toEqual({ cleared: 0 });
+    });
+
+    it('rejects a fromDraftId that is not a pending draft on the conversation', async () => {
+      const { conv, draft } = await seedFlaggedConvWithDraft();
+      const other = await seedFlaggedConvWithDraft();
+      await expect(
+        run(() =>
+          svc.sendMessage({
+            conversationId: conv.id,
+            body: DRAFT,
+            authorType: 'user',
+            authorId: userId,
+            fromDraftId: other.draft.id,
+          }),
+        ),
+      ).rejects.toThrow(BadRequestException);
+      await run(() =>
+        svc.sendMessage({
+          conversationId: conv.id,
+          body: DRAFT,
+          authorType: 'user',
+          authorId: userId,
+          fromDraftId: draft.id,
+        }),
+      );
+    });
+  });
+
   describe('search', () => {
     it('searchMessages matches case-insensitively on body', async () => {
       const ch = await insertChannel({ type: 'email', vendor: 'smtp', name: 'X' });

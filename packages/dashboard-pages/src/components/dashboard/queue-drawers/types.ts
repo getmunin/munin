@@ -5,6 +5,10 @@ export interface KbCandidateDto {
   version: number;
   updatedAt: string;
   proposedTargetSpaceSlug: string | null;
+  revisesDocumentId: string | null;
+  revisesDocumentTitle: string | null;
+  revisesDocumentVersion: number | null;
+  revisesDocumentBody?: string | null;
 }
 
 export interface CrmContactSummary {
@@ -34,6 +38,7 @@ export interface OutreachProposalDto {
   sequenceStep?: number | null;
   draftSubject: string | null;
   draftBody: string;
+  originalDraftBody?: string | null;
   draftFingerprint: string;
   campaign?: { name: string } | null;
   contact?: { name: string | null; email: string | null; phone?: string | null } | null;

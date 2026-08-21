@@ -113,3 +113,4 @@ export {
   SYSTEM_ACTOR_IDS,
   type ActorKind,
 } from './actors.ts';
+export { diffLines, hasChanges, type DiffLine, type DiffOp } from './diff-lines.ts';

@@ -21,6 +21,7 @@ import {
   type RequestContext,
   type ResolvedCredential,
 } from '@getmunin/core';
+import { WIDGET_READ_TRACKER_ACTOR } from '@getmunin/types';
 import { randomUUID } from 'node:crypto';
 import { DB } from '../common/db/db.module.ts';
 import { toIsoString } from '../common/iso.ts';
@@ -532,7 +533,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
 
     const actor = new ActorIdentity(
       'system',
-      'widget-read-tracker',
+      WIDGET_READ_TRACKER_ACTOR,
       convRow.orgId,
       ['*'],
       ['admin'],

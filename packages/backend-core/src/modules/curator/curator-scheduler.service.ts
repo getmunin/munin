@@ -10,6 +10,7 @@ import {
   parseEnvDisableFlag,
   type RequestContext,
 } from '@getmunin/core';
+import { CURATOR_SCHEDULER_ACTOR } from '@getmunin/types';
 import { randomUUID } from 'node:crypto';
 import { DB } from '../../common/db/db.module.ts';
 import { withSchedulerLock } from '../../common/scheduler-lock/index.ts';
@@ -157,7 +158,13 @@ export class CuratorSchedulerService implements OnModuleInit {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
       await tx.execute(sql`SELECT set_config('app.org_id', ${orgId}, true)`);
       await tx.execute(sql`SELECT set_config('app.end_user_id', '', true)`);
-      const actor = new ActorIdentity('admin_agent', 'curator-scheduler', orgId, ['*'], ['admin']);
+      const actor = new ActorIdentity(
+        'admin_agent',
+        CURATOR_SCHEDULER_ACTOR,
+        orgId,
+        ['*'],
+        ['admin'],
+      );
       const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
       await RequestContextStore.run(ctx, async () => {
         const result = await this.jobs.enqueue({

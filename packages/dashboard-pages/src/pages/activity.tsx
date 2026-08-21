@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Hero } from '@getmunin/ui';
+import { actorKindFromId, type ActorKind } from '@getmunin/types';
 import { api } from '../api';
 import { useRealtime, type RealtimeEventRow, type SubscriptionChannel } from '../realtime';
 import { LoadFailed } from '../components/load-failed';
@@ -12,8 +13,6 @@ import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 const WINDOW_MS = 30 * 60_000;
 const EVICT_INTERVAL_MS = 5_000;
 const MAX_ITEMS = 200;
-
-type ActorKind = 'user' | 'agent' | 'widget' | 'system' | 'unknown';
 
 interface ActivityDto {
   id: string;
@@ -29,10 +28,6 @@ interface ActivityDto {
 interface ActivityPageResponse {
   items: ActivityDto[];
   nextCursor: string | null;
-}
-
-function actorKindFromId(id: string): ActorKind {
-  return id === 'system' ? 'system' : 'unknown';
 }
 
 function fromRealtime(

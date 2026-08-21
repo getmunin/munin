@@ -2,12 +2,11 @@ import { Controller, Get, Query, UseGuards, UseInterceptors } from '@nestjs/comm
 import { schema } from '@getmunin/db';
 import { and, desc, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
+import { actorKindFromId, type ActorKind } from '@getmunin/types';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
-
-type ActorKind = 'user' | 'agent' | 'widget' | 'system' | 'unknown';
 
 interface ActivityDto {
   id: string;
@@ -128,10 +127,6 @@ export class ActivityController {
 
 function apiKeyKind(type: string): ActorKind {
   return type === 'widget' || type === 'track' ? 'widget' : 'agent';
-}
-
-function actorKindFromId(id: string): ActorKind {
-  return id === 'system' ? 'system' : 'unknown';
 }
 
 function toDto(

@@ -6,6 +6,7 @@ import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
+import { AGENT_HOST_ACTOR_PREFIX, SYSTEM_ACTOR_IDS } from '@getmunin/types';
 import { sql } from 'drizzle-orm';
 import { AppModule } from '../app.module.ts';
 
@@ -181,9 +182,28 @@ interface ActivityRow {
     expect(items).toEqual([expect.objectContaining({ actorKind: 'user', actorLabel: 'Nora' })]);
   });
 
-  it('reports an unresolvable actor as unknown without guessing from its id shape', async () => {
+  it('classifies the in-process agent runtime as an agent, per-org and per-end-user', async () => {
     await db.delete(schema.events).where(sql`org_id = ${orgId}`);
-    await seedEvent(`agent-host:${orgId}`);
+    await seedEvent(`${AGENT_HOST_ACTOR_PREFIX}${orgId}`);
+    await seedEvent(`${AGENT_HOST_ACTOR_PREFIX}${orgId}:eu_someone`);
+
+    const items = await feed();
+    expect(items).toHaveLength(2);
+    expect(items.every((i) => i.actorKind === 'agent')).toBe(true);
+  });
+
+  it('classifies the scheduler and read-tracker actors as system', async () => {
+    await db.delete(schema.events).where(sql`org_id = ${orgId}`);
+    for (const id of SYSTEM_ACTOR_IDS) await seedEvent(id);
+
+    const items = await feed();
+    expect(items).toHaveLength(SYSTEM_ACTOR_IDS.length);
+    expect(items.every((i) => i.actorKind === 'system')).toBe(true);
+  });
+
+  it('reports an actor it cannot place as unknown rather than guessing from its id shape', async () => {
+    await db.delete(schema.events).where(sql`org_id = ${orgId}`);
+    await seedEvent('usr_looks_like_a_user_but_is_not');
 
     const items = await feed();
     expect(items).toEqual([

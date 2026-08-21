@@ -2,6 +2,7 @@ import { Controller, Get, Inject, Query, UseGuards, UseInterceptors } from '@nes
 import { schema } from '@getmunin/db';
 import { inArray, sql } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
+import { AGENT_HOST_ACTOR, AGENT_HOST_ACTOR_PREFIX } from '@getmunin/types';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
@@ -264,9 +265,6 @@ export class UsageController {
   }
 }
 
-const AGENT_HOST_KEY = 'agent-host';
-const AGENT_HOST_PREFIX = `${AGENT_HOST_KEY}:`;
-
 interface AgentLabel {
   key: string;
   name: string;
@@ -368,15 +366,15 @@ async function resolveAgentLabels(
     if (userLabel) {
       return { key: `user:${actorId}`, name: userLabel, description: row.actor_type };
     }
-    if (actorId.startsWith(AGENT_HOST_PREFIX)) {
-      return { key: AGENT_HOST_KEY, name: AGENT_HOST_KEY, description: row.actor_type };
+    if (actorId.startsWith(AGENT_HOST_ACTOR_PREFIX)) {
+      return { key: AGENT_HOST_ACTOR, name: AGENT_HOST_ACTOR, description: row.actor_type };
     }
     return { key: `actor:${actorId}`, name: actorId, description: row.actor_type };
   };
 }
 
 function agentHostEndUserId(actorId: string | null): string | null {
-  if (!actorId?.startsWith(AGENT_HOST_PREFIX)) return null;
+  if (!actorId?.startsWith(AGENT_HOST_ACTOR_PREFIX)) return null;
   const parts = actorId.split(':');
   return parts.length === 3 ? (parts[2] ?? null) : null;
 }

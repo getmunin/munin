@@ -1437,14 +1437,16 @@
         "chatBridge": "Chat · Bridge",
         "commerce": "Commerce",
         "booking": "Booking",
-        "connection": "Connection"
+        "connection": "Connection",
+        "customTools": "Custom tools"
       },
       "description": {
         "slack": "Triage the inbox and reply without leaving your workspace.",
         "shopify": "Orders, customers, and fulfillment — read on behalf of a customer.",
         "magento": "Read orders and customers from your Magento store.",
         "gastroplanner": "Check availability, book tables, and manage restaurant bookings.",
-        "generic": "Read directly on behalf of a customer."
+        "generic": "Read directly on behalf of a customer.",
+        "customMcp": "Your own system's tools, read live by the agent — bring any MCP server."
       },
       "capability": {
         "slackMirror": "Mirror conversations into Slack threads.",
@@ -1453,7 +1455,9 @@
         "customersLookup": "Match a conversation to a store customer.",
         "bookingsLookup": "Find a guest's bookings and details.",
         "bookingsAvailability": "Check availability and book a table.",
-        "bookingsManage": "Change or cancel a guest's booking."
+        "bookingsManage": "Change or cancel a guest's booking.",
+        "customTools": "Answer from your own system of record, live.",
+        "customIdentity": "Munin signs who is asking; your server scopes the answer."
       }
     },
     "field": {
@@ -1505,6 +1509,19 @@
           "hint": "Optional — defaults to https://api.gastroplanner.eu.",
           "placeholder": "https://api.gastroplanner.eu",
           "invalid": "Enter a full https:// URL, or leave the field empty for the default."
+        }
+      },
+      "custom-mcp": {
+        "url": {
+          "label": "MCP endpoint URL",
+          "hint": "The full https URL of your MCP server's streamable HTTP endpoint.",
+          "placeholder": "https://api.example.com/mcp",
+          "invalid": "Enter the full https:// URL of the MCP endpoint."
+        },
+        "bearerToken": {
+          "label": "Bearer token",
+          "hint": "A token you mint in your own system; Munin sends it on every call. Entered here, never in chat.",
+          "invalid": "Paste the full token (at least 10 characters)."
         }
       }
     }

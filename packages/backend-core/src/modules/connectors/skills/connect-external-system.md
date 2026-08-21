@@ -8,6 +8,8 @@ audiences: [admin]
 
 Connectors give agents read access to the org's third-party systems, grouped by domain: **commerce** (orders + product catalog — Shopify, Magento 2) and **bookings** (bookings — Gastroplanner). Admin agents use the lookup tools while handling a support conversation; customers' own agents get the self-service tools (`commerce_list_my_orders`, `bookings_list_my_bookings`), scoped server-side to their own records.
 
+For a system no vendor adapter covers — a proprietary CRM, a subscription database — the org can host its own MCP server and connect it with the `custom-mcp` vendor instead: see `skill://connectors/connect-custom-mcp-server`.
+
 `connectors_list_vendors` returns the supported systems and the exact config fields each one needs.
 
 ## TL;DR

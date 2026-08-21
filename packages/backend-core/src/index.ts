@@ -115,6 +115,12 @@ export {
   InProcessMuninRestClientFactoryService,
   type MuninRestClientFactory,
 } from './agent/in-process-rest-client.ts';
+export {
+  IDENTITY_ASSERTION_HEADER,
+  listExternalMcpEndpoints,
+  slugifyConnectionName,
+  type ExternalMcpEndpoint,
+} from './modules/connectors/external-mcp.ts';
 export { AgentRunnerSupportModule } from './agent/agent-runner-support.module.ts';
 export { ControlModule } from './control/control.module.ts';
 export { KbModule } from './modules/kb/kb.module.ts';

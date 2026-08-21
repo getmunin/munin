@@ -1,5 +1,34 @@
 # @getmunin/core
 
+## 5.10.0
+
+### Minor Changes
+
+- 3136f2b: KB curation now triggers on what a human changed in an agent draft, not on the fact that they sent it.
+
+  In `draft_only` mode the runtime hands over on every turn, so every approved reply resolved a handover and queued a curation pass. The draft had been assembled from the KB by `kb_search`, so the pass kept proposing documents built out of information the KB had just supplied — a near-duplicate of whatever document fed the draft.
+
+  Sending a draft from the dashboard now passes `fromDraftId`. The backend looks that draft up, compares the two bodies itself (whitespace-normalised, so a reflow is not an edit) and stamps `metadata.approvedDraft` — `{ draftMessageId, draftBody, edited, retrievedDocumentIds }` — on the sent message. An unedited approved draft queues no pass at all: it is positive evidence the KB already covered the question. An edited one queues a pass in delta mode, pointed at the draft and the sent message so it curates the change rather than the reply. A human answering without going through a draft is unchanged, and still curates as a gap.
+
+  The draft the human sent is retired to `metadata.kind: 'draft_reply_sent'` with a link to the message it became, instead of being deleted by the next draft — so the before/after pair survives in the thread. The runtime also records which KB documents it retrieved while drafting (`kb_search` hits, capped at 8), which is what lets a later edit be traced back to the document that carried the wrong fact.
+
+  `skill://kb/review-content` gained a delta mode with a classification table: formatting, tone and personalisation edits file nothing; a changed fact, an added caveat or a withdrawn claim file one candidate covering the change alone.
+
+### Patch Changes
+
+- b8690cb: Classify and name API-key callers in the activity feed from the key itself. `actorKind` was guessed from the actor id's prefix, which mapped every `akey_*` caller to `widget` — so admin service keys were reported as widgets on `GET /v1/activity`, and they carried no `actorLabel` at all, leaving the feed to show a truncated raw id. Actor resolution now reads `api_keys`, labels the row with the key's name, and derives the kind from its type (`widget` / `track` → `widget`, everything else → `agent`).
+
+  Drop the dead prefix branches from the same classifier. `usr_` never matched a BetterAuth-created user (those ids resolve through the `users` lookup first anyway) and `agt_` existed only in test fixtures.
+
+  Give the synthetic actors a kind instead of reporting them as `unknown`: the in-process agent runtime (`agent-host:<org>`, `agent-host:<org>:<end user>`) is an `agent`, and the scheduler and read-tracker actors are `system`. The classifier now lives in `@getmunin/types` as `actorKindFromId`, alongside named constants for each synthetic actor id, so the server and the dashboard's realtime fallback cannot drift apart and the code that mints these ids shares the string with the code that reads it. `GET /v1/activity` had no test of its own; it now covers both key kinds, a BetterAuth user id, the runtime actors, the system actors, and an unplaceable id.
+
+- Updated dependencies [3136f2b]
+- Updated dependencies [3136f2b]
+- Updated dependencies [12d3b36]
+- Updated dependencies [b8690cb]
+  - @getmunin/types@5.10.0
+  - @getmunin/db@5.10.0
+
 ## 5.9.0
 
 ### Minor Changes

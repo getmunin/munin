@@ -1,5 +1,50 @@
 # @getmunin/db
 
+## 5.10.0
+
+### Minor Changes
+
+- 3136f2b: A curation candidate can now propose a new version of a document that already exists, instead of only a new document beside it.
+
+  `kb_propose_curation_revision` files a proposed body against an existing `documentId`; `kb_publish_curation_revision` applies it as a new version of that document, so `kb_list_versions` and `kb_restore_version` roll a bad revision back. It takes two versions — the candidate text that was reviewed and the document text it was diffed against — and refuses if either moved, writing nothing. `kb_publish_curation_candidate` refuses a revision candidate rather than quietly publishing a duplicate.
+
+  This is what a corrected fact should produce. A human editing an agent draft usually contradicts a document the draft was built from, and the old flow could only file a new FAQ beside the stale one, leaving the wrong text in place for the agent to retrieve again.
+
+  Revisions share one review queue with new-document candidates: `kb_list_curation_candidates` carries `revisesDocumentId` plus the revised document's current title and version, and each surface branches per row — the dashboard drawer and the MCP Apps panel render a diff against the current text (new `BodyDiff`, backed by a dependency-free line differ in `@getmunin/types`), the control plane gains `POST /v1/kb/curation/candidates/:id/publish-revision`, and Slack shows the card without a publish button, since its approval value carries only one version. The panel's "loading" state for a candidate body was also unreachable — it reported a load failure while the fetch was still in flight.
+
+  Curation decisions are now keyed by conversation **and** source message (`kb_curation_decisions.source_message_id`). One conversation can legitimately surface several corrections across turns; the old conversation-wide key closed it to curation after the first. Decisions recorded before this keep the whole-conversation lock, so nothing already dismissed reopens. Related: `kb_propose_curation_candidate` accepted `sourceMessageIds` and silently dropped it — the first entry is now persisted.
+
+  `skill://kb/review-content` delta mode now prefers a revision over a new document and says how much to change; `kb_get_document`, `kb_list_curation_decisions` and `kb_propose_curation_revision` are added to the skill's runner allow-list. The skill's step 0 has always required `kb_list_curation_decisions`, which the runner could not call, so "skip already-decided sources" silently never ran.
+
+- 3136f2b: Outreach keeps the draft as first written when a human edits a proposal, and can feed that edit to KB curation.
+
+  `applyRevision` overwrote `draftBody`, so the original text was gone the moment anyone touched it — the proposal recorded that it had been revised, and by whom, but not from what. `original_draft_body` now captures the pre-revision body on the first revision made by a signed-in person; an agent revising its own draft before human review is not a human edit and does not set it. The outreach review drawer renders the two as a diff.
+
+  The column is named for the original rather than for who wrote it: proposals are normally drafted by the curator agent, but `proposedByActorType` can be `user`, and then it holds a person's text.
+
+  Approving a proposal a human edited can enqueue a delta-mode KB curation pass, gated by a new per-campaign `autoCurateEdits` flag that defaults **off**. Outbound copy is edited mostly for tone, length and personalisation, so this is opt-in per campaign rather than on by default; the pass is told to hold this source to a higher bar and file nothing unless the human corrected a fact about the product or the company. A proposal approved exactly as drafted enqueues nothing, and neither does an edit the human reverted.
+
+  `skill://kb/review-content` delta mode now covers both sources — a conversation draft and an outreach proposal — and `outreach_get_proposal` joins the skill's runner allow-list so the pass can read both bodies in one call.
+
+### Patch Changes
+
+- 12d3b36: Mirror voice conversations into Slack in turn order, and stop Slack serving a stale cached avatar.
+
+  A voice call's Slack thread showed the agent answering questions before they were asked: agent turns were hoisted above the caller turns they replied to, and two consecutive caller lines came out swapped. The stored data was never wrong — `conv_get_conversation` returned the same call in the right order, with `created_at` values already strictly increasing in `metadata.voiceTurnIndex` order.
+
+  The order was lost at delivery time. A Slack thread is append-only, so the order the bridge worker drains `slack_deliveries` in _is_ the order a reader sees, and the drain ordered by `created_at` — the enqueue time, i.e. when the vendor's webhook arrived. Webhook arrival order is not turn order for a voice transcript: an agent turn finalizes as soon as it is spoken, while the caller turn that prompted it is still being finalized by ASR, so the reply is enqueued first. (The apparent grouping of two agent turns into one block is Slack's own collapsing of adjacent same-username posts — correct behavior applied to a wrong order.)
+
+  `slack_deliveries` now carries the mirrored message's own position instead: `order_at` is the message's `created_at` and `order_seq` its `metadata.voiceTurnIndex`, both stamped by the event sink at enqueue time, and the drain's head-of-line gate and `ORDER BY` key on `(order_at, order_seq, created_at, id)`. `voiceTurnIndex` is the authoritative sequence when two turns share a timestamp; leading with `order_at` keeps rows that mirror no message — status changes, assignments, handovers, the voice-call-started note — at the real-time position they happened, rather than pushing every non-turn event to one end of the thread. Existing rows are backfilled from `created_at`, which reproduces the ordering they have today, and non-voice conversations keep ordering by message `created_at`.
+
+  On the ingestion side the `turnIndex` fallback used when a transcript event omits one counted every message in the conversation, so it drifted on any non-transcript row and could hand two concurrent turns the same index — which then produced two identical synthetic timestamps. It now takes `MAX(voiceTurnIndex) + 1` over the turns of that call.
+
+  Separately, a caller identified only by a phone number still rendered the pre-4.66 single-dot avatar in Slack even though the `user-round` icon shipped weeks ago and the endpoint serves it correctly. Slack's image proxy had cached the old bytes against `/v1/slack/avatars/default.png`, which is sent `cache-control: immutable, max-age=31536000` — so it never re-fetched. Avatar URLs are now content-addressed (`default.<8-hex>.png`), so changing an icon changes its URL; the un-hashed paths keep serving so avatars in already-posted threads don't break.
+
+- Updated dependencies [3136f2b]
+- Updated dependencies [3136f2b]
+- Updated dependencies [b8690cb]
+  - @getmunin/types@5.10.0
+
 ## 5.9.0
 
 ### Minor Changes

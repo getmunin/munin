@@ -361,6 +361,7 @@ The beacon also accepts `viewId` — send the same value twice to enrich one row
 
 ## Related
 
+- `skill://seo/improve-search-performance` — the half of a traffic question this data cannot answer. Everything here starts at the moment someone arrives; a connected search console reports the searches where the site was *shown* and not clicked, so a page with no traffic looks identical here whether it ranks badly or nobody searches for it at all. Reach for it whenever "why is this page getting no visitors" is the actual question.
 - `skill://analytics/track-cms-views` — sibling flow for content served by Munin's CMS. Per-entry token-signed pixel + beacon, no key to mint.
 - `skill://cms/review-stale-entries` — periodic curator pass that consults view data to decide whether stale published entries should be refreshed or archived.
 - `skill://conv/setup-chat-widget` — sibling drop-in script (chat widget); identical key-rotation ergonomics.

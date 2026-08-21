@@ -51,3 +51,9 @@ Three properties of this data will mislead you if you treat it like Munin's own 
 - It cannot see queries with very few impressions — search engines withhold low-volume and personally identifying queries. An absent query is not proof of zero impressions.
 - It cannot attribute revenue. Clicks here and conversions in `analytics_get_funnel` are separate datasets over different identity models; describe them side by side rather than dividing one by the other.
 - Submitting a URL is a request, not a guarantee: the engine decides whether and when to crawl, and indexing is never promised. Report what was submitted, not what will rank.
+
+## Related
+
+- `skill://analytics/track-website-traffic` — the post-click half, from Munin's own tracker: which pages were viewed, from which referrers, and what visitors searched for on the site.
+- `skill://connectors/connect-external-system` — how a connection is created and credentialed in the first place, including the OAuth redirect that Google Search Console needs.
+- `skill://cms/publish-entry` and `skill://kb/review-content` — where step 5 of the loop actually happens.

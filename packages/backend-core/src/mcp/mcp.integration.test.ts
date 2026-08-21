@@ -361,6 +361,7 @@ const skipReason = TEST_URL
         'crm_apply_merge_proposal',
         'crm_dismiss_merge_proposal',
         'kb_publish_curation_candidate',
+        'kb_publish_curation_revision',
       ];
       for (const name of appOnly) {
         const tool = tools.find((t) => t.name === name);

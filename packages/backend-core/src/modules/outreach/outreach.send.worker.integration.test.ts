@@ -76,6 +76,7 @@ const skipReason = TEST_URL
       new EmailService(),
       [new VapiOutreachCaller(new VapiClientService(db)), new ThrellOutreachCaller(new ThrellClientService(db))],
       appDb,
+      new CuratorJobsService(dispatcher),
     );
     worker = new OutreachSendWorker(appDb, svc);
   });

@@ -47,6 +47,7 @@ class ImportOutreachBody extends createZodDto(
           ctaUrl: z.string().nullable().optional(),
           autoDraftFirstTouch: z.boolean().default(false),
           autoDraftReplies: z.boolean().default(true),
+          autoCurateEdits: z.boolean().default(false),
           unsubscribeRequired: z.boolean(),
         }),
       ),

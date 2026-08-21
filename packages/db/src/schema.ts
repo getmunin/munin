@@ -704,6 +704,7 @@ export const kbCurationDecisions = pgTable(
       .notNull()
       .references(() => orgs.id, { onDelete: 'cascade' }),
     sourceConversationId: text('source_conversation_id'),
+    sourceMessageId: text('source_message_id'),
     candidateDocumentId: text('candidate_document_id').notNull(),
     title: text('title').notNull(),
     outcome: varchar('outcome', { length: 16 }).notNull(),
@@ -719,6 +720,10 @@ export const kbCurationDecisions = pgTable(
   },
   (t) => ({
     orgSourceIdx: index('kb_curation_decisions_org_source_idx').on(t.orgId, t.sourceConversationId),
+    orgSourceMsgIdx: index('kb_curation_decisions_org_source_msg_idx').on(
+      t.orgId,
+      t.sourceMessageId,
+    ),
     orgOutcomeIdx: index('kb_curation_decisions_org_outcome_idx').on(t.orgId, t.outcome),
   }),
 );
@@ -1809,6 +1814,7 @@ export const outreachCampaigns = pgTable(
     enabled: boolean('enabled').notNull().default(false),
     autoDraftFirstTouch: boolean('auto_draft_first_touch').notNull().default(false),
     autoDraftReplies: boolean('auto_draft_replies').notNull().default(true),
+    autoCurateEdits: boolean('auto_curate_edits').notNull().default(false),
     unsubscribeRequired: boolean('unsubscribe_required').notNull().default(true),
     createdByActorType: varchar('created_by_actor_type', { length: 16 }).notNull(),
     createdByActorId: text('created_by_actor_id').notNull(),
@@ -1845,6 +1851,7 @@ export const outreachProposals = pgTable(
     sequenceStep: integer('sequence_step'),
     draftSubject: text('draft_subject'),
     draftBody: text('draft_body').notNull(),
+    originalDraftBody: text('original_draft_body'),
     evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull().default({}),
     proposedSendAt: timestamp('proposed_send_at', { withTimezone: true }),
     scheduledSendAt: timestamp('scheduled_send_at', { withTimezone: true }),

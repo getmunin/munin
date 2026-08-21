@@ -255,6 +255,7 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
     draftEdit,
     setDraftEdit,
     kbBodies,
+    kbRevisedBodies,
     cmsDetails,
     detailErrors,
     queueDetailErrors,
@@ -299,7 +300,9 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
                 draftEdit={draftEdit}
                 setDraftEdit={setDraftEdit}
                 actionError={drawerActionError}
-                onSendDraft={(body) => void send(selectedConv.id, body, { claim: false, closeDrawer: true })}
+                onSendDraft={(body, fromDraftId) =>
+                  void send(selectedConv.id, body, { claim: false, closeDrawer: true, fromDraftId })
+                }
                 onTakeOver={() => void takeOver(selectedConv.id, true)}
                 onClose={() => setConvDrawer(null)}
               />
@@ -350,6 +353,9 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
             <QueueDrawer
               item={queue.find((q) => q.id === queueDrawer.id) ?? queueDrawer}
               kbBody={queueDrawer.kind === 'kb' ? kbBodies[queueDrawer.id] : undefined}
+              kbRevisedBody={
+                queueDrawer.kind === 'kb' ? kbRevisedBodies[queueDrawer.id] : undefined
+              }
               cmsDetail={
                 queueDrawer.kind === 'cms' ? cmsDetails[queueDrawer.id] : undefined
               }

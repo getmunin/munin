@@ -7,6 +7,7 @@ import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.t
 import {
   ActorIdentity,
   getCurrentContext,
+  sameAfterNormalizing,
   signUnsubscribeToken,
   WebhookDispatcher,
   withContext,
@@ -22,6 +23,12 @@ import {
   type OutreachVoiceCaller,
 } from '../conv/channels/outreach-voice.ts';
 import { draftFingerprint } from './proposal-fingerprint.ts';
+import { buildProposalDeltaCurationPrompt } from './curation-job.ts';
+import {
+  CuratorJobsService,
+  type EnqueueInput,
+  type EnqueueResult,
+} from '../curator/curator-jobs.service.ts';
 import { stripTrailingSlashes } from '@getmunin/types';
 
 export { draftFingerprint } from './proposal-fingerprint.ts';
@@ -31,6 +38,10 @@ export class OutreachInvalidError extends Error {
   constructor(message: string) {
     super(`outreach_invalid: ${message}`);
   }
+}
+
+export interface CuratorJobEnqueuer {
+  enqueue(input: EnqueueInput): Promise<EnqueueResult>;
 }
 
 export const PROPOSAL_KINDS = ['initial', 'reply', 'followup'] as const;
@@ -108,6 +119,7 @@ export interface CampaignDto {
   enabled: boolean;
   autoDraftFirstTouch: boolean;
   autoDraftReplies: boolean;
+  autoCurateEdits: boolean;
   unsubscribeRequired: boolean;
   createdAt: string;
   updatedAt: string;
@@ -144,6 +156,7 @@ export interface ProposalDto {
   sequenceStep: number | null;
   draftSubject: string | null;
   draftBody: string;
+  originalDraftBody: string | null;
   draftFingerprint: string;
   evidence: Record<string, unknown>;
   proposedSendAt: string | null;
@@ -193,6 +206,7 @@ export interface OutreachCampaignExport {
   ctaUrl: string | null;
   autoDraftFirstTouch: boolean;
   autoDraftReplies: boolean;
+  autoCurateEdits: boolean;
   unsubscribeRequired: boolean;
 }
 
@@ -224,6 +238,7 @@ export class OutreachService {
     @Inject(EmailService) private readonly email: EmailService,
     @Inject(OUTREACH_VOICE_CALLERS) voiceCallers: OutreachVoiceCaller[],
     @Inject(DB) private readonly db: Db,
+    @Inject(CuratorJobsService) private readonly curatorJobs: CuratorJobEnqueuer,
   ) {
     this.voiceCallers = new Map(voiceCallers.map((c) => [c.vendor, c]));
   }
@@ -261,6 +276,7 @@ export class OutreachService {
     enabled?: boolean;
     autoDraftFirstTouch?: boolean;
     autoDraftReplies?: boolean;
+    autoCurateEdits?: boolean;
     unsubscribeRequired?: boolean;
   }): Promise<CampaignDto> {
     const ctx = getCurrentContext();
@@ -290,6 +306,7 @@ export class OutreachService {
           enabled: input.enabled ?? false,
           autoDraftFirstTouch: input.autoDraftFirstTouch ?? false,
           autoDraftReplies: input.autoDraftReplies ?? true,
+          autoCurateEdits: input.autoCurateEdits ?? false,
           unsubscribeRequired: input.unsubscribeRequired ?? true,
           createdByActorType: actor.type,
           createdByActorId: actor.id,
@@ -317,6 +334,7 @@ export class OutreachService {
       enabled: boolean;
       autoDraftFirstTouch: boolean;
       autoDraftReplies: boolean;
+      autoCurateEdits: boolean;
       unsubscribeRequired: boolean;
     }>;
   }): Promise<CampaignDto> {
@@ -841,7 +859,9 @@ export class OutreachService {
     if (!sendAt) {
       await this.assertSendWindowOpen(proposal);
       const decided = await this.stampApproval(proposal, actor, null);
-      return this.deliverProposal(decided, senderFor(actor), opts.publicBaseUrl);
+      const sent = await this.deliverProposal(decided, senderFor(actor), opts.publicBaseUrl);
+      await this.enqueueEditCuration(sent);
+      return sent;
     }
     const scheduled = await this.stampApproval(proposal, actor, sendAt);
     await this.webhooks.emit({
@@ -878,6 +898,7 @@ export class OutreachService {
       },
       opts.publicBaseUrl,
     );
+    await this.enqueueEditCuration(sent);
     return { outcome: 'sent', proposal: sent };
   }
 
@@ -976,6 +997,28 @@ export class OutreachService {
       .where(eq(schema.outreachProposals.id, proposal.id))
       .returning();
     return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+  }
+
+  private async enqueueEditCuration(sent: ProposalDto): Promise<void> {
+    const originalDraftBody = sent.originalDraftBody;
+    if (originalDraftBody === null) return;
+    if (sameAfterNormalizing(originalDraftBody, sent.draftBody)) return;
+    const campaign = await this.getCampaign(sent.campaignId);
+    if (!campaign.autoCurateEdits) return;
+    await this.curatorJobs.enqueue({
+      jobUri: 'skill://kb/review-content',
+      userPrompt: buildProposalDeltaCurationPrompt({
+        proposalId: sent.id,
+        campaignName: campaign.name,
+      }),
+      sourceEventType: 'outreach.proposal.sent',
+      sourceEventPayload: {
+        proposalId: sent.id,
+        campaignId: sent.campaignId,
+        conversationId: sent.conversationId,
+      },
+      dedupeKey: `kb-curation:proposal:${sent.id}`,
+    });
   }
 
   private deliverProposal(
@@ -1537,7 +1580,12 @@ export class OutreachService {
     };
     if (revisedAfterReview) patch.revisedAfterReviewAt = now;
     if (input.draftSubject !== undefined) patch.draftSubject = input.draftSubject;
-    if (input.draftBody !== undefined) patch.draftBody = input.draftBody;
+    if (input.draftBody !== undefined) {
+      patch.draftBody = input.draftBody;
+      if (actor.type === 'user' && proposal.originalDraftBody === null) {
+        patch.originalDraftBody = proposal.draftBody;
+      }
+    }
     if (proposedSendAt !== undefined) patch.proposedSendAt = proposedSendAt;
     const [updated] = await ctx.db
       .update(schema.outreachProposals)
@@ -1856,6 +1904,7 @@ export class OutreachService {
         ctaUrl: c.ctaUrl,
         autoDraftFirstTouch: c.autoDraftFirstTouch,
         autoDraftReplies: c.autoDraftReplies,
+        autoCurateEdits: c.autoCurateEdits,
         unsubscribeRequired: c.unsubscribeRequired,
       })),
       proposals: proposals.map((p) => ({
@@ -1907,6 +1956,7 @@ export class OutreachService {
         enabled: false,
         autoDraftFirstTouch: campaign.autoDraftFirstTouch,
         autoDraftReplies: campaign.autoDraftReplies,
+        autoCurateEdits: campaign.autoCurateEdits,
         unsubscribeRequired: campaign.unsubscribeRequired,
       });
       result.idMap[campaign.id] = created.id;
@@ -2017,6 +2067,7 @@ function toCampaignDto(row: typeof schema.outreachCampaigns.$inferSelect): Campa
     enabled: row.enabled,
     autoDraftFirstTouch: row.autoDraftFirstTouch,
     autoDraftReplies: row.autoDraftReplies,
+    autoCurateEdits: row.autoCurateEdits,
     unsubscribeRequired: row.unsubscribeRequired,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -2049,6 +2100,7 @@ function toProposalDto(
     sequenceStep: row.sequenceStep,
     draftSubject: row.draftSubject,
     draftBody: row.draftBody,
+    originalDraftBody: row.originalDraftBody,
     draftFingerprint: draftFingerprint(row),
     evidence: row.evidence,
     proposedSendAt: row.proposedSendAt?.toISOString() ?? null,

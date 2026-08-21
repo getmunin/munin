@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { auditConversation, type AuditAction, type AuditTopic } from './audit.ts';
 import { deriveMessageComponents } from './message-components.ts';
+import { deriveRetrievedDocumentIds } from './kb-citations.ts';
 import { classifyProviderError, type ProviderErrorCode } from './providers/openai-compatible.ts';
 import { runAgent } from './runtime.ts';
 import type {
@@ -341,7 +342,9 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
             return;
           }
           if (delivery === 'draft') {
-            await deps.rest.setDraftReply(conversationId, reply.body);
+            await deps.rest.setDraftReply(conversationId, reply.body, {
+              retrievedDocumentIds: deriveRetrievedDocumentIds(reply.toolCalls),
+            });
             await deps.rest
               .requestHandover(conversationId, { reason: DRAFT_REVIEW_REASON })
               .catch((err) =>

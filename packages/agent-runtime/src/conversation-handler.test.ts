@@ -254,10 +254,74 @@ describe('createConversationHandler', () => {
     handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
     await handler.flush();
     expect(postSpy).not.toHaveBeenCalled();
-    expect(draftSpy.mock.calls[0]).toEqual(['conv_1', 'We open at 10am.']);
+    expect(draftSpy.mock.calls[0]).toEqual([
+      'conv_1',
+      'We open at 10am.',
+      { retrievedDocumentIds: undefined },
+    ]);
     expect(handoverSpy).toHaveBeenCalledWith('conv_1', {
       reason: 'draft reply ready for review',
     });
+  });
+
+  it('records the KB documents it drafted from so a later edit can be traced to them', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(buildConversation({ agentMode: 'draft_only', channelType: 'email' })),
+      ),
+    });
+    const draftSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    rest.setDraftReply = draftSpy;
+    rest.requestHandover = vi.fn(() => Promise.resolve());
+    const mcp: OpenedMcp = {
+      listTools: vi.fn(() => Promise.resolve([])),
+      callTool: vi.fn((): Promise<McpToolResult> =>
+        Promise.resolve({
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify([
+                { documentId: 'kdoc_rates', spaceId: 'ksp_1', title: 'Renter', score: 0.9 },
+              ]),
+            },
+          ],
+        }),
+      ),
+      close: vi.fn(() => Promise.resolve()),
+    };
+    const handler = createConversationHandler({
+      config: { ...baseConfig, auditEnabled: false },
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(mcp),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([
+        {
+          message: {
+            role: 'assistant',
+            content: null,
+            tool_calls: [
+              {
+                id: 'tc_1',
+                type: 'function',
+                function: { name: 'kb_search', arguments: JSON.stringify({ query: 'rente' }) },
+              },
+            ],
+          },
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+          finishReason: 'tool_calls',
+        },
+        assistantStop('The effective rate is about 11.9%.'),
+      ]),
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(draftSpy.mock.calls[0]).toEqual([
+      'conv_1',
+      'The effective rate is about 11.9%.',
+      { retrievedDocumentIds: ['kdoc_rates'] },
+    ]);
   });
 
   it('leaves an outreach-originated draft_only conversation to the outreach reply curator', async () => {

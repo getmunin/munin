@@ -36,6 +36,12 @@ class PublishCandidateBody extends createZodDto(
     audiences: z.array(z.string().min(1)).optional(),
   }),
 ) {}
+class PublishRevisionBody extends createZodDto(
+  z.object({
+    ifCandidateVersion: z.number().int().nonnegative(),
+    ifDocumentVersion: z.number().int().nonnegative(),
+  }),
+) {}
 class UpdateCandidateBody extends createZodDto(
   z.object({
     title: z.string().min(1).optional(),
@@ -104,6 +110,21 @@ export class KbCandidatesController {
     );
   }
 
+  @Post(':id/publish-revision')
+  @HttpCode(200)
+  async publishRevision(
+    @Param('id') id: string,
+    @Body() input: PublishRevisionBody,
+  ): Promise<DocumentDto> {
+    return translate(() =>
+      this.kb.publishCurationRevision({
+        candidateDocumentId: id,
+        ifCandidateVersion: input.ifCandidateVersion,
+        ifDocumentVersion: input.ifDocumentVersion,
+      }),
+    );
+  }
+
   @Post(':id/dismiss')
   @HttpCode(200)
   async dismiss(
@@ -138,8 +159,12 @@ async function translate<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err) {
-    if (err instanceof KbConflictError) throw new ConflictException(err.message);
-    if (err instanceof KbCurationDecidedError) throw new ConflictException(err.message);
+    if (err instanceof KbConflictError) {
+      throw new ConflictException({ message: err.message, code: err.code });
+    }
+    if (err instanceof KbCurationDecidedError) {
+      throw new ConflictException({ message: err.message, code: err.code });
+    }
     if (err instanceof KbInvalidError) throw new BadRequestException(err.message);
     if (err instanceof KbNotFoundError) throw new BadRequestException(err.message);
     throw err;

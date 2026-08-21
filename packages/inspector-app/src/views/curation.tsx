@@ -9,6 +9,7 @@ import {
   type CurationCandidate,
   type KbSpace,
 } from '../types';
+import { BodyDiff } from '@getmunin/ui';
 import { Chrome } from '../chrome';
 import { Markdown } from '../markdown';
 import { formatAge } from '../format';
@@ -25,6 +26,14 @@ type CardState = {
 const IDLE: CardState = { busy: null, error: null, decision: null };
 
 const CURATION_INBOX_SLUG = 'kb-curation-inbox';
+
+type BodyCache = Record<string, { body: string; version: number } | null>;
+
+function bodyOf(bodies: BodyCache, id: string): string | null | undefined {
+  const entry = bodies[id];
+  if (entry === undefined) return undefined;
+  return entry === null ? null : entry.body;
+}
 
 export function CurationView({ app, initial }: { app: McpApp; initial: CurationCandidate[] }) {
   const { locale, t } = useI18n();
@@ -69,32 +78,40 @@ export function CurationView({ app, initial }: { app: McpApp; initial: CurationC
   }, [app]);
 
   useEffect(() => {
-    if (!openId || bodies[openId] !== undefined) return;
+    if (!openId) return;
+    const open = candidates.find((c) => c.id === openId);
+    const revisesId = open?.revisesDocumentId ?? null;
+    const needCandidate = bodies[openId] === undefined;
+    const needRevised = revisesId !== null && bodies[revisesId] === undefined;
+    if (!needCandidate && !needRevised) return;
     let cancelled = false;
     void (async () => {
-      try {
-        const result = await app.callServerTool({
-          name: 'kb_get_document',
-          arguments: { id: openId },
-        });
-        const parsed = parseToolResult(result);
-        if (!cancelled) {
+      const ids = [...(needCandidate ? [openId] : []), ...(needRevised && revisesId ? [revisesId] : [])];
+      for (const id of ids) {
+        try {
+          const result = await app.callServerTool({
+            name: 'kb_get_document',
+            arguments: { id },
+          });
+          const parsed = parseToolResult(result);
+          if (cancelled) return;
           setBodies((prev) => ({
             ...prev,
-            [openId]:
+            [id]:
               !result.isError && isKbDocument(parsed)
                 ? { body: parsed.body, version: parsed.version }
                 : null,
           }));
+        } catch {
+          if (cancelled) return;
+          setBodies((prev) => ({ ...prev, [id]: null }));
         }
-      } catch {
-        if (!cancelled) setBodies((prev) => ({ ...prev, [openId]: null }));
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [app, openId, bodies]);
+  }, [app, openId, bodies, candidates]);
 
   function reviewedVersion(candidate: CurationCandidate): number {
     return bodies[candidate.id]?.version ?? candidate.version;
@@ -108,6 +125,10 @@ export function CurationView({ app, initial }: { app: McpApp; initial: CurationC
   }
 
   async function publish(candidate: CurationCandidate) {
+    if (candidate.revisesDocumentId) {
+      await publishRevision(candidate);
+      return;
+    }
     const targetSpaceSlug = targetFor(candidate);
     if (!targetSpaceSlug) {
       patchCard(candidate.id, { error: t('curation.noTarget') });
@@ -133,6 +154,45 @@ export function CurationView({ app, initial }: { app: McpApp; initial: CurationC
       patchCard(candidate.id, {
         busy: null,
         decision: { kind: 'published', detail: targetSpaceSlug },
+      });
+      advance(candidate.id);
+    } catch (err) {
+      patchCard(candidate.id, {
+        busy: null,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  async function publishRevision(candidate: CurationCandidate) {
+    const ifDocumentVersion = candidate.revisesDocumentVersion;
+    if (typeof ifDocumentVersion !== 'number') {
+      patchCard(candidate.id, { error: t('curation.revisionTargetGone') });
+      return;
+    }
+    patchCard(candidate.id, { busy: 'publish', error: null });
+    try {
+      const result = await app.callServerTool({
+        name: 'kb_publish_curation_revision',
+        arguments: {
+          candidateDocumentId: candidate.id,
+          ifCandidateVersion: reviewedVersion(candidate),
+          ifDocumentVersion,
+        },
+      });
+      if (result.isError) {
+        const message = errorText(result);
+        await refresh();
+        setOpenId(candidate.id);
+        patchCard(candidate.id, { busy: null, error: message });
+        return;
+      }
+      patchCard(candidate.id, {
+        busy: null,
+        decision: {
+          kind: 'published',
+          detail: candidate.revisesDocumentTitle ?? candidate.title,
+        },
       });
       advance(candidate.id);
     } catch (err) {
@@ -222,7 +282,10 @@ export function CurationView({ app, initial }: { app: McpApp; initial: CurationC
       {candidates.map((candidate) => {
         const state = cards[candidate.id] ?? IDLE;
         const open = openId === candidate.id;
-        const body = bodies[candidate.id]?.body ?? null;
+        const body = bodyOf(bodies, candidate.id);
+        const revisedBody = candidate.revisesDocumentId
+          ? bodyOf(bodies, candidate.revisesDocumentId)
+          : null;
         return (
           <div className="row" key={candidate.id}>
             <div
@@ -246,9 +309,13 @@ export function CurationView({ app, initial }: { app: McpApp; initial: CurationC
                   <b>{candidate.title}</b>
                 </div>
                 <div className="row-subject">
-                  {candidate.proposedTargetSpaceSlug
-                    ? t('curation.proposedTarget', { space: candidate.proposedTargetSpaceSlug })
-                    : t('curation.noProposedTarget')}
+                  {candidate.revisesDocumentId
+                    ? t('curation.revisionOf', {
+                        title: candidate.revisesDocumentTitle ?? candidate.title,
+                      })
+                    : candidate.proposedTargetSpaceSlug
+                      ? t('curation.proposedTarget', { space: candidate.proposedTargetSpaceSlug })
+                      : t('curation.noProposedTarget')}
                   {candidate.sourceConversationId &&
                     ` · ${t('curation.fromConversation', { id: candidate.sourceConversationId })}`}
                 </div>
@@ -261,11 +328,27 @@ export function CurationView({ app, initial }: { app: McpApp; initial: CurationC
             {open && (
               <div className="row-detail">
                 <div className="draft">
-                  <div className="eyebrow">{t('curation.draftEyebrow')}</div>
+                  <div className="eyebrow">
+                    {candidate.revisesDocumentId
+                      ? t('curation.revisionEyebrow')
+                      : t('curation.draftEyebrow')}
+                  </div>
                   {body === undefined ? (
                     <p className="mute">{t('curation.loadingBody')}</p>
                   ) : body === null ? (
                     <p className="mute">{t('curation.bodyFailed')}</p>
+                  ) : candidate.revisesDocumentId ? (
+                    revisedBody === undefined ? (
+                      <p className="mute">{t('curation.loadingBody')}</p>
+                    ) : revisedBody === null ? (
+                      <p className="mute">{t('curation.revisionTargetGone')}</p>
+                    ) : (
+                      <BodyDiff
+                        before={revisedBody}
+                        after={body}
+                        unchangedLabel={t('curation.revisionNoChange')}
+                      />
+                    )
                   ) : (
                     <Markdown>{body}</Markdown>
                   )}
@@ -273,12 +356,22 @@ export function CurationView({ app, initial }: { app: McpApp; initial: CurationC
                 {state.error && <p className="line line-error">{state.error}</p>}
                 {state.decision ? (
                   <p className={`line ${state.decision.kind === 'published' ? 'line-accent' : 'line-mute'}`}>
-                    {state.decision.kind === 'published'
-                      ? t('curation.published', { space: state.decision.detail ?? '' })
-                      : t('curation.dismissed')}
+                    {state.decision.kind !== 'published'
+                      ? t('curation.dismissed')
+                      : candidate.revisesDocumentId
+                        ? t('curation.publishedRevision', { title: state.decision.detail ?? '' })
+                        : t('curation.published', { space: state.decision.detail ?? '' })}
                   </p>
                 ) : (
                   <div className="actions actions-wrap">
+                    {candidate.revisesDocumentId ? (
+                      <span className="mute">
+                        {t('curation.revisionTarget', {
+                          title: candidate.revisesDocumentTitle ?? candidate.title,
+                          version: String(candidate.revisesDocumentVersion ?? ''),
+                        })}
+                      </span>
+                    ) : (
                     <label className="target-label">
                       {t('curation.targetLabel')}
                       {spaces && spaces.length > 0 ? (
@@ -326,6 +419,7 @@ export function CurationView({ app, initial }: { app: McpApp; initial: CurationC
                         />
                       )}
                     </label>
+                    )}
                     <button
                       className="chip-btn chip-btn-solid"
                       disabled={state.busy !== null}

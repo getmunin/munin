@@ -412,10 +412,19 @@ export interface KbCandidateApprovalSnapshot {
   title: string;
   proposedTargetSpaceSlug: string | null;
   sourceConversationId: string | null;
+  revisesDocumentTitle?: string | null;
   dashboardUrl: string;
 }
 
 export function kbCandidateApprovalText(snap: KbCandidateApprovalSnapshot): string {
+  const revises = snap.revisesDocumentTitle;
+  if (revises !== null && revises !== undefined) {
+    const lines = [`:books: *KB change awaiting review* — *${escapeSlackText(snap.title)}*`];
+    lines.push(`*Revises:* ${escapeSlackText(revises)}`);
+    lines.push('_Publishing writes a new version of that document — review the diff in Munin._');
+    lines.push(`<${snap.dashboardUrl}|Review in Munin>`);
+    return lines.join('\n');
+  }
   const lines = [`:books: *KB draft awaiting review* — *${escapeSlackText(snap.title)}*`];
   lines.push(
     snap.proposedTargetSpaceSlug

@@ -103,3 +103,13 @@ export {
   type LlmProviderPreset,
 } from './llm-providers.ts';
 export { stripTrailingSlashes } from './url.ts';
+export {
+  actorKindFromId,
+  AGENT_HOST_ACTOR,
+  AGENT_HOST_ACTOR_PREFIX,
+  CONV_SCHEDULER_ACTOR,
+  CURATOR_SCHEDULER_ACTOR,
+  WIDGET_READ_TRACKER_ACTOR,
+  SYSTEM_ACTOR_IDS,
+  type ActorKind,
+} from './actors.ts';

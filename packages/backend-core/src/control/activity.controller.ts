@@ -2,12 +2,11 @@ import { Controller, Get, Query, UseGuards, UseInterceptors } from '@nestjs/comm
 import { schema } from '@getmunin/db';
 import { and, desc, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
+import { actorKindFromId, type ActorKind } from '@getmunin/types';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
-
-type ActorKind = 'user' | 'agent' | 'widget' | 'system' | 'unknown';
 
 interface ActivityDto {
   id: string;
@@ -116,16 +115,18 @@ export class ActivityController {
       .where(inArray(schema.users.id, unique));
     for (const r of userRows) out.set(r.id, { kind: 'user', label: r.name ?? r.email });
 
+    const keyRows = await ctx.db
+      .select({ id: schema.apiKeys.id, name: schema.apiKeys.name, type: schema.apiKeys.type })
+      .from(schema.apiKeys)
+      .where(inArray(schema.apiKeys.id, unique));
+    for (const r of keyRows) out.set(r.id, { kind: apiKeyKind(r.type), label: r.name });
+
     return out;
   }
 }
 
-function actorKindFromId(id: string): ActorKind {
-  if (id.startsWith('usr_')) return 'user';
-  if (id.startsWith('agt_')) return 'agent';
-  if (id.startsWith('mn_widge_') || id.startsWith('akey_')) return 'widget';
-  if (id === 'system') return 'system';
-  return 'unknown';
+function apiKeyKind(type: string): ActorKind {
+  return type === 'widget' || type === 'track' ? 'widget' : 'agent';
 }
 
 function toDto(

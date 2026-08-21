@@ -1,5 +1,39 @@
 # @getmunin/types
 
+## 5.10.0
+
+### Minor Changes
+
+- 3136f2b: A curation candidate can now propose a new version of a document that already exists, instead of only a new document beside it.
+
+  `kb_propose_curation_revision` files a proposed body against an existing `documentId`; `kb_publish_curation_revision` applies it as a new version of that document, so `kb_list_versions` and `kb_restore_version` roll a bad revision back. It takes two versions — the candidate text that was reviewed and the document text it was diffed against — and refuses if either moved, writing nothing. `kb_publish_curation_candidate` refuses a revision candidate rather than quietly publishing a duplicate.
+
+  This is what a corrected fact should produce. A human editing an agent draft usually contradicts a document the draft was built from, and the old flow could only file a new FAQ beside the stale one, leaving the wrong text in place for the agent to retrieve again.
+
+  Revisions share one review queue with new-document candidates: `kb_list_curation_candidates` carries `revisesDocumentId` plus the revised document's current title and version, and each surface branches per row — the dashboard drawer and the MCP Apps panel render a diff against the current text (new `BodyDiff`, backed by a dependency-free line differ in `@getmunin/types`), the control plane gains `POST /v1/kb/curation/candidates/:id/publish-revision`, and Slack shows the card without a publish button, since its approval value carries only one version. The panel's "loading" state for a candidate body was also unreachable — it reported a load failure while the fetch was still in flight.
+
+  Curation decisions are now keyed by conversation **and** source message (`kb_curation_decisions.source_message_id`). One conversation can legitimately surface several corrections across turns; the old conversation-wide key closed it to curation after the first. Decisions recorded before this keep the whole-conversation lock, so nothing already dismissed reopens. Related: `kb_propose_curation_candidate` accepted `sourceMessageIds` and silently dropped it — the first entry is now persisted.
+
+  `skill://kb/review-content` delta mode now prefers a revision over a new document and says how much to change; `kb_get_document`, `kb_list_curation_decisions` and `kb_propose_curation_revision` are added to the skill's runner allow-list. The skill's step 0 has always required `kb_list_curation_decisions`, which the runner could not call, so "skip already-decided sources" silently never ran.
+
+- 3136f2b: Outreach keeps the draft as first written when a human edits a proposal, and can feed that edit to KB curation.
+
+  `applyRevision` overwrote `draftBody`, so the original text was gone the moment anyone touched it — the proposal recorded that it had been revised, and by whom, but not from what. `original_draft_body` now captures the pre-revision body on the first revision made by a signed-in person; an agent revising its own draft before human review is not a human edit and does not set it. The outreach review drawer renders the two as a diff.
+
+  The column is named for the original rather than for who wrote it: proposals are normally drafted by the curator agent, but `proposedByActorType` can be `user`, and then it holds a person's text.
+
+  Approving a proposal a human edited can enqueue a delta-mode KB curation pass, gated by a new per-campaign `autoCurateEdits` flag that defaults **off**. Outbound copy is edited mostly for tone, length and personalisation, so this is opt-in per campaign rather than on by default; the pass is told to hold this source to a higher bar and file nothing unless the human corrected a fact about the product or the company. A proposal approved exactly as drafted enqueues nothing, and neither does an edit the human reverted.
+
+  `skill://kb/review-content` delta mode now covers both sources — a conversation draft and an outreach proposal — and `outreach_get_proposal` joins the skill's runner allow-list so the pass can read both bodies in one call.
+
+### Patch Changes
+
+- b8690cb: Classify and name API-key callers in the activity feed from the key itself. `actorKind` was guessed from the actor id's prefix, which mapped every `akey_*` caller to `widget` — so admin service keys were reported as widgets on `GET /v1/activity`, and they carried no `actorLabel` at all, leaving the feed to show a truncated raw id. Actor resolution now reads `api_keys`, labels the row with the key's name, and derives the kind from its type (`widget` / `track` → `widget`, everything else → `agent`).
+
+  Drop the dead prefix branches from the same classifier. `usr_` never matched a BetterAuth-created user (those ids resolve through the `users` lookup first anyway) and `agt_` existed only in test fixtures.
+
+  Give the synthetic actors a kind instead of reporting them as `unknown`: the in-process agent runtime (`agent-host:<org>`, `agent-host:<org>:<end user>`) is an `agent`, and the scheduler and read-tracker actors are `system`. The classifier now lives in `@getmunin/types` as `actorKindFromId`, alongside named constants for each synthetic actor id, so the server and the dashboard's realtime fallback cannot drift apart and the code that mints these ids shares the string with the code that reads it. `GET /v1/activity` had no test of its own; it now covers both key kinds, a BetterAuth user id, the runtime actors, the system actors, and an unplaceable id.
+
 ## 5.9.0
 
 ## 5.8.0

@@ -1,5 +1,115 @@
 # @getmunin/backend-core
 
+## 5.10.0
+
+### Minor Changes
+
+- 3136f2b: KB curation now triggers on what a human changed in an agent draft, not on the fact that they sent it.
+
+  In `draft_only` mode the runtime hands over on every turn, so every approved reply resolved a handover and queued a curation pass. The draft had been assembled from the KB by `kb_search`, so the pass kept proposing documents built out of information the KB had just supplied — a near-duplicate of whatever document fed the draft.
+
+  Sending a draft from the dashboard now passes `fromDraftId`. The backend looks that draft up, compares the two bodies itself (whitespace-normalised, so a reflow is not an edit) and stamps `metadata.approvedDraft` — `{ draftMessageId, draftBody, edited, retrievedDocumentIds }` — on the sent message. An unedited approved draft queues no pass at all: it is positive evidence the KB already covered the question. An edited one queues a pass in delta mode, pointed at the draft and the sent message so it curates the change rather than the reply. A human answering without going through a draft is unchanged, and still curates as a gap.
+
+  The draft the human sent is retired to `metadata.kind: 'draft_reply_sent'` with a link to the message it became, instead of being deleted by the next draft — so the before/after pair survives in the thread. The runtime also records which KB documents it retrieved while drafting (`kb_search` hits, capped at 8), which is what lets a later edit be traced back to the document that carried the wrong fact.
+
+  `skill://kb/review-content` gained a delta mode with a classification table: formatting, tone and personalisation edits file nothing; a changed fact, an added caveat or a withdrawn claim file one candidate covering the change alone.
+
+- 3136f2b: A curation candidate can now propose a new version of a document that already exists, instead of only a new document beside it.
+
+  `kb_propose_curation_revision` files a proposed body against an existing `documentId`; `kb_publish_curation_revision` applies it as a new version of that document, so `kb_list_versions` and `kb_restore_version` roll a bad revision back. It takes two versions — the candidate text that was reviewed and the document text it was diffed against — and refuses if either moved, writing nothing. `kb_publish_curation_candidate` refuses a revision candidate rather than quietly publishing a duplicate.
+
+  This is what a corrected fact should produce. A human editing an agent draft usually contradicts a document the draft was built from, and the old flow could only file a new FAQ beside the stale one, leaving the wrong text in place for the agent to retrieve again.
+
+  Revisions share one review queue with new-document candidates: `kb_list_curation_candidates` carries `revisesDocumentId` plus the revised document's current title and version, and each surface branches per row — the dashboard drawer and the MCP Apps panel render a diff against the current text (new `BodyDiff`, backed by a dependency-free line differ in `@getmunin/types`), the control plane gains `POST /v1/kb/curation/candidates/:id/publish-revision`, and Slack shows the card without a publish button, since its approval value carries only one version. The panel's "loading" state for a candidate body was also unreachable — it reported a load failure while the fetch was still in flight.
+
+  Curation decisions are now keyed by conversation **and** source message (`kb_curation_decisions.source_message_id`). One conversation can legitimately surface several corrections across turns; the old conversation-wide key closed it to curation after the first. Decisions recorded before this keep the whole-conversation lock, so nothing already dismissed reopens. Related: `kb_propose_curation_candidate` accepted `sourceMessageIds` and silently dropped it — the first entry is now persisted.
+
+  `skill://kb/review-content` delta mode now prefers a revision over a new document and says how much to change; `kb_get_document`, `kb_list_curation_decisions` and `kb_propose_curation_revision` are added to the skill's runner allow-list. The skill's step 0 has always required `kb_list_curation_decisions`, which the runner could not call, so "skip already-decided sources" silently never ran.
+
+- 3136f2b: Outreach keeps the draft as first written when a human edits a proposal, and can feed that edit to KB curation.
+
+  `applyRevision` overwrote `draftBody`, so the original text was gone the moment anyone touched it — the proposal recorded that it had been revised, and by whom, but not from what. `original_draft_body` now captures the pre-revision body on the first revision made by a signed-in person; an agent revising its own draft before human review is not a human edit and does not set it. The outreach review drawer renders the two as a diff.
+
+  The column is named for the original rather than for who wrote it: proposals are normally drafted by the curator agent, but `proposedByActorType` can be `user`, and then it holds a person's text.
+
+  Approving a proposal a human edited can enqueue a delta-mode KB curation pass, gated by a new per-campaign `autoCurateEdits` flag that defaults **off**. Outbound copy is edited mostly for tone, length and personalisation, so this is opt-in per campaign rather than on by default; the pass is told to hold this source to a higher bar and file nothing unless the human corrected a fact about the product or the company. A proposal approved exactly as drafted enqueues nothing, and neither does an edit the human reverted.
+
+  `skill://kb/review-content` delta mode now covers both sources — a conversation draft and an outreach proposal — and `outreach_get_proposal` joins the skill's runner allow-list so the pass can read both bodies in one call.
+
+- 58f255d: Announce CMS publishes in Slack, with a link to the rendered article.
+
+  Publishing an entry now posts a one-line announcement into Slack — the entry's title, its collection and locale, and a link to the live article. It rides on the existing `cms.entry.published` event through the `WebhookDispatcher` sink and the `slack_deliveries` queue, so scheduled publishes announce when the schedule worker promotes them, and a failed post retries with the same backoff as every other Slack delivery. No buttons: a publish is news, not a decision, so it is not an approval-style message and records no notification link.
+
+  Routing follows the pattern the approvals channel established: `slack_set_routing` takes a new `purpose: "content"`, and announcements fall back to the default channel when it is unset.
+
+  The article link needs a per-collection template, because Munin does not render the customer's frontend — the same reason `settings.previewUrl` exists for drafts. `settings.liveUrl` is its published-side sibling: `https://www.example.com/{locale}/blog/{slug}`, with `{slug}`, `{locale}` and `{collection}` percent-encoded on substitution. A template that doesn't resolve to an `http(s)` URL is ignored rather than throwing — an announcement is a side effect of publishing, and a typo in a collection setting must not fail the publish. Without a template the announcement still posts, just without a link.
+
+  Two supporting changes to the `cms.entry.published` payload, which webhook subscribers also see:
+
+  - `title` and `url` are now included — `title` reads the entry's `title`, `headline`, `name` or `heading` field (in that order) and falls back to the slug; `url` is the resolved `liveUrl` or `null`.
+  - `previousStatus` records what the entry was before the transition. Re-publishing an already-published entry is a no-op status change, and Slack skips it rather than announcing the same article twice; a static-site rebuild hook can use it the same way.
+
+### Patch Changes
+
+- b8690cb: Fix `DELETE /v1/tokens/:id` for OAuth agents. The handler recognised OAuth refresh-token rows by an `orft_` id prefix, which only Drizzle's column default produces — BetterAuth's OAuth provider writes those rows through its own adapter with its own id generator, so live rows never carry the prefix. Every revoke therefore fell through to the unrelated `tokens` table, matched nothing, and returned `token <id> not found`, making the Revoke button on the Agents page fail for all connected agents. Revoke now looks the id up in `oauth_refresh_token` first and only falls back to the `tokens` table when there is no match, so wrong-org callers still get a 404.
+
+  The existing integration test passed because it seeded rows through Drizzle and asserted the prefix; it now seeds BetterAuth-shaped ids and reproduces the production 404.
+
+  Fix the same wrong assumption in `GET /v1/usage/by-agent`, which filtered audit actor ids down to those starting with `usr_` before resolving them against `users`. No BetterAuth-created user id carries that prefix either, so the lookup always came back empty: OAuth agent rows lost the authorising person's sub-label, and a dashboard user's own calls were listed under their raw 32-character id instead of their name. The lookup now runs against every actor id, as the activity feed already did. Its test seeded users through Drizzle too and is likewise switched to BetterAuth-shaped ids.
+
+- 2e95f5e: Surface scheduled CMS publishes on the dashboard, alongside the scheduled outreach sends that were already there, and let both be opened read-only.
+
+  Scheduled CMS entries were invisible in the dashboard. `CmsService.listDraftEntries` only ever returned `status='draft'`, and the dashboard has no CMS browsing page — the queue drawer is the sole CMS surface. So the moment an operator scheduled a draft from that drawer it vanished from the product: no way to see that a publish was pending, no way to check the date, no way to call it off. It reappeared only when the worker published it. `listScheduledEntries` now backs a `queue.cmsScheduled` array on `/v1/inbox`, ordered soonest-first.
+
+  The old `ScheduledSendsSection` becomes `ScheduledSection`, covering both kinds in one chronological list so "scheduled" reads as one concept rather than an outreach quirk. Rows show a relative countdown rather than a timestamp — "in 4h" is what you scan an agenda for, and the exact time is one click away in the drawer's standing-order strip — so `useRelative` gains a future-facing `useCountdown` sibling; the existing helper only subtracts in one direction and reports every future timestamp as "just now".
+
+  The queue section is renamed **Waiting on you** (nb: _Venter på deg_). "Queue" named the data structure rather than the reader's relationship to it, and the new name earns its place by contrasting with Scheduled: waiting on _you_ versus waiting on the clock — the same distinction the read-only drawer draws with "nothing to approve — this runs on its own". "Needs your attention" was the other candidate and was rejected for overclaiming against Live Now, which sits directly above it and genuinely does need attention first. `dashboard.overview.queue.empty` ("Queue is clear") was removed rather than reworded: nothing has ever rendered it, and its `<accent>` markup had no chunk renderer on this surface.
+
+  Both the queue and scheduled rows drop the per-kind `Pill` for a fixed-width cell holding a shape glyph and a short mono code (`KB`, `CRM`, `OUT`, `CMS`, `FBK`). The pill's width tracked the length of its label, so every title started at a different x and the eye had no edge to run down — the badge was decoration paid for in scannability. The glyphs (hollow circle, diamond, filled circle, square, triangle) are inline SVG rather than `■ ● ○ ◆` text, which falls back to different fonts per platform and breaks both the size and the baseline in a column whose only job is alignment. Shape is pre-attentive and encodes without relying on hue, so the modules separate at a glance and stay separable for colourblind readers. Pills stay in the drawers, where there is one and nothing to align against.
+
+  The two sections are one grid: same code cell, same title x, same right-aligned time column, so the eye keeps both edges scrolling from one to the other. An earlier pass led the scheduled rows with a wide date rail, which read well in isolation but put the two sections' titles ~285px apart and made them look like unrelated tables.
+
+  Rows open a read-only drawer that reuses the CMS and outreach drawers behind a `readOnly` prop, so the content renders through exactly the code that renders it for review. The read-only state is marked three ways, because a drawer that looks editable invites typing: a cobalt SCHEDULED pill in the header, a standing-order strip above the content stating what fires and when, and a footer with no accent-filled primary — every other drawer in the dashboard leads with one. `⌘↵` is inert there.
+
+  Calling off a scheduled publish returns the entry to `draft` and puts it back on the review queue, mirroring the existing outreach cancel; unlike outreach it takes no reason, since nothing left the building. `GET /v1/cms/drafts/:id` already resolved scheduled entries, so the drawer needed no new read endpoint — only `POST /v1/cms/drafts/:id/unschedule`, which rejects an entry that is not scheduled rather than silently drafting a published one.
+
+  Two fixes found along the way:
+
+  `CmsService.transition` did not clear `scheduledAt` on the `draft` branch, only on `published` and `archived`. The `publish-entry` skill already told agents to `cms_unpublish_entry` "to clear the schedule" — that is now true rather than aspirational. Without it an unscheduled entry keeps a stale timestamp, harmless to the worker (it filters on status) but a phantom date to anything reading the column.
+
+  The dashboard's realtime filter did not match `cms.entry.*`, so a scheduled publish firing left the list stale until the next full load. Already true for the CMS drafts queue before this change.
+
+- 12d3b36: Mirror voice conversations into Slack in turn order, and stop Slack serving a stale cached avatar.
+
+  A voice call's Slack thread showed the agent answering questions before they were asked: agent turns were hoisted above the caller turns they replied to, and two consecutive caller lines came out swapped. The stored data was never wrong — `conv_get_conversation` returned the same call in the right order, with `created_at` values already strictly increasing in `metadata.voiceTurnIndex` order.
+
+  The order was lost at delivery time. A Slack thread is append-only, so the order the bridge worker drains `slack_deliveries` in _is_ the order a reader sees, and the drain ordered by `created_at` — the enqueue time, i.e. when the vendor's webhook arrived. Webhook arrival order is not turn order for a voice transcript: an agent turn finalizes as soon as it is spoken, while the caller turn that prompted it is still being finalized by ASR, so the reply is enqueued first. (The apparent grouping of two agent turns into one block is Slack's own collapsing of adjacent same-username posts — correct behavior applied to a wrong order.)
+
+  `slack_deliveries` now carries the mirrored message's own position instead: `order_at` is the message's `created_at` and `order_seq` its `metadata.voiceTurnIndex`, both stamped by the event sink at enqueue time, and the drain's head-of-line gate and `ORDER BY` key on `(order_at, order_seq, created_at, id)`. `voiceTurnIndex` is the authoritative sequence when two turns share a timestamp; leading with `order_at` keeps rows that mirror no message — status changes, assignments, handovers, the voice-call-started note — at the real-time position they happened, rather than pushing every non-turn event to one end of the thread. Existing rows are backfilled from `created_at`, which reproduces the ordering they have today, and non-voice conversations keep ordering by message `created_at`.
+
+  On the ingestion side the `turnIndex` fallback used when a transcript event omits one counted every message in the conversation, so it drifted on any non-transcript row and could hand two concurrent turns the same index — which then produced two identical synthetic timestamps. It now takes `MAX(voiceTurnIndex) + 1` over the turns of that call.
+
+  Separately, a caller identified only by a phone number still rendered the pre-4.66 single-dot avatar in Slack even though the `user-round` icon shipped weeks ago and the endpoint serves it correctly. Slack's image proxy had cached the old bytes against `/v1/slack/avatars/default.png`, which is sent `cache-control: immutable, max-age=31536000` — so it never re-fetched. Avatar URLs are now content-addressed (`default.<8-hex>.png`), so changing an icon changes its URL; the un-hashed paths keep serving so avatars in already-posted threads don't break.
+
+- b8690cb: Classify and name API-key callers in the activity feed from the key itself. `actorKind` was guessed from the actor id's prefix, which mapped every `akey_*` caller to `widget` — so admin service keys were reported as widgets on `GET /v1/activity`, and they carried no `actorLabel` at all, leaving the feed to show a truncated raw id. Actor resolution now reads `api_keys`, labels the row with the key's name, and derives the kind from its type (`widget` / `track` → `widget`, everything else → `agent`).
+
+  Drop the dead prefix branches from the same classifier. `usr_` never matched a BetterAuth-created user (those ids resolve through the `users` lookup first anyway) and `agt_` existed only in test fixtures.
+
+  Give the synthetic actors a kind instead of reporting them as `unknown`: the in-process agent runtime (`agent-host:<org>`, `agent-host:<org>:<end user>`) is an `agent`, and the scheduler and read-tracker actors are `system`. The classifier now lives in `@getmunin/types` as `actorKindFromId`, alongside named constants for each synthetic actor id, so the server and the dashboard's realtime fallback cannot drift apart and the code that mints these ids shares the string with the code that reads it. `GET /v1/activity` had no test of its own; it now covers both key kinds, a BetterAuth user id, the runtime actors, the system actors, and an unplaceable id.
+
+- Updated dependencies [3136f2b]
+- Updated dependencies [3136f2b]
+- Updated dependencies [3136f2b]
+- Updated dependencies [12d3b36]
+- Updated dependencies [b8690cb]
+  - @getmunin/agent-runtime@5.10.0
+  - @getmunin/core@5.10.0
+  - @getmunin/inspector-app@5.10.0
+  - @getmunin/types@5.10.0
+  - @getmunin/db@5.10.0
+  - @getmunin/mcp-toolkit@5.10.0
+  - @getmunin/emails@5.10.0
+
 ## 5.9.0
 
 ### Minor Changes

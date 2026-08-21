@@ -283,7 +283,7 @@ export class ThrellAdapter implements ChannelAdapter {
       const turnIndex =
         typeof event.data?.turnIndex === 'number'
           ? event.data.turnIndex
-          : await this.nextTurnIndex(tx, conversation.id);
+          : await this.nextTurnIndex(tx, conversation.id, callId);
       const occurredAt = voiceTurnTimestamp(conversation, turnIndex);
       await this.insertVoiceMessage(tx, channel, conversation, {
         role,
@@ -502,12 +502,21 @@ export class ThrellAdapter implements ChannelAdapter {
     return concurrent[0];
   }
 
-  private async nextTurnIndex(tx: Db | Tx, conversationId: string): Promise<number> {
-    const rows = await tx.execute<{ n: string | number } & Record<string, unknown>>(
-      sql`SELECT COUNT(*) AS n FROM conv_messages WHERE conversation_id = ${conversationId}`,
+  private async nextTurnIndex(
+    tx: Db | Tx,
+    conversationId: string,
+    callId: string,
+  ): Promise<number> {
+    const rows = await tx.execute<{ n: string | number | null } & Record<string, unknown>>(
+      sql`SELECT MAX((metadata ->> 'voiceTurnIndex')::int) AS n
+          FROM conv_messages
+          WHERE conversation_id = ${conversationId}
+            AND metadata ->> 'threllCallId' = ${callId}`,
     );
     const n = rows[0]?.n;
-    return typeof n === 'number' ? n : parseInt(String(n ?? 0), 10);
+    if (n === null || n === undefined) return 0;
+    const max = typeof n === 'number' ? n : parseInt(String(n), 10);
+    return Number.isFinite(max) ? max + 1 : 0;
   }
 }
 

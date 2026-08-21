@@ -2137,6 +2137,13 @@ export const slackUserLinks = pgTable(
 // `conversation_id` is denormalized so the worker can keep per-conversation
 // ordering (head-of-line: a due row waits while an earlier undelivered row
 // for the same conversation is still retrying).
+// Slack threads are append-only, so the drain order *is* the rendered order.
+// `order_at` / `order_seq` carry the mirrored message's own position rather
+// than the enqueue time, because webhook arrival order is not turn order for
+// voice transcripts (a caller turn finalizes after the agent turn that
+// answers it). `order_at` is the message's created_at, `order_seq` its
+// metadata voiceTurnIndex; rows that mirror no message keep created_at and
+// -1, so lifecycle events stay where they happened in real time.
 export const slackDeliveries = pgTable(
   'slack_deliveries',
   {
@@ -2162,12 +2169,24 @@ export const slackDeliveries = pgTable(
     error: text('error'),
     deliveredAt: timestamp('delivered_at', { withTimezone: true }),
     nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+    orderAt: timestamp('order_at', { withTimezone: true }).notNull().defaultNow(),
+    orderSeq: integer('order_seq').notNull().default(-1),
     createdAt,
   },
   (t) => ({
     pendingIdx: index('slack_deliveries_pending_idx').on(t.nextAttemptAt),
-    convIdx: index('slack_deliveries_conv_idx').on(t.conversationId, t.createdAt),
-    subjectIdx: index('slack_deliveries_subject_idx').on(t.subjectKey, t.createdAt),
+    convIdx: index('slack_deliveries_conv_idx').on(
+      t.conversationId,
+      t.orderAt,
+      t.orderSeq,
+      t.createdAt,
+    ),
+    subjectIdx: index('slack_deliveries_subject_idx').on(
+      t.subjectKey,
+      t.orderAt,
+      t.orderSeq,
+      t.createdAt,
+    ),
     orgIdx: index('slack_deliveries_org_idx').on(t.orgId),
   }),
 );

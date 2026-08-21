@@ -32,11 +32,7 @@ interface ActivityPageResponse {
 }
 
 function actorKindFromId(id: string): ActorKind {
-  if (id.startsWith('usr_')) return 'user';
-  if (id.startsWith('agt_')) return 'agent';
-  if (id.startsWith('mn_widge_') || id.startsWith('akey_')) return 'widget';
-  if (id === 'system') return 'system';
-  return 'unknown';
+  return id === 'system' ? 'system' : 'unknown';
 }
 
 function fromRealtime(

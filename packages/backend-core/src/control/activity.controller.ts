@@ -116,16 +116,22 @@ export class ActivityController {
       .where(inArray(schema.users.id, unique));
     for (const r of userRows) out.set(r.id, { kind: 'user', label: r.name ?? r.email });
 
+    const keyRows = await ctx.db
+      .select({ id: schema.apiKeys.id, name: schema.apiKeys.name, type: schema.apiKeys.type })
+      .from(schema.apiKeys)
+      .where(inArray(schema.apiKeys.id, unique));
+    for (const r of keyRows) out.set(r.id, { kind: apiKeyKind(r.type), label: r.name });
+
     return out;
   }
 }
 
+function apiKeyKind(type: string): ActorKind {
+  return type === 'widget' || type === 'track' ? 'widget' : 'agent';
+}
+
 function actorKindFromId(id: string): ActorKind {
-  if (id.startsWith('usr_')) return 'user';
-  if (id.startsWith('agt_')) return 'agent';
-  if (id.startsWith('mn_widge_') || id.startsWith('akey_')) return 'widget';
-  if (id === 'system') return 'system';
-  return 'unknown';
+  return id === 'system' ? 'system' : 'unknown';
 }
 
 function toDto(

@@ -31,7 +31,7 @@ export class ConnectorAdminTools {
     name: 'connectors_list_vendors',
     title: 'Connectors: List supported vendors',
     description:
-      'List the third-party systems Munin can connect to, grouped by domain (commerce, bookings) with the config fields each vendor requires. Use it to see what credentials are needed before creating a connection.',
+      'List the third-party systems Munin can connect to, grouped by domain (commerce, bookings, seo) with the config fields each vendor requires. Use it to see what credentials are needed before creating a connection. Vendors marked `oauth` are authorized by redirect — store their client credentials, then finish with connectors_get_authorize_url.',
     audiences: ['admin'],
     scopes: ['connectors:read'],
     input: EmptyInput,
@@ -85,6 +85,21 @@ export class ConnectorAdminTools {
   })
   requestCredentials(args: z.infer<typeof ConnectionIdInput>) {
     return this.connectors.requestCredentials(args);
+  }
+
+  @McpTool({
+    name: 'connectors_get_authorize_url',
+    title: 'Connectors: Get an authorization link',
+    description:
+      'Return the vendor OAuth link that grants Munin access for a connection, for vendors that authorize by redirect instead of a pasted key (connectors_list_vendors marks which). A human must open and approve it in a browser; it expires after 10 minutes, so call again for a fresh one. Use it to finish a pending connection once its client credentials are stored, or to reconnect one whose credentialState is expired. Fails for vendors that use static credentials.',
+    audiences: ['admin'],
+    scopes: ['connectors:read'],
+    input: ConnectionIdInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getAuthorizeUrl(args: z.infer<typeof ConnectionIdInput>) {
+    return this.connectors.authorizeUrl(args);
   }
 
   @McpTool({

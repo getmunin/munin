@@ -14,6 +14,7 @@ export interface ConnectVendor {
   vendor: string;
   domain: string;
   displayName: string;
+  oauth?: boolean;
   configFields: VendorField[];
 }
 

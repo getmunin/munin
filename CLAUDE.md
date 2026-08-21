@@ -45,7 +45,15 @@ Three integration categories, three homes. Route new "integrate with X" work by 
 
   Domains are **not** uniformly customer-facing. `commerce` and `bookings` exist because an end user in a chat widget has a personal stake in them, and both ship a `*.self-service.tools.ts`. `seo` is operator-facing and admin-only: no end user asks about impressions or average position. So `ConnectorDomain` is the storage and registry discriminator, not a promise of a self-service half — which is why the voice self-service gate in `conv/channels/voice-self-service-tools.service.ts` keys off its own map of self-service domains rather than the full union, and why `seo:*` scopes are absent from `SELF_SERVICE_SCOPES` and `CONNECTOR_DOMAIN_SCOPES`.
 
-  `seo` is also the one domain whose credentials are not all static: Bing is a plain API key and fits `ConnectorAdapter` as-is, but Google Search Console is OAuth-only and needs authorize/refresh/revoke support in the trunk first — treat that as its own piece of work rather than a special-cased adapter.
+  Credentials come in two shapes. Most vendors are static (an API key or token pasted through the `/connect/credentials` handoff). A vendor that authorizes by redirect instead declares an optional `oauth` capability on its adapter (`ConnectorOAuth`: `authorizeUrl` / `exchangeCode` / `refresh` / `revoke`) and the trunk drives the flow — `connectors_get_authorize_url` mints an HMAC-signed state, `/v1/connectors/oauth/callback` exchanges the code, and `ConnectorOAuthService` owns the tokens.
+
+  Three rules the OAuth path depends on:
+
+  - **`config.oauth` is reserved for the trunk.** Adapters must never read or write it. `buildStoredConfig` returns a whole new config, so the trunk re-attaches the grant afterwards; `publicConfig` is an allow-list, which is what keeps token ciphertext out of DTOs.
+  - **A token refresh is a write on a read path.** It runs in its own root-db transaction under `SELECT … FOR UPDATE` on the connection row, re-reading inside the lock so a parallel instance that already refreshed wins, plus an in-process single-flight map. Crucially, marking a connection `expired` must happen in a *separate committed* transaction — doing it inside the transaction you then throw out of rolls the marker back with the error.
+  - **An OAuth connection is `pending` until the grant lands**, even when its client secret is already stored, because a client secret alone cannot call the vendor. `credentialState` therefore spans `active | pending | expired | revoked`.
+
+  Self-hosters cannot use Munin's OAuth client, so client id and secret are per-connection config fields rather than deployment env vars.
 
 Operator bridges and connectors both surface in the dashboard on the single Integrations page (`packages/dashboard-pages/src/pages/integrations.tsx`), one section per category, cards under `packages/dashboard-pages/src/components/integrations/`.
 

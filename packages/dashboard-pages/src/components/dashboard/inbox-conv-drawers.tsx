@@ -82,7 +82,7 @@ export function SimplifiedConvDrawer({
   draftEdit: string | null;
   setDraftEdit: (v: string | null) => void;
   actionError: ConvActionError;
-  onSendDraft: (body: string) => void;
+  onSendDraft: (body: string, fromDraftId?: string) => void;
   onTakeOver: () => void;
   onClose: () => void;
 }) {
@@ -119,7 +119,7 @@ export function SimplifiedConvDrawer({
     t('conversationFallback', { id: detail.displayId });
 
   useCmdEnter(() => {
-    if (draftBody.trim() && !pending) onSendDraft(draftBody);
+    if (draftBody.trim() && !pending) onSendDraft(draftBody, draft?.id);
   });
 
   return (
@@ -192,7 +192,7 @@ export function SimplifiedConvDrawer({
           bordered={!actionError}
           primary={{
             label: actionError?.type === 'send' ? t('retryAction.send') : t('sendDraft'),
-            onClick: () => onSendDraft(draftBody),
+            onClick: () => onSendDraft(draftBody, draft?.id),
             disabled: pending || !draftBody.trim(),
           }}
           secondary={[

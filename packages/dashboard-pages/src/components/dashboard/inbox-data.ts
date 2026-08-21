@@ -334,7 +334,11 @@ export function useInboxData(): InboxController {
   );
 
   const send = useCallback(
-    async (id: string, body: string, options: { claim?: boolean; closeDrawer?: boolean } = {}) => {
+    async (
+      id: string,
+      body: string,
+      options: { claim?: boolean; closeDrawer?: boolean; fromDraftId?: string } = {},
+    ) => {
       if (!body.trim()) return;
       const trimmed = body.trim();
       const temp: MessageDto = {
@@ -361,6 +365,7 @@ export function useInboxData(): InboxController {
       try {
         const payload: Record<string, unknown> = { body: trimmed };
         if (options.claim === false) payload.claim = false;
+        if (options.fromDraftId) payload.fromDraftId = options.fromDraftId;
         await api(`/v1/conversations/${id}/messages`, {
           method: 'POST',
           body: JSON.stringify(payload),

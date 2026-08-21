@@ -50,6 +50,7 @@ class SendReplyBody extends createZodDto(
     claim: z.boolean().optional(),
     totalTokens: z.number().int().nonnegative().optional(),
     components: MessageComponentsSchema.optional(),
+    fromDraftId: z.string().min(1).max(64).optional(),
   }),
 ) {}
 
@@ -91,6 +92,7 @@ class RequestHandoverBody extends createZodDto(
 class SetDraftReplyBody extends createZodDto(
   z.object({
     body: z.string().min(1).max(50_000),
+    retrievedDocumentIds: z.array(z.string().min(1).max(64)).max(8).optional(),
   }),
 ) {}
 
@@ -203,6 +205,7 @@ export class ConversationsController {
         sinceMessageId: input.sinceMessageId,
         claim: input.claim,
         components: input.components,
+        fromDraftId: input.fromDraftId,
         authorType: actor.type === 'user' ? 'user' : 'agent',
         authorId: actor.id,
       }),
@@ -309,7 +312,11 @@ export class ConversationsController {
     @Body() input: SetDraftReplyBody,
   ): Promise<{ id: string }> {
     return translate(() =>
-      this.conv.setDraftReply({ conversationId: id, body: input.body }),
+      this.conv.setDraftReply({
+        conversationId: id,
+        body: input.body,
+        retrievedDocumentIds: input.retrievedDocumentIds,
+      }),
     );
   }
 

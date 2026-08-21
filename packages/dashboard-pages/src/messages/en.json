@@ -1596,7 +1596,8 @@
     "cms_asset_upload_failed": "The file upload didn't finish. Check your connection and try again.",
     "cms_version_conflict": "This entry was changed elsewhere while you were editing. Reload it and try again.",
     "agent_config_invalid_model": "Your AI provider no longer offers that model. Reload the page to refresh the list, then pick a model and save again.",
-    "conv_channel_config_invalid": "This channel's saved settings are incomplete, so it can't be used yet. Open its settings, fill in what's missing and save to repair it."
+    "conv_channel_config_invalid": "This channel's saved settings are incomplete, so it can't be used yet. Open its settings, fill in what's missing and save to repair it.",
+    "conv_invalid": "This draft is no longer the one waiting on this conversation — it was already sent, or the agent has written a newer one. Reopen the conversation to see where it stands."
   },
   "footer": {
     "privacy": "Privacy",

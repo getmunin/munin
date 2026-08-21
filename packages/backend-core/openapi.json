@@ -8408,6 +8408,12 @@
               ]
             },
             "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "fromDraftId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
           }
         },
         "required": [
@@ -8534,6 +8540,15 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 50000
+          },
+          "retrievedDocumentIds": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
           }
         },
         "required": [

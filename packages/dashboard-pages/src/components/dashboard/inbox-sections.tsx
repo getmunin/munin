@@ -299,7 +299,9 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
                 draftEdit={draftEdit}
                 setDraftEdit={setDraftEdit}
                 actionError={drawerActionError}
-                onSendDraft={(body) => void send(selectedConv.id, body, { claim: false, closeDrawer: true })}
+                onSendDraft={(body, fromDraftId) =>
+                  void send(selectedConv.id, body, { claim: false, closeDrawer: true, fromDraftId })
+                }
                 onTakeOver={() => void takeOver(selectedConv.id, true)}
                 onClose={() => setConvDrawer(null)}
               />

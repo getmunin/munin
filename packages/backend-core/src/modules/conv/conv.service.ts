@@ -8,10 +8,11 @@ import {
 } from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, notInArray, or, sql, type SQL } from 'drizzle-orm';
-import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
+import { getCurrentContext, sameAfterNormalizing, WebhookDispatcher } from '@getmunin/core';
 import type { MessageComponent } from '@getmunin/types';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from './set-topic-job.ts';
+import { buildDeltaCurationPrompt, buildGapCurationPrompt } from './curation-job.ts';
 import { applyTenancyGUCs } from '../../common/tenancy/tenancy.interceptor.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
 import { countSignatureHints, isTrailingSignatureSplit } from './email/reply-history.ts';
@@ -79,6 +80,13 @@ export interface TopicDto {
   name: string;
   slug: string;
   color: string | null;
+}
+
+export interface ApprovedDraftStamp {
+  draftMessageId: string;
+  draftBody: string;
+  edited: boolean;
+  retrievedDocumentIds: string[];
 }
 
 export interface MessageDto {
@@ -869,6 +877,7 @@ export class ConvService {
     sinceMessageId?: string;
     claim?: boolean;
     components?: MessageComponent[];
+    fromDraftId?: string;
   }): Promise<MessageDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -921,6 +930,15 @@ export class ConvService {
       !input.internal &&
       (input.authorType === 'agent' || input.authorType === 'user');
 
+    const approvedDraft = input.fromDraftId
+      ? await this.loadApprovedDraft(input.conversationId, input.fromDraftId, input.body)
+      : null;
+
+    const metadata = {
+      ...(attachComponents ? { components: input.components } : {}),
+      ...(approvedDraft ? { approvedDraft: approvedDraft.stamp } : {}),
+    };
+
     const [row] = await ctx.db
       .insert(schema.convMessages)
       .values({
@@ -931,9 +949,16 @@ export class ConvService {
         body: input.body,
         internal: input.internal ?? false,
         inReplyToId: input.inReplyToId ?? null,
-        ...(attachComponents ? { metadata: { components: input.components } } : {}),
+        ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
       })
       .returning();
+
+    if (approvedDraft) {
+      await ctx.db
+        .update(schema.convMessages)
+        .set({ metadata: { kind: 'draft_reply_sent', sentMessageId: row!.id } })
+        .where(eq(schema.convMessages.id, approvedDraft.stamp.draftMessageId));
+    }
     const clearAttention =
       (input.authorType === 'user' || input.authorType === 'agent') &&
       !input.internal &&
@@ -1020,22 +1045,32 @@ export class ConvService {
             authorType: input.authorType,
           },
         });
-        await this.curatorJobs.enqueue({
-          jobUri: 'skill://kb/review-content',
-          userPrompt:
-            `Run a KB curation pass for conversation ${input.conversationId}. ` +
-            `Follow the skill exactly. Per-conversation mode: skip the conv_list_conversations ` +
-            `step and go straight to conv_get_conversation(${input.conversationId}). Extract the ` +
-            `(end-user question, human-reply) pair, apply the skip rules, and file via ` +
-            `kb_propose_curation_candidate if it's worth keeping.`,
-          sourceEventType: 'conversation.handover_resolved',
-          sourceEventPayload: {
-            conversationId: input.conversationId,
-            messageId: row!.id,
-            authorType: input.authorType,
-          },
-          dedupeKey: `kb-curation:msg:${row!.id}`,
-        });
+        if (!approvedDraft || approvedDraft.stamp.edited) {
+          await this.curatorJobs.enqueue({
+            jobUri: 'skill://kb/review-content',
+            userPrompt: approvedDraft
+              ? buildDeltaCurationPrompt({
+                  conversationId: input.conversationId,
+                  draftMessageId: approvedDraft.stamp.draftMessageId,
+                  sentMessageId: row!.id,
+                  retrievedDocumentIds: approvedDraft.stamp.retrievedDocumentIds,
+                })
+              : buildGapCurationPrompt(input.conversationId),
+            sourceEventType: 'conversation.handover_resolved',
+            sourceEventPayload: {
+              conversationId: input.conversationId,
+              messageId: row!.id,
+              authorType: input.authorType,
+              ...(approvedDraft
+                ? {
+                    draftMessageId: approvedDraft.stamp.draftMessageId,
+                    retrievedDocumentIds: approvedDraft.stamp.retrievedDocumentIds,
+                  }
+                : {}),
+            },
+            dedupeKey: `kb-curation:msg:${row!.id}`,
+          });
+        }
       }
 
       if (
@@ -1428,9 +1463,47 @@ export class ConvService {
     return toConversationSummary(updated!);
   }
 
+  private async loadApprovedDraft(
+    conversationId: string,
+    draftId: string,
+    sentBody: string,
+  ): Promise<{ stamp: ApprovedDraftStamp }> {
+    const ctx = getCurrentContext();
+    const [draft] = await ctx.db
+      .select({ id: schema.convMessages.id, body: schema.convMessages.body, metadata: schema.convMessages.metadata })
+      .from(schema.convMessages)
+      .where(
+        and(
+          eq(schema.convMessages.id, draftId),
+          eq(schema.convMessages.conversationId, conversationId),
+          eq(schema.convMessages.internal, true),
+          sql`${schema.convMessages.metadata} ->> 'kind' = 'draft_reply'`,
+        ),
+      )
+      .limit(1);
+    if (!draft) {
+      throw new BadRequestException({
+        message: `conv_invalid: ${draftId} is not a pending draft on conversation ${conversationId}`,
+        code: 'conv_invalid',
+      });
+    }
+    const retrieved = draft.metadata['retrievedDocumentIds'];
+    return {
+      stamp: {
+        draftMessageId: draft.id,
+        draftBody: draft.body,
+        edited: !sameAfterNormalizing(draft.body, sentBody),
+        retrievedDocumentIds: Array.isArray(retrieved)
+          ? retrieved.filter((v): v is string => typeof v === 'string')
+          : [],
+      },
+    };
+  }
+
   async setDraftReply(input: {
     conversationId: string;
     body: string;
+    retrievedDocumentIds?: string[];
   }): Promise<{ id: string }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -1452,7 +1525,12 @@ export class ConvService {
         authorId: actor.id,
         body: input.body,
         internal: true,
-        metadata: { kind: 'draft_reply' },
+        metadata: {
+          kind: 'draft_reply',
+          ...(input.retrievedDocumentIds?.length
+            ? { retrievedDocumentIds: input.retrievedDocumentIds }
+            : {}),
+        },
       })
       .returning({ id: schema.convMessages.id });
     return { id: row!.id };

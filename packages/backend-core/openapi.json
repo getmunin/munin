@@ -6414,6 +6414,37 @@
         ]
       }
     },
+    "/v1/connectors/{id}/authorize-link": {
+      "post": {
+        "operationId": "ConnectorsController_authorizeLink",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Connectors"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/widget/messages": {
       "post": {
         "operationId": "WidgetController_ingest",
@@ -6666,6 +6697,21 @@
         },
         "tags": [
           "CredentialHandoff"
+        ],
+        "security": []
+      }
+    },
+    "/v1/connectors/oauth/callback": {
+      "get": {
+        "operationId": "ConnectorOAuthController_callback",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConnectorOAuth"
         ],
         "security": []
       }

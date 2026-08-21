@@ -22,6 +22,7 @@ import {
   isVariantableMime,
   type VariantColumns,
 } from './cms.variants.ts';
+import { entryTitle, readLiveUrlTemplate, renderLiveUrl } from './cms.live-url.ts';
 
 const POLL_INTERVAL_MS = parseEnvInt({ name: 'MUNIN_CMS_SCHEDULE_POLL_MS', default: 60_000 });
 const BATCH_SIZE = 50;
@@ -171,10 +172,11 @@ export class CmsScheduleWorker implements OnModuleInit, OnModuleDestroy {
 
   private async promoteOne(entry: typeof schema.cmsEntries.$inferSelect): Promise<void> {
     const [collection] = await this.db
-      .select({ slug: schema.cmsCollections.slug })
+      .select({ slug: schema.cmsCollections.slug, settings: schema.cmsCollections.settings })
       .from(schema.cmsCollections)
       .where(eq(schema.cmsCollections.id, entry.collectionId))
       .limit(1);
+    const collectionSlug = collection?.slug ?? '';
 
     const actor = new ActorIdentity('system', 'cms-schedule-worker', entry.orgId, ['*'], ['admin']);
 
@@ -211,11 +213,18 @@ export class CmsScheduleWorker implements OnModuleInit, OnModuleDestroy {
           type: 'cms.entry.published',
           payload: {
             entryId: entry.id,
-            collectionSlug: collection?.slug ?? '',
+            collectionSlug,
             slug: entry.slug,
             locale: entry.locale,
             status: 'published',
             version: entry.version + 1,
+            previousStatus: 'scheduled',
+            title: entryTitle(entry.data, entry.slug),
+            url: renderLiveUrl(readLiveUrlTemplate(collection?.settings ?? {}), {
+              slug: entry.slug,
+              locale: entry.locale,
+              collectionSlug,
+            }),
           },
         });
       });

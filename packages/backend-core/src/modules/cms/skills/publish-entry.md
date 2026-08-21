@@ -83,6 +83,35 @@ Pass `publishedAt` when the entry was originally published somewhere else — im
 
 A worker drains the schedule queue every ~60 seconds. Status becomes `scheduled`; the worker flips it to `published` at or after `scheduledAt`.
 
+## Publishing announces itself in Slack
+
+Not a step — there is nothing to call, and no reason to post to Slack yourself after publishing. If the org has Slack connected, the publish itself posts an announcement (":rocket: *Published* — *\<title\>*", the collection and locale, and a link to the live article) into the `content` channel when one is routed, otherwise the default channel. Scheduled publishes announce when the worker promotes them. Telling the operator where it will land is `skill://slack/connect-slack`.
+
+Two things you *can* do to make it useful:
+
+- **Set a live URL template**, once per collection, so Munin can link the rendered article. Placeholders: `{slug}`, `{locale}`, `{collection}` (percent-encoded on substitution). Without it the announcement still posts, just without a link.
+
+  ```jsonc
+  {
+    "name": "cms_update_collection",
+    "arguments": {
+      "idOrSlug": "blog",
+      "patch": {
+        "settings": {
+          "liveUrl": "https://www.example.com/{locale}/blog/{slug}",
+          "previewUrl": "https://www.example.com/api/preview?token={token}&slug={slug}&locale={locale}"
+        }
+      }
+    }
+  }
+  ```
+
+  `settings` REPLACES the stored object — read the collection first and send back every key you want to keep (`previewUrl` above is a reminder, not a requirement). A template that doesn't resolve to an `http(s)` URL is ignored, and the announcement posts without a link.
+
+- **Give the collection a title-ish field.** The headline comes from the entry's `title`, `headline`, `name`, or `heading` field, in that order; with none of them the slug is used.
+
+Re-publishing an entry that is already `published` (a no-op status transition) does not announce again — only a real draft/scheduled → published move does.
+
 ## Step 4 — rollback paths
 
 ### Unpublish (back to draft)
@@ -118,6 +147,8 @@ Restore is itself a write — it creates a *new* version (10) carrying the data 
 
 ## Related
 
+- `skill://cms/preview-entry` — the draft-side sibling of `settings.liveUrl`.
+- `skill://slack/connect-slack` — routing the channel publish announcements land in.
 - `skill://cms/localize-entry` — managing per-locale entries.
 - `skill://cms/upload-asset-and-embed` — how to embed assets in entry data.
 - `skill://cms/migrate-content` — moving entries between collections.

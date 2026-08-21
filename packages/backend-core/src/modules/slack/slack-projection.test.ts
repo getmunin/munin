@@ -5,6 +5,7 @@ import {
   approvalResolvedLine,
   authorLabel,
   avatarKey,
+  cmsEntryPublishedText,
   encodeApprovalValue,
   escalationAlertText,
   escapeSlackText,
@@ -419,5 +420,40 @@ describe('outreachCampaignParentText', () => {
     const text = outreachCampaignParentMovedText('Spring <launch>');
     expect(text).toContain('*Outreach drafts — Spring &lt;launch&gt;*');
     expect(text).toContain('continued in a newer thread');
+  });
+});
+
+describe('cmsEntryPublishedText', () => {
+  it('links the live article and escapes the title', () => {
+    const text = cmsEntryPublishedText({
+      title: 'Spring <menu> is here',
+      collectionSlug: 'blog',
+      locale: 'nb',
+      url: 'https://www.example.com/blog/spring-menu',
+    });
+    expect(text).toContain(':rocket: *Published* — *Spring &lt;menu&gt; is here*');
+    expect(text).toContain('_blog · nb_');
+    expect(text).toContain('<https://www.example.com/blog/spring-menu|Read it live>');
+  });
+
+  it('omits the link line when the collection has no live URL', () => {
+    const text = cmsEntryPublishedText({
+      title: 'Spring menu',
+      collectionSlug: 'blog',
+      locale: 'en',
+      url: null,
+    });
+    expect(text).not.toContain('Read it live');
+    expect(text.split('\n')).toHaveLength(2);
+  });
+
+  it('omits the metadata line when collection and locale are unknown', () => {
+    const text = cmsEntryPublishedText({
+      title: 'Spring menu',
+      collectionSlug: null,
+      locale: null,
+      url: null,
+    });
+    expect(text.split('\n')).toHaveLength(1);
   });
 });

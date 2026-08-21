@@ -171,6 +171,8 @@ Pair this with `skill://playbooks/frontend-integration` — the widget tells you
 
 Subscribe to `cms.entry.published`, `cms.entry.unpublished`, `cms.entry.deleted`. On receipt: trigger your build system's deploy hook (`fetch('https://api.vercel.com/v1/integrations/deploy/…', { method: 'POST' })` or equivalent). Filter by `payload.collectionSlug` if you only want to rebuild on certain content types.
 
+The `cms.entry.published` payload also carries `title`, `url` (the collection's `settings.liveUrl` template resolved for this entry, `null` when unset), and `previousStatus` (`"draft"`, `"scheduled"`, `"published"` for a no-op republish, or `null` when the entry was created published) — enough to revalidate exactly one path, or skip work when nothing actually changed status.
+
 ISR / on-demand revalidation is the lighter-weight alternative — just revalidate the affected paths instead of a full rebuild.
 
 ### Deal stage change → Slack

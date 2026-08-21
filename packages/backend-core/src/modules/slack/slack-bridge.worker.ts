@@ -12,6 +12,7 @@ import {
   approvalBlocks,
   approvalResolvedLine,
   assignedText,
+  cmsEntryPublishedText,
   encodeApprovalValue,
   escalationAlertText,
   handoverRequestedText,
@@ -39,6 +40,7 @@ import {
   type SlackBlock,
 } from './slack-projection.ts';
 import {
+  SLACK_ANNOUNCEMENT_EVENT_TYPES,
   SLACK_APPROVAL_EVENT_TYPES,
   approvalSubjectRef,
   readWebBaseUrl,
@@ -205,6 +207,9 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     const { row, payload, routes, token } = input;
     if (SLACK_APPROVAL_EVENT_TYPES.includes(row.eventType)) {
       return await this.handleNotification(input);
+    }
+    if (SLACK_ANNOUNCEMENT_EVENT_TYPES.includes(row.eventType)) {
+      return await this.handleAnnouncement(input);
     }
     if (!row.conversationId) return;
 
@@ -378,6 +383,35 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       ts: link.slackTs,
       text: link.authorLabeled ? messageText(snapshot) : messageBodyText(snapshot),
     });
+  }
+
+  private async handleAnnouncement(input: {
+    payload: Record<string, unknown>;
+    routes: RouteRow[];
+    token: string;
+  }): Promise<void> {
+    const { payload, routes, token } = input;
+    const route =
+      routes.find((r) => r.purpose === 'content' && !r.convChannelId) ??
+      routes.find((r) => r.purpose === 'default' && !r.convChannelId);
+    if (!route) throw new TerminalDeliveryError('no_route');
+
+    const str = (v: unknown): string | null =>
+      typeof v === 'string' && v.length > 0 ? v : null;
+    const text = cmsEntryPublishedText({
+      title: str(payload.title) ?? str(payload.slug) ?? 'an entry',
+      collectionSlug: str(payload.collectionSlug),
+      locale: str(payload.locale),
+      url: str(payload.url),
+    });
+    try {
+      await this.api.postMessage({ token, channel: route.slackChannelId, text });
+    } catch (err) {
+      if (err instanceof SlackApiError && err.apiError === 'not_in_channel') {
+        throw new TerminalDeliveryError('bot_not_in_channel');
+      }
+      throw err;
+    }
   }
 
   private async handleNotification(input: {

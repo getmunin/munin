@@ -63,7 +63,7 @@ export interface SlackStatusDto {
 
 export interface SetRoutingInput {
   slackChannelId: string;
-  purpose?: 'default' | 'escalations' | 'approvals';
+  purpose?: 'default' | 'escalations' | 'approvals' | 'content';
   mention?: string | null;
   convChannelId?: string | null;
 }

@@ -904,3 +904,36 @@ describe('ui: open/close/isOpen', () => {
     expect(($('.launcher')).hidden).toBe(true);
   });
 });
+
+describe('ui: powered-by credit links', () => {
+  function creditAnchors(): HTMLAnchorElement[] {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    const anchors = $$('.footer-credit a, .welcome-eyebrow a') as HTMLAnchorElement[];
+    expect(anchors.length).toBe(2);
+    return anchors;
+  }
+
+  it('marks the credit links nofollow so a site-wide widget link is never a link scheme', () => {
+    for (const a of creditAnchors()) {
+      const rel = (a.getAttribute('rel') ?? '').split(/\s+/);
+      expect(rel).toContain('nofollow');
+      expect(rel).toContain('noopener');
+    }
+  });
+
+  it('omits noreferrer so widget clicks arrive with a referrer host instead of as direct traffic', () => {
+    for (const a of creditAnchors()) {
+      expect(a.getAttribute('rel')).not.toContain('noreferrer');
+    }
+  });
+
+  it('tags the credit href with UTM params the tracker reads', () => {
+    for (const a of creditAnchors()) {
+      const url = new URL(a.getAttribute('href')!);
+      expect(url.origin).toBe('https://www.getmunin.com');
+      expect(url.searchParams.get('utm_source')).toBe('widget');
+      expect(url.searchParams.get('utm_medium')).toBe('referral');
+      expect(url.searchParams.get('utm_campaign')).toBe('powered_by');
+    }
+  });
+});

@@ -3,6 +3,7 @@ import { ConnectorRegistry } from './connector.ts';
 import { ConnectorsService } from './connectors.service.ts';
 import { ConnectorAdminTools } from './connectors.tools.ts';
 import { ConnectorCredentialHandler } from './connector-credential.handler.ts';
+import { CustomMcpAdapter } from './custom-mcp.adapter.ts';
 import { CredentialHandoffModule } from '../credential-handoff/credential-handoff.module.ts';
 import { CredentialTargetRegistry } from '../credential-handoff/credential-target.ts';
 
@@ -17,7 +18,8 @@ import { CredentialTargetRegistry } from '../credential-handoff/credential-targe
   exports: [ConnectorRegistry, ConnectorsService],
 })
 export class ConnectorsModule {
-  constructor(registry: CredentialTargetRegistry, handler: ConnectorCredentialHandler) {
+  constructor(registry: CredentialTargetRegistry, handler: ConnectorCredentialHandler, connectors: ConnectorRegistry) {
     registry.register(handler);
+    connectors.register(new CustomMcpAdapter());
   }
 }

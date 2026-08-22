@@ -16,9 +16,12 @@ import {
   McpSkillRegistryService,
   RateLimitService,
   RealtimeEventBus,
+  IDENTITY_ASSERTION_HEADER,
+  listExternalMcpEndpoints,
   openAdminAgentMcpClient,
   openEndUserAgentMcpClient,
   type AgentMcpClient,
+  type ExternalMcpEndpoint,
   type AgentConfigChangedBusEvent,
   type CuratorJobPendingBusEvent,
   type GreetRequestedBusEvent,
@@ -26,12 +29,15 @@ import {
   type MessageReceivedBusEvent,
   type RealtimeBusSubscription,
 } from '@getmunin/backend-core';
-import { getCurrentContext, parseEnvBool } from '@getmunin/core';
+import { getCurrentContext, parseEnvBool, safeFetchCompat } from '@getmunin/core';
 import {
+  composeToolHandles,
   createConversationHandler,
   createPromptResolver,
   openAiCompatibleProvider,
+  openHttpMcpClient,
   runSkillPass,
+  type ExternalToolSource,
   type AwaitingReplyConversation,
   type ConversationHandler,
   type CuratorJob,
@@ -83,6 +89,7 @@ const CONVERSATION_SWEEP_LIMIT = 50;
 const CURATOR_MAX_TOOL_ITERATIONS = 16;
 const CURATOR_DRAIN_SPACING_MS = 5_000;
 const CURATOR_DRAIN_MAX_JOBS = 25;
+const EXTERNAL_MCP_CONNECT_TIMEOUT_MS = 5_000;
 
 const BASE_END_USER_AGENT_SCOPES: readonly string[] = [
   'conv:read',
@@ -461,15 +468,31 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       config: handlerConfig,
       rest,
       prompts,
-      openMcp: async ({ endUserId }) =>
-        openEndUserAgentMcpClient({
+      openMcp: async ({ endUserId, channelType }) => {
+        const inner = openEndUserAgentMcpClient({
           db: this.db,
           orgId,
           endUserId,
           registry: this.mcpRegistry,
           skills: this.mcpSkills,
           scopes: await this.endUserAgentScopes(id, orgId),
-        }),
+        });
+        const extLog = this.scopedLogger(id, 'ext-mcp');
+        const externals = await this.openExternalMcpHandles(
+          { orgId, endUserId, channelType },
+          extLog,
+        );
+        if (externals.length === 0) return inner;
+        const composed = composeToolHandles(inner, externals, extLog);
+        return {
+          listTools: () => composed.listTools(),
+          callTool: (name, args) => composed.callTool(name, args),
+          close: async () => {
+            await Promise.all(externals.map((ext) => ext.close().catch(() => undefined)));
+            await inner.close();
+          },
+        };
+      },
       provider,
       beforeGenerate: this.options?.beforeGenerate
         ? () =>
@@ -802,6 +825,38 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     };
   }
 
+  private async openExternalMcpHandles(
+    args: { orgId: string; endUserId: string; channelType?: string | null },
+    log: { warn: (m: string) => void },
+  ): Promise<Array<ExternalToolSource & { close(): Promise<void> }>> {
+    let endpoints: ExternalMcpEndpoint[];
+    try {
+      endpoints = await listExternalMcpEndpoints(this.db, args);
+    } catch (err) {
+      log.warn(`external MCP endpoint lookup failed: ${describe(err)}`);
+      return [];
+    }
+    const handles: Array<ExternalToolSource & { close(): Promise<void> }> = [];
+    for (const endpoint of endpoints) {
+      try {
+        const client = await withDeadline(
+          openHttpMcpClient({
+            url: endpoint.url,
+            bearerToken: endpoint.bearerToken,
+            clientName: 'munin-agent',
+            headers: { [IDENTITY_ASSERTION_HEADER]: endpoint.identityAssertion },
+            fetchImpl: safeFetchCompat,
+          }),
+          EXTERNAL_MCP_CONNECT_TIMEOUT_MS,
+        );
+        handles.push({ slug: endpoint.slug, handle: client, close: () => client.close() });
+      } catch (err) {
+        log.warn(`external MCP ${endpoint.slug} unavailable, continuing without it: ${describe(err)}`);
+      }
+    }
+    return handles;
+  }
+
   private async endUserAgentScopes(configId: string, orgId: string): Promise<readonly string[]> {
     try {
       const rows = await runWithServiceContext(
@@ -843,6 +898,18 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
 
 function describe(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+async function withDeadline<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function withProviderContext(message: string, model: string, providerBaseUrl: string): string {

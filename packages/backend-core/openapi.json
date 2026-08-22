@@ -2456,6 +2456,30 @@
         "security": []
       }
     },
+    "/v1/public/connectors/{orgId}/jwks": {
+      "get": {
+        "operationId": "ConnectorJwksController_jwks",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConnectorJwks"
+        ],
+        "security": []
+      }
+    },
     "/v1/conversations/channels/vendors": {
       "get": {
         "operationId": "ConvChannelsController_listVendors",

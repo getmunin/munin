@@ -2,14 +2,54 @@ import { describe, it, expect } from 'vitest';
 import { entryTitle, readLiveUrlTemplate, renderLiveUrl } from './cms.live-url.ts';
 
 describe('readLiveUrlTemplate', () => {
-  it('reads a non-empty string template', () => {
-    expect(readLiveUrlTemplate({ liveUrl: ' https://x/{slug} ' })).toBe('https://x/{slug}');
+  it('reads a non-empty string template for every locale', () => {
+    expect(readLiveUrlTemplate({ liveUrl: ' https://x/{slug} ' }, 'nb-NO')).toBe(
+      'https://x/{slug}',
+    );
   });
 
-  it('treats blank, missing and non-string values as unset', () => {
-    expect(readLiveUrlTemplate({})).toBeNull();
-    expect(readLiveUrlTemplate({ liveUrl: '   ' })).toBeNull();
-    expect(readLiveUrlTemplate({ liveUrl: 42 })).toBeNull();
+  it('treats blank, missing and unusable values as unset', () => {
+    expect(readLiveUrlTemplate({}, 'nb-NO')).toBeNull();
+    expect(readLiveUrlTemplate({ liveUrl: '   ' }, 'nb-NO')).toBeNull();
+    expect(readLiveUrlTemplate({ liveUrl: 42 }, 'nb-NO')).toBeNull();
+    expect(readLiveUrlTemplate({ liveUrl: null }, 'nb-NO')).toBeNull();
+    expect(readLiveUrlTemplate({ liveUrl: ['https://x/{slug}'] }, 'nb-NO')).toBeNull();
+  });
+
+  it('picks the entry locale out of a per-locale map', () => {
+    const settings = {
+      liveUrl: {
+        'nb-NO': 'https://threll.ai/no/blog/{slug}',
+        'sv-SE': 'https://threll.ai/sv/blog/{slug}',
+      },
+    };
+    expect(readLiveUrlTemplate(settings, 'nb-NO')).toBe('https://threll.ai/no/blog/{slug}');
+    expect(readLiveUrlTemplate(settings, 'sv-SE')).toBe('https://threll.ai/sv/blog/{slug}');
+  });
+
+  it('matches a locale key regardless of case', () => {
+    expect(
+      readLiveUrlTemplate({ liveUrl: { 'nb-no': 'https://threll.ai/no/blog/{slug}' } }, 'nb-NO'),
+    ).toBe('https://threll.ai/no/blog/{slug}');
+  });
+
+  it('falls back to the default key for a locale the map does not name', () => {
+    const settings = {
+      liveUrl: { 'nb-NO': 'https://threll.ai/no/blog/{slug}', default: 'https://threll.ai/en/blog/{slug}' },
+    };
+    expect(readLiveUrlTemplate(settings, 'da-DK')).toBe('https://threll.ai/en/blog/{slug}');
+  });
+
+  it('leaves a locale unlinked when the map names neither it nor a default', () => {
+    expect(
+      readLiveUrlTemplate({ liveUrl: { 'nb-NO': 'https://threll.ai/no/blog/{slug}' } }, 'da-DK'),
+    ).toBeNull();
+  });
+
+  it('skips a blank locale entry rather than treating it as a match', () => {
+    expect(
+      readLiveUrlTemplate({ liveUrl: { 'nb-NO': '  ', default: 'https://x/{slug}' } }, 'nb-NO'),
+    ).toBe('https://x/{slug}');
   });
 });
 

@@ -220,7 +220,7 @@ export class CmsScheduleWorker implements OnModuleInit, OnModuleDestroy {
             version: entry.version + 1,
             previousStatus: 'scheduled',
             title: entryTitle(entry.data, entry.slug),
-            url: renderLiveUrl(readLiveUrlTemplate(collection?.settings ?? {}), {
+            url: renderLiveUrl(readLiveUrlTemplate(collection?.settings ?? {}, entry.locale), {
               slug: entry.slug,
               locale: entry.locale,
               collectionSlug,

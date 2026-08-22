@@ -29,7 +29,7 @@ export function DashboardTopbar({
   settingsLabel,
 }: DashboardTopbarProps) {
   return (
-    <header className={`${topbarChromeBase} flex h-14 items-stretch gap-2 px-4 md:gap-6 md:px-10`}>
+    <header className={`${topbarChromeBase} flex h-14 items-stretch gap-4 px-4 md:gap-6 md:px-10`}>
       <Link
         href={brandHref}
         className="flex items-center gap-1 self-center text-ink dark:text-foreground"

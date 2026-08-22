@@ -111,19 +111,19 @@ export function GetStarted() {
             <pre className="m-0 px-4 py-4 overflow-x-auto font-mono text-xs leading-[1.6] text-ink dark:text-foreground">
               <code>{setup.snippet}</code>
             </pre>
-            <div className="flex justify-between items-center px-3.5 py-2 border-t-[1px] border-rule-soft bg-paper dark:bg-secondary dark:border-rule-on-dark">
+            <div className="flex justify-between items-center gap-3 px-3.5 py-2 border-t-[1px] border-rule-soft bg-paper dark:bg-secondary dark:border-rule-on-dark">
               <a
                 href={setup.docsHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute hover:text-cobalt transition-colors duration-fast"
+                className="min-w-0 break-words font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute hover:text-cobalt transition-colors duration-fast"
               >
                 {setup.docsLabel} ↗
               </a>
               <button
                 type="button"
                 onClick={copySnippet}
-                className="font-mono text-[10px] uppercase tracking-eyebrow bg-ink text-paper border-0 px-3 py-1.5 cursor-pointer hover:bg-black dark:bg-foreground dark:text-background"
+                className="shrink-0 font-mono text-[10px] uppercase tracking-eyebrow bg-ink text-paper border-0 px-3 py-1.5 cursor-pointer hover:bg-black dark:bg-foreground dark:text-background"
               >
                 {copied ? t('copied') : t('copy')}
               </button>

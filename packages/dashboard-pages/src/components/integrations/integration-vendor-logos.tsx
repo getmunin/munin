@@ -31,8 +31,22 @@ export function MagentoMark(props: SVGProps<SVGSVGElement>) {
 
 export function BingMark(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="#008373" aria-hidden {...props}>
-      <path d="M4.5 1.2 9 2.83v12.2l4.63-2.06-2.27-1.06-1.4-3.53 7.52 2.65c1.53.54 2.52 1.99 2.52 3.61 0 1.5-.85 2.87-2.2 3.55L9 22.8 4.5 20.2V1.2Z" />
+    <svg viewBox="8475 1400 12749 18215" xmlns="http://www.w3.org/2000/svg" aria-hidden {...props}>
+      <linearGradient
+        id="mnBingMark"
+        gradientUnits="userSpaceOnUse"
+        x1="9438"
+        y1="2509"
+        x2="9013"
+        y2="23085"
+      >
+        <stop offset="0" stopColor="#26B8F4" />
+        <stop offset="1" stopColor="#1B48EF" />
+      </linearGradient>
+      <polygon
+        fill="url(#mnBingMark)"
+        points="8475,1400 12124,2685 12136,15485 17223,12520 14741,11359 13148,7403 21224,10231 21217,14376 12123,19615 8487,17591"
+      />
     </svg>
   );
 }

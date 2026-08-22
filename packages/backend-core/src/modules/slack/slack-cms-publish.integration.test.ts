@@ -14,7 +14,7 @@ const skipReason = TEST_URL
   : 'Set TEST_DATABASE_URL to a Postgres URL to run slack CMS publish tests.';
 
 class FakeSlackApi extends SlackApiClient {
-  posted: { channel: string; text: string; threadTs?: string }[] = [];
+  posted: { channel: string; text: string; threadTs?: string; ts: string }[] = [];
   private counter = 0;
 
   override postMessage(input: {
@@ -24,11 +24,14 @@ class FakeSlackApi extends SlackApiClient {
     threadTs?: string;
   }): Promise<{ ts: string; channel: string }> {
     this.counter += 1;
-    this.posted.push({ channel: input.channel, text: input.text, threadTs: input.threadTs });
-    return Promise.resolve({
-      ts: `${Math.floor(Date.now() / 1000)}.${String(this.counter).padStart(6, '0')}`,
+    const ts = `${Math.floor(Date.now() / 1000)}.${String(this.counter).padStart(6, '0')}`;
+    this.posted.push({
       channel: input.channel,
+      text: input.text,
+      threadTs: input.threadTs,
+      ts,
     });
+    return Promise.resolve({ ts, channel: input.channel });
   }
 }
 
@@ -105,6 +108,7 @@ class FakeSlackApi extends SlackApiClient {
       collectionSlug: 'blog',
       slug: 'spring-menu',
       locale: 'nb',
+      translationGroupId: `cmg_${randomUUID().replaceAll('-', '').slice(0, 20)}`,
       status: 'published',
       version: 3,
       previousStatus: 'draft',
@@ -181,6 +185,91 @@ class FakeSlackApi extends SlackApiClient {
     await worker.tick();
 
     expect(api.posted[0]!.text).toContain('*spring-menu*');
+  });
+
+  it('threads the other locales of one article under the locale that published first', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const group = 'cmg_spring_menu';
+
+    await emit(
+      publishedPayload({ translationGroupId: group, locale: 'nb', title: 'Vårmeny' }),
+    );
+    await worker.tick();
+    await emit(
+      publishedPayload({ translationGroupId: group, locale: 'da', title: 'Forårsmenu' }),
+    );
+    await emit(
+      publishedPayload({ translationGroupId: group, locale: 'sv', title: 'Vårmeny' }),
+    );
+    await worker.tick();
+
+    expect(api.posted).toHaveLength(3);
+    expect(api.posted[0]!.threadTs).toBeUndefined();
+    expect(api.posted[1]!.threadTs).toBe(api.posted[0]!.ts);
+    expect(api.posted[2]!.threadTs).toBe(api.posted[0]!.ts);
+    expect(api.posted.map((p) => p.channel)).toEqual(['C_DEFAULT', 'C_DEFAULT', 'C_DEFAULT']);
+
+    const links = await db
+      .select()
+      .from(schema.slackNotificationLinks)
+      .where(eq(schema.slackNotificationLinks.integrationId, integrationId));
+    expect(links).toHaveLength(1);
+    expect(links[0]!.subjectType).toBe('cms_translation_group');
+    expect(links[0]!.subjectId).toBe(group);
+  });
+
+  it('keeps separate articles in separate channel messages', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+
+    await emit(publishedPayload({ translationGroupId: 'cmg_one' }));
+    await emit(publishedPayload({ translationGroupId: 'cmg_two' }));
+    await worker.tick();
+
+    expect(api.posted).toHaveLength(2);
+    expect(api.posted.every((p) => p.threadTs === undefined)).toBe(true);
+  });
+
+  it('starts a fresh channel message when the article last published on an earlier day', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const group = 'cmg_stale';
+
+    await emit(publishedPayload({ translationGroupId: group }));
+    await worker.tick();
+    const yesterday = Math.floor(Date.now() / 1000) - 60 * 60 * 24;
+    await db
+      .update(schema.slackNotificationLinks)
+      .set({ slackTs: `${yesterday}.000100` })
+      .where(eq(schema.slackNotificationLinks.subjectId, group));
+
+    await emit(publishedPayload({ translationGroupId: group, locale: 'da' }));
+    await worker.tick();
+
+    expect(api.posted).toHaveLength(2);
+    expect(api.posted[1]!.threadTs).toBeUndefined();
+    const links = await db
+      .select()
+      .from(schema.slackNotificationLinks)
+      .where(eq(schema.slackNotificationLinks.subjectId, group));
+    expect(links).toHaveLength(1);
+    expect(links[0]!.slackTs).toBe(api.posted[1]!.ts);
+  });
+
+  it('posts at channel level when the payload carries no translation group', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+
+    await emit(publishedPayload({ translationGroupId: undefined }));
+    await worker.tick();
+
+    expect(api.posted[0]!.threadTs).toBeUndefined();
+    const links = await db
+      .select()
+      .from(schema.slackNotificationLinks)
+      .where(eq(schema.slackNotificationLinks.integrationId, integrationId));
+    expect(links).toHaveLength(0);
   });
 
   it('does not enqueue anything when the entry was already published', async () => {

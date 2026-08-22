@@ -9,6 +9,7 @@ import {
   setEncryptionKeySql,
 } from '@getmunin/core';
 import { CUSTOM_MCP_VENDOR } from './custom-mcp.adapter.ts';
+import { identityProvenance, type IdentityProvenance } from './identity-provenance.ts';
 
 export const IDENTITY_ASSERTION_HEADER = 'x-munin-identity';
 export const DEFAULT_ASSERTION_TTL_SECONDS = 300;
@@ -27,10 +28,9 @@ export interface IdentityAssertionClaims {
   orgId: string;
   endUserId: string;
   email: string | null;
-  emailVerified: boolean;
   phone: string | null;
-  phoneVerified: boolean;
   name: string | null;
+  provenance: IdentityProvenance;
 }
 
 export function slugifyConnectionName(name: string): string {
@@ -63,7 +63,7 @@ export async function readOrgConnectorJwks(
 
 export async function listExternalMcpEndpoints(
   db: Db,
-  args: { orgId: string; endUserId: string; ttlSeconds?: number },
+  args: { orgId: string; endUserId: string; channelType?: string | null; ttlSeconds?: number },
 ): Promise<ExternalMcpEndpoint[]> {
   const connections = await db.transaction(async (tx) => {
     await bypassRls(tx);
@@ -83,7 +83,7 @@ export async function listExternalMcpEndpoints(
   });
   if (connections.length === 0) return [];
 
-  const claims = await readIdentityClaims(db, args.orgId, args.endUserId);
+  const claims = await readIdentityClaims(db, args.orgId, args.endUserId, args.channelType);
   if (!claims) return [];
   const key = await getOrCreateSigningKey(db, args.orgId);
   const privateKey = await importPKCS8(key.privateKeyPem, 'ES256');
@@ -135,11 +135,11 @@ export async function signIdentityAssertion(args: {
   const payload: Record<string, unknown> = { org_id: claims.orgId };
   if (claims.email) {
     payload.email = claims.email;
-    payload.email_verified = claims.emailVerified;
+    payload.email_provenance = claims.provenance;
   }
   if (claims.phone) {
     payload.phone = claims.phone;
-    payload.phone_verified = claims.phoneVerified;
+    payload.phone_provenance = claims.provenance;
   }
   if (claims.name) payload.name = claims.name;
   return new SignJWT(payload)
@@ -157,6 +157,7 @@ export async function readIdentityClaims(
   db: Db,
   orgId: string,
   endUserId: string,
+  channelType?: string | null,
 ): Promise<IdentityAssertionClaims | null> {
   const rows = await db.transaction(async (tx) => {
     await bypassRls(tx);
@@ -173,16 +174,13 @@ export async function readIdentityClaims(
   });
   const row = rows[0];
   if (!row) return null;
-  const meta = row.metadata as { anonymous?: boolean; emailSource?: string } | null;
-  const verified = !(meta?.anonymous === true || meta?.emailSource === 'visitor');
   return {
     orgId,
     endUserId,
     email: row.email,
-    emailVerified: row.email ? verified : false,
     phone: row.phone,
-    phoneVerified: row.phone ? verified : false,
     name: row.name,
+    provenance: identityProvenance({ channelType, metadata: row.metadata }),
   };
 }
 

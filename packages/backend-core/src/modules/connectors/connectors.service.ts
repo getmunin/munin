@@ -22,6 +22,7 @@ import {
   type ConnectorDomain,
 } from './connector.ts';
 import { ConnectorVendorError } from './http.ts';
+import { isSelfReportedIdentity } from './identity-provenance.ts';
 import { DB } from '../../common/db/db.module.ts';
 import { CredentialHandoffService, type CredentialLink } from '../credential-handoff/credential-handoff.service.ts';
 import type {
@@ -475,8 +476,7 @@ export class ConnectorsService {
         'connectors_invalid: your session has no email identity, which this lookup requires',
       );
     }
-    const meta = rows[0]?.metadata as { anonymous?: boolean; emailSource?: string } | null;
-    if (meta?.anonymous === true || meta?.emailSource === 'visitor') {
+    if (isSelfReportedIdentity(rows[0]?.metadata)) {
       throw new BadRequestException(
         'connectors_unverified: this email was self-reported in chat and is not verified, so personal lookups are not allowed; ask the customer to write in from their email address or use a signed-in session',
       );

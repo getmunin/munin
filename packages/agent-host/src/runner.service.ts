@@ -468,7 +468,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       config: handlerConfig,
       rest,
       prompts,
-      openMcp: async ({ endUserId }) => {
+      openMcp: async ({ endUserId, channelType }) => {
         const inner = openEndUserAgentMcpClient({
           db: this.db,
           orgId,
@@ -478,7 +478,10 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
           scopes: await this.endUserAgentScopes(id, orgId),
         });
         const extLog = this.scopedLogger(id, 'ext-mcp');
-        const externals = await this.openExternalMcpHandles(orgId, endUserId, extLog);
+        const externals = await this.openExternalMcpHandles(
+          { orgId, endUserId, channelType },
+          extLog,
+        );
         if (externals.length === 0) return inner;
         const composed = composeToolHandles(inner, externals, extLog);
         return {
@@ -823,13 +826,12 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
   }
 
   private async openExternalMcpHandles(
-    orgId: string,
-    endUserId: string,
+    args: { orgId: string; endUserId: string; channelType?: string | null },
     log: { warn: (m: string) => void },
   ): Promise<Array<ExternalToolSource & { close(): Promise<void> }>> {
     let endpoints: ExternalMcpEndpoint[];
     try {
-      endpoints = await listExternalMcpEndpoints(this.db, { orgId, endUserId });
+      endpoints = await listExternalMcpEndpoints(this.db, args);
     } catch (err) {
       log.warn(`external MCP endpoint lookup failed: ${describe(err)}`);
       return [];

@@ -101,4 +101,16 @@ Two rules follow:
 - **Only mint delegated tokens with emails your system has actually authenticated** (login session, verified email link). If you mint tokens from unauthenticated visitor input, you are asserting an identity you haven't checked, and that visitor's agent can read that email's order and booking history.
 - End-user records without an email can't look up anything — the tools refuse rather than guess.
 
+### Inbound email and SMS are not authenticated identity
+
+The self-service tools refuse an address a visitor merely typed into the chat widget. They do **not** refuse an address that arrived as an email `From:` header or an SMS sender number — and those are spoofable. Anyone can send mail claiming to be `jane@example.com`; sender and caller ID are forgeable too. Munin records `Authentication-Results` (SPF/DKIM/DMARC) on inbound mail but does not yet gate identity on it, so a DMARC-failing message is still treated as coming from the address in its `From` line.
+
+In practice that is the same trust level every support desk operates at when a human reads an inbound email and looks up the order — order status is low-harm, and the alternative (challenge every customer) makes the product useless. Know the trade-off rather than assume the tools verified something:
+
+- Fine over email/SMS: order status, delivery ETA, booking times — the postcard test.
+- **Not** fine over email/SMS without your own step-up: anything whose disclosure to the wrong person causes real harm, and any action that costs money or moves a booking. Route those to a human, or have your own system verify with a one-time link or code first.
+- Want a strong identity on the widget? Use the identity-verification secret or a delegated token — those are the only paths Munin treats as authenticated.
+
+A connected custom MCP server is told which of these it is dealing with on every call; see `skill://connectors/connect-custom-mcp-server`.
+
 The end-user can never choose which email to query: the self-service tools take no email parameter. Admin lookup tools (`commerce_list_customer_orders`, `bookings_list_guest_bookings`) can query any email — that surface is for your own support staff and is never exposed to delegated tokens.

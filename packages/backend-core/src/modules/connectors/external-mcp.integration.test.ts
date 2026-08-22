@@ -90,7 +90,7 @@ describe('slugifyConnectionName', () => {
     expect(jwks.keys).toHaveLength(1);
     expect(jwks.keys[0]).not.toHaveProperty('d');
 
-    const claims = await readIdentityClaims(appDb, orgId, verifiedEndUserId);
+    const claims = await readIdentityClaims(appDb, orgId, verifiedEndUserId, 'chat');
     const privateKey = await importPKCS8(key.privateKeyPem, 'ES256');
     const token = await signIdentityAssertion({
       claims: claims!,
@@ -108,15 +108,29 @@ describe('slugifyConnectionName', () => {
     expect(payload.sub).toBe(verifiedEndUserId);
     expect(payload.org_id).toBe(orgId);
     expect(payload.email).toBe('jane@example.com');
-    expect(payload.email_verified).toBe(true);
+    expect(payload.email_provenance).toBe('authenticated');
     expect(payload.phone).toBe('+4712345678');
+    expect(payload.phone_provenance).toBe('authenticated');
+    expect(payload).not.toHaveProperty('email_verified');
     expect(payload.exp).toBeGreaterThan(Math.floor(Date.now() / 1000));
   });
 
-  it('marks visitor-typed emails as unverified', async () => {
-    const claims = await readIdentityClaims(appDb, orgId, visitorEndUserId);
+  it('marks visitor-typed identities self_reported regardless of channel', async () => {
+    const claims = await readIdentityClaims(appDb, orgId, visitorEndUserId, 'chat');
     expect(claims?.email).toBe('claimed@example.com');
-    expect(claims?.emailVerified).toBe(false);
+    expect(claims?.provenance).toBe('self_reported');
+  });
+
+  it('downgrades an authenticated identity to channel_asserted when the turn arrives over email or sms', async () => {
+    for (const channel of ['email', 'sms', 'voice']) {
+      const claims = await readIdentityClaims(appDb, orgId, verifiedEndUserId, channel);
+      expect(claims?.provenance).toBe('channel_asserted');
+    }
+  });
+
+  it('defaults to channel_asserted when the channel is unknown', async () => {
+    const claims = await readIdentityClaims(appDb, orgId, verifiedEndUserId, null);
+    expect(claims?.provenance).toBe('channel_asserted');
   });
 
   it('lists active custom-mcp connections with decrypted tokens and per-connection assertions', async () => {

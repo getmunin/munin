@@ -121,6 +121,11 @@ export {
   slugifyConnectionName,
   type ExternalMcpEndpoint,
 } from './modules/connectors/external-mcp.ts';
+export {
+  identityProvenance,
+  isSelfReportedIdentity,
+  type IdentityProvenance,
+} from './modules/connectors/identity-provenance.ts';
 export { AgentRunnerSupportModule } from './agent/agent-runner-support.module.ts';
 export { ControlModule } from './control/control.module.ts';
 export { KbModule } from './modules/kb/kb.module.ts';

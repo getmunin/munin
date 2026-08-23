@@ -10110,7 +10110,11 @@
                     },
                     "source": {
                       "type": "string",
-                      "maxLength": 8
+                      "enum": [
+                        "pixel",
+                        "beacon",
+                        "tracker"
+                      ]
                     },
                     "path": {
                       "anyOf": [
@@ -10218,8 +10222,8 @@
                       "anyOf": [
                         {
                           "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
+                          "minimum": 0,
+                          "maximum": 100
                         },
                         {
                           "type": "null"

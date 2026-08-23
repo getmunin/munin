@@ -21,11 +21,7 @@ import { queueCodeKey } from './queue-drawers/types';
 import type { QueueItem, ScheduledItem } from './queue-drawers/types';
 import { useInboxData } from './inbox-data';
 import { truncate } from './inbox-helpers';
-import {
-  FullConvDrawer,
-  InlineActionError,
-  SimplifiedConvDrawer,
-} from './inbox-conv-drawers';
+import { ConversationDrawer, InlineActionError } from './inbox-conv-drawers';
 import type {
   ConvActionError,
   ConversationDetail,
@@ -44,8 +40,6 @@ export function LiveNowSection({ controller }: { controller: InboxController }) 
     pending,
     actionError,
     setConvDrawer,
-    setReply,
-    setDraftEdit,
     takeOver,
   } = controller;
   if (items.length === 0) return null;
@@ -75,11 +69,7 @@ export function LiveNowSection({ controller }: { controller: InboxController }) 
               detail={details[c.id]}
               pending={pending}
               actionError={actionError?.conversationId === c.id ? actionError : null}
-              onOpen={(mode) => {
-                setReply('');
-                setDraftEdit(null);
-                setConvDrawer({ id: c.id, mode });
-              }}
+              onOpen={() => setConvDrawer({ id: c.id })}
               onTakeOver={() => void takeOver(c.id, true)}
             />
           ))}
@@ -296,8 +286,6 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
     pending,
     reply,
     setReply,
-    draftEdit,
-    setDraftEdit,
     kbBodies,
     kbRevisedBodies,
     cmsDetails,
@@ -329,42 +317,26 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
       <Sheet
         open={convDrawer !== null}
         onOpenChange={(o) => {
-          if (!o) {
-            setConvDrawer(null);
-            setDraftEdit(null);
-          }
+          if (!o) setConvDrawer(null);
         }}
       >
         <SheetContent side="right" className="w-full max-w-[560px]">
           {convDrawer && selectedConv ? (
-            convDrawer.mode === 'simplified' ? (
-              <SimplifiedConvDrawer
-                detail={selectedConv}
-                pending={pending}
-                draftEdit={draftEdit}
-                setDraftEdit={setDraftEdit}
-                actionError={drawerActionError}
-                onSendDraft={(body, fromDraftId) =>
-                  void send(selectedConv.id, body, { claim: false, closeDrawer: true, fromDraftId })
-                }
-                onTakeOver={() => void takeOver(selectedConv.id, true)}
-                onClose={() => setConvDrawer(null)}
-              />
-            ) : (
-              <FullConvDrawer
-                detail={selectedConv}
-                reply={reply}
-                setReply={setReply}
-                pending={pending}
-                actionError={drawerActionError}
-                onSend={() => void send(selectedConv.id, reply)}
-                onTakeOver={() => void takeOver(selectedConv.id, false)}
-                onRelease={() => void release(selectedConv.id)}
-                onCloseConv={() => void closeConv(selectedConv.id)}
-                onClose={() => setConvDrawer(null)}
-                onClearActionError={clearActionError}
-              />
-            )
+            <ConversationDrawer
+              detail={selectedConv}
+              reply={reply}
+              setReply={setReply}
+              pending={pending}
+              actionError={drawerActionError}
+              onSend={(body, fromDraftId) =>
+                void send(selectedConv.id, body, { claim: false, fromDraftId })
+              }
+              onTakeOver={() => void takeOver(selectedConv.id, false)}
+              onRelease={() => void release(selectedConv.id)}
+              onCloseConv={() => void closeConv(selectedConv.id)}
+              onClose={() => setConvDrawer(null)}
+              onClearActionError={clearActionError}
+            />
           ) : convDrawer && convLoadError ? (
             <>
               <DrawerHeader
@@ -461,7 +433,7 @@ function LiveCard({
   detail: ConversationDetail | undefined;
   pending: boolean;
   actionError: ConvActionError;
-  onOpen: (mode: 'simplified' | 'full') => void;
+  onOpen: () => void;
   onTakeOver: () => void;
 }) {
   const t = useTranslations('dashboard.overview.liveNow');
@@ -479,6 +451,15 @@ function LiveCard({
       if (flaggedAtMs == null) return true;
       return Date.parse(m.createdAt) <= flaggedAtMs;
     });
+  const agentRepliedAfter =
+    lastEndUserMsg != null &&
+    (detail?.messages.some(
+      (m) =>
+        !m.internal &&
+        m.authorType === 'agent' &&
+        Date.parse(m.createdAt) > Date.parse(lastEndUserMsg.createdAt),
+    ) ??
+      false);
   const who = conv.endUserId ?? tDrawer('conversationFallback', { id: conv.displayId });
   const subject = conv.subject ?? tDrawer('conversationFallback', { id: conv.displayId });
   const waiting = conv.needsHumanAttentionAt
@@ -487,7 +468,6 @@ function LiveCard({
       ? age(conv.lastMessageAt)
       : '';
 
-  const handleCardClick = () => onOpen(claimed ? 'full' : 'simplified');
   const retryAction =
     actionError?.type === 'takeOver'
       ? onTakeOver
@@ -497,13 +477,13 @@ function LiveCard({
     <li className="space-y-0">
       <div
         className="group/livecard flex flex-col gap-4 border-[1px] border-ink bg-paper px-5 py-4 cursor-pointer transition-colors duration-fast ease-munin hover:border-cobalt sm:flex-row sm:items-stretch dark:border-rule-on-dark dark:bg-card dark:hover:border-cobalt-soft"
-        onClick={handleCardClick}
+        onClick={onOpen}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            handleCardClick();
+            onOpen();
           }
         }}
       >
@@ -517,6 +497,7 @@ function LiveCard({
                 {t('waiting', { age: waiting })}
               </span>
             )}
+            {agentRepliedAfter && <span>{t('agentReplied')}</span>}
           </div>
           <h3 className="font-serif text-xl leading-tight text-ink dark:text-foreground">
             {subject}
@@ -531,17 +512,12 @@ function LiveCard({
           {actionError ? (
             <InlineActionError error={actionError} onRetry={retryAction} />
           ) : claimed ? (
-            <Button variant="accent" size="sm" onClick={() => onOpen('full')}>
+            <Button variant="accent" size="sm" onClick={onOpen}>
               {t('chat')}
             </Button>
           ) : (
             <>
-              <Button
-                variant="accent"
-                size="sm"
-                onClick={() => onOpen('simplified')}
-                disabled={pending}
-              >
+              <Button variant="accent" size="sm" onClick={onOpen} disabled={pending}>
                 {t('reply')}
               </Button>
               <Button size="sm" onClick={onTakeOver} disabled={pending} pending={pending}>

@@ -150,7 +150,6 @@ export function useInboxData(): InboxController {
   const [scheduledDrawer, setScheduledDrawer] = useState<ScheduledItem | null>(null);
   const [cancelTarget, setCancelTarget] = useState<ScheduledItem | null>(null);
   const [reply, setReply] = useState('');
-  const [draftEdit, setDraftEdit] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -321,13 +320,13 @@ export function useInboxData(): InboxController {
   }, [connectionStatus, convDrawer, loadDetail, loadInbox]);
 
   const takeOver = useCallback(
-    async (id: string, openFullAfter = true) => {
+    async (id: string, openDrawerAfter = true) => {
       setPending(true);
       setActionError(null);
       try {
         await api(`/v1/conversations/${id}/take-over`, { method: 'POST', body: '{}' });
         await Promise.all([loadDetail(id), loadInbox()]);
-        if (openFullAfter) setConvDrawer({ id, mode: 'full' });
+        if (openDrawerAfter) setConvDrawer({ id });
       } catch (err) {
         setActionError({
           type: 'takeOver',
@@ -393,7 +392,7 @@ export function useInboxData(): InboxController {
     async (
       id: string,
       body: string,
-      options: { claim?: boolean; closeDrawer?: boolean; fromDraftId?: string } = {},
+      options: { claim?: boolean; fromDraftId?: string } = {},
     ) => {
       if (!body.trim()) return;
       const trimmed = body.trim();
@@ -426,14 +425,7 @@ export function useInboxData(): InboxController {
           method: 'POST',
           body: JSON.stringify(payload),
         });
-        if (options.closeDrawer) {
-          setConvDrawer(null);
-          setItems((prev) => prev.filter((it) => it.id !== id));
-        }
-        await loadInbox();
-        if (!options.closeDrawer) {
-          await loadDetail(id);
-        }
+        await Promise.all([loadInbox(), loadDetail(id)]);
       } catch (err) {
         setActionError({
           type: 'send',
@@ -716,8 +708,6 @@ export function useInboxData(): InboxController {
     setCancelTarget,
     reply,
     setReply,
-    draftEdit,
-    setDraftEdit,
     kbBodies,
     kbRevisedBodies,
     cmsDetails,

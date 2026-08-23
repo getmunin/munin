@@ -151,6 +151,33 @@ const skipReason = TEST_URL
     expect(titles).not.toContain('Internal runbook');
   });
 
+  it('carries sourceUrl on hits from both the FTS and the vector side', async () => {
+    await runAs(admin, () =>
+      kb.createDocument({
+        spaceId,
+        title: 'Refund window',
+        body: 'Refunds are accepted within 30 days of delivery.',
+        sourceUrl: 'https://example.com/help/refunds',
+      }),
+    );
+    await runAs(admin, () =>
+      kb.createDocument({
+        spaceId,
+        title: 'Handwritten note',
+        body: 'This one has no public page behind it.',
+      }),
+    );
+
+    const ftsHits = await runAs(admin, () => search.search({ query: 'refund window' }));
+    const refund = ftsHits.find((h) => h.title === 'Refund window');
+    expect(refund?.sourceUrl).toBe('https://example.com/help/refunds');
+
+    const vectorHits = await runAs(admin, () => search.search({ query: 'handwritten note' }));
+    const note = vectorHits.find((h) => h.title === 'Handwritten note');
+    expect(note).toBeDefined();
+    expect(note!.sourceUrl).toBeNull();
+  });
+
   it('respects spaceId filter', async () => {
     const otherSpaceId = await runAs(admin, async () => {
       const s = await kb.createSpace({ name: 'Other', slug: 'other' });

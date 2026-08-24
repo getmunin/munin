@@ -4,6 +4,7 @@ import { McpTool } from '@getmunin/mcp-toolkit';
 import { AnalyticsService } from './analytics.service.ts';
 import { CursorInputSchema, IdMapSchema } from '../../common/transfer/transfer.types.ts';
 import { INSPECTOR_APP_URI } from '../../mcp/inspector.resource.ts';
+import { analyticsReadDepth, analyticsViewSource } from './ingest-fields.ts';
 
 const AnalyticsImportInput = z.object({
   config: z
@@ -34,7 +35,7 @@ const AnalyticsImportInput = z.object({
           id: z.string(),
           subjectType: z.string().max(32),
           subjectId: z.string(),
-          source: z.string().max(8),
+          source: analyticsViewSource,
           trackerId: z.string().nullable().optional(),
           path: z.string().nullable().optional(),
           locale: z.string().nullable().optional(),
@@ -46,7 +47,7 @@ const AnalyticsImportInput = z.object({
           endUserId: z.string().nullable().optional(),
           userAgentClass: z.string().nullable().optional(),
           dwellMs: z.number().int().nullable().optional(),
-          readDepth: z.number().int().nullable().optional(),
+          readDepth: analyticsReadDepth.nullable().optional(),
           country: z.string().nullable().optional(),
           metadata: z.record(z.string(), z.unknown()).nullable().optional(),
           createdAt: z.string(),
@@ -71,8 +72,6 @@ const AnalyticsImportInput = z.object({
 });
 
 const EmptyInput = z.object({});
-
-const ViewSourceSchema = z.enum(['pixel', 'beacon', 'tracker']);
 
 const CanonicalLocales = z.array(z.string().min(1).max(16)).max(32);
 
@@ -113,7 +112,7 @@ const TopSubjectsInput = z.object({
   subjectType: z.string().max(32).optional(),
   sinceDays: z.number().int().min(1).max(365).default(30),
   limit: z.number().int().min(1).max(200).default(20),
-  source: ViewSourceSchema.optional(),
+  source: analyticsViewSource.optional(),
   trackerId: TrackerIdFilter,
   endUserId: z.string().optional(),
   contactId: z.string().optional(),
@@ -123,7 +122,7 @@ const TopCountriesInput = z.object({
   subjectType: z.string().max(32).optional(),
   sinceDays: z.number().int().min(1).max(365).default(30),
   limit: z.number().int().min(1).max(200).default(50),
-  source: ViewSourceSchema.optional(),
+  source: analyticsViewSource.optional(),
   trackerId: TrackerIdFilter,
 });
 
@@ -131,7 +130,7 @@ const TrafficBySourceInput = z.object({
   subjectType: z.string().max(32).optional(),
   sinceDays: z.number().int().min(1).max(365).default(30),
   limit: z.number().int().min(1).max(200).default(50),
-  source: ViewSourceSchema.optional(),
+  source: analyticsViewSource.optional(),
   trackerId: TrackerIdFilter,
 });
 
@@ -140,7 +139,7 @@ const ReferrerHostsInput = z.object({
   excludeHost: z.string().max(255).optional(),
   sinceDays: z.number().int().min(1).max(365).default(30),
   limit: z.number().int().min(1).max(200).default(50),
-  source: ViewSourceSchema.optional(),
+  source: analyticsViewSource.optional(),
   trackerId: TrackerIdFilter,
 });
 
@@ -148,7 +147,7 @@ const ViewsOverTimeInput = z.object({
   subjectType: z.string().max(32).optional(),
   subjectId: z.string().optional(),
   sinceDays: z.number().int().min(1).max(365).default(30),
-  source: ViewSourceSchema.optional(),
+  source: analyticsViewSource.optional(),
   trackerId: TrackerIdFilter,
   endUserId: z.string().optional(),
   contactId: z.string().optional(),
@@ -193,7 +192,7 @@ const FunnelInput = z.object({
   steps: z.array(FunnelStepSchema).min(2).max(8),
   sinceDays: z.number().int().min(1).max(365).default(30),
   stepWindowHours: z.number().int().min(1).max(24 * 365).optional(),
-  source: ViewSourceSchema.optional(),
+  source: analyticsViewSource.optional(),
   trackerId: TrackerIdFilter,
 });
 

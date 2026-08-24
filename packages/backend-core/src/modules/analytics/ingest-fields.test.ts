@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { MAX_INGEST_FIELD_LENGTH, truncatedString } from './ingest-fields.ts';
+import {
+  ANALYTICS_VIEW_SOURCES,
+  MAX_INGEST_FIELD_LENGTH,
+  analyticsReadDepth,
+  analyticsViewSource,
+  truncatedString,
+} from './ingest-fields.ts';
 
 describe('truncatedString', () => {
   it('leaves a value inside the limit untouched', () => {
@@ -27,5 +33,30 @@ describe('truncatedString', () => {
     expect(truncatedString(512).safeParse('x'.repeat(MAX_INGEST_FIELD_LENGTH + 1)).success).toBe(
       false,
     );
+  });
+});
+
+describe('analyticsViewSource', () => {
+  it('accepts every source analytics_view_events_source_chk allows', () => {
+    for (const source of ANALYTICS_VIEW_SOURCES) {
+      expect(analyticsViewSource.safeParse(source).success).toBe(true);
+    }
+  });
+
+  it('rejects an unknown source at the boundary rather than letting Postgres raise a 500', () => {
+    expect(analyticsViewSource.safeParse('web').success).toBe(false);
+    expect(analyticsViewSource.safeParse('').success).toBe(false);
+  });
+});
+
+describe('analyticsReadDepth', () => {
+  it('accepts the whole percentage range analytics_view_events_read_depth_chk allows', () => {
+    expect(analyticsReadDepth.safeParse(0).success).toBe(true);
+    expect(analyticsReadDepth.safeParse(100).success).toBe(true);
+  });
+
+  it('rejects a depth outside 0-100 rather than letting Postgres raise a 500', () => {
+    expect(analyticsReadDepth.safeParse(-1).success).toBe(false);
+    expect(analyticsReadDepth.safeParse(101).success).toBe(false);
   });
 });

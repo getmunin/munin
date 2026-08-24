@@ -26,6 +26,10 @@ import {
   type ExportPage,
   type ImportResult,
 } from '../common/transfer/transfer.types.ts';
+import {
+  analyticsReadDepth,
+  analyticsViewSource,
+} from '../modules/analytics/ingest-fields.ts';
 
 class ImportAnalyticsBody extends createZodDto(
   z.object({
@@ -56,7 +60,7 @@ class ImportAnalyticsBody extends createZodDto(
             id: z.string(),
             subjectType: z.string().max(32),
             subjectId: z.string(),
-            source: z.string().max(8),
+            source: analyticsViewSource,
             path: z.string().nullable().optional(),
             locale: z.string().nullable().optional(),
             referrer: z.string().nullable().optional(),
@@ -67,7 +71,7 @@ class ImportAnalyticsBody extends createZodDto(
             endUserId: z.string().nullable().optional(),
             userAgentClass: z.string().nullable().optional(),
             dwellMs: z.number().int().nullable().optional(),
-            readDepth: z.number().int().nullable().optional(),
+            readDepth: analyticsReadDepth.nullable().optional(),
             country: z.string().nullable().optional(),
             metadata: z.record(z.string(), z.unknown()).nullable().optional(),
             createdAt: z.string(),

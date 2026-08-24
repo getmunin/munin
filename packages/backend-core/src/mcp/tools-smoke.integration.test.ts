@@ -27,6 +27,7 @@ const EXPECTED_BY_MODULE: Record<string, RegExp> = {
   commerce: /^commerce_/,
   bookings: /^bookings_/,
   analytics: /^analytics_/,
+  seo: /^seo_/,
   system: /^system_/,
   webhooks: /^webhooks_/,
   slack: /^slack_/,
@@ -43,6 +44,7 @@ const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
   commerce: 2,
   bookings: 6,
   analytics: 6,
+  seo: 5,
   system: 4,
   webhooks: 7,
   slack: 5,
@@ -141,6 +143,7 @@ const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
         commerce: 'Commerce:',
         bookings: 'Bookings:',
         analytics: 'Analytics:',
+        seo: 'SEO:',
         system: 'System ',
         webhooks: 'Webhooks:',
         slack: 'Slack:',
@@ -200,6 +203,28 @@ const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
           result.isError,
           `${name} returned isError on empty org. Raw: ${dumped.slice(0, 400)}`,
         ).not.toBe(true);
+      });
+    }
+  });
+
+  describe('connector-backed tools refuse cleanly when no connection is configured', () => {
+    const CONNECTOR_TOOLS: Array<[string, Record<string, unknown>]> = [
+      ['seo_list_properties', {}],
+      ['seo_list_queries', {}],
+      ['seo_list_pages', {}],
+      ['seo_inspect_url', { url: 'https://example.com/a' }],
+      ['seo_submit_urls', { urls: ['https://example.com/a'] }],
+    ];
+
+    for (const [name, args] of CONNECTOR_TOOLS) {
+      it(`${name} reports a client error rather than a server fault`, async () => {
+        const result = await admin.callTool(name, args);
+        const dumped = JSON.stringify(result);
+        expect(result.isError, `${name} should have errored. Raw: ${dumped.slice(0, 400)}`).toBe(
+          true,
+        );
+        expect(dumped).toContain('no active seo connection configured');
+        expect(dumped).not.toMatch(/Internal server error|-32602|undefined/);
       });
     }
   });

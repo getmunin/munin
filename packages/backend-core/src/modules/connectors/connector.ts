@@ -18,7 +18,7 @@ export interface ConnectorAdapter {
   testConnection(ctx: ConnectorConnectionContext): Promise<ConnectorTestResult>;
 }
 
-export type ConnectorDomain = 'commerce' | 'bookings' | 'mcp';
+export type ConnectorDomain = 'commerce' | 'bookings' | 'mcp' | 'seo';
 
 export interface ConnectorConnectionContext {
   config: Record<string, unknown>;

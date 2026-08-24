@@ -29,6 +29,28 @@ export function MagentoMark(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function BingMark(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="8475 1400 12749 18215" xmlns="http://www.w3.org/2000/svg" aria-hidden {...props}>
+      <linearGradient
+        id="mnBingMark"
+        gradientUnits="userSpaceOnUse"
+        x1="9438"
+        y1="2509"
+        x2="9013"
+        y2="23085"
+      >
+        <stop offset="0" stopColor="#26B8F4" />
+        <stop offset="1" stopColor="#1B48EF" />
+      </linearGradient>
+      <polygon
+        fill="url(#mnBingMark)"
+        points="8475,1400 12124,2685 12136,15485 17223,12520 14741,11359 13148,7403 21224,10231 21217,14376 12123,19615 8487,17591"
+      />
+    </svg>
+  );
+}
+
 export function GastroplannerMark(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="104.6 99.1 311.9 311.9" xmlns="http://www.w3.org/2000/svg" aria-hidden {...props}>

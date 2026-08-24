@@ -22,6 +22,8 @@ export const SUPPORTED_SCOPES = [
   'commerce:read',
   'bookings:read',
   'bookings:write',
+  'seo:read',
+  'seo:write',
   'analytics:read',
   'analytics:write',
   'webhooks:read',

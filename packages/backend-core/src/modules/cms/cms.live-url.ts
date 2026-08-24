@@ -1,6 +1,27 @@
-export function readLiveUrlTemplate(settings: Record<string, unknown>): string | null {
-  const v = (settings as { liveUrl?: unknown }).liveUrl;
+const LIVE_URL_DEFAULT_KEY = 'default';
+
+function template(v: unknown): string | null {
   return typeof v === 'string' && v.trim() !== '' ? v.trim() : null;
+}
+
+export function readLiveUrlTemplate(
+  settings: Record<string, unknown>,
+  locale: string,
+): string | null {
+  const v = (settings as { liveUrl?: unknown }).liveUrl;
+  if (typeof v === 'string') return template(v);
+  if (v === null || typeof v !== 'object' || Array.isArray(v)) return null;
+  const byLocale = v as Record<string, unknown>;
+  const exact = template(byLocale[locale]);
+  if (exact) return exact;
+  const wanted = locale.trim().toLowerCase();
+  for (const [key, value] of Object.entries(byLocale)) {
+    if (key.trim().toLowerCase() === wanted) {
+      const matched = template(value);
+      if (matched) return matched;
+    }
+  }
+  return template(byLocale[LIVE_URL_DEFAULT_KEY]);
 }
 
 export function renderLiveUrl(

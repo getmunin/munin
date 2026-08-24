@@ -110,6 +110,20 @@ Two things you *can* do to make it useful:
 
   `settings` REPLACES the stored object — read the collection first and send back every key you want to keep (`previewUrl` above is a reminder, not a requirement). A template that doesn't resolve to an `http(s)` URL is ignored, and the announcement posts without a link.
 
+  On a localized collection, `{locale}` substitutes the locale code as stored — `nb-NO`, not `no`. Sites whose paths don't spell locales that way take a map instead of a string, keyed by locale code with an optional `default` for the rest:
+
+  ```jsonc
+  {
+    "liveUrl": {
+      "default": "https://www.example.com/en/blog/{slug}",
+      "nb-NO": "https://www.example.com/no/blog/{slug}",
+      "sv-SE": "https://www.example.com/sv/blog/{slug}"
+    }
+  }
+  ```
+
+  Keys match case-insensitively. A locale the map names neither directly nor through `default` publishes without a link, which is how you keep a locale that isn't on the site yet out of the announcement.
+
 - **Give the collection a title-ish field.** The headline comes from the entry's `title`, `headline`, `name`, or `heading` field, in that order; with none of them the slug is used.
 
 Re-publishing an entry that is already `published` (a no-op status transition) does not announce again — only a real draft/scheduled → published move does.

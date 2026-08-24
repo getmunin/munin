@@ -36,13 +36,14 @@ export function ConnectConnectorDialog({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
-  const missingRequired = vendor.configFields.some((f) => f.required && !values[f.key]);
+  const fields = vendor.configFields.filter((f) => !f.postConnect);
+  const missingRequired = fields.some((f) => f.required && !values[f.key]);
 
   async function submit() {
     setBusy(true);
     try {
       const config: Record<string, string> = {};
-      for (const f of vendor.configFields) if (values[f.key]) config[f.key] = values[f.key]!;
+      for (const f of fields) if (values[f.key]) config[f.key] = values[f.key]!;
       await api('/v1/connectors', {
         method: 'POST',
         body: JSON.stringify({ vendor: vendor.vendor, name, config }),
@@ -100,7 +101,7 @@ export function ConnectConnectorDialog({
               <Label className={dialogLabelClass}>{t('name')}</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('namePlaceholder')} />
             </div>
-            {vendor.configFields.map((f) => (
+            {fields.map((f) => (
               <VendorFieldRow
                 key={f.key}
                 vendor={vendor.vendor}

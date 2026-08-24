@@ -7,6 +7,8 @@ import type {
   ConnectorConfigFieldInfo,
   ConnectorConnectionContext,
   ConnectorTestResult,
+  SelectableTool,
+  ToolCatalogAdapter,
 } from './connector.ts';
 import { ConnectorVendorError, REQUEST_TIMEOUT_MS } from './http.ts';
 
@@ -45,6 +47,7 @@ const StoredCustomMcpConfig = z.object({
 
 export interface DiscoveredTool {
   name: string;
+  description: string | null;
   destructive: boolean;
 }
 
@@ -81,13 +84,21 @@ export async function probeCustomMcpServer(args: {
   }
 }
 
-function toDiscoveredTool(tool: { name: string; annotations?: unknown }): DiscoveredTool {
+function toDiscoveredTool(tool: {
+  name: string;
+  description?: string;
+  annotations?: unknown;
+}): DiscoveredTool {
   const annotations = tool.annotations as
     | { readOnlyHint?: unknown; destructiveHint?: unknown }
     | undefined;
   const readOnly = annotations?.readOnlyHint === true;
   const destructive = annotations?.destructiveHint === true;
-  return { name: tool.name, destructive: destructive || !readOnly };
+  return {
+    name: tool.name,
+    description: tool.description ?? null,
+    destructive: destructive || !readOnly,
+  };
 }
 
 async function withDeadline<T>(promise: Promise<T>, step: string): Promise<T> {
@@ -105,7 +116,7 @@ async function withDeadline<T>(promise: Promise<T>, step: string): Promise<T> {
   }
 }
 
-export class CustomMcpAdapter implements ConnectorAdapter {
+export class CustomMcpAdapter implements ConnectorAdapter, ToolCatalogAdapter {
   readonly vendor = CUSTOM_MCP_VENDOR;
   readonly domain = 'mcp' as const;
   readonly displayName = 'Customer self-service MCP server';
@@ -126,9 +137,10 @@ export class CustomMcpAdapter implements ConnectorAdapter {
     {
       key: 'allowedTools',
       label:
-        'Tools your customers may use (comma-separated). Empty means none — this server stays connected but silent until you list them.',
+        'Tools your customers may use. Empty means none — this server stays connected but silent until you pick them.',
       required: false,
       placeholder: 'list_subscriptions, get_subscription',
+      postConnect: true,
     },
   ];
 
@@ -164,6 +176,27 @@ export class CustomMcpAdapter implements ConnectorAdapter {
     const bearerToken = await ctx.decryptSecret(config.encryptedBearerToken);
     const { tools } = await this.probe({ url: config.url, bearerToken });
     return { ok: true, detail: describeExposure(tools, config.allowedTools) };
+  }
+
+  async listSelectableTools(ctx: ConnectorConnectionContext): Promise<SelectableTool[]> {
+    const config = StoredCustomMcpConfig.parse(ctx.config);
+    const bearerToken = await ctx.decryptSecret(config.encryptedBearerToken);
+    const { tools } = await this.probe({ url: config.url, bearerToken });
+    const allowed = new Set(config.allowedTools);
+    return tools.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      destructive: tool.destructive,
+      allowed: allowed.has(tool.name),
+    }));
+  }
+
+  applyAllowedTools(
+    stored: Record<string, unknown>,
+    toolNames: readonly string[],
+  ): Record<string, unknown> {
+    const config = StoredCustomMcpConfig.parse(stored);
+    return { ...config, allowedTools: [...new Set(toolNames)].slice(0, MAX_EXPOSED_TOOLS) };
   }
 }
 

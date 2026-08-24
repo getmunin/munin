@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -33,6 +34,12 @@ class UpdateConnectionBody extends createZodDto(
     name: z.string().min(1).max(120).optional(),
     config: z.record(z.string(), z.unknown()).optional(),
     active: z.boolean().optional(),
+  }),
+) {}
+
+class SetAllowedToolsBody extends createZodDto(
+  z.object({
+    toolNames: z.array(z.string().min(1).max(64)).max(20),
   }),
 ) {}
 
@@ -73,6 +80,16 @@ export class ConnectorsController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.connectors.deleteConnection({ connectionId: id });
+  }
+
+  @Get(':id/mcp-tools')
+  listMcpTools(@Param('id') id: string) {
+    return this.connectors.listSelectableTools({ connectionId: id });
+  }
+
+  @Put(':id/mcp-tools')
+  setMcpTools(@Param('id') id: string, @Body() input: SetAllowedToolsBody) {
+    return this.connectors.setAllowedTools({ connectionId: id, toolNames: input.toolNames });
   }
 
   @Post(':id/test')

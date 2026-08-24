@@ -19,11 +19,13 @@ Munin's protection is that a connection exposes **nothing by default**. You name
 1. The org's developers stand up an MCP server (contract below) and mint a bearer token for Munin.
 2. `connectors_create_connection` with `vendor: "custom-mcp"`, a `name`, and `config: { "url": "https://api.example.com/mcp" }`. The name becomes the tool namespace — "Legacy CRM" → `ext_legacy_crm_*` — so keep it short and stable; renaming the connection renames the tools.
 3. Share the returned one-time credential link — a human enters the bearer token in the dashboard. **Never accept the token in chat**; the tool rejects secret fields.
-4. `connectors_test_connection` — connects, lists every tool the server offers, and reports which of them are actually exposed. At this point that is none.
-5. Decide which tools customers may use, then `connectors_update_connection` with `config: { "url": "…", "allowedTools": ["list_subscriptions", "get_subscription"] }`. Re-run `connectors_test_connection` to confirm the exposure line reads the way you expect.
+4. `connectors_list_server_tools` — returns every tool the server offers, each with `allowed` (is it exposed to customers today) and `destructive` (does the server decline to mark it read-only). On a fresh connection nothing is allowed.
+5. `connectors_set_allowed_tools` with the exact names customers may use: `{ "connectionId": "…", "toolNames": ["list_subscriptions", "get_subscription"] }`. It replaces the whole set, so omitting a name withdraws it; an empty array mutes the server. `connectors_test_connection` then confirms the exposure line reads the way you expect.
 6. Done. The in-house agent picks the allow-listed tools up on the next conversation turn. If the server is down, the agent simply runs without those tools — a broken connector never breaks the conversation.
 
 The test output also flags any exposed tool the server does not mark read-only, and any name in `allowedTools` the server does not actually offer (usually a typo, which silently exposes nothing).
+
+In the dashboard the same flow is Connect → **Choose tools** on the connection's menu, which lists what the server offers with a checkbox each.
 
 Multiple custom servers can coexist; each connection gets its own namespace. Deactivate with `connectors_update_connection { active: false }`, or empty the allow-list to mute a server while keeping the credential.
 

@@ -31,6 +31,32 @@ export interface ConnectorConfigFieldInfo {
   required: boolean;
   secret?: boolean;
   placeholder?: string;
+  postConnect?: boolean;
+}
+
+export interface SelectableTool {
+  name: string;
+  description: string | null;
+  destructive: boolean;
+  allowed: boolean;
+}
+
+export interface ToolCatalogAdapter {
+  listSelectableTools(ctx: ConnectorConnectionContext): Promise<SelectableTool[]>;
+  applyAllowedTools(
+    stored: Record<string, unknown>,
+    toolNames: readonly string[],
+  ): Record<string, unknown>;
+}
+
+export function supportsToolCatalog(
+  adapter: ConnectorAdapter,
+): adapter is ConnectorAdapter & ToolCatalogAdapter {
+  const candidate = adapter as Partial<ToolCatalogAdapter>;
+  return (
+    typeof candidate.listSelectableTools === 'function' &&
+    typeof candidate.applyAllowedTools === 'function'
+  );
 }
 
 export interface ConnectorTestResult {

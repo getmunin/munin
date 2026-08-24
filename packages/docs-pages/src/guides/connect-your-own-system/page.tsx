@@ -98,28 +98,24 @@ export default function ConnectYourOwnSystem() {
           <p className="tag-blurb">
             Munin connects and lists every tool your server offers. The result will say{' '}
             <code>0 exposed to customers</code>. That is correct — a fresh connection exposes
-            nothing, and says which tools are available to pick from.
+            nothing.
           </p>
 
           <h2 className="tag-h" id="allow" style={{ marginTop: 56 }}>
             3 · Choose what customers may reach
           </h2>
           <p className="tag-blurb">
-            Put those tool names in <em>Tools customers may use</em>. This is the safety mechanism:
-            a server you misconfigured, or pointed at the wrong system, stays silent until a human
-            deliberately names a tool. Re-run the test and check the line reads the way you expect.
+            Open <em>Choose tools</em> on the connection&rsquo;s menu. Munin asks your server what it
+            offers and lists every tool with a checkbox; tick the ones customers may call. This is
+            the safety mechanism: a server you misconfigured, or pointed at the wrong system, stays
+            silent until a human deliberately ticks something. Agents do the same thing with{' '}
+            <code>connectors_list_server_tools</code> and <code>connectors_set_allowed_tools</code>.
           </p>
           <dl className="docs-attrs">
             <dt>Not marked read-only</dt>
             <dd>
-              The test warns about any exposed tool your server hasn&rsquo;t marked{' '}
-              <code>readOnlyHint</code> — a customer asking a question could change data on your
-              side.
-            </dd>
-            <dt>Typos</dt>
-            <dd>
-              A name that no tool matches is reported as missing from the server, rather than
-              silently exposing nothing.
+              Any tool your server hasn&rsquo;t marked <code>readOnlyHint</code> is flagged in the
+              picker — a customer asking a question could change data on your side.
             </dd>
             <dt>Muting a server</dt>
             <dd>Empty the allow-list to silence it while keeping the credential and the URL.</dd>

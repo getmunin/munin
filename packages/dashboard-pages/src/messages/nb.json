@@ -1407,7 +1407,8 @@
       "readOnly": "Skrivebeskyttet",
       "whatAgentsGet": "Hva agenter får",
       "liveData": "Direkte mot leverandøren — ingenting lagres i Munin.",
-      "connectedCount": "{count} tilkoblet"
+      "connectedCount": "{count} tilkoblet",
+      "chooseTools": "Velg verktøy"
     },
     "slack": {
       "title": "Slack",
@@ -1530,6 +1531,16 @@
           "invalid": "Bruk kommaseparerte verktøynavn, f.eks. list_subscriptions, get_subscription."
         }
       }
+    },
+    "tools": {
+      "title": "Verktøy kundene får bruke — {name}",
+      "intro": "Dette er verktøyene serveren tilbyr. Avkryssede verktøy tilbys agenten mens den svarer kundene dine på chat, e-post og SMS; resten forblir utilgjengelig.",
+      "loading": "Spør serveren hva den tilbyr …",
+      "empty": "Denne serveren tilbyr ingen verktøy.",
+      "notReadOnly": "ikke skrivebeskyttet",
+      "noneSelected": "Ingenting valgt — serveren forblir tilkoblet, men taus.",
+      "save": "Lagre utvalg",
+      "saved": "{count} verktøy eksponert for kundene."
     }
   },
   "credentialEntry": {

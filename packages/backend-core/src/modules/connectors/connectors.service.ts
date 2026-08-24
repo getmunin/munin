@@ -17,9 +17,12 @@ import {
 } from '@getmunin/core';
 import {
   ConnectorRegistry,
+  supportsToolCatalog,
   type ConnectorAdapter,
   type ConnectorConnectionContext,
   type ConnectorDomain,
+  type SelectableTool,
+  type ToolCatalogAdapter,
 } from './connector.ts';
 import { ConnectorVendorError } from './http.ts';
 import { isSelfReportedIdentity } from './identity-provenance.ts';
@@ -382,6 +385,46 @@ export class ConnectorsService {
       .where(eq(schema.connectorConnections.id, row.id))
       .returning();
     return this.toDto(updated!);
+  }
+
+  async listSelectableTools(args: { connectionId: string }): Promise<{ tools: SelectableTool[] }> {
+    const row = await this.requireConnection(args.connectionId);
+    const adapter = this.requireToolCatalogAdapter(row);
+    if (row.credentialState === 'pending') {
+      throw new BadRequestException(
+        'connectors_invalid: connection is awaiting credentials — complete the credential link first',
+      );
+    }
+    const tools = await this.vendorCall(() =>
+      adapter.listSelectableTools(this.connectionContext(row)),
+    );
+    return { tools };
+  }
+
+  async setAllowedTools(args: {
+    connectionId: string;
+    toolNames: string[];
+  }): Promise<ConnectorConnectionDto> {
+    const ctx = getCurrentContext();
+    const row = await this.requireConnection(args.connectionId);
+    const adapter = this.requireToolCatalogAdapter(row);
+    const config = adapter.applyAllowedTools(row.config, args.toolNames);
+    const [updated] = await ctx.db
+      .update(schema.connectorConnections)
+      .set({ config, updatedAt: new Date() })
+      .where(eq(schema.connectorConnections.id, row.id))
+      .returning();
+    return this.toDto(updated!);
+  }
+
+  private requireToolCatalogAdapter(row: ConnectionRow): ConnectorAdapter & ToolCatalogAdapter {
+    const adapter = this.requireAdapter(row.vendor);
+    if (!supportsToolCatalog(adapter)) {
+      throw new BadRequestException(
+        `connectors_invalid: ${adapter.vendor} connections do not expose a selectable tool list`,
+      );
+    }
+    return adapter;
   }
 
   async deleteConnection(args: { connectionId: string }): Promise<{ deleted: true; id: string }> {

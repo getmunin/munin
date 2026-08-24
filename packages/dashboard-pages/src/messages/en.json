@@ -1407,7 +1407,8 @@
       "readOnly": "Read-only",
       "whatAgentsGet": "What agents get",
       "liveData": "Live against the vendor — nothing is stored in Munin.",
-      "connectedCount": "{count} connected"
+      "connectedCount": "{count} connected",
+      "chooseTools": "Choose tools"
     },
     "slack": {
       "title": "Slack",
@@ -1530,6 +1531,16 @@
           "invalid": "Use comma-separated tool names, e.g. list_subscriptions, get_subscription."
         }
       }
+    },
+    "tools": {
+      "title": "Tools customers may use — {name}",
+      "intro": "These are the tools the server offers. Ticked tools are offered to the agent while it answers your customers on chat, email and SMS; everything else stays unreachable.",
+      "loading": "Asking the server what it offers…",
+      "empty": "This server offers no tools.",
+      "notReadOnly": "not read-only",
+      "noneSelected": "Nothing selected — this server stays connected but silent.",
+      "save": "Save selection",
+      "saved": "{count} tool(s) exposed to customers."
     }
   },
   "credentialEntry": {

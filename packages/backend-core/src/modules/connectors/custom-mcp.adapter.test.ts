@@ -79,8 +79,8 @@ describe('CustomMcpAdapter', () => {
       seen.push(args);
       return Promise.resolve({
         tools: [
-          { name: 'list_subscriptions', destructive: false },
-          { name: 'get_subscription', destructive: false },
+          { name: 'list_subscriptions', description: null, destructive: false },
+          { name: 'get_subscription', description: null, destructive: false },
         ],
       });
     });
@@ -97,8 +97,8 @@ describe('CustomMcpAdapter', () => {
     const adapter = new CustomMcpAdapter(() =>
       Promise.resolve({
         tools: [
-          { name: 'run_sql', destructive: true },
-          { name: 'delete_repo', destructive: true },
+          { name: 'run_sql', description: null, destructive: true },
+          { name: 'delete_repo', description: null, destructive: true },
         ],
       }),
     );
@@ -120,8 +120,8 @@ describe('CustomMcpAdapter', () => {
     const adapter = new CustomMcpAdapter(() =>
       Promise.resolve({
         tools: [
-          { name: 'list_subscriptions', destructive: false },
-          { name: 'cancel_subscription', destructive: true },
+          { name: 'list_subscriptions', description: null, destructive: false },
+          { name: 'cancel_subscription', description: null, destructive: true },
         ],
       }),
     );
@@ -140,7 +140,7 @@ describe('CustomMcpAdapter', () => {
 
   it('flags allow-listed names the server does not actually offer', async () => {
     const adapter = new CustomMcpAdapter(() =>
-      Promise.resolve({ tools: [{ name: 'list_subscriptions', destructive: false }] }),
+      Promise.resolve({ tools: [{ name: 'list_subscriptions', description: null, destructive: false }] }),
     );
     const result = await adapter.testConnection(
       ctx({
@@ -172,6 +172,57 @@ describe('CustomMcpAdapter', () => {
     const stored = await adapter.buildStoredConfig(
       { url: 'https://crm.example.com/mcp', bearerToken: 'token_1234567890' },
       encrypt,
+    );
+    expect(stored.allowedTools).toEqual([]);
+  });
+
+  it('lists the server tools with an allowed flag for the picker', async () => {
+    const adapter = new CustomMcpAdapter(() =>
+      Promise.resolve({
+        tools: [
+          { name: 'list_subscriptions', description: 'Their subscriptions', destructive: false },
+          { name: 'run_sql', description: null, destructive: true },
+        ],
+      }),
+    );
+    const tools = await adapter.listSelectableTools(ctx());
+    expect(tools).toEqual([
+      {
+        name: 'list_subscriptions',
+        description: 'Their subscriptions',
+        destructive: false,
+        allowed: true,
+      },
+      { name: 'run_sql', description: null, destructive: true, allowed: false },
+    ]);
+  });
+
+  it('replaces the allow-list, de-duplicating and keeping the rest of the config', () => {
+    const adapter = new CustomMcpAdapter();
+    const stored = adapter.applyAllowedTools(
+      {
+        url: 'https://crm.example.com/mcp',
+        encryptedBearerToken: 'ct_abc',
+        allowedTools: ['old_tool'],
+      },
+      ['a', 'b', 'a'],
+    );
+    expect(stored).toEqual({
+      url: 'https://crm.example.com/mcp',
+      encryptedBearerToken: 'ct_abc',
+      allowedTools: ['a', 'b'],
+    });
+  });
+
+  it('clears the allow-list when an empty selection is saved', () => {
+    const adapter = new CustomMcpAdapter();
+    const stored = adapter.applyAllowedTools(
+      {
+        url: 'https://crm.example.com/mcp',
+        encryptedBearerToken: 'ct_abc',
+        allowedTools: ['list_subscriptions'],
+      },
+      [],
     );
     expect(stored.allowedTools).toEqual([]);
   });

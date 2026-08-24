@@ -13,6 +13,7 @@ import { IntegrationCard, SectionHeading } from './integration-card';
 import { ConnectConnectorDialog, type ConnectVendor } from './connect-connector-dialog';
 import { VendorFieldRow, type VendorField } from './vendor-field-row';
 import { vendorPresentation } from './vendor-catalog';
+import { ChooseToolsDialog } from './choose-tools-dialog';
 
 type Vendor = ConnectVendor;
 
@@ -24,6 +25,10 @@ interface Connection {
   active: boolean;
   credentialState: 'active' | 'pending';
   lastTestError: string | null;
+}
+
+function supportsToolPicker(conn: Connection): boolean {
+  return conn.domain === 'mcp' && conn.credentialState === 'active';
 }
 
 export function DataConnectionsSection() {
@@ -39,6 +44,7 @@ export function DataConnectionsSection() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [connectVendor, setConnectVendor] = useState<Vendor | null>(null);
   const [enterFor, setEnterFor] = useState<Connection | null>(null);
+  const [chooseToolsFor, setChooseToolsFor] = useState<Connection | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -150,6 +156,14 @@ export function DataConnectionsSection() {
               description={tc(`description.${present.descriptionKey}`)}
               menu={
                 <CardMenu label={t('moreMenu')} disabled={busyId === conn.id}>
+                  {supportsToolPicker(conn) && (
+                    <DropdownMenuItem
+                      disabled={busyId === conn.id}
+                      onClick={() => setChooseToolsFor(conn)}
+                    >
+                      {t('chooseTools')}
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
                     variant="destructive"
                     disabled={busyId === conn.id}
@@ -197,6 +211,17 @@ export function DataConnectionsSection() {
           onClose={() => setConnectVendor(null)}
           onDone={async () => {
             setConnectVendor(null);
+            await refresh();
+          }}
+        />
+      )}
+      {chooseToolsFor && (
+        <ChooseToolsDialog
+          connectionId={chooseToolsFor.id}
+          connectionName={chooseToolsFor.name}
+          onClose={() => setChooseToolsFor(null)}
+          onDone={async () => {
+            setChooseToolsFor(null);
             await refresh();
           }}
         />

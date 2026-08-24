@@ -2205,6 +2205,9 @@ export const slackDeliveries = pgTable(
 // Outreach proposals also get a per-campaign thread parent row (subject_type
 // 'outreach_campaign'); a resolved parent, or one from a previous UTC day, is
 // reused for the next wave by pointing the row at a freshly posted message.
+// CMS publish announcements reuse the same shape (subject_type
+// 'cms_translation_group', no buttons and never resolved) so the locales of one
+// article thread under whichever locale published first.
 export const slackNotificationLinks = pgTable(
   'slack_notification_links',
   {
@@ -2217,6 +2220,7 @@ export const slackNotificationLinks = pgTable(
       .references(() => slackIntegrations.id, { onDelete: 'cascade' }),
     subjectType: varchar('subject_type', { length: 32 }).notNull(),
     // 'crm_merge_proposal' | 'outreach_proposal' | 'kb_curation_candidate'
+    // | 'outreach_campaign' | 'cms_translation_group'
     subjectId: text('subject_id').notNull(),
     slackChannelId: text('slack_channel_id').notNull(),
     slackTs: text('slack_ts').notNull(),

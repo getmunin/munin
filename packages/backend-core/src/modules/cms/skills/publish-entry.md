@@ -128,6 +128,8 @@ Two things you *can* do to make it useful:
 
 Re-publishing an entry that is already `published` (a no-op status transition) does not announce again — only a real draft/scheduled → published move does.
 
+Publishing several locales of the same article does not fill the channel with near-identical headlines: the first locale posts to the channel and the rest of its translation group thread under it the same UTC day. Nothing to pass — the grouping follows `translationGroupId`, which `cms_create_entry`'s `translationOf` and `cms_link_translation` already set.
+
 ## Step 4 — rollback paths
 
 ### Unpublish (back to draft)

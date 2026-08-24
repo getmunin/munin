@@ -386,11 +386,12 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   private async handleAnnouncement(input: {
+    integration: IntegrationRow;
     payload: Record<string, unknown>;
     routes: RouteRow[];
     token: string;
   }): Promise<void> {
-    const { payload, routes, token } = input;
+    const { integration, payload, routes, token } = input;
     const route =
       routes.find((r) => r.purpose === 'content' && !r.convChannelId) ??
       routes.find((r) => r.purpose === 'default' && !r.convChannelId);
@@ -404,14 +405,73 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       locale: str(payload.locale),
       url: str(payload.url),
     });
+
+    const groupId = str(payload.translationGroupId);
+    const sibling = groupId
+      ? await this.translationGroupLink(integration.id, groupId)
+      : null;
+    const threadTs =
+      sibling &&
+      sibling.slackChannelId === route.slackChannelId &&
+      slackTsIsToday(sibling.slackTs)
+        ? sibling.slackTs
+        : undefined;
+
+    let posted;
     try {
-      await this.api.postMessage({ token, channel: route.slackChannelId, text });
+      posted = await this.api.postMessage({
+        token,
+        channel: route.slackChannelId,
+        text,
+        threadTs,
+      });
     } catch (err) {
       if (err instanceof SlackApiError && err.apiError === 'not_in_channel') {
         throw new TerminalDeliveryError('bot_not_in_channel');
       }
       throw err;
     }
+    if (groupId && !threadTs) {
+      await this.db
+        .insert(schema.slackNotificationLinks)
+        .values({
+          orgId: integration.orgId,
+          integrationId: integration.id,
+          subjectType: 'cms_translation_group',
+          subjectId: groupId,
+          slackChannelId: posted.channel,
+          slackTs: posted.ts,
+        })
+        .onConflictDoUpdate({
+          target: [
+            schema.slackNotificationLinks.integrationId,
+            schema.slackNotificationLinks.subjectType,
+            schema.slackNotificationLinks.subjectId,
+          ],
+          set: { slackChannelId: posted.channel, slackTs: posted.ts },
+        });
+    }
+  }
+
+  private async translationGroupLink(
+    integrationId: string,
+    translationGroupId: string,
+  ): Promise<{ slackChannelId: string; slackTs: string } | null> {
+    const [link] = await this.db
+      .select({
+        slackChannelId: schema.slackNotificationLinks.slackChannelId,
+        slackTs: schema.slackNotificationLinks.slackTs,
+      })
+      .from(schema.slackNotificationLinks)
+      .where(
+        and(
+          eq(schema.slackNotificationLinks.integrationId, integrationId),
+          eq(schema.slackNotificationLinks.subjectType, 'cms_translation_group'),
+          eq(schema.slackNotificationLinks.subjectId, translationGroupId),
+        ),
+      )
+      .limit(1);
+    return link ?? null;
   }
 
   private async handleNotification(input: {

@@ -2228,6 +2228,7 @@ function makePayload(
     collectionSlug,
     slug: row.slug,
     locale: row.locale,
+    translationGroupId: row.translationGroupId,
     status: row.status,
     version: row.version,
   };

@@ -38,6 +38,7 @@
     "test": "vitest run --passWithNoTests",
     "openapi:generate": "node --import @swc-node/register/esm-register ./scripts/generate-openapi.ts",
     "docs:generate": "pnpm openapi:generate && node --import @swc-node/register/esm-register ./scripts/generate-docs-fixtures.ts",
+    "test:self-service-mcp": "node --import @swc-node/register/esm-register ./scripts/test-self-service-mcp.ts",
     "mcp:sweep": "node --import @swc-node/register/esm-register ./scripts/mcp-sweep.ts"
   },
   "dependencies": {

@@ -98,6 +98,18 @@ If you only implement one rule, make it this one: **decide per tool what the min
 
 Tool calls happen while a customer is waiting on a reply. Munin abandons a connection attempt after 5 seconds and individual calls after 10. Target well under a second; return compact JSON (the whole result is fed to a model — kilobytes, not megabytes).
 
+## Try it without writing a server
+
+The repo ships a runnable one with fake subscription data, so an operator can exercise the whole path before their developers build anything:
+
+```sh
+MUNIN_ORG_ID=<org id> pnpm -F @getmunin/backend-core test:self-service-mcp
+```
+
+It listens on `http://localhost:4123`, prints its bearer token, verifies `X-Munin-Identity` against your org's real JWKS, and logs the caller and provenance of every request. It gates `get_invoice_link` and `cancel_subscription` on `authenticated` while `list_subscriptions` accepts `channel_asserted`, so you can watch the same customer be allowed over a signed-in widget chat and refused over email.
+
+Because it runs on loopback over http, the backend needs `MUNIN_SSRF_ALLOW_PRIVATE=1` to reach it and the connection has to be seeded directly — the `url` field requires https, which is correct for real connections. Point Munin at a tunnel (`cloudflared tunnel --url http://localhost:4123`) to exercise the dashboard's own connect form.
+
 ## Reference implementation
 
 A complete server in ~80 lines with the official TypeScript SDK — hand this to the org's developers as the starting point:

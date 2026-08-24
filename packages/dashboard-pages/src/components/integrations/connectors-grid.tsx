@@ -28,7 +28,8 @@ interface Connection {
   domain: string;
   name: string;
   active: boolean;
-  credentialState: 'active' | 'pending';
+  credentialState: 'active' | 'pending' | 'expired' | 'revoked';
+  needsAuthorization: boolean;
   lastTestError: string | null;
   settings?: { allowedTools?: string[] };
 }
@@ -85,6 +86,19 @@ export function DataConnectionsSection() {
 
   function secretFields(vendor: string) {
     return vendors.find((v) => v.vendor === vendor)?.configFields.filter((f) => f.secret) ?? [];
+  }
+
+  async function authorize(conn: Connection) {
+    setBusyId(conn.id);
+    try {
+      const { url } = await api<{ url: string }>(`/v1/connectors/${conn.id}/authorize-link`, {
+        method: 'POST',
+      });
+      window.location.assign(url);
+    } catch (err) {
+      notify.error(translate(err));
+      setBusyId(null);
+    }
   }
 
   async function test(conn: Connection) {
@@ -146,6 +160,8 @@ export function DataConnectionsSection() {
   const activeCount = connections.filter((c) => c.active && c.credentialState === 'active').length;
 
   function statusOf(conn: Connection): { tone: 'active' | 'pending' | 'error' | 'inactive'; label: string } {
+    if (conn.credentialState === 'expired') return { tone: 'error', label: t('statusExpired') };
+    if (conn.credentialState === 'revoked') return { tone: 'inactive', label: t('statusRevoked') };
     if (conn.credentialState === 'pending') return { tone: 'pending', label: t('statusPending') };
     if (conn.lastTestError) return { tone: 'error', label: t('statusError') };
     if (!conn.active) return { tone: 'inactive', label: t('statusInactive') };
@@ -183,6 +199,14 @@ export function DataConnectionsSection() {
                       {t('chooseTools')}
                     </DropdownMenuItem>
                   )}
+                  {conn.needsAuthorization && secretFields(conn.vendor).length > 0 && (
+                    <DropdownMenuItem
+                      disabled={busyId === conn.id}
+                      onClick={() => setEnterFor(conn)}
+                    >
+                      {t('enterCredentials')}
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
                     variant="destructive"
                     disabled={busyId === conn.id}
@@ -193,7 +217,11 @@ export function DataConnectionsSection() {
                 </CardMenu>
               }
               footer={
-                conn.credentialState === 'pending' ? (
+                conn.needsAuthorization ? (
+                  <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => void authorize(conn)} disabled={busyId === conn.id}>
+                    {conn.credentialState === 'expired' ? t('reconnect') : t('authorize')}
+                  </Button>
+                ) : conn.credentialState === 'pending' ? (
                   <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setEnterFor(conn)} disabled={busyId === conn.id}>
                     {t('enterCredentials')}
                   </Button>
@@ -251,6 +279,7 @@ export function DataConnectionsSection() {
                 domain: saved.domain,
                 active: true,
                 credentialState: saved.credentialState,
+                needsAuthorization: false,
                 lastTestError: null,
                 settings: saved.settings as Connection['settings'],
               });

@@ -17,9 +17,11 @@ import {
 } from '@getmunin/core';
 import {
   ConnectorRegistry,
+  audienceForDomain,
   supportsToolCatalog,
   type ConnectorAdapter,
   type ConnectorConnectionContext,
+  type ConnectorAudience,
   type ConnectorDomain,
   type SelectableTool,
   type ToolCatalogAdapter,
@@ -45,6 +47,7 @@ export interface ConnectorConnectionDto {
   name: string;
   active: boolean;
   credentialState: CredentialState;
+  audience: ConnectorAudience;
   settings: Record<string, unknown>;
   needsAuthorization: boolean;
   lastTestedAt: string | null;
@@ -56,6 +59,7 @@ export interface ConnectorVendorDto {
   vendor: string;
   domain: ConnectorDomain;
   displayName: string;
+  audience: ConnectorAudience;
   oauth: boolean;
   configFields: Array<{
     key: string;
@@ -116,6 +120,7 @@ export class ConnectorsService {
       vendor: adapter.vendor,
       domain: adapter.domain,
       displayName: adapter.displayName,
+      audience: audienceForDomain(adapter.domain),
       configFields: adapter.configFields,
       oauth: !!adapter.oauth,
     }));
@@ -688,6 +693,7 @@ export class ConnectorsService {
       name: row.name,
       active: row.active,
       credentialState: state,
+      audience: audienceForDomain(row.domain as ConnectorDomain),
       settings: state === 'pending' ? withoutGrant(row.config) : adapter.publicConfig(row.config),
       needsAuthorization: !!adapter.oauth && state !== 'active',
       lastTestedAt: row.lastTestedAt?.toISOString() ?? null,

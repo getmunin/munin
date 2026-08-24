@@ -32,10 +32,13 @@ function initialValues(
   return out;
 }
 
+export type ConnectorAudience = 'customer' | 'team' | 'both';
+
 export interface ConnectVendor {
   vendor: string;
   domain: string;
   displayName: string;
+  audience?: ConnectorAudience;
   oauth?: boolean;
   configFields: VendorField[];
 }

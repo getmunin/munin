@@ -1379,6 +1379,11 @@
       "subtitle": "Live against the vendor — nothing is stored in Munin"
     },
     "connectors": {
+      "audience": {
+        "both": "Customers + team",
+        "team": "Team only",
+        "customer": "Customers only"
+      },
       "title": "Connections",
       "lede": "Connected commerce and booking systems agents can use on a customer's behalf.",
       "name": "Name",

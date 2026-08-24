@@ -1379,6 +1379,11 @@
       "subtitle": "Direkte mot leverandøren — ingenting lagres i Munin"
     },
     "connectors": {
+      "audience": {
+        "both": "Kunder og medarbeidere",
+        "team": "Bare medarbeidere",
+        "customer": "Bare kunder"
+      },
       "title": "Koblinger",
       "lede": "Tilkoblede handels- og bookingsystemer agenter kan bruke på vegne av en kunde.",
       "name": "Navn",

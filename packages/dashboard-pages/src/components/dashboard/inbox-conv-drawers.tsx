@@ -8,7 +8,7 @@ import { useRelative } from '../../lib/use-relative';
 import { DrawerHeader, useCmdEnter } from './queue-drawers/shared';
 import { ActivityRail } from './inbox-activity-rail';
 import { MessageBubble } from './inbox-message-bubble';
-import type { ConvActionError, ConversationDetail } from './inbox-types';
+import type { ConvActionError, ConversationDetail, MessageDto } from './inbox-types';
 
 export function InlineActionError({
   error,
@@ -51,6 +51,14 @@ function actionErrorReason(
   t: ReturnType<typeof useTranslations<'dashboard.overview.drawer'>>,
 ): string {
   return error.code === 'NETWORK_ERROR' ? t('actionFailedReasonConnection') : error.message;
+}
+
+const DRAFT_KINDS = ['draft_reply', 'draft_reply_sent', 'draft_reply_superseded'] as const;
+
+function draftKind(message: MessageDto): (typeof DRAFT_KINDS)[number] | null {
+  if (!message.internal || message.authorType !== 'agent') return null;
+  const kind = message.metadata?.['kind'];
+  return DRAFT_KINDS.find((k) => k === kind) ?? null;
 }
 
 function retryHandler(
@@ -101,9 +109,7 @@ export function ConversationDrawer({
   const draft = detail.messages
     .slice()
     .reverse()
-    .find(
-      (m) => m.authorType === 'agent' && m.internal && m.metadata?.['kind'] === 'draft_reply',
-    );
+    .find((m) => draftKind(m) === 'draft_reply');
   const [suggestionId, setSuggestionId] = useState<string | null>(null);
   const seededDraftId = useRef<string | null>(null);
 
@@ -124,7 +130,7 @@ export function ConversationDrawer({
     if (suggestionId && draft?.id !== suggestionId) setSuggestionId(null);
   }, [draft, suggestionId]);
 
-  const thread = detail.messages.filter((m) => m.id !== suggestionId);
+  const thread = detail.messages.filter((m) => draftKind(m) === null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const lastMessageId = thread[thread.length - 1]?.id;
   useEffect(() => {

@@ -26,6 +26,7 @@ import {
 } from './connector.ts';
 import { ConnectorVendorError } from './http.ts';
 import { isSelfReportedIdentity } from './identity-provenance.ts';
+import { ConnectorOAuthService, OAUTH_CONFIG_KEY } from './connector-oauth.service.ts';
 import { DB } from '../../common/db/db.module.ts';
 import { CredentialHandoffService, type CredentialLink } from '../credential-handoff/credential-handoff.service.ts';
 import type {
@@ -35,7 +36,7 @@ import type {
 
 export type ConnectionRow = typeof schema.connectorConnections.$inferSelect;
 
-export type CredentialState = 'active' | 'pending';
+export type CredentialState = 'active' | 'pending' | 'expired' | 'revoked';
 
 export interface ConnectorConnectionDto {
   id: string;
@@ -45,6 +46,7 @@ export interface ConnectorConnectionDto {
   active: boolean;
   credentialState: CredentialState;
   settings: Record<string, unknown>;
+  needsAuthorization: boolean;
   lastTestedAt: string | null;
   lastTestError: string | null;
   createdAt: string;
@@ -54,6 +56,7 @@ export interface ConnectorVendorDto {
   vendor: string;
   domain: ConnectorDomain;
   displayName: string;
+  oauth: boolean;
   configFields: Array<{
     key: string;
     label: string;
@@ -67,6 +70,11 @@ export interface ConnectionSummary {
   id: string;
   name: string;
   vendor: string;
+}
+
+export interface AuthorizeLink {
+  url: string;
+  expiresAt: string;
 }
 
 export interface ConnectionScope {
@@ -85,7 +93,13 @@ export class ConnectorsService {
     @Inject(CredentialHandoffService)
     private readonly handoff?: CredentialLinkMinter,
     @Inject(DB) private readonly rootDb?: Db,
+    @Inject(ConnectorOAuthService) private readonly oauth?: ConnectorOAuthService,
   ) {}
+
+  private requireOAuth(): ConnectorOAuthService {
+    if (!this.oauth) throw new Error('connector oauth service not available');
+    return this.oauth;
+  }
 
   private requireHandoff(): CredentialLinkMinter {
     if (!this.handoff) throw new Error('credential handoff service not available');
@@ -103,6 +117,7 @@ export class ConnectorsService {
       domain: adapter.domain,
       displayName: adapter.displayName,
       configFields: adapter.configFields,
+      oauth: !!adapter.oauth,
     }));
   }
 
@@ -141,7 +156,9 @@ export class ConnectorsService {
       config?: Record<string, unknown>;
     },
     opts?: { rejectSecrets?: boolean },
-  ): Promise<ConnectorConnectionDto & { credentialLink?: CredentialLink }> {
+  ): Promise<
+    ConnectorConnectionDto & { credentialLink?: CredentialLink; authorize?: AuthorizeLink }
+  > {
     const ctx = getCurrentContext();
     const adapter = this.requireAdapter(args.vendor);
     await this.assertNameFree(args.name);
@@ -158,9 +175,13 @@ export class ConnectorsService {
           domain: adapter.domain,
           name: args.name,
           config: stored,
-          credentialState: 'active',
+          active: !adapter.oauth,
+          credentialState: adapter.oauth ? 'pending' : 'active',
         })
         .returning();
+      if (adapter.oauth) {
+        return { ...this.toDto(row!), authorize: this.requireOAuth().authorizeUrl(row!) };
+      }
       return this.toDto(row!);
     }
 
@@ -237,12 +258,13 @@ export class ConnectorsService {
     const row = await this.requireConnection(connectionId);
     const adapter = this.requireAdapter(row.vendor);
     const stored = await this.buildStored(adapter, { ...(row.config ?? {}), ...secrets });
+    const grant = row.config?.[OAUTH_CONFIG_KEY];
     await ctx.db
       .update(schema.connectorConnections)
       .set({
-        config: stored,
-        active: true,
-        credentialState: 'active',
+        config: grant === undefined ? stored : { ...stored, [OAUTH_CONFIG_KEY]: grant },
+        active: !adapter.oauth,
+        credentialState: adapter.oauth ? 'pending' : 'active',
         lastTestedAt: null,
         lastTestError: null,
         updatedAt: new Date(),
@@ -256,7 +278,20 @@ export class ConnectorsService {
     secrets: Record<string, string>,
   ): Promise<CredentialApplyResult> {
     await this.saveCredentials(connectionId, secrets);
+    const row = await this.requireConnection(connectionId);
+    const adapter = this.requireAdapter(row.vendor);
+    if (adapter.oauth) {
+      return {
+        ok: true,
+        detail: `client credentials saved — ${adapter.displayName} still needs its access grant, so open the link from connectors_get_authorize_url to finish connecting`,
+      };
+    }
     return this.testConnection({ connectionId });
+  }
+
+  async authorizeUrl(args: { connectionId: string }): Promise<AuthorizeLink> {
+    const row = await this.requireConnection(args.connectionId);
+    return this.requireOAuth().authorizeUrl(row);
   }
 
   async verifyConnection(connectionId: string): Promise<CredentialApplyResult> {
@@ -430,6 +465,7 @@ export class ConnectorsService {
   async deleteConnection(args: { connectionId: string }): Promise<{ deleted: true; id: string }> {
     const ctx = getCurrentContext();
     const row = await this.requireConnection(args.connectionId);
+    if (this.requireAdapter(row.vendor).oauth) await this.requireOAuth().revoke(row);
     await ctx.db
       .delete(schema.connectorConnections)
       .where(eq(schema.connectorConnections.id, row.id));
@@ -489,6 +525,19 @@ export class ConnectorsService {
         ),
       );
     if (rows.length === 0) {
+      const unusable = await ctx.db
+        .select({
+          name: schema.connectorConnections.name,
+          credentialState: schema.connectorConnections.credentialState,
+        })
+        .from(schema.connectorConnections)
+        .where(eq(schema.connectorConnections.domain, domain));
+      if (unusable.length > 0) {
+        const detail = unusable.map((r) => `${r.name} (${r.credentialState})`).join(', ');
+        throw new BadRequestException(
+          `connectors_invalid: no active ${domain} connection — ${detail}. Finish or renew the connection before using these tools.`,
+        );
+      }
       throw new BadRequestException(
         `connectors_invalid: no active ${domain} connection configured`,
       );
@@ -528,9 +577,11 @@ export class ConnectorsService {
   }
 
   connectionContext(row: ConnectionRow): ConnectorConnectionContext {
+    const adapter = this.registry.get(row.vendor);
     return {
       config: row.config,
       decryptSecret: (ciphertext) => decryptString(ciphertext),
+      accessToken: adapter?.oauth ? this.requireOAuth().accessTokenFor(row) : undefined,
     };
   }
 
@@ -637,7 +688,8 @@ export class ConnectorsService {
       name: row.name,
       active: row.active,
       credentialState: state,
-      settings: state === 'pending' ? row.config : adapter.publicConfig(row.config),
+      settings: state === 'pending' ? withoutGrant(row.config) : adapter.publicConfig(row.config),
+      needsAuthorization: !!adapter.oauth && state !== 'active',
       lastTestedAt: row.lastTestedAt?.toISOString() ?? null,
       lastTestError: row.lastTestError,
       createdAt: row.createdAt.toISOString(),
@@ -647,6 +699,12 @@ export class ConnectorsService {
 
 export function connectionSummary(row: ConnectionRow): ConnectionSummary {
   return { id: row.id, name: row.name, vendor: row.vendor };
+}
+
+function withoutGrant(config: Record<string, unknown>): Record<string, unknown> {
+  const rest = { ...config };
+  delete rest[OAUTH_CONFIG_KEY];
+  return rest;
 }
 
 async function encryptString(plaintext: string): Promise<string> {

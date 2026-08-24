@@ -106,4 +106,9 @@ export class ConnectorsController {
   requestCredentials(@Param('id') id: string) {
     return this.connectors.requestCredentials({ connectionId: id });
   }
+
+  @Post(':id/authorize-link')
+  authorizeLink(@Param('id') id: string) {
+    return this.connectors.authorizeUrl({ connectionId: id });
+  }
 }

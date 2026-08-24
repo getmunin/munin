@@ -58,9 +58,20 @@ export {
 } from './munin-rest.ts';
 export {
   openHttpMcpClient,
+  type HttpMcpFetch,
   type OpenHttpMcpClientOptions,
   type OpenedHttpMcpClient,
 } from './mcp-client.ts';
+export {
+  EXTERNAL_TOOL_PREFIX,
+  MAX_EXTERNAL_TOOLS_PER_CONNECTION,
+  composeToolHandles,
+  externalToolNamespace,
+  namespaceExternalTools,
+  sanitizeExternalDescription,
+  type ComposeLogger,
+  type ExternalToolSource,
+} from './external-tools.ts';
 export {
   runSkillPass,
   withAllowedToolPrefixes,

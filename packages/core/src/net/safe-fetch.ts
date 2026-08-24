@@ -294,6 +294,28 @@ function assertHttpUrl(raw: string): URL {
   return url;
 }
 
+export type GlobalFetchLike = (url: string | URL, init?: RequestInit) => Promise<Response>;
+
+export const safeFetchCompat: GlobalFetchLike = async (url, init) => {
+  const headers: Record<string, string> = {};
+  if (init?.headers) {
+    new Headers(init.headers).forEach((value, key) => {
+      headers[key] = value;
+    });
+  }
+  const body = init?.body;
+  if (body !== undefined && body !== null && typeof body !== 'string') {
+    throw new TypeError('safeFetchCompat only supports string request bodies');
+  }
+  const res = await safeFetch(String(url), {
+    method: init?.method ?? undefined,
+    headers,
+    body: body ?? undefined,
+    signal: init?.signal ?? undefined,
+  });
+  return res;
+};
+
 export async function safeFetch(input: string, init: SafeFetchOptions = {}): Promise<UndiciResponse> {
   const { resolver, maxRedirects = MAX_REDIRECTS, __connectLookup, ...rest } = init;
   const agent = makeBlockingAgent(__connectLookup ?? defaultConnectLookup);

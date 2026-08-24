@@ -17,11 +17,15 @@ import {
 } from '@getmunin/core';
 import {
   ConnectorRegistry,
+  supportsToolCatalog,
   type ConnectorAdapter,
   type ConnectorConnectionContext,
   type ConnectorDomain,
+  type SelectableTool,
+  type ToolCatalogAdapter,
 } from './connector.ts';
 import { ConnectorVendorError } from './http.ts';
+import { isSelfReportedIdentity } from './identity-provenance.ts';
 import { DB } from '../../common/db/db.module.ts';
 import { CredentialHandoffService, type CredentialLink } from '../credential-handoff/credential-handoff.service.ts';
 import type {
@@ -383,6 +387,46 @@ export class ConnectorsService {
     return this.toDto(updated!);
   }
 
+  async listSelectableTools(args: { connectionId: string }): Promise<{ tools: SelectableTool[] }> {
+    const row = await this.requireConnection(args.connectionId);
+    const adapter = this.requireToolCatalogAdapter(row);
+    if (row.credentialState === 'pending') {
+      throw new BadRequestException(
+        'connectors_invalid: connection is awaiting credentials — complete the credential link first',
+      );
+    }
+    const tools = await this.vendorCall(() =>
+      adapter.listSelectableTools(this.connectionContext(row)),
+    );
+    return { tools };
+  }
+
+  async setAllowedTools(args: {
+    connectionId: string;
+    toolNames: string[];
+  }): Promise<ConnectorConnectionDto> {
+    const ctx = getCurrentContext();
+    const row = await this.requireConnection(args.connectionId);
+    const adapter = this.requireToolCatalogAdapter(row);
+    const config = adapter.applyAllowedTools(row.config, args.toolNames);
+    const [updated] = await ctx.db
+      .update(schema.connectorConnections)
+      .set({ config, updatedAt: new Date() })
+      .where(eq(schema.connectorConnections.id, row.id))
+      .returning();
+    return this.toDto(updated!);
+  }
+
+  private requireToolCatalogAdapter(row: ConnectionRow): ConnectorAdapter & ToolCatalogAdapter {
+    const adapter = this.requireAdapter(row.vendor);
+    if (!supportsToolCatalog(adapter)) {
+      throw new BadRequestException(
+        `connectors_invalid: ${adapter.vendor} connections do not expose a selectable tool list`,
+      );
+    }
+    return adapter;
+  }
+
   async deleteConnection(args: { connectionId: string }): Promise<{ deleted: true; id: string }> {
     const ctx = getCurrentContext();
     const row = await this.requireConnection(args.connectionId);
@@ -394,7 +438,7 @@ export class ConnectorsService {
 
   async testConnection(args: {
     connectionId: string;
-  }): Promise<{ ok: boolean; detail?: string; error?: string }> {
+  }): Promise<{ ok: boolean; detail?: string; summary?: string; error?: string }> {
     const ctx = getCurrentContext();
     const row = await this.requireConnection(args.connectionId);
     if (row.credentialState === 'pending') {
@@ -409,7 +453,7 @@ export class ConnectorsService {
         .update(schema.connectorConnections)
         .set({ lastTestedAt: new Date(), lastTestError: null, updatedAt: new Date() })
         .where(eq(schema.connectorConnections.id, row.id));
-      return { ok: true, detail: result.detail };
+      return { ok: true, detail: result.detail, summary: result.summary };
     } catch (err) {
       if (!(err instanceof ConnectorVendorError) && !(err instanceof SsrfBlockedError)) throw err;
       const message = err.message;
@@ -475,8 +519,7 @@ export class ConnectorsService {
         'connectors_invalid: your session has no email identity, which this lookup requires',
       );
     }
-    const meta = rows[0]?.metadata as { anonymous?: boolean; emailSource?: string } | null;
-    if (meta?.anonymous === true || meta?.emailSource === 'visitor') {
+    if (isSelfReportedIdentity(rows[0]?.metadata)) {
       throw new BadRequestException(
         'connectors_unverified: this email was self-reported in chat and is not verified, so personal lookups are not allowed; ask the customer to write in from their email address or use a signed-in session',
       );

@@ -11,6 +11,7 @@ export const VOICE_CHANNEL_KIND = 'voice';
 const TOOL_PREFIX_BY_DOMAIN: Record<ConnectorDomain, string> = {
   commerce: 'commerce_',
   bookings: 'bookings_',
+  mcp: 'ext_',
 };
 
 const CONNECTOR_DOMAINS = Object.keys(TOOL_PREFIX_BY_DOMAIN) as ConnectorDomain[];

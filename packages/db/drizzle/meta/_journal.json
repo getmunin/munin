@@ -547,6 +547,13 @@
       "when": 1787394526047,
       "tag": "0077_outreach_original_draft_body",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1787480926047,
+      "tag": "0078_connector_signing_keys",
+      "breakpoints": true
     }
   ]
 }

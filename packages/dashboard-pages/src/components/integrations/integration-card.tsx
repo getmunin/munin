@@ -3,30 +3,6 @@
 import type { ReactNode } from 'react';
 import { VendorIcon } from './vendor-catalog';
 
-export function SectionHeading({
-  title,
-  subtitle,
-  countLabel,
-}: {
-  title: string;
-  subtitle: string;
-  countLabel?: string;
-}) {
-  return (
-    <div className="flex items-end justify-between gap-4 border-b-[1px] border-rule-soft pb-3 dark:border-rule-on-dark">
-      <div className="flex flex-col gap-1">
-        <h2 className="font-serif text-xl leading-none text-ink dark:text-foreground">{title}</h2>
-        <span className="text-[13px] text-ink-mute">{subtitle}</span>
-      </div>
-      {countLabel ? (
-        <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-          {countLabel}
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
 export function IntegrationCard({
   vendor,
   name,

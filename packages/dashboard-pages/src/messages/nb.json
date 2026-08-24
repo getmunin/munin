@@ -1407,7 +1407,13 @@
       "readOnly": "Skrivebeskyttet",
       "whatAgentsGet": "Hva agenter får",
       "liveData": "Direkte mot leverandøren — ingenting lagres i Munin.",
-      "connectedCount": "{count} tilkoblet"
+      "connectedCount": "{count} tilkoblet",
+      "chooseTools": "Velg verktøy",
+      "statusNoTools": "Ingen verktøy tilgjengelig",
+      "editVendor": "Rediger {vendor}",
+      "saveChanges": "Lagre endringer",
+      "updated": "Tilkoblingen er oppdatert.",
+      "keepSecret": "La stå tomt for å beholde nåværende verdi."
     },
     "slack": {
       "title": "Slack",
@@ -1437,14 +1443,16 @@
         "chatBridge": "Chat · Bro",
         "commerce": "Handel",
         "booking": "Booking",
-        "connection": "Kobling"
+        "connection": "Kobling",
+        "customTools": "Selvbetjening"
       },
       "description": {
         "slack": "Håndter innboksen og svar kundene rett fra Slack.",
         "shopify": "Ordrer, kunder og leveringer — lest på vegne av en kunde.",
         "magento": "Les ordrer og kunder fra Magento-butikken din.",
         "gastroplanner": "Sjekk ledige tider, book bord og håndter restaurantbookinger.",
-        "generic": "Leses direkte på vegne av en kunde."
+        "generic": "Leses direkte på vegne av en kunde.",
+        "customMcp": "Ditt eget system, som svarer kundene dine direkte. Du velger nøyaktig hvilke verktøy de får bruke."
       },
       "capability": {
         "slackMirror": "Speil samtaler inn i Slack-tråder.",
@@ -1453,7 +1461,9 @@
         "customersLookup": "Koble en samtale til en butikkunde.",
         "bookingsLookup": "Finn en gjests bookinger og detaljer.",
         "bookingsAvailability": "Sjekk ledige tider og book bord.",
-        "bookingsManage": "Endre eller avbestill en gjests booking."
+        "bookingsManage": "Endre eller avbestill en gjests booking.",
+        "customTools": "Svar direkte fra ditt eget fagsystem.",
+        "customIdentity": "Eksponerer ingenting før du velger hvilke verktøy kundene får bruke."
       }
     },
     "field": {
@@ -1506,7 +1516,35 @@
           "placeholder": "https://api.gastroplanner.eu",
           "invalid": "Oppgi en fullstendig https://-adresse, eller la feltet stå tomt for standardverdien."
         }
+      },
+      "custom-mcp": {
+        "url": {
+          "label": "MCP-endepunkt (URL)",
+          "hint": "Full https-URL til MCP-serverens streamable HTTP-endepunkt.",
+          "placeholder": "https://api.example.com/mcp",
+          "invalid": "Oppgi full https://-URL til MCP-endepunktet."
+        },
+        "bearerToken": {
+          "label": "Bearer-token",
+          "hint": "Et token du oppretter i ditt eget system; Munin sender det med hvert kall. Legges inn her, aldri i chatten.",
+          "invalid": "Lim inn hele tokenet (minst 10 tegn)."
+        },
+        "allowedTools": {
+          "label": "Verktøy kundene får bruke",
+          "hint": "Kommaseparerte verktøynavn. Lar du feltet stå tomt, forblir serveren tilkoblet, men taus — ingenting når en kundesamtale før du fører opp verktøy her. Kjør Test for å se hva serveren tilbyr.",
+          "placeholder": "list_subscriptions, get_subscription",
+          "invalid": "Bruk kommaseparerte verktøynavn, f.eks. list_subscriptions, get_subscription."
+        }
       }
+    },
+    "tools": {
+      "title": "Verktøy kundene får bruke — {name}",
+      "intro": "Dette er verktøyene serveren tilbyr. Avkryssede verktøy tilbys agenten mens den svarer kundene dine på chat, e-post og SMS; resten forblir utilgjengelig.",
+      "loading": "Spør serveren hva den tilbyr …",
+      "empty": "Denne serveren tilbyr ingen verktøy.",
+      "notReadOnly": "ikke skrivebeskyttet",
+      "save": "Lagre utvalg",
+      "saved": "{count} verktøy eksponert for kundene."
     }
   },
   "credentialEntry": {

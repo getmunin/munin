@@ -111,7 +111,7 @@ export function SettingsCard({
         {menu ? <div className="ml-auto flex-none">{menu}</div> : null}
       </div>
       <div className="mt-1 flex flex-col items-start gap-1">
-        <span className="max-w-full truncate font-serif text-[17px] leading-tight tracking-tight text-ink dark:text-foreground">
+        <span className="max-w-full truncate text-sm font-medium text-ink dark:text-foreground">
           {name}
           {qualifier ? (
             <span className="font-mono text-[13px] tracking-tight text-ink-mute"> · {qualifier}</span>

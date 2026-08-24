@@ -38,3 +38,14 @@ export function GastroplannerMark(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function CustomMcpMark(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden {...props}>
+      <path d="M9 7V3.5" />
+      <path d="M15 7V3.5" />
+      <path d="M6.5 7h11v4a5.5 5.5 0 0 1-11 0V7Z" />
+      <path d="M12 16.5V19a2.5 2.5 0 0 1-2.5 2.5H8" />
+    </svg>
+  );
+}

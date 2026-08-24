@@ -2,10 +2,15 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 import type { McpTool, McpToolHandle, McpToolResult } from './types.ts';
 import { stripTrailingSlashes } from '@getmunin/types';
 
+export type HttpMcpFetch = (url: string | URL, init?: RequestInit) => Promise<Response>;
+
 export interface OpenHttpMcpClientOptions {
-  baseUrl: string;
+  baseUrl?: string;
+  url?: string;
   bearerToken: string;
   clientName?: string;
+  headers?: Record<string, string>;
+  fetchImpl?: HttpMcpFetch;
 }
 
 export interface OpenedHttpMcpClient extends McpToolHandle {
@@ -13,11 +18,15 @@ export interface OpenedHttpMcpClient extends McpToolHandle {
 }
 
 export async function openHttpMcpClient(opts: OpenHttpMcpClientOptions): Promise<OpenedHttpMcpClient> {
-  const url = new URL(`${stripTrailingSlashes(opts.baseUrl)}/mcp`);
+  const endpoint = opts.url ?? (opts.baseUrl ? `${stripTrailingSlashes(opts.baseUrl)}/mcp` : null);
+  if (!endpoint) throw new Error('openHttpMcpClient requires url or baseUrl');
+  const url = new URL(endpoint);
   const transport = new StreamableHTTPClientTransport(url, {
+    ...(opts.fetchImpl ? { fetch: opts.fetchImpl } : {}),
     requestInit: {
       headers: {
         authorization: `Bearer ${opts.bearerToken}`,
+        ...(opts.headers ?? {}),
       },
     },
   });

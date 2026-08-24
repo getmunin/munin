@@ -1024,7 +1024,39 @@ describe('createConversationHandler', () => {
 
     expect(mintSpy).not.toHaveBeenCalled();
     expect(openMcpSpy).toHaveBeenCalledTimes(3);
-    expect(openMcpSpy.mock.calls[0]?.[0]).toEqual({ endUserId: 'eu_1' });
+    expect(openMcpSpy.mock.calls[0]?.[0]).toEqual({ endUserId: 'eu_1', channelType: null });
+  });
+
+  it('passes the conversation channel to openMcp so identity provenance reflects how the turn arrived', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(buildConversation({ channelType: 'email', endUserId: 'eu_1' })),
+      ),
+    });
+    const stubProvider: Provider = () =>
+      Promise.resolve({
+        message: { role: 'assistant', content: 'hi' },
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        finishReason: 'stop',
+      });
+    const openMcpSpy = vi.fn(
+      (_opts: { endUserId: string; channelType?: string | null }) => Promise.resolve(buildMcp()),
+    );
+
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: openMcpSpy,
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: stubProvider,
+    });
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    expect(openMcpSpy.mock.calls[0]?.[0]).toEqual({ endUserId: 'eu_1', channelType: 'email' });
   });
 
   it('aborts the in-flight debounce when a new triggering event arrives for the same conversation', async () => {

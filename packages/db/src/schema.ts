@@ -2288,6 +2288,22 @@ export const credentialRequests = pgTable(
   }),
 );
 
+export const connectorSigningKeys = pgTable(
+  'connector_signing_keys',
+  {
+    id: id('csk'),
+    orgId: text('org_id')
+      .notNull()
+      .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
+    publicJwk: jsonb('public_jwk').$type<Record<string, unknown>>().notNull(),
+    privateKeyPem: text('private_key_pem').notNull(),
+    createdAt,
+  },
+  (t) => ({
+    orgUq: uniqueIndex('connector_signing_keys_org_uq').on(t.orgId),
+  }),
+);
+
 // All the tables exported as a single namespace for convenience:
 export const allTables = {
   orgs,
@@ -2358,6 +2374,7 @@ export const allTables = {
   slackUserLinks,
   slackDeliveries,
   connectorConnections,
+  connectorSigningKeys,
 };
 
 export type AllTables = typeof allTables;

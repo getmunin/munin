@@ -10,6 +10,28 @@ import { useTranslateError } from '../../i18n/translate-error';
 import { VendorIcon, vendorPresentation } from './vendor-catalog';
 import { VendorFieldRow, type VendorField } from './vendor-field-row';
 
+export interface CreatedConnection {
+  id: string;
+  name: string;
+  domain: string;
+  credentialState: 'active' | 'pending';
+  settings?: Record<string, unknown>;
+}
+
+function initialValues(
+  configFields: VendorField[],
+  settings: Record<string, unknown> | undefined,
+): Record<string, string> {
+  if (!settings) return {};
+  const out: Record<string, string> = {};
+  for (const field of configFields) {
+    if (field.secret) continue;
+    const value = settings[field.key];
+    if (typeof value === 'string') out[field.key] = value;
+  }
+  return out;
+}
+
 export interface ConnectVendor {
   vendor: string;
   domain: string;
@@ -17,39 +39,58 @@ export interface ConnectVendor {
   configFields: VendorField[];
 }
 
+export interface EditableConnection {
+  id: string;
+  name: string;
+  settings?: Record<string, unknown>;
+}
+
 export function ConnectConnectorDialog({
   vendor,
+  existing,
   onClose,
   onDone,
 }: {
   vendor: ConnectVendor;
+  existing?: EditableConnection;
   onClose: () => void;
-  onDone: () => Promise<void>;
+  onDone: (created: CreatedConnection) => Promise<void>;
 }) {
   const t = useTranslations('integrations.connectors');
   const tc = useTranslations('integrations.catalog');
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
   const present = vendorPresentation(vendor.vendor, vendor.domain);
-  const [name, setName] = useState('');
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [name, setName] = useState(existing?.name ?? '');
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    initialValues(vendor.configFields, existing?.settings),
+  );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
-  const missingRequired = vendor.configFields.some((f) => f.required && !values[f.key]);
+  const fields = vendor.configFields.filter((f) => !f.postConnect);
+  const isEdit = existing !== undefined;
+  const missingRequired = fields.some(
+    (f) => f.required && !values[f.key] && !(isEdit && f.secret),
+  );
 
   async function submit() {
     setBusy(true);
     try {
       const config: Record<string, string> = {};
-      for (const f of vendor.configFields) if (values[f.key]) config[f.key] = values[f.key]!;
-      await api('/v1/connectors', {
-        method: 'POST',
-        body: JSON.stringify({ vendor: vendor.vendor, name, config }),
-      });
+      for (const f of fields) if (values[f.key]) config[f.key] = values[f.key]!;
+      const saved = existing
+        ? await api<CreatedConnection>(`/v1/connectors/${existing.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ name, config }),
+          })
+        : await api<CreatedConnection>('/v1/connectors', {
+            method: 'POST',
+            body: JSON.stringify({ vendor: vendor.vendor, name, config }),
+          });
       setFieldErrors({});
-      notify.success(t('created'));
-      await onDone();
+      notify.success(existing ? t('updated') : t('created'));
+      await onDone(saved);
     } catch (err) {
       if (err instanceof ApiError && err.fieldErrors.length > 0) {
         const next: Record<string, string> = {};
@@ -70,7 +111,9 @@ export function ConnectConnectorDialog({
           <VendorIcon vendor={vendor.vendor} label={vendor.displayName} size={56} markSize={28} />
           <div className="flex flex-1 flex-col gap-1">
             <h2 className="font-serif text-2xl leading-none text-ink dark:text-foreground">
-              {t('connectVendor', { vendor: vendor.displayName })}
+              {isEdit
+                ? t('editVendor', { vendor: vendor.displayName })
+                : t('connectVendor', { vendor: vendor.displayName })}
             </h2>
             <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
               {tc(`category.${present.categoryKey}`)}
@@ -100,11 +143,12 @@ export function ConnectConnectorDialog({
               <Label className={dialogLabelClass}>{t('name')}</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('namePlaceholder')} />
             </div>
-            {vendor.configFields.map((f) => (
+            {fields.map((f) => (
               <VendorFieldRow
                 key={f.key}
                 vendor={vendor.vendor}
                 field={f}
+                keepHint={isEdit && f.secret ? t('keepSecret') : undefined}
                 value={values[f.key] ?? ''}
                 onChange={(val) => {
                   setValues((v) => ({ ...v, [f.key]: val }));
@@ -125,7 +169,7 @@ export function ConnectConnectorDialog({
             {tCommon('cancel')}
           </Button>
           <Button type="button" onClick={() => void submit()} disabled={busy || !name || missingRequired}>
-            {t('create')}
+            {isEdit ? t('saveChanges') : t('create')}
           </Button>
         </div>
       </DialogContent>

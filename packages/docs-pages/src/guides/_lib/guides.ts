@@ -1,6 +1,6 @@
 export interface GuideMeta {
   slug: string;
-  category: 'clients' | 'embeds' | 'concepts' | 'operations' | 'recipes';
+  category: 'clients' | 'embeds' | 'integrations' | 'concepts' | 'operations' | 'recipes';
   title: string;
   kicker: string;
   minutes: number;
@@ -16,6 +16,11 @@ export const GUIDE_GROUPS: Array<{
 }> = [
   { id: 'clients', label: 'Clients', blurb: 'Wire your favourite model to Munin over MCP.' },
   { id: 'embeds', label: 'Embeds', blurb: 'Drop-in surfaces you put on customer pages.' },
+  {
+    id: 'integrations',
+    label: 'Integrations',
+    blurb: 'Let the agent answer from the systems your business already runs on.',
+  },
   { id: 'concepts', label: 'Concepts', blurb: 'The mental model. Read these before you wire anything up.' },
   { id: 'operations', label: 'Operations', blurb: 'Running Munin in production — observability, compliance, edges.' },
   { id: 'recipes', label: 'Recipes', blurb: 'Ready-to-paste agent prompts that take Munin from inbox to outcome.' },
@@ -77,6 +82,16 @@ export const GUIDES: GuideMeta[] = [
     updated: 'today',
     featured: true,
     tags: ['embed', 'javascript', 'frontend'],
+  },
+  {
+    slug: 'connect-your-own-system',
+    category: 'integrations',
+    title: 'Connect your own system',
+    kicker:
+      'Answer from a proprietary CRM or subscription database by pointing the agent at an MCP server you host — live reads, nothing stored, and nothing exposed until you say so.',
+    minutes: 6,
+    updated: 'today',
+    tags: ['mcp', 'connectors', 'integrations'],
   },
   {
     slug: 'audiences-and-tokens',

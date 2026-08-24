@@ -4,6 +4,7 @@ import { cn } from '../cn';
 
 interface SectionHeadProps extends Omit<React.ComponentProps<'div'>, 'title'> {
   title: React.ReactNode;
+  subtitle?: React.ReactNode;
   meta?: React.ReactNode;
   actions?: React.ReactNode;
   divider?: boolean;
@@ -11,6 +12,7 @@ interface SectionHeadProps extends Omit<React.ComponentProps<'div'>, 'title'> {
 
 function SectionHead({
   title,
+  subtitle,
   meta,
   actions,
   divider = true,
@@ -31,6 +33,7 @@ function SectionHead({
         <h2 className="font-serif text-xl md:text-2xl leading-tight font-normal tracking-tight text-ink dark:text-foreground [&_em]:italic [&_em]:text-cobalt dark:[&_em]:text-cobalt-soft">
           {title}
         </h2>
+        {subtitle ? <p className="text-[13px] text-ink-mute">{subtitle}</p> : null}
         {meta ? (
           <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
             {meta}

@@ -8,6 +8,7 @@ export { default as GuideConnectChatGpt } from './guides/connect-chatgpt/page';
 export { default as GuideConnectGemini } from './guides/connect-gemini/page';
 export { default as GuideConnectHermes } from './guides/connect-hermes/page';
 export { default as GuideConnectOpenClaw } from './guides/connect-openclaw/page';
+export { default as GuideConnectYourOwnSystem } from './guides/connect-your-own-system/page';
 export { default as GuideSkillsVsToolsVsRest } from './guides/skills-vs-tools-vs-rest/page';
 export { default as GuideRecipeLeadResearch } from './guides/recipe-lead-research/page';
 export { default as GuideRecipeLeadScoring } from './guides/recipe-lead-scoring/page';

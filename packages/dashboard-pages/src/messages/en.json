@@ -1407,7 +1407,13 @@
       "readOnly": "Read-only",
       "whatAgentsGet": "What agents get",
       "liveData": "Live against the vendor — nothing is stored in Munin.",
-      "connectedCount": "{count} connected"
+      "connectedCount": "{count} connected",
+      "chooseTools": "Choose tools",
+      "statusNoTools": "No tools exposed",
+      "editVendor": "Edit {vendor}",
+      "saveChanges": "Save changes",
+      "updated": "Connection updated.",
+      "keepSecret": "Leave blank to keep the current value."
     },
     "slack": {
       "title": "Slack",
@@ -1437,14 +1443,16 @@
         "chatBridge": "Chat · Bridge",
         "commerce": "Commerce",
         "booking": "Booking",
-        "connection": "Connection"
+        "connection": "Connection",
+        "customTools": "Customer self-service"
       },
       "description": {
         "slack": "Triage the inbox and reply without leaving your workspace.",
         "shopify": "Orders, customers, and fulfillment — read on behalf of a customer.",
         "magento": "Read orders and customers from your Magento store.",
         "gastroplanner": "Check availability, book tables, and manage restaurant bookings.",
-        "generic": "Read directly on behalf of a customer."
+        "generic": "Read directly on behalf of a customer.",
+        "customMcp": "Your own system, answering your customers live. You choose exactly which tools they may reach."
       },
       "capability": {
         "slackMirror": "Mirror conversations into Slack threads.",
@@ -1453,7 +1461,9 @@
         "customersLookup": "Match a conversation to a store customer.",
         "bookingsLookup": "Find a guest's bookings and details.",
         "bookingsAvailability": "Check availability and book a table.",
-        "bookingsManage": "Change or cancel a guest's booking."
+        "bookingsManage": "Change or cancel a guest's booking.",
+        "customTools": "Answer from your own system of record, live.",
+        "customIdentity": "Exposes nothing until you pick the tools customers may use."
       }
     },
     "field": {
@@ -1506,7 +1516,35 @@
           "placeholder": "https://api.gastroplanner.eu",
           "invalid": "Enter a full https:// URL, or leave the field empty for the default."
         }
+      },
+      "custom-mcp": {
+        "url": {
+          "label": "MCP endpoint URL",
+          "hint": "The full https URL of your MCP server's streamable HTTP endpoint.",
+          "placeholder": "https://api.example.com/mcp",
+          "invalid": "Enter the full https:// URL of the MCP endpoint."
+        },
+        "bearerToken": {
+          "label": "Bearer token",
+          "hint": "A token you mint in your own system; Munin sends it on every call. Entered here, never in chat.",
+          "invalid": "Paste the full token (at least 10 characters)."
+        },
+        "allowedTools": {
+          "label": "Tools customers may use",
+          "hint": "Comma-separated tool names. Leave empty and this server stays connected but silent — nothing reaches a customer conversation until you list tools here. Run Test to see what the server offers.",
+          "placeholder": "list_subscriptions, get_subscription",
+          "invalid": "Use comma-separated tool names, e.g. list_subscriptions, get_subscription."
+        }
       }
+    },
+    "tools": {
+      "title": "Tools customers may use — {name}",
+      "intro": "These are the tools the server offers. Ticked tools are offered to the agent while it answers your customers on chat, email and SMS; everything else stays unreachable.",
+      "loading": "Asking the server what it offers…",
+      "empty": "This server offers no tools.",
+      "notReadOnly": "not read-only",
+      "save": "Save selection",
+      "saved": "{count} tool(s) exposed to customers."
     }
   },
   "credentialEntry": {

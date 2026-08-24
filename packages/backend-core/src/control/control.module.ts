@@ -40,6 +40,7 @@ import { OutreachModule } from '../modules/outreach/outreach.module.ts';
 import { WebhooksModule } from '../modules/webhooks/webhooks.module.ts';
 import { PublicSkillsController } from './public-skills.controller.ts';
 import { PublicMcpToolsController } from './public-mcp-tools.controller.ts';
+import { ConnectorJwksController } from './connector-jwks.controller.ts';
 import { InvitationsController } from './invitations.controller.ts';
 import { AcceptInvitationController } from './accept-invitation.controller.ts';
 import { InvitationsService } from './invitations.service.ts';
@@ -94,6 +95,7 @@ import { ConnectorsModule } from '../modules/connectors/connectors.module.ts';
     MembershipsController,
     PublicSkillsController,
     PublicMcpToolsController,
+    ConnectorJwksController,
     ConvChannelsController,
     ConversationsController,
     ActivityController,

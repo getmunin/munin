@@ -31,3 +31,22 @@ CREATE POLICY tenant_isolation ON credential_requests
     app_bypass_rls()
     OR (org_id = app_org_id() AND app_end_user_id() = '')
   );
+
+-- Signing keys: one ES256 keypair per org for outbound custom-MCP identity
+-- assertions. Rows are minted lazily by the service layer under bypass_rls
+-- (the agent runner holds a service-role connection, not a request context),
+-- and the public JWKS endpoint also reads under bypass_rls — it must serve
+-- the public key without authentication so customer MCP servers can verify
+-- assertion signatures. In-request reads stay org-scoped; the WITH CHECK
+-- clause rejects any actor carrying an end-user identity so a self-service
+-- session can never rotate or plant a key. The private key is
+-- pgcrypto-encrypted PKCS8; only the service layer ever decrypts it.
+ALTER TABLE connector_signing_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE connector_signing_keys FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON connector_signing_keys;
+CREATE POLICY tenant_isolation ON connector_signing_keys
+  USING (app_bypass_rls() OR org_id = app_org_id())
+  WITH CHECK (
+    app_bypass_rls()
+    OR (org_id = app_org_id() AND app_end_user_id() = '')
+  );

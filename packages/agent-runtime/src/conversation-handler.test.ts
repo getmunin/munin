@@ -852,10 +852,12 @@ describe('createConversationHandler', () => {
     expect(args.publicFallbackMessage).toMatch(/teammate will follow up/);
   });
 
-  it('clears the handover draft when suggestedReply just repeats the public reply', async () => {
+  it('sends the public reply after a handover and leaves the draft to the send path, however similar', async () => {
     const deferral = 'A teammate will review your issue and get back to you shortly.';
     const rest = buildRest();
+    const postSpy = vi.fn(() => Promise.resolve());
     const clearSpy = vi.fn((_conversationId: string) => Promise.resolve());
+    rest.postAgentMessage = postSpy;
     rest.clearDraftReply = clearSpy;
     const handler = createConversationHandler({
       config: { ...baseConfig, auditEnabled: false },
@@ -873,33 +875,13 @@ describe('createConversationHandler', () => {
     handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
     await handler.flush();
 
-    expect(clearSpy).toHaveBeenCalledTimes(1);
-    expect(clearSpy.mock.calls[0]?.[0]).toBe('conv_1');
-  });
-
-  it('keeps the handover draft when suggestedReply is a real answer distinct from the public reply', async () => {
-    const rest = buildRest();
-    const clearSpy = vi.fn(() => Promise.resolve());
-    rest.clearDraftReply = clearSpy;
-    const handler = createConversationHandler({
-      config: { ...baseConfig, auditEnabled: false },
-      rest,
-      prompts: buildPrompts(),
-      openMcp: () => Promise.resolve(buildMcp()),
-      logger: silentLogger,
-      scheduler: noDelayScheduler,
-      provider: sequenceProvider([
-        handoverToolResponse({
-          reason: 'needs a human to confirm',
-          suggestedReply: 'We open at 10am on weekdays and stay open until 6pm.',
-        }),
-        assistantStop('A teammate will review your issue and get back to you shortly.'),
-      ]),
-    });
-
-    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
-    await handler.flush();
-
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    const [, , options] = postSpy.mock.calls[0] as unknown as [
+      string,
+      string,
+      { preserveAttention?: boolean },
+    ];
+    expect(options.preserveAttention).toBe(true);
     expect(clearSpy).not.toHaveBeenCalled();
   });
 

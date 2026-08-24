@@ -64,7 +64,7 @@ export interface ActivityDto {
   createdAt: string;
 }
 
-export type ConvDrawer = { id: string; mode: 'simplified' | 'full'; title?: string } | null;
+export type ConvDrawer = { id: string; title?: string } | null;
 
 export type LiveSummary = ConversationSummary & {
   latestEndUserMessage: { body: string; createdAt: string } | null;
@@ -112,8 +112,6 @@ export interface InboxController {
   setCancelTarget: (next: ScheduledItem | null) => void;
   reply: string;
   setReply: (next: string) => void;
-  draftEdit: string | null;
-  setDraftEdit: (next: string | null) => void;
   kbBodies: Record<string, string>;
   kbRevisedBodies: Record<string, string>;
   cmsDetails: Record<string, CmsDraftDetailDto>;
@@ -124,13 +122,13 @@ export interface InboxController {
   actionError: ConvActionError;
   clearActionError: () => void;
   connectionStatus: RealtimeStatus;
-  takeOver: (id: string, openFullAfter?: boolean) => Promise<void>;
+  takeOver: (id: string, openDrawerAfter?: boolean) => Promise<void>;
   release: (id: string) => Promise<void>;
   closeConv: (id: string) => Promise<void>;
   send: (
     id: string,
     body: string,
-    options?: { claim?: boolean; closeDrawer?: boolean; fromDraftId?: string },
+    options?: { claim?: boolean; fromDraftId?: string },
   ) => Promise<void>;
   approveQueue: (item: QueueItem, sendAt?: string | null) => Promise<void>;
   scheduled: ScheduledItem[];

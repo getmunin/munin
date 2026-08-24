@@ -345,6 +345,64 @@ const skipReason = TEST_URL
     expect(hasDraft(after.body)).toBe(false);
   }, 30_000);
 
+  it('a public reply supersedes the pending draft so the dashboard cannot send it a second time', async () => {
+    const startResp = await rest<{ id: string }>(
+      endUserToken,
+      'POST',
+      '/v1/end-users/me/conversations',
+      { body: 'My new address is still missing from my account.' },
+    );
+    expect(startResp.status).toBe(201);
+    const started = startResp.body;
+
+    await withClient(adminKeyA, async (c) => {
+      await c.callTool({
+        name: 'conv_request_handover',
+        arguments: {
+          conversationId: started.id,
+          reason: 'needs a human to check the registry',
+          suggestedReply: 'It can take up to 14 days before a new address shows up.',
+        },
+      });
+    });
+
+    type Detail = {
+      needsHumanAttention: boolean;
+      messages: Array<{
+        id: string;
+        internal?: boolean;
+        metadata?: Record<string, unknown> | null;
+      }>;
+    };
+    const draftKinds = (d: Detail): unknown[] =>
+      d.messages
+        .filter((m) => m.internal && typeof m.metadata?.['kind'] === 'string')
+        .map((m) => m.metadata!['kind'])
+        .filter((kind) => String(kind).startsWith('draft_reply'));
+
+    const before = await rest<Detail>(adminKeyA, 'GET', `/v1/conversations/${started.id}`);
+    expect(draftKinds(before.body)).toEqual(['draft_reply']);
+
+    const agentReply = await rest<{ id: string }>(
+      adminKeyA,
+      'POST',
+      `/v1/conversations/${started.id}/messages`,
+      {
+        body: 'It can take up to 14 days before a new address is registered — we are checking it.',
+        preserveAttention: true,
+      },
+    );
+    expect(agentReply.status).toBe(201);
+
+    const after = await rest<Detail>(adminKeyA, 'GET', `/v1/conversations/${started.id}`);
+    expect(draftKinds(after.body)).toEqual(['draft_reply_superseded']);
+    const superseded = after.body.messages.find(
+      (m) => m.metadata?.['kind'] === 'draft_reply_superseded',
+    );
+    expect(superseded?.metadata?.['supersededByMessageId']).toBe(agentReply.body.id);
+    expect(after.body.needsHumanAttention).toBe(true);
+  }, 30_000);
+
   it('tenancy isolation: orgB cannot see orgA conversations or activity', async () => {
     const list = await rest<{ items: Array<{ id: string }> }>(
       adminKeyB,

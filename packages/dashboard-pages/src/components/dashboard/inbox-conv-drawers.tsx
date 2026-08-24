@@ -1,14 +1,14 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Unplug, User } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Button, Pill } from '@getmunin/ui';
 import { useRelative } from '../../lib/use-relative';
-import { DrawerFooter, DrawerHeader, Markdown, useCmdEnter } from './queue-drawers/shared';
+import { DrawerHeader, useCmdEnter } from './queue-drawers/shared';
 import { ActivityRail } from './inbox-activity-rail';
 import { MessageBubble } from './inbox-message-bubble';
-import type { ConvActionError, ConversationDetail } from './inbox-types';
+import type { ConvActionError, ConversationDetail, MessageDto } from './inbox-types';
 
 export function InlineActionError({
   error,
@@ -53,6 +53,14 @@ function actionErrorReason(
   return error.code === 'NETWORK_ERROR' ? t('actionFailedReasonConnection') : error.message;
 }
 
+const DRAFT_KINDS = ['draft_reply', 'draft_reply_sent', 'draft_reply_superseded'] as const;
+
+function draftKind(message: MessageDto): (typeof DRAFT_KINDS)[number] | null {
+  if (!message.internal || message.authorType !== 'agent') return null;
+  const kind = message.metadata?.['kind'];
+  return DRAFT_KINDS.find((k) => k === kind) ?? null;
+}
+
 function retryHandler(
   err: NonNullable<ConvActionError>,
   onSend: () => void,
@@ -67,153 +75,7 @@ function retryHandler(
   return null;
 }
 
-export function SimplifiedConvDrawer({
-  detail,
-  pending,
-  draftEdit,
-  setDraftEdit,
-  actionError,
-  onSendDraft,
-  onTakeOver,
-  onClose,
-}: {
-  detail: ConversationDetail;
-  pending: boolean;
-  draftEdit: string | null;
-  setDraftEdit: (v: string | null) => void;
-  actionError: ConvActionError;
-  onSendDraft: (body: string, fromDraftId?: string) => void;
-  onTakeOver: () => void;
-  onClose: () => void;
-}) {
-  const t = useTranslations('dashboard.overview.drawer');
-  const age = useRelative();
-  const flaggedAtMs = detail.needsHumanAttentionAt
-    ? Date.parse(detail.needsHumanAttentionAt)
-    : null;
-  const customer = detail.messages
-    .slice()
-    .reverse()
-    .find((m) => {
-      if (m.authorType !== 'end_user' || m.internal) return false;
-      if (flaggedAtMs == null) return true;
-      return Date.parse(m.createdAt) <= flaggedAtMs;
-    });
-  const draft = detail.messages
-    .slice()
-    .reverse()
-    .find(
-      (m) =>
-        m.authorType === 'agent' &&
-        m.internal &&
-        m.metadata?.['kind'] === 'draft_reply',
-    );
-
-  const draftBody = draftEdit ?? draft?.body ?? '';
-  const isEditing = draftEdit !== null || !draft;
-  const waiting = detail.needsHumanAttentionAt ? age(detail.needsHumanAttentionAt) : '';
-  const who =
-    detail.contactEmail ??
-    detail.contactName ??
-    detail.endUserId ??
-    t('conversationFallback', { id: detail.displayId });
-
-  useCmdEnter(() => {
-    if (draftBody.trim() && !pending) onSendDraft(draftBody, draft?.id);
-  });
-
-  return (
-    <>
-      <DrawerHeader
-        pillTone="live"
-        pillLabel={t('pillConversation')}
-        title={detail.subject ?? t('conversationFallback', { id: detail.displayId })}
-        meta={t('metaConv', { who, age: waiting })}
-        onClose={onClose}
-        closeLabel={t('close')}
-      />
-
-      <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
-        {customer && (
-          <section className="space-y-2">
-            <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-              {t('customer')}
-            </p>
-            <p className="border-l-2 border-cobalt pl-3 font-serif italic text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft">
-              &ldquo;{customer.body}&rdquo;
-            </p>
-          </section>
-        )}
-
-        <section className="space-y-2">
-          <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-            {t('agentDraft')}
-          </p>
-          {isEditing ? (
-            <textarea
-              value={draftBody}
-              onChange={(e) => setDraftEdit(e.target.value)}
-              rows={8}
-              className="w-full rounded-input border-[1px] border-ink bg-paper px-4 py-3 text-base md:text-sm leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark dark:text-foreground"
-              autoFocus
-            />
-          ) : (
-            <div className="border-[1px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:bg-card dark:border-rule-on-dark dark:text-foreground">
-              <Markdown>{draft?.body ?? ''}</Markdown>
-            </div>
-          )}
-        </section>
-      </div>
-
-      <div
-        className={
-          actionError
-            ? 'border-t-[1px] border-cobalt dark:border-cobalt-soft'
-            : undefined
-        }
-      >
-        {actionError && (
-          <div
-            className="flex items-center gap-3 border-b-[1px] border-rule-soft bg-[oklch(0.98_0.025_25)] px-[26px] py-3 text-[13px] font-medium text-cobalt dark:border-rule-on-dark dark:bg-cobalt-soft/10 dark:text-cobalt-soft"
-            role="alert"
-          >
-            <span
-              className="size-1.5 rounded-full bg-cobalt animate-pulse dark:bg-cobalt-soft"
-              aria-hidden
-            />
-            <span className="flex-1">
-              {t(`actionFailedShort.${actionError.type}`)} ·{' '}
-              {actionErrorReason(actionError, t)}
-            </span>
-          </div>
-        )}
-
-        <DrawerFooter
-          bordered={!actionError}
-          primary={{
-            label: actionError?.type === 'send' ? t('retryAction.send') : t('sendDraft'),
-            onClick: () => onSendDraft(draftBody, draft?.id),
-            disabled: pending || !draftBody.trim(),
-          }}
-          secondary={[
-            draft
-              ? isEditing
-                ? { label: t('cancel'), onClick: () => setDraftEdit(null) }
-                : {
-                    label: t('edit'),
-                    onClick: () => setDraftEdit(draft.body),
-                  }
-              : null,
-            { label: t('takeOver'), onClick: onTakeOver, disabled: pending },
-          ].filter((a): a is { label: string; onClick: () => void } => a !== null)}
-          shortcut={t('shortcutSend')}
-        />
-      </div>
-    </>
-  );
-}
-
-export function FullConvDrawer({
+export function ConversationDrawer({
   detail,
   reply,
   setReply,
@@ -231,7 +93,7 @@ export function FullConvDrawer({
   setReply: (v: string) => void;
   pending: boolean;
   actionError: ConvActionError;
-  onSend: () => void;
+  onSend: (body: string, fromDraftId?: string) => void;
   onTakeOver: () => void;
   onRelease: () => void;
   onCloseConv: () => void;
@@ -239,20 +101,48 @@ export function FullConvDrawer({
   onClearActionError: () => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
+  const age = useRelative();
   const claimed = detail.claim !== null;
   const endUserLabel =
     detail.contactEmail ?? detail.contactName ?? detail.endUserId ?? t('endUserFallback');
 
+  const draft = detail.messages
+    .slice()
+    .reverse()
+    .find((m) => draftKind(m) === 'draft_reply');
+  const [suggestionId, setSuggestionId] = useState<string | null>(null);
+  const seededDraftId = useRef<string | null>(null);
+
+  useEffect(() => {
+    seededDraftId.current = null;
+    setSuggestionId(null);
+    setReply('');
+  }, [detail.id, setReply]);
+
+  useEffect(() => {
+    if (!draft || seededDraftId.current === draft.id) return;
+    seededDraftId.current = draft.id;
+    setSuggestionId(draft.id);
+    setReply(draft.body);
+  }, [draft, setReply]);
+
+  useEffect(() => {
+    if (suggestionId && draft?.id !== suggestionId) setSuggestionId(null);
+  }, [draft, suggestionId]);
+
+  const thread = detail.messages.filter((m) => draftKind(m) === null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
-  const lastMessageId = detail.messages[detail.messages.length - 1]?.id;
+  const lastMessageId = thread[thread.length - 1]?.id;
   useEffect(() => {
     const el = messagesRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [detail.id, lastMessageId, detail.messages.length]);
+  }, [detail.id, lastMessageId, thread.length]);
+
+  const submit = (): void => onSend(reply, suggestionId ?? undefined);
 
   useCmdEnter(() => {
-    if (reply.trim() && !pending) onSend();
+    if (reply.trim() && !pending) submit();
   });
 
   return (
@@ -261,11 +151,15 @@ export function FullConvDrawer({
         pillTone={detail.needsHumanAttention ? 'live' : detail.status === 'open' ? 'ink' : 'draft'}
         pillLabel={detail.needsHumanAttention ? t('pillLive') : detail.status}
         title={detail.subject ?? t('conversationFallback', { id: detail.displayId })}
-        meta={t('metaConvFull', { who: endUserLabel, status: detail.status })}
+        meta={
+          detail.needsHumanAttention && detail.needsHumanAttentionAt
+            ? t('metaConv', { who: endUserLabel, age: age(detail.needsHumanAttentionAt) })
+            : t('metaConvFull', { who: endUserLabel, status: detail.status })
+        }
         rightExtra={
           claimed ? (
             <Pill tone="review" className="before:hidden">
-              <User className="size-3" /> {t('pillTakenOver')}
+              <User className="size-[9px]" /> {t('pillTakenOver')}
             </Pill>
           ) : null
         }
@@ -274,7 +168,7 @@ export function FullConvDrawer({
       />
 
       <div ref={messagesRef} className="flex-1 space-y-3 overflow-y-auto px-6 py-5">
-        {detail.messages.map((m) => (
+        {thread.map((m) => (
           <MessageBubble key={m.id} message={m} />
         ))}
       </div>
@@ -301,11 +195,11 @@ export function FullConvDrawer({
               {t(`actionFailedShort.${actionError.type}`)} ·{' '}
               {actionErrorReason(actionError, t)}
             </span>
-            {retryHandler(actionError, onSend, onTakeOver, onRelease, onCloseConv) ? (
+            {retryHandler(actionError, submit, onTakeOver, onRelease, onCloseConv) ? (
               <button
                 type="button"
                 className="cursor-pointer text-[13px] font-medium text-cobalt underline underline-offset-[3px] hover:text-cobalt-deep dark:text-cobalt-soft"
-                onClick={retryHandler(actionError, onSend, onTakeOver, onRelease, onCloseConv)!}
+                onClick={retryHandler(actionError, submit, onTakeOver, onRelease, onCloseConv)!}
                 disabled={pending}
               >
                 {t(`retryAction.${actionError.type}`)} <span aria-hidden>↵</span>
@@ -314,13 +208,30 @@ export function FullConvDrawer({
           </div>
         )}
         <div className="p-4">
+          {suggestionId && (
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <span className="font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+                {t('suggestionLabel')}
+              </span>
+              <button
+                type="button"
+                className="cursor-pointer font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute underline underline-offset-[3px] hover:text-ink dark:hover:text-foreground"
+                onClick={() => {
+                  setSuggestionId(null);
+                  setReply('');
+                }}
+              >
+                {t('suggestionDiscard')}
+              </button>
+            </div>
+          )}
           <textarea
             value={reply}
             onChange={(e) => {
               setReply(e.target.value);
               if (actionError) onClearActionError();
             }}
-            rows={3}
+            rows={suggestionId ? 8 : 3}
             placeholder={t('replyPlaceholder')}
             className="w-full rounded-input border-[1px] border-rule-soft bg-paper px-3 py-2 text-base md:text-sm outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt dark:bg-card dark:border-rule-on-dark"
           />
@@ -328,7 +239,7 @@ export function FullConvDrawer({
             <Button
               size="sm"
               variant="accent"
-              onClick={onSend}
+              onClick={submit}
               disabled={pending || !reply.trim()}
               pending={pending}
             >

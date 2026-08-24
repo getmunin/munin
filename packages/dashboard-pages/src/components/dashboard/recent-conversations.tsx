@@ -82,7 +82,7 @@ export function RecentConversationsSection({
           <ConversationRow
             key={c.id}
             conv={c}
-            onOpen={(title) => controller.setConvDrawer({ id: c.id, mode: 'full', title })}
+            onOpen={(title) => controller.setConvDrawer({ id: c.id, title })}
           />
         ))}
       </ul>

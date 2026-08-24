@@ -1,5 +1,115 @@
 # @getmunin/dashboard-pages
 
+## 5.11.0
+
+### Minor Changes
+
+- 9d09f89: Show on each data-connection card who can actually reach it.
+
+  The Integrations page listed every connector in one undifferentiated section, so nothing told an operator that connecting Bing Webmaster Tools exposes no surface at all to the customer-facing chatbot, while connecting Gastroplanner lets customers cancel their own bookings. That is a material fact when you are about to hand a vendor credential over.
+
+  Audience is a property of the domain's tool surface, not of the vendor, so it is derived from `ConnectorDomain` in the backend (`audienceForDomain`) and carried on both the vendor and connection DTOs rather than recomputed in the dashboard. `commerce` and `bookings` ship admin tools and a self-service half, so they read "Customers + team". `seo` is admin-only — its five `seo_*` tools are `audiences: ['admin']`, `seo:read` is absent from both `CONNECTOR_DOMAIN_SCOPES` and `SELF_SERVICE_SCOPES` — so it reads "Team only". Custom MCP servers are proxied only into end-user agent sessions, so they read "Customers only".
+
+  No enforcement changes: the audience gate, the connector scope map and the delegated-token scope allow-list already decided this. The badge only makes the existing decision visible.
+
+- e055fa3: Teach the connector trunk to authorize by OAuth redirect, not just static credentials.
+
+  `ConnectorAdapter` modelled one kind of credential: something a human pastes into the `/connect/credentials` form once. That covers Shopify, Magento, Gastroplanner and Bing, and it cannot express a vendor that hands out a short-lived access token behind a redirect. Adapters now declare an optional `oauth` capability (`authorizeUrl` / `exchangeCode` / `refresh` / `revoke`) and the trunk drives the rest: `connectors_get_authorize_url` mints an HMAC-signed state, `/v1/connectors/oauth/callback` exchanges the code, and `ConnectorOAuthService` owns the tokens from there. Adapters without the capability are untouched.
+
+  **The redirect was the easy half.** A refresh is a write on a read path: it happens while a read tool is running, inside that request's tenant transaction, and the new refresh token has to survive even when the vendor call it enabled then fails. So refreshes run in their own root-db transaction under `SELECT … FOR UPDATE` on the connection row, re-reading the grant inside the lock so a parallel instance that already refreshed wins rather than both racing to burn the same token, with an in-process single-flight map collapsing concurrent callers in one process.
+
+  The same reasoning has a sharper edge that a test caught: marking a connection `expired` must happen in a **separate committed** transaction. Doing it inside the transaction that then throws rolls the marker back along with the error, so a dead grant would look healthy on the next call and re-fail forever. Refresh failure is now a two-phase operation — release the lock, commit the state change, then raise `connectors_expired` telling the operator to reconnect.
+
+  **Two things this changes for every connector.** `credentialState` grows from `active | pending` to `active | pending | expired | revoked`, and `config.oauth` becomes reserved for the trunk — adapters must not touch it. Since `buildStoredConfig` returns a whole new config, the trunk re-attaches the grant after calling it; `publicConfig` being an allow-list is what already keeps token ciphertext out of DTOs, and the `pending` branch of the connection DTO now strips the grant explicitly rather than dumping raw config.
+
+  An OAuth connection stays `pending` even once its client secret is stored, because a client secret alone can't call the vendor — so `applyCredentials` no longer runs a connection test it would certainly fail, and instead points at the authorize step. `connectors_delete_connection` revokes the grant at the vendor before deleting the row, and treats a vendor that has already dropped it as success, since the local tokens are gone either way.
+
+  Self-hosters can't use Munin's OAuth client, so client id and secret are per-connection config fields rather than deployment env vars.
+
+  Two smaller improvements fall out. `connectors_list_vendors` reports which vendors are `oauth`, so an agent can tell the two setup paths apart before creating anything. And `resolveScope` no longer claims "no active connection configured" when one exists but is unusable — it names the connection and its state, so "expired, reconnect it" stops reading like "you never set this up".
+
+- 2169915: Custom MCP connector: connect any proprietary system as a live tool source for the support agent.
+
+  Orgs can now point Munin at an MCP server they host themselves (`vendor: "custom-mcp"`, new `mcp` connector domain). While the in-house agent handles a conversation, the remote server's tools are composed alongside the built-in ones under an `ext_<connection>_` namespace, so the agent can answer from the org's own system of record — subscriptions, memberships, internal CRM data — without Munin persisting any of it.
+
+  The trust model externalizes the discipline the built-in self-service tools already follow: remote tools take no identity parameters. Munin sends a short-lived ES256-signed identity assertion (`X-Munin-Identity` JWT) on every call, verifiable against a new public per-org JWKS endpoint (`/v1/public/connectors/:orgId/jwks`, keys minted lazily into the new `connector_signing_keys` table).
+
+  The assertion deliberately carries no `verified` boolean. It reports `email_provenance` / `phone_provenance` — `authenticated` (identity-verified widget session or delegated token), `channel_asserted` (an email `From:`, SMS sender or caller ID, all spoofable), or `self_reported` (typed by an anonymous visitor) — and the receiving server decides what each level may disclose. Provenance is computed from the channel the current turn arrived on, not from the end-user record, so an identity that was authenticated once in the widget is still reported as `channel_asserted` when someone later emails claiming to be that person. Unknown channels fall back to `channel_asserted` rather than over-claiming.
+
+  Because the connected server is a _customer-facing_ tool source rather than a toolbox for admin agents, a connection exposes nothing by default: only tool names listed in the connection's `allowedTools` reach a conversation, a call to a withheld tool is refused even if the model guesses the name, and a server with an empty allow-list stays connected and silent. `connectors_test_connection` reports what the server offers versus what is actually exposed, warns about exposed tools the server has not marked read-only, and flags allow-listed names the server does not provide.
+
+  Remote listings are capped at 20 tools, descriptions are sanitized and truncated before reaching the model, results stay fenced as untrusted data, all outbound traffic goes through the SSRF-guarded fetch (new `safeFetchCompat` in `@getmunin/core`), and a down or slow server degrades to "agent runs without those tools" — never a failed conversation.
+
+  Setup follows the existing connector flow (credential link for the bearer token, `connectors_test_connection` probes the server and lists its tools), the dashboard Integrations page gets a Custom MCP card, and `skill://connectors/connect-custom-mcp-server` documents the server contract with a reference implementation to hand to the customer's developers.
+
+  `skill://connectors/connect-external-system` also gains the same caveat for the built-in commerce and bookings connectors, whose self-service tools have always trusted an inbound email `From:` header or SMS sender the same way: fine for order status, not sufficient on its own for anything whose disclosure to the wrong person causes real harm.
+
+  `SectionHead` in `@getmunin/ui` gains an optional `subtitle` slot, and the Integrations page's private copy of that component is deleted in favour of it — the copy had drifted to a smaller heading than every other settings page used.
+
+  The docs site gains an Integrations guide category and a "Connect your own system" guide covering the customer-facing warning, the allow-list flow and the provenance levels — the first guide-level documentation for connectors of any kind.
+
+- c8ed388: Add a search-console connector domain (`seo`) with Bing Webmaster Tools behind it.
+
+  Munin's analytics answer the post-click half of a traffic question — which pages got viewed, where visitors came from, what they searched for on the site and found nothing. A search console answers the pre-click half: what people typed, how often the site was shown, and where it ranked. The point of connecting one is that the same agent can then act on the gap, because Munin already owns the fix (`cms_update_entry`, `kb_create_document`) and now owns a write verb to ask for a recrawl. `skill://seo/improve-search-performance` walks that loop end to end.
+
+  Five admin-only tools on the new `seo:read` / `seo:write` scopes: `seo_list_properties`, `seo_list_queries`, `seo_list_pages`, `seo_inspect_url`, and `seo_submit_urls`. No self-service half — no end user asks about impressions or average position — and no DB work: `connector_connections.domain` is free-text `varchar(32)` and its RLS policy is domain-agnostic, so the new domain is a union widening, not a migration.
+
+  Three things this design commits to, all consequences of search-console data behaving unlike every connector already in the trunk:
+
+  **Reads stay live; nothing is cached.** Bing publishes no per-day ceiling on `GetQueryStats`-style reads (throttling exists and surfaces as `ErrorCode` 4, now mapped to a `502` naming the throttle rather than a bare `500`), so there is no quota argument for persisting vendor data. The real constraint is shape, not volume: `GetQueryStats` takes no date-range parameters and returns every week Bing holds on each call, so windowing and top-N truncation happen in the adapter. Trend-over-time would need history the vendor won't hand over retroactively, and that is a deliberate feature with its own table — not an optimization to smuggle in here.
+
+  **The window reported is the window covered.** Bing aggregates into whole weeks ending Friday and lags 2–3 days, so results are aggregated per query across the requested range — impressions and clicks summed, `avgPosition` weighted by impressions — and the response carries the range actually covered, `null` when nothing fell in range. Echoing back the requested `from`/`to` would have read as precision the data doesn't have.
+
+  **Cardinality is new.** A commerce connection is one store; a search-console connection is one account holding many verified properties. So every verb takes a `siteUrl`, resolved the way `connectionId` already is: omit it when unambiguous, and when several are verified the error names them. `seo_submit_urls` additionally refuses URLs outside the resolved property, and pre-checks the vendor's remaining daily and monthly quota so an over-budget batch is rejected whole rather than partially submitted — a client error, not a gateway error.
+
+  Adding `'seo'` to `ConnectorDomain` deliberately breaks the exhaustive domain map behind the voice self-service tool gate. That map now enumerates self-service domains only, so an operator-facing domain cannot reach an end-user surface by being forgotten; `seo:*` scopes are likewise absent from `SELF_SERVICE_SCOPES` and `CONNECTOR_DOMAIN_SCOPES`.
+
+  Google Search Console fits the same `SeoAdapter` contract but is not included: it is OAuth-only, and `ConnectorAdapter` models static credentials exclusively — no authorize redirect, no refresh rotation, no revocation. That belongs in the trunk as its own change, where the hard part is not the redirect but that a token refresh is a write on a read path inside the request's tenant transaction.
+
+- 9991922: Add Google Search Console to the `seo` domain, behind the same `seo_*` tools.
+
+  This is the payoff for drawing `SeoAdapter` before there was a second vendor: `GoogleSearchConsoleAdapter` implements the same contract, registers into the same domain, and every `seo_*` tool works against it with **no tool-layer change at all**. It authorizes through the connector trunk's OAuth capability, so there is no Google-specific auth code either — an org supplies its own OAuth client id and secret, then approves the Google account by redirect.
+
+  **Where the two engines genuinely differ, the interface admits it rather than faking it.**
+
+  `submitUrls` is optional on `SeoAdapter`, and Google doesn't implement it: Search Console has no URL-submission endpoint (its Indexing API covers only job postings and broadcast events). So `seo_submit_urls` refuses on a Google connection with a message naming the vendor, instead of silently no-op'ing or pretending to queue something. Field coverage differs the same way — Bing reports `httpStatus`, `discoveredAt` and `inboundAnchorCount`; Google reports `detail`, its coverage state, which is the single most useful string it has ("Submitted and indexed", "Crawled - currently not indexed"). `detail` is new on `SeoUrlStatus` and null for Bing. A null field means the engine doesn't expose it, not that the value is zero, and the skill and tool descriptions now say so.
+
+  **Both engines aggregate identically despite reporting differently.** Google honours an exact date range where Bing returns whole weeks, but the adapter still requests `['date', <dimension>]` and folds rows the same way — impressions and clicks summed per key, `avgPosition` weighted by impressions, `ctr` recomputed after aggregation rather than averaged from per-row values. That keeps the returned `window` honestly derived from the rows present in both adapters, so an agent reading one result cannot tell which engine produced it except by the fields that are null.
+
+  Two Google specifics worth recording. The authorize URL sets `access_type=offline` **and** `prompt=consent`, because without forced consent a repeat authorization returns no refresh token and the connection would appear to succeed and then fail on first refresh. And `invalid_grant` on refresh maps to `OAuthGrantRevokedError` while every other token failure stays a vendor error — that distinction is what lets the trunk mark a connection `expired` for a genuinely dead grant without doing so on a transient Google 500.
+
+  Property paths are URL-encoded, so both `https://example.com/` and `sc-domain:example.com` properties work.
+
+  `webmasters.readonly` is a sensitive scope. An org's own OAuth client works unverified against accounts it owns, which is the self-hosting and single-tenant case; distributing one client to customers requires Google app verification (CASA assessment, privacy policy, demo video).
+
+  **Unrelated fix, surfaced by this work:** `runMigrations` now takes a Postgres advisory lock for the duration. Concurrent callers were racing `CREATE EXTENSION IF NOT EXISTS`, which fails with `tuple concurrently updated`. It only bites on a cold database — several integration test files calling `runMigrations` at once — so it never reproduced on a warm local DB and would have shown up as a flaky CI failure in a file unrelated to whatever change added the extra racer. Adding two integration test files here was enough to trigger it.
+
+### Patch Changes
+
+- 0106285: A public reply now retires the pending handover draft, and every conversation opens in one drawer that shows the whole thread.
+
+  An agent that answers and escalates in the same turn writes its `suggestedReply` before the public reply goes out. The runtime used to clear that draft only when the two strings matched exactly, so a paraphrase survived: the customer had already been answered, but the dashboard still opened with the near-identical draft loaded in the composer, one keypress from a duplicate message.
+
+  The rule is now structural and lives in `ConvService.sendMessage`, where it holds for every MCP host and for humans too: a draft is a proposal for the _next_ outbound message, so any public message from an agent or a teammate retires it to `metadata.kind: 'draft_reply_superseded'` with a `supersededByMessageId` link. The row stays in the API for audit, the composer stops offering it, and `preserveAttention` still keeps the conversation flagged for a human. The runtime's string comparison is gone, and both `conv_request_handover` and `conv_request_human` state the retirement rule in their descriptions.
+
+  The dashboard's two conversation drawers are now one. A flagged conversation used to open a review drawer showing the last customer message and a draft with no surrounding thread — while the same conversation opened as a full chat from the recent-conversations list. The merged drawer always renders the thread — minus drafts, which belong in the composer rather than the transcript, so a retired suggestion no longer shows up as an internal note next to the near-identical reply that retired it — and a pending draft prefills the composer under an "ai suggestion · edit before sending" banner with a discard action, so the operator sees what the agent already said before deciding what to add. Sending keeps passing `fromDraftId`, so an unedited approved draft still queues no curation pass and an edited one still curates the delta.
+
+  Sending no longer claims the conversation implicitly — **Take over** is now the only thing that claims it. The live card marks conversations the agent has already answered since the customer's last message.
+
+- bec14d1: Fix three mobile-viewport regressions in the dashboard shell.
+
+  Side sheets were sized with `h-full` on a `position: fixed` element, which resolves against the initial containing block — on iOS Safari that is the _large_ viewport, so the bottom of every drawer sat behind the browser toolbar and the footer actions (approve, dismiss, cancel scheduled) were half-covered. They now use `100dvh` anchored to the top, which tracks the toolbar as it collapses and expands.
+
+  The docs-link row under the Connect MCP snippet on Get started could not shrink: the docs URL is one long unbreakable token, so the flex row overflowed its card and pushed the copy button past the right edge of the viewport. The link may now wrap and the button no longer shrinks.
+
+  The dashboard topbar used an 8px gap on mobile, which left the org selector nearly touching the logo once a `leftSlot` was supplied. Mobile now gets 16px; the desktop gap (which also has a rule between the two) is unchanged.
+
+- Updated dependencies [9d09f89]
+- Updated dependencies [2169915]
+- Updated dependencies [bec14d1]
+  - @getmunin/ui@5.11.0
+  - @getmunin/types@5.11.0
+
 ## 5.10.0
 
 ### Minor Changes

@@ -554,6 +554,20 @@
       "when": 1787480926047,
       "tag": "0078_connector_signing_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1787598120916,
+      "tag": "0079_better_auth_account_issuer",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1787598672700,
+      "tag": "0080_better_auth_resource_indicators",
+      "breakpoints": true
     }
   ]
 }

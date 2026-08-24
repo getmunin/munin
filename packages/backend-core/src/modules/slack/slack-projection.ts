@@ -1,3 +1,7 @@
+import { escapeSlackText, markdownToMrkdwn } from './slack-mrkdwn.ts';
+
+export { escapeSlackText, markdownToMrkdwn };
+
 export type AuthorKind = 'user' | 'agent' | 'end_user' | 'system';
 
 export interface ConversationSnapshot {
@@ -41,13 +45,15 @@ export function parseMessageAttachments(raw: unknown[]): MessageAttachment[] {
 
 const MAX_BODY_CHARS = 2900;
 
-export function escapeSlackText(text: string): string {
-  return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-}
-
 function truncate(text: string, max = MAX_BODY_CHARS): string {
   if (text.length <= max) return text;
-  return `${text.slice(0, max)}… _(truncated)_`;
+  let cut = text.slice(0, max);
+  const openLink = cut.lastIndexOf('<');
+  if (openLink > cut.lastIndexOf('>')) cut = cut.slice(0, openLink);
+  cut = cut.replace(/&[a-z]*$/, '').replace(/[*_~]+$/, '');
+  const fences = cut.split('```').length - 1;
+  if (fences % 2 === 1) cut = `${cut}\n\`\`\``;
+  return `${cut}… _(truncated)_`;
 }
 
 export function authorLabel(kind: AuthorKind, name: string | null): string {
@@ -88,7 +94,7 @@ export function threadParentText(conv: ConversationSnapshot): string {
 }
 
 export function messageText(msg: MessageSnapshot): string {
-  const quoted = truncate(escapeSlackText(msg.body))
+  const quoted = truncate(markdownToMrkdwn(msg.body))
     .split('\n')
     .map((line) => `> ${line}`)
     .join('\n');
@@ -126,7 +132,7 @@ export function speakerIdentity(kind: AuthorKind, name: string | null): SpeakerI
 }
 
 export function messageBodyText(msg: MessageSnapshot): string {
-  const rawBody = truncate(escapeSlackText(msg.body));
+  const rawBody = truncate(markdownToMrkdwn(msg.body));
   const body = msg.authorKind === 'system' ? `:gear: *${rawBody}*` : rawBody;
   const attachmentLines = (msg.attachments ?? []).map((a) => {
     const name = escapeSlackText(a.name ?? 'attachment');
@@ -383,7 +389,7 @@ export function outreachProposalApprovalText(snap: OutreachProposalApprovalSnaps
   const footer = `<${snap.dashboardUrl}|Review in Munin>`;
   const overhead = [...header, footer].reduce((total, line) => total + line.length + 1, 0);
   const body = quotedBodyLines(
-    escapeSlackText(snap.draftBody),
+    markdownToMrkdwn(snap.draftBody),
     Math.max(TRUNCATION_MARKER.length, MAX_BODY_CHARS - overhead),
   );
   return [...header, ...body, footer].join('\n');

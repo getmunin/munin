@@ -7,6 +7,7 @@ import { dirname, resolve } from 'node:path';
 
 const REQUIRED_EXTENSIONS = ['vector', 'pg_trgm', 'citext', 'pgcrypto'];
 const APP_ROLE = 'munin_app';
+const MIGRATION_LOCK_KEY = 8_167_233_401;
 
 export async function runMigrations(connectionString: string, migrationsFolder?: string) {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -26,6 +27,15 @@ export async function runMigrations(connectionString: string, migrationsFolder?:
   const client = postgres(connectionString, { max: 1 });
   const db = drizzle(client);
 
+  await client.unsafe(`SELECT pg_advisory_lock(${MIGRATION_LOCK_KEY});`);
+  try {
+    await applyAll();
+  } finally {
+    await client.unsafe(`SELECT pg_advisory_unlock(${MIGRATION_LOCK_KEY});`);
+    await client.end();
+  }
+
+  async function applyAll(): Promise<void> {
   for (const ext of REQUIRED_EXTENSIONS) {
     await client.unsafe(`CREATE EXTENSION IF NOT EXISTS ${ext};`);
   }
@@ -62,8 +72,7 @@ export async function runMigrations(connectionString: string, migrationsFolder?:
     ALTER DEFAULT PRIVILEGES IN SCHEMA public
       GRANT USAGE, SELECT ON SEQUENCES TO ${APP_ROLE};
   `);
-
-  await client.end();
+  }
 }
 
 function escapeSqlLiteral(s: string): string {

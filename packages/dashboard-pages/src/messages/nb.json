@@ -1455,6 +1455,7 @@
         "magento": "Les ordrer og kunder fra Magento-butikken din.",
         "gastroplanner": "Sjekk ledige tider, book bord og håndter restaurantbookinger.",
         "bing": "Se hvilke søk som viser nettstedet ditt i Bing og Copilot — og send oppdaterte sider til ny indeksering.",
+        "googleSearchConsole": "Se hvilke Google-søk sidene dine vises på, og om en side er indeksert.",
         "generic": "Leses direkte på vegne av en kunde.",
         "customMcp": "Ditt eget system, som svarer kundene dine direkte. Du velger nøyaktig hvilke verktøy de får bruke."
       },
@@ -1469,6 +1470,7 @@
         "customTools": "Svar direkte fra ditt eget fagsystem.",
         "customIdentity": "Eksponerer ingenting før du velger hvilke verktøy kundene får bruke.",
         "seoQueries": "Se hvilke søk sidene dine vises på.",
+        "seoPages": "Se hvilke sider som får visningene.",
         "seoIndexStatus": "Sjekk om en side er indeksert.",
         "seoSubmit": "Send oppdaterte sider til ny indeksering."
       }
@@ -1503,6 +1505,19 @@
           "label": "Integrasjonstoken",
           "hint": "En integrasjonstoken med lesetilgang til Sales + Customers.",
           "invalid": "Dette ser ikke ut som en gyldig token — lim inn hele integrasjonstokenen."
+        }
+      },
+      "google_search_console": {
+        "clientId": {
+          "label": "OAuth-klient-ID",
+          "hint": "Fra et Google Cloud-prosjekt der Search Console API er slått på, under «Credentials».",
+          "placeholder": "000000000000-xxxxxxxx.apps.googleusercontent.com",
+          "invalid": "Lim inn hele klient-ID-en, som slutter på .apps.googleusercontent.com."
+        },
+        "clientSecret": {
+          "label": "OAuth-klienthemmelighet",
+          "hint": "Fra samme OAuth-klient. Selve Google-kontoen godkjenner du i neste steg.",
+          "invalid": "Dette ser ikke ut som en gyldig klienthemmelighet — lim den inn fra Google Cloud-konsollen."
         }
       },
       "bing": {

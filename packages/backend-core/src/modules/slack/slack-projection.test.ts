@@ -152,6 +152,38 @@ describe('messageBodyText', () => {
       .toBe('Hi there');
   });
 
+  it('renders an agent reply written in markdown as Slack mrkdwn', () => {
+    const text = messageBodyText({
+      authorKind: 'agent',
+      authorName: 'Thea',
+      internal: false,
+      body: '**Slik fungerer det:**\n- **Svare** på spørsmål\n\nSe [Threll.ai](https://threll.ai).',
+    });
+    expect(text).toBe(
+      '*Slik fungerer det:*\n• *Svare* på spørsmål\n\nSe <https://threll.ai|Threll.ai>.',
+    );
+  });
+
+  it('closes an unterminated code fence and keeps a link whole when truncating', () => {
+    const fenced = messageBodyText({
+      authorKind: 'agent',
+      authorName: 'Thea',
+      internal: false,
+      body: `\`\`\`\n${'x'.repeat(5000)}\n\`\`\``,
+    });
+    expect(fenced.split('```')).toHaveLength(3);
+    expect(fenced).toContain('_(truncated)_');
+
+    const linked = messageBodyText({
+      authorKind: 'agent',
+      authorName: 'Thea',
+      internal: false,
+      body: `${'x'.repeat(2890)}[docs](https://threll.ai/docs)`,
+    });
+    expect(linked).not.toContain('<https://threll.ai/docs|do');
+    expect(linked).toContain('… _(truncated)_');
+  });
+
   it('composes the gear+bold wrap with the internal-note prefix', () => {
     const text = messageBodyText({
       authorKind: 'system',

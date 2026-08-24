@@ -1441,6 +1441,7 @@
         "chatBridge": "Chat · Bro",
         "commerce": "Handel",
         "booking": "Booking",
+        "seo": "Søk",
         "connection": "Kobling",
         "customTools": "Selvbetjening"
       },
@@ -1449,6 +1450,7 @@
         "shopify": "Ordrer, kunder og leveringer — lest på vegne av en kunde.",
         "magento": "Les ordrer og kunder fra Magento-butikken din.",
         "gastroplanner": "Sjekk ledige tider, book bord og håndter restaurantbookinger.",
+        "bing": "Se hvilke søk som viser nettstedet ditt i Bing og Copilot — og send oppdaterte sider til ny indeksering.",
         "generic": "Leses direkte på vegne av en kunde.",
         "customMcp": "Ditt eget system, som svarer kundene dine direkte. Du velger nøyaktig hvilke verktøy de får bruke."
       },
@@ -1461,7 +1463,10 @@
         "bookingsAvailability": "Sjekk ledige tider og book bord.",
         "bookingsManage": "Endre eller avbestill en gjests booking.",
         "customTools": "Svar direkte fra ditt eget fagsystem.",
-        "customIdentity": "Eksponerer ingenting før du velger hvilke verktøy kundene får bruke."
+        "customIdentity": "Eksponerer ingenting før du velger hvilke verktøy kundene får bruke.",
+        "seoQueries": "Se hvilke søk sidene dine vises på.",
+        "seoIndexStatus": "Sjekk om en side er indeksert.",
+        "seoSubmit": "Send oppdaterte sider til ny indeksering."
       }
     },
     "field": {
@@ -1494,6 +1499,13 @@
           "label": "Integrasjonstoken",
           "hint": "En integrasjonstoken med lesetilgang til Sales + Customers.",
           "invalid": "Dette ser ikke ut som en gyldig token — lim inn hele integrasjonstokenen."
+        }
+      },
+      "bing": {
+        "apiKey": {
+          "label": "API-nøkkel",
+          "hint": "Finnes i Bing Webmaster Tools under «Settings → API access».",
+          "invalid": "Dette ser ikke ut som en gyldig nøkkel — lim inn hele API-nøkkelen fra Bing Webmaster Tools."
         }
       },
       "gastroplanner": {

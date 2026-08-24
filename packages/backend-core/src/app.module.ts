@@ -29,6 +29,7 @@ import { CredentialHandoffModule } from './modules/credential-handoff/credential
 import { ConnectorsModule } from './modules/connectors/connectors.module.ts';
 import { CommerceModule } from './modules/commerce/commerce.module.ts';
 import { BookingsModule } from './modules/bookings/bookings.module.ts';
+import { SeoModule } from './modules/seo/seo.module.ts';
 import { IdentityModule } from './modules/identity/identity.module.ts';
 
 export const BACKEND_FEATURE_MODULES = [
@@ -55,6 +56,7 @@ export const BACKEND_FEATURE_MODULES = [
   ConnectorsModule,
   CommerceModule,
   BookingsModule,
+  SeoModule,
   AuditModule,
 ];
 

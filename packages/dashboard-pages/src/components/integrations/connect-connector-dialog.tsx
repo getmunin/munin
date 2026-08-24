@@ -10,6 +10,13 @@ import { useTranslateError } from '../../i18n/translate-error';
 import { VendorIcon, vendorPresentation } from './vendor-catalog';
 import { VendorFieldRow, type VendorField } from './vendor-field-row';
 
+export interface CreatedConnection {
+  id: string;
+  name: string;
+  domain: string;
+  credentialState: 'active' | 'pending';
+}
+
 export interface ConnectVendor {
   vendor: string;
   domain: string;
@@ -24,7 +31,7 @@ export function ConnectConnectorDialog({
 }: {
   vendor: ConnectVendor;
   onClose: () => void;
-  onDone: () => Promise<void>;
+  onDone: (created: CreatedConnection) => Promise<void>;
 }) {
   const t = useTranslations('integrations.connectors');
   const tc = useTranslations('integrations.catalog');
@@ -44,13 +51,13 @@ export function ConnectConnectorDialog({
     try {
       const config: Record<string, string> = {};
       for (const f of fields) if (values[f.key]) config[f.key] = values[f.key]!;
-      await api('/v1/connectors', {
+      const created = await api<CreatedConnection>('/v1/connectors', {
         method: 'POST',
         body: JSON.stringify({ vendor: vendor.vendor, name, config }),
       });
       setFieldErrors({});
       notify.success(t('created'));
-      await onDone();
+      await onDone(created);
     } catch (err) {
       if (err instanceof ApiError && err.fieldErrors.length > 0) {
         const next: Record<string, string> = {};

@@ -108,7 +108,7 @@ MUNIN_ORG_ID=<org id> pnpm -F @getmunin/backend-core test:self-service-mcp
 
 It listens on `http://localhost:4123`, prints its bearer token, verifies `X-Munin-Identity` against your org's real JWKS, and logs the caller and provenance of every request. It gates `get_invoice_link` and `cancel_subscription` on `authenticated` while `list_subscriptions` accepts `channel_asserted`, so you can watch the same customer be allowed over a signed-in widget chat and refused over email.
 
-Because it runs on loopback over http, the backend needs `MUNIN_SSRF_ALLOW_PRIVATE=1` to reach it and the connection has to be seeded directly — the `url` field requires https, which is correct for real connections. Point Munin at a tunnel (`cloudflared tunnel --url http://localhost:4123`) to exercise the dashboard's own connect form.
+Set `MUNIN_SSRF_ALLOW_PRIVATE=1` on the backend so it will reach loopback. That same flag also lets the connector accept an `http://` url, so the whole flow — including the dashboard's connect form — works against `http://localhost:4123`. Real deployments never set it, and `https` stays mandatory there. Serve TLS instead by passing `TLS_KEY` and `TLS_CERT`.
 
 ## Reference implementation
 

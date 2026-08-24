@@ -1,11 +1,16 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer as createHttpsServer } from 'node:https';
+import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
 
 const PORT = Number(process.env.PORT ?? 4123);
 const TOKEN = process.env.MCP_BEARER_TOKEN ?? 'test_token_1234567890';
-const SELF_URL = process.env.SELF_URL ?? `http://localhost:${PORT}`;
+const TLS_KEY = process.env.TLS_KEY;
+const TLS_CERT = process.env.TLS_CERT;
+const SCHEME = TLS_KEY && TLS_CERT ? 'https' : 'http';
+const SELF_URL = process.env.SELF_URL ?? `${SCHEME}://localhost:${PORT}`;
 const ISSUER = process.env.MUNIN_ISSUER ?? 'http://localhost:3001';
 const ORG_ID = process.env.MUNIN_ORG_ID;
 const JWKS_URL = ORG_ID ? `${ISSUER}/v1/public/connectors/${ORG_ID}/jwks` : null;
@@ -172,7 +177,7 @@ function readHeader(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-createServer((req, res) => {
+function onRequest(req: IncomingMessage, res: ServerResponse): void {
   const chunks: Buffer[] = [];
   req.on('data', (c: Buffer) => chunks.push(c));
   req.on('end', () => {
@@ -182,8 +187,15 @@ createServer((req, res) => {
       res.end();
     });
   });
-}).listen(PORT, () => {
-  console.log(`test self-service MCP server on ${SELF_URL}`);
+}
+
+const httpServer =
+  TLS_KEY && TLS_CERT
+    ? createHttpsServer({ key: readFileSync(TLS_KEY), cert: readFileSync(TLS_CERT) }, onRequest)
+    : createHttpServer(onRequest);
+
+httpServer.listen(PORT, () => {
+  console.log(`test self-service MCP server on ${SELF_URL} (${SCHEME})`);
   console.log(`  bearer token : ${TOKEN}`);
   console.log(`  assertions   : ${JWKS_URL ?? 'NOT VERIFIED (set MUNIN_ORG_ID to enable)'}`);
   console.log(`  known emails : ${Object.keys(SUBSCRIPTIONS).join(', ')}`);

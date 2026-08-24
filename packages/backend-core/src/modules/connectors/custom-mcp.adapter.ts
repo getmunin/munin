@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import { safeFetchCompat, SsrfBlockedError } from '@getmunin/core';
+import { parseEnvBool, safeFetchCompat, SsrfBlockedError } from '@getmunin/core';
 import { stripTrailingSlashes } from '@getmunin/types';
 import type {
   ConnectorAdapter,
@@ -28,12 +28,19 @@ const AllowedTools = z.preprocess(
   z.array(z.string().trim().min(1).max(64)).max(MAX_EXPOSED_TOOLS).default([]),
 );
 
+export function allowsInsecureConnectorUrls(): boolean {
+  return parseEnvBool({ name: 'MUNIN_SSRF_ALLOW_PRIVATE', default: false });
+}
+
 export const CustomMcpConfigInput = z.object({
   url: z
     .string()
     .trim()
     .url()
-    .refine((u) => u.startsWith('https://'), 'url must be https')
+    .refine(
+      (u) => u.startsWith('https://') || (u.startsWith('http://') && allowsInsecureConnectorUrls()),
+      'url must be https (http is accepted only for local development, when MUNIN_SSRF_ALLOW_PRIVATE is set)',
+    )
     .transform((u) => stripTrailingSlashes(u)),
   bearerToken: z.string().min(10).max(512).optional(),
   allowedTools: AllowedTools,

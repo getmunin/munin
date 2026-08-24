@@ -1408,7 +1408,8 @@
       "whatAgentsGet": "What agents get",
       "liveData": "Live against the vendor — nothing is stored in Munin.",
       "connectedCount": "{count} connected",
-      "chooseTools": "Choose tools"
+      "chooseTools": "Choose tools",
+      "statusNoTools": "No tools exposed"
     },
     "slack": {
       "title": "Slack",

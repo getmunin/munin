@@ -1408,7 +1408,8 @@
       "whatAgentsGet": "Hva agenter får",
       "liveData": "Direkte mot leverandøren — ingenting lagres i Munin.",
       "connectedCount": "{count} tilkoblet",
-      "chooseTools": "Velg verktøy"
+      "chooseTools": "Velg verktøy",
+      "statusNoTools": "Ingen verktøy tilgjengelig"
     },
     "slack": {
       "title": "Slack",

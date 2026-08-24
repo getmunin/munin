@@ -10,7 +10,11 @@ import { useConfirm } from '../confirm-dialog';
 import { CardSkeleton } from '../skeleton';
 import { CardGrid, CardMenu, StatusLine } from '../card-kit';
 import { IntegrationCard, SectionHeading } from './integration-card';
-import { ConnectConnectorDialog, type ConnectVendor } from './connect-connector-dialog';
+import {
+  ConnectConnectorDialog,
+  type ConnectVendor,
+  type CreatedConnection,
+} from './connect-connector-dialog';
 import { VendorFieldRow, type VendorField } from './vendor-field-row';
 import { vendorPresentation } from './vendor-catalog';
 import { ChooseToolsDialog } from './choose-tools-dialog';
@@ -25,10 +29,15 @@ interface Connection {
   active: boolean;
   credentialState: 'active' | 'pending';
   lastTestError: string | null;
+  settings?: { allowedTools?: string[] };
 }
 
-function supportsToolPicker(conn: Connection): boolean {
+function supportsToolPicker(conn: Pick<Connection, 'domain' | 'credentialState'>): boolean {
   return conn.domain === 'mcp' && conn.credentialState === 'active';
+}
+
+function exposesNoTools(conn: Connection): boolean {
+  return supportsToolPicker(conn) && (conn.settings?.allowedTools?.length ?? 0) === 0;
 }
 
 export function DataConnectionsSection() {
@@ -131,6 +140,7 @@ export function DataConnectionsSection() {
     if (conn.credentialState === 'pending') return { tone: 'pending', label: t('statusPending') };
     if (conn.lastTestError) return { tone: 'error', label: t('statusError') };
     if (!conn.active) return { tone: 'inactive', label: t('statusInactive') };
+    if (exposesNoTools(conn)) return { tone: 'pending', label: t('statusNoTools') };
     return { tone: 'active', label: t('statusActive') };
   }
 
@@ -178,6 +188,10 @@ export function DataConnectionsSection() {
                   <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setEnterFor(conn)} disabled={busyId === conn.id}>
                     {t('enterCredentials')}
                   </Button>
+                ) : exposesNoTools(conn) ? (
+                  <Button type="button" size="sm" className="whitespace-nowrap" onClick={() => setChooseToolsFor(conn)} disabled={busyId === conn.id}>
+                    {t('chooseTools')}
+                  </Button>
                 ) : (
                   <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => void test(conn)} disabled={busyId === conn.id}>
                     {t('test')}
@@ -209,9 +223,20 @@ export function DataConnectionsSection() {
         <ConnectConnectorDialog
           vendor={connectVendor}
           onClose={() => setConnectVendor(null)}
-          onDone={async () => {
+          onDone={async (created: CreatedConnection) => {
             setConnectVendor(null);
             await refresh();
+            if (supportsToolPicker(created)) {
+              setChooseToolsFor({
+                id: created.id,
+                name: created.name,
+                vendor: connectVendor.vendor,
+                domain: created.domain,
+                active: true,
+                credentialState: created.credentialState,
+                lastTestError: null,
+              });
+            }
           }}
         />
       )}
@@ -232,8 +257,12 @@ export function DataConnectionsSection() {
           fields={secretFields(enterFor.vendor)}
           onClose={() => setEnterFor(null)}
           onDone={async () => {
+            const completed = enterFor;
             setEnterFor(null);
             await refresh();
+            if (completed && completed.domain === 'mcp') {
+              setChooseToolsFor({ ...completed, credentialState: 'active' });
+            }
           }}
         />
       )}

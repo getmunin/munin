@@ -27,6 +27,33 @@ describe('CustomMcpConfigInput', () => {
     expect(() => CustomMcpConfigInput.parse({ url: 'http://crm.example.com/mcp' })).toThrow();
   });
 
+  it('accepts http only while the local-development SSRF escape hatch is set', () => {
+    const previous = process.env.MUNIN_SSRF_ALLOW_PRIVATE;
+    try {
+      process.env.MUNIN_SSRF_ALLOW_PRIVATE = '1';
+      expect(CustomMcpConfigInput.parse({ url: 'http://localhost:4123' }).url).toBe(
+        'http://localhost:4123',
+      );
+      process.env.MUNIN_SSRF_ALLOW_PRIVATE = '0';
+      expect(() => CustomMcpConfigInput.parse({ url: 'http://localhost:4123' })).toThrow();
+    } finally {
+      if (previous === undefined) delete process.env.MUNIN_SSRF_ALLOW_PRIVATE;
+      else process.env.MUNIN_SSRF_ALLOW_PRIVATE = previous;
+    }
+  });
+
+  it('still accepts https when the escape hatch is off', () => {
+    const previous = process.env.MUNIN_SSRF_ALLOW_PRIVATE;
+    try {
+      delete process.env.MUNIN_SSRF_ALLOW_PRIVATE;
+      expect(CustomMcpConfigInput.parse({ url: 'https://crm.example.com/mcp' }).url).toBe(
+        'https://crm.example.com/mcp',
+      );
+    } finally {
+      if (previous !== undefined) process.env.MUNIN_SSRF_ALLOW_PRIVATE = previous;
+    }
+  });
+
   it('rejects non-URL values', () => {
     expect(() => CustomMcpConfigInput.parse({ url: 'crm.example.com' })).toThrow();
   });

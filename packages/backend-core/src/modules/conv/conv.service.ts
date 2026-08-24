@@ -959,6 +959,11 @@ export class ConvService {
         .set({ metadata: { kind: 'draft_reply_sent', sentMessageId: row!.id } })
         .where(eq(schema.convMessages.id, approvedDraft.stamp.draftMessageId));
     }
+
+    if (!row!.internal && (input.authorType === 'agent' || input.authorType === 'user')) {
+      await this.supersedePendingDrafts(input.conversationId, row!.id);
+    }
+
     const clearAttention =
       (input.authorType === 'user' || input.authorType === 'agent') &&
       !input.internal &&
@@ -1534,6 +1539,29 @@ export class ConvService {
       })
       .returning({ id: schema.convMessages.id });
     return { id: row!.id };
+  }
+
+  private async supersedePendingDrafts(
+    conversationId: string,
+    sentMessageId: string,
+  ): Promise<void> {
+    const ctx = getCurrentContext();
+    await ctx.db
+      .update(schema.convMessages)
+      .set({
+        metadata: sql`${schema.convMessages.metadata} || jsonb_build_object(
+          'kind', 'draft_reply_superseded',
+          'supersededByMessageId', ${sentMessageId}::text
+        )`,
+      })
+      .where(
+        and(
+          eq(schema.convMessages.conversationId, conversationId),
+          eq(schema.convMessages.authorType, 'agent'),
+          eq(schema.convMessages.internal, true),
+          sql`${schema.convMessages.metadata} ->> 'kind' = 'draft_reply'`,
+        ),
+      );
   }
 
   async clearDraftReply(conversationId: string): Promise<{ cleared: number }> {

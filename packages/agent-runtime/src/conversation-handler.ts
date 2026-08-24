@@ -317,10 +317,8 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
 
         if (reply.body.trim().length > 0) {
           deps.onProviderSuccess?.();
-          const llmHandoverCall = reply.toolCalls.find((t) => t.name === HANDOVER_TOOL_NAME);
-          const llmHandoverArgs = llmHandoverCall?.args as
-            | { reason?: string; suggestedReply?: string }
-            | undefined;
+          const llmHandoverArgs = reply.toolCalls.find((t) => t.name === HANDOVER_TOOL_NAME)
+            ?.args as { reason?: string } | undefined;
           const llmHandoverReason = llmHandoverArgs?.reason;
           const audit = await runAuditPass({
             conversationId,
@@ -377,21 +375,6 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
               .catch((err) =>
                 log.warn(
                   `${conversationId} failed to post handover note: ${err instanceof Error ? err.message : String(err)}`,
-                ),
-              );
-          }
-          if (
-            llmHandoverCall &&
-            llmHandoverArgs?.suggestedReply &&
-            normalizeForCompare(llmHandoverArgs.suggestedReply) ===
-              normalizeForCompare(reply.body)
-          ) {
-            log.info(`${conversationId} suppressing handover draft that repeats the public reply`);
-            await deps.rest
-              .clearDraftReply(conversationId)
-              .catch((err) =>
-                log.warn(
-                  `${conversationId} failed to clear duplicate draft: ${err instanceof Error ? err.message : String(err)}`,
                 ),
               );
           }
@@ -627,10 +610,6 @@ function lastPublicMessage(
     return m;
   }
   return null;
-}
-
-function normalizeForCompare(text: string): string {
-  return text.trim().replace(/\s+/g, ' ');
 }
 
 export function assistantNamePreamble(name: string | null | undefined): string {

@@ -1,5 +1,5 @@
 import type { ComponentType, SVGProps } from 'react';
-import { SlackMark, ShopifyMark, MagentoMark, GastroplannerMark } from './integration-vendor-logos';
+import { SlackMark, ShopifyMark, MagentoMark, GastroplannerMark, CustomMcpMark } from './integration-vendor-logos';
 
 export interface VendorPresentation {
   categoryKey: string;
@@ -33,16 +33,24 @@ export const VENDOR_PRESENTATION: Record<string, VendorPresentation> = {
     capabilityKeys: ['bookingsLookup', 'bookingsAvailability', 'bookingsManage'],
     Mark: GastroplannerMark,
   },
+  'custom-mcp': {
+    categoryKey: 'customTools',
+    descriptionKey: 'customMcp',
+    capabilityKeys: ['customTools', 'customIdentity'],
+    Mark: CustomMcpMark,
+  },
 };
 
 const DOMAIN_CATEGORY: Record<string, string> = {
   commerce: 'commerce',
   bookings: 'booking',
+  mcp: 'customTools',
 };
 
 const DOMAIN_CAPABILITIES: Record<string, string[]> = {
   commerce: ['ordersLookup', 'customersLookup'],
   bookings: ['bookingsLookup', 'bookingsAvailability', 'bookingsManage'],
+  mcp: ['customTools', 'customIdentity'],
 };
 
 export function vendorPresentation(vendor: string, domain?: string): VendorPresentation {

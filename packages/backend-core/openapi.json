@@ -2456,6 +2456,30 @@
         "security": []
       }
     },
+    "/v1/public/connectors/{orgId}/jwks": {
+      "get": {
+        "operationId": "ConnectorJwksController_jwks",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConnectorJwks"
+        ],
+        "security": []
+      }
+    },
     "/v1/conversations/channels/vendors": {
       "get": {
         "operationId": "ConvChannelsController_listVendors",
@@ -6199,6 +6223,76 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Connectors"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/connectors/{id}/mcp-tools": {
+      "get": {
+        "operationId": "ConnectorsController_listMcpTools",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Connectors"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "ConnectorsController_setMcpTools",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAllowedToolsBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -10686,6 +10780,23 @@
             "x-nestjs_zod-uses-3-point-1-syntax": true
           }
         }
+      },
+      "SetAllowedToolsBody": {
+        "type": "object",
+        "properties": {
+          "toolNames": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        },
+        "required": [
+          "toolNames"
+        ]
       },
       "ApplyConnectionCredentialsBody": {
         "type": "object",

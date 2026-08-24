@@ -2,17 +2,23 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DropdownMenuItem } from '@getmunin/ui';
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DropdownMenuItem, SectionHead } from '@getmunin/ui';
 import { api } from '../../api';
 import { notify } from '../../lib/notify';
 import { useTranslateError } from '../../i18n/translate-error';
 import { useConfirm } from '../confirm-dialog';
 import { CardSkeleton } from '../skeleton';
 import { CardGrid, CardMenu, StatusLine } from '../card-kit';
-import { IntegrationCard, SectionHeading } from './integration-card';
-import { ConnectConnectorDialog, type ConnectVendor } from './connect-connector-dialog';
+import { IntegrationCard } from './integration-card';
+import {
+  ConnectConnectorDialog,
+  type ConnectVendor,
+  type CreatedConnection,
+  type EditableConnection,
+} from './connect-connector-dialog';
 import { VendorFieldRow, type VendorField } from './vendor-field-row';
 import { vendorPresentation } from './vendor-catalog';
+import { ChooseToolsDialog } from './choose-tools-dialog';
 
 type Vendor = ConnectVendor;
 
@@ -24,6 +30,21 @@ interface Connection {
   active: boolean;
   credentialState: 'active' | 'pending';
   lastTestError: string | null;
+  settings?: { allowedTools?: string[] };
+}
+
+function supportsToolPicker(conn: Pick<Connection, 'domain' | 'credentialState'>): boolean {
+  return conn.domain === 'mcp' && conn.credentialState === 'active';
+}
+
+function shortDetail(detail: string | undefined): string {
+  const trimmed = (detail ?? '').trim();
+  if (trimmed.length <= 120) return trimmed;
+  return `${trimmed.slice(0, 117).trimEnd()}…`;
+}
+
+function exposesNoTools(conn: Connection): boolean {
+  return supportsToolPicker(conn) && (conn.settings?.allowedTools?.length ?? 0) === 0;
 }
 
 export function DataConnectionsSection() {
@@ -39,6 +60,9 @@ export function DataConnectionsSection() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [connectVendor, setConnectVendor] = useState<Vendor | null>(null);
   const [enterFor, setEnterFor] = useState<Connection | null>(null);
+  const [chooseToolsFor, setChooseToolsFor] = useState<Connection | null>(null);
+  const [editConnection, setEditConnection] = useState<EditableConnection | null>(null);
+  const [inSetupFlow, setInSetupFlow] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -66,11 +90,11 @@ export function DataConnectionsSection() {
   async function test(conn: Connection) {
     setBusyId(conn.id);
     try {
-      const res = await api<{ ok: boolean; detail?: string; error?: string }>(
+      const res = await api<{ ok: boolean; detail?: string; summary?: string; error?: string }>(
         `/v1/connectors/${conn.id}/test`,
         { method: 'POST' },
       );
-      if (res.ok) notify.success(t('testOk', { detail: res.detail ?? '' }));
+      if (res.ok) notify.success(t('testOk', { detail: shortDetail(res.summary ?? res.detail) }));
       else notify.error(t('testFailed', { error: res.error ?? '' }));
       await refresh();
     } catch (err) {
@@ -103,7 +127,7 @@ export function DataConnectionsSection() {
   if (loadError) {
     return (
       <section className="space-y-4">
-        <SectionHeading title={td('title')} subtitle={td('subtitle')} />
+        <SectionHead title={td('title')} subtitle={td('subtitle')} />
         <p className="text-sm text-destructive">{loadError}</p>
       </section>
     );
@@ -111,7 +135,7 @@ export function DataConnectionsSection() {
   if (!connections) {
     return (
       <section className="space-y-4">
-        <SectionHeading title={td('title')} subtitle={td('subtitle')} />
+        <SectionHead title={td('title')} subtitle={td('subtitle')} />
         <CardSkeleton />
       </section>
     );
@@ -125,15 +149,16 @@ export function DataConnectionsSection() {
     if (conn.credentialState === 'pending') return { tone: 'pending', label: t('statusPending') };
     if (conn.lastTestError) return { tone: 'error', label: t('statusError') };
     if (!conn.active) return { tone: 'inactive', label: t('statusInactive') };
+    if (exposesNoTools(conn)) return { tone: 'pending', label: t('statusNoTools') };
     return { tone: 'active', label: t('statusActive') };
   }
 
   return (
     <section className="space-y-4">
-      <SectionHeading
+      <SectionHead
         title={td('title')}
         subtitle={td('subtitle')}
-        countLabel={t('connectedCount', { count: activeCount })}
+        actions={t('connectedCount', { count: activeCount })}
       />
       <CardGrid>
         {connections.map((conn) => {
@@ -150,6 +175,14 @@ export function DataConnectionsSection() {
               description={tc(`description.${present.descriptionKey}`)}
               menu={
                 <CardMenu label={t('moreMenu')} disabled={busyId === conn.id}>
+                  {supportsToolPicker(conn) && (
+                    <DropdownMenuItem
+                      disabled={busyId === conn.id}
+                      onClick={() => setChooseToolsFor(conn)}
+                    >
+                      {t('chooseTools')}
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
                     variant="destructive"
                     disabled={busyId === conn.id}
@@ -163,6 +196,10 @@ export function DataConnectionsSection() {
                 conn.credentialState === 'pending' ? (
                   <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setEnterFor(conn)} disabled={busyId === conn.id}>
                     {t('enterCredentials')}
+                  </Button>
+                ) : exposesNoTools(conn) ? (
+                  <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setChooseToolsFor(conn)} disabled={busyId === conn.id}>
+                    {t('chooseTools')}
                   </Button>
                 ) : (
                   <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => void test(conn)} disabled={busyId === conn.id}>
@@ -194,9 +231,63 @@ export function DataConnectionsSection() {
       {connectVendor && (
         <ConnectConnectorDialog
           vendor={connectVendor}
-          onClose={() => setConnectVendor(null)}
-          onDone={async () => {
+          existing={editConnection ?? undefined}
+          onClose={() => {
             setConnectVendor(null);
+            setEditConnection(null);
+            setInSetupFlow(false);
+          }}
+          onDone={async (saved: CreatedConnection) => {
+            const vendorName = connectVendor.vendor;
+            setConnectVendor(null);
+            setEditConnection(null);
+            await refresh();
+            if (supportsToolPicker(saved)) {
+              setInSetupFlow(true);
+              setChooseToolsFor({
+                id: saved.id,
+                name: saved.name,
+                vendor: vendorName,
+                domain: saved.domain,
+                active: true,
+                credentialState: saved.credentialState,
+                lastTestError: null,
+                settings: saved.settings as Connection['settings'],
+              });
+            } else {
+              setInSetupFlow(false);
+            }
+          }}
+        />
+      )}
+      {chooseToolsFor && (
+        <ChooseToolsDialog
+          connectionId={chooseToolsFor.id}
+          connectionName={chooseToolsFor.name}
+          onClose={() => {
+            setChooseToolsFor(null);
+            setInSetupFlow(false);
+          }}
+          onBack={
+            inSetupFlow
+              ? () => {
+                  const current = chooseToolsFor;
+                  const vendorMeta = vendors.find((v) => v.vendor === current.vendor);
+                  setChooseToolsFor(null);
+                  setInSetupFlow(false);
+                  if (!vendorMeta) return;
+                  setEditConnection({
+                    id: current.id,
+                    name: current.name,
+                    settings: current.settings,
+                  });
+                  setConnectVendor(vendorMeta);
+                }
+              : undefined
+          }
+          onDone={async () => {
+            setChooseToolsFor(null);
+            setInSetupFlow(false);
             await refresh();
           }}
         />
@@ -207,8 +298,12 @@ export function DataConnectionsSection() {
           fields={secretFields(enterFor.vendor)}
           onClose={() => setEnterFor(null)}
           onDone={async () => {
+            const completed = enterFor;
             setEnterFor(null);
             await refresh();
+            if (completed && completed.domain === 'mcp') {
+              setChooseToolsFor({ ...completed, credentialState: 'active' });
+            }
           }}
         />
       )}

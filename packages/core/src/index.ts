@@ -123,7 +123,9 @@ export {
   isPrivateIp,
   resolvePublicHost,
   safeFetch,
+  safeFetchCompat,
   SsrfBlockedError,
+  type GlobalFetchLike,
   type SafeFetchOptions,
 } from './net/safe-fetch.ts';
 

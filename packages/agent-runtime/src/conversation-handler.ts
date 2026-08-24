@@ -66,7 +66,7 @@ export interface ConversationHandlerDeps {
   config: HandlerConfig;
   rest: MuninRestClient;
   prompts: PromptResolver;
-  openMcp: (opts: { endUserId: string }) => Promise<OpenedMcp>;
+  openMcp: (opts: { endUserId: string; channelType?: string | null }) => Promise<OpenedMcp>;
   holderId?: string;
   leaseSeconds?: number;
   logger?: {
@@ -293,7 +293,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     let providerErrorCode: ProviderErrorCode | null = null;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt += 1) {
       if (signal.aborted) return;
-      const mcp = await deps.openMcp({ endUserId });
+      const mcp = await deps.openMcp({ endUserId, channelType: detail.channelType ?? null });
       if (delivery === 'send') startTyping();
       try {
         const reply = await runAgent({

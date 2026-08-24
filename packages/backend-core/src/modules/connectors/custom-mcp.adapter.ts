@@ -83,9 +83,23 @@ export async function probeCustomMcpServer(args: {
     return { tools: result.tools.map(toDiscoveredTool) };
   } catch (err) {
     if (err instanceof SsrfBlockedError || err instanceof ConnectorVendorError) throw err;
-    throw new ConnectorVendorError(
-      `MCP server unreachable: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    const detail = err instanceof Error ? err.message : String(err);
+    if (/\b401\b|unauthor/i.test(detail)) {
+      throw new ConnectorVendorError(
+        'the MCP server rejected Munin’s bearer token (HTTP 401). Check the token entered for this connection matches the one the server expects.',
+      );
+    }
+    if (/\b403\b|forbidden/i.test(detail)) {
+      throw new ConnectorVendorError(
+        'the MCP server refused Munin’s bearer token (HTTP 403). The token was recognised but is not allowed to call this endpoint.',
+      );
+    }
+    if (/\b404\b/.test(detail)) {
+      throw new ConnectorVendorError(
+        'no MCP endpoint at that URL (HTTP 404). Check the path — most servers expose it at /mcp.',
+      );
+    }
+    throw new ConnectorVendorError(`MCP server unreachable: ${detail}`);
   } finally {
     await client.close().catch(() => undefined);
   }
@@ -170,7 +184,13 @@ export class CustomMcpAdapter implements ConnectorAdapter, ToolCatalogAdapter {
         'bearerToken is required when creating a custom MCP connection',
       );
     }
-    return { url: parsed.url, encryptedBearerToken, allowedTools: parsed.allowedTools };
+    const allowedTools =
+      'allowedTools' in input
+        ? parsed.allowedTools
+        : prev?.success
+          ? prev.data.allowedTools
+          : parsed.allowedTools;
+    return { url: parsed.url, encryptedBearerToken, allowedTools };
   }
 
   publicConfig(stored: Record<string, unknown>): Record<string, unknown> {
@@ -182,7 +202,11 @@ export class CustomMcpAdapter implements ConnectorAdapter, ToolCatalogAdapter {
     const config = StoredCustomMcpConfig.parse(ctx.config);
     const bearerToken = await ctx.decryptSecret(config.encryptedBearerToken);
     const { tools } = await this.probe({ url: config.url, bearerToken });
-    return { ok: true, detail: describeExposure(tools, config.allowedTools) };
+    return {
+      ok: true,
+      detail: describeExposure(tools, config.allowedTools),
+      summary: summarizeExposure(tools, config.allowedTools),
+    };
   }
 
   async listSelectableTools(ctx: ConnectorConnectionContext): Promise<SelectableTool[]> {
@@ -205,6 +229,17 @@ export class CustomMcpAdapter implements ConnectorAdapter, ToolCatalogAdapter {
     const config = StoredCustomMcpConfig.parse(stored);
     return { ...config, allowedTools: [...new Set(toolNames)].slice(0, MAX_EXPOSED_TOOLS) };
   }
+}
+
+export function summarizeExposure(
+  discovered: DiscoveredTool[],
+  allowedTools: readonly string[],
+): string {
+  const allowed = new Set(allowedTools);
+  const exposed = discovered.filter((t) => allowed.has(t.name));
+  const writes = exposed.filter((t) => t.destructive).length;
+  const base = `${exposed.length} of ${discovered.length} tool(s) exposed to customers`;
+  return writes > 0 ? `${base}, ${writes} not read-only` : base;
 }
 
 export function describeExposure(

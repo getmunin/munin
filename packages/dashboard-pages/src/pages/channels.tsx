@@ -759,8 +759,11 @@ function ChannelRow({
     <StatusLine tone="active" label={t('status.active')} />
   );
 
+  const needsActivation = isDeactivated && !awaitingCredentials;
+  const sideVariant = needsActivation ? 'ghost' : 'outline';
+
   const primaryAction = isChat ? (
-    <Button variant="outline" size="sm" onClick={onShowEmbed} className="gap-1.5">
+    <Button variant={sideVariant} size="sm" onClick={onShowEmbed} className="gap-1.5">
       <Code className="size-3.5" />
       {t('showEmbed')}
     </Button>
@@ -769,22 +772,21 @@ function ChannelRow({
       {t('enterCredentials.button')}
     </Button>
   ) : canEdit ? (
-    <Button variant="outline" size="sm" onClick={onEdit}>
+    <Button variant={sideVariant} size="sm" onClick={onEdit}>
       {tCommon('edit')}
     </Button>
   ) : null;
 
-  const footerAction =
-    isDeactivated && !awaitingCredentials ? (
-      <>
-        <Button size="sm" onClick={onActivate}>
-          {t('status.activate')}
-        </Button>
-        {primaryAction}
-      </>
-    ) : (
-      primaryAction
-    );
+  const footerAction = needsActivation ? (
+    <>
+      <Button variant="outline" size="sm" onClick={onActivate}>
+        {t('status.activate')}
+      </Button>
+      {primaryAction}
+    </>
+  ) : (
+    primaryAction
+  );
 
   return (
     <SettingsCard

@@ -18,11 +18,13 @@ export function ChooseToolsDialog({
   connectionId,
   connectionName,
   onClose,
+  onBack,
   onDone,
 }: {
   connectionId: string;
   connectionName: string;
   onClose: () => void;
+  onBack?: () => void;
   onDone: () => Promise<void>;
 }) {
   const t = useTranslations('integrations.tools');
@@ -76,54 +78,75 @@ export function ChooseToolsDialog({
     }
   }
 
+  const hasTools = tools !== null && tools.length > 0;
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('title', { name: connectionName })}</DialogTitle>
+      <DialogContent className="max-w-[540px] gap-0 p-0">
+        <DialogHeader className="space-y-2 border-b-[1px] border-rule-soft px-8 py-5 dark:border-rule-on-dark">
+          <DialogTitle className="font-serif text-2xl leading-tight text-ink dark:text-foreground">
+            {t('title', { name: connectionName })}
+          </DialogTitle>
+          <p className="text-[13px] leading-relaxed text-ink-mute">{t('intro')}</p>
         </DialogHeader>
 
-        <p className="text-sm text-muted-foreground">{t('intro')}</p>
+        <div className="px-8 py-1">
+          {loadError && (
+            <p className="text-[13px] leading-relaxed text-destructive">{loadError}</p>
+          )}
 
-        {loadError && <p className="text-sm text-destructive">{loadError}</p>}
+          {!loadError && tools === null && (
+            <p className="text-[13px] text-ink-mute">{t('loading')}</p>
+          )}
 
-        {!loadError && !tools && <p className="text-sm text-muted-foreground">{t('loading')}</p>}
+          {tools?.length === 0 && <p className="text-[13px] text-ink-mute">{t('empty')}</p>}
 
-        {tools?.length === 0 && <p className="text-sm text-muted-foreground">{t('empty')}</p>}
+          {hasTools && (
+            <div className="max-h-[22rem] overflow-y-auto">
+              {tools.map((tool) => (
+                <label
+                  key={tool.name}
+                  className="flex cursor-pointer items-start gap-3 border-b-[1px] border-rule-soft py-2.5 last:border-0 dark:border-rule-on-dark"
+                >
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 size-4 shrink-0"
+                    checked={selected.has(tool.name)}
+                    onChange={() => toggle(tool.name)}
+                  />
+                  <span className="flex flex-1 flex-col gap-1">
+                    <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                      <span className="font-mono text-[13px] text-ink dark:text-foreground">
+                        {tool.name}
+                      </span>
+                      {tool.destructive && (
+                        <span className="font-mono text-[10px] uppercase tracking-eyebrow text-destructive">
+                          {t('notReadOnly')}
+                        </span>
+                      )}
+                    </span>
+                    {tool.description && (
+                      <span className="text-[13px] leading-snug text-ink-mute">
+                        {tool.description}
+                      </span>
+                    )}
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
 
-        {tools && tools.length > 0 && (
-          <div className="max-h-80 space-y-3 overflow-y-auto">
-            {tools.map((tool) => (
-              <label key={tool.name} className="flex items-start gap-3 text-sm">
-                <input
-                  type="checkbox"
-                  className="mt-1"
-                  checked={selected.has(tool.name)}
-                  onChange={() => toggle(tool.name)}
-                />
-                <span className="flex-1">
-                  <span className="font-medium">{tool.name}</span>
-                  {tool.destructive && (
-                    <span className="ml-2 text-xs text-destructive">{t('notReadOnly')}</span>
-                  )}
-                  {tool.description && (
-                    <span className="block text-xs text-muted-foreground">{tool.description}</span>
-                  )}
-                </span>
-              </label>
-            ))}
-          </div>
-        )}
-
-        {tools && tools.length > 0 && selected.size === 0 && (
-          <p className="text-xs text-muted-foreground">{t('noneSelected')}</p>
-        )}
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
-            {tCommon('cancel')}
+        <DialogFooter className="gap-2 border-t-[1px] border-rule-soft px-8 py-3.5 dark:border-rule-on-dark">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onBack ?? onClose}
+            disabled={busy}
+          >
+            {onBack ? tCommon('back') : tCommon('cancel')}
           </Button>
-          <Button type="button" onClick={() => void save()} disabled={busy || !tools}>
+          <Button type="button" onClick={() => void save()} disabled={busy || tools === null}>
             {t('save')}
           </Button>
         </DialogFooter>

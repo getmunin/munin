@@ -1409,7 +1409,11 @@
       "liveData": "Live against the vendor — nothing is stored in Munin.",
       "connectedCount": "{count} connected",
       "chooseTools": "Choose tools",
-      "statusNoTools": "No tools exposed"
+      "statusNoTools": "No tools exposed",
+      "editVendor": "Edit {vendor}",
+      "saveChanges": "Save changes",
+      "updated": "Connection updated.",
+      "keepSecret": "Leave blank to keep the current value."
     },
     "slack": {
       "title": "Slack",
@@ -1539,7 +1543,6 @@
       "loading": "Asking the server what it offers…",
       "empty": "This server offers no tools.",
       "notReadOnly": "not read-only",
-      "noneSelected": "Nothing selected — this server stays connected but silent.",
       "save": "Save selection",
       "saved": "{count} tool(s) exposed to customers."
     }

@@ -3,6 +3,7 @@
 '@getmunin/agent-runtime': minor
 '@getmunin/agent-host': minor
 '@getmunin/dashboard-pages': minor
+'@getmunin/ui': minor
 '@getmunin/docs-pages': minor
 '@getmunin/core': minor
 '@getmunin/db': minor
@@ -23,5 +24,7 @@ Remote listings are capped at 20 tools, descriptions are sanitized and truncated
 Setup follows the existing connector flow (credential link for the bearer token, `connectors_test_connection` probes the server and lists its tools), the dashboard Integrations page gets a Custom MCP card, and `skill://connectors/connect-custom-mcp-server` documents the server contract with a reference implementation to hand to the customer's developers.
 
 `skill://connectors/connect-external-system` also gains the same caveat for the built-in commerce and bookings connectors, whose self-service tools have always trusted an inbound email `From:` header or SMS sender the same way: fine for order status, not sufficient on its own for anything whose disclosure to the wrong person causes real harm.
+
+`SectionHead` in `@getmunin/ui` gains an optional `subtitle` slot, and the Integrations page's private copy of that component is deleted in favour of it — the copy had drifted to a smaller heading than every other settings page used.
 
 The docs site gains an Integrations guide category and a "Connect your own system" guide covering the customer-facing warning, the allow-list flow and the provenance levels — the first guide-level documentation for connectors of any kind.

@@ -438,7 +438,7 @@ export class ConnectorsService {
 
   async testConnection(args: {
     connectionId: string;
-  }): Promise<{ ok: boolean; detail?: string; error?: string }> {
+  }): Promise<{ ok: boolean; detail?: string; summary?: string; error?: string }> {
     const ctx = getCurrentContext();
     const row = await this.requireConnection(args.connectionId);
     if (row.credentialState === 'pending') {
@@ -453,7 +453,7 @@ export class ConnectorsService {
         .update(schema.connectorConnections)
         .set({ lastTestedAt: new Date(), lastTestError: null, updatedAt: new Date() })
         .where(eq(schema.connectorConnections.id, row.id));
-      return { ok: true, detail: result.detail };
+      return { ok: true, detail: result.detail, summary: result.summary };
     } catch (err) {
       if (!(err instanceof ConnectorVendorError) && !(err instanceof SsrfBlockedError)) throw err;
       const message = err.message;

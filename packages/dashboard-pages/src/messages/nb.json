@@ -1409,7 +1409,11 @@
       "liveData": "Direkte mot leverandøren — ingenting lagres i Munin.",
       "connectedCount": "{count} tilkoblet",
       "chooseTools": "Velg verktøy",
-      "statusNoTools": "Ingen verktøy tilgjengelig"
+      "statusNoTools": "Ingen verktøy tilgjengelig",
+      "editVendor": "Rediger {vendor}",
+      "saveChanges": "Lagre endringer",
+      "updated": "Tilkoblingen er oppdatert.",
+      "keepSecret": "La stå tomt for å beholde nåværende verdi."
     },
     "slack": {
       "title": "Slack",
@@ -1539,7 +1543,6 @@
       "loading": "Spør serveren hva den tilbyr …",
       "empty": "Denne serveren tilbyr ingen verktøy.",
       "notReadOnly": "ikke skrivebeskyttet",
-      "noneSelected": "Ingenting valgt — serveren forblir tilkoblet, men taus.",
       "save": "Lagre utvalg",
       "saved": "{count} verktøy eksponert for kundene."
     }

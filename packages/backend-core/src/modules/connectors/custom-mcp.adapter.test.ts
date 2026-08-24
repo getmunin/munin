@@ -120,6 +120,51 @@ describe('CustomMcpAdapter', () => {
     expect(result.detail).toContain('list_subscriptions');
   });
 
+  it('returns a short human summary alongside the full agent-facing detail', async () => {
+    const adapter = new CustomMcpAdapter(() =>
+      Promise.resolve({
+        tools: [
+          { name: 'list_subscriptions', description: null, destructive: false },
+          { name: 'cancel_subscription', description: null, destructive: true },
+          { name: 'get_opening_hours', description: null, destructive: false },
+        ],
+      }),
+    );
+    const result = await adapter.testConnection(
+      ctx({
+        config: {
+          url: 'https://crm.example.com/mcp',
+          encryptedBearerToken: 'ct_abc',
+          allowedTools: ['list_subscriptions', 'cancel_subscription'],
+        },
+      }),
+    );
+    expect(result.summary).toBe('2 of 3 tool(s) exposed to customers, 1 not read-only');
+    expect(result.summary!.length).toBeLessThan(result.detail.length);
+  });
+
+  it('summarises a silent connection without listing every tool', async () => {
+    const adapter = new CustomMcpAdapter(() =>
+      Promise.resolve({
+        tools: [
+          { name: 'run_sql', description: null, destructive: true },
+          { name: 'delete_repo', description: null, destructive: true },
+        ],
+      }),
+    );
+    const result = await adapter.testConnection(
+      ctx({
+        config: {
+          url: 'https://crm.example.com/mcp',
+          encryptedBearerToken: 'ct_abc',
+          allowedTools: [],
+        },
+      }),
+    );
+    expect(result.summary).toBe('0 of 2 tool(s) exposed to customers');
+    expect(result.summary).not.toContain('run_sql');
+  });
+
   it('spells out that nothing is exposed when no tool is allow-listed', async () => {
     const adapter = new CustomMcpAdapter(() =>
       Promise.resolve({
@@ -192,6 +237,34 @@ describe('CustomMcpAdapter', () => {
       encrypt,
     );
     expect(stored.allowedTools).toEqual(['list_subscriptions', 'get_subscription']);
+  });
+
+  it('keeps the existing allow-list when an update omits allowedTools', async () => {
+    const adapter = new CustomMcpAdapter();
+    const stored = await adapter.buildStoredConfig(
+      { url: 'https://crm.example.com/mcp' },
+      encrypt,
+      {
+        url: 'https://crm.example.com/mcp',
+        encryptedBearerToken: 'ct_prev',
+        allowedTools: ['list_subscriptions'],
+      },
+    );
+    expect(stored.allowedTools).toEqual(['list_subscriptions']);
+  });
+
+  it('still clears the allow-list when an update passes an explicit empty array', async () => {
+    const adapter = new CustomMcpAdapter();
+    const stored = await adapter.buildStoredConfig(
+      { url: 'https://crm.example.com/mcp', allowedTools: [] },
+      encrypt,
+      {
+        url: 'https://crm.example.com/mcp',
+        encryptedBearerToken: 'ct_prev',
+        allowedTools: ['list_subscriptions'],
+      },
+    );
+    expect(stored.allowedTools).toEqual([]);
   });
 
   it('defaults the allow-list to empty when omitted', async () => {

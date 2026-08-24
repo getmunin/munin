@@ -62,6 +62,7 @@ export function supportsToolCatalog(
 export interface ConnectorTestResult {
   ok: boolean;
   detail: string;
+  summary?: string;
 }
 
 export class ConnectorRegistry {

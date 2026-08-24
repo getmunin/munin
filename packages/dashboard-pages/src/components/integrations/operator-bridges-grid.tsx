@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenuItem, DropdownMenuSeparator, Input, Label } from '@getmunin/ui';
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenuItem, DropdownMenuSeparator, Input, Label, SectionHead } from '@getmunin/ui';
 import { api } from '../../api';
 import { notify } from '../../lib/notify';
 import { useTranslateError } from '../../i18n/translate-error';
 import { useConfirm } from '../confirm-dialog';
 import { CardSkeleton } from '../skeleton';
 import { CardGrid, CardMenu, StatusLine } from '../card-kit';
-import { IntegrationCard, SectionHeading } from './integration-card';
+import { IntegrationCard } from './integration-card';
 import { NativeSelect } from '../native-select';
 import { dialogLabelClass } from '../../lib/dialog-style';
 
@@ -106,7 +106,7 @@ export function OperatorBridgesSection() {
     }
   }
 
-  const heading = <SectionHeading title={tb('title')} subtitle={tb('subtitle')} countLabel={status ? tConn('connectedCount', { count: status.connected ? 1 : 0 }) : undefined} />;
+  const heading = <SectionHead title={tb('title')} subtitle={tb('subtitle')} actions={status ? tConn('connectedCount', { count: status.connected ? 1 : 0 }) : undefined} />;
 
   if (loadError) {
     return (

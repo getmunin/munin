@@ -135,6 +135,8 @@ Routing: the `content` channel when routed, otherwise the default channel.
 
 The article link needs a live URL template on the collection (`settings.liveUrl`, e.g. `https://www.example.com/{locale}/blog/{slug}`) — without one the announcement still posts, just without a link. See `skill://cms/publish-entry`.
 
+Translations of one article group into a thread: the locale that publishes first gets the channel message, and every other locale of the same translation group posts as a reply under it, so Slack shows one line with a reply count instead of four side-by-side headlines. Grouping is per UTC day — a locale published the next day starts its own channel message rather than reviving yesterday's thread. An entry with no siblings is a single message, exactly as if the collection were not localized.
+
 ## Replying from Slack
 
 A reply in a mirrored thread is sent to the customer over the conversation's original channel and recorded in Munin as that teammate's message. Replying does not take over the conversation — the AI stays in the loop; use the *Take over* button on the thread parent to take control (and *Release* to hand back):

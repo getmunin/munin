@@ -216,6 +216,7 @@ export class CmsScheduleWorker implements OnModuleInit, OnModuleDestroy {
             collectionSlug,
             slug: entry.slug,
             locale: entry.locale,
+            translationGroupId: entry.translationGroupId,
             status: 'published',
             version: entry.version + 1,
             previousStatus: 'scheduled',

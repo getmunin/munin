@@ -1,5 +1,56 @@
 # @getmunin/db
 
+## 5.11.0
+
+### Minor Changes
+
+- 2169915: Custom MCP connector: connect any proprietary system as a live tool source for the support agent.
+
+  Orgs can now point Munin at an MCP server they host themselves (`vendor: "custom-mcp"`, new `mcp` connector domain). While the in-house agent handles a conversation, the remote server's tools are composed alongside the built-in ones under an `ext_<connection>_` namespace, so the agent can answer from the org's own system of record — subscriptions, memberships, internal CRM data — without Munin persisting any of it.
+
+  The trust model externalizes the discipline the built-in self-service tools already follow: remote tools take no identity parameters. Munin sends a short-lived ES256-signed identity assertion (`X-Munin-Identity` JWT) on every call, verifiable against a new public per-org JWKS endpoint (`/v1/public/connectors/:orgId/jwks`, keys minted lazily into the new `connector_signing_keys` table).
+
+  The assertion deliberately carries no `verified` boolean. It reports `email_provenance` / `phone_provenance` — `authenticated` (identity-verified widget session or delegated token), `channel_asserted` (an email `From:`, SMS sender or caller ID, all spoofable), or `self_reported` (typed by an anonymous visitor) — and the receiving server decides what each level may disclose. Provenance is computed from the channel the current turn arrived on, not from the end-user record, so an identity that was authenticated once in the widget is still reported as `channel_asserted` when someone later emails claiming to be that person. Unknown channels fall back to `channel_asserted` rather than over-claiming.
+
+  Because the connected server is a _customer-facing_ tool source rather than a toolbox for admin agents, a connection exposes nothing by default: only tool names listed in the connection's `allowedTools` reach a conversation, a call to a withheld tool is refused even if the model guesses the name, and a server with an empty allow-list stays connected and silent. `connectors_test_connection` reports what the server offers versus what is actually exposed, warns about exposed tools the server has not marked read-only, and flags allow-listed names the server does not provide.
+
+  Remote listings are capped at 20 tools, descriptions are sanitized and truncated before reaching the model, results stay fenced as untrusted data, all outbound traffic goes through the SSRF-guarded fetch (new `safeFetchCompat` in `@getmunin/core`), and a down or slow server degrades to "agent runs without those tools" — never a failed conversation.
+
+  Setup follows the existing connector flow (credential link for the bearer token, `connectors_test_connection` probes the server and lists its tools), the dashboard Integrations page gets a Custom MCP card, and `skill://connectors/connect-custom-mcp-server` documents the server contract with a reference implementation to hand to the customer's developers.
+
+  `skill://connectors/connect-external-system` also gains the same caveat for the built-in commerce and bookings connectors, whose self-service tools have always trusted an inbound email `From:` header or SMS sender the same way: fine for order status, not sufficient on its own for anything whose disclosure to the wrong person causes real harm.
+
+  `SectionHead` in `@getmunin/ui` gains an optional `subtitle` slot, and the Integrations page's private copy of that component is deleted in favour of it — the copy had drifted to a smaller heading than every other settings page used.
+
+  The docs site gains an Integrations guide category and a "Connect your own system" guide covering the customer-facing warning, the allow-list flow and the provenance levels — the first guide-level documentation for connectors of any kind.
+
+### Patch Changes
+
+- 9991922: Add Google Search Console to the `seo` domain, behind the same `seo_*` tools.
+
+  This is the payoff for drawing `SeoAdapter` before there was a second vendor: `GoogleSearchConsoleAdapter` implements the same contract, registers into the same domain, and every `seo_*` tool works against it with **no tool-layer change at all**. It authorizes through the connector trunk's OAuth capability, so there is no Google-specific auth code either — an org supplies its own OAuth client id and secret, then approves the Google account by redirect.
+
+  **Where the two engines genuinely differ, the interface admits it rather than faking it.**
+
+  `submitUrls` is optional on `SeoAdapter`, and Google doesn't implement it: Search Console has no URL-submission endpoint (its Indexing API covers only job postings and broadcast events). So `seo_submit_urls` refuses on a Google connection with a message naming the vendor, instead of silently no-op'ing or pretending to queue something. Field coverage differs the same way — Bing reports `httpStatus`, `discoveredAt` and `inboundAnchorCount`; Google reports `detail`, its coverage state, which is the single most useful string it has ("Submitted and indexed", "Crawled - currently not indexed"). `detail` is new on `SeoUrlStatus` and null for Bing. A null field means the engine doesn't expose it, not that the value is zero, and the skill and tool descriptions now say so.
+
+  **Both engines aggregate identically despite reporting differently.** Google honours an exact date range where Bing returns whole weeks, but the adapter still requests `['date', <dimension>]` and folds rows the same way — impressions and clicks summed per key, `avgPosition` weighted by impressions, `ctr` recomputed after aggregation rather than averaged from per-row values. That keeps the returned `window` honestly derived from the rows present in both adapters, so an agent reading one result cannot tell which engine produced it except by the fields that are null.
+
+  Two Google specifics worth recording. The authorize URL sets `access_type=offline` **and** `prompt=consent`, because without forced consent a repeat authorization returns no refresh token and the connection would appear to succeed and then fail on first refresh. And `invalid_grant` on refresh maps to `OAuthGrantRevokedError` while every other token failure stays a vendor error — that distinction is what lets the trunk mark a connection `expired` for a genuinely dead grant without doing so on a transient Google 500.
+
+  Property paths are URL-encoded, so both `https://example.com/` and `sc-domain:example.com` properties work.
+
+  `webmasters.readonly` is a sensitive scope. An org's own OAuth client works unverified against accounts it owns, which is the self-hosting and single-tenant case; distributing one client to customers requires Google app verification (CASA assessment, privacy policy, demo video).
+
+  **Unrelated fix, surfaced by this work:** `runMigrations` now takes a Postgres advisory lock for the duration. Concurrent callers were racing `CREATE EXTENSION IF NOT EXISTS`, which fails with `tuple concurrently updated`. It only bites on a cold database — several integration test files calling `runMigrations` at once — so it never reproduced on a warm local DB and would have shown up as a flaky CI failure in a file unrelated to whatever change added the extra racer. Adding two integration test files here was enough to trigger it.
+
+- 8ebf92a: Publishing several locales of one article now posts one Slack line with a thread, not four headlines side by side.
+
+  A four-locale batch published four near-identical announcements into the content channel, and nothing in them said they were the same article. `cms.entry.*` payloads now carry `translationGroupId` — the id every locale variant of an article already shares, which webhook subscribers can use to revalidate a whole language switcher — and the bridge worker threads on it: the locale that publishes first gets the channel message, the rest of its group post as replies under it, and Slack's own reply count does the summarising.
+
+  Grouping is per UTC day, following the outreach-campaign parent already in `slack_notification_links` (new `subject_type` `cms_translation_group`, no buttons, never resolved). A locale published the next day starts a fresh channel message rather than reviving yesterday's thread, and an entry with no siblings posts exactly as before. No migration — the existing table carries it.
+  - @getmunin/types@5.11.0
+
 ## 5.10.0
 
 ### Minor Changes

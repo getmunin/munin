@@ -708,6 +708,52 @@ class StubStorage implements AssetStorage {
       expect(drafts.find((d) => d.id === entry.id)).toBeUndefined();
       expect(await eventTypes()).toContain('cms.entry.archived');
     });
+
+    it('publishing resolves a per-locale liveUrl map against the entry locale', async () => {
+      const col = await run(() =>
+        svc.createCollection({
+          name: 'Localized blog',
+          slug: 'blog-localized',
+          fields: [{ name: 'title', type: 'text', required: true }],
+          localized: true,
+          settings: {
+            liveUrl: {
+              default: 'https://www.example.com/en/blog/{slug}',
+              'nb-NO': 'https://www.example.com/no/blog/{slug}',
+            },
+          },
+        }),
+      );
+      const nb = await run(() =>
+        svc.createEntry({
+          collection: col.slug,
+          slug: 'vaarmeny',
+          locale: 'nb-NO',
+          data: { title: 'Vårmeny' },
+          status: 'published',
+        }),
+      );
+      await run(() =>
+        svc.createEntry({
+          collection: col.slug,
+          slug: 'spring-menu',
+          locale: 'da-DK',
+          translationOf: nb.id,
+          data: { title: 'Forårsmenu' },
+          status: 'published',
+        }),
+      );
+
+      const rows = await db.execute<{ payload: Record<string, unknown> }>(
+        sql`SELECT payload FROM events
+            WHERE org_id = ${orgId} AND type = 'cms.entry.published'
+            ORDER BY created_at`,
+      );
+      expect(rows.map((r) => r.payload.url)).toEqual([
+        'https://www.example.com/no/blog/vaarmeny',
+        'https://www.example.com/en/blog/spring-menu',
+      ]);
+    });
   });
 
   describe('assets', () => {

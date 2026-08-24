@@ -2242,7 +2242,7 @@ export function makePublishedPayload(
     ...makePayload(row, collection.slug),
     previousStatus,
     title: entryTitle(row.data, row.slug),
-    url: renderLiveUrl(readLiveUrlTemplate(collection.settings), {
+    url: renderLiveUrl(readLiveUrlTemplate(collection.settings, row.locale), {
       slug: row.slug,
       locale: row.locale,
       collectionSlug: collection.slug,

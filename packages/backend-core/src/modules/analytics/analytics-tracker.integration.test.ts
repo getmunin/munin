@@ -848,7 +848,7 @@ const skipReason = TEST_URL
         .where(sql`org_id = ${backfillOrg} AND visitor_id = ${visitorId}`);
       expect(stale.every((r) => r.endUserId === null)).toBe(true);
 
-      const externalId = 'customer:backfill';
+      const externalId = 'customer-backfill';
       const userHash = signHmac(
         `${externalId}:${visitorId}`,
         minted.identityVerificationSecret,
@@ -933,7 +933,7 @@ const skipReason = TEST_URL
         },
       ]);
 
-      const externalId = 'customer:window';
+      const externalId = 'customer-window';
       const userHash = signHmac(
         `${externalId}:${visitorId}`,
         minted.identityVerificationSecret,
@@ -1208,7 +1208,7 @@ const skipReason = TEST_URL
     expect(minted.identityVerificationSecret).toMatch(/^[A-Za-z0-9_-]{20,}$/);
 
     const visitorId = 'visitor-identify-1';
-    const externalId = 'customer:42';
+    const externalId = 'customer-42';
     const userHash = signHmac(`${externalId}:${visitorId}`, minted.identityVerificationSecret);
 
     const identifyRes = await fetch(`${baseUrl}/v1/a/identify`, {
@@ -1273,7 +1273,7 @@ const skipReason = TEST_URL
       body: JSON.stringify({
         key: minted.trackerKey,
         visitorId: 'visitor-tampered',
-        externalId: 'customer:99',
+        externalId: 'customer-99',
         userHash: '0'.repeat(64),
       }),
     });
@@ -1322,6 +1322,54 @@ const skipReason = TEST_URL
     expect(journey.some((e) => e.kind === 'view' && e.subjectId === 'docs/getting-started')).toBe(
       true,
     );
+  }, 30_000);
+
+  it('refuses a legacy hash whose fields contain a colon, so a signature cannot be replayed with the field boundary shifted', async () => {
+    const minted = await mintIdentityTracker('legacy-ambiguity tracker');
+
+    const signedExternalId = 'tenant:7';
+    const signedVisitorId = 'visitor-legacy-ambig';
+    const userHash = signHmac(
+      `${signedExternalId}:${signedVisitorId}`,
+      minted.identityVerificationSecret,
+    );
+
+    const asSigned = await postIdentify(minted.trackerKey, {
+      visitorId: signedVisitorId,
+      externalId: signedExternalId,
+      userHash,
+    });
+    expect(asSigned.status).toBe(400);
+    expect(((await asSigned.json()) as { message?: string }).message).toBe(
+      'identity_hash_ambiguous',
+    );
+
+    const shifted = await postIdentify(minted.trackerKey, {
+      visitorId: `7:${signedVisitorId}`,
+      externalId: 'tenant',
+      userHash,
+    });
+    expect(shifted.status).toBe(400);
+
+    await new Promise((r) => setTimeout(r, 100));
+    const bridges = await db
+      .select()
+      .from(schema.analyticsVisitorIdentities)
+      .where(
+        sql`org_id = ${orgId} AND visitor_id IN (${signedVisitorId}, ${`7:${signedVisitorId}`})`,
+      );
+    expect(bridges.length).toBe(0);
+
+    const v1Hash = signHmac(
+      identityHashPayload({ externalId: signedExternalId, visitorId: signedVisitorId }),
+      minted.identityVerificationSecret,
+    );
+    const v1Res = await postIdentify(minted.trackerKey, {
+      visitorId: signedVisitorId,
+      externalId: signedExternalId,
+      userHash: v1Hash,
+    });
+    expect(v1Res.status).toBe(204);
   }, 30_000);
 
   it('adopts an anonymous widget identity that already carries the address', async () => {

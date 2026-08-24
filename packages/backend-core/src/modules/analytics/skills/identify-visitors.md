@@ -55,7 +55,7 @@ Each field is length-prefixed so no value can be shifted across a field boundary
 
 `email` is optional, and it is what joins web analytics to the email inbox — see step 4. Sign the exact string you send: the email is inside the HMAC precisely so that a browser can't claim someone else's address and pull down their journey. An unsigned or mis-signed email is rejected outright, and the whole `identify` call is dropped with it.
 
-Integrations written before the email field exist keep working: when no `email` is sent, the older `${externalId}:${visitorId}` payload is still accepted.
+Integrations written before the email field existed keep working for now: when no `email` is sent, the older `${externalId}:${visitorId}` payload is still accepted — but only when neither field contains a colon. With a colon in either field that payload admits more than one field split, so the same signature would also verify for a shifted `externalId`/`visitorId` pair; such calls are refused with `identity_hash_ambiguous`. The legacy payload is deprecated and will be removed — re-sign with the length-prefixed payload above.
 
 ## 3. Call `window.mn.analytics.identify` from the browser
 

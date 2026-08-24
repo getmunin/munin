@@ -1438,7 +1438,7 @@
         "commerce": "Commerce",
         "booking": "Booking",
         "connection": "Connection",
-        "customTools": "Custom tools"
+        "customTools": "Customer self-service"
       },
       "description": {
         "slack": "Triage the inbox and reply without leaving your workspace.",
@@ -1446,7 +1446,7 @@
         "magento": "Read orders and customers from your Magento store.",
         "gastroplanner": "Check availability, book tables, and manage restaurant bookings.",
         "generic": "Read directly on behalf of a customer.",
-        "customMcp": "Your own system's tools, read live by the agent — bring any MCP server."
+        "customMcp": "Your own system, answering your customers live. You choose exactly which tools they may reach."
       },
       "capability": {
         "slackMirror": "Mirror conversations into Slack threads.",
@@ -1457,7 +1457,7 @@
         "bookingsAvailability": "Check availability and book a table.",
         "bookingsManage": "Change or cancel a guest's booking.",
         "customTools": "Answer from your own system of record, live.",
-        "customIdentity": "Munin signs who is asking; your server scopes the answer."
+        "customIdentity": "Exposes nothing until you pick the tools customers may use."
       }
     },
     "field": {
@@ -1522,6 +1522,12 @@
           "label": "Bearer token",
           "hint": "A token you mint in your own system; Munin sends it on every call. Entered here, never in chat.",
           "invalid": "Paste the full token (at least 10 characters)."
+        },
+        "allowedTools": {
+          "label": "Tools customers may use",
+          "hint": "Comma-separated tool names. Leave empty and this server stays connected but silent — nothing reaches a customer conversation until you list tools here. Run Test to see what the server offers.",
+          "placeholder": "list_subscriptions, get_subscription",
+          "invalid": "Use comma-separated tool names, e.g. list_subscriptions, get_subscription."
         }
       }
     }

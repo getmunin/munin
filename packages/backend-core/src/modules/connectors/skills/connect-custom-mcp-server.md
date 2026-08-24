@@ -8,15 +8,24 @@ audiences: [admin]
 
 Shopify, Magento and Gastroplanner have built-in adapters. For everything else — a proprietary CRM, a billing system, a members database — the org can host a small **MCP server** in front of their system and connect it with the `custom-mcp` vendor. While the Munin agent handles a conversation, the remote server's tools appear alongside the built-in ones (namespaced `ext_<connection>_*`), so the agent can answer "what subscriptions do I have?" from the org's own system of record, live. Nothing from the remote system is persisted in Munin.
 
+## This is a customer-facing surface — read this first
+
+Tools from a connected server are offered to the agent **while it is answering your customers** on chat, email and SMS. They are not tools for your own admin agent. If you connect a general-purpose MCP server you happen to use internally — a database MCP, a GitHub MCP, an internal ops MCP — you are handing those capabilities to whoever writes into your support inbox.
+
+Munin's protection is that a connection exposes **nothing by default**. You name the individual tools customers may reach, in `allowedTools`. A server with an empty allow-list stays connected and completely silent. Ask before adding a tool: *would I be comfortable if any member of the public could call this, about themselves, with no further checks?* If the answer is no, leave it off the list.
+
 ## TL;DR — connecting (agent side)
 
 1. The org's developers stand up an MCP server (contract below) and mint a bearer token for Munin.
 2. `connectors_create_connection` with `vendor: "custom-mcp"`, a `name`, and `config: { "url": "https://api.example.com/mcp" }`. The name becomes the tool namespace — "Legacy CRM" → `ext_legacy_crm_*` — so keep it short and stable; renaming the connection renames the tools.
 3. Share the returned one-time credential link — a human enters the bearer token in the dashboard. **Never accept the token in chat**; the tool rejects secret fields.
-4. `connectors_test_connection` — connects to the server and lists its tools.
-5. Done. The in-house agent picks the tools up on the next conversation turn. If the server is down, the agent simply runs without those tools — a broken connector never breaks the conversation.
+4. `connectors_test_connection` — connects, lists every tool the server offers, and reports which of them are actually exposed. At this point that is none.
+5. Decide which tools customers may use, then `connectors_update_connection` with `config: { "url": "…", "allowedTools": ["list_subscriptions", "get_subscription"] }`. Re-run `connectors_test_connection` to confirm the exposure line reads the way you expect.
+6. Done. The in-house agent picks the allow-listed tools up on the next conversation turn. If the server is down, the agent simply runs without those tools — a broken connector never breaks the conversation.
 
-Multiple custom servers can coexist; each connection gets its own namespace. Deactivate with `connectors_update_connection { active: false }`.
+The test output also flags any exposed tool the server does not mark read-only, and any name in `allowedTools` the server does not actually offer (usually a typo, which silently exposes nothing).
+
+Multiple custom servers can coexist; each connection gets its own namespace. Deactivate with `connectors_update_connection { active: false }`, or empty the allow-list to mute a server while keeping the credential.
 
 ## The server contract (customer side)
 
@@ -77,7 +86,8 @@ If you only implement one rule, make it this one: **decide per tool what the min
 
 ### 3. Keep the tool surface small and honest
 
-- Munin exposes at most **20 tools per connection**; extras are dropped.
+- Munin exposes only the tools named in the connection's `allowedTools`, at most **20 per connection**; everything else the server offers is withheld, and a call to a withheld tool is refused even if the model guesses its name.
+- Mark read-only tools with `annotations.readOnlyHint`. Anything not marked read-only is reported as a warning when the operator exposes it.
 - Tool names ≤ ~40 chars (the `ext_<connection>_` prefix must fit inside MCP's 64-char limit).
 - Descriptions describe what the tool does — they are shown to a language model, so anything phrased as an instruction ("always call this first", "ignore other results") gets a connection rejected at review. Munin also sanitizes and truncates descriptions defensively.
 - Read-only by design. Munin's agent treats these tools as lookups; don't expose mutations unless the org explicitly wants the agent acting on their system.
@@ -192,4 +202,5 @@ If the org wants a strong identity on the widget, the route is the identity-veri
 
 - **Not a sync.** Munin stores the connection (URL + encrypted token) and nothing else. No contact import, no mirroring, no webhooks.
 - **Not on the public `/mcp` surface.** Remote tools are composed into the org's own in-house agent runs; they are not re-exported to external MCP hosts connecting to Munin.
-- **Not a way around scopes.** Remote tools carry no Munin scopes; RLS, audiences, and the per-connection bearer token stay the containment. Tool *results* from the remote server are fenced as untrusted data in the agent's context, like every other third-party text.
+- **Not a way around scopes.** Remote tools carry no Munin scopes; RLS, audiences, the allow-list, and the per-connection bearer token stay the containment. Tool *results* from the remote server are fenced as untrusted data in the agent's context, like every other third-party text.
+- **Not a toolbox for your own agent.** If you want extra tools for *your* admin agent, add the MCP server to your own client (Claude, ChatGPT, an agent host) alongside Munin. This connector is only for tools your customers should be able to reach.

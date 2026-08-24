@@ -4286,7 +4286,7 @@
   {
     "name": "connectors_create_connection",
     "title": "Connectors: Create a connection",
-    "description": "Create a connection to a third-party system. `config` takes the vendor’s non-secret fields only — connectors_list_vendors returns the exact fields and marks which are secret. Secret fields are rejected here: the connection is created pending and the response includes a one-time link for a human to enter the secrets in the dashboard. The vendor determines the domain (commerce, bookings). Connection names must be unique within the org.",
+    "description": "Create a connection to a third-party system. `config` takes the vendor’s non-secret fields only — connectors_list_vendors returns the exact fields and marks which are secret. Secret fields are rejected here: the connection is created pending and the response includes a one-time link for a human to enter the secrets in the dashboard. The vendor determines the domain (commerce, bookings, mcp). Connection names must be unique within the org. For the `custom-mcp` vendor the connected server is a customer-facing tool source, not a toolbox for admin agents: it exposes nothing until specific tool names are listed in its `allowedTools` config.",
     "audiences": [
       "admin"
     ],

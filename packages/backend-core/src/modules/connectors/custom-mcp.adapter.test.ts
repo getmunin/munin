@@ -7,7 +7,11 @@ const encrypt = (plaintext: string) => Promise.resolve(`enc(${plaintext})`);
 
 function ctx(overrides: Partial<ConnectorConnectionContext> = {}): ConnectorConnectionContext {
   return {
-    config: { url: 'https://crm.example.com/mcp', encryptedBearerToken: 'ct_abc' },
+    config: {
+      url: 'https://crm.example.com/mcp',
+      encryptedBearerToken: 'ct_abc',
+      allowedTools: ['list_subscriptions'],
+    },
     decryptSecret: () => Promise.resolve('token_1234567890'),
     ...overrides,
   };
@@ -38,6 +42,7 @@ describe('CustomMcpAdapter', () => {
     expect(stored).toEqual({
       url: 'https://crm.example.com/mcp',
       encryptedBearerToken: 'enc(token_1234567890)',
+      allowedTools: [],
     });
   });
 
@@ -60,15 +65,24 @@ describe('CustomMcpAdapter', () => {
   it('never exposes the encrypted token through publicConfig', () => {
     const adapter = new CustomMcpAdapter();
     expect(
-      adapter.publicConfig({ url: 'https://crm.example.com/mcp', encryptedBearerToken: 'ct_abc' }),
-    ).toEqual({ url: 'https://crm.example.com/mcp' });
+      adapter.publicConfig({
+        url: 'https://crm.example.com/mcp',
+        encryptedBearerToken: 'ct_abc',
+        allowedTools: ['list_subscriptions'],
+      }),
+    ).toEqual({ url: 'https://crm.example.com/mcp', allowedTools: ['list_subscriptions'] });
   });
 
   it('probes the server with the decrypted token and reports the tool count', async () => {
     const seen: Array<{ url: string; bearerToken: string }> = [];
     const adapter = new CustomMcpAdapter((args) => {
       seen.push(args);
-      return Promise.resolve({ tools: ['list_subscriptions', 'get_subscription'] });
+      return Promise.resolve({
+        tools: [
+          { name: 'list_subscriptions', destructive: false },
+          { name: 'get_subscription', destructive: false },
+        ],
+      });
     });
     const result = await adapter.testConnection(ctx());
     expect(seen).toEqual([
@@ -77,6 +91,89 @@ describe('CustomMcpAdapter', () => {
     expect(result.ok).toBe(true);
     expect(result.detail).toContain('2 tool(s)');
     expect(result.detail).toContain('list_subscriptions');
+  });
+
+  it('spells out that nothing is exposed when no tool is allow-listed', async () => {
+    const adapter = new CustomMcpAdapter(() =>
+      Promise.resolve({
+        tools: [
+          { name: 'run_sql', destructive: true },
+          { name: 'delete_repo', destructive: true },
+        ],
+      }),
+    );
+    const result = await adapter.testConnection(
+      ctx({
+        config: {
+          url: 'https://crm.example.com/mcp',
+          encryptedBearerToken: 'ct_abc',
+          allowedTools: [],
+        },
+      }),
+    );
+    expect(result.ok).toBe(true);
+    expect(result.detail).toContain('0 exposed to customers');
+    expect(result.detail).toContain('run_sql');
+  });
+
+  it('warns when an allow-listed tool is not read-only', async () => {
+    const adapter = new CustomMcpAdapter(() =>
+      Promise.resolve({
+        tools: [
+          { name: 'list_subscriptions', destructive: false },
+          { name: 'cancel_subscription', destructive: true },
+        ],
+      }),
+    );
+    const result = await adapter.testConnection(
+      ctx({
+        config: {
+          url: 'https://crm.example.com/mcp',
+          encryptedBearerToken: 'ct_abc',
+          allowedTools: ['list_subscriptions', 'cancel_subscription'],
+        },
+      }),
+    );
+    expect(result.detail).toContain('2 exposed to customers');
+    expect(result.detail).toContain('warning: cancel_subscription');
+  });
+
+  it('flags allow-listed names the server does not actually offer', async () => {
+    const adapter = new CustomMcpAdapter(() =>
+      Promise.resolve({ tools: [{ name: 'list_subscriptions', destructive: false }] }),
+    );
+    const result = await adapter.testConnection(
+      ctx({
+        config: {
+          url: 'https://crm.example.com/mcp',
+          encryptedBearerToken: 'ct_abc',
+          allowedTools: ['list_subscriptions', 'typo_tool'],
+        },
+      }),
+    );
+    expect(result.detail).toContain('allow-listed but missing from the server: typo_tool');
+  });
+
+  it('accepts a comma-separated allow-list from the dashboard form', async () => {
+    const adapter = new CustomMcpAdapter();
+    const stored = await adapter.buildStoredConfig(
+      {
+        url: 'https://crm.example.com/mcp',
+        bearerToken: 'token_1234567890',
+        allowedTools: 'list_subscriptions, get_subscription',
+      },
+      encrypt,
+    );
+    expect(stored.allowedTools).toEqual(['list_subscriptions', 'get_subscription']);
+  });
+
+  it('defaults the allow-list to empty when omitted', async () => {
+    const adapter = new CustomMcpAdapter();
+    const stored = await adapter.buildStoredConfig(
+      { url: 'https://crm.example.com/mcp', bearerToken: 'token_1234567890' },
+      encrypt,
+    );
+    expect(stored.allowedTools).toEqual([]);
   });
 
   it('propagates probe failures as vendor errors', async () => {

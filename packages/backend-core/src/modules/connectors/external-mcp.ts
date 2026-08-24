@@ -22,6 +22,7 @@ export interface ExternalMcpEndpoint {
   url: string;
   bearerToken: string;
   identityAssertion: string;
+  allowedTools: string[];
 }
 
 export interface IdentityAssertionClaims {
@@ -98,6 +99,8 @@ export async function listExternalMcpEndpoints(
         ? connection.config.encryptedBearerToken
         : null;
     if (!url || !encrypted) continue;
+    const allowedTools = readAllowedTools(connection.config.allowedTools);
+    if (allowedTools.length === 0) continue;
     const bearerToken = await decryptDetached(db, encrypted);
     if (bearerToken === null) continue;
     const identityAssertion = await signIdentityAssertion({
@@ -119,6 +122,7 @@ export async function listExternalMcpEndpoints(
       url,
       bearerToken,
       identityAssertion,
+      allowedTools,
     });
   }
   return endpoints;
@@ -251,6 +255,11 @@ async function decryptDetached(db: Db, ciphertext: string): Promise<string | nul
     );
     return rows[0]?.pt ?? null;
   });
+}
+
+function readAllowedTools(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0);
 }
 
 async function bypassRls(tx: Tx): Promise<void> {

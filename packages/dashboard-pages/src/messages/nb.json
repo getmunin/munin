@@ -1438,7 +1438,7 @@
         "commerce": "Handel",
         "booking": "Booking",
         "connection": "Kobling",
-        "customTools": "Egne verktøy"
+        "customTools": "Selvbetjening"
       },
       "description": {
         "slack": "Håndter innboksen og svar kundene rett fra Slack.",
@@ -1446,7 +1446,7 @@
         "magento": "Les ordrer og kunder fra Magento-butikken din.",
         "gastroplanner": "Sjekk ledige tider, book bord og håndter restaurantbookinger.",
         "generic": "Leses direkte på vegne av en kunde.",
-        "customMcp": "Verktøy fra ditt eget system, lest direkte av agenten — koble til en hvilken som helst MCP-server."
+        "customMcp": "Ditt eget system, som svarer kundene dine direkte. Du velger nøyaktig hvilke verktøy de får bruke."
       },
       "capability": {
         "slackMirror": "Speil samtaler inn i Slack-tråder.",
@@ -1457,7 +1457,7 @@
         "bookingsAvailability": "Sjekk ledige tider og book bord.",
         "bookingsManage": "Endre eller avbestill en gjests booking.",
         "customTools": "Svar direkte fra ditt eget fagsystem.",
-        "customIdentity": "Munin signerer hvem som spør; serveren din avgrenser svaret."
+        "customIdentity": "Eksponerer ingenting før du velger hvilke verktøy kundene får bruke."
       }
     },
     "field": {
@@ -1522,6 +1522,12 @@
           "label": "Bearer-token",
           "hint": "Et token du oppretter i ditt eget system; Munin sender det med hvert kall. Legges inn her, aldri i chatten.",
           "invalid": "Lim inn hele tokenet (minst 10 tegn)."
+        },
+        "allowedTools": {
+          "label": "Verktøy kundene får bruke",
+          "hint": "Kommaseparerte verktøynavn. Lar du feltet stå tomt, forblir serveren tilkoblet, men taus — ingenting når en kundesamtale før du fører opp verktøy her. Kjør Test for å se hva serveren tilbyr.",
+          "placeholder": "list_subscriptions, get_subscription",
+          "invalid": "Bruk kommaseparerte verktøynavn, f.eks. list_subscriptions, get_subscription."
         }
       }
     }

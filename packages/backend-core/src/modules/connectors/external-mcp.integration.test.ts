@@ -148,7 +148,11 @@ describe('slugifyConnectionName', () => {
         vendor: CUSTOM_MCP_VENDOR,
         domain: 'mcp',
         name: 'Legacy CRM',
-        config: { url: 'https://crm.example.com/mcp', encryptedBearerToken: encrypted },
+        config: {
+          url: 'https://crm.example.com/mcp',
+          encryptedBearerToken: encrypted,
+          allowedTools: ['list_subscriptions'],
+        },
         active: true,
         credentialState: 'active',
       },
@@ -157,7 +161,11 @@ describe('slugifyConnectionName', () => {
         vendor: CUSTOM_MCP_VENDOR,
         domain: 'mcp',
         name: 'Inactive CRM',
-        config: { url: 'https://other.example.com/mcp', encryptedBearerToken: encrypted },
+        config: {
+          url: 'https://other.example.com/mcp',
+          encryptedBearerToken: encrypted,
+          allowedTools: ['list_subscriptions'],
+        },
         active: false,
         credentialState: 'active',
       },
@@ -187,7 +195,11 @@ describe('slugifyConnectionName', () => {
       vendor: CUSTOM_MCP_VENDOR,
       domain: 'mcp',
       name: 'Legacy CRM!',
-      config: { url: 'https://crm2.example.com/mcp', encryptedBearerToken: encrypted },
+      config: {
+        url: 'https://crm2.example.com/mcp',
+        encryptedBearerToken: encrypted,
+        allowedTools: ['list_subscriptions'],
+      },
       active: true,
       credentialState: 'active',
     });
@@ -196,6 +208,31 @@ describe('slugifyConnectionName', () => {
       endUserId: verifiedEndUserId,
     });
     expect(withCollision.map((e) => e.slug).sort()).toEqual(['legacy_crm', 'legacy_crm_2']);
+  });
+
+  it('skips a connected server that has no allow-listed tools, so a misconnected admin MCP reaches no customer', async () => {
+    const encrypted = await appDb.transaction(async (tx) => {
+      await tx.execute(setEncryptionKeySql());
+      const rows = await tx.execute<{ ct: string } & Record<string, unknown>>(
+        sql`SELECT ${encryptSecretSql('secret_token_456')} AS ct`,
+      );
+      return rows[0]!.ct;
+    });
+    await db.insert(schema.connectorConnections).values({
+      orgId,
+      vendor: CUSTOM_MCP_VENDOR,
+      domain: 'mcp',
+      name: 'Internal admin MCP',
+      config: { url: 'https://internal.example.com/mcp', encryptedBearerToken: encrypted },
+      active: true,
+      credentialState: 'active',
+    });
+
+    const endpoints = await listExternalMcpEndpoints(appDb, {
+      orgId,
+      endUserId: verifiedEndUserId,
+    });
+    expect(endpoints.map((e) => e.url)).not.toContain('https://internal.example.com/mcp');
   });
 
   it('returns nothing for an unknown end user', async () => {

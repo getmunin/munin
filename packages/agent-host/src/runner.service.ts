@@ -849,7 +849,12 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
           }),
           EXTERNAL_MCP_CONNECT_TIMEOUT_MS,
         );
-        handles.push({ slug: endpoint.slug, handle: client, close: () => client.close() });
+        handles.push({
+          slug: endpoint.slug,
+          handle: client,
+          allowedTools: endpoint.allowedTools,
+          close: () => client.close(),
+        });
       } catch (err) {
         log.warn(`external MCP ${endpoint.slug} unavailable, continuing without it: ${describe(err)}`);
       }

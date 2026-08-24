@@ -11,6 +11,20 @@ import type {
 import { ConnectorVendorError, REQUEST_TIMEOUT_MS } from './http.ts';
 
 export const CUSTOM_MCP_VENDOR = 'custom-mcp';
+export const MAX_EXPOSED_TOOLS = 20;
+
+const AllowedTools = z.preprocess(
+  (value) => {
+    if (typeof value === 'string') {
+      return value
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+    }
+    return value;
+  },
+  z.array(z.string().trim().min(1).max(64)).max(MAX_EXPOSED_TOOLS).default([]),
+);
 
 export const CustomMcpConfigInput = z.object({
   url: z
@@ -20,22 +34,29 @@ export const CustomMcpConfigInput = z.object({
     .refine((u) => u.startsWith('https://'), 'url must be https')
     .transform((u) => stripTrailingSlashes(u)),
   bearerToken: z.string().min(10).max(512).optional(),
+  allowedTools: AllowedTools,
 });
 
 const StoredCustomMcpConfig = z.object({
   url: z.string(),
   encryptedBearerToken: z.string(),
+  allowedTools: z.array(z.string()).default([]),
 });
+
+export interface DiscoveredTool {
+  name: string;
+  destructive: boolean;
+}
 
 export type CustomMcpProbe = (args: {
   url: string;
   bearerToken: string;
-}) => Promise<{ tools: string[] }>;
+}) => Promise<{ tools: DiscoveredTool[] }>;
 
 export async function probeCustomMcpServer(args: {
   url: string;
   bearerToken: string;
-}): Promise<{ tools: string[] }> {
+}): Promise<{ tools: DiscoveredTool[] }> {
   const transport = new StreamableHTTPClientTransport(new URL(args.url), {
     fetch: safeFetchCompat,
     requestInit: {
@@ -49,7 +70,7 @@ export async function probeCustomMcpServer(args: {
   try {
     await withDeadline(client.connect(transport), 'connect');
     const result = await withDeadline(client.listTools(), 'tools/list');
-    return { tools: result.tools.map((t) => t.name) };
+    return { tools: result.tools.map(toDiscoveredTool) };
   } catch (err) {
     if (err instanceof SsrfBlockedError || err instanceof ConnectorVendorError) throw err;
     throw new ConnectorVendorError(
@@ -58,6 +79,15 @@ export async function probeCustomMcpServer(args: {
   } finally {
     await client.close().catch(() => undefined);
   }
+}
+
+function toDiscoveredTool(tool: { name: string; annotations?: unknown }): DiscoveredTool {
+  const annotations = tool.annotations as
+    | { readOnlyHint?: unknown; destructiveHint?: unknown }
+    | undefined;
+  const readOnly = annotations?.readOnlyHint === true;
+  const destructive = annotations?.destructiveHint === true;
+  return { name: tool.name, destructive: destructive || !readOnly };
 }
 
 async function withDeadline<T>(promise: Promise<T>, step: string): Promise<T> {
@@ -78,7 +108,7 @@ async function withDeadline<T>(promise: Promise<T>, step: string): Promise<T> {
 export class CustomMcpAdapter implements ConnectorAdapter {
   readonly vendor = CUSTOM_MCP_VENDOR;
   readonly domain = 'mcp' as const;
-  readonly displayName = 'Custom MCP server';
+  readonly displayName = 'Customer self-service MCP server';
   readonly configInput = CustomMcpConfigInput;
   readonly configFields: ConnectorConfigFieldInfo[] = [
     {
@@ -92,6 +122,13 @@ export class CustomMcpAdapter implements ConnectorAdapter {
       label: 'Bearer token (minted in your system)',
       required: true,
       secret: true,
+    },
+    {
+      key: 'allowedTools',
+      label:
+        'Tools your customers may use (comma-separated). Empty means none — this server stays connected but silent until you list them.',
+      required: false,
+      placeholder: 'list_subscriptions, get_subscription',
     },
   ];
 
@@ -114,22 +151,50 @@ export class CustomMcpAdapter implements ConnectorAdapter {
         'bearerToken is required when creating a custom MCP connection',
       );
     }
-    return { url: parsed.url, encryptedBearerToken };
+    return { url: parsed.url, encryptedBearerToken, allowedTools: parsed.allowedTools };
   }
 
   publicConfig(stored: Record<string, unknown>): Record<string, unknown> {
     const parsed = StoredCustomMcpConfig.parse(stored);
-    return { url: parsed.url };
+    return { url: parsed.url, allowedTools: parsed.allowedTools };
   }
 
   async testConnection(ctx: ConnectorConnectionContext): Promise<ConnectorTestResult> {
     const config = StoredCustomMcpConfig.parse(ctx.config);
     const bearerToken = await ctx.decryptSecret(config.encryptedBearerToken);
     const { tools } = await this.probe({ url: config.url, bearerToken });
-    const preview = tools.slice(0, 5).join(', ');
-    return {
-      ok: true,
-      detail: `connected: ${tools.length} tool(s)${preview ? ` — ${preview}` : ''}${tools.length > 5 ? ', …' : ''}`,
-    };
+    return { ok: true, detail: describeExposure(tools, config.allowedTools) };
   }
+}
+
+export function describeExposure(
+  discovered: DiscoveredTool[],
+  allowedTools: readonly string[],
+): string {
+  const allowed = new Set(allowedTools);
+  const exposed = discovered.filter((t) => allowed.has(t.name));
+  const unknown = allowedTools.filter((name) => !discovered.some((t) => t.name === name));
+  const parts = [`connected: ${discovered.length} tool(s) offered by the server`];
+
+  if (exposed.length === 0) {
+    parts.push(
+      `0 exposed to customers — nothing from this server reaches a conversation until you list tool names in allowedTools. Available: ${
+        discovered.map((t) => t.name).join(', ') || '(none)'
+      }`,
+    );
+  } else {
+    const writes = exposed.filter((t) => t.destructive).map((t) => t.name);
+    parts.push(`${exposed.length} exposed to customers: ${exposed.map((t) => t.name).join(', ')}`);
+    const notExposed = discovered.filter((t) => !allowed.has(t.name)).map((t) => t.name);
+    if (notExposed.length > 0) parts.push(`not exposed: ${notExposed.join(', ')}`);
+    if (writes.length > 0) {
+      parts.push(
+        `warning: ${writes.join(', ')} ${writes.length === 1 ? 'is' : 'are'} not marked read-only, so an exposed tool can change data on your side when a customer asks`,
+      );
+    }
+  }
+  if (unknown.length > 0) {
+    parts.push(`allow-listed but missing from the server: ${unknown.join(', ')}`);
+  }
+  return parts.join('. ');
 }

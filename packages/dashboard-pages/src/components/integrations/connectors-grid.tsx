@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DropdownMenuItem, SectionHead } from '@getmunin/ui';
+import { Badge, Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DropdownMenuItem, SectionHead } from '@getmunin/ui';
 import { api } from '../../api';
 import { notify } from '../../lib/notify';
 import { useTranslateError } from '../../i18n/translate-error';
@@ -12,6 +12,7 @@ import { CardGrid, CardMenu, StatusLine } from '../card-kit';
 import { IntegrationCard } from './integration-card';
 import {
   ConnectConnectorDialog,
+  type ConnectorAudience,
   type ConnectVendor,
   type CreatedConnection,
   type EditableConnection,
@@ -30,12 +31,28 @@ interface Connection {
   active: boolean;
   credentialState: 'active' | 'pending' | 'expired' | 'revoked';
   needsAuthorization: boolean;
+  audience?: ConnectorAudience;
   lastTestError: string | null;
   settings?: { allowedTools?: string[] };
 }
 
 function supportsToolPicker(conn: Pick<Connection, 'domain' | 'credentialState'>): boolean {
   return conn.domain === 'mcp' && conn.credentialState === 'active';
+}
+
+function AudienceBadge({
+  audience,
+  label,
+}: {
+  audience: ConnectorAudience | undefined;
+  label: (key: string) => string;
+}) {
+  if (!audience) return null;
+  return (
+    <Badge variant="secondary" className="before:hidden">
+      {label(`audience.${audience}`)}
+    </Badge>
+  );
 }
 
 function shortDetail(detail: string | undefined): string {
@@ -188,6 +205,7 @@ export function DataConnectionsSection() {
               name={displayName}
               instance={conn.name}
               meta={<StatusLine tone={s.tone} label={s.label} />}
+              badge={<AudienceBadge audience={conn.audience} label={t} />}
               description={tc(`description.${present.descriptionKey}`)}
               menu={
                 <CardMenu label={t('moreMenu')} disabled={busyId === conn.id}>
@@ -245,6 +263,7 @@ export function DataConnectionsSection() {
               key={v.vendor}
               vendor={v.vendor}
               name={v.displayName}
+              badge={<AudienceBadge audience={v.audience} label={t} />}
               description={tc(`description.${present.descriptionKey}`)}
               footer={
                 <Button type="button" variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setConnectVendor(v)}>

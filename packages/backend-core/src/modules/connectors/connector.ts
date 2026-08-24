@@ -21,6 +21,19 @@ export interface ConnectorAdapter {
 
 export type ConnectorDomain = 'commerce' | 'bookings' | 'mcp' | 'seo';
 
+export type ConnectorAudience = 'customer' | 'team' | 'both';
+
+const AUDIENCE_BY_DOMAIN: Record<ConnectorDomain, ConnectorAudience> = {
+  commerce: 'both',
+  bookings: 'both',
+  mcp: 'customer',
+  seo: 'team',
+};
+
+export function audienceForDomain(domain: ConnectorDomain): ConnectorAudience {
+  return AUDIENCE_BY_DOMAIN[domain];
+}
+
 export interface ConnectorConnectionContext {
   config: Record<string, unknown>;
   decryptSecret(ciphertext: string): Promise<string>;

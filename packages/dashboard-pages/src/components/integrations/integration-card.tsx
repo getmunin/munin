@@ -8,6 +8,7 @@ export function IntegrationCard({
   name,
   instance,
   meta,
+  badge,
   description,
   footer,
   menu,
@@ -16,6 +17,7 @@ export function IntegrationCard({
   name: string;
   instance?: string;
   meta?: ReactNode;
+  badge?: ReactNode;
   description: string;
   footer: ReactNode;
   menu?: ReactNode;
@@ -34,6 +36,7 @@ export function IntegrationCard({
         </div>
         {menu ? <div className="ml-auto flex-none self-start">{menu}</div> : null}
       </div>
+      {badge ? <div className="flex flex-wrap items-center gap-2">{badge}</div> : null}
       <p className="flex-1 text-[13px] leading-snug text-ink-mute">{description}</p>
       <div className="flex flex-wrap items-center gap-2">{footer}</div>
     </div>

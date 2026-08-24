@@ -4224,7 +4224,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/confirm@6.1.1
+## @inquirer/confirm@6.2.0
 
 > Inquirer confirm prompt
 - Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/confirm/README.md
@@ -4258,7 +4258,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/core@11.2.1
+## @inquirer/core@12.0.0
 
 > Core Inquirer prompt API
 - Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/core/README.md
@@ -4292,7 +4292,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/figures@2.0.7
+## @inquirer/figures@2.0.8
 
 > Vendored version of figures, for CJS compatibility
 - Homepage: https://github.com/SBoudrias/Inquirer.js#readme
@@ -17823,7 +17823,7 @@ SOFTWARE.
 
 ---
 
-## @xmldom/xmldom@0.8.13
+## @xmldom/xmldom@0.9.12
 
 > A pure JavaScript W3C standard-based (XML DOM Level 2 Core) DOMParser and XMLSerializer module.
 - Homepage: https://github.com/xmldom/xmldom
@@ -19300,14 +19300,28 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## boolbase@1.0.0
+## boolbase@2.0.0
 
 > two functions: One that returns true, one that returns false
 - Homepage: https://github.com/fb55/boolbase
 - Author: Felix Boehm
 - License: ISC
 
-_No LICENSE file shipped in the package; refer to homepage above._
+```
+Copyright (c) 2014-2015, Felix Boehm <me@feedic.com>
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+```
 
 ---
 
@@ -21333,7 +21347,7 @@ THE SOFTWARE.
 
 ---
 
-## css-select@5.2.2
+## css-select@7.0.0
 
 > a CSS selector compiler/engine
 - Homepage: https://github.com/fb55/css-select#readme
@@ -21356,7 +21370,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ---
 
-## css-what@6.2.2
+## css-what@8.0.0
 
 > a CSS selector parser
 - Homepage: https://github.com/fb55/css-what#readme
@@ -21806,7 +21820,7 @@ SOFTWARE.
 
 ---
 
-## defuddle@0.18.1
+## defuddle@0.19.1
 
 > Extract article content and metadata from web pages.
 - Homepage: https://github.com/kepano/defuddle
@@ -22224,7 +22238,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ---
 
-## dom-serializer@2.0.0
+## dom-serializer@2.0.0, 3.1.1
 
 > render domhandler DOM nodes to a string
 - Homepage: https://github.com/cheeriojs/dom-serializer#readme
@@ -22247,7 +22261,7 @@ THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## domelementtype@2.3.0
+## domelementtype@2.3.0, 3.0.0
 
 > all the types of nodes in htmlparser2's dom
 - Homepage: https://github.com/fb55/domelementtype#readme
@@ -22270,7 +22284,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ---
 
-## domhandler@5.0.3
+## domhandler@5.0.3, 6.0.1
 
 > Handler for htmlparser2 that turns pages into a dom
 - Homepage: https://github.com/fb55/domhandler#readme
@@ -22293,7 +22307,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ---
 
-## domutils@3.2.2
+## domutils@3.2.2, 4.0.2
 
 > Utilities for working with htmlparser2's dom
 - Homepage: https://github.com/fb55/domutils#readme
@@ -22607,7 +22621,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## entities@4.5.0, 6.0.1, 7.0.1
+## entities@4.5.0, 6.0.1, 7.0.1, 8.0.0
 
 > Encode & decode XML and HTML entities with ease & speed
 - Homepage: https://github.com/fb55/entities#readme
@@ -28215,7 +28229,7 @@ THE SOFTWARE.
 
 ---
 
-## linkedom@0.18.12
+## linkedom@0.18.13
 
 > A triple-linked lists based DOM implementation
 - Homepage: https://github.com/WebReflection/linkedom#readme
@@ -28859,7 +28873,7 @@ SOFTWARE.
 
 ---
 
-## mathml-to-latex@1.5.0
+## mathml-to-latex@1.8.0
 
 > A JavaScript tool to convert mathml string to LaTeX string
 - Homepage: https://github.com/asnunes/mathml-to-latex#readme
@@ -31511,7 +31525,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## nth-check@2.1.1
+## nth-check@3.0.1
 
 > Parses and compiles CSS nth-checks to highly optimized functions.
 - Homepage: https://github.com/fb55/nth-check
@@ -37846,7 +37860,7 @@ THE SOFTWARE.
 
 ---
 
-## temml@0.13.3
+## temml@0.13.4
 
 > TeX to MathML conversion in JavaScript.
 - Homepage: https://temml.org

@@ -47,6 +47,28 @@ describe('pickLocale', () => {
     setBrowserLanguage('en');
     expect(pickLocale('PT-BR').locale).toBe('pt');
   });
+
+  it('serves Nynorsk its own strings rather than folding it into Bokmål', () => {
+    setBrowserLanguage('en');
+    expect(pickLocale('nn').locale).toBe('nn');
+    expect(pickLocale('nn-NO').locale).toBe('nn');
+    expect(pickLocale('nno').locale).toBe('nn');
+    expect(pickLocale('nn').strings.timeNow).toBe('no');
+  });
+
+  it('keeps the unmarked Norwegian tags on Bokmål', () => {
+    setBrowserLanguage('en');
+    expect(pickLocale('no').locale).toBe('nb');
+    expect(pickLocale('nb-NO').locale).toBe('nb');
+    expect(pickLocale('nor').locale).toBe('nb');
+  });
+
+  it('resolves each newly added Baltic and Central European locale', () => {
+    setBrowserLanguage('en');
+    for (const tag of ['et', 'lv', 'lt', 'cs', 'sk', 'hu', 'ro']) {
+      expect(pickLocale(tag).locale).toBe(tag);
+    }
+  });
 });
 
 describe('format', () => {

@@ -1,5 +1,70 @@
 # @getmunin/docs-pages
 
+## 5.12.0
+
+### Minor Changes
+
+- c7039b9: Widget speaks eight more languages: Estonian, Latvian, Lithuanian, Czech, Slovak, Hungarian,
+  Romanian and Nynorsk.
+
+  The set was Nordics + Western Europe + Polish, which left conspicuous holes: the Baltics, where a
+  Nordic-first product's customers already operate as one region, and Central Europe, where Polish was
+  in but its neighbours were not. Twenty-one locales now ship: `en nb nn da sv fi is et lv lt de fr es
+it pt nl pl cs sk hu ro`.
+
+  Nynorsk is the odd one out and the cheapest: it was previously _aliased away_ — `nn`, `nno` and `nn-NO`
+  all resolved to Bokmål. It now has its own strings, so `nn` gets Nynorsk while `no`, `nob` and `nor`
+  stay on Bokmål. Norwegian public bodies are obliged to serve both written standards, which makes this
+  closer to a requirement than a nicety for public-sector deals.
+
+  Locales are statically imported, so every visitor downloads every language. Measured cost of the
+  eight: **+4.4 KB gzipped** on the widget bundle (174.1 → 178.6 KB), about 0.55 KB per language.
+
+  `FALLBACK_LOCALES` in `@getmunin/agent-runtime` mirrors the widget list and moves with it, so the
+  runtime's canned greeting and handover notice speak the new languages too rather than silently
+  dropping to English. The chat-widget guide documents `data-munin-locale` for the first time — the
+  attribute has existed since the widget shipped, was described in `skill://conv/setup-chat-widget`,
+  and was missing from the human-facing optional-attributes list.
+
+  Translation notes worth a native reviewer's eye before this reaches production traffic: register is
+  informal for Estonian and Nynorsk, polite for Latvian, Lithuanian, Czech, Slovak, Hungarian and
+  Romanian, matching how support desks in each market actually address customers. Where a template
+  interpolates an agent's name into a case-inflecting language, the copy uses a colon form
+  (`Kõne: {who}`, `Hovor: {who}`, `Hívás: {who}`) rather than a preposition that would demand a
+  declined name. The Romanian month abbreviation `{n} l` and the Estonian `{n} k` are the two terse
+  relative-time strings most likely to want a second opinion.
+
+### Patch Changes
+
+- d1ad5a5: Restore the spaces that vanished after inline `<code>`/`<em>`/`<strong>` in the guide prose.
+
+  Seven guides rendered joined-up words — "Open \_Choose tools_on the connection's menu", "must not
+  take an `email` or `customerId`argument", "**All spoofable.**Anyone can send mail". The space was in
+  the source; Next's bundled SWC dropped it. A multi-line JSX text run whose text contains an HTML
+  entity (`&rsquo;`, `&quot;`, `&lt;`, …) loses its _leading_ space during the entity decode — the
+  trailing space survives, a single-line run survives, and the same source compiled with upstream
+  `@swc/core` keeps it, so this only shows up in a Next build. It reproduces on both 16.2.12 (OSS
+  `apps/web`) and 16.2.6 (cloud marketing), and there is nothing in the source to hint at it: the
+  paragraph looks correct.
+
+  Each of the 18 affected boundaries now carries an explicit `{' '}`, which compiles to its own string
+  child and is immune to the bug. Verified by compiling every `.tsx` in the repo with Next's SWC and
+  asserting no element child is followed by a text child that starts mid-word, and by diffing the
+  rendered text of the touched files against the same files compiled with an unaffected SWC. Only
+  `packages/docs-pages/src/guides/` was affected; nothing under `apps/web` hit the pattern.
+
+  One neighbouring defect fixed along the way, this one genuinely in the source: in the chat-widget
+  guide, `<code>"dark"</code>` ended a line and `pins the panel` began the next, so ordinary JSX
+  line-joining left no space at all.
+
+  Also gives a `docs-attrs` definition list breathing room before a following paragraph. On the
+  custom-MCP-server guide the "Provenance describes the turn happening right now" paragraph butted
+  straight against the `self_reported` row, reading as a fourth definition rather than prose.
+
+- Updated dependencies [1836666]
+  - @getmunin/backend-core@5.12.0
+  - @getmunin/types@5.12.0
+
 ## 5.11.0
 
 ### Minor Changes

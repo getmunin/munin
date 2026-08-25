@@ -1,5 +1,14 @@
 # @getmunin/docs-pages
 
+## 5.13.0
+
+### Patch Changes
+
+- Updated dependencies [36b5a46]
+- Updated dependencies [a990278]
+  - @getmunin/backend-core@5.13.0
+  - @getmunin/types@5.13.0
+
 ## 5.12.0
 
 ### Minor Changes
@@ -38,10 +47,10 @@ it pt nl pl cs sk hu ro`.
 
 - d1ad5a5: Restore the spaces that vanished after inline `<code>`/`<em>`/`<strong>` in the guide prose.
 
-  Seven guides rendered joined-up words — "Open \_Choose tools_on the connection's menu", "must not
+  Seven guides rendered joined-up words — "Open \_Choose tools*on the connection's menu", "must not
   take an `email` or `customerId`argument", "**All spoofable.**Anyone can send mail". The space was in
   the source; Next's bundled SWC dropped it. A multi-line JSX text run whose text contains an HTML
-  entity (`&rsquo;`, `&quot;`, `&lt;`, …) loses its _leading_ space during the entity decode — the
+  entity (`&rsquo;`, `&quot;`, `&lt;`, …) loses its \_leading* space during the entity decode — the
   trailing space survives, a single-line run survives, and the same source compiled with upstream
   `@swc/core` keeps it, so this only shows up in a Next build. It reproduces on both 16.2.12 (OSS
   `apps/web`) and 16.2.6 (cloud marketing), and there is nothing in the source to hint at it: the

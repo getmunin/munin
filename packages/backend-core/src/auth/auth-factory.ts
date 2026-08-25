@@ -91,7 +91,7 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
     '',
   );
   const surfaces = resolveMcpSurfaces(opts.mcpSurfaces);
-  const validAudiences = computeValidAudiences(
+  const resourceIdentifiers = computeValidAudiences(
     opts.baseUrl,
     mcpResourceUrl(),
     mcpSurfaceAudiences(surfaces),
@@ -158,7 +158,8 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
           allowDynamicClientRegistration: true,
           allowUnauthenticatedClientRegistration: true,
           scopes: authScopes,
-          validAudiences,
+          resources: resourceIdentifiers,
+          enforcePerClientResources: false,
           silenceWarnings: { oauthAuthServerConfig: true, openidConfig: true },
           postLogin: {
             page: `${dashboardUrl}/dashboard/oauth/consent`,

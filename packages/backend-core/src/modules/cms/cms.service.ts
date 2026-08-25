@@ -354,6 +354,7 @@ export class CmsService {
       name?: string;
       description?: string | null;
       fields?: FieldDef[];
+      localized?: boolean;
       settings?: Record<string, unknown>;
     },
   ): Promise<CollectionDto> {
@@ -365,6 +366,10 @@ export class CmsService {
     if (patch.fields !== undefined) {
       validateFieldsShape(patch.fields);
       updates.fields = patch.fields;
+    }
+    if (patch.localized !== undefined && patch.localized !== collection.localized) {
+      if (!patch.localized) await this.assertNoExtraLocales(collection.id, collection.slug);
+      updates.localized = patch.localized;
     }
     if (patch.settings !== undefined) updates.settings = patch.settings;
 
@@ -381,6 +386,23 @@ export class CmsService {
       });
     }
     return toCollectionDto(row!);
+  }
+
+  private async assertNoExtraLocales(collectionId: string, slug: string): Promise<void> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ locale: schema.cmsEntries.locale })
+      .from(schema.cmsEntries)
+      .where(eq(schema.cmsEntries.collectionId, collectionId))
+      .groupBy(schema.cmsEntries.locale)
+      .orderBy(asc(schema.cmsEntries.locale));
+    if (rows.length > 1) {
+      throw new ConflictException(
+        `cms_localized_conflict: collection ${slug} has entries in ${rows.length} locales (${rows
+          .map((r) => r.locale)
+          .join(', ')}); delete the extra locale variants before turning localization off`,
+      );
+    }
   }
 
   async deleteCollection(idOrSlug: string): Promise<{ deleted: true }> {

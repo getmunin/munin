@@ -1394,7 +1394,7 @@
   {
     "name": "cms_update_collection",
     "title": "CMS: Update collection",
-    "description": "Patch a collection. When supplied, `fields` REPLACES the existing array — so include every field you want to keep, in the order they should render (the array order is the render order). Field migration is lossy: dropped or renamed fields stay in entries' `data` jsonb but stop being read by the projection layer.",
+    "description": "Patch a collection. When supplied, `fields` REPLACES the existing array — so include every field you want to keep, in the order they should render (the array order is the render order). Field migration is lossy: dropped or renamed fields stay in entries' `data` jsonb but stop being read by the projection layer. `localized` can be turned on at any time and existing entries keep the locale they already have; turning it off is refused while the collection holds entries in more than one locale.",
     "audiences": [
       "admin"
     ],
@@ -1434,6 +1434,9 @@
               "items": {
                 "$ref": "#/$defs/__schema0"
               }
+            },
+            "localized": {
+              "type": "boolean"
             },
             "settings": {
               "type": "object",

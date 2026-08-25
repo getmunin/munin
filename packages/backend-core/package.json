@@ -42,7 +42,7 @@
     "mcp:sweep": "node --import @swc-node/register/esm-register ./scripts/mcp-sweep.ts"
   },
   "dependencies": {
-    "@better-auth/oauth-provider": "^1.6.23",
+    "@better-auth/oauth-provider": "^1.7.1",
     "@getmunin/agent-runtime": "workspace:*",
     "@getmunin/core": "workspace:*",
     "@getmunin/db": "workspace:*",
@@ -60,7 +60,7 @@
     "@nestjs/schedule": "^6.1.3",
     "@nestjs/swagger": "^11.4.2",
     "@nestjs/throttler": "^6.0.0",
-    "better-auth": "^1.6.23",
+    "better-auth": "^1.7.1",
     "cron": "^4.4.0",
     "drizzle-orm": "^0.45.2",
     "express": "^5.1.0",

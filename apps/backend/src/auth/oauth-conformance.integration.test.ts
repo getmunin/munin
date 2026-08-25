@@ -78,7 +78,7 @@ const PRESET_BASE_URL = `http://127.0.0.1:${FIXED_PORT}`;
   });
 
   describe('RFC 7591: Dynamic Client Registration', () => {
-    it('mints a public client and persists it', async () => {
+    it('mints a public native client on a loopback redirect and persists it', async () => {
       const res = await fetch(`${baseUrl}/auth/oauth2/register`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -88,14 +88,33 @@ const PRESET_BASE_URL = `http://127.0.0.1:${FIXED_PORT}`;
           grant_types: ['authorization_code', 'refresh_token'],
           response_types: ['code'],
           token_endpoint_auth_method: 'none',
+          application_type: 'native',
           scope: 'openid mcp:tools',
         }),
       });
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(201);
       const body = (await res.json()) as Record<string, unknown>;
       expect(typeof body.client_id).toBe('string');
       expect((body.client_id as string).length).toBeGreaterThan(8);
       expect(body.redirect_uris).toEqual(['http://localhost:5173/callback']);
+    });
+
+    it('rejects a loopback redirect for a web client, which defaults when application_type is omitted', async () => {
+      const res = await fetch(`${baseUrl}/auth/oauth2/register`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          client_name: 'Conformance Test Web Client',
+          redirect_uris: ['http://localhost:5173/callback'],
+          grant_types: ['authorization_code', 'refresh_token'],
+          response_types: ['code'],
+          token_endpoint_auth_method: 'none',
+          scope: 'openid mcp:tools',
+        }),
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as Record<string, unknown>;
+      expect(body.error).toBe('invalid_redirect_uri');
     });
   });
 });

@@ -118,6 +118,7 @@ export const accounts = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     accountId: text('account_id').notNull(),
     providerId: text('provider_id').notNull(),
+    issuer: text('issuer').notNull(),
     accessToken: text('access_token'),
     refreshToken: text('refresh_token'),
     idToken: text('id_token'),
@@ -130,7 +131,7 @@ export const accounts = pgTable(
   },
   (t) => ({
     userIdx: index('accounts_user_idx').on(t.userId),
-    providerIdx: uniqueIndex('accounts_provider_account_uq').on(t.providerId, t.accountId),
+    issuerIdx: uniqueIndex('accounts_issuer_account_uq').on(t.issuer, t.accountId),
   }),
 );
 
@@ -155,6 +156,8 @@ export const jwks = pgTable('jwks', {
   privateKey: text('private_key').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
+  alg: text('alg'),
+  crv: text('crv'),
 });
 
 // Membership: which users belong to which orgs. Many-to-many — a user can
@@ -276,6 +279,14 @@ export const oauthClient = pgTable(
     requirePKCE: boolean('require_pkce'),
     referenceId: text('reference_id'),
     metadata: jsonb('metadata'),
+    clientDiscoveryId: text('client_discovery_id'),
+    clientCredentialsScopes: text('client_credentials_scopes').array().default([]),
+    backchannelLogoutUri: text('backchannel_logout_uri'),
+    backchannelLogoutSessionRequired: boolean('backchannel_logout_session_required'),
+    applicationType: text('application_type'),
+    jwks: text('jwks'),
+    jwksUri: text('jwks_uri'),
+    dpopBoundAccessTokens: boolean('dpop_bound_access_tokens').default(false),
     createdAt,
     updatedAt,
   },
@@ -325,12 +336,20 @@ export const oauthAccessToken = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt,
     scopes: text('scopes').array().notNull(),
+    authorizationCodeId: text('authorization_code_id'),
+    resources: text('resources').array(),
+    requestedUserInfoClaims: text('requested_user_info_claims').array(),
+    revoked: timestamp('revoked', { withTimezone: true }),
+    confirmation: jsonb('confirmation'),
   },
   (t) => ({
     clientIdx: index('oauth_access_token_client_idx').on(t.clientId),
     sessionIdx: index('oauth_access_token_session_idx').on(t.sessionId),
     userIdx: index('oauth_access_token_user_idx').on(t.userId),
     refreshIdx: index('oauth_access_token_refresh_idx').on(t.refreshId),
+    authorizationCodeIdx: index('oauth_access_token_authorization_code_idx').on(
+      t.authorizationCodeId,
+    ),
   }),
 );
 
@@ -344,6 +363,8 @@ export const oauthConsent = pgTable(
     userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
     referenceId: text('reference_id'),
     scopes: text('scopes').array().notNull(),
+    resources: text('resources').array(),
+    requestedUserInfoClaims: text('requested_user_info_claims').array(),
     createdAt,
     updatedAt,
   },
@@ -351,6 +372,52 @@ export const oauthConsent = pgTable(
     clientUserIdx: index('oauth_consent_client_user_idx').on(t.clientId, t.userId),
   }),
 );
+
+export const oauthResource = pgTable('oauth_resource', {
+  id: id('ores'),
+  identifier: text('identifier').notNull().unique(),
+  name: text('name').notNull(),
+  accessTokenTtl: integer('access_token_ttl'),
+  refreshTokenTtl: integer('refresh_token_ttl'),
+  signingAlgorithm: text('signing_algorithm'),
+  signingKeyId: text('signing_key_id'),
+  allowedScopes: text('allowed_scopes').array(),
+  customClaims: jsonb('custom_claims'),
+  dpopBoundAccessTokensRequired: boolean('dpop_bound_access_tokens_required').default(false),
+  disabled: boolean('disabled').default(false),
+  createdAt,
+  updatedAt,
+  policyVersion: integer('policy_version').default(1),
+  metadata: jsonb('metadata'),
+});
+
+export const oauthClientResource = pgTable(
+  'oauth_client_resource',
+  {
+    id: id('ocrs'),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    resourceId: text('resource_id')
+      .notNull()
+      .references(() => oauthResource.identifier, { onDelete: 'cascade' }),
+    metadata: jsonb('metadata'),
+    createdAt,
+  },
+  (t) => ({
+    clientIdx: index('oauth_client_resource_client_idx').on(t.clientId),
+    resourceIdx: index('oauth_client_resource_resource_idx').on(t.resourceId),
+    clientResourceUq: uniqueIndex('oauth_client_resource_client_resource_uq').on(
+      t.clientId,
+      t.resourceId,
+    ),
+  }),
+);
+
+export const oauthClientAssertion = pgTable('oauth_client_assertion', {
+  id: id('ocas'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+});
 
 // Tokens issued via OAuth or as delegated end-user JWTs.
 export const tokens = pgTable(
@@ -2322,6 +2389,9 @@ export const allTables = {
   oauthAccessToken,
   oauthRefreshToken,
   oauthConsent,
+  oauthResource,
+  oauthClientResource,
+  oauthClientAssertion,
   jwks,
   tokens,
   apiKeys,

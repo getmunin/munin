@@ -98,9 +98,10 @@ export default function SkillsVsToolsVsRest() {
       <dl className="docs-attrs">
         <dt>Shape</dt>
         <dd>
-          A <code>.md</code> file with YAML frontmatter (title, description, audiences) and a body
-          written like a runbook — short, imperative, ordered. Indexed at startup and loaded into
-          the agent&rsquo;s context only when its description matches the situation.
+          A <code>.md</code>{' '}
+          file with YAML frontmatter (title, description, audiences) and a body written like a
+          runbook — short, imperative, ordered. Indexed at startup and loaded into the
+          agent&rsquo;s context only when its description matches the situation.
         </dd>
         <dt>Audience</dt>
         <dd>

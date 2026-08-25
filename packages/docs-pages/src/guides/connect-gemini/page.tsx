@@ -88,9 +88,10 @@ export default function ConnectGemini() {
           3 · Verify
         </h2>
         <p className="tag-blurb">
-          Run <code>gemini mcp list</code> — it prints every connected server and the tools it
-          discovered. If Munin doesn&rsquo;t show, re-run with <code>--verbose</code> to see the
-          handshake error. Then prompt Gemini in a session with{' '}
+          Run <code>gemini mcp list</code>{' '}
+          — it prints every connected server and the tools it discovered. If Munin doesn&rsquo;t
+          show, re-run with <code>--verbose</code> to see the handshake error. Then prompt Gemini in
+          a session with{' '}
           <em>&ldquo;List the Munin tools you can call&rdquo;</em> as a smoke test.
         </p>
         <p className="tag-blurb">

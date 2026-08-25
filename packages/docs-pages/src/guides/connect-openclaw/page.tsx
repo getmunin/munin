@@ -48,8 +48,9 @@ export default function ConnectOpenClaw() {
         <p className="tag-blurb">
           The one-shot command writes the entry into{' '}
           <code>~/.openclaw/openclaw.json</code> for you. Prefer{' '}
-          <code>streamable-http</code> — it&rsquo;s the modern Munin transport and handles
-          long-running tool calls without an open SSE stream.
+          <code>streamable-http</code>{' '}
+          — it&rsquo;s the modern Munin transport and handles long-running tool calls without an
+          open SSE stream.
         </p>
         <div className="curl">
           <div className="curl-h">

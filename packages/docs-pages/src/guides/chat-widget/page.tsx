@@ -121,6 +121,21 @@ export default function WidgetGuide() {
           screen keep their fixed near-black chrome in every mode unless you set the color attributes
           above &mdash; only the panel body (welcome/chat/composer/cards) inverts.
         </dd>
+        <dt>data-munin-locale</dt>
+        <dd>
+          Pins the interface language. Left off, the widget negotiates from the browser —{' '}
+          <code>navigator.language</code>, then each entry of <code>navigator.languages</code> in
+          order — and falls back to English. Twenty-one languages ship with the bundle:{' '}
+          <code>en</code>, <code>nb</code>, <code>nn</code>, <code>da</code>, <code>sv</code>,{' '}
+          <code>fi</code>, <code>is</code>, <code>et</code>, <code>lv</code>, <code>lt</code>,{' '}
+          <code>de</code>, <code>fr</code>, <code>es</code>, <code>it</code>, <code>pt</code>,{' '}
+          <code>nl</code>, <code>pl</code>, <code>cs</code>, <code>sk</code>, <code>hu</code>,{' '}
+          <code>ro</code>. Region subtags are dropped, so <code>&quot;de-AT&quot;</code> resolves to{' '}
+          <code>de</code> and <code>&quot;pt-BR&quot;</code> to <code>pt</code>. Norwegian keeps both
+          written standards: <code>&quot;no&quot;</code> resolves to Bokmål and{' '}
+          <code>&quot;nn&quot;</code> is served Nynorsk. A tag with no translation is ignored silently
+          rather than erroring, so the visitor lands on their browser language or English.
+        </dd>
         <dt>data-munin-position</dt>
         <dd>
           <code>&quot;bottom-right&quot;</code> (default) or <code>&quot;bottom-left&quot;</code>.
@@ -142,6 +157,12 @@ export default function WidgetGuide() {
           Set to <code>&quot;false&quot;</code> to hide the past-conversation list on the welcome screen.
         </dd>
       </dl>
+      <p className="tag-blurb">
+        Whichever language wins travels with the conversation when it starts: the agent is asked to
+        greet in it, and the runtime&rsquo;s canned messages (opening greeting, handover notice) use
+        it when the model is unavailable. Treat it as a hint about the visitor rather than a
+        constraint on the reply — the model answers in whatever language they write in.
+      </p>
 
       <h2 className="tag-h" id="identity" style={{ marginTop: 56 }}>
         Identity verification <span className="ct">optional</span>

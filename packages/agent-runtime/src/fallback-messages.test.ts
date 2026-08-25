@@ -23,13 +23,17 @@ describe('pickFallback', () => {
     expect(pickFallback('zh-CN')).toBe('en');
   });
 
-  it('aliases Norwegian variants to nb', () => {
+  it('aliases the unmarked Norwegian tags to nb', () => {
     expect(pickFallback('no')).toBe('nb');
     expect(pickFallback('no-NO')).toBe('nb');
-    expect(pickFallback('nn')).toBe('nb');
-    expect(pickFallback('nn-NO')).toBe('nb');
     expect(pickFallback('nob')).toBe('nb');
     expect(pickFallback('nor')).toBe('nb');
+  });
+
+  it('keeps Nynorsk separate from Bokmål', () => {
+    expect(pickFallback('nn')).toBe('nn');
+    expect(pickFallback('nn-NO')).toBe('nn');
+    expect(pickFallback('nno')).toBe('nn');
   });
 
   it.each([null, undefined, '', 'xx', 'klingon', 'zh'])(

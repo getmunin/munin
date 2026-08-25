@@ -9,13 +9,16 @@ Locales are org-scoped. Every entry stores its `locale` as a string column; if t
 
 Each locale variant carries **its own slug**: `varlansering-2026` in `nb` and `spring-launch-2026` in `en` are the same content. What ties them together is the `translationGroupId` on every entry — pass `translationOf` when you create a variant and the group is inherited.
 
+A collection created with `localized: false` is not stuck that way. Flip it with `cms_update_collection({ idOrSlug, patch: { localized: true } })` — the flag is a declaration about the collection, not a storage format, so nothing is rewritten and the entries you already published keep their slug, locale and translation group. Do the flip before you start fanning out translations, so the collection reads honestly to the dashboard, the delivery API and the next agent that lists it.
+
 ## TL;DR
 
 1. `cms_list_locales` — see what's configured.
 2. `cms_create_locale` for each missing language. The first locale added auto-becomes default.
-3. Create a base entry: `cms_create_entry` with the default locale.
-4. Fan out: one `cms_create_entry` per additional locale, with `translationOf` set to the base entry's id and whatever slug reads best in that language.
-5. Publish each per-locale entry independently.
+3. `cms_update_collection` with `patch: { localized: true }` if the collection isn't localized yet.
+4. Create a base entry: `cms_create_entry` with the default locale.
+5. Fan out: one `cms_create_entry` per additional locale, with `translationOf` set to the base entry's id and whatever slug reads best in that language.
+6. Publish each per-locale entry independently.
 
 ## Step 1 — verify locales
 
@@ -36,7 +39,22 @@ Returns `[{ code, name, isDefault }, ...]`. Codes are ISO 639-1 (`en`, `nb`) or 
 
 If `isDefault: true`, the call atomically clears `isDefault` on every other locale for this org. The very first locale you create is implicitly the default regardless of the flag.
 
-## Step 3 — author the base entry
+## Step 3 — mark the collection localized
+
+`cms_get_collection` tells you where it stands. If `localized` is `false`, flip it:
+
+```jsonc
+{
+  "name": "cms_update_collection",
+  "arguments": { "idOrSlug": "blog", "patch": { "localized": true } }
+}
+```
+
+Nothing else in the patch is required — the other keys keep their current values. Existing entries are untouched, so an article already published in `en` stays exactly as it is and simply becomes the first member of a group you can now grow.
+
+Going the other way, `patch: { localized: false }` fails with `cms_localized_conflict` while the collection still holds entries in more than one locale. That error names the locales; delete or re-home those variants first if turning localization off is really what you want.
+
+## Step 4 — author the base entry
 
 Pick the default locale (or whichever you treat as canonical). Create the entry once:
 
@@ -55,7 +73,7 @@ Pick the default locale (or whichever you treat as canonical). Create the entry 
 
 The response carries a `translationGroupId` — a group of one, so far — and the entry `id` you pass as `translationOf` next.
 
-## Step 4 — fan out per locale
+## Step 5 — fan out per locale
 
 For each additional locale, create a separate entry with `translationOf` set to the base entry's id. Give it the slug a reader of that language would expect; don't transliterate the English one.
 
@@ -79,7 +97,7 @@ Slug uniqueness is `(collection, slug, locale)` and translation-group uniqueness
 
 Translations live in `data` — the field schema is per-collection, so make sure every locale supplies the required fields.
 
-## Step 5 — publish per locale
+## Step 6 — publish per locale
 
 Use `skill://cms/publish-entry` for each entry. There is **no atomic "publish all locales" tool** — publish each one individually. If the order matters (e.g. you don't want the English version live while the Norwegian one is still missing), publish the secondary locales first and the canonical one last.
 

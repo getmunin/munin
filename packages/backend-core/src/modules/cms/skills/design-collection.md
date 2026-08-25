@@ -41,7 +41,7 @@ Decide now:
 - **Will the same entry need to exist in multiple languages?** (Marketing site copy for EU customers, product descriptions for international retail, KB articles in en + ja + de.) → `localized: true`.
 - **Is each entry inherently single-language?** (User-generated reviews, internal-only changelog notes, content that gets *re-authored* per market rather than translated.) → leave it false.
 
-You can flip a collection from non-localized to localized later, but only the "default locale" entries get auto-populated — anything else needs backfill. Going from localized to non-localized loses data.
+Deciding wrong is not a dead end: `cms_update_collection` takes `localized` in its patch, so you can flip an existing collection either way without recreating it or migrating entries. Every entry already carries a `locale` and a `translationGroupId` whatever the flag says, so turning localization **on** changes nothing about the entries you already have — they stay in the locale they were written in, and you add the other languages with `skill://cms/localize-entry`. Turning it **off** is refused (`cms_localized_conflict`) while the collection holds entries in more than one locale, since a non-localized collection serving four languages is a lie the delivery API can't tell; delete the extra variants first if you really mean it.
 
 Individual fields can also opt out of localization with `localized: false` on the field (e.g. an `eventDate` datetime doesn't translate). Default behavior when the collection is localized: every field is localized unless you say otherwise.
 

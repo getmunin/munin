@@ -50,6 +50,7 @@ const UpdateCollectionInput = z.object({
     name: z.string().min(1).max(120).optional(),
     description: z.string().nullable().optional(),
     fields: z.array(FieldSchema).max(100).optional(),
+    localized: z.boolean().optional(),
     settings: z.record(z.string(), z.unknown()).optional(),
   }),
 });
@@ -309,7 +310,7 @@ export class CmsAdminTools {
     name: 'cms_update_collection',
     title: 'CMS: Update collection',
     description:
-      'Patch a collection. When supplied, `fields` REPLACES the existing array — so include every field you want to keep, in the order they should render (the array order is the render order). Field migration is lossy: dropped or renamed fields stay in entries\' `data` jsonb but stop being read by the projection layer.',
+      'Patch a collection. When supplied, `fields` REPLACES the existing array — so include every field you want to keep, in the order they should render (the array order is the render order). Field migration is lossy: dropped or renamed fields stay in entries\' `data` jsonb but stop being read by the projection layer. `localized` can be turned on at any time and existing entries keep the locale they already have; turning it off is refused while the collection holds entries in more than one locale.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: UpdateCollectionInput,

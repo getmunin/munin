@@ -154,8 +154,9 @@ export default function AudiencesAndTokens() {
         </dd>
         <dt>Don&rsquo;t paper over audience with scopes</dt>
         <dd>
-          Scopes refine permissions <em>within</em> an audience. They don&rsquo;t upgrade a
-          self-service token into an admin one. If a tool isn&rsquo;t visible to{' '}
+          Scopes refine permissions <em>within</em>{' '}
+          an audience. They don&rsquo;t upgrade a self-service token into an admin one. If a tool
+          isn&rsquo;t visible to{' '}
           <code>self_service</code>, no scope value will reveal it.
         </dd>
       </dl>

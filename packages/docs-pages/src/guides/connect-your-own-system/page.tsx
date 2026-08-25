@@ -105,10 +105,11 @@ export default function ConnectYourOwnSystem() {
             3 · Choose what customers may reach
           </h2>
           <p className="tag-blurb">
-            Open <em>Choose tools</em> on the connection&rsquo;s menu. Munin asks your server what it
-            offers and lists every tool with a checkbox; tick the ones customers may call. This is
-            the safety mechanism: a server you misconfigured, or pointed at the wrong system, stays
-            silent until a human deliberately ticks something. Agents do the same thing with{' '}
+            Open <em>Choose tools</em>{' '}
+            on the connection&rsquo;s menu. Munin asks your server what it offers and lists every
+            tool with a checkbox; tick the ones customers may call. This is the safety mechanism: a
+            server you misconfigured, or pointed at the wrong system, stays silent until a human
+            deliberately ticks something. Agents do the same thing with{' '}
             <code>connectors_list_server_tools</code> and <code>connectors_set_allowed_tools</code>.
           </p>
           <dl className="docs-attrs">
@@ -125,9 +126,10 @@ export default function ConnectYourOwnSystem() {
             Who is asking <span className="ct">and how much to trust it</span>
           </h2>
           <p className="tag-blurb">
-            Your tools must not take an <code>email</code> or <code>customerId</code> argument. An
-            argument is something a confused or manipulated model can fill in with somebody
-            else&rsquo;s identity. Instead every call carries an <code>X-Munin-Identity</code>{' '}
+            Your tools must not take an <code>email</code> or <code>customerId</code>{' '}
+            argument. An argument is something a confused or manipulated model can fill in with
+            somebody else&rsquo;s identity. Instead every call carries an{' '}
+            <code>X-Munin-Identity</code>{' '}
             header — a short-lived ES256 JWT you verify against a public per-org JWKS document —
             naming the person the agent is serving and, crucially, <em>how well that name is
             known</em>.
@@ -145,9 +147,9 @@ export default function ConnectYourOwnSystem() {
             </dt>
             <dd>
               Taken from the channel envelope — an email <code>From:</code> header, an SMS sender, a
-              caller ID. <strong>All spoofable.</strong> Anyone can send mail claiming to be
-              someone. Fine for order status; not sufficient on its own for anything you
-              wouldn&rsquo;t put on a postcard.
+              caller ID. <strong>All spoofable.</strong>{' '}
+              Anyone can send mail claiming to be someone. Fine for order status; not sufficient on
+              its own for anything you wouldn&rsquo;t put on a postcard.
             </dd>
             <dt>
               <code>self_reported</code>

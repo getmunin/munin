@@ -25,9 +25,10 @@ export default function WidgetGuide() {
           Drop-in <em>chat widget</em>.
         </h1>
         <p className="lede">
-          One <code style={{ fontFamily: 'var(--munin-mono)' }}>&lt;script&gt;</code> tag on your site
-          gives visitors a chat launcher that opens a Munin conversation. The widget runs inside a Shadow
-          DOM, so your host page&rsquo;s CSS can&rsquo;t bleed in and ours can&rsquo;t bleed out.
+          One <code style={{ fontFamily: 'var(--munin-mono)' }}>&lt;script&gt;</code>{' '}
+          tag on your site gives visitors a chat launcher that opens a Munin conversation. The
+          widget runs inside a Shadow DOM, so your host page&rsquo;s CSS can&rsquo;t bleed in and
+          ours can&rsquo;t bleed out.
         </p>
       </header>
 
@@ -113,8 +114,9 @@ export default function WidgetGuide() {
         </dd>
         <dt>data-munin-color-scheme</dt>
         <dd>
-          <code>&quot;auto&quot;</code> (default) follows the visitor&rsquo;s OS/browser preference and
-          updates live if they flip it; <code>&quot;light&quot;</code> or <code>&quot;dark&quot;</code>
+          <code>&quot;auto&quot;</code>{' '}
+          (default) follows the visitor&rsquo;s OS/browser preference and updates live if they flip
+          it; <code>&quot;light&quot;</code> or <code>&quot;dark&quot;</code>{' '}
           pins the panel regardless of their OS setting. The launcher bubble, header bar and voice-call
           screen keep their fixed near-black chrome in every mode unless you set the color attributes
           above &mdash; only the panel body (welcome/chat/composer/cards) inverts.
@@ -184,10 +186,11 @@ const userHash = crypto
         Both <code>localStorage</code> and the fallback cookie are scoped to the exact host by default, so a
         conversation started on <code>www.example.com</code> does <em>not</em> carry over to{' '}
         <code>app.example.com</code>. To share one thread across sibling subdomains, set{' '}
-        <code>data-munin-cookie-domain=&quot;.example.com&quot;</code> on every page&rsquo;s embed — the
-        session and visitor cookies are then written with that <code>Domain</code> and the anonymous thread
-        is claimed when the visitor signs in on the app. The value must be a suffix of the page&rsquo;s host,
-        or it&rsquo;s ignored.
+        <code>data-munin-cookie-domain=&quot;.example.com&quot;</code>{' '}
+        on every page&rsquo;s embed — the session and visitor cookies are then written with that{' '}
+        <code>Domain</code>{' '}
+        and the anonymous thread is claimed when the visitor signs in on the app. The value must be
+        a suffix of the page&rsquo;s host, or it&rsquo;s ignored.
       </p>
 
       <h3 className="tag-h" id="identify-after-load" style={{ marginTop: 32 }}>
@@ -221,8 +224,9 @@ window.mn?.widget?.ready
         <code>window.mn.analytics.identify()</code> with a different hash and a different secret — the
         two never share a call. Idempotent — calling it twice with the
         same <code>externalId</code> is a no-op. Calling it with a
-        different <code>externalId</code> on a session that&rsquo;s already verified returns 403; mint a
-        fresh session if you genuinely need to swap identities mid-flight.
+        different <code>externalId</code>{' '}
+        on a session that&rsquo;s already verified returns 403; mint a fresh session if you genuinely
+        need to swap identities mid-flight.
       </p>
 
       <h2 className="tag-h" id="programmatic" style={{ marginTop: 56 }}>
@@ -231,9 +235,9 @@ window.mn?.widget?.ready
       <p className="tag-blurb">
         Once the deferred script has executed, <code>window.mn.widget</code> exposes{' '}
         <code>open()</code>, <code>close()</code>, <code>toggle()</code>, and{' '}
-        <code>isOpen()</code> so you can drive the panel from your own nav, a &ldquo;Chat with
-        us&rdquo; link, or a proactive prompt on a timer — instead of relying on the launcher bubble
-        alone.
+        <code>isOpen()</code>{' '}
+        so you can drive the panel from your own nav, a &ldquo;Chat with us&rdquo; link, or a
+        proactive prompt on a timer — instead of relying on the launcher bubble alone.
       </p>
       <div className="curl">
         <div className="curl-h">
@@ -245,11 +249,12 @@ window.mn?.widget?.ready
 });`}</pre>
       </div>
       <p className="tag-blurb" style={{ marginTop: 16 }}>
-        The script tag has <code>defer</code>, so <code>window.mn.widget</code> isn&rsquo;t installed
-        until the page has parsed — safe to call from a click handler, not safe to call synchronously
-        from an inline <code>&lt;script&gt;</code> placed above the widget tag. It&rsquo;s a single
-        global: on a page with two widget embeds it stays bound to whichever mounted first, and the
-        second logs a console warning rather than silently stealing it.
+        The script tag has <code>defer</code>, so <code>window.mn.widget</code>{' '}
+        isn&rsquo;t installed until the page has parsed — safe to call from a click handler, not safe
+        to call synchronously from an inline <code>&lt;script&gt;</code>{' '}
+        placed above the widget tag. It&rsquo;s a single global: on a page with two widget embeds it
+        stays bound to whichever mounted first, and the second logs a console warning rather than
+        silently stealing it.
       </p>
 
       <h2 className="tag-h" id="visitor" style={{ marginTop: 56 }}>
@@ -303,9 +308,10 @@ window.mn?.widget?.ready
         </dd>
         <dt>Typing indicator</dt>
         <dd>
-          The runner emits realtime <code>typing</code> events while it&rsquo;s generating, with a 3-second
-          keepalive so the indicator stays alive through long replies. Server auto-clears after 5 seconds
-          of silence; widget auto-clears locally after 5 seconds as a fallback.
+          The runner emits realtime <code>typing</code>{' '}
+          events while it&rsquo;s generating, with a 3-second keepalive so the indicator stays alive
+          through long replies. Server auto-clears after 5 seconds of silence; widget auto-clears
+          locally after 5 seconds as a fallback.
         </dd>
         <dt>Handover to a human</dt>
         <dd>
@@ -327,9 +333,10 @@ window.mn?.widget?.ready
         </dd>
         <dt>Identity verification</dt>
         <dd>
-          The HMAC pairs an <code>externalId</code> to a digest signed with the channel&rsquo;s identity
-          secret. Without this, a visitor can&rsquo;t claim someone else&rsquo;s identity — they get an
-          anonymous session bound to their local sessionId.
+          The HMAC pairs an <code>externalId</code>{' '}
+          to a digest signed with the channel&rsquo;s identity secret. Without this, a visitor
+          can&rsquo;t claim someone else&rsquo;s identity — they get an anonymous session bound to
+          their local sessionId.
         </dd>
         <dt>Require verified identity</dt>
         <dd>

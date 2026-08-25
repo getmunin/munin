@@ -101,8 +101,9 @@ export default function ConnectChatGPT() {
         </h2>
         <p className="tag-blurb">
           Adding the app doesn&rsquo;t auto-attach it to every chat. In the composer, open the
-          tools menu and toggle <em>Munin</em> on. ChatGPT will then call Munin tools when it
-          decides they&rsquo;re relevant — or you can name a tool directly in the prompt.
+          tools menu and toggle <em>Munin</em>{' '}
+          on. ChatGPT will then call Munin tools when it decides they&rsquo;re relevant — or you can
+          name a tool directly in the prompt.
         </p>
 
         <h2 className="tag-h" id="scope" style={{ marginTop: 56 }}>

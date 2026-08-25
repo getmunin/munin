@@ -1566,6 +1566,9 @@
   row-gap: 14px;
   align-items: baseline;
 }
+.docs-attrs + .tag-blurb {
+  margin-top: 24px;
+}
 .docs-attrs dt {
   font-family: var(--munin-mono);
   font-size: 12px;

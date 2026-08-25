@@ -143,12 +143,20 @@ function baseResourceFor(basePath: string): string | null {
 
 export function narrowOrgMarkerQuery(req: ExpressRequest): string | null {
   const scope = firstString(req.query?.['scope']);
-  if (!scope) return null;
-  const { orgId, scopes } = splitOrgScopeMarker(scope);
-  if (!orgId) return null;
+  const { orgId, scopes } = scope ? splitOrgScopeMarker(scope) : { orgId: null, scopes: null };
+
+  const resource = firstString(req.query?.['resource']);
+  const scopedResource = resource ? parseOrgScopedResource(resource) : null;
+  const narrowedResource = scopedResource ? baseResourceFor(scopedResource.basePath) : null;
+
+  if (!orgId && !narrowedResource) return null;
+
   const params = new URLSearchParams(queryStringOf(req));
-  if (scopes) params.set('scope', scopes);
-  else params.delete('scope');
+  if (orgId) {
+    if (scopes) params.set('scope', scopes);
+    else params.delete('scope');
+  }
+  if (narrowedResource) params.set('resource', narrowedResource);
   return params.toString();
 }
 

@@ -135,6 +135,116 @@ const skipReason = TEST_URL
     ).rejects.toThrow(KbConflictError);
   });
 
+  it('stores sourceUrl on create and returns it from reads', async () => {
+    const space = await run(() => svc.createSpace({ name: 'Docs', slug: 'docs' }));
+    const doc = await run(() =>
+      svc.createDocument({
+        spaceId: space.id,
+        title: 'Refunds',
+        body: 'Within 30 days.',
+        slug: 'refunds',
+        sourceUrl: 'https://example.com/help/refunds',
+      }),
+    );
+    expect(doc.sourceUrl).toBe('https://example.com/help/refunds');
+
+    const read = await run(() => svc.getDocument(doc.id));
+    expect(read.sourceUrl).toBe('https://example.com/help/refunds');
+
+    const bySlug = await run(() => svc.getDocumentBySlug('docs', 'refunds'));
+    expect(bySlug!.sourceUrl).toBe('https://example.com/help/refunds');
+
+    const listed = await run(() => svc.listDocuments({ spaceId: space.id }));
+    expect(listed.find((d) => d.id === doc.id)!.sourceUrl).toBe(
+      'https://example.com/help/refunds',
+    );
+  });
+
+  it('defaults sourceUrl to null and trims a blank one away', async () => {
+    const space = await run(() => svc.createSpace({ name: 'Docs', slug: 'docs' }));
+    const plain = await run(() => svc.createDocument({ spaceId: space.id, title: 'T', body: 'B' }));
+    expect(plain.sourceUrl).toBeNull();
+
+    const blank = await run(() =>
+      svc.createDocument({ spaceId: space.id, title: 'T2', body: 'B2', sourceUrl: '   ' }),
+    );
+    expect(blank.sourceUrl).toBeNull();
+  });
+
+  it('keeps sourceUrl when update omits it, and clears it on explicit null', async () => {
+    const space = await run(() => svc.createSpace({ name: 'Docs', slug: 'docs' }));
+    const doc = await run(() =>
+      svc.createDocument({
+        spaceId: space.id,
+        title: 'T',
+        body: 'B',
+        sourceUrl: 'https://example.com/a',
+      }),
+    );
+
+    const bodyOnly = await run(() =>
+      svc.updateDocument({ id: doc.id, ifVersion: 1, body: 'B2' }),
+    );
+    expect(bodyOnly.sourceUrl).toBe('https://example.com/a');
+
+    const moved = await run(() =>
+      svc.updateDocument({ id: doc.id, ifVersion: 2, sourceUrl: 'https://example.com/b' }),
+    );
+    expect(moved.sourceUrl).toBe('https://example.com/b');
+
+    const cleared = await run(() =>
+      svc.updateDocument({ id: doc.id, ifVersion: 3, sourceUrl: null }),
+    );
+    expect(cleared.sourceUrl).toBeNull();
+  });
+
+  it('rejects a sourceUrl that is not an absolute http(s) URL', async () => {
+    const space = await run(() => svc.createSpace({ name: 'Docs', slug: 'docs' }));
+    await expect(
+      run(() =>
+        svc.createDocument({ spaceId: space.id, title: 'T', body: 'B', sourceUrl: '/help/refunds' }),
+      ),
+    ).rejects.toThrow(KbInvalidError);
+    await expect(
+      run(() =>
+        svc.createDocument({
+          spaceId: space.id,
+          title: 'T',
+          body: 'B',
+          sourceUrl: 'javascript:alert(1)',
+        }),
+      ),
+    ).rejects.toThrow(KbInvalidError);
+
+    const doc = await run(() => svc.createDocument({ spaceId: space.id, title: 'T2', body: 'B' }));
+    await expect(
+      run(() => svc.updateDocument({ id: doc.id, ifVersion: 1, sourceUrl: 'notaurl' })),
+    ).rejects.toThrow(KbInvalidError);
+  });
+
+  it('carries sourceUrl through export and import', async () => {
+    const space = await run(() => svc.createSpace({ name: 'Docs', slug: 'docs' }));
+    await run(() =>
+      svc.createDocument({
+        spaceId: space.id,
+        title: 'Refunds',
+        body: 'Within 30 days.',
+        slug: 'refunds',
+        sourceUrl: 'https://example.com/help/refunds',
+      }),
+    );
+    const exported = await run(() => svc.exportKb());
+    const exportedDoc = exported.documents.find((d) => d.slug === 'refunds');
+    expect(exportedDoc!.sourceUrl).toBe('https://example.com/help/refunds');
+
+    await db.execute(sql`DELETE FROM kb_documents WHERE org_id = ${orgId}`);
+    await db.execute(sql`DELETE FROM kb_spaces WHERE org_id = ${orgId}`);
+
+    await run(() => svc.importKb(exported));
+    const reimported = await run(() => svc.getDocumentBySlug('docs', 'refunds'));
+    expect(reimported!.sourceUrl).toBe('https://example.com/help/refunds');
+  });
+
   it('skips re-chunking when only metadata changed', async () => {
     const space = await run(() => svc.createSpace({ name: 'Docs', slug: 'docs' }));
     const doc = await run(() =>

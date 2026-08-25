@@ -34,10 +34,19 @@ const GetDocumentBySlugInput = z.object({
 const AudienceSchema = z.enum(['admin', 'self_service']);
 const AudiencesSchema = z.array(AudienceSchema).min(1);
 
+const SourceUrlSchema = z
+  .string()
+  .min(1)
+  .max(2048)
+  .describe(
+    'The public page this document is the knowledge-base copy of, as an absolute http(s) URL. Returned by kb_search and kb_get_document so an answer can link to it.',
+  );
+
 const CreateDocumentInput = z.object({
   spaceId: z.string(),
   title: z.string().min(1).max(300),
   body: z.string().min(1),
+  sourceUrl: SourceUrlSchema.optional(),
   audiences: AudiencesSchema.optional(),
   tags: TagsSchema.optional(),
   slug: z.string().min(1).max(64).optional(),
@@ -48,6 +57,11 @@ const UpdateDocumentInput = z.object({
   ifVersion: z.number().int().nonnegative(),
   title: z.string().min(1).max(300).optional(),
   body: z.string().min(1).optional(),
+  sourceUrl: SourceUrlSchema.nullable()
+    .optional()
+    .describe(
+      'The public page this document is the knowledge-base copy of, as an absolute http(s) URL. Omit to leave it as it is; pass null to clear it.',
+    ),
   audiences: AudiencesSchema.optional(),
   tags: TagsSchema.optional(),
 });
@@ -176,6 +190,7 @@ const KbImportInput = z.object({
         slug: z.string().nullable().optional(),
         title: z.string().min(1).max(300),
         body: z.string().min(1),
+        sourceUrl: z.string().min(1).max(2048).nullable().optional(),
         audiences: AudiencesSchema,
         tags: TagsSchema,
       }),
@@ -225,7 +240,7 @@ export class KbAdminTools {
     name: 'kb_list_documents',
     title: 'KB: List documents',
     description:
-      'List knowledge-base documents in your org, newest-updated first. Optionally filter by space or tag.',
+      'List knowledge-base documents in your org, newest-updated first, with each document\'s `sourceUrl` (the public page it came from, or null). Bodies are not included; read one with `kb_get_document`. Optionally filter by space or tag.',
     audiences: ['admin'],
     scopes: ['kb:read'],
     input: ListDocumentsInput,
@@ -240,7 +255,7 @@ export class KbAdminTools {
     name: 'kb_get_document',
     title: 'KB: Read document',
     description:
-      "Read one knowledge-base document, including its full body, tags, and current version. End-user agents see only documents whose `audiences` includes `'self_service'`.",
+      "Read one knowledge-base document, including its full body, tags, `sourceUrl` (the public page it came from, or null), and current version. End-user agents see only documents whose `audiences` includes `'self_service'`.",
     audiences: ['admin', 'self_service'],
     scopes: ['kb:read'],
     input: GetDocumentInput,
@@ -270,7 +285,7 @@ export class KbAdminTools {
     name: 'kb_search',
     title: 'KB: Search',
     description:
-      "Search the knowledge base by natural-language query. Combines full-text search and vector similarity for the best of both. End-user agents see only documents whose `audiences` includes `'self_service'`.",
+      "Search the knowledge base by natural-language query. Combines full-text search and vector similarity for the best of both. Each hit carries the document id, title, a matching excerpt, and `sourceUrl` — the public page the document came from, when it has one — so an answer can link to the source without a second read. End-user agents see only documents whose `audiences` includes `'self_service'`.",
     audiences: ['admin', 'self_service'],
     scopes: ['kb:read'],
     input: SearchInput,
@@ -285,7 +300,7 @@ export class KbAdminTools {
     name: 'kb_create_document',
     title: 'KB: Create document',
     description:
-      "Create a knowledge-base document inside a space. Body should be markdown. Set `audiences: ['admin', 'self_service']` to expose it to end-user agents; defaults to `['admin']` (admin-only).",
+      "Create a knowledge-base document inside a space. Body should be markdown. Set `audiences: ['admin', 'self_service']` to expose it to end-user agents; defaults to `['admin']` (admin-only). Set `sourceUrl` when the document mirrors a public page — a help-centre article, a product page — and answers drawn from it can link there.",
     audiences: ['admin'],
     scopes: ['kb:write'],
     input: CreateDocumentInput,
@@ -325,7 +340,11 @@ export class KbAdminTools {
   importKb(args: z.infer<typeof KbImportInput>) {
     const records = {
       spaces: args.records.spaces.map((s) => ({ ...s, description: s.description ?? null })),
-      documents: args.records.documents.map((d) => ({ ...d, slug: d.slug ?? null })),
+      documents: args.records.documents.map((d) => ({
+        ...d,
+        slug: d.slug ?? null,
+        sourceUrl: d.sourceUrl ?? null,
+      })),
     };
     return this.kb.importKb(records, args.idMap);
   }
@@ -389,7 +408,7 @@ export class KbAdminTools {
     name: 'kb_update_document',
     title: 'KB: Update document',
     description:
-      'Update a knowledge-base document. Pass `ifVersion` (the current version you read) for optimistic concurrency; the call fails if it has changed.',
+      'Update a knowledge-base document. Pass `ifVersion` (the current version you read) for optimistic concurrency; the call fails if it has changed. Omitted fields keep their current value; `sourceUrl: null` clears the recorded source page.',
     audiences: ['admin'],
     scopes: ['kb:write'],
     input: UpdateDocumentInput,

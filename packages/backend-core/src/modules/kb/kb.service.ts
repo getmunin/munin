@@ -85,6 +85,7 @@ export interface DocumentDto {
   slug: string | null;
   title: string;
   body: string;
+  sourceUrl: string | null;
   audiences: Audience[];
   version: number;
   tags: string[];
@@ -135,6 +136,7 @@ export interface DocumentSummary {
   spaceId: string;
   slug: string | null;
   title: string;
+  sourceUrl: string | null;
   audiences: Audience[];
   version: number;
   tags: string[];
@@ -165,6 +167,7 @@ export interface KbDocumentExport {
   slug: string | null;
   title: string;
   body: string;
+  sourceUrl: string | null;
   audiences: Audience[];
   tags: string[];
 }
@@ -240,6 +243,7 @@ export class KbService {
         spaceId: schema.kbDocuments.spaceId,
         slug: schema.kbDocuments.slug,
         title: schema.kbDocuments.title,
+        sourceUrl: schema.kbDocuments.sourceUrl,
         audiences: schema.kbDocuments.audiences,
         version: schema.kbDocuments.version,
         tags: schema.kbDocuments.tags,
@@ -254,6 +258,7 @@ export class KbService {
       spaceId: r.spaceId,
       slug: r.slug,
       title: r.title,
+      sourceUrl: r.sourceUrl,
       audiences: r.audiences,
       version: r.version,
       tags: r.tags,
@@ -277,6 +282,7 @@ export class KbService {
     spaceId: string;
     title: string;
     body: string;
+    sourceUrl?: string | null;
     audiences?: readonly string[];
     tags?: string[];
     slug?: string;
@@ -288,6 +294,7 @@ export class KbService {
     if (input.slug !== undefined && !isValidSlug(input.slug)) {
       throw new KbInvalidError(`slug must match [a-z0-9][a-z0-9-]{0,63}`);
     }
+    const sourceUrl = normaliseSourceUrl(input.sourceUrl);
     const audiences = normaliseAudiences(input.audiences);
     const hash = contentHash(input.title, input.body);
     const isSystem = isSystemRuntimeDoc(space.slug, input.slug ?? null);
@@ -299,6 +306,7 @@ export class KbService {
         slug: input.slug ?? null,
         title: input.title,
         body: input.body,
+        sourceUrl,
         audiences,
         version: 1,
         contentHash: hash,
@@ -341,6 +349,7 @@ export class KbService {
     ifVersion: number;
     title?: string;
     body?: string;
+    sourceUrl?: string | null;
     audiences?: readonly string[];
     tags?: string[];
   }): Promise<DocumentDto> {
@@ -352,6 +361,8 @@ export class KbService {
     }
     const newTitle = input.title ?? existing.title;
     const newBody = input.body ?? existing.body;
+    const newSourceUrl =
+      input.sourceUrl === undefined ? existing.sourceUrl : normaliseSourceUrl(input.sourceUrl);
     const newAudiences = input.audiences === undefined
       ? existing.audiences
       : normaliseAudiences(input.audiences);
@@ -364,6 +375,7 @@ export class KbService {
       .set({
         title: newTitle,
         body: newBody,
+        sourceUrl: newSourceUrl,
         audiences: newAudiences,
         tags: newTags,
         contentHash: newHash,
@@ -703,6 +715,7 @@ export class KbService {
       spaceId: targetSpace.id,
       title: candidate.title,
       body: candidate.body,
+      sourceUrl: candidate.sourceUrl,
       audiences,
       tags: carriedTags,
     });
@@ -914,6 +927,7 @@ export class KbService {
         slug: d.slug,
         title: d.title,
         body: d.body,
+        sourceUrl: d.sourceUrl,
         audiences: d.audiences,
         tags: d.tags,
       })),
@@ -958,12 +972,17 @@ export class KbService {
       const existing = await this.findDocumentForImport(targetSpaceId, doc.slug, doc.title);
       if (existing) {
         result.idMap[doc.id] = existing.id;
-        if (existing.title !== doc.title || existing.body !== doc.body) {
+        if (
+          existing.title !== doc.title ||
+          existing.body !== doc.body ||
+          existing.sourceUrl !== (doc.sourceUrl ?? null)
+        ) {
           await this.updateDocument({
             id: existing.id,
             ifVersion: existing.version,
             title: doc.title,
             body: doc.body,
+            sourceUrl: doc.sourceUrl ?? null,
             audiences: doc.audiences,
             tags: doc.tags,
           });
@@ -976,6 +995,7 @@ export class KbService {
           spaceId: targetSpaceId,
           title: doc.title,
           body: doc.body,
+          sourceUrl: doc.sourceUrl ?? null,
           audiences: doc.audiences,
           tags: doc.tags,
           slug: doc.slug ?? undefined,
@@ -991,7 +1011,13 @@ export class KbService {
     spaceId: string,
     slug: string | null,
     title: string,
-  ): Promise<{ id: string; title: string; body: string; version: number } | null> {
+  ): Promise<{
+    id: string;
+    title: string;
+    body: string;
+    sourceUrl: string | null;
+    version: number;
+  } | null> {
     const ctx = getCurrentContext();
     const cond = slug
       ? and(eq(schema.kbDocuments.spaceId, spaceId), eq(schema.kbDocuments.slug, slug))
@@ -1005,6 +1031,7 @@ export class KbService {
         id: schema.kbDocuments.id,
         title: schema.kbDocuments.title,
         body: schema.kbDocuments.body,
+        sourceUrl: schema.kbDocuments.sourceUrl,
         version: schema.kbDocuments.version,
       })
       .from(schema.kbDocuments)
@@ -1109,6 +1136,7 @@ function toDocumentDto(row: typeof schema.kbDocuments.$inferSelect): DocumentDto
     slug: row.slug,
     title: row.title,
     body: row.body,
+    sourceUrl: row.sourceUrl,
     audiences: row.audiences,
     version: row.version,
     tags: row.tags,
@@ -1173,6 +1201,27 @@ function stampUpdater(actor: ActorIdentity): {
 
 function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9-]{0,63}$/.test(slug);
+}
+
+const MAX_SOURCE_URL_LENGTH = 2048;
+
+function normaliseSourceUrl(value: string | null | undefined): string | null {
+  if (value === undefined || value === null) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.length > MAX_SOURCE_URL_LENGTH) {
+    throw new KbInvalidError(`sourceUrl must be at most ${MAX_SOURCE_URL_LENGTH} characters`);
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new KbInvalidError(`sourceUrl must be an absolute http(s) URL, got "${trimmed}"`);
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new KbInvalidError(`sourceUrl must use http or https, got "${parsed.protocol}"`);
+  }
+  return trimmed;
 }
 
 function humaniseSlug(slug: string): string {

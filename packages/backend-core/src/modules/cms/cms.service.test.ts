@@ -222,6 +222,58 @@ class StubStorage implements AssetStorage {
       expect(await eventTypes()).toEqual(['cms.collection.fields_changed']);
     });
 
+    it('updateCollection turns localization on without touching existing entries', async () => {
+      await ensureLocale('en');
+      const created = await run(() =>
+        svc.createCollection({ name: 'Blog', slug: 'blog', fields: [{ name: 't', type: 'text' }] }),
+      );
+      const entry = await run(() =>
+        svc.createEntry({ collection: 'blog', slug: 'hello', data: { t: 'Hello' } }),
+      );
+
+      const flipped = await run(() => svc.updateCollection(created.id, { localized: true }));
+      expect(flipped.localized).toBe(true);
+
+      const after = await run(() => svc.getEntry(entry.id));
+      expect(after.locale).toBe(entry.locale);
+      expect(after.slug).toBe('hello');
+      expect(after.version).toBe(entry.version);
+    });
+
+    it('updateCollection refuses to turn localization off while entries span locales', async () => {
+      await ensureLocale('en');
+      await ensureLocale('nb');
+      const created = await run(() =>
+        svc.createCollection({
+          name: 'Blog',
+          slug: 'blog',
+          fields: [{ name: 't', type: 'text' }],
+          localized: true,
+        }),
+      );
+      const base = await run(() =>
+        svc.createEntry({ collection: 'blog', slug: 'hello', locale: 'en', data: { t: 'Hello' } }),
+      );
+      await run(() =>
+        svc.createEntry({
+          collection: 'blog',
+          slug: 'hei',
+          locale: 'nb',
+          translationOf: base.id,
+          data: { t: 'Hei' },
+        }),
+      );
+
+      await expect(
+        run(() => svc.updateCollection(created.id, { localized: false })),
+      ).rejects.toThrow(/cms_localized_conflict/);
+      expect((await run(() => svc.getCollection(created.id))).localized).toBe(true);
+
+      await run(() => svc.deleteEntry({ id: base.id, ifVersion: base.version }));
+      const off = await run(() => svc.updateCollection(created.id, { localized: false }));
+      expect(off.localized).toBe(false);
+    });
+
     it('deleteCollection removes the collection', async () => {
       const created = await run(() =>
         svc.createCollection({ name: 'X', slug: 'x', fields: [{ name: 't', type: 'text' }] }),

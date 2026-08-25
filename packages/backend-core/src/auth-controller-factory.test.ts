@@ -205,6 +205,67 @@ describe('org-scoped resource on auth requests', () => {
     ).toBeNull();
   });
 
+  it('narrows an org-scoped resource in the authorize query to its base resource', () => {
+    const resource = `https://mcp.example.test/mcp/o/${ORG_A}`;
+    const query = narrowOrgMarkerQuery(
+      requestWith({
+        url: `/auth/oauth2/authorize?client_id=abc&resource=${encodeURIComponent(resource)}`,
+        query: { client_id: 'abc', resource },
+      }),
+    );
+    expect(query).not.toBeNull();
+    const params = new URLSearchParams(query!);
+    expect(params.get('resource')).toBe('https://mcp.example.test');
+    expect(params.get('client_id')).toBe('abc');
+  });
+
+  it('narrows an org-scoped surface resource to that surface, not the base MCP resource', () => {
+    const resource = `https://mcp.example.test/mcp/media/o/${ORG_A}`;
+    const query = narrowOrgMarkerQuery(
+      requestWith({
+        url: `/auth/oauth2/authorize?resource=${encodeURIComponent(resource)}`,
+        query: { resource },
+      }),
+    );
+    expect(new URLSearchParams(query!).get('resource')).toBe('https://mcp.example.test/mcp/media');
+  });
+
+  it('leaves an already-unscoped resource untouched', () => {
+    expect(
+      narrowOrgMarkerQuery(
+        requestWith({
+          url: '/auth/oauth2/authorize?resource=https%3A%2F%2Fmcp.example.test%2Fmcp',
+          query: { resource: 'https://mcp.example.test/mcp' },
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it('narrows both the marker scope and the org-scoped resource together', () => {
+    const resource = `https://mcp.example.test/mcp/o/${ORG_A}`;
+    const query = narrowOrgMarkerQuery(
+      requestWith({
+        url: `/auth/oauth2/authorize?scope=offline_access+mcp%3Aorg%3A${ORG_A}&resource=${encodeURIComponent(resource)}`,
+        query: { scope: `offline_access mcp:org:${ORG_A}`, resource },
+      }),
+    );
+    const params = new URLSearchParams(query!);
+    expect(params.get('scope')).toBe('offline_access');
+    expect(params.get('resource')).toBe('https://mcp.example.test');
+  });
+
+  it('still reads the org off the un-narrowed request, so pinning survives narrowing', () => {
+    const resource = `https://mcp.example.test/mcp/o/${ORG_A}`;
+    const req = requestWith({
+      url: `/auth/oauth2/authorize?resource=${encodeURIComponent(resource)}`,
+      query: { resource },
+    });
+    expect(readRequestedOrgScope(req)).toEqual({ orgId: ORG_A, basePath: '/mcp' });
+    expect(new URLSearchParams(narrowOrgMarkerQuery(req)!).get('resource')).toBe(
+      'https://mcp.example.test',
+    );
+  });
+
   it('strips the marker scope out of a request body', () => {
     const override = narrowAuthRequestBody(
       requestWith({

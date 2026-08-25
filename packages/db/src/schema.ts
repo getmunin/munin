@@ -308,16 +308,26 @@ export const oauthRefreshToken = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     referenceId: text('reference_id'),
+    authorizationCodeId: text('authorization_code_id'),
+    resources: text('resources').array(),
+    requestedUserInfoClaims: text('requested_user_info_claims').array(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt,
     revoked: timestamp('revoked', { withTimezone: true }),
+    rotatedAt: timestamp('rotated_at', { withTimezone: true }),
+    rotationReplayResponse: text('rotation_replay_response'),
+    rotationReplayExpiresAt: timestamp('rotation_replay_expires_at', { withTimezone: true }),
     authTime: timestamp('auth_time', { withTimezone: true }),
+    confirmation: jsonb('confirmation'),
     scopes: text('scopes').array().notNull(),
   },
   (t) => ({
     clientIdx: index('oauth_refresh_token_client_idx').on(t.clientId),
     sessionIdx: index('oauth_refresh_token_session_idx').on(t.sessionId),
     userIdx: index('oauth_refresh_token_user_idx').on(t.userId),
+    authorizationCodeIdx: index('oauth_refresh_token_authorization_code_idx').on(
+      t.authorizationCodeId,
+    ),
   }),
 );
 

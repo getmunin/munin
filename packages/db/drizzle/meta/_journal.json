@@ -575,6 +575,13 @@
       "when": 1787656577151,
       "tag": "0081_kb_document_source_url",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1787687659747,
+      "tag": "0082_oauth_refresh_token_resource_columns",
+      "breakpoints": true
     }
   ]
 }

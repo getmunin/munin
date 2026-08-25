@@ -677,6 +677,7 @@ export const kbDocuments = pgTable(
     slug: varchar('slug', { length: 64 }),
     title: text('title').notNull(),
     body: text('body').notNull(),
+    sourceUrl: text('source_url'),
     audiences: jsonb('audiences')
       .$type<('admin' | 'self_service')[]>()
       .notNull()

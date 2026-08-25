@@ -8,6 +8,7 @@ export interface SearchHit {
   spaceId: string;
   title: string;
   excerpt: string;
+  sourceUrl: string | null;
   audiences: Audience[];
   score: number;
   source: 'fts' | 'vector' | 'both';
@@ -29,6 +30,7 @@ type FtsRow = {
   document_id: string;
   space_id: string;
   title: string;
+  source_url: string | null;
   audiences: Audience[];
   excerpt: string;
   rank: number;
@@ -39,6 +41,7 @@ type VectorRow = {
   document_id: string;
   space_id: string;
   title: string;
+  source_url: string | null;
   audiences: Audience[];
   excerpt: string;
   similarity: number;
@@ -64,6 +67,7 @@ export class KbSearchService {
           d.id            AS document_id,
           d.space_id      AS space_id,
           d.title         AS title,
+          d.source_url    AS source_url,
           d.audiences     AS audiences,
           ts_headline('english', left(d.body, 600), q.tsq,
             'StartSel=,StopSel=,MaxWords=40,MinWords=15,ShortWord=3') AS excerpt,
@@ -88,6 +92,7 @@ export class KbSearchService {
               d.id            AS document_id,
               d.space_id      AS space_id,
               d.title         AS title,
+              d.source_url    AS source_url,
               d.audiences     AS audiences,
               left(c.content, 400) AS excerpt,
               1 - (c.embedding <=> ${formatVector(queryVec)}::${colType}) AS similarity,
@@ -101,7 +106,7 @@ export class KbSearchService {
               ${input.spaceId ? sql`AND d.space_id = ${input.spaceId}` : sql``}
           )
           SELECT
-            document_id, space_id, title, audiences, excerpt, similarity,
+            document_id, space_id, title, source_url, audiences, excerpt, similarity,
             ROW_NUMBER() OVER (ORDER BY similarity DESC) AS rn
           FROM ranked
           WHERE chunk_rn = 1
@@ -136,6 +141,7 @@ function reciprocalRankFuse(
         spaceId: row.space_id,
         title: row.title,
         excerpt: row.excerpt,
+        sourceUrl: row.source_url,
         audiences: row.audiences,
       },
       ftsScore: score,
@@ -155,6 +161,7 @@ function reciprocalRankFuse(
           spaceId: row.space_id,
           title: row.title,
           excerpt: row.excerpt,
+          sourceUrl: row.source_url,
           audiences: row.audiences,
         },
         ftsScore: 0,

@@ -12,7 +12,7 @@ Import a list of articles into the knowledge base from any structured source —
 ## TL;DR
 
 1. Pick or create the target space (`kb_list_spaces` / `kb_create_space`).
-2. Validate the source: required columns/keys are `title` + `body`; `tags` and `public` are optional.
+2. Validate the source: required columns/keys are `title` + `body`; `sourceUrl`, `tags` and `public` are optional.
 3. Decide an idempotency key (an external id you put into a tag like `import:<source-id>`).
 4. For each row: `kb_search` for the import key tag → if hit, skip; otherwise apply chunking and `kb_create_document`.
 5. Spot-check with `kb_search` on a known phrase to confirm embeddings are indexed.
@@ -29,7 +29,7 @@ If none fits the source's audience, `kb_create_space` first (or guide through `s
 
 For CSV:
 - Required: `title` (≤300 chars), `body` (markdown, non-empty).
-- Optional: `tags` (comma-separated → array, ≤32 entries, each ≤64 chars), `public` (boolean → defaults to `false`).
+- Optional: `sourceUrl` (absolute http(s) URL of the live page this article mirrors — a Zendesk article's public permalink, the help-centre page it was exported from), `tags` (comma-separated → array, ≤32 entries, each ≤64 chars), `public` (boolean → defaults to `false`).
 - Watch out for: quoted fields containing newlines, escaped commas inside `tags`, smart-quote / em-dash artifacts from copy-paste.
 
 For JSON:
@@ -70,11 +70,14 @@ For each chunk:
     "spaceId": "<spaceId>",
     "title": "<chunk title>",
     "body": "<markdown body>",
+    "sourceUrl": "<public permalink, when the source has one>",
     "tags": ["import:<source-id>", "<source-name>", "<topic-tag>"],
     "public": false
   }
 }
 ```
+
+`sourceUrl` is a real field on the document, not a tag: `kb_search` returns it on every hit, so an agent answering from an imported article can link to the live page in the same turn. Carry it through whenever the export has a permalink. When a long article is split across several documents, give each chunk the same URL — plus the anchor if the source section has one.
 
 Default `audiences: ['admin']` unless the source is explicitly customer-facing material. End-user agents only see docs whose `audiences` includes `'self_service'`. Embeddings are generated server-side asynchronously — you don't wait, but search results for new docs become accurate within ~5 seconds.
 
@@ -96,6 +99,7 @@ Then count: search by the import-tag prefix and confirm the count matches your s
 - **Don't import with `audiences: ['admin', 'self_service']` by default.** That exposes content to end-user agents via `kb_search`. Only include `'self_service'` for explicitly customer-facing knowledge.
 - **Don't import the same source twice without the import-tag idempotency key.** Duplicate articles dilute search quality and confuse end-users.
 - **Don't set hundreds of identical tags across the import.** Tags are filterable; that means each tag is part of someone's mental model. Use tags as facets, not as labels.
+- **Don't derive a `sourceUrl` from the slug or the title.** Set it only from a URL the source data actually contains. A guessed URL looks right in a search result and 404s for the customer who clicks it; leaving it null just means answers cite the title instead.
 
 ## Related
 

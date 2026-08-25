@@ -31,6 +31,7 @@ type DocRow = {
   slug: string | null;
   title: string;
   version: number;
+  sourceUrl: string | null;
   tags: string[];
 };
 
@@ -86,6 +87,7 @@ function okResult(obj: unknown): Promise<McpToolResult> {
 
 function importMcp() {
   const createdSlugs: string[] = [];
+  const created: Array<{ slug: string; sourceUrl: unknown; tags: unknown }> = [];
   const handle: McpToolHandle = {
     listTools: () => Promise.resolve([]),
     callTool(name: string, args: Record<string, unknown>): Promise<McpToolResult> {
@@ -95,18 +97,19 @@ function importMcp() {
       }
       if (name === 'kb_create_document') {
         createdSlugs.push(String(args.slug));
+        created.push({ slug: String(args.slug), sourceUrl: args.sourceUrl, tags: args.tags });
         return okResult({ id: `doc_${createdSlugs.length}` });
       }
       return Promise.resolve({ content: [{ type: 'text', text: 'unexpected' }], isError: true });
     },
   };
-  return { handle, createdSlugs };
+  return { handle, createdSlugs, created };
 }
 
 describe('runWebImportJob', () => {
   it('completes the import when company-profile generation fails on a provider error', async () => {
     crawlMock.mockResolvedValue(crawlWith(['/', '/about']));
-    const { handle, createdSlugs } = importMcp();
+    const { handle, createdSlugs, created } = importMcp();
     const failingProvider: Provider = () => Promise.reject(new ProviderError('unauthorized', 401));
 
     const job: CuratorJob = {
@@ -147,6 +150,10 @@ describe('runWebImportJob', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(createdSlugs).toEqual(['home', 'about']);
+    expect(created).toEqual([
+      { slug: 'home', sourceUrl: 'https://example.com/', tags: ['imported-from-website'] },
+      { slug: 'about', sourceUrl: 'https://example.com/about', tags: ['imported-from-website'] },
+    ]);
     expect(result.replyText).toContain('Imported 2 document');
     expect(result.replyText).toContain('Company profile was skipped');
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('company profile skipped'));
@@ -226,19 +233,34 @@ describe('runWebImportJob', () => {
 });
 
 describe('candidateUrls', () => {
-  it('prefers the stored source-url tag', () => {
-    const doc: DocRow = { id: 'd', slug: 'pricing', title: 'P', version: 1, tags: [src('https://x.com/p')] };
+  it('prefers the recorded sourceUrl field', () => {
+    const doc: DocRow = { id: 'd', slug: 'pricing', title: 'P', version: 1, sourceUrl: 'https://x.com/p', tags: [] };
     expect(candidateUrls(doc, 'https://example.com')).toEqual(['https://x.com/p']);
   });
-  it('reconstructs flat and slashed URLs from the slug when untagged', () => {
-    const doc: DocRow = { id: 'd', slug: 'en-docs-guides', title: 'D', version: 1, tags: ['imported-from-website'] };
+  it('takes the sourceUrl field over a stale source-url tag', () => {
+    const doc: DocRow = {
+      id: 'd',
+      slug: 'pricing',
+      title: 'P',
+      version: 1,
+      sourceUrl: 'https://x.com/new',
+      tags: [src('https://x.com/old')],
+    };
+    expect(candidateUrls(doc, 'https://example.com')).toEqual(['https://x.com/new']);
+  });
+  it('falls back to the legacy source-url tag on documents imported before the field existed', () => {
+    const doc: DocRow = { id: 'd', slug: 'pricing', title: 'P', version: 1, sourceUrl: null, tags: [src('https://x.com/p')] };
+    expect(candidateUrls(doc, 'https://example.com')).toEqual(['https://x.com/p']);
+  });
+  it('reconstructs flat and slashed URLs from the slug when neither is present', () => {
+    const doc: DocRow = { id: 'd', slug: 'en-docs-guides', title: 'D', version: 1, sourceUrl: null, tags: ['imported-from-website'] };
     expect(candidateUrls(doc, 'https://example.com')).toEqual([
       'https://example.com/en-docs-guides',
       'https://example.com/en/docs/guides',
     ]);
   });
   it('maps the home slug to the origin root', () => {
-    const doc: DocRow = { id: 'd', slug: 'home', title: 'H', version: 1, tags: [] };
+    const doc: DocRow = { id: 'd', slug: 'home', title: 'H', version: 1, sourceUrl: null, tags: [] };
     expect(candidateUrls(doc, 'https://example.com')).toEqual(['https://example.com/']);
   });
 });
@@ -248,11 +270,11 @@ describe('reconcileSpace', () => {
 
   it('prunes a doc whose source page is confirmed gone (404), keeping live and unverifiable docs', async () => {
     const docs: DocRow[] = [
-      { id: 'd_pricing', slug: 'pricing', title: 'Pricing', version: 2, tags: ['imported-from-website', src('https://example.com/pricing')] },
-      { id: 'd_about', slug: 'about', title: 'About', version: 1, tags: ['imported-from-website', src('https://example.com/about')] },
-      { id: 'd_profile', slug: 'company-profile', title: 'Company profile', version: 5, tags: ['imported-from-website', 'company-profile'] },
-      { id: 'd_old', slug: 'old', title: 'Old', version: 1, tags: ['imported-from-website', src('https://example.com/old')] },
-      { id: 'd_flaky', slug: 'flaky', title: 'Flaky', version: 1, tags: ['imported-from-website', src('https://example.com/flaky')] },
+      { id: 'd_pricing', slug: 'pricing', title: 'Pricing', version: 2, sourceUrl: 'https://example.com/pricing', tags: ['imported-from-website'] },
+      { id: 'd_about', slug: 'about', title: 'About', version: 1, sourceUrl: 'https://example.com/about', tags: ['imported-from-website'] },
+      { id: 'd_profile', slug: 'company-profile', title: 'Company profile', version: 5, sourceUrl: null, tags: ['imported-from-website', 'company-profile'] },
+      { id: 'd_old', slug: 'old', title: 'Old', version: 1, sourceUrl: null, tags: ['imported-from-website', src('https://example.com/old')] },
+      { id: 'd_flaky', slug: 'flaky', title: 'Flaky', version: 1, sourceUrl: 'https://example.com/flaky', tags: ['imported-from-website'] },
     ];
     probeUrlMock.mockImplementation((url: string) => {
       if (url === 'https://example.com/pricing') return Promise.resolve({ status: 404, finalUrl: url });
@@ -270,7 +292,7 @@ describe('reconcileSpace', () => {
 
   it('refuses to prune when the crawl is too small', async () => {
     const docs: DocRow[] = [
-      { id: 'd_pricing', slug: 'pricing', title: 'Pricing', version: 2, tags: ['imported-from-website', src('https://example.com/pricing')] },
+      { id: 'd_pricing', slug: 'pricing', title: 'Pricing', version: 2, sourceUrl: 'https://example.com/pricing', tags: ['imported-from-website'] },
     ];
     probeUrlMock.mockResolvedValue({ status: 404, finalUrl: 'x' });
     const { handle, deleted } = fakeMcp(docs);

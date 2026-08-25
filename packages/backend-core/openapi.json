@@ -9351,6 +9351,18 @@
                       "type": "string",
                       "minLength": 1
                     },
+                    "sourceUrl": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 2048
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "audiences": {
                       "minItems": 1,
                       "type": "array",

@@ -130,6 +130,7 @@ export interface DocSummary {
   slug: string | null;
   title: string;
   version: number;
+  sourceUrl: string | null;
   tags: string[];
 }
 
@@ -196,6 +197,8 @@ export async function reconcileSpace(
 }
 
 export function candidateUrls(doc: DocSummary, origin: string | null): string[] {
+  const recorded = doc.sourceUrl?.trim();
+  if (recorded) return [recorded];
   const tagged = doc.tags.find((t) => t.startsWith(SOURCE_URL_TAG_PREFIX));
   if (tagged) {
     const url = tagged.slice(SOURCE_URL_TAG_PREFIX.length).trim();
@@ -253,6 +256,7 @@ function parseDocumentSummaries(res: McpToolResult): DocSummary[] {
         slug: typeof obj.slug === 'string' ? obj.slug : null,
         title: typeof obj.title === 'string' ? obj.title : '',
         version: obj.version,
+        sourceUrl: typeof obj.sourceUrl === 'string' && obj.sourceUrl ? obj.sourceUrl : null,
         tags: Array.isArray(obj.tags) ? obj.tags.filter((t): t is string => typeof t === 'string') : [],
       });
     }
@@ -282,6 +286,7 @@ interface KbDocFields {
   spaceId: string;
   title: string;
   body: string;
+  sourceUrl?: string;
   audiences: string[];
   tags: string[];
 }
@@ -314,6 +319,7 @@ async function upsertKbDocumentBySlug(
       ifVersion: current.version,
       title: fields.title,
       body: fields.body,
+      sourceUrl: fields.sourceUrl ?? null,
       audiences: fields.audiences,
       tags: fields.tags,
     })
@@ -342,8 +348,9 @@ async function upsertPageDocument(
       spaceId,
       title: page.title,
       body: page.markdown,
+      sourceUrl: page.url,
       audiences: ['admin', 'self_service'],
-      tags: [IMPORT_TAG, `${SOURCE_URL_TAG_PREFIX}${page.url}`],
+      tags: [IMPORT_TAG],
     },
     `page ${page.url}`,
     logger,

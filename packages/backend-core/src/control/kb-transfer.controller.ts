@@ -34,6 +34,7 @@ class ImportKbBody extends createZodDto(
           slug: z.string().nullable().optional(),
           title: z.string().min(1).max(300),
           body: z.string().min(1),
+          sourceUrl: z.string().min(1).max(2048).nullable().optional(),
           audiences: z.array(z.enum(['admin', 'self_service'])).min(1),
           tags: z.array(z.string()),
         }),
@@ -59,7 +60,11 @@ export class KbTransferController {
   async import(@Body() input: ImportKbBody): Promise<ImportResult> {
     const records = {
       spaces: input.records.spaces.map((s) => ({ ...s, description: s.description ?? null })),
-      documents: input.records.documents.map((d) => ({ ...d, slug: d.slug ?? null })),
+      documents: input.records.documents.map((d) => ({
+        ...d,
+        slug: d.slug ?? null,
+        sourceUrl: d.sourceUrl ?? null,
+      })),
     };
     return this.kb.importKb(records, input.idMap);
   }

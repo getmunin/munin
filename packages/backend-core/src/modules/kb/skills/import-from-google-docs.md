@@ -50,6 +50,7 @@ When in doubt, fewer larger articles beat many tiny ones. A retrieval that retur
 ```
 
 - `body` is markdown. Headings, lists, code blocks all preserved for the rendered view.
+- `sourceUrl` is the public page this document mirrors, as an absolute http(s) URL. Set it when the article also lives on a help centre or product site: `kb_search` returns it on every hit, so an agent answering from the document can link to the page instead of paraphrasing it. Leave it out for internal-only material.
 - `tags` are a flat string array. Don't overuse — 3–5 high-signal tags > 20 weak ones.
 - `audiences` is an array of `'admin'` and / or `'self_service'`. Default `['admin']` keeps the doc admin-only; include `'self_service'` to surface it via `kb_search` for end-user agents.
 
@@ -66,7 +67,7 @@ For a Google Docs folder with N files:
 
 ## Updating existing docs
 
-Use `kb_update_document` with `{ id, body }` (or `title`, `tags`). Versions are kept automatically — `kb_list_versions` shows history; `kb_restore_version` reverts.
+Use `kb_update_document` with `{ id, body }` (or `title`, `tags`, `sourceUrl`). Omitted fields keep their current value; `sourceUrl: null` clears a source page that has been taken down. Versions are kept automatically — `kb_list_versions` shows history; `kb_restore_version` reverts. `sourceUrl` is provenance rather than content, so restoring an old version leaves it as it is.
 
 ## Common pitfalls
 

@@ -4,8 +4,98 @@ import {
   detectSignatureBlock,
   isTrailingSignatureSplit,
   splitSignatureText,
+  stripQuotedReplyText,
   stripSignatureText,
 } from './reply-history.ts';
+
+const GMAIL_NB_REPLY = [
+  'Så du får ikke gjort noe med dette?',
+  '',
+  'ons. 26. aug. 2026 kl. 14:05 skrev uScore Support <uscore-demo@getmunin.com',
+  '>:',
+  '',
+  '> Hei,',
+  '>',
+  '> Boligverdien som vises i uScore er et *estimat* hentet fra vår partner',
+  '> *Boligmappa* – den beregnes automatisk.',
+  '>',
+  '> Vennlig hilsen',
+  '> uScore-teamet',
+  '>',
+  '> On Wed, 26 Aug 2026 12:04:24 GMT, Kjell Rune Monsø <kjell@apps.no> wrote:',
+  '>',
+  '> Hei! Jeg fikk helt feil pris på boligen min, dette kan ikke stemme. Fiks!',
+  '>',
+  '>',
+  '',
+  '-- ',
+  'Med vennlig hilsen',
+  'Kjell Rune Monsø',
+  '',
+  'Mobil: 414 25 762',
+  'Mail: kjell@apps.no',
+  'Web: www.apps.no',
+].join('\n');
+
+describe('stripQuotedReplyText', () => {
+  it('cuts a Gmail Norwegian attribution whose address wrapped onto the next line', () => {
+    const r = stripQuotedReplyText(GMAIL_NB_REPLY);
+    expect(r).not.toContain('Boligverdien');
+    expect(r).not.toContain('skrev uScore Support');
+    expect(r.startsWith('Så du får ikke gjort noe med dette?')).toBe(true);
+  });
+
+  it('keeps a signature that sits below the quoted block so the signature split still sees it', () => {
+    const r = stripQuotedReplyText(GMAIL_NB_REPLY);
+    expect(splitSignatureText(r).clean).toBe('Så du får ikke gjort noe med dette?');
+    expect(splitSignatureText(r).signature).toContain('Mobil: 414 25 762');
+  });
+
+  it('cuts an English attribution line', () => {
+    const r = stripQuotedReplyText(
+      'Thanks!\n\nOn Wed, 26 Aug 2026 at 14:05, Support <s@x.example> wrote:\n\n> Hello there\n> and more\n',
+    );
+    expect(r).toBe('Thanks!');
+  });
+
+  it('cuts a nested attribution that carries its own quote marker', () => {
+    const r = stripQuotedReplyText(
+      'Takk!\n\n> On Wed, 26 Aug 2026 12:04:24 GMT, Sam <sam@x.example> wrote:\n>\n> Original question\n>\n',
+    );
+    expect(r).toBe('Takk!');
+  });
+
+  it('falls back to the trailing quoted run when no attribution is recognised', () => {
+    const r = stripQuotedReplyText('Kort svar.\n\n> gammel melding\n> linje to\n> linje tre\n');
+    expect(r).toBe('Kort svar.');
+  });
+
+  it('finds a trailing quoted run that sits above a signature', () => {
+    const r = stripQuotedReplyText(
+      'Kort svar.\n\n> gammel melding\n> linje to\n> linje tre\n\n--\nSam\nsam@x.example',
+    );
+    expect(r).toBe('Kort svar.\n\n--\nSam\nsam@x.example');
+  });
+
+  it('leaves a message with no quoted history untouched', () => {
+    const body = 'Hei!\n\nJeg lurer på en ting om prisen.';
+    expect(stripQuotedReplyText(body)).toBe(body);
+  });
+
+  it('keeps the whole body when the attribution is the first line and nothing precedes it', () => {
+    const body = 'On Wed, 26 Aug 2026 at 14:05, Support <s@x.example> wrote:\n\n> Hello\n\nMy answer.';
+    expect(stripQuotedReplyText(body)).toBe(body);
+  });
+
+  it('does not treat an ordinary Norwegian sentence ending in a colon as an attribution', () => {
+    const body = 'Han skrev dette til meg:\n\nog jeg lurer på hva det betyr.';
+    expect(stripQuotedReplyText(body)).toBe(body);
+  });
+
+  it('handles empty input', () => {
+    expect(stripQuotedReplyText('')).toBe('');
+  });
+});
 
 describe('splitSignatureText', () => {
   it('returns null signature when no opener present', () => {

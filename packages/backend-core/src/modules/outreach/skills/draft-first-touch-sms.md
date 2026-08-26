@@ -38,8 +38,14 @@ A person approves in the dashboard. Munin composes the final body (draft + CTA +
 
 Follow-up sequences are email-only. An SMS campaign cannot carry `sequenceSteps`, and `outreach_propose_followup` rejects a text conversation. One touch, then the reply flow.
 
+
+## What happens when they reply
+
+If the campaign declares an `extractionSchema`, every inbound reply also triggers `skill://outreach/extract-outcome`, which reads what the prospect wrote and files the campaign's declared fields onto their CRM contact. It runs alongside your reply draft, not instead of it, and it never sends anything. Two consequences for how you draft: a question the campaign has a field for is worth asking plainly, because the answer becomes data; and you do not need to restate extracted facts back to the prospect to "record" them.
+
 ## Related
 
+- `skill://outreach/extract-outcome` — turns a prospect's reply into the campaign's declared CRM fields.
 - `skill://outreach/draft-first-touch-email` — the same pass for email, where you may draft at length.
 - `skill://outreach/draft-first-touch-call` — the spoken equivalent, with a higher bar for who is worth contacting.
 - `skill://outreach/review-proposals` — what the operator does with what you filed, and why you cannot do it for them.

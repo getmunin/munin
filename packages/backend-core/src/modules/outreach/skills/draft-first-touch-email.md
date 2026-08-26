@@ -115,8 +115,14 @@ Out of scope for this skill — see `skill://outreach/review-proposals`. The ope
 - **Don't include an unsubscribe link in the draft body.** The system appends one. If you write your own, the operator will see two and the system one is the only signed/verifiable one.
 - **Don't propose a reply.** PR3 ships `outreach_propose_reply` and a separate skill (`skill://outreach/draft-reply-email`). For now, you only file `kind: "initial"`.
 
+
+## What happens when they reply
+
+If the campaign declares an `extractionSchema`, every inbound reply also triggers `skill://outreach/extract-outcome`, which reads what the prospect wrote and files the campaign's declared fields onto their CRM contact. It runs alongside your reply draft, not instead of it, and it never sends anything. Two consequences for how you draft: a question the campaign has a field for is worth asking plainly, because the answer becomes data; and you do not need to restate extracted facts back to the prospect to "record" them.
+
 ## Related
 
+- `skill://outreach/extract-outcome` — turns a prospect's reply into the campaign's declared CRM fields.
 - `skill://outreach/draft-first-touch-sms` — the same pass on an SMS campaign, capped at 480 characters of plain text.
 - `skill://outreach/draft-first-touch-call` — the same pass on a voice campaign, where you draft what an AI agent says when the call connects.
 

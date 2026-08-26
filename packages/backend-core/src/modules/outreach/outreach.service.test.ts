@@ -19,9 +19,9 @@ import {
   type ExtractionField,
 } from './outreach.service.ts';
 import {
-  OutreachCallOutcomeSink,
+  OutreachOutcomeSink,
   type JobEnqueuer,
-} from './outreach-call-outcome.sink.ts';
+} from './outreach-outcome.sink.ts';
 import { CrmService } from '../crm/crm.service.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
 import { ConvService } from '../conv/conv.service.ts';
@@ -2342,6 +2342,21 @@ const skipReason = TEST_URL
       },
     ];
 
+    async function smsChannel(name: string): Promise<string> {
+      const [ch] = await db
+        .insert(schema.convChannels)
+        .values({
+          orgId,
+          type: 'sms',
+          vendor: 'twilio',
+          name,
+          active: true,
+          config: { accountSid: 'AC_test', encryptedAuthToken: 'fake', fromNumber: '+15550001111' },
+        })
+        .returning();
+      return ch!.id;
+    }
+
     async function voiceChannel(name: string): Promise<string> {
       const [ch] = await db
         .insert(schema.convChannels)
@@ -2381,21 +2396,32 @@ const skipReason = TEST_URL
       expect(withoutFields.extractionSchema).toEqual([]);
     });
 
-    it('rejects an extraction schema on a non-voice campaign', async () => {
-      await expect(
-        run(() =>
-          svc.createCampaign({
-            name: 'extract-email',
-            brief: 'b',
-            segmentId,
-            channelId,
-            extractionSchema: FIELDS,
-          }),
-        ),
-      ).rejects.toBeInstanceOf(OutreachInvalidError);
+    it('accepts an extraction schema on email and sms campaigns', async () => {
+      const emailCampaign = await run(() =>
+        svc.createCampaign({
+          name: 'extract-email',
+          brief: 'b',
+          segmentId,
+          channelId,
+          extractionSchema: FIELDS,
+        }),
+      );
+      expect(emailCampaign.extractionSchema).toEqual(FIELDS);
+
+      const smsChannelId = await smsChannel('extract-sms-channel');
+      const smsCampaign = await run(() =>
+        svc.createCampaign({
+          name: 'extract-sms',
+          brief: 'b',
+          segmentId,
+          channelId: smsChannelId,
+          extractionSchema: FIELDS,
+        }),
+      );
+      expect(smsCampaign.extractionSchema).toEqual(FIELDS);
     });
 
-    it('rejects moving a campaign with a schema onto an email channel', async () => {
+    it('keeps the schema when a campaign moves between channel types', async () => {
       const voiceId = await voiceChannel('extract-move');
       const campaign = await run(() =>
         svc.createCampaign({
@@ -2406,9 +2432,10 @@ const skipReason = TEST_URL
           extractionSchema: FIELDS,
         }),
       );
-      await expect(
-        run(() => svc.updateCampaign({ id: campaign.id, patch: { channelId } })),
-      ).rejects.toBeInstanceOf(OutreachInvalidError);
+      const moved = await run(() =>
+        svc.updateCampaign({ id: campaign.id, patch: { channelId } }),
+      );
+      expect(moved.extractionSchema).toEqual(FIELDS);
     });
 
     it('rejects duplicate keys, reserved keys, and enums without options', async () => {
@@ -2417,7 +2444,7 @@ const skipReason = TEST_URL
         [FIELDS[0]!, { ...FIELDS[0]!, label: 'Dup' }],
         [
           {
-            key: 'callOutcome',
+            key: 'outreachOutcome',
             label: 'Outcome',
             type: 'string',
             description: 'x',
@@ -2465,9 +2492,9 @@ const skipReason = TEST_URL
       ).rejects.toBeInstanceOf(OutreachInvalidError);
     });
 
-    describe('call-outcome sink', () => {
+    describe('outcome sink', () => {
       let enqueued: Parameters<JobEnqueuer['enqueue']>[0][];
-      let sink: OutreachCallOutcomeSink;
+      let sink: OutreachOutcomeSink;
 
       beforeEach(() => {
         enqueued = [];
@@ -2477,94 +2504,179 @@ const skipReason = TEST_URL
             return Promise.resolve({});
           },
         };
-        sink = new OutreachCallOutcomeSink(stub);
+        sink = new OutreachOutcomeSink(stub);
       });
 
-      async function callEndedFor(input: {
+      async function outreachConversation(input: {
         extractionSchema?: ExtractionField[];
+        channelType?: 'voice' | 'email' | 'sms';
         linkCampaign?: boolean;
-        crmContactId?: string | null;
+        linkProposal?: boolean;
       }): Promise<string> {
-        const voiceId = await voiceChannel(`sink-${randomUUID().slice(0, 8)}`);
+        const suffix = randomUUID().slice(0, 8);
+        const type = input.channelType ?? 'voice';
+        const convChannelId =
+          type === 'voice'
+            ? await voiceChannel(`sink-${suffix}`)
+            : type === 'sms'
+              ? await smsChannel(`sink-sms-${suffix}`)
+              : channelId;
         const campaign = await run(() =>
           svc.createCampaign({
-            name: `sink-${randomUUID().slice(0, 8)}`,
+            name: `sink-${suffix}`,
             brief: 'b',
             segmentId,
-            channelId: voiceId,
+            channelId: convChannelId,
             extractionSchema: input.extractionSchema ?? [],
           }),
         );
         const [convContact] = await db
           .insert(schema.convContacts)
-          .values({ orgId, phone: '+4712345678', name: 'Jane Doe', metadata: {} })
+          .values({ orgId, phone: `+47${suffix}`, name: 'Jane Doe', metadata: {} })
           .returning();
         const [conversation] = await db
           .insert(schema.convConversations)
           .values({
             orgId,
             displayId: Math.floor(Math.random() * 1_000_000),
-            channelId: voiceId,
+            channelId: convChannelId,
             contactId: convContact!.id,
-            status: 'closed',
+            status: 'open',
             outreachCampaignId: input.linkCampaign === false ? null : campaign.id,
-            agentMode: 'off',
-            metadata:
-              input.crmContactId === null ? {} : { crmContactId: input.crmContactId ?? contactId },
+            agentMode: 'draft_only',
+            metadata: {},
           })
           .returning();
+        if (input.linkProposal !== false) {
+          await db.insert(schema.outreachProposals).values({
+            orgId,
+            campaignId: campaign.id,
+            contactId,
+            conversationId: conversation!.id,
+            kind: 'initial',
+            draftBody: 'hei',
+            status: 'sent',
+            proposedByActorType: actor.type,
+            proposedByActorId: actor.id,
+          });
+        }
         return conversation!.id;
       }
 
-      async function emit(conversationId: string, type = 'conversation.voice.call_ended') {
-        await run(() =>
+      function emit(
+        type: string,
+        payload: Record<string, unknown>,
+      ): Promise<void> {
+        return run(() =>
           sink.onEvent({
             eventId: `evt_${randomUUID().slice(0, 8)}`,
             orgId,
             type,
-            payload: { conversationId, orgId },
+            payload: { ...payload, orgId },
           }),
         );
       }
 
-      it('enqueues one job carrying the declared fields', async () => {
-        const conversationId = await callEndedFor({ extractionSchema: FIELDS });
-        await emit(conversationId);
+      function callEnded(conversationId: string): Promise<void> {
+        return emit('conversation.voice.call_ended', { conversationId });
+      }
+
+      function replyReceived(
+        conversationId: string,
+        overrides: Record<string, unknown> = {},
+      ): Promise<void> {
+        return emit('conversation.message.received', {
+          conversationId,
+          messageId: `cvm_${randomUUID().slice(0, 8)}`,
+          authorType: 'end_user',
+          ...overrides,
+        });
+      }
+
+      it('enqueues one job carrying the declared fields when a call ends', async () => {
+        const conversationId = await outreachConversation({ extractionSchema: FIELDS });
+        await callEnded(conversationId);
         expect(enqueued).toHaveLength(1);
-        expect(enqueued[0]!.jobUri).toBe('skill://outreach/extract-call-outcome');
-        expect(enqueued[0]!.dedupeKey).toBe(`outreach-call-outcome:conv:${conversationId}`);
+        expect(enqueued[0]!.jobUri).toBe('skill://outreach/extract-outcome');
+        expect(enqueued[0]!.dedupeKey).toBe(`outreach-outcome:conv:${conversationId}`);
         expect(enqueued[0]!.userPrompt).toContain('current_operator');
-        expect(enqueued[0]!.userPrompt).toContain('contract_expires');
         expect(enqueued[0]!.userPrompt).toContain(contactId);
       });
 
+      it('enqueues per inbound reply on an email campaign', async () => {
+        const conversationId = await outreachConversation({
+          extractionSchema: FIELDS,
+          channelType: 'email',
+        });
+        await replyReceived(conversationId);
+        await replyReceived(conversationId);
+        expect(enqueued).toHaveLength(2);
+        expect(enqueued[0]!.dedupeKey).not.toBe(enqueued[1]!.dedupeKey);
+        expect(enqueued[0]!.dedupeKey).toMatch(/^outreach-outcome:msg:/);
+        expect(enqueued[0]!.userPrompt).toContain('channel email');
+      });
+
+      it('enqueues per inbound reply on an sms campaign', async () => {
+        const conversationId = await outreachConversation({
+          extractionSchema: FIELDS,
+          channelType: 'sms',
+        });
+        await replyReceived(conversationId);
+        expect(enqueued).toHaveLength(1);
+        expect(enqueued[0]!.userPrompt).toContain('channel sms');
+      });
+
+      it('ignores voice transcript turns, which arrive as inbound messages mid-call', async () => {
+        const conversationId = await outreachConversation({ extractionSchema: FIELDS });
+        await replyReceived(conversationId);
+        expect(enqueued).toEqual([]);
+      });
+
+      it('ignores a call_ended on a written channel', async () => {
+        const conversationId = await outreachConversation({
+          extractionSchema: FIELDS,
+          channelType: 'email',
+        });
+        await callEnded(conversationId);
+        expect(enqueued).toEqual([]);
+      });
+
+      it('ignores our own outbound messages', async () => {
+        const conversationId = await outreachConversation({
+          extractionSchema: FIELDS,
+          channelType: 'email',
+        });
+        await replyReceived(conversationId, { authorType: 'agent' });
+        expect(enqueued).toEqual([]);
+      });
+
       it('ignores a campaign with no declared fields', async () => {
-        const conversationId = await callEndedFor({ extractionSchema: [] });
-        await emit(conversationId);
+        const conversationId = await outreachConversation({ extractionSchema: [] });
+        await callEnded(conversationId);
         expect(enqueued).toEqual([]);
       });
 
       it('ignores a voice call that belongs to no campaign', async () => {
-        const conversationId = await callEndedFor({
+        const conversationId = await outreachConversation({
           extractionSchema: FIELDS,
           linkCampaign: false,
         });
-        await emit(conversationId);
+        await callEnded(conversationId);
         expect(enqueued).toEqual([]);
       });
 
-      it('ignores a conversation with no crm contact to write to', async () => {
-        const conversationId = await callEndedFor({
+      it('ignores a conversation with no proposal to resolve the contact from', async () => {
+        const conversationId = await outreachConversation({
           extractionSchema: FIELDS,
-          crmContactId: null,
+          linkProposal: false,
         });
-        await emit(conversationId);
+        await callEnded(conversationId);
         expect(enqueued).toEqual([]);
       });
 
       it('ignores every other event type', async () => {
-        const conversationId = await callEndedFor({ extractionSchema: FIELDS });
-        await emit(conversationId, 'conversation.status_changed');
+        const conversationId = await outreachConversation({ extractionSchema: FIELDS });
+        await emit('conversation.status_changed', { conversationId });
         expect(enqueued).toEqual([]);
       });
     });

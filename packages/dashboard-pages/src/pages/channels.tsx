@@ -578,11 +578,11 @@ export function ChannelsPage() {
         />
 
         {channels === null ? (
-          <CardGridSkeleton count={3} columns={3} />
+          <CardGridSkeleton count={3} />
         ) : channels.length === 0 ? (
           <EmptyCallout title={t('emptyTitle')} body={t('emptyBody')} />
         ) : (
-          <CardGrid columns={3}>
+          <CardGrid>
             {channels.map((c) => (
               <ChannelRow
                 key={c.id}

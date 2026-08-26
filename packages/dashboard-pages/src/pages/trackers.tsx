@@ -229,11 +229,11 @@ export function TrackersPage() {
         />
 
         {trackers === null ? (
-          <CardGridSkeleton count={2} columns={2} />
+          <CardGridSkeleton count={3} />
         ) : trackers.length === 0 ? (
           <EmptyCallout title={t('emptyTitle')} body={t('emptyBody')} />
         ) : (
-          <CardGrid columns={2}>
+          <CardGrid>
             {trackers.map((tr) => (
               <TrackerRow
                 key={tr.id}

@@ -10583,6 +10583,60 @@
                         ]
                       }
                     },
+                    "extractionSchema": {
+                      "default": [],
+                      "maxItems": 12,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 80
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "string",
+                              "number",
+                              "date",
+                              "boolean",
+                              "enum"
+                            ]
+                          },
+                          "description": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 300
+                          },
+                          "options": {
+                            "minItems": 2,
+                            "maxItems": 20,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 60
+                            }
+                          },
+                          "tagPrefix": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9-]{0,19}$"
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "label",
+                          "type",
+                          "description"
+                        ]
+                      }
+                    },
                     "ctaUrl": {
                       "anyOf": [
                         {

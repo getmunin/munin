@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { getActiveOrgId } from './auth/active-org';
 
 export interface RealtimeEventRow {
   id: string;
@@ -122,7 +123,11 @@ class RealtimeClient {
       this.reconnectTimer = null;
     }
     this.setStatus('connecting');
-    const url = API_URL.replace(/^http/, 'ws') + '/v1/realtime';
+    const orgId = getActiveOrgId();
+    const url =
+      API_URL.replace(/^http/, 'ws') +
+      '/v1/realtime' +
+      (orgId ? `?orgId=${encodeURIComponent(orgId)}` : '');
     const ws = new WebSocket(url);
     this.ws = ws;
 

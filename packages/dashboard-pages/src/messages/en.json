@@ -1700,7 +1700,8 @@
     "conv_channel_config_invalid": "This channel's saved settings are incomplete, so it can't be used yet. Open its settings, fill in what's missing and save to repair it.",
     "conv_invalid": "This draft is no longer the one waiting on this conversation — it was already sent, or the agent has written a newer one. Reopen the conversation to see where it stands.",
     "kb_version_conflict": "Someone changed this text while you had it open, so nothing was saved. Reopen it to see the current version and decide on that.",
-    "kb_curation_decided": "This one was already decided — published or dismissed — so it won't be proposed again. Refresh the queue."
+    "kb_curation_decided": "This one was already decided — published or dismissed — so it won't be proposed again. Refresh the queue.",
+    "org_access_denied": "This tab was open in an organization you no longer have access to. Reloading with your current organization."
   },
   "footer": {
     "privacy": "Privacy",

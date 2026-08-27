@@ -30,6 +30,8 @@ export { authClient } from './auth-client';
 export {
   DashboardTopbar,
   type DashboardTopbarProps,
+  ConsoleTopbar,
+  type ConsoleTopbarProps,
   SettingsTopbar,
   type SettingsTopbarProps,
 } from './components/munin-topbar';
@@ -120,6 +122,7 @@ export { CredentialEntryPage } from './pages/credential-entry';
 export { TrackersPage } from './pages/trackers';
 export { EndUsersPage } from './pages/end-users';
 export { DashboardPage } from './pages/overview';
+export { SettingsIndexPage, type SettingsIndexPageProps } from './pages/settings-index';
 export { TeamPage } from './pages/team';
 export { UsagePage } from './pages/usage';
 export { ActivityPage } from './pages/activity';
@@ -137,7 +140,23 @@ export {
   type SettingsSubNavGroup,
   type SettingsGroupExtension,
 } from './nav/settings-groups';
+export {
+  OSS_CONSOLE_GROUPS,
+  ADMIN_ROLES,
+  extendConsoleGroups,
+  visibleConsoleGroups,
+  isConsoleItemActive,
+  type ConsoleNavItem,
+  type ConsoleNavGroup,
+  type ConsoleNavCountKey,
+  type ConsoleGroupExtension,
+} from './nav/console-groups';
 export { SettingsShell, type SettingsShellProps } from './shells/settings-shell';
+export {
+  ConsoleShell,
+  type ConsoleShellProps,
+  type ConsoleNavCounts,
+} from './shells/console-shell';
 export { DashboardShell, type DashboardShellProps } from './shells/dashboard-shell';
 export {
   createSettingsIndexRedirect,

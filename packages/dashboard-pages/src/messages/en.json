@@ -1241,6 +1241,11 @@
         "workspace": "Workspace",
         "access": "Access",
         "monitoring": "Monitoring"
+      },
+      "roles": {
+        "owner": "Owner",
+        "admin": "Admin",
+        "member": "Support agent"
       }
     },
     "account": {
@@ -1254,6 +1259,12 @@
       "saved": "Saved",
       "errors": {
         "save": "Could not save organization."
+      }
+    },
+    "console": {
+      "groups": {
+        "admin": "Admin",
+        "workspace": "Workspace"
       }
     }
   },

@@ -73,6 +73,57 @@ export function DashboardTopbar({
   );
 }
 
+export interface ConsoleTopbarProps {
+  brand: string;
+  brandHref?: string;
+  logoSrc?: string;
+  viewLabel: string;
+  orgSlot?: ReactNode;
+  menuOpen?: boolean;
+  onMenuToggle: () => void;
+  openMenuLabel: string;
+  className?: string;
+}
+
+export function ConsoleTopbar({
+  brand,
+  brandHref = '/dashboard',
+  logoSrc,
+  viewLabel,
+  orgSlot,
+  menuOpen = false,
+  onMenuToggle,
+  openMenuLabel,
+  className,
+}: ConsoleTopbarProps) {
+  return (
+    <header
+      className={`${topbarChromeBase} flex h-14 items-center gap-2.5 px-4 ${className ?? ''}`}
+    >
+      <Link href={brandHref} className="flex shrink-0 items-center" aria-label={brand}>
+        {logoSrc ? <Image src={logoSrc} alt="" width={26} height={26} aria-hidden priority /> : null}
+      </Link>
+
+      {orgSlot ?? (
+        <span className="min-w-0 truncate text-sm font-medium text-ink dark:text-foreground">
+          {brand}
+        </span>
+      )}
+
+      <button
+        type="button"
+        onClick={onMenuToggle}
+        aria-expanded={menuOpen}
+        aria-label={openMenuLabel}
+        className="ml-auto inline-flex shrink-0 items-center gap-2.5 py-1.5 pl-2 font-mono text-[9px] uppercase tracking-eyebrow text-ink-soft dark:text-foreground/75"
+      >
+        <span className="max-w-[38vw] truncate">{viewLabel}</span>
+        <Menu className="size-4 text-ink dark:text-foreground" aria-hidden />
+      </button>
+    </header>
+  );
+}
+
 export interface SettingsTopbarProps {
   title: string;
   backHref?: string;

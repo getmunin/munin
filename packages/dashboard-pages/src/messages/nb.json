@@ -1241,6 +1241,11 @@
         "workspace": "Arbeidsområde",
         "access": "Tilgang",
         "monitoring": "Overvåking"
+      },
+      "roles": {
+        "owner": "Eier",
+        "admin": "Admin",
+        "member": "Kundebehandler"
       }
     },
     "account": {
@@ -1254,6 +1259,12 @@
       "saved": "Lagret",
       "errors": {
         "save": "Kunne ikke lagre organisasjonen."
+      }
+    },
+    "console": {
+      "groups": {
+        "admin": "Admin",
+        "workspace": "Arbeidsområde"
       }
     }
   },

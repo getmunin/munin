@@ -1,55 +1,41 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useTranslations } from 'next-intl';
-import { PageSpinner } from '@getmunin/ui';
-import { authClient } from '../auth-client';
-import { useDashboardGate } from '../auth/use-dashboard-gate';
-import { SystemAlertsBanner } from '../components/system-alerts-banner';
-import { ConfirmDialogProvider } from '../components/confirm-dialog';
-import { DashboardTopbar } from '../components/munin-topbar';
-import { usePathname } from '../i18n-navigation';
+import { ConsoleShell, type ConsoleNavCounts } from './console-shell';
+import { OSS_CONSOLE_GROUPS, type ConsoleNavGroup } from '../nav/console-groups';
 
 export interface DashboardShellProps {
   brand: string;
   logoSrc?: string;
   leftSlot?: ReactNode;
+  groups?: ConsoleNavGroup[];
+  counts?: ConsoleNavCounts;
+  roleNote?: ReactNode;
   withConfirmDialog?: boolean;
   children: ReactNode;
 }
 
 export function DashboardShell({
   brand,
-  logoSrc = '/munin-logo.png',
+  logoSrc,
   leftSlot,
+  groups = OSS_CONSOLE_GROUPS,
+  counts,
+  roleNote,
   withConfirmDialog = false,
   children,
 }: DashboardShellProps) {
-  const tNav = useTranslations('nav');
-  const pathname = usePathname();
-  const { data: session } = authClient.useSession();
-  const { ready } = useDashboardGate();
-
-  if (!ready || !session) {
-    return <PageSpinner className="min-h-screen bg-background" />;
-  }
-
-  const inSettings = pathname.startsWith('/dashboard/settings');
-
-  const content = (
-    <div className="group flex min-h-screen flex-col bg-bone dark:bg-background">
-      <SystemAlertsBanner />
-      {!inSettings && (
-        <DashboardTopbar
-          brand={brand}
-          logoSrc={logoSrc}
-          leftSlot={leftSlot}
-          settingsLabel={tNav('settings')}
-        />
-      )}
-      <main className="flex-1 overflow-x-clip bg-paper dark:bg-background">{children}</main>
-    </div>
+  return (
+    <ConsoleShell
+      brand={brand}
+      logoSrc={logoSrc}
+      groups={groups}
+      orgSlot={leftSlot}
+      counts={counts}
+      roleNote={roleNote}
+      withConfirmDialog={withConfirmDialog}
+    >
+      {children}
+    </ConsoleShell>
   );
-
-  return withConfirmDialog ? <ConfirmDialogProvider>{content}</ConfirmDialogProvider> : content;
 }

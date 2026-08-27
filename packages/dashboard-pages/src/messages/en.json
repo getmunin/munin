@@ -191,7 +191,8 @@
     "organization": "Organization",
     "integrations": "Integrations",
     "learning": "Learning",
-    "automation": "Automation"
+    "automation": "Automation",
+    "agentScopeNote": "A support agent sees Conversations and nothing else. The rest is not drawn for them."
   },
   "dashboard": {
     "runnerStatusBanner": {

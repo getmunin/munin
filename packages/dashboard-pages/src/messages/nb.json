@@ -191,7 +191,8 @@
     "organization": "Organisasjon",
     "integrations": "Integrasjoner",
     "learning": "Læring",
-    "automation": "Automatisering"
+    "automation": "Automatisering",
+    "agentScopeNote": "En kundebehandler ser Samtaler og ingenting annet. Resten tegnes ikke for dem."
   },
   "dashboard": {
     "runnerStatusBanner": {

@@ -92,28 +92,32 @@ export function SettingsCard({
       )}
     >
       <div className="flex items-center gap-2">
-        <span className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+        <span className="truncate font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
           {kind}
         </span>
-        {menu ? <div className="ml-auto flex-none">{menu}</div> : null}
+        <div className="ml-auto flex flex-none items-center gap-1.5">
+          {status}
+          {menu}
+        </div>
       </div>
-      <div className="mt-1 flex flex-col items-start gap-1">
-        <span className="max-w-full truncate text-sm font-medium text-ink dark:text-foreground">
+      <div className="mt-1.5">
+        <span className="block max-w-full truncate text-[15px] font-medium text-ink dark:text-foreground">
           {name}
           {qualifier ? (
             <span className="font-mono text-[13px] tracking-tight text-ink-mute"> · {qualifier}</span>
           ) : null}
         </span>
-        {status}
       </div>
       {children ? <div className="mt-2.5 flex-1">{children}</div> : <div className="flex-1" />}
       {footerAction || footerMeta ? (
-        <div className="mt-3 flex items-center gap-2.5">
-          {footerAction}
+        <div className="mt-3 flex flex-wrap items-center gap-2.5 border-t-[1px] border-rule-soft pt-3 dark:border-rule-on-dark">
           {footerMeta ? (
-            <span className="ml-auto font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+            <span className="min-w-0 truncate font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
               {footerMeta}
             </span>
+          ) : null}
+          {footerAction ? (
+            <div className="ml-auto flex flex-none items-center gap-2">{footerAction}</div>
           ) : null}
         </div>
       ) : null}

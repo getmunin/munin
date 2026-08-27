@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
+import { isOwnerOrAdmin, useActiveRole } from '../auth/use-active-role';
+import { useRouter } from '../i18n-navigation';
 import { useRealtime } from '../realtime';
 import { DashboardHero } from '../components/dashboard/dashboard-hero';
 import { OverviewStats } from '../components/dashboard/overview-stats';
@@ -20,6 +22,8 @@ import {
 
 export function DashboardPage() {
   const inbox = useInboxData();
+  const router = useRouter();
+  const { role, loading: roleLoading } = useActiveRole();
   const [summary, setSummary] = useState<UsageSummary | null>(null);
   const buildLoadFailedProps = useInboxLoadFailedProps();
 
@@ -32,6 +36,12 @@ export function DashboardPage() {
   useEffect(() => {
     loadSummary();
   }, [loadSummary]);
+
+  useEffect(() => {
+    if (!roleLoading && role !== null && !isOwnerOrAdmin(role)) {
+      router.replace('/dashboard/conversations');
+    }
+  }, [roleLoading, role, router]);
 
   useRealtime([{ channel: 'org' }], (event) => {
     if (

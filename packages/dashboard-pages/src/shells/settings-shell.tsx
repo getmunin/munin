@@ -106,7 +106,7 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
           </div>
         </aside>
 
-        <div className="flex-1 min-w-0 space-y-10 bg-paper px-6 py-8 md:px-12 md:py-10 dark:bg-background">
+        <div className="flex-1 min-w-0 space-y-10 bg-paper px-4 py-8 md:px-12 md:py-10 dark:bg-background">
           {children}
         </div>
       </div>

@@ -27,9 +27,16 @@ describe('visibleConsoleGroups', () => {
     ]);
   });
 
-  it('drops the admin group entirely for a member rather than disabling it', () => {
+  it('leaves a member with oversight only, since every other group is admin-gated', () => {
     const visible = visibleConsoleGroups([...OSS_CONSOLE_GROUPS, reports], 'member');
-    expect(visible.map((g) => g.groupKey)).toEqual(['oversight', 'workspace', 'reports']);
+    expect(visible.map((g) => g.groupKey)).toEqual(['oversight', 'reports']);
+  });
+
+  it('never offers a member a settings link that would bounce them back', () => {
+    const visible = visibleConsoleGroups(OSS_CONSOLE_GROUPS, 'member');
+    const hrefs = visible.flatMap((g) => g.items.map((i) => i.href));
+    expect(hrefs).not.toContain('/dashboard/settings');
+    expect(hrefs).not.toContain('/dashboard');
   });
 
   it('drops admin-only items but keeps the rest of their group', () => {

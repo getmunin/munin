@@ -76,8 +76,13 @@ Behavior:
 - **Don't re-pitch.** The initial made the case. Follow-ups add one new thing (proof, angle, deadline) or simply nudge.
 - **Don't stack asks.** One follow-up, one call to action.
 
+## What happens when they reply
+
+If the campaign declares an `extractionSchema`, a reply to your follow-up also triggers `skill://outreach/extract-outcome`, which files the campaign's declared fields onto the prospect's CRM contact. A step that asks something the campaign has a field for is therefore worth more than a bare nudge — the answer becomes data, not just a reply. Check `outreach_get_campaign` for the field list before you decide what a step should ask.
+
 ## Related
 
+- `skill://outreach/extract-outcome` — turns the reply your step earns into the campaign's declared CRM fields.
 - `skill://outreach/draft-first-touch-email` — drafts the first touch this sequence follows.
 - `skill://outreach/draft-reply-email` — takes over the conversation the moment the prospect replies; an inbound reply permanently stops this sequence.
 - `skill://outreach/review-proposals` — the operator flow that approves or dismisses these drafts.

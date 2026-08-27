@@ -26,6 +26,8 @@ Every outbound message in Munin ships through a human-approved gate: curators fi
 | `outreach_revise_proposal` | agent | Same proposal, better text. Recipient and campaign are fixed. |
 | `outreach_withdraw_proposal` | agent | *Never mind* — the draft should not have been filed. Neutral. |
 
+Approving is not only a send. If the campaign declares an `extractionSchema`, whatever the prospect says back — the transcript of a call, or each reply to an email or text — is read by `skill://outreach/extract-outcome` and filed as CRM fields on that contact, without a second review step. That is where a campaign's qualifying questions end up as something you can segment and report on, so if the fields stay empty across a campaign, the problem is usually the drafts not asking rather than the extraction not working.
+
 Dismiss is a decision about the draft; withdraw is the agent admitting the draft was a mistake. Don't reach for dismiss to clean up after yourself, and don't withdraw a draft an operator asked you to reject — the reasons land in different fields and read differently in the audit trail.
 
 ## Scheduling a send

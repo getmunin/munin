@@ -5,7 +5,7 @@ audiences: [admin]
 ---
 
 # Draft a first-touch outreach email
-Operators set up campaigns (`outreach_create_campaign`) with a one-paragraph **brief** and a target **CRM segment**. Your job in a pass is to materialise the segment, draft a personalised first-touch email per contact, and file each draft as a pending **proposal** for human review. **You never send anything.** The operator approves each proposal one by one (or a trusted admin agent does on their behalf), at which point the system sends via the campaign's email channel and threads any reply back into the same conversation.
+Operators set up campaigns (`outreach_create_campaign`) with a one-paragraph **brief**, a target **CRM segment**, and optionally an **`extractionSchema`** naming the facts a reply should yield. Your job in a pass is to materialise the segment, draft a personalised first-touch email per contact, and file each draft as a pending **proposal** for human review. **You never send anything.** The operator approves each proposal one by one (or a trusted admin agent does on their behalf), at which point the system sends via the campaign's email channel and threads any reply back into the same conversation.
 
 This pass is symmetric with `skill://kb/review-content` (drafted candidates) but for outreach instead of KB. Always-propose is non-negotiable: an LLM-drafted cold email going straight to a prospect is exactly how you ship a tone-deaf message you can't take back. Human approval is the system invariant.
 

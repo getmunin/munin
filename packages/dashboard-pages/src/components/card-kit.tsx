@@ -10,22 +10,9 @@ import {
   cn,
 } from '@getmunin/ui';
 
-export function CardGrid({
-  children,
-  columns = 3,
-}: {
-  children: ReactNode;
-  columns?: 2 | 3;
-}) {
+export function CardGrid({ children }: { children: ReactNode }) {
   return (
-    <div
-      className={cn(
-        'grid grid-cols-1 gap-3.5',
-        columns === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3',
-      )}
-    >
-      {children}
-    </div>
+    <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
   );
 }
 

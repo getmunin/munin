@@ -86,21 +86,12 @@ function SettingsCardSkeleton() {
   );
 }
 
-export function CardGridSkeleton({
-  count = 3,
-  columns = 3,
-}: {
-  count?: number;
-  columns?: 2 | 3;
-}) {
+export function CardGridSkeleton({ count = 3 }: { count?: number }) {
   return (
     <div
       role="status"
       aria-busy="true"
-      className={cn(
-        'grid grid-cols-1 gap-3.5',
-        columns === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3',
-      )}
+      className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3"
     >
       <span className="sr-only">Loading…</span>
       {Array.from({ length: count }).map((_, i) => (

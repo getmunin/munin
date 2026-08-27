@@ -7,7 +7,7 @@ import { api } from '../../api';
 import { notify } from '../../lib/notify';
 import { useTranslateError } from '../../i18n/translate-error';
 import { useConfirm } from '../confirm-dialog';
-import { CardSkeleton } from '../skeleton';
+import { CardGridSkeleton } from '../skeleton';
 import { CardGrid, CardMenu, StatusLine } from '../card-kit';
 import { IntegrationCard } from './integration-card';
 import {
@@ -167,7 +167,7 @@ export function DataConnectionsSection() {
     return (
       <section className="space-y-4">
         <SectionHead title={td('title')} subtitle={td('subtitle')} />
-        <CardSkeleton />
+        <CardGridSkeleton count={3} />
       </section>
     );
   }

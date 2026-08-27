@@ -107,6 +107,25 @@ export interface DueFollowupDto {
   lastSentAt: string;
 }
 
+export const RESERVED_EXTRACTION_KEYS: readonly string[] = [
+  'callOutcome',
+  'callOutcomeAt',
+  'callOutcomeConversationId',
+];
+
+export const MAX_EXTRACTION_FIELDS = 12;
+
+export type ExtractionFieldType = 'string' | 'number' | 'date' | 'boolean' | 'enum';
+
+export interface ExtractionField {
+  key: string;
+  label: string;
+  type: ExtractionFieldType;
+  description: string;
+  options?: string[];
+  tagPrefix?: string;
+}
+
 export interface CampaignDto {
   id: string;
   name: string;
@@ -115,6 +134,7 @@ export interface CampaignDto {
   channelId: string;
   cadenceRules: CadenceRules;
   sequenceSteps: SequenceStep[];
+  extractionSchema: ExtractionField[];
   ctaUrl: string | null;
   enabled: boolean;
   autoDraftFirstTouch: boolean;
@@ -203,6 +223,7 @@ export interface OutreachCampaignExport {
   channelId: string;
   cadenceRules: CadenceRules;
   sequenceSteps: SequenceStep[];
+  extractionSchema: ExtractionField[];
   ctaUrl: string | null;
   autoDraftFirstTouch: boolean;
   autoDraftReplies: boolean;
@@ -272,6 +293,7 @@ export class OutreachService {
     channelId: string;
     cadenceRules?: CadenceRules;
     sequenceSteps?: SequenceStep[];
+    extractionSchema?: ExtractionField[];
     ctaUrl?: string | null;
     enabled?: boolean;
     autoDraftFirstTouch?: boolean;
@@ -290,6 +312,12 @@ export class OutreachService {
         'sequenceSteps require an email channel — follow-ups thread into the initial email conversation',
       );
     }
+    if (input.extractionSchema?.length) {
+      assertValidExtractionSchema(input.extractionSchema);
+      if (channel.type !== 'voice') {
+        throw new OutreachInvalidError(EXTRACTION_SCHEMA_VOICE_ONLY);
+      }
+    }
     await this.assertCampaignNameFree(input.name);
     try {
       const [row] = await ctx.db
@@ -302,6 +330,7 @@ export class OutreachService {
           channelId: input.channelId,
           cadenceRules: input.cadenceRules ?? {},
           sequenceSteps: input.sequenceSteps ?? [],
+          extractionSchema: input.extractionSchema ?? [],
           ctaUrl: input.ctaUrl ?? null,
           enabled: input.enabled ?? false,
           autoDraftFirstTouch: input.autoDraftFirstTouch ?? false,
@@ -330,6 +359,7 @@ export class OutreachService {
       channelId: string;
       cadenceRules: CadenceRules;
       sequenceSteps: SequenceStep[];
+      extractionSchema: ExtractionField[];
       ctaUrl: string | null;
       enabled: boolean;
       autoDraftFirstTouch: boolean;
@@ -341,16 +371,25 @@ export class OutreachService {
     const ctx = getCurrentContext();
     if (input.patch.segmentId) await this.assertSegmentExists(input.patch.segmentId);
     if (input.patch.channelId) await this.loadOutreachChannel(input.patch.channelId);
-    if (input.patch.sequenceSteps?.length || input.patch.channelId) {
+    if (input.patch.extractionSchema?.length) {
+      assertValidExtractionSchema(input.patch.extractionSchema);
+    }
+    if (
+      input.patch.sequenceSteps?.length ||
+      input.patch.extractionSchema?.length ||
+      input.patch.channelId
+    ) {
       const current = await this.getCampaign(input.id);
+      const channel = await this.loadOutreachChannel(input.patch.channelId ?? current.channelId);
       const steps = input.patch.sequenceSteps ?? current.sequenceSteps;
-      if (steps.length > 0) {
-        const channel = await this.loadOutreachChannel(input.patch.channelId ?? current.channelId);
-        if (channel.type !== 'email') {
-          throw new OutreachInvalidError(
-            'sequenceSteps require an email channel — follow-ups thread into the initial email conversation',
-          );
-        }
+      if (steps.length > 0 && channel.type !== 'email') {
+        throw new OutreachInvalidError(
+          'sequenceSteps require an email channel — follow-ups thread into the initial email conversation',
+        );
+      }
+      const fields = input.patch.extractionSchema ?? current.extractionSchema;
+      if (fields.length > 0 && channel.type !== 'voice') {
+        throw new OutreachInvalidError(EXTRACTION_SCHEMA_VOICE_ONLY);
       }
     }
     if (input.patch.name !== undefined) {
@@ -1901,6 +1940,7 @@ export class OutreachService {
         channelId: c.channelId,
         cadenceRules: c.cadenceRules,
         sequenceSteps: c.sequenceSteps,
+        extractionSchema: c.extractionSchema,
         ctaUrl: c.ctaUrl,
         autoDraftFirstTouch: c.autoDraftFirstTouch,
         autoDraftReplies: c.autoDraftReplies,
@@ -1952,6 +1992,7 @@ export class OutreachService {
         channelId,
         cadenceRules: campaign.cadenceRules,
         sequenceSteps: campaign.sequenceSteps,
+        extractionSchema: campaign.extractionSchema,
         ctaUrl: campaign.ctaUrl,
         enabled: false,
         autoDraftFirstTouch: campaign.autoDraftFirstTouch,
@@ -2054,6 +2095,39 @@ export class OutreachService {
   }
 }
 
+const EXTRACTION_SCHEMA_VOICE_ONLY =
+  'extractionSchema requires a voice channel — call-outcome extraction only runs when a voice call ends';
+
+function assertValidExtractionSchema(fields: ExtractionField[]): void {
+  if (fields.length > MAX_EXTRACTION_FIELDS) {
+    throw new OutreachInvalidError(
+      `extractionSchema has ${fields.length} fields — at most ${MAX_EXTRACTION_FIELDS} are allowed`,
+    );
+  }
+  const seen = new Set<string>();
+  for (const field of fields) {
+    if (seen.has(field.key)) {
+      throw new OutreachInvalidError(`extractionSchema has duplicate key '${field.key}'`);
+    }
+    seen.add(field.key);
+    if (RESERVED_EXTRACTION_KEYS.includes(field.key)) {
+      throw new OutreachInvalidError(
+        `extractionSchema key '${field.key}' is reserved — every call-outcome pass writes it`,
+      );
+    }
+    if (field.type === 'enum' && !field.options?.length) {
+      throw new OutreachInvalidError(
+        `extractionSchema field '${field.key}' is type enum and needs options`,
+      );
+    }
+    if (field.type !== 'enum' && field.options?.length) {
+      throw new OutreachInvalidError(
+        `extractionSchema field '${field.key}' has options but is type ${field.type}`,
+      );
+    }
+  }
+}
+
 function toCampaignDto(row: typeof schema.outreachCampaigns.$inferSelect): CampaignDto {
   return {
     id: row.id,
@@ -2063,6 +2137,7 @@ function toCampaignDto(row: typeof schema.outreachCampaigns.$inferSelect): Campa
     channelId: row.channelId,
     cadenceRules: row.cadenceRules,
     sequenceSteps: row.sequenceSteps,
+    extractionSchema: row.extractionSchema,
     ctaUrl: row.ctaUrl,
     enabled: row.enabled,
     autoDraftFirstTouch: row.autoDraftFirstTouch,

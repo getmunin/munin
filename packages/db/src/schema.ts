@@ -1888,6 +1888,19 @@ export const outreachCampaigns = pgTable(
       .$type<{ waitDays: number; brief: string }[]>()
       .notNull()
       .default([]),
+    extractionSchema: jsonb('extraction_schema')
+      .$type<
+        {
+          key: string;
+          label: string;
+          type: 'string' | 'number' | 'date' | 'boolean' | 'enum';
+          description: string;
+          options?: string[];
+          tagPrefix?: string;
+        }[]
+      >()
+      .notNull()
+      .default([]),
     ctaUrl: text('cta_url'),
     enabled: boolean('enabled').notNull().default(false),
     autoDraftFirstTouch: boolean('auto_draft_first_touch').notNull().default(false),

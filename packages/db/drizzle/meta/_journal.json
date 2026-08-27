@@ -582,6 +582,13 @@
       "when": 1787687659747,
       "tag": "0082_oauth_refresh_token_resource_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1787726132722,
+      "tag": "0083_outreach_extraction_schema",
+      "breakpoints": true
     }
   ]
 }

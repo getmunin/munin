@@ -45,8 +45,15 @@ A person approves in the dashboard. Munin hands the campaign's voice channel the
 
 Follow-up sequences are not available on voice campaigns. One call, then whatever the conversation becomes.
 
+## What happens after the call
+
+If the campaign declares an `extractionSchema`, a background pass reads the finished transcript and writes what the prospect said into their CRM custom fields — see `skill://outreach/extract-call-outcome`. That is where a campaign's qualifying questions turn into data, so if the operator wants a fact off the call, the field belongs on the campaign and the question belongs in your talking points. A field nobody asks about stays empty; a question with no field is lost when the recording is.
+
+Campaigns without an `extractionSchema` extract nothing, and only `skill://crm/extract-contact-from-message` runs, which picks up identity and not answers.
+
 ## Related
 
+- `skill://outreach/extract-call-outcome` — what happens to the transcript once the call ends.
 - `skill://outreach/draft-first-touch-email` — the same pass where you may write at length.
 - `skill://outreach/draft-first-touch-sms` — the short-form written equivalent.
 - `skill://outreach/review-proposals` — what the operator does with what you filed, and why you cannot do it for them.

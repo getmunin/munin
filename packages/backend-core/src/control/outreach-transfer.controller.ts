@@ -44,6 +44,19 @@ class ImportOutreachBody extends createZodDto(
             .array(z.object({ waitDays: z.number().int().min(1).max(90), brief: z.string().min(1).max(2000) }))
             .max(5)
             .default([]),
+          extractionSchema: z
+            .array(
+              z.object({
+                key: z.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+                label: z.string().min(1).max(80),
+                type: z.enum(['string', 'number', 'date', 'boolean', 'enum']),
+                description: z.string().min(1).max(300),
+                options: z.array(z.string().min(1).max(60)).min(2).max(20).optional(),
+                tagPrefix: z.string().regex(/^[a-z][a-z0-9-]{0,19}$/).optional(),
+              }),
+            )
+            .max(12)
+            .default([]),
           ctaUrl: z.string().nullable().optional(),
           autoDraftFirstTouch: z.boolean().default(false),
           autoDraftReplies: z.boolean().default(true),

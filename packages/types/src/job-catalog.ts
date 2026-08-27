@@ -15,6 +15,7 @@ export const KNOWN_SKILL_URIS: ReadonlySet<string> = new Set([
   'skill://outreach/draft-first-touch-email',
   'skill://outreach/draft-reply-email',
   'skill://outreach/draft-followup-email',
+  'skill://outreach/extract-call-outcome',
   'skill://conv/strip-email-signature',
   'skill://conv/set-topic-and-title',
 ]);
@@ -103,6 +104,10 @@ const TOOL_PREFIXES_BY_URI: ReadonlyMap<string, readonly string[]> = new Map([
       'cms_search_entries',
       'cms_list_versions',
     ],
+  ],
+  [
+    'skill://outreach/extract-call-outcome',
+    ['conv_get_conversation', 'outreach_get_campaign', 'crm_get_contact', 'crm_update_contact'],
   ],
   ['skill://conv/strip-email-signature', ['conv_strip_message_signature']],
   [

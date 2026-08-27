@@ -1,14 +1,30 @@
-import { Module } from '@nestjs/common';
+import { Inject, Module, OnModuleInit } from '@nestjs/common';
+import { WebhookDispatcher } from '@getmunin/core';
 import { ConvModule } from '../conv/conv.module.ts';
 import { CrmModule } from '../crm/crm.module.ts';
 import { CuratorModule } from '../curator/curator.module.ts';
 import { OutreachService } from './outreach.service.ts';
 import { OutreachAdminTools } from './outreach.tools.ts';
 import { OutreachSendWorker } from './outreach.send.worker.ts';
+import { OutreachCallOutcomeSink } from './outreach-call-outcome.sink.ts';
 
 @Module({
   imports: [ConvModule, CrmModule, CuratorModule],
-  providers: [OutreachService, OutreachAdminTools, OutreachSendWorker],
+  providers: [
+    OutreachService,
+    OutreachAdminTools,
+    OutreachSendWorker,
+    OutreachCallOutcomeSink,
+  ],
   exports: [OutreachService],
 })
-export class OutreachModule {}
+export class OutreachModule implements OnModuleInit {
+  constructor(
+    @Inject(WebhookDispatcher) private readonly dispatcher: WebhookDispatcher,
+    @Inject(OutreachCallOutcomeSink) private readonly sink: OutreachCallOutcomeSink,
+  ) {}
+
+  onModuleInit(): void {
+    this.dispatcher.registerSink(this.sink);
+  }
+}

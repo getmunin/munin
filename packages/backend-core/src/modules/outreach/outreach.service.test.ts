@@ -10,12 +10,18 @@ import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { ConflictException } from '@nestjs/common';
 import {
+  MAX_EXTRACTION_FIELDS,
   MAX_SEND_ATTEMPTS,
   OutreachService,
   OutreachInvalidError,
   SEND_WORKER_ACTOR_ID,
   SMS_DRAFT_MAX_CHARS,
+  type ExtractionField,
 } from './outreach.service.ts';
+import {
+  OutreachCallOutcomeSink,
+  type JobEnqueuer,
+} from './outreach-call-outcome.sink.ts';
 import { CrmService } from '../crm/crm.service.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
 import { ConvService } from '../conv/conv.service.ts';
@@ -2316,6 +2322,251 @@ const skipReason = TEST_URL
           }),
         ),
       ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+  });
+
+  describe('extractionSchema', () => {
+    const FIELDS: ExtractionField[] = [
+      {
+        key: 'current_operator',
+        label: 'Current operator',
+        type: 'string',
+        description: 'The mobile operator the prospect says they use today.',
+        tagPrefix: 'operator',
+      },
+      {
+        key: 'contract_expires',
+        label: 'Contract expires',
+        type: 'date',
+        description: 'When the prospect says their current agreement runs out.',
+      },
+    ];
+
+    async function voiceChannel(name: string): Promise<string> {
+      const [ch] = await db
+        .insert(schema.convChannels)
+        .values({
+          orgId,
+          type: 'voice',
+          vendor: 'threll',
+          name,
+          active: true,
+          config: {
+            encryptedApiKey: 'fake',
+            encryptedWebhookSecret: 'fake',
+            accountId: 'acct_1',
+            workerId: 'wrk_1',
+          },
+        })
+        .returning();
+      return ch!.id;
+    }
+
+    it('round-trips a schema on a voice campaign and defaults to empty', async () => {
+      const voiceId = await voiceChannel('extract-voice');
+      const withFields = await run(() =>
+        svc.createCampaign({
+          name: 'extract-yes',
+          brief: 'b',
+          segmentId,
+          channelId: voiceId,
+          extractionSchema: FIELDS,
+        }),
+      );
+      expect(withFields.extractionSchema).toEqual(FIELDS);
+
+      const withoutFields = await run(() =>
+        svc.createCampaign({ name: 'extract-no', brief: 'b', segmentId, channelId: voiceId }),
+      );
+      expect(withoutFields.extractionSchema).toEqual([]);
+    });
+
+    it('rejects an extraction schema on a non-voice campaign', async () => {
+      await expect(
+        run(() =>
+          svc.createCampaign({
+            name: 'extract-email',
+            brief: 'b',
+            segmentId,
+            channelId,
+            extractionSchema: FIELDS,
+          }),
+        ),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    it('rejects moving a campaign with a schema onto an email channel', async () => {
+      const voiceId = await voiceChannel('extract-move');
+      const campaign = await run(() =>
+        svc.createCampaign({
+          name: 'extract-move',
+          brief: 'b',
+          segmentId,
+          channelId: voiceId,
+          extractionSchema: FIELDS,
+        }),
+      );
+      await expect(
+        run(() => svc.updateCampaign({ id: campaign.id, patch: { channelId } })),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    it('rejects duplicate keys, reserved keys, and enums without options', async () => {
+      const voiceId = await voiceChannel('extract-invalid');
+      const cases: ExtractionField[][] = [
+        [FIELDS[0]!, { ...FIELDS[0]!, label: 'Dup' }],
+        [
+          {
+            key: 'callOutcome',
+            label: 'Outcome',
+            type: 'string',
+            description: 'x',
+          },
+        ],
+        [{ key: 'pbx', label: 'PBX', type: 'enum', description: 'x' }],
+        [{ ...FIELDS[0]!, options: ['a', 'b'] }],
+      ];
+      for (const [i, extractionSchema] of cases.entries()) {
+        await expect(
+          run(() =>
+            svc.createCampaign({
+              name: `extract-invalid-${i}`,
+              brief: 'b',
+              segmentId,
+              channelId: voiceId,
+              extractionSchema,
+            }),
+          ),
+        ).rejects.toBeInstanceOf(OutreachInvalidError);
+      }
+    });
+
+    it('rejects more than the maximum number of fields', async () => {
+      const voiceId = await voiceChannel('extract-too-many');
+      const tooMany: ExtractionField[] = Array.from(
+        { length: MAX_EXTRACTION_FIELDS + 1 },
+        (_, i) => ({
+          key: `field_${i}`,
+          label: `Field ${i}`,
+          type: 'string' as const,
+          description: 'x',
+        }),
+      );
+      await expect(
+        run(() =>
+          svc.createCampaign({
+            name: 'extract-too-many',
+            brief: 'b',
+            segmentId,
+            channelId: voiceId,
+            extractionSchema: tooMany,
+          }),
+        ),
+      ).rejects.toBeInstanceOf(OutreachInvalidError);
+    });
+
+    describe('call-outcome sink', () => {
+      let enqueued: Parameters<JobEnqueuer['enqueue']>[0][];
+      let sink: OutreachCallOutcomeSink;
+
+      beforeEach(() => {
+        enqueued = [];
+        const stub: JobEnqueuer = {
+          enqueue(input) {
+            enqueued.push(input);
+            return Promise.resolve({});
+          },
+        };
+        sink = new OutreachCallOutcomeSink(stub);
+      });
+
+      async function callEndedFor(input: {
+        extractionSchema?: ExtractionField[];
+        linkCampaign?: boolean;
+        crmContactId?: string | null;
+      }): Promise<string> {
+        const voiceId = await voiceChannel(`sink-${randomUUID().slice(0, 8)}`);
+        const campaign = await run(() =>
+          svc.createCampaign({
+            name: `sink-${randomUUID().slice(0, 8)}`,
+            brief: 'b',
+            segmentId,
+            channelId: voiceId,
+            extractionSchema: input.extractionSchema ?? [],
+          }),
+        );
+        const [convContact] = await db
+          .insert(schema.convContacts)
+          .values({ orgId, phone: '+4712345678', name: 'Jane Doe', metadata: {} })
+          .returning();
+        const [conversation] = await db
+          .insert(schema.convConversations)
+          .values({
+            orgId,
+            displayId: Math.floor(Math.random() * 1_000_000),
+            channelId: voiceId,
+            contactId: convContact!.id,
+            status: 'closed',
+            outreachCampaignId: input.linkCampaign === false ? null : campaign.id,
+            agentMode: 'off',
+            metadata:
+              input.crmContactId === null ? {} : { crmContactId: input.crmContactId ?? contactId },
+          })
+          .returning();
+        return conversation!.id;
+      }
+
+      async function emit(conversationId: string, type = 'conversation.voice.call_ended') {
+        await run(() =>
+          sink.onEvent({
+            eventId: `evt_${randomUUID().slice(0, 8)}`,
+            orgId,
+            type,
+            payload: { conversationId, orgId },
+          }),
+        );
+      }
+
+      it('enqueues one job carrying the declared fields', async () => {
+        const conversationId = await callEndedFor({ extractionSchema: FIELDS });
+        await emit(conversationId);
+        expect(enqueued).toHaveLength(1);
+        expect(enqueued[0]!.jobUri).toBe('skill://outreach/extract-call-outcome');
+        expect(enqueued[0]!.dedupeKey).toBe(`outreach-call-outcome:conv:${conversationId}`);
+        expect(enqueued[0]!.userPrompt).toContain('current_operator');
+        expect(enqueued[0]!.userPrompt).toContain('contract_expires');
+        expect(enqueued[0]!.userPrompt).toContain(contactId);
+      });
+
+      it('ignores a campaign with no declared fields', async () => {
+        const conversationId = await callEndedFor({ extractionSchema: [] });
+        await emit(conversationId);
+        expect(enqueued).toEqual([]);
+      });
+
+      it('ignores a voice call that belongs to no campaign', async () => {
+        const conversationId = await callEndedFor({
+          extractionSchema: FIELDS,
+          linkCampaign: false,
+        });
+        await emit(conversationId);
+        expect(enqueued).toEqual([]);
+      });
+
+      it('ignores a conversation with no crm contact to write to', async () => {
+        const conversationId = await callEndedFor({
+          extractionSchema: FIELDS,
+          crmContactId: null,
+        });
+        await emit(conversationId);
+        expect(enqueued).toEqual([]);
+      });
+
+      it('ignores every other event type', async () => {
+        const conversationId = await callEndedFor({ extractionSchema: FIELDS });
+        await emit(conversationId, 'conversation.status_changed');
+        expect(enqueued).toEqual([]);
+      });
     });
   });
 });

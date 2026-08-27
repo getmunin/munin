@@ -12,6 +12,7 @@ import {
   SheetContent,
 } from '@getmunin/ui';
 import { authClient } from '../auth-client';
+import { clearActiveOrgId } from '../auth/active-org';
 import { isOwnerOrAdmin, useActiveRole } from '../auth/use-active-role';
 import { SettingsTopbar } from '../components/munin-topbar';
 import { Link, usePathname, useRouter } from '../i18n-navigation';
@@ -48,6 +49,7 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
   const signOut = () => {
     void (async () => {
       await authClient.signOut();
+      clearActiveOrgId();
       router.push('/login');
     })();
   };

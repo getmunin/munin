@@ -2,6 +2,7 @@ import {
   CanActivate,
   Controller,
   ExecutionContext,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -12,8 +13,10 @@ import {
   applyDecorators,
 } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { ORG_ACCESS_DENIED_CODE, ORG_HEADER } from '@getmunin/types';
 import {
   CredentialResolver,
+  OrgAccessDeniedError,
   looksOrgScoped,
   orgScopedPath,
   orgScopedResourceUrl,
@@ -117,7 +120,17 @@ export class AuthGuard implements CanActivate {
       const cookieValue = Array.isArray(cookieHeader) ? cookieHeader[0] : cookieHeader;
       const sessionToken = readSessionCookie(cookieValue);
       if (sessionToken) {
-        credential = await this.resolver.resolveSessionToken(sessionToken);
+        try {
+          credential = await this.resolver.resolveSessionToken(
+            sessionToken,
+            readRequestedOrgId(request),
+          );
+        } catch (err) {
+          if (err instanceof OrgAccessDeniedError) {
+            throw new ForbiddenException({ message: err.message, code: ORG_ACCESS_DENIED_CODE });
+          }
+          throw err;
+        }
       }
     }
 
@@ -148,7 +161,16 @@ export class AuthGuard implements CanActivate {
     }
 
     request.credential = credential;
+    this.echoServingOrg(context, credential);
     return true;
+  }
+
+  private echoServingOrg(context: ExecutionContext, credential: ResolvedCredential): void {
+    if (!credential.actor.orgId) return;
+    const res = context
+      .switchToHttp()
+      .getResponse<{ setHeader?: (n: string, v: string) => void }>();
+    res.setHeader?.(ORG_HEADER, credential.actor.orgId);
   }
 
   private audienceCoversRequest(audience: string, request: AuthenticatedRequest): boolean {
@@ -181,6 +203,13 @@ export class AuthGuard implements CanActivate {
       .getResponse<{ setHeader?: (n: string, v: string) => void }>();
     res.setHeader?.('WWW-Authenticate', `Bearer resource_metadata="${metadata}"`);
   }
+}
+
+function readRequestedOrgId(request: AuthenticatedRequest): string | null {
+  const raw = request.headers[ORG_HEADER];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 }
 
 function isMcpRequest(request: AuthenticatedRequest): boolean {

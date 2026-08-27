@@ -160,7 +160,7 @@ export function DrawerHeader({
   title: string;
   meta?: string;
   rightExtra?: React.ReactNode;
-  onClose: () => void;
+  onClose?: () => void;
   closeLabel: string;
 }) {
   return (
@@ -180,6 +180,7 @@ export function DrawerHeader({
             </p>
           )}
         </div>
+        {onClose ? (
         <button
           type="button"
           onClick={onClose}
@@ -188,6 +189,7 @@ export function DrawerHeader({
         >
           {closeLabel}
         </button>
+        ) : null}
       </div>
     </div>
   );

@@ -66,6 +66,7 @@ export function DashboardPage() {
       <OverviewStats
         liveCount={inbox.items.length}
         learningCount={inbox.queue.filter((q) => q.kind === 'kb').length}
+        liveHref="/dashboard/conversations"
       />
 
       <LiveNowSection controller={inbox} />

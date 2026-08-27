@@ -1273,8 +1273,29 @@
     "console": {
       "groups": {
         "admin": "Admin",
-        "workspace": "Workspace"
+        "workspace": "Workspace",
+        "oversight": "Oversight"
       }
+    },
+    "conversations": {
+      "eyebrow": "Conversations",
+      "title": "What needs you, <em>first.</em>",
+      "searchPlaceholder": "Search customer or subject…",
+      "sections": {
+        "needsYou": "Needs you",
+        "inProgress": "In progress",
+        "open": "Open"
+      },
+      "emptyTitle": "Nothing in the queue.",
+      "emptyBody": "When a conversation needs a human, it lands here first.",
+      "paneEmpty": "Select a conversation.",
+      "backToQueue": "Queue",
+      "unclaimed": "Unclaimed",
+      "claimed": "Claimed",
+      "claimedByYou": "Claimed by you",
+      "claimedBy": "With {who}",
+      "channelFallback": "Conversation",
+      "detailFailedTitle": "Could not open that conversation."
     }
   },
   "agentSetup": {

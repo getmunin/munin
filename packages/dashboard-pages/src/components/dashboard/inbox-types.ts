@@ -22,6 +22,7 @@ export interface ConversationSummary {
   displayId: number;
   status: Status;
   channelId: string;
+  channelType?: string;
   endUserId: string | null;
   contactId: string | null;
   topicId: string | null;
@@ -30,6 +31,7 @@ export interface ConversationSummary {
   lastMessageAt: string | null;
   needsHumanAttention: boolean;
   needsHumanAttentionAt: string | null;
+  lastInboundPreview?: string | null;
   updatedAt: string;
   createdAt: string;
 }

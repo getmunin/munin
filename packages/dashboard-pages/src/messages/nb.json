@@ -1273,8 +1273,29 @@
     "console": {
       "groups": {
         "admin": "Admin",
-        "workspace": "Arbeidsområde"
+        "workspace": "Arbeidsområde",
+        "oversight": "Oppfølging"
       }
+    },
+    "conversations": {
+      "eyebrow": "Samtaler",
+      "title": "Hva trenger deg <em>først.</em>",
+      "searchPlaceholder": "Søk kunde eller emne…",
+      "sections": {
+        "needsYou": "Trenger deg",
+        "inProgress": "Under arbeid",
+        "open": "Åpne"
+      },
+      "emptyTitle": "Ingenting i køen.",
+      "emptyBody": "Når en samtale trenger et menneske, havner den her først.",
+      "paneEmpty": "Velg en samtale.",
+      "backToQueue": "Kø",
+      "unclaimed": "Ikke tatt",
+      "claimed": "Tatt",
+      "claimedByYou": "Tatt av deg",
+      "claimedBy": "Hos {who}",
+      "channelFallback": "Samtale",
+      "detailFailedTitle": "Kunne ikke åpne samtalen."
     }
   },
   "agentSetup": {

@@ -8,45 +8,50 @@ import {
   type ConsoleNavGroup,
 } from './console-groups';
 
-const oversight: ConsoleNavGroup = {
-  groupKey: 'oversight',
+const reports: ConsoleNavGroup = {
+  groupKey: 'reports',
   items: [
-    { href: '/dashboard/conversations', labelKey: 'conversations' },
-    { href: '/dashboard/learning', labelKey: 'learning', roles: ADMIN_ROLES },
+    { href: '/dashboard/reports', labelKey: 'reports' },
+    { href: '/dashboard/reports/spend', labelKey: 'spend', roles: ADMIN_ROLES },
   ],
 };
 
 describe('visibleConsoleGroups', () => {
   it('gives an owner every group', () => {
-    const visible = visibleConsoleGroups([...OSS_CONSOLE_GROUPS, oversight], 'owner');
-    expect(visible.map((g) => g.groupKey)).toEqual(['admin', 'workspace', 'oversight']);
+    const visible = visibleConsoleGroups([...OSS_CONSOLE_GROUPS, reports], 'owner');
+    expect(visible.map((g) => g.groupKey)).toEqual([
+      'admin',
+      'oversight',
+      'workspace',
+      'reports',
+    ]);
   });
 
   it('drops the admin group entirely for a member rather than disabling it', () => {
-    const visible = visibleConsoleGroups([...OSS_CONSOLE_GROUPS, oversight], 'member');
-    expect(visible.map((g) => g.groupKey)).toEqual(['workspace', 'oversight']);
+    const visible = visibleConsoleGroups([...OSS_CONSOLE_GROUPS, reports], 'member');
+    expect(visible.map((g) => g.groupKey)).toEqual(['oversight', 'workspace', 'reports']);
   });
 
   it('drops admin-only items but keeps the rest of their group', () => {
-    const visible = visibleConsoleGroups([oversight], 'member');
-    expect(visible[0]!.items.map((i) => i.labelKey)).toEqual(['conversations']);
+    const visible = visibleConsoleGroups([reports], 'member');
+    expect(visible[0]!.items.map((i) => i.labelKey)).toEqual(['reports']);
   });
 
   it('drops a group that would render with no items left', () => {
     const adminOnly: ConsoleNavGroup = {
-      groupKey: 'oversight',
-      items: [{ href: '/dashboard/automation', labelKey: 'automation', roles: ADMIN_ROLES }],
+      groupKey: 'reports',
+      items: [{ href: '/dashboard/reports/spend', labelKey: 'spend', roles: ADMIN_ROLES }],
     };
     expect(visibleConsoleGroups([adminOnly], 'member')).toEqual([]);
   });
 
   it('shows nothing role-gated while the role is still unknown', () => {
-    expect(visibleConsoleGroups([oversight], null).map((g) => g.groupKey)).toEqual(['oversight']);
-    expect(visibleConsoleGroups([oversight], null)[0]!.items).toHaveLength(1);
+    expect(visibleConsoleGroups([reports], null).map((g) => g.groupKey)).toEqual(['reports']);
+    expect(visibleConsoleGroups([reports], null)[0]!.items).toHaveLength(1);
   });
 
   it('does not mutate the group list it was given', () => {
-    const groups = [oversight];
+    const groups = [reports];
     visibleConsoleGroups(groups, 'member');
     expect(groups[0]!.items).toHaveLength(2);
   });
@@ -55,9 +60,14 @@ describe('visibleConsoleGroups', () => {
 describe('extendConsoleGroups', () => {
   it('inserts a new group before workspace so settings stays last', () => {
     const result = extendConsoleGroups(OSS_CONSOLE_GROUPS, [
-      { groupKey: 'oversight', items: oversight.items },
+      { groupKey: 'reports', items: reports.items },
     ]);
-    expect(result.map((g) => g.groupKey)).toEqual(['admin', 'oversight', 'workspace']);
+    expect(result.map((g) => g.groupKey)).toEqual([
+      'admin',
+      'oversight',
+      'reports',
+      'workspace',
+    ]);
   });
 
   it('appends into an existing group', () => {

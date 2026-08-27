@@ -25,6 +25,12 @@ export const OSS_CONSOLE_GROUPS: ConsoleNavGroup[] = [
     items: [{ href: '/dashboard', labelKey: 'overview', roles: ADMIN_ROLES, countKey: 'queue' }],
   },
   {
+    groupKey: 'oversight',
+    items: [
+      { href: '/dashboard/conversations', labelKey: 'conversations', countKey: 'attention' },
+    ],
+  },
+  {
     groupKey: 'workspace',
     items: [{ href: '/dashboard/settings', labelKey: 'settings' }],
   },

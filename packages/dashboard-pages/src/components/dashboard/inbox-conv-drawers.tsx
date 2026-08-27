@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Unplug, User } from 'lucide-react';
+import { ArrowLeft, Unplug, User } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Button, Pill } from '@getmunin/ui';
 import { useRelative } from '../../lib/use-relative';
@@ -75,19 +75,13 @@ function retryHandler(
   return null;
 }
 
-export function ConversationDrawer({
-  detail,
-  reply,
-  setReply,
-  pending,
-  actionError,
-  onSend,
-  onTakeOver,
-  onRelease,
-  onCloseConv,
-  onClose,
-  onClearActionError,
-}: {
+export type ConversationDetailVariant = 'drawer' | 'pane' | 'page';
+
+export function ConversationDrawer(props: ConversationDetailViewProps) {
+  return <ConversationDetailView {...props} />;
+}
+
+export interface ConversationDetailViewProps {
   detail: ConversationDetail;
   reply: string;
   setReply: (v: string) => void;
@@ -99,7 +93,25 @@ export function ConversationDrawer({
   onCloseConv: () => void;
   onClose: () => void;
   onClearActionError: () => void;
-}) {
+  variant?: ConversationDetailVariant;
+  backLabel?: string;
+}
+
+export function ConversationDetailView({
+  detail,
+  reply,
+  setReply,
+  pending,
+  actionError,
+  onSend,
+  onTakeOver,
+  onRelease,
+  onCloseConv,
+  onClose,
+  onClearActionError,
+  variant = 'drawer',
+  backLabel,
+}: ConversationDetailViewProps) {
   const t = useTranslations('dashboard.overview.drawer');
   const age = useRelative();
   const claimed = detail.claim !== null;
@@ -145,27 +157,50 @@ export function ConversationDrawer({
     if (reply.trim() && !pending) submit();
   });
 
+  const title = detail.subject ?? t('conversationFallback', { id: detail.displayId });
+  const meta =
+    detail.needsHumanAttention && detail.needsHumanAttentionAt
+      ? t('metaConv', { who: endUserLabel, age: age(detail.needsHumanAttentionAt) })
+      : t('metaConvFull', { who: endUserLabel, status: detail.status });
+  const claimPill = claimed ? (
+    <Pill tone="review" className="before:hidden">
+      <User className="size-[9px]" /> {t('pillTakenOver')}
+    </Pill>
+  ) : null;
+
   return (
     <>
-      <DrawerHeader
-        pillTone={detail.needsHumanAttention ? 'live' : detail.status === 'open' ? 'ink' : 'draft'}
-        pillLabel={detail.needsHumanAttention ? t('pillLive') : detail.status}
-        title={detail.subject ?? t('conversationFallback', { id: detail.displayId })}
-        meta={
-          detail.needsHumanAttention && detail.needsHumanAttentionAt
-            ? t('metaConv', { who: endUserLabel, age: age(detail.needsHumanAttentionAt) })
-            : t('metaConvFull', { who: endUserLabel, status: detail.status })
-        }
-        rightExtra={
-          claimed ? (
-            <Pill tone="review" className="before:hidden">
-              <User className="size-[9px]" /> {t('pillTakenOver')}
-            </Pill>
-          ) : null
-        }
-        onClose={onClose}
-        closeLabel={t('close')}
-      />
+      {variant === 'page' ? (
+        <>
+          <div className="flex h-14 shrink-0 items-center gap-2.5 border-b-[1px] border-rule-soft px-4 dark:border-rule-on-dark">
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center gap-2.5 py-1.5 font-mono text-[10px] uppercase tracking-eyebrow text-ink-soft dark:text-foreground/75"
+            >
+              <ArrowLeft className="size-4 shrink-0 text-ink dark:text-foreground" aria-hidden />
+              {backLabel ?? t('close')}
+            </button>
+            <span className="ml-auto shrink-0">{claimPill}</span>
+          </div>
+          <div className="shrink-0 px-4 pb-1 pt-4">
+            <h2 className="m-0 font-serif text-[26px] font-normal leading-tight text-ink dark:text-foreground">
+              {title}
+            </h2>
+            <p className="mt-1.5 text-[12.5px] text-ink-mute dark:text-foreground/55">{meta}</p>
+          </div>
+        </>
+      ) : (
+        <DrawerHeader
+          pillTone={detail.needsHumanAttention ? 'live' : detail.status === 'open' ? 'ink' : 'draft'}
+          pillLabel={detail.needsHumanAttention ? t('pillLive') : detail.status}
+          title={title}
+          meta={meta}
+          rightExtra={claimPill}
+          onClose={variant === 'pane' ? undefined : onClose}
+          closeLabel={t('close')}
+        />
+      )}
 
       <div ref={messagesRef} className="flex-1 space-y-3 overflow-y-auto px-6 py-5">
         {thread.map((m) => (

@@ -1700,7 +1700,8 @@
     "conv_channel_config_invalid": "Kanalen har ufullstendige innstillinger og kan ikke brukes ennå. Åpne innstillingene, fyll ut det som mangler og lagre for å reparere den.",
     "conv_invalid": "Dette utkastet ligger ikke lenger til behandling i samtalen – det er allerede sendt, eller agenten har skrevet et nyere. Åpne samtalen på nytt for å se hvor den står.",
     "kb_version_conflict": "Noen endret teksten mens du hadde den åpen, så ingenting ble lagret. Åpne den på nytt for å se gjeldende versjon og ta stilling til den.",
-    "kb_curation_decided": "Denne er allerede behandlet – publisert eller forkastet – og blir ikke foreslått igjen. Oppdater køen."
+    "kb_curation_decided": "Denne er allerede behandlet – publisert eller forkastet – og blir ikke foreslått igjen. Oppdater køen.",
+    "org_access_denied": "Denne fanen var åpen i en organisasjon du ikke lenger har tilgang til. Laster inn på nytt med organisasjonen du er i nå."
   },
   "footer": {
     "privacy": "Personvern",

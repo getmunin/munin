@@ -9,7 +9,7 @@ import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
 import { STORAGE } from './common/storage/storage.token.ts';
-import { stripTrailingSlashes } from '@getmunin/types';
+import { ORG_HEADER, stripTrailingSlashes } from '@getmunin/types';
 
 const JSON_BODY_LIMIT = '4mb';
 
@@ -201,7 +201,7 @@ export function corsMiddleware(strictOrigins: string[] | true) {
       if (explicitlyAllowed) {
         res.setHeader('Access-Control-Allow-Credentials', 'true');
       }
-      res.setHeader('Access-Control-Expose-Headers', 'x-request-id');
+      res.setHeader('Access-Control-Expose-Headers', `x-request-id,${ORG_HEADER}`);
     }
 
     if (req.method === 'OPTIONS') {

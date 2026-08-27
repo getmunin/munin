@@ -84,6 +84,7 @@ export {
   AuthLoading,
 } from './components/auth-shell';
 export { useTranslateError, translateError, getErrorCode } from './i18n/translate-error';
+export { clearActiveOrgId, getActiveOrgId, setActiveOrgId } from './auth/active-org';
 export {
   useActiveRole,
   useActiveMembership,

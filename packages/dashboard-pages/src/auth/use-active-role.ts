@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { getActiveOrgId } from './active-org';
 
 export type OrgRole = 'owner' | 'admin' | 'member';
 
@@ -35,7 +36,12 @@ export function invalidateActiveMembershipCache(): void {
 function fetchActiveMembership(): Promise<ActiveMembership | null> {
   if (cache) return cache.promise;
   const promise = api<MembershipDto[]>('/v1/me/memberships').then((rows) => {
-    const active = rows.find((m) => m.isDefault) ?? rows[0] ?? null;
+    const pinnedOrgId = getActiveOrgId();
+    const active =
+      (pinnedOrgId ? rows.find((m) => m.orgId === pinnedOrgId) : undefined) ??
+      rows.find((m) => m.isDefault) ??
+      rows[0] ??
+      null;
     if (!active || !isOrgRole(active.role)) {
       if (cache) cache.value = null;
       return null;

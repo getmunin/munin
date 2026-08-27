@@ -103,6 +103,7 @@ export {
   type LlmProviderPreset,
 } from './llm-providers.ts';
 export { stripTrailingSlashes } from './url.ts';
+export { ORG_ACCESS_DENIED_CODE, ORG_HEADER } from './org-scope.ts';
 export {
   actorKindFromId,
   AGENT_HOST_ACTOR,

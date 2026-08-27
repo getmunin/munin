@@ -15,6 +15,7 @@ import { eq, sql } from 'drizzle-orm';
 import {
   ActorIdentity,
   CredentialResolver,
+  OrgAccessDeniedError,
   WebhookDispatcher,
   parseEnvDisableFlag,
   withContext,
@@ -753,7 +754,12 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     const cookieValue = readHeader(req, 'cookie');
     const sessionToken = readSessionCookie(cookieValue);
     if (sessionToken) {
-      const credential = await this.resolver.resolveSessionToken(sessionToken);
+      const credential = await this.resolver
+        .resolveSessionToken(sessionToken, readRequestedOrgId(req))
+        .catch((err: unknown) => {
+          if (err instanceof OrgAccessDeniedError) return null;
+          throw err;
+        });
       return credential ? { credential, fromCookie: true } : null;
     }
     return null;
@@ -775,6 +781,14 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     }
     return this.resolver.resolveBearerToken(raw);
   }
+}
+
+function readRequestedOrgId(req: IncomingMessage): string | null {
+  const raw = req.url ?? '';
+  const query = raw.slice(raw.indexOf('?') + 1);
+  if (!raw.includes('?')) return null;
+  const value = new URLSearchParams(query).get('orgId')?.trim();
+  return value ? value : null;
 }
 
 function readHeader(req: IncomingMessage, name: string): string | undefined {

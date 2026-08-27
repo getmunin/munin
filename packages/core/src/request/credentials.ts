@@ -5,7 +5,7 @@ import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import { ActorIdentity, type ActorType, type Audience } from './context.ts';
 import { hashSecret } from '../crypto/primitives.ts';
 import { looksLikeJwt, resolveOauthJwtAccessToken } from './oauth-jwt.ts';
-import { stripTrailingSlashes } from '@getmunin/types';
+import { ORG_ACCESS_DENIED_CODE, stripTrailingSlashes } from '@getmunin/types';
 
 async function readMembershipsForUser(
   db: Db,
@@ -32,11 +32,38 @@ function resolvePinnedMembership(
 
 export { resolvePinnedMembership };
 
+export class OrgAccessDeniedError extends Error {
+  readonly code = ORG_ACCESS_DENIED_CODE;
+
+  constructor(readonly orgId: string) {
+    super(`${ORG_ACCESS_DENIED_CODE}: you are not a member of the requested organization`);
+    this.name = 'OrgAccessDeniedError';
+  }
+}
+
 function hashOauthOpaqueToken(rawToken: string): string {
   return createHash('sha256').update(rawToken).digest('base64url');
 }
 
 const WIDGET_ALLOWED_SCOPES: ReadonlySet<string> = new Set(['conv:widget:write']);
+
+function sessionCredential(
+  session: typeof schema.sessions.$inferSelect,
+  orgId: string,
+): ResolvedCredential {
+  const actor = new ActorIdentity(
+    'user',
+    session.userId,
+    orgId,
+    ['*'],
+    ['admin'],
+    undefined,
+    session.id,
+    undefined,
+    session.userId,
+  );
+  return { actor, expiresAt: session.expiresAt };
+}
 
 export interface ResolvedCredential {
   actor: ActorIdentity;
@@ -184,7 +211,10 @@ export class CredentialResolver {
     return { actor };
   }
 
-  async resolveSessionToken(rawToken: string): Promise<ResolvedCredential | null> {
+  async resolveSessionToken(
+    rawToken: string,
+    requestedOrgId?: string | null,
+  ): Promise<ResolvedCredential | null> {
     const sessionRows = await this.db
       .select()
       .from(schema.sessions)
@@ -194,23 +224,18 @@ export class CredentialResolver {
     if (!session) return null;
 
     const memberships = await readMembershipsForUser(this.db, session.userId);
+    if (requestedOrgId) {
+      const requested = memberships.find((m) => m.orgId === requestedOrgId);
+      if (!requested) throw new OrgAccessDeniedError(requestedOrgId);
+      return sessionCredential(session, requested.orgId);
+    }
+
     const membership =
       memberships.find((m) => m.isDefault) ??
       [...memberships].sort((a, b) => +a.createdAt - +b.createdAt)[0];
     if (!membership) return null;
 
-    const actor = new ActorIdentity(
-      'user',
-      session.userId,
-      membership.orgId,
-      ['*'],
-      ['admin'],
-      undefined,
-      session.id,
-      undefined,
-      session.userId,
-    );
-    return { actor, expiresAt: session.expiresAt };
+    return sessionCredential(session, membership.orgId);
   }
 
   async resolveSessionUserId(rawToken: string): Promise<string | null> {

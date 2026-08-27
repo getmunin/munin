@@ -15,6 +15,7 @@ export {
 export { AuditLogger, type AuditEventInput } from './request/audit.ts';
 export {
   CredentialResolver,
+  OrgAccessDeniedError,
   type ResolvedCredential,
   readMembershipsForUser,
 } from './request/credentials.ts';

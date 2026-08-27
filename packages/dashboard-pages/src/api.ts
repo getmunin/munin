@@ -1,3 +1,6 @@
+import { ORG_ACCESS_DENIED_CODE, ORG_HEADER } from '@getmunin/types';
+import { clearActiveOrgId, getActiveOrgId, setActiveOrgId } from './auth/active-org';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 export interface ApiFieldError {
@@ -42,16 +45,14 @@ export interface ApiOptions extends RequestInit {
 export async function api<T>(path: string, init: ApiOptions = {}): Promise<T> {
   const { anonymous, ...rest } = init;
   const method = (rest.method ?? 'GET').toUpperCase();
+  const requestedOrgId = anonymous ? null : getActiveOrgId();
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, {
-      ...rest,
-      credentials: anonymous ? 'omit' : 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(rest.headers ?? {}),
-      },
-    });
+    res = await sendRequest(path, rest, anonymous, requestedOrgId);
+    if (requestedOrgId && (await isOrgAccessDenied(res))) {
+      clearActiveOrgId();
+      res = await sendRequest(path, rest, anonymous, null);
+    }
   } catch (err) {
     if (typeof console !== 'undefined') {
       console.debug('[munin/api] network error', { path, method, err });
@@ -66,6 +67,8 @@ export async function api<T>(path: string, init: ApiOptions = {}): Promise<T> {
       code: 'NETWORK_ERROR',
     });
   }
+  if (!anonymous) reconcileServingOrg(res, getActiveOrgId());
+
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     const parsed = parseErrorBody(text);
@@ -82,6 +85,47 @@ export async function api<T>(path: string, init: ApiOptions = {}): Promise<T> {
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
+}
+
+function sendRequest(
+  path: string,
+  rest: RequestInit,
+  anonymous: boolean | undefined,
+  orgId: string | null,
+): Promise<Response> {
+  return fetch(`${API_URL}${path}`, {
+    ...rest,
+    credentials: anonymous ? 'omit' : 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(orgId ? { [ORG_HEADER]: orgId } : {}),
+      ...(rest.headers ?? {}),
+    },
+  });
+}
+
+async function isOrgAccessDenied(res: Response): Promise<boolean> {
+  if (res.status !== 403) return false;
+  const text = await res
+    .clone()
+    .text()
+    .catch(() => '');
+  return parseErrorBody(text).code === ORG_ACCESS_DENIED_CODE;
+}
+
+function reconcileServingOrg(res: Response, requestedOrgId: string | null): void {
+  const servingOrgId = res.headers.get(ORG_HEADER)?.trim();
+  if (!servingOrgId) return;
+  if (!requestedOrgId) {
+    setActiveOrgId(servingOrgId);
+    return;
+  }
+  if (servingOrgId === requestedOrgId) return;
+  console.warn('[munin/api] served a different org than requested', {
+    requestedOrgId,
+    servingOrgId,
+  });
+  setActiveOrgId(servingOrgId);
 }
 
 function parseErrorBody(body: string): {

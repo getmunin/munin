@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import type { Db } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
-import { CredentialResolver } from './credentials.ts';
+import { CredentialResolver, OrgAccessDeniedError } from './credentials.ts';
 import { buildApiKey, keyPrefix } from '../crypto/keys.ts';
 import { hashSecret } from '../crypto/primitives.ts';
 
@@ -210,5 +210,91 @@ const skipReason = TEST_URL
     expect(out!.actor.type).toBe('user');
     expect(out!.actor.id).toBe(userId);
     expect(out!.actor.clientId).toBe('client_attribution_test');
+  });
+});
+
+(skipReason ? describe.skip : describe)('CredentialResolver.resolveSessionToken', () => {
+  let db: Db;
+  let defaultOrgId: string;
+  let otherOrgId: string;
+  let strangerOrgId: string;
+  let userId: string;
+  const token = `session-org-scope-${Date.now()}`;
+
+  beforeAll(async () => {
+    await runMigrations(TEST_URL!);
+    db = createDb(TEST_URL!, { serviceRole: true });
+    const orgs = await db
+      .insert(schema.orgs)
+      .values([
+        { name: 'Session Default Org' },
+        { name: 'Session Other Org' },
+        { name: 'Session Stranger Org' },
+      ])
+      .returning();
+    defaultOrgId = orgs[0]!.id;
+    otherOrgId = orgs[1]!.id;
+    strangerOrgId = orgs[2]!.id;
+
+    const [user] = await db
+      .insert(schema.users)
+      .values({ email: `session-org-scope-${Date.now()}@example.com`, emailVerified: true })
+      .returning();
+    userId = user!.id;
+
+    await db.insert(schema.orgMembers).values([
+      { orgId: defaultOrgId, userId, role: 'owner', isDefault: true },
+      { orgId: otherOrgId, userId, role: 'admin', isDefault: false },
+    ]);
+
+    await db.insert(schema.sessions).values({
+      userId,
+      token,
+      expiresAt: new Date(Date.now() + 3_600_000),
+    });
+  });
+
+  afterAll(async () => {
+    if (db) {
+      await db.delete(schema.users).where(sql`id = ${userId}`);
+      await db
+        .delete(schema.orgs)
+        .where(sql`id in (${defaultOrgId}, ${otherOrgId}, ${strangerOrgId})`);
+      void db.$client.end();
+    }
+  });
+
+  it('falls back to the account-wide default when no org is requested', async () => {
+    const out = await new CredentialResolver(db).resolveSessionToken(token);
+    expect(out!.actor.orgId).toBe(defaultOrgId);
+  });
+
+  it('serves a requested org the user belongs to, over the default', async () => {
+    const out = await new CredentialResolver(db).resolveSessionToken(token, otherOrgId);
+    expect(out!.actor.orgId).toBe(otherOrgId);
+    expect(out!.actor.id).toBe(userId);
+  });
+
+  it('refuses a requested org the user does not belong to rather than serving another', async () => {
+    await expect(
+      new CredentialResolver(db).resolveSessionToken(token, strangerOrgId),
+    ).rejects.toBeInstanceOf(OrgAccessDeniedError);
+  });
+
+  it('refuses an unknown org id rather than falling back to the default', async () => {
+    await expect(
+      new CredentialResolver(db).resolveSessionToken(token, 'org_does_not_exist'),
+    ).rejects.toBeInstanceOf(OrgAccessDeniedError);
+  });
+
+  it('returns null for an expired session even when an org is requested', async () => {
+    const expired = `session-org-scope-expired-${Date.now()}`;
+    await db.insert(schema.sessions).values({
+      userId,
+      token: expired,
+      expiresAt: new Date(Date.now() - 1_000),
+    });
+    const out = await new CredentialResolver(db).resolveSessionToken(expired, otherOrgId);
+    expect(out).toBeNull();
   });
 });

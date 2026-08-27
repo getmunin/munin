@@ -1,7 +1,7 @@
 import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ResolvedCredential } from '@getmunin/core';
+import { OrgAccessDeniedError, type ResolvedCredential } from '@getmunin/core';
 import { AuthGuard, type AuthenticatedRequest } from './auth.guard.ts';
 import type { McpSurface } from '../../oauth/mcp-surface.ts';
 
@@ -46,7 +46,7 @@ describe('AuthGuard cookie fallback', () => {
       path: '/v1/kb/spaces',
     });
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
-    expect(resolveSessionToken).toHaveBeenCalledWith('raw');
+    expect(resolveSessionToken).toHaveBeenCalledWith('raw', null);
   });
 
   it('rejects session cookie on /mcp — bearer required', async () => {
@@ -74,6 +74,78 @@ describe('AuthGuard cookie fallback', () => {
   });
 });
 
+describe('AuthGuard per-request org selection', () => {
+  it('passes the x-munin-org header through to session resolution', async () => {
+    const resolveSessionToken = vi.fn().mockResolvedValue({ actor: { type: 'user' } });
+    const guard = makeGuard({ resolveSessionToken });
+    const ctx = makeContext({
+      headers: { cookie: SESSION_COOKIE, 'x-munin-org': 'org_two' },
+      url: '/v1/kb/spaces',
+      path: '/v1/kb/spaces',
+    });
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    expect(resolveSessionToken).toHaveBeenCalledWith('raw', 'org_two');
+  });
+
+  it('treats a blank x-munin-org header as unset', async () => {
+    const resolveSessionToken = vi.fn().mockResolvedValue({ actor: { type: 'user' } });
+    const guard = makeGuard({ resolveSessionToken });
+    const ctx = makeContext({
+      headers: { cookie: SESSION_COOKIE, 'x-munin-org': '   ' },
+      url: '/v1/kb/spaces',
+      path: '/v1/kb/spaces',
+    });
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    expect(resolveSessionToken).toHaveBeenCalledWith('raw', null);
+  });
+
+  it('answers a non-membership org with a coded 403, not a 401', async () => {
+    const resolveSessionToken = vi.fn().mockRejectedValue(new OrgAccessDeniedError('org_other'));
+    const guard = makeGuard({ resolveSessionToken });
+    const ctx = makeContext({
+      headers: { cookie: SESSION_COOKIE, 'x-munin-org': 'org_other' },
+      url: '/v1/kb/spaces',
+      path: '/v1/kb/spaces',
+    });
+    await expect(guard.canActivate(ctx)).rejects.toMatchObject({
+      status: 403,
+      response: { code: 'org_access_denied' },
+    });
+  });
+
+  it('ignores x-munin-org when the caller authenticates with an api key', async () => {
+    const resolveApiKey = vi.fn().mockResolvedValue({ actor: { type: 'admin_agent', orgId: 'org_key' } });
+    const guard = makeGuard({ resolveApiKey });
+    const ctx = makeContext({
+      headers: { authorization: 'Bearer mn_admin_abc', 'x-munin-org': 'org_other' },
+      url: '/v1/kb/spaces',
+      path: '/v1/kb/spaces',
+    });
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    expect(resolveApiKey).toHaveBeenCalledWith('mn_admin_abc');
+  });
+
+  it('echoes the org that actually served the request', async () => {
+    const resolveSessionToken = vi
+      .fn()
+      .mockResolvedValue({ actor: { type: 'user', orgId: 'org_served' } });
+    const guard = makeGuard({ resolveSessionToken });
+    const req = {
+      headers: { cookie: SESSION_COOKIE },
+      url: '/v1/kb/spaces',
+      path: '/v1/kb/spaces',
+    };
+    const res = { setHeader: vi.fn() };
+    const ctx = {
+      getHandler: () => () => undefined,
+      getClass: () => class {},
+      switchToHttp: () => ({ getRequest: () => req, getResponse: () => res }),
+    } as unknown as Parameters<AuthGuard['canActivate']>[0];
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
+    expect(res.setHeader).toHaveBeenCalledWith('x-munin-org', 'org_served');
+  });
+});
+
 describe('AuthGuard cookie prefix (MUNIN_AUTH_COOKIE_PREFIX)', () => {
   let originalPrefix: string | undefined;
 
@@ -95,7 +167,7 @@ describe('AuthGuard cookie prefix (MUNIN_AUTH_COOKIE_PREFIX)', () => {
       path: '/v1/kb/spaces',
     });
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
-    expect(resolveSessionToken).toHaveBeenCalledWith('raw');
+    expect(resolveSessionToken).toHaveBeenCalledWith('raw', null);
   });
 
   it('ignores a default-named cookie from another environment', async () => {
@@ -109,7 +181,7 @@ describe('AuthGuard cookie prefix (MUNIN_AUTH_COOKIE_PREFIX)', () => {
       path: '/v1/kb/spaces',
     });
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
-    expect(resolveSessionToken).toHaveBeenCalledWith('devraw');
+    expect(resolveSessionToken).toHaveBeenCalledWith('devraw', null);
   });
 });
 

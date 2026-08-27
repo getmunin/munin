@@ -108,9 +108,9 @@ export interface DueFollowupDto {
 }
 
 export const RESERVED_EXTRACTION_KEYS: readonly string[] = [
-  'callOutcome',
-  'callOutcomeAt',
-  'callOutcomeConversationId',
+  'outreachOutcome',
+  'outreachOutcomeAt',
+  'outreachOutcomeConversationId',
 ];
 
 export const MAX_EXTRACTION_FIELDS = 12;
@@ -314,9 +314,6 @@ export class OutreachService {
     }
     if (input.extractionSchema?.length) {
       assertValidExtractionSchema(input.extractionSchema);
-      if (channel.type !== 'voice') {
-        throw new OutreachInvalidError(EXTRACTION_SCHEMA_VOICE_ONLY);
-      }
     }
     await this.assertCampaignNameFree(input.name);
     try {
@@ -374,22 +371,16 @@ export class OutreachService {
     if (input.patch.extractionSchema?.length) {
       assertValidExtractionSchema(input.patch.extractionSchema);
     }
-    if (
-      input.patch.sequenceSteps?.length ||
-      input.patch.extractionSchema?.length ||
-      input.patch.channelId
-    ) {
+    if (input.patch.sequenceSteps?.length || input.patch.channelId) {
       const current = await this.getCampaign(input.id);
-      const channel = await this.loadOutreachChannel(input.patch.channelId ?? current.channelId);
       const steps = input.patch.sequenceSteps ?? current.sequenceSteps;
-      if (steps.length > 0 && channel.type !== 'email') {
-        throw new OutreachInvalidError(
-          'sequenceSteps require an email channel — follow-ups thread into the initial email conversation',
-        );
-      }
-      const fields = input.patch.extractionSchema ?? current.extractionSchema;
-      if (fields.length > 0 && channel.type !== 'voice') {
-        throw new OutreachInvalidError(EXTRACTION_SCHEMA_VOICE_ONLY);
+      if (steps.length > 0) {
+        const channel = await this.loadOutreachChannel(input.patch.channelId ?? current.channelId);
+        if (channel.type !== 'email') {
+          throw new OutreachInvalidError(
+            'sequenceSteps require an email channel — follow-ups thread into the initial email conversation',
+          );
+        }
       }
     }
     if (input.patch.name !== undefined) {
@@ -2094,9 +2085,6 @@ export class OutreachService {
     return rows[0] ?? null;
   }
 }
-
-const EXTRACTION_SCHEMA_VOICE_ONLY =
-  'extractionSchema requires a voice channel — call-outcome extraction only runs when a voice call ends';
 
 function assertValidExtractionSchema(fields: ExtractionField[]): void {
   if (fields.length > MAX_EXTRACTION_FIELDS) {

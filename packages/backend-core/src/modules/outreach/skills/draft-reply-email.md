@@ -101,6 +101,7 @@ Behavior:
 
 ## Related
 
+- `skill://outreach/extract-outcome` — runs on the same inbound reply, writing the campaign's declared fields onto the contact. It writes CRM data; you write the reply. Neither waits for the other.
 - `skill://outreach/draft-first-touch-email` — the symmetric pattern for first-touch emails.
 - `skill://outreach/draft-followup-email` — drafts sequence follow-ups on silent threads. The inbound reply that triggered *this* skill permanently stops that sequence — once a prospect answers, follow-ups never resume.
 - `skill://kb/review-content` — the original "drafted candidates, human approves" pattern this skill follows.

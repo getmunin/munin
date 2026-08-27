@@ -6,7 +6,7 @@ import { CuratorModule } from '../curator/curator.module.ts';
 import { OutreachService } from './outreach.service.ts';
 import { OutreachAdminTools } from './outreach.tools.ts';
 import { OutreachSendWorker } from './outreach.send.worker.ts';
-import { OutreachCallOutcomeSink } from './outreach-call-outcome.sink.ts';
+import { OutreachOutcomeSink } from './outreach-outcome.sink.ts';
 
 @Module({
   imports: [ConvModule, CrmModule, CuratorModule],
@@ -14,14 +14,14 @@ import { OutreachCallOutcomeSink } from './outreach-call-outcome.sink.ts';
     OutreachService,
     OutreachAdminTools,
     OutreachSendWorker,
-    OutreachCallOutcomeSink,
+    OutreachOutcomeSink,
   ],
   exports: [OutreachService],
 })
 export class OutreachModule implements OnModuleInit {
   constructor(
     @Inject(WebhookDispatcher) private readonly dispatcher: WebhookDispatcher,
-    @Inject(OutreachCallOutcomeSink) private readonly sink: OutreachCallOutcomeSink,
+    @Inject(OutreachOutcomeSink) private readonly sink: OutreachOutcomeSink,
   ) {}
 
   onModuleInit(): void {

@@ -5,7 +5,7 @@ audiences: [admin]
 ---
 
 # Draft a first-touch outreach email
-Operators set up campaigns (`outreach_create_campaign`) with a one-paragraph **brief** and a target **CRM segment**. Your job in a pass is to materialise the segment, draft a personalised first-touch email per contact, and file each draft as a pending **proposal** for human review. **You never send anything.** The operator approves each proposal one by one (or a trusted admin agent does on their behalf), at which point the system sends via the campaign's email channel and threads any reply back into the same conversation.
+Operators set up campaigns (`outreach_create_campaign`) with a one-paragraph **brief**, a target **CRM segment**, and optionally an **`extractionSchema`** naming the facts a reply should yield. Your job in a pass is to materialise the segment, draft a personalised first-touch email per contact, and file each draft as a pending **proposal** for human review. **You never send anything.** The operator approves each proposal one by one (or a trusted admin agent does on their behalf), at which point the system sends via the campaign's email channel and threads any reply back into the same conversation.
 
 This pass is symmetric with `skill://kb/review-content` (drafted candidates) but for outreach instead of KB. Always-propose is non-negotiable: an LLM-drafted cold email going straight to a prospect is exactly how you ship a tone-deaf message you can't take back. Human approval is the system invariant.
 
@@ -115,8 +115,14 @@ Out of scope for this skill — see `skill://outreach/review-proposals`. The ope
 - **Don't include an unsubscribe link in the draft body.** The system appends one. If you write your own, the operator will see two and the system one is the only signed/verifiable one.
 - **Don't propose a reply.** PR3 ships `outreach_propose_reply` and a separate skill (`skill://outreach/draft-reply-email`). For now, you only file `kind: "initial"`.
 
+
+## What happens when they reply
+
+If the campaign declares an `extractionSchema`, every inbound reply also triggers `skill://outreach/extract-outcome`, which reads what the prospect wrote and files the campaign's declared fields onto their CRM contact. It runs alongside your reply draft, not instead of it, and it never sends anything. Two consequences for how you draft: a question the campaign has a field for is worth asking plainly, because the answer becomes data; and you do not need to restate extracted facts back to the prospect to "record" them.
+
 ## Related
 
+- `skill://outreach/extract-outcome` — turns a prospect's reply into the campaign's declared CRM fields.
 - `skill://outreach/draft-first-touch-sms` — the same pass on an SMS campaign, capped at 480 characters of plain text.
 - `skill://outreach/draft-first-touch-call` — the same pass on a voice campaign, where you draft what an AI agent says when the call connects.
 

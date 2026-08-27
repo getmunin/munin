@@ -52,6 +52,40 @@ const SequenceStepSchema = z.object({
 
 const SequenceStepsSchema = z.array(SequenceStepSchema).max(5);
 
+const ExtractionFieldSchema = z.object({
+  key: z
+    .string()
+    .regex(
+      /^[a-z][a-z0-9_]{0,39}$/,
+      'key must be lower_snake_case, start with a letter, max 40 characters',
+    )
+    .describe('The key this value is stored under in the contact\'s `customFields`.'),
+  label: z.string().min(1).max(80).describe('Human-readable name, for display only.'),
+  type: z.enum(['string', 'number', 'date', 'boolean', 'enum']),
+  description: z
+    .string()
+    .min(1)
+    .max(300)
+    .describe(
+      'What to listen for, written as an instruction to the extracting model — e.g. "the mobile operator the prospect says they use today". This is the field that decides extraction quality; a vague description produces a vague value.',
+    ),
+  options: z
+    .array(z.string().min(1).max(60))
+    .min(2)
+    .max(20)
+    .optional()
+    .describe('Allowed values. Required for `type: "enum"`, rejected for every other type.'),
+  tagPrefix: z
+    .string()
+    .regex(/^[a-z][a-z0-9-]{0,19}$/)
+    .optional()
+    .describe(
+      'When set, the extracted value is also written as a `<tagPrefix>-<value>` tag on the contact, so segments can filter on it — segment filters read tags, not custom fields.',
+    ),
+});
+
+const ExtractionSchemaSchema = z.array(ExtractionFieldSchema).max(12);
+
 const CreateCampaignInput = z.object({
   name: z.string().min(1).max(120),
   brief: z.string().min(1).max(5000),
@@ -59,6 +93,7 @@ const CreateCampaignInput = z.object({
   channelId: z.string().min(1).max(64),
   cadenceRules: CadenceRulesSchema.optional(),
   sequenceSteps: SequenceStepsSchema.optional(),
+  extractionSchema: ExtractionSchemaSchema.optional(),
   ctaUrl: z.string().url().nullable().optional(),
   enabled: z.boolean().optional(),
   autoDraftFirstTouch: z.boolean().optional(),
@@ -77,6 +112,7 @@ const UpdateCampaignInput = z.object({
       channelId: z.string().min(1).max(64).optional(),
       cadenceRules: CadenceRulesSchema.optional(),
       sequenceSteps: SequenceStepsSchema.optional(),
+      extractionSchema: ExtractionSchemaSchema.optional(),
       ctaUrl: z.string().url().nullable().optional(),
       enabled: z.boolean().optional(),
       autoDraftFirstTouch: z.boolean().optional(),
@@ -222,6 +258,7 @@ const OutreachImportInput = z.object({
         channelId: z.string(),
         cadenceRules: CadenceRulesSchema.default({}),
         sequenceSteps: SequenceStepsSchema.default([]),
+        extractionSchema: ExtractionSchemaSchema.default([]),
         ctaUrl: z.string().nullable().optional(),
         autoDraftFirstTouch: z.boolean().default(false),
         autoDraftReplies: z.boolean().default(true),
@@ -256,7 +293,7 @@ export class OutreachAdminTools {
     name: 'outreach_list_campaigns',
     title: 'Outreach: List campaigns',
     description:
-      'List outbound-campaign definitions for this org. Each row carries the brief, the targeted CRM segment, the email channel used to send, cadence rules, `sequenceSteps` (ordered follow-up steps drafted by the daily curator when the campaign is enabled; empty means no sequence), CTA URL, the enabled flag, and the automation flags: `autoDraftFirstTouch` (the weekly curator drafts first-touch emails only when true), `autoDraftReplies` (replies to inbound prospect messages are auto-drafted only when true), and `autoCurateEdits` (a human editing a draft before approving it feeds a KB curation pass only when true). The weekly first-touch curator only drafts proposals for `enabled = true` campaigns with `autoDraftFirstTouch = true`.',
+      'List outbound-campaign definitions for this org. Each row carries the brief, the targeted CRM segment, the email channel used to send, cadence rules, `sequenceSteps` (ordered follow-up steps drafted by the daily curator when the campaign is enabled; empty means no sequence), `extractionSchema` (the fields a call-outcome pass writes to each contact after a call on this campaign ends; empty means no extraction runs), CTA URL, the enabled flag, and the automation flags: `autoDraftFirstTouch` (the weekly curator drafts first-touch emails only when true), `autoDraftReplies` (replies to inbound prospect messages are auto-drafted only when true), and `autoCurateEdits` (a human editing a draft before approving it feeds a KB curation pass only when true). The weekly first-touch curator only drafts proposals for `enabled = true` campaigns with `autoDraftFirstTouch = true`.',
     audiences: ['admin'],
     scopes: ['outreach:read'],
     input: EmptyInput,
@@ -285,7 +322,7 @@ export class OutreachAdminTools {
     name: 'outreach_create_campaign',
     title: 'Outreach: Create campaign',
     description:
-      'Create an outbound-campaign definition. Operators write `brief` as a one-paragraph human description of intent (the curator personalises per contact from this). `segmentId` chooses the audience; the curator calls `crm_list_contacts_in_segment` (which always enforces suppression+consent floor) to materialize it. `channelId` must reference an email, SMS, or voice channel; approving a proposal on an SMS or voice campaign is restricted to a signed-in person in the Munin dashboard. New campaigns default `enabled: false` so nothing sends until you flip it on. Automation is opt-in per behavior: `autoDraftFirstTouch` defaults false (the weekly curator does not draft first-touch emails until you set it true — draft manually otherwise), `autoDraftReplies` defaults true (replies to inbound prospect messages are auto-drafted for review), and `autoCurateEdits` defaults false (when true, a proposal a human edited before approving queues a KB curation pass over what they changed — leave it off unless edits on this campaign tend to correct facts rather than personalise copy). Auto-sending a reply is not an option on any campaign: conversations created by an approved proposal are always set to `draft_only`, whatever the channel default says, so a prospect never receives an unreviewed reply. Optional `sequenceSteps` (email campaigns only) defines a follow-up sequence — each step is a wait period plus a drafting brief; defining steps on an enabled campaign opts it into daily follow-up drafting for threads with no reply.',
+      'Create an outbound-campaign definition. Operators write `brief` as a one-paragraph human description of intent (the curator personalises per contact from this). `segmentId` chooses the audience; the curator calls `crm_list_contacts_in_segment` (which always enforces suppression+consent floor) to materialize it. `channelId` must reference an email, SMS, or voice channel; approving a proposal on an SMS or voice campaign is restricted to a signed-in person in the Munin dashboard. New campaigns default `enabled: false` so nothing sends until you flip it on. Automation is opt-in per behavior: `autoDraftFirstTouch` defaults false (the weekly curator does not draft first-touch emails until you set it true — draft manually otherwise), `autoDraftReplies` defaults true (replies to inbound prospect messages are auto-drafted for review), and `autoCurateEdits` defaults false (when true, a proposal a human edited before approving queues a KB curation pass over what they changed — leave it off unless edits on this campaign tend to correct facts rather than personalise copy). Auto-sending a reply is not an option on any campaign: conversations created by an approved proposal are always set to `draft_only`, whatever the channel default says, so a prospect never receives an unreviewed reply. Optional `sequenceSteps` (email campaigns only) defines a follow-up sequence — each step is a wait period plus a drafting brief; defining steps on an enabled campaign opts it into daily follow-up drafting for threads with no reply. Optional `extractionSchema` (voice campaigns only) declares up to 12 fields to pull off the call afterwards — when a call on this campaign ends, a background pass reads the transcript and writes what the prospect actually said into that contact\'s `customFields` under the keys you name here, plus `callOutcome`, `callOutcomeAt` and `callOutcomeConversationId`, which are always written and cannot be used as field keys. Leave it empty and no extraction runs.',
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: CreateCampaignInput,
@@ -340,7 +377,7 @@ export class OutreachAdminTools {
     name: 'outreach_update_campaign',
     title: 'Outreach: Update campaign',
     description:
-      'Patch fields on a campaign — rename, swap segment, adjust cadence, toggle enabled, toggle the automation flags `autoDraftFirstTouch` (weekly first-touch drafting), `autoDraftReplies` (auto-drafting replies to inbound prospect messages) and `autoCurateEdits` (KB curation over what a human changed before approving a draft), or replace `sequenceSteps` (the follow-up sequence; pass the full array, email campaigns only, empty array removes the sequence).',
+      'Patch fields on a campaign — rename, swap segment, adjust cadence, toggle enabled, toggle the automation flags `autoDraftFirstTouch` (weekly first-touch drafting), `autoDraftReplies` (auto-drafting replies to inbound prospect messages) and `autoCurateEdits` (KB curation over what a human changed before approving a draft), or replace `sequenceSteps` (the follow-up sequence; pass the full array, email campaigns only, empty array removes the sequence) or `extractionSchema` (the post-call fields; pass the full array, voice campaigns only, empty array turns extraction off). Replacing `extractionSchema` does not rewrite fields already extracted onto contacts — dropping a field here stops it being collected, it does not clear it.',
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: UpdateCampaignInput,

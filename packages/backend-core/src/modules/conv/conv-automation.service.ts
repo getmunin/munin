@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, gte, sql } from 'drizzle-orm';
 import { schema } from '@getmunin/db';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { AGENT_MODES, type AgentMode } from './agent-modes.ts';
@@ -94,8 +94,10 @@ export class ConvAutomationService {
       )
       .leftJoin(
         schema.convMessages,
-        sql`${schema.convMessages.conversationId} = ${schema.convConversations.id}
-          AND ${schema.convMessages.createdAt} >= ${since}`,
+        and(
+          eq(schema.convMessages.conversationId, schema.convConversations.id),
+          gte(schema.convMessages.createdAt, since),
+        ),
       )
       .groupBy(
         schema.convTopics.id,

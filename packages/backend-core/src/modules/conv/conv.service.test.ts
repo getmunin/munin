@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConvService, ConvInvalidError } from './conv.service.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
+import { ConvAutomationService } from './conv-automation.service.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 
@@ -23,6 +24,7 @@ const skipReason = TEST_URL
   let db: ReturnType<typeof createDb>;
   let appDb: ReturnType<typeof createDb>;
   let svc: ConvService;
+  let automation: ConvAutomationService;
   let orgId: string;
   let userId: string;
   let actor: ActorIdentity;
@@ -48,6 +50,7 @@ const skipReason = TEST_URL
     actor = new ActorIdentity('admin_agent', 'agt_conv_test', orgId, ['*'], ['admin']);
 
     const dispatcher = new WebhookDispatcher();
+    automation = new ConvAutomationService(dispatcher);
     svc = new ConvService(
       dispatcher,
       new ConversationClaimsService(dispatcher),
@@ -317,6 +320,76 @@ const skipReason = TEST_URL
   });
 
   describe('topic automation policy', () => {
+    it('reads the per-topic record straight out of the database', async () => {
+      const overview = await run(() => automation.listTopicAutomation());
+      expect(overview.windowDays).toBeGreaterThan(0);
+      expect(Array.isArray(overview.topics)).toBe(true);
+    });
+
+    it('counts an approved draft as unedited or edited, and a rejected one as rejected', async () => {
+      const DRAFT_BODY = 'The effective rate is about 11.9%.';
+      const topic = await run(() => svc.createTopic({ name: 'Rates', slug: 'rates' }));
+
+      async function seedDraft() {
+        const ch = await insertChannel({
+          type: 'chat',
+          vendor: 'munin',
+          name: `automation-${randomUUID().slice(0, 8)}`,
+        });
+        const conv = await run(() =>
+          svc.createConversation({
+            channelId: ch.id,
+            body: 'What rate do you offer?',
+            authorType: 'end_user',
+            authorId: 'eu_test',
+            agentMode: 'draft_only',
+          }),
+        );
+        const draft = await run(() =>
+          svc.setDraftReply({ conversationId: conv.id, body: DRAFT_BODY }),
+        );
+        await run(() => svc.setTopic({ conversationId: conv.id, topicId: topic.id }));
+        return { conv, draft };
+      }
+
+      const approved = await seedDraft();
+      await run(() =>
+        svc.sendMessage({
+          conversationId: approved.conv.id,
+          body: DRAFT_BODY,
+          authorType: 'user',
+          authorId: userId,
+          fromDraftId: approved.draft.id,
+        }),
+      );
+
+      const rejected = await seedDraft();
+      await run(() => svc.clearDraftReply(rejected.conv.id));
+
+      const overview = await run(() => automation.listTopicAutomation());
+      const row = overview.topics.find((t) => t.topicId === topic.id)!;
+      expect(row.unedited).toBe(1);
+      expect(row.edited).toBe(0);
+      expect(row.rejected).toBe(1);
+      expect(row.reviewed).toBe(2);
+      expect(row.hold).toBe('sample');
+    });
+
+    it('setTopicAutomation stamps a promotion and clears it on demotion', async () => {
+      const topic = await run(() => svc.createTopic({ name: 'Offers', slug: 'offers' }));
+      const promoted = await run(() =>
+        automation.setTopicAutomation({ topicId: topic.id, mode: 'auto' }),
+      );
+      expect(promoted.agentMode).toBe('auto');
+      expect(promoted.autoPromotedAt).not.toBeNull();
+
+      const demoted = await run(() =>
+        automation.setTopicAutomation({ topicId: topic.id, mode: 'draft_only' }),
+      );
+      expect(demoted.agentMode).toBe('draft_only');
+      expect(demoted.autoPromotedAt).toBeNull();
+    });
+
     async function seedTopicConversation() {
       const ch = await insertChannel({ type: 'email', vendor: 'smtp', name: 'Policy' });
       const topic = await run(() => svc.createTopic({ name: 'Docs', slug: 'docs' }));

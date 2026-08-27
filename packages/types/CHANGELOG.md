@@ -1,5 +1,39 @@
 # @getmunin/types
 
+## 5.14.0
+
+### Minor Changes
+
+- a5acd6c: Outreach: extract structured outcomes from a finished voice call
+
+  A voice campaign can now declare `extractionSchema` — up to 12 fields (`key`, `label`, `type`, `description`, optional `options` and `tagPrefix`) naming what to pull off each call. When a call on that campaign ends, `OutreachCallOutcomeSink` enqueues `skill://outreach/extract-call-outcome`, which reads the transcript and writes what the prospect actually said into that contact's `customFields`, plus the always-written `callOutcome`, `callOutcomeAt` and `callOutcomeConversationId`.
+
+  The fields are static per campaign and dynamic across campaigns: the operator picks what to collect, the model fills it in. That keeps values comparable enough to filter and report on without a migration per customer, which a free-form "let the model choose the fields" pass would not.
+
+  Two decisions worth recording. The enqueue is an `EventSink` on `conversation.voice.call_ended` rather than an inline call in `ConvService.changeStatus`, because the sibling identity pass lives there and adding this one would invert the module dependency — `OutreachModule` imports `ConvModule`, not the reverse. And the skill writes tags as the union of existing and new, because `tags` on a contact patch replaces the whole array while `customFields` merges key-wise; sending only the new tags would delete the segment membership that put the prospect on the call list.
+
+  `extractionSchema` is rejected on non-voice campaigns rather than silently ignored, mirroring the existing email-only guard on `sequenceSteps`. The extraction pass owns outcome fields only — identity stays with `skill://crm/extract-contact-from-message`, which runs on the same close.
+
+- 80d6f34: Outreach: extract outcomes from email and SMS replies, not just calls
+
+  `extractionSchema` now works on every outreach channel. A voice campaign still extracts once when the call ends; an email or SMS campaign extracts each time the prospect replies, so a campaign that asks a qualifying question in writing gets the same structured answer a call does.
+
+  The skill is renamed `skill://outreach/extract-call-outcome` → `skill://outreach/extract-outcome`, and its reserved keys `callOutcome` / `callOutcomeAt` / `callOutcomeConversationId` become `outreachOutcome` / `outreachOutcomeAt` / `outreachOutcomeConversationId`, with `wrong_number` widening to `wrong_contact` — a reply from the wrong person is the same signal as a wrong number, and none of those names were true of an email thread. Migration 0084 renames both the persisted `curator_jobs.job_uri` rows and the existing `crm_contacts.custom_fields` keys.
+
+  Three things the implementation turns on. Voice transcript turns are inserted as `end_user` messages and emit `conversation.message.received` like any inbound mail, so the sink keys the reply trigger to email and SMS channels only — otherwise every prospect utterance mid-call would enqueue an extraction job. The reply trigger dedupes per message rather than per conversation, matching the existing `outreach-draft-reply:msg:` key, so a multi-turn thread extracts once per answer and later answers supersede earlier ones. And the contact is now resolved from the `outreach_proposals` row for the conversation instead of `metadata.crmContactId`, which only the voice stub ever wrote.
+
+  The voice-only guard on `extractionSchema` is gone, since every channel a campaign can run on now supports extraction.
+
+- 701413c: Scope a dashboard session's organization per request instead of per account
+
+  The active organization was a single account-wide flag (`org_members.is_default`) that every `/v1/*` request re-read, while the dashboard read the organization name once at page load and cached it. Switching organizations in one tab therefore changed what every other open tab was served, without changing what those tabs displayed — a stale label sitting on top of another organization's data. The same applied to a second browser or device, so no tab-local mechanism could have fixed it.
+
+  Session credentials now accept a requested organization. `CredentialResolver.resolveSessionToken` takes an optional organization id, checks it against the caller's memberships, and refuses with `OrgAccessDeniedError` when it isn't one — it never quietly serves a different organization instead. The control-plane guard reads that id from an `x-munin-org` request header on the session-cookie path only, so API keys and OAuth tokens stay bound to the organization they were issued for, and it maps the refusal to a `403` carrying `code: org_access_denied`. Every authenticated response now echoes the organization that served it in an `x-munin-org` response header (exposed through CORS), and the realtime websocket takes the same id as an `orgId` connect parameter.
+
+  On the client, the dashboard keeps its organization in `sessionStorage`, which is per-tab: a tab pins itself to whichever organization served its first response and stays there, so `is_default` now only decides where a _new_ tab starts. `api()` sends the pin, adopts the served organization when it has none, and — if the pin is refused, which is what a user switching accounts in the same tab looks like — drops it and retries once, so recovery is invisible rather than a wall of errors.
+
+  This is the transport half of the fix. Until the organization also appears in the dashboard URL, server-rendered layouts still read `is_default`, so a tab pinned elsewhere can briefly render the account-wide organization name before the client corrects it.
+
 ## 5.13.1
 
 ## 5.13.0

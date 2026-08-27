@@ -1,5 +1,19 @@
 # @getmunin/agent-host
 
+## 5.14.0
+
+### Patch Changes
+
+- Updated dependencies [a5acd6c]
+- Updated dependencies [80d6f34]
+- Updated dependencies [12fe29d]
+- Updated dependencies [701413c]
+  - @getmunin/backend-core@5.14.0
+  - @getmunin/types@5.14.0
+  - @getmunin/db@5.14.0
+  - @getmunin/core@5.14.0
+  - @getmunin/agent-runtime@5.14.0
+
 ## 5.13.1
 
 ### Patch Changes

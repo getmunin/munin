@@ -15,6 +15,9 @@
   --docs-red: #c0392b;
   --docs-green: #2a6f4e;
 }
+.docs :not(pre) > code {
+  overflow-wrap: anywhere;
+}
 @media (prefers-color-scheme: dark) {
   .docs {
     --docs-rule: rgb(255 255 255 / 0.1);
@@ -481,6 +484,7 @@
 
 .field-block {
   margin: 18px 0;
+  overflow-x: auto;
 }
 .field-block-h {
   font-family: var(--munin-mono);
@@ -1596,5 +1600,6 @@
   }
   .docs-attrs dt {
     margin-top: 10px;
+    white-space: normal;
   }
 }

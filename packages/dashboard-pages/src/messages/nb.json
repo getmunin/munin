@@ -189,7 +189,8 @@
     "openMenu": "Åpne meny",
     "closeMenu": "Lukk meny",
     "organization": "Organisasjon",
-    "integrations": "Integrasjoner"
+    "integrations": "Integrasjoner",
+    "learning": "Læring"
   },
   "dashboard": {
     "runnerStatusBanner": {
@@ -1296,6 +1297,30 @@
       "claimedBy": "Hos {who}",
       "channelFallback": "Samtale",
       "detailFailedTitle": "Kunne ikke åpne samtalen."
+    },
+    "learning": {
+      "eyebrow": "Læring · kunnskap og agentendringer",
+      "title": "Hver endring <em>lærer bort.</em>",
+      "statPending": "{count} til gjennomgang",
+      "statDecided": "{count} avgjort · 7 dager",
+      "pendingHeading": "Venter på deg",
+      "decidedHeading": "Nylig avgjort",
+      "emptyTitle": "Ingenting å gå gjennom.",
+      "emptyBody": "Forslag dukker opp her når en agent lærer noe verdt å beholde.",
+      "typeProposal": "KB-forslag",
+      "typeRevision": "KB-revisjon",
+      "diffUnchanged": "Ingen tekstlig endring.",
+      "review": "Gå gjennom →",
+      "dismiss": "Avslå",
+      "outcome": {
+        "published": "Publisert",
+        "dismissed": "Avslått"
+      },
+      "actor": {
+        "user": "av en person",
+        "agent": "av en agent",
+        "system": "av Munin"
+      }
     }
   },
   "agentSetup": {

@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -25,6 +26,7 @@ import {
   KbNotFoundError,
   type CurationCandidateDto,
   type CurationCandidateSummary,
+  type CurationDecisionDto,
   type DocumentDto,
   type SpaceDto,
 } from '../modules/kb/kb.service.ts';
@@ -140,6 +142,48 @@ export class KbCandidatesController {
       }),
     );
     return { dismissed: true };
+  }
+}
+
+interface DecisionListResponse {
+  items: CurationDecisionDto[];
+}
+
+const DecisionOutcomeSchema = z.enum(['dismissed', 'published']);
+
+export function parseDecisionQuery(
+  outcome?: string,
+  limit?: string,
+): { outcome?: 'dismissed' | 'published'; limit?: number } {
+  const parsedOutcome = outcome ? DecisionOutcomeSchema.safeParse(outcome) : null;
+  if (parsedOutcome && !parsedOutcome.success) {
+    throw new BadRequestException(`kb_invalid: unknown outcome: ${outcome}`);
+  }
+  if (limit === undefined) {
+    return parsedOutcome?.success ? { outcome: parsedOutcome.data } : {};
+  }
+  const parsedLimit = Number(limit);
+  if (!Number.isInteger(parsedLimit) || parsedLimit <= 0) {
+    throw new BadRequestException(`kb_invalid: limit must be a positive integer: ${limit}`);
+  }
+  return parsedOutcome?.success
+    ? { outcome: parsedOutcome.data, limit: parsedLimit }
+    : { limit: parsedLimit };
+}
+
+@Controller('v1/kb/curation/decisions')
+@UseGuards(AuthGuard, ControlPlaneGuard)
+@UseInterceptors(TenancyInterceptor, AuditInterceptor)
+export class KbCurationDecisionsController {
+  constructor(private readonly kb: KbService) {}
+
+  @Get()
+  async list(
+    @Query('outcome') outcome?: string,
+    @Query('limit') limit?: string,
+  ): Promise<DecisionListResponse> {
+    const items = await this.kb.listCurationDecisions(parseDecisionQuery(outcome, limit));
+    return { items };
   }
 }
 

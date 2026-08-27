@@ -189,7 +189,8 @@
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
     "organization": "Organization",
-    "integrations": "Integrations"
+    "integrations": "Integrations",
+    "learning": "Learning"
   },
   "dashboard": {
     "runnerStatusBanner": {
@@ -1296,6 +1297,30 @@
       "claimedBy": "With {who}",
       "channelFallback": "Conversation",
       "detailFailedTitle": "Could not open that conversation."
+    },
+    "learning": {
+      "eyebrow": "Learning · knowledge and agent edits",
+      "title": "Every edit <em>teaches.</em>",
+      "statPending": "{count} pending review",
+      "statDecided": "{count} decided · 7 days",
+      "pendingHeading": "Waiting on you",
+      "decidedHeading": "Recently decided",
+      "emptyTitle": "Nothing to review.",
+      "emptyBody": "Proposals appear here when an agent learns something worth keeping.",
+      "typeProposal": "KB proposal",
+      "typeRevision": "KB revision",
+      "diffUnchanged": "No textual change.",
+      "review": "Review →",
+      "dismiss": "Dismiss",
+      "outcome": {
+        "published": "Published",
+        "dismissed": "Dismissed"
+      },
+      "actor": {
+        "user": "by a person",
+        "agent": "by an agent",
+        "system": "by Munin"
+      }
     }
   },
   "agentSetup": {

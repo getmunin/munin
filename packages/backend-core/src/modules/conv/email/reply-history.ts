@@ -33,30 +33,86 @@ const QUOTE_HEADER_PATTERNS: RegExp[] = [
   /^_{5,}\s*$/,
 ];
 
+const QUOTE_MARKER = /^(?:>\s?)+/;
+const WRAPPED_ADDRESS_TAIL = /^>\s*:$/;
+const TIME_OF_DAY = /\d{1,2}[.:]\d{2}/;
+const DATE_FIRST_QUOTE_VERB = /\b(?:skrev|skreiv|skrifaði|kirjoitti)\b/i;
+const MAX_QUOTE_HEADER_LENGTH = 200;
+
 export function stripQuotedReplyText(body: string): string {
   if (!body) return body;
-  const lines = body.split(/\r?\n/);
-  let cut = lines.length;
+  const lines = unwrapAttributionBreaks(body.split(/\r?\n/));
+  const cut =
+    findQuoteHeaderCut(lines) ?? findTrailingQuoteCut(lines) ?? findQuoteCutAboveSignature(lines);
+  if (cut === null) return lines.join('\n').replace(/\s+$/g, '').trim();
+  return joinAroundQuote(lines, cut);
+}
+
+function hasUnclosedAngle(line: string): boolean {
+  const open = line.lastIndexOf('<');
+  return open >= 0 && line.indexOf('>', open) < 0;
+}
+
+function unwrapAttributionBreaks(lines: string[]): string[] {
+  const out: string[] = [];
   for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i]!.trim();
-    if (QUOTE_HEADER_PATTERNS.some((re) => re.test(line))) {
-      cut = i;
-      break;
+    const line = lines[i]!;
+    const next = lines[i + 1];
+    if (next !== undefined && hasUnclosedAngle(line) && WRAPPED_ADDRESS_TAIL.test(next.trim())) {
+      out.push(`${line}${next.trim()}`);
+      i += 1;
+      continue;
     }
+    out.push(line);
   }
-  if (cut === lines.length) {
-    let i = lines.length - 1;
-    while (i >= 0) {
-      const t = lines[i]!.trim();
-      if (t === '' || t.startsWith('>')) {
-        i -= 1;
-        continue;
-      }
-      break;
+  return out;
+}
+
+function isQuoteHeaderLine(line: string): boolean {
+  const text = line.replace(QUOTE_MARKER, '').trim();
+  if (!text || text.length > MAX_QUOTE_HEADER_LENGTH) return false;
+  if (QUOTE_HEADER_PATTERNS.some((re) => re.test(text))) return true;
+  return text.endsWith(':') && TIME_OF_DAY.test(text) && DATE_FIRST_QUOTE_VERB.test(text);
+}
+
+function findQuoteHeaderCut(lines: string[]): number | null {
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!isQuoteHeaderLine(lines[i]!)) continue;
+    if (!lines.slice(0, i).some((l) => l.trim() !== '')) return null;
+    return i;
+  }
+  return null;
+}
+
+function findTrailingQuoteCut(lines: string[]): number | null {
+  let i = lines.length - 1;
+  while (i >= 0) {
+    const t = lines[i]!.trim();
+    if (t === '' || t.startsWith('>')) {
+      i -= 1;
+      continue;
     }
-    if (i < lines.length - 3 && i < lines.length - 1) cut = i + 1;
+    break;
   }
-  return lines.slice(0, cut).join('\n').replace(/\s+$/g, '').trim();
+  if (i < lines.length - 3 && i < lines.length - 1) return i + 1;
+  return null;
+}
+
+function findQuoteCutAboveSignature(lines: string[]): number | null {
+  const opener = findSignatureOpener(lines);
+  if (opener === null) return null;
+  return findTrailingQuoteCut(lines.slice(0, opener));
+}
+
+function joinAroundQuote(lines: string[], cut: number): string {
+  const kept = lines.slice(0, cut).join('\n').replace(/\s+$/g, '').trim();
+  const below = lines.slice(cut);
+  const opener = findSignatureOpener(below);
+  if (opener === null) return kept;
+  const signature = below.slice(opener);
+  if (signature.some((l) => l.trimStart().startsWith('>'))) return kept;
+  const text = signature.join('\n').replace(/\s+$/g, '');
+  return text ? `${kept}\n\n${text}` : kept;
 }
 
 export function stripQuotedReplyHtml(html: string | null): string | null {
@@ -106,18 +162,18 @@ export function stripSignatureText(body: string): string {
   return splitSignatureText(body).clean;
 }
 
+function findSignatureOpener(lines: string[]): number | null {
+  for (let i = 0; i < lines.length; i += 1) {
+    if (SIGNATURE_OPENERS.some((re) => re.test(lines[i]!.trim()))) return i;
+  }
+  return null;
+}
+
 export function splitSignatureText(body: string): { clean: string; signature: string | null } {
   if (!body) return { clean: body, signature: null };
   const lines = body.split(/\r?\n/);
-  let cut = -1;
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i]!.trim();
-    if (SIGNATURE_OPENERS.some((re) => re.test(line))) {
-      cut = i;
-      break;
-    }
-  }
-  if (cut < 0) return { clean: body, signature: null };
+  const cut = findSignatureOpener(lines);
+  if (cut === null) return { clean: body, signature: null };
   const kept = lines.slice(0, cut);
   let nonEmpty = 0;
   for (const l of kept) if (l.trim() !== '') nonEmpty += 1;

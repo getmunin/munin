@@ -1,6 +1,10 @@
 import type { useTranslations } from 'next-intl';
-import type { CrmContactSummary, FeedbackOutboxDto } from './queue-drawers/types';
+import type { CrmContactSummary, FeedbackOutboxDto, QueueItem } from './queue-drawers/types';
 import type { ConversationDetail, LiveSummary } from './inbox-types';
+
+export function canScheduleQueueItem(item: Pick<QueueItem, 'kind'>): boolean {
+  return item.kind === 'cms' || item.kind === 'outreach';
+}
 
 export const contactLabel = (c: CrmContactSummary) => c.name ?? c.email ?? c.id;
 

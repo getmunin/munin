@@ -147,6 +147,7 @@ export function useInboxData(): InboxController {
   const [cmsDetails, setCmsDetails] = useState<Record<string, CmsDraftDetailDto>>({});
   const [convDrawer, setConvDrawer] = useState<ConvDrawer>(null);
   const [queueDrawer, setQueueDrawer] = useState<QueueItem | null>(null);
+  const [queueScheduleIntent, setQueueScheduleIntent] = useState(false);
   const [scheduledDrawer, setScheduledDrawer] = useState<ScheduledItem | null>(null);
   const [cancelTarget, setCancelTarget] = useState<ScheduledItem | null>(null);
   const [reply, setReply] = useState('');
@@ -689,6 +690,16 @@ export function useInboxData(): InboxController {
     [loadInbox, translateErr],
   );
 
+  const openQueueDrawer = useCallback((next: QueueItem | null) => {
+    setQueueScheduleIntent(false);
+    setQueueDrawer(next);
+  }, []);
+
+  const openQueueScheduler = useCallback((item: QueueItem) => {
+    setQueueScheduleIntent(true);
+    setQueueDrawer(item);
+  }, []);
+
   return {
     items,
     details,
@@ -701,7 +712,9 @@ export function useInboxData(): InboxController {
     convDrawer,
     setConvDrawer,
     queueDrawer,
-    setQueueDrawer,
+    setQueueDrawer: openQueueDrawer,
+    queueScheduleIntent,
+    openQueueScheduler,
     scheduledDrawer,
     setScheduledDrawer,
     cancelTarget,

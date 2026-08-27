@@ -83,6 +83,7 @@ export function QueueDrawer({
   onSchedule,
   onPreview,
   onClose,
+  autoOpenScheduler,
 }: {
   item: QueueItem;
   kbBody?: string;
@@ -99,6 +100,7 @@ export function QueueDrawer({
   onSchedule: (scheduledAt: string) => Promise<void>;
   onPreview: () => void;
   onClose: () => void;
+  autoOpenScheduler?: boolean;
 }) {
   switch (item.kind) {
     case 'kb':
@@ -131,6 +133,7 @@ export function QueueDrawer({
         <OutreachQueueDrawer
           item={item}
           pending={pending}
+          autoOpenScheduler={autoOpenScheduler}
           onApprove={onApprove}
           onDismiss={onDismiss}
           onSave={onSave}
@@ -162,6 +165,7 @@ export function QueueDrawer({
           onSchedule={onSchedule}
           onPreview={onPreview}
           onClose={onClose}
+          autoOpenScheduler={autoOpenScheduler}
         />
       );
   }

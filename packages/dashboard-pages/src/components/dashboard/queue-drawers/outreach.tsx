@@ -29,6 +29,7 @@ export function OutreachQueueDrawer({
   item,
   pending,
   readOnly = false,
+  autoOpenScheduler = false,
   onApprove,
   onDismiss,
   onSave,
@@ -38,6 +39,7 @@ export function OutreachQueueDrawer({
   item: { id: string; title: string; snippet: string; createdAt: string; raw: OutreachProposalDto };
   pending: boolean;
   readOnly?: boolean;
+  autoOpenScheduler?: boolean;
   onApprove: (sendAt?: string | null) => void;
   onDismiss: () => void;
   onSave: (body: string) => Promise<void>;
@@ -52,7 +54,7 @@ export function OutreachQueueDrawer({
   const originalDraftBody = item.raw.originalDraftBody ?? null;
   const [editing, setEditing] = useState(false);
   const [editedBody, setEditedBody] = useState(initialBody);
-  const [schedulerOpen, setSchedulerOpen] = useState(false);
+  const [schedulerOpen, setSchedulerOpen] = useState(autoOpenScheduler && !readOnly);
   const [sendAt, setSendAt] = useState('');
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const proposedSendAt = futureDate(item.raw.proposedSendAt);

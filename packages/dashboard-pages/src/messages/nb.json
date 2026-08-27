@@ -272,7 +272,8 @@
         "feedbackSnippetAttributed": "{scope}-tilbakemelding — med navn",
         "feedbackScopeFallback": "Munin",
         "kindKbRevision": "KB · ENDRING",
-        "kbSnippetRevision": "Endring i «{title}»."
+        "kbSnippetRevision": "Endring i «{title}».",
+        "schedule": "Tidfest"
       },
       "scheduled": {
         "eyebrow": "Planlagt",
@@ -445,6 +446,14 @@
           "closed": "lukket",
           "spam": "spam"
         }
+      },
+      "stats": {
+        "liveLabel": "Pågår nå · med kundestøtte",
+        "liveNote": "Håndteres i konsollet",
+        "learningLabel": "Læring · kunnskap",
+        "learningNote": "Forslag fra agentendringer",
+        "openConversations": "Åpne samtaler",
+        "openLearning": "Åpne læring"
       }
     },
     "activity": {

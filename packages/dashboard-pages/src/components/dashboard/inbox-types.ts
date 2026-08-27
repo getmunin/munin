@@ -106,6 +106,8 @@ export interface InboxController {
   setConvDrawer: (next: ConvDrawer) => void;
   queueDrawer: QueueItem | null;
   setQueueDrawer: (next: QueueItem | null) => void;
+  queueScheduleIntent: boolean;
+  openQueueScheduler: (item: QueueItem) => void;
   scheduledDrawer: ScheduledItem | null;
   setScheduledDrawer: (next: ScheduledItem | null) => void;
   cancelTarget: ScheduledItem | null;

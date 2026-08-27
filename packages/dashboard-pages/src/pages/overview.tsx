@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { useRealtime } from '../realtime';
 import { DashboardHero } from '../components/dashboard/dashboard-hero';
+import { OverviewStats } from '../components/dashboard/overview-stats';
 import { GetStarted } from '../components/dashboard/get-started';
 import { RecentConversationsSection } from '../components/dashboard/recent-conversations';
 import { UsageKpis, type UsageSummary } from '../components/dashboard/usage-kpis';
@@ -60,6 +61,11 @@ export function DashboardPage() {
         date={new Date()}
         liveCount={inbox.items.length}
         queueCount={inbox.queue.length}
+      />
+
+      <OverviewStats
+        liveCount={inbox.items.length}
+        learningCount={inbox.queue.filter((q) => q.kind === 'kb').length}
       />
 
       <LiveNowSection controller={inbox} />

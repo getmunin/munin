@@ -20,7 +20,7 @@ import { DrawerHeader, DrawerLoadFailed, RowCode } from './queue-drawers/shared'
 import { queueCodeKey } from './queue-drawers/types';
 import type { QueueItem, ScheduledItem } from './queue-drawers/types';
 import { useInboxData } from './inbox-data';
-import { truncate } from './inbox-helpers';
+import { canScheduleQueueItem, truncate } from './inbox-helpers';
 import { ConversationDrawer, InlineActionError } from './inbox-conv-drawers';
 import type {
   ConvActionError,
@@ -31,6 +31,17 @@ import type {
 
 export { useInboxData };
 export type { ConvActionError, InboxController, QueueItem, ScheduledItem };
+
+const rowShellClass =
+  'flex cursor-pointer flex-col gap-2 px-1 py-3.5 transition-colors duration-fast ease-munin sm:flex-row sm:items-center sm:gap-4 sm:px-4 sm:py-3 sm:hover:bg-paper-deep dark:sm:hover:bg-secondary';
+
+const rowAgeClass =
+  'hidden h-7 shrink-0 items-center whitespace-nowrap font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute sm:flex';
+
+const rowActionsClass =
+  'flex shrink-0 items-center gap-2 focus-within:flex sm:hidden [@media(hover:none)]:!flex';
+
+const rowButtonClass = 'max-sm:min-h-11 max-sm:flex-1';
 
 export function LiveNowSection({ controller }: { controller: InboxController }) {
   const t = useTranslations('dashboard.overview.liveNow');
@@ -81,7 +92,8 @@ export function LiveNowSection({ controller }: { controller: InboxController }) 
 
 export function QueueSection({ controller }: { controller: InboxController }) {
   const t = useTranslations('dashboard.overview.queue');
-  const { queue, pending, setQueueDrawer, approveQueue, dismissQueue } = controller;
+  const { queue, pending, setQueueDrawer, openQueueScheduler, approveQueue, dismissQueue } =
+    controller;
   if (queue.length === 0) return null;
 
   return (
@@ -102,6 +114,7 @@ export function QueueSection({ controller }: { controller: InboxController }) {
             pending={pending}
             onOpen={() => setQueueDrawer(q)}
             onApprove={() => void approveQueue(q)}
+            onSchedule={() => openQueueScheduler(q)}
             onDismiss={() => void dismissQueue(q)}
           />
         ))}
@@ -237,7 +250,7 @@ function ScheduledRow({
   return (
     <li className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
       <div
-        className="group/srow flex items-center gap-4 px-4 py-3 transition-colors duration-fast ease-munin hover:bg-paper-deep cursor-pointer dark:hover:bg-secondary"
+        className={`group/srow ${rowShellClass}`}
         onClick={onOpen}
         role="button"
         tabIndex={0}
@@ -248,19 +261,33 @@ function ScheduledRow({
           }
         }}
       >
-        <RowCode kind={item.kind}>{tQueue(queueCodeKey(item.kind))}</RowCode>
-        <div className="min-w-0 flex-1 truncate">
-          <span className="text-sm font-medium text-ink dark:text-foreground">{item.title}</span>
-          <span className="ml-2 text-sm text-ink-mute"> — {item.snippet}</span>
+        <div className="flex min-w-0 items-center gap-3 sm:flex-1 sm:gap-4">
+          <RowCode kind={item.kind}>{tQueue(queueCodeKey(item.kind))}</RowCode>
+          <span className="ml-auto whitespace-nowrap font-mono text-[10px] uppercase tracking-eyebrow text-ink dark:text-foreground sm:hidden">
+            {countdown(item.at)}
+          </span>
+          <div className="hidden min-w-0 flex-1 truncate sm:block">
+            <span className="text-sm font-medium text-ink dark:text-foreground">{item.title}</span>
+            <span className="ml-2 text-sm text-ink-mute"> — {item.snippet}</span>
+          </div>
         </div>
-        <span className="flex h-7 shrink-0 items-center whitespace-nowrap font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute group-hover/srow:hidden">
-          {countdown(item.at)}
-        </span>
-        <div
-          className="hidden shrink-0 items-center gap-2 group-hover/srow:flex focus-within:flex"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Button variant="outline" size="sm" onClick={onCancel} disabled={pending}>
+
+        <div className="flex flex-col gap-1.5 sm:hidden">
+          <span className="text-[15px] leading-snug text-ink [text-wrap:pretty] dark:text-foreground">
+            {item.title}
+          </span>
+          <span className="text-[13px] leading-snug text-ink-mute">{item.snippet}</span>
+        </div>
+
+        <span className={`${rowAgeClass} group-hover/srow:hidden`}>{countdown(item.at)}</span>
+        <div className={`${rowActionsClass} group-hover/srow:flex`} onClick={stopRowClick}>
+          <Button
+            variant="outline"
+            size="sm"
+            className={rowButtonClass}
+            onClick={onCancel}
+            disabled={pending}
+          >
             {t('cancel')}
           </Button>
         </div>
@@ -278,6 +305,7 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
     queue,
     queueDrawer,
     setQueueDrawer,
+    queueScheduleIntent,
     scheduled,
     scheduledDrawer,
     setScheduledDrawer,
@@ -378,7 +406,8 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
               loadError={queueDetailErrors[queueDrawer.id]}
               onRetry={() => reloadQueueDetail(queueDrawer.id)}
               pending={pending}
-              onApprove={() => void approveQueue(queueDrawer)}
+              autoOpenScheduler={queueScheduleIntent}
+              onApprove={(sendAt) => void approveQueue(queueDrawer, sendAt)}
               onDismiss={() => void dismissQueue(queueDrawer)}
               onSave={(body) => saveQueue(queueDrawer, body)}
               onSaveCmsDraft={(data) => saveCmsDraft(queueDrawer, data)}
@@ -536,12 +565,14 @@ function QueueRow({
   pending,
   onOpen,
   onApprove,
+  onSchedule,
   onDismiss,
 }: {
   item: QueueItem;
   pending: boolean;
   onOpen: () => void;
   onApprove: () => void;
+  onSchedule: () => void;
   onDismiss: () => void;
 }) {
   const t = useTranslations('dashboard.overview.queue');
@@ -549,7 +580,7 @@ function QueueRow({
   return (
     <li className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
       <div
-        className="group/qrow flex items-center gap-4 px-4 py-3 transition-colors duration-fast ease-munin hover:bg-paper-deep cursor-pointer dark:hover:bg-secondary"
+        className={`group/qrow ${rowShellClass}`}
         onClick={onOpen}
         role="button"
         tabIndex={0}
@@ -560,26 +591,52 @@ function QueueRow({
           }
         }}
       >
-        <RowCode kind={item.kind}>{t(queueCodeKey(item.kind))}</RowCode>
-        <div className="min-w-0 flex-1 truncate">
-          <span className="text-sm font-medium text-ink dark:text-foreground">{item.title}</span>
-          <span className="ml-2 text-sm text-ink-mute"> — {item.snippet}</span>
+        <div className="flex min-w-0 items-center gap-3 sm:flex-1 sm:gap-4">
+          <RowCode kind={item.kind}>{t(queueCodeKey(item.kind))}</RowCode>
+          <span className="ml-auto font-mono text-[10px] uppercase tracking-eyebrow text-ink dark:text-foreground sm:hidden">
+            {age(item.createdAt)}
+          </span>
+          <div className="hidden min-w-0 flex-1 truncate sm:block">
+            <span className="text-sm font-medium text-ink dark:text-foreground">{item.title}</span>
+            <span className="ml-2 text-sm text-ink-mute"> — {item.snippet}</span>
+          </div>
         </div>
-        <span className="flex h-7 shrink-0 items-center font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute group-hover/qrow:hidden">
-          {age(item.createdAt)}
-        </span>
-        <div
-          className="hidden shrink-0 items-center gap-2 group-hover/qrow:flex focus-within:flex"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Button variant="accent" size="sm" onClick={onApprove} disabled={pending}>
+
+        <div className="flex flex-col gap-1.5 sm:hidden">
+          <span className="text-[15px] leading-snug text-ink [text-wrap:pretty] dark:text-foreground">
+            {item.title}
+          </span>
+          <span className="text-[13px] leading-snug text-ink-mute">{item.snippet}</span>
+        </div>
+
+        <span className={`${rowAgeClass} group-hover/qrow:hidden`}>{age(item.createdAt)}</span>
+        <div className={`${rowActionsClass} group-hover/qrow:flex`} onClick={stopRowClick}>
+          <Button variant="accent" size="sm" className={rowButtonClass} onClick={onApprove} disabled={pending}>
             {t('approve')}
           </Button>
-          <Button variant="outline" size="sm" onClick={onDismiss} disabled={pending}>
-            {t('dismiss')}
+          {canScheduleQueueItem(item) ? (
+            <Button size="sm" className={rowButtonClass} onClick={onSchedule} disabled={pending}>
+              {t('schedule')}
+            </Button>
+          ) : null}
+          <Button
+            variant="outline"
+            size="sm"
+            className={`${rowButtonClass} max-sm:w-[52px] max-sm:flex-none`}
+            onClick={onDismiss}
+            disabled={pending}
+          >
+            <span className="sm:hidden" aria-hidden>
+              ✕
+            </span>
+            <span className="max-sm:sr-only">{t('dismiss')}</span>
           </Button>
         </div>
       </div>
     </li>
   );
+}
+
+function stopRowClick(e: { stopPropagation: () => void }) {
+  e.stopPropagation();
 }

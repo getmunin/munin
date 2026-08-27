@@ -54,6 +54,7 @@ export function CmsQueueDrawer({
   onRetry,
   pending,
   readOnly = false,
+  autoOpenScheduler = false,
   scheduledAt: scheduledPublishAt,
   onApprove,
   onDismiss,
@@ -70,6 +71,7 @@ export function CmsQueueDrawer({
   onRetry: () => void;
   pending: boolean;
   readOnly?: boolean;
+  autoOpenScheduler?: boolean;
   scheduledAt?: string;
   onApprove: () => void;
   onDismiss: () => void;
@@ -94,7 +96,7 @@ export function CmsQueueDrawer({
   const [editing, setEditing] = useState(false);
   const [editedData, setEditedData] = useState<EditableData>(initialData);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>(EMPTY_FIELD_ERRORS);
-  const [schedulerOpen, setSchedulerOpen] = useState(false);
+  const [schedulerOpen, setSchedulerOpen] = useState(autoOpenScheduler && !readOnly);
   const [scheduledAt, setScheduledAt] = useState('');
   const [scheduleError, setScheduleError] = useState<string | null>(null);
 

@@ -272,7 +272,8 @@
         "feedbackSnippetAttributed": "{scope} feedback — attributed",
         "feedbackScopeFallback": "Munin",
         "kindKbRevision": "KB · REVISION",
-        "kbSnippetRevision": "Revision to “{title}”."
+        "kbSnippetRevision": "Revision to “{title}”.",
+        "schedule": "Schedule"
       },
       "scheduled": {
         "eyebrow": "Scheduled",
@@ -445,6 +446,14 @@
           "closed": "closed",
           "spam": "spam"
         }
+      },
+      "stats": {
+        "liveLabel": "Live now · with support",
+        "liveNote": "Handled in the console",
+        "learningLabel": "Learning · knowledge",
+        "learningNote": "Proposals from agent edits",
+        "openConversations": "Open conversations",
+        "openLearning": "Open learning"
       }
     },
     "activity": {

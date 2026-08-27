@@ -40,7 +40,7 @@ export function UsageKpis({ summary }: UsageKpisProps) {
         </Link>
       </div>
 
-      <div className="grid gap-3.5 grid-cols-[repeat(auto-fit,minmax(180px,1fr))]">
+      <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-[repeat(auto-fit,minmax(180px,1fr))]">
         <Kpi
           label={t('mcpCalls')}
           value={summary?.mcpCalls.current}

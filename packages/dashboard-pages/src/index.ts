@@ -127,6 +127,7 @@ export {
   ConversationDetailPage,
   type ConversationDetailPageProps,
 } from './pages/conversation-detail';
+export { AutomationPage } from './pages/automation';
 export { LearningPage } from './pages/learning';
 export { SettingsIndexPage, type SettingsIndexPageProps } from './pages/settings-index';
 export { TeamPage } from './pages/team';

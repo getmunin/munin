@@ -34,6 +34,11 @@ import {
   type ConversationSummary,
   type MessageDto,
 } from '../modules/conv/conv.service.ts';
+import {
+  ConvAutomationService,
+  type TopicAutomationOverview,
+  type TopicAutomationRow,
+} from '../modules/conv/conv-automation.service.ts';
 
 const StatusSchema = z.enum(STATUSES);
 const AgentModeSchema = z.enum(AGENT_MODES);
@@ -102,6 +107,12 @@ class SetTopicBody extends createZodDto(
   }),
 ) {}
 
+class SetTopicAutomationBody extends createZodDto(
+  z.object({
+    agentMode: z.enum(AGENT_MODES).nullable(),
+  }),
+) {}
+
 class TakeOverBody extends createZodDto(
   z
     .object({
@@ -126,6 +137,7 @@ export class ConversationsController {
   constructor(
     private readonly conv: ConvService,
     private readonly claims: ConversationClaimsService,
+    private readonly automation: ConvAutomationService,
   ) {}
 
   @Get()
@@ -156,6 +168,22 @@ export class ConversationsController {
       items: page.items,
       nextCursor: page.nextCursor ? encodeListCursor(page.nextCursor) : null,
     };
+  }
+
+  @Get('automation')
+  async listTopicAutomation(): Promise<TopicAutomationOverview> {
+    return this.automation.listTopicAutomation();
+  }
+
+  @Post('topics/:id/automation')
+  @HttpCode(200)
+  async setTopicAutomation(
+    @Param('id') id: string,
+    @Body() input: SetTopicAutomationBody,
+  ): Promise<TopicAutomationRow> {
+    return translate(() =>
+      this.automation.setTopicAutomation({ topicId: id, mode: input.agentMode }),
+    );
   }
 
   @Get('topics')

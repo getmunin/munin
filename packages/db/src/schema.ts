@@ -850,6 +850,10 @@ export const convTopics = pgTable(
     name: text('name').notNull(),
     slug: varchar('slug', { length: 64 }).notNull(),
     color: varchar('color', { length: 16 }),
+    agentMode: varchar('agent_mode', { length: 16 }),
+    // NULL = no topic policy; the conversation's own mode stands.
+    // 'auto' | 'draft_only' | 'off' otherwise.
+    autoPromotedAt: timestamp('auto_promoted_at', { withTimezone: true }),
     createdAt,
     updatedAt,
   },
@@ -928,6 +932,9 @@ export const convConversations = pgTable(
     ),
     agentMode: varchar('agent_mode', { length: 16 }).notNull().default('auto'),
     // 'auto' | 'draft_only' | 'off'
+    agentModeSource: varchar('agent_mode_source', { length: 16 }).notNull().default('default'),
+    // 'default' = inherited from the channel, so a topic policy may override it.
+    // 'explicit' = an operator set it for this conversation; no policy overrides that.
     metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
     createdAt,
     updatedAt,

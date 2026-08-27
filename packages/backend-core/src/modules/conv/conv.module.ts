@@ -6,6 +6,7 @@ import { PublicThrottleModule } from '../../common/rate-limit/public-throttle.mo
 import { ConvService } from './conv.service.ts';
 import { ConvSchedulerService } from './conv-scheduler.service.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
+import { ConvAutomationService } from './conv-automation.service.ts';
 import { ConvAdminTools } from './conv.tools.ts';
 import { ConvSelfServiceTools } from './conv.self-service.tools.ts';
 import { EmailService } from './email/email.service.ts';
@@ -81,6 +82,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     ConvService,
     ConvSchedulerService,
     ConversationClaimsService,
+    ConvAutomationService,
     ConvAdminTools,
     ConvSelfServiceTools,
     EmailService,
@@ -174,6 +176,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     OUTREACH_VOICE_CALLERS,
     ConvService,
     ConversationClaimsService,
+    ConvAutomationService,
     EmailService,
     EmailChannelProbe,
     ChannelReactivationService,

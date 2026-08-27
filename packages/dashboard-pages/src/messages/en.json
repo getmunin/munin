@@ -190,7 +190,8 @@
     "closeMenu": "Close menu",
     "organization": "Organization",
     "integrations": "Integrations",
-    "learning": "Learning"
+    "learning": "Learning",
+    "automation": "Automation"
   },
   "dashboard": {
     "runnerStatusBanner": {
@@ -1321,6 +1322,36 @@
         "agent": "by an agent",
         "system": "by Munin"
       }
+    },
+    "automation": {
+      "eyebrow": "Automation · per topic",
+      "title": "Built to be <em>retired.</em>",
+      "lede": "Every topic starts manual. When the numbers hold, flip it to auto — and this queue gets quieter. That is the point.",
+      "autoRateNote": "of reviewed replies auto-sent · {days} days",
+      "colTopic": "Topic",
+      "colVolume": "Reviewed",
+      "colUnedited": "Approved unedited",
+      "colState": "State",
+      "lastDays": "last {days}d",
+      "stateAuto": "Auto-send on",
+      "stateManual": "Manual",
+      "promote": "Promote to auto →",
+      "demote": "Back to manual",
+      "holdNone": "Ready to promote",
+      "hold": {
+        "sample": "Too few reviewed to tell yet",
+        "unedited": "Too many needed editing",
+        "rejected": "Too many were rejected"
+      },
+      "emptyTitle": "No topics yet.",
+      "emptyBody": "Topics appear once conversations are being classified. Automation is decided per topic.",
+      "promoteTitle": "Promote {topic} to auto-send",
+      "promoteDescription": "Replies on this topic will send without anyone reading them first.",
+      "statEdited": "Edited",
+      "statRejected": "Rejected",
+      "promoteExplain": "Over the last {count} reviewed replies in {days} days. Stepping back to manual is one click — no config, no ticket.",
+      "promoteConfirm": "Promote →",
+      "closing": "This console succeeds by <em>going quiet</em> — every promotion moves work from the queue to the wire. Demotion is one click, always."
     }
   },
   "agentSetup": {

@@ -190,7 +190,8 @@
     "closeMenu": "Lukk meny",
     "organization": "Organisasjon",
     "integrations": "Integrasjoner",
-    "learning": "Læring"
+    "learning": "Læring",
+    "automation": "Automatisering"
   },
   "dashboard": {
     "runnerStatusBanner": {
@@ -1321,6 +1322,36 @@
         "agent": "av en agent",
         "system": "av Munin"
       }
+    },
+    "automation": {
+      "eyebrow": "Automatisering · per emne",
+      "title": "Laget for å <em>bli unødvendig.</em>",
+      "lede": "Alle emner starter manuelt. Når tallene holder, slår du på automatisk — og køen blir stillere. Det er hele poenget.",
+      "autoRateNote": "av gjennomgåtte svar sendt automatisk · {days} dager",
+      "colTopic": "Emne",
+      "colVolume": "Gjennomgått",
+      "colUnedited": "Godkjent urørt",
+      "colState": "Status",
+      "lastDays": "siste {days}d",
+      "stateAuto": "Automatisk sending",
+      "stateManual": "Manuelt",
+      "promote": "Slå på automatisk →",
+      "demote": "Tilbake til manuelt",
+      "holdNone": "Klar for automatisk",
+      "hold": {
+        "sample": "For få gjennomgått til å si noe",
+        "unedited": "For mange måtte endres",
+        "rejected": "For mange ble forkastet"
+      },
+      "emptyTitle": "Ingen emner ennå.",
+      "emptyBody": "Emner dukker opp når samtaler blir kategorisert. Automatisering avgjøres per emne.",
+      "promoteTitle": "Slå på automatisk sending for {topic}",
+      "promoteDescription": "Svar på dette emnet sendes uten at noen leser dem først.",
+      "statEdited": "Endret",
+      "statRejected": "Forkastet",
+      "promoteExplain": "Basert på de siste {count} gjennomgåtte svarene i {days} dager. Å gå tilbake til manuelt er ett klikk — ingen oppsett, ingen sak.",
+      "promoteConfirm": "Slå på →",
+      "closing": "Dette konsollet lykkes ved å <em>bli stille</em> — hver overgang flytter arbeid fra køen til linja. Å gå tilbake er alltid ett klikk."
     }
   },
   "agentSetup": {

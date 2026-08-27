@@ -306,6 +306,52 @@ const skipReason = TEST_URL
         run(() => svc.createTopic({ name: 'X', slug: 'BAD slug' })),
       ).rejects.toThrow(ConvInvalidError);
     });
+
+    it('a new topic carries no automation policy', async () => {
+      const t = await run(() => svc.createTopic({ name: 'Docs', slug: 'docs' }));
+      const [row] = await db.execute<{ agent_mode: string | null }>(
+        sql`SELECT agent_mode FROM conv_topics WHERE id = ${t.id}`,
+      );
+      expect(row!.agent_mode).toBeNull();
+    });
+  });
+
+  describe('topic automation policy', () => {
+    async function seedTopicConversation() {
+      const ch = await insertChannel({ type: 'email', vendor: 'smtp', name: 'Policy' });
+      const topic = await run(() => svc.createTopic({ name: 'Docs', slug: 'docs' }));
+      const conv = await run(() =>
+        svc.createConversation({
+          channelId: ch.id,
+          body: 'hi',
+          authorType: 'agent',
+          authorId: actor.id,
+        }),
+      );
+      await run(() => svc.setTopic({ conversationId: conv.id, topicId: topic.id }));
+      return { topic, conv };
+    }
+
+    it('a topic policy governs a conversation still on its channel default', async () => {
+      const { topic, conv } = await seedTopicConversation();
+      await db.execute(sql`UPDATE conv_topics SET agent_mode = 'off' WHERE id = ${topic.id}`);
+      const detail = await run(() => svc.getConversation(conv.id));
+      expect(detail.agentMode).toBe('off');
+    });
+
+    it('never overrides a mode an operator set on the conversation itself', async () => {
+      const { topic, conv } = await seedTopicConversation();
+      await run(() => svc.setAgentMode({ id: conv.id, mode: 'off' }));
+      await db.execute(sql`UPDATE conv_topics SET agent_mode = 'auto' WHERE id = ${topic.id}`);
+      const detail = await run(() => svc.getConversation(conv.id));
+      expect(detail.agentMode).toBe('off');
+    });
+
+    it('falls back to the conversation mode when the topic has no policy', async () => {
+      const { conv } = await seedTopicConversation();
+      const detail = await run(() => svc.getConversation(conv.id));
+      expect(detail.agentMode).toBe('auto');
+    });
   });
 
   describe('conversations', () => {
@@ -906,6 +952,22 @@ const skipReason = TEST_URL
         sql`SELECT metadata FROM conv_messages WHERE id = ${draft.id}`,
       );
       expect(row!.metadata).toEqual({ kind: 'draft_reply_sent', sentMessageId: sent.id });
+    });
+
+    it('stamps a rejected draft instead of deleting it, so the outcome stays countable', async () => {
+      const { conv, draft } = await seedFlaggedConvWithDraft();
+      expect(await run(() => svc.clearDraftReply(conv.id))).toEqual({ cleared: 1 });
+      const [row] = await db.execute<{ metadata: Record<string, unknown> }>(
+        sql`SELECT metadata FROM conv_messages WHERE id = ${draft.id}`,
+      );
+      expect(row!.metadata['kind']).toBe('draft_reply_rejected');
+      expect(typeof row!.metadata['rejectedAt']).toBe('string');
+    });
+
+    it('does not offer a rejected draft back to the pending-draft lookup', async () => {
+      const { conv } = await seedFlaggedConvWithDraft();
+      await run(() => svc.clearDraftReply(conv.id));
+      expect(await run(() => svc.clearDraftReply(conv.id))).toEqual({ cleared: 0 });
     });
 
     it('leaves a retired draft out of the pending-draft lookup', async () => {

@@ -49,16 +49,24 @@ export class AgentReplyRaceError extends Error {
   }
 }
 
+import { AGENT_MODES, type AgentMode } from './agent-modes.ts';
+import { resolveEffectiveAgentMode } from './agent-mode.ts';
+
+export { AGENT_MODES, type AgentMode } from './agent-modes.ts';
+export {
+  resolveEffectiveAgentMode,
+  AGENT_MODE_SOURCES,
+  type AgentModeSource,
+} from './agent-mode.ts';
+
 export const CHANNEL_TYPES = ['email', 'voice', 'chat', 'sms'] as const;
 export const STATUSES = ['open', 'snoozed', 'closed', 'spam'] as const;
-export const AGENT_MODES = ['auto', 'draft_only', 'off'] as const;
 export const HANDOVER_FILTERS = ['active', 'resolved', 'never'] as const;
 export type HandoverFilter = (typeof HANDOVER_FILTERS)[number];
 
 const DELIVERABLE_CHANNEL_TYPES: readonly string[] = ['email', 'sms'];
 export type ChannelType = (typeof CHANNEL_TYPES)[number];
 export type ConversationStatus = (typeof STATUSES)[number];
-export type AgentMode = (typeof AGENT_MODES)[number];
 
 const AWAITING_REPLY_LOOKBACK_MINUTES = 60;
 const AUTO_CLOSE_THRESHOLD_DAYS = 2;
@@ -574,12 +582,14 @@ export class ConvService {
         contactEmail: schema.convContacts.email,
         contactName: schema.convContacts.name,
         contactPhone: schema.convContacts.phone,
+        topicAgentMode: schema.convTopics.agentMode,
       })
       .from(schema.convConversations)
       .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.convConversations.channelId))
       .leftJoin(schema.assistants, eq(schema.assistants.orgId, schema.convConversations.orgId))
       .leftJoin(schema.endUsers, eq(schema.endUsers.id, schema.convConversations.endUserId))
       .leftJoin(schema.convContacts, eq(schema.convContacts.id, schema.convConversations.contactId))
+      .leftJoin(schema.convTopics, eq(schema.convTopics.id, schema.convConversations.topicId))
       .where(eq(schema.convConversations.id, id))
       .limit(1);
     const row = conversations[0];
@@ -635,6 +645,11 @@ export class ConvService {
     const authorNames = await this.loadAuthorNames(messages);
     return {
       ...toConversationSummary(row.conv, row.channelType),
+      agentMode: resolveEffectiveAgentMode({
+        conversationMode: row.conv.agentMode as AgentMode,
+        source: row.conv.agentModeSource,
+        topicMode: row.topicAgentMode,
+      }),
       messages: rows.map((r) =>
         toMessageDto(r.msg, authorNames, r.seenAt, {
           firstOpenedAt: r.firstOpenedAt,
@@ -1223,7 +1238,7 @@ export class ConvService {
     const ctx = getCurrentContext();
     const [updated] = await ctx.db
       .update(schema.convConversations)
-      .set({ agentMode: input.mode, updatedAt: new Date() })
+      .set({ agentMode: input.mode, agentModeSource: 'explicit', updatedAt: new Date() })
       .where(eq(schema.convConversations.id, input.id))
       .returning();
     if (!updated) throw new NotFoundException(`conv_not_found: conversation ${input.id}`);
@@ -1580,7 +1595,15 @@ export class ConvService {
       .orderBy(desc(schema.convMessages.createdAt))
       .limit(1);
     if (!latest) return { cleared: 0 };
-    await ctx.db.delete(schema.convMessages).where(eq(schema.convMessages.id, latest.id));
+    await ctx.db
+      .update(schema.convMessages)
+      .set({
+        metadata: sql`${schema.convMessages.metadata} || jsonb_build_object(
+          'kind', 'draft_reply_rejected',
+          'rejectedAt', ${new Date().toISOString()}::text
+        )`,
+      })
+      .where(eq(schema.convMessages.id, latest.id));
     return { cleared: 1 };
   }
 

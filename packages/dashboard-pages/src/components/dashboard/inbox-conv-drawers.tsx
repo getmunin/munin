@@ -53,7 +53,12 @@ function actionErrorReason(
   return error.code === 'NETWORK_ERROR' ? t('actionFailedReasonConnection') : error.message;
 }
 
-const DRAFT_KINDS = ['draft_reply', 'draft_reply_sent', 'draft_reply_superseded'] as const;
+const DRAFT_KINDS = [
+  'draft_reply',
+  'draft_reply_sent',
+  'draft_reply_superseded',
+  'draft_reply_rejected',
+] as const;
 
 function draftKind(message: MessageDto): (typeof DRAFT_KINDS)[number] | null {
   if (!message.internal || message.authorType !== 'agent') return null;

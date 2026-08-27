@@ -2896,6 +2896,70 @@
     }
   },
   {
+    "name": "conv_list_topic_automation",
+    "title": "Conv: List topic automation",
+    "description": "Per-topic reply automation: the current policy for each topic, and how its drafts fared over the last 30 days — how many were approved unedited, edited before sending, or rejected. `ready` is true for a topic whose numbers clear the promotion thresholds, and `hold` names the reason when they do not (`sample` = too few reviewed, `unedited` = too many were edited, `rejected` = too many were rejected).",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_set_topic_automation",
+    "title": "Conv: Set topic automation",
+    "description": "Set the reply-automation policy for one topic. `auto` sends replies on that topic without human review; `draft_only` files them for review; `off` stops the agent replying; `null` removes the policy. A conversation whose mode an operator set deliberately keeps that mode and is unaffected by the topic policy.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "topicId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "agentMode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "auto",
+                "draft_only",
+                "off"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Set `auto` to let replies on this topic send without review, `draft_only` to force review, `off` to stop the agent replying at all, or `null` to remove the topic policy and fall back to each conversation's own mode."
+        }
+      },
+      "required": [
+        "topicId",
+        "agentMode"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "conv_list_conversations",
     "title": "Conv: List conversations",
     "description": "List conversations for your org, newest activity first. Filter by status (open / snoozed / closed / spam), assignee, topic, handover state (`active` / `resolved` / `never`), or `since` an ISO timestamp. `handover: \"resolved\"` plus `since` is the set a knowledge-curation pass works from: questions a human answered inside the window.",

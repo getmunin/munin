@@ -3590,6 +3590,69 @@
         ]
       }
     },
+    "/v1/conversations/automation": {
+      "get": {
+        "operationId": "ConversationsController_listTopicAutomation",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conversations/topics/{id}/automation": {
+      "post": {
+        "operationId": "ConversationsController_setTopicAutomation",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetTopicAutomationBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/topics": {
       "get": {
         "operationId": "ConversationsController_listTopics",
@@ -8490,6 +8553,31 @@
         },
         "required": [
           "to"
+        ]
+      },
+      "SetTopicAutomationBody": {
+        "type": "object",
+        "properties": {
+          "agentMode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "draft_only",
+                  "off"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          }
+        },
+        "required": [
+          "agentMode"
         ]
       },
       "SendReplyBody": {

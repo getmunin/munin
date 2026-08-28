@@ -107,7 +107,7 @@ export function ConversationRow({
             >
               <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-current" />
               {item.topicName} ·{' '}
-              {item.topicAgentMode === 'off'
+              {item.agentMode === 'off'
                 ? t('modeHuman')
                 : item.agentMode === 'auto'
                   ? t('modeAuto')

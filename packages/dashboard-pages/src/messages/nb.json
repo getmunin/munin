@@ -226,17 +226,27 @@
       "autoRetryHint": "Prøver automatisk hvert 30. sekund"
     },
     "overview": {
-      "title": "Ord fra <em>flokken</em>.",
-      "ledeQuiet": "Alt stille. Utkast og samtaler dukker opp her etter hvert som de kommer.",
-      "ledeLiveOnly": "{count, plural, =1 {# pågående samtale venter på deg. Agentene er ellers à jour.} other {# pågående samtaler venter på deg. Agentene er ellers à jour.}}",
-      "ledeQueueOnly": "{count, plural, =1 {# utkast venter. Agentene er ellers à jour.} other {# utkast venter. Agentene er ellers à jour.}}",
-      "ledeBoth": "{live, plural, =1 {# pågående samtale venter på deg} other {# pågående samtaler venter på deg}}, {queue, plural, =1 {# utkast til venter også} other {# utkast venter også}}. Agentene er ellers à jour.",
+      "title": "Venter på ditt <em>ord</em>.",
+      "ledeQuiet": "Ingenting venter, ingenting pågår. Agentene er à jour.",
+      "ledeLiveOnly": "{count, plural, =1 {# samtale er} other {# samtaler er}} hos support. Ingenting trenger en administrator.",
+      "ledeQueueOnly": "{count, plural, =1 {# sak venter} other {# saker venter}} på deg. Ingenting sendes, publiseres eller flettes uten en administrator.",
+      "ledeBoth": "{queue, plural, =1 {# sak venter} other {# saker venter}} på deg, {live, plural, =1 {# samtale} other {# samtaler}} hos support. Ingenting sendes uten en administrator.",
       "empty": {
         "eyebrow": "Innboks · ledig",
         "title": "En <em>tom</em> grein.",
         "body": "Ingen utkast ennå. Koble til en agent, så begynner Munin å samle arbeidet deres her — utkast å godkjenne, samtaler å overta, kunnskap å bekrefte.",
         "readDocs": "Les dokumentasjonen",
         "browseMcp": "Utforsk MCP-verktøy"
+      },
+      "stats": {
+        "liveLabel": "Pågår nå · hos support",
+        "liveNoteSome": "Håndteres i konsollen — eierskap, notater og svar bor der.",
+        "liveNoteNone": "Ingen samtale trenger et menneske.",
+        "liveOpen": "Åpne samtalene →",
+        "learnLabel": "Læring · kunnskap og prompter",
+        "learnNoteSome": "Kunnskapsforslag hentet fra agent-redigeringer — publiser eller avvis der.",
+        "learnNoteNone": "Ingen forslag. Kunnskapsbasen er à jour.",
+        "learnOpen": "Åpne læring →"
       },
       "liveNow": {
         "eyebrow": "Pågår nå",

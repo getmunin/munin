@@ -5,13 +5,12 @@ import { api } from '../api';
 import { useRealtime } from '../realtime';
 import { DashboardHero } from '../components/dashboard/dashboard-hero';
 import { GetStarted } from '../components/dashboard/get-started';
-import { RecentConversationsSection } from '../components/dashboard/recent-conversations';
+import { OverviewStats } from '../components/dashboard/overview-stats';
 import { UsageKpis, type UsageSummary } from '../components/dashboard/usage-kpis';
 import { LoadFailed } from '../components/load-failed';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
 import {
   useInboxData,
-  LiveNowSection,
   QueueSection,
   ScheduledSection,
   InboxDrawers,
@@ -53,27 +52,26 @@ export function DashboardPage() {
     );
   }
 
+  const learningCount = inbox.queue.filter((q) => q.kind === 'kb').length;
+
   return (
-    <>
-      <div className="px-4 md:px-10 pt-11 pb-6 max-w-7xl mx-auto space-y-9">
-        <DashboardHero
+    <div className="mx-auto max-w-4xl space-y-12 px-4 pb-16 pt-11 md:px-10">
+      <DashboardHero
         date={new Date()}
         liveCount={inbox.items.length}
         queueCount={inbox.queue.length}
       />
 
-      <LiveNowSection controller={inbox} />
+      <OverviewStats liveCount={inbox.items.length} learningCount={learningCount} />
+
       <QueueSection controller={inbox} />
       <ScheduledSection controller={inbox} />
 
       <UsageKpis summary={summary} />
 
-      <RecentConversationsSection controller={inbox} />
-
       <GetStarted />
 
       <InboxDrawers controller={inbox} />
-      </div>
-    </>
+    </div>
   );
 }

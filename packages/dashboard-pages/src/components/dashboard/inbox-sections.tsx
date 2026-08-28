@@ -20,64 +20,11 @@ import { DrawerHeader, DrawerLoadFailed, RowCode } from './queue-drawers/shared'
 import { queueCodeKey } from './queue-drawers/types';
 import type { QueueItem, ScheduledItem } from './queue-drawers/types';
 import { useInboxData } from './inbox-data';
-import { truncate } from './inbox-helpers';
-import { ConversationDrawer, InlineActionError } from './inbox-conv-drawers';
-import type {
-  ConvActionError,
-  ConversationDetail,
-  ConversationSummary,
-  InboxController,
-} from './inbox-types';
+import { ConversationDrawer } from './inbox-conv-drawers';
+import type { ConvActionError, InboxController } from './inbox-types';
 
 export { useInboxData };
 export type { ConvActionError, InboxController, QueueItem, ScheduledItem };
-
-export function LiveNowSection({ controller }: { controller: InboxController }) {
-  const t = useTranslations('dashboard.overview.liveNow');
-  const {
-    items,
-    details,
-    pending,
-    actionError,
-    setConvDrawer,
-    takeOver,
-  } = controller;
-  if (items.length === 0) return null;
-
-  return (
-    <section className="bg-paper-deep dark:bg-secondary relative left-1/2 right-1/2 -translate-x-1/2 w-screen py-6">
-      <div className="max-w-7xl mx-auto px-4 md:px-10">
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-3">
-            <span
-              className="size-2 rounded-full bg-cobalt animate-pulse dark:bg-cobalt-soft"
-              aria-hidden
-            />
-            <h2 className="font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
-              {t('eyebrow')} · {items.length}
-            </h2>
-          </div>
-          <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-            {t('subtitle')}
-          </span>
-        </div>
-        <ul className="space-y-3">
-          {items.map((c) => (
-            <LiveCard
-              key={c.id}
-              conv={c}
-              detail={details[c.id]}
-              pending={pending}
-              actionError={actionError?.conversationId === c.id ? actionError : null}
-              onOpen={() => setConvDrawer({ id: c.id })}
-              onTakeOver={() => void takeOver(c.id, true)}
-            />
-          ))}
-        </ul>
-      </div>
-    </section>
-  );
-}
 
 export function QueueSection({ controller }: { controller: InboxController }) {
   const t = useTranslations('dashboard.overview.queue');
@@ -418,116 +365,6 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
 
       <ScheduledCancelDialog controller={controller} />
     </>
-  );
-}
-
-function LiveCard({
-  conv,
-  detail,
-  pending,
-  actionError,
-  onOpen,
-  onTakeOver,
-}: {
-  conv: ConversationSummary;
-  detail: ConversationDetail | undefined;
-  pending: boolean;
-  actionError: ConvActionError;
-  onOpen: () => void;
-  onTakeOver: () => void;
-}) {
-  const t = useTranslations('dashboard.overview.liveNow');
-  const tDrawer = useTranslations('dashboard.overview.drawer');
-  const age = useRelative();
-  const claimed = detail?.claim != null;
-  const flaggedAtMs = conv.needsHumanAttentionAt
-    ? Date.parse(conv.needsHumanAttentionAt)
-    : null;
-  const lastEndUserMsg = detail?.messages
-    .slice()
-    .reverse()
-    .find((m) => {
-      if (m.authorType !== 'end_user') return false;
-      if (flaggedAtMs == null) return true;
-      return Date.parse(m.createdAt) <= flaggedAtMs;
-    });
-  const agentRepliedAfter =
-    lastEndUserMsg != null &&
-    (detail?.messages.some(
-      (m) =>
-        !m.internal &&
-        m.authorType === 'agent' &&
-        Date.parse(m.createdAt) > Date.parse(lastEndUserMsg.createdAt),
-    ) ??
-      false);
-  const who = conv.endUserId ?? tDrawer('conversationFallback', { id: conv.displayId });
-  const subject = conv.subject ?? tDrawer('conversationFallback', { id: conv.displayId });
-  const waiting = conv.needsHumanAttentionAt
-    ? age(conv.needsHumanAttentionAt)
-    : conv.lastMessageAt
-      ? age(conv.lastMessageAt)
-      : '';
-
-  const retryAction =
-    actionError?.type === 'takeOver'
-      ? onTakeOver
-      : null;
-
-  return (
-    <li className="space-y-0">
-      <div
-        className="group/livecard flex flex-col gap-4 border-[1px] border-ink bg-paper px-5 py-4 cursor-pointer transition-colors duration-fast ease-munin hover:border-cobalt sm:flex-row sm:items-stretch dark:border-rule-on-dark dark:bg-card dark:hover:border-cobalt-soft"
-        onClick={onOpen}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onOpen();
-          }
-        }}
-      >
-        <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-            <span className="text-ink dark:text-foreground">{who}</span>
-            {claimed ? (
-              <span className="text-cobalt dark:text-cobalt-soft">{t('takenOver')}</span>
-            ) : (
-              <span className="text-cobalt dark:text-cobalt-soft">
-                {t('waiting', { age: waiting })}
-              </span>
-            )}
-            {agentRepliedAfter && <span>{t('agentReplied')}</span>}
-          </div>
-          <h3 className="font-serif text-xl leading-tight text-ink dark:text-foreground">
-            {subject}
-          </h3>
-          {lastEndUserMsg && (
-            <p className="border-l-2 border-cobalt pl-3 font-serif italic text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft">
-              &ldquo;{truncate(lastEndUserMsg.body, 160)}&rdquo;
-            </p>
-          )}
-        </div>
-        <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          {actionError ? (
-            <InlineActionError error={actionError} onRetry={retryAction} />
-          ) : claimed ? (
-            <Button variant="accent" size="sm" onClick={onOpen}>
-              {t('chat')}
-            </Button>
-          ) : (
-            <>
-              <Button variant="accent" size="sm" onClick={onOpen} disabled={pending}>
-                {t('reply')}
-              </Button>
-              <Button size="sm" onClick={onTakeOver} disabled={pending} pending={pending}>
-                {t('takeOver')}
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-    </li>
   );
 }
 

@@ -115,6 +115,8 @@ export interface QueueController {
   finished: QueueItemDto[];
   selectedId: string | null;
   details: Record<string, ConversationDetail>;
+  detailErrors: Record<string, string>;
+  retryDetail: (id: string) => Promise<void>;
   loadError: ApiError | null;
   hasLoadedOnce: boolean;
   retrying: boolean;
@@ -140,6 +142,7 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   const [finished, setFinished] = useState<QueueItemDto[]>([]);
   const selectedId = routeSelectedId ?? open[0]?.id ?? finished[0]?.id ?? null;
   const [details, setDetails] = useState<Record<string, ConversationDetail>>({});
+  const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [retrying, setRetrying] = useState(false);
@@ -213,16 +216,22 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     try {
       const d = await api<ConversationDetail>(`/v1/conversations/${id}`);
       setDetails((prev) => ({ ...prev, [id]: d }));
+      setDetailErrors((prev) => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
       if (
         draftRequestedRef.current[id] &&
         d.messages.some((m) => messageDraftKind(m) === 'draft_reply')
       ) {
         clearDraftRequested(id);
       }
-    } catch {
-      return;
+    } catch (err) {
+      setDetailErrors((prev) => ({ ...prev, [id]: translateErr(err) }));
     }
-  }, [clearDraftRequested]);
+  }, [clearDraftRequested, translateErr]);
 
   useEffect(() => {
     void loadQueue();
@@ -386,6 +395,8 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     finished,
     selectedId,
     details,
+    detailErrors,
+    retryDetail: loadDetail,
     loadError,
     hasLoadedOnce,
     retrying,

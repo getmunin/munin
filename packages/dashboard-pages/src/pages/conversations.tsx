@@ -16,6 +16,8 @@ import {
 import { ConversationRow } from '../components/dashboard/conversation-row';
 import { ConversationPane } from '../components/dashboard/conversation-pane';
 
+const FADE_FLOOR = 0.55;
+
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <li className="px-5 pb-2 pt-4 font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
@@ -35,13 +37,12 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
   const { data: session } = authClient.useSession();
   const viewerUserId = session?.user?.id ?? null;
   const [search, setSearch] = useState('');
-  const [listProgress, setListProgress] = useState(0);
 
   const onListScroll = (e: React.UIEvent<HTMLElement>) => {
     const el = e.currentTarget;
     const max = el.scrollHeight - el.clientHeight;
     const p = max > 0 ? Math.min(1, el.scrollTop / max) : 1;
-    setListProgress((prev) => (Math.abs(p - prev) > 0.02 || p === 0 || p === 1 ? p : prev));
+    el.style.setProperty('--qfade', String(FADE_FLOOR + (1 - FADE_FLOOR) * p));
   };
 
   const sections = useMemo(() => {
@@ -79,13 +80,12 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
     ? [...queue.open, ...queue.finished].find((i) => i.id === activeId)
     : undefined;
 
-  const fadeIn = 0.55 + 0.45 * listProgress;
-  const renderRows = (items: QueueItemDto[], dim?: number) =>
+  const renderRows = (items: QueueItemDto[], faded?: boolean) =>
     items.map((item) => (
       <ConversationRow
         key={item.id}
         item={item}
-        dim={item.claim?.holderId === viewerUserId ? undefined : dim}
+        faded={faded && item.claim?.holderId !== viewerUserId}
         active={item.id === activeId}
         viewerUserId={viewerUserId}
         drafting={!!queue.draftRequested[item.id]}
@@ -141,13 +141,13 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
           {sections.inProgress.length > 0 ? (
             <>
               <SectionLabel>{t('sectionInProgress', { count: sections.inProgress.length })}</SectionLabel>
-              {renderRows(sections.inProgress, fadeIn)}
+              {renderRows(sections.inProgress, true)}
             </>
           ) : null}
           {sections.finished.length > 0 ? (
             <>
               <SectionLabel>{t('sectionFinished', { count: sections.finished.length })}</SectionLabel>
-              {renderRows(sections.finished, fadeIn)}
+              {renderRows(sections.finished, true)}
             </>
           ) : null}
         </ul>

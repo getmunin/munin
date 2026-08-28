@@ -59,6 +59,7 @@ export {
   type EnqueueCuratorJobInput,
   type FailCuratorJobInput,
   type MuninRestClient,
+  type SetDraftReplyOpts,
   type UpdateCuratorJobProgressInput,
 } from './munin-rest.ts';
 export {

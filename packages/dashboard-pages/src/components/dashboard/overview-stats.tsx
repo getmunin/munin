@@ -32,7 +32,7 @@ function StatRow({
       {dot === 'live' && count > 0 ? (
         <span aria-hidden className="relative size-2 shrink-0">
           <span className="absolute inset-0 animate-ping rounded-full bg-cobalt opacity-60 [animation-duration:2s] dark:bg-cobalt-soft" />
-          <span className="absolute inset-0 rounded-full bg-cobalt shadow-[0_0_0_4px_rgba(0,102,255,0.22)] dark:bg-cobalt-soft" />
+          <span className="absolute inset-0 rounded-full bg-cobalt shadow-[0_0_0_4px_rgb(var(--munin-accent)/0.22)] dark:bg-cobalt-soft dark:shadow-[0_0_0_4px_rgb(var(--munin-accent-soft)/0.22)]" />
         </span>
       ) : (
         <span

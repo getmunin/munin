@@ -88,15 +88,20 @@ function LearningCard({
 
 export function LearningPage() {
   const t = useTranslations('dashboard.console.learning');
+  const tCommon = useTranslations('common');
   const age = useRelative();
   const inbox = useInboxData();
   const buildLoadFailedProps = useInboxLoadFailedProps();
   const [decisions, setDecisions] = useState<CurationDecisionDto[]>([]);
+  const [decisionsFailed, setDecisionsFailed] = useState(false);
 
   const loadDecisions = useCallback(() => {
     void api<{ items: CurationDecisionDto[] }>('/v1/kb/curation/decisions?limit=25')
-      .then((res) => setDecisions(res.items))
-      .catch(() => undefined);
+      .then((res) => {
+        setDecisions(res.items);
+        setDecisionsFailed(false);
+      })
+      .catch(() => setDecisionsFailed(true));
   }, []);
 
   useEffect(() => {
@@ -194,6 +199,21 @@ export function LearningPage() {
           );
         })}
 
+        {decisionsFailed ? (
+          <div
+            role="alert"
+            className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-meta text-ink-mute"
+          >
+            {t('decisionsFailed')}
+            <button
+              type="button"
+              onClick={loadDecisions}
+              className="text-ink underline underline-offset-[3px] dark:text-foreground"
+            >
+              {tCommon('retry')}
+            </button>
+          </div>
+        ) : null}
         {decisions.map((d) => (
           <LearningCard
             key={d.id}

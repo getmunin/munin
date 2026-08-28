@@ -15,6 +15,8 @@ import {
 } from './conversation-queue';
 import type { ConversationDetail, MessageDto } from './inbox-types';
 
+const COMPOSER_MAX_HEIGHT_PX = 320;
+
 function isNoteMessage(message: MessageDto): boolean {
   return message.internal && messageDraftKind(message) === null && message.authorType !== 'system';
 }
@@ -54,9 +56,9 @@ export function ConversationPane({
     for (const el of [replyBoxRef.current, noteBoxRef.current]) {
       if (!el) continue;
       el.style.height = 'auto';
-      el.style.height = `${Math.min(el.scrollHeight, 320)}px`;
+      el.style.height = `${Math.min(el.scrollHeight, COMPOSER_MAX_HEIGHT_PX)}px`;
     }
-  });
+  }, [reply, noteDraft, tab, expanded]);
 
   const draft = pendingDraftOf(detail);
 
@@ -87,6 +89,7 @@ export function ConversationPane({
     setSuggestionId(draft.id);
     if (wasDrafting.current) {
       wasDrafting.current = false;
+      stopStream();
       const body = draft.body;
       let shown = 0;
       setReply('');
@@ -119,6 +122,11 @@ export function ConversationPane({
       if (el) el.scrollTop = el.scrollHeight;
     }
   }, [selectedId, lastMessageId, thread.length, draftingSelected]);
+
+  const isOpen = detail?.status === 'open';
+  const claim = detail?.claim ?? null;
+  const claimMine = !!claim && claim.holderId === viewerUserId;
+  const canReply = isOpen && claimMine;
 
   const sendReply = (): void => {
     if (!selectedId || !reply.trim() || controller.pending || streaming) return;
@@ -155,11 +163,7 @@ export function ConversationPane({
   const customer =
     item?.customerName ?? detail.contactName ?? detail.contactEmail ?? t('anonymous');
   const channelType = item?.channelType ?? '';
-  const isOpen = detail.status === 'open';
-  const claim = detail.claim;
-  const claimMine = !!claim && claim.holderId === viewerUserId;
   const claimHolderName = item?.claim?.holderName ?? null;
-  const canReply = isOpen && claimMine;
   const drafting = !!controller.draftRequested[detail.id];
   const canAskDraft =
     isOpen && !draft && !drafting && !!detail.endUserId && item?.agentMode !== 'off';

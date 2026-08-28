@@ -1232,6 +1232,40 @@ const skipReason = TEST_URL
       await run(() => svc.changeStatus({ id: conv.id, status: 'closed' }));
       await expect(run(() => svc.requestDraft(conv.id))).rejects.toThrow(BadRequestException);
     });
+
+    it('requestDraft honours a topic agent_mode of off over the conversation mode', async () => {
+      const { conv } = await seedQueueConversation();
+      const topic = await run(() => svc.createTopic({ name: 'Silenced topic', slug: 'silenced-topic' }));
+      await run(() => svc.setTopic({ conversationId: conv.id, topicId: topic.id }));
+      await db.execute(
+        sql`UPDATE conv_topics SET agent_mode = 'off' WHERE id = ${topic.id}`,
+      );
+      await expect(run(() => svc.requestDraft(conv.id))).rejects.toThrow(
+        'conv_draft_request_invalid',
+      );
+    });
+
+    it('queue pagination resumes without skipping rows across the cursor boundary', async () => {
+      const { conv } = await seedQueueConversation();
+      await run(() =>
+        svc.requestHandover({ conversationId: conv.id, reason: 'needs eyes', postSystemNote: false }),
+      );
+      const others = [];
+      for (let i = 0; i < 3; i += 1) {
+        const seeded = await seedQueueConversation();
+        others.push(seeded.conv.id);
+      }
+      const first = await run(() => svc.listConversationQueuePage({ status: 'open', limit: 2 }));
+      expect(first.nextCursor).not.toBeNull();
+      const second = await run(() =>
+        svc.listConversationQueuePage({ status: 'open', limit: 10, cursor: first.nextCursor! }),
+      );
+      const seen = [...first.items, ...second.items].map((i) => i.id);
+      expect(new Set(seen).size).toBe(seen.length);
+      for (const id of [conv.id, ...others]) {
+        expect(seen).toContain(id);
+      }
+    });
   });
 
   describe('search', () => {

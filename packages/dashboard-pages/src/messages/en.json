@@ -248,16 +248,6 @@
         "learnNoteNone": "Nothing proposed. The knowledge base is current.",
         "learnOpen": "Open learning →"
       },
-      "liveNow": {
-        "eyebrow": "Live now",
-        "subtitle": "paused on your reply",
-        "waiting": "waiting {age}",
-        "takenOver": "you · taken over",
-        "agentReplied": "ai already replied",
-        "reply": "Reply ↵",
-        "takeOver": "Take over →",
-        "chat": "Chat →"
-      },
       "queue": {
         "eyebrow": "Waiting on you",
         "sortedByRecency": "sorted by recency",
@@ -447,16 +437,6 @@
         "inMinutes": "in {n}m",
         "inHours": "in {n}h",
         "inDays": "in {n}d"
-      },
-      "recentConversations": {
-        "eyebrow": "Last open conversations",
-        "meta": "All channels",
-        "untitled": "Conversation #{displayId}",
-        "status": {
-          "snoozed": "snoozed",
-          "closed": "closed",
-          "spam": "spam"
-        }
       }
     },
     "activity": {
@@ -1144,20 +1124,6 @@
         "revoke": "Could not revoke tokens."
       }
     },
-    "getStarted": {
-      "eyebrow": "Get started",
-      "title": "Wake the <em>flock</em>.",
-      "lede": "Connect your favourite model to Munin over MCP, then pick a recipe to wire up an agent that drops drafts into this inbox.",
-      "connectMcp": "01 · Connect MCP",
-      "pickClient": "pick your client",
-      "recipesEyebrow": "02 · Agent recipes",
-      "recipesCount": "{count} starters",
-      "copy": "Copy",
-      "copied": "Copied ✓",
-      "then": "Then",
-      "apiKeyHint": "Mint an API key in <link>Settings · API keys</link> and paste it in place of the placeholder. The token scopes the agent to a single org.",
-      "viewPrompt": "View prompt →"
-    },
     "usage": {
       "eyebrow": "Monitoring · Usage",
       "title": "The flock by the <em>numbers</em>.",
@@ -1312,7 +1278,6 @@
         "originDrafted": "Drafted by the agent · {age}",
         "originStopped": "The agent stopped · {age} — nothing drafted",
         "originDrafting": "The agent is drafting — you asked just now",
-        "agentLine": "Agent · draft · {age}",
         "replyTab": "Reply",
         "noteTab": "Internal note · {count}",
         "stateClosed": "closed — read-only",
@@ -1350,15 +1315,6 @@
         "notePlaceholder": "Add a note for the team…",
         "addNote": "Add internal note",
         "noteHint": "Never sent to the customer · lands in the thread"
-      }
-    },
-    "orgSwitcher": {
-      "loading": "Loading orgs…",
-      "yourOrgs": "Your orgs",
-      "switching": " · switching…",
-      "errors": {
-        "load": "Could not load orgs.",
-        "switch": "Could not switch org."
       }
     },
     "profile": {
@@ -1807,6 +1763,7 @@
   "errors": {
     "claim_held_by_other": "Another teammate already holds this conversation.",
     "conv_draft_pending": "A draft is already waiting for review.",
+    "conv_draft_request_invalid": "The agent can't draft here — the conversation is closed, has no customer to reply to, or the agent is switched off.",
     "NETWORK_ERROR": "Couldn't reach Munin. Check your connection.",
     "SIGNUP_NOT_ALLOWED": "Signup is restricted on this Munin instance. Ask an admin to invite you.",
     "SIGNUP_DOMAIN_NOT_ALLOWED": "Your email domain isn't on the allowlist, and there's no pending invitation for this address. Ask an admin to invite you.",

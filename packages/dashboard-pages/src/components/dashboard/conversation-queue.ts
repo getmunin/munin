@@ -148,6 +148,29 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   const [draftRequested, setDraftRequested] = useState<Record<string, boolean>>({});
   const draftRequestedRef = useRef(draftRequested);
   draftRequestedRef.current = draftRequested;
+  const draftTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  const clearDraftRequested = useCallback((id: string) => {
+    const timer = draftTimers.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      draftTimers.current.delete(id);
+    }
+    setDraftRequested((prev) => {
+      if (!prev[id]) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const timers = draftTimers.current;
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+    };
+  }, []);
 
   const loadQueue = useCallback(async () => {
     try {
@@ -159,10 +182,15 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
       setFinished(finishedPage.items);
       setLoadError(null);
       setHasLoadedOnce(true);
+      for (const item of openPage.items) {
+        if (item.hasPendingDraft && draftRequestedRef.current[item.id]) {
+          clearDraftRequested(item.id);
+        }
+      }
     } catch (err) {
       if (err instanceof ApiError) setLoadError(err);
     }
-  }, []);
+  }, [clearDraftRequested]);
 
   const retryLoad = useCallback(async () => {
     setRetrying(true);
@@ -185,18 +213,16 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     try {
       const d = await api<ConversationDetail>(`/v1/conversations/${id}`);
       setDetails((prev) => ({ ...prev, [id]: d }));
-      setDraftRequested((prev) => {
-        if (!prev[id]) return prev;
-        const hasDraft = d.messages.some((m) => messageDraftKind(m) === 'draft_reply');
-        if (!hasDraft) return prev;
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
+      if (
+        draftRequestedRef.current[id] &&
+        d.messages.some((m) => messageDraftKind(m) === 'draft_reply')
+      ) {
+        clearDraftRequested(id);
+      }
     } catch {
       return;
     }
-  }, []);
+  }, [clearDraftRequested]);
 
   useEffect(() => {
     void loadQueue();
@@ -333,16 +359,22 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
         api(`/v1/conversations/${id}/request-draft`, { method: 'POST', body: '{}' }),
       );
       if (!ok) return;
+      const existing = draftTimers.current.get(id);
+      if (existing) clearTimeout(existing);
       setDraftRequested((prev) => ({ ...prev, [id]: true }));
-      setTimeout(() => {
-        if (!draftRequestedRef.current[id]) return;
-        setDraftRequested((prev) => {
-          const next = { ...prev };
-          delete next[id];
-          return next;
-        });
-        notify.error(t('draftTimeout'));
-      }, DRAFT_REQUEST_TIMEOUT_MS);
+      draftTimers.current.set(
+        id,
+        setTimeout(() => {
+          draftTimers.current.delete(id);
+          if (!draftRequestedRef.current[id]) return;
+          setDraftRequested((prev) => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+          });
+          notify.error(t('draftTimeout'));
+        }, DRAFT_REQUEST_TIMEOUT_MS),
+      );
     },
     [runAction, t],
   );

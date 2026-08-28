@@ -4,14 +4,9 @@ import { useTranslations } from 'next-intl';
 import { cn } from '@getmunin/ui';
 import { useRelative } from '../../lib/use-relative';
 import type { QueueItemDto } from './conversation-queue';
+import { initialsOf } from '../../lib/initials';
 
-function initialsOf(name: string | null): string {
-  if (!name?.trim()) return '?';
-  const parts = name.split(/[\s@._-]+/).filter(Boolean);
-  return `${parts[0]?.[0] ?? ''}${parts[1]?.[0] ?? ''}`.toUpperCase() || name.slice(0, 2).toUpperCase();
-}
-
-export function ClaimFace({
+function ClaimFace({
   claim,
   viewerUserId,
   showUnclaimed,

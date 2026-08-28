@@ -382,7 +382,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
               retrievedDocumentIds: deriveRetrievedDocumentIds(reply.toolCalls),
               ...(audit.rationale ? { rationale: audit.rationale } : {}),
               ...(reply.toolCalls.length > 0
-                ? { toolNames: reply.toolCalls.map((t) => t.name) }
+                ? { toolNames: [...new Set(reply.toolCalls.map((t) => t.name))].slice(0, 24) }
                 : {}),
             });
             await deps.rest

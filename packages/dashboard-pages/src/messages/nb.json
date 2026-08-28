@@ -248,16 +248,6 @@
         "learnNoteNone": "Ingen forslag. Kunnskapsbasen er à jour.",
         "learnOpen": "Åpne læring →"
       },
-      "liveNow": {
-        "eyebrow": "Pågår nå",
-        "subtitle": "venter på svaret ditt",
-        "waiting": "venter {age}",
-        "takenOver": "du · overtatt",
-        "agentReplied": "ai har svart",
-        "reply": "Svar ↵",
-        "takeOver": "Overta →",
-        "chat": "Chat →"
-      },
       "queue": {
         "eyebrow": "Venter på deg",
         "sortedByRecency": "sortert etter ferskhet",
@@ -447,16 +437,6 @@
         "inMinutes": "om {n}m",
         "inHours": "om {n}t",
         "inDays": "om {n}d"
-      },
-      "recentConversations": {
-        "eyebrow": "Siste åpne samtaler",
-        "meta": "Alle kanaler",
-        "untitled": "Samtale #{displayId}",
-        "status": {
-          "snoozed": "utsatt",
-          "closed": "lukket",
-          "spam": "spam"
-        }
       }
     },
     "activity": {
@@ -1144,20 +1124,6 @@
         "revoke": "Kunne ikke trekke tilbake token."
       }
     },
-    "getStarted": {
-      "eyebrow": "Kom i gang",
-      "title": "Vekk <em>flokken</em>.",
-      "lede": "Koble favorittmodellen din til Munin over MCP, og velg en oppskrift som setter en agent til å sende utkast hit.",
-      "connectMcp": "01 · Koble til MCP",
-      "pickClient": "velg klient",
-      "recipesEyebrow": "02 · Agent-oppskrifter",
-      "recipesCount": "{count} forslag",
-      "copy": "Kopier",
-      "copied": "Kopiert ✓",
-      "then": "Deretter",
-      "apiKeyHint": "Lag en API-nøkkel i <link>Innstillinger · API-nøkler</link> og lim den inn der plassholderen står. Tokenet er bundet til denne organisasjonen.",
-      "viewPrompt": "Se prompten →"
-    },
     "usage": {
       "eyebrow": "Overvåking · Bruk",
       "title": "Flokken i <em>tall</em>.",
@@ -1312,7 +1278,6 @@
         "originDrafted": "Kladd fra agenten · {age}",
         "originStopped": "Agenten stoppet · {age} — ingen kladd",
         "originDrafting": "Agenten skriver kladd — du ba om den nettopp",
-        "agentLine": "Agent · kladd · {age}",
         "replyTab": "Svar",
         "noteTab": "Internt notat · {count}",
         "stateClosed": "lukket — skrivebeskyttet",
@@ -1350,15 +1315,6 @@
         "notePlaceholder": "Legg igjen et notat til teamet …",
         "addNote": "Legg til internt notat",
         "noteHint": "Sendes aldri til kunden · havner i tråden"
-      }
-    },
-    "orgSwitcher": {
-      "loading": "Laster organisasjoner…",
-      "yourOrgs": "Dine organisasjoner",
-      "switching": " · bytter…",
-      "errors": {
-        "load": "Kunne ikke laste organisasjoner.",
-        "switch": "Kunne ikke bytte organisasjon."
       }
     },
     "profile": {
@@ -1807,6 +1763,7 @@
   "errors": {
     "claim_held_by_other": "En kollega har allerede denne samtalen.",
     "conv_draft_pending": "En kladd venter allerede på gjennomgang.",
+    "conv_draft_request_invalid": "Agenten kan ikke lage utkast her – samtalen er lukket, mangler en kunde å svare, eller agenten er slått av.",
     "NETWORK_ERROR": "Fikk ikke kontakt med Munin. Sjekk tilkoblingen din.",
     "SIGNUP_NOT_ALLOWED": "Registrering er begrenset på denne Munin-installasjonen. Be en administrator om å invitere deg.",
     "SIGNUP_DOMAIN_NOT_ALLOWED": "E-postdomenet ditt er ikke på listen, og det finnes ingen ventende invitasjon for denne adressen. Be en administrator om å invitere deg.",

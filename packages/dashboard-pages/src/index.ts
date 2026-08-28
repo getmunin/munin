@@ -27,12 +27,6 @@ export {
   useInboxLoadFailedProps,
 } from './lib/use-load-failed-props';
 export { authClient } from './auth-client';
-export {
-  DashboardTopbar,
-  type DashboardTopbarProps,
-  SettingsTopbar,
-  type SettingsTopbarProps,
-} from './components/munin-topbar';
 export { PageShell, nativeFieldClass } from './components/page-shell';
 export {
   Skeleton,

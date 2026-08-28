@@ -449,14 +449,27 @@ export class ConvService {
     if (input.cursor) {
       const { lastMessageAt, id } = input.cursor;
       if (lastMessageAt === null) {
-        filters.push(sql`${schema.convConversations.id} < ${id} AND ${schema.convConversations.lastMessageAt} IS NULL`);
+        filters.push(
+          sql`((${schema.convConversations.lastMessageAt} IS NULL AND ${schema.convConversations.id} < ${id}) OR ${schema.convConversations.lastMessageAt} IS NOT NULL)`,
+        );
       } else {
         filters.push(
-          sql`(${schema.convConversations.lastMessageAt}, ${schema.convConversations.id}) < (${new Date(lastMessageAt)}, ${id})`,
+          sql`${schema.convConversations.lastMessageAt} IS NOT NULL AND (${schema.convConversations.lastMessageAt}, ${schema.convConversations.id}) < (${new Date(lastMessageAt).toISOString()}::timestamptz, ${id})`,
         );
       }
     }
     return filters;
+  }
+
+  private lastInboundPreviewSql() {
+    return sql<string | null>`(
+          SELECT body FROM conv_messages
+          WHERE conversation_id = "conv_conversations"."id"
+            AND author_type = 'end_user'
+            AND internal = false
+          ORDER BY created_at DESC
+          LIMIT 1
+        )`;
   }
 
   async listConversationsPage(input: {
@@ -478,14 +491,7 @@ export class ConvService {
     const rows = await ctx.db
       .select({
         conv: schema.convConversations,
-        lastInboundPreview: sql<string | null>`(
-          SELECT body FROM conv_messages
-          WHERE conversation_id = "conv_conversations"."id"
-            AND author_type = 'end_user'
-            AND internal = false
-          ORDER BY created_at DESC
-          LIMIT 1
-        )`,
+        lastInboundPreview: this.lastInboundPreviewSql(),
       })
       .from(schema.convConversations)
       .where(filters.length === 0 ? undefined : and(...filters))
@@ -524,14 +530,7 @@ export class ConvService {
     const rows = await ctx.db
       .select({
         conv: schema.convConversations,
-        lastInboundPreview: sql<string | null>`(
-          SELECT body FROM conv_messages
-          WHERE conversation_id = "conv_conversations"."id"
-            AND author_type = 'end_user'
-            AND internal = false
-          ORDER BY created_at DESC
-          LIMIT 1
-        )`,
+        lastInboundPreview: this.lastInboundPreviewSql(),
         channelType: schema.convChannels.type,
         contactName: schema.convContacts.name,
         contactEmail: schema.convContacts.email,
@@ -548,9 +547,8 @@ export class ConvService {
       .leftJoin(schema.convTopics, eq(schema.convTopics.id, schema.convConversations.topicId))
       .where(filters.length === 0 ? undefined : and(...filters))
       .orderBy(
-        desc(schema.convConversations.needsHumanAttention),
         desc(schema.convConversations.lastMessageAt),
-        desc(schema.convConversations.createdAt),
+        desc(schema.convConversations.id),
       )
       .limit(limit + 1);
 
@@ -1809,36 +1807,38 @@ export class ConvService {
         status: schema.convConversations.status,
         endUserId: schema.convConversations.endUserId,
         agentMode: schema.convConversations.agentMode,
+        topicAgentMode: schema.convTopics.agentMode,
         channelType: schema.convChannels.type,
       })
       .from(schema.convConversations)
       .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.convConversations.channelId))
+      .leftJoin(schema.convTopics, eq(schema.convTopics.id, schema.convConversations.topicId))
       .where(eq(schema.convConversations.id, conversationId))
       .limit(1);
     const conv = convRows[0];
     if (!conv) throw new NotFoundException(`conv_not_found: conversation ${conversationId}`);
     if (conv.status !== 'open') {
       throw new BadRequestException({
-        message: `conv_invalid: conversation ${conversationId} is ${conv.status}; drafts can only be requested on open conversations`,
-        code: 'conv_invalid',
+        message: `conv_draft_request_invalid: conversation ${conversationId} is ${conv.status}; drafts can only be requested on open conversations`,
+        code: 'conv_draft_request_invalid',
       });
     }
     if (conv.channelType === 'voice') {
       throw new BadRequestException({
-        message: `conv_invalid: conversation ${conversationId} is a voice conversation; the voice vendor owns its replies`,
-        code: 'conv_invalid',
+        message: `conv_draft_request_invalid: conversation ${conversationId} is a voice conversation; the voice vendor owns its replies`,
+        code: 'conv_draft_request_invalid',
       });
     }
     if (!conv.endUserId) {
       throw new BadRequestException({
-        message: `conv_invalid: conversation ${conversationId} has no end-user to reply to`,
-        code: 'conv_invalid',
+        message: `conv_draft_request_invalid: conversation ${conversationId} has no end-user to reply to`,
+        code: 'conv_draft_request_invalid',
       });
     }
-    if (conv.agentMode === 'off') {
+    if ((conv.topicAgentMode ?? conv.agentMode) === 'off') {
       throw new BadRequestException({
-        message: `conv_invalid: the agent is turned off for conversation ${conversationId}`,
-        code: 'conv_invalid',
+        message: `conv_draft_request_invalid: the agent is turned off for conversation ${conversationId}`,
+        code: 'conv_draft_request_invalid',
       });
     }
     const [pending] = await ctx.db

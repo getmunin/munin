@@ -99,7 +99,7 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
         onScroll={onListScroll}
         className={cn(
           'flex min-h-0 flex-col border-r border-ink max-md:overflow-y-auto dark:border-rule-on-dark',
-          selectedId ? 'max-md:hidden' : '',
+          routeSelectedId ? 'max-md:hidden' : '',
         )}
       >
         <header className="shrink-0 border-b border-ink px-5 pb-3.5 pt-6 md:min-h-[146px] md:px-6 dark:border-rule-on-dark">
@@ -154,7 +154,7 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
       </section>
 
       <div
-        className={cn('min-h-0 min-w-0 grid-cols-[minmax(0,1fr)]', selectedId ? 'grid' : 'hidden md:grid')}
+        className={cn('min-h-0 min-w-0 grid-cols-[minmax(0,1fr)]', routeSelectedId ? 'grid' : 'hidden md:grid')}
       >
         <ConversationPane
           selectedId={activeId}

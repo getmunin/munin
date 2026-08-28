@@ -1,6 +1,5 @@
 'use client';
 
-import { AlertCircle } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -57,14 +56,20 @@ export function MessageBubble({ message }: { message: MessageDto }) {
     return (
       <div
         className={cn(
-          'max-w-[85%] border-[1px] border-amber-200 bg-amber-50 px-3 py-2 text-sm dark:border-amber-500/30 dark:bg-amber-500/10',
-          isOutbound
-            ? 'ml-auto rounded-bubble rounded-tr-[2px]'
-            : 'mr-auto rounded-bubble rounded-tl-[2px]',
+          'ml-12 flex flex-col gap-1 border-l-2 bg-amber-50 px-3.5 py-2.5 text-sm dark:bg-amber-500/10',
+          isStaff ? 'border-cobalt dark:border-cobalt-soft' : 'border-ink dark:border-foreground',
         )}
       >
-        <div className="mb-0.5 flex items-center gap-1 font-mono text-[9px] uppercase tracking-eyebrow text-amber-700 dark:text-amber-200">
-          <AlertCircle className="size-3" /> {t('internalLabel', { author: message.authorType })}
+        <div
+          className={cn(
+            'font-mono text-[9px] uppercase tracking-eyebrow',
+            isStaff ? 'text-cobalt dark:text-cobalt-soft' : 'text-ink-soft dark:text-foreground/80',
+          )}
+        >
+          {t('noteMeta', {
+            author: bubbleLabel(message, t),
+            time: formatSeenAt(message.createdAt),
+          })}
         </div>
         <MessageMarkdown body={message.body} />
       </div>

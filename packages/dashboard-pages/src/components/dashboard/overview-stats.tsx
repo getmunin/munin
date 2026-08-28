@@ -29,23 +29,25 @@ function StatRow({
         bordered && 'border-t border-rule-soft dark:border-rule-on-dark',
       )}
     >
-      <span
-        aria-hidden
-        className={cn(
-          'shrink-0 rounded-full',
-          dot === 'live'
-            ? cn(
-                'size-2',
-                count > 0
-                  ? 'bg-cobalt shadow-[0_0_0_4px_rgba(0,102,255,0.22)] dark:bg-cobalt-soft'
-                  : 'bg-ink-mute',
-              )
-            : cn(
-                'size-[9px] border-[1.5px] bg-transparent',
-                count > 0 ? 'border-cobalt dark:border-cobalt-soft' : 'border-ink-mute',
-              ),
-        )}
-      />
+      {dot === 'live' && count > 0 ? (
+        <span aria-hidden className="relative size-2 shrink-0">
+          <span className="absolute inset-0 animate-ping rounded-full bg-cobalt opacity-60 [animation-duration:2s] dark:bg-cobalt-soft" />
+          <span className="absolute inset-0 rounded-full bg-cobalt shadow-[0_0_0_4px_rgba(0,102,255,0.22)] dark:bg-cobalt-soft" />
+        </span>
+      ) : (
+        <span
+          aria-hidden
+          className={cn(
+            'shrink-0 rounded-full',
+            dot === 'live'
+              ? 'size-2 bg-ink-mute'
+              : cn(
+                  'size-[9px] border-[1.5px] bg-transparent',
+                  count > 0 ? 'border-cobalt dark:border-cobalt-soft' : 'border-ink-mute',
+                ),
+          )}
+        />
+      )}
       <span className="min-w-[40px] font-serif text-[32px] leading-none text-ink md:min-w-[52px] md:text-[44px] dark:text-foreground">
         {count}
       </span>

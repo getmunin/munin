@@ -54,8 +54,9 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
   }
 
   const select = (id: string) => router.push(`/dashboard/conversations/${id}`);
-  const selectedItem = selectedId
-    ? [...queue.open, ...queue.finished].find((i) => i.id === selectedId)
+  const activeId = queue.selectedId;
+  const selectedItem = activeId
+    ? [...queue.open, ...queue.finished].find((i) => i.id === activeId)
     : undefined;
 
   const renderRows = (items: QueueItemDto[]) =>
@@ -63,7 +64,7 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
       <ConversationRow
         key={item.id}
         item={item}
-        active={item.id === selectedId}
+        active={item.id === activeId}
         viewerUserId={viewerUserId}
         drafting={!!queue.draftRequested[item.id]}
         onSelect={() => select(item.id)}
@@ -129,9 +130,9 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
 
       <div className={cn('min-h-0', selectedId ? 'grid' : 'hidden md:grid')}>
         <ConversationPane
-          selectedId={selectedId}
+          selectedId={activeId}
           item={selectedItem}
-          detail={selectedId ? queue.details[selectedId] : undefined}
+          detail={activeId ? queue.details[activeId] : undefined}
           controller={queue}
           viewerUserId={viewerUserId}
           onBack={() => router.push('/dashboard/conversations')}

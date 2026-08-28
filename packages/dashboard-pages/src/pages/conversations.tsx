@@ -75,7 +75,7 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
     <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-[minmax(0,1.05fr)_minmax(0,1.4fr)]">
       <section
         className={cn(
-          'flex min-h-0 flex-col border-r border-ink dark:border-rule-on-dark',
+          'flex min-h-0 flex-col border-r border-ink max-md:overflow-y-auto dark:border-rule-on-dark',
           selectedId ? 'max-md:hidden' : '',
         )}
       >
@@ -104,7 +104,7 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
           <span aria-hidden>·</span>
           <span className="whitespace-nowrap">{t('metaDone', { count: sections.finished.length })}</span>
         </div>
-        <ul className="min-h-0 flex-1 overflow-y-auto pb-6">
+        <ul className="pb-6 md:min-h-0 md:flex-1 md:overflow-y-auto">
           <SectionLabel>{t('sectionNeedsYou', { count: sections.needsYou.length })}</SectionLabel>
           {sections.needsYou.length === 0 ? (
             <li className="border-b border-rule-soft px-5 pb-5 pt-1 font-serif text-lg italic text-ink-soft dark:border-rule-on-dark dark:text-foreground/80">

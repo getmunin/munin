@@ -31,6 +31,7 @@ import {
   HandoverActiveError,
   STATUSES,
   type ConversationDetail,
+  type ConversationQueueItem,
   type ConversationSummary,
   type MessageDto,
 } from '../modules/conv/conv.service.ts';
@@ -115,6 +116,11 @@ interface ConversationListResponse {
   nextCursor: string | null;
 }
 
+interface ConversationQueueResponse {
+  items: ConversationQueueItem[];
+  nextCursor: string | null;
+}
+
 interface ConversationDetailResponse extends ConversationDetail {
   claim: { holderType: 'user'; holderId: string; expiresAt: string } | null;
 }
@@ -144,6 +150,36 @@ export class ConversationsController {
     const decodedCursor = cursor ? decodeListCursor(cursor) : undefined;
     const page = await translate(() =>
       this.conv.listConversationsPage({
+        status: parsedStatus?.success ? parsedStatus.data : undefined,
+        assigneeUserId,
+        topicId,
+        needsHumanAttention: parseBool(needsHumanAttention),
+        limit: parseLimit(limit),
+        cursor: decodedCursor,
+      }),
+    );
+    return {
+      items: page.items,
+      nextCursor: page.nextCursor ? encodeListCursor(page.nextCursor) : null,
+    };
+  }
+
+  @Get('queue')
+  async queue(
+    @Query('status') status?: string,
+    @Query('assigneeUserId') assigneeUserId?: string,
+    @Query('topicId') topicId?: string,
+    @Query('needsHumanAttention') needsHumanAttention?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ): Promise<ConversationQueueResponse> {
+    const parsedStatus = status ? StatusSchema.safeParse(status) : null;
+    if (parsedStatus && !parsedStatus.success) {
+      throw new BadRequestException(`invalid status: ${status}`);
+    }
+    const decodedCursor = cursor ? decodeListCursor(cursor) : undefined;
+    const page = await translate(() =>
+      this.conv.listConversationQueuePage({
         status: parsedStatus?.success ? parsedStatus.data : undefined,
         assigneeUserId,
         topicId,
@@ -324,6 +360,12 @@ export class ConversationsController {
   @HttpCode(200)
   async clearDraft(@Param('id') id: string): Promise<{ cleared: number }> {
     return translate(() => this.conv.clearDraftReply(id));
+  }
+
+  @Post(':id/request-draft')
+  @HttpCode(202)
+  async requestDraft(@Param('id') id: string): Promise<{ requested: boolean }> {
+    return translate(() => this.conv.requestDraft(id));
   }
 
   @Post(':id/topic')

@@ -1336,6 +1336,8 @@
         "anonymous": "Anonymous visitor",
         "noteCount": "{count, plural, one {1 note} other {# notes}}",
         "noDraftBadge": "No draft — you write it",
+        "draftingThread": "The agent is drafting — the proposal lands here",
+        "draftTimeout": "The agent didn't deliver a draft. Try again, or write the reply yourself.",
         "draftingBadge": "The agent is drafting…",
         "selectEmpty": "Select a conversation.",
         "backToQueue": "Queue",

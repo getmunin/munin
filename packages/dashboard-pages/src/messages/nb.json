@@ -1336,6 +1336,8 @@
         "anonymous": "Anonym besøkende",
         "noteCount": "{count, plural, one {1 notat} other {# notater}}",
         "noDraftBadge": "Ingen kladd — du skriver svaret",
+        "draftingThread": "Agenten skriver kladd — forslaget lander her",
+        "draftTimeout": "Agenten leverte ingen kladd. Prøv igjen, eller skriv svaret selv.",
         "draftingBadge": "Agenten skriver kladd …",
         "selectEmpty": "Velg en samtale.",
         "backToQueue": "Køen",

@@ -356,6 +356,52 @@ describe('createConversationHandler', () => {
     ]);
   });
 
+  it('requestDraft drafts even when the agent already replied publicly', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            agentMode: 'draft_only',
+            channelType: 'email',
+            messages: [
+              {
+                id: 'msg_1',
+                authorType: 'end_user',
+                body: 'is my order lost?',
+                createdAt: new Date(Date.now() - 60_000).toISOString(),
+                internal: false,
+              },
+              {
+                id: 'msg_2',
+                authorType: 'agent',
+                body: 'Checking with the warehouse, escalating to a teammate.',
+                createdAt: new Date().toISOString(),
+                internal: false,
+              },
+            ],
+          }),
+        ),
+      ),
+    });
+    const draftSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    rest.setDraftReply = draftSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([assistantStop('Here is a follow-up proposal.')]),
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(draftSpy).not.toHaveBeenCalled();
+    handler.requestDraft({ conversationId: 'conv_1' });
+    await handler.flush();
+    expect(draftSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('requestDraft parks a draft even on an auto conversation the requester has claimed', async () => {
     const rest = buildRest({
       getConversation: vi.fn(() =>

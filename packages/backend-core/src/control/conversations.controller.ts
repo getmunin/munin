@@ -24,6 +24,10 @@ import {
   ClaimedByOtherError,
 } from '../modules/conv/conv.claims.service.ts';
 import {
+  ConvAutomationService,
+  type TopicAutomationSummary,
+} from '../modules/conv/conv-automation.service.ts';
+import {
   ConvService,
   ConvInvalidError,
   AgentReplyRaceError,
@@ -40,6 +44,10 @@ const StatusSchema = z.enum(STATUSES);
 const AgentModeSchema = z.enum(AGENT_MODES);
 
 class SetAgentModeBody extends createZodDto(z.object({ mode: AgentModeSchema })) {}
+
+class SetTopicAgentModeBody extends createZodDto(
+  z.object({ mode: AgentModeSchema.nullable() }),
+) {}
 
 class SendReplyBody extends createZodDto(
   z.object({
@@ -134,6 +142,7 @@ export class ConversationsController {
   constructor(
     private readonly conv: ConvService,
     private readonly claims: ConversationClaimsService,
+    private readonly automation: ConvAutomationService,
   ) {}
 
   @Get()
@@ -199,6 +208,20 @@ export class ConversationsController {
   @Get('topics')
   async listTopics(): Promise<Array<{ id: string; slug: string; name: string; color: string | null }>> {
     return translate(() => this.conv.listTopics());
+  }
+
+  @Get('automation')
+  async automationSummary(): Promise<TopicAutomationSummary> {
+    return translate(() => this.automation.listTopicAutomation());
+  }
+
+  @Post('topics/:topicId/agent-mode')
+  @HttpCode(200)
+  async setTopicAgentMode(
+    @Param('topicId') topicId: string,
+    @Body() input: SetTopicAgentModeBody,
+  ): Promise<{ id: string; slug: string; agentMode: string | null; autoPromotedAt: string | null }> {
+    return translate(() => this.automation.setTopicAgentMode({ topicId, mode: input.mode }));
   }
 
   @Get('awaiting-reply')

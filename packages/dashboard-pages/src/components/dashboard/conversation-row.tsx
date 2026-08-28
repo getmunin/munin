@@ -101,9 +101,19 @@ export function ConversationRow({
             </span>
           ) : null}
           {item.topicName ? (
-            <span className="mt-0.5 flex items-center gap-1.5 truncate font-mono text-[9px] uppercase tracking-meta text-ink-mute">
+            <span
+              className={cn(
+                'mt-0.5 flex items-center gap-1.5 truncate font-mono text-[9px] uppercase tracking-meta',
+                item.agentMode === 'auto' ? 'text-cobalt dark:text-cobalt-soft' : 'text-ink-mute',
+              )}
+            >
               <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-current" />
-              {item.topicName}
+              {item.topicName} ·{' '}
+              {item.topicAgentMode === 'off'
+                ? t('modeHuman')
+                : item.agentMode === 'auto'
+                  ? t('modeAuto')
+                  : t('modeManual')}
             </span>
           ) : null}
           {drafting ? (

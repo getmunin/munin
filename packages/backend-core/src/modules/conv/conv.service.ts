@@ -153,6 +153,7 @@ export interface ConversationQueueItem extends ConversationSummary {
   customerEmail: string | null;
   topicName: string | null;
   topicSlug: string | null;
+  topicAgentMode: AgentMode | null;
   claim: { holderId: string; holderName: string | null; expiresAt: string } | null;
   noteCount: number;
   hasPendingDraft: boolean;
@@ -538,6 +539,7 @@ export class ConvService {
         endUserEmail: schema.endUsers.email,
         topicName: schema.convTopics.name,
         topicSlug: schema.convTopics.slug,
+        topicAgentMode: schema.convTopics.agentMode,
       })
       .from(schema.convConversations)
       .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.convConversations.channelId))
@@ -617,13 +619,17 @@ export class ConvService {
 
     const items = page.map((row): ConversationQueueItem => {
       const stats = statsByConversation.get(row.conv.id);
+      const summary = toConversationSummary(row.conv, row.channelType, row.lastInboundPreview);
+      const topicAgentMode = (row.topicAgentMode as AgentMode | null) ?? null;
       return {
-        ...toConversationSummary(row.conv, row.channelType, row.lastInboundPreview),
+        ...summary,
+        agentMode: topicAgentMode ?? summary.agentMode,
         channelType: row.channelType,
         customerName: row.contactName ?? row.endUserName ?? null,
         customerEmail: row.contactEmail ?? row.endUserEmail ?? null,
         topicName: row.topicName,
         topicSlug: row.topicSlug,
+        topicAgentMode,
         claim: claimByConversation.get(row.conv.id) ?? null,
         noteCount: stats?.noteCount ?? 0,
         hasPendingDraft: (stats?.pendingDrafts ?? 0) > 0,
@@ -731,12 +737,14 @@ export class ConvService {
         contactEmail: schema.convContacts.email,
         contactName: schema.convContacts.name,
         contactPhone: schema.convContacts.phone,
+        topicAgentMode: schema.convTopics.agentMode,
       })
       .from(schema.convConversations)
       .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.convConversations.channelId))
       .leftJoin(schema.assistants, eq(schema.assistants.orgId, schema.convConversations.orgId))
       .leftJoin(schema.endUsers, eq(schema.endUsers.id, schema.convConversations.endUserId))
       .leftJoin(schema.convContacts, eq(schema.convContacts.id, schema.convConversations.contactId))
+      .leftJoin(schema.convTopics, eq(schema.convTopics.id, schema.convConversations.topicId))
       .where(eq(schema.convConversations.id, id))
       .limit(1);
     const row = conversations[0];
@@ -790,8 +798,10 @@ export class ConvService {
 
     const messages = rows.map((r) => r.msg);
     const authorNames = await this.loadAuthorNames(messages);
+    const summary = toConversationSummary(row.conv, row.channelType);
     return {
-      ...toConversationSummary(row.conv, row.channelType),
+      ...summary,
+      agentMode: (row.topicAgentMode as AgentMode | null) ?? summary.agentMode,
       messages: rows.map((r) =>
         toMessageDto(r.msg, authorNames, r.seenAt, {
           firstOpenedAt: r.firstOpenedAt,

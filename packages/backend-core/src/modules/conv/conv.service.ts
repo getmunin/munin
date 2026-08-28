@@ -1064,7 +1064,11 @@ export class ConvService {
     const conv = convRows[0];
     if (!conv) throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
 
-    if (input.authorType === 'agent' && (await this.claims.isHeldByOther(input.conversationId))) {
+    if (
+      input.authorType === 'agent' &&
+      !input.internal &&
+      (await this.claims.isHeldByOther(input.conversationId))
+    ) {
       throw new HandoverActiveError(input.conversationId);
     }
 
@@ -1601,10 +1605,11 @@ export class ConvService {
       await ctx.db.insert(schema.convMessages).values({
         orgId: actor.orgId,
         conversationId: input.conversationId,
-        authorType: 'system',
+        authorType: 'agent',
         authorId: actor.id,
         body,
         internal: true,
+        metadata: { kind: 'internal_note' },
       });
     }
 

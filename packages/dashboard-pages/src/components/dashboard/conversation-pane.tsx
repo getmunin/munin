@@ -142,6 +142,16 @@ export function ConversationPane({
     if (tab === 'reply' && canReply) sendReply();
   });
 
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpanded(false);
+    };
+    window.addEventListener('keydown', onKey);
+    (tab === 'note' ? noteBoxRef : replyBoxRef).current?.focus();
+    return () => window.removeEventListener('keydown', onKey);
+  }, [expanded, tab]);
+
   if (!selectedId) {
     return (
       <section className="hidden min-h-0 flex-col items-start bg-paper-deep p-8 md:flex dark:bg-secondary">
@@ -153,9 +163,26 @@ export function ConversationPane({
   }
 
   if (!detail) {
+    const detailError = controller.detailErrors[selectedId];
     return (
       <section className="flex min-h-0 flex-col bg-paper-deep dark:bg-secondary">
-        <PageSpinner className="flex-1" />
+        {detailError ? (
+          <div className="flex flex-1 flex-col items-start justify-center gap-3 px-8" role="alert">
+            <span className="font-mono text-[11px] uppercase tracking-eyebrow text-ink-mute">
+              {t('detailFailed')}
+            </span>
+            <span className="text-[13px] text-ink-soft dark:text-foreground/80">{detailError}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void controller.retryDetail(selectedId)}
+            >
+              {tCommon('retry')}
+            </Button>
+          </div>
+        ) : (
+          <PageSpinner className="flex-1" />
+        )}
       </section>
     );
   }
@@ -169,6 +196,45 @@ export function ConversationPane({
     isOpen && !draft && !drafting && !!detail.endUserId && item?.agentMode !== 'off';
   const dirty = !streaming && !!draft && suggestionId !== null && reply !== draft.body;
   const err = controller.actionError;
+
+  const rejectAndClear = () => {
+    void controller.rejectDraft(detail.id).then(() => {
+      setSuggestionId(null);
+      setReply('');
+    });
+  };
+
+  const takeOverButton = (className: string) => (
+    <Button
+      variant="accent"
+      className={className}
+      onClick={() => void controller.takeOver(detail.id)}
+      disabled={controller.pending}
+      pending={controller.pendingAction === 'takeOver'}
+    >
+      {claim ? t('takeOverToReply') : t('claimToReply')} <span aria-hidden>→</span>
+    </Button>
+  );
+
+  const claimGateCaption = (
+    <span className="font-mono text-[9px] uppercase tracking-meta leading-relaxed text-ink-mute">
+      {claim
+        ? t('claimGateOther', { name: claimHolderName ?? t('teammate') })
+        : t('claimGateFree')}
+    </span>
+  );
+
+  const askDraftButton = (className?: string) =>
+    canAskDraft ? (
+      <Button
+        variant="ghost"
+        className={className}
+        onClick={() => void controller.requestDraft(detail.id)}
+        disabled={controller.pending}
+      >
+        {t('askDraft')}
+      </Button>
+    ) : null;
 
   const originLine = drafting
     ? t('originDrafting')
@@ -264,20 +330,8 @@ export function ConversationPane({
               </div>
             ) : !canReply ? (
               <div className="flex flex-col items-stretch gap-2.5 p-4">
-                <Button
-                  variant="accent"
-                  className="h-11"
-                  onClick={() => void controller.takeOver(detail.id)}
-                  disabled={controller.pending}
-                  pending={controller.pendingAction === 'takeOver'}
-                >
-                  {claim ? t('takeOverToReply') : t('claimToReply')} <span aria-hidden>→</span>
-                </Button>
-                <span className="font-mono text-[9px] uppercase tracking-meta leading-relaxed text-ink-mute">
-                  {claim
-                    ? t('claimGateOther', { name: claimHolderName ?? t('teammate') })
-                    : t('claimGateFree')}
-                </span>
+                {takeOverButton('h-11')}
+                {claimGateCaption}
               </div>
             ) : suggestionId && !dirty && !streaming ? (
               <div className="flex flex-col gap-2 p-4">
@@ -298,12 +352,7 @@ export function ConversationPane({
                     variant="outline"
                     className="h-11"
                     disabled={controller.pending}
-                    onClick={() => {
-                      void controller.rejectDraft(detail.id).then(() => {
-                        setSuggestionId(null);
-                        setReply('');
-                      });
-                    }}
+                    onClick={rejectAndClear}
                   >
                     {t('reject')}
                   </Button>
@@ -332,21 +381,15 @@ export function ConversationPane({
                     </span>
                   )}
                 </button>
-                {canAskDraft ? (
-                  <Button
-                    variant="ghost"
-                    className="h-11 shrink-0"
-                    onClick={() => void controller.requestDraft(detail.id)}
-                    disabled={controller.pending}
-                  >
-                    {t('askDraft')}
-                  </Button>
-                ) : null}
+                {askDraftButton('h-11 shrink-0')}
               </div>
             )}
           </div>
         ) : null}
         <div
+          role={expanded ? 'dialog' : undefined}
+          aria-modal={expanded ? true : undefined}
+          aria-label={expanded ? customer : undefined}
           className={cn(
             expanded
               ? 'max-md:fixed max-md:inset-0 max-md:z-50 max-md:flex max-md:flex-col max-md:bg-paper dark:max-md:bg-background'
@@ -441,12 +484,7 @@ export function ConversationPane({
                 {suggestionId ? (
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      void controller.rejectDraft(detail.id).then(() => {
-                        setSuggestionId(null);
-                        setReply('');
-                      });
-                    }}
+                    onClick={rejectAndClear}
                     disabled={controller.pending || streaming}
                     className="max-md:h-11"
                   >
@@ -470,15 +508,7 @@ export function ConversationPane({
                     {t('restoreDraft')}
                   </Button>
                 ) : null}
-                {canAskDraft ? (
-                  <Button
-                    variant="ghost"
-                    onClick={() => void controller.requestDraft(detail.id)}
-                    disabled={controller.pending}
-                  >
-                    {t('askDraft')}
-                  </Button>
-                ) : null}
+                {askDraftButton()}
                 <button
                   type="button"
                   onClick={() => void controller.closeConv(detail.id)}
@@ -491,30 +521,9 @@ export function ConversationPane({
             </div>
           ) : (
             <div className="flex flex-col flex-wrap items-stretch gap-2.5 p-4 md:flex-row md:items-center md:px-5">
-              <Button
-                variant="accent"
-                onClick={() => void controller.takeOver(detail.id)}
-                disabled={controller.pending}
-                pending={controller.pendingAction === 'takeOver'}
-                className="max-md:h-11"
-              >
-                {claim ? t('takeOverToReply') : t('claimToReply')} <span aria-hidden>→</span>
-              </Button>
-              <span className="font-mono text-[9px] uppercase tracking-meta leading-relaxed text-ink-mute">
-                {claim
-                  ? t('claimGateOther', { name: claimHolderName ?? t('teammate') })
-                  : t('claimGateFree')}
-              </span>
-              {canAskDraft ? (
-                <Button
-                  variant="ghost"
-                  onClick={() => void controller.requestDraft(detail.id)}
-                  disabled={controller.pending}
-                  className="md:ml-auto"
-                >
-                  {t('askDraft')}
-                </Button>
-              ) : null}
+              {takeOverButton('max-md:h-11')}
+              {claimGateCaption}
+              {askDraftButton('md:ml-auto')}
             </div>
           )
         ) : (

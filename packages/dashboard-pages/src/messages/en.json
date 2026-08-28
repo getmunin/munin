@@ -1198,8 +1198,8 @@
         "eyebrow": "Learning — knowledge from agent edits",
         "title": "Every edit <em>teaches.</em>",
         "metaPending": "{count} pending review",
-        "metaPublished": "{count} published",
-        "metaDismissed": "{count} dismissed",
+        "metaPublished": "{count} recently published",
+        "metaDismissed": "{count} recently dismissed",
         "empty": "Nothing proposed. The knowledge base is <em>current.</em>",
         "kindRevision": "KB revision",
         "kindArticle": "KB article",
@@ -1217,7 +1217,8 @@
         "publish": "Publish",
         "publishRevision": "Publish revision",
         "review": "Review & edit",
-        "dismiss": "Dismiss"
+        "dismiss": "Dismiss",
+        "decisionsFailed": "Past decisions didn't load."
       },
       "automation": {
         "eyebrow": "Automation — per topic",
@@ -1314,7 +1315,8 @@
         "claimGateOther": "{name} owns this — taking over moves the claim to you",
         "notePlaceholder": "Add a note for the team…",
         "addNote": "Add internal note",
-        "noteHint": "Never sent to the customer · lands in the thread"
+        "noteHint": "Never sent to the customer · lands in the thread",
+        "detailFailed": "This conversation didn't load."
       }
     },
     "profile": {

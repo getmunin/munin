@@ -1,3 +1,6 @@
+import { extendNavGroups } from './extend-groups';
+
+export const ACCOUNT_SETTINGS_HREF = '/dashboard/settings/account';
 export interface SettingsSubNavItem {
   href: string;
   labelKey: string;
@@ -46,7 +49,7 @@ export function settingsGroupsForRole(
   return groups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => item.href.split('/').pop() === 'account'),
+      items: group.items.filter((item) => item.href === ACCOUNT_SETTINGS_HREF),
     }))
     .filter((group) => group.items.length > 0);
 }
@@ -59,46 +62,9 @@ export interface SettingsGroupExtension {
   position?: 'start' | 'end';
 }
 
-function matchItem(item: SettingsSubNavItem, key: string): boolean {
-  return item.labelKey === key || item.href.split('/').pop() === key;
-}
-
 export function extendSettingsGroups(
   base: SettingsSubNavGroup[],
   extensions: SettingsGroupExtension[],
 ): SettingsSubNavGroup[] {
-  const result = base.map((group) => ({ ...group, items: [...group.items] }));
-
-  for (const ext of extensions) {
-    let group = result.find((g) => g.groupKey === ext.groupKey);
-    if (!group) {
-      group = { groupKey: ext.groupKey, items: [] };
-      result.push(group);
-    }
-
-    if (ext.insertAfter) {
-      const idx = group.items.findIndex((item) => matchItem(item, ext.insertAfter!));
-      if (idx >= 0) {
-        group.items.splice(idx + 1, 0, ...ext.items);
-        continue;
-      }
-    }
-
-    if (ext.insertBefore) {
-      const idx = group.items.findIndex((item) => matchItem(item, ext.insertBefore!));
-      if (idx >= 0) {
-        group.items.splice(idx, 0, ...ext.items);
-        continue;
-      }
-    }
-
-    if (ext.position === 'start') {
-      group.items.unshift(...ext.items);
-      continue;
-    }
-
-    group.items.push(...ext.items);
-  }
-
-  return result;
+  return extendNavGroups(base, extensions);
 }

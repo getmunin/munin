@@ -1198,8 +1198,8 @@
         "eyebrow": "Læring — kunnskap fra agent-redigeringer",
         "title": "Hver redigering <em>lærer.</em>",
         "metaPending": "{count} venter på gjennomgang",
-        "metaPublished": "{count} publisert",
-        "metaDismissed": "{count} avvist",
+        "metaPublished": "{count} nylig publisert",
+        "metaDismissed": "{count} nylig avvist",
         "empty": "Ingen forslag. Kunnskapsbasen er <em>à jour.</em>",
         "kindRevision": "KB-revisjon",
         "kindArticle": "KB-artikkel",
@@ -1217,7 +1217,8 @@
         "publish": "Publiser",
         "publishRevision": "Publiser revisjon",
         "review": "Gjennomgå og rediger",
-        "dismiss": "Avvis"
+        "dismiss": "Avvis",
+        "decisionsFailed": "Kunne ikke laste tidligere avgjørelser."
       },
       "automation": {
         "eyebrow": "Automatisering — per tema",
@@ -1314,7 +1315,8 @@
         "claimGateOther": "{name} har denne — overtar du, flyttes den til deg",
         "notePlaceholder": "Legg igjen et notat til teamet …",
         "addNote": "Legg til internt notat",
-        "noteHint": "Sendes aldri til kunden · havner i tråden"
+        "noteHint": "Sendes aldri til kunden · havner i tråden",
+        "detailFailed": "Samtalen ble ikke lastet."
       }
     },
     "profile": {

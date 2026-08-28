@@ -45,14 +45,14 @@ export function ConversationRow({
   active,
   viewerUserId,
   drafting,
-  dim,
+  faded,
   onSelect,
 }: {
   item: QueueItemDto;
   active: boolean;
   viewerUserId: string | null;
   drafting: boolean;
-  dim?: number;
+  faded?: boolean;
   onSelect: () => void;
 }) {
   const t = useTranslations('dashboard.console.queue');
@@ -72,9 +72,9 @@ export function ConversationRow({
             onSelect();
           }
         }}
-        style={dim !== undefined && !active ? { opacity: dim } : undefined}
         className={cn(
           'grid cursor-pointer grid-cols-[52px_minmax(0,1fr)_auto] items-start gap-3.5 border-b border-rule-soft px-5 py-3.5 transition-[background-color,opacity] duration-fast ease-munin dark:border-rule-on-dark',
+          faded && !active && 'opacity-[var(--qfade,0.55)]',
           active
             ? 'border-l-2 border-l-cobalt bg-paper-deep pl-[18px] dark:border-l-cobalt-soft dark:bg-card'
             : 'hover:bg-paper-deep hover:!opacity-100 dark:hover:bg-card',

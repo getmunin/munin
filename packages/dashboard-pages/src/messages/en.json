@@ -1412,6 +1412,9 @@
       "offline": "offline"
     },
     "settings": {
+      "backToOverview": "Back to overview",
+      "backToConversations": "Back to conversations",
+      "agentNote": "Workspace, access, and monitoring are admin-only.",
       "groups": {
         "workspace": "Workspace",
         "access": "Access",

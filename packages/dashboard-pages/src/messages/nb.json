@@ -1412,6 +1412,9 @@
       "offline": "frakoblet"
     },
     "settings": {
+      "backToOverview": "Tilbake til oversikten",
+      "backToConversations": "Tilbake til samtalene",
+      "agentNote": "Arbeidsområde, tilgang og overvåking er kun for administratorer.",
       "groups": {
         "workspace": "Arbeidsområde",
         "access": "Tilgang",

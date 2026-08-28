@@ -7,6 +7,7 @@ import { LogOut, Menu, X } from 'lucide-react';
 import { Sheet, SheetContent, SheetTitle } from '@getmunin/ui';
 import { api } from '../api';
 import { authClient } from '../auth-client';
+import { initialsOf } from '../lib/initials';
 import { clearActiveOrgId } from '../auth/active-org';
 import { isOwnerOrAdmin, useActiveRole } from '../auth/use-active-role';
 import { Link, usePathname, useRouter } from '../i18n-navigation';
@@ -35,13 +36,6 @@ const REFRESH_PREFIXES = [
   'outreach.proposal.',
   'cms.entry.',
 ];
-
-function initialsOf(name: string | null | undefined, fallback: string): string {
-  const src = name?.trim() || fallback;
-  const parts = src.split(/[\s@._-]+/).filter(Boolean);
-  const two = `${parts[0]?.[0] ?? ''}${parts[1]?.[0] ?? ''}`;
-  return (two || src.slice(0, 2)).toUpperCase();
-}
 
 function useConsoleData(): { badges: ConsoleBadges } {
   const [badges, setBadges] = useState<ConsoleBadges>(EMPTY_BADGES);
@@ -79,10 +73,7 @@ function useConsoleData(): { badges: ConsoleBadges } {
 }
 
 function badgeValue(badge: ConsoleBadge | undefined, badges: ConsoleBadges): number {
-  if (badge === 'waiting') return badges.waiting;
-  if (badge === 'queue') return badges.queue;
-  if (badge === 'learning') return badges.learning;
-  return 0;
+  return badge ? badges[badge] : 0;
 }
 
 function NavList({

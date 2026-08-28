@@ -28,14 +28,13 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
   const isAdmin = isOwnerOrAdmin(role);
   const visibleGroups = settingsGroupsForRole(groups, isAdmin);
   const allowedHrefs = visibleGroups.flatMap((g) => g.items.map((i) => i.href));
-  const allowedKey = allowedHrefs.join(',');
   const onAllowedPage = allowedHrefs.some((href) => pathname.startsWith(href));
+  const fallbackHref = allowedHrefs[0] ?? '/dashboard/conversations';
 
   useEffect(() => {
     if (loading || isAdmin || onAllowedPage) return;
-    const fallback = allowedKey.split(',').find((href) => href.length > 0);
-    router.replace(fallback ?? '/dashboard/conversations');
-  }, [loading, isAdmin, onAllowedPage, allowedKey, router]);
+    router.replace(fallbackHref);
+  }, [loading, isAdmin, onAllowedPage, fallbackHref, router]);
 
   useEffect(() => {
     setMobileOpen(false);

@@ -1266,6 +1266,37 @@ const skipReason = TEST_URL
         expect(seen).toContain(id);
       }
     });
+
+    it('list pagination crosses the needs-attention boundary without dropping rows', async () => {
+      const flagged = [];
+      for (let i = 0; i < 2; i += 1) {
+        const seeded = await seedQueueConversation();
+        await run(() =>
+          svc.requestHandover({
+            conversationId: seeded.conv.id,
+            reason: 'boundary',
+            postSystemNote: false,
+          }),
+        );
+        flagged.push(seeded.conv.id);
+      }
+      const calm = [];
+      for (let i = 0; i < 2; i += 1) {
+        const seeded = await seedQueueConversation();
+        calm.push(seeded.conv.id);
+      }
+      const first = await run(() => svc.listConversationsPage({ status: 'open', limit: 2 }));
+      expect(first.nextCursor).not.toBeNull();
+      expect(first.items.map((i) => i.id)).toEqual(expect.arrayContaining(flagged));
+      const second = await run(() =>
+        svc.listConversationsPage({ status: 'open', limit: 50, cursor: first.nextCursor! }),
+      );
+      const seen = [...first.items, ...second.items].map((i) => i.id);
+      expect(new Set(seen).size).toBe(seen.length);
+      for (const id of [...flagged, ...calm]) {
+        expect(seen).toContain(id);
+      }
+    });
   });
 
   describe('search', () => {

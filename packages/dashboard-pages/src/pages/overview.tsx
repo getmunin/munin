@@ -52,19 +52,20 @@ export function DashboardPage() {
     );
   }
 
-  const learningCount = inbox.queue.filter((q) => q.kind === 'kb').length;
+  const waiting = inbox.queue.filter((q) => q.kind !== 'kb');
+  const learningCount = inbox.queue.length - waiting.length;
 
   return (
     <div className="mx-auto max-w-4xl space-y-12 px-4 pb-16 pt-11 md:px-10">
       <DashboardHero
         date={new Date()}
         liveCount={inbox.items.length}
-        queueCount={inbox.queue.length}
+        queueCount={waiting.length}
       />
 
       <OverviewStats liveCount={inbox.items.length} learningCount={learningCount} />
 
-      <QueueSection controller={inbox} />
+      <QueueSection controller={{ ...inbox, queue: waiting }} />
       <ScheduledSection controller={inbox} />
 
       <UsageKpis summary={summary} />

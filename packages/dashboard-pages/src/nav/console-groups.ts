@@ -23,6 +23,7 @@ export const OSS_CONSOLE_GROUPS: ConsoleNavGroup[] = [
     items: [
       { href: '/dashboard/conversations', labelKey: 'conversations', badge: 'queue' },
       { href: '/dashboard/automation', labelKey: 'automation', adminOnly: true },
+      { href: '/dashboard/learning', labelKey: 'learning', badge: 'learning', adminOnly: true },
     ],
   },
   {

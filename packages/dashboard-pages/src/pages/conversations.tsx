@@ -128,7 +128,9 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
         </ul>
       </section>
 
-      <div className={cn('min-h-0', selectedId ? 'grid' : 'hidden md:grid')}>
+      <div
+        className={cn('min-h-0 min-w-0 grid-cols-[minmax(0,1fr)]', selectedId ? 'grid' : 'hidden md:grid')}
+      >
         <ConversationPane
           selectedId={activeId}
           item={selectedItem}

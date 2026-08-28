@@ -367,7 +367,7 @@ export function ConsoleShell({ brand, logoSrc = '/munin-logo.png', headSlot, chi
           </button>
         </header>
 
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-paper dark:bg-background">
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-clip bg-paper dark:bg-background">
           {children}
         </main>
       </div>

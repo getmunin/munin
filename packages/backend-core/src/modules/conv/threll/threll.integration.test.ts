@@ -292,6 +292,57 @@ const skipReason = TEST_URL
     deleteSpy.mockRestore();
   });
 
+  it('removes the old subscription with the previous account key when repointed at a new account', async () => {
+    const svc = app.get(ThrellService);
+    const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
+    const created = await runAsActor(actor, () =>
+      svc.createChannel({
+        name: 'Threll account switch',
+        config: { apiKey: API_KEY, accountId: ACCOUNT_ID, workerId: WORKER_ID },
+      }),
+    );
+    const webhookUrl = `https://munin.example/v1/conversations/channels/${created.id}/webhook`;
+    const deleteSpy = vi.spyOn(client, 'deleteWebhookSubscription').mockResolvedValue({ ok: true });
+    listSubsSpy
+      .mockResolvedValueOnce({ ok: true, subscriptions: [] })
+      .mockResolvedValueOnce({
+        ok: true,
+        subscriptions: [
+          {
+            id: 'sub_old_account',
+            url: webhookUrl,
+            eventType: '*',
+            workerId: WORKER_ID,
+            enabled: true,
+            signingSecret: null,
+          },
+        ],
+      });
+    createSubSpy.mockResolvedValueOnce({ ok: true, signingSecret: 'whsec_new_account' });
+
+    await runAsActor(actor, () =>
+      svc.updateChannel({
+        channelId: created.id,
+        config: { apiKey: 'thk_new_account_key', accountId: 'acc_test_9999' },
+      }),
+    );
+
+    expect(createSubSpy.mock.calls.at(-1)?.[0]).toMatchObject({
+      apiKey: 'thk_new_account_key',
+      accountId: 'acc_test_9999',
+    });
+    expect(listSubsSpy.mock.calls.at(-1)?.[0]).toMatchObject({
+      apiKey: API_KEY,
+      accountId: ACCOUNT_ID,
+    });
+    expect(deleteSpy).toHaveBeenCalledWith({
+      apiKey: API_KEY,
+      accountId: ACCOUNT_ID,
+      subscriptionId: 'sub_old_account',
+    });
+    deleteSpy.mockRestore();
+  });
+
   it('discovers workers via the generic listOptions path without persisting a channel', async () => {
     vi.spyOn(client, 'listWorkers').mockResolvedValueOnce({
       ok: true,

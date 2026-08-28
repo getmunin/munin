@@ -169,8 +169,12 @@ export class ThrellService {
         webhookUrl,
         input.replaceWebhook ?? false,
       );
+      const removalApiKey =
+        accountId !== prev.accountId && newApiKey
+          ? await this.client.loadSecret(prev.encryptedApiKey)
+          : apiKey;
       await this.removeWebhookSubscription(
-        { apiKey, accountId: prev.accountId, workerId: prev.workerId },
+        { apiKey: removalApiKey, accountId: prev.accountId, workerId: prev.workerId },
         webhookUrl,
       );
       merged.encryptedWebhookSecret = await encryptString(signingSecret);

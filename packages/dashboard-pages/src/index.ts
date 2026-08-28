@@ -136,6 +136,7 @@ export {
 export {
   OSS_SETTINGS_GROUPS,
   extendSettingsGroups,
+  settingsGroupsForRole,
   type SettingsSubNavItem,
   type SettingsSubNavGroup,
   type SettingsGroupExtension,

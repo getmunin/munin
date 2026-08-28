@@ -16,7 +16,7 @@ import { clearActiveOrgId } from '../auth/active-org';
 import { isOwnerOrAdmin, useActiveRole } from '../auth/use-active-role';
 import { SettingsTopbar } from '../components/munin-topbar';
 import { Link, usePathname, useRouter } from '../i18n-navigation';
-import type { SettingsSubNavGroup } from '../nav/settings-groups';
+import { settingsGroupsForRole, type SettingsSubNavGroup } from '../nav/settings-groups';
 
 export interface SettingsShellProps {
   groups: SettingsSubNavGroup[];
@@ -28,21 +28,28 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
   const pathname = usePathname();
   const tNav = useTranslations('nav');
   const tCommon = useTranslations('common');
+  const tSettings = useTranslations('dashboard.settings');
   const tGroups = useTranslations('dashboard.settings.groups');
   const { role, loading } = useActiveRole();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const isAdmin = isOwnerOrAdmin(role);
+  const visibleGroups = settingsGroupsForRole(groups, isAdmin);
+  const allowedHrefs = visibleGroups.flatMap((g) => g.items.map((i) => i.href));
+  const allowedKey = allowedHrefs.join(',');
+  const onAllowedPage = allowedHrefs.some((href) => pathname.startsWith(href));
+
   useEffect(() => {
-    if (!loading && !isOwnerOrAdmin(role)) {
-      router.replace('/dashboard');
-    }
-  }, [loading, role, router]);
+    if (loading || isAdmin || onAllowedPage) return;
+    const fallback = allowedKey.split(',').find((href) => href.length > 0);
+    router.replace(fallback ?? '/dashboard/conversations');
+  }, [loading, isAdmin, onAllowedPage, allowedKey, router]);
 
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
 
-  if (loading || !isOwnerOrAdmin(role)) {
+  if (loading || (!isAdmin && !onAllowedPage)) {
     return <PageSpinner className="min-h-screen bg-background" />;
   }
 
@@ -55,26 +62,33 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
   };
 
   const navTree = (
-    <RailNav className="block w-full">
-      {groups.map((group) => (
-        <RailGroup key={group.groupKey} label={tGroups(group.groupKey)}>
-          {group.items.map((item) => (
-            <RailItem
-              key={item.href}
-              render={
-                <Link
-                  href={item.href}
-                  aria-current={pathname.startsWith(item.href) ? 'page' : undefined}
-                />
-              }
-              active={pathname.startsWith(item.href)}
-            >
-              {tNav(item.labelKey)}
-            </RailItem>
-          ))}
-        </RailGroup>
-      ))}
-    </RailNav>
+    <>
+      <RailNav className="block w-full">
+        {visibleGroups.map((group) => (
+          <RailGroup key={group.groupKey} label={tGroups(group.groupKey)}>
+            {group.items.map((item) => (
+              <RailItem
+                key={item.href}
+                render={
+                  <Link
+                    href={item.href}
+                    aria-current={pathname.startsWith(item.href) ? 'page' : undefined}
+                  />
+                }
+                active={pathname.startsWith(item.href)}
+              >
+                {tNav(item.labelKey)}
+              </RailItem>
+            ))}
+          </RailGroup>
+        ))}
+      </RailNav>
+      {!isAdmin ? (
+        <p className="mt-4 px-3 font-mono text-[9px] uppercase leading-relaxed tracking-meta text-ink-mute">
+          {tSettings('agentNote')}
+        </p>
+      ) : null}
+    </>
   );
 
   const signOutButton = (
@@ -92,7 +106,8 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
     <div className="flex min-h-screen flex-col bg-paper group-has-[.agent-banner]:min-h-[calc(100vh_-_3rem)] dark:bg-background">
       <SettingsTopbar
         title={tNav('settings')}
-        backLabel={tCommon('back')}
+        backHref={isAdmin ? '/dashboard' : '/dashboard/conversations'}
+        backLabel={isAdmin ? tSettings('backToOverview') : tSettings('backToConversations')}
         onMenuToggle={() => setMobileOpen((o) => !o)}
         menuOpen={mobileOpen}
         openMenuLabel={tNav('openMenu')}

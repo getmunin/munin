@@ -8,7 +8,7 @@ import { notify } from '../../lib/notify';
 import { useRealtime, type SubscriptionChannel } from '../../realtime';
 import type { ConversationDetail, MessageDto, Status } from './inbox-types';
 
-const DRAFT_REQUEST_TIMEOUT_MS = 75_000;
+const DRAFT_REQUEST_TIMEOUT_MS = 60_000;
 
 export interface QueueClaim {
   holderId: string;
@@ -47,8 +47,17 @@ interface QueuePageResponse {
   nextCursor: string | null;
 }
 
+export type QueueActionType =
+  | 'send'
+  | 'takeOver'
+  | 'release'
+  | 'close'
+  | 'reject'
+  | 'note'
+  | 'requestDraft';
+
 export type QueueActionError = {
-  type: 'send' | 'takeOver' | 'release' | 'close' | 'reject' | 'note' | 'requestDraft';
+  type: QueueActionType;
   conversationId: string;
   message: string;
   code: string | null;
@@ -111,6 +120,7 @@ export interface QueueController {
   retrying: boolean;
   retryLoad: () => Promise<void>;
   pending: boolean;
+  pendingAction: QueueActionType | null;
   actionError: QueueActionError;
   clearActionError: () => void;
   draftRequested: Record<string, boolean>;
@@ -133,7 +143,7 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [retrying, setRetrying] = useState(false);
-  const [pending, setPending] = useState(false);
+  const [pendingAction, setPendingAction] = useState<QueueActionType | null>(null);
   const [actionError, setActionError] = useState<QueueActionError>(null);
   const [draftRequested, setDraftRequested] = useState<Record<string, boolean>>({});
   const draftRequestedRef = useRef(draftRequested);
@@ -225,11 +235,11 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
 
   const runAction = useCallback(
     async (
-      type: NonNullable<QueueActionError>['type'],
+      type: QueueActionType,
       id: string,
       fn: () => Promise<void>,
     ): Promise<boolean> => {
-      setPending(true);
+      setPendingAction(type);
       setActionError(null);
       try {
         await fn();
@@ -244,7 +254,7 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
         });
         return false;
       } finally {
-        setPending(false);
+        setPendingAction(null);
       }
     },
     [loadDetail, loadQueue, translateErr],
@@ -348,7 +358,8 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     hasLoadedOnce,
     retrying,
     retryLoad,
-    pending,
+    pending: pendingAction !== null,
+    pendingAction,
     actionError,
     clearActionError,
     draftRequested,

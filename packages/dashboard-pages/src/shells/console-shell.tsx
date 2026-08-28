@@ -3,17 +3,12 @@
 import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
-import { Check, ChevronDown, LogOut, Menu, X } from 'lucide-react';
+import { LogOut, Menu, X } from 'lucide-react';
 import { Sheet, SheetContent, SheetTitle } from '@getmunin/ui';
 import { api } from '../api';
 import { authClient } from '../auth-client';
-import { clearActiveOrgId, setActiveOrgId } from '../auth/active-org';
-import {
-  invalidateActiveMembershipCache,
-  isOwnerOrAdmin,
-  useActiveRole,
-} from '../auth/use-active-role';
-import { notify } from '../lib/notify';
+import { clearActiveOrgId } from '../auth/active-org';
+import { isOwnerOrAdmin, useActiveRole } from '../auth/use-active-role';
 import { Link, usePathname, useRouter } from '../i18n-navigation';
 import { useRealtime, type RealtimeEventRow } from '../realtime';
 import {
@@ -24,27 +19,6 @@ import {
   type ConsoleNavGroup,
 } from '../nav/console-groups';
 import type { InboxQueueResponse } from '../components/dashboard/inbox-types';
-
-interface MembershipRow {
-  orgId: string;
-  name: string;
-  slug: string;
-  role: string;
-  isDefault: boolean;
-}
-
-interface RosterMember {
-  userId: string;
-  name: string | null;
-  email: string;
-  role: string;
-  activeClaimCount: number;
-}
-
-interface RosterResponse {
-  members: RosterMember[];
-  viewer: { userId: string; role: string } | null;
-}
 
 interface ConsoleBadges {
   waiting: number;
@@ -69,9 +43,8 @@ function initialsOf(name: string | null | undefined, fallback: string): string {
   return (two || src.slice(0, 2)).toUpperCase();
 }
 
-function useConsoleData(): { badges: ConsoleBadges; roster: RosterMember[] } {
+function useConsoleData(): { badges: ConsoleBadges } {
   const [badges, setBadges] = useState<ConsoleBadges>(EMPTY_BADGES);
-  const [roster, setRoster] = useState<RosterMember[]>([]);
 
   const load = useCallback(() => {
     void api<InboxQueueResponse>('/v1/inbox')
@@ -86,9 +59,6 @@ function useConsoleData(): { badges: ConsoleBadges; roster: RosterMember[] } {
           learning: res.queue.kb.length,
         }),
       )
-      .catch(() => undefined);
-    void api<RosterResponse>('/v1/orgs/me/roster')
-      .then((res) => setRoster(res.members))
       .catch(() => undefined);
   }, []);
 
@@ -105,7 +75,7 @@ function useConsoleData(): { badges: ConsoleBadges; roster: RosterMember[] } {
   const subscriptions = useMemo(() => [{ channel: 'org' } as const], []);
   useRealtime(subscriptions, onEvent);
 
-  return { badges, roster };
+  return { badges };
 }
 
 function badgeValue(badge: ConsoleBadge | undefined, badges: ConsoleBadges): number {
@@ -113,89 +83,6 @@ function badgeValue(badge: ConsoleBadge | undefined, badges: ConsoleBadges): num
   if (badge === 'queue') return badges.queue;
   if (badge === 'learning') return badges.learning;
   return 0;
-}
-
-function OrgSwitcher({ brand }: { brand: string }) {
-  const t = useTranslations('dashboard.orgSwitcher');
-  const [open, setOpen] = useState(false);
-  const [orgs, setOrgs] = useState<MembershipRow[] | null>(null);
-  const [switching, setSwitching] = useState(false);
-  const [activeOrgName, setActiveOrgName] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open || orgs) return;
-    void api<MembershipRow[]>('/v1/me/memberships')
-      .then((rows) => {
-        setOrgs(rows);
-        setActiveOrgName((current) => current ?? rows.find((r) => r.name === brand)?.name ?? null);
-      })
-      .catch(() => notify.error(t('errors.load')));
-  }, [open, orgs, brand, t]);
-
-  const pick = (org: MembershipRow) => {
-    if (switching) return;
-    setSwitching(true);
-    setActiveOrgId(org.orgId);
-    invalidateActiveMembershipCache();
-    window.location.reload();
-  };
-
-  return (
-    <div className="relative min-w-0">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="flex min-w-0 items-center gap-2 rounded-[4px] border border-transparent px-2.5 py-1.5 text-[13px] font-medium text-ink transition-colors duration-fast ease-munin hover:bg-paper-deep aria-expanded:border-rule-soft aria-expanded:bg-paper-deep dark:text-foreground dark:hover:bg-card dark:aria-expanded:border-rule-on-dark dark:aria-expanded:bg-card"
-      >
-        <span className="truncate">{brand}</span>
-        <ChevronDown
-          aria-hidden
-          className={`size-3.5 shrink-0 transition-transform duration-base ease-munin ${open ? 'rotate-180' : ''}`}
-        />
-      </button>
-      {open ? (
-        <>
-          <button
-            type="button"
-            aria-hidden
-            tabIndex={-1}
-            className="fixed inset-0 z-30 cursor-default"
-            onClick={() => setOpen(false)}
-          />
-          <div className="absolute left-0 top-[calc(100%+8px)] z-40 w-72 border border-ink bg-paper shadow-[0_12px_32px_-12px_rgba(15,20,25,0.18)] dark:border-rule-on-dark dark:bg-card">
-            <div className="border-b border-rule-soft px-3.5 py-2.5 font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute dark:border-rule-on-dark">
-              {orgs ? `${t('yourOrgs')} · ${orgs.length}` : t('loading')}
-            </div>
-            {orgs?.map((org) => {
-              const current = org.name === (activeOrgName ?? brand);
-              return (
-                <button
-                  key={org.orgId}
-                  type="button"
-                  onClick={() => pick(org)}
-                  className="flex w-full items-center gap-2.5 border-b border-rule-soft px-3.5 py-2.5 text-left transition-colors duration-fast ease-munin last:border-b-0 hover:bg-paper-deep dark:border-rule-on-dark dark:hover:bg-secondary"
-                >
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-[4px] bg-cobalt font-serif text-xs leading-none text-paper">
-                    {org.name.slice(0, 1).toUpperCase()}
-                  </span>
-                  <span
-                    className={`min-w-0 flex-1 truncate text-[13px] font-medium ${current ? 'text-cobalt dark:text-cobalt-soft' : 'text-ink dark:text-foreground'}`}
-                  >
-                    {org.name}
-                    {switching && current ? t('switching') : ''}
-                  </span>
-                  {current ? (
-                    <Check aria-hidden className="size-4 shrink-0 text-cobalt dark:text-cobalt-soft" />
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-        </>
-      ) : null}
-    </div>
-  );
 }
 
 function NavList({
@@ -263,38 +150,6 @@ function NavList({
   );
 }
 
-function OnDutyCard({ roster, viewerUserId }: { roster: RosterMember[]; viewerUserId: string | null }) {
-  const t = useTranslations('dashboard.console.onDuty');
-  if (roster.length === 0) return null;
-  return (
-    <div className="mx-5 mb-5 flex flex-col gap-3 border border-rule-soft bg-paper p-3.5 dark:border-rule-on-dark dark:bg-card">
-      <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-        {t('title')}
-      </span>
-      <div className="flex flex-col gap-2.5">
-        {roster.slice(0, 5).map((member) => {
-          const isYou = member.userId === viewerUserId;
-          return (
-            <span key={member.userId} className="flex items-center gap-2.5">
-              <span
-                className={`flex size-[22px] shrink-0 items-center justify-center rounded-full font-mono text-[8px] text-paper ${isYou ? 'bg-cobalt' : 'bg-ink dark:bg-foreground dark:text-background'}`}
-              >
-                {initialsOf(member.name, member.email)}
-              </span>
-              <span className="min-w-0 truncate text-[12.5px] text-ink-soft dark:text-foreground/80">
-                {isYou ? t('you', { name: member.name ?? member.email }) : (member.name ?? member.email)}
-              </span>
-              <span className="ml-auto whitespace-nowrap font-mono text-[9px] uppercase tracking-meta text-ink-mute">
-                {t('claimed', { count: member.activeClaimCount })}
-              </span>
-            </span>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 export interface ConsoleShellProps {
   brand: string;
   logoSrc?: string;
@@ -309,7 +164,7 @@ export function ConsoleShell({ brand, logoSrc = '/munin-logo.png', headSlot, chi
   const router = useRouter();
   const { data: session } = authClient.useSession();
   const { role, loading: roleLoading } = useActiveRole();
-  const { badges, roster } = useConsoleData();
+  const { badges } = useConsoleData();
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -326,7 +181,6 @@ export function ConsoleShell({ brand, logoSrc = '/munin-logo.png', headSlot, chi
   const activeItem = groups
     .flatMap((g) => g.items)
     .find((item) => isConsoleItemActive(pathname, item.href));
-  const viewerUserId = session?.user?.id ?? null;
 
   const signOut = () => {
     void (async () => {
@@ -341,13 +195,14 @@ export function ConsoleShell({ brand, logoSrc = '/munin-logo.png', headSlot, chi
       <aside className="hidden min-h-0 flex-col border-r border-ink bg-bone md:flex dark:border-rule-on-dark dark:bg-secondary">
         <div className="flex items-center gap-3 px-5 pb-4 pt-5">
           <Image src={logoSrc} alt="" aria-hidden width={44} height={44} className="block size-11 object-contain" />
-          <OrgSwitcher brand={brand} />
+          <span className="min-w-0 truncate text-[15px] font-medium text-ink dark:text-foreground">
+            {brand}
+          </span>
         </div>
         {headSlot}
         <div className="min-h-0 flex-1 overflow-y-auto py-3">
           <NavList groups={groups} badges={badges} />
         </div>
-        <OnDutyCard roster={roster} viewerUserId={viewerUserId} />
       </aside>
 
       <div className="flex min-h-0 min-w-0 flex-col">

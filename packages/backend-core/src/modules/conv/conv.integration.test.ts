@@ -304,12 +304,12 @@ const skipReason = TEST_URL
       const detail = parseToolResult<Detail>(
         await c.callTool({ name: 'conv_get_conversation', arguments: { id: conv.id } }),
       );
-      const systemNotes = detail.messages.filter(
-        (m) => m.authorType === 'system' && /handover/i.test(m.body),
+      const handoverNotes = detail.messages.filter(
+        (m) => m.internal && /handover/i.test(m.body),
       );
-      expect(systemNotes).toHaveLength(1);
-      expect(systemNotes[0]!.internal).toBe(true);
-      expect(systemNotes[0]!.body).toMatch(/refund outside policy/);
+      expect(handoverNotes).toHaveLength(1);
+      expect(handoverNotes[0]!.authorType).toBe('agent');
+      expect(handoverNotes[0]!.body).toMatch(/refund outside policy/);
       return result;
     });
 
@@ -318,8 +318,8 @@ const skipReason = TEST_URL
       'GET',
       `/v1/end-users/me/conversations/${conv.id}`,
     );
-    const systemNotes = endUserDetail.body.messages.filter((m) => m.authorType === 'system');
-    expect(systemNotes).toHaveLength(0);
+    const leakedNotes = endUserDetail.body.messages.filter((m) => /handover/i.test(m.body));
+    expect(leakedNotes).toHaveLength(0);
 
     await withClient(adminKey, async (c) => {
       const list = parseToolResult<Summary[]>(

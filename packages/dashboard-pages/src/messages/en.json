@@ -186,6 +186,8 @@
     "skills": "Skills",
     "suggestions": "Suggestions",
     "partner": "Partner",
+    "automation": "Automation",
+    "learning": "Learning",
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
     "organization": "Organization",
@@ -1213,6 +1215,18 @@
       "tableCorrelation": "Correlation",
       "errors": {
         "load": "Could not load audit log."
+      }
+    },
+    "console": {
+      "groups": {
+        "admin": "Admin",
+        "oversight": "Oversight",
+        "workspace": "Workspace"
+      },
+      "onDuty": {
+        "title": "On duty now",
+        "you": "{name} (you)",
+        "claimed": "{count} claimed"
       }
     },
     "orgSwitcher": {

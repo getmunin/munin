@@ -186,6 +186,8 @@
     "skills": "Ferdigheter",
     "suggestions": "Forslag",
     "partner": "Partner",
+    "automation": "Automatisering",
+    "learning": "Læring",
     "openMenu": "Åpne meny",
     "closeMenu": "Lukk meny",
     "organization": "Organisasjon",
@@ -1213,6 +1215,18 @@
       "tableCorrelation": "Korrelasjon",
       "errors": {
         "load": "Kunne ikke laste hendelseslogg."
+      }
+    },
+    "console": {
+      "groups": {
+        "admin": "Admin",
+        "oversight": "Drift",
+        "workspace": "Arbeidsområde"
+      },
+      "onDuty": {
+        "title": "På vakt nå",
+        "you": "{name} (deg)",
+        "claimed": "har {count}"
       }
     },
     "orgSwitcher": {

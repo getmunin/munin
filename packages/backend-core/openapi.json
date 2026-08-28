@@ -8885,6 +8885,20 @@
               "minLength": 1,
               "maxLength": 64
             }
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "toolNames": {
+            "maxItems": 24,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
           }
         },
         "required": [

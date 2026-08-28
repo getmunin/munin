@@ -1688,6 +1688,8 @@ export class ConvService {
     conversationId: string;
     body: string;
     retrievedDocumentIds?: string[];
+    rationale?: string;
+    toolNames?: string[];
   }): Promise<{ id: string }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -1713,6 +1715,8 @@ export class ConvService {
           ...(input.retrievedDocumentIds?.length
             ? { retrievedDocumentIds: input.retrievedDocumentIds }
             : {}),
+          ...(input.rationale ? { rationale: input.rationale } : {}),
+          ...(input.toolNames?.length ? { toolNames: input.toolNames } : {}),
         },
       })
       .returning({ id: schema.convMessages.id });

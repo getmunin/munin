@@ -99,6 +99,7 @@ export {
   type KbDocumentChangedBusEvent,
   type HandoverResolvedBusEvent,
   type CuratorJobPendingBusEvent,
+  type DraftRequestedBusEvent,
   type GreetRequestedBusEvent,
   type AgentConfigChangedBusEvent,
   type AgentTypingBusEvent,

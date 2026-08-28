@@ -26,8 +26,11 @@ export interface AuditConversationArgs {
 }
 
 export interface AuditVerdict {
+  rationale: string | null;
   actions: AuditAction[];
 }
+
+const MAX_RATIONALE_CHARS = 1000;
 
 const ACTION_GUIDE = `Possible actions you can recommend (zero or more):
 
@@ -60,9 +63,11 @@ const ACTION_GUIDE = `Possible actions you can recommend (zero or more):
 
 const SYSTEM_PROMPT_HEAD = `You audit a self-service AI agent's turn in a customer-support conversation. Decide which (if any) follow-up actions the runtime should take. Return JSON only:
 
-{"actions": [...]}
+{"rationale": "...", "actions": [...]}
 
-Each entry in \`actions\` is one of the action shapes below. Multiple actions can apply (e.g. "set_topic" + "close_conversation"). If no action is needed, return {"actions": []}.
+\`rationale\` is one or two plain sentences written for the human reviewer who decides whether the reply goes out: state what the reply asserts and what grounds it (facts the tools returned, knowledge-base material, or note when it rests on nothing verifiable). Do not address the customer and do not restate the reply.
+
+Each entry in \`actions\` is one of the action shapes below. Multiple actions can apply (e.g. "set_topic" + "close_conversation"). If no action is needed, return an empty \`actions\` array.
 
 `;
 
@@ -95,7 +100,7 @@ export async function auditConversation(args: AuditConversationArgs): Promise<Au
       abortSignal: args.abortSignal,
     });
   } catch {
-    return { actions: [] };
+    return { rationale: null, actions: [] };
   }
 
   return parseVerdict(response.message.content ?? '', args.topicCatalog);
@@ -143,13 +148,13 @@ function truncate(s: string, max: number): string {
 
 function parseVerdict(raw: string, topicCatalog: AuditTopic[] | undefined): AuditVerdict {
   const trimmed = raw.trim();
-  if (!trimmed) return { actions: [] };
+  if (!trimmed) return { rationale: null, actions: [] };
   const candidates = [trimmed, extractFirstJsonObject(trimmed)].filter(
     (s): s is string => typeof s === 'string',
   );
   for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(candidate) as { actions?: unknown };
+      const parsed = JSON.parse(candidate) as { rationale?: unknown; actions?: unknown };
       if (!Array.isArray(parsed.actions)) continue;
       const known = new Set(topicCatalog?.map((t) => t.slug) ?? []);
       const actions: AuditAction[] = [];
@@ -157,12 +162,19 @@ function parseVerdict(raw: string, topicCatalog: AuditTopic[] | undefined): Audi
         const action = normaliseAction(raw, known);
         if (action) actions.push(action);
       }
-      return { actions };
+      return { rationale: normaliseRationale(parsed.rationale), actions };
     } catch {
       continue;
     }
   }
-  return { actions: [] };
+  return { rationale: null, actions: [] };
+}
+
+function normaliseRationale(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  return truncate(trimmed, MAX_RATIONALE_CHARS);
 }
 
 function normaliseAction(raw: unknown, knownTopicSlugs: Set<string>): AuditAction | null {

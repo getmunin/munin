@@ -418,7 +418,7 @@ export class ConvService {
     needsHumanAttention?: boolean;
     handover?: HandoverFilter;
     since?: string;
-    cursor?: { lastMessageAt: string | null; id: string };
+    cursor?: { lastMessageAt: string | null; id: string; needsHumanAttention?: boolean };
   }): SQL[] {
     const filters: SQL[] = [];
     if (input.status) filters.push(eq(schema.convConversations.status, input.status));
@@ -447,14 +447,16 @@ export class ConvService {
       filters.push(gte(schema.convConversations.lastMessageAt, since));
     }
     if (input.cursor) {
-      const { lastMessageAt, id } = input.cursor;
-      if (lastMessageAt === null) {
-        filters.push(
-          sql`((${schema.convConversations.lastMessageAt} IS NULL AND ${schema.convConversations.id} < ${id}) OR ${schema.convConversations.lastMessageAt} IS NOT NULL)`,
-        );
+      const { lastMessageAt, id, needsHumanAttention } = input.cursor;
+      const activityTail =
+        lastMessageAt === null
+          ? sql`((${schema.convConversations.lastMessageAt} IS NULL AND ${schema.convConversations.id} < ${id}) OR ${schema.convConversations.lastMessageAt} IS NOT NULL)`
+          : sql`(${schema.convConversations.lastMessageAt} IS NOT NULL AND (${schema.convConversations.lastMessageAt}, ${schema.convConversations.id}) < (${new Date(lastMessageAt).toISOString()}::timestamptz, ${id}))`;
+      if (needsHumanAttention === undefined) {
+        filters.push(activityTail);
       } else {
         filters.push(
-          sql`${schema.convConversations.lastMessageAt} IS NOT NULL AND (${schema.convConversations.lastMessageAt}, ${schema.convConversations.id}) < (${new Date(lastMessageAt).toISOString()}::timestamptz, ${id})`,
+          sql`(${schema.convConversations.needsHumanAttention} < ${needsHumanAttention} OR (${schema.convConversations.needsHumanAttention} = ${needsHumanAttention} AND ${activityTail}))`,
         );
       }
     }
@@ -482,8 +484,11 @@ export class ConvService {
     handover?: HandoverFilter;
     since?: string;
     limit?: number;
-    cursor?: { lastMessageAt: string | null; id: string };
-  }): Promise<{ items: ConversationSummary[]; nextCursor: { lastMessageAt: string | null; id: string } | null }> {
+    cursor?: { lastMessageAt: string | null; id: string; needsHumanAttention?: boolean };
+  }): Promise<{
+    items: ConversationSummary[];
+    nextCursor: { lastMessageAt: string | null; id: string; needsHumanAttention: boolean } | null;
+  }> {
     const ctx = getCurrentContext();
     const limit = clampLimit(input.limit, 50, 200);
     const filters = this.buildConversationListFilters(input);
@@ -498,7 +503,7 @@ export class ConvService {
       .orderBy(
         desc(schema.convConversations.needsHumanAttention),
         desc(schema.convConversations.lastMessageAt),
-        desc(schema.convConversations.createdAt),
+        desc(schema.convConversations.id),
       )
       .limit(limit + 1);
 
@@ -507,7 +512,13 @@ export class ConvService {
       .map((row) => toConversationSummary(row.conv, undefined, row.lastInboundPreview));
     const last = items[items.length - 1];
     const nextCursor =
-      rows.length > limit && last ? { lastMessageAt: last.lastMessageAt, id: last.id } : null;
+      rows.length > limit && last
+        ? {
+            lastMessageAt: last.lastMessageAt,
+            id: last.id,
+            needsHumanAttention: last.needsHumanAttention,
+          }
+        : null;
     return { items, nextCursor };
   }
 
@@ -521,11 +532,16 @@ export class ConvService {
     handover?: HandoverFilter;
     since?: string;
     limit?: number;
-    cursor?: { lastMessageAt: string | null; id: string };
+    cursor?: { lastMessageAt: string | null; id: string; needsHumanAttention?: boolean };
   }): Promise<{ items: ConversationQueueItem[]; nextCursor: { lastMessageAt: string | null; id: string } | null }> {
     const ctx = getCurrentContext();
     const limit = clampLimit(input.limit, 50, 200);
-    const filters = this.buildConversationListFilters(input);
+    const filters = this.buildConversationListFilters({
+      ...input,
+      cursor: input.cursor
+        ? { lastMessageAt: input.cursor.lastMessageAt, id: input.cursor.id }
+        : undefined,
+    });
 
     const rows = await ctx.db
       .select({

@@ -34,6 +34,7 @@ import {
   AGENT_MODES,
   HandoverActiveError,
   STATUSES,
+  type ConversationStatus,
   type ConversationDetail,
   type ConversationQueueItem,
   type ConversationSummary,
@@ -155,20 +156,9 @@ export class ConversationsController {
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ): Promise<ConversationListResponse> {
-    const parsedStatus = status ? StatusSchema.safeParse(status) : null;
-    if (parsedStatus && !parsedStatus.success) {
-      throw new BadRequestException(`invalid status: ${status}`);
-    }
-    const decodedCursor = cursor ? decodeListCursor(cursor) : undefined;
+    const query = parseListQuery({ status, needsHumanAttention, cursor, limit });
     const page = await translate(() =>
-      this.conv.listConversationsPage({
-        status: parsedStatus?.success ? parsedStatus.data : undefined,
-        assigneeUserId,
-        topicId,
-        needsHumanAttention: parseBool(needsHumanAttention),
-        limit: parseLimit(limit),
-        cursor: decodedCursor,
-      }),
+      this.conv.listConversationsPage({ ...query, assigneeUserId, topicId }),
     );
     return {
       items: page.items,
@@ -185,20 +175,9 @@ export class ConversationsController {
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ): Promise<ConversationQueueResponse> {
-    const parsedStatus = status ? StatusSchema.safeParse(status) : null;
-    if (parsedStatus && !parsedStatus.success) {
-      throw new BadRequestException(`invalid status: ${status}`);
-    }
-    const decodedCursor = cursor ? decodeListCursor(cursor) : undefined;
+    const query = parseListQuery({ status, needsHumanAttention, cursor, limit });
     const page = await translate(() =>
-      this.conv.listConversationQueuePage({
-        status: parsedStatus?.success ? parsedStatus.data : undefined,
-        assigneeUserId,
-        topicId,
-        needsHumanAttention: parseBool(needsHumanAttention),
-        limit: parseLimit(limit),
-        cursor: decodedCursor,
-      }),
+      this.conv.listConversationQueuePage({ ...query, assigneeUserId, topicId }),
     );
     return {
       items: page.items,
@@ -450,15 +429,50 @@ function encodeListCursor(c: { lastMessageAt: string | null; id: string }): stri
   return Buffer.from(JSON.stringify(c)).toString('base64url');
 }
 
-function decodeListCursor(raw: string): { lastMessageAt: string | null; id: string } | undefined {
+interface ListCursor {
+  lastMessageAt: string | null;
+  id: string;
+  needsHumanAttention?: boolean;
+}
+
+function decodeListCursor(raw: string): ListCursor | undefined {
   try {
     const parsed: unknown = JSON.parse(Buffer.from(raw, 'base64url').toString());
     if (!parsed || typeof parsed !== 'object') return undefined;
-    const candidate = parsed as { id?: unknown; lastMessageAt?: unknown };
+    const candidate = parsed as { id?: unknown; lastMessageAt?: unknown; needsHumanAttention?: unknown };
     if (typeof candidate.id !== 'string') return undefined;
     if (candidate.lastMessageAt !== null && typeof candidate.lastMessageAt !== 'string') return undefined;
-    return { lastMessageAt: candidate.lastMessageAt, id: candidate.id };
+    return {
+      lastMessageAt: candidate.lastMessageAt,
+      id: candidate.id,
+      ...(typeof candidate.needsHumanAttention === 'boolean'
+        ? { needsHumanAttention: candidate.needsHumanAttention }
+        : {}),
+    };
   } catch {
     return undefined;
   }
+}
+
+function parseListQuery(input: {
+  status?: string;
+  needsHumanAttention?: string;
+  cursor?: string;
+  limit?: string;
+}): {
+  status: ConversationStatus | undefined;
+  needsHumanAttention: boolean | undefined;
+  cursor: ListCursor | undefined;
+  limit: number | undefined;
+} {
+  const parsedStatus = input.status ? StatusSchema.safeParse(input.status) : null;
+  if (parsedStatus && !parsedStatus.success) {
+    throw new BadRequestException(`conv_invalid: invalid status: ${input.status}`);
+  }
+  return {
+    status: parsedStatus?.success ? parsedStatus.data : undefined,
+    needsHumanAttention: parseBool(input.needsHumanAttention),
+    cursor: input.cursor ? decodeListCursor(input.cursor) : undefined,
+    limit: parseLimit(input.limit),
+  };
 }

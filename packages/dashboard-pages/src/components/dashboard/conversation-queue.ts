@@ -99,6 +99,7 @@ export function pendingDraftOf(detail: ConversationDetail | undefined): MessageD
 export interface QueueController {
   open: QueueItemDto[];
   finished: QueueItemDto[];
+  selectedId: string | null;
   details: Record<string, ConversationDetail>;
   loadError: ApiError | null;
   hasLoadedOnce: boolean;
@@ -117,10 +118,11 @@ export interface QueueController {
   requestDraft: (id: string) => Promise<void>;
 }
 
-export function useConversationQueue(selectedId: string | null): QueueController {
+export function useConversationQueue(routeSelectedId: string | null): QueueController {
   const translateErr = useTranslateError();
   const [open, setOpen] = useState<QueueItemDto[]>([]);
   const [finished, setFinished] = useState<QueueItemDto[]>([]);
+  const selectedId = routeSelectedId ?? open[0]?.id ?? finished[0]?.id ?? null;
   const [details, setDetails] = useState<Record<string, ConversationDetail>>({});
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -322,6 +324,7 @@ export function useConversationQueue(selectedId: string | null): QueueController
   return {
     open,
     finished,
+    selectedId,
     details,
     loadError,
     hasLoadedOnce,

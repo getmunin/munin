@@ -185,13 +185,14 @@ function buildClient(opts: BuildOptions): MuninRestClient {
 
     async requestHandover(
       conversationId: string,
-      input: { reason?: string; publicFallbackMessage?: string },
+      input: { reason?: string; publicFallbackMessage?: string; postSystemNote?: boolean },
     ): Promise<void> {
       await audited('runner:requestHandover', async () => {
         await opts.conv.requestHandover({
           conversationId,
           reason: input.reason,
           publicFallbackMessage: input.publicFallbackMessage,
+          postSystemNote: input.postSystemNote,
         });
       });
     },

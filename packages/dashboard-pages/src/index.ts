@@ -122,6 +122,7 @@ export { EndUsersPage } from './pages/end-users';
 export { DashboardPage } from './pages/overview';
 export { ConversationsPage } from './pages/conversations';
 export { AutomationPage } from './pages/automation';
+export { LearningPage } from './pages/learning';
 export { TeamPage } from './pages/team';
 export { UsagePage } from './pages/usage';
 export { ActivityPage } from './pages/activity';

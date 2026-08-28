@@ -144,6 +144,7 @@ const skipReason = TEST_URL
     expect(createSubSpy).toHaveBeenCalledWith({
       apiKey: API_KEY,
       accountId: ACCOUNT_ID,
+      workerId: WORKER_ID,
       url: `https://munin.example/v1/conversations/channels/${pending!.id}/webhook`,
     });
 
@@ -165,6 +166,7 @@ const skipReason = TEST_URL
     expect(createSubSpy).toHaveBeenCalledWith({
       apiKey: API_KEY,
       accountId: ACCOUNT_ID,
+      workerId: WORKER_ID,
       url: `https://munin.example/v1/conversations/channels/${channelId}/webhook`,
     });
     const rows = await db
@@ -181,7 +183,13 @@ const skipReason = TEST_URL
     listSubsSpy.mockResolvedValueOnce({
       ok: true,
       subscriptions: [
-        { id: 'sub_other', url: 'https://elsewhere.example/hook', eventType: '*', signingSecret: 'nope' },
+        {
+          id: 'sub_other',
+          url: 'https://elsewhere.example/hook',
+          eventType: '*',
+          workerId: 'wrk_other',
+          signingSecret: 'nope',
+        },
       ],
     });
     const before = createSubSpy.mock.calls.length;
@@ -193,8 +201,95 @@ const skipReason = TEST_URL
         config: { apiKey: API_KEY, accountId: ACCOUNT_ID, workerId: WORKER_ID },
       }),
     );
-    expect(listSubsSpy).toHaveBeenCalled();
+    expect(listSubsSpy).toHaveBeenCalledWith({
+      apiKey: API_KEY,
+      accountId: ACCOUNT_ID,
+      workerId: WORKER_ID,
+    });
     expect(createSubSpy.mock.calls.length).toBe(before + 1);
+  });
+
+  it('leaves an account-wide subscription alone and scopes its own to the selected worker', async () => {
+    listSubsSpy.mockResolvedValueOnce({
+      ok: true,
+      subscriptions: [
+        {
+          id: 'sub_account_wide',
+          url: 'https://customer.example/hook',
+          eventType: '*',
+          workerId: null,
+          enabled: true,
+          signingSecret: null,
+        },
+      ],
+    });
+    const deleteSpy = vi.spyOn(client, 'deleteWebhookSubscription').mockResolvedValue({ ok: true });
+    const before = createSubSpy.mock.calls.length;
+    const svc = app.get(ThrellService);
+    const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
+    const channel = await runAsActor(actor, () =>
+      svc.createChannel({
+        name: 'Threll alongside account hook',
+        config: { apiKey: API_KEY, accountId: ACCOUNT_ID, workerId: WORKER_ID },
+      }),
+    );
+    expect(deleteSpy).not.toHaveBeenCalled();
+    expect(createSubSpy.mock.calls.length).toBe(before + 1);
+    expect(createSubSpy.mock.calls.at(-1)?.[0]).toMatchObject({ workerId: WORKER_ID });
+    expect(channel.id).toBeTruthy();
+    deleteSpy.mockRestore();
+  });
+
+  it('re-registers the subscription on the new worker when the channel is pointed elsewhere', async () => {
+    const svc = app.get(ThrellService);
+    const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
+    const created = await runAsActor(actor, () =>
+      svc.createChannel({
+        name: 'Threll worker switch',
+        config: { apiKey: API_KEY, accountId: ACCOUNT_ID, workerId: WORKER_ID },
+      }),
+    );
+    const webhookUrl = `https://munin.example/v1/conversations/channels/${created.id}/webhook`;
+    const deleteSpy = vi.spyOn(client, 'deleteWebhookSubscription').mockResolvedValue({ ok: true });
+    listSubsSpy
+      .mockResolvedValueOnce({ ok: true, subscriptions: [] })
+      .mockResolvedValueOnce({
+        ok: true,
+        subscriptions: [
+          {
+            id: 'sub_old_worker',
+            url: webhookUrl,
+            eventType: '*',
+            workerId: WORKER_ID,
+            enabled: true,
+            signingSecret: null,
+          },
+        ],
+      });
+    createSubSpy.mockResolvedValueOnce({ ok: true, signingSecret: 'whsec_after_switch' });
+
+    await runAsActor(actor, () =>
+      svc.updateChannel({ channelId: created.id, config: { workerId: 'wrk_test_0002' } }),
+    );
+
+    expect(createSubSpy.mock.calls.at(-1)?.[0]).toMatchObject({
+      workerId: 'wrk_test_0002',
+      url: webhookUrl,
+    });
+    expect(deleteSpy).toHaveBeenCalledWith({
+      apiKey: API_KEY,
+      accountId: ACCOUNT_ID,
+      subscriptionId: 'sub_old_worker',
+    });
+    const [row] = await db
+      .select({ config: schema.convChannels.config })
+      .from(schema.convChannels)
+      .where(eq(schema.convChannels.id, created.id))
+      .limit(1);
+    const config = row!.config as Record<string, string>;
+    expect(config.workerId).toBe('wrk_test_0002');
+    expect(await client.loadSecret(config.encryptedWebhookSecret!)).toBe('whsec_after_switch');
+    deleteSpy.mockRestore();
   });
 
   it('discovers workers via the generic listOptions path without persisting a channel', async () => {
@@ -227,11 +322,18 @@ const skipReason = TEST_URL
     expect(after.length).toBe(before.length);
   });
 
-  it('returns a 409 webhook_conflict when an enabled account-wide subscription already exists', async () => {
+  it('returns a 409 webhook_conflict when the selected worker already has a subscription elsewhere', async () => {
     listSubsSpy.mockResolvedValueOnce({
       ok: true,
       subscriptions: [
-        { id: 'sub_other', url: 'https://other.example/hook', eventType: '*', enabled: true, signingSecret: 'x' },
+        {
+          id: 'sub_other',
+          url: 'https://other.example/hook',
+          eventType: '*',
+          workerId: WORKER_ID,
+          enabled: true,
+          signingSecret: 'x',
+        },
       ],
     });
     const deleteSpy = vi.spyOn(client, 'deleteWebhookSubscription').mockResolvedValue({ ok: true });
@@ -260,7 +362,14 @@ const skipReason = TEST_URL
     listSubsSpy.mockResolvedValueOnce({
       ok: true,
       subscriptions: [
-        { id: 'sub_stale', url: 'https://other.example/hook', eventType: '*', enabled: true, signingSecret: 'x' },
+        {
+          id: 'sub_stale',
+          url: 'https://other.example/hook',
+          eventType: '*',
+          workerId: WORKER_ID,
+          enabled: true,
+          signingSecret: 'x',
+        },
       ],
     });
     const deleteSpy = vi
@@ -798,12 +907,21 @@ const skipReason = TEST_URL
 describe('findReusableSigningSecret', () => {
   const url = 'https://munin.example/v1/conversations/channels/cch_x/webhook';
 
+  const worker = 'wrk_test_0001';
+
   it('returns the signing secret of a subscription with the exact url', () => {
     expect(
       findReusableSigningSecret(
         [
-          { id: 'a', url: 'https://munin.example/other', eventType: '*', enabled: true, signingSecret: 'nope' },
-          { id: 'b', url, eventType: '*', enabled: true, signingSecret: 'whsec_reused' },
+          {
+            id: 'a',
+            url: 'https://munin.example/other',
+            eventType: '*',
+            workerId: worker,
+            enabled: true,
+            signingSecret: 'nope',
+          },
+          { id: 'b', url, eventType: '*', workerId: worker, enabled: true, signingSecret: 'whsec_reused' },
         ],
         url,
       ),
@@ -813,7 +931,16 @@ describe('findReusableSigningSecret', () => {
   it('returns null when no url matches', () => {
     expect(
       findReusableSigningSecret(
-        [{ id: 'a', url: 'https://munin.example/other', eventType: '*', enabled: true, signingSecret: 'x' }],
+        [
+          {
+            id: 'a',
+            url: 'https://munin.example/other',
+            eventType: '*',
+            workerId: worker,
+            enabled: true,
+            signingSecret: 'x',
+          },
+        ],
         url,
       ),
     ).toBeNull();
@@ -821,7 +948,10 @@ describe('findReusableSigningSecret', () => {
 
   it('returns null when the matching subscription has no signing secret', () => {
     expect(
-      findReusableSigningSecret([{ id: 'a', url, eventType: '*', enabled: true, signingSecret: null }], url),
+      findReusableSigningSecret(
+        [{ id: 'a', url, eventType: '*', workerId: worker, enabled: true, signingSecret: null }],
+        url,
+      ),
     ).toBeNull();
   });
 });

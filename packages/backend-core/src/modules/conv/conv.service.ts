@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, sameAfterNormalizing, WebhookDispatcher } from '@getmunin/core';
 import type { MessageComponent } from '@getmunin/types';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
@@ -145,6 +145,17 @@ export interface ConversationSummary {
   voiceActive: boolean;
   updatedAt: string;
   createdAt: string;
+}
+
+export interface ConversationQueueItem extends ConversationSummary {
+  channelType: string;
+  customerName: string | null;
+  customerEmail: string | null;
+  topicName: string | null;
+  topicSlug: string | null;
+  claim: { holderId: string; holderName: string | null; expiresAt: string } | null;
+  noteCount: number;
+  hasPendingDraft: boolean;
 }
 
 export interface ConversationDetail extends ConversationSummary {
@@ -397,7 +408,7 @@ export class ConvService {
     return page.items;
   }
 
-  async listConversationsPage(input: {
+  private buildConversationListFilters(input: {
     status?: ConversationStatus;
     excludeStatuses?: readonly ConversationStatus[];
     assigneeUserId?: string;
@@ -406,11 +417,8 @@ export class ConvService {
     needsHumanAttention?: boolean;
     handover?: HandoverFilter;
     since?: string;
-    limit?: number;
     cursor?: { lastMessageAt: string | null; id: string };
-  }): Promise<{ items: ConversationSummary[]; nextCursor: { lastMessageAt: string | null; id: string } | null }> {
-    const ctx = getCurrentContext();
-    const limit = clampLimit(input.limit, 50, 200);
+  }): SQL[] {
     const filters: SQL[] = [];
     if (input.status) filters.push(eq(schema.convConversations.status, input.status));
     if (input.excludeStatuses && input.excludeStatuses.length > 0) {
@@ -447,6 +455,24 @@ export class ConvService {
         );
       }
     }
+    return filters;
+  }
+
+  async listConversationsPage(input: {
+    status?: ConversationStatus;
+    excludeStatuses?: readonly ConversationStatus[];
+    assigneeUserId?: string;
+    topicId?: string;
+    endUserId?: string;
+    needsHumanAttention?: boolean;
+    handover?: HandoverFilter;
+    since?: string;
+    limit?: number;
+    cursor?: { lastMessageAt: string | null; id: string };
+  }): Promise<{ items: ConversationSummary[]; nextCursor: { lastMessageAt: string | null; id: string } | null }> {
+    const ctx = getCurrentContext();
+    const limit = clampLimit(input.limit, 50, 200);
+    const filters = this.buildConversationListFilters(input);
 
     const rows = await ctx.db
       .select({
@@ -472,6 +498,137 @@ export class ConvService {
     const items = rows
       .slice(0, limit)
       .map((row) => toConversationSummary(row.conv, undefined, row.lastInboundPreview));
+    const last = items[items.length - 1];
+    const nextCursor =
+      rows.length > limit && last ? { lastMessageAt: last.lastMessageAt, id: last.id } : null;
+    return { items, nextCursor };
+  }
+
+  async listConversationQueuePage(input: {
+    status?: ConversationStatus;
+    excludeStatuses?: readonly ConversationStatus[];
+    assigneeUserId?: string;
+    topicId?: string;
+    endUserId?: string;
+    needsHumanAttention?: boolean;
+    handover?: HandoverFilter;
+    since?: string;
+    limit?: number;
+    cursor?: { lastMessageAt: string | null; id: string };
+  }): Promise<{ items: ConversationQueueItem[]; nextCursor: { lastMessageAt: string | null; id: string } | null }> {
+    const ctx = getCurrentContext();
+    const limit = clampLimit(input.limit, 50, 200);
+    const filters = this.buildConversationListFilters(input);
+
+    const rows = await ctx.db
+      .select({
+        conv: schema.convConversations,
+        lastInboundPreview: sql<string | null>`(
+          SELECT body FROM conv_messages
+          WHERE conversation_id = "conv_conversations"."id"
+            AND author_type = 'end_user'
+            AND internal = false
+          ORDER BY created_at DESC
+          LIMIT 1
+        )`,
+        channelType: schema.convChannels.type,
+        contactName: schema.convContacts.name,
+        contactEmail: schema.convContacts.email,
+        endUserName: schema.endUsers.name,
+        endUserEmail: schema.endUsers.email,
+        topicName: schema.convTopics.name,
+        topicSlug: schema.convTopics.slug,
+      })
+      .from(schema.convConversations)
+      .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.convConversations.channelId))
+      .leftJoin(schema.convContacts, eq(schema.convContacts.id, schema.convConversations.contactId))
+      .leftJoin(schema.endUsers, eq(schema.endUsers.id, schema.convConversations.endUserId))
+      .leftJoin(schema.convTopics, eq(schema.convTopics.id, schema.convConversations.topicId))
+      .where(filters.length === 0 ? undefined : and(...filters))
+      .orderBy(
+        desc(schema.convConversations.needsHumanAttention),
+        desc(schema.convConversations.lastMessageAt),
+        desc(schema.convConversations.createdAt),
+      )
+      .limit(limit + 1);
+
+    const page = rows.slice(0, limit);
+    const pageIds = page.map((r) => r.conv.id);
+
+    const claimByConversation = new Map<
+      string,
+      { holderId: string; holderName: string | null; expiresAt: string }
+    >();
+    const statsByConversation = new Map<string, { noteCount: number; pendingDrafts: number }>();
+    if (pageIds.length > 0) {
+      const claimRows = await ctx.db
+        .select({
+          entityId: schema.claims.entityId,
+          userId: schema.claims.userId,
+          holderName: schema.users.name,
+          expiresAt: schema.claims.expiresAt,
+          createdAt: schema.claims.createdAt,
+        })
+        .from(schema.claims)
+        .leftJoin(schema.users, eq(schema.users.id, schema.claims.userId))
+        .where(
+          and(
+            eq(schema.claims.entityType, 'conversation'),
+            inArray(schema.claims.entityId, pageIds),
+            sql`${schema.claims.expiresAt} > now()`,
+          ),
+        )
+        .orderBy(desc(schema.claims.createdAt));
+      for (const row of claimRows) {
+        if (!row.userId || claimByConversation.has(row.entityId)) continue;
+        claimByConversation.set(row.entityId, {
+          holderId: row.userId,
+          holderName: row.holderName,
+          expiresAt: row.expiresAt.toISOString(),
+        });
+      }
+
+      const statRows = await ctx.db
+        .select({
+          conversationId: schema.convMessages.conversationId,
+          noteCount: sql<number>`COUNT(*) FILTER (
+            WHERE ${schema.convMessages.authorType} IN ('user', 'agent')
+              AND COALESCE(${schema.convMessages.metadata} ->> 'kind', '') NOT LIKE 'draft_reply%'
+          )::int`,
+          pendingDrafts: sql<number>`COUNT(*) FILTER (
+            WHERE ${schema.convMessages.metadata} ->> 'kind' = 'draft_reply'
+          )::int`,
+        })
+        .from(schema.convMessages)
+        .where(
+          and(
+            inArray(schema.convMessages.conversationId, pageIds),
+            eq(schema.convMessages.internal, true),
+          ),
+        )
+        .groupBy(schema.convMessages.conversationId);
+      for (const row of statRows) {
+        statsByConversation.set(row.conversationId, {
+          noteCount: row.noteCount,
+          pendingDrafts: row.pendingDrafts,
+        });
+      }
+    }
+
+    const items = page.map((row): ConversationQueueItem => {
+      const stats = statsByConversation.get(row.conv.id);
+      return {
+        ...toConversationSummary(row.conv, row.channelType, row.lastInboundPreview),
+        channelType: row.channelType,
+        customerName: row.contactName ?? row.endUserName ?? null,
+        customerEmail: row.contactEmail ?? row.endUserEmail ?? null,
+        topicName: row.topicName,
+        topicSlug: row.topicSlug,
+        claim: claimByConversation.get(row.conv.id) ?? null,
+        noteCount: stats?.noteCount ?? 0,
+        hasPendingDraft: (stats?.pendingDrafts ?? 0) > 0,
+      };
+    });
     const last = items[items.length - 1];
     const nextCursor =
       rows.length > limit && last ? { lastMessageAt: last.lastMessageAt, id: last.id } : null;
@@ -934,9 +1091,15 @@ export class ConvService {
       ? await this.loadApprovedDraft(input.conversationId, input.fromDraftId, input.body)
       : null;
 
+    const isNote =
+      (input.internal ?? false) &&
+      !input.fromDraftId &&
+      (input.authorType === 'user' || input.authorType === 'agent');
+
     const metadata = {
       ...(attachComponents ? { components: input.components } : {}),
       ...(approvedDraft ? { approvedDraft: approvedDraft.stamp } : {}),
+      ...(isNote ? { kind: 'internal_note' } : {}),
     };
 
     const [row] = await ctx.db
@@ -956,7 +1119,12 @@ export class ConvService {
     if (approvedDraft) {
       await ctx.db
         .update(schema.convMessages)
-        .set({ metadata: { kind: 'draft_reply_sent', sentMessageId: row!.id } })
+        .set({
+          metadata: sql`${schema.convMessages.metadata} || jsonb_build_object(
+            'kind', 'draft_reply_sent',
+            'sentMessageId', ${row!.id}::text
+          )`,
+        })
         .where(eq(schema.convMessages.id, approvedDraft.stamp.draftMessageId));
     }
 
@@ -971,7 +1139,7 @@ export class ConvService {
     await ctx.db
       .update(schema.convConversations)
       .set({
-        lastMessageAt: new Date(),
+        ...(input.internal ? {} : { lastMessageAt: new Date() }),
         updatedAt: new Date(),
         ...(clearAttention
           ? {
@@ -996,6 +1164,17 @@ export class ConvService {
           throw err;
         }
       }
+    }
+
+    if (isNote) {
+      await this.webhooks.emit({
+        type: 'conversation.note_added',
+        payload: {
+          conversationId: input.conversationId,
+          messageId: row!.id,
+          authorType: input.authorType,
+        },
+      });
     }
 
     if (!row!.internal) {
@@ -1520,7 +1699,6 @@ export class ConvService {
     if (!conv) {
       throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
     }
-    await this.clearDraftReply(input.conversationId);
     const [row] = await ctx.db
       .insert(schema.convMessages)
       .values({
@@ -1538,12 +1716,18 @@ export class ConvService {
         },
       })
       .returning({ id: schema.convMessages.id });
+    await this.supersedePendingDrafts(input.conversationId, row!.id, row!.id);
+    await this.webhooks.emit({
+      type: 'conversation.draft_ready',
+      payload: { conversationId: input.conversationId, messageId: row!.id },
+    });
     return { id: row!.id };
   }
 
   private async supersedePendingDrafts(
     conversationId: string,
-    sentMessageId: string,
+    supersededByMessageId: string,
+    excludeMessageId?: string,
   ): Promise<void> {
     const ctx = getCurrentContext();
     await ctx.db
@@ -1551,7 +1735,7 @@ export class ConvService {
       .set({
         metadata: sql`${schema.convMessages.metadata} || jsonb_build_object(
           'kind', 'draft_reply_superseded',
-          'supersededByMessageId', ${sentMessageId}::text
+          'supersededByMessageId', ${supersededByMessageId}::text
         )`,
       })
       .where(
@@ -1560,12 +1744,14 @@ export class ConvService {
           eq(schema.convMessages.authorType, 'agent'),
           eq(schema.convMessages.internal, true),
           sql`${schema.convMessages.metadata} ->> 'kind' = 'draft_reply'`,
+          ...(excludeMessageId ? [ne(schema.convMessages.id, excludeMessageId)] : []),
         ),
       );
   }
 
   async clearDraftReply(conversationId: string): Promise<{ cleared: number }> {
     const ctx = getCurrentContext();
+    const actor = ctx.actor;
     const [latest] = await ctx.db
       .select({ id: schema.convMessages.id })
       .from(schema.convMessages)
@@ -1580,8 +1766,87 @@ export class ConvService {
       .orderBy(desc(schema.convMessages.createdAt))
       .limit(1);
     if (!latest) return { cleared: 0 };
-    await ctx.db.delete(schema.convMessages).where(eq(schema.convMessages.id, latest.id));
+    const rejectedByUserId =
+      actor?.type === 'user' ? (actor.userId ?? actor.id) : null;
+    await ctx.db
+      .update(schema.convMessages)
+      .set({
+        metadata: sql`${schema.convMessages.metadata} || jsonb_build_object(
+          'kind', 'draft_reply_rejected',
+          'rejectedAt', to_jsonb(now()),
+          'rejectedByUserId', ${rejectedByUserId}::text
+        )`,
+      })
+      .where(eq(schema.convMessages.id, latest.id));
     return { cleared: 1 };
+  }
+
+  async requestDraft(conversationId: string): Promise<{ requested: boolean }> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const convRows = await ctx.db
+      .select({
+        id: schema.convConversations.id,
+        status: schema.convConversations.status,
+        endUserId: schema.convConversations.endUserId,
+        agentMode: schema.convConversations.agentMode,
+        channelType: schema.convChannels.type,
+      })
+      .from(schema.convConversations)
+      .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.convConversations.channelId))
+      .where(eq(schema.convConversations.id, conversationId))
+      .limit(1);
+    const conv = convRows[0];
+    if (!conv) throw new NotFoundException(`conv_not_found: conversation ${conversationId}`);
+    if (conv.status !== 'open') {
+      throw new BadRequestException({
+        message: `conv_invalid: conversation ${conversationId} is ${conv.status}; drafts can only be requested on open conversations`,
+        code: 'conv_invalid',
+      });
+    }
+    if (conv.channelType === 'voice') {
+      throw new BadRequestException({
+        message: `conv_invalid: conversation ${conversationId} is a voice conversation; the voice vendor owns its replies`,
+        code: 'conv_invalid',
+      });
+    }
+    if (!conv.endUserId) {
+      throw new BadRequestException({
+        message: `conv_invalid: conversation ${conversationId} has no end-user to reply to`,
+        code: 'conv_invalid',
+      });
+    }
+    if (conv.agentMode === 'off') {
+      throw new BadRequestException({
+        message: `conv_invalid: the agent is turned off for conversation ${conversationId}`,
+        code: 'conv_invalid',
+      });
+    }
+    const [pending] = await ctx.db
+      .select({ id: schema.convMessages.id })
+      .from(schema.convMessages)
+      .where(
+        and(
+          eq(schema.convMessages.conversationId, conversationId),
+          eq(schema.convMessages.internal, true),
+          sql`${schema.convMessages.metadata} ->> 'kind' = 'draft_reply'`,
+        ),
+      )
+      .limit(1);
+    if (pending) {
+      throw new ConflictException({
+        message: `conv_draft_pending: conversation ${conversationId} already has a draft pending review`,
+        code: 'conv_draft_pending',
+      });
+    }
+    await this.webhooks.emit({
+      type: 'conversation.draft_requested',
+      payload: {
+        conversationId,
+        requestedByUserId: actor.type === 'user' ? (actor.userId ?? actor.id) : null,
+      },
+    });
+    return { requested: true };
   }
 
   async searchMessages(input: { query: string; limit?: number }): Promise<MessageDto[]> {

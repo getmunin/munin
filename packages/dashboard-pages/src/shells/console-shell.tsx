@@ -377,7 +377,7 @@ export function ConsoleShell({ brand, logoSrc = '/munin-logo.png', headSlot, chi
           <div className="flex h-full flex-col bg-paper dark:bg-background">
             <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-ink px-4 dark:border-rule-on-dark">
               <Image src={logoSrc} alt="" aria-hidden width={26} height={26} className="block size-[26px] object-contain" />
-              <SheetTitle className="min-w-0 truncate text-sm font-medium text-ink dark:text-foreground">
+              <SheetTitle className="min-w-0 truncate font-sans text-sm font-medium tracking-normal text-ink dark:text-foreground">
                 {brand}
               </SheetTitle>
               <button

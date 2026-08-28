@@ -1,10 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { api, ApiError } from '../../api';
 import { getErrorCode, useTranslateError } from '../../i18n/translate-error';
+import { notify } from '../../lib/notify';
 import { useRealtime, type SubscriptionChannel } from '../../realtime';
 import type { ConversationDetail, MessageDto, Status } from './inbox-types';
+
+const DRAFT_REQUEST_TIMEOUT_MS = 75_000;
 
 export interface QueueClaim {
   holderId: string;
@@ -121,6 +125,7 @@ export interface QueueController {
 
 export function useConversationQueue(routeSelectedId: string | null): QueueController {
   const translateErr = useTranslateError();
+  const t = useTranslations('dashboard.console.queue');
   const [open, setOpen] = useState<QueueItemDto[]>([]);
   const [finished, setFinished] = useState<QueueItemDto[]>([]);
   const selectedId = routeSelectedId ?? open[0]?.id ?? finished[0]?.id ?? null;
@@ -131,6 +136,8 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState<QueueActionError>(null);
   const [draftRequested, setDraftRequested] = useState<Record<string, boolean>>({});
+  const draftRequestedRef = useRef(draftRequested);
+  draftRequestedRef.current = draftRequested;
 
   const loadQueue = useCallback(async () => {
     try {
@@ -315,9 +322,19 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
       const ok = await runAction('requestDraft', id, () =>
         api(`/v1/conversations/${id}/request-draft`, { method: 'POST', body: '{}' }),
       );
-      if (ok) setDraftRequested((prev) => ({ ...prev, [id]: true }));
+      if (!ok) return;
+      setDraftRequested((prev) => ({ ...prev, [id]: true }));
+      setTimeout(() => {
+        if (!draftRequestedRef.current[id]) return;
+        setDraftRequested((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+        notify.error(t('draftTimeout'));
+      }, DRAFT_REQUEST_TIMEOUT_MS);
     },
-    [runAction],
+    [runAction, t],
   );
 
   const clearActionError = useCallback(() => setActionError(null), []);

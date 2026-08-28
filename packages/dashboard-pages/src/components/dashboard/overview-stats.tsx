@@ -25,7 +25,7 @@ function StatRow({
     <Link
       href={href}
       className={cn(
-        'group flex w-full items-center gap-5 px-1 py-5 text-left',
+        'group flex w-full items-center gap-3.5 px-1 py-4 text-left md:gap-5 md:py-5',
         bordered && 'border-t border-rule-soft dark:border-rule-on-dark',
       )}
     >
@@ -46,17 +46,22 @@ function StatRow({
               ),
         )}
       />
-      <span className="min-w-[52px] font-serif text-[44px] leading-none text-ink dark:text-foreground">
+      <span className="min-w-[40px] font-serif text-[32px] leading-none text-ink md:min-w-[52px] md:text-[44px] dark:text-foreground">
         {count}
       </span>
-      <span className="flex min-w-0 flex-col gap-1">
-        <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5 md:gap-1">
+        <span className="truncate font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute md:text-[10px]">
           {label}
         </span>
-        <span className="text-[15px] text-ink dark:text-foreground">{note}</span>
+        <span className="text-[13.5px] text-ink md:text-[15px] dark:text-foreground">{note}</span>
       </span>
-      <span className="ml-auto whitespace-nowrap font-mono text-[10px] uppercase tracking-eyebrow text-cobalt transition-colors duration-fast ease-munin group-hover:text-cobalt-deep dark:text-cobalt-soft">
-        {cta}
+      <span className="ml-auto shrink-0 text-cobalt transition-colors duration-fast ease-munin group-hover:text-cobalt-deep dark:text-cobalt-soft">
+        <span className="hidden whitespace-nowrap font-mono text-[10px] uppercase tracking-eyebrow md:inline">
+          {cta}
+        </span>
+        <span aria-hidden className="font-mono text-base leading-none md:hidden">
+          →
+        </span>
       </span>
     </Link>
   );

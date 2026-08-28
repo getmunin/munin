@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { useRealtime } from '../realtime';
 import { DashboardHero } from '../components/dashboard/dashboard-hero';
-import { GetStarted } from '../components/dashboard/get-started';
 import { OverviewStats } from '../components/dashboard/overview-stats';
 import { UsageKpis, type UsageSummary } from '../components/dashboard/usage-kpis';
 import { LoadFailed } from '../components/load-failed';
@@ -69,8 +68,6 @@ export function DashboardPage() {
       <ScheduledSection controller={inbox} />
 
       <UsageKpis summary={summary} />
-
-      <GetStarted />
 
       <InboxDrawers controller={inbox} />
     </div>

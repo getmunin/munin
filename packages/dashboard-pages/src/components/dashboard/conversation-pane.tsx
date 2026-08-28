@@ -122,10 +122,11 @@ export function ConversationPane({
   const noteCount = thread.filter(isNoteMessage).length;
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const lastMessageId = thread[thread.length - 1]?.id;
+  const draftingSelected = selectedId ? !!controller.draftRequested[selectedId] : false;
   useEffect(() => {
     const el = bodyRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [selectedId, lastMessageId, thread.length]);
+  }, [selectedId, lastMessageId, thread.length, draftingSelected]);
 
   const sendReply = (): void => {
     if (!selectedId || !reply.trim() || controller.pending) return;
@@ -224,6 +225,18 @@ export function ConversationPane({
           <MessageBubble key={m.id} message={m} />
         ))}
         {draft ? <WhyBlock draft={draft} /> : null}
+        {drafting ? (
+          <div className="ml-12 flex items-center gap-2.5 border-l-2 border-cobalt bg-paper px-3.5 py-3 dark:border-cobalt-soft dark:bg-card">
+            <span aria-hidden className="flex gap-1">
+              <span className="size-1.5 animate-pulse rounded-full bg-cobalt dark:bg-cobalt-soft" />
+              <span className="size-1.5 animate-pulse rounded-full bg-cobalt [animation-delay:200ms] dark:bg-cobalt-soft" />
+              <span className="size-1.5 animate-pulse rounded-full bg-cobalt [animation-delay:400ms] dark:bg-cobalt-soft" />
+            </span>
+            <span className="font-mono text-[9px] uppercase tracking-meta text-cobalt dark:text-cobalt-soft">
+              {t('draftingThread')}
+            </span>
+          </div>
+        ) : null}
       </div>
 
       <footer className="shrink-0 border-t border-ink bg-paper dark:border-rule-on-dark dark:bg-background">

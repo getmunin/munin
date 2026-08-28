@@ -32,6 +32,7 @@ export interface QueueItemDto {
   customerEmail: string | null;
   topicName: string | null;
   topicSlug: string | null;
+  topicAgentMode: 'auto' | 'draft_only' | 'off' | null;
   claim: QueueClaim | null;
   noteCount: number;
   hasPendingDraft: boolean;

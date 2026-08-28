@@ -94,6 +94,8 @@ class SetDraftReplyBody extends createZodDto(
   z.object({
     body: z.string().min(1).max(50_000),
     retrievedDocumentIds: z.array(z.string().min(1).max(64)).max(8).optional(),
+    rationale: z.string().min(1).max(2000).optional(),
+    toolNames: z.array(z.string().min(1).max(128)).max(24).optional(),
   }),
 ) {}
 
@@ -352,6 +354,8 @@ export class ConversationsController {
         conversationId: id,
         body: input.body,
         retrievedDocumentIds: input.retrievedDocumentIds,
+        rationale: input.rationale,
+        toolNames: input.toolNames,
       }),
     );
   }

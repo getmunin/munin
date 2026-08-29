@@ -28,3 +28,9 @@
     color: rgb(var(--munin-paper));
   }
 }
+
+@media (max-width: 767px) {
+  nextjs-portal {
+    display: none;
+  }
+}

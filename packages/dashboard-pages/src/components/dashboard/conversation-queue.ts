@@ -40,6 +40,7 @@ export interface QueueItemDto {
   claim: QueueClaim | null;
   noteCount: number;
   hasPendingDraft: boolean;
+  endUserSpokeLast?: boolean;
 }
 
 interface QueuePageResponse {
@@ -52,6 +53,7 @@ export type QueueActionType =
   | 'takeOver'
   | 'release'
   | 'close'
+  | 'reopen'
   | 'reject'
   | 'note'
   | 'requestDraft';
@@ -77,8 +79,10 @@ export function partitionQueue(
   const needsYou: QueueItemDto[] = [];
   const inProgress: QueueItemDto[] = [];
   for (const item of open) {
-    const mineOrFree = !item.claim || item.claim.holderId === viewerUserId;
-    if (item.needsHumanAttention && mineOrFree) needsYou.push(item);
+    const mine = !!item.claim && item.claim.holderId === viewerUserId;
+    const mineOrFree = !item.claim || mine;
+    const waitingOnYou = mine && item.endUserSpokeLast === true;
+    if ((item.needsHumanAttention && mineOrFree) || waitingOnYou) needsYou.push(item);
     else inProgress.push(item);
   }
   return { needsYou, inProgress, finished };
@@ -127,8 +131,9 @@ export interface QueueController {
   clearActionError: () => void;
   draftRequested: Record<string, boolean>;
   takeOver: (id: string) => Promise<void>;
-  release: (id: string) => Promise<void>;
-  closeConv: (id: string) => Promise<void>;
+  release: (id: string) => Promise<boolean>;
+  closeConv: (id: string) => Promise<boolean>;
+  reopenConv: (id: string) => Promise<void>;
   send: (id: string, body: string, fromDraftId?: string) => Promise<boolean>;
   addNote: (id: string, body: string) => Promise<boolean>;
   rejectDraft: (id: string) => Promise<void>;
@@ -305,20 +310,30 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   );
 
   const release = useCallback(
-    async (id: string) => {
-      await runAction('release', id, () =>
+    async (id: string) =>
+      runAction('release', id, () =>
         api(`/v1/conversations/${id}/release`, { method: 'POST', body: '{}' }),
-      );
-    },
+      ),
     [runAction],
   );
 
   const closeConv = useCallback(
-    async (id: string) => {
-      await runAction('close', id, () =>
+    async (id: string) =>
+      runAction('close', id, () =>
         api(`/v1/conversations/${id}/status`, {
           method: 'POST',
           body: JSON.stringify({ status: 'closed' }),
+        }),
+      ),
+    [runAction],
+  );
+
+  const reopenConv = useCallback(
+    async (id: string) => {
+      await runAction('reopen', id, () =>
+        api(`/v1/conversations/${id}/status`, {
+          method: 'POST',
+          body: JSON.stringify({ status: 'open' }),
         }),
       );
     },
@@ -409,6 +424,7 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     takeOver,
     release,
     closeConv,
+    reopenConv,
     send,
     addNote,
     rejectDraft,

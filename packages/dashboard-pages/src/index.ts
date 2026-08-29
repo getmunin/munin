@@ -149,6 +149,11 @@ export { SettingsShell, type SettingsShellProps } from './shells/settings-shell'
 export { DashboardShell, type DashboardShellProps } from './shells/dashboard-shell';
 export { ConsoleShell, type ConsoleShellProps } from './shells/console-shell';
 export {
+  useMobileBackAction,
+  useProvideMobileBack,
+  type MobileBackAction,
+} from './shells/mobile-back';
+export {
   createSettingsIndexRedirect,
   type CreateSettingsIndexRedirectOptions,
 } from './shells/settings-index-redirect';

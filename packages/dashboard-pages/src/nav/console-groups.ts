@@ -29,7 +29,9 @@ export const OSS_CONSOLE_GROUPS: ConsoleNavGroup[] = [
   },
   {
     groupKey: 'workspace',
-    items: [{ href: '/dashboard/settings', labelKey: 'settings', trailingArrow: true }],
+    items: [
+      { href: '/dashboard/settings', labelKey: 'settings', adminOnly: true, trailingArrow: true },
+    ],
   },
 ];
 

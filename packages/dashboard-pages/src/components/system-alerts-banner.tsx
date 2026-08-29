@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslations } from 'next-intl';
 import { Link } from '../i18n-navigation';
 import { api, ApiError } from '../api';
+import { isOwnerOrAdmin, useActiveRole } from '../auth/use-active-role';
 import { useRealtime } from '../realtime';
 
 type AlertSource =
@@ -39,6 +40,7 @@ const DISCONNECT_GRACE_MS = 1500;
 
 export function SystemAlertsBanner() {
   const t = useTranslations('dashboard.runnerStatusBanner');
+  const { role } = useActiveRole();
   const [alerts, setAlerts] = useState<AlertDto[]>([]);
   const [hasBeenConnected, setHasBeenConnected] = useState(false);
   const [showDisconnected, setShowDisconnected] = useState(false);
@@ -89,6 +91,7 @@ export function SystemAlertsBanner() {
 
   const state = pickState({ showDisconnected, alerts, t });
   if (!state) return null;
+  const cta = isOwnerOrAdmin(role) ? state.cta : undefined;
 
   return (
     <div
@@ -102,12 +105,12 @@ export function SystemAlertsBanner() {
           {state.tag}
         </span>
         <span className="min-w-0 flex-1 truncate font-sans text-[13px] leading-[1.4]">{state.message}</span>
-        {state.cta && (
+        {cta && (
           <Link
-            href={state.cta.href}
+            href={cta.href}
             className="hidden h-7 shrink-0 items-center whitespace-nowrap border border-ink bg-transparent px-3 font-mono text-[10px] uppercase leading-none tracking-[0.14em] text-ink transition-colors hover:bg-ink hover:text-amber-100 md:inline-flex"
           >
-            {state.cta.label}
+            {cta.label}
           </Link>
         )}
       </div>

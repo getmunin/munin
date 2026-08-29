@@ -20,7 +20,7 @@ const GROUPS: ConsoleNavGroup[] = [
   },
   {
     groupKey: 'workspace',
-    items: [{ href: '/dashboard/settings', labelKey: 'settings' }],
+    items: [{ href: '/dashboard/settings', labelKey: 'settings', adminOnly: true }],
   },
 ];
 
@@ -29,9 +29,9 @@ describe('consoleGroupsForRole', () => {
     expect(consoleGroupsForRole(GROUPS, true)).toEqual(GROUPS);
   });
 
-  it('drops admin-only items and empties groups for support agents', () => {
+  it('drops admin-only items and the groups they empty for support agents', () => {
     const filtered = consoleGroupsForRole(GROUPS, false);
-    expect(filtered.map((g) => g.groupKey)).toEqual(['oversight', 'workspace']);
+    expect(filtered.map((g) => g.groupKey)).toEqual(['oversight']);
     expect(filtered[0]!.items.map((i) => i.labelKey)).toEqual(['conversations']);
   });
 });

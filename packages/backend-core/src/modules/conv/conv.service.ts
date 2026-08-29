@@ -157,6 +157,7 @@ export interface ConversationQueueItem extends ConversationSummary {
   claim: { holderId: string; holderName: string | null; expiresAt: string } | null;
   noteCount: number;
   hasPendingDraft: boolean;
+  endUserSpokeLast: boolean;
 }
 
 export interface ConversationDetail extends ConversationSummary {
@@ -474,6 +475,16 @@ export class ConvService {
         )`;
   }
 
+  private endUserSpokeLastSql() {
+    return sql<boolean>`COALESCE((
+          SELECT author_type = 'end_user' FROM conv_messages
+          WHERE conversation_id = "conv_conversations"."id"
+            AND internal = false
+          ORDER BY created_at DESC
+          LIMIT 1
+        ), false)`;
+  }
+
   async listConversationsPage(input: {
     status?: ConversationStatus;
     excludeStatuses?: readonly ConversationStatus[];
@@ -547,6 +558,7 @@ export class ConvService {
       .select({
         conv: schema.convConversations,
         lastInboundPreview: this.lastInboundPreviewSql(),
+        endUserSpokeLast: this.endUserSpokeLastSql(),
         channelType: schema.convChannels.type,
         contactName: schema.convContacts.name,
         contactEmail: schema.convContacts.email,
@@ -647,6 +659,7 @@ export class ConvService {
         claim: claimByConversation.get(row.conv.id) ?? null,
         noteCount: stats?.noteCount ?? 0,
         hasPendingDraft: (stats?.pendingDrafts ?? 0) > 0,
+        endUserSpokeLast: row.endUserSpokeLast,
       };
     });
     const last = items[items.length - 1];

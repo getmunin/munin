@@ -35,7 +35,7 @@ export function DashboardShell({
   const inSettings = pathname.startsWith('/dashboard/settings');
 
   const content = (
-    <div className="group flex h-screen flex-col bg-bone dark:bg-background">
+    <div className="group flex h-dvh flex-col bg-bone dark:bg-background">
       <SystemAlertsBanner />
       {inSettings ? (
         <main className="min-h-0 flex-1 overflow-x-clip bg-paper dark:bg-background">

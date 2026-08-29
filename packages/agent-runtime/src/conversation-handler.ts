@@ -192,12 +192,10 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       log.info(`skip ${detail.id}: no inbound message yet`);
       return null;
     }
-    if (
-      mode !== 'draft-request' &&
-      last.authorType !== 'user' &&
-      last.authorType !== 'end_user'
-    ) {
-      log.info(`skip ${detail.id}: already answered (last public message is ${last.authorType})`);
+    if (last.authorType !== 'end_user') {
+      log.info(
+        `skip ${detail.id}: no unanswered customer message (last public message is ${last.authorType})`,
+      );
       return null;
     }
     return delivery;

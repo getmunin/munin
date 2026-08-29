@@ -3,8 +3,17 @@
 import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
-import { LogOut, Menu, X } from 'lucide-react';
-import { Sheet, SheetContent, SheetTitle } from '@getmunin/ui';
+import { ArrowLeft, LogOut, Menu, MoreHorizontal, X } from 'lucide-react';
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Sheet,
+  SheetContent,
+  SheetTitle,
+} from '@getmunin/ui';
 import { api } from '../api';
 import { authClient } from '../auth-client';
 import { initialsOf } from '../lib/initials';
@@ -20,6 +29,7 @@ import {
   type ConsoleNavGroup,
 } from '../nav/console-groups';
 import type { InboxQueueResponse } from '../components/dashboard/inbox-types';
+import { MobileBackProvider, useMobileBackAction } from './mobile-back';
 
 interface ConsoleBadges {
   waiting: number;
@@ -141,6 +151,46 @@ function NavList({
   );
 }
 
+function UserFooter({
+  name,
+  email,
+  onSignOut,
+}: {
+  name: string | null | undefined;
+  email: string | null | undefined;
+  onSignOut: () => void;
+}) {
+  const tNav = useTranslations('nav');
+  const tCommon = useTranslations('common');
+  const label = name ?? email ?? '';
+
+  return (
+    <div className="flex shrink-0 items-center gap-2.5 border-t border-rule-soft px-4 py-3.5 dark:border-rule-on-dark">
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-cobalt font-mono text-[8px] text-paper">
+        {initialsOf(name ?? null, email ?? '?')}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-[15px] text-ink dark:text-foreground">
+        {label}
+      </span>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button variant="ghost" size="icon-sm" aria-label={tNav('openUserMenu')} />
+          }
+        >
+          <MoreHorizontal className="size-3.5" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" side="top">
+          <DropdownMenuItem onClick={onSignOut}>
+            <LogOut aria-hidden className="size-3.5" />
+            {tCommon('signOut')}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
 export interface ConsoleShellProps {
   brand: string;
   logoSrc?: string;
@@ -148,7 +198,20 @@ export interface ConsoleShellProps {
   children: ReactNode;
 }
 
-export function ConsoleShell({ brand, logoSrc = '/munin-logo.png', headSlot, children }: ConsoleShellProps) {
+export function ConsoleShell(props: ConsoleShellProps) {
+  return (
+    <MobileBackProvider>
+      <ConsoleShellInner {...props} />
+    </MobileBackProvider>
+  );
+}
+
+function ConsoleShellInner({
+  brand,
+  logoSrc = '/munin-logo.png',
+  headSlot,
+  children,
+}: ConsoleShellProps) {
   const tNav = useTranslations('nav');
   const tCommon = useTranslations('common');
   const pathname = usePathname();
@@ -156,6 +219,7 @@ export function ConsoleShell({ brand, logoSrc = '/munin-logo.png', headSlot, chi
   const { data: session } = authClient.useSession();
   const { role, loading: roleLoading } = useActiveRole();
   const { badges } = useConsoleData();
+  const backAction = useMobileBackAction();
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -194,23 +258,57 @@ export function ConsoleShell({ brand, logoSrc = '/munin-logo.png', headSlot, chi
         <div className="min-h-0 flex-1 overflow-y-auto py-3">
           <NavList groups={groups} badges={badges} />
         </div>
+        <UserFooter
+          name={session?.user?.name}
+          email={session?.user?.email}
+          onSignOut={signOut}
+        />
       </aside>
 
       <div className="flex min-h-0 min-w-0 flex-col">
         <header className="flex h-14 shrink-0 items-center gap-2.5 border-b border-ink px-4 md:hidden dark:border-rule-on-dark">
-          <Image src={logoSrc} alt="" aria-hidden width={26} height={26} className="block size-[26px] object-contain" />
-          <span className="min-w-0 truncate text-sm font-medium text-ink dark:text-foreground">
-            {brand}
-          </span>
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            aria-label={tNav('openMenu')}
-            className="ml-auto flex items-center gap-2.5 font-mono text-[9px] uppercase tracking-eyebrow text-ink-soft dark:text-foreground/80"
-          >
-            {activeItem ? <span>{tNav(activeItem.labelKey)}</span> : null}
-            <Menu aria-hidden className="size-4 text-ink dark:text-foreground" />
-          </button>
+          {backAction ? (
+            <button
+              type="button"
+              onClick={backAction.onBack}
+              aria-label={backAction.label}
+              className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+            >
+              <ArrowLeft aria-hidden className="size-4 shrink-0 text-ink dark:text-foreground" />
+              {backAction.title ? (
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-sm font-medium leading-tight text-ink dark:text-foreground">
+                    {backAction.title}
+                  </span>
+                  {backAction.meta ? (
+                    <span className="truncate font-mono text-[9px] uppercase tracking-meta text-ink-mute">
+                      {backAction.meta}
+                    </span>
+                  ) : null}
+                </span>
+              ) : (
+                <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-soft dark:text-foreground/80">
+                  {backAction.label}
+                </span>
+              )}
+            </button>
+          ) : (
+            <>
+              <Image src={logoSrc} alt="" aria-hidden width={26} height={26} className="block size-[26px] object-contain" />
+              <span className="min-w-0 truncate text-sm font-medium text-ink dark:text-foreground">
+                {brand}
+              </span>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                aria-label={tNav('openMenu')}
+                className="ml-auto flex items-center gap-2.5 font-mono text-[9px] uppercase tracking-eyebrow text-ink-soft dark:text-foreground/80"
+              >
+                {activeItem ? <span>{tNav(activeItem.labelKey)}</span> : null}
+                <Menu aria-hidden className="size-4 text-ink dark:text-foreground" />
+              </button>
+            </>
+          )}
         </header>
 
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-clip bg-paper dark:bg-background">
@@ -239,22 +337,11 @@ export function ConsoleShell({ brand, logoSrc = '/munin-logo.png', headSlot, chi
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
               <NavList groups={groups} badges={badges} mobile onNavigate={() => setMenuOpen(false)} />
             </div>
-            <div className="flex shrink-0 items-center gap-2.5 border-t border-rule-soft px-4 py-3.5 dark:border-rule-on-dark">
-              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-cobalt font-mono text-[8px] text-paper">
-                {initialsOf(session?.user?.name ?? null, session?.user?.email ?? '?')}
-              </span>
-              <span className="min-w-0 truncate text-[15px] text-ink dark:text-foreground">
-                {session?.user?.name ?? session?.user?.email}
-              </span>
-              <button
-                type="button"
-                onClick={signOut}
-                className="ml-auto flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-meta text-ink-mute transition-colors duration-fast hover:text-ink dark:hover:text-foreground"
-              >
-                <LogOut aria-hidden className="size-3.5" />
-                {tCommon('signOut')}
-              </button>
-            </div>
+            <UserFooter
+              name={session?.user?.name}
+              email={session?.user?.email}
+              onSignOut={signOut}
+            />
           </div>
         </SheetContent>
       </Sheet>

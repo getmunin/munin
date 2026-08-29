@@ -47,6 +47,28 @@ describe('partitionQueue', () => {
     expect(sections.inProgress.map((i) => i.id)).toEqual(['c', 'd']);
     expect(sections.finished.map((i) => i.id)).toEqual(['e']);
   });
+
+  it('a conversation you claimed where the customer spoke last is waiting on you', () => {
+    const mineAwaiting = item({
+      id: 'a',
+      endUserSpokeLast: true,
+      claim: { holderId: 'me', holderName: 'Me', expiresAt: '' },
+    });
+    const mineAnswered = item({
+      id: 'b',
+      endUserSpokeLast: false,
+      claim: { holderId: 'me', holderName: 'Me', expiresAt: '' },
+    });
+    const theirsAwaiting = item({
+      id: 'c',
+      endUserSpokeLast: true,
+      claim: { holderId: 'other', holderName: 'S. Krogh', expiresAt: '' },
+    });
+    const freeAwaiting = item({ id: 'd', endUserSpokeLast: true });
+    const sections = partitionQueue([mineAwaiting, mineAnswered, theirsAwaiting, freeAwaiting], [], 'me');
+    expect(sections.needsYou.map((i) => i.id)).toEqual(['a']);
+    expect(sections.inProgress.map((i) => i.id)).toEqual(['b', 'c', 'd']);
+  });
 });
 
 describe('matchesQueueSearch', () => {

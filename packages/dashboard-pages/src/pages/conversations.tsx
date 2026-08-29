@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@getmunin/ui';
 import { authClient } from '../auth-client';
@@ -15,6 +15,7 @@ import {
 } from '../components/dashboard/conversation-queue';
 import { ConversationRow } from '../components/dashboard/conversation-row';
 import { ConversationPane } from '../components/dashboard/conversation-pane';
+import { useProvideMobileBack } from '../shells/mobile-back';
 
 const FADE_FLOOR = 0.55;
 
@@ -30,8 +31,10 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
   const t = useTranslations('dashboard.console.queue');
   const router = useRouter();
   const pathname = usePathname();
+  const onQueueRoute = /^\/dashboard\/conversations\/?$/.test(pathname);
   const routeSelectedId =
-    pathname.match(/^\/dashboard\/conversations\/([^/]+)/)?.[1] ?? selectedId;
+    pathname.match(/^\/dashboard\/conversations\/([^/]+)/)?.[1] ??
+    (onQueueRoute ? null : selectedId);
   const queue = useConversationQueue(routeSelectedId);
   const buildLoadFailedProps = useInboxLoadFailedProps();
   const { data: session } = authClient.useSession();
@@ -55,6 +58,38 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
     };
   }, [queue.open, queue.finished, viewerUserId, search]);
 
+  const shallowGo = useCallback(
+    (path: string) => {
+      const { pathname: full } = window.location;
+      const cut = full.indexOf('/dashboard/conversations');
+      if (cut < 0) {
+        router.push(path);
+        return;
+      }
+      window.history.pushState(null, '', full.slice(0, cut) + path);
+    },
+    [router],
+  );
+  const goToQueue = useCallback(
+    () => shallowGo('/dashboard/conversations'),
+    [shallowGo],
+  );
+
+  const activeId = queue.selectedId;
+  const selectedItem = activeId
+    ? [...queue.open, ...queue.finished].find((i) => i.id === activeId)
+    : undefined;
+  const backAction = useMemo(() => {
+    if (!routeSelectedId) return null;
+    const customer = selectedItem?.customerName ?? null;
+    const title = selectedItem?.subject ?? customer ?? undefined;
+    const meta = [selectedItem?.topicName, selectedItem?.subject ? customer : null]
+      .filter((v): v is string => !!v)
+      .join(' · ');
+    return { label: t('backToQueue'), title, meta: meta || undefined, onBack: goToQueue };
+  }, [routeSelectedId, selectedItem, goToQueue, t]);
+  useProvideMobileBack(backAction);
+
   if (queue.loadError && !queue.hasLoadedOnce) {
     return (
       <div className="flex min-h-[70vh] items-center justify-center px-4 py-12 md:px-10">
@@ -65,20 +100,7 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
     );
   }
 
-  const shallowGo = (path: string) => {
-    const { pathname: full } = window.location;
-    const cut = full.indexOf('/dashboard/conversations');
-    if (cut < 0) {
-      router.push(path);
-      return;
-    }
-    window.history.pushState(null, '', full.slice(0, cut) + path);
-  };
   const select = (id: string) => shallowGo(`/dashboard/conversations/${id}`);
-  const activeId = queue.selectedId;
-  const selectedItem = activeId
-    ? [...queue.open, ...queue.finished].find((i) => i.id === activeId)
-    : undefined;
 
   const renderRows = (items: QueueItemDto[], faded?: boolean) =>
     items.map((item) => (
@@ -120,24 +142,13 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
             className="w-full rounded-input border border-rule-soft bg-paper px-2.5 py-2 text-base outline-none focus-visible:border-cobalt md:py-1.5 md:text-[12.5px] dark:border-rule-on-dark dark:bg-card"
           />
         </header>
-        <div className="flex shrink-0 flex-wrap gap-x-2.5 gap-y-1 border-b border-rule-soft px-5 py-2.5 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute md:px-6 dark:border-rule-on-dark">
-          <span className="whitespace-nowrap">{t('metaNeedYou', { count: sections.needsYou.length })}</span>
-          <span aria-hidden>·</span>
-          <span className="whitespace-nowrap">{t('metaOpen', { count: sections.inProgress.length })}</span>
-          <span aria-hidden>·</span>
-          <span className="whitespace-nowrap">{t('metaDone', { count: sections.finished.length })}</span>
-        </div>
         <ul onScroll={onListScroll} className="pb-6 md:min-h-0 md:flex-1 md:overflow-y-auto">
-          <SectionLabel>{t('sectionNeedsYou', { count: sections.needsYou.length })}</SectionLabel>
-          {sections.needsYou.length === 0 ? (
-            <li className="border-b border-rule-soft px-5 pb-5 pt-1 font-serif text-lg italic text-ink-soft dark:border-rule-on-dark dark:text-foreground/80">
-              {t.rich('emptyNeedsYou', {
-                em: (chunks) => <span className="text-cobalt dark:text-cobalt-soft">{chunks}</span>,
-              })}
-            </li>
-          ) : (
-            renderRows(sections.needsYou)
-          )}
+          {sections.needsYou.length > 0 ? (
+            <>
+              <SectionLabel>{t('sectionNeedsYou', { count: sections.needsYou.length })}</SectionLabel>
+              {renderRows(sections.needsYou)}
+            </>
+          ) : null}
           {sections.inProgress.length > 0 ? (
             <>
               <SectionLabel>{t('sectionInProgress', { count: sections.inProgress.length })}</SectionLabel>
@@ -162,7 +173,6 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
           detail={activeId ? queue.details[activeId] : undefined}
           controller={queue}
           viewerUserId={viewerUserId}
-          onBack={() => shallowGo('/dashboard/conversations')}
         />
       </div>
     </div>

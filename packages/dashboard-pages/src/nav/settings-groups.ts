@@ -1,6 +1,5 @@
 import { extendNavGroups } from './extend-groups';
 
-export const ACCOUNT_SETTINGS_HREF = '/dashboard/settings/account';
 export interface SettingsSubNavItem {
   href: string;
   labelKey: string;
@@ -45,13 +44,7 @@ export function settingsGroupsForRole(
   groups: SettingsSubNavGroup[],
   isAdmin: boolean,
 ): SettingsSubNavGroup[] {
-  if (isAdmin) return groups;
-  return groups
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) => item.href === ACCOUNT_SETTINGS_HREF),
-    }))
-    .filter((group) => group.items.length > 0);
+  return isAdmin ? groups : [];
 }
 
 export interface SettingsGroupExtension {

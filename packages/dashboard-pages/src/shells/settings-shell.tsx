@@ -1,11 +1,9 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, LogOut, Menu } from 'lucide-react';
+import { ArrowLeft, Menu } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { PageSpinner, Sheet, SheetContent, SheetTitle, cn } from '@getmunin/ui';
-import { authClient } from '../auth-client';
-import { clearActiveOrgId } from '../auth/active-org';
 import { isOwnerOrAdmin, useActiveRole } from '../auth/use-active-role';
 import { Link, usePathname, useRouter } from '../i18n-navigation';
 import { settingsGroupsForRole, type SettingsSubNavGroup } from '../nav/settings-groups';
@@ -19,7 +17,6 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
   const router = useRouter();
   const pathname = usePathname();
   const tNav = useTranslations('nav');
-  const tCommon = useTranslations('common');
   const tSettings = useTranslations('dashboard.settings');
   const tGroups = useTranslations('dashboard.settings.groups');
   const { role, loading } = useActiveRole();
@@ -27,44 +24,30 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
 
   const isAdmin = isOwnerOrAdmin(role);
   const visibleGroups = settingsGroupsForRole(groups, isAdmin);
-  const allowedHrefs = visibleGroups.flatMap((g) => g.items.map((i) => i.href));
-  const onAllowedPage = allowedHrefs.some((href) => pathname.startsWith(href));
-  const fallbackHref = allowedHrefs[0] ?? '/dashboard/conversations';
 
   useEffect(() => {
-    if (loading || isAdmin || onAllowedPage) return;
-    router.replace(fallbackHref);
-  }, [loading, isAdmin, onAllowedPage, fallbackHref, router]);
+    if (loading || isAdmin) return;
+    router.replace('/dashboard/conversations');
+  }, [loading, isAdmin, router]);
 
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
 
-  if (loading || (!isAdmin && !onAllowedPage)) {
+  if (loading || !isAdmin) {
     return <PageSpinner className="min-h-screen bg-background" />;
   }
 
-  const backHref = isAdmin ? '/dashboard' : '/dashboard/conversations';
-  const backLabel = isAdmin ? tSettings('backToOverview') : tSettings('backToConversations');
-
-  const signOut = () => {
-    void (async () => {
-      await authClient.signOut();
-      clearActiveOrgId();
-      router.push('/login');
-    })();
-  };
-
   const backLink = (
     <Link
-      href={backHref}
+      href="/dashboard"
       className="group inline-flex items-center gap-2.5 font-mono text-[10px] uppercase tracking-eyebrow text-ink-soft transition-colors duration-fast ease-munin hover:text-cobalt dark:text-foreground/80 dark:hover:text-cobalt-soft"
     >
       <ArrowLeft
         aria-hidden
         className="relative -top-px size-[15px] transition-transform duration-base ease-munin group-hover:-translate-x-0.5"
       />
-      <span>{backLabel}</span>
+      <span>{tSettings('backToOverview')}</span>
     </Link>
   );
 
@@ -98,23 +81,7 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
           </ul>
         </div>
       ))}
-      {!isAdmin ? (
-        <p className="px-3.5 font-mono text-[9px] uppercase leading-relaxed tracking-meta text-ink-mute">
-          {tSettings('agentNote')}
-        </p>
-      ) : null}
     </nav>
-  );
-
-  const signOutButton = (
-    <button
-      type="button"
-      onClick={signOut}
-      className="flex w-full items-center gap-2.5 px-5 py-4 text-sm text-ink transition-colors duration-fast ease-munin hover:text-cobalt dark:text-foreground dark:hover:text-cobalt-soft"
-    >
-      <LogOut className="size-4" aria-hidden />
-      <span>{tCommon('signOut')}</span>
-    </button>
   );
 
   return (
@@ -142,7 +109,6 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
             </span>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto py-2">{navTree}</div>
-          <div className="border-t border-rule-soft dark:border-rule-on-dark">{signOutButton}</div>
         </aside>
 
         <div className="min-h-0 min-w-0 flex-1 space-y-10 overflow-y-auto bg-paper px-6 py-8 md:px-12 md:py-10 dark:bg-background">
@@ -157,7 +123,6 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
               {tNav('settings')}
             </SheetTitle>
             <div className="min-h-0 flex-1 overflow-y-auto py-2">{navTree}</div>
-            <div className="border-t border-rule-soft dark:border-rule-on-dark">{signOutButton}</div>
           </div>
         </SheetContent>
       </Sheet>

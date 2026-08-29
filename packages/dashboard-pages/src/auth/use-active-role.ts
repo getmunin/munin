@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { authClient } from '../auth-client';
 import { getActiveOrgId } from './active-org';
 
 export type OrgRole = 'owner' | 'admin' | 'member';
@@ -23,6 +24,7 @@ export interface ActiveMembership {
 }
 
 interface CacheEntry {
+  userId: string | null;
   promise: Promise<ActiveMembership | null>;
   value: ActiveMembership | null | undefined;
 }
@@ -33,8 +35,8 @@ export function invalidateActiveMembershipCache(): void {
   cache = null;
 }
 
-function fetchActiveMembership(): Promise<ActiveMembership | null> {
-  if (cache) return cache.promise;
+function fetchActiveMembership(userId: string | null): Promise<ActiveMembership | null> {
+  if (cache && cache.userId === userId) return cache.promise;
   const promise = api<MembershipDto[]>('/v1/me/memberships').then((rows) => {
     const pinnedOrgId = getActiveOrgId();
     const active =
@@ -42,23 +44,22 @@ function fetchActiveMembership(): Promise<ActiveMembership | null> {
       rows.find((m) => m.isDefault) ??
       rows[0] ??
       null;
-    if (!active || !isOrgRole(active.role)) {
-      if (cache) cache.value = null;
-      return null;
-    }
-    const membership: ActiveMembership = {
-      orgId: active.orgId,
-      name: active.name,
-      slug: active.slug,
-      role: active.role,
-      isDefault: active.isDefault,
-    };
-    if (cache) cache.value = membership;
+    const membership: ActiveMembership | null =
+      active && isOrgRole(active.role)
+        ? {
+            orgId: active.orgId,
+            name: active.name,
+            slug: active.slug,
+            role: active.role,
+            isDefault: active.isDefault,
+          }
+        : null;
+    if (cache?.promise === promise) cache.value = membership;
     return membership;
   });
-  cache = { promise, value: undefined };
+  cache = { userId, promise, value: undefined };
   promise.catch(() => {
-    cache = null;
+    if (cache?.promise === promise) cache = null;
   });
   return promise;
 }
@@ -72,18 +73,23 @@ export function useActiveMembership(): {
   loading: boolean;
   error: string | null;
 } {
-  const [membership, setMembership] = useState<ActiveMembership | null>(cache?.value ?? null);
-  const [loading, setLoading] = useState(cache?.value === undefined);
+  const { data: session, isPending } = authClient.useSession();
+  const userId = session?.user?.id ?? null;
+  const [membership, setMembership] = useState<ActiveMembership | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (isPending) return;
     let cancelled = false;
-    if (cache?.value !== undefined) {
+    if (cache?.userId === userId && cache.value !== undefined) {
       setMembership(cache.value);
       setLoading(false);
       return;
     }
-    fetchActiveMembership()
+    setLoading(true);
+    setError(null);
+    fetchActiveMembership(userId)
       .then((m) => {
         if (!cancelled) {
           setMembership(m);
@@ -99,7 +105,7 @@ export function useActiveMembership(): {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [userId, isPending]);
 
   return { membership, loading, error };
 }

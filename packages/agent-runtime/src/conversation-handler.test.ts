@@ -393,7 +393,7 @@ describe('createConversationHandler', () => {
     expect(toolNames).not.toContain('conv_request_human');
   });
 
-  it('the audit reads the last end-user message as the question, not a later staff reply', async () => {
+  it('the audit reads the end-user message as the question, never a staff turn', async () => {
     const seen: Array<{ messages: Array<{ role: string; content: string }> }> = [];
     let call = 0;
     const provider: Provider = (args) => {
@@ -412,15 +412,15 @@ describe('createConversationHandler', () => {
             messages: [
               {
                 id: 'msg_1',
-                authorType: 'end_user',
-                body: 'Kan du sjekke ordrene mine?',
+                authorType: 'user',
+                body: 'Ja, jeg er her! Hva trenger du hjelp med?',
                 createdAt: new Date(Date.now() - 120_000).toISOString(),
                 internal: false,
               },
               {
                 id: 'msg_2',
-                authorType: 'user',
-                body: 'Ja, jeg er her! Hva trenger du hjelp med?',
+                authorType: 'end_user',
+                body: 'Kan du sjekke ordrene mine?',
                 createdAt: new Date().toISOString(),
                 internal: false,
               },
@@ -461,15 +461,15 @@ describe('createConversationHandler', () => {
             messages: [
               {
                 id: 'msg_1',
-                authorType: 'end_user',
-                body: 'hei',
+                authorType: 'agent',
+                body: 'Ja, jeg er her!',
                 createdAt: new Date(Date.now() - 60_000).toISOString(),
                 internal: false,
               },
               {
                 id: 'msg_2',
-                authorType: 'user',
-                body: 'Ja, jeg er her!',
+                authorType: 'end_user',
+                body: 'hei',
                 createdAt: new Date().toISOString(),
                 internal: false,
               },
@@ -553,7 +553,7 @@ describe('createConversationHandler', () => {
     });
   });
 
-  it('requestDraft drafts even when the agent already replied publicly', async () => {
+  it('refuses a draft request when the agent already replied publicly', async () => {
     const rest = buildRest({
       getConversation: vi.fn(() =>
         Promise.resolve(
@@ -596,7 +596,50 @@ describe('createConversationHandler', () => {
     expect(draftSpy).not.toHaveBeenCalled();
     handler.requestDraft({ conversationId: 'conv_1' });
     await handler.flush();
-    expect(draftSpy).toHaveBeenCalledTimes(1);
+    expect(draftSpy).not.toHaveBeenCalled();
+  });
+
+  it('refuses to draft over a teammate who wrote the last public message', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            agentMode: 'draft_only',
+            channelType: 'chat',
+            messages: [
+              {
+                id: 'msg_1',
+                authorType: 'end_user',
+                body: 'Kult...',
+                createdAt: new Date(Date.now() - 60_000).toISOString(),
+                internal: false,
+              },
+              {
+                id: 'msg_2',
+                authorType: 'user',
+                body: 'Jeg er Kjell, hva kan jeg hjelpe deg med?',
+                createdAt: new Date().toISOString(),
+                internal: false,
+              },
+            ],
+          }),
+        ),
+      ),
+    });
+    const draftSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    rest.setDraftReply = draftSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([assistantStop('Hei Kjell!')]),
+    });
+    handler.requestDraft({ conversationId: 'conv_1' });
+    await handler.flush();
+    expect(draftSpy).not.toHaveBeenCalled();
   });
 
   it('requestDraft parks a draft even on an auto conversation the requester has claimed', async () => {

@@ -5439,7 +5439,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## @nestjs/common@11.2.3
+## @nestjs/common@12.0.1
 
 > Nest - modern, fast, powerful node.js web framework (@common)
 - Homepage: https://nestjs.com
@@ -5473,7 +5473,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @nestjs/core@11.2.3
+## @nestjs/core@12.0.1
 
 > Nest - modern, fast, powerful node.js web framework (@core)
 - Homepage: https://nestjs.com
@@ -5507,7 +5507,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @nestjs/mapped-types@2.1.1
+## @nestjs/mapped-types@12.0.0
 
 > Nest - modern, fast, powerful node.js web framework (@mapped-types)
 - Homepage: https://github.com/nestjs/mapped-types#readme
@@ -5541,7 +5541,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @nestjs/platform-express@11.2.3
+## @nestjs/platform-express@12.0.1
 
 > Nest - modern, fast, powerful node.js web framework (@platform-express)
 - Homepage: https://nestjs.com
@@ -5575,7 +5575,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @nestjs/schedule@6.1.3
+## @nestjs/schedule@12.0.1
 
 > Nest - modern, fast, powerful node.js web framework (@schedule)
 - Homepage: https://github.com/nestjs/schedule#readme
@@ -5609,7 +5609,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @nestjs/swagger@11.4.7
+## @nestjs/swagger@12.0.1
 
 > Nest - modern, fast, powerful node.js web framework (@swagger)
 - Homepage: https://github.com/nestjs/swagger#readme
@@ -16759,6 +16759,38 @@ SOFTWARE.
 
 ---
 
+## es-toolkit@1.51.0
+
+> A state-of-the-art, high-performance JavaScript utility library with a small bundle size and strong type annotations.
+- Homepage: https://es-toolkit.dev
+- License: MIT
+
+```
+MIT License
+
+Copyright (c) 2024 Viva Republica, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
 ## esbuild@0.28.2
 
 > An extremely fast JavaScript and CSS bundler and minifier.
@@ -20593,7 +20625,7 @@ THE SOFTWARE.
 
 ---
 
-## js-yaml@4.3.2, 5.3.0
+## js-yaml@4.3.2, 5.4.1
 
 > YAML 1.2 parser and serializer
 - Homepage: https://github.com/nodeca/js-yaml#readme
@@ -21219,65 +21251,6 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-```
-
----
-
-## lodash@4.18.1
-
-> Lodash modular utilities.
-- Homepage: https://lodash.com/
-- Author: John-David Dalton
-- License: MIT
-
-```
-Copyright OpenJS Foundation and other contributors <https://openjsf.org/>
-
-Based on Underscore.js, copyright Jeremy Ashkenas,
-DocumentCloud and Investigative Reporters & Editors <http://underscorejs.org/>
-
-This software consists of voluntary contributions made by many
-individuals. For exact contribution history, see the revision history
-available at https://github.com/lodash/lodash
-
-The following license applies to all parts of this software except as
-documented below:
-
-====
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-====
-
-Copyright and related rights for sample code are waived via CC0. Sample
-code is defined as all source code displayed within the prose of the
-documentation.
-
-CC0: http://creativecommons.org/publicdomain/zero/1.0/
-
-====
-
-Files located in the node_modules and vendor directories are externally
-maintained libraries used by this software which have their own
-licenses; we recommend you read them, as their terms may differ from the
-terms above.
 ```
 
 ---
@@ -29563,7 +29536,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## swagger-ui-dist@5.32.13
+## swagger-ui-dist@5.32.14
 
 - Homepage: https://github.com/swagger-api/swagger-ui#readme
 - License: Apache-2.0
@@ -30750,7 +30723,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## typescript@5.9.3
+## typescript@5.9.3, 6.0.3
 
 > TypeScript is a language for application scale JavaScript development
 - Homepage: https://www.typescriptlang.org/

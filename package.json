@@ -37,6 +37,16 @@
     "typescript-eslint": "^8.69.0"
   },
   "pnpm": {
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "nestjs-zod>@nestjs/common": "12",
+        "nestjs-zod>@nestjs/swagger": "12",
+        "@nestjs/throttler>@nestjs/common": "12",
+        "@nestjs/throttler>@nestjs/core": "12",
+        "@sentry/nestjs>@nestjs/common": "12",
+        "@sentry/nestjs>@nestjs/core": "12"
+      }
+    },
     "overrides": {
       "multer": "^2.2.0",
       "glob": "^10.5.0",
@@ -62,6 +72,7 @@
       "vitest": "^4.1.0",
       "form-data@>=4.0.0 <4.0.6": "^4.0.6",
       "@opentelemetry/core": "^2.8.0",
+      "@nestjs/swagger": "^12.0.1",
       "@babel/core@>=7 <8": "^7.29.6",
       "js-yaml@>=4 <4.3.1": "^4.3.1",
       "read-yaml-file@1": "^2.1.0",

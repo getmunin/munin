@@ -4,14 +4,9 @@ import { useTranslations } from 'next-intl';
 import { cn } from '@getmunin/ui';
 import { useRelative } from '../../lib/use-relative';
 import type { QueueItemDto } from './conversation-queue';
+import { initialsOf } from '../../lib/initials';
 
-function initialsOf(name: string | null): string {
-  if (!name?.trim()) return '?';
-  const parts = name.split(/[\s@._-]+/).filter(Boolean);
-  return `${parts[0]?.[0] ?? ''}${parts[1]?.[0] ?? ''}`.toUpperCase() || name.slice(0, 2).toUpperCase();
-}
-
-export function ClaimFace({
+function ClaimFace({
   claim,
   viewerUserId,
   showUnclaimed,
@@ -50,12 +45,14 @@ export function ConversationRow({
   active,
   viewerUserId,
   drafting,
+  dim,
   onSelect,
 }: {
   item: QueueItemDto;
   active: boolean;
   viewerUserId: string | null;
   drafting: boolean;
+  dim?: number;
   onSelect: () => void;
 }) {
   const t = useTranslations('dashboard.console.queue');
@@ -75,11 +72,12 @@ export function ConversationRow({
             onSelect();
           }
         }}
+        style={dim !== undefined && !active ? { opacity: dim } : undefined}
         className={cn(
-          'grid cursor-pointer grid-cols-[52px_minmax(0,1fr)_auto] items-start gap-3.5 border-b border-rule-soft px-5 py-3.5 transition-colors duration-fast ease-munin dark:border-rule-on-dark',
+          'grid cursor-pointer grid-cols-[52px_minmax(0,1fr)_auto] items-start gap-3.5 border-b border-rule-soft px-5 py-3.5 transition-[background-color,opacity] duration-fast ease-munin dark:border-rule-on-dark',
           active
             ? 'border-l-2 border-l-cobalt bg-paper-deep pl-[18px] dark:border-l-cobalt-soft dark:bg-card'
-            : 'hover:bg-paper-deep dark:hover:bg-card',
+            : 'hover:bg-paper-deep hover:!opacity-100 dark:hover:bg-card',
         )}
       >
         <span className="mt-0.5 inline-flex min-w-[44px] justify-center border border-rule-soft bg-paper-deep px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-eyebrow text-ink dark:border-rule-on-dark dark:bg-secondary dark:text-foreground">
@@ -109,7 +107,7 @@ export function ConversationRow({
             >
               <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-current" />
               {item.topicName} ·{' '}
-              {item.topicAgentMode === 'off'
+              {item.agentMode === 'off'
                 ? t('modeHuman')
                 : item.agentMode === 'auto'
                   ? t('modeAuto')

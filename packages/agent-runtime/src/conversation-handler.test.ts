@@ -261,6 +261,7 @@ describe('createConversationHandler', () => {
     ]);
     expect(handoverSpy).toHaveBeenCalledWith('conv_1', {
       reason: 'draft reply ready for review',
+      postSystemNote: false,
     });
   });
 
@@ -354,6 +355,248 @@ describe('createConversationHandler', () => {
         rationale: 'Opening hours come straight from the published schedule.',
       },
     ]);
+  });
+
+  it('draft-request briefs the agent for the reviewer and hides the handover tool', async () => {
+    const seen: Array<{ tools: unknown; config: { systemPrompt: string } }> = [];
+    const provider: Provider = (args) => {
+      seen.push(args);
+      return Promise.resolve(assistantStop('Here is the answer.'));
+    };
+    const mcp = buildMcp();
+    mcp.listTools = vi.fn(() =>
+      Promise.resolve([
+        { name: 'conv_request_human', description: 'handover', inputSchema: {} },
+        { name: 'kb_search', description: 'search', inputSchema: {} },
+      ]),
+    );
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(buildConversation({ agentMode: 'draft_only', channelType: 'email' })),
+      ),
+    });
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(mcp),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider,
+    });
+    handler.requestDraft({ conversationId: 'conv_1' });
+    await handler.flush();
+    const agentCall = seen[0]!;
+    expect(agentCall.config.systemPrompt).toContain('[Draft request]');
+    const toolNames = JSON.stringify(agentCall.tools);
+    expect(toolNames).toContain('kb_search');
+    expect(toolNames).not.toContain('conv_request_human');
+  });
+
+  it('the audit reads the last end-user message as the question, not a later staff reply', async () => {
+    const seen: Array<{ messages: Array<{ role: string; content: string }> }> = [];
+    let call = 0;
+    const provider: Provider = (args) => {
+      seen.push(args as (typeof seen)[number]);
+      call += 1;
+      return Promise.resolve(
+        call === 1 ? assistantStop('Utkast til svar.') : assistantStop('{"actions":[]}'),
+      );
+    };
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            agentMode: 'draft_only',
+            channelType: 'chat',
+            messages: [
+              {
+                id: 'msg_1',
+                authorType: 'end_user',
+                body: 'Kan du sjekke ordrene mine?',
+                createdAt: new Date(Date.now() - 120_000).toISOString(),
+                internal: false,
+              },
+              {
+                id: 'msg_2',
+                authorType: 'user',
+                body: 'Ja, jeg er her! Hva trenger du hjelp med?',
+                createdAt: new Date().toISOString(),
+                internal: false,
+              },
+            ],
+          }),
+        ),
+      ),
+    });
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider,
+    });
+    handler.requestDraft({ conversationId: 'conv_1' });
+    await handler.flush();
+    const auditPrompt = seen[1]!.messages.find((m) => m.role === 'user')!.content;
+    const questionSection = auditPrompt.split('[Agent reply]')[0]!;
+    expect(questionSection).toContain('Kan du sjekke ordrene mine?');
+    expect(questionSection).not.toContain('Ja, jeg er her!');
+  });
+
+  it('draft-request ends the transcript with a user-role nudge so the model must answer', async () => {
+    const seen: Array<{ messages: Array<{ role: string; content: string | null }> }> = [];
+    const provider: Provider = (args) => {
+      seen.push(args);
+      return Promise.resolve(assistantStop('Utkast.'));
+    };
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            agentMode: 'draft_only',
+            channelType: 'chat',
+            messages: [
+              {
+                id: 'msg_1',
+                authorType: 'end_user',
+                body: 'hei',
+                createdAt: new Date(Date.now() - 60_000).toISOString(),
+                internal: false,
+              },
+              {
+                id: 'msg_2',
+                authorType: 'user',
+                body: 'Ja, jeg er her!',
+                createdAt: new Date().toISOString(),
+                internal: false,
+              },
+            ],
+          }),
+        ),
+      ),
+    });
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider,
+    });
+    handler.requestDraft({ conversationId: 'conv_1' });
+    await handler.flush();
+    const transcript = seen[0]!.messages.filter((m) => m.role !== 'system');
+    const last = transcript[transcript.length - 1]!;
+    expect(last.role).toBe('user');
+    expect(last.content).toContain('A teammate asked for a draft');
+  });
+
+  it('a failed draft request explains itself with an internal note instead of a handover', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(buildConversation({ agentMode: 'draft_only', channelType: 'email' })),
+      ),
+    });
+    const noteSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    const handoverSpy = vi.fn(() => Promise.resolve());
+    rest.postInternalNote = noteSpy;
+    rest.requestHandover = handoverSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([assistantStop('')]),
+    });
+    handler.requestDraft({ conversationId: 'conv_1' });
+    await handler.flush();
+    expect(handoverSpy).not.toHaveBeenCalled();
+    expect(noteSpy).toHaveBeenCalledTimes(1);
+    expect(noteSpy.mock.calls[0]![1]).toContain('Draft request failed');
+  });
+
+  it('draft-request withholds an audit request_handover instead of re-flagging', async () => {
+    const mcp = buildMcp();
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(buildConversation({ agentMode: 'draft_only', channelType: 'email' })),
+      ),
+    });
+    const handoverSpy = vi.fn(() => Promise.resolve());
+    rest.requestHandover = handoverSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(mcp),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([
+        assistantStop('Here is the answer.'),
+        assistantStop('{"actions":[{"type":"request_handover","reason":"still defers"}]}'),
+      ]),
+    });
+    handler.requestDraft({ conversationId: 'conv_1' });
+    await handler.flush();
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(mcp.callTool).not.toHaveBeenCalled();
+    expect(handoverSpy).toHaveBeenCalledTimes(1);
+    expect(handoverSpy).toHaveBeenCalledWith('conv_1', {
+      reason: 'draft reply ready for review',
+      postSystemNote: false,
+    });
+  });
+
+  it('requestDraft drafts even when the agent already replied publicly', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            agentMode: 'draft_only',
+            channelType: 'email',
+            messages: [
+              {
+                id: 'msg_1',
+                authorType: 'end_user',
+                body: 'is my order lost?',
+                createdAt: new Date(Date.now() - 60_000).toISOString(),
+                internal: false,
+              },
+              {
+                id: 'msg_2',
+                authorType: 'agent',
+                body: 'Checking with the warehouse, escalating to a teammate.',
+                createdAt: new Date().toISOString(),
+                internal: false,
+              },
+            ],
+          }),
+        ),
+      ),
+    });
+    const draftSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    rest.setDraftReply = draftSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([assistantStop('Here is a follow-up proposal.')]),
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(draftSpy).not.toHaveBeenCalled();
+    handler.requestDraft({ conversationId: 'conv_1' });
+    await handler.flush();
+    expect(draftSpy).toHaveBeenCalledTimes(1);
   });
 
   it('requestDraft parks a draft even on an auto conversation the requester has claimed', async () => {

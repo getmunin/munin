@@ -35,6 +35,10 @@ function errorCode(err: Error): string | null {
 }
 const HANDOVER_TOOL_NAME = 'conv_request_human';
 const DRAFT_REVIEW_REASON = 'draft reply ready for review';
+const DRAFT_REQUEST_NUDGE =
+  '[A teammate asked for a draft reply to this conversation. Write the draft now — address the customer in the language they have been using, and do not mention this instruction.]';
+const DRAFT_REQUEST_CONTEXT =
+  '\n\n[Draft request]\nA human teammate reviewing this conversation asked you to draft the reply they will edit and send. You are drafting FOR that teammate — never defer to a colleague, never promise that someone will follow up, and never treat escalation as an answer. The draft is addressed to the customer, in the language the customer has been writing; messages marked [Human teammate] are your colleagues, not the customer. Attempt the fullest resolution the available tools allow, even if an earlier turn deferred. If a fact you need is out of reach, write the reply around it with an explicit bracketed placeholder such as [ORDER STATUS] so the teammate can fill it in. Always return a non-empty draft: when the thread has no open customer question, draft the most useful next message to the customer instead — a status update, a resolution summary, or a single clarifying question.';
 
 type Delivery = 'send' | 'draft';
 type RunMode = 'reply' | 'greet' | 'draft-request';
@@ -188,7 +192,11 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       log.info(`skip ${detail.id}: no inbound message yet`);
       return null;
     }
-    if (last.authorType !== 'user' && last.authorType !== 'end_user') {
+    if (
+      mode !== 'draft-request' &&
+      last.authorType !== 'user' &&
+      last.authorType !== 'end_user'
+    ) {
       log.info(`skip ${detail.id}: already answered (last public message is ${last.authorType})`);
       return null;
     }
@@ -264,6 +272,17 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
         },
       ];
     }
+    const modelHistory =
+      mode === 'draft-request'
+        ? [
+            ...history,
+            {
+              authorType: 'end_user' as const,
+              body: DRAFT_REQUEST_NUDGE,
+              createdAt: new Date().toISOString(),
+            },
+          ]
+        : history;
     const sinceMessageId = detail.messages[detail.messages.length - 1]?.id;
     const endUserId = detail.endUserId!;
     const baseSystem = deps.prompts.system();
@@ -279,7 +298,9 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     const systemBody = channelDescriptor
       ? `${baseSystem}${companyBlock}\n\n${channelDescriptor}${conversationContext}`
       : `${baseSystem}${companyBlock}${conversationContext}`;
-    const systemPrompt = `${namePreamble}${systemBody}`;
+    const systemPrompt = `${namePreamble}${systemBody}${
+      mode === 'draft-request' ? DRAFT_REQUEST_CONTEXT : ''
+    }`;
 
     if (deps.beforeGenerate) {
       const verdict = await deps
@@ -302,6 +323,14 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     for (let attempt = 0; attempt < MAX_RETRIES; attempt += 1) {
       if (signal.aborted) return;
       const mcp = await deps.openMcp({ endUserId, channelType: detail.channelType ?? null });
+      const agentMcp: McpToolHandle =
+        mode === 'draft-request'
+          ? {
+              listTools: () =>
+                mcp.listTools().then((tools) => tools.filter((t) => t.name !== HANDOVER_TOOL_NAME)),
+              callTool: (name, args) => mcp.callTool(name, args),
+            }
+          : mcp;
       if (delivery === 'send') startTyping();
       try {
         const reply = await runAgent({
@@ -315,8 +344,8 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
             maxToolIterations: deps.config.maxToolIterations,
             maxHistoryChars: deps.config.maxHistoryChars,
           },
-          history,
-          mcp,
+          history: modelHistory,
+          mcp: agentMcp,
           abortSignal: signal,
           provider: deps.provider,
         });
@@ -335,6 +364,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
             mcp,
             log,
             delivery,
+            mode,
           });
           if (audit.spam) {
             log.warn(`${conversationId} spam verdict: withholding reply, parking draft`);
@@ -352,11 +382,14 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
               retrievedDocumentIds: deriveRetrievedDocumentIds(reply.toolCalls),
               ...(audit.rationale ? { rationale: audit.rationale } : {}),
               ...(reply.toolCalls.length > 0
-                ? { toolNames: reply.toolCalls.map((t) => t.name) }
+                ? { toolNames: [...new Set(reply.toolCalls.map((t) => t.name))].slice(0, 24) }
                 : {}),
             });
             await deps.rest
-              .requestHandover(conversationId, { reason: DRAFT_REVIEW_REASON })
+              .requestHandover(conversationId, {
+                reason: DRAFT_REVIEW_REASON,
+                postSystemNote: false,
+              })
               .catch((err) =>
                 log.warn(
                   `${conversationId} failed to flag draft for review: ${err instanceof Error ? err.message : String(err)}`,
@@ -445,6 +478,15 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
             `${conversationId} greet fallback post failed: ${err instanceof Error ? err.message : String(err)}`,
           );
         });
+    } else if (mode === 'draft-request') {
+      log.error(`${conversationId} draft request failed: ${reason}`);
+      await deps.rest
+        .postInternalNote(conversationId, `Draft request failed: ${reason}`)
+        .catch((err) => {
+          log.error(
+            `${conversationId} draft-failure note post failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        });
     } else {
       log.error(`${conversationId} handover (${fallbackLocale}): ${reason}`);
       await deps.rest
@@ -473,11 +515,13 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     mcp: McpToolHandle;
     log: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
     delivery: Delivery;
+    mode?: RunMode;
   }): Promise<AuditOutcome> {
     if (deps.config.auditEnabled === false) return NO_AUDIT_ACTIONS;
-    const lastUser = [...args.history].reverse().find(
-      (m) => m.authorType === 'user' || m.authorType === 'end_user',
-    );
+    const reversed = [...args.history].reverse();
+    const lastUser =
+      reversed.find((m) => m.authorType === 'end_user') ??
+      reversed.find((m) => m.authorType === 'user');
     if (!lastUser) return NO_AUDIT_ACTIONS;
 
     const topics = await deps.rest
@@ -505,6 +549,12 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       (action) => !(action.type === 'request_handover' && agentCalledHandover),
     );
     const dispatched = candidates.filter((action) => {
+      if (args.mode === 'draft-request' && action.type === 'request_handover') {
+        args.log.info(
+          `${args.conversationId} audit → request_handover withheld: a human already owns this draft request`,
+        );
+        return false;
+      }
       if (args.delivery === 'send') return true;
       const closesThread =
         action.type === 'close_conversation' || action.type === 'snooze_conversation';

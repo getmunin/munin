@@ -1092,6 +1092,37 @@ const skipReason = TEST_URL
       expect(types).not.toContain('conversation.message.sent');
     });
 
+    it('an agent internal note passes the claim guard; an agent public reply does not', async () => {
+      const { conv } = await seedQueueConversation();
+      await db.insert(schema.claims).values({
+        orgId,
+        entityType: 'conversation',
+        entityId: conv.id,
+        userId,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      const note = await run(() =>
+        svc.sendMessage({
+          conversationId: conv.id,
+          body: 'Draft request failed: provider unavailable.',
+          internal: true,
+          authorType: 'agent',
+          authorId: 'agt_note',
+        }),
+      );
+      expect(note.metadata).toEqual({ kind: 'internal_note' });
+      await expect(
+        run(() =>
+          svc.sendMessage({
+            conversationId: conv.id,
+            body: 'public reply while claimed',
+            authorType: 'agent',
+            authorId: 'agt_note',
+          }),
+        ),
+      ).rejects.toThrow('handover_active');
+    });
+
     it('a note leaves needsHumanAttention standing', async () => {
       const { conv } = await seedQueueConversation();
       await run(() => svc.requestHandover({ conversationId: conv.id, reason: 'two systems disagree' }));
@@ -1108,6 +1139,22 @@ const skipReason = TEST_URL
       );
       const detail = await run(() => svc.getConversation(conv.id));
       expect(detail.needsHumanAttention).toBe(true);
+    });
+
+    it('requestHandover records the reason as an internal agent note, never a system divider', async () => {
+      const { conv } = await seedQueueConversation();
+      await run(() => svc.requestHandover({ conversationId: conv.id, reason: 'needs a human' }));
+      const [row] = await db.execute<{
+        author_type: string;
+        internal: boolean;
+        metadata: Record<string, unknown>;
+      }>(
+        sql`SELECT author_type, internal, metadata FROM conv_messages
+            WHERE conversation_id = ${conv.id} AND body = 'Agent requested handover: needs a human'`,
+      );
+      expect(row!.author_type).toBe('agent');
+      expect(row!.internal).toBe(true);
+      expect(row!.metadata['kind']).toBe('internal_note');
     });
 
     it('clearDraftReply stamps draft_reply_rejected with the rejecting user instead of deleting', async () => {
@@ -1184,6 +1231,40 @@ const skipReason = TEST_URL
       await run(() => svc.clearDraftReply(conv.id));
       await run(() => svc.changeStatus({ id: conv.id, status: 'closed' }));
       await expect(run(() => svc.requestDraft(conv.id))).rejects.toThrow(BadRequestException);
+    });
+
+    it('requestDraft honours a topic agent_mode of off over the conversation mode', async () => {
+      const { conv } = await seedQueueConversation();
+      const topic = await run(() => svc.createTopic({ name: 'Silenced topic', slug: 'silenced-topic' }));
+      await run(() => svc.setTopic({ conversationId: conv.id, topicId: topic.id }));
+      await db.execute(
+        sql`UPDATE conv_topics SET agent_mode = 'off' WHERE id = ${topic.id}`,
+      );
+      await expect(run(() => svc.requestDraft(conv.id))).rejects.toThrow(
+        'conv_draft_request_invalid',
+      );
+    });
+
+    it('queue pagination resumes without skipping rows across the cursor boundary', async () => {
+      const { conv } = await seedQueueConversation();
+      await run(() =>
+        svc.requestHandover({ conversationId: conv.id, reason: 'needs eyes', postSystemNote: false }),
+      );
+      const others = [];
+      for (let i = 0; i < 3; i += 1) {
+        const seeded = await seedQueueConversation();
+        others.push(seeded.conv.id);
+      }
+      const first = await run(() => svc.listConversationQueuePage({ status: 'open', limit: 2 }));
+      expect(first.nextCursor).not.toBeNull();
+      const second = await run(() =>
+        svc.listConversationQueuePage({ status: 'open', limit: 10, cursor: first.nextCursor! }),
+      );
+      const seen = [...first.items, ...second.items].map((i) => i.id);
+      expect(new Set(seen).size).toBe(seen.length);
+      for (const id of [conv.id, ...others]) {
+        expect(seen).toContain(id);
+      }
     });
   });
 

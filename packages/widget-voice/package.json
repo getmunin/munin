@@ -25,13 +25,13 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@vapi-ai/web": "^2.4.0"
+    "@vapi-ai/web": "^2.7.0"
   },
   "devDependencies": {
     "@getmunin/eslint-config": "workspace:*",
     "@getmunin/tsconfig": "workspace:*",
-    "eslint": "^9.10.0",
-    "typescript": "^5.6.0",
-    "vitest": "^4.1.9"
+    "eslint": "^9.39.5",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
   }
 }

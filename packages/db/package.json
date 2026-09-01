@@ -44,16 +44,16 @@
   "dependencies": {
     "@getmunin/types": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "postgres": "^3.4.5"
+    "postgres": "^3.4.9"
   },
   "devDependencies": {
     "@getmunin/eslint-config": "workspace:*",
     "@getmunin/tsconfig": "workspace:*",
-    "@types/node": "^22.7.0",
+    "@types/node": "^22.20.1",
     "drizzle-kit": "^0.31.10",
-    "eslint": "^9.10.0",
-    "tsx": "^4.22.4",
-    "typescript": "^5.6.0",
-    "vitest": "^4.1.9"
+    "eslint": "^9.39.5",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
   }
 }

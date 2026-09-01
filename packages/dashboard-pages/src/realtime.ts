@@ -218,7 +218,10 @@ class RealtimeClient {
       }
     }
     console.debug(
-      `[munin/realtime] typing dispatch channel=${channel} matched=${matched}/${this.typingListeners.size}`,
+      '[munin/realtime] typing dispatch channel=%s matched=%s/%s',
+      channel,
+      matched,
+      this.typingListeners.size,
       matched === 0
         ? [...this.typingListeners].map((l) => [...l.channels].join(','))
         : undefined,

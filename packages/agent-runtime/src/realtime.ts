@@ -34,6 +34,10 @@ export interface GreetRequestedEvent {
   endUserId?: string;
 }
 
+export interface DraftRequestedEvent {
+  conversationId: string;
+}
+
 export interface AgentConfigChangedEvent {
   configId: string;
 }
@@ -46,6 +50,7 @@ export interface RealtimeClientOptions {
   onHandoverResolved?: (event: HandoverResolvedEvent) => void;
   onCuratorJobPending?: (event: CuratorJobPendingEvent) => void;
   onGreetRequested?: (event: GreetRequestedEvent) => void;
+  onDraftRequested?: (event: DraftRequestedEvent) => void;
   onAgentConfigChanged?: (event: AgentConfigChangedEvent) => void;
   onConnected?: () => void;
   logger?: { info: (msg: string) => void; warn: (msg: string) => void; error: (msg: string) => void };
@@ -175,6 +180,13 @@ export function createRealtimeClient(opts: RealtimeClientOptions): RealtimeClien
             conversationId,
             endUserId: typeof payload['endUserId'] === 'string' ? payload['endUserId'] : undefined,
           });
+          return;
+        }
+
+        if (opts.onDraftRequested && eventType === 'conversation.draft_requested') {
+          const conversationId = payload['conversationId'];
+          if (typeof conversationId !== 'string') return;
+          opts.onDraftRequested({ conversationId });
           return;
         }
 

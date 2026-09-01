@@ -94,6 +94,7 @@ export {
   createRealtimeClient,
   type AgentConfigChangedEvent,
   type CuratorJobPendingEvent,
+  type DraftRequestedEvent,
   type GreetRequestedEvent,
   type HandoverResolvedEvent,
   type KbDocumentChangedEvent,

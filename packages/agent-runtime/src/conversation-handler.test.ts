@@ -320,8 +320,76 @@ describe('createConversationHandler', () => {
     expect(draftSpy.mock.calls[0]).toEqual([
       'conv_1',
       'The effective rate is about 11.9%.',
-      { retrievedDocumentIds: ['kdoc_rates'] },
+      { retrievedDocumentIds: ['kdoc_rates'], toolNames: ['kb_search'] },
     ]);
+  });
+
+  it('parks the audit rationale on the draft for the human reviewer', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(buildConversation({ agentMode: 'draft_only', channelType: 'email' })),
+      ),
+    });
+    const draftSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    rest.setDraftReply = draftSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([
+        assistantStop('We open at 10am.'),
+        assistantStop('{"rationale":"Opening hours come straight from the published schedule.","actions":[]}'),
+      ]),
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(draftSpy.mock.calls[0]).toEqual([
+      'conv_1',
+      'We open at 10am.',
+      {
+        retrievedDocumentIds: undefined,
+        rationale: 'Opening hours come straight from the published schedule.',
+      },
+    ]);
+  });
+
+  it('requestDraft parks a draft even on an auto conversation the requester has claimed', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            agentMode: 'auto',
+            channelType: 'email',
+            claim: {
+              holderType: 'user',
+              holderId: 'user_7',
+              expiresAt: new Date(Date.now() + 600_000).toISOString(),
+            },
+          }),
+        ),
+      ),
+    });
+    const postSpy = vi.fn(() => Promise.resolve());
+    const draftSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    rest.setDraftReply = draftSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([assistantStop('Here is what I found.')]),
+    });
+    handler.requestDraft({ conversationId: 'conv_1' });
+    await handler.flush();
+    expect(postSpy).not.toHaveBeenCalled();
+    expect(draftSpy).toHaveBeenCalledTimes(1);
+    expect(draftSpy.mock.calls[0]![1]).toBe('Here is what I found.');
   });
 
   it('leaves an outreach-originated draft_only conversation to the outreach reply curator', async () => {

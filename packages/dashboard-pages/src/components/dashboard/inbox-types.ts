@@ -93,6 +93,15 @@ export type ConvActionError =
     }
   | null;
 
+export type QueueActionError =
+  | {
+      type: 'approve' | 'dismiss';
+      itemId: string;
+      message: string;
+      code: string | null;
+    }
+  | null;
+
 export interface InboxController {
   items: LiveSummary[];
   details: Record<string, ConversationDetail>;
@@ -121,6 +130,8 @@ export interface InboxController {
   reloadQueueDetail: (id: string) => void;
   actionError: ConvActionError;
   clearActionError: () => void;
+  queueActionError: QueueActionError;
+  clearQueueActionError: () => void;
   connectionStatus: RealtimeStatus;
   takeOver: (id: string, openDrawerAfter?: boolean) => Promise<void>;
   release: (id: string) => Promise<void>;
@@ -130,7 +141,7 @@ export interface InboxController {
     body: string,
     options?: { claim?: boolean; fromDraftId?: string },
   ) => Promise<void>;
-  approveQueue: (item: QueueItem, sendAt?: string | null) => Promise<void>;
+  approveQueue: (item: QueueItem, sendAt?: string | null) => Promise<boolean>;
   scheduled: ScheduledItem[];
   cancelScheduledSend: (id: string, reason: string) => Promise<void>;
   cancelScheduledPublish: (id: string) => Promise<void>;
@@ -138,6 +149,6 @@ export interface InboxController {
   saveCmsDraft: (item: QueueItem, data: Record<string, unknown>) => Promise<void>;
   uploadCmsAsset: (item: QueueItem, file: File) => Promise<CmsAssetExpanded>;
   previewCmsDraft: (item: QueueItem) => Promise<void>;
-  dismissQueue: (item: QueueItem) => Promise<void>;
+  dismissQueue: (item: QueueItem) => Promise<boolean>;
   scheduleQueue: (item: QueueItem, scheduledAt: string) => Promise<void>;
 }

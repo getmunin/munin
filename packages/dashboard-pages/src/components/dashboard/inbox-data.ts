@@ -26,6 +26,7 @@ import {
 } from './inbox-helpers';
 import type {
   ConvActionError,
+  QueueActionError,
   ConvDrawer,
   ConversationDetail,
   InboxController,
@@ -159,6 +160,7 @@ export function useInboxData(): InboxController {
   const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
   const [queueDetailErrors, setQueueDetailErrors] = useState<Record<string, string>>({});
   const [actionError, setActionError] = useState<ConvActionError>(null);
+  const [queueActionError, setQueueActionError] = useState<QueueActionError>(null);
   const viewedProposals = useRef<Set<string>>(new Set());
 
   const loadInbox = useCallback(async () => {
@@ -215,6 +217,7 @@ export function useInboxData(): InboxController {
   );
 
   const clearActionError = useCallback(() => setActionError(null), []);
+  const clearQueueActionError = useCallback(() => setQueueActionError(null), []);
 
   useEffect(() => {
     void loadInbox();
@@ -451,6 +454,7 @@ export function useInboxData(): InboxController {
   const approveQueue = useCallback(
     async (item: QueueItem, sendAt?: string | null) => {
       setPending(true);
+      setQueueActionError(null);
       try {
         if (item.kind === 'kb' && item.raw.revisesDocumentId) {
           await api(`/v1/kb/curation/candidates/${item.id}/publish-revision`, {
@@ -486,8 +490,15 @@ export function useInboxData(): InboxController {
         }
         await loadInbox();
         setQueueDrawer(null);
+        return true;
       } catch (err) {
-        notify.error(translateErr(err));
+        setQueueActionError({
+          type: 'approve',
+          itemId: item.id,
+          message: translateErr(err),
+          code: getErrorCode(err),
+        });
+        return false;
       } finally {
         setPending(false);
       }
@@ -601,6 +612,7 @@ export function useInboxData(): InboxController {
   const dismissQueue = useCallback(
     async (item: QueueItem) => {
       setPending(true);
+      setQueueActionError(null);
       try {
         if (item.kind === 'kb') {
           await api(`/v1/kb/curation/candidates/${item.id}/dismiss`, { method: 'POST' });
@@ -621,8 +633,15 @@ export function useInboxData(): InboxController {
         }
         await loadInbox();
         setQueueDrawer(null);
+        return true;
       } catch (err) {
-        notify.error(translateErr(err));
+        setQueueActionError({
+          type: 'dismiss',
+          itemId: item.id,
+          message: translateErr(err),
+          code: getErrorCode(err),
+        });
+        return false;
       } finally {
         setPending(false);
       }
@@ -719,6 +738,8 @@ export function useInboxData(): InboxController {
     reloadQueueDetail,
     actionError,
     clearActionError,
+    queueActionError,
+    clearQueueActionError,
     connectionStatus,
     takeOver,
     release,

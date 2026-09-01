@@ -11,7 +11,7 @@ export interface LoadFailedDetail {
 }
 
 export interface LoadFailedProps {
-  size: 'inbox' | 'settings';
+  size: 'inbox' | 'settings' | 'pane';
   eyebrow: string;
   heading: ReactNode;
   lede: ReactNode;
@@ -40,6 +40,8 @@ export function LoadFailed({
   className,
 }: LoadFailedProps) {
   const isInbox = size === 'inbox';
+  const isPane = size === 'pane';
+  const Heading = isPane ? 'h2' : 'h1';
   const detailRows: { k: string; v: string }[] = [];
   if (detail.requestId) detailRows.push({ k: 'request_id', v: detail.requestId });
   detailRows.push({ k: 'endpoint', v: detail.endpoint });
@@ -52,7 +54,7 @@ export function LoadFailed({
       data-screen-label={screenLabel}
       className={cn(
         'flex flex-col text-ink dark:text-foreground',
-        isInbox ? 'gap-8 py-16' : 'gap-6',
+        isInbox ? 'gap-8 py-16' : isPane ? 'gap-5' : 'gap-6',
         className,
       )}
     >
@@ -65,17 +67,22 @@ export function LoadFailed({
           <span>{eyebrow}</span>
         </div>
 
-        <h1
+        <Heading
           className={cn(
             'font-serif font-normal text-ink dark:text-foreground leading-[1.05] tracking-tight',
             '[&_em]:italic [&_em]:text-alert-bad-ink',
-            isInbox ? 'text-[56px]' : 'text-4xl md:text-5xl',
+            isInbox ? 'text-[56px]' : isPane ? 'text-2xl' : 'text-4xl md:text-5xl',
           )}
         >
           {heading}
-        </h1>
+        </Heading>
 
-        <p className="text-base leading-[1.5] text-ink-soft max-w-xl dark:text-foreground/80">
+        <p
+          className={cn(
+            'leading-[1.5] text-ink-soft max-w-xl dark:text-foreground/80',
+            isPane ? 'text-sm' : 'text-base',
+          )}
+        >
           {lede}
         </p>
       </div>
@@ -83,7 +90,7 @@ export function LoadFailed({
       <dl
         className={cn(
           'grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary p-4',
-          isInbox ? 'max-w-[520px]' : 'max-w-[480px]',
+          isInbox ? 'max-w-[520px]' : isPane ? 'max-w-full' : 'max-w-[480px]',
         )}
       >
         {detailRows.map(({ k, v }) => (
@@ -99,7 +106,7 @@ export function LoadFailed({
       </dl>
 
       <div className="flex items-center gap-3">
-        <Button variant="default" onClick={onRetry} disabled={retrying}>
+        <Button variant="default" size={isPane ? 'sm' : 'default'} onClick={onRetry} disabled={retrying}>
           {retrying ? retryingLabel : retryLabel}
         </Button>
         {autoRetryHint && (

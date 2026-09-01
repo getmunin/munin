@@ -20,6 +20,7 @@ import { DrawerHeader, DrawerLoadFailed, RowCode } from './queue-drawers/shared'
 import { queueCodeKey } from './queue-drawers/types';
 import type { QueueItem, ScheduledItem } from './queue-drawers/types';
 import { useInboxData } from './inbox-data';
+import { QueueActionErrorBanner } from './queue-action-error';
 import { ConversationDrawer } from './inbox-conv-drawers';
 import type { ConvActionError, InboxController } from './inbox-types';
 
@@ -242,6 +243,8 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
     reloadQueueDetail,
     actionError,
     clearActionError,
+    queueActionError,
+    clearQueueActionError,
     send,
     takeOver,
     release,
@@ -312,6 +315,10 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
 
       <Sheet open={queueDrawer !== null} onOpenChange={(o) => !o && setQueueDrawer(null)}>
         <SheetContent side="right" className="w-full max-w-[560px]">
+          <QueueActionErrorBanner
+            error={queueActionError?.itemId === queueDrawer?.id ? queueActionError : null}
+            onDismiss={clearQueueActionError}
+          />
           {queueDrawer && (
             <QueueDrawer
               item={queue.find((q) => q.id === queueDrawer.id) ?? queueDrawer}

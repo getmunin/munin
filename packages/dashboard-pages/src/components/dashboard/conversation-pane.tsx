@@ -9,6 +9,8 @@ import { useRelative } from '../../lib/use-relative';
 import { useConversationTyping } from '../../realtime';
 import { useCmdEnter } from './queue-drawers/shared';
 import { MessageBubble, startsAuthorGroup } from './inbox-message-bubble';
+import { LoadFailed } from '../load-failed';
+import { usePaneLoadFailedProps } from '../../lib/use-load-failed-props';
 import {
   messageDraftKind,
   pendingDraftOf,
@@ -35,6 +37,7 @@ export function ConversationPane({
   const t = useTranslations('dashboard.console.queue');
   const tCommon = useTranslations('common');
   const age = useRelative();
+  const buildPaneLoadFailedProps = usePaneLoadFailedProps();
 
   const [tab, setTab] = useState<'reply' | 'note'>('reply');
   const [reply, setReply] = useState('');
@@ -199,18 +202,15 @@ export function ConversationPane({
     return (
       <section className="flex min-h-0 flex-col bg-paper-deep dark:bg-secondary">
         {detailError ? (
-          <div className="flex flex-1 flex-col items-start justify-center gap-3 px-8" role="alert">
-            <span className="font-mono text-[11px] uppercase tracking-eyebrow text-ink-mute">
-              {t('detailFailed')}
-            </span>
-            <span className="text-[13px] text-ink-soft dark:text-foreground/80">{detailError}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void controller.retryDetail(selectedId)}
-            >
-              {tCommon('retry')}
-            </Button>
+          <div className="flex flex-1 flex-col justify-center px-8" role="alert">
+            <LoadFailed
+              {...buildPaneLoadFailedProps(
+                t('detailFailed'),
+                'Conversation · detail fetch failed',
+                detailError,
+                () => void controller.retryDetail(selectedId),
+              )}
+            />
           </div>
         ) : (
           <PageSpinner className="flex-1" />

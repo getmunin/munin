@@ -86,7 +86,7 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-paper dark:bg-background">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-ink px-4 md:hidden dark:border-rule-on-dark">
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-ink bg-bone px-4 md:hidden dark:border-rule-on-dark dark:bg-background">
         {backLink}
         <button
           type="button"
@@ -101,7 +101,7 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="hidden min-h-0 w-72 shrink-0 flex-col border-r border-ink bg-bone md:flex dark:border-rule-on-dark dark:bg-secondary">
+        <aside className="hidden min-h-0 w-[280px] shrink-0 flex-col border-r border-ink bg-bone md:flex dark:border-rule-on-dark dark:bg-secondary">
           <div className="flex flex-col gap-3 px-5 pb-5 pt-5">
             {backLink}
             <span className="font-serif text-[34px] font-normal leading-none tracking-tight text-ink dark:text-foreground">

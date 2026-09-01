@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
-import { ArrowLeft, LogOut, Menu, MoreHorizontal, X } from 'lucide-react';
+import { ArrowLeft, LogOut, Menu, MoreHorizontal } from 'lucide-react';
 import {
   Button,
   DropdownMenu,
@@ -13,6 +13,7 @@ import {
   Sheet,
   SheetContent,
   SheetTitle,
+  cn,
 } from '@getmunin/ui';
 import { api } from '../api';
 import { authClient } from '../auth-client';
@@ -90,27 +91,23 @@ function NavList({
   groups,
   badges,
   onNavigate,
-  mobile,
 }: {
   groups: ConsoleNavGroup[];
   badges: ConsoleBadges;
   onNavigate?: () => void;
-  mobile?: boolean;
 }) {
   const tNav = useTranslations('nav');
   const tGroups = useTranslations('dashboard.console.groups');
   const pathname = usePathname();
 
   return (
-    <nav className={mobile ? 'flex flex-col gap-6' : 'flex flex-col gap-6 pl-2 pr-6'}>
+    <nav className="flex flex-col gap-6 pl-2 pr-6">
       {groups.map((group) => (
         <div key={group.groupKey}>
-          <p
-            className={`mb-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute ${mobile ? '' : 'px-3.5'}`}
-          >
+          <p className="mb-2 px-3.5 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
             {tGroups(group.groupKey)}
           </p>
-          <ul className={mobile ? '' : 'space-y-px'}>
+          <ul className="space-y-px">
             {group.items.map((item) => {
               const active = isConsoleItemActive(pathname, item.href);
               const count = badgeValue(item.badge, badges);
@@ -120,15 +117,12 @@ function NavList({
                     href={item.href}
                     onClick={onNavigate}
                     aria-current={active ? 'page' : undefined}
-                    className={
-                      mobile
-                        ? `flex min-h-[52px] items-center justify-between gap-3 border-b border-rule-soft text-base dark:border-rule-on-dark ${active ? 'text-cobalt dark:text-cobalt-soft' : 'text-ink dark:text-foreground'}`
-                        : `flex items-center justify-between gap-2 border-l-[3px] px-3.5 py-2 text-[14.5px] transition-colors duration-fast ease-munin ${
-                            active
-                              ? 'border-cobalt bg-paper text-ink dark:border-cobalt-soft dark:bg-card dark:text-foreground'
-                              : 'border-transparent text-ink-soft hover:text-ink dark:text-foreground/70 dark:hover:text-foreground'
-                          }`
-                    }
+                    className={cn(
+                      'flex items-center justify-between gap-2 border-l-[3px] px-3.5 py-2 text-[14.5px] transition-colors duration-fast ease-munin',
+                      active
+                        ? 'border-cobalt bg-paper text-ink dark:border-cobalt-soft dark:bg-card dark:text-foreground'
+                        : 'border-transparent text-ink-soft hover:text-ink dark:text-foreground/70 dark:hover:text-foreground',
+                    )}
                   >
                     <span className="truncate">{tNav(item.labelKey)}</span>
                     {count > 0 ? (
@@ -213,7 +207,6 @@ function ConsoleShellInner({
   children,
 }: ConsoleShellProps) {
   const tNav = useTranslations('nav');
-  const tCommon = useTranslations('common');
   const pathname = usePathname();
   const router = useRouter();
   const { data: session } = authClient.useSession();
@@ -266,7 +259,7 @@ function ConsoleShellInner({
       </aside>
 
       <div className="flex min-h-0 min-w-0 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-2.5 border-b border-ink px-4 md:hidden dark:border-rule-on-dark">
+        <header className="flex h-14 shrink-0 items-center gap-2.5 border-b border-ink bg-bone px-4 md:hidden dark:border-rule-on-dark dark:bg-background">
           {backAction ? (
             <button
               type="button"
@@ -317,25 +310,14 @@ function ConsoleShellInner({
       </div>
 
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-        <SheetContent side="left" className="w-full max-w-none border-0 p-0 sm:max-w-none">
-          <div className="flex h-full flex-col bg-paper dark:bg-background">
-            <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-ink px-4 dark:border-rule-on-dark">
-              <Image src={logoSrc} alt="" aria-hidden width={26} height={26} className="block size-[26px] object-contain" />
-              <SheetTitle className="min-w-0 truncate font-sans text-sm font-medium tracking-normal text-ink dark:text-foreground">
-                {brand}
-              </SheetTitle>
-              <button
-                type="button"
-                onClick={() => setMenuOpen(false)}
-                aria-label={tNav('closeMenu')}
-                className="ml-auto flex items-center gap-2.5 font-mono text-[9px] uppercase tracking-eyebrow text-ink-soft dark:text-foreground/80"
-              >
-                {tCommon('close')}
-                <X aria-hidden className="size-4 text-ink dark:text-foreground" />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
-              <NavList groups={groups} badges={badges} mobile onNavigate={() => setMenuOpen(false)} />
+        <SheetContent side="left" className="max-w-[320px] border-0 p-0">
+          <div className="flex h-full flex-col bg-bone dark:bg-secondary">
+            <SheetTitle className="flex items-center gap-2.5 px-5 pb-2 pt-5 font-sans text-[15px] font-medium tracking-normal text-ink dark:text-foreground">
+              <Image src={logoSrc} alt="" aria-hidden width={26} height={26} className="block size-[26px] shrink-0 object-contain" />
+              <span className="min-w-0 truncate">{brand}</span>
+            </SheetTitle>
+            <div className="min-h-0 flex-1 overflow-y-auto py-2">
+              <NavList groups={groups} badges={badges} onNavigate={() => setMenuOpen(false)} />
             </div>
             <UserFooter
               name={session?.user?.name}

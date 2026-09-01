@@ -80,7 +80,7 @@ export function ConversationRow({
             : 'hover:bg-paper-deep hover:!opacity-100 dark:hover:bg-card',
         )}
       >
-        <span className="mt-0.5 inline-flex min-w-[44px] justify-center border border-rule-soft bg-paper-deep px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-eyebrow text-ink dark:border-rule-on-dark dark:bg-secondary dark:text-foreground">
+        <span className="inline-flex min-w-[44px] self-center justify-center border border-rule-soft bg-paper-deep px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-eyebrow text-ink dark:border-rule-on-dark dark:bg-secondary dark:text-foreground">
           {item.channelType}
         </span>
         <span className="flex min-w-0 flex-col gap-0.5">

@@ -13,6 +13,7 @@ import { findOrCreateEndUserByEmail } from '../end-user-by-email.ts';
 import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from '../set-topic-job.ts';
 import { reopenClosedConversation } from '../conversation-reopen.ts';
+import { raiseAttentionWhenAgentIsOff } from '../unanswerable-handover.ts';
 import type { ChannelRow, InboundBatch } from './adapter.ts';
 
 @Injectable()
@@ -96,6 +97,8 @@ export class ChannelIngestService {
           .update(schema.convConversations)
           .set({ lastMessageAt: msg.receivedAt, updatedAt: new Date() })
           .where(eq(schema.convConversations.id, conversation.id));
+
+        await raiseAttentionWhenAgentIsOff(tx, conversation.id);
 
         await this.webhooks.emit({
           type: 'conversation.message.received',

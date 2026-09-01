@@ -48,7 +48,7 @@ describe('partitionQueue', () => {
     expect(sections.finished.map((i) => i.id)).toEqual(['e']);
   });
 
-  it('a conversation you claimed where the customer spoke last is waiting on you', () => {
+  it('anything you claimed stays with you, even while the customer is the one who owes a reply', () => {
     const mineAwaiting = item({
       id: 'a',
       endUserSpokeLast: true,
@@ -66,8 +66,31 @@ describe('partitionQueue', () => {
     });
     const freeAwaiting = item({ id: 'd', endUserSpokeLast: true });
     const sections = partitionQueue([mineAwaiting, mineAnswered, theirsAwaiting, freeAwaiting], [], 'me');
+    expect(sections.needsYou.map((i) => i.id)).toEqual(['a', 'b']);
+    expect(sections.inProgress.map((i) => i.id)).toEqual(['c', 'd']);
+  });
+
+  it('keeps a claim of yours in needs-you even after the attention flag is cleared', () => {
+    const mineCalm = item({
+      id: 'a',
+      needsHumanAttention: false,
+      endUserSpokeLast: false,
+      claim: { holderId: 'me', holderName: 'Me', expiresAt: '' },
+    });
+    const sections = partitionQueue([mineCalm], [], 'me');
     expect(sections.needsYou.map((i) => i.id)).toEqual(['a']);
-    expect(sections.inProgress.map((i) => i.id)).toEqual(['b', 'c', 'd']);
+    expect(sections.inProgress).toHaveLength(0);
+  });
+
+  it('a flagged conversation someone else holds is theirs to finish, not yours', () => {
+    const theirs = item({
+      id: 'a',
+      needsHumanAttention: true,
+      claim: { holderId: 'other', holderName: 'S. Krogh', expiresAt: '' },
+    });
+    const sections = partitionQueue([theirs], [], 'me');
+    expect(sections.needsYou).toHaveLength(0);
+    expect(sections.inProgress.map((i) => i.id)).toEqual(['a']);
   });
 });
 

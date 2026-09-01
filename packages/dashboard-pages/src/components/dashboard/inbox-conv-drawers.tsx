@@ -7,7 +7,7 @@ import { Button, Pill } from '@getmunin/ui';
 import { useRelative } from '../../lib/use-relative';
 import { DrawerHeader, useCmdEnter } from './queue-drawers/shared';
 import { ActivityRail } from './inbox-activity-rail';
-import { MessageBubble } from './inbox-message-bubble';
+import { MessageBubble, startsAuthorGroup } from './inbox-message-bubble';
 import { messageDraftKind } from './conversation-queue';
 import type { ConvActionError, ConversationDetail } from './inbox-types';
 
@@ -161,8 +161,12 @@ export function ConversationDrawer({
       />
 
       <div ref={messagesRef} className="flex-1 space-y-3 overflow-y-auto px-6 py-5">
-        {thread.map((m) => (
-          <MessageBubble key={m.id} message={m} />
+        {thread.map((m, i, arr) => (
+          <MessageBubble
+            key={m.id}
+            message={m}
+            showAuthor={startsAuthorGroup(m, arr[i - 1])}
+          />
         ))}
       </div>
 

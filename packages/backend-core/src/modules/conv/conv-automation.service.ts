@@ -11,8 +11,10 @@ export interface TopicAutomationRow {
   id: string;
   name: string;
   slug: string;
+  description: string | null;
   agentMode: AgentMode | null;
   autoPromotedAt: string | null;
+  promoteThresholdPct: number;
   windowDays: number;
   weeklyVolume: number;
   reviewedCount: number;
@@ -103,8 +105,10 @@ export class ConvAutomationService {
           id: topic.id,
           name: topic.name,
           slug: topic.slug,
+          description: topic.description,
           agentMode: (topic.agentMode as AgentMode | null) ?? null,
           autoPromotedAt: topic.autoPromotedAt?.toISOString() ?? null,
+          promoteThresholdPct: topic.promoteThresholdPct,
           windowDays: STATS_WINDOW_DAYS,
           weeklyVolume: Math.round(((s?.outbound ?? 0) / STATS_WINDOW_DAYS) * 7),
           reviewedCount: reviewed,
@@ -120,7 +124,14 @@ export class ConvAutomationService {
   async setTopicAgentMode(input: {
     topicId: string;
     mode: AgentMode | null;
-  }): Promise<{ id: string; slug: string; agentMode: AgentMode | null; autoPromotedAt: string | null }> {
+    promoteThresholdPct?: number;
+  }): Promise<{
+    id: string;
+    slug: string;
+    agentMode: AgentMode | null;
+    autoPromotedAt: string | null;
+    promoteThresholdPct: number;
+  }> {
     const ctx = getCurrentContext();
     const [existing] = await ctx.db
       .select({
@@ -128,6 +139,7 @@ export class ConvAutomationService {
         slug: schema.convTopics.slug,
         agentMode: schema.convTopics.agentMode,
         autoPromotedAt: schema.convTopics.autoPromotedAt,
+        promoteThresholdPct: schema.convTopics.promoteThresholdPct,
       })
       .from(schema.convTopics)
       .where(eq(schema.convTopics.id, input.topicId))
@@ -144,13 +156,21 @@ export class ConvAutomationService {
         : null;
     const [updated] = await ctx.db
       .update(schema.convTopics)
-      .set({ agentMode: input.mode, autoPromotedAt, updatedAt: new Date() })
+      .set({
+        agentMode: input.mode,
+        autoPromotedAt,
+        ...(input.promoteThresholdPct === undefined
+          ? {}
+          : { promoteThresholdPct: input.promoteThresholdPct }),
+        updatedAt: new Date(),
+      })
       .where(eq(schema.convTopics.id, input.topicId))
       .returning({
         id: schema.convTopics.id,
         slug: schema.convTopics.slug,
         agentMode: schema.convTopics.agentMode,
         autoPromotedAt: schema.convTopics.autoPromotedAt,
+        promoteThresholdPct: schema.convTopics.promoteThresholdPct,
       });
 
     await this.webhooks.emit({
@@ -168,6 +188,7 @@ export class ConvAutomationService {
       slug: updated!.slug,
       agentMode: (updated!.agentMode as AgentMode | null) ?? null,
       autoPromotedAt: updated!.autoPromotedAt?.toISOString() ?? null,
+      promoteThresholdPct: updated!.promoteThresholdPct,
     };
   }
 }

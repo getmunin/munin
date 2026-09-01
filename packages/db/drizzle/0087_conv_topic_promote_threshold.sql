@@ -1,0 +1,1 @@
+ALTER TABLE "conv_topics" ADD COLUMN "promote_threshold_pct" integer DEFAULT 90 NOT NULL;

@@ -76,10 +76,29 @@ const EmailOpenStatsInput = z.object({
     .describe('Window size in days, counted back from now. Defaults to 30.'),
 });
 
+const TopicDescriptionSchema = z
+  .string()
+  .max(600)
+  .describe(
+    'What belongs in this topic, in the org\'s own words — the boundary against adjacent topics, the vocabulary customers use for it, and anything that looks like it fits but does not. This is what a classifier reads when deciding where a conversation goes; a bare name is not enough to tell "Support" from "Technical".',
+  );
+
 const CreateTopicInput = z.object({
   name: z.string().min(1).max(120),
   slug: z.string().min(1).max(64),
+  description: TopicDescriptionSchema.optional(),
   color: z.string().max(16).optional(),
+});
+
+const UpdateTopicInput = z.object({
+  topicId: z.string(),
+  name: z.string().min(1).max(120).optional(),
+  description: TopicDescriptionSchema.nullable()
+    .optional()
+    .describe(
+      'Replaces the topic\'s description. Pass null to clear it. Omit to leave it unchanged. What belongs in this topic, in the org\'s own words — the boundary against adjacent topics, the vocabulary customers use for it, and anything that looks like it fits but does not.',
+    ),
+  color: z.string().max(16).nullable().optional(),
 });
 
 const SetTopicInput = z.object({
@@ -92,6 +111,15 @@ const SetTopicAutomationInput = z.object({
   mode: AgentModeSchema.nullable().describe(
     '`auto` sends replies in this topic without review, `draft_only` parks every reply as a draft for the review queue, `off` stops the agent from replying in the topic, and `null` clears the override so conversations fall back to their own mode.',
   ),
+  promoteThresholdPct: z
+    .number()
+    .int()
+    .min(50)
+    .max(100)
+    .optional()
+    .describe(
+      'Share of reviewed replies that must have been approved unedited before this topic is reported as ready to promote to `auto`, as a whole percent. Reporting only — reaching it never promotes the topic on its own. Defaults to 90; omit to leave unchanged.',
+    ),
 });
 
 const SetSubjectInput = z.object({
@@ -322,7 +350,8 @@ export class ConvAdminTools {
   @McpTool({
     name: 'conv_list_topics',
     title: 'Conv: List conversation topics',
-    description: 'List conversation topics (Billing, Support, Refunds, …) for your org.',
+    description:
+      "List conversation topics (Billing, Support, Refunds, …) for your org, each with the description its operators wrote for it. The description states what belongs in the topic and where its boundary against adjacent topics runs; when one is present it is the authority on whether a conversation fits, ahead of the name. A topic with no description has never been defined beyond its label.",
     audiences: ['admin'],
     scopes: ['conv:read'],
     input: EmptyInput,
@@ -336,7 +365,8 @@ export class ConvAdminTools {
   @McpTool({
     name: 'conv_create_topic',
     title: 'Conv: Create conversation topic',
-    description: 'Add a new conversation topic. Slug must be lowercase letters, digits, hyphens.',
+    description:
+      'Add a new conversation topic. Slug must be lowercase letters, digits, hyphens. The optional description defines what belongs in the topic; supplying one is what lets later conversations be filed here accurately, since name and slug carry the same single word of signal.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: CreateTopicInput,
@@ -348,10 +378,25 @@ export class ConvAdminTools {
   }
 
   @McpTool({
+    name: 'conv_update_topic',
+    title: 'Conv: Update a conversation topic',
+    description:
+      "Rename a topic, rewrite its description, or change its colour. Omitted fields are left alone. The description is the org's definition of what belongs in the topic and is read whenever a conversation is filed, so keeping it current is how classification boundaries are corrected. The slug is fixed at creation — it is how exports and imports address the topic. Automation mode is set separately with `conv_set_topic_automation`.",
+    audiences: ['admin'],
+    scopes: ['conv:write'],
+    input: UpdateTopicInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  updateTopic(args: z.infer<typeof UpdateTopicInput>) {
+    return this.conv.updateTopic(args);
+  }
+
+  @McpTool({
     name: 'conv_set_topic',
     title: 'Conv: Set or clear a conversation topic',
     description:
-      'Tag a conversation with one of the org\'s existing topics, or pass `topicId: null` to clear the topic. Use `conv_list_topics` first to see what topics exist; topics must be pre-created via `conv_create_topic`.',
+      'Tag a conversation with one of the org\'s existing topics, or pass `topicId: null` to clear the topic. Use `conv_list_topics` first to see what topics exist; topics must be pre-created via `conv_create_topic`. A topic can carry an automation override, so tagging may change whether the agent sends replies directly or parks them as drafts; when it does, an internal note recording the change is added to the conversation for the operators reviewing it.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: SetTopicInput,

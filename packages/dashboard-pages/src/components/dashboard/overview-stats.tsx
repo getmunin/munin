@@ -25,14 +25,14 @@ function StatRow({
     <Link
       href={href}
       className={cn(
-        'group flex w-full items-center gap-3.5 px-1 py-4 text-left md:gap-5 md:py-5',
+        'group flex w-full items-center gap-3.5 px-1 py-4 text-left outline-none transition-colors duration-fast ease-munin hover:bg-paper-deep focus-visible:bg-paper-deep md:gap-5 md:py-5 dark:hover:bg-secondary dark:focus-visible:bg-secondary',
         bordered && 'border-t border-rule-soft dark:border-rule-on-dark',
       )}
     >
       {dot === 'live' && count > 0 ? (
         <span aria-hidden className="relative size-2 shrink-0">
           <span className="absolute inset-0 animate-ping rounded-full bg-cobalt opacity-60 [animation-duration:2s] dark:bg-cobalt-soft" />
-          <span className="absolute inset-0 rounded-full bg-cobalt shadow-[0_0_0_4px_rgb(var(--munin-accent)/0.22)] dark:bg-cobalt-soft dark:shadow-[0_0_0_4px_rgb(var(--munin-accent-soft)/0.22)]" />
+          <span className="absolute inset-0 rounded-full bg-cobalt dark:bg-cobalt-soft" />
         </span>
       ) : (
         <span

@@ -102,6 +102,8 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
 
   const select = (id: string) => shallowGo(`/dashboard/conversations/${id}`);
 
+  const dimInProgress = sections.needsYou.length > 0;
+
   const renderRows = (items: QueueItemDto[], faded?: boolean) =>
     items.map((item) => (
       <ConversationRow
@@ -110,7 +112,7 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
         faded={faded && item.claim?.holderId !== viewerUserId}
         active={item.id === activeId}
         viewerUserId={viewerUserId}
-        drafting={!!queue.draftRequested[item.id]}
+        drafting={!!queue.draftRequested[item.id] || item.agentWorking === true}
         onSelect={() => select(item.id)}
       />
     ));
@@ -124,11 +126,11 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
           routeSelectedId ? 'max-md:hidden' : '',
         )}
       >
-        <header className="shrink-0 border-b border-ink px-5 pb-3.5 pt-6 md:min-h-[146px] md:px-6 dark:border-rule-on-dark">
+        <header className="shrink-0 border-b border-rule-soft px-5 pb-3.5 pt-6 md:min-h-[146px] md:px-6 dark:border-rule-on-dark">
           <div className="font-mono text-[11px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
             {t('eyebrow')}
           </div>
-          <h1 className="mb-2.5 mt-1 truncate font-serif text-[28px] font-normal leading-tight tracking-tight text-ink md:text-3xl dark:text-foreground">
+          <h1 className="mb-2.5 mt-1 truncate font-serif text-[28px] font-normal leading-[1.05] tracking-tight text-ink md:text-3xl dark:text-foreground">
             {t.rich('title', {
               em: (chunks) => (
                 <em className="italic text-cobalt dark:text-cobalt-soft">{chunks}</em>
@@ -152,7 +154,7 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
           {sections.inProgress.length > 0 ? (
             <>
               <SectionLabel>{t('sectionInProgress', { count: sections.inProgress.length })}</SectionLabel>
-              {renderRows(sections.inProgress, true)}
+              {renderRows(sections.inProgress, dimInProgress)}
             </>
           ) : null}
           {sections.finished.length > 0 ? (

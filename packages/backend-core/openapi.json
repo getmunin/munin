@@ -5815,6 +5815,45 @@
         ]
       }
     },
+    "/v1/kb/curation/decisions": {
+      "get": {
+        "operationId": "KbCurationDecisionsController_list",
+        "parameters": [
+          {
+            "name": "outcome",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "KbCurationDecisions"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/kb/spaces": {
       "get": {
         "operationId": "KbSpacesController_list",

@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -25,6 +26,7 @@ import {
   KbNotFoundError,
   type CurationCandidateDto,
   type CurationCandidateSummary,
+  type CurationDecisionDto,
   type DocumentDto,
   type SpaceDto,
 } from '../modules/kb/kb.service.ts';
@@ -152,6 +154,30 @@ export class KbSpacesController {
   @Get()
   async list(): Promise<SpaceDto[]> {
     return this.kb.listSpaces();
+  }
+}
+
+@Controller('v1/kb/curation/decisions')
+@UseGuards(AuthGuard, ControlPlaneGuard)
+@UseInterceptors(TenancyInterceptor, AuditInterceptor)
+export class KbCurationDecisionsController {
+  constructor(private readonly kb: KbService) {}
+
+  @Get()
+  async list(
+    @Query('outcome') outcome?: string,
+    @Query('limit') limit?: string,
+  ): Promise<{ items: CurationDecisionDto[] }> {
+    const parsedOutcome =
+      outcome === 'published' || outcome === 'dismissed' ? outcome : undefined;
+    const parsedLimit = limit ? Number.parseInt(limit, 10) : undefined;
+    const items = await translate(() =>
+      this.kb.listCurationDecisions({
+        outcome: parsedOutcome,
+        limit: Number.isFinite(parsedLimit) && parsedLimit! > 0 ? parsedLimit : undefined,
+      }),
+    );
+    return { items };
   }
 }
 

@@ -2896,6 +2896,68 @@
     }
   },
   {
+    "name": "conv_list_topic_automation",
+    "title": "Conv: List topic automation",
+    "description": "List every conversation topic with its automation mode (`auto`, `draft_only`, `off`, or null when it inherits the conversation default) and its recent review record: weekly reply volume, and how many replies in the 30-day window were approved unedited, edited, or rejected by a human, plus the share of all replies auto-sent over the last 7 days. This is the evidence base for deciding whether a topic is ready to promote to auto-send.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_set_topic_automation",
+    "title": "Conv: Set topic automation",
+    "description": "Set the automation mode for one topic. A topic mode overrides the per-conversation mode for every conversation tagged with the topic: `auto` sends replies directly, `draft_only` parks each reply as a draft for human review, `off` stops the agent from replying, and `null` clears the override. Promoting to `auto` stamps when the promotion happened; any other mode clears the stamp. Emits `conversation.topic_automation_changed`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "topicId": {
+          "type": "string"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "auto",
+                "draft_only",
+                "off"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "`auto` sends replies in this topic without review, `draft_only` parks every reply as a draft for the review queue, `off` stops the agent from replying in the topic, and `null` clears the override so conversations fall back to their own mode."
+        }
+      },
+      "required": [
+        "topicId",
+        "mode"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "conv_list_conversations",
     "title": "Conv: List conversations",
     "description": "List conversations for your org, newest activity first. Filter by status (open / snoozed / closed / spam), assignee, topic, handover state (`active` / `resolved` / `never`), or `since` an ISO timestamp. `handover: \"resolved\"` plus `since` is the set a knowledge-curation pass works from: questions a human answered inside the window.",

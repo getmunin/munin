@@ -28,6 +28,7 @@ function item(overrides: Partial<QueueItemDto>): QueueItemDto {
     customerEmail: 'anders@example.com',
     topicName: null,
     topicSlug: null,
+    topicAgentMode: null,
     claim: null,
     noteCount: 0,
     hasPendingDraft: false,

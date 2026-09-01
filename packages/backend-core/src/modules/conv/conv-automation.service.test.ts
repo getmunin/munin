@@ -8,8 +8,9 @@ import {
   type RequestContext,
 } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { ConvAutomationService } from './conv-automation.service.ts';
+import { effectiveAgentModeSql } from './topic-auto-gate.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -57,6 +58,16 @@ const skipReason = TEST_URL
       const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
       return withContext(ctx, fn);
     });
+  }
+
+  async function effectiveModeOf(conversationId: string): Promise<string | null> {
+    const rows = await db
+      .select({ mode: effectiveAgentModeSql })
+      .from(schema.convConversations)
+      .leftJoin(schema.convTopics, eq(schema.convTopics.id, schema.convConversations.topicId))
+      .where(eq(schema.convConversations.id, conversationId))
+      .limit(1);
+    return rows[0]?.mode ?? null;
   }
 
   async function seedTopicWithHistory() {
@@ -110,7 +121,7 @@ const skipReason = TEST_URL
     expect(row!.rejected).toBe(1);
     expect(row!.autoSent).toBe(1);
     expect(row!.reviewedCount).toBe(4);
-    expect(row!.agentMode).toBeNull();
+    expect(row!.agentMode).toBe('draft_only');
     expect(summary.autoRate7d).toBe(0.25);
   });
 
@@ -130,6 +141,94 @@ const skipReason = TEST_URL
       sql`SELECT type FROM events WHERE org_id = ${orgId} ORDER BY created_at`,
     );
     expect(types.filter((r) => r.type === 'conversation.topic_automation_changed')).toHaveLength(4);
+  });
+
+  it('starts a brand-new topic in draft_only rather than inheriting the conversation mode', async () => {
+    const { topic } = await seedTopicWithHistory();
+    const summary = await run(() => svc.listTopicAutomation());
+    const row = summary.topics.find((t) => t.id === topic.id);
+    expect(row!.agentMode).toBe('draft_only');
+  });
+
+  it('carries the topic description so the policy editor can show what belongs in it', async () => {
+    const { topic } = await seedTopicWithHistory();
+    await db.execute(
+      sql`UPDATE conv_topics SET description = 'Requests for copies of signed documents.' WHERE id = ${topic.id}`,
+    );
+    const summary = await run(() => svc.listTopicAutomation());
+    const row = summary.topics.find((t) => t.id === topic.id);
+    expect(row!.description).toBe('Requests for copies of signed documents.');
+  });
+
+  it('defaults the promote threshold to 90 percent so existing topics keep the old bar', async () => {
+    const { topic } = await seedTopicWithHistory();
+    const summary = await run(() => svc.listTopicAutomation());
+    const row = summary.topics.find((t) => t.id === topic.id);
+    expect(row!.promoteThresholdPct).toBe(90);
+  });
+
+  it('keeps the promote threshold when a mode change omits it', async () => {
+    const { topic } = await seedTopicWithHistory();
+    await run(() => svc.setTopicAgentMode({ topicId: topic.id, mode: 'draft_only', promoteThresholdPct: 70 }));
+    const afterModeChange = await run(() => svc.setTopicAgentMode({ topicId: topic.id, mode: 'off' }));
+    expect(afterModeChange.promoteThresholdPct).toBe(70);
+  });
+
+  it('reports a stored threshold that a later read can compare stats against', async () => {
+    const { topic } = await seedTopicWithHistory();
+    const updated = await run(() =>
+      svc.setTopicAgentMode({ topicId: topic.id, mode: 'draft_only', promoteThresholdPct: 50 }),
+    );
+    expect(updated.promoteThresholdPct).toBe(50);
+    const summary = await run(() => svc.listTopicAutomation());
+    const row = summary.topics.find((t) => t.id === topic.id);
+    expect(row!.promoteThresholdPct).toBe(50);
+    const uneditedPct = (row!.approvedUnedited / row!.reviewedCount) * 100;
+    expect(uneditedPct).toBeGreaterThanOrEqual(row!.promoteThresholdPct);
+  });
+
+  it('resolves auto-send down to drafting while the topic sits under its gate', async () => {
+    const { topic, conv } = await seedTopicWithHistory();
+    await run(() => svc.setTopicAgentMode({ topicId: topic.id, mode: 'auto', promoteThresholdPct: 90 }));
+    expect(await effectiveModeOf(conv.id)).toBe('draft_only');
+  });
+
+  it('resolves auto-send up to sending once the topic clears its gate', async () => {
+    const { topic, conv } = await seedTopicWithHistory();
+    await run(() => svc.setTopicAgentMode({ topicId: topic.id, mode: 'auto', promoteThresholdPct: 50 }));
+    expect(await effectiveModeOf(conv.id)).toBe('auto');
+  });
+
+  it('leaves an always-human topic alone whatever the numbers say', async () => {
+    const { topic, conv } = await seedTopicWithHistory();
+    await run(() => svc.setTopicAgentMode({ topicId: topic.id, mode: 'off', promoteThresholdPct: 50 }));
+    expect(await effectiveModeOf(conv.id)).toBe('off');
+  });
+
+  it('falls back to the conversation mode when the topic inherits', async () => {
+    const { topic, conv } = await seedTopicWithHistory();
+    await run(() => svc.setTopicAgentMode({ topicId: topic.id, mode: null }));
+    expect(await effectiveModeOf(conv.id)).toBe('auto');
+  });
+
+  it('ignores a reply written from scratch when scoring the gate, matching the console', async () => {
+    const { topic, conv } = await seedTopicWithHistory();
+    await db.insert(schema.convMessages).values({
+      orgId,
+      conversationId: conv.id,
+      authorType: 'user',
+      authorId: 'seed',
+      body: 'typed by hand, not an approved draft',
+      internal: false,
+      metadata: {},
+    });
+    const summary = await run(() => svc.listTopicAutomation());
+    const row = summary.topics.find((t) => t.id === topic.id);
+    const consolePct = Math.round((row!.approvedUnedited / row!.reviewedCount) * 100);
+    await run(() =>
+      svc.setTopicAgentMode({ topicId: topic.id, mode: 'auto', promoteThresholdPct: consolePct }),
+    );
+    expect(await effectiveModeOf(conv.id)).toBe('auto');
   });
 
   it('rejects an unknown topic before writing anything', async () => {

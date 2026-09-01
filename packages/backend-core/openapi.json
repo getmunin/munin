@@ -3705,6 +3705,47 @@
         ]
       }
     },
+    "/v1/conversations/topics/{topicId}": {
+      "post": {
+        "operationId": "ConversationsController_updateTopic",
+        "parameters": [
+          {
+            "name": "topicId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTopicBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/automation": {
       "get": {
         "operationId": "ConversationsController_automationSummary",
@@ -8679,6 +8720,43 @@
           "to"
         ]
       },
+      "UpdateTopicBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 600
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 16
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          }
+        }
+      },
       "SetTopicAgentModeBody": {
         "type": "object",
         "properties": {
@@ -8698,6 +8776,12 @@
             ],
             "x-nestjs_zod-uses-3-point-1-syntax": true,
             "x-nestjs_zod-empty-type": true
+          },
+          "promoteThresholdPct": {
+            "type": "integer",
+            "minimum": 50,
+            "maximum": 100,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
           }
         },
         "required": [

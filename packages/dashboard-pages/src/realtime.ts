@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getActiveOrgId } from './auth/active-org';
 
 export interface RealtimeEventRow {
@@ -19,13 +19,25 @@ export type SubscriptionChannel =
   | { channel: 'contact'; id: string };
 
 interface IncomingFrame {
-  type: 'event' | 'ready' | 'pong';
+  type: 'event' | 'ready' | 'pong' | 'typing';
   channel?: string;
   event?: RealtimeEventRow;
   orgId?: string;
+  isTyping?: boolean;
+  authorType?: 'visitor' | 'operator';
+}
+
+export interface TypingSignal {
+  conversationId: string;
+  authorType: 'visitor' | 'operator';
+  isTyping: boolean;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const TYPING_STALE_MS = 10_000;
+const TYPING_LINGER_MS = 5_000;
+const TEARDOWN_GRACE_MS = 300;
+const TYPING_SEND_THROTTLE_MS = 2_000;
 
 export type RealtimeStatus = 'connecting' | 'connected' | 'offline';
 
@@ -38,16 +50,23 @@ interface Listener {
   onEvent: (event: RealtimeEventRow) => void;
 }
 
+interface TypingListener {
+  channels: Set<string>;
+  onTyping: (signal: TypingSignal) => void;
+}
+
 class RealtimeClient {
   private ws: WebSocket | null = null;
   private status: RealtimeStatus = 'connecting';
   private readonly listeners = new Set<Listener>();
+  private readonly typingListeners = new Set<TypingListener>();
   private readonly statusListeners = new Set<(status: RealtimeStatus) => void>();
   private readonly refcounts = new Map<string, number>();
   private readonly activeSubs = new Set<string>();
   private backoffMs = 500;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pingInterval: ReturnType<typeof setInterval> | null = null;
+  private teardownTimer: ReturnType<typeof setTimeout> | null = null;
 
   getStatus(): RealtimeStatus {
     return this.status;
@@ -59,6 +78,10 @@ class RealtimeClient {
   }
 
   addListener(listener: Listener): void {
+    if (this.teardownTimer) {
+      clearTimeout(this.teardownTimer);
+      this.teardownTimer = null;
+    }
     this.listeners.add(listener);
     for (const key of listener.channels) this.retain(key);
     this.ensureConnection();
@@ -67,7 +90,11 @@ class RealtimeClient {
   removeListener(listener: Listener): void {
     if (!this.listeners.delete(listener)) return;
     for (const key of listener.channels) this.release(key);
-    if (this.listeners.size === 0) this.teardown();
+    if (this.listeners.size > 0 || this.teardownTimer) return;
+    this.teardownTimer = setTimeout(() => {
+      this.teardownTimer = null;
+      if (this.listeners.size === 0) this.teardown();
+    }, TEARDOWN_GRACE_MS);
   }
 
   setListenerChannels(listener: Listener, subscriptions: readonly SubscriptionChannel[]): void {
@@ -154,6 +181,14 @@ class RealtimeClient {
         return;
       }
       if (frame.type === 'event' && frame.event) this.dispatch(frame.channel, frame.event);
+      if (frame.type === 'typing' && frame.channel) {
+        console.debug('[munin/realtime] typing frame', frame);
+        this.dispatchTyping(frame.channel, {
+          conversationId: frame.channel.replace(/^conversation:/, ''),
+          authorType: frame.authorType ?? 'visitor',
+          isTyping: frame.isTyping === true,
+        });
+      }
     };
 
     ws.onerror = () => undefined;
@@ -169,6 +204,38 @@ class RealtimeClient {
       this.backoffMs = Math.min(this.backoffMs * 2, 30_000);
       this.reconnectTimer = setTimeout(() => this.connect(), delay);
     };
+  }
+
+  private dispatchTyping(channel: string, signal: TypingSignal): void {
+    let matched = 0;
+    for (const listener of this.typingListeners) {
+      if (!listener.channels.has(channel)) continue;
+      matched += 1;
+      try {
+        listener.onTyping(signal);
+      } catch (err) {
+        console.debug('[munin/realtime] typing listener threw', err);
+      }
+    }
+    console.debug(
+      `[munin/realtime] typing dispatch channel=${channel} matched=${matched}/${this.typingListeners.size}`,
+      matched === 0
+        ? [...this.typingListeners].map((l) => [...l.channels].join(','))
+        : undefined,
+    );
+  }
+
+  addTypingListener(listener: TypingListener): () => void {
+    this.typingListeners.add(listener);
+    return () => this.typingListeners.delete(listener);
+  }
+
+  sendTyping(conversationId: string, isTyping: boolean): void {
+    const ws = this.ws;
+    if (!ws || ws.readyState !== ws.OPEN) return;
+    ws.send(
+      JSON.stringify({ type: 'typing', channel: 'conversation', id: conversationId, isTyping }),
+    );
   }
 
   private dispatch(channel: string | undefined, event: RealtimeEventRow): void {
@@ -189,6 +256,10 @@ class RealtimeClient {
   }
 
   private teardown(): void {
+    if (this.teardownTimer) {
+      clearTimeout(this.teardownTimer);
+      this.teardownTimer = null;
+    }
     this.clearTimers();
     this.activeSubs.clear();
     this.refcounts.clear();
@@ -254,4 +325,60 @@ export function useRealtime(
   }, [subsKey]);
 
   return { connected, status };
+}
+
+export function useConversationTyping(conversationId: string | null): {
+  visitorTyping: boolean;
+  notifyTyping: (isTyping: boolean) => void;
+  clearVisitorTyping: () => void;
+} {
+  const [visitorTyping, setVisitorTyping] = useState(false);
+  const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSentAt = useRef(0);
+
+  useEffect(() => {
+    setVisitorTyping(false);
+    if (!conversationId) return;
+    const listener = {
+      channels: new Set([`conversation:${conversationId}`]),
+      onTyping: (signal: TypingSignal) => {
+        if (signal.authorType !== 'visitor') return;
+        if (clearTimer.current) clearTimeout(clearTimer.current);
+        if (signal.isTyping) {
+          setVisitorTyping(true);
+          clearTimer.current = setTimeout(() => setVisitorTyping(false), TYPING_STALE_MS);
+        } else {
+          clearTimer.current = setTimeout(() => setVisitorTyping(false), TYPING_LINGER_MS);
+        }
+      },
+    };
+    console.debug(`[munin/realtime] typing listener armed for conversation:${conversationId}`);
+    const remove = client.addTypingListener(listener);
+    return () => {
+      remove();
+      if (clearTimer.current) clearTimeout(clearTimer.current);
+    };
+  }, [conversationId]);
+
+  const notifyTyping = useCallback(
+    (isTyping: boolean) => {
+      if (!conversationId) return;
+      const now = Date.now();
+      if (isTyping && now - lastSentAt.current < TYPING_SEND_THROTTLE_MS) return;
+      lastSentAt.current = isTyping ? now : 0;
+      console.debug(`[munin/realtime] sending operator typing=${isTyping} conv=${conversationId}`);
+      client.sendTyping(conversationId, isTyping);
+    },
+    [conversationId],
+  );
+
+  const clearVisitorTyping = useCallback(() => {
+    if (clearTimer.current) {
+      clearTimeout(clearTimer.current);
+      clearTimer.current = null;
+    }
+    setVisitorTyping(false);
+  }, []);
+
+  return { visitorTyping, notifyTyping, clearVisitorTyping };
 }

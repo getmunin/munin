@@ -393,6 +393,77 @@ describe('createConversationHandler', () => {
     expect(toolNames).not.toContain('conv_request_human');
   });
 
+  it('the audit sees the thread, so a short reaction is judged in context', async () => {
+    const seen: Array<{ messages: Array<{ role: string; content: string }> }> = [];
+    let call = 0;
+    const provider: Provider = (args) => {
+      seen.push(args as (typeof seen)[number]);
+      call += 1;
+      return Promise.resolve(
+        call === 1 ? assistantStop('Glad du synes det!') : assistantStop('{"actions":[]}'),
+      );
+    };
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            agentMode: 'draft_only',
+            channelType: 'chat',
+            messages: [
+              {
+                id: 'msg_1',
+                authorType: 'end_user',
+                body: 'Er uScore virkelig gratis?',
+                createdAt: new Date(Date.now() - 240_000).toISOString(),
+                internal: false,
+              },
+              {
+                id: 'msg_2',
+                authorType: 'user',
+                body: 'Ja — helt gratis, vi tjener penger på partnerskap.',
+                createdAt: new Date(Date.now() - 120_000).toISOString(),
+                internal: false,
+              },
+              {
+                id: 'msg_note',
+                authorType: 'user',
+                body: 'internal note that must not reach the auditor',
+                createdAt: new Date(Date.now() - 90_000).toISOString(),
+                internal: true,
+              },
+              {
+                id: 'msg_3',
+                authorType: 'end_user',
+                body: 'Kult!!!!',
+                createdAt: new Date().toISOString(),
+                internal: false,
+              },
+            ],
+          }),
+        ),
+      ),
+    });
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider,
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    const auditPrompt = seen[1]!.messages.find((m) => m.role === 'user')!.content;
+    const threadSection = auditPrompt.split('[End-user question]')[0]!;
+    expect(threadSection).toContain('[Conversation so far, oldest first]');
+    expect(threadSection).toContain('customer: Er uScore virkelig gratis?');
+    expect(threadSection).toContain('teammate: Ja — helt gratis');
+    expect(threadSection).toContain('customer: Kult!!!!');
+    expect(auditPrompt).not.toContain('internal note that must not reach the auditor');
+    expect(threadSection).toContain('<data>');
+  });
+
   it('the audit reads the end-user message as the question, never a staff turn', async () => {
     const seen: Array<{ messages: Array<{ role: string; content: string }> }> = [];
     let call = 0;
@@ -441,7 +512,9 @@ describe('createConversationHandler', () => {
     handler.requestDraft({ conversationId: 'conv_1' });
     await handler.flush();
     const auditPrompt = seen[1]!.messages.find((m) => m.role === 'user')!.content;
-    const questionSection = auditPrompt.split('[Agent reply]')[0]!;
+    const questionSection = auditPrompt
+      .split('[End-user question]')[1]!
+      .split('[Agent reply]')[0]!;
     expect(questionSection).toContain('Kan du sjekke ordrene mine?');
     expect(questionSection).not.toContain('Ja, jeg er her!');
   });
@@ -639,6 +712,76 @@ describe('createConversationHandler', () => {
     });
     handler.requestDraft({ conversationId: 'conv_1' });
     await handler.flush();
+    expect(draftSpy).not.toHaveBeenCalled();
+  });
+
+  it('drafts on a draft_only conversation a human holds, because a draft never speaks for them', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            agentMode: 'draft_only',
+            channelType: 'email',
+            claim: {
+              holderType: 'user',
+              holderId: 'user_7',
+              expiresAt: new Date(Date.now() + 600_000).toISOString(),
+            },
+          }),
+        ),
+      ),
+    });
+    const postSpy = vi.fn(() => Promise.resolve());
+    const draftSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    rest.setDraftReply = draftSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([assistantStop('A suggestion for you.')]),
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(postSpy).not.toHaveBeenCalled();
+    expect(draftSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('still refuses to auto-send on a conversation a human holds', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            agentMode: 'auto',
+            channelType: 'email',
+            claim: {
+              holderType: 'user',
+              holderId: 'user_7',
+              expiresAt: new Date(Date.now() + 600_000).toISOString(),
+            },
+          }),
+        ),
+      ),
+    });
+    const postSpy = vi.fn(() => Promise.resolve());
+    const draftSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    rest.setDraftReply = draftSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([assistantStop('Should never be sent.')]),
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(postSpy).not.toHaveBeenCalled();
     expect(draftSpy).not.toHaveBeenCalled();
   });
 

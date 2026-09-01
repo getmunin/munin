@@ -9,6 +9,8 @@ import { useRealtime, type SubscriptionChannel } from '../../realtime';
 import type { ConversationDetail, MessageDto, Status } from './inbox-types';
 
 const DRAFT_REQUEST_TIMEOUT_MS = 60_000;
+const RUNNER_PICKUP_POLL_MS = 1_500;
+const AGENT_WORKING_POLL_MS = 2_000;
 
 export interface QueueClaim {
   holderId: string;
@@ -41,6 +43,7 @@ export interface QueueItemDto {
   noteCount: number;
   hasPendingDraft: boolean;
   endUserSpokeLast?: boolean;
+  agentWorking?: boolean;
 }
 
 interface QueuePageResponse {
@@ -80,9 +83,7 @@ export function partitionQueue(
   const inProgress: QueueItemDto[] = [];
   for (const item of open) {
     const mine = !!item.claim && item.claim.holderId === viewerUserId;
-    const mineOrFree = !item.claim || mine;
-    const waitingOnYou = mine && item.endUserSpokeLast === true;
-    if ((item.needsHumanAttention && mineOrFree) || waitingOnYou) needsYou.push(item);
+    if (mine || (item.needsHumanAttention && !item.claim)) needsYou.push(item);
     else inProgress.push(item);
   }
   return { needsYou, inProgress, finished };
@@ -157,6 +158,7 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   const draftRequestedRef = useRef(draftRequested);
   draftRequestedRef.current = draftRequested;
   const draftTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const followUpTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
 
   const clearDraftRequested = useCallback((id: string) => {
     const timer = draftTimers.current.get(id);
@@ -174,9 +176,12 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
 
   useEffect(() => {
     const timers = draftTimers.current;
+    const followUps = followUpTimers.current;
     return () => {
       for (const timer of timers.values()) clearTimeout(timer);
       timers.clear();
+      for (const timer of followUps) clearTimeout(timer);
+      followUps.clear();
     };
   }, []);
 
@@ -246,6 +251,12 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     if (selectedId) void loadDetail(selectedId);
   }, [selectedId, loadDetail]);
 
+  useEffect(() => {
+    if (!open.some((item) => item.agentWorking)) return;
+    const timer = setTimeout(() => void loadQueue(), AGENT_WORKING_POLL_MS);
+    return () => clearTimeout(timer);
+  }, [open, loadQueue]);
+
   const subscriptions = useMemo<SubscriptionChannel[]>(() => {
     const subs: SubscriptionChannel[] = [{ channel: 'org' }];
     if (selectedId) subs.push({ channel: 'conversation', id: selectedId });
@@ -257,6 +268,13 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     void loadQueue();
     const eventConvId = event.payload['conversationId'];
     if (typeof eventConvId === 'string' && eventConvId === selectedId) void loadDetail(eventConvId);
+    if (event.type === 'conversation.message.received') {
+      const timer = setTimeout(() => {
+        followUpTimers.current.delete(timer);
+        void loadQueue();
+      }, RUNNER_PICKUP_POLL_MS);
+      followUpTimers.current.add(timer);
+    }
   });
 
   const wasOfflineRef = useRef(false);

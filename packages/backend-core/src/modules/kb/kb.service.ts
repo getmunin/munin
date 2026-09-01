@@ -109,7 +109,10 @@ export interface RevisedDocumentRef {
 export interface CurationCandidateSummary
   extends DocumentSummary,
     CurationCandidateRefs,
-    RevisedDocumentRef {}
+    RevisedDocumentRef {
+  body: string;
+  revisesDocumentBody: string | null;
+}
 
 export interface CurationCandidateDto extends DocumentDto, CurationCandidateRefs, RevisedDocumentRef {
   revisesDocumentBody: string | null;
@@ -529,10 +532,18 @@ export class KbService {
   async listCurationCandidates(limit?: number): Promise<CurationCandidateSummary[]> {
     const items = await this.listDocuments({ tag: 'candidate', limit: limit ?? 200 });
     const withRefs = items.map((d) => ({ ...d, ...extractCandidateRefs(d.tags) }));
-    const revised = await this.loadRevisedDocuments(
-      withRefs.map((c) => c.revisesDocumentId).filter((id): id is string => id !== null),
-    );
-    return withRefs.map((c) => ({ ...c, ...revisedRefOf(revised, c.revisesDocumentId) }));
+    const docs = await this.loadDocumentBodies([
+      ...withRefs.map((c) => c.id),
+      ...withRefs.map((c) => c.revisesDocumentId).filter((id): id is string => id !== null),
+    ]);
+    return withRefs.map((c) => ({
+      ...c,
+      ...revisedRefOf(docs, c.revisesDocumentId),
+      body: docs.get(c.id)?.body ?? '',
+      revisesDocumentBody: c.revisesDocumentId
+        ? (docs.get(c.revisesDocumentId)?.body ?? null)
+        : null,
+    }));
   }
 
   async getCurationCandidate(id: string): Promise<CurationCandidateDto> {
@@ -541,7 +552,7 @@ export class KbService {
       throw new KbInvalidError(`document ${id} is not a curation candidate`);
     }
     const refs = extractCandidateRefs(doc.tags);
-    const revised = await this.loadRevisedDocuments(
+    const revised = await this.loadDocumentBodies(
       refs.revisesDocumentId ? [refs.revisesDocumentId] : [],
     );
     const hit = refs.revisesDocumentId ? revised.get(refs.revisesDocumentId) : undefined;
@@ -553,7 +564,7 @@ export class KbService {
     };
   }
 
-  private async loadRevisedDocuments(
+  private async loadDocumentBodies(
     ids: string[],
   ): Promise<Map<string, { title: string; version: number; body: string }>> {
     const unique = Array.from(new Set(ids));

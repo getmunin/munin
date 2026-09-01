@@ -1,14 +1,15 @@
 export interface KbCandidateDto {
   id: string;
   title: string;
-  body?: string;
+  body: string;
   version: number;
   updatedAt: string;
   proposedTargetSpaceSlug: string | null;
+  sourceConversationId: string | null;
   revisesDocumentId: string | null;
   revisesDocumentTitle: string | null;
   revisesDocumentVersion: number | null;
-  revisesDocumentBody?: string | null;
+  revisesDocumentBody: string | null;
 }
 
 export interface CrmContactSummary {

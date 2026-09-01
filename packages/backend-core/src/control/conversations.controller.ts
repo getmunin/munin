@@ -47,7 +47,10 @@ const AgentModeSchema = z.enum(AGENT_MODES);
 class SetAgentModeBody extends createZodDto(z.object({ mode: AgentModeSchema })) {}
 
 class SetTopicAgentModeBody extends createZodDto(
-  z.object({ mode: AgentModeSchema.nullable() }),
+  z.object({
+    mode: AgentModeSchema.nullable(),
+    promoteThresholdPct: z.number().int().min(50).max(100).optional(),
+  }),
 ) {}
 
 class SendReplyBody extends createZodDto(
@@ -112,6 +115,14 @@ class SetDraftReplyBody extends createZodDto(
 class SetTopicBody extends createZodDto(
   z.object({
     topicId: z.string().nullable(),
+  }),
+) {}
+
+class UpdateTopicBody extends createZodDto(
+  z.object({
+    name: z.string().min(1).max(120).optional(),
+    description: z.string().max(600).nullable().optional(),
+    color: z.string().max(16).nullable().optional(),
   }),
 ) {}
 
@@ -186,8 +197,31 @@ export class ConversationsController {
   }
 
   @Get('topics')
-  async listTopics(): Promise<Array<{ id: string; slug: string; name: string; color: string | null }>> {
+  async listTopics(): Promise<
+    Array<{
+      id: string;
+      slug: string;
+      name: string;
+      description: string | null;
+      color: string | null;
+    }>
+  > {
     return translate(() => this.conv.listTopics());
+  }
+
+  @Post('topics/:topicId')
+  @HttpCode(200)
+  async updateTopic(
+    @Param('topicId') topicId: string,
+    @Body() input: UpdateTopicBody,
+  ): Promise<{
+    id: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    color: string | null;
+  }> {
+    return translate(() => this.conv.updateTopic({ topicId, ...input }));
   }
 
   @Get('automation')
@@ -200,8 +234,22 @@ export class ConversationsController {
   async setTopicAgentMode(
     @Param('topicId') topicId: string,
     @Body() input: SetTopicAgentModeBody,
-  ): Promise<{ id: string; slug: string; agentMode: string | null; autoPromotedAt: string | null }> {
-    return translate(() => this.automation.setTopicAgentMode({ topicId, mode: input.mode }));
+  ): Promise<{
+    id: string;
+    slug: string;
+    agentMode: string | null;
+    autoPromotedAt: string | null;
+    promoteThresholdPct: number;
+  }> {
+    return translate(() =>
+      this.automation.setTopicAgentMode({
+        topicId,
+        mode: input.mode,
+        ...(input.promoteThresholdPct === undefined
+          ? {}
+          : { promoteThresholdPct: input.promoteThresholdPct }),
+      }),
+    );
   }
 
   @Get('awaiting-reply')
@@ -320,7 +368,9 @@ export class ConversationsController {
     @Body() input: TakeOverBody,
   ): Promise<{ holderType: 'user'; holderId: string; expiresAt: string }> {
     const ttlMs = input.ttlMinutes ? input.ttlMinutes * 60_000 : undefined;
-    const claim = await translate(() => this.claims.claim({ conversationId: id, ttlMs }));
+    const claim = await translate(() =>
+      this.claims.claim({ conversationId: id, ttlMs, force: true }),
+    );
     return { holderType: claim.holderType, holderId: claim.holderId, expiresAt: claim.expiresAt };
   }
 

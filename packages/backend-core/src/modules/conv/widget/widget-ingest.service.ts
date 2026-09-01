@@ -13,6 +13,7 @@ import { linkVisitorToEndUser } from '../../analytics/visitor-identity.ts';
 import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from '../set-topic-job.ts';
 import { reopenClosedConversation } from '../conversation-reopen.ts';
+import { raiseAttentionWhenAgentIsOff } from '../unanswerable-handover.ts';
 import { WidgetChannelConfig } from './widget.types.ts';
 import type {
   WidgetConversationEnvelope,
@@ -682,6 +683,9 @@ export class WidgetIngestService {
           type: 'conversation.status_changed',
           payload: { conversationId: conv.id, status: 'open' },
         });
+      }
+      if (hasVisitorMessage) {
+        await raiseAttentionWhenAgentIsOff(tx, conv.id);
       }
     }
 

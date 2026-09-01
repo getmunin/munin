@@ -30723,7 +30723,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## typescript@5.9.3, 6.0.3
+## typescript@5.9.3
 
 > TypeScript is a language for application scale JavaScript development
 - Homepage: https://www.typescriptlang.org/

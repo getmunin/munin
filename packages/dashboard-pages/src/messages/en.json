@@ -275,7 +275,11 @@
         "feedbackSnippetAttributed": "{scope} feedback — attributed",
         "feedbackScopeFallback": "Munin",
         "kindKbRevision": "KB · REVISION",
-        "kbSnippetRevision": "Revision to “{title}”."
+        "kbSnippetRevision": "Revision to “{title}”.",
+        "actionFailed": {
+          "approve": "Publish failed",
+          "dismiss": "Dismiss failed"
+        }
       },
       "scheduled": {
         "eyebrow": "Scheduled",
@@ -1207,7 +1211,20 @@
         "changedPassage": "Changed passage · excerpt",
         "bodyLabelRevision": "Proposed document · full",
         "publish": "Publish",
-        "dismiss": "Dismiss"
+        "dismiss": "Dismiss",
+        "sectionProposals": "Proposals · {count}",
+        "selectEmpty": "Select from the list.",
+        "backToList": "Back",
+        "sectionDecided": "Decided · last {days} days · {count}",
+        "outcomePublished": "Published",
+        "outcomeDismissed": "Dismissed",
+        "decisionReason": "Reason given",
+        "decidedByAgent": "Agent",
+        "decidedByUnknown": "Unknown",
+        "publishedBodyLabel": "Published article",
+        "publishedBodyUnavailable": "The published article could not be loaded. It may have been deleted since.",
+        "dismissedBodyLabel": "Proposed text",
+        "dismissedBodyGone": "The draft was discarded when this proposal was dismissed, so its text is no longer stored."
       },
       "automation": {
         "eyebrow": "Automation — per topic",

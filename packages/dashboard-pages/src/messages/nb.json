@@ -275,7 +275,11 @@
         "feedbackSnippetAttributed": "{scope}-tilbakemelding — med navn",
         "feedbackScopeFallback": "Munin",
         "kindKbRevision": "KB · ENDRING",
-        "kbSnippetRevision": "Endring i «{title}»."
+        "kbSnippetRevision": "Endring i «{title}».",
+        "actionFailed": {
+          "approve": "Publiseringen feilet",
+          "dismiss": "Avvisningen feilet"
+        }
       },
       "scheduled": {
         "eyebrow": "Planlagt",
@@ -1207,7 +1211,20 @@
         "changedPassage": "Endret avsnitt · utdrag",
         "bodyLabelRevision": "Foreslått dokument · fullstendig",
         "publish": "Publiser",
-        "dismiss": "Avvis"
+        "dismiss": "Avvis",
+        "sectionProposals": "Forslag · {count}",
+        "selectEmpty": "Velg fra listen.",
+        "backToList": "Tilbake",
+        "sectionDecided": "Avgjort · siste {days} dager · {count}",
+        "outcomePublished": "Publisert",
+        "outcomeDismissed": "Avvist",
+        "decisionReason": "Begrunnelse",
+        "decidedByAgent": "Agenten",
+        "decidedByUnknown": "Ukjent",
+        "publishedBodyLabel": "Publisert artikkel",
+        "publishedBodyUnavailable": "Den publiserte artikkelen kunne ikke lastes. Den kan ha blitt slettet i mellomtiden.",
+        "dismissedBodyLabel": "Foreslått tekst",
+        "dismissedBodyGone": "Utkastet ble forkastet da forslaget ble avvist, så teksten er ikke lagret lenger."
       },
       "automation": {
         "eyebrow": "Automatisering — per tema",

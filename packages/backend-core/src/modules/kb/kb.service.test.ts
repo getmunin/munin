@@ -67,17 +67,21 @@ const skipReason = TEST_URL
     await db.execute(sql`DELETE FROM kb_spaces WHERE org_id = ${orgId}`);
   });
 
-  function run<T>(fn: () => Promise<T>): Promise<T> {
+  function runAs<T>(as: ActorIdentity, fn: () => Promise<T>): Promise<T> {
     return appDb.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
       await tx.execute(sql`SELECT set_config('app.org_id', ${orgId}, true)`);
       const ctx: RequestContext = {
         db: tx,
-        actor,
+        actor: as,
         correlationId: randomUUID(),
       };
       return withContext(ctx, fn);
     });
+  }
+
+  function run<T>(fn: () => Promise<T>): Promise<T> {
+    return runAs(actor, fn);
   }
 
   it('creates and lists spaces', async () => {
@@ -625,6 +629,36 @@ const skipReason = TEST_URL
         publishedDocumentId: null,
         decidedByActorType: 'agent',
       });
+    });
+
+    it('resolves a decider display name for user actors and leaves it null for agents', async () => {
+      const [decider] = await db
+        .insert(schema.users)
+        .values({ email: `curator-${randomUUID()}@example.test`, name: 'Jo Dahl' })
+        .returning();
+      const userActor = new ActorIdentity('user', decider!.id, orgId, ['*'], ['admin']);
+
+      const byUser = await run(() =>
+        svc.proposeCurationCandidate({ subject: 'Named', draftBody: 'Body.' }),
+      );
+      await runAs(userActor, () =>
+        svc.dismissCurationCandidate({ id: byUser.id, ifVersion: byUser.version }),
+      );
+
+      const byAgent = await run(() =>
+        svc.proposeCurationCandidate({ subject: 'Anonymous', draftBody: 'Body.' }),
+      );
+      await run(() =>
+        svc.dismissCurationCandidate({ id: byAgent.id, ifVersion: byAgent.version }),
+      );
+
+      const decisions = await run(() => svc.listCurationDecisions());
+      const named = decisions.find((d) => d.title === 'Named');
+      const anonymous = decisions.find((d) => d.title === 'Anonymous');
+      expect(named).toMatchObject({ decidedByActorType: 'user', decidedByName: 'Jo Dahl' });
+      expect(anonymous).toMatchObject({ decidedByActorType: 'agent', decidedByName: null });
+
+      await db.delete(schema.users).where(sql`id = ${decider!.id}`);
     });
 
     it('refuses to refile a candidate from a conversation whose draft was dismissed', async () => {

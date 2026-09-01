@@ -131,6 +131,7 @@ export interface CurationDecisionDto {
   publishedDocumentId: string | null;
   decidedByActorType: string;
   decidedByActorId: string;
+  decidedByName: string | null;
   decidedAt: string;
 }
 
@@ -521,12 +522,22 @@ export class KbService {
       );
     }
     const rows = await ctx.db
-      .select()
+      .select({
+        decision: schema.kbCurationDecisions,
+        decidedByName: schema.users.name,
+      })
       .from(schema.kbCurationDecisions)
+      .leftJoin(
+        schema.users,
+        and(
+          eq(schema.kbCurationDecisions.decidedByActorType, 'user'),
+          eq(schema.users.id, schema.kbCurationDecisions.decidedByActorId),
+        ),
+      )
       .where(filters.length ? and(...filters) : undefined)
       .orderBy(desc(schema.kbCurationDecisions.decidedAt))
       .limit(clampLimit(input?.limit, 50, 200));
-    return rows.map(toCurationDecisionDto);
+    return rows.map((row) => toCurationDecisionDto(row.decision, row.decidedByName));
   }
 
   async listCurationCandidates(limit?: number): Promise<CurationCandidateSummary[]> {
@@ -1172,6 +1183,7 @@ function toVersionDto(row: typeof schema.kbDocumentVersions.$inferSelect): Versi
 
 function toCurationDecisionDto(
   row: typeof schema.kbCurationDecisions.$inferSelect,
+  decidedByName: string | null,
 ): CurationDecisionDto {
   return {
     id: row.id,
@@ -1184,6 +1196,7 @@ function toCurationDecisionDto(
     publishedDocumentId: row.publishedDocumentId,
     decidedByActorType: row.decidedByActorType,
     decidedByActorId: row.decidedByActorId,
+    decidedByName,
     decidedAt: row.decidedAt.toISOString(),
   };
 }

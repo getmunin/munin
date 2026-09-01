@@ -2,8 +2,41 @@
 
 import { useCallback } from 'react';
 import { useTranslations } from 'next-intl';
+import type { ReactNode } from 'react';
 import type { ApiError } from '../api';
+import { useTranslateError } from '../i18n/translate-error';
 import type { LoadFailedProps } from '../components/load-failed';
+
+export function usePaneLoadFailedProps() {
+  const t = useTranslations('dashboard.loadFailed');
+  const tCommon = useTranslations('common');
+  const translateErr = useTranslateError();
+  return useCallback(
+    (
+      heading: ReactNode,
+      screenLabel: string,
+      error: ApiError,
+      onRetry: () => void,
+      retrying?: boolean,
+    ): LoadFailedProps => ({
+      size: 'pane',
+      screenLabel,
+      eyebrow: t('eyebrow'),
+      heading,
+      lede: translateErr(error),
+      detail: {
+        endpoint: `${error.method} ${error.endpoint}`,
+        status: `${error.status} · ${error.statusText}`,
+        requestId: error.requestId,
+      },
+      onRetry,
+      retryLabel: t('retry'),
+      retryingLabel: tCommon('retrying'),
+      retrying,
+    }),
+    [t, tCommon, translateErr],
+  );
+}
 
 export function useSettingsLoadFailedProps() {
   const t = useTranslations('dashboard.loadFailed');

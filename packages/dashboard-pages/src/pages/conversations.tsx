@@ -15,17 +15,10 @@ import {
 } from '../components/dashboard/conversation-queue';
 import { ConversationRow } from '../components/dashboard/conversation-row';
 import { ConversationPane } from '../components/dashboard/conversation-pane';
+import { ConsoleSectionLabel } from '../components/console-section-label';
 import { useProvideMobileBack } from '../shells/mobile-back';
 
 const FADE_FLOOR = 0.55;
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <li className="px-5 pb-2 pt-4 font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
-      {children}
-    </li>
-  );
-}
 
 export function ConversationsPage({ selectedId = null }: { selectedId?: string | null }) {
   const t = useTranslations('dashboard.console.queue');
@@ -147,19 +140,19 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
         <ul onScroll={onListScroll} className="pb-6 md:min-h-0 md:flex-1 md:overflow-y-auto">
           {sections.needsYou.length > 0 ? (
             <>
-              <SectionLabel>{t('sectionNeedsYou', { count: sections.needsYou.length })}</SectionLabel>
+              <ConsoleSectionLabel>{t('sectionNeedsYou', { count: sections.needsYou.length })}</ConsoleSectionLabel>
               {renderRows(sections.needsYou)}
             </>
           ) : null}
           {sections.inProgress.length > 0 ? (
             <>
-              <SectionLabel>{t('sectionInProgress', { count: sections.inProgress.length })}</SectionLabel>
+              <ConsoleSectionLabel>{t('sectionInProgress', { count: sections.inProgress.length })}</ConsoleSectionLabel>
               {renderRows(sections.inProgress, dimInProgress)}
             </>
           ) : null}
           {sections.finished.length > 0 ? (
             <>
-              <SectionLabel>{t('sectionFinished', { count: sections.finished.length })}</SectionLabel>
+              <ConsoleSectionLabel>{t('sectionFinished', { count: sections.finished.length })}</ConsoleSectionLabel>
               {renderRows(sections.finished, true)}
             </>
           ) : null}

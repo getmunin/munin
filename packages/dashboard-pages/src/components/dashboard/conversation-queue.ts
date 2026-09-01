@@ -120,7 +120,7 @@ export interface QueueController {
   finished: QueueItemDto[];
   selectedId: string | null;
   details: Record<string, ConversationDetail>;
-  detailErrors: Record<string, string>;
+  detailErrors: Record<string, ApiError>;
   retryDetail: (id: string) => Promise<void>;
   loadError: ApiError | null;
   hasLoadedOnce: boolean;
@@ -148,7 +148,7 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   const [finished, setFinished] = useState<QueueItemDto[]>([]);
   const selectedId = routeSelectedId ?? open[0]?.id ?? finished[0]?.id ?? null;
   const [details, setDetails] = useState<Record<string, ConversationDetail>>({});
-  const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
+  const [detailErrors, setDetailErrors] = useState<Record<string, ApiError>>({});
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [retrying, setRetrying] = useState(false);
@@ -239,9 +239,9 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
         clearDraftRequested(id);
       }
     } catch (err) {
-      setDetailErrors((prev) => ({ ...prev, [id]: translateErr(err) }));
+      if (err instanceof ApiError) setDetailErrors((prev) => ({ ...prev, [id]: err }));
     }
-  }, [clearDraftRequested, translateErr]);
+  }, [clearDraftRequested]);
 
   useEffect(() => {
     void loadQueue();

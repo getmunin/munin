@@ -5,6 +5,7 @@ import type { QueueItem } from './queue-drawers/types';
 import type { InboxController } from './inbox-types';
 import { QueueActionErrorBanner } from './queue-action-error';
 import { ReviewOutreachPane } from './review-outreach-pane';
+import { ReviewCrmPane } from './review-crm-pane';
 
 export function ReviewBlockingPane({
   item,
@@ -31,6 +32,19 @@ export function ReviewBlockingPane({
     previewCmsDraft,
     scheduleQueue,
   } = controller;
+
+  if (item.kind === 'crm') {
+    return (
+      <ReviewCrmPane
+        item={item}
+        pending={pending}
+        actionError={queueActionError}
+        onClearActionError={clearQueueActionError}
+        onApprove={() => void approveQueue(item).then(afterDecision)}
+        onDismiss={() => void dismissQueue(item).then(afterDecision)}
+      />
+    );
+  }
 
   if (item.kind === 'outreach') {
     return (

@@ -17,6 +17,32 @@ export interface CrmContactSummary {
   name: string | null;
   email: string | null;
   phone: string | null;
+  companyId?: string | null;
+  companyName?: string | null;
+  endUserId?: string | null;
+  title?: string | null;
+  address?: string | null;
+  tags?: string[];
+  customFields?: Record<string, unknown>;
+  aiSummary?: string | null;
+  aiNextAction?: string | null;
+  engagementScore?: number;
+  doNotContact?: boolean;
+  unsubscribedAt?: string | null;
+  lastContactedAt?: string | null;
+  consentLawfulBasis?: string | null;
+  consentSource?: string | null;
+  createdAt?: string;
+}
+
+export interface CrmMergeImpact {
+  duplicateId: string;
+  pendingOutreach: Array<{
+    id: string;
+    campaignName: string | null;
+    scheduledSendAt: string | null;
+  }>;
+  supersededProposalCount: number;
 }
 
 export interface CrmMergeProposalDto {
@@ -26,7 +52,10 @@ export interface CrmMergeProposalDto {
   contactB: CrmContactSummary;
   confidence: 'high' | 'medium';
   recommendedKeeperId: string;
+  recommendedPatch?: Record<string, unknown>;
+  impact?: CrmMergeImpact | null;
   evidence?: Record<string, unknown>;
+  proposedByActorType?: string;
   createdAt: string;
 }
 

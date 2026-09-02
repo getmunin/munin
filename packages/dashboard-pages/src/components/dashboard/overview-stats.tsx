@@ -69,13 +69,7 @@ function StatRow({
   );
 }
 
-export function OverviewStats({
-  liveCount,
-  learningCount,
-}: {
-  liveCount: number;
-  learningCount: number;
-}) {
+export function OverviewStats({ liveCount }: { liveCount: number }) {
   const t = useTranslations('dashboard.overview.stats');
   return (
     <section className="border-b border-rule-soft border-t border-t-ink dark:border-b-rule-on-dark dark:border-t-rule-on-dark">
@@ -86,15 +80,6 @@ export function OverviewStats({
         label={t('liveLabel')}
         note={liveCount > 0 ? t('liveNoteSome') : t('liveNoteNone')}
         cta={t('liveOpen')}
-      />
-      <StatRow
-        href="/dashboard/learning"
-        count={learningCount}
-        dot="ring"
-        label={t('learnLabel')}
-        note={learningCount > 0 ? t('learnNoteSome') : t('learnNoteNone')}
-        cta={t('learnOpen')}
-        bordered
       />
     </section>
   );

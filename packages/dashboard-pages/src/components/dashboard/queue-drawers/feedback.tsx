@@ -16,7 +16,7 @@ export function FeedbackQueueDrawer({
   pending: boolean;
   onApprove: () => void;
   onDismiss: () => void;
-  onClose: () => void;
+  onClose?: () => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const tQueue = useTranslations('dashboard.overview.queue');
@@ -41,6 +41,7 @@ export function FeedbackQueueDrawer({
       <DrawerHeader
         pillTone="feedback"
         pillLabel={tQueue('kindFeedback')}
+        pillGlyph="feedback"
         title={item.title}
         meta={t('metaFeedback', {
           scope: f.appScope ? f.appScope.toUpperCase() : tQueue('feedbackScopeFallback'),

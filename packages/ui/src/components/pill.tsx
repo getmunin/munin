@@ -4,9 +4,13 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../cn';
 
 const pillVariants = cva(
-  "inline-flex items-center gap-1.5 px-[5px] py-[2px] font-mono text-[9px] leading-none uppercase tracking-eyebrow font-medium border-[1px] border-[color-mix(in_srgb,currentColor_55%,transparent)] whitespace-nowrap before:content-[''] before:size-[5px] before:rounded-full before:bg-current",
+  'inline-flex items-center gap-1.5 px-[5px] py-[2px] font-mono text-[9px] leading-none uppercase tracking-eyebrow font-medium border-[1px] border-[color-mix(in_srgb,currentColor_55%,transparent)] whitespace-nowrap',
   {
     variants: {
+      marker: {
+        dot: "before:content-[''] before:size-[5px] before:rounded-full before:bg-current",
+        none: '',
+      },
       tone: {
         live: 'text-cobalt dark:text-cobalt-soft',
         draft: 'text-ink-mute',
@@ -24,7 +28,7 @@ const pillVariants = cva(
         false: '',
       },
     },
-    defaultVariants: { tone: 'ink', pulse: false },
+    defaultVariants: { tone: 'ink', pulse: false, marker: 'dot' },
   },
 );
 
@@ -32,11 +36,11 @@ interface PillProps
   extends React.ComponentProps<'span'>,
     VariantProps<typeof pillVariants> {}
 
-function Pill({ className, tone, pulse, ...props }: PillProps) {
+function Pill({ className, tone, pulse, marker, ...props }: PillProps) {
   return (
     <span
       data-slot="pill"
-      className={cn(pillVariants({ tone, pulse }), className)}
+      className={cn(pillVariants({ tone, pulse, marker }), className)}
       {...props}
     />
   );

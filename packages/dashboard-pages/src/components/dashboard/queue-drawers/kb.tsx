@@ -35,7 +35,7 @@ export function KbQueueDrawer({
   onApprove: () => void;
   onDismiss: () => void;
   onSave: (body: string) => Promise<void>;
-  onClose: () => void;
+  onClose?: () => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const tQueue = useTranslations('dashboard.overview.queue');
@@ -89,6 +89,7 @@ export function KbQueueDrawer({
       <DrawerHeader
         pillTone="kb"
         pillLabel={isRevision ? tQueue('kindKbRevision') : tQueue('kindKb')}
+        pillGlyph="kb"
         title={item.title}
         meta={
           isRevision

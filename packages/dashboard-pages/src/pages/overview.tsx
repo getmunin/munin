@@ -11,7 +11,6 @@ import { OverviewFirstRun, useSetupState } from '../components/first-run';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
 import {
   useInboxData,
-  QueueSection,
   ScheduledSection,
   InboxDrawers,
 } from '../components/dashboard/inbox-sections';
@@ -56,20 +55,12 @@ export function DashboardPage() {
   if (setup.loading) return null;
   if (setup.isFirstRun) return <OverviewFirstRun setup={setup} />;
 
-  const waiting = inbox.queue.filter((q) => q.kind !== 'kb');
-  const learningCount = inbox.queue.length - waiting.length;
-
   return (
     <div className="mx-auto max-w-4xl space-y-12 px-4 pb-16 pt-11 md:px-10">
-      <DashboardHero
-        date={new Date()}
-        liveCount={inbox.items.length}
-        queueCount={waiting.length}
-      />
+      <DashboardHero date={new Date()} liveCount={inbox.items.length} />
 
-      <OverviewStats liveCount={inbox.items.length} learningCount={learningCount} />
+      <OverviewStats liveCount={inbox.items.length} />
 
-      <QueueSection controller={{ ...inbox, queue: waiting }} />
       <ScheduledSection controller={inbox} />
 
       <UsageKpis summary={summary} />

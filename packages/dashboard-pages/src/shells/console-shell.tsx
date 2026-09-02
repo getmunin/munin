@@ -33,12 +33,11 @@ import type { InboxQueueResponse } from '../components/dashboard/inbox-types';
 import { MobileBackProvider, useMobileBackAction } from './mobile-back';
 
 interface ConsoleBadges {
-  waiting: number;
   queue: number;
-  learning: number;
+  review: number;
 }
 
-const EMPTY_BADGES: ConsoleBadges = { waiting: 0, queue: 0, learning: 0 };
+const EMPTY_BADGES: ConsoleBadges = { queue: 0, review: 0 };
 
 const REFRESH_PREFIXES = [
   'conversation.',
@@ -55,13 +54,13 @@ function useConsoleData(): { badges: ConsoleBadges } {
     void api<InboxQueueResponse>('/v1/inbox')
       .then((res) =>
         setBadges({
-          waiting:
+          queue: res.live.length,
+          review:
+            res.queue.kb.length +
             res.queue.crm.length +
             res.queue.outreach.length +
             res.queue.cms.length +
             (res.queue.feedback?.length ?? 0),
-          queue: res.live.length,
-          learning: res.queue.kb.length,
         }),
       )
       .catch(() => undefined);

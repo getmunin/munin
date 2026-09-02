@@ -14,7 +14,7 @@ import {
   Sheet,
   SheetContent,
 } from '@getmunin/ui';
-import { useCountdown, useRelative } from '../../lib/use-relative';
+import { useCountdown } from '../../lib/use-relative';
 import { QueueDrawer, ScheduledDrawer } from './queue-drawers';
 import { DrawerHeader, DrawerLoadFailed, RowCode } from './queue-drawers/shared';
 import { queueCodeKey } from './queue-drawers/types';
@@ -26,37 +26,6 @@ import type { ConvActionError, InboxController } from './inbox-types';
 
 export { useInboxData };
 export type { ConvActionError, InboxController, QueueItem, ScheduledItem };
-
-export function QueueSection({ controller }: { controller: InboxController }) {
-  const t = useTranslations('dashboard.overview.queue');
-  const { queue, pending, setQueueDrawer, approveQueue, dismissQueue } = controller;
-  if (queue.length === 0) return null;
-
-  return (
-    <section>
-      <div className="flex items-baseline justify-between gap-4 border-b-[1px] border-rule-soft pb-2.5 dark:border-rule-on-dark">
-        <h2 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink dark:text-foreground">
-          {t('eyebrow')} · {queue.length}
-        </h2>
-        <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-          {t('sortedByRecency')}
-        </span>
-      </div>
-      <ul>
-        {queue.map((q) => (
-          <QueueRow
-            key={`${q.kind}-${q.id}`}
-            item={q}
-            pending={pending}
-            onOpen={() => setQueueDrawer(q)}
-            onApprove={() => void approveQueue(q)}
-            onDismiss={() => void dismissQueue(q)}
-          />
-        ))}
-      </ul>
-    </section>
-  );
-}
 
 export function ScheduledSection({ controller }: { controller: InboxController }) {
   const t = useTranslations('dashboard.overview.scheduled');
@@ -375,55 +344,3 @@ export function InboxDrawers({ controller }: { controller: InboxController }) {
   );
 }
 
-function QueueRow({
-  item,
-  pending,
-  onOpen,
-  onApprove,
-  onDismiss,
-}: {
-  item: QueueItem;
-  pending: boolean;
-  onOpen: () => void;
-  onApprove: () => void;
-  onDismiss: () => void;
-}) {
-  const t = useTranslations('dashboard.overview.queue');
-  const age = useRelative();
-  return (
-    <li className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
-      <div
-        className="group/qrow flex items-center gap-4 px-4 py-3 transition-colors duration-fast ease-munin hover:bg-paper-deep cursor-pointer dark:hover:bg-secondary"
-        onClick={onOpen}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onOpen();
-          }
-        }}
-      >
-        <RowCode kind={item.kind}>{t(queueCodeKey(item.kind))}</RowCode>
-        <div className="min-w-0 flex-1 truncate">
-          <span className="text-sm font-medium text-ink dark:text-foreground">{item.title}</span>
-          <span className="ml-2 text-sm text-ink-mute"> — {item.snippet}</span>
-        </div>
-        <span className="flex h-7 shrink-0 items-center font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute group-hover/qrow:hidden">
-          {age(item.createdAt)}
-        </span>
-        <div
-          className="hidden shrink-0 items-center gap-2 group-hover/qrow:flex focus-within:flex"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Button variant="accent" size="sm" onClick={onApprove} disabled={pending}>
-            {t('approve')}
-          </Button>
-          <Button variant="outline" size="sm" onClick={onDismiss} disabled={pending}>
-            {t('dismiss')}
-          </Button>
-        </div>
-      </div>
-    </li>
-  );
-}

@@ -17,7 +17,7 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-export function LearningDecidedPane({
+export function ReviewDecidedPane({
   item,
   publishedDoc,
   publishedDocFailed,
@@ -28,7 +28,7 @@ export function LearningDecidedPane({
   publishedDocFailed: boolean;
   onLoadPublishedDoc: (id: string) => void;
 }) {
-  const t = useTranslations('dashboard.console.learning');
+  const t = useTranslations('dashboard.console.review');
   const age = useRelative();
 
   const publishedId = item?.outcome === 'published' ? item.publishedDocumentId : null;

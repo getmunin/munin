@@ -30,7 +30,7 @@ export function ScheduledDrawer({
   onRetry: () => void;
   pending: boolean;
   onCancel: () => void;
-  onClose: () => void;
+  onClose?: () => void;
 }) {
   if (item.kind === 'outreach') {
     return (
@@ -98,7 +98,7 @@ export function QueueDrawer({
   onUploadCmsAsset: (file: File) => Promise<CmsAssetExpanded>;
   onSchedule: (scheduledAt: string) => Promise<void>;
   onPreview: () => void;
-  onClose: () => void;
+  onClose?: () => void;
 }) {
   switch (item.kind) {
     case 'kb':

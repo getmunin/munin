@@ -78,7 +78,7 @@ export function CmsQueueDrawer({
   onSchedule: (scheduledAt: string) => Promise<void>;
   onCancelScheduled?: () => void;
   onPreview: () => void;
-  onClose: () => void;
+  onClose?: () => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const tQueue = useTranslations('dashboard.overview.queue');
@@ -200,6 +200,7 @@ export function CmsQueueDrawer({
       <DrawerHeader
         pillTone="cms"
         pillLabel={tQueue('kindCms')}
+        pillGlyph="cms"
         title={item.title}
         meta={t('metaCms', {
           collection: item.raw.collectionName,

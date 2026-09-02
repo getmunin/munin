@@ -55,6 +55,34 @@ The reply-thread quote is deliberately *not* carried over from the old drawer: i
 proposal's own snippet, not the inbound message it was replying to. Showing the real thread needs
 the conversation fetch, so the block is gone until then rather than wrong.
 
+**CRM merges get a pane that leads with the consequence**, not a field dump. The old drawer was a
+header and one sentence of prose while `recommendedPatch` and `evidence` — both already in the
+browser — rendered nowhere.
+
+- **What changes on the keeper** is the body: one row per patched field, `old → new`, tagged
+  `Differs` / `Replaced` / `Added`. `tags` and `customFields` overwrite rather than merge, so a
+  replacement names what it drops (`"newsletter" is dropped`) — the single most destructive thing
+  an apply does and previously invisible. A wholesale field the keeper doesn't have yet reads
+  `Added` with no drop note, and a patch entry that wouldn't actually change anything is not
+  rendered at all.
+- The evidence becomes the lede sentence — matched signals plus `keeperReason` — read **by shape**,
+  like the outreach evidence, because the keys in the dev database (`sameCompanyDomain`,
+  `emailVariation`, `phoneInB`) differ from the ones `skill://crm/clean-contact-data` documents
+  (`sameEmail`, `nameMatch`, `samePhoneNormalized`). Both shapes are pinned by tests; unlabelled
+  keys are ignored rather than dumped into prose.
+- Everything untouched collapses behind **Compare all**, a keeper-vs-archived table with identical
+  values dimmed.
+- **And then** states what apply actually does, read off `applyMergeProposal`: history moves, the
+  duplicate is archived and set to do-not-contact, and — new — *queued outreach for the duplicate
+  is cancelled*, naming the campaign. A reviewer could previously destroy a scheduled email
+  without being told.
+
+That needed `MergeProposalContactSummary` widened from 6 of ~24 contact columns to the patchable,
+displayable set (both read paths already fetched the whole row), plus `companyName` and a
+`MergeImpact` block — pending outreach on the duplicate and the count of other pending proposals
+the apply supersedes — computed in two batched queries. `impact` is nullable rather than zeroed, so
+the apply/dismiss responses say "not computed" instead of claiming nothing is at stake.
+
 Selecting a blocking item renders the existing per-module drawer in the split's right pane
 rather than a sheet, so the CMS field editor, outreach scheduling, and the merge preview all
 work unchanged and are now deep-linkable at `/dashboard/review/:id`. `DrawerHeader`'s close

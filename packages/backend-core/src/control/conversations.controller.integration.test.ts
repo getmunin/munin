@@ -137,7 +137,7 @@ const skipReason = TEST_URL
 
   async function rest<T>(
     token: string,
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'DELETE',
     path: string,
     body?: unknown,
   ): Promise<{ status: number; body: T }> {
@@ -419,6 +419,54 @@ const skipReason = TEST_URL
     );
     expect(activity.status).toBe(200);
     expect(activity.body.items).toEqual([]);
+  });
+
+  it('test message round-trip: created as a real conversation, flagged, then deletable', async () => {
+    const created = await rest<{ id: string; subject: string | null; isTest: boolean }>(
+      adminKeyA,
+      'POST',
+      '/v1/conversations/test-message',
+    );
+    expect(created.status).toBe(201);
+    expect(created.body.isTest).toBe(true);
+
+    const detail = await rest<{ id: string; isTest: boolean }>(
+      adminKeyA,
+      'GET',
+      `/v1/conversations/${created.body.id}`,
+    );
+    expect(detail.body.isTest).toBe(true);
+
+    const removed = await rest<{ deleted: boolean }>(
+      adminKeyA,
+      'DELETE',
+      `/v1/conversations/test-message/${created.body.id}`,
+    );
+    expect(removed.status).toBe(200);
+    expect(removed.body.deleted).toBe(true);
+
+    const gone = await rest<unknown>(adminKeyA, 'GET', `/v1/conversations/${created.body.id}`);
+    expect(gone.status).toBe(404);
+  });
+
+  it('refuses to delete a conversation that is not a test conversation', async () => {
+    const list = await rest<{ items: Array<{ id: string; isTest: boolean }> }>(
+      adminKeyA,
+      'GET',
+      '/v1/conversations',
+    );
+    const real = list.body.items.find((c) => !c.isTest);
+    expect(real).toBeDefined();
+
+    const refused = await rest<unknown>(
+      adminKeyA,
+      'DELETE',
+      `/v1/conversations/test-message/${real!.id}`,
+    );
+    expect(refused.status).toBe(400);
+
+    const still = await rest<{ id: string }>(adminKeyA, 'GET', `/v1/conversations/${real!.id}`);
+    expect(still.status).toBe(200);
   });
 
   it('activity feed returns conversation events for orgA', async () => {

@@ -3,6 +3,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -19,6 +20,8 @@ import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
+import { RoleGuard } from './role.guard.ts';
+import { RequireRole } from './role.decorator.ts';
 import {
   ConversationClaimsService,
   ClaimedByOtherError,
@@ -149,7 +152,7 @@ interface ConversationDetailResponse extends ConversationDetail {
 }
 
 @Controller('v1/conversations')
-@UseGuards(AuthGuard, ControlPlaneGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class ConversationsController {
   constructor(
@@ -264,6 +267,19 @@ export class ConversationsController {
       }),
     );
     return { items };
+  }
+
+  @Post('test-message')
+  @HttpCode(201)
+  @RequireRole('owner', 'admin')
+  async createTestMessage(): Promise<ConversationDetail> {
+    return translate(() => this.conv.createTestConversation());
+  }
+
+  @Delete('test-message/:id')
+  @RequireRole('owner', 'admin')
+  async deleteTestMessage(@Param('id') id: string): Promise<{ deleted: true; id: string }> {
+    return translate(() => this.conv.deleteTestConversation(id));
   }
 
   @Get(':id')

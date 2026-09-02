@@ -7,6 +7,7 @@ import { DashboardHero } from '../components/dashboard/dashboard-hero';
 import { OverviewStats } from '../components/dashboard/overview-stats';
 import { UsageKpis, type UsageSummary } from '../components/dashboard/usage-kpis';
 import { LoadFailed } from '../components/load-failed';
+import { OverviewFirstRun, useSetupState } from '../components/first-run';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
 import {
   useInboxData,
@@ -17,6 +18,7 @@ import {
 
 export function DashboardPage() {
   const inbox = useInboxData();
+  const setup = useSetupState();
   const [summary, setSummary] = useState<UsageSummary | null>(null);
   const buildLoadFailedProps = useInboxLoadFailedProps();
 
@@ -50,6 +52,9 @@ export function DashboardPage() {
       </div>
     );
   }
+
+  if (setup.loading) return null;
+  if (setup.isFirstRun) return <OverviewFirstRun setup={setup} />;
 
   const waiting = inbox.queue.filter((q) => q.kind !== 'kb');
   const learningCount = inbox.queue.length - waiting.length;

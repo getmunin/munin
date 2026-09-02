@@ -3848,6 +3848,59 @@
         ]
       }
     },
+    "/v1/conversations/test-message": {
+      "post": {
+        "operationId": "ConversationsController_createTestMessage",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conversations/test-message/{id}": {
+      "delete": {
+        "operationId": "ConversationsController_deleteTestMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/{id}": {
       "get": {
         "operationId": "ConversationsController_get",
@@ -4591,6 +4644,28 @@
         },
         "tags": [
           "EndUserConversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/overview/setup": {
+      "get": {
+        "operationId": "OverviewController_setup",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Overview"
         ],
         "security": [
           {

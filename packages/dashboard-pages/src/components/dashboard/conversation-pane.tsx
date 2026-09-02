@@ -10,6 +10,7 @@ import { useConversationTyping } from '../../realtime';
 import { useCmdEnter } from './queue-drawers/shared';
 import { MessageBubble, startsAuthorGroup } from './inbox-message-bubble';
 import { LoadFailed } from '../load-failed';
+import { TestConversationBanner } from './test-conversation-banner';
 import { usePaneLoadFailedProps } from '../../lib/use-load-failed-props';
 import {
   messageDraftKind,
@@ -27,12 +28,14 @@ export function ConversationPane({
   detail,
   controller,
   viewerUserId,
+  onTestDeleted,
 }: {
   selectedId: string | null;
   item: QueueItemDto | undefined;
   detail: ConversationDetail | undefined;
   controller: QueueController;
   viewerUserId: string | null;
+  onTestDeleted?: () => void | Promise<void>;
 }) {
   const t = useTranslations('dashboard.console.queue');
   const tCommon = useTranslations('common');
@@ -450,6 +453,10 @@ export function ConversationPane({
             ))}
           </div>
         </header>
+
+        {detail.isTest ? (
+          <TestConversationBanner conversationId={detail.id} onDeleted={onTestDeleted} />
+        ) : null}
 
         <div ref={bodyRef} className="flex flex-col gap-4 px-5 py-5 md:min-h-0 md:flex-1 md:overflow-y-auto md:px-7">
         {thread.map((m, i, arr) => (

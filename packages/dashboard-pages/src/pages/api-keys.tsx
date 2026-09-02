@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Check, Copy } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
@@ -11,6 +10,7 @@ import { EmptyCallout } from '../components/empty-callout';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 import { notify } from '../lib/notify';
+import { CopyField } from '../components/copy-field';
 import {
   dialogButtonClass,
   dialogFooterClass,
@@ -257,7 +257,7 @@ function MintKeyDialog({
               <p className="text-sm text-ink dark:text-foreground border-l-2 border-amber-400 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
                 {t('revealWarning')}
               </p>
-              <KeyReveal value={created.key} copyLabel={t('copyClipboard')} />
+              <KeyReveal value={created.key} />
             </div>
             <DialogFooter className={dialogFooterClass}>
               <Button
@@ -324,38 +324,6 @@ function MintKeyDialog({
   );
 }
 
-function KeyReveal({ value, copyLabel }: { value: string; copyLabel: string }) {
-  const tCommon = useTranslations('common');
-  const [copied, setCopied] = useState(false);
-  function copy() {
-    void navigator.clipboard.writeText(value).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  }
-  const label = copied ? tCommon('copied') : copyLabel;
-  return (
-    <div className="flex items-center gap-2">
-      <code className="flex h-9 min-w-0 flex-1 items-center overflow-hidden border-[1px] border-rule-soft dark:border-rule-on-dark bg-paper-deep dark:bg-secondary px-3 font-mono text-xs text-ink dark:text-foreground">
-        <span className="min-w-0 truncate">{value}</span>
-      </code>
-      <Button
-        variant="outline"
-        size="icon"
-        onClick={copy}
-        title={label}
-        aria-label={label}
-        className="shrink-0"
-      >
-        {copied ? (
-          <Check className="size-4 text-emerald-600 dark:text-emerald-400" />
-        ) : (
-          <Copy className="size-4" />
-        )}
-      </Button>
-      <span aria-live="polite" className="sr-only">
-        {copied ? tCommon('copied') : ''}
-      </span>
-    </div>
-  );
+function KeyReveal({ value }: { value: string }) {
+  return <CopyField value={value} />;
 }

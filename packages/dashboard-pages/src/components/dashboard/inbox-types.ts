@@ -30,6 +30,7 @@ export interface ConversationSummary {
   lastMessageAt: string | null;
   needsHumanAttention: boolean;
   needsHumanAttentionAt: string | null;
+  isTest?: boolean;
   updatedAt: string;
   createdAt: string;
 }

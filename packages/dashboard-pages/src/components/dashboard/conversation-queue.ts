@@ -68,6 +68,23 @@ export type QueueActionError = {
   code: string | null;
 } | null;
 
+export const FINISHED_MIN_ITEMS = 25;
+export const FINISHED_WINDOW_DAYS = 7;
+
+const FINISHED_FETCH_LIMIT = 100;
+
+export function visibleFinished(
+  finished: QueueItemDto[],
+  now = Date.now(),
+): QueueItemDto[] {
+  const cutoff = now - FINISHED_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  return finished.filter((item, index) => {
+    if (index < FINISHED_MIN_ITEMS) return true;
+    const at = item.lastMessageAt ? new Date(item.lastMessageAt).getTime() : NaN;
+    return Number.isFinite(at) && at >= cutoff;
+  });
+}
+
 export interface QueueSections {
   needsYou: QueueItemDto[];
   inProgress: QueueItemDto[];
@@ -86,7 +103,7 @@ export function partitionQueue(
     if (mine || (item.needsHumanAttention && !item.claim)) needsYou.push(item);
     else inProgress.push(item);
   }
-  return { needsYou, inProgress, finished };
+  return { needsYou, inProgress, finished: visibleFinished(finished) };
 }
 
 export function matchesQueueSearch(item: QueueItemDto, query: string): boolean {
@@ -189,7 +206,9 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     try {
       const [openPage, finishedPage] = await Promise.all([
         api<QueuePageResponse>('/v1/conversations/queue?status=open&limit=100'),
-        api<QueuePageResponse>('/v1/conversations/queue?status=closed&limit=25'),
+        api<QueuePageResponse>(
+          `/v1/conversations/queue?status=closed&limit=${FINISHED_FETCH_LIMIT}`,
+        ),
       ]);
       setOpen(openPage.items);
       setFinished(finishedPage.items);

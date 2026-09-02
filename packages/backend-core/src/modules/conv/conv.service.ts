@@ -25,6 +25,10 @@ import { toIsoString } from '../../common/iso.ts';
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 
+export const TEST_CONVERSATION_FLAG = 'setupTest';
+export const TEST_CONVERSATION_SUBJECT = 'Test message';
+export const TEST_CONVERSATION_BODY = 'Just checking the channel is wired up correctly.';
+
 export class ConvInvalidError extends Error {
   readonly code = 'conv_invalid';
   constructor(message: string) {
@@ -146,6 +150,7 @@ export interface ConversationSummary {
   agentMode: AgentMode;
   outreachCampaignId: string | null;
   voiceActive: boolean;
+  isTest: boolean;
   updatedAt: string;
   createdAt: string;
 }
@@ -1047,6 +1052,7 @@ export class ConvService {
     topicId?: string;
     outreachCampaignId?: string;
     agentMode?: AgentMode;
+    metadata?: Record<string, unknown>;
     authorType: 'user' | 'agent' | 'end_user' | 'system';
     authorId: string;
   }): Promise<ConversationDetail> {
@@ -1077,6 +1083,7 @@ export class ConvService {
       subject: input.subject ?? null,
       outreachCampaignId: input.outreachCampaignId ?? null,
       agentMode: input.agentMode ?? (channelRows[0].defaultAgentMode as AgentMode),
+      metadata: input.metadata,
     });
 
     const [firstMsg] = await ctx.db
@@ -1140,6 +1147,43 @@ export class ConvService {
     } finally {
       await applyTenancyGUCs(ctx.db, ctx.actor);
     }
+  }
+
+  async createTestConversation(): Promise<ConversationDetail> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const channel =
+      (await this.firstActiveChannel('email')) ??
+      (await this.firstActiveChannel('chat')) ??
+      (await this.firstActiveChannel());
+    if (!channel) {
+      throw new ConvInvalidError('no active channel to receive a test message');
+    }
+    return this.createConversation({
+      channelId: channel.id,
+      subject: TEST_CONVERSATION_SUBJECT,
+      body: TEST_CONVERSATION_BODY,
+      authorType: 'end_user',
+      authorId: actor.userId ?? actor.id,
+      metadata: { [TEST_CONVERSATION_FLAG]: true },
+    });
+  }
+
+  async deleteTestConversation(conversationId: string): Promise<{ deleted: true; id: string }> {
+    const ctx = getCurrentContext();
+    const [row] = await ctx.db
+      .select({ id: schema.convConversations.id, metadata: schema.convConversations.metadata })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, conversationId))
+      .limit(1);
+    if (!row) throw new NotFoundException(`conv_not_found: conversation ${conversationId}`);
+    if (!isTestConversation(row.metadata)) {
+      throw new ConvInvalidError(`conversation ${conversationId} is not a test conversation`);
+    }
+    await ctx.db
+      .delete(schema.convConversations)
+      .where(eq(schema.convConversations.id, conversationId));
+    return { deleted: true, id: conversationId };
   }
 
   async sendMessage(input: {
@@ -2204,6 +2248,7 @@ export class ConvService {
     subject: string | null;
     outreachCampaignId?: string | null;
     agentMode?: AgentMode;
+    metadata?: Record<string, unknown>;
   }): Promise<typeof schema.convConversations.$inferSelect> {
     const ctx = getCurrentContext();
     let lastErr: unknown = null;
@@ -2277,6 +2322,10 @@ function previewText(body: string | null): string | null {
   return collapsed.length > 200 ? `${collapsed.slice(0, 199)}…` : collapsed;
 }
 
+export function isTestConversation(metadata: Record<string, unknown>): boolean {
+  return metadata[TEST_CONVERSATION_FLAG] === true;
+}
+
 function toConversationSummary(
   row: typeof schema.convConversations.$inferSelect,
   channelType?: string,
@@ -2303,6 +2352,7 @@ function toConversationSummary(
     agentMode: row.agentMode as AgentMode,
     outreachCampaignId: row.outreachCampaignId,
     voiceActive: row.metadata.voiceActive === true,
+    isTest: isTestConversation(row.metadata),
     updatedAt: row.updatedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
   };

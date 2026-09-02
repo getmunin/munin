@@ -17,6 +17,7 @@ import { notify } from '../lib/notify';
 import { useTranslateError } from '../i18n/translate-error';
 import { useRealtime } from '../realtime';
 import { LoadFailed } from '../components/load-failed';
+import { AutomationFirstRun, useSetupState } from '../components/first-run';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
 
 type TopicMode = 'auto' | 'draft_only' | 'off' | null;
@@ -70,6 +71,7 @@ function autoIsSending(row: TopicAutomationRow): boolean {
 export function AutomationPage() {
   const t = useTranslations('dashboard.console.automation');
   const translateErr = useTranslateError();
+  const setup = useSetupState();
   const buildLoadFailedProps = useInboxLoadFailedProps();
   const [summary, setSummary] = useState<AutomationSummary | null>(null);
   const [loadError, setLoadError] = useState<ApiError | null>(null);
@@ -171,6 +173,10 @@ export function AutomationPage() {
       </div>
     );
   }
+
+  const firstRunUndecided = setup.loading || (setup.isFirstRun && summary === null);
+  if (firstRunUndecided) return null;
+  if (setup.isFirstRun && topics.length === 0) return <AutomationFirstRun setup={setup} />;
 
   const autoRate = summary?.autoRate7d;
   const editingPct = editing ? uneditedPct(editing) : null;

@@ -11,6 +11,7 @@ export {
   type ConfirmOptions,
 } from './components/confirm-dialog';
 export { CopyableSecret, type CopyableSecretProps } from './components/copyable-secret';
+export { CopyField, type CopyFieldProps } from './components/copy-field';
 export { FormField, type FormFieldProps } from './components/form-field';
 export { isValidUrl, isValidHost, isValidEmail, isValidPort } from './lib/validators';
 export { FormError, toFormError, type FormErrorDetail } from './components/form-error';

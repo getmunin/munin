@@ -16,6 +16,7 @@ import {
 import { ConversationRow } from '../components/dashboard/conversation-row';
 import { ConversationPane } from '../components/dashboard/conversation-pane';
 import { ConsoleSectionLabel } from '../components/console-section-label';
+import { ConversationsFirstRun, useSetupState } from '../components/first-run';
 import { useProvideMobileBack } from '../shells/mobile-back';
 
 const FADE_FLOOR = 0.55;
@@ -29,6 +30,7 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
     pathname.match(/^\/dashboard\/conversations\/([^/]+)/)?.[1] ??
     (onQueueRoute ? null : selectedId);
   const queue = useConversationQueue(routeSelectedId);
+  const setup = useSetupState();
   const buildLoadFailedProps = useInboxLoadFailedProps();
   const { data: session } = authClient.useSession();
   const viewerUserId = session?.user?.id ?? null;
@@ -68,6 +70,11 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
     [shallowGo],
   );
 
+  const onTestDeleted = useCallback(async () => {
+    goToQueue();
+    await Promise.all([queue.retryLoad(), setup.reload()]);
+  }, [goToQueue, queue, setup]);
+
   const activeId = queue.selectedId;
   const selectedItem = activeId
     ? [...queue.open, ...queue.finished].find((i) => i.id === activeId)
@@ -92,6 +99,9 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
       </div>
     );
   }
+
+  if (setup.loading) return null;
+  if (setup.isFirstRun) return <ConversationsFirstRun setup={setup} />;
 
   const select = (id: string) => shallowGo(`/dashboard/conversations/${id}`);
 
@@ -168,6 +178,7 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
           detail={activeId ? queue.details[activeId] : undefined}
           controller={queue}
           viewerUserId={viewerUserId}
+          onTestDeleted={onTestDeleted}
         />
       </div>
     </div>

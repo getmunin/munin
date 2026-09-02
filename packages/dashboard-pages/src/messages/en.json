@@ -228,6 +228,10 @@
     },
     "overview": {
       "title": "Waiting on your <em>word</em>.",
+      "greetingLateNight": "Still up, <em>{name}</em>?",
+      "greetingMorning": "Good morning, <em>{name}</em>.",
+      "greetingAfternoon": "Good afternoon, <em>{name}</em>.",
+      "greetingEvening": "Good evening, <em>{name}</em>.",
       "ledeQuiet": "Nothing waiting, nothing live. Agents are caught up.",
       "ledeLiveOnly": "{count, plural, =1 {# conversation is} other {# conversations are}} with support. Nothing needs an admin.",
       "ledeQueueOnly": "{count, plural, =1 {# item waits} other {# items wait}} on you. Nothing sends, publishes, or merges without an admin.",
@@ -1334,6 +1338,82 @@
         "noteHint": "Never sent to the customer · lands in the thread",
         "detailFailed": "This conversation didn't load.",
         "customerTyping": "{name} is typing…"
+      }
+    },
+    "firstRun": {
+      "tagDone": "Done",
+      "tagNotDone": "Not done",
+      "tagBlocked": "Blocked",
+      "tagWaiting": "Waiting",
+      "tagLater": "Later",
+      "actions": {
+        "clientSetup": "Read the client setup",
+        "connectChannel": "Connect a channel"
+      },
+      "channelKind": {
+        "email": "Email",
+        "chat": "Web chat",
+        "sms": "SMS",
+        "voice": "Voice"
+      },
+      "overview": {
+        "eyebrowSetup": "Overview — setup · {done} of 2 done",
+        "titleUnconfigured": "Nothing is listening <em>yet</em>.",
+        "ledeUnconfigured": "Two connections and this page starts filling itself. Neither takes more than a few minutes, and they can be done in either order.",
+        "stepEndpointTitle": "Point an agent at the endpoint.",
+        "stepEndpointBody": "Claude, ChatGPT, Cursor, or your own client. Authorize the connection and the whole surface appears at once — not only the tools that read and answer (<code>kb_search</code>, <code>conv_send_message</code>) but the ones that build the place: <code>conv_configure_email_channel</code>, <code>analytics_create_tracker</code>, <code>connectors_create_connection</code>.",
+        "stepChannelTitle": "Open a way in.",
+        "stepChannelBody": "Email, a web chat widget, SMS or voice. Set it up here, or just ask the agent you connected — it has the same tools. Whatever arrives becomes a conversation, and conversations are what every other page here is made of.",
+        "noteUnconfigured": "Nothing to review until something can arrive.",
+        "titleListening": "Listening. Nothing has <em>arrived</em>.",
+        "ledeListening": "A channel is open and the endpoint is reachable. The first message lands in Conversations, and this page starts keeping score from there.",
+        "channelAccepting": "accepting messages",
+        "rowEndpoint": "Endpoint",
+        "endpointCalls": "{count, plural, one {# tool call so far} other {# tool calls so far}}",
+        "endpointIdle": "no agent has called it yet",
+        "waitLabel": "While you wait",
+        "waitBody": "Every topic starts in manual review. Nothing is auto-sent — today or ever — until you flip one yourself in Automation, and you can't flip anything before there are numbers to look at.",
+        "noteListening": "Nothing to review until something arrives."
+      },
+      "conversations": {
+        "eyebrow": "Conversations",
+        "titleUnconfigured": "Nothing can <em>arrive</em>.",
+        "ledeUnconfigured": "No channel is connected, so there is nowhere for a conversation to come from. Open one and the first message lands here — no import, no seeding.",
+        "footnoteUnconfigured": "Already pointed an agent at the endpoint? It still needs a channel to read from — the two are separate connections.",
+        "titleListening": "Quiet, so <em>far</em>.",
+        "ledeListening": "Nothing has come in. The first message appears in this list on its own — no refresh needed.",
+        "sendTest": "Send a test message",
+        "sendingTest": "Sending…",
+        "sendTestHint": "Arrives on your channel as a real conversation, marked as a test and deletable.",
+        "testBadge": "Test conversation",
+        "testBannerBody": "The channel works. Delete it and the console goes back to waiting for a real one.",
+        "testDelete": "Delete and finish"
+      },
+      "automation": {
+        "eyebrow": "Automation — per topic",
+        "title": "Nothing to <em>automate</em> yet.",
+        "lede": "Topics are discovered, not configured. They appear once conversations arrive and get classified — there is no policy to set for a question nobody has asked.",
+        "chainChannelTitle": "A channel is open",
+        "chainChannelNoteDone": "Messages can reach you.",
+        "chainChannelNoteTodo": "Nothing is connected — this is where it starts.",
+        "chainClassifyTitle": "Conversations arrive and get classified",
+        "chainClassifyNote": "Roughly a dozen of a kind before a topic is worth naming.",
+        "chainTopicsTitle": "Topics land here with volume and approval rates",
+        "chainTopicsNote": "Then, and only then, you flip one to auto-send.",
+        "startWithChannel": "Start with a channel",
+        "note": "Everything is manual review until you say otherwise. That is the default, and it never changes on its own."
+      },
+      "learning": {
+        "eyebrow": "Learning — knowledge proposals",
+        "titleEmptyBase": "An empty <em>memory</em>.",
+        "ledeEmptyBase": "The knowledge base has nothing in it. Agents write to it over MCP — <code>kb_create_document</code> — and from there it grows on its own: every conversation the base can't answer turns into a proposal on this page.",
+        "noteEmptyBase": "No import wizard. Point an agent at the endpoint and let it write.",
+        "titleStocked": "Nothing proposed <em>yet</em>.",
+        "ledeStocked": "{count, plural, one {One entry} other {# entries}} in the base. Proposals appear here when a real conversation turns up something those entries don't cover.",
+        "figureEntries": "Entries in the knowledge base",
+        "figureGaps": "Gaps found in conversations",
+        "figureDecided": "Proposals decided",
+        "footnoteStocked": "Nothing to do here until conversations start. Reviewing an empty base is not a task."
       }
     },
     "profile": {

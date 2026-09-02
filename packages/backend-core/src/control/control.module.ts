@@ -46,6 +46,7 @@ import { ConnectorJwksController } from './connector-jwks.controller.ts';
 import { InvitationsController } from './invitations.controller.ts';
 import { AcceptInvitationController } from './accept-invitation.controller.ts';
 import { InvitationsService } from './invitations.service.ts';
+import { SetupStateService } from './setup-state.service.ts';
 import { MembersController } from './members.controller.ts';
 import { RosterController } from './roster.controller.ts';
 import { MembershipsController } from './memberships.controller.ts';
@@ -125,6 +126,6 @@ import { ConnectorsModule } from '../modules/connectors/connectors.module.ts';
     SlackController,
     ConnectorsController,
   ],
-  providers: [InvitationsService],
+  providers: [InvitationsService, SetupStateService],
 })
 export class ControlModule {}

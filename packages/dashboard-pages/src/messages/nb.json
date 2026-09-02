@@ -228,6 +228,10 @@
     },
     "overview": {
       "title": "Venter på ditt <em>ord</em>.",
+      "greetingLateNight": "Fortsatt oppe, <em>{name}</em>?",
+      "greetingMorning": "God morgen, <em>{name}</em>.",
+      "greetingAfternoon": "God ettermiddag, <em>{name}</em>.",
+      "greetingEvening": "God kveld, <em>{name}</em>.",
       "ledeQuiet": "Ingenting venter, ingenting pågår. Agentene er à jour.",
       "ledeLiveOnly": "{count, plural, =1 {# samtale er} other {# samtaler er}} hos support. Ingenting trenger en administrator.",
       "ledeQueueOnly": "{count, plural, =1 {# sak venter} other {# saker venter}} på deg. Ingenting sendes, publiseres eller flettes uten en administrator.",
@@ -1334,6 +1338,82 @@
         "noteHint": "Sendes aldri til kunden · havner i tråden",
         "detailFailed": "Samtalen ble ikke lastet.",
         "customerTyping": "{name} skriver …"
+      }
+    },
+    "firstRun": {
+      "tagDone": "Klart",
+      "tagNotDone": "Ikke klart",
+      "tagBlocked": "Blokkert",
+      "tagWaiting": "Venter",
+      "tagLater": "Senere",
+      "actions": {
+        "clientSetup": "Les oppsettet for klienter",
+        "connectChannel": "Koble til en kanal"
+      },
+      "channelKind": {
+        "email": "E-post",
+        "chat": "Nettprat",
+        "sms": "SMS",
+        "voice": "Tale"
+      },
+      "overview": {
+        "eyebrowSetup": "Oversikt — oppsett · {done} av 2 klart",
+        "titleUnconfigured": "Ingenting lytter <em>ennå</em>.",
+        "ledeUnconfigured": "To tilkoblinger, og denne siden begynner å fylle seg selv. Ingen av dem tar mer enn noen minutter, og rekkefølgen er valgfri.",
+        "stepEndpointTitle": "Pek en agent mot endepunktet.",
+        "stepEndpointBody": "Claude, ChatGPT, Cursor eller din egen klient. Godkjenn tilkoblingen, og hele verktøyflaten er der med én gang — ikke bare verktøyene som leser og svarer (<code>kb_search</code>, <code>conv_send_message</code>), men også de som bygger stedet: <code>conv_configure_email_channel</code>, <code>analytics_create_tracker</code>, <code>connectors_create_connection</code>.",
+        "stepChannelTitle": "Åpne en vei inn.",
+        "stepChannelBody": "E-post, en nettprat-widget, SMS eller tale. Sett det opp her, eller bare be agenten du koblet til — den har de samme verktøyene. Det som kommer inn blir en samtale, og samtaler er det alle de andre sidene her er laget av.",
+        "noteUnconfigured": "Ingenting å gå gjennom før noe kan komme inn.",
+        "titleListening": "Lytter. Ingenting har <em>kommet</em>.",
+        "ledeListening": "En kanal er åpen og endepunktet svarer. Den første meldingen havner i Samtaler, og derfra begynner denne siden å holde regnskap.",
+        "channelAccepting": "tar imot meldinger",
+        "rowEndpoint": "Endepunkt",
+        "endpointCalls": "{count, plural, one {# verktøykall så langt} other {# verktøykall så langt}}",
+        "endpointIdle": "ingen agent har kalt det ennå",
+        "waitLabel": "Mens du venter",
+        "waitBody": "Hvert tema starter til manuell gjennomgang. Ingenting sendes automatisk — verken i dag eller senere — før du slår det på selv under Automatisering, og du kan ikke slå på noe før det finnes tall å se på.",
+        "noteListening": "Ingenting å gå gjennom før noe kommer inn."
+      },
+      "conversations": {
+        "eyebrow": "Samtaler",
+        "titleUnconfigured": "Ingenting kan <em>komme inn</em>.",
+        "ledeUnconfigured": "Ingen kanal er koblet til, så det finnes ikke noe sted en samtale kan komme fra. Åpne én, og den første meldingen havner her — ingen import, ingen testdata.",
+        "footnoteUnconfigured": "Har du alt pekt en agent mot endepunktet? Den trenger fortsatt en kanal å lese fra — det er to ulike tilkoblinger.",
+        "titleListening": "Stille, så <em>langt</em>.",
+        "ledeListening": "Ingenting har kommet inn. Den første meldingen dukker opp i denne listen av seg selv — du trenger ikke oppdatere.",
+        "sendTest": "Send en testmelding",
+        "sendingTest": "Sender…",
+        "sendTestHint": "Kommer inn på kanalen din som en ekte samtale, merket som test og mulig å slette.",
+        "testBadge": "Testsamtale",
+        "testBannerBody": "Kanalen virker. Slett den, og konsollen går tilbake til å vente på en ekte.",
+        "testDelete": "Slett og avslutt"
+      },
+      "automation": {
+        "eyebrow": "Automatisering — per tema",
+        "title": "Ingenting å <em>automatisere</em> ennå.",
+        "lede": "Temaer blir oppdaget, ikke satt opp. De dukker opp når samtaler kommer inn og blir klassifisert — det finnes ingen regel å sette for et spørsmål ingen har stilt.",
+        "chainChannelTitle": "En kanal er åpen",
+        "chainChannelNoteDone": "Meldinger kan nå deg.",
+        "chainChannelNoteTodo": "Ingenting er koblet til — her starter det.",
+        "chainClassifyTitle": "Samtaler kommer inn og blir klassifisert",
+        "chainClassifyNote": "Rundt et dusin av samme slag før et tema er verdt å navngi.",
+        "chainTopicsTitle": "Temaer havner her med volum og godkjenningsrate",
+        "chainTopicsNote": "Da, og først da, slår du på automatisk utsending.",
+        "startWithChannel": "Start med en kanal",
+        "note": "Alt går til manuell gjennomgang til du sier noe annet. Det er utgangspunktet, og det endrer seg aldri av seg selv."
+      },
+      "learning": {
+        "eyebrow": "Læring — kunnskapsforslag",
+        "titleEmptyBase": "Et tomt <em>minne</em>.",
+        "ledeEmptyBase": "Kunnskapsbasen er tom. Agenter skriver til den over MCP — <code>kb_create_document</code> — og derfra vokser den av seg selv: hver samtale basen ikke kan svare på blir et forslag på denne siden.",
+        "noteEmptyBase": "Ingen importveiviser. Pek en agent mot endepunktet og la den skrive.",
+        "titleStocked": "Ingen forslag <em>ennå</em>.",
+        "ledeStocked": "{count, plural, one {Én oppføring} other {# oppføringer}} i basen. Forslag dukker opp her når en reell samtale avdekker noe de oppføringene ikke dekker.",
+        "figureEntries": "Oppføringer i kunnskapsbasen",
+        "figureGaps": "Hull funnet i samtaler",
+        "figureDecided": "Forslag avgjort",
+        "footnoteStocked": "Ingenting å gjøre her før samtalene starter. Å gå gjennom en tom base er ikke en oppgave."
       }
     },
     "profile": {

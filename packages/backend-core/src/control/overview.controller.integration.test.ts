@@ -6,6 +6,7 @@ import type { AddressInfo } from 'node:net';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
+import { AGENT_HOST_ACTOR_PREFIX } from '@getmunin/types';
 import { sql } from 'drizzle-orm';
 import { AppModule } from '../app.module.ts';
 
@@ -99,6 +100,23 @@ const skipReason = TEST_URL
     };
   }
 
+  interface SetupBody {
+    channels: Array<{ id: string; type: string; active: boolean }>;
+    conversationCount: number;
+    topicCount: number;
+    knowledgeDocumentCount: number;
+    externalMcpCallCount: number;
+    lastExternalMcpCallAt: string | null;
+  }
+
+  async function getSetup(adminKey: string): Promise<SetupBody> {
+    const res = await fetch(`${baseUrl}/v1/overview/setup`, {
+      headers: { authorization: `Bearer ${adminKey}` },
+    });
+    expect(res.ok).toBe(true);
+    return (await res.json()) as SetupBody;
+  }
+
   async function withClient<T>(token: string, fn: (c: Client) => Promise<T>): Promise<T> {
     const transport = new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`), {
       requestInit: { headers: { Authorization: `Bearer ${token}` } },
@@ -135,6 +153,37 @@ const skipReason = TEST_URL
     expect(body.selfServiceAgentSubscriberCount).toBe(0);
     expect(body.lastInboundEndUserMessageAt).toBeNull();
     expect(body.lastAgentMessageAt).toBeNull();
+  });
+
+  it('setup reports a brand-new org as having nothing to listen with', async () => {
+    const setup = await getSetup(adminKeyA);
+    expect(setup.channels).toEqual([]);
+    expect(setup.conversationCount).toBe(0);
+    expect(setup.topicCount).toBe(0);
+    expect(setup.knowledgeDocumentCount).toBe(0);
+    expect(setup.externalMcpCallCount).toBe(0);
+    expect(setup.lastExternalMcpCallAt).toBeNull();
+  });
+
+  it('setup ignores tool calls made by the in-process agent host', async () => {
+    await db.insert(schema.auditLog).values({
+      orgId: orgBId,
+      actorType: 'admin_agent',
+      actorId: `${AGENT_HOST_ACTOR_PREFIX}${orgBId}`,
+      tool: 'kb_search',
+      result: 'ok',
+    });
+    await db.insert(schema.auditLog).values({
+      orgId: orgBId,
+      actorType: 'end_user_agent',
+      actorId: `${AGENT_HOST_ACTOR_PREFIX}${orgBId}:eu_someone`,
+      tool: 'kb_search',
+      result: 'ok',
+    });
+
+    const setup = await getSetup(adminKeyB);
+    expect(setup.externalMcpCallCount).toBe(0);
+    expect(setup.lastExternalMcpCallAt).toBeNull();
   });
 
   it('counts conversations needing attention scoped to caller org', async () => {
@@ -245,5 +294,23 @@ const skipReason = TEST_URL
 
     const b = await getBacklog(adminKeyB);
     expect(b.crmMergeProposalsPending).toBe(0);
+  });
+
+  it('setup sees the channel, the conversations and the MCP traffic, scoped to caller org', async () => {
+    const a = await getSetup(adminKeyA);
+    expect(a.channels).toHaveLength(1);
+    expect(a.channels[0]!.type).toBe('chat');
+    expect(a.conversationCount).toBe(2);
+    expect(a.externalMcpCallCount).toBeGreaterThan(0);
+    expect(a.lastExternalMcpCallAt).not.toBeNull();
+
+    const b = await getSetup(adminKeyB);
+    expect(b.channels).toEqual([]);
+    expect(b.conversationCount).toBe(0);
+  });
+
+  it('setup excludes curation candidates from the knowledge-base count', async () => {
+    const a = await getSetup(adminKeyA);
+    expect(a.knowledgeDocumentCount).toBe(0);
   });
 });

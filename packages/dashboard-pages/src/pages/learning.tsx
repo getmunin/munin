@@ -18,6 +18,7 @@ import {
 } from '../components/dashboard/curation-decisions';
 import { useProvideMobileBack } from '../shells/mobile-back';
 import { ConsoleSectionLabel } from '../components/console-section-label';
+import { LearningFirstRun, useSetupState } from '../components/first-run';
 
 const ROOT = '/dashboard/learning';
 const FADE_FLOOR = 0.55;
@@ -27,6 +28,7 @@ export function LearningPage({ selectedId = null }: { selectedId?: string | null
   const router = useRouter();
   const pathname = usePathname();
   const inbox = useInboxData();
+  const setup = useSetupState();
   const decisions = useCurationDecisions();
   const buildLoadFailedProps = useInboxLoadFailedProps();
 
@@ -111,6 +113,13 @@ export function LearningPage({ selectedId = null }: { selectedId?: string | null
         />
       </div>
     );
+  }
+
+  const firstRunUndecided = setup.loading || (setup.isFirstRun && !listLoaded);
+  if (firstRunUndecided) return null;
+  const nothingToReview = candidates.length === 0 && recentDecisions.length === 0;
+  if (setup.isFirstRun && nothingToReview) {
+    return <LearningFirstRun setup={setup} decidedCount={decisions.items.length} />;
   }
 
   const afterDecision = (ok: boolean) => {

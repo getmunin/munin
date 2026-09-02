@@ -5,7 +5,7 @@ import { cn } from '@getmunin/ui';
 import { useRelative } from '../../lib/use-relative';
 import type { CurationDecisionDto } from './curation-decisions';
 
-export function LearningDecidedRow({
+export function ReviewDecidedRow({
   item,
   active,
   faded,
@@ -16,7 +16,7 @@ export function LearningDecidedRow({
   faded?: boolean;
   onSelect: () => void;
 }) {
-  const t = useTranslations('dashboard.console.learning');
+  const t = useTranslations('dashboard.console.review');
   const age = useRelative();
   const published = item.outcome === 'published';
 

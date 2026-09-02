@@ -8,7 +8,7 @@ import { Link } from '../../i18n-navigation';
 import { useRelative } from '../../lib/use-relative';
 import { DEFAULT_CURATION_TARGET_SPACE } from './inbox-data';
 import { Markdown } from './queue-drawers/shared';
-import type { KbQueueItem } from './learning-row';
+import type { KbQueueItem } from './review-queue';
 import type { QueueActionError } from './inbox-types';
 import { QueueActionErrorBanner } from './queue-action-error';
 
@@ -24,7 +24,7 @@ function firstChangedPassage(before: string, after: string) {
   return { before: removed, after: added };
 }
 
-export function LearningPane({
+export function ReviewKbPane({
   item,
   pending,
   actionError,
@@ -39,7 +39,7 @@ export function LearningPane({
   onPublish: () => void;
   onDismiss: () => void;
 }) {
-  const t = useTranslations('dashboard.console.learning');
+  const t = useTranslations('dashboard.console.review');
   const age = useRelative();
   const isRevision = !!item?.raw.revisesDocumentId;
   const revisedBody = item?.raw.revisesDocumentBody;

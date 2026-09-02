@@ -42,7 +42,7 @@ export function OutreachQueueDrawer({
   onDismiss: () => void;
   onSave: (body: string) => Promise<void>;
   onCancelScheduled?: () => void;
-  onClose: () => void;
+  onClose?: () => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const tQueue = useTranslations('dashboard.overview.queue');
@@ -133,6 +133,7 @@ export function OutreachQueueDrawer({
       <DrawerHeader
         pillTone="out"
         pillLabel={tQueue('kindOutreach')}
+        pillGlyph="outreach"
         title={item.title}
         meta={t('metaOutreach', { kind, handle, age: age(item.createdAt) })}
         rightExtra={readOnly ? <Pill tone="review">{t('scheduledPill')}</Pill> : undefined}

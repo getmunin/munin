@@ -15,6 +15,7 @@ import type {
   CmsAssetExpanded,
   CmsDraftDetailDto,
   KbCandidateDto,
+  OutreachProposalDetailDto,
   QueueItem,
   ScheduledItem,
 } from './queue-drawers/types';
@@ -148,6 +149,9 @@ export function useInboxData(): InboxController {
   const [kbBodies, setKbBodies] = useState<Record<string, string>>({});
   const [kbRevisedBodies, setKbRevisedBodies] = useState<Record<string, string>>({});
   const [cmsDetails, setCmsDetails] = useState<Record<string, CmsDraftDetailDto>>({});
+  const [outreachDetails, setOutreachDetails] = useState<
+    Record<string, OutreachProposalDetailDto>
+  >({});
   const [convDrawer, setConvDrawer] = useState<ConvDrawer>(null);
   const [queueDrawer, setQueueDrawer] = useState<QueueItem | null>(null);
   const [scheduledDrawer, setScheduledDrawer] = useState<ScheduledItem | null>(null);
@@ -254,6 +258,16 @@ export function useInboxData(): InboxController {
     }
   }, [translateErr]);
 
+  const loadOutreachDetail = useCallback(async (id: string) => {
+    try {
+      const proposal = await api<OutreachProposalDetailDto>(`/v1/outreach/proposals/${id}`);
+      setOutreachDetails((prev) => ({ ...prev, [id]: proposal }));
+      setQueueDetailErrors((prev) => clearKey(prev, id));
+    } catch (err) {
+      setQueueDetailErrors((prev) => ({ ...prev, [id]: translateErr(err) }));
+    }
+  }, [translateErr]);
+
   const reloadQueueDetail = useCallback((id: string) => {
     setQueueDetailErrors((prev) => clearKey(prev, id));
   }, []);
@@ -288,6 +302,14 @@ export function useInboxData(): InboxController {
       viewedProposals.current.delete(id);
     });
   }, [queueDrawer]);
+
+  useEffect(() => {
+    if (!queueDrawer || queueDrawer.kind !== 'outreach') return;
+    const id = queueDrawer.id;
+    if (outreachDetails[id] !== undefined) return;
+    if (queueDetailErrors[id]) return;
+    void loadOutreachDetail(id);
+  }, [queueDrawer, outreachDetails, queueDetailErrors, loadOutreachDetail]);
 
   const subscriptions = useMemo<SubscriptionChannel[]>(() => {
     const subs: SubscriptionChannel[] = [{ channel: 'org' }];
@@ -732,6 +754,7 @@ export function useInboxData(): InboxController {
     kbBodies,
     kbRevisedBodies,
     cmsDetails,
+    outreachDetails,
     detailErrors,
     queueDetailErrors,
     reloadDetail,

@@ -36,5 +36,5 @@ export {
 } from './first-run-status';
 export { AutomationFirstRun } from './automation-first-run';
 export { ConversationsFirstRun } from './conversations-first-run';
-export { LearningFirstRun } from './learning-first-run';
+export { ReviewFirstRun } from './review-first-run';
 export { OverviewFirstRun } from './overview-first-run';

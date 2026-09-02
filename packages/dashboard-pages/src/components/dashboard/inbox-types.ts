@@ -8,6 +8,7 @@ import type {
   CrmMergeProposalDto,
   FeedbackOutboxDto,
   KbCandidateDto,
+  OutreachProposalDetailDto,
   OutreachProposalDto,
   QueueItem,
   ScheduledItem,
@@ -125,6 +126,7 @@ export interface InboxController {
   kbBodies: Record<string, string>;
   kbRevisedBodies: Record<string, string>;
   cmsDetails: Record<string, CmsDraftDetailDto>;
+  outreachDetails: Record<string, OutreachProposalDetailDto>;
   detailErrors: Record<string, string>;
   queueDetailErrors: Record<string, string>;
   reloadDetail: (id: string) => Promise<void>;

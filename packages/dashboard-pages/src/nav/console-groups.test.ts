@@ -15,7 +15,7 @@ const GROUPS: ConsoleNavGroup[] = [
     groupKey: 'oversight',
     items: [
       { href: '/dashboard/conversations', labelKey: 'conversations' },
-      { href: '/dashboard/learning', labelKey: 'learning', adminOnly: true },
+      { href: '/dashboard/review', labelKey: 'review', adminOnly: true },
     ],
   },
   {
@@ -64,7 +64,7 @@ describe('extendConsoleGroups', () => {
     expect(extended[1]!.items.map((i) => i.labelKey)).toEqual([
       'conversations',
       'automation',
-      'learning',
+      'review',
     ]);
     expect(GROUPS[1]!.items).toHaveLength(2);
   });

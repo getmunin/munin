@@ -1,5 +1,5 @@
 import { extendNavGroups } from './extend-groups';
-export type ConsoleBadge = 'waiting' | 'queue' | 'learning';
+export type ConsoleBadge = 'queue' | 'review';
 
 export interface ConsoleNavItem {
   href: string;
@@ -17,14 +17,14 @@ export interface ConsoleNavGroup {
 export const OSS_CONSOLE_GROUPS: ConsoleNavGroup[] = [
   {
     groupKey: 'admin',
-    items: [{ href: '/dashboard', labelKey: 'overview', badge: 'waiting', adminOnly: true }],
+    items: [{ href: '/dashboard', labelKey: 'overview', adminOnly: true }],
   },
   {
     groupKey: 'oversight',
     items: [
       { href: '/dashboard/conversations', labelKey: 'conversations', badge: 'queue' },
       { href: '/dashboard/automation', labelKey: 'automation', adminOnly: true },
-      { href: '/dashboard/learning', labelKey: 'learning', badge: 'learning', adminOnly: true },
+      { href: '/dashboard/review', labelKey: 'review', badge: 'review', adminOnly: true },
     ],
   },
   {

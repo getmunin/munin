@@ -7,10 +7,12 @@ import { LoadFailed } from '../components/load-failed';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
 import { usePathname, useRouter } from '../i18n-navigation';
 import { useInboxData } from '../components/dashboard/inbox-sections';
-import { LearningRow, type KbQueueItem } from '../components/dashboard/learning-row';
-import { LearningPane } from '../components/dashboard/learning-pane';
-import { LearningDecidedRow } from '../components/dashboard/learning-decided-row';
-import { LearningDecidedPane } from '../components/dashboard/learning-decided-pane';
+import { partitionReviewQueue } from '../components/dashboard/review-queue';
+import { ReviewRow } from '../components/dashboard/review-row';
+import { ReviewKbPane } from '../components/dashboard/review-kb-pane';
+import { ReviewBlockingPane } from '../components/dashboard/review-blocking-pane';
+import { ReviewDecidedRow } from '../components/dashboard/review-decided-row';
+import { ReviewDecidedPane } from '../components/dashboard/review-decided-pane';
 import {
   DECIDED_WINDOW_DAYS,
   useCurationDecisions,
@@ -18,23 +20,24 @@ import {
 } from '../components/dashboard/curation-decisions';
 import { useProvideMobileBack } from '../shells/mobile-back';
 import { ConsoleSectionLabel } from '../components/console-section-label';
-import { LearningFirstRun, useSetupState } from '../components/first-run';
+import { ReviewFirstRun, useSetupState } from '../components/first-run';
 
-const ROOT = '/dashboard/learning';
+const ROOT = '/dashboard/review';
 const FADE_FLOOR = 0.55;
 
-export function LearningPage({ selectedId = null }: { selectedId?: string | null }) {
-  const t = useTranslations('dashboard.console.learning');
+export function ReviewPage({ selectedId = null }: { selectedId?: string | null }) {
+  const t = useTranslations('dashboard.console.review');
   const router = useRouter();
   const pathname = usePathname();
   const inbox = useInboxData();
   const setup = useSetupState();
   const decisions = useCurationDecisions();
   const buildLoadFailedProps = useInboxLoadFailedProps();
+  const { setQueueDrawer } = inbox;
 
   const onListRoute = pathname === ROOT || pathname === `${ROOT}/`;
   const routeSelectedId =
-    pathname.match(/^\/dashboard\/learning\/([^/]+)\/?$/)?.[1] ?? (onListRoute ? null : selectedId);
+    pathname.match(/^\/dashboard\/review\/([^/]+)\/?$/)?.[1] ?? (onListRoute ? null : selectedId);
 
   const shallowGo = useCallback(
     (path: string, replace = false) => {
@@ -63,8 +66,8 @@ export function LearningPage({ selectedId = null }: { selectedId?: string | null
     [shallowGo],
   );
 
-  const candidates = useMemo(
-    () => inbox.queue.filter((q): q is KbQueueItem => q.kind === 'kb'),
+  const { blocking, improvements } = useMemo(
+    () => partitionReviewQueue(inbox.queue),
     [inbox.queue],
   );
   const recentDecisions = useMemo(
@@ -73,13 +76,24 @@ export function LearningPage({ selectedId = null }: { selectedId?: string | null
   );
 
   const activeId = routeSelectedId;
-  const selectedCandidate = activeId ? candidates.find((c) => c.id === activeId) : undefined;
+  const selectedBlocking = activeId ? blocking.find((b) => b.id === activeId) : undefined;
+  const selectedCandidate = activeId
+    ? improvements.find((c) => c.id === activeId)
+    : undefined;
   const selectedDecision = activeId ? recentDecisions.find((d) => d.id === activeId) : undefined;
+
+  useEffect(() => {
+    setQueueDrawer(selectedBlocking ?? null);
+  }, [selectedBlocking, setQueueDrawer]);
 
   const listLoaded = inbox.hasLoadedOnce && decisions.hasLoadedOnce;
   const listIds = useMemo(
-    () => [...candidates.map((c) => c.id), ...recentDecisions.map((d) => d.id)],
-    [candidates, recentDecisions],
+    () => [
+      ...blocking.map((b) => b.id),
+      ...improvements.map((c) => c.id),
+      ...recentDecisions.map((d) => d.id),
+    ],
+    [blocking, improvements, recentDecisions],
   );
 
   useEffect(() => {
@@ -100,9 +114,9 @@ export function LearningPage({ selectedId = null }: { selectedId?: string | null
 
   const backAction = useMemo(() => {
     if (!routeSelectedId) return null;
-    const title = selectedCandidate?.title ?? selectedDecision?.title;
+    const title = selectedBlocking?.title ?? selectedCandidate?.title ?? selectedDecision?.title;
     return { label: t('backToList'), title, onBack: goToList };
-  }, [routeSelectedId, selectedCandidate, selectedDecision, goToList, t]);
+  }, [routeSelectedId, selectedBlocking, selectedCandidate, selectedDecision, goToList, t]);
   useProvideMobileBack(backAction);
 
   if (inbox.loadError && !inbox.hasLoadedOnce) {
@@ -117,9 +131,10 @@ export function LearningPage({ selectedId = null }: { selectedId?: string | null
 
   const firstRunUndecided = setup.loading || (setup.isFirstRun && !listLoaded);
   if (firstRunUndecided) return null;
-  const nothingToReview = candidates.length === 0 && recentDecisions.length === 0;
+  const nothingToReview =
+    blocking.length === 0 && improvements.length === 0 && recentDecisions.length === 0;
   if (setup.isFirstRun && nothingToReview) {
-    return <LearningFirstRun setup={setup} decidedCount={decisions.items.length} />;
+    return <ReviewFirstRun setup={setup} decidedCount={decisions.items.length} />;
   }
 
   const afterDecision = (ok: boolean) => {
@@ -152,20 +167,33 @@ export function LearningPage({ selectedId = null }: { selectedId?: string | null
         </header>
 
         <ul onScroll={onListScroll} className="pb-6 md:min-h-0 md:flex-1 md:overflow-y-auto">
-          <ConsoleSectionLabel>{t('sectionProposals', { count: candidates.length })}</ConsoleSectionLabel>
-          {candidates.length === 0 ? (
-            <li className="flex flex-col gap-2 border-b border-rule-soft px-5 py-6 dark:border-rule-on-dark">
-              <h3 className="font-serif text-lg font-normal leading-tight text-ink dark:text-foreground">
-                {t('emptyTitle')}
-              </h3>
-              <p className="max-w-[48ch] text-[13px] leading-relaxed text-ink-soft dark:text-foreground/80">
-                {t('emptyBody')}
-              </p>
-            </li>
+          <ConsoleSectionLabel note={blocking.length > 0 ? t('sectionBlockingNote') : undefined}>
+            {t('sectionBlocking', { count: blocking.length })}
+          </ConsoleSectionLabel>
+          {blocking.length === 0 ? (
+            <EmptySection title={t('emptyBlockingTitle')} body={t('emptyBlockingBody')} />
           ) : (
-            candidates.map((item) => (
-              <LearningRow
-                key={item.id}
+            blocking.map((item) => (
+              <ReviewRow
+                key={`${item.kind}-${item.id}`}
+                item={item}
+                active={item.id === activeId}
+                onSelect={() => select(item.id)}
+              />
+            ))
+          )}
+
+          <ConsoleSectionLabel
+            note={improvements.length > 0 ? t('sectionImprovementsNote') : undefined}
+          >
+            {t('sectionImprovements', { count: improvements.length })}
+          </ConsoleSectionLabel>
+          {improvements.length === 0 ? (
+            <EmptySection title={t('emptyImprovementsTitle')} body={t('emptyImprovementsBody')} />
+          ) : (
+            improvements.map((item) => (
+              <ReviewRow
+                key={`${item.kind}-${item.id}`}
                 item={item}
                 active={item.id === activeId}
                 onSelect={() => select(item.id)}
@@ -179,7 +207,7 @@ export function LearningPage({ selectedId = null }: { selectedId?: string | null
                 {t('sectionDecided', { days: DECIDED_WINDOW_DAYS, count: recentDecisions.length })}
               </ConsoleSectionLabel>
               {recentDecisions.map((item) => (
-                <LearningDecidedRow
+                <ReviewDecidedRow
                   key={item.id}
                   item={item}
                   active={item.id === activeId}
@@ -204,22 +232,28 @@ export function LearningPage({ selectedId = null }: { selectedId?: string | null
               {t('selectEmpty')}
             </span>
           </section>
+        ) : selectedBlocking ? (
+          <ReviewBlockingPane
+            item={selectedBlocking}
+            controller={inbox}
+            afterDecision={afterDecision}
+          />
         ) : selectedDecision ? (
-          <LearningDecidedPane
+          <ReviewDecidedPane
             item={selectedDecision}
             publishedDoc={
-              selectedDecision?.publishedDocumentId
+              selectedDecision.publishedDocumentId
                 ? decisions.publishedDocs[selectedDecision.publishedDocumentId]
                 : undefined
             }
             publishedDocFailed={
-              !!selectedDecision?.publishedDocumentId &&
+              !!selectedDecision.publishedDocumentId &&
               !!decisions.publishedDocErrors[selectedDecision.publishedDocumentId]
             }
             onLoadPublishedDoc={(id) => void decisions.loadPublishedDoc(id)}
           />
         ) : (
-          <LearningPane
+          <ReviewKbPane
             item={selectedCandidate}
             pending={inbox.pending}
             actionError={inbox.queueActionError}
@@ -238,5 +272,18 @@ export function LearningPage({ selectedId = null }: { selectedId?: string | null
         )}
       </div>
     </div>
+  );
+}
+
+function EmptySection({ title, body }: { title: string; body: string }) {
+  return (
+    <li className="flex flex-col gap-2 border-b border-rule-soft px-5 py-6 dark:border-rule-on-dark">
+      <h3 className="font-serif text-lg font-normal leading-tight text-ink dark:text-foreground">
+        {title}
+      </h3>
+      <p className="max-w-[48ch] text-[13px] leading-relaxed text-ink-soft dark:text-foreground/80">
+        {body}
+      </p>
+    </li>
   );
 }

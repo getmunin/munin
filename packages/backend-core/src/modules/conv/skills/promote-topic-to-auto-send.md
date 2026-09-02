@@ -27,7 +27,7 @@ Returns each topic with its mode and the last 30 days of review outcomes:
 A topic is a promotion candidate when the humans have stopped changing anything:
 
 - `approvedUnedited / reviewedCount ≥ 0.9` over a meaningful sample (tens of replies, not a handful).
-- `rejected` is rare and recent rejections have explanations that were fixed (check Learning for shipped revisions).
+- `rejected` is rare and recent rejections have explanations that were fixed (check Review for shipped revisions).
 - The topic is not policy-sensitive. Complaints, cancellations, and data/privacy requests stay with a human regardless of the numbers — set those topics to `draft_only` (or `off` if the agent should not reply at all) and leave them there.
 
 A thin sample or a volatile edit rate is a reason to wait, not to promote optimistically.

@@ -46,6 +46,21 @@ If the customer uses Munin's own `widget.js` bundle rather than their own chat U
 
 An unrecognized value is a console warning, not an error — the widget falls back to the default and still mounts.
 
+### Visitor attributes on the drop-in embed
+
+The same bundle accepts a visitor profile, which lands on the contact row the first time the session ingests. Render these for signed-in users on a server-rendered page — they are the embed-side equivalent of the `visitor` object in §2's server-to-server payload.
+
+| Attribute | Effect |
+|---|---|
+| `data-munin-visitor-name` | Display name, trimmed and truncated to 120 chars. |
+| `data-munin-visitor-email` | Email address, format-checked client-side and re-validated server-side. An invalid value is dropped with a console warning rather than sent. |
+| `data-munin-visitor-meta` | Flat JSON object of string / number / boolean values, max 4 KB, e.g. `'{"plan":"pro","accountId":"acc_42"}'`. Lands on `conv_contacts.metadata`. Nested values are dropped with a warning. |
+| `data-munin-meta-<key>` | Shorthand for a single metadata entry; the key is camelized (`data-munin-meta-account-id` → `accountId`). Merged with `data-munin-visitor-meta`, which wins on a key collision. |
+
+**Send a name whenever you have one.** Identity verification (§4) binds a session to an `externalId` and nothing else — it carries no name and no email — so a verified visitor with no `data-munin-visitor-name` still has an unnamed contact row. Every surface that displays a customer falls back through name → email → phone, so without a name the dashboard, the Slack mirror and outreach all show a raw email address, or a generic placeholder when there is no email either.
+
+These are unrelated to `data-external-id` / `data-user-hash`: the visitor attributes are unverified page-supplied claims, useful for display, while identity verification is what actually authenticates the session. Sending both is the normal case for a signed-in user.
+
 ### Overriding styles from the page
 
 The panel renders inside a shadow root, so the site's own stylesheets cannot reach its internals — but CSS custom properties do inherit across the shadow boundary. Set them on the widget host element from an ordinary page stylesheet:
@@ -120,6 +135,8 @@ If you set `providerMessageId` on a message, replays of the same identifier are 
 ### Visitor enrichment
 
 `visitor.email` enables CRM linkage: the contact is matched on (org, email). If you don't have an email, the contact is matched on `metadata.sessionId` so re-pushes update the same row. Once the visitor identifies themselves, send the email — the existing contact gets enriched rather than duplicated.
+
+Send `visitor.name` too whenever you know it. It is what every customer-facing surface displays first, and no other part of the pipeline can infer it — see the note under §1's visitor attributes. On the drop-in embed, the same three fields are `data-munin-visitor-name` / `-email` / `-meta`.
 
 ## 3. Receive replies from a human / Munin agent
 

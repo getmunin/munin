@@ -71,6 +71,8 @@ class FakeSlackApi extends SlackApiClient {
     return Promise.resolve({ ts, channel: input.channel });
   }
 
+  deletedTs = new Set<string>();
+
   override updateMessage(input: {
     token: string;
     channel: string;
@@ -78,6 +80,7 @@ class FakeSlackApi extends SlackApiClient {
     text: string;
     blocks?: unknown[];
   }): Promise<void> {
+    if (this.deletedTs.has(input.ts)) throw new SlackApiError('message_not_found');
     this.updated.push({
       channel: input.channel,
       ts: input.ts,
@@ -473,6 +476,78 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     expect(api.updated[0]!.ts).toBe(parent!.ts);
     expect(api.updated[0]!.text).toContain(':white_check_mark: *Conversation is resolved.*');
     expect(actionIds(api.updated[0]!.blocks)).toEqual(['munin_reopen']);
+  });
+
+  it('posts nothing and stops retrying when the thread parent was deleted in Slack', async () => {
+    const api = new FakeSlackApi();
+    api.deletedTs.add('1690000000.000009');
+    const worker = new SlackBridgeWorker(db, api);
+    const conversationId = await seedConversation();
+    await db.insert(schema.slackConversationLinks).values({
+      orgId,
+      integrationId,
+      conversationId,
+      slackChannelId: 'C_DEFAULT',
+      slackThreadTs: '1690000000.000009',
+    });
+    await db
+      .update(schema.convConversations)
+      .set({ status: 'closed' })
+      .where(eq(schema.convConversations.id, conversationId));
+    await enqueue('conversation.status_changed', conversationId, {
+      conversationId,
+      status: 'closed',
+    });
+
+    const result = await worker.tick();
+
+    expect(result.failed).toBe(1);
+    expect(api.posted).toHaveLength(0);
+    const [delivery] = await db
+      .select()
+      .from(schema.slackDeliveries)
+      .where(eq(schema.slackDeliveries.conversationId, conversationId));
+    expect(delivery?.error).toBe('slack_thread_missing');
+    expect(delivery?.deliveredAt).not.toBeNull();
+    expect(delivery?.nextAttemptAt).toBeNull();
+    const links = await db
+      .select()
+      .from(schema.slackConversationLinks)
+      .where(eq(schema.slackConversationLinks.conversationId, conversationId));
+    expect(links).toHaveLength(0);
+  });
+
+  it('starts a fresh thread for the next event after a deleted parent was retired', async () => {
+    const api = new FakeSlackApi();
+    api.deletedTs.add('1690000000.000010');
+    const worker = new SlackBridgeWorker(db, api);
+    const conversationId = await seedConversation();
+    await db.insert(schema.slackConversationLinks).values({
+      orgId,
+      integrationId,
+      conversationId,
+      slackChannelId: 'C_DEFAULT',
+      slackThreadTs: '1690000000.000010',
+    });
+    await enqueue('conversation.status_changed', conversationId, {
+      conversationId,
+      status: 'closed',
+    });
+    await worker.tick();
+
+    const messageId = await seedMessage(conversationId, 'still here?');
+    await enqueue('conversation.message.received', conversationId, { conversationId, messageId });
+    await worker.tick();
+
+    const parent = api.posted.find((p) => !p.threadTs);
+    expect(parent).toBeDefined();
+    expect(api.posted.at(-1)!.threadTs).toBe(parent!.ts);
+    expect(api.posted.at(-1)!.text).toContain('still here?');
+    const [link] = await db
+      .select()
+      .from(schema.slackConversationLinks)
+      .where(eq(schema.slackConversationLinks.conversationId, conversationId));
+    expect(link?.slackThreadTs).toBe(parent!.ts);
   });
 
   it('refreshes the parent headline on subject changes without a thread reply', async () => {

@@ -163,7 +163,9 @@ const skipReason = TEST_URL
       });
       ws.once('unexpected-response', (_req, res) => {
         clearTimeout(timer);
-        reject(new Error(`upgrade rejected: ${res.statusCode}`));
+        const reason = res.headers['x-munin-error'];
+        const code = Array.isArray(reason) ? reason[0] : reason;
+        reject(new Error(`upgrade rejected: ${res.statusCode} ${code ?? 'no-reason'}`));
       });
     });
   }
@@ -230,7 +232,7 @@ const skipReason = TEST_URL
       err = e as Error;
     }
     expect(err).toBeTruthy();
-    expect(err!.message).toMatch(/upgrade rejected: 401/i);
+    expect(err!.message).toMatch(/upgrade rejected: 403 origin_not_allowed/i);
     ws.terminate();
   });
 
@@ -243,7 +245,7 @@ const skipReason = TEST_URL
       err = e as Error;
     }
     expect(err).toBeTruthy();
-    expect(err!.message).toMatch(/upgrade rejected: 401/i);
+    expect(err!.message).toMatch(/upgrade rejected: 403 origin_required/i);
     ws.terminate();
   });
 
@@ -356,7 +358,34 @@ const skipReason = TEST_URL
       err = e as Error;
     }
     expect(err).toBeTruthy();
-    expect(err!.message).toMatch(/upgrade rejected: 401/i);
+    expect(err!.message).toMatch(/upgrade rejected: 403 identity_verification_failed/i);
+    ws.terminate();
+  });
+
+  it('accepts the ingest-shaped verifiedExternalId param name on the socket', async () => {
+    const ext = 'user_alias_param';
+    const hash = signHmac(ext, identitySecret);
+    const ws = connectWs(widgetKey, {
+      origin: ALLOWED_ORIGIN,
+      query: { verifiedExternalId: ext, userHash: hash },
+    });
+    await waitForOpen(ws);
+    ws.terminate();
+  });
+
+  it('names identity_partial when an externalId arrives without a userHash', async () => {
+    const ws = connectWs(widgetKey, {
+      origin: ALLOWED_ORIGIN,
+      query: { externalId: 'user_no_hash' },
+    });
+    let err: Error | null = null;
+    try {
+      await waitForOpen(ws);
+    } catch (e) {
+      err = e as Error;
+    }
+    expect(err).toBeTruthy();
+    expect(err!.message).toMatch(/upgrade rejected: 403 identity_partial/i);
     ws.terminate();
   });
 
@@ -473,7 +502,7 @@ const skipReason = TEST_URL
       err = e as Error;
     }
     expect(err).toBeTruthy();
-    expect(err!.message).toMatch(/upgrade rejected: 401/i);
+    expect(err!.message).toMatch(/upgrade rejected: 401 unauthorized/i);
     ws.terminate();
   });
 

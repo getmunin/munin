@@ -170,16 +170,14 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       this.logger.debug(`upgrade auth failed: ${err instanceof Error ? err.message : String(err)}`);
     }
     if (!authResult) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
+      rejectUpgrade(socket, 401, 'Unauthorized', 'unauthorized');
       return;
     }
     const credential = authResult.credential;
 
     if (authResult.fromCookie && !isOriginAllowedForCookieAuth(readHeader(req, 'origin'))) {
       this.logger.debug('upgrade rejected: cookie-authed WS origin not in allowlist');
-      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-      socket.destroy();
+      rejectUpgrade(socket, 403, 'Forbidden', 'origin_not_allowed');
       return;
     }
 
@@ -188,8 +186,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       widgetCtx = await this.gateWidgetUpgrade(req, credential);
     } catch (err) {
       this.logger.debug(`widget upgrade gate failed: ${describeErr(err)}`);
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
+      rejectUpgrade(socket, 403, 'Forbidden', widgetGateReason(err));
       return;
     }
 
@@ -234,7 +231,10 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     enforceOriginAllowlist(config, origin);
 
     const url = new URL(req.url ?? '/', 'http://localhost');
-    const verifiedExternalId = url.searchParams.get('externalId') ?? undefined;
+    const verifiedExternalId =
+      url.searchParams.get('externalId') ??
+      url.searchParams.get('verifiedExternalId') ??
+      undefined;
     const userHash = url.searchParams.get('userHash') ?? undefined;
     const identity = verifyIdentity(config, { verifiedExternalId, userHash });
 
@@ -781,6 +781,27 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     }
     return this.resolver.resolveBearerToken(raw);
   }
+}
+
+export function widgetGateReason(err: unknown): string {
+  const raw = (err instanceof Error ? err.message : String(err)).trim();
+  return /^[a-z][a-z0-9]*(_[a-z0-9]+)+$/.test(raw) ? raw : 'widget_gate_failed';
+}
+
+function rejectUpgrade(socket: Duplex, status: number, statusText: string, code: string): void {
+  const body = JSON.stringify({ code });
+  socket.write(
+    [
+      `HTTP/1.1 ${status} ${statusText}`,
+      `X-Munin-Error: ${code}`,
+      'Content-Type: application/json',
+      `Content-Length: ${Buffer.byteLength(body)}`,
+      'Connection: close',
+      '',
+      body,
+    ].join('\r\n'),
+  );
+  socket.destroy();
 }
 
 function readRequestedOrgId(req: IncomingMessage): string | null {

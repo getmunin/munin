@@ -165,6 +165,16 @@ Set `requireVerifiedIdentity: true` on the channel (`conv_create_widget_channel`
 
 Because the widget and the analytics tracker share the same `localStorage` visitor id (`mn.vid`), identifying a visitor to the widget also stitches their prior anonymous analytics history — no separate `window.mn.analytics.identify` call needed for that visitor.
 
+### The same pair authorizes the realtime socket
+
+The identity is verified twice: once on every HTTP call, and once on the WebSocket handshake that streams agent replies (`wss://<api-host>/v1/realtime`). The socket takes them as query params — `externalId` (or `verifiedExternalId`, both accepted) plus `userHash` — against the same channel secret and the same `externalId`-only HMAC. The bundled widget does this for you; you only need the names when you drive `/v1/realtime` yourself.
+
+Every rejection is answered on the handshake as `403` with the reason in both an `X-Munin-Error` header and a `{"code":"…"}` body: `identity_partial` (one of the two params missing), `identity_verification_failed` (hash does not match this channel's secret), `identity_required` (`requireVerifiedIdentity` channel, no identity offered), `origin_required` / `origin_not_allowed`. A `401` means the widget key itself was not accepted, before identity was ever considered. Browsers cannot read a failed handshake's status, so reach for `curl -i` or a Node client when diagnosing one.
+
+**The secret is per channel, not per org.** An org with a dev channel and a prod channel has two `channelId`s, two widget keys and two identity secrets; a single `WIDGET_IDENTITY_SECRET` in your app can only match one of them. Signing with the other channel's secret is the usual cause of a widget that sends fine but never receives: put the channel id in the env var name, or read it from the same config that supplies `data-channel-id`.
+
+If the socket is rejected three handshakes in a row, the widget drops the identity params and reconnects anonymously — replies keep streaming, scoped to the session rather than the user, with a console warning naming the mismatch. It re-arms the identity on the next `window.mn.widget.identify` call or page load, so fixing the secret needs no code change.
+
 ### Running the widget and the analytics tracker on the same page
 
 Both bundles hang off `window.mn`, but each owns its own namespace — `mn.widget` and `mn.analytics` — so nothing collides. A page running both identifies each surface explicitly:

@@ -319,6 +319,90 @@ describe('realtime: reconnect with exp backoff', () => {
   });
 });
 
+describe('realtime: identity rejection fallback', () => {
+  const identityDeps = () => ({
+    host: 'https://munin.example',
+    widgetKey: 'mn_widget_abc',
+    channelId: 'cnv_chan',
+    sessionId: 'sess_1',
+    getIdentity: () => ({ externalId: 'user_42', userHash: 'a'.repeat(64) }),
+    webSocketCtor: MockWS,
+  });
+
+  function failNextHandshake(): void {
+    MockWebSocket.instances.at(-1)!.fakeClose();
+    vi.advanceTimersByTime(60_000);
+  }
+
+  it('drops identity params after three handshakes that never opened', () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const client = createRealtimeClient(identityDeps());
+    client.connect();
+    expect(MockWebSocket.instances.at(-1)!.url).toContain('externalId=user_42');
+
+    failNextHandshake();
+    expect(MockWebSocket.instances.at(-1)!.url).toContain('externalId=user_42');
+    failNextHandshake();
+    expect(MockWebSocket.instances.at(-1)!.url).toContain('externalId=user_42');
+    failNextHandshake();
+
+    const fallback = MockWebSocket.instances.at(-1)!;
+    expect(fallback.url).toBe('wss://munin.example/v1/realtime');
+    fallback.fakeOpen();
+    expect(client.state()).toBe('connected');
+    expect(warn).toHaveBeenCalled();
+    client.close();
+    warn.mockRestore();
+  });
+
+  it('keeps identity when a socket opened before closing', () => {
+    vi.useFakeTimers();
+    const client = createRealtimeClient(identityDeps());
+    client.connect();
+    for (let i = 0; i < 4; i++) {
+      const ws = MockWebSocket.instances.at(-1)!;
+      ws.fakeOpen();
+      ws.fakeClose();
+      vi.advanceTimersByTime(60_000);
+    }
+    expect(MockWebSocket.instances.at(-1)!.url).toContain('externalId=user_42');
+    client.close();
+  });
+
+  it('re-arms identity when the anonymous socket also fails to open', () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const client = createRealtimeClient(identityDeps());
+    client.connect();
+    failNextHandshake();
+    failNextHandshake();
+    failNextHandshake();
+    expect(MockWebSocket.instances.at(-1)!.url).toBe('wss://munin.example/v1/realtime');
+
+    failNextHandshake();
+    expect(MockWebSocket.instances.at(-1)!.url).toContain('externalId=user_42');
+    client.close();
+    warn.mockRestore();
+  });
+
+  it('restores identity on a caller-driven reconnect', () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const client = createRealtimeClient(identityDeps());
+    client.connect();
+    failNextHandshake();
+    failNextHandshake();
+    failNextHandshake();
+    expect(MockWebSocket.instances.at(-1)!.url).toBe('wss://munin.example/v1/realtime');
+
+    client.reconnect();
+    expect(MockWebSocket.instances.at(-1)!.url).toContain('externalId=user_42');
+    client.close();
+    warn.mockRestore();
+  });
+});
+
 describe('realtime: no-poll invariant', () => {
   it('createRealtimeClient never installs a setInterval', () => {
     const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { auditConversation, type AuditAction, type AuditTopic } from './audit.ts';
 import { deriveMessageComponents } from './message-components.ts';
 import { deriveRetrievedDocumentIds } from './kb-citations.ts';
-import { classifyProviderError, type ProviderErrorCode } from './providers/openai-compatible.ts';
+import { classifyProviderError, type ProviderErrorCode } from './providers/transport.ts';
 import { runAgent } from './runtime.ts';
 import type {
   ConversationMessage,
@@ -266,11 +266,11 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     const companyBlock = companyContext
       ? `\n\n[Company context]\n${COMPANY_CONTEXT_NOTE}\n${fenceUntrusted('company_context', companyContext)}`
       : '';
-    const conversationContext = `\n\n[Conversation context]\nYou are replying in conversationId: ${conversationId}. Pass this exact value to any tool that asks for \`conversationId\` — never substitute placeholders like "current" or "this".`;
+    const conversationContext = `[Conversation context]\nYou are replying in conversationId: ${conversationId}. Pass this exact value to any tool that asks for \`conversationId\` — never substitute placeholders like "current" or "this".`;
     const namePreamble = assistantNamePreamble(detail.assistantName);
     const systemBody = channelDescriptor
-      ? `${baseSystem}${companyBlock}\n\n${channelDescriptor}${conversationContext}`
-      : `${baseSystem}${companyBlock}${conversationContext}`;
+      ? `${baseSystem}${companyBlock}\n\n${channelDescriptor}`
+      : `${baseSystem}${companyBlock}`;
     const systemPrompt = `${namePreamble}${systemBody}`;
 
     if (deps.beforeGenerate) {
@@ -304,6 +304,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
             },
             model: deps.config.model,
             systemPrompt,
+            volatileSystemPrompt: conversationContext,
             maxToolIterations: deps.config.maxToolIterations,
             maxHistoryChars: deps.config.maxHistoryChars,
           },

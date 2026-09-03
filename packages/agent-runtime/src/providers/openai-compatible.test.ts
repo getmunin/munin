@@ -1,8 +1,6 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import * as core from '@getmunin/core';
 import {
-  parseRetryAfterMs,
-  rateLimitRetryDelayMs,
   shouldEnablePromptCache,
   withSystemPromptCache,
   withToolsCache,
@@ -33,7 +31,7 @@ describe('openAiCompatibleProvider request body', () => {
     vi.restoreAllMocks();
   });
 
-  it('emits cache_control on system + last tool when targeting Anthropic', async () => {
+  it('emits cache_control on system + last tool when targeting Claude via OpenRouter', async () => {
     const captured: { url?: string; body?: Record<string, unknown> } = {};
     stubSafeFetch((url, init) => {
       captured.url = url;
@@ -50,8 +48,8 @@ describe('openAiCompatibleProvider request body', () => {
 
     await openAiCompatibleProvider({
       config: {
-        provider: { baseUrl: 'https://api.anthropic.com/v1', apiKey: 'sk-ant-xxx' },
-        model: 'claude-haiku-4-5',
+        provider: { baseUrl: 'https://openrouter.ai/api/v1', apiKey: 'sk-or-xxx' },
+        model: 'anthropic/claude-haiku-4.5',
         systemPrompt: 'sys',
       },
       messages: [
@@ -181,54 +179,14 @@ describe('openAiCompatibleProvider rate-limit retries', () => {
   });
 });
 
-describe('rateLimitRetryDelayMs', () => {
-  it('grows exponentially across attempts', () => {
-    const half = (): number => 0;
-    expect(rateLimitRetryDelayMs(null, 0, half)).toBe(500);
-    expect(rateLimitRetryDelayMs(null, 1, half)).toBe(1_000);
-    expect(rateLimitRetryDelayMs(null, 2, half)).toBe(2_000);
-  });
-
-  it('jitters so that concurrent callers do not retry in lockstep', () => {
-    expect(rateLimitRetryDelayMs(null, 0, () => 0)).toBe(500);
-    expect(rateLimitRetryDelayMs(null, 0, () => 1)).toBe(1_000);
-  });
-
-  it('never waits less than the provider asked for', () => {
-    expect(rateLimitRetryDelayMs('3', 0, () => 0)).toBe(3_000);
-  });
-
-  it('caps the wait', () => {
-    expect(rateLimitRetryDelayMs('600', 4, () => 1)).toBe(15_000);
-  });
-});
-
-describe('parseRetryAfterMs', () => {
-  it('reads delay-seconds', () => {
-    expect(parseRetryAfterMs('2')).toBe(2_000);
-  });
-
-  it('reads an HTTP date', () => {
-    const at = new Date(Date.now() + 4_000).toUTCString();
-    const ms = parseRetryAfterMs(at);
-    expect(ms).toBeGreaterThan(2_000);
-    expect(ms).toBeLessThanOrEqual(5_000);
-  });
-
-  it('returns null for a missing or unparseable header', () => {
-    expect(parseRetryAfterMs(null)).toBeNull();
-    expect(parseRetryAfterMs('soon')).toBeNull();
-  });
-});
-
 describe('shouldEnablePromptCache', () => {
-  it('auto-enables for Anthropic native endpoint', () => {
+  it('does not auto-enable for api.anthropic.com, whose compat layer ignores cache_control', () => {
     expect(
       shouldEnablePromptCache({
         provider: { baseUrl: 'https://api.anthropic.com/v1' },
         model: 'claude-haiku-4-5',
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('auto-enables for OpenRouter with anthropic/* model', () => {
@@ -261,8 +219,8 @@ describe('shouldEnablePromptCache', () => {
   it('explicit false overrides auto-detection', () => {
     expect(
       shouldEnablePromptCache({
-        provider: { baseUrl: 'https://api.anthropic.com/v1' },
-        model: 'claude-haiku-4-5',
+        provider: { baseUrl: 'https://openrouter.ai/api/v1' },
+        model: 'anthropic/claude-haiku-4.5',
         enablePromptCache: false,
       }),
     ).toBe(false);

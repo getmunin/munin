@@ -1,5 +1,5 @@
 import { assistantNamePreamble } from './conversation-handler.ts';
-import { classifyProviderError, type ProviderErrorCode } from './providers/openai-compatible.ts';
+import { classifyProviderError, type ProviderErrorCode } from './providers/transport.ts';
 import { runAgent } from './runtime.ts';
 import type { McpTool, McpToolHandle, McpToolResult, Provider } from './types.ts';
 

@@ -299,6 +299,55 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     expect(messageLink?.origin).toBe('mirrored');
   });
 
+  it('names an end user from the linked identity when the contact row carries no name or email', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const claimedEmail = `claimed-${randomUUID()}@example.com`;
+    const [endUser] = await db
+      .insert(schema.endUsers)
+      .values({ orgId, externalId: randomUUID(), email: claimedEmail })
+      .returning();
+    const [bareContact] = await db
+      .insert(schema.convContacts)
+      .values({ orgId, endUserId: endUser!.id, metadata: { externalId: endUser!.externalId } })
+      .returning();
+    displayIdSeq += 1;
+    const [conversation] = await db
+      .insert(schema.convConversations)
+      .values({
+        orgId,
+        displayId: displayIdSeq,
+        channelId,
+        contactId: bareContact!.id,
+        endUserId: endUser!.id,
+      })
+      .returning();
+    const [message] = await db
+      .insert(schema.convMessages)
+      .values({
+        orgId,
+        conversationId: conversation!.id,
+        authorType: 'end_user',
+        authorId: bareContact!.id,
+        body: 'Test',
+      })
+      .returning();
+
+    await enqueue('conversation.created', conversation!.id, { conversationId: conversation!.id });
+    await enqueue('conversation.message.received', conversation!.id, {
+      conversationId: conversation!.id,
+      messageId: message!.id,
+      authorType: 'end_user',
+      internal: false,
+    });
+
+    await worker.tick();
+    const [parent, reply] = api.posted;
+    expect(parent!.text).toContain(claimedEmail);
+    expect(reply!.username).toBe(claimedEmail);
+    expect(reply!.username).not.toBe('Customer');
+  });
+
   it('never posts a message that already has a slack ts (loop prevention)', async () => {
     const api = new FakeSlackApi();
     const worker = new SlackBridgeWorker(db, api);

@@ -48,7 +48,7 @@ export const ConfigureInput = z.object({
     .boolean()
     .optional()
     .describe(
-      'Set true to delete a conflicting account-wide webhook subscription and register Munin’s. Without it, a conflict returns a 409 webhook_conflict error.',
+      'Set true to delete a conflicting webhook subscription on the selected worker and register Munin’s. Without it, a conflict returns a 409 webhook_conflict error.',
     ),
 });
 
@@ -76,6 +76,7 @@ export class ThrellAdminService {
           accountId: args.accountId,
           workerId: args.workerId,
         },
+        replaceWebhook: args.replaceWebhook,
       });
     }
     if (!args.name) throw new BadRequestException('name is required when creating a channel');

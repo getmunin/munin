@@ -1,0 +1,12 @@
+---
+'@getmunin/backend-core': minor
+'@getmunin/dashboard-pages': minor
+---
+
+The Learning page becomes the Oversight design's proposals screen. Curation candidates render as the design's proposal cards: an accent kind line that names the revised document ("Revision — KB 07 …") or reads "New article", a serif title, a mono meta row of target space · age · a link to the conversation the candidate came from, and then the proposed article itself. A revision additionally shows its first changed passage as a before → after excerpt above the full text. Publish and Dismiss sit under the card, and the empty state is the design's bordered "Nothing proposed." panel.
+
+Candidate text is shown in full rather than behind a "Read full" toggle. Curation candidates are agent-drafted articles a few hundred characters long, so the toggle hid roughly a paragraph behind a click and the card could not be judged without one. To make that free, `listCurationCandidates` now carries `body` and `revisesDocumentBody` on `CurationCandidateSummary`: the batched document load it already ran for revision titles now covers the candidate ids too, so the query count is unchanged and the Learning page needs no per-card detail fetch. The redundant "Proposed for <space>." snippet line goes with it — the meta row already names the space.
+
+The card states each fact once. A candidate body written by the curation pass opens with its own `# H1` repeating the title the card already shows in serif above it, so a leading heading is dropped at render time — unconditionally, since the two often differ by a word ("Widget not loading on Safari" under a title of "Widget not loading on Safari with ITP") and an equality check would miss it. Only the leading heading goes; sections further down survive, and the stored body is untouched, so publishing still writes what the agent wrote. The "Proposed article · full" label above the text goes too — it restated the "New article" kind line and contrasted "full" against a collapsed state that no longer exists. On a revision it stays, where it genuinely separates the full document from the changed-passage excerpt above it.
+
+The past-decisions list leaves the page along with the pending/published/dismissed counter strip, and the section header above the cards goes too now that proposals are the page's only content. Learning is now only the open proposal queue, and the `/v1/kb/curation/decisions` read it made on mount is gone. Candidate rows still refresh live off `kb.*` events through the shared inbox subscription.

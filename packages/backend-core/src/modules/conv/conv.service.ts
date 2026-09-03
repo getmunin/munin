@@ -12,6 +12,8 @@ import { getCurrentContext, sameAfterNormalizing, WebhookDispatcher } from '@get
 import type { MessageComponent } from '@getmunin/types';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from './set-topic-job.ts';
+import { raiseAttentionWhenAgentIsOff } from './unanswerable-handover.ts';
+import { effectiveAgentModeSql, topicUneditedPctSql } from './topic-auto-gate.ts';
 import { buildDeltaCurationPrompt, buildGapCurationPrompt } from './curation-job.ts';
 import { applyTenancyGUCs } from '../../common/tenancy/tenancy.interceptor.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
@@ -22,6 +24,10 @@ import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { toIsoString } from '../../common/iso.ts';
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
+
+export const TEST_CONVERSATION_FLAG = 'setupTest';
+export const TEST_CONVERSATION_SUBJECT = 'Test message';
+export const TEST_CONVERSATION_BODY = 'Just checking the channel is wired up correctly.';
 
 export class ConvInvalidError extends Error {
   readonly code = 'conv_invalid';
@@ -79,6 +85,7 @@ export interface TopicDto {
   id: string;
   name: string;
   slug: string;
+  description: string | null;
   color: string | null;
 }
 
@@ -143,6 +150,7 @@ export interface ConversationSummary {
   agentMode: AgentMode;
   outreachCampaignId: string | null;
   voiceActive: boolean;
+  isTest: boolean;
   updatedAt: string;
   createdAt: string;
 }
@@ -157,6 +165,8 @@ export interface ConversationQueueItem extends ConversationSummary {
   claim: { holderId: string; holderName: string | null; expiresAt: string } | null;
   noteCount: number;
   hasPendingDraft: boolean;
+  endUserSpokeLast: boolean;
+  agentWorking: boolean;
 }
 
 export interface ConversationDetail extends ConversationSummary {
@@ -297,6 +307,7 @@ export class ConvService {
   async createTopic(input: {
     name: string;
     slug: string;
+    description?: string | null;
     color?: string;
   }): Promise<TopicDto> {
     const ctx = getCurrentContext();
@@ -318,10 +329,52 @@ export class ConvService {
         orgId: actor.orgId,
         name: input.name,
         slug: input.slug,
+        description: normalizeTopicDescription(input.description),
         color: input.color ?? null,
       })
       .returning();
     return toTopicDto(row!);
+  }
+
+  async updateTopic(input: {
+    topicId: string;
+    name?: string;
+    description?: string | null;
+    color?: string | null;
+  }): Promise<TopicDto> {
+    const ctx = getCurrentContext();
+    const patch: Partial<typeof schema.convTopics.$inferInsert> = {};
+    if (input.name !== undefined) {
+      const name = input.name.trim();
+      if (name.length === 0) throw new ConvInvalidError('name must not be empty');
+      patch.name = name;
+    }
+    if (input.description !== undefined) {
+      patch.description = normalizeTopicDescription(input.description);
+    }
+    if (input.color !== undefined) patch.color = input.color;
+    if (Object.keys(patch).length === 0) {
+      throw new ConvInvalidError('pass at least one of name, description or color');
+    }
+    const [row] = await ctx.db
+      .update(schema.convTopics)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(eq(schema.convTopics.id, input.topicId))
+      .returning();
+    if (!row) throw new NotFoundException(`conv_topic_not_found: ${input.topicId}`);
+    return toTopicDto(row);
+  }
+
+  private async effectiveAgentModeOf(conversationId: string): Promise<AgentMode | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ mode: effectiveAgentModeSql })
+      .from(schema.convConversations)
+      .leftJoin(schema.convTopics, eq(schema.convTopics.id, schema.convConversations.topicId))
+      .where(eq(schema.convConversations.id, conversationId))
+      .limit(1);
+    const mode = rows[0]?.mode;
+    return AGENT_MODES.includes(mode as AgentMode) ? (mode as AgentMode) : null;
   }
 
   async setTopic(input: {
@@ -330,9 +383,10 @@ export class ConvService {
   }): Promise<ConversationSummary> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    let topicName: string | null = null;
     if (input.topicId !== null) {
       const topicRows = await ctx.db
-        .select({ id: schema.convTopics.id })
+        .select({ id: schema.convTopics.id, name: schema.convTopics.name })
         .from(schema.convTopics)
         .where(
           and(
@@ -344,7 +398,9 @@ export class ConvService {
       if (!topicRows[0]) {
         throw new NotFoundException(`conv_topic_not_found: ${input.topicId}`);
       }
+      topicName = topicRows[0].name;
     }
+    const modeBefore = await this.effectiveAgentModeOf(input.conversationId);
     const [updated] = await ctx.db
       .update(schema.convConversations)
       .set({ topicId: input.topicId, updatedAt: new Date() })
@@ -352,6 +408,30 @@ export class ConvService {
       .returning();
     if (!updated) {
       throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
+    }
+    const modeAfter = await this.effectiveAgentModeOf(input.conversationId);
+    if (modeAfter && modeAfter !== modeBefore) {
+      const scope = topicName ? `Topic set to ${topicName}.` : 'Topic cleared.';
+      const consequence =
+        modeAfter === 'draft_only'
+          ? 'Replies now need review before sending.'
+          : modeAfter === 'auto'
+            ? 'Replies now send automatically.'
+            : 'The agent will not reply on this conversation.';
+      await ctx.db.insert(schema.convMessages).values({
+        orgId: actor.orgId,
+        conversationId: input.conversationId,
+        authorType: 'system',
+        authorId: 'topic-automation',
+        body: `${scope} ${consequence}`,
+        internal: true,
+        metadata: {
+          kind: 'automation_mode_changed',
+          topicId: input.topicId,
+          from: modeBefore,
+          to: modeAfter,
+        },
+      });
     }
     return toConversationSummary(updated);
   }
@@ -418,7 +498,7 @@ export class ConvService {
     needsHumanAttention?: boolean;
     handover?: HandoverFilter;
     since?: string;
-    cursor?: { lastMessageAt: string | null; id: string };
+    cursor?: { lastMessageAt: string | null; id: string; needsHumanAttention?: boolean };
   }): SQL[] {
     const filters: SQL[] = [];
     if (input.status) filters.push(eq(schema.convConversations.status, input.status));
@@ -447,14 +527,16 @@ export class ConvService {
       filters.push(gte(schema.convConversations.lastMessageAt, since));
     }
     if (input.cursor) {
-      const { lastMessageAt, id } = input.cursor;
-      if (lastMessageAt === null) {
-        filters.push(
-          sql`((${schema.convConversations.lastMessageAt} IS NULL AND ${schema.convConversations.id} < ${id}) OR ${schema.convConversations.lastMessageAt} IS NOT NULL)`,
-        );
+      const { lastMessageAt, id, needsHumanAttention } = input.cursor;
+      const activityTail =
+        lastMessageAt === null
+          ? sql`((${schema.convConversations.lastMessageAt} IS NULL AND ${schema.convConversations.id} < ${id}) OR ${schema.convConversations.lastMessageAt} IS NOT NULL)`
+          : sql`(${schema.convConversations.lastMessageAt} IS NOT NULL AND (${schema.convConversations.lastMessageAt}, ${schema.convConversations.id}) < (${new Date(lastMessageAt).toISOString()}::timestamptz, ${id}))`;
+      if (needsHumanAttention === undefined) {
+        filters.push(activityTail);
       } else {
         filters.push(
-          sql`${schema.convConversations.lastMessageAt} IS NOT NULL AND (${schema.convConversations.lastMessageAt}, ${schema.convConversations.id}) < (${new Date(lastMessageAt).toISOString()}::timestamptz, ${id})`,
+          sql`(${schema.convConversations.needsHumanAttention} < ${needsHumanAttention} OR (${schema.convConversations.needsHumanAttention} = ${needsHumanAttention} AND ${activityTail}))`,
         );
       }
     }
@@ -472,6 +554,16 @@ export class ConvService {
         )`;
   }
 
+  private endUserSpokeLastSql() {
+    return sql<boolean>`COALESCE((
+          SELECT author_type = 'end_user' FROM conv_messages
+          WHERE conversation_id = "conv_conversations"."id"
+            AND internal = false
+          ORDER BY created_at DESC
+          LIMIT 1
+        ), false)`;
+  }
+
   async listConversationsPage(input: {
     status?: ConversationStatus;
     excludeStatuses?: readonly ConversationStatus[];
@@ -482,8 +574,11 @@ export class ConvService {
     handover?: HandoverFilter;
     since?: string;
     limit?: number;
-    cursor?: { lastMessageAt: string | null; id: string };
-  }): Promise<{ items: ConversationSummary[]; nextCursor: { lastMessageAt: string | null; id: string } | null }> {
+    cursor?: { lastMessageAt: string | null; id: string; needsHumanAttention?: boolean };
+  }): Promise<{
+    items: ConversationSummary[];
+    nextCursor: { lastMessageAt: string | null; id: string; needsHumanAttention: boolean } | null;
+  }> {
     const ctx = getCurrentContext();
     const limit = clampLimit(input.limit, 50, 200);
     const filters = this.buildConversationListFilters(input);
@@ -498,7 +593,7 @@ export class ConvService {
       .orderBy(
         desc(schema.convConversations.needsHumanAttention),
         desc(schema.convConversations.lastMessageAt),
-        desc(schema.convConversations.createdAt),
+        desc(schema.convConversations.id),
       )
       .limit(limit + 1);
 
@@ -507,7 +602,13 @@ export class ConvService {
       .map((row) => toConversationSummary(row.conv, undefined, row.lastInboundPreview));
     const last = items[items.length - 1];
     const nextCursor =
-      rows.length > limit && last ? { lastMessageAt: last.lastMessageAt, id: last.id } : null;
+      rows.length > limit && last
+        ? {
+            lastMessageAt: last.lastMessageAt,
+            id: last.id,
+            needsHumanAttention: last.needsHumanAttention,
+          }
+        : null;
     return { items, nextCursor };
   }
 
@@ -521,16 +622,22 @@ export class ConvService {
     handover?: HandoverFilter;
     since?: string;
     limit?: number;
-    cursor?: { lastMessageAt: string | null; id: string };
+    cursor?: { lastMessageAt: string | null; id: string; needsHumanAttention?: boolean };
   }): Promise<{ items: ConversationQueueItem[]; nextCursor: { lastMessageAt: string | null; id: string } | null }> {
     const ctx = getCurrentContext();
     const limit = clampLimit(input.limit, 50, 200);
-    const filters = this.buildConversationListFilters(input);
+    const filters = this.buildConversationListFilters({
+      ...input,
+      cursor: input.cursor
+        ? { lastMessageAt: input.cursor.lastMessageAt, id: input.cursor.id }
+        : undefined,
+    });
 
     const rows = await ctx.db
       .select({
         conv: schema.convConversations,
         lastInboundPreview: this.lastInboundPreviewSql(),
+        endUserSpokeLast: this.endUserSpokeLastSql(),
         channelType: schema.convChannels.type,
         contactName: schema.convContacts.name,
         contactEmail: schema.convContacts.email,
@@ -539,6 +646,12 @@ export class ConvService {
         topicName: schema.convTopics.name,
         topicSlug: schema.convTopics.slug,
         topicAgentMode: schema.convTopics.agentMode,
+        effectiveAgentMode: effectiveAgentModeSql,
+        agentWorking: sql<boolean>`(
+          ${schema.convConversations.runnerHolder} IS NOT NULL
+          AND ${schema.convConversations.runnerLeaseExpiresAt} IS NOT NULL
+          AND ${schema.convConversations.runnerLeaseExpiresAt} > now()
+        )`,
       })
       .from(schema.convConversations)
       .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.convConversations.channelId))
@@ -618,19 +731,20 @@ export class ConvService {
     const items = page.map((row): ConversationQueueItem => {
       const stats = statsByConversation.get(row.conv.id);
       const summary = toConversationSummary(row.conv, row.channelType, row.lastInboundPreview);
-      const topicAgentMode = (row.topicAgentMode as AgentMode | null) ?? null;
       return {
         ...summary,
-        agentMode: topicAgentMode ?? summary.agentMode,
+        agentMode: (row.effectiveAgentMode as AgentMode | null) ?? summary.agentMode,
         channelType: row.channelType,
         customerName: row.contactName ?? row.endUserName ?? null,
         customerEmail: row.contactEmail ?? row.endUserEmail ?? null,
         topicName: row.topicName,
         topicSlug: row.topicSlug,
-        topicAgentMode,
+        topicAgentMode: (row.topicAgentMode as AgentMode | null) ?? null,
         claim: claimByConversation.get(row.conv.id) ?? null,
         noteCount: stats?.noteCount ?? 0,
         hasPendingDraft: (stats?.pendingDrafts ?? 0) > 0,
+        endUserSpokeLast: row.endUserSpokeLast,
+        agentWorking: row.agentWorking === true,
       };
     });
     const last = items[items.length - 1];
@@ -736,6 +850,8 @@ export class ConvService {
         contactName: schema.convContacts.name,
         contactPhone: schema.convContacts.phone,
         topicAgentMode: schema.convTopics.agentMode,
+        effectiveAgentMode: effectiveAgentModeSql,
+        topicUneditedPct: topicUneditedPctSql,
       })
       .from(schema.convConversations)
       .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.convConversations.channelId))
@@ -799,7 +915,7 @@ export class ConvService {
     const summary = toConversationSummary(row.conv, row.channelType);
     return {
       ...summary,
-      agentMode: (row.topicAgentMode as AgentMode | null) ?? summary.agentMode,
+      agentMode: (row.effectiveAgentMode as AgentMode | null) ?? summary.agentMode,
       messages: rows.map((r) =>
         toMessageDto(r.msg, authorNames, r.seenAt, {
           firstOpenedAt: r.firstOpenedAt,
@@ -936,6 +1052,7 @@ export class ConvService {
     topicId?: string;
     outreachCampaignId?: string;
     agentMode?: AgentMode;
+    metadata?: Record<string, unknown>;
     authorType: 'user' | 'agent' | 'end_user' | 'system';
     authorId: string;
   }): Promise<ConversationDetail> {
@@ -966,6 +1083,7 @@ export class ConvService {
       subject: input.subject ?? null,
       outreachCampaignId: input.outreachCampaignId ?? null,
       agentMode: input.agentMode ?? (channelRows[0].defaultAgentMode as AgentMode),
+      metadata: input.metadata,
     });
 
     const [firstMsg] = await ctx.db
@@ -1029,6 +1147,43 @@ export class ConvService {
     } finally {
       await applyTenancyGUCs(ctx.db, ctx.actor);
     }
+  }
+
+  async createTestConversation(): Promise<ConversationDetail> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const channel =
+      (await this.firstActiveChannel('email')) ??
+      (await this.firstActiveChannel('chat')) ??
+      (await this.firstActiveChannel());
+    if (!channel) {
+      throw new ConvInvalidError('no active channel to receive a test message');
+    }
+    return this.createConversation({
+      channelId: channel.id,
+      subject: TEST_CONVERSATION_SUBJECT,
+      body: TEST_CONVERSATION_BODY,
+      authorType: 'end_user',
+      authorId: actor.userId ?? actor.id,
+      metadata: { [TEST_CONVERSATION_FLAG]: true },
+    });
+  }
+
+  async deleteTestConversation(conversationId: string): Promise<{ deleted: true; id: string }> {
+    const ctx = getCurrentContext();
+    const [row] = await ctx.db
+      .select({ id: schema.convConversations.id, metadata: schema.convConversations.metadata })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, conversationId))
+      .limit(1);
+    if (!row) throw new NotFoundException(`conv_not_found: conversation ${conversationId}`);
+    if (!isTestConversation(row.metadata)) {
+      throw new ConvInvalidError(`conversation ${conversationId} is not a test conversation`);
+    }
+    await ctx.db
+      .delete(schema.convConversations)
+      .where(eq(schema.convConversations.id, conversationId));
+    return { deleted: true, id: conversationId };
   }
 
   async sendMessage(input: {
@@ -1162,6 +1317,10 @@ export class ConvService {
           : {}),
       })
       .where(eq(schema.convConversations.id, input.conversationId));
+
+    if (input.authorType === 'end_user' && !input.internal) {
+      await raiseAttentionWhenAgentIsOff(ctx.db, input.conversationId);
+    }
 
     if (
       actor.type === 'user' &&
@@ -2089,6 +2248,7 @@ export class ConvService {
     subject: string | null;
     outreachCampaignId?: string | null;
     agentMode?: AgentMode;
+    metadata?: Record<string, unknown>;
   }): Promise<typeof schema.convConversations.$inferSelect> {
     const ctx = getCurrentContext();
     let lastErr: unknown = null;
@@ -2141,7 +2301,13 @@ function channelNeedsCredentials(row: typeof schema.convChannels.$inferSelect): 
 }
 
 function toTopicDto(row: typeof schema.convTopics.$inferSelect): TopicDto {
-  return { id: row.id, name: row.name, slug: row.slug, color: row.color };
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    description: row.description,
+    color: row.color,
+  };
 }
 
 function stampHandoverResolved(): SQL {
@@ -2154,6 +2320,10 @@ function previewText(body: string | null): string | null {
   const collapsed = body.replace(/\s+/g, ' ').trim();
   if (collapsed.length === 0) return null;
   return collapsed.length > 200 ? `${collapsed.slice(0, 199)}…` : collapsed;
+}
+
+export function isTestConversation(metadata: Record<string, unknown>): boolean {
+  return metadata[TEST_CONVERSATION_FLAG] === true;
 }
 
 function toConversationSummary(
@@ -2182,6 +2352,7 @@ function toConversationSummary(
     agentMode: row.agentMode as AgentMode,
     outreachCampaignId: row.outreachCampaignId,
     voiceActive: row.metadata.voiceActive === true,
+    isTest: isTestConversation(row.metadata),
     updatedAt: row.updatedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
   };
@@ -2226,6 +2397,12 @@ function toOpenRate(opened: number, sent: number): number | null {
 
 function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9-]{0,63}$/.test(slug);
+}
+
+function normalizeTopicDescription(value: string | null | undefined): string | null {
+  if (value === undefined || value === null) return null;
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? null : trimmed;
 }
 
 function clampLimit(value: number | undefined, fallback: number, max: number): number {

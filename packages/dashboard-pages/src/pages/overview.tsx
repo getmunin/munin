@@ -7,16 +7,17 @@ import { DashboardHero } from '../components/dashboard/dashboard-hero';
 import { OverviewStats } from '../components/dashboard/overview-stats';
 import { UsageKpis, type UsageSummary } from '../components/dashboard/usage-kpis';
 import { LoadFailed } from '../components/load-failed';
+import { OverviewFirstRun, useSetupState } from '../components/first-run';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
 import {
   useInboxData,
-  QueueSection,
   ScheduledSection,
   InboxDrawers,
 } from '../components/dashboard/inbox-sections';
 
 export function DashboardPage() {
   const inbox = useInboxData();
+  const setup = useSetupState();
   const [summary, setSummary] = useState<UsageSummary | null>(null);
   const buildLoadFailedProps = useInboxLoadFailedProps();
 
@@ -51,20 +52,15 @@ export function DashboardPage() {
     );
   }
 
-  const waiting = inbox.queue.filter((q) => q.kind !== 'kb');
-  const learningCount = inbox.queue.length - waiting.length;
+  if (setup.loading) return null;
+  if (setup.isFirstRun) return <OverviewFirstRun setup={setup} />;
 
   return (
     <div className="mx-auto max-w-4xl space-y-12 px-4 pb-16 pt-11 md:px-10">
-      <DashboardHero
-        date={new Date()}
-        liveCount={inbox.items.length}
-        queueCount={waiting.length}
-      />
+      <DashboardHero date={new Date()} liveCount={inbox.items.length} />
 
-      <OverviewStats liveCount={inbox.items.length} learningCount={learningCount} />
+      <OverviewStats liveCount={inbox.items.length} />
 
-      <QueueSection controller={{ ...inbox, queue: waiting }} />
       <ScheduledSection controller={inbox} />
 
       <UsageKpis summary={summary} />

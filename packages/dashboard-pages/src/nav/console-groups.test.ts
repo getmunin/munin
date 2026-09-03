@@ -15,12 +15,12 @@ const GROUPS: ConsoleNavGroup[] = [
     groupKey: 'oversight',
     items: [
       { href: '/dashboard/conversations', labelKey: 'conversations' },
-      { href: '/dashboard/learning', labelKey: 'learning', adminOnly: true },
+      { href: '/dashboard/review', labelKey: 'review', adminOnly: true },
     ],
   },
   {
     groupKey: 'workspace',
-    items: [{ href: '/dashboard/settings', labelKey: 'settings' }],
+    items: [{ href: '/dashboard/settings', labelKey: 'settings', adminOnly: true }],
   },
 ];
 
@@ -29,9 +29,9 @@ describe('consoleGroupsForRole', () => {
     expect(consoleGroupsForRole(GROUPS, true)).toEqual(GROUPS);
   });
 
-  it('drops admin-only items and empties groups for support agents', () => {
+  it('drops admin-only items and the groups they empty for support agents', () => {
     const filtered = consoleGroupsForRole(GROUPS, false);
-    expect(filtered.map((g) => g.groupKey)).toEqual(['oversight', 'workspace']);
+    expect(filtered.map((g) => g.groupKey)).toEqual(['oversight']);
     expect(filtered[0]!.items.map((i) => i.labelKey)).toEqual(['conversations']);
   });
 });
@@ -64,7 +64,7 @@ describe('extendConsoleGroups', () => {
     expect(extended[1]!.items.map((i) => i.labelKey)).toEqual([
       'conversations',
       'automation',
-      'learning',
+      'review',
     ]);
     expect(GROUPS[1]!.items).toHaveLength(2);
   });

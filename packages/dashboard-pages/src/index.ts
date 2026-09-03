@@ -11,6 +11,7 @@ export {
   type ConfirmOptions,
 } from './components/confirm-dialog';
 export { CopyableSecret, type CopyableSecretProps } from './components/copyable-secret';
+export { CopyField, type CopyFieldProps } from './components/copy-field';
 export { FormField, type FormFieldProps } from './components/form-field';
 export { isValidUrl, isValidHost, isValidEmail, isValidPort } from './lib/validators';
 export { FormError, toFormError, type FormErrorDetail } from './components/form-error';
@@ -116,7 +117,7 @@ export { EndUsersPage } from './pages/end-users';
 export { DashboardPage } from './pages/overview';
 export { ConversationsPage } from './pages/conversations';
 export { AutomationPage } from './pages/automation';
-export { LearningPage } from './pages/learning';
+export { ReviewPage } from './pages/review';
 export { TeamPage } from './pages/team';
 export { UsagePage } from './pages/usage';
 export { ActivityPage } from './pages/activity';
@@ -148,6 +149,11 @@ export {
 export { SettingsShell, type SettingsShellProps } from './shells/settings-shell';
 export { DashboardShell, type DashboardShellProps } from './shells/dashboard-shell';
 export { ConsoleShell, type ConsoleShellProps } from './shells/console-shell';
+export {
+  useMobileBackAction,
+  useProvideMobileBack,
+  type MobileBackAction,
+} from './shells/mobile-back';
 export {
   createSettingsIndexRedirect,
   type CreateSettingsIndexRedirectOptions,

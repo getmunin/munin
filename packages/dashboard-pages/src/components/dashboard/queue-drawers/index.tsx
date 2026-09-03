@@ -8,6 +8,7 @@ import { OutreachQueueDrawer } from './outreach';
 import type {
   CmsAssetExpanded,
   CmsDraftDetailDto,
+  CmsPreviewLink,
   QueueItem,
   ScheduledItem,
 } from './types';
@@ -30,7 +31,7 @@ export function ScheduledDrawer({
   onRetry: () => void;
   pending: boolean;
   onCancel: () => void;
-  onClose: () => void;
+  onClose?: () => void;
 }) {
   if (item.kind === 'outreach') {
     return (
@@ -61,7 +62,6 @@ export function ScheduledDrawer({
       onUploadAsset={() => Promise.reject(new Error('read-only'))}
       onSchedule={noopAsync}
       onCancelScheduled={onCancel}
-      onPreview={noop}
       onClose={onClose}
     />
   );
@@ -81,7 +81,9 @@ export function QueueDrawer({
   onSaveCmsDraft,
   onUploadCmsAsset,
   onSchedule,
-  onPreview,
+  previewLink,
+  onRetryPreview,
+  hideHeaderOnMobile,
   onClose,
 }: {
   item: QueueItem;
@@ -97,8 +99,10 @@ export function QueueDrawer({
   onSaveCmsDraft: (data: Record<string, unknown>) => Promise<void>;
   onUploadCmsAsset: (file: File) => Promise<CmsAssetExpanded>;
   onSchedule: (scheduledAt: string) => Promise<void>;
-  onPreview: () => void;
-  onClose: () => void;
+  previewLink?: CmsPreviewLink;
+  onRetryPreview?: () => void;
+  hideHeaderOnMobile?: boolean;
+  onClose?: () => void;
 }) {
   switch (item.kind) {
     case 'kb':
@@ -160,7 +164,9 @@ export function QueueDrawer({
           onSaveData={onSaveCmsDraft}
           onUploadAsset={onUploadCmsAsset}
           onSchedule={onSchedule}
-          onPreview={onPreview}
+          previewLink={previewLink}
+          onRetryPreview={onRetryPreview}
+          hideHeaderOnMobile={hideHeaderOnMobile}
           onClose={onClose}
         />
       );

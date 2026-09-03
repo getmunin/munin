@@ -157,6 +157,18 @@ export class KbSpacesController {
   }
 }
 
+@Controller('v1/kb/documents')
+@UseGuards(AuthGuard, ControlPlaneGuard)
+@UseInterceptors(TenancyInterceptor, AuditInterceptor)
+export class KbDocumentsController {
+  constructor(private readonly kb: KbService) {}
+
+  @Get(':id')
+  async get(@Param('id') id: string): Promise<DocumentDto> {
+    return translate(() => this.kb.getDocument(id));
+  }
+}
+
 @Controller('v1/kb/curation/decisions')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)

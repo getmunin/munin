@@ -30,6 +30,7 @@ import { buildOutbound, stripMessageIdBrackets, parseMessageIdHeader, type Built
 import { renderEmailHtml } from './markdown.ts';
 import { resolveInbound, type ParsedInboundEmail } from './threading.ts';
 import { reopenClosedConversation } from '../conversation-reopen.ts';
+import { raiseAttentionWhenAgentIsOff } from '../unanswerable-handover.ts';
 import {
   detectSignatureBlock,
   ensureReSubject,
@@ -373,6 +374,8 @@ export class EmailAdapter implements ChannelAdapter {
             payload: { conversationId, status: 'open' },
           });
         }
+
+        await raiseAttentionWhenAgentIsOff(tx, conversationId);
 
         await this.webhooks.emit({
           type: 'conversation.message.received',

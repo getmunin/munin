@@ -37,7 +37,7 @@
 
   --munin-radius-pill: 999px;
   --munin-radius-bubble: 14px;
-  --munin-radius-input: 2px;
+  --munin-radius-input: 0px;
 
   --munin-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   --munin-dur-fast: 120ms;

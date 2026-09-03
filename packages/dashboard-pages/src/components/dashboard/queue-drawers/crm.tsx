@@ -16,7 +16,7 @@ export function CrmQueueDrawer({
   pending: boolean;
   onApprove: () => void;
   onDismiss: () => void;
-  onClose: () => void;
+  onClose?: () => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const tQueue = useTranslations('dashboard.overview.queue');
@@ -38,6 +38,7 @@ export function CrmQueueDrawer({
       <DrawerHeader
         pillTone="crm"
         pillLabel={tQueue('kindCrm')}
+        pillGlyph="crm"
         title={item.title}
         meta={t('metaCrm', { confidence: proposal.confidence, age: age(item.createdAt) })}
         onClose={onClose}

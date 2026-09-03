@@ -1,14 +1,15 @@
 export interface KbCandidateDto {
   id: string;
   title: string;
-  body?: string;
+  body: string;
   version: number;
   updatedAt: string;
   proposedTargetSpaceSlug: string | null;
+  sourceConversationId: string | null;
   revisesDocumentId: string | null;
   revisesDocumentTitle: string | null;
   revisesDocumentVersion: number | null;
-  revisesDocumentBody?: string | null;
+  revisesDocumentBody: string | null;
 }
 
 export interface CrmContactSummary {
@@ -16,6 +17,32 @@ export interface CrmContactSummary {
   name: string | null;
   email: string | null;
   phone: string | null;
+  companyId?: string | null;
+  companyName?: string | null;
+  endUserId?: string | null;
+  title?: string | null;
+  address?: string | null;
+  tags?: string[];
+  customFields?: Record<string, unknown>;
+  aiSummary?: string | null;
+  aiNextAction?: string | null;
+  engagementScore?: number;
+  doNotContact?: boolean;
+  unsubscribedAt?: string | null;
+  lastContactedAt?: string | null;
+  consentLawfulBasis?: string | null;
+  consentSource?: string | null;
+  createdAt?: string;
+}
+
+export interface CrmMergeImpact {
+  duplicateId: string;
+  pendingOutreach: Array<{
+    id: string;
+    campaignName: string | null;
+    scheduledSendAt: string | null;
+  }>;
+  supersededProposalCount: number;
 }
 
 export interface CrmMergeProposalDto {
@@ -25,7 +52,10 @@ export interface CrmMergeProposalDto {
   contactB: CrmContactSummary;
   confidence: 'high' | 'medium';
   recommendedKeeperId: string;
+  recommendedPatch?: Record<string, unknown>;
+  impact?: CrmMergeImpact | null;
   evidence?: Record<string, unknown>;
+  proposedByActorType?: string;
   createdAt: string;
 }
 
@@ -40,22 +70,78 @@ export interface OutreachProposalDto {
   draftBody: string;
   originalDraftBody?: string | null;
   draftFingerprint: string;
-  campaign?: { name: string } | null;
-  contact?: { name: string | null; email: string | null; phone?: string | null } | null;
+  campaign?: { name: string; ctaUrl?: string | null } | null;
+  contact?: {
+    name: string | null;
+    email: string | null;
+    phone?: string | null;
+    companyName?: string | null;
+  } | null;
   delivery?: {
     channelType: string;
     vendor: string;
     destination: string | null;
+    sender?: string | null;
+    senderName?: string | null;
     appendsCta: boolean;
     appendsUnsubscribe: boolean;
   } | null;
   evidence?: Record<string, unknown>;
+  hasEvidence?: boolean;
   revisionCount?: number;
   lastRevisionReason?: string | null;
   revisedAfterReviewAt?: string | null;
+  proposedByActorType?: string;
+  firstViewedAt?: string | null;
   proposedSendAt?: string | null;
   scheduledSendAt?: string | null;
   createdAt: string;
+}
+
+export type OutreachProposalDetailDto = OutreachProposalDto & {
+  evidence: Record<string, unknown>;
+};
+
+export interface OutreachEvidence {
+  prose: string[];
+  kbRefs: string[];
+  chips: Array<{ label: string; value: string }>;
+}
+
+const EVIDENCE_PROSE_KEYS = new Set(['reasoning', 'rationale', 'why', 'signal', 'summary']);
+const EVIDENCE_KB_KEYS = new Set(['kbdocids', 'kbdocs', 'source', 'sources']);
+const EVIDENCE_CHIP_MAX = 52;
+
+export function readOutreachEvidence(
+  evidence: Record<string, unknown> | undefined,
+): OutreachEvidence | null {
+  if (!evidence) return null;
+  const prose: string[] = [];
+  const kbRefs: string[] = [];
+  const chips: Array<{ label: string; value: string }> = [];
+
+  for (const [key, raw] of Object.entries(evidence)) {
+    const lower = key.toLowerCase();
+    for (const value of flattenScalars(raw)) {
+      if (value.startsWith('kb://') || value.startsWith('kdoc_') || EVIDENCE_KB_KEYS.has(lower)) {
+        kbRefs.push(value);
+      } else if (EVIDENCE_PROSE_KEYS.has(lower) || value.length > EVIDENCE_CHIP_MAX) {
+        prose.push(value);
+      } else {
+        chips.push({ label: humanizeFieldName(key), value });
+      }
+    }
+  }
+
+  if (prose.length === 0 && kbRefs.length === 0 && chips.length === 0) return null;
+  return { prose, kbRefs, chips };
+}
+
+function flattenScalars(raw: unknown): string[] {
+  if (typeof raw === 'string') return raw.trim().length > 0 ? [raw.trim()] : [];
+  if (typeof raw === 'number' || typeof raw === 'boolean') return [String(raw)];
+  if (Array.isArray(raw)) return raw.flatMap(flattenScalars);
+  return [];
 }
 
 export interface FeedbackOutboxDto {
@@ -87,6 +173,11 @@ export interface CmsDraftSummaryDto {
 
 export interface CmsScheduledSummaryDto extends CmsDraftSummaryDto {
   scheduledAt: string;
+}
+
+export interface CmsPreviewLink {
+  url: string | null;
+  deliveryUrl: string | null;
 }
 
 export interface CmsAssetExpanded {

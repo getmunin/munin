@@ -5,6 +5,7 @@ import { PageSpinner } from '@getmunin/ui';
 import { authClient } from '../auth-client';
 import { useDashboardGate } from '../auth/use-dashboard-gate';
 import { SystemAlertsBanner } from '../components/system-alerts-banner';
+import { SetupStateProvider } from '../components/first-run';
 import { ConfirmDialogProvider } from '../components/confirm-dialog';
 import { usePathname } from '../i18n-navigation';
 import { ConsoleShell } from './console-shell';
@@ -35,20 +36,22 @@ export function DashboardShell({
   const inSettings = pathname.startsWith('/dashboard/settings');
 
   const content = (
-    <div className="group flex h-screen flex-col bg-bone dark:bg-background">
-      <SystemAlertsBanner />
-      {inSettings ? (
-        <main className="min-h-0 flex-1 overflow-x-clip bg-paper dark:bg-background">
-          {children}
-        </main>
-      ) : (
-        <div className="min-h-0 flex-1">
-          <ConsoleShell brand={brand} logoSrc={logoSrc} headSlot={leftSlot}>
+    <SetupStateProvider>
+      <div className="group flex h-dvh flex-col bg-bone dark:bg-background">
+        <SystemAlertsBanner />
+        {inSettings ? (
+          <main className="min-h-0 flex-1 overflow-x-clip bg-paper dark:bg-background">
             {children}
-          </ConsoleShell>
-        </div>
-      )}
-    </div>
+          </main>
+        ) : (
+          <div className="min-h-0 flex-1">
+            <ConsoleShell brand={brand} logoSrc={logoSrc} headSlot={leftSlot}>
+              {children}
+            </ConsoleShell>
+          </div>
+        )}
+      </div>
+    </SetupStateProvider>
   );
 
   return withConfirmDialog ? <ConfirmDialogProvider>{content}</ConfirmDialogProvider> : content;

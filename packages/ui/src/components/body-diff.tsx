@@ -23,11 +23,13 @@ function BodyDiff({
   before,
   after,
   unchangedLabel,
+  wrap,
   className,
 }: {
   before: string
   after: string
   unchangedLabel?: string
+  wrap?: boolean
   className?: string
 }) {
   const lines = React.useMemo(() => diffLines(before, after), [before, after])
@@ -44,11 +46,17 @@ function BodyDiff({
   return (
     <div
       className={cn(
-        "overflow-x-auto border-[1px] border-ink bg-paper text-[13px] leading-relaxed dark:border-rule-on-dark dark:bg-card",
+        "border-[1px] border-ink bg-paper text-[13px] leading-relaxed dark:border-rule-on-dark dark:bg-card",
+        wrap ? "overflow-x-hidden" : "overflow-x-auto",
         className,
       )}
     >
-      <pre className="w-max min-w-full font-mono">
+      <pre
+        className={cn(
+          "font-mono",
+          wrap ? "w-full whitespace-pre-wrap break-words" : "w-max min-w-full",
+        )}
+      >
         {lines.map((line, i) => (
           <div key={i} className={cn("px-3", LINE_CLASS[line.op])}>
             <span aria-hidden className="select-none pr-2 opacity-60">

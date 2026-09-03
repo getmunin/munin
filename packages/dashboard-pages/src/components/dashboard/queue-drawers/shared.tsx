@@ -149,26 +149,38 @@ export function DrawerLoadFailed({
 export function DrawerHeader({
   pillTone,
   pillLabel,
+  pillGlyph,
   title,
   meta,
   rightExtra,
   onClose,
   closeLabel,
+  className,
 }: {
   pillTone: DrawerPillTone;
   pillLabel: string;
+  pillGlyph?: QueueItem['kind'];
   title: string;
   meta?: string;
   rightExtra?: React.ReactNode;
-  onClose: () => void;
+  onClose?: () => void;
   closeLabel: string;
+  className?: string;
 }) {
   return (
-    <div className="border-b-[1px] border-rule-soft px-6 pb-4 pt-5 dark:border-rule-on-dark">
+    <div
+      className={cn(
+        'border-b-[1px] border-rule-soft px-5 pb-4 pt-6 md:px-7 dark:border-rule-on-dark',
+        className,
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
           <div className="flex items-center gap-2">
-            <Pill tone={pillTone}>{pillLabel}</Pill>
+            <Pill tone={pillTone} marker={pillGlyph ? 'none' : 'dot'}>
+              {pillGlyph ? <ModuleGlyph kind={pillGlyph} className="size-[7px]" /> : null}
+              {pillLabel}
+            </Pill>
             {rightExtra}
           </div>
           <h2 className="font-serif text-2xl leading-tight font-normal tracking-tight text-ink dark:text-foreground">
@@ -180,14 +192,16 @@ export function DrawerHeader({
             </p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="shrink-0 whitespace-nowrap font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute hover:text-ink dark:hover:text-foreground"
-          aria-label={closeLabel}
-        >
-          {closeLabel}
-        </button>
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 whitespace-nowrap font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute hover:text-ink dark:hover:text-foreground"
+            aria-label={closeLabel}
+          >
+            {closeLabel}
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -201,16 +215,41 @@ const MODULE_GLYPHS: Record<QueueItem['kind'], React.ReactNode> = {
   feedback: <path d="M5 0.9 9.4 8.7 0.6 8.7Z" />,
 };
 
-export function RowCode({ kind, children }: { kind: QueueItem['kind']; children: string }) {
+export function ModuleGlyph({
+  kind,
+  className,
+}: {
+  kind: QueueItem['kind'];
+  className?: string;
+}) {
   return (
-    <span className="flex w-14 shrink-0 items-center gap-1.5 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-      <svg
-        viewBox="0 0 10 10"
-        className="size-2 shrink-0 fill-current text-ink dark:text-foreground"
-        aria-hidden
-      >
-        {MODULE_GLYPHS[kind]}
-      </svg>
+    <svg
+      viewBox="0 0 10 10"
+      className={cn('size-2 shrink-0 fill-current', className)}
+      aria-hidden
+    >
+      {MODULE_GLYPHS[kind]}
+    </svg>
+  );
+}
+
+export function RowCode({
+  kind,
+  className,
+  children,
+}: {
+  kind: QueueItem['kind'];
+  className?: string;
+  children: string;
+}) {
+  return (
+    <span
+      className={cn(
+        'flex w-14 shrink-0 items-center gap-1.5 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute',
+        className,
+      )}
+    >
+      <ModuleGlyph kind={kind} className="text-ink dark:text-foreground" />
       {children}
     </span>
   );
@@ -239,7 +278,7 @@ export function ScheduledFooter({
   note: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 border-t-[1px] border-rule-soft px-6 py-3 dark:border-rule-on-dark">
+    <div className="flex items-center justify-between gap-2 border-t-[1px] border-rule-soft px-4 py-3 md:px-5 dark:border-rule-on-dark">
       <Button variant="outline" size="sm" onClick={onCancel} disabled={disabled}>
         {cancelLabel}
       </Button>
@@ -271,7 +310,7 @@ export function DrawerFooter({
   return (
     <div
       className={cn(
-        'flex items-center justify-between gap-2 px-6 py-3',
+        'flex items-center justify-between gap-2 px-4 py-3 md:px-5',
         bordered && 'border-t-[1px] border-rule-soft dark:border-rule-on-dark',
       )}
     >

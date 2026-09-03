@@ -32,11 +32,11 @@
   "dependencies": {
     "@getmunin/types": "workspace:*",
     "@getmunin/ui": "workspace:*",
-    "better-auth": "^1.7.1",
-    "libphonenumber-js": "^1.13.10",
-    "lucide-react": "^1.21.0",
-    "sonner": "^2.0.7",
-    "zod": "^4.3.6"
+    "better-auth": "^1.7.2",
+    "libphonenumber-js": "^1.13.12",
+    "lucide-react": "^1.38.0",
+    "sonner": "^2.0.8",
+    "zod": "^4.5.4"
   },
   "peerDependencies": {
     "next": "^16.0.0",
@@ -49,13 +49,13 @@
   "devDependencies": {
     "@getmunin/eslint-config": "workspace:*",
     "@getmunin/tsconfig": "workspace:*",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "eslint": "^9.10.0",
-    "next": "^16.2.11",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "eslint": "^9.39.5",
+    "next": "^16.3.4",
     "react-markdown": "^9.1.0",
-    "remark-gfm": "^4.0.0",
-    "typescript": "^5.6.0",
-    "vitest": "^4.1.9"
+    "remark-gfm": "^4.0.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
   }
 }

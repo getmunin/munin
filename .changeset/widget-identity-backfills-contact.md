@@ -14,4 +14,6 @@ Three write paths now fill a blank field instead of ignoring it:
 
 Every one of these fills nulls only — a value already on the row always wins, so nothing a human typed gets overwritten by a page-supplied claim.
 
-`end_users_org_email_uq` is unique on `(org_id, lower(email))`, so the email backfill checks for another identity holding that address first and skips rather than throwing: two people sharing an inbox must not fail an ingest. The equivalent hazard in `setVisitor` is untouched here.
+`end_users_org_email_uq` is unique on `(org_id, lower(email))`, so every path that writes an identity email now checks for another identity holding that address first and skips rather than throwing: two people sharing an inbox must not fail an ingest.
+
+That check also fixes a live crash in `setVisitor`. The widget's email-capture card posts `PATCH /v1/widget/visitor`, which wrote `end_users.email` unguarded — so a visitor typing an address another identity already held hit the unique index, poisoned the request transaction, and got a bare `500` at commit, past any in-handler catch. The contact row still takes the address either way (`conv_contacts.email` has no unique constraint), so the operator can always reply; only the identity write is skipped. Silently, and deliberately: letting an anonymous visitor's self-reported address overwrite a verified identity's would be an identity-takeover primitive, and failing the call would break the legitimate shared-inbox case.

@@ -378,18 +378,19 @@ export class WidgetIngestService {
 
     const endUserId = updated[0]!.endUserId;
     if (endUserId) {
-      await tx
-        .update(schema.endUsers)
-        .set({
-          ...patch,
-          ...(patch.email
-            ? {
-                metadata: sql`COALESCE(${schema.endUsers.metadata}, '{}'::jsonb) || '{"emailSource":"visitor"}'::jsonb`,
-              }
-            : {}),
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.endUsers.id, endUserId));
+      const identityPatch: Record<string, unknown> = {};
+      if (patch.name) identityPatch.name = patch.name;
+      const email = patch.email as string | undefined;
+      if (email && !(await emailBelongsToAnotherEndUser(tx, orgId, email, endUserId))) {
+        identityPatch.email = email;
+        identityPatch.metadata = sql`COALESCE(${schema.endUsers.metadata}, '{}'::jsonb) || '{"emailSource":"visitor"}'::jsonb`;
+      }
+      if (Object.keys(identityPatch).length > 0) {
+        await tx
+          .update(schema.endUsers)
+          .set({ ...identityPatch, updatedAt: new Date() })
+          .where(eq(schema.endUsers.id, endUserId));
+      }
     }
 
     return {

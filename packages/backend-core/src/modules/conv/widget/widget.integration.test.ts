@@ -1689,6 +1689,58 @@ const skipReason = TEST_URL
     expect(endUsers[0]?.metadata).toMatchObject({ anonymous: true, emailSource: 'visitor' });
   });
 
+  it('accepts a visitor email another identity already holds, without writing it to this one', async () => {
+    const taken = `shared.desk.${Date.now()}@example.com`;
+    const holder = `user_holder_${Date.now()}`;
+    await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: `vis_holder_${Date.now()}`,
+      verifiedExternalId: holder,
+      userHash: signHmac(holder, identityVerificationSecret),
+      visitor: { email: taken },
+      messages: [{ role: 'end_user', body: 'first' }],
+    });
+
+    const sid = `vis_setemail_taken_${Date.now()}`;
+    await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: sid,
+      messages: [{ role: 'end_user', body: 'pre-email' }],
+    });
+
+    const res = await call('PATCH', '/v1/widget/visitor', widgetKey, {
+      channelId,
+      sessionId: sid,
+      email: taken,
+    });
+    expect(res.status).toBe(200);
+    expect((res.json as { email: string | null }).email).toBe(taken);
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const contacts = await db
+      .select({ email: schema.convContacts.email })
+      .from(schema.convContacts)
+      .where(
+        and(
+          eq(schema.convContacts.orgId, orgId),
+          sql`${schema.convContacts.metadata}->>'sessionId' = ${sid}`,
+        ),
+      );
+    expect(contacts[0]?.email).toBe(taken);
+
+    const endUsers = await db
+      .select({ email: schema.endUsers.email })
+      .from(schema.endUsers)
+      .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, `anon:${sid}`)));
+    expect(endUsers[0]?.email).toBeNull();
+
+    const holderRows = await db
+      .select({ email: schema.endUsers.email })
+      .from(schema.endUsers)
+      .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, holder)));
+    expect(holderRows[0]?.email).toBe(taken);
+  });
+
   it('rejects PATCH /visitor with mismatched channelId', async () => {
     const res = await call('PATCH', '/v1/widget/visitor', widgetKey, {
       channelId: 'cch_nonexistent',

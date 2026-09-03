@@ -1,5 +1,5 @@
 {
-  "$schema": "https://unpkg.com/@changesets/config@3.1.4/schema.json",
+  "$schema": "https://unpkg.com/@changesets/config@4.0.0/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [["@getmunin/core", "@getmunin/db", "@getmunin/types", "@getmunin/sdk", "@getmunin/mcp-toolkit", "@getmunin/inspector-app", "@getmunin/ui", "@getmunin/dashboard-pages", "@getmunin/backend-core", "@getmunin/agent-runtime", "@getmunin/agent-host", "@getmunin/docs-pages", "@getmunin/chat-widget", "@getmunin/analytics-tracker", "@getmunin/emails"]],

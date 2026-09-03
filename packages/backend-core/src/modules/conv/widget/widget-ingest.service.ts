@@ -367,18 +367,19 @@ export class WidgetIngestService {
 
     const endUserId = updated[0]!.endUserId;
     if (endUserId) {
-      await tx
-        .update(schema.endUsers)
-        .set({
-          ...patch,
-          ...(patch.email
-            ? {
-                metadata: sql`COALESCE(${schema.endUsers.metadata}, '{}'::jsonb) || '{"emailSource":"visitor"}'::jsonb`,
-              }
-            : {}),
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.endUsers.id, endUserId));
+      const identityPatch: Record<string, unknown> = {};
+      if (patch.name) identityPatch.name = patch.name;
+      const email = patch.email as string | undefined;
+      if (email && !(await emailBelongsToAnotherEndUser(tx, orgId, email, endUserId))) {
+        identityPatch.email = email;
+        identityPatch.metadata = sql`COALESCE(${schema.endUsers.metadata}, '{}'::jsonb) || '{"emailSource":"visitor"}'::jsonb`;
+      }
+      if (Object.keys(identityPatch).length > 0) {
+        await tx
+          .update(schema.endUsers)
+          .set({ ...identityPatch, updatedAt: new Date() })
+          .where(eq(schema.endUsers.id, endUserId));
+      }
     }
 
     return {
@@ -730,12 +731,30 @@ export class WidgetIngestService {
     let endUser: typeof schema.endUsers.$inferSelect;
     if (existing[0]) {
       const currentLocale = (existing[0].metadata as { locale?: string } | null)?.locale ?? null;
-      if (input.locale && currentLocale !== input.locale) {
+      const patch: Record<string, unknown> = {};
+      const metadataPatch: Record<string, unknown> = {};
+      if (input.locale && currentLocale !== input.locale) metadataPatch.locale = input.locale;
+
+      const visitorName = input.visitor?.name?.trim();
+      if (visitorName && !existing[0].name) patch.name = visitorName;
+
+      const visitorEmail = input.visitor?.email?.trim().toLowerCase();
+      if (
+        visitorEmail &&
+        !existing[0].email &&
+        !(await emailBelongsToAnotherEndUser(tx, orgId, visitorEmail, existing[0].id))
+      ) {
+        patch.email = visitorEmail;
+        metadataPatch.emailSource = 'visitor';
+      }
+
+      if (Object.keys(metadataPatch).length > 0) {
+        patch.metadata = sql`COALESCE(${schema.endUsers.metadata}, '{}'::jsonb) || ${JSON.stringify(metadataPatch)}::jsonb`;
+      }
+      if (Object.keys(patch).length > 0) {
         const [updated] = await tx
           .update(schema.endUsers)
-          .set({
-            metadata: sql`COALESCE(${schema.endUsers.metadata}, '{}'::jsonb) || ${JSON.stringify({ locale: input.locale })}::jsonb`,
-          })
+          .set(patch)
           .where(eq(schema.endUsers.id, existing[0].id))
           .returning();
         endUser = updated!;
@@ -794,6 +813,8 @@ export class WidgetIngestService {
       if (verifiedRows[0]) {
         const patch: Record<string, unknown> = {};
         if (input.visitor?.name && !verifiedRows[0].name) patch.name = input.visitor.name;
+        const verifiedEmail = input.visitor?.email?.trim().toLowerCase();
+        if (verifiedEmail && !verifiedRows[0].email) patch.email = verifiedEmail;
         if (!verifiedRows[0].endUserId) patch.endUserId = endUserId;
         if (Object.keys(patch).length > 0) {
           await tx
@@ -852,10 +873,14 @@ export class WidgetIngestService {
       )
       .limit(1);
     if (sessionRows[0]) {
-      if (!sessionRows[0].endUserId) {
+      const patch: Record<string, unknown> = {};
+      if (input.visitor?.name && !sessionRows[0].name) patch.name = input.visitor.name;
+      if (lowerEmail && !sessionRows[0].email) patch.email = lowerEmail;
+      if (!sessionRows[0].endUserId) patch.endUserId = endUserId;
+      if (Object.keys(patch).length > 0) {
         await tx
           .update(schema.convContacts)
-          .set({ endUserId, updatedAt: new Date() })
+          .set({ ...patch, updatedAt: new Date() })
           .where(eq(schema.convContacts.id, sessionRows[0].id));
       }
       return sessionRows[0];
@@ -1010,10 +1035,18 @@ export class WidgetIngestService {
       throw new ForbiddenException('session_already_claimed');
     }
 
+    const [verifiedIdentity] = await tx
+      .select({ name: schema.endUsers.name, email: schema.endUsers.email })
+      .from(schema.endUsers)
+      .where(eq(schema.endUsers.id, verifiedEndUserId))
+      .limit(1);
+
     await tx
       .update(schema.convContacts)
       .set({
         endUserId: verifiedEndUserId,
+        name: sql`COALESCE(${schema.convContacts.name}, ${verifiedIdentity?.name ?? null})`,
+        email: sql`COALESCE(${schema.convContacts.email}, ${verifiedIdentity?.email ?? null})`,
         metadata: sql`COALESCE(${schema.convContacts.metadata}, '{}'::jsonb) || ${JSON.stringify({ externalId: identity.externalId })}::jsonb`,
         updatedAt: new Date(),
       })
@@ -1165,6 +1198,26 @@ export async function loadWidgetChannel(
     throw new BadRequestException(`channel ${channelId} is not configured as a widget channel`);
   }
   return channel;
+}
+
+async function emailBelongsToAnotherEndUser(
+  tx: Tx,
+  orgId: string,
+  email: string,
+  endUserId: string,
+): Promise<boolean> {
+  const rows = await tx
+    .select({ id: schema.endUsers.id })
+    .from(schema.endUsers)
+    .where(
+      and(
+        eq(schema.endUsers.orgId, orgId),
+        sql`lower(${schema.endUsers.email}) = ${email}`,
+        sql`${schema.endUsers.id} <> ${endUserId}`,
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
 }
 
 function originMatches(allowlistEntry: string, origin: string): boolean {

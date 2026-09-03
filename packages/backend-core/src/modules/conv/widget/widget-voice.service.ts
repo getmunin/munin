@@ -46,7 +46,12 @@ import type {
   WidgetVoiceStartInputT,
   WidgetVoiceStartResult,
 } from './widget.types.ts';
-import { enforceOriginAllowlist, loadWidgetChannel, verifyIdentity } from './widget-ingest.service.ts';
+import {
+  assertContactIdentityOwnership,
+  enforceOriginAllowlist,
+  loadWidgetChannel,
+  verifyIdentity,
+} from './widget-ingest.service.ts';
 
 const HISTORY_TURN_LIMIT = 20;
 const PROMPT_CACHE_TTL_MS = 60_000;
@@ -344,16 +349,13 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
     if (convSessionId !== input.sessionId) {
       throw new ForbiddenException('conversation_session_mismatch');
     }
-    if (identity.mode === 'verified' && conv.contactId) {
-      const [contactRow] = await tx
-        .select({ metadata: schema.convContacts.metadata })
-        .from(schema.convContacts)
-        .where(eq(schema.convContacts.id, conv.contactId))
-        .limit(1);
-      const contactExt = (contactRow?.metadata as { externalId?: unknown } | null)?.externalId;
-      if (contactExt !== identity.externalId) {
-        throw new ForbiddenException('conversation_identity_mismatch');
-      }
+    if (conv.contactId) {
+      await assertContactIdentityOwnership(
+        tx,
+        conv.contactId,
+        identity,
+        'conversation_identity_mismatch',
+      );
     }
     if (!conv.endUserId) {
       return { available: false, reason: 'conversation_has_no_end_user' };
@@ -439,16 +441,13 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
       if (convSessionId !== input.sessionId) {
         throw new ForbiddenException('conversation_session_mismatch');
       }
-      if (identity.mode === 'verified' && conv.contactId) {
-        const [contactRow] = await tx
-          .select({ metadata: schema.convContacts.metadata })
-          .from(schema.convContacts)
-          .where(eq(schema.convContacts.id, conv.contactId))
-          .limit(1);
-        const contactExt = (contactRow?.metadata as { externalId?: unknown } | null)?.externalId;
-        if (contactExt !== identity.externalId) {
-          throw new ForbiddenException('conversation_identity_mismatch');
-        }
+      if (conv.contactId) {
+        await assertContactIdentityOwnership(
+          tx,
+          conv.contactId,
+          identity,
+          'conversation_identity_mismatch',
+        );
       }
 
       let body: string;

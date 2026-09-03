@@ -72,7 +72,16 @@ const MEDIA_SURFACE: McpSurface = {
 
   const expectReachesLogin = (result: { status: number; location: string; body: string }) => {
     expect(result.body).not.toContain('invalid_target');
+    expect(result.location).not.toContain('invalid_target');
     expect(result.location).toContain('/login');
+  };
+
+  const expectInvalidTarget = (location: string) => {
+    const redirect = new URL(location);
+    expect(`${redirect.origin}${redirect.pathname}`).toBe(REDIRECT_URI);
+    expect(redirect.searchParams.get('error')).toBe('invalid_target');
+    expect(redirect.searchParams.get('error_description')).toContain('is not configured');
+    expect(redirect.searchParams.get('code')).toBeNull();
   };
 
   beforeAll(async () => {
@@ -125,9 +134,8 @@ const MEDIA_SURFACE: McpSurface = {
 
   it('rejects a resource that belongs to nobody', async () => {
     const result = await authorize('https://evil.example.com/mcp');
-    expect(result.status).toBe(400);
-    expect(result.body).toContain('invalid_target');
-    expect(result.body).toContain('is not configured');
+    expect(result.status).toBe(302);
+    expectInvalidTarget(result.location);
   });
 
   it('lets a freshly registered client request a resource without an explicit link', async () => {
@@ -192,7 +200,8 @@ const MEDIA_SURFACE: McpSurface = {
 
     it('still rejects a foreign org-scoped resource', async () => {
       const result = await throughBridge('https://evil.example.com/mcp/o/org_inodqg25xaq1l0ram6j1');
-      expect(result.body).toContain('invalid_target');
+      expect(result.status).toBe(302);
+      expectInvalidTarget(result.headers['location'] ?? '');
     });
   });
 

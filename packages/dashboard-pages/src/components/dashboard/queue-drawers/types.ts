@@ -175,6 +175,11 @@ export interface CmsScheduledSummaryDto extends CmsDraftSummaryDto {
   scheduledAt: string;
 }
 
+export interface CmsPreviewLink {
+  url: string | null;
+  deliveryUrl: string | null;
+}
+
 export interface CmsAssetExpanded {
   id: string;
   publicUrl: string;

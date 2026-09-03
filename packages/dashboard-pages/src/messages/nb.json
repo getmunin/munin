@@ -29,7 +29,8 @@
     "gotIt": "OK",
     "unknownError": "Ukjent feil.",
     "networkError": "Nettverksfeil — er API-et tilgjengelig?",
-    "or": "eller"
+    "or": "eller",
+    "moreActions": "Flere handlinger"
   },
   "locale": {
     "label": "Språk",
@@ -303,7 +304,7 @@
         "send": "Send ↵",
         "edit": "Rediger",
         "cancel": "Avbryt",
-        "save": "Lagre ↵",
+        "save": "Lagre",
         "approve": "Godkjenn",
         "dismiss": "Avvis",
         "takeOver": "Overta",
@@ -327,10 +328,15 @@
         "cmsCoverUploading": "Laster opp…",
         "cmsCoverReplace": "Bytt forsidebilde",
         "cmsCoverAspect": "16:9",
-        "cmsApprove": "Godkjenn ↵",
-        "cmsMoreMenu": "Flere handlinger",
+        "cmsApprove": "Godkjenn",
         "cmsSchedule": "Planlegg",
-        "cmsPreview": "Forhåndsvis",
+        "cmsViewPreview": "Forhåndsvisning",
+        "cmsViewRead": "Felt",
+        "cmsOpenPreview": "Åpne på nettstedet",
+        "cmsPreviewLoading": "Laster forhåndsvisningen …",
+        "cmsPreviewTitle": "Forhåndsvisning av utkast",
+        "cmsPreviewFailedEyebrow": "Forhåndsvisningen lastet ikke",
+        "cmsPreviewFailedBody": "Nettstedet svarte ikke, eller nekter å bli bygget inn. Feltene under er samme innhold.",
         "cmsScheduleTitle": "Planlegg publisering",
         "cmsScheduleDescription": "Velg når utkastet skal publiseres. Munin publiserer det automatisk på det tidspunktet — ingen videre godkjenning kreves.",
         "cmsScheduleConfirm": "Godkjenn & planlegg",
@@ -1288,7 +1294,7 @@
           "shortcutSave": "⌘↵ lagre · esc avbryt"
         },
         "crm": {
-          "eyebrow": "CRM · foreslått sammenslåing",
+          "eyebrow": "CRM",
           "confidenceHigh": "Høy treffsikkerhet",
           "confidenceMedium": "Middels treffsikkerhet",
           "keeping": "Beholder <strong>{name}</strong>",

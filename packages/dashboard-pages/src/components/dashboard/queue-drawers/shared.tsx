@@ -155,6 +155,7 @@ export function DrawerHeader({
   rightExtra,
   onClose,
   closeLabel,
+  className,
 }: {
   pillTone: DrawerPillTone;
   pillLabel: string;
@@ -164,9 +165,15 @@ export function DrawerHeader({
   rightExtra?: React.ReactNode;
   onClose?: () => void;
   closeLabel: string;
+  className?: string;
 }) {
   return (
-    <div className="border-b-[1px] border-rule-soft px-6 pb-4 pt-5 dark:border-rule-on-dark">
+    <div
+      className={cn(
+        'border-b-[1px] border-rule-soft px-5 pb-4 pt-6 md:px-7 dark:border-rule-on-dark',
+        className,
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
           <div className="flex items-center gap-2">
@@ -271,7 +278,7 @@ export function ScheduledFooter({
   note: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 border-t-[1px] border-rule-soft px-6 py-3 dark:border-rule-on-dark">
+    <div className="flex items-center justify-between gap-2 border-t-[1px] border-rule-soft px-4 py-3 md:px-5 dark:border-rule-on-dark">
       <Button variant="outline" size="sm" onClick={onCancel} disabled={disabled}>
         {cancelLabel}
       </Button>
@@ -303,7 +310,7 @@ export function DrawerFooter({
   return (
     <div
       className={cn(
-        'flex items-center justify-between gap-2 px-6 py-3',
+        'flex items-center justify-between gap-2 px-4 py-3 md:px-5',
         bordered && 'border-t-[1px] border-rule-soft dark:border-rule-on-dark',
       )}
     >

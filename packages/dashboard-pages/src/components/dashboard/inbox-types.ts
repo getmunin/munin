@@ -4,6 +4,7 @@ import type {
   CmsAssetExpanded,
   CmsDraftDetailDto,
   CmsDraftSummaryDto,
+  CmsPreviewLink,
   CmsScheduledSummaryDto,
   CrmMergeProposalDto,
   FeedbackOutboxDto,
@@ -127,6 +128,8 @@ export interface InboxController {
   kbRevisedBodies: Record<string, string>;
   cmsDetails: Record<string, CmsDraftDetailDto>;
   outreachDetails: Record<string, OutreachProposalDetailDto>;
+  cmsPreviewLinks: Record<string, CmsPreviewLink>;
+  reloadCmsPreviewLink: (id: string) => Promise<void>;
   detailErrors: Record<string, string>;
   queueDetailErrors: Record<string, string>;
   reloadDetail: (id: string) => Promise<void>;
@@ -151,7 +154,6 @@ export interface InboxController {
   saveQueue: (item: QueueItem, body: string) => Promise<void>;
   saveCmsDraft: (item: QueueItem, data: Record<string, unknown>) => Promise<void>;
   uploadCmsAsset: (item: QueueItem, file: File) => Promise<CmsAssetExpanded>;
-  previewCmsDraft: (item: QueueItem) => Promise<void>;
   dismissQueue: (item: QueueItem) => Promise<boolean>;
   scheduleQueue: (item: QueueItem, scheduledAt: string) => Promise<void>;
 }

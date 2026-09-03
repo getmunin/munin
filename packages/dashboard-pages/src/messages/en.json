@@ -29,7 +29,8 @@
     "gotIt": "Got it",
     "unknownError": "Unknown error.",
     "networkError": "Network error — is the API reachable?",
-    "or": "or"
+    "or": "or",
+    "moreActions": "More actions"
   },
   "locale": {
     "label": "Language",
@@ -303,7 +304,7 @@
         "send": "Send ↵",
         "edit": "Edit",
         "cancel": "Cancel",
-        "save": "Save ↵",
+        "save": "Save",
         "approve": "Approve",
         "dismiss": "Dismiss",
         "takeOver": "Take over",
@@ -327,10 +328,15 @@
         "cmsCoverUploading": "Uploading…",
         "cmsCoverReplace": "Replace cover image",
         "cmsCoverAspect": "16:9",
-        "cmsApprove": "Approve ↵",
-        "cmsMoreMenu": "More actions",
+        "cmsApprove": "Approve",
         "cmsSchedule": "Schedule",
-        "cmsPreview": "Preview",
+        "cmsViewPreview": "Preview",
+        "cmsViewRead": "Fields",
+        "cmsOpenPreview": "Open on the site",
+        "cmsPreviewLoading": "Loading the preview…",
+        "cmsPreviewTitle": "Draft preview",
+        "cmsPreviewFailedEyebrow": "Preview did not load",
+        "cmsPreviewFailedBody": "The site did not answer, or it refuses to be embedded. The fields below are the same content.",
         "cmsScheduleTitle": "Schedule publish",
         "cmsScheduleDescription": "Pick when this draft should go live. Munin will publish it automatically at that time — no further approval needed.",
         "cmsScheduleConfirm": "Approve & schedule",
@@ -1288,7 +1294,7 @@
           "shortcutSave": "⌘↵ save · esc cancel"
         },
         "crm": {
-          "eyebrow": "CRM · proposed merge",
+          "eyebrow": "CRM",
           "confidenceHigh": "High confidence",
           "confidenceMedium": "Medium confidence",
           "keeping": "Keeping <strong>{name}</strong>",

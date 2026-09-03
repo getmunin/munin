@@ -14,6 +14,7 @@ import { useRealtime, type SubscriptionChannel } from '../../realtime';
 import type {
   CmsAssetExpanded,
   CmsDraftDetailDto,
+  CmsPreviewLink,
   KbCandidateDto,
   OutreachProposalDetailDto,
   QueueItem,
@@ -152,6 +153,7 @@ export function useInboxData(): InboxController {
   const [outreachDetails, setOutreachDetails] = useState<
     Record<string, OutreachProposalDetailDto>
   >({});
+  const [cmsPreviewLinks, setCmsPreviewLinks] = useState<Record<string, CmsPreviewLink>>({});
   const [convDrawer, setConvDrawer] = useState<ConvDrawer>(null);
   const [queueDrawer, setQueueDrawer] = useState<QueueItem | null>(null);
   const [scheduledDrawer, setScheduledDrawer] = useState<ScheduledItem | null>(null);
@@ -268,6 +270,26 @@ export function useInboxData(): InboxController {
     }
   }, [translateErr]);
 
+  const loadCmsPreviewLink = useCallback(async (id: string) => {
+    try {
+      const link = await api<CmsPreviewLink>(`/v1/cms/drafts/${id}/preview-link`, {
+        method: 'POST',
+        body: '{}',
+      });
+      setCmsPreviewLinks((prev) => ({ ...prev, [id]: link }));
+    } catch {
+      setCmsPreviewLinks((prev) => ({ ...prev, [id]: { url: null, deliveryUrl: null } }));
+    }
+  }, []);
+
+  const reloadCmsPreviewLink = useCallback(
+    async (id: string) => {
+      setCmsPreviewLinks((prev) => clearKey(prev, id));
+      await loadCmsPreviewLink(id);
+    },
+    [loadCmsPreviewLink],
+  );
+
   const reloadQueueDetail = useCallback((id: string) => {
     setQueueDetailErrors((prev) => clearKey(prev, id));
   }, []);
@@ -310,6 +332,13 @@ export function useInboxData(): InboxController {
     if (queueDetailErrors[id]) return;
     void loadOutreachDetail(id);
   }, [queueDrawer, outreachDetails, queueDetailErrors, loadOutreachDetail]);
+
+  useEffect(() => {
+    if (!queueDrawer || queueDrawer.kind !== 'cms') return;
+    const id = queueDrawer.id;
+    if (cmsPreviewLinks[id] !== undefined) return;
+    void loadCmsPreviewLink(id);
+  }, [queueDrawer, cmsPreviewLinks, loadCmsPreviewLink]);
 
   const subscriptions = useMemo<SubscriptionChannel[]>(() => {
     const subs: SubscriptionChannel[] = [{ channel: 'org' }];
@@ -614,23 +643,6 @@ export function useInboxData(): InboxController {
     [translateErr],
   );
 
-  const previewCmsDraft = useCallback(async (item: QueueItem) => {
-    if (item.kind !== 'cms') return;
-    const w = window.open('about:blank', '_blank');
-    try {
-      const link = await api<{ url: string | null; deliveryUrl: string }>(
-        `/v1/cms/drafts/${item.id}/preview-link`,
-        { method: 'POST', body: '{}' },
-      );
-      const target = link.url ?? link.deliveryUrl;
-      if (w) w.location.href = target;
-      else window.open(target, '_blank');
-    } catch (err) {
-      w?.close();
-      notify.error(translateErr(err));
-    }
-  }, [translateErr]);
-
   const dismissQueue = useCallback(
     async (item: QueueItem) => {
       setPending(true);
@@ -755,6 +767,8 @@ export function useInboxData(): InboxController {
     kbRevisedBodies,
     cmsDetails,
     outreachDetails,
+    cmsPreviewLinks,
+    reloadCmsPreviewLink,
     detailErrors,
     queueDetailErrors,
     reloadDetail,
@@ -775,7 +789,6 @@ export function useInboxData(): InboxController {
     saveQueue,
     saveCmsDraft,
     uploadCmsAsset,
-    previewCmsDraft,
     dismissQueue,
     scheduleQueue,
   };

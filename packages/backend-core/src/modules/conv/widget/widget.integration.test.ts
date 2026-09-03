@@ -1741,6 +1741,79 @@ const skipReason = TEST_URL
     expect(holderRows[0]?.email).toBe(taken);
   });
 
+  it('rejects PATCH /visitor on a claimed session from a caller presenting no identity', async () => {
+    const sid = `vis_owned_${Date.now()}`;
+    const externalId = `user_owned_${Date.now()}`;
+    const userHash = signHmac(externalId, identityVerificationSecret);
+    await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: sid,
+      verifiedExternalId: externalId,
+      userHash,
+      visitor: { email: 'owner@example.com' },
+      messages: [{ role: 'end_user', body: 'mine' }],
+    });
+
+    const res = await call('PATCH', '/v1/widget/visitor', widgetKey, {
+      channelId,
+      sessionId: sid,
+      email: 'attacker@example.com',
+    });
+    expect(res.status).toBe(403);
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const contacts = await db
+      .select({ email: schema.convContacts.email })
+      .from(schema.convContacts)
+      .where(
+        and(
+          eq(schema.convContacts.orgId, orgId),
+          sql`${schema.convContacts.metadata}->>'externalId' = ${externalId}`,
+        ),
+      );
+    expect(contacts[0]?.email).toBe('owner@example.com');
+  });
+
+  it('allows PATCH /visitor on a claimed session from the identity that owns it', async () => {
+    const sid = `vis_owner_ok_${Date.now()}`;
+    const externalId = `user_owner_ok_${Date.now()}`;
+    const userHash = signHmac(externalId, identityVerificationSecret);
+    await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: sid,
+      verifiedExternalId: externalId,
+      userHash,
+      messages: [{ role: 'end_user', body: 'mine' }],
+    });
+
+    const res = await call('PATCH', '/v1/widget/visitor', widgetKey, {
+      channelId,
+      sessionId: sid,
+      verifiedExternalId: externalId,
+      userHash,
+      email: 'owner-updated@example.com',
+    });
+    expect(res.status).toBe(200);
+    expect((res.json as { email: string | null }).email).toBe('owner-updated@example.com');
+  });
+
+  it('still allows PATCH /visitor on an unclaimed anonymous session', async () => {
+    const sid = `vis_anon_ok_${Date.now()}`;
+    await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: sid,
+      messages: [{ role: 'end_user', body: 'anon' }],
+    });
+
+    const res = await call('PATCH', '/v1/widget/visitor', widgetKey, {
+      channelId,
+      sessionId: sid,
+      email: 'anon-ok@example.com',
+    });
+    expect(res.status).toBe(200);
+    expect((res.json as { email: string | null }).email).toBe('anon-ok@example.com');
+  });
+
   it('rejects PATCH /visitor with mismatched channelId', async () => {
     const res = await call('PATCH', '/v1/widget/visitor', widgetKey, {
       channelId: 'cch_nonexistent',

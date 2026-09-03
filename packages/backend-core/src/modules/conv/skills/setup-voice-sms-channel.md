@@ -20,7 +20,7 @@ Use this when a customer wants Munin on a phone number — an AI voice line (Vap
 ## Per-vendor non-secret config
 
 - **Vapi (voice)** — `assistantId` (required; the human finds it in the Vapi dashboard), `phoneNumberId` (only for PSTN calls), `publicKey` (only for in-browser voice via the widget), `replaceWebhook: true` if the assistant already has a non-Munin server URL. The link asks for the API key and a webhook secret of your choosing; on save Munin configures the assistant's server URL automatically.
-- **Threll (voice)** — `workerId` (required; from the Threll webapp), `accountId` (optional, resolved from the API key). The link asks for the API key; on save Munin creates the webhook subscription and stores the signing secret Threll returns.
+- **Threll (voice)** — `workerId` (required; from the Threll webapp), `accountId` (optional, resolved from the API key), `replaceWebhook: true` if that worker already has a webhook subscription pointing somewhere other than Munin. The link asks for the API key; on save Munin creates a webhook subscription **scoped to that worker** and stores the signing secret Threll returns. Other workers on the same Threll account keep their own webhooks, so several Munin channels can share one account — one channel per worker. Pointing an existing channel at a different worker re-registers the subscription on the new worker and removes the old one.
 - **Twilio (SMS)** — `accountSid` (required) plus `fromNumber` or `messagingServiceSid`. The link asks for the auth token.
 - **MessageBird (SMS)** — `originator` (required). The link asks for the access key and signing key.
 

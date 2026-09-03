@@ -18,10 +18,13 @@
     "typescript-eslint": "^8.0.0"
   },
   "dependencies": {
-    "@eslint/js": "^9.10.0",
-    "eslint-config-prettier": "^9.1.0",
+    "@eslint/js": "^9.39.5",
+    "eslint-config-prettier": "^9.1.2",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "globals": "^15.9.0",
-    "typescript-eslint": "^8.61.1"
+    "globals": "^15.15.0",
+    "typescript-eslint": "^8.69.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
   }
 }

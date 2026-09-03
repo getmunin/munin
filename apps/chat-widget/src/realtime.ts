@@ -61,6 +61,7 @@ const READ_FLUSH_MS = 200;
 const RECONNECT_INITIAL_MS = 250;
 const RECONNECT_MAX_MS = 30_000;
 const RECONNECT_MAX_JITTER_MS = 250;
+const IDENTITY_FALLBACK_AFTER_FAILURES = 3;
 
 export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
   const setTimeoutFn = deps.setTimeoutImpl ?? setTimeout;
@@ -74,6 +75,8 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
   let lastTypingSentAt = 0;
   let closedByCaller = false;
   let sessionId = deps.sessionId;
+  let identitySuppressed = false;
+  let identityFailures = 0;
   const pendingReadIds = new Set<string>();
   let readFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -114,14 +117,14 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
     }
   }
 
-  function buildUrl(): string {
+  function buildUrl(): { url: string; withIdentity: boolean } {
     const base = httpToWs(deps.host) + '/v1/realtime';
-    const identity = deps.getIdentity?.();
-    if (!identity) return base;
+    const identity = identitySuppressed ? undefined : deps.getIdentity?.();
+    if (!identity) return { url: base, withIdentity: false };
     const u = new URL(base);
     u.searchParams.set('externalId', identity.externalId);
     u.searchParams.set('userHash', identity.userHash);
-    return u.toString();
+    return { url: u.toString(), withIdentity: true };
   }
 
   function scheduleReconnect(): void {
@@ -143,15 +146,19 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
     if (closedByCaller) return;
     if (ws && ws.readyState !== WS.CLOSED) return;
     setState('connecting');
+    const target = buildUrl();
     let socket: WebSocketLike;
     try {
-      socket = new WS(buildUrl(), ['bearer', deps.widgetKey]);
+      socket = new WS(target.url, ['bearer', deps.widgetKey]);
     } catch {
       scheduleReconnect();
       return;
     }
     ws = socket;
+    let opened = false;
     socket.addEventListener('open', () => {
+      opened = true;
+      identityFailures = 0;
       attempt = 0;
       setState('connected');
       try {
@@ -195,6 +202,21 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
     });
     socket.addEventListener('close', () => {
       ws = null;
+      if (!opened) {
+        if (target.withIdentity) {
+          identityFailures += 1;
+          if (identityFailures >= IDENTITY_FALLBACK_AFTER_FAILURES) {
+            identityFailures = 0;
+            identitySuppressed = true;
+            attempt = 0;
+            console.warn(
+              '[munin-widget] realtime identity was rejected; reconnecting without it. Check that the widget channel secret used to sign userHash matches this channelId.',
+            );
+          }
+        } else if (identitySuppressed) {
+          identitySuppressed = false;
+        }
+      }
       if (closedByCaller) {
         setState('closed');
       } else {
@@ -228,6 +250,8 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
     reconnect() {
       closedByCaller = false;
       attempt = 0;
+      identitySuppressed = false;
+      identityFailures = 0;
       if (reconnectTimer) {
         clearTimeoutFn(reconnectTimer);
         reconnectTimer = null;

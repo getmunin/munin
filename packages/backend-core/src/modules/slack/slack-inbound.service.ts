@@ -27,6 +27,13 @@ const MessageEventSchema = z.object({
   files: z.array(z.object({}).passthrough()).optional(),
 });
 
+const MessageDeletedEventSchema = z.object({
+  type: z.literal('message'),
+  subtype: z.literal('message_deleted'),
+  channel: z.string().min(1),
+  deleted_ts: z.string().min(1),
+});
+
 const MemberJoinedEventSchema = z.object({
   type: z.literal('member_joined_channel'),
   user: z.string().min(1),
@@ -40,6 +47,7 @@ const EventCallbackSchema = z.object({
 });
 
 type MessageEvent = z.infer<typeof MessageEventSchema>;
+type MessageDeletedEvent = z.infer<typeof MessageDeletedEventSchema>;
 type MemberJoinedEvent = z.infer<typeof MemberJoinedEventSchema>;
 
 @Injectable()
@@ -59,6 +67,11 @@ export class SlackInboundService {
     const joined = MemberJoinedEventSchema.safeParse(callback.data.event);
     if (joined.success) {
       await this.handleBotJoinedChannel(joined.data);
+      return;
+    }
+    const deleted = MessageDeletedEventSchema.safeParse(callback.data.event);
+    if (deleted.success) {
+      await this.forgetDeletedMessage(deleted.data);
       return;
     }
     const parsed = MessageEventSchema.safeParse(callback.data.event);
@@ -178,6 +191,25 @@ export class SlackInboundService {
         `:warning: Your message was sent *without* the ${fileCount} attached file${fileCount === 1 ? '' : 's'} — attachments are not forwarded to customers yet.`,
       );
     }
+  }
+
+  private async forgetDeletedMessage(event: MessageDeletedEvent): Promise<void> {
+    await this.db
+      .delete(schema.slackConversationLinks)
+      .where(
+        and(
+          eq(schema.slackConversationLinks.slackChannelId, event.channel),
+          eq(schema.slackConversationLinks.slackThreadTs, event.deleted_ts),
+        ),
+      );
+    await this.db
+      .delete(schema.slackMessageLinks)
+      .where(
+        and(
+          eq(schema.slackMessageLinks.slackChannelId, event.channel),
+          eq(schema.slackMessageLinks.slackTs, event.deleted_ts),
+        ),
+      );
   }
 
   private async handleBotJoinedChannel(event: MemberJoinedEvent): Promise<void> {

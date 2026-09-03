@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { isOriginAllowedForCookieAuth, readBearerSubprotocol } from './realtime.gateway.ts';
+import { ForbiddenException } from '@nestjs/common';
+import {
+  isOriginAllowedForCookieAuth,
+  readBearerSubprotocol,
+  widgetGateReason,
+} from './realtime.gateway.ts';
 
 describe('readBearerSubprotocol', () => {
   it('returns null for undefined', () => {
@@ -64,5 +69,24 @@ describe('isOriginAllowedForCookieAuth', () => {
     process.env.MUNIN_CORS_ORIGINS = '*';
     expect(isOriginAllowedForCookieAuth('https://anywhere.example')).toBe(false);
     expect(isOriginAllowedForCookieAuth('http://localhost:3000')).toBe(false);
+  });
+});
+
+describe('widgetGateReason', () => {
+  it('passes through the code-shaped message a widget gate throws', () => {
+    expect(widgetGateReason(new ForbiddenException('identity_verification_failed'))).toBe(
+      'identity_verification_failed',
+    );
+    expect(widgetGateReason(new ForbiddenException('identity_partial'))).toBe('identity_partial');
+    expect(widgetGateReason(new Error('widget_channel_inactive'))).toBe(
+      'widget_channel_inactive',
+    );
+  });
+
+  it('never leaks prose or header-breaking characters', () => {
+    expect(widgetGateReason(new Error('channel cch_1 is inactive'))).toBe('widget_gate_failed');
+    expect(widgetGateReason(new Error('bad\r\nX-Injected: 1'))).toBe('widget_gate_failed');
+    expect(widgetGateReason('Identity_Partial')).toBe('widget_gate_failed');
+    expect(widgetGateReason(undefined)).toBe('widget_gate_failed');
   });
 });

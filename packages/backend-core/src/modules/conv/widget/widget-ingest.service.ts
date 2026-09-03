@@ -336,18 +336,7 @@ export class WidgetIngestService {
     }
     const contactId = conv[0].contactId;
 
-    if (identity.mode === 'verified') {
-      const contact = await tx
-        .select({ metadata: schema.convContacts.metadata })
-        .from(schema.convContacts)
-        .where(eq(schema.convContacts.id, contactId))
-        .limit(1);
-      const contactExternalId = (contact[0]?.metadata as { externalId?: string } | undefined)
-        ?.externalId;
-      if (contactExternalId !== identity.externalId) {
-        throw new ForbiddenException('session_not_owned');
-      }
-    }
+    await assertContactIdentityOwnership(tx, contactId, identity, 'session_not_owned');
 
     const patch: Record<string, unknown> = {};
     if (input.email) patch.email = input.email.trim().toLowerCase();
@@ -1186,6 +1175,30 @@ function originMatches(allowlistEntry: string, origin: string): boolean {
   } catch {
     return false;
   }
+}
+
+export async function assertContactIdentityOwnership(
+  tx: Tx,
+  contactId: string,
+  identity: IdentityResolution,
+  errorCode: string,
+): Promise<void> {
+  const [row] = await tx
+    .select({ metadata: schema.convContacts.metadata })
+    .from(schema.convContacts)
+    .where(eq(schema.convContacts.id, contactId))
+    .limit(1);
+  const externalId = (row?.metadata as { externalId?: unknown } | null)?.externalId;
+  const claimedBy =
+    typeof externalId === 'string' && externalId.length > 0 && !externalId.startsWith('anon:')
+      ? externalId
+      : null;
+
+  if (identity.mode === 'verified') {
+    if (claimedBy !== identity.externalId) throw new ForbiddenException(errorCode);
+    return;
+  }
+  if (claimedBy) throw new ForbiddenException(errorCode);
 }
 
 export function verifyIdentity(

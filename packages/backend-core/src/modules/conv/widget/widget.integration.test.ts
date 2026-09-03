@@ -941,6 +941,152 @@ const skipReason = TEST_URL
     expect(agent.readAt).not.toBeNull();
   });
 
+  it('a verified ingest lands the visitor name and email on the end-user identity', async () => {
+    const externalId = 'user_eu_backfill';
+    const userHash = signHmac(externalId, identityVerificationSecret);
+    const res = await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_eu_backfill',
+      verifiedExternalId: externalId,
+      userHash,
+      visitor: { name: 'Grace Hopper', email: 'grace.eu@example.com' },
+      messages: [{ role: 'end_user', body: 'hello' }],
+    });
+    expect(res.status).toBe(201);
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const [endUser] = await db
+      .select({
+        name: schema.endUsers.name,
+        email: schema.endUsers.email,
+        metadata: schema.endUsers.metadata,
+      })
+      .from(schema.endUsers)
+      .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, externalId)));
+    expect(endUser?.name).toBe('Grace Hopper');
+    expect(endUser?.email).toBe('grace.eu@example.com');
+    expect((endUser?.metadata as { emailSource?: string }).emailSource).toBe('visitor');
+  });
+
+  it('a verified ingest leaves the identity email alone when another end user already holds it', async () => {
+    const taken = 'shared.inbox@example.com';
+    await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_collide_first',
+      verifiedExternalId: 'user_collide_a',
+      userHash: signHmac('user_collide_a', identityVerificationSecret),
+      visitor: { email: taken },
+      messages: [{ role: 'end_user', body: 'first' }],
+    });
+
+    const res = await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_collide_second',
+      verifiedExternalId: 'user_collide_b',
+      userHash: signHmac('user_collide_b', identityVerificationSecret),
+      visitor: { email: taken },
+      messages: [{ role: 'end_user', body: 'second' }],
+    });
+    expect(res.status).toBe(201);
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const [second] = await db
+      .select({ email: schema.endUsers.email })
+      .from(schema.endUsers)
+      .where(
+        and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, 'user_collide_b')),
+      );
+    expect(second?.email).toBeNull();
+  });
+
+  it('identify backfills name and email onto the claimed contact from the verified identity', async () => {
+    const externalId = 'user_backfill_7';
+    const userHash = signHmac(externalId, identityVerificationSecret);
+
+    await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_backfill_known',
+      verifiedExternalId: externalId,
+      userHash,
+      visitor: { name: 'Ada Lovelace', email: 'ada.backfill@example.com' },
+      messages: [{ role: 'end_user', body: 'signed in elsewhere' }],
+    });
+
+    const anon = await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_backfill_anon',
+      messages: [{ role: 'end_user', body: 'anonymous hello' }],
+    });
+    const anonContactId = (anon.json as { contactId: string }).contactId;
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const before = (
+      await db
+        .select({ name: schema.convContacts.name, email: schema.convContacts.email })
+        .from(schema.convContacts)
+        .where(eq(schema.convContacts.id, anonContactId))
+    )[0]!;
+    expect(before.name).toBeNull();
+    expect(before.email).toBeNull();
+
+    const res = await call('POST', '/v1/widget/identify', widgetKey, {
+      channelId,
+      sessionId: 'vis_backfill_anon',
+      verifiedExternalId: externalId,
+      userHash,
+    });
+    expect(res.status).toBe(201);
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const after = (
+      await db
+        .select({ name: schema.convContacts.name, email: schema.convContacts.email })
+        .from(schema.convContacts)
+        .where(eq(schema.convContacts.id, anonContactId))
+    )[0]!;
+    expect(after.name).toBe('Ada Lovelace');
+    expect(after.email).toBe('ada.backfill@example.com');
+  });
+
+  it('identify never overwrites a name the contact already carries', async () => {
+    const externalId = 'user_backfill_keep';
+    const userHash = signHmac(externalId, identityVerificationSecret);
+
+    await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_keep_known',
+      verifiedExternalId: externalId,
+      userHash,
+      visitor: { name: 'Identity Name', email: 'identity.keep@example.com' },
+      messages: [{ role: 'end_user', body: 'signed in elsewhere' }],
+    });
+
+    const anon = await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId: 'vis_keep_anon',
+      visitor: { name: 'Session Name' },
+      messages: [{ role: 'end_user', body: 'anonymous hello' }],
+    });
+    const anonContactId = (anon.json as { contactId: string }).contactId;
+
+    await call('POST', '/v1/widget/identify', widgetKey, {
+      channelId,
+      sessionId: 'vis_keep_anon',
+      verifiedExternalId: externalId,
+      userHash,
+    });
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const after = (
+      await db
+        .select({ name: schema.convContacts.name, email: schema.convContacts.email })
+        .from(schema.convContacts)
+        .where(eq(schema.convContacts.id, anonContactId))
+    )[0]!;
+    expect(after.name).toBe('Session Name');
+    expect(after.email).toBe('identity.keep@example.com');
+  });
+
   it('identify is idempotent: re-claiming the same session returns the same refs', async () => {
     const sessionId = 'vis_claim_idem';
     const externalId = 'user_idem_99';

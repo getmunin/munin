@@ -72,7 +72,7 @@ export class ThrellService {
     const accountId = input.config.accountId ?? (await this.resolveAccountId(input.config.apiKey));
     const config = { ...input.config, accountId };
     const signingSecret = await this.ensureWebhookSubscription(
-      { apiKey: config.apiKey, accountId },
+      { apiKey: config.apiKey, accountId, workerId: config.workerId },
       webhookUrl,
       input.replaceWebhook ?? false,
     );
@@ -114,7 +114,7 @@ export class ThrellService {
     }
     const accountId = parsed.data.accountId ?? (await this.resolveAccountId(parsed.data.apiKey));
     const signingSecret = await this.ensureWebhookSubscription(
-      { apiKey: parsed.data.apiKey, accountId },
+      { apiKey: parsed.data.apiKey, accountId, workerId: parsed.data.workerId },
       buildWebhookUrl(channelId),
       pending?.replaceWebhook === true,
     );
@@ -130,6 +130,7 @@ export class ThrellService {
     channelId: string;
     name?: string;
     config?: Partial<ThrellConfigInput>;
+    replaceWebhook?: boolean;
   }): Promise<ThrellChannelDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -153,12 +154,31 @@ export class ThrellService {
     const accountId =
       input.config?.accountId ??
       (newApiKey ? await this.resolveAccountId(newApiKey) : prev.accountId);
+    const workerId = input.config?.workerId ?? prev.workerId;
     const merged: StoredThrellConfig = {
       encryptedApiKey: newApiKey ? await encryptString(newApiKey) : prev.encryptedApiKey,
       encryptedWebhookSecret: prev.encryptedWebhookSecret,
       accountId,
-      workerId: input.config?.workerId ?? prev.workerId,
+      workerId,
     };
+    if (workerId !== prev.workerId || accountId !== prev.accountId) {
+      const apiKey = newApiKey ?? (await this.client.loadSecret(prev.encryptedApiKey));
+      const webhookUrl = buildWebhookUrl(input.channelId);
+      const signingSecret = await this.ensureWebhookSubscription(
+        { apiKey, accountId, workerId },
+        webhookUrl,
+        input.replaceWebhook ?? false,
+      );
+      const removalApiKey =
+        accountId !== prev.accountId && newApiKey
+          ? await this.client.loadSecret(prev.encryptedApiKey)
+          : apiKey;
+      await this.removeWebhookSubscription(
+        { apiKey: removalApiKey, accountId: prev.accountId, workerId: prev.workerId },
+        webhookUrl,
+      );
+      merged.encryptedWebhookSecret = await encryptString(signingSecret);
+    }
     const [row] = await ctx.db
       .update(schema.convChannels)
       .set({
@@ -180,37 +200,61 @@ export class ThrellService {
   }
 
   private async ensureWebhookSubscription(
-    creds: { apiKey: string; accountId: string },
+    creds: { apiKey: string; accountId: string; workerId: string },
     webhookUrl: string,
     replaceWebhook: boolean,
   ): Promise<string> {
     const existing = await this.client.listWebhookSubscriptions(creds);
     if (existing.ok) {
-      const reused = findReusableSigningSecret(existing.subscriptions, webhookUrl);
+      const scoped = existing.subscriptions.filter((s) => s.workerId === creds.workerId);
+      const reused = findReusableSigningSecret(scoped, webhookUrl);
       if (reused) return reused;
-      const conflicts = existing.subscriptions.filter(
-        (s) => s.eventType === '*' && s.enabled && s.url !== webhookUrl,
+      const enabled = scoped.filter((s) => s.eventType === '*' && s.enabled);
+      await this.deleteSubscriptions(
+        creds,
+        enabled.filter((s) => s.url === webhookUrl),
       );
+      const conflicts = enabled.filter((s) => s.url !== webhookUrl);
       if (conflicts.length > 0) {
         if (!replaceWebhook) {
           throw new ConflictException({
             code: 'webhook_conflict',
             message:
-              'This Threll account already has an account-wide webhook subscription. Replace it to connect this channel.',
+              'This Threll worker already has a webhook subscription pointing elsewhere. Replace it to connect this channel.',
           });
         }
-        for (const conflict of conflicts) {
-          const del = await this.client.deleteWebhookSubscription({
-            ...creds,
-            subscriptionId: conflict.id,
-          });
-          if (!del.ok) throw new BadRequestException(del.error);
-        }
+        await this.deleteSubscriptions(creds, conflicts);
       }
     }
     const sub = await this.client.createWebhookSubscription({ ...creds, url: webhookUrl });
     if (!sub.ok) throw new BadRequestException(sub.error);
     return sub.signingSecret;
+  }
+
+  private async removeWebhookSubscription(
+    creds: { apiKey: string; accountId: string; workerId: string },
+    webhookUrl: string,
+  ): Promise<void> {
+    const existing = await this.client.listWebhookSubscriptions(creds);
+    if (!existing.ok) return;
+    await this.deleteSubscriptions(
+      creds,
+      existing.subscriptions.filter((s) => s.workerId === creds.workerId && s.url === webhookUrl),
+    );
+  }
+
+  private async deleteSubscriptions(
+    creds: { apiKey: string; accountId: string },
+    subscriptions: ThrellWebhookSubscriptionSummary[],
+  ): Promise<void> {
+    for (const subscription of subscriptions) {
+      const del = await this.client.deleteWebhookSubscription({
+        apiKey: creds.apiKey,
+        accountId: creds.accountId,
+        subscriptionId: subscription.id,
+      });
+      if (!del.ok) throw new BadRequestException(del.error);
+    }
   }
 
   private async toStored(

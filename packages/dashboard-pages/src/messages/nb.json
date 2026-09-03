@@ -778,7 +778,7 @@
         "workerChip": "worker · {id}",
         "replaceWebhook": {
           "title": "Erstatt eksisterende webhook?",
-          "message": "Denne Threll-kontoen har allerede et kontoomfattende webhook-abonnement. Munin sletter det og registrerer sitt eget. Fortsette?",
+          "message": "Denne threllen har allerede et webhook-abonnement som peker et annet sted. Munin sletter det og registrerer sitt eget. Andre threller i kontoen berøres ikke. Fortsette?",
           "confirm": "Erstatt"
         },
         "placeCall": "Ring en testsamtale",

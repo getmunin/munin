@@ -3909,6 +3909,7 @@ function ThrellChannelDialog({
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
+  const confirm = useConfirm();
   const [name, setName] = useState(editChannel.name);
   const [apiKey, setApiKey] = useState('');
   const [workerId, setWorkerId] = useState(editChannel.config?.workerId ?? '');
@@ -3941,12 +3942,13 @@ function ThrellChannelDialog({
     };
   }, [open, editChannel]);
 
-  async function submit() {
+  async function submit(replaceWebhook = false) {
     const payload: Record<string, unknown> = {
       channelId: editChannel.id,
       ...(name.trim() ? { name: name.trim() } : {}),
       ...(apiKey ? { apiKey } : {}),
       ...(workerId.trim() ? { workerId: workerId.trim() } : {}),
+      ...(replaceWebhook ? { replaceWebhook: true } : {}),
     };
     const parsed = ConfigureThrellBody.safeParse(payload);
     if (!parsed.success) {
@@ -3964,6 +3966,18 @@ function ThrellChannelDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
+      if (err instanceof ApiError && err.code === 'webhook_conflict') {
+        setSaving(false);
+        const ok = await confirm({
+          title: t('threll.replaceWebhook.title'),
+          message: t('threll.replaceWebhook.message'),
+          confirmLabel: t('threll.replaceWebhook.confirm'),
+          cancelLabel: tCommon('cancel'),
+          destructive: true,
+        });
+        if (ok) await submit(true);
+        return;
+      }
       setSubmitError(toFormError(err, translate(err) || t('errors.updateThrell')));
     } finally {
       setSaving(false);

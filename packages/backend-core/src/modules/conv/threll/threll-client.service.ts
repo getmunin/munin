@@ -38,6 +38,7 @@ export interface ThrellWebhookSubscriptionSummary {
   id: string;
   url: string;
   eventType: string | null;
+  workerId: string | null;
   enabled: boolean;
   signingSecret: string | null;
 }
@@ -206,12 +207,14 @@ export class ThrellClientService {
   async listWebhookSubscriptions(opts: {
     apiKey: string;
     accountId: string;
+    workerId?: string;
   }): Promise<
     { ok: true; subscriptions: ThrellWebhookSubscriptionSummary[] } | { ok: false; error: string }
   > {
+    const scope = opts.workerId ? `?workerId=${encodeURIComponent(opts.workerId)}` : '';
     const r = await this.request({
       apiKey: opts.apiKey,
-      path: `/accounts/${encodeURIComponent(opts.accountId)}/webhook-subscriptions`,
+      path: `/accounts/${encodeURIComponent(opts.accountId)}/webhook-subscriptions${scope}`,
       notFoundError: 'threll_account_not_found',
     });
     if (!r.ok) return r;
@@ -219,6 +222,12 @@ export class ThrellClientService {
       id: typeof row.id === 'string' ? row.id : '',
       url: typeof row.url === 'string' ? row.url : '',
       eventType: typeof row.eventType === 'string' ? row.eventType : null,
+      workerId:
+        typeof row.workerId === 'string'
+          ? row.workerId
+          : typeof row.worker_id === 'string'
+            ? row.worker_id
+            : null,
       enabled: typeof row.enabled === 'boolean' ? row.enabled : true,
       signingSecret:
         typeof row.signingSecret === 'string'
@@ -247,13 +256,14 @@ export class ThrellClientService {
   async createWebhookSubscription(opts: {
     apiKey: string;
     accountId: string;
+    workerId: string;
     url: string;
   }): Promise<{ ok: true; signingSecret: string } | { ok: false; error: string }> {
     const r = await this.request({
       apiKey: opts.apiKey,
       path: `/accounts/${encodeURIComponent(opts.accountId)}/webhook-subscriptions`,
       method: 'POST',
-      body: { eventType: '*', url: opts.url, required: true },
+      body: { eventType: '*', url: opts.url, required: true, workerId: opts.workerId },
       notFoundError: 'threll_account_not_found',
     });
     if (!r.ok) return r;

@@ -237,38 +237,38 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         return await this.reviseMirroredMessage({ payload, context, token });
       case 'conversation.handover_requested': {
         const reason = typeof payload.reason === 'string' ? payload.reason : null;
-        await this.postThreadReply(token, link, handoverRequestedText(reason));
         await this.api.postMessage({
           token,
           channel: escalationRoute.slackChannelId,
           text: escalationAlertText(context.snapshot, reason, escalationRoute.mention),
         });
-        return await this.syncParent(link, context, token);
+        await this.syncParent(link, context, token);
+        return await this.postThreadReply(token, link, handoverRequestedText(reason));
       }
       case 'conversation.handover_resolved':
-        await this.postThreadReply(token, link, handoverResolvedText());
-        return await this.syncParent(link, context, token);
+        await this.syncParent(link, context, token);
+        return await this.postThreadReply(token, link, handoverResolvedText());
       case 'conversation.status_changed': {
         const status = typeof payload.status === 'string' ? payload.status : 'unknown';
-        await this.postThreadReply(token, link, statusChangedText(status));
-        return await this.syncParent(link, context, token);
+        await this.syncParent(link, context, token);
+        return await this.postThreadReply(token, link, statusChangedText(status));
       }
       case 'conversation.assigned': {
         const assigneeUserId =
           typeof payload.assigneeUserId === 'string' ? payload.assigneeUserId : null;
         const name = assigneeUserId ? await this.userName(assigneeUserId) : null;
-        await this.postThreadReply(token, link, assignedText(name));
-        return await this.syncParent(link, context, token);
+        await this.syncParent(link, context, token);
+        return await this.postThreadReply(token, link, assignedText(name));
       }
       case 'conversation.taken_over': {
         const name = await this.holderName(payload);
-        await this.postThreadReply(token, link, takenOverText(name));
-        return await this.syncParent(link, context, token);
+        await this.syncParent(link, context, token);
+        return await this.postThreadReply(token, link, takenOverText(name));
       }
       case 'conversation.released': {
         const name = await this.holderName(payload);
-        await this.postThreadReply(token, link, releasedText(name));
-        return await this.syncParent(link, context, token);
+        await this.syncParent(link, context, token);
+        return await this.postThreadReply(token, link, releasedText(name));
       }
       default:
         return;
@@ -377,12 +377,17 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       body: message.body,
       attachments: parseMessageAttachments(message.attachments),
     };
-    await this.api.updateMessage({
-      token,
-      channel: link.slackChannelId,
-      ts: link.slackTs,
-      text: link.authorLabeled ? messageText(snapshot) : messageBodyText(snapshot),
-    });
+    try {
+      await this.api.updateMessage({
+        token,
+        channel: link.slackChannelId,
+        ts: link.slackTs,
+        text: link.authorLabeled ? messageText(snapshot) : messageBodyText(snapshot),
+      });
+    } catch (err) {
+      if (!(err instanceof SlackApiError) || err.apiError !== 'message_not_found') throw err;
+      throw new TerminalDeliveryError('slack_message_missing');
+    }
   }
 
   private async handleAnnouncement(input: {
@@ -945,13 +950,25 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     token: string,
   ): Promise<void> {
     const state = await this.loadParentState(context);
-    await this.api.updateMessage({
-      token,
-      channel: link.slackChannelId,
-      ts: link.slackThreadTs,
-      text: `${threadParentText(context.snapshot)}\n${parentStateLine(state)}`,
-      blocks: threadParentBlocks(context.snapshot, state, context.conversation.id),
-    });
+    try {
+      await this.api.updateMessage({
+        token,
+        channel: link.slackChannelId,
+        ts: link.slackThreadTs,
+        text: `${threadParentText(context.snapshot)}\n${parentStateLine(state)}`,
+        blocks: threadParentBlocks(context.snapshot, state, context.conversation.id),
+      });
+    } catch (err) {
+      if (!(err instanceof SlackApiError) || err.apiError !== 'message_not_found') throw err;
+      await this.retireLink(link);
+      throw new TerminalDeliveryError('slack_thread_missing');
+    }
+  }
+
+  private async retireLink(link: LinkRow): Promise<void> {
+    await this.db
+      .delete(schema.slackConversationLinks)
+      .where(eq(schema.slackConversationLinks.id, link.id));
   }
 
   private async loadParentState(context: ConversationContext): Promise<ParentState> {

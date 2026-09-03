@@ -107,6 +107,8 @@ Call `slack_send_test_message` — it posts a hello message to the default chann
 - Status changes, assignment, claim/release, and handover request/resolve as thread updates. When a conversation is closed, the parent's status line becomes a ":white_check_mark: *Conversation is resolved.*" banner (":no_entry_sign: *Marked as spam.*" for spam) until it is reopened.
 - Handover requests additionally alert the escalations channel (or the default channel) with the reason and the configured mention.
 
+Deleting a mirrored thread in Slack is allowed and needs no Munin-side cleanup: the deletion event drops the thread link, and an update that reaches a thread already gone posts nothing rather than falling back to the channel. The conversation starts a brand-new thread parent the next time something happens in it, so deleting a thread clears the mirror without stopping it.
+
 ## Approval notifications
 
 Items waiting on a human decision post with approve/dismiss buttons, and the message updates in place once the item is decided — from Slack, the dashboard, or an agent:

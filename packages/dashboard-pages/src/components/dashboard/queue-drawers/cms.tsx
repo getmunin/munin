@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { useFormatter, useTranslations } from 'next-intl';
-import { ChevronDown, ChevronUp, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { ApiError } from '../../../api';
 import {
   Button,
@@ -21,7 +21,6 @@ import {
 } from '@getmunin/ui';
 import { useRelative } from '../../../lib/use-relative';
 import {
-  DrawerFooter,
   DrawerHeader,
   DrawerLoadFailed,
   DrawerLoadingState,
@@ -31,6 +30,7 @@ import {
   useCmdEnter,
 } from './shared';
 import { NativeSelect } from '../../native-select';
+import { MoreActionsSheet, MoreActionsTrigger } from '../pane-more-actions';
 import { computePatch, defaultForField, seedBlock } from './cms-blocks';
 import {
   asBlock,
@@ -42,6 +42,7 @@ import {
   type CmsBlockTypeDef,
   type CmsDraftDetailDto,
   type CmsDraftSummaryDto,
+  type CmsPreviewLink,
   type CmsFieldDef,
 } from './types';
 
@@ -61,7 +62,9 @@ export function CmsQueueDrawer({
   onUploadAsset,
   onSchedule,
   onCancelScheduled,
-  onPreview,
+  previewLink,
+  onRetryPreview,
+  hideHeaderOnMobile,
   onClose,
 }: {
   item: { id: string; title: string; createdAt: string; raw: CmsDraftSummaryDto };
@@ -77,7 +80,9 @@ export function CmsQueueDrawer({
   onUploadAsset: (file: File) => Promise<CmsAssetExpanded>;
   onSchedule: (scheduledAt: string) => Promise<void>;
   onCancelScheduled?: () => void;
-  onPreview: () => void;
+  previewLink?: CmsPreviewLink;
+  onRetryPreview?: () => void;
+  hideHeaderOnMobile?: boolean;
   onClose?: () => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
@@ -97,12 +102,39 @@ export function CmsQueueDrawer({
   const [schedulerOpen, setSchedulerOpen] = useState(false);
   const [scheduledAt, setScheduledAt] = useState('');
   const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [view, setView] = useState<'preview' | 'read'>('preview');
+  const [previewState, setPreviewState] = useState<'loading' | 'ready' | 'failed'>('loading');
+
+  const previewUrl = previewLink?.url ?? null;
+  const embedUrl = previewUrl ? withEmbedParam(previewUrl) : null;
+  const showPreviewTab = !!previewUrl && !editing;
+
+  useEffect(() => {
+    setView('preview');
+    setPreviewState('loading');
+  }, [item.id, previewUrl]);
+
+  useEffect(() => {
+    if (!embedUrl || previewState !== 'loading') return;
+    const timer = setTimeout(() => {
+      setPreviewState('failed');
+      setView('read');
+    }, PREVIEW_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [embedUrl, previewState]);
 
   useEffect(() => {
     setEditing(false);
     setEditedData(initialData);
     setFieldErrors(EMPTY_FIELD_ERRORS);
   }, [item.id, initialData]);
+
+  const retryPreview = useCallback(() => {
+    setPreviewState('loading');
+    setView('preview');
+    onRetryPreview?.();
+  }, [onRetryPreview]);
 
   const inlineAssetReverse = useMemo(() => {
     const map = new Map<string, string>();
@@ -197,61 +229,149 @@ export function CmsQueueDrawer({
 
   return (
     <>
-      <DrawerHeader
-        pillTone="cms"
-        pillLabel={tQueue('kindCms')}
-        pillGlyph="cms"
-        title={item.title}
-        meta={t('metaCms', {
-          collection: item.raw.collectionName,
-          age: age(item.createdAt),
-        })}
-        rightExtra={readOnly ? <Pill tone="review">{t('scheduledPill')}</Pill> : undefined}
-        onClose={onClose}
-        closeLabel={t('close')}
-      />
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="flex min-h-full flex-col">
+          <DrawerHeader
+            pillTone="cms"
+            pillLabel={tQueue('kindCms')}
+            pillGlyph="cms"
+            title={item.title}
+            meta={t('metaCms', {
+              collection: item.raw.collectionName,
+              age: age(item.createdAt),
+            })}
+            rightExtra={readOnly ? <Pill tone="review">{t('scheduledPill')}</Pill> : undefined}
+            onClose={onClose}
+            closeLabel={t('close')}
+            className={hideHeaderOnMobile ? 'max-md:hidden' : undefined}
+          />
 
-      {detail ? (
-        <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
-          {readOnly && scheduledPublishAt && (
-            <ScheduledNotice
-              headline={t('scheduledCmsHeadline', {
-                when: format.dateTime(new Date(scheduledPublishAt), {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                }),
-              })}
-              detail={t('scheduledCmsDetail', { collection: item.raw.collectionName })}
-            />
+          {detail ? (
+            <>
+              {showPreviewTab ? (
+                <div className="flex shrink-0 items-center gap-5 border-b-[1px] border-rule-soft px-5 md:px-7 dark:border-rule-on-dark">
+                  <ViewTab
+                    active={view === 'preview'}
+                    warn={previewState === 'failed'}
+                    onSelect={() => setView('preview')}
+                  >
+                    {t('cmsViewPreview')}
+                  </ViewTab>
+                  <ViewTab active={view === 'read'} onSelect={() => setView('read')}>
+                    {t('cmsViewRead')}
+                  </ViewTab>
+                  <a
+                    href={previewUrl ?? undefined}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="ml-auto py-3 font-mono text-[9px] uppercase tracking-eyebrow text-cobalt hover:underline dark:text-cobalt-soft"
+                  >
+                    {t('cmsOpenPreview')} <span aria-hidden>↗</span>
+                  </a>
+                </div>
+              ) : null}
+
+              {showPreviewTab && view === 'preview' ? (
+                <div className="relative flex-1 min-h-[380px] overflow-hidden bg-bone dark:bg-secondary">
+                  {previewState !== 'ready' ? (
+                    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-bone dark:bg-secondary">
+                      <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+                        {t('cmsPreviewLoading')}
+                      </span>
+                    </div>
+                  ) : null}
+                  <iframe
+                    key={embedUrl ?? 'preview'}
+                    src={embedUrl ?? undefined}
+                    title={t('cmsPreviewTitle')}
+                    sandbox="allow-scripts allow-same-origin allow-popups"
+                    referrerPolicy="no-referrer"
+                    onLoad={(e) => {
+                      if (frameStayedBlank(e.currentTarget)) {
+                        setPreviewState('failed');
+                        setView('read');
+                        return;
+                      }
+                      setPreviewState('ready');
+                    }}
+                    onError={() => {
+                      setPreviewState('failed');
+                      setView('read');
+                    }}
+                    className={cn(
+                      'size-full border-0 bg-paper dark:bg-background',
+                      previewState !== 'ready' && 'opacity-0',
+                    )}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-6 px-5 py-5 md:px-7">
+                  {previewState === 'failed' && !editing ? (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-l-2 border-alert-bad-border bg-alert-bad px-3 py-2">
+                      <span className="flex min-w-0 flex-1 flex-col gap-1">
+                        <span className="font-mono text-[9px] uppercase tracking-eyebrow text-alert-bad-ink">
+                          {t('cmsPreviewFailedEyebrow')}
+                        </span>
+                        <span className="text-[13px] leading-relaxed text-ink dark:text-foreground">
+                          {t('cmsPreviewFailedBody')}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={retryPreview}
+                        className="shrink-0 font-mono text-[9px] uppercase tracking-eyebrow text-cobalt hover:underline dark:text-cobalt-soft"
+                      >
+                        {tCommon('retry')} <span aria-hidden>⟳</span>
+                      </button>
+                    </div>
+                  ) : null}
+                  {readOnly && scheduledPublishAt && (
+                    <ScheduledNotice
+                      headline={t('scheduledCmsHeadline', {
+                        when: format.dateTime(new Date(scheduledPublishAt), {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        }),
+                      })}
+                      detail={t('scheduledCmsDetail', { collection: item.raw.collectionName })}
+                    />
+                  )}
+                  {fields.map((field) => (
+                    <FieldSection
+                      key={field.name}
+                      field={field}
+                      value={editedData[field.name]}
+                      error={fieldErrors[field.name] ?? null}
+                      editing={editing}
+                      disabled={pending}
+                      hideInReadMode={field.name === item.raw.titleFieldName}
+                      onChange={(v) => setField(field.name, v)}
+                      onUploadAsset={onUploadAsset}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          ) : loadError !== undefined ? (
+            <div className="flex min-h-[320px] flex-1 flex-col">
+              <DrawerLoadFailed
+                eyebrow={t('loadFailedEyebrow')}
+                title={t('detailLoadFailed')}
+                reason={loadError}
+                retryLabel={tCommon('retry')}
+                retryingLabel={tCommon('retrying')}
+                onRetry={onRetry}
+              />
+            </div>
+          ) : (
+            <div className="flex min-h-[320px] flex-1 flex-col">
+              <DrawerLoadingState label={t('loading')} />
+            </div>
           )}
-          {fields.map((field) => (
-            <FieldSection
-              key={field.name}
-              field={field}
-              value={editedData[field.name]}
-              error={fieldErrors[field.name] ?? null}
-              editing={editing}
-              disabled={pending}
-              hideInReadMode={field.name === item.raw.titleFieldName}
-              onChange={(v) => setField(field.name, v)}
-              onUploadAsset={onUploadAsset}
-            />
-          ))}
         </div>
-      ) : loadError !== undefined ? (
-        <DrawerLoadFailed
-          eyebrow={t('loadFailedEyebrow')}
-          title={t('detailLoadFailed')}
-          reason={loadError}
-          retryLabel={tCommon('retry')}
-          retryingLabel={tCommon('retrying')}
-          onRetry={onRetry}
-        />
-      ) : (
-        <DrawerLoadingState label={t('loading')} />
-      )}
+      </div>
 
       {readOnly ? (
         loadFailed ? null : (
@@ -263,15 +383,22 @@ export function CmsQueueDrawer({
           />
         )
       ) : editing ? (
-        <DrawerFooter
-          primary={{
-            label: t('save'),
-            onClick: () => void saveEdit(),
-            disabled: pending || !dirty,
-          }}
-          secondary={[{ label: t('cancel'), onClick: cancelEdit }]}
-          shortcut={t('shortcutSave')}
-        />
+        <div className="flex flex-wrap items-center gap-2 border-t-[1px] border-rule-soft p-4 md:px-5 dark:border-rule-on-dark">
+          <Button
+            variant="accent"
+            onClick={() => void saveEdit()}
+            disabled={pending || !dirty}
+            className="max-md:h-11 max-md:flex-1"
+          >
+            {t('save')}
+          </Button>
+          <Button variant="ghost" onClick={cancelEdit} className="max-md:h-11 max-md:flex-1">
+            {t('cancel')}
+          </Button>
+          <span className="hidden font-mono text-[9px] uppercase tracking-meta text-ink-mute md:ml-auto md:inline">
+            {t('shortcutSave')}
+          </span>
+        </div>
       ) : loadFailed ? null : (
         <div className="border-t-[1px] border-rule-soft dark:border-rule-on-dark">
           <Dialog
@@ -332,50 +459,107 @@ export function CmsQueueDrawer({
               </form>
             </DialogContent>
           </Dialog>
-          <div className="flex items-center justify-between gap-2 px-6 py-3">
-            <div className="flex items-center gap-2">
-              <Button variant="accent" size="sm" onClick={onApprove} disabled={blocked}>
-                {t('cmsApprove')}
-              </Button>
-              <Button variant="outline" size="sm" onClick={onDismiss} disabled={blocked}>
-                {t('cmsDismiss')}
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      variant="outline"
-                      size="icon-sm"
-                      aria-label={t('cmsMoreMenu')}
-                      disabled={blocked}
-                    />
-                  }
-                >
-                  <MoreHorizontal className="size-3.5" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem
-                    disabled={blocked}
-                    onClick={() => setEditing(true)}
-                  >
-                    {t('edit')}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem disabled={blocked} onClick={openScheduler}>
-                    {t('cmsSchedule')}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem disabled={pending} onClick={onPreview}>
-                    {t('cmsPreview')}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+          <MoreActionsSheet
+            open={moreOpen}
+            onOpenChange={setMoreOpen}
+            actions={[
+              { label: t('edit'), disabled: blocked, run: () => setEditing(true) },
+              { label: t('cmsSchedule'), disabled: blocked, run: openScheduler },
+              { label: t('cmsDismiss'), disabled: blocked, run: onDismiss },
+            ]}
+          />
+          <div className="flex flex-wrap items-center gap-2 p-4 md:px-5">
+            <Button
+              variant="accent"
+              onClick={onApprove}
+              disabled={blocked}
+              className="max-md:h-11 max-md:flex-1"
+            >
+              {t('cmsApprove')} <span aria-hidden>→</span>
+            </Button>
+            <MoreActionsTrigger disabled={blocked} onOpen={() => setMoreOpen(true)} />
+            <Button
+              variant="outline"
+              onClick={() => setEditing(true)}
+              disabled={blocked}
+              className="max-md:hidden"
+            >
+              {t('edit')}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={openScheduler}
+              disabled={blocked}
+              className="max-md:hidden"
+            >
+              {t('cmsSchedule')}
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={onDismiss}
+              disabled={blocked}
+              className="max-md:hidden"
+            >
+              {t('cmsDismiss')}
+            </Button>
+            <span className="hidden font-mono text-[9px] uppercase tracking-meta text-ink-mute md:ml-auto md:inline">
               {t('shortcutCmsApprove')}
             </span>
           </div>
         </div>
       )}
     </>
+  );
+}
+
+const PREVIEW_TIMEOUT_MS = 15000;
+
+function frameStayedBlank(frame: HTMLIFrameElement): boolean {
+  try {
+    return frame.contentWindow?.location.href === 'about:blank';
+  } catch {
+    return false;
+  }
+}
+
+function withEmbedParam(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.set('munin_embed', '1');
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
+function ViewTab({
+  active,
+  warn,
+  onSelect,
+  children,
+}: {
+  active: boolean;
+  warn?: boolean;
+  onSelect: () => void;
+  children: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-current={active ? 'true' : undefined}
+      className={cn(
+        '-mb-px flex items-center gap-1.5 border-b-2 py-3 font-mono text-[9.5px] uppercase tracking-eyebrow transition-colors duration-fast',
+        active
+          ? 'border-cobalt text-ink dark:border-cobalt-soft dark:text-foreground'
+          : 'border-transparent text-ink-mute hover:text-ink dark:hover:text-foreground',
+      )}
+    >
+      {warn ? (
+        <span aria-hidden className="size-[6px] rounded-full bg-alert-bad-border" />
+      ) : null}
+      {children}
+    </button>
   );
 }
 

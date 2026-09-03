@@ -15,6 +15,7 @@ import {
 import { readMergeEvidence } from './merge-evidence';
 import type { QueueActionError } from './inbox-types';
 import { QueueActionErrorBanner } from './queue-action-error';
+import { MoreActionsSheet, MoreActionsTrigger } from './pane-more-actions';
 
 export type CrmQueueItem = {
   id: string;
@@ -56,6 +57,7 @@ export function ReviewCrmPane({
   const t = useTranslations('dashboard.console.review.crm');
   const age = useRelative();
   const [compareAll, setCompareAll] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const proposal = item.raw;
   const keeper =
@@ -82,19 +84,19 @@ export function ReviewCrmPane({
     <section className="flex min-h-0 flex-col overflow-y-auto bg-paper dark:bg-background">
       <div className="flex flex-1 flex-col gap-5 px-5 pb-8 pt-6 md:px-7">
         <header className="flex flex-col gap-2.5">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 max-md:hidden">
             <Pill tone="crm" marker="none">
               <ModuleGlyph kind="crm" className="size-[7px]" />
               {t('eyebrow')}
             </Pill>
-            <span className="border-[1.5px] border-cobalt px-[6px] py-[2px] font-mono text-[9px] uppercase tracking-eyebrow text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft">
+            <Pill tone="ink" marker="none">
               {t(proposal.confidence === 'high' ? 'confidenceHigh' : 'confidenceMedium')}
-            </span>
+            </Pill>
             <span className="ml-auto font-mono text-[9px] uppercase tracking-meta text-ink-mute">
               {age(item.createdAt)}
             </span>
           </div>
-          <h2 className="font-serif text-[26px] font-normal leading-[1.15] tracking-tight text-ink md:text-[29px] dark:text-foreground">
+          <h2 className="font-serif text-[26px] font-normal leading-[1.15] tracking-tight text-ink max-md:hidden md:text-[29px] dark:text-foreground">
             {label(keeper)}
             <span aria-hidden className="px-2 text-ink-mute">
               ⟷
@@ -237,15 +239,31 @@ export function ReviewCrmPane({
       </div>
 
       <div className="sticky bottom-0 border-t border-rule-soft bg-paper dark:border-rule-on-dark dark:bg-background">
+        <MoreActionsSheet
+          open={moreOpen}
+          onOpenChange={setMoreOpen}
+          actions={[{ label: t('dismiss'), disabled: pending, run: onDismiss }]}
+        />
         <QueueActionErrorBanner
           error={actionError?.itemId === item.id ? actionError : null}
           onDismiss={onClearActionError}
         />
-        <div className="flex flex-col flex-wrap items-stretch gap-2 p-4 md:flex-row md:items-center md:px-5">
-          <Button variant="accent" disabled={pending} onClick={onApprove} className="max-md:h-11">
+        <div className="flex flex-wrap items-center gap-2 p-4 md:px-5">
+          <Button
+            variant="accent"
+            disabled={pending}
+            onClick={onApprove}
+            className="max-md:h-11 max-md:flex-1"
+          >
             {t('apply')} <span aria-hidden>→</span>
           </Button>
-          <Button variant="ghost" disabled={pending} onClick={onDismiss} className="max-md:h-11">
+          <MoreActionsTrigger disabled={pending} onOpen={() => setMoreOpen(true)} />
+          <Button
+            variant="ghost"
+            disabled={pending}
+            onClick={onDismiss}
+            className="max-md:hidden"
+          >
             {t('dismiss')}
           </Button>
           <span className="hidden font-mono text-[9px] uppercase tracking-meta text-ink-mute md:ml-auto md:inline">

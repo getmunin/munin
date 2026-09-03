@@ -9,6 +9,7 @@ import { Markdown, ModuleGlyph, toDateTimeLocalValue, useCmdEnter } from './queu
 import { readOutreachEvidence, type OutreachProposalDto } from './queue-drawers/types';
 import type { QueueActionError } from './inbox-types';
 import { QueueActionErrorBanner } from './queue-action-error';
+import { MoreActionsSheet, MoreActionsTrigger } from './pane-more-actions';
 
 export type OutreachQueueItem = {
   id: string;
@@ -52,6 +53,7 @@ export function ReviewOutreachPane({
   const [choice, setChoice] = useState<SendChoice>('proposed');
   const [pickedAt, setPickedAt] = useState('');
   const [diffOpen, setDiffOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const diffRef = useRef<HTMLDivElement>(null);
 
   const proposedSendAt = useMemo(() => futureDate(proposal.proposedSendAt), [proposal.proposedSendAt]);
@@ -147,18 +149,18 @@ export function ReviewOutreachPane({
   return (
     <section className="flex min-h-0 flex-col overflow-y-auto bg-paper dark:bg-background">
       <div className="flex flex-1 flex-col gap-5 px-5 pb-8 pt-6 md:px-7">
-        <header className="flex flex-col gap-2.5">
+        <header className="flex flex-col gap-2.5 max-md:hidden">
           <div className="flex flex-wrap items-center gap-2">
             <Pill tone="out" marker="none">
               <ModuleGlyph kind="outreach" className="size-[7px]" />
               {t('eyebrow')}
             </Pill>
-            <span className="bg-ink px-[6px] py-[3px] font-mono text-[9px] uppercase tracking-eyebrow text-paper dark:bg-foreground dark:text-background">
+            <Pill tone="ink" marker="none" fill="solid">
               {t(`channel_${channelType}` as 'channel_email')}
-            </span>
-            <span className="border border-rule-soft px-[6px] py-[3px] font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute dark:border-rule-on-dark">
+            </Pill>
+            <Pill tone="draft" marker="none">
               {kindLabel}
-            </span>
+            </Pill>
             <span className="ml-auto font-mono text-[9px] uppercase tracking-meta text-ink-mute">
               {proposal.campaign?.name ?? t('campaignUnknown')} · {age(item.createdAt)}
             </span>
@@ -178,12 +180,14 @@ export function ReviewOutreachPane({
             <span className="font-mono text-[10.5px] tracking-meta text-ink dark:text-foreground">
               {destination}
             </span>
-          ) : (
-            <span className="border-l-2 border-alert-bad-border py-1 pl-3 text-[13px] leading-relaxed text-alert-bad-ink">
-              {t(isEmail ? 'noEmail' : 'noPhone')}
-            </span>
-          )}
+          ) : null}
         </header>
+
+        {destination ? null : (
+          <span className="border-l-2 border-alert-bad-border py-1 pl-3 text-[13px] leading-relaxed text-alert-bad-ink">
+            {t(isEmail ? 'noEmail' : 'noPhone')}
+          </span>
+        )}
 
         {proposal.revisedAfterReviewAt ? (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-l-2 border-alert-bad-border bg-alert-bad px-3 py-2">
@@ -394,22 +398,30 @@ export function ReviewOutreachPane({
       </div>
 
       <div className="sticky bottom-0 border-t border-rule-soft bg-paper dark:border-rule-on-dark dark:bg-background">
+        <MoreActionsSheet
+          open={moreOpen}
+          onOpenChange={setMoreOpen}
+          actions={[
+            { label: t('edit'), disabled: pending, run: () => setEditing(true) },
+            { label: t('dismiss'), disabled: pending, run: onDismiss },
+          ]}
+        />
         <QueueActionErrorBanner
           error={actionError?.itemId === item.id ? actionError : null}
           onDismiss={onClearActionError}
         />
-        <div className="flex flex-col flex-wrap items-stretch gap-2 p-4 md:flex-row md:items-center md:px-5">
+        <div className="flex flex-wrap items-center gap-2 p-4 md:px-5">
           {editing ? (
             <>
               <Button
                 variant="accent"
                 disabled={pending || !editedBody.trim()}
                 onClick={() => void saveEdit()}
-                className="max-md:h-11"
+                className="max-md:h-11 max-md:flex-1"
               >
                 {t('save')}
               </Button>
-              <Button variant="ghost" onClick={cancelEdit} className="max-md:h-11">
+              <Button variant="ghost" onClick={cancelEdit} className="max-md:h-11 max-md:flex-1">
                 {t('cancel')}
               </Button>
               <span className="hidden font-mono text-[9px] uppercase tracking-meta text-ink-mute md:ml-auto md:inline">
@@ -422,15 +434,16 @@ export function ReviewOutreachPane({
                 variant="accent"
                 disabled={pending || !destination || pickInvalid}
                 onClick={approve}
-                className="max-md:h-11"
+                className="max-md:h-11 max-md:flex-1"
               >
                 {approveLabel(choice, proposedSendAt, t, stamp)} <span aria-hidden>→</span>
               </Button>
+              <MoreActionsTrigger disabled={pending} onOpen={() => setMoreOpen(true)} />
               <Button
                 variant="outline"
                 disabled={pending}
                 onClick={() => setEditing(true)}
-                className="max-md:h-11"
+                className="max-md:hidden"
               >
                 {t('edit')}
               </Button>
@@ -438,7 +451,7 @@ export function ReviewOutreachPane({
                 variant="ghost"
                 disabled={pending}
                 onClick={onDismiss}
-                className="max-md:h-11"
+                className="max-md:hidden"
               >
                 {t('dismiss')}
               </Button>
@@ -498,7 +511,7 @@ function SendOption({
       />
       <span
         className={cn(
-          'shrink-0 text-[13.5px] text-ink dark:text-foreground',
+          'min-w-0 flex-1 text-[13.5px] leading-snug text-ink dark:text-foreground',
           !selected && 'text-ink-soft dark:text-foreground/70',
         )}
       >

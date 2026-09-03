@@ -11,6 +11,11 @@ const pillVariants = cva(
         dot: "before:content-[''] before:size-[5px] before:rounded-full before:bg-current",
         none: '',
       },
+      fill: {
+        none: '',
+        solid:
+          'bg-ink !text-paper border-ink dark:bg-foreground dark:!text-background dark:border-foreground',
+      },
       tone: {
         live: 'text-cobalt dark:text-cobalt-soft',
         draft: 'text-ink-mute',
@@ -28,7 +33,7 @@ const pillVariants = cva(
         false: '',
       },
     },
-    defaultVariants: { tone: 'ink', pulse: false, marker: 'dot' },
+    defaultVariants: { tone: 'ink', pulse: false, marker: 'dot', fill: 'none' },
   },
 );
 
@@ -36,11 +41,11 @@ interface PillProps
   extends React.ComponentProps<'span'>,
     VariantProps<typeof pillVariants> {}
 
-function Pill({ className, tone, pulse, marker, ...props }: PillProps) {
+function Pill({ className, tone, pulse, marker, fill, ...props }: PillProps) {
   return (
     <span
       data-slot="pill"
-      className={cn(pillVariants({ tone, pulse, marker }), className)}
+      className={cn(pillVariants({ tone, pulse, marker, fill }), className)}
       {...props}
     />
   );

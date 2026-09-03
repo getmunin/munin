@@ -159,7 +159,7 @@ function UserFooter({
 
   return (
     <div className="flex shrink-0 items-center gap-2.5 border-t border-rule-soft px-4 py-3.5 dark:border-rule-on-dark">
-      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-cobalt font-mono text-[8px] text-paper">
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-ink font-mono text-[8px] text-paper dark:bg-foreground dark:text-background">
         {initialsOf(name ?? null, email ?? '?')}
       </span>
       <span className="min-w-0 flex-1 truncate text-[15px] text-ink dark:text-foreground">

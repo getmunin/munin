@@ -31,8 +31,10 @@ function ClaimFace({
     <span
       title={claim.holderName ?? undefined}
       className={cn(
-        'flex size-[22px] shrink-0 items-center justify-center rounded-full font-mono text-[8px] text-paper',
-        isYou ? 'bg-cobalt' : 'bg-ink dark:bg-foreground dark:text-background',
+        'flex size-[22px] shrink-0 items-center justify-center rounded-full font-mono text-[8px]',
+        isYou
+          ? 'bg-ink text-paper dark:bg-foreground dark:text-background'
+          : 'bg-ink-mute text-ink',
       )}
     >
       {initialsOf(claim.holderName)}

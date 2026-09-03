@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@getmunin/ui';
 import { LoadFailed } from '../components/load-failed';
@@ -24,6 +24,7 @@ import { ReviewFirstRun, useSetupState } from '../components/first-run';
 
 const ROOT = '/dashboard/review';
 const FADE_FLOOR = 0.55;
+const SPLIT_BREAKPOINT = '(min-width: 768px)';
 
 export function ReviewPage({ selectedId = null }: { selectedId?: string | null }) {
   const t = useTranslations('dashboard.console.review');
@@ -34,6 +35,8 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
   const decisions = useCurationDecisions();
   const buildLoadFailedProps = useInboxLoadFailedProps();
   const { setQueueDrawer } = inbox;
+
+  const isDesktop = useIsDesktopSplit();
 
   const onListRoute = pathname === ROOT || pathname === `${ROOT}/`;
   const routeSelectedId =
@@ -106,11 +109,11 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
   useEffect(() => {
     if (routeSelectedId) return;
     if (!listLoaded) return;
+    if (!isDesktop) return;
     const first = listIds[0];
     if (!first) return;
-    if (!window.matchMedia('(min-width: 768px)').matches) return;
     select(first, true);
-  }, [routeSelectedId, listLoaded, listIds, select]);
+  }, [routeSelectedId, listLoaded, isDesktop, listIds, select]);
 
   const backAction = useMemo(() => {
     if (!routeSelectedId) return null;
@@ -228,9 +231,11 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
       >
         {!activeId ? (
           <section className="hidden min-h-0 flex-col items-start bg-paper-deep p-8 md:flex dark:bg-secondary">
-            <span className="font-mono text-[11px] uppercase tracking-eyebrow text-ink-mute">
-              {t('selectEmpty')}
-            </span>
+            {listIds.length > 0 ? (
+              <span className="font-mono text-[11px] uppercase tracking-eyebrow text-ink-mute">
+                {t('selectEmpty')}
+              </span>
+            ) : null}
           </section>
         ) : selectedBlocking ? (
           <ReviewBlockingPane
@@ -273,6 +278,20 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
       </div>
     </div>
   );
+}
+
+function useIsDesktopSplit(): boolean {
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia(SPLIT_BREAKPOINT);
+    const sync = () => setIsDesktop(query.matches);
+    sync();
+    query.addEventListener('change', sync);
+    return () => query.removeEventListener('change', sync);
+  }, []);
+
+  return isDesktop;
 }
 
 function EmptySection({ title, body }: { title: string; body: string }) {

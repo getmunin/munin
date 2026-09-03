@@ -19,6 +19,8 @@ export function ReviewBlockingPane({
   const {
     pending,
     cmsDetails,
+    cmsPreviewLinks,
+    reloadCmsPreviewLink,
     outreachDetails,
     queueDetailErrors,
     reloadQueueDetail,
@@ -29,7 +31,6 @@ export function ReviewBlockingPane({
     saveQueue,
     saveCmsDraft,
     uploadCmsAsset,
-    previewCmsDraft,
     scheduleQueue,
   } = controller;
 
@@ -79,7 +80,11 @@ export function ReviewBlockingPane({
         onSaveCmsDraft={(data) => saveCmsDraft(item, data)}
         onUploadCmsAsset={(file) => uploadCmsAsset(item, file)}
         onSchedule={(scheduledAt) => scheduleQueue(item, scheduledAt)}
-        onPreview={() => void previewCmsDraft(item)}
+        previewLink={item.kind === 'cms' ? cmsPreviewLinks[item.id] : undefined}
+        onRetryPreview={
+          item.kind === 'cms' ? () => void reloadCmsPreviewLink(item.id) : undefined
+        }
+        hideHeaderOnMobile
       />
     </section>
   );

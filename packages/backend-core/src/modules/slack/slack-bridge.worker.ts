@@ -1014,18 +1014,32 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
             .limit(1)
         )[0]
       : undefined;
+    const endUser = conversation.endUserId
+      ? (
+          await this.db
+            .select({
+              name: schema.endUsers.name,
+              email: schema.endUsers.email,
+              phone: schema.endUsers.phone,
+            })
+            .from(schema.endUsers)
+            .where(eq(schema.endUsers.id, conversation.endUserId))
+            .limit(1)
+        )[0]
+      : undefined;
 
+    const phone = contact?.phone ?? endUser?.phone ?? null;
     const snapshot: ConversationSnapshot = {
       displayId: conversation.displayId,
       subject: conversation.subject,
       channelType: channel?.type ?? 'unknown',
       channelName: channel?.name ?? null,
-      contactName: contact?.name ?? null,
-      contactEmail: contact?.email ?? null,
-      contactPhone: contact?.phone ? formatPhoneNumber(contact.phone) : null,
+      contactName: contact?.name ?? endUser?.name ?? null,
+      contactEmail: contact?.email ?? endUser?.email ?? null,
+      contactPhone: phone ? formatPhoneNumber(phone) : null,
       dashboardUrl: `${readWebBaseUrl()}/dashboard`,
     };
-    return { conversation, contact: contact ?? null, snapshot };
+    return { conversation, snapshot };
   }
 
   private async authorName(
@@ -1035,10 +1049,8 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
   ): Promise<string | null> {
     if (kind === 'user') return await this.userName(authorId);
     if (kind === 'end_user') {
-      if (context.contact?.name) return context.contact.name;
-      if (context.contact?.email) return context.contact.email;
-      if (context.contact?.phone) return formatPhoneNumber(context.contact.phone);
-      return null;
+      const { contactName, contactEmail, contactPhone } = context.snapshot;
+      return contactName ?? contactEmail ?? contactPhone ?? null;
     }
     if (kind === 'agent') {
       const [assistant] = await this.db
@@ -1112,7 +1124,6 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
 
 interface ConversationContext {
   conversation: typeof schema.convConversations.$inferSelect;
-  contact: typeof schema.convContacts.$inferSelect | null;
   snapshot: ConversationSnapshot;
 }
 

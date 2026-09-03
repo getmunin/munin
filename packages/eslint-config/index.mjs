@@ -29,6 +29,12 @@ export default tseslint.config(
     },
   },
   {
+    files: ['**/*.test.{ts,tsx,mts}', '**/*.spec.{ts,tsx,mts}', '**/test/**/*.{ts,tsx,mts}'],
+    rules: {
+      '@typescript-eslint/unbound-method': 'off',
+    },
+  },
+  {
     files: ['**/*.{jsx,tsx}'],
     plugins: { 'react-hooks': reactHooks },
     rules: {

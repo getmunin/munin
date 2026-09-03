@@ -29,24 +29,24 @@
     "@getmunin/types": "workspace:*",
     "@getmunin/ui": "workspace:*",
     "@modelcontextprotocol/client": "2.0.0",
-    "@modelcontextprotocol/ext-apps": "^1.7.4",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-markdown": "^9.0.0",
-    "remark-gfm": "^4.0.0"
+    "@modelcontextprotocol/ext-apps": "^1.7.5",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-markdown": "^9.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@getmunin/eslint-config": "workspace:*",
     "@getmunin/tsconfig": "workspace:*",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^4.3.4",
-    "autoprefixer": "^10.4.20",
-    "eslint": "^9.10.0",
-    "postcss": "^8.5.18",
-    "tailwindcss": "^3.4.13",
-    "typescript": "^5.6.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10.5.4",
+    "eslint": "^9.39.5",
+    "postcss": "^8.5.26",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3",
     "vite": "^6.4.3",
-    "vite-plugin-singlefile": "^2.1.0"
+    "vite-plugin-singlefile": "^2.3.3"
   }
 }

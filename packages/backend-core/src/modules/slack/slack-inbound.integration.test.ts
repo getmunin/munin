@@ -308,6 +308,68 @@ class FakeSlackApi extends SlackApiClient {
     expect(api.ephemerals).toHaveLength(0);
   });
 
+  it('drops the thread link when the mirrored parent is deleted in Slack', async () => {
+    await inbound.processEventCallback({
+      type: 'event_callback',
+      event: {
+        type: 'message',
+        subtype: 'message_deleted',
+        channel: CHANNEL,
+        ts: '1750000009.000001',
+        deleted_ts: THREAD_TS,
+      },
+    });
+
+    const links = await db
+      .select()
+      .from(schema.slackConversationLinks)
+      .where(eq(schema.slackConversationLinks.conversationId, conversationId));
+    expect(links).toHaveLength(0);
+  });
+
+  it('keeps the thread link when some other message in the channel is deleted', async () => {
+    const [mirrored] = await db
+      .insert(schema.convMessages)
+      .values({
+        orgId,
+        conversationId,
+        authorType: 'agent',
+        authorId: 'agt_inbound_test',
+        body: 'mirrored reply',
+      })
+      .returning();
+    await db.insert(schema.slackMessageLinks).values({
+      orgId,
+      conversationId,
+      messageId: mirrored!.id,
+      slackChannelId: CHANNEL,
+      slackTs: '1750000000.000200',
+      origin: 'mirrored',
+    });
+
+    await inbound.processEventCallback({
+      type: 'event_callback',
+      event: {
+        type: 'message',
+        subtype: 'message_deleted',
+        channel: CHANNEL,
+        ts: '1750000009.000002',
+        deleted_ts: '1750000000.000200',
+      },
+    });
+
+    const links = await db
+      .select()
+      .from(schema.slackConversationLinks)
+      .where(eq(schema.slackConversationLinks.conversationId, conversationId));
+    expect(links).toHaveLength(1);
+    const messageLinks = await db
+      .select()
+      .from(schema.slackMessageLinks)
+      .where(eq(schema.slackMessageLinks.conversationId, conversationId));
+    expect(messageLinks).toHaveLength(0);
+  });
+
   it('rejects file-only replies and warns when files ride along with text', async () => {
     const [member] = await db
       .select({ email: schema.users.email })

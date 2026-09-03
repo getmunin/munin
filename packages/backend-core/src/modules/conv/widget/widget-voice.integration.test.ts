@@ -311,6 +311,50 @@ const skipReason = TEST_URL
     expect(JSON.stringify(json)).toContain('conversation_session_mismatch');
   });
 
+  it('rejects voice/start on an identity-claimed conversation from a caller presenting no identity', async () => {
+    const [claimedEndUser] = await db
+      .insert(schema.endUsers)
+      .values({ orgId, externalId: 'eu-claimed-wv', name: 'Claimed' })
+      .returning();
+    const [claimedContact] = await db
+      .insert(schema.convContacts)
+      .values({
+        orgId,
+        endUserId: claimedEndUser!.id,
+        name: 'Claimed',
+        metadata: { externalId: 'eu-claimed-wv' },
+      })
+      .returning();
+    const [claimedConv] = await db
+      .insert(schema.convConversations)
+      .values({
+        orgId,
+        displayId: 990,
+        channelId: widgetChannelId,
+        contactId: claimedContact!.id,
+        endUserId: claimedEndUser!.id,
+        status: 'open',
+        metadata: { sessionId: 'claimed_session_wv' },
+      })
+      .returning();
+
+    try {
+      const { status, json } = await call({
+        channelId: widgetChannelId,
+        conversationId: claimedConv!.id,
+        sessionId: 'claimed_session_wv',
+      });
+      expect(status).toBe(403);
+      expect(JSON.stringify(json)).toContain('conversation_identity_mismatch');
+    } finally {
+      await db
+        .delete(schema.convConversations)
+        .where(eq(schema.convConversations.id, claimedConv!.id));
+      await db.delete(schema.convContacts).where(eq(schema.convContacts.id, claimedContact!.id));
+      await db.delete(schema.endUsers).where(eq(schema.endUsers.id, claimedEndUser!.id));
+    }
+  });
+
   it('rejects when the bound widget channel has been deactivated', async () => {
     await db
       .update(schema.convChannels)

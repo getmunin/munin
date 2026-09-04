@@ -1,5 +1,23 @@
 # @getmunin/docs-pages
 
+## 5.15.0
+
+### Patch Changes
+
+- 3252cd1: Bump Next.js to 16.3.4 and other dependencies to their latest compatible minor/patch versions.
+- Updated dependencies [3252cd1]
+- Updated dependencies [e85d6d1]
+- Updated dependencies [4fae13c]
+- Updated dependencies [776cec6]
+- Updated dependencies [bbbb395]
+- Updated dependencies [ef6e40e]
+- Updated dependencies [2122850]
+- Updated dependencies [a5145ad]
+- Updated dependencies [5f4e118]
+- Updated dependencies [c4bd6f4]
+  - @getmunin/backend-core@5.15.0
+  - @getmunin/types@5.15.0
+
 ## 5.14.0
 
 ### Patch Changes
@@ -89,9 +107,9 @@ it pt nl pl cs sk hu ro`.
 - d1ad5a5: Restore the spaces that vanished after inline `<code>`/`<em>`/`<strong>` in the guide prose.
 
   Seven guides rendered joined-up words — "Open \_Choose tools*on the connection's menu", "must not
-  take an `email` or `customerId`argument", "**All spoofable.**Anyone can send mail". The space was in
+  take an `email` or `customerId`argument", "**All spoofable.*_Anyone can send mail". The space was in
   the source; Next's bundled SWC dropped it. A multi-line JSX text run whose text contains an HTML
-  entity (`&rsquo;`, `&quot;`, `&lt;`, …) loses its \_leading* space during the entity decode — the
+  entity (`&rsquo;`, `&quot;`, `&lt;`, …) loses its \_leading_ space during the entity decode — the
   trailing space survives, a single-line run survives, and the same source compiled with upstream
   `@swc/core` keeps it, so this only shows up in a Next build. It reproduces on both 16.2.12 (OSS
   `apps/web`) and 16.2.6 (cloud marketing), and there is nothing in the source to hint at it: the

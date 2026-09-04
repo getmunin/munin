@@ -1,5 +1,13 @@
 # @getmunin/db
 
+## 5.15.0
+
+### Patch Changes
+
+- 3252cd1: Bump Next.js to 16.3.4 and other dependencies to their latest compatible minor/patch versions.
+- Updated dependencies [3252cd1]
+  - @getmunin/types@5.15.0
+
 ## 5.14.0
 
 ### Minor Changes

@@ -14,6 +14,7 @@ import {
   setEncryptionKeySql,
   SsrfBlockedError,
 } from '@getmunin/core';
+import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import {
   EmailChannelConfigInput,
@@ -47,15 +48,21 @@ export interface EmailChannelConfigDto {
         password: typeof REDACTED_PASSWORD;
         trackOpens?: boolean;
       };
-  inbound?: {
-    provider: 'imap';
-    host: string;
-    port: number;
-    secure: boolean;
-    username: string;
-    password: typeof REDACTED_PASSWORD;
-    mailbox?: string;
-  };
+  inbound?:
+    | {
+        provider: 'imap';
+        host: string;
+        port: number;
+        secure: boolean;
+        username: string;
+        password: typeof REDACTED_PASSWORD;
+        mailbox?: string;
+      }
+    | {
+        provider: 'relay';
+        address: string;
+        allowedForwarders?: string[];
+      };
   sendLimits?: SendLimits;
 }
 
@@ -84,6 +91,12 @@ const StoredImapInboundSchema = z.object({
   mailbox: z.string().optional(),
 });
 
+const StoredRelayInboundSchema = z.object({
+  provider: z.literal('relay'),
+  address: z.string(),
+  allowedForwarders: z.array(z.string()).optional(),
+});
+
 export const StoredEmailChannelConfigSchema = z.object({
   addressing: z.object({
     fromAddress: z.string(),
@@ -94,11 +107,59 @@ export const StoredEmailChannelConfigSchema = z.object({
     StoredSmtpOutboundSchema,
     StoredMailerOutboundSchema,
   ]),
-  inbound: StoredImapInboundSchema.optional(),
+  inbound: z
+    .discriminatedUnion('provider', [StoredImapInboundSchema, StoredRelayInboundSchema])
+    .optional(),
   sendLimits: SendLimitsSchema.optional(),
 });
 
 export type StoredEmailChannelConfig = z.infer<typeof StoredEmailChannelConfigSchema>;
+
+export type StoredImapInbound = z.infer<typeof StoredImapInboundSchema>;
+
+export type StoredRelayInbound = z.infer<typeof StoredRelayInboundSchema>;
+
+export function imapInbound(
+  stored: StoredEmailChannelConfig,
+): StoredImapInbound | null {
+  return stored.inbound?.provider === 'imap' ? stored.inbound : null;
+}
+
+export function relayInbound(
+  stored: StoredEmailChannelConfig,
+): StoredRelayInbound | null {
+  return stored.inbound?.provider === 'relay' ? stored.inbound : null;
+}
+
+export function readRelayDomain(): string | null {
+  const raw = process.env.MUNIN_EMAIL_RELAY_DOMAIN?.trim().toLowerCase();
+  return raw ? raw.replace(/^@/, '') : null;
+}
+
+export function relayInboundAvailable(): boolean {
+  return readRelayDomain() !== null && !!process.env.MUNIN_EMAIL_RELAY_SECRET?.trim();
+}
+
+export function mintRelayAddress(domain: string): string {
+  return `${randomBytes(8).toString('hex')}@${domain}`;
+}
+
+export function readMailerSendingDomains(): string[] {
+  const raw = process.env.MUNIN_MAIL_SENDING_DOMAINS?.trim();
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((d) => d.trim().toLowerCase().replace(/^@/, ''))
+    .filter(Boolean);
+}
+
+export function mailerCanSendAs(address: string): boolean {
+  const allowed = readMailerSendingDomains();
+  if (allowed.length === 0) return true;
+  const domain = address.split('@')[1]?.trim().toLowerCase();
+  if (!domain) return false;
+  return allowed.some((entry) => domain === entry || domain.endsWith(`.${entry}`));
+}
 
 @Injectable()
 export class EmailService {
@@ -106,7 +167,12 @@ export class EmailService {
     if (input.outbound.provider === 'smtp') {
       await assertReachableMailHost('SMTP', input.outbound.host);
     }
-    if (input.inbound) {
+    if (input.outbound.provider === 'mailer' && !mailerCanSendAs(input.addressing.fromAddress)) {
+      throw new BadRequestException(
+        `conv_invalid: this instance cannot send as ${input.addressing.fromAddress} — shared-mailer sending is limited to ${readMailerSendingDomains().join(', ')}. Use outbound.provider "smtp" with your own credentials, or set fromAddress to a domain this instance is authorised to send as.`,
+      );
+    }
+    if (input.inbound?.provider === 'imap') {
       await assertReachableMailHost('IMAP', input.inbound.host);
     }
     const out: StoredEmailChannelConfig = {
@@ -133,7 +199,7 @@ export class EmailService {
                 : {}),
             },
     };
-    if (input.inbound) {
+    if (input.inbound?.provider === 'imap') {
       out.inbound = {
         provider: 'imap',
         host: input.inbound.host,
@@ -144,6 +210,20 @@ export class EmailService {
           ? await encryptString(input.inbound.password)
           : '',
         mailbox: input.inbound.mailbox,
+      };
+    } else if (input.inbound?.provider === 'relay') {
+      const domain = readRelayDomain();
+      if (!domain) {
+        throw new BadRequestException(
+          'conv_invalid: forwarding inbound is not available on this instance — MUNIN_EMAIL_RELAY_DOMAIN is not configured',
+        );
+      }
+      out.inbound = {
+        provider: 'relay',
+        address: mintRelayAddress(domain),
+        ...(input.inbound.allowedForwarders?.length
+          ? { allowedForwarders: input.inbound.allowedForwarders.map((h) => h.toLowerCase()) }
+          : {}),
       };
     }
     if (input.sendLimits) {
@@ -178,7 +258,7 @@ export class EmailService {
                 : {}),
             },
     };
-    if (stored.inbound) {
+    if (stored.inbound?.provider === 'imap') {
       out.inbound = {
         provider: 'imap',
         host: stored.inbound.host,
@@ -187,6 +267,14 @@ export class EmailService {
         username: stored.inbound.username,
         password: REDACTED_PASSWORD,
         mailbox: stored.inbound.mailbox,
+      };
+    } else if (stored.inbound?.provider === 'relay') {
+      out.inbound = {
+        provider: 'relay',
+        address: stored.inbound.address,
+        ...(stored.inbound.allowedForwarders?.length
+          ? { allowedForwarders: [...stored.inbound.allowedForwarders] }
+          : {}),
       };
     }
     if (stored.sendLimits) out.sendLimits = { ...stored.sendLimits };
@@ -209,7 +297,7 @@ export class EmailService {
     if (stored.outbound.provider === 'smtp') {
       fields.push({ key: 'smtpPassword', label: 'SMTP password', required: true });
     }
-    if (stored.inbound) {
+    if (stored.inbound?.provider === 'imap') {
       fields.push({ key: 'imapPassword', label: 'IMAP password', required: true });
     }
     if (fields.length === 0) return null;
@@ -235,7 +323,7 @@ export class EmailService {
     if (secrets.smtpPassword && stored.outbound.provider === 'smtp') {
       stored.outbound.encryptedPassword = await encryptString(secrets.smtpPassword);
     }
-    if (secrets.imapPassword && stored.inbound) {
+    if (secrets.imapPassword && stored.inbound?.provider === 'imap') {
       stored.inbound.encryptedPassword = await encryptString(secrets.imapPassword);
     }
     const activate = wasPending && !needsCredentials(stored);
@@ -405,11 +493,15 @@ export class EmailService {
       merged.outbound.encryptedPassword = prev.outbound.encryptedPassword;
     }
     if (
-      merged.inbound &&
+      merged.inbound?.provider === 'imap' &&
       merged.inbound.encryptedPassword === '' &&
-      prev.inbound?.encryptedPassword
+      prev.inbound?.provider === 'imap' &&
+      prev.inbound.encryptedPassword
     ) {
       merged.inbound.encryptedPassword = prev.inbound.encryptedPassword;
+    }
+    if (merged.inbound?.provider === 'relay' && prev.inbound?.provider === 'relay') {
+      merged.inbound.address = prev.inbound.address;
     }
     return merged;
   }
@@ -520,7 +612,7 @@ async function encryptString(plaintext: string): Promise<string> {
 
 export function needsCredentials(stored: StoredEmailChannelConfig): boolean {
   if (stored.outbound.provider === 'smtp' && !stored.outbound.encryptedPassword) return true;
-  if (stored.inbound && !stored.inbound.encryptedPassword) return true;
+  if (stored.inbound?.provider === 'imap' && !stored.inbound.encryptedPassword) return true;
   return false;
 }
 
@@ -529,7 +621,9 @@ function assertNoSecrets(config: EmailChannelConfigInputT): void {
   if (config.outbound.provider === 'smtp' && config.outbound.password) {
     provided.push('outbound.password');
   }
-  if (config.inbound?.password) provided.push('inbound.password');
+  if (config.inbound?.provider === 'imap' && config.inbound.password) {
+    provided.push('inbound.password');
+  }
   if (provided.length > 0) {
     throw new BadRequestException(
       `conv_invalid: secret fields (${provided.join(', ')}) cannot be accepted through this tool — omit them, and a one-time credential link is returned for a human to enter them in the dashboard`,

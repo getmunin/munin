@@ -2502,6 +2502,28 @@
         ]
       }
     },
+    "/v1/conversations/channels/email/capabilities": {
+      "get": {
+        "operationId": "ConvChannelsController_emailCapabilities",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/channels": {
       "post": {
         "operationId": "ConvChannelsController_configureChannel",
@@ -6663,6 +6685,21 @@
         "security": []
       }
     },
+    "/v1/conversations/email/relay": {
+      "post": {
+        "operationId": "EmailRelayController_receive",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "EmailRelay"
+        ],
+        "security": []
+      }
+    },
     "/v1/credentials": {
       "get": {
         "operationId": "CredentialHandoffController_describe",
@@ -8093,45 +8130,71 @@
                 ]
               },
               "inbound": {
-                "type": "object",
-                "properties": {
-                  "provider": {
-                    "type": "string",
-                    "const": "imap"
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "const": "imap"
+                      },
+                      "host": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 253,
+                        "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
+                      },
+                      "port": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                      },
+                      "secure": {
+                        "type": "boolean"
+                      },
+                      "username": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "password": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "mailbox": {
+                        "type": "string",
+                        "maxLength": 120
+                      }
+                    },
+                    "required": [
+                      "provider",
+                      "host",
+                      "port",
+                      "secure",
+                      "username"
+                    ]
                   },
-                  "host": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 253,
-                    "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
-                  },
-                  "port": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 65535
-                  },
-                  "secure": {
-                    "type": "boolean"
-                  },
-                  "username": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "password": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "mailbox": {
-                    "type": "string",
-                    "maxLength": 120
+                  {
+                    "type": "object",
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "const": "relay"
+                      },
+                      "allowedForwarders": {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 253,
+                          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
+                        }
+                      }
+                    },
+                    "required": [
+                      "provider"
+                    ]
                   }
-                },
-                "required": [
-                  "provider",
-                  "host",
-                  "port",
-                  "secure",
-                  "username"
                 ]
               },
               "sendLimits": {

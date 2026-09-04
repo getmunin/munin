@@ -12,6 +12,8 @@ import { EmailService } from './email/email.service.ts';
 import { EmailAdminTools } from './email/email.tools.ts';
 import { EmailChannelProbe } from './email/email-probe.service.ts';
 import { EmailAdapter } from './email/email-adapter.ts';
+import { EmailRelayService } from './email/email-relay.service.ts';
+import { EmailRelayController } from './email/email-relay.controller.ts';
 import { CHANNEL_ADAPTERS } from './channels/adapter.ts';
 import {
   CHANNEL_ADMIN_PROVIDERS,
@@ -76,7 +78,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     CredentialHandoffModule,
     ConnectorsModule,
   ],
-  controllers: [WidgetController, ChannelWebhookController],
+  controllers: [WidgetController, ChannelWebhookController, EmailRelayController],
   providers: [
     ConvService,
     ConvSchedulerService,
@@ -90,6 +92,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     ChannelCredentialService,
     ChannelCredentialTools,
     EmailAdapter,
+    EmailRelayService,
     ChannelIngestService,
     InboundPollWorker,
     OutboundDeliveryWorker,
@@ -178,6 +181,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     EmailChannelProbe,
     ChannelReactivationService,
     EmailAdapter,
+    EmailRelayService,
     EmailAdminTools,
     MessageBirdClientService,
     MessageBirdSmsService,

@@ -130,6 +130,25 @@ export { AgentRunnerSupportModule } from './agent/agent-runner-support.module.ts
 export { ControlModule } from './control/control.module.ts';
 export { KbModule } from './modules/kb/kb.module.ts';
 export { ConvModule } from './modules/conv/conv.module.ts';
+export {
+  SendingIdentityProviderModule,
+  type SendingIdentityProviderModuleOptions,
+} from './modules/conv/sending-identities/sending-identity-provider.module.ts';
+export {
+  SENDING_IDENTITY_PROVIDER,
+  type SendingIdentityProvider,
+  type SendingIdentityKeyMaterial,
+  type SendingIdentityProvisionResult,
+  type SendingIdentityRefreshResult,
+  type SendingIdentityStatus,
+} from './modules/conv/sending-identities/provider.ts';
+export {
+  dkimDnsRecord,
+  dkimRecordName,
+  dkimRecordValue,
+  stripPem,
+  type SendingIdentityDnsRecord,
+} from './modules/conv/sending-identities/dkim-key.ts';
 export { CrmModule } from './modules/crm/crm.module.ts';
 export { CmsModule } from './modules/cms/cms.module.ts';
 export { RateLimitModule } from './common/rate-limit/rate-limit.module.ts';

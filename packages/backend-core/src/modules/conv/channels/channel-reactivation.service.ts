@@ -8,7 +8,7 @@ import type { StoredEmailChannelConfig } from '../email/email.service.ts';
 import { ConvService } from '../conv.service.ts';
 
 export interface EmailChannelTester {
-  test(config: StoredEmailChannelConfig): Promise<EmailProbeResult>;
+  test(config: StoredEmailChannelConfig, orgId?: string): Promise<EmailProbeResult>;
 }
 
 export interface ChannelActivator {
@@ -50,13 +50,13 @@ export class ChannelReactivationService {
 
     let probe: EmailProbeResult;
     try {
-      probe = await this.probe.test(stored);
+      probe = await this.probe.test(stored, channel.orgId);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn(`reactivation probe threw for channel=${channelId}: ${message}`);
       return { active: false, probe: { smtp: `error: ${message}`, imap: `error: ${message}` } };
     }
-    if (probe.smtp !== 'ok' || probe.imap.startsWith('error')) {
+    if (probe.smtp.startsWith('error') || probe.imap.startsWith('error')) {
       return { active: false, probe };
     }
     await this.conv.setChannelActive(channelId, true);

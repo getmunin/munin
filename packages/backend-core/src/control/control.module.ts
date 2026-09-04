@@ -22,6 +22,7 @@ import { KbModule } from '../modules/kb/kb.module.ts';
 import { CuratorModule } from '../modules/curator/curator.module.ts';
 import { CuratorJobsController } from './curator-jobs.controller.ts';
 import { ConvChannelsController } from './conv-channels.controller.ts';
+import { ConvSendingIdentitiesController } from './conv-sending-identities.controller.ts';
 import { KbCandidatesController, KbSpacesController } from './kb-candidates.controller.ts';
 import { KbTransferController } from './kb-transfer.controller.ts';
 import { CrmTransferController } from './crm-transfer.controller.ts';
@@ -97,6 +98,7 @@ import { ConnectorsModule } from '../modules/connectors/connectors.module.ts';
     PublicMcpToolsController,
     ConnectorJwksController,
     ConvChannelsController,
+    ConvSendingIdentitiesController,
     ConversationsController,
     ActivityController,
     EndUserConversationsController,

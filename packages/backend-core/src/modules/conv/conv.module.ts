@@ -12,6 +12,10 @@ import { EmailService } from './email/email.service.ts';
 import { EmailAdminTools } from './email/email.tools.ts';
 import { EmailChannelProbe } from './email/email-probe.service.ts';
 import { EmailAdapter } from './email/email-adapter.ts';
+import { SendingIdentityService } from './sending-identities/sending-identity.service.ts';
+import { SendingIdentityAdminTools } from './sending-identities/sending-identity.tools.ts';
+import { SendingIdentityRefreshWorker } from './sending-identities/sending-identity-refresh.worker.ts';
+
 import { CHANNEL_ADAPTERS } from './channels/adapter.ts';
 import {
   CHANNEL_ADMIN_PROVIDERS,
@@ -90,6 +94,9 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     ChannelCredentialService,
     ChannelCredentialTools,
     EmailAdapter,
+    SendingIdentityService,
+    SendingIdentityAdminTools,
+    SendingIdentityRefreshWorker,
     ChannelIngestService,
     InboundPollWorker,
     OutboundDeliveryWorker,
@@ -173,6 +180,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
   exports: [
     OUTREACH_VOICE_CALLERS,
     ConvService,
+    SendingIdentityService,
     ConversationClaimsService,
     EmailService,
     EmailChannelProbe,

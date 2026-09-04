@@ -634,7 +634,38 @@
         "sendLimitsHelp": "Beskytter omdømmet til domenet. Meldinger over grensen blir stående i køen og sendes automatisk når det er kapasitet igjen.",
         "sendLimitsPlaceholder": "ingen grense",
         "perDayMax": "Maks per dag (rullende 24 t)",
-        "perHourMax": "Maks per time (rullende 60 min)"
+        "perHourMax": "Maks per time (rullende 60 min)",
+        "outboundModeLabel": "Hvordan utgående e-post sendes",
+        "outboundModeSmtp": "Gjennom min egen SMTP-server",
+        "outboundModeIdentity": "Av Munin, signert som mitt domene",
+        "outboundModeHint": {
+          "smtp": "Munin leverer hver melding til e-postserveren din, som sender og signerer den. Du oppgir vert og påloggingsdetaljer.",
+          "identity": "Munin sender meldingen selv, signert som ditt domene. Du publiserer én DNS-oppføring for å bevise at domenet er ditt — ingen server eller passord nødvendig."
+        },
+        "identity": {
+          "label": "Domeneverifisering",
+          "needsFromAddress": "Oppgi en avsenderadresse først — domenet hentes fra den.",
+          "notStarted": "Munin må bevise at den kan sende som {domain}. Sett det opp for å få DNS-oppføringen du skal publisere.",
+          "setUp": "Sett opp {domain}",
+          "settingUp": "Setter opp…",
+          "statusPending": "Venter på DNS",
+          "statusVerified": "Verifisert",
+          "statusFailed": "Feilet",
+          "verifiedBody": "{domain} er verifisert. Denne kanalen kan sende fra enhver adresse på domenet.",
+          "pendingBody": "Publiser denne DNS-oppføringen for {domain}, og sjekk igjen. Propagering kan ta opptil 72 timer.",
+          "recordName": "Navn på {type}-oppføring",
+          "recordValue": "Verdi",
+          "recordHint": "Noen DNS-leverandører legger til domenet automatisk — hvis din gjør det, oppgi kun delen foran.",
+          "checkNow": "Sjekk nå",
+          "checking": "Sjekker…",
+          "stillPending": "DNS-oppføringen er ikke funnet ennå.",
+          "verifiedNotice": "{domain} er verifisert",
+          "mismatch": "Denne kanalen sender som {address}, men det verifiserte domenet er {domain}.",
+          "errors": {
+            "setUp": "Kunne ikke sette opp domenet.",
+            "check": "Kunne ikke sjekke domenet."
+          }
+        }
       },
       "addSmsDialog": {
         "title": "Legg til en SMS-kanal",

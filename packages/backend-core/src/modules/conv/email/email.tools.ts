@@ -97,7 +97,7 @@ export class EmailAdminTools {
       .limit(1);
     const channel = rows[0];
     if (!channel) throw new NotFoundException(`channel ${args.channelId} not found`);
-    return this.probe.test(jsonbToStored(channel.config));
+    return this.probe.test(jsonbToStored(channel.config), channel.orgId);
   }
 
   @McpTool({

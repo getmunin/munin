@@ -38,6 +38,20 @@ CREATE POLICY tenant_isolation ON conv_channels
   USING (app_bypass_rls() OR org_id = app_org_id())
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 
+-- Sending identities: the org's verified sending domains and the DKIM private
+-- key we sign their mail with. Writes reject end-user actors — a self-service
+-- session must never be able to add a sending domain or read a signing key.
+-- The refresh worker runs under app_bypass_rls on a service-role connection.
+ALTER TABLE conv_sending_identities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conv_sending_identities FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON conv_sending_identities;
+CREATE POLICY tenant_isolation ON conv_sending_identities
+  USING (app_bypass_rls() OR org_id = app_org_id())
+  WITH CHECK (
+    app_bypass_rls()
+    OR (org_id = app_org_id() AND app_end_user_id() = '')
+  );
+
 ALTER TABLE conv_topics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conv_topics FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON conv_topics;

@@ -31,6 +31,7 @@ import { CommerceModule } from './modules/commerce/commerce.module.ts';
 import { BookingsModule } from './modules/bookings/bookings.module.ts';
 import { SeoModule } from './modules/seo/seo.module.ts';
 import { IdentityModule } from './modules/identity/identity.module.ts';
+import { SendingIdentityProviderModule } from './modules/conv/sending-identities/sending-identity-provider.module.ts';
 
 export const BACKEND_FEATURE_MODULES = [
   DbModule,
@@ -69,7 +70,7 @@ export const BACKEND_BASE_PROVIDERS: Provider[] = [
 ];
 
 @Module({
-  imports: BACKEND_FEATURE_MODULES,
+  imports: [...BACKEND_FEATURE_MODULES, SendingIdentityProviderModule.forRoot()],
   controllers: BACKEND_BASE_CONTROLLERS,
   providers: BACKEND_BASE_PROVIDERS,
 })

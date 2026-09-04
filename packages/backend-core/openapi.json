@@ -2480,6 +2480,28 @@
         "security": []
       }
     },
+    "/v1/conversations/channels/email/capabilities": {
+      "get": {
+        "operationId": "ConvChannelsController_emailCapabilities",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/channels/vendors": {
       "get": {
         "operationId": "ConvChannelsController_listVendors",
@@ -3508,6 +3530,120 @@
         },
         "tags": [
           "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conversations/sending-identities": {
+      "get": {
+        "operationId": "ConvSendingIdentitiesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvSendingIdentities"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "ConvSendingIdentitiesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSendingIdentityBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvSendingIdentities"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conversations/sending-identities/{id}/refresh": {
+      "post": {
+        "operationId": "ConvSendingIdentitiesController_refresh",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvSendingIdentities"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conversations/sending-identities/{id}": {
+      "delete": {
+        "operationId": "ConvSendingIdentitiesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvSendingIdentities"
         ],
         "security": [
           {
@@ -8089,6 +8225,21 @@
                     "required": [
                       "provider"
                     ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "const": "identity"
+                      },
+                      "trackOpens": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "provider"
+                    ]
                   }
                 ]
               },
@@ -8451,6 +8602,19 @@
         },
         "required": [
           "to"
+        ]
+      },
+      "CreateSendingIdentityBody": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253
+          }
+        },
+        "required": [
+          "domain"
         ]
       },
       "SendReplyBody": {

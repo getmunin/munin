@@ -3,8 +3,10 @@ import { createTransport } from 'nodemailer';
 import { ImapFlow } from 'imapflow';
 import { resolvePublicHost } from '@getmunin/core';
 import type { Db } from '@getmunin/db';
+import { sql } from 'drizzle-orm';
 import { DB } from '../../../common/db/db.module.ts';
 import { EmailService, type StoredEmailChannelConfig } from './email.service.ts';
+import { findVerifiedIdentityForAddress } from '../sending-identities/sending-identity.service.ts';
 
 export interface EmailProbeResult {
   smtp: string;
@@ -20,13 +22,23 @@ export class EmailChannelProbe {
     @Inject(DB) private readonly db: Db,
   ) {}
 
-  async test(config: StoredEmailChannelConfig): Promise<EmailProbeResult> {
-    const smtp = await this.testSmtp(config);
+  async test(config: StoredEmailChannelConfig, orgId?: string): Promise<EmailProbeResult> {
+    const smtp = await this.testSmtp(config, orgId);
     const imap = await this.testImap(config);
     return { smtp, imap };
   }
 
-  private async testSmtp(config: StoredEmailChannelConfig): Promise<string> {
+  private async testSmtp(config: StoredEmailChannelConfig, orgId?: string): Promise<string> {
+    if (config.outbound.provider === 'identity') {
+      if (!orgId) return 'ok';
+      const identity = await this.db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+        return findVerifiedIdentityForAddress(tx, orgId, config.addressing.fromAddress);
+      });
+      return identity
+        ? `ok: signing as ${identity.domain}`
+        : `error: no verified sending identity covers ${config.addressing.fromAddress}`;
+    }
     if (config.outbound.provider === 'mailer') return 'ok';
     try {
       const resolved = await resolvePublicHost(config.outbound.host);

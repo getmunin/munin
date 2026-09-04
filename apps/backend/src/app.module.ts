@@ -7,6 +7,7 @@ import {
   BACKEND_FEATURE_MODULES,
   ERROR_REPORTER,
   FeedbackModule,
+  SendingIdentityProviderModule,
   isFeedbackEnabled,
 } from '@getmunin/backend-core';
 import { AgentHostModule, SingletonConfigRepository } from '@getmunin/agent-host';
@@ -20,6 +21,7 @@ const FEEDBACK_MODULES = isFeedbackEnabled() ? [FeedbackModule] : [];
     SentryModule.forRoot(),
     ...BACKEND_FEATURE_MODULES,
     AuthModule,
+    SendingIdentityProviderModule.forRoot(),
     AgentHostModule.forRoot({
       configRepository: SingletonConfigRepository,
     }),

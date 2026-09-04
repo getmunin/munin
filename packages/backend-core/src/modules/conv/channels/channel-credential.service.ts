@@ -26,7 +26,7 @@ import type {
 } from '../../credential-handoff/credential-target.ts';
 
 export interface EmailChannelTester {
-  test(config: StoredEmailChannelConfig): Promise<EmailProbeResult>;
+  test(config: StoredEmailChannelConfig, orgId?: string): Promise<EmailProbeResult>;
 }
 
 function asHttpConfigError(err: unknown): Error {
@@ -138,9 +138,9 @@ export class ChannelCredentialService implements CredentialTargetHandler {
     });
     if (!row) return { ok: false, error: 'channel no longer exists' };
     if (row.type === 'email') {
-      const result = await this.probe.test(jsonbToStored(row.config));
+      const result = await this.probe.test(jsonbToStored(row.config), row.orgId);
       const detail = `SMTP ${result.smtp}; IMAP ${result.imap}`;
-      const ok = result.smtp === 'ok' && !result.imap.startsWith('error');
+      const ok = !result.smtp.startsWith('error') && !result.imap.startsWith('error');
       return ok ? { ok, detail } : { ok, error: detail };
     }
     const provider = this.admin.providerFor(row.vendor);

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Inject,
   Delete,
   Get,
   HttpCode,
@@ -22,6 +23,10 @@ import { ConvService, type ChannelDto } from '../modules/conv/conv.service.ts';
 import { WidgetAdminTools } from '../modules/conv/widget/widget.tools.ts';
 import { EmailAdminTools } from '../modules/conv/email/email.tools.ts';
 import { EmailService } from '../modules/conv/email/email.service.ts';
+import {
+  SENDING_IDENTITY_PROVIDER,
+  type SendingIdentityProvider,
+} from '../modules/conv/sending-identities/provider.ts';
 import { TwilioSmsAdminService } from '../modules/conv/twilio/twilio-sms-admin.service.ts';
 import { MessageBirdSmsAdminService } from '../modules/conv/messagebird/messagebird-sms-admin.service.ts';
 import { VapiAdminService } from '../modules/conv/vapi/vapi-admin.service.ts';
@@ -106,7 +111,14 @@ export class ConvChannelsController {
     private readonly threllTools: ThrellAdminService,
     private readonly channelAdmin: ChannelAdminService,
     private readonly channelCredentials: ChannelCredentialService,
+    @Inject(SENDING_IDENTITY_PROVIDER)
+    private readonly sendingIdentityProvider: SendingIdentityProvider,
   ) {}
+
+  @Get('email/capabilities')
+  emailCapabilities(): { identityOutbound: { available: boolean } } {
+    return { identityOutbound: { available: this.sendingIdentityProvider.signsOutbound } };
+  }
 
   @Get('vendors')
   listVendors(): ReturnType<ChannelAdminService['listVendors']> {

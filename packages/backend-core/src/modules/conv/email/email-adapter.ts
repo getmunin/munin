@@ -29,6 +29,11 @@ import { smtpTransportOptions } from './email-probe.service.ts';
 import { buildOutbound, stripMessageIdBrackets, parseMessageIdHeader, type BuiltMessage } from './mime.ts';
 import { renderEmailHtml } from './markdown.ts';
 import { resolveInbound, type ParsedInboundEmail } from './threading.ts';
+import {
+  findVerifiedIdentityForAddress,
+  loadSigningKeyForAddress,
+} from '../sending-identities/sending-identity.service.ts';
+import { buildDkimSignOptions } from '../sending-identities/dkim-key.ts';
 import { reopenClosedConversation } from '../conversation-reopen.ts';
 import {
   detectSignatureBlock,
@@ -206,12 +211,37 @@ export class EmailAdapter implements ChannelAdapter {
           resolved?.address,
         ),
       );
+      const dkim = await this.db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+        const signing = await loadSigningKeyForAddress(
+          tx,
+          ctx.channel.orgId,
+          config.addressing.fromAddress,
+        );
+        return signing ? buildDkimSignOptions(signing, signing.privateKeyPem) : null;
+      });
       await transport.sendMail({
         envelope: { from: config.addressing.fromAddress, to: recipient },
         raw: built.raw,
+        ...(dkim ? { dkim: { keys: [dkim] } } : {}),
       });
       transport.close();
     } else {
+      if (config.outbound.provider === 'identity') {
+        const identity = await this.db.transaction(async (tx) => {
+          await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+          return findVerifiedIdentityForAddress(
+            tx,
+            ctx.channel.orgId,
+            config.addressing.fromAddress,
+          );
+        });
+        if (!identity) {
+          throw new Error(
+            `no verified sending identity covers ${config.addressing.fromAddress} — publish the DNS record and wait for verification`,
+          );
+        }
+      }
       await this.mailer.send({
         from: composeFrom(config.addressing.fromName, config.addressing.fromAddress),
         to: recipient,

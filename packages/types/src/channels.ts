@@ -25,9 +25,15 @@ export const MailerOutboundSchema = z.object({
   trackOpens: z.boolean().optional(),
 });
 
+export const IdentityOutboundSchema = z.object({
+  provider: z.literal('identity'),
+  trackOpens: z.boolean().optional(),
+});
+
 export const OutboundConfigSchema = z.discriminatedUnion('provider', [
   SmtpOutboundSchema,
   MailerOutboundSchema,
+  IdentityOutboundSchema,
 ]);
 
 export const ImapInboundSchema = z.object({

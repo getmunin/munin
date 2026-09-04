@@ -38,6 +38,7 @@ export interface EmailChannelConfigDto {
   };
   outbound:
     | { provider: 'mailer'; trackOpens?: boolean }
+    | { provider: 'identity'; trackOpens?: boolean }
     | {
         provider: 'smtp';
         host: string;
@@ -74,6 +75,11 @@ const StoredMailerOutboundSchema = z.object({
   trackOpens: z.boolean().optional(),
 });
 
+const StoredIdentityOutboundSchema = z.object({
+  provider: z.literal('identity'),
+  trackOpens: z.boolean().optional(),
+});
+
 const StoredImapInboundSchema = z.object({
   provider: z.literal('imap'),
   host: z.string(),
@@ -93,6 +99,7 @@ export const StoredEmailChannelConfigSchema = z.object({
   outbound: z.discriminatedUnion('provider', [
     StoredSmtpOutboundSchema,
     StoredMailerOutboundSchema,
+    StoredIdentityOutboundSchema,
   ]),
   inbound: StoredImapInboundSchema.optional(),
   sendLimits: SendLimitsSchema.optional(),
@@ -127,7 +134,7 @@ export class EmailService {
                 : {}),
             }
           : {
-              provider: 'mailer',
+              provider: input.outbound.provider,
               ...(input.outbound.trackOpens !== undefined
                 ? { trackOpens: input.outbound.trackOpens }
                 : {}),
@@ -172,7 +179,7 @@ export class EmailService {
                 : {}),
             }
           : {
-              provider: 'mailer',
+              provider: stored.outbound.provider,
               ...(stored.outbound.trackOpens !== undefined
                 ? { trackOpens: stored.outbound.trackOpens }
                 : {}),

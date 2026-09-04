@@ -5,6 +5,7 @@ export {
   type AgentMode,
   SmtpOutboundSchema,
   MailerOutboundSchema,
+  IdentityOutboundSchema,
   OutboundConfigSchema,
   ImapInboundSchema,
   SendLimitsSchema,

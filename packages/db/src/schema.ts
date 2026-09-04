@@ -838,6 +838,33 @@ export const convChannels = pgTable(
   }),
 );
 
+export const convSendingIdentities = pgTable(
+  'conv_sending_identities',
+  {
+    id: id('sid'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    domain: text('domain').notNull(),
+    selector: text('selector').notNull(),
+    privateKeyPem: text('private_key_pem').notNull(),
+    publicKeyPem: text('public_key_pem').notNull(),
+    provider: varchar('provider', { length: 32 }).notNull().default('dns'),
+    providerRef: text('provider_ref'),
+    status: varchar('status', { length: 16 }).notNull().default('pending'),
+    lastError: text('last_error'),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('conv_sending_identities_org_idx').on(t.orgId),
+    orgDomainUq: uniqueIndex('conv_sending_identities_org_domain_uq').on(t.orgId, t.domain),
+    statusIdx: index('conv_sending_identities_status_idx').on(t.status),
+  }),
+);
+
 // Topics: lightweight categorization (Billing, Support, Refunds, Outreach…).
 // Slug-unique per org so agents can address them in conversation.
 export const convTopics = pgTable(
@@ -2431,6 +2458,7 @@ export const allTables = {
   kbDocumentChunks,
   kbDocumentVersions,
   convChannels,
+  convSendingIdentities,
   convTopics,
   convContacts,
   convConversations,

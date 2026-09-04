@@ -634,7 +634,38 @@
         "sendLimitsHelp": "Protects the domain reputation. Messages over the limit stay queued and send automatically when capacity opens.",
         "sendLimitsPlaceholder": "no limit",
         "perDayMax": "Max per day (rolling 24h)",
-        "perHourMax": "Max per hour (rolling 60min)"
+        "perHourMax": "Max per hour (rolling 60min)",
+        "outboundModeLabel": "How outbound mail is sent",
+        "outboundModeSmtp": "Through my own SMTP server",
+        "outboundModeIdentity": "By Munin, signed as my domain",
+        "outboundModeHint": {
+          "smtp": "Munin hands each message to your mail server, which sends and signs it. You supply the host and credentials.",
+          "identity": "Munin sends the message itself, signed as your domain. You publish one DNS record to prove the domain is yours — no server or password needed."
+        },
+        "identity": {
+          "label": "Domain verification",
+          "needsFromAddress": "Enter a from address first — the domain is taken from it.",
+          "notStarted": "Munin needs to prove it may send as {domain}. Set it up to get the DNS record to publish.",
+          "setUp": "Set up {domain}",
+          "settingUp": "Setting up…",
+          "statusPending": "Awaiting DNS",
+          "statusVerified": "Verified",
+          "statusFailed": "Failed",
+          "verifiedBody": "{domain} is verified. This channel can send from any address at the domain.",
+          "pendingBody": "Publish this DNS record for {domain}, then check again. Propagation can take up to 72 hours.",
+          "recordName": "{type} record name",
+          "recordValue": "Value",
+          "recordHint": "Some DNS providers append the domain automatically — if yours does, enter only the part before it.",
+          "checkNow": "Check now",
+          "checking": "Checking…",
+          "stillPending": "The DNS record has not been seen yet.",
+          "verifiedNotice": "{domain} is verified",
+          "mismatch": "This channel sends as {address}, but the verified domain is {domain}.",
+          "errors": {
+            "setUp": "Couldn't set up that domain.",
+            "check": "Couldn't check that domain."
+          }
+        }
       },
       "addSmsDialog": {
         "title": "Add an SMS channel",

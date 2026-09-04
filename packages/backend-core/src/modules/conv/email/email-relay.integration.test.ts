@@ -1,6 +1,5 @@
 import 'reflect-metadata';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
@@ -8,6 +7,8 @@ import { buildApiKey, hashSecret, keyPrefix, signHmac } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql, and, eq } from 'drizzle-orm';
 import { AppModule } from '../../../app.module.ts';
+import { createApp } from '../../../bootstrap-app.ts';
+import { EMAIL_RELAY_MAX_RAW_BYTES } from './email-relay.constants.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -62,7 +63,7 @@ const RELAY_DOMAIN = 'in.getmunin.test';
         scopes: ['*'],
       });
 
-      app = await NestFactory.create(AppModule, { logger: false, rawBody: true });
+      app = await createApp(AppModule, { logger: false });
       await app.listen(0, '127.0.0.1');
       const server = app.getHttpServer() as { address(): AddressInfo | string | null };
       const address = server.address();
@@ -94,19 +95,49 @@ const RELAY_DOMAIN = 'in.getmunin.test';
 
     async function postRelay(
       payload: Record<string, unknown>,
-      opts?: { signature?: string },
+      opts?: { signature?: string | null },
     ): Promise<{ status: number; body: string }> {
       const body = JSON.stringify(payload);
-      const signature = opts?.signature ?? signHmac(Buffer.from(body, 'utf8'), RELAY_SECRET);
+      const signature =
+        opts?.signature === undefined
+          ? signHmac(Buffer.from(body, 'utf8'), RELAY_SECRET)
+          : opts.signature;
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+      if (signature !== null) headers['x-munin-relay-signature'] = signature;
       const res = await fetch(`${baseUrl}/v1/conversations/email/relay`, {
         method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-munin-relay-signature': signature,
-        },
+        headers,
         body,
       });
       return { status: res.status, body: await res.text() };
+    }
+
+    function rawWithAttachment(messageId: string, attachmentBytes: number): string {
+      const boundary = 'relay-it-boundary';
+      const attachment = Buffer.alloc(attachmentBytes, 0x41)
+        .toString('base64')
+        .replace(/(.{76})/g, '$1\r\n');
+      return [
+        'From: Kari Nordmann <kari@example.test>',
+        `To: <${relayAddress}>`,
+        'Subject: Quarterly report attached',
+        `Message-ID: <${messageId}>`,
+        `Content-Type: multipart/mixed; boundary="${boundary}"`,
+        '',
+        `--${boundary}`,
+        'Content-Type: text/plain; charset="utf-8"',
+        '',
+        'Please find the quarterly report attached.',
+        '',
+        `--${boundary}`,
+        'Content-Type: application/octet-stream; name="report.bin"',
+        'Content-Transfer-Encoding: base64',
+        'Content-Disposition: attachment; filename="report.bin"',
+        '',
+        attachment,
+        `--${boundary}--`,
+        '',
+      ].join('\r\n');
     }
 
     function rawForwarded(): string {
@@ -257,6 +288,70 @@ const RELAY_DOMAIN = 'in.getmunin.test';
         .from(schema.convMessages)
         .where(eq(schema.convMessages.orgId, orgId));
       expect(messages).toHaveLength(1);
+    });
+
+    it('ingests a message far above the 4mb global JSON body limit', async () => {
+      const raw = Buffer.from(rawWithAttachment('big-1@example.test', 4_800_000));
+      expect(raw.byteLength).toBeGreaterThan(6 * 1024 * 1024);
+
+      const res = await postRelay({ recipient: relayAddress, raw: raw.toString('base64') });
+      expect(res.status).toBe(201);
+      expect(res.body).toContain('ingested');
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const messages = await db
+        .select()
+        .from(schema.convMessages)
+        .where(
+          and(
+            eq(schema.convMessages.orgId, orgId),
+            sql`${schema.convMessages.metadata}->>'inboundMessageId' = 'big-1@example.test'`,
+          ),
+        );
+      expect(messages).toHaveLength(1);
+      expect(messages[0]!.body).toContain('quarterly report attached');
+    });
+
+    it('rejects an unsigned oversized post before the controller runs', async () => {
+      const raw = Buffer.from(rawWithAttachment('big-2@example.test', 4_800_000));
+      const res = await postRelay(
+        { recipient: relayAddress, raw: raw.toString('base64') },
+        { signature: null },
+      );
+      expect(res.status).toBe(401);
+      expect(res.body).toContain('relay signature missing');
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const messages = await db
+        .select()
+        .from(schema.convMessages)
+        .where(
+          and(
+            eq(schema.convMessages.orgId, orgId),
+            sql`${schema.convMessages.metadata}->>'inboundMessageId' = 'big-2@example.test'`,
+          ),
+        );
+      expect(messages).toHaveLength(0);
+    });
+
+    it('still refuses a message over the relay maximum with the controller 413', async () => {
+      const raw = Buffer.alloc(EMAIL_RELAY_MAX_RAW_BYTES + 1, 0x41);
+      const res = await postRelay({ recipient: relayAddress, raw: raw.toString('base64') });
+      expect(res.status).toBe(413);
+      expect(res.body).toContain('message too large');
+    });
+
+    it('is not throttled per client IP: 65 signed posts in a minute all get through', async () => {
+      const statuses: number[] = [];
+      for (let i = 0; i < 65; i++) {
+        const res = await postRelay({
+          recipient: `nobody-${i}@in.getmunin.test`,
+          raw: Buffer.from(rawForwarded()).toString('base64'),
+        });
+        statuses.push(res.status);
+      }
+      expect(statuses).not.toContain(429);
+      expect(new Set(statuses)).toEqual(new Set([201]));
     });
   },
 );

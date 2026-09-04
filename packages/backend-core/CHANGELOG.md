@@ -1,5 +1,106 @@
 # @getmunin/backend-core
 
+## 5.15.0
+
+### Minor Changes
+
+- ef6e40e: Upgrade NestJS from v11 to v12 (`@nestjs/common`, `core`, `platform-express`, `testing` to 12.0.1; `@nestjs/schedule` 6 → 12; `@nestjs/swagger` 11 → 12).
+
+  `@nestjs/cli` deliberately stays on v11. v12 of the CLI depends on `typescript@~6.0.2` and its `@nestjs/schematics` peer requires `typescript >=6.0.0`, which would drag TypeScript 6 into the workspace and — because `@getmunin/eslint-config` had no `typescript` of its own — silently bind `typescript-eslint` to a different compiler than the rest of the repo. The CLI has no peer on `@nestjs/core` and is only used for `nest build`, so keeping it on v11 decouples the TypeScript 6 decision from this upgrade.
+
+  Nest 12 ships its core packages as native ESM, consumed here from CommonJS via Node's `require(esm)`. No application source changes were needed: the guard, interceptor, pipe and exception-filter contracts are unchanged in v12, `rxjs` stays on v7, and Express was already on v5 under Nest 11.
+
+  Three dependencies have not yet published a Nest 12 peer range — `nestjs-zod`, `@nestjs/throttler` and `@sentry/nestjs` — so each gets an explicit `pnpm.peerDependencyRules.allowedVersions` entry instead of relying on the repo-wide `strict-peer-dependencies=false`. All three are metadata-only gaps; their runtime behaviour is exercised by the existing suites.
+
+- c4bd6f4: fix(realtime): name why a widget socket was refused, and keep chat alive when identity is wrong
+
+  A widget socket whose identity was rejected got a bare `401` with no body — indistinguishable from a bad widget key, and unreadable from a browser. The handshake now answers identity and origin refusals as `403` with the code in an `X-Munin-Error` header and a `{"code":"…"}` body (`identity_partial`, `identity_verification_failed`, `identity_required`, `origin_required`, `origin_not_allowed`); `401` now means only that the credential itself failed. The socket also accepts `verifiedExternalId` as an alias for its `externalId` param, so one field name works across the socket, the ingest body and the `x-munin-verified-external-id` header.
+
+  The bundled widget no longer reconnect-loops forever on a rejected identity: after three handshakes that never open it drops the identity params, reconnects anonymously and warns on the console, so replies keep streaming while the secret is fixed. It re-arms the identity if the anonymous socket also fails to open (that is a network fault, not a bad hash), on the next `window.mn.widget.identify`, and on page load. `skill://conv/setup-chat-widget` now documents the socket params, the refusal codes, and the per-channel nature of the identity secret — an org with dev and prod widget channels has two secrets, and signing with the wrong one is what makes a widget send fine yet never receive.
+
+### Patch Changes
+
+- 3252cd1: Bump Next.js to 16.3.4 and other dependencies to their latest compatible minor/patch versions.
+- e85d6d1: Make `POST /v1/conversations/email/relay` actually accept the 30 MiB it advertises, and stop throttling it per client IP.
+
+  The controller checked the decoded message against a 30 MiB cap, but the global JSON body parser in `createApp` is capped at 4mb, and a base64 relay envelope is ~1.37× the message — so any email over roughly 3 MB was answered by Express with `413 request entity too large` before the controller ran. The relay path now gets its own route-scoped `express.json` parser mounted ahead of the global one, sized from the same constant (`EMAIL_RELAY_BODY_LIMIT_BYTES` = base64 expansion of `EMAIL_RELAY_MAX_RAW_BYTES` plus 1 MiB of envelope, ≈41 MiB) and setting `req.rawBody` the way Nest's `rawBody: true` does, so HMAC verification is unchanged. The global 4mb limit still applies everywhere else. A request on that path without an `x-munin-relay-signature` header is refused 401 before the body is read, so unsigned traffic cannot make the server buffer 40 MB per request.
+
+  The controller was also declared with `throttle: true`, which applies the public per-IP throttle (60/min, 1000/hour). All customers' relayed mail arrives from the operator's one or two MX addresses, so that was a platform-wide ceiling of 1000 inbound emails per hour. The endpoint authenticates every request by HMAC, so the IP throttle is dropped.
+
+- 4fae13c: fix(slack): stop the bridge spamming a channel when its mirrored thread was deleted
+
+  Deleting a mirrored conversation thread in Slack turned the next conversation update into a channel-level repost loop. `chat.postMessage` does not reject an unknown `thread_ts` — it drops the reply into the channel root — so the thread reply (e.g. ":white_check_mark: _Conversation is resolved._") posted as a normal message, and the parent `chat.update` that ran afterwards failed with `message_not_found`, which is a retryable error: five attempts per delivery, each one reposting the reply.
+
+  The parent is now synced before any thread reply, and a `message_not_found` there retires the conversation link and finishes the delivery terminally instead of retrying. Nothing is reposted into the channel, and the next event for that conversation starts a fresh thread parent through the normal lazy-link path. A revise of a mirrored message whose Slack message was deleted likewise finishes instead of retrying five times.
+
+  Deletions also arrive as Slack `message_deleted` events on the `message.channels` subscription the app already holds, so the thread and message links are dropped as the operator deletes — no manifest change, no re-install. That closes the same hole on the message-mirroring path, where a reply into a deleted thread would otherwise keep landing in the channel with nothing to detect it.
+
+- 776cec6: Slack now names a customer from their end-user identity when the contact row is bare.
+
+  The Slack bridge resolved a customer's display name from `conv_contacts` alone — name, then email, then phone — and fell back to the literal "Customer" when all three were null. Every other read of a conversation goes through `ConvService.getConversation`, which falls back to the linked `end_users` row (`contactEmail: row.contactEmail ?? row.endUserEmail`). Two chains, one conversation, different answers.
+
+  That gap is reachable on the widget's normal identity path. A visitor who chats anonymously first gets a contact row with no name or email; when they later verify, `findOrCreateContact` and `claimAnonymousIdentityInTx` stamp `endUserId` and `metadata.externalId` onto that row but never backfill `email` or `name`. The identity carries the address, the contact does not — so the dashboard showed the customer's email while Slack showed "Customer", with nothing misconfigured on either side.
+
+  `loadConversation` now loads the linked end user and merges the two the same way the conversation DTO does, so the thread parent's `*From:*` line, the per-message speaker name and the Slack avatar initial all agree with the dashboard. "Customer" is once again reserved for a genuinely unidentified visitor.
+
+- bbbb395: Scope the Threll webhook subscription to the selected worker
+
+  Munin registered its Threll webhook without a `workerId`, so the subscription was account-wide: every worker on the account delivered `call.worker_request`, transcripts and tool calls into one Munin channel, and a second Munin channel on the same account could only be connected by deleting the first one's subscription. Threll supports worker-scoped subscriptions (worker-scoped wins over account-wide for sync events), so Munin now passes `workerId` on create, lists subscriptions filtered to that worker, and only treats a same-worker subscription pointing elsewhere as a conflict — a customer's own account-wide webhook is left alone. One Threll account can now back several Munin channels, one per worker.
+
+  Repointing a channel at a different worker (or account) re-registers the subscription on the new worker and deletes the old one, and re-saving credentials for an unchanged channel replaces its own stale subscription instead of failing Threll's one-responder-per-sync-event check.
+
+  Existing channels keep their account-wide subscription until their worker is changed or their credentials are re-entered; delete the account-wide subscription in Threll and re-save the channel to move it over.
+
+- 2122850: A widget visitor's name and email now reach the identity and contact rows instead of being dropped.
+
+  On a verified widget session, `ingest` and `startConversation` both call `claimAnonymousIdentityInTx` _before_ `findOrCreateEndUser`. The claim mints the end-user row through `findOrCreateVerifiedEndUser`, which stores an `externalId` and nothing else — so the `findOrCreateEndUser` call that follows always took its "existing row" branch, which only ever refreshed `metadata.locale`. The result: for an identity-verified visitor, `visitor.name` and `visitor.email` were silently discarded on every ingest, and `end_users.name` stayed null for the life of the identity. Only `PATCH /v1/widget/visitor` ever wrote them, which is why a live identity could carry an email (the visitor typed it into the email-capture card) but never a name.
+
+  Three write paths now fill a blank field instead of ignoring it:
+
+  - `findOrCreateEndUser` backfills `name` and `email` onto an existing identity from `input.visitor`, tagging `metadata.emailSource: 'visitor'` alongside the email the same way the insert path does.
+  - `claimAnonymousIdentityInTx` copies `name` and `email` from the verified identity onto the contact row it claims, so a session that started anonymous stops being nameless the moment it is claimed.
+  - The anonymous session-matched branch of `findOrCreateContact` accepts a name or email that arrives mid-session, which previously only updated `endUserId`.
+
+  Every one of these fills nulls only — a value already on the row always wins, so nothing a human typed gets overwritten by a page-supplied claim.
+
+  `end_users_org_email_uq` is unique on `(org_id, lower(email))`, so every path that writes an identity email now checks for another identity holding that address first and skips rather than throwing: two people sharing an inbox must not fail an ingest.
+
+  That check also fixes a live crash in `setVisitor`. The widget's email-capture card posts `PATCH /v1/widget/visitor`, which wrote `end_users.email` unguarded — so a visitor typing an address another identity already held hit the unique index, poisoned the request transaction, and got a bare `500` at commit, past any in-handler catch. The contact row still takes the address either way (`conv_contacts.email` has no unique constraint), so the operator can always reply; only the identity write is skipped. Silently, and deliberately: letting an anonymous visitor's self-reported address overwrite a verified identity's would be an identity-takeover primitive, and failing the call would break the legitimate shared-inbox case.
+
+- a5145ad: A widget session credential alone no longer mutates an identity-verified visitor's conversation.
+
+  Three widget endpoints gated their ownership check on the caller's own claim:
+
+  ```ts
+  if (identity.mode === 'verified') {
+    // …compare contact.metadata.externalId against identity.externalId
+  }
+  ```
+
+  Present no identity headers and the branch never runs. On a channel where `requireVerifiedIdentity` is `false` — the default, and the only configuration where verified and anonymous sessions coexist — `verifyIdentity` returns `{ mode: 'anonymous' }` rather than throwing, so a caller holding nothing but a `sessionId` skipped the check entirely and was treated as the session's owner. `PATCH /v1/widget/visitor` would then rewrite the `conv_contacts` row of an identity-verified person, and `end_users.email` with it; the two voice paths would start a call and post call events on their conversation.
+
+  The session id is a bearer credential by design, but it is a weaker one than the identity HMAC, and it was buying identity-owner authority.
+
+  The check is now driven by the state of the row being written rather than by what the caller volunteered: a contact claimed by a real `externalId` (anything that is not an `anon:…` placeholder) requires a matching verified identity, and an unclaimed contact stays open to the anonymous session that owns it. `assertContactIdentityOwnership` is shared by all three sites so they cannot drift apart again. The verified-caller branch is unchanged — only the previously unguarded anonymous path is refused, with each endpoint keeping the error code it already returned (`session_not_owned`, `conversation_identity_mismatch`).
+
+  The bundled widget is unaffected: `setVisitorEmail` and `voiceStart` already attach `verifiedExternalId` + `userHash` from a live `getIdentity()` closure, which is populated both from the server-rendered embed attributes and after a runtime `window.mn.widget.identify()`. A custom server-to-server integration that patches a verified session without replaying the identity pair will now get a 403 and must send it.
+
+- 5f4e118: Document the widget's visitor-profile attributes in `skill://conv/setup-chat-widget`.
+
+  `data-munin-visitor-name`, `-email`, `-meta` and the `data-munin-meta-<key>` shorthand have been in the bundle and on the docs site, but not in the skill — so an agent provisioning a widget from `skill://conv/setup-chat-widget` alone had no way to know a name could be supplied, and shipped embeds that never sent one.
+
+  The gap has teeth because identity verification carries an `externalId` and nothing else. A verified visitor with no `data-munin-visitor-name` still gets an unnamed contact row, and every customer-facing surface falls back through name → email → phone — so the dashboard, the Slack mirror and outreach all end up showing a raw email address, or a generic placeholder when there is no email either. The new section says so, and §2's server-to-server "Visitor enrichment" now gives `visitor.name` the same treatment it already gave `visitor.email`.
+
+- Updated dependencies [883a9f2]
+- Updated dependencies [3252cd1]
+  - @getmunin/agent-runtime@5.15.0
+  - @getmunin/core@5.15.0
+  - @getmunin/db@5.15.0
+  - @getmunin/emails@5.15.0
+  - @getmunin/inspector-app@5.15.0
+  - @getmunin/mcp-toolkit@5.15.0
+  - @getmunin/types@5.15.0
+
 ## 5.14.0
 
 ### Minor Changes

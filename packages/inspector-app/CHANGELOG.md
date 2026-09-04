@@ -1,5 +1,16 @@
 # @getmunin/inspector-app
 
+## 5.15.0
+
+### Patch Changes
+
+- 3252cd1: Bump Next.js to 16.3.4 and other dependencies to their latest compatible minor/patch versions.
+- Updated dependencies [3252cd1]
+- Updated dependencies [bbbb395]
+  - @getmunin/dashboard-pages@5.15.0
+  - @getmunin/types@5.15.0
+  - @getmunin/ui@5.15.0
+
 ## 5.14.0
 
 ### Patch Changes

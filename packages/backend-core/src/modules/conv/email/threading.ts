@@ -19,6 +19,8 @@ export interface ParsedInboundEmail {
   senderClassification: SenderClassification;
   authenticationResults: string[];
   arcAuthenticationResults: string[];
+  forwardedFor: string[];
+  forwardedTo: string[];
 }
 
 export interface ThreadResolution {

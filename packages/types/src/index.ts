@@ -7,6 +7,8 @@ export {
   MailerOutboundSchema,
   OutboundConfigSchema,
   ImapInboundSchema,
+  RelayInboundSchema,
+  InboundConfigSchema,
   SendLimitsSchema,
   type SendLimits,
   EmailChannelConfigInput,

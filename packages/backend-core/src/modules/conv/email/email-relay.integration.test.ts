@@ -158,9 +158,8 @@ const RELAY_DOMAIN = 'in.getmunin.test';
       const inbound = (rows[0]!.config as { inbound?: { provider?: string; address?: string } })
         .inbound;
       expect(inbound?.provider).toBe('relay');
-      expect(inbound?.address).toMatch(
-        new RegExp(`^[0-9a-f]{16}@${RELAY_DOMAIN.replace(/\./g, '\\.')}$`),
-      );
+      expect(inbound?.address).toMatch(/^[0-9a-f]{16}@/);
+      expect(inbound?.address?.endsWith(`@${RELAY_DOMAIN}`)).toBe(true);
 
       relayAddress = inbound!.address!;
       channelId = rows[0]!.id;

@@ -23,7 +23,6 @@ import { WidgetAdminTools } from '../modules/conv/widget/widget.tools.ts';
 import { EmailAdminTools } from '../modules/conv/email/email.tools.ts';
 import {
   EmailService,
-  readMailerSendingDomains,
   readRelayDomain,
   relayInboundAvailable,
 } from '../modules/conv/email/email.service.ts';
@@ -121,12 +120,10 @@ export class ConvChannelsController {
   @Get('email/capabilities')
   emailCapabilities(): {
     relay: { enabled: boolean; domain: string | null };
-    mailer: { sendingDomains: string[] };
   } {
     const enabled = relayInboundAvailable();
     return {
       relay: { enabled, domain: enabled ? readRelayDomain() : null },
-      mailer: { sendingDomains: readMailerSendingDomains() },
     };
   }
 

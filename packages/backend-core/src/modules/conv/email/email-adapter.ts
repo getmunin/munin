@@ -24,8 +24,6 @@ import {
   EmailService,
   imapInbound,
   jsonbToStored,
-  mailerCanSendAs,
-  readMailerSendingDomains,
   type StoredEmailChannelConfig,
 } from './email.service.ts';
 import { smtpTransportOptions } from './email-probe.service.ts';
@@ -216,11 +214,6 @@ export class EmailAdapter implements ChannelAdapter {
       });
       transport.close();
     } else {
-      if (!mailerCanSendAs(config.addressing.fromAddress)) {
-        throw new Error(
-          `shared mailer is not authorised to send as ${config.addressing.fromAddress} (allowed: ${readMailerSendingDomains().join(', ') || 'none'})`,
-        );
-      }
       await this.mailer.send({
         from: composeFrom(config.addressing.fromName, config.addressing.fromAddress),
         to: recipient,

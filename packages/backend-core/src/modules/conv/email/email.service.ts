@@ -144,33 +144,12 @@ export function mintRelayAddress(domain: string): string {
   return `${randomBytes(8).toString('hex')}@${domain}`;
 }
 
-export function readMailerSendingDomains(): string[] {
-  const raw = process.env.MUNIN_MAIL_SENDING_DOMAINS?.trim();
-  if (!raw) return [];
-  return raw
-    .split(',')
-    .map((d) => d.trim().toLowerCase().replace(/^@/, ''))
-    .filter(Boolean);
-}
-
-export function mailerCanSendAs(address: string): boolean {
-  const allowed = readMailerSendingDomains();
-  if (allowed.length === 0) return true;
-  const domain = address.split('@')[1]?.trim().toLowerCase();
-  if (!domain) return false;
-  return allowed.some((entry) => domain === entry || domain.endsWith(`.${entry}`));
-}
 
 @Injectable()
 export class EmailService {
   async toStored(input: EmailChannelConfigInputT): Promise<StoredEmailChannelConfig> {
     if (input.outbound.provider === 'smtp') {
       await assertReachableMailHost('SMTP', input.outbound.host);
-    }
-    if (input.outbound.provider === 'mailer' && !mailerCanSendAs(input.addressing.fromAddress)) {
-      throw new BadRequestException(
-        `conv_invalid: this instance cannot send as ${input.addressing.fromAddress} — shared-mailer sending is limited to ${readMailerSendingDomains().join(', ')}. Use outbound.provider "smtp" with your own credentials, or set fromAddress to a domain this instance is authorised to send as.`,
-      );
     }
     if (input.inbound?.provider === 'imap') {
       await assertReachableMailHost('IMAP', input.inbound.host);

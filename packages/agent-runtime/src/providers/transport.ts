@@ -1,0 +1,123 @@
+import { safeFetch } from '@getmunin/core';
+
+const RATE_LIMIT_MAX_RETRIES = 4;
+const RATE_LIMIT_BASE_DELAY_MS = 500;
+const RATE_LIMIT_MAX_DELAY_MS = 15_000;
+
+export async function postJsonWithRateLimitRetry(args: {
+  url: string;
+  headers: Record<string, string>;
+  body: string;
+  abortSignal?: AbortSignal;
+}): Promise<Awaited<ReturnType<typeof safeFetch>>> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await safeFetch(args.url, {
+      method: 'POST',
+      headers: args.headers,
+      body: args.body,
+      signal: args.abortSignal,
+    });
+    if (res.status !== 429 || attempt >= RATE_LIMIT_MAX_RETRIES) return res;
+    const retryAfter = res.headers.get('retry-after');
+    await sleep(rateLimitRetryDelayMs(retryAfter, attempt), args.abortSignal);
+  }
+}
+
+export function rateLimitRetryDelayMs(
+  retryAfter: string | null,
+  attempt: number,
+  random: () => number = Math.random,
+): number {
+  const backoff = Math.min(RATE_LIMIT_BASE_DELAY_MS * 2 ** attempt, RATE_LIMIT_MAX_DELAY_MS);
+  const requested = parseRetryAfterMs(retryAfter);
+  const wait = requested === null ? backoff : Math.max(requested, backoff);
+  return Math.min(RATE_LIMIT_MAX_DELAY_MS, Math.round(wait * (1 + random())));
+}
+
+export function parseRetryAfterMs(retryAfter: string | null): number | null {
+  if (!retryAfter) return null;
+  const seconds = Number(retryAfter);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  const at = Date.parse(retryAfter);
+  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null;
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortReason(signal));
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      reject(abortReason(signal));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+function abortReason(signal?: AbortSignal): Error {
+  return signal?.reason instanceof Error ? signal.reason : new Error('aborted');
+}
+
+export type ProviderErrorCode =
+  | 'provider_auth'
+  | 'provider_regional'
+  | 'provider_rate_limit'
+  | 'provider_model_not_found'
+  | 'provider_other';
+
+export class ProviderError extends Error {
+  override readonly name = 'ProviderError';
+  readonly code: ProviderErrorCode;
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.code = classifyByStatus(status, message);
+  }
+}
+
+function classifyByStatus(status: number, message: string): ProviderErrorCode {
+  if (status === 401) return 'provider_auth';
+  if (status === 403) {
+    if (/region|regional/i.test(message)) return 'provider_regional';
+    return 'provider_auth';
+  }
+  if (status === 429) return 'provider_rate_limit';
+  if (status === 404 && /not[_ ]?found|model/i.test(message)) {
+    return 'provider_model_not_found';
+  }
+  return 'provider_other';
+}
+
+export interface ProviderErrorClassification {
+  code: ProviderErrorCode;
+  message: string;
+  status?: number;
+}
+
+export function classifyProviderError(err: unknown): ProviderErrorClassification {
+  if (err instanceof ProviderError) {
+    return { code: err.code, message: err.message, status: err.status };
+  }
+  if (err instanceof Error) {
+    return { code: 'provider_other', message: err.message };
+  }
+  return { code: 'provider_other', message: String(err) };
+}
+
+export async function throwProviderError(
+  res: Awaited<ReturnType<typeof safeFetch>>,
+): Promise<never> {
+  const text = await res.text().catch(() => '');
+  throw new ProviderError(
+    `provider returned ${res.status}: ${text.slice(0, 500)}`,
+    res.status,
+  );
+}

@@ -1,5 +1,5 @@
 import { flattenToolResult, mcpToolsToChatTools } from './mcp-tool-translation.ts';
-import { openAiCompatibleProvider } from './providers/openai-compatible.ts';
+import { defaultProvider } from './providers/default-provider.ts';
 import { fenceUntrusted, sanitizeToolName } from './untrusted.ts';
 import type {
   AgentConfig,
@@ -35,7 +35,7 @@ export async function runAgent({
   history,
   mcp,
   abortSignal,
-  provider = openAiCompatibleProvider,
+  provider = defaultProvider,
 }: RunAgentArgs): Promise<AgentReply> {
   const tools = mcpToolsToChatTools(await mcp.listTools());
   const compacted = compactHistory(history, config.maxHistoryChars ?? DEFAULT_MAX_HISTORY_CHARS);
@@ -47,7 +47,11 @@ export async function runAgent({
     messages.push({
       role: 'system',
       content: `[Note: ${compacted.truncated} earlier message(s) in this conversation were omitted from the context window due to length. Do not invent details about them; ask the user to repeat anything you need.]`,
+      volatile: true,
     });
+  }
+  if (config.volatileSystemPrompt) {
+    messages.push({ role: 'system', content: config.volatileSystemPrompt, volatile: true });
   }
   for (const msg of compacted.history) messages.push(historyToChatMessage(msg));
 

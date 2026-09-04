@@ -6,13 +6,18 @@ export {
   sanitizeToolName,
   RESERVED_FRAMING_TAGS,
 } from './untrusted.ts';
+export { openAiCompatibleProvider } from './providers/openai-compatible.ts';
 export {
-  openAiCompatibleProvider,
+  anthropicNativeProvider,
+  isAnthropicNativeBaseUrl,
+} from './providers/anthropic-native.ts';
+export { defaultProvider, selectProvider } from './providers/default-provider.ts';
+export {
   ProviderError,
   classifyProviderError,
   type ProviderErrorCode,
   type ProviderErrorClassification,
-} from './providers/openai-compatible.ts';
+} from './providers/transport.ts';
 export { createStubProvider, type StubProviderHandle, type StubScript } from './providers/stub.ts';
 export { mcpToolsToChatTools, flattenToolResult } from './mcp-tool-translation.ts';
 export {

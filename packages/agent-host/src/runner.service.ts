@@ -34,7 +34,7 @@ import {
   composeToolHandles,
   createConversationHandler,
   createPromptResolver,
-  openAiCompatibleProvider,
+  defaultProvider,
   openHttpMcpClient,
   runSkillPass,
   type ExternalToolSource,
@@ -351,7 +351,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
   }
 
   private meteringProvider(id: string, orgId: string): Provider {
-    return createMeteringProvider(openAiCompatibleProvider, (totalTokens) => {
+    return createMeteringProvider(defaultProvider, (totalTokens) => {
       const rateLimit = this.rateLimit;
       if (!rateLimit) return;
       void runWithServiceContext(

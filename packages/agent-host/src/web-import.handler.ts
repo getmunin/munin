@@ -1,8 +1,8 @@
 import {
   WebCrawler,
   classifyProviderError,
+  defaultProvider,
   fenceUntrusted,
-  openAiCompatibleProvider,
   probeUrl,
   sanitizeAttributeValue,
   type CrawledPage,
@@ -414,7 +414,7 @@ async function generateCompanyProfile(opts: {
   const userPrompt = buildProfileUserPrompt(opts.siteTitle, opts.siteUrl, opts.pages);
 
   try {
-    const callProvider = opts.providerImpl ?? openAiCompatibleProvider;
+    const callProvider = opts.providerImpl ?? defaultProvider;
     const response = await callProvider({
       config: {
         provider: { baseUrl: opts.provider.baseUrl, apiKey: opts.provider.apiKey },

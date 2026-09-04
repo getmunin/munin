@@ -15,6 +15,7 @@ export interface AgentConfig {
   provider: ProviderConfig;
   model: string;
   systemPrompt: string;
+  volatileSystemPrompt?: string;
   maxToolIterations?: number;
   maxTokens?: number;
   temperature?: number;
@@ -63,6 +64,8 @@ export interface ChatMessage {
   name?: string;
   tool_call_id?: string;
   tool_calls?: ChatToolCall[];
+  providerContentBlocks?: unknown[];
+  volatile?: boolean;
 }
 
 export interface ChatToolCall {
@@ -87,6 +90,8 @@ export interface ProviderUsage {
   prompt_tokens?: number;
   completion_tokens?: number;
   total_tokens?: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
 }
 
 export interface ProviderResponse {

@@ -188,7 +188,7 @@ describe('createConversationHandler', () => {
     });
     handler.handle({ conversationId: 'conv_1', authorType: 'agent' });
     await handler.flush();
-    // eslint-disable-next-line @typescript-eslint/unbound-method
+     
     expect(rest.getConversation).not.toHaveBeenCalled();
   });
 
@@ -1223,7 +1223,45 @@ describe('createConversationHandler', () => {
     handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
     await handler.flush();
 
-    expect(captured[0]).toMatch(/^JUST_BASE\n\n\[Conversation context\]/);
+    expect(captured[0]).toBe('JUST_BASE');
+  });
+
+  it('keeps the per-conversation context out of the cacheable system prefix', async () => {
+    const rest = buildRest();
+    const calls: Array<Array<{ content: string; volatile?: boolean }>> = [];
+    const stubProvider: Provider = ({ messages }) => {
+      calls.push(
+        messages
+          .filter((m) => m.role === 'system')
+          .map((m) => ({ content: m.content ?? '', volatile: m.volatile })),
+      );
+      return Promise.resolve({
+        message: { role: 'assistant', content: 'ok' },
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        finishReason: 'stop',
+      });
+    };
+
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts({ system: 'JUST_BASE' }),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: stubProvider,
+    });
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    const systemBlocks = calls[0] ?? [];
+    const stable = systemBlocks.filter((m) => !m.volatile);
+    const volatileBlocks = systemBlocks.filter((m) => m.volatile);
+    expect(stable.some((m) => m.content.includes('conv_1'))).toBe(false);
+    expect(volatileBlocks).toHaveLength(1);
+    expect(volatileBlocks[0]?.content).toContain('conversationId: conv_1');
+    expect(systemBlocks[systemBlocks.length - 1]?.volatile).toBe(true);
   });
 
   it('proceeds with the reply when beforeGenerate throws (fail-open like the curator)', async () => {

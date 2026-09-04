@@ -1,4 +1,4 @@
-import { openAiCompatibleProvider } from './providers/openai-compatible.ts';
+import { defaultProvider } from './providers/default-provider.ts';
 import type { ChatMessage, Provider, ProviderConfig } from './types.ts';
 
 export type AuditAction =
@@ -67,7 +67,7 @@ Each entry in \`actions\` is one of the action shapes below. Multiple actions ca
 `;
 
 export async function auditConversation(args: AuditConversationArgs): Promise<AuditVerdict> {
-  const provider = args.providerImpl ?? openAiCompatibleProvider;
+  const provider = args.providerImpl ?? defaultProvider;
   const systemPrompt = buildSystemPrompt(args.topicCatalog);
   const userPrompt = buildUserPrompt(
     args.question,

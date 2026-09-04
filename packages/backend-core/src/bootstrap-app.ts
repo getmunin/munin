@@ -7,11 +7,18 @@ import { createReadStream, existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { Request, Response, NextFunction } from 'express';
+import type { IncomingMessage } from 'node:http';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import { STORAGE } from './common/storage/storage.token.ts';
 import { ORG_HEADER, stripTrailingSlashes } from '@getmunin/types';
+import {
+  EMAIL_RELAY_BODY_LIMIT_BYTES,
+  EMAIL_RELAY_PATH,
+  EMAIL_RELAY_SIGNATURE_HEADER,
+} from './modules/conv/email/email-relay.constants.ts';
 
 const JSON_BODY_LIMIT = '4mb';
+const EMAIL_RELAY_BODY_LIMIT = EMAIL_RELAY_BODY_LIMIT_BYTES;
 
 const DEFAULT_DEV_WEB_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000'];
 
@@ -56,6 +63,7 @@ export async function createApp(
     rawBody: true,
     ...nestOpts,
   });
+  app.use(EMAIL_RELAY_PATH, emailRelaySignatureGateMiddleware, emailRelayBodyParser());
   app.useBodyParser('json', { limit: JSON_BODY_LIMIT, type: ['application/json', 'text/plain'] });
   app.useBodyParser('urlencoded', { extended: true, limit: JSON_BODY_LIMIT });
   const trustProxy = readTrustProxySetting();
@@ -88,6 +96,28 @@ export async function createApp(
   app.use(brandIconMiddleware(resolvedIconDir));
 
   return app;
+}
+
+export function emailRelaySignatureGateMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  if (req.method !== 'POST' || typeof req.headers[EMAIL_RELAY_SIGNATURE_HEADER] === 'string') {
+    next();
+    return;
+  }
+  res.status(401).json({ statusCode: 401, message: 'relay signature missing' });
+}
+
+function emailRelayBodyParser() {
+  return express.json({
+    limit: EMAIL_RELAY_BODY_LIMIT,
+    type: ['application/json', 'text/plain'],
+    verify: (req: IncomingMessage, _res, buf: Buffer) => {
+      (req as IncomingMessage & { rawBody?: Buffer }).rawBody = buf;
+    },
+  });
 }
 
 export function isPublicCorsPath(path: string): boolean {

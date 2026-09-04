@@ -10,17 +10,21 @@ import {
 import type { Request } from 'express';
 import { verifyHmac } from '@getmunin/core';
 import { PublicController } from '../../../common/auth/auth.guard.ts';
+import {
+  EMAIL_RELAY_CONTROLLER_PATH,
+  EMAIL_RELAY_MAX_RAW_BYTES,
+  EMAIL_RELAY_ROUTE,
+  EMAIL_RELAY_SIGNATURE_HEADER,
+} from './email-relay.constants.ts';
 import { EmailRelayService, type RelayIngestOutcome } from './email-relay.service.ts';
 
-const MAX_RAW_BYTES = 30 * 1024 * 1024;
-
-@PublicController('v1/conversations/email', { throttle: true })
+@PublicController(EMAIL_RELAY_CONTROLLER_PATH)
 export class EmailRelayController {
   private readonly logger = new Logger(EmailRelayController.name);
 
   constructor(@Inject(EmailRelayService) private readonly relay: EmailRelayService) {}
 
-  @Post('relay')
+  @Post(EMAIL_RELAY_ROUTE)
   async receive(@Req() req: RawBodyRequest<Request>): Promise<{ status: string }> {
     const secret = process.env.MUNIN_EMAIL_RELAY_SECRET;
     if (!secret) {
@@ -28,7 +32,7 @@ export class EmailRelayController {
     }
 
     const rawBody = req.rawBody ?? Buffer.alloc(0);
-    const signature = headerOne(req.headers['x-munin-relay-signature']);
+    const signature = headerOne(req.headers[EMAIL_RELAY_SIGNATURE_HEADER]);
     if (!signature || !verifyHmac(rawBody, secret, signature)) {
       throw new HttpException('relay signature invalid', HttpStatus.UNAUTHORIZED);
     }
@@ -37,7 +41,7 @@ export class EmailRelayController {
     if (!payload) {
       throw new HttpException('relay payload invalid', HttpStatus.BAD_REQUEST);
     }
-    if (payload.raw.byteLength > MAX_RAW_BYTES) {
+    if (payload.raw.byteLength > EMAIL_RELAY_MAX_RAW_BYTES) {
       throw new HttpException('message too large', HttpStatus.PAYLOAD_TOO_LARGE);
     }
 

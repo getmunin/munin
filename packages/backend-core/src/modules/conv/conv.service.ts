@@ -1849,10 +1849,11 @@ function channelNeedsCredentials(row: typeof schema.convChannels.$inferSelect): 
   if (row.type !== 'email') return false;
   const config = row.config as {
     outbound?: { provider?: string; encryptedPassword?: string };
-    inbound?: { encryptedPassword?: string };
+    inbound?: { provider?: string; encryptedPassword?: string };
   };
   const smtpMissing = config.outbound?.provider === 'smtp' && !config.outbound.encryptedPassword;
-  const imapMissing = !!config.inbound && !config.inbound.encryptedPassword;
+  const imapMissing =
+    config.inbound?.provider !== 'relay' && !!config.inbound && !config.inbound.encryptedPassword;
   return smtpMissing || imapMissing;
 }
 

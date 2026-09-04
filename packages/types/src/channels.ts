@@ -40,6 +40,16 @@ export const ImapInboundSchema = z.object({
   mailbox: z.string().max(120).optional(),
 });
 
+export const RelayInboundSchema = z.object({
+  provider: z.literal('relay'),
+  allowedForwarders: z.array(HostSchema).max(20).optional(),
+});
+
+export const InboundConfigSchema = z.discriminatedUnion('provider', [
+  ImapInboundSchema,
+  RelayInboundSchema,
+]);
+
 export const SendLimitsSchema = z.object({
   perDayMax: z.number().int().positive().max(1_000_000).optional(),
   perHourMax: z.number().int().positive().max(1_000_000).optional(),
@@ -54,7 +64,7 @@ export const EmailChannelConfigInput = z.object({
     replyToTemplate: z.string().max(200).optional(),
   }),
   outbound: OutboundConfigSchema,
-  inbound: ImapInboundSchema.optional(),
+  inbound: InboundConfigSchema.optional(),
   sendLimits: SendLimitsSchema.optional(),
 });
 

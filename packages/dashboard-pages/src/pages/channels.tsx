@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
+  Check,
   ChevronDown,
   Code,
   Copy,
@@ -100,17 +101,25 @@ interface EmailChannelDto extends ChannelDto {
       username?: string;
       trackOpens?: boolean;
     };
-    inbound?: {
-      provider: 'imap';
-      host: string;
-      port: number;
-      secure?: boolean;
-      username?: string;
-      mailbox?: string;
-    };
+    inbound?:
+      | {
+          provider: 'imap';
+          host: string;
+          port: number;
+          secure?: boolean;
+          username?: string;
+          mailbox?: string;
+        }
+      | {
+          provider: 'relay';
+          address: string;
+          allowedForwarders?: string[];
+        };
     sendLimits?: { perDayMax?: number; perHourMax?: number };
   };
 }
+
+type InboundMode = 'none' | 'imap' | 'relay';
 
 interface TwilioSmsChannelDto extends ChannelDto {
   type: 'sms';
@@ -710,6 +719,9 @@ function ChannelRow({
         ? (mbSmsConfig?.originator ? formatPhoneNumber(mbSmsConfig.originator) : undefined)
         : undefined;
 
+  const relayAddress =
+    emailConfig?.inbound?.provider === 'relay' ? emailConfig.inbound.address : null;
+
   const emailIdentity = emailConfig?.addressing?.fromAddress
     ? emailConfig.addressing.fromName
       ? `${emailConfig.addressing.fromName} <${emailConfig.addressing.fromAddress}>`
@@ -851,6 +863,15 @@ function ChannelRow({
       }
     >
       <p className="text-[12.5px] leading-snug text-ink-mute">{description}</p>
+      {relayAddress && (
+        <div className="mt-1 text-[12.5px] leading-snug text-ink-mute">
+          <p>{t('email.relayCardPrefix')}</p>
+          <p className="mt-0.5 flex items-start gap-1.5">
+            <span className="break-all font-mono font-semibold">{relayAddress}</span>
+            <InlineCopyButton value={relayAddress} label={t('email.relayAddressLabel')} />
+          </p>
+        </div>
+      )}
       {alert && <AlertFooter alert={alert} channel={channel} t={t} />}
     </SettingsCard>
   );
@@ -1196,13 +1217,17 @@ function EmailChannelDialog({
   const [smtpUsername, setSmtpUsername] = useState('');
   const [smtpPassword, setSmtpPassword] = useState('');
   const [trackOpens, setTrackOpens] = useState(false);
-  const [enableInbound, setEnableInbound] = useState(false);
+  const [inboundMode, setInboundMode] = useState<InboundMode>('none');
   const [imapHost, setImapHost] = useState('');
   const [imapPort, setImapPort] = useState('993');
   const [imapSecure, setImapSecure] = useState(true);
   const [imapUsername, setImapUsername] = useState('');
   const [imapPassword, setImapPassword] = useState('');
   const [imapMailbox, setImapMailbox] = useState('');
+  const [relayAddress, setRelayAddress] = useState('');
+  const [relayEnabled, setRelayEnabled] = useState(false);
+  const [relayDomain, setRelayDomain] = useState<string | null>(null);
+  const [createdRelayAddress, setCreatedRelayAddress] = useState<string | null>(null);
   const [limitSending, setLimitSending] = useState(false);
   const [perDayMax, setPerDayMax] = useState('');
   const [perHourMax, setPerHourMax] = useState('');
@@ -1232,13 +1257,16 @@ function EmailChannelDialog({
     setSmtpUsername(cfg?.outbound?.username ?? '');
     setSmtpPassword('');
     setTrackOpens(cfg?.outbound?.trackOpens ?? false);
-    setEnableInbound(cfg?.inbound != null);
-    setImapHost(cfg?.inbound?.host ?? '');
-    setImapPort(cfg?.inbound?.port != null ? String(cfg.inbound.port) : '993');
-    setImapSecure(cfg?.inbound?.secure ?? true);
-    setImapUsername(cfg?.inbound?.username ?? '');
+    const imap = cfg?.inbound?.provider === 'imap' ? cfg.inbound : null;
+    const relay = cfg?.inbound?.provider === 'relay' ? cfg.inbound : null;
+    setInboundMode(cfg?.inbound?.provider ?? 'none');
+    setImapHost(imap?.host ?? '');
+    setImapPort(imap?.port != null ? String(imap.port) : '993');
+    setImapSecure(imap?.secure ?? true);
+    setImapUsername(imap?.username ?? '');
     setImapPassword('');
-    setImapMailbox(cfg?.inbound?.mailbox ?? '');
+    setImapMailbox(imap?.mailbox ?? '');
+    setRelayAddress(relay?.address ?? '');
     setLimitSending(cfg?.sendLimits?.perDayMax != null || cfg?.sendLimits?.perHourMax != null);
     setPerDayMax(
       cfg?.sendLimits?.perDayMax != null ? String(cfg.sendLimits.perDayMax) : '',
@@ -1249,7 +1277,29 @@ function EmailChannelDialog({
     setSubmitError(null);
     setFieldErrors({});
     setCreating(false);
+    setCreatedRelayAddress(null);
   }, [open, editChannel]);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    void api<{ relay?: { enabled?: boolean; domain?: string | null } }>(
+      '/v1/conversations/channels/email/capabilities',
+    )
+      .then((res) => {
+        if (!active) return;
+        setRelayEnabled(res.relay?.enabled === true);
+        setRelayDomain(res.relay?.domain ?? null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setRelayEnabled(false);
+        setRelayDomain(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [open]);
 
   async function submit() {
     if (!name.trim() || !fromAddress.trim() || !smtpHost.trim()) return;
@@ -1272,7 +1322,7 @@ function EmailChannelDialog({
           ...(smtpPassword ? { password: smtpPassword } : {}),
           trackOpens,
         },
-        ...(enableInbound
+        ...(inboundMode === 'imap'
           ? {
               inbound: {
                 provider: 'imap' as const,
@@ -1285,6 +1335,7 @@ function EmailChannelDialog({
               },
             }
           : {}),
+        ...(inboundMode === 'relay' ? { inbound: { provider: 'relay' as const } } : {}),
         ...(() => {
           if (!limitSending) return {};
           const sendLimits: { perDayMax?: number; perHourMax?: number } = {};
@@ -1305,10 +1356,14 @@ function EmailChannelDialog({
     setCreating(true);
     setSubmitError(null);
     try {
-      const saved = await api<{ active: boolean; probe?: { smtp: string; imap: string } }>(
-        '/v1/conversations/channels/email',
-        { method: 'POST', body: JSON.stringify(parsed.data) },
-      );
+      const saved = await api<{
+        active: boolean;
+        probe?: { smtp: string; imap: string };
+        config?: { inbound?: { provider?: string; address?: string } };
+      }>('/v1/conversations/channels/email', {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
       onSaved();
       if (saved.probe && !saved.active) {
         setSubmitError(
@@ -1321,6 +1376,12 @@ function EmailChannelDialog({
         );
         return;
       }
+      const minted =
+        saved.config?.inbound?.provider === 'relay' ? (saved.config.inbound.address ?? '') : '';
+      if (!isEdit && minted) {
+        setCreatedRelayAddress(minted);
+        return;
+      }
       onOpenChange(false);
     } catch (err) {
       setSubmitError(
@@ -1329,6 +1390,37 @@ function EmailChannelDialog({
     } finally {
       setCreating(false);
     }
+  }
+
+  if (createdRelayAddress) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('email.relayCreatedTitle')}</DialogTitle>
+            <DialogDescription>
+              {t('email.relayCreatedDescription', { name: name.trim() })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-2 flex flex-col gap-4">
+            <CopyableSecret
+              label={t('email.relayAddressLabel')}
+              value={createdRelayAddress}
+              hint={t('email.relayAddressHint')}
+            />
+          </div>
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              variant="accent"
+              className={dialogButtonClass}
+              onClick={() => onOpenChange(false)}
+            >
+              {tCommon('gotIt')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
   }
 
   return (
@@ -1493,15 +1585,35 @@ function EmailChannelDialog({
 
           <fieldset className="space-y-3 rounded-md border-[1px] px-3 pb-3">
             <legend className="px-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">{t('email.inboundLabel')}</legend>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={enableInbound}
-                onChange={(e) => setEnableInbound(e.target.checked)}
-              />
-              {t('email.enableInbound')}
-            </label>
-            {enableInbound && (
+            <FormField label={t('email.inboundModeLabel')} hint={t(`email.inboundModeHint.${inboundMode}`)}>
+              <NativeSelect
+                value={inboundMode}
+                onChange={(e) => {
+                  setInboundMode(e.target.value as InboundMode);
+                  clearFieldError('imapHost');
+                  clearFieldError('imapPort');
+                }}
+              >
+                <option value="none">{t('email.inboundModeNone')}</option>
+                <option value="imap">{t('email.inboundModeImap')}</option>
+                {(relayEnabled || inboundMode === 'relay') && (
+                  <option value="relay">{t('email.inboundModeRelay')}</option>
+                )}
+              </NativeSelect>
+            </FormField>
+            {inboundMode === 'relay' &&
+              (relayAddress ? (
+                <CopyableSecret
+                  label={t('email.relayAddressLabel')}
+                  value={relayAddress}
+                  hint={t('email.relayAddressHint')}
+                />
+              ) : (
+                <p className="text-[13px] leading-snug text-ink-mute">
+                  {t('email.relayAddressPending', { domain: relayDomain ?? '' })}
+                </p>
+              ))}
+            {inboundMode === 'imap' && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <FormField label={t('email.host')} error={fieldErrors.imapHost}>
                   <Input
@@ -1548,7 +1660,7 @@ function EmailChannelDialog({
                     value={imapPassword}
                     onChange={(e) => setImapPassword(e.target.value)}
                     placeholder="••••••••"
-                    required={!isEdit || !editChannel?.config.inbound}
+                    required={!isEdit || editChannel?.config.inbound?.provider !== 'imap'}
                   />
                 </FormField>
                 <FormField label={t('email.mailbox')}>
@@ -1559,21 +1671,21 @@ function EmailChannelDialog({
                     maxLength={120}
                   />
                 </FormField>
-                <div className="sm:col-span-2">
-                  <FormField label={t('agentReplies.label')} hint={t('agentReplies.hintEmail')}>
-                    <NativeSelect
-                      value={defaultAgentMode}
-                      onChange={(e) =>
-                        setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
-                      }
-                    >
-                      <option value="auto">{t('agentReplies.auto')}</option>
-                      <option value="draft_only">{t('agentReplies.draftOnly')}</option>
-                      <option value="off">{t('agentReplies.off')}</option>
-                    </NativeSelect>
-                  </FormField>
-                </div>
               </div>
+            )}
+            {inboundMode !== 'none' && (
+              <FormField label={t('agentReplies.label')} hint={t('agentReplies.hintEmail')}>
+                <NativeSelect
+                  value={defaultAgentMode}
+                  onChange={(e) =>
+                    setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
+                  }
+                >
+                  <option value="auto">{t('agentReplies.auto')}</option>
+                  <option value="draft_only">{t('agentReplies.draftOnly')}</option>
+                  <option value="off">{t('agentReplies.off')}</option>
+                </NativeSelect>
+              </FormField>
             )}
           </fieldset>
           </div>
@@ -1621,9 +1733,12 @@ function EnterChannelCredentialsDialog({
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
-  const config = channel.config as { outbound?: { provider?: string }; inbound?: unknown };
+  const config = channel.config as {
+    outbound?: { provider?: string };
+    inbound?: { provider?: string };
+  };
   const showSmtp = config.outbound?.provider === 'smtp';
-  const showImap = !!config.inbound;
+  const showImap = config.inbound?.provider === 'imap';
   const [smtpPassword, setSmtpPassword] = useState('');
   const [imapPassword, setImapPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -1973,6 +2088,39 @@ function RotatedSecretDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function InlineCopyButton({ value, label }: { value: string; label: string }) {
+  const tCommon = useTranslations('common');
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    void navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), KEY_DISPLAY_TIMEOUT_MS);
+    });
+  }
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title={copied ? tCommon('copied') : tCommon('copy')}
+      aria-label={`${tCommon('copy')} — ${label}`}
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1 transition-colors',
+        copied ? 'text-cobalt' : 'text-ink-mute hover:text-ink dark:hover:text-foreground',
+      )}
+    >
+      {copied ? (
+        <Check className="size-3.5" aria-hidden />
+      ) : (
+        <Copy className="size-3.5" aria-hidden />
+      )}
+      {copied && <span className="font-mono text-[10px] uppercase">{tCommon('copied')}</span>}
+      <span aria-live="polite" className="sr-only">
+        {copied ? tCommon('copied') : ''}
+      </span>
+    </button>
   );
 }
 

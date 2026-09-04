@@ -130,6 +130,10 @@ export { AgentRunnerSupportModule } from './agent/agent-runner-support.module.ts
 export { ControlModule } from './control/control.module.ts';
 export { KbModule } from './modules/kb/kb.module.ts';
 export { ConvModule } from './modules/conv/conv.module.ts';
+export {
+  EmailRelayService,
+  type RelayIngestOutcome,
+} from './modules/conv/email/email-relay.service.ts';
 export { CrmModule } from './modules/crm/crm.module.ts';
 export { CmsModule } from './modules/cms/cms.module.ts';
 export { RateLimitModule } from './common/rate-limit/rate-limit.module.ts';

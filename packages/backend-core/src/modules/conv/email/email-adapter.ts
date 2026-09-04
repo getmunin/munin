@@ -22,6 +22,7 @@ import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from '../set-topic-job.ts';
 import {
   EmailService,
+  imapInbound,
   jsonbToStored,
   type StoredEmailChannelConfig,
 } from './email.service.ts';
@@ -29,6 +30,7 @@ import { smtpTransportOptions } from './email-probe.service.ts';
 import { buildOutbound, stripMessageIdBrackets, parseMessageIdHeader, type BuiltMessage } from './mime.ts';
 import { renderEmailHtml } from './markdown.ts';
 import { resolveInbound, type ParsedInboundEmail } from './threading.ts';
+import type { ForwardOrigin } from './forwarded-sender.ts';
 import { reopenClosedConversation } from '../conversation-reopen.ts';
 import {
   detectSignatureBlock,
@@ -229,22 +231,23 @@ export class EmailAdapter implements ChannelAdapter {
 
   private async pollOne(channel: ChannelRow): Promise<PollTickResult> {
     const config = jsonbToStored(channel.config);
-    if (!config.inbound) return { messagesIngested: 0 };
+    const inbound = imapInbound(config);
+    if (!inbound) return { messagesIngested: 0 };
 
     const cursor = await this.readCursor(channel.id);
     const sinceUid = typeof cursor.lastUid === 'number' ? cursor.lastUid : null;
 
     const password = await this.db.transaction((tx) =>
-      this.emailService.decryptImapPassword(tx, config.inbound!.encryptedPassword),
+      this.emailService.decryptImapPassword(tx, inbound.encryptedPassword),
     );
 
     const messages = await this.fetcher.fetchSince({
-      host: config.inbound.host,
-      port: config.inbound.port,
-      secure: config.inbound.secure,
-      username: config.inbound.username,
+      host: inbound.host,
+      port: inbound.port,
+      secure: inbound.secure,
+      username: inbound.username,
       password,
-      mailbox: config.inbound.mailbox ?? 'INBOX',
+      mailbox: inbound.mailbox ?? 'INBOX',
       sinceUid,
       limit: MAX_MESSAGES_PER_TICK,
     });
@@ -273,8 +276,19 @@ export class EmailAdapter implements ChannelAdapter {
     return { messagesIngested: ingested, lastError };
   }
 
-  private async ingest(channel: ChannelRow, parsed: ParsedInboundEmail): Promise<void> {
+  async ingest(
+    channel: ChannelRow,
+    parsed: ParsedInboundEmail,
+    origin?: ForwardOrigin,
+  ): Promise<void> {
     if (!parsed.fromAddress) return;
+    const sender = origin ?? {
+      kind: 'direct' as const,
+      senderAddress: parsed.fromAddress,
+      senderName: parsed.fromName,
+      forwardedBy: null,
+    };
+    if (!sender.senderAddress) return;
     const orgId = channel.orgId;
     const replyDomain = process.env.MUNIN_EMAIL_REPLY_DOMAIN ?? null;
     const actor = new ActorIdentity('system', 'email-inbound-worker', orgId, ['*'], ['admin']);
@@ -300,8 +314,8 @@ export class EmailAdapter implements ChannelAdapter {
         const contact = await this.emailService.findOrCreateContactByEmail(
           tx,
           orgId,
-          parsed.fromAddress,
-          parsed.fromName ?? undefined,
+          sender.senderAddress,
+          sender.senderName ?? undefined,
         );
 
         let conversationId: string;
@@ -359,6 +373,7 @@ export class EmailAdapter implements ChannelAdapter {
             metadata: buildInboundMetadata(parsed, {
               regexSignatureText: detectedSignatureForMeta,
               preStripBody: regexCutSignature ? quoteStrippedText : null,
+              origin: sender,
             }),
           })
           .returning();
@@ -488,6 +503,8 @@ export async function parseMessage(source: Buffer | string): Promise<ParsedInbou
     senderClassification,
     authenticationResults,
     arcAuthenticationResults,
+    forwardedFor: extractHeaderValues(parsed.headerLines, 'x-forwarded-for'),
+    forwardedTo: extractHeaderValues(parsed.headerLines, 'x-forwarded-to'),
   };
 }
 
@@ -507,10 +524,21 @@ function extractHeaderValues(
 
 function buildInboundMetadata(
   parsed: ParsedInboundEmail,
-  extras: { regexSignatureText: string | null; preStripBody: string | null },
+  extras: {
+    regexSignatureText: string | null;
+    preStripBody: string | null;
+    origin?: ForwardOrigin;
+  },
 ): Record<string, unknown> {
   const meta: Record<string, unknown> = {};
   if (parsed.messageId) meta.inboundMessageId = parsed.messageId;
+  if (extras.origin && extras.origin.kind !== 'direct') {
+    meta.forwarding = {
+      kind: extras.origin.kind,
+      forwardedBy: extras.origin.forwardedBy,
+      envelopeFrom: parsed.fromAddress,
+    };
+  }
   if (extras.regexSignatureText) meta.signatureText = extras.regexSignatureText;
   if (extras.preStripBody) meta.preStripBody = extras.preStripBody;
   if (hasAnyClassification(parsed.senderClassification)) {

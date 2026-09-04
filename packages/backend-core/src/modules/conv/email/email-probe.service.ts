@@ -4,7 +4,7 @@ import { ImapFlow } from 'imapflow';
 import { resolvePublicHost } from '@getmunin/core';
 import type { Db } from '@getmunin/db';
 import { DB } from '../../../common/db/db.module.ts';
-import { EmailService, type StoredEmailChannelConfig } from './email.service.ts';
+import { EmailService, imapInbound, type StoredEmailChannelConfig } from './email.service.ts';
 
 export interface EmailProbeResult {
   smtp: string;
@@ -59,25 +59,29 @@ export class EmailChannelProbe {
   }
 
   private async testImap(config: StoredEmailChannelConfig): Promise<string> {
-    if (!config.inbound) return 'not configured';
+    if (config.inbound?.provider === 'relay') {
+      return `relay: forward to ${config.inbound.address}`;
+    }
+    const inbound = imapInbound(config);
+    if (!inbound) return 'not configured';
     try {
-      const resolved = await resolvePublicHost(config.inbound.host);
+      const resolved = await resolvePublicHost(inbound.host);
       const password = await this.db.transaction((tx) =>
-        this.email.decryptImapPassword(tx, config.inbound!.encryptedPassword),
+        this.email.decryptImapPassword(tx, inbound.encryptedPassword),
       );
       const client = new ImapFlow({
-        host: resolved?.address ?? config.inbound.host,
-        port: config.inbound.port,
-        secure: config.inbound.secure,
-        auth: { user: config.inbound.username, pass: password },
+        host: resolved?.address ?? inbound.host,
+        port: inbound.port,
+        secure: inbound.secure,
+        auth: { user: inbound.username, pass: password },
         logger: false,
-        ...(resolved && resolved.address !== config.inbound.host
-          ? { tls: { servername: config.inbound.host } }
+        ...(resolved && resolved.address !== inbound.host
+          ? { tls: { servername: inbound.host } }
           : {}),
       });
       client.on('error', (err) => {
         EmailChannelProbe.logger.warn(
-          `imap late error host=${config.inbound!.host} user=${config.inbound!.username}: ${
+          `imap late error host=${inbound.host} user=${inbound.username}: ${
             err instanceof Error ? err.message : String(err)
           }`,
         );

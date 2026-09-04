@@ -21,7 +21,11 @@ import { RequireRole } from './role.decorator.ts';
 import { ConvService, type ChannelDto } from '../modules/conv/conv.service.ts';
 import { WidgetAdminTools } from '../modules/conv/widget/widget.tools.ts';
 import { EmailAdminTools } from '../modules/conv/email/email.tools.ts';
-import { EmailService } from '../modules/conv/email/email.service.ts';
+import {
+  EmailService,
+  readRelayDomain,
+  relayInboundAvailable,
+} from '../modules/conv/email/email.service.ts';
 import { TwilioSmsAdminService } from '../modules/conv/twilio/twilio-sms-admin.service.ts';
 import { MessageBirdSmsAdminService } from '../modules/conv/messagebird/messagebird-sms-admin.service.ts';
 import { VapiAdminService } from '../modules/conv/vapi/vapi-admin.service.ts';
@@ -111,6 +115,16 @@ export class ConvChannelsController {
   @Get('vendors')
   listVendors(): ReturnType<ChannelAdminService['listVendors']> {
     return this.channelAdmin.listVendors();
+  }
+
+  @Get('email/capabilities')
+  emailCapabilities(): {
+    relay: { enabled: boolean; domain: string | null };
+  } {
+    const enabled = relayInboundAvailable();
+    return {
+      relay: { enabled, domain: enabled ? readRelayDomain() : null },
+    };
   }
 
   @Post()

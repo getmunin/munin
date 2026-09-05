@@ -490,6 +490,209 @@ class StubStorage implements AssetStorage {
       expect(updated.data.body).toBeNull();
     });
 
+    it('updateEntry applies textReplacements to a text field without resending it', async () => {
+      const col = await seedCollection();
+      const entry = await run(() =>
+        svc.createEntry({
+          collection: col.slug,
+          slug: 'replace',
+          data: { title: 'Keep', body: 'Hello brave new world. Hello again.' },
+        }),
+      );
+      const updated = await run(() =>
+        svc.updateEntry({
+          id: entry.id,
+          ifVersion: 1,
+          textReplacements: [
+            { field: 'body', oldText: 'brave new', newText: 'quiet' },
+            { field: 'body', oldText: 'Hello', newText: 'Hi', replaceAll: true },
+          ],
+        }),
+      );
+      expect(updated.version).toBe(2);
+      expect(updated.data.title).toBe('Keep');
+      expect(updated.data.body).toBe('Hi quiet world. Hi again.');
+    });
+
+    it('updateEntry textReplacements fail atomically with coded errors for no match and ambiguity', async () => {
+      const col = await seedCollection();
+      const entry = await run(() =>
+        svc.createEntry({
+          collection: col.slug,
+          slug: 'strict',
+          data: { title: 'T', body: 'one two one' },
+        }),
+      );
+      await expect(
+        run(() =>
+          svc.updateEntry({
+            id: entry.id,
+            ifVersion: 1,
+            textReplacements: [
+              { field: 'body', oldText: 'two', newText: '2' },
+              { field: 'body', oldText: 'missing', newText: 'x' },
+            ],
+          }),
+        ),
+      ).rejects.toThrow(/cms_replacement_no_match: textReplacements\[1\]/);
+      await expect(
+        run(() =>
+          svc.updateEntry({
+            id: entry.id,
+            ifVersion: 1,
+            textReplacements: [{ field: 'body', oldText: 'one', newText: '1' }],
+          }),
+        ),
+      ).rejects.toThrow(/cms_replacement_ambiguous: textReplacements\[0\].*occurs 2 times/);
+      const unchanged = await run(() => svc.getEntry(entry.id));
+      expect(unchanged.version).toBe(1);
+      expect(unchanged.data.body).toBe('one two one');
+    });
+
+    it('updateEntry rejects textReplacements on unknown, non-text, and data-overlapping fields', async () => {
+      await ensureLocale('en');
+      const col = await run(() =>
+        svc.createCollection({
+          name: 'Typed',
+          slug: 'typed',
+          fields: [
+            { name: 'title', type: 'text', required: true },
+            { name: 'count', type: 'integer' },
+          ],
+        }),
+      );
+      const entry = await run(() =>
+        svc.createEntry({ collection: col.slug, slug: 'typed', data: { title: 'T', count: 3 } }),
+      );
+      await expect(
+        run(() =>
+          svc.updateEntry({
+            id: entry.id,
+            ifVersion: 1,
+            textReplacements: [{ field: 'nope', oldText: 'a', newText: 'b' }],
+          }),
+        ),
+      ).rejects.toThrow(/unknown field "nope"/);
+      await expect(
+        run(() =>
+          svc.updateEntry({
+            id: entry.id,
+            ifVersion: 1,
+            textReplacements: [{ field: 'count', oldText: '3', newText: '4' }],
+          }),
+        ),
+      ).rejects.toThrow(/field "count" \(integer\) holds no editable text/);
+      await expect(
+        run(() =>
+          svc.updateEntry({
+            id: entry.id,
+            ifVersion: 1,
+            data: { title: 'Whole' },
+            textReplacements: [{ field: 'title', oldText: 'T', newText: 'U' }],
+          }),
+        ),
+      ).rejects.toThrow(/field "title" is also present in data/);
+    });
+
+    it('updateEntry textReplacements reach block prose and accept the public URL of an inline asset', async () => {
+      await ensureLocale('en');
+      const asset = await run(() =>
+        svc.uploadAssetFromBase64({
+          name: 'pic.png',
+          mime: 'image/png',
+          base64Body: Buffer.from('hello-world-binary').toString('base64'),
+        }),
+      );
+      const col = await run(() =>
+        svc.createCollection({
+          name: 'Blocked',
+          slug: 'blocked',
+          fields: [
+            { name: 'title', type: 'text', required: true },
+            {
+              name: 'body',
+              type: 'blocks',
+              options: {
+                blockTypes: [
+                  { name: 'prose', fields: [{ name: 'markdown', type: 'markdown', required: true }] },
+                  { name: 'quote', fields: [{ name: 'text', type: 'text', required: true }] },
+                ],
+              },
+            },
+          ],
+        }),
+      );
+      const entry = await run(() =>
+        svc.createEntry({
+          collection: col.slug,
+          slug: 'blocked',
+          data: {
+            title: 'Blocks',
+            body: [
+              { type: 'prose', key: 'p1', props: { markdown: `Intro. ![pic](asset://${asset.id}) More.` } },
+              { type: 'quote', key: 'q1', props: { text: 'A quiet quote' } },
+            ],
+          },
+        }),
+      );
+      const read = await run(() => svc.getEntry(entry.id));
+      const shownProse = (read.data.body as Array<{ props: { markdown?: string } }>)[0]!.props.markdown!;
+      expect(shownProse).toContain('https://cdn.test/');
+      expect(shownProse).not.toContain('asset://');
+
+      const updated = await run(() =>
+        svc.updateEntry({
+          id: entry.id,
+          ifVersion: 1,
+          textReplacements: [
+            { field: 'body', oldText: shownProse, newText: shownProse.replace('Intro.', 'Opening.') },
+            { field: 'body', oldText: 'quiet quote', newText: 'loud quote' },
+          ],
+        }),
+      );
+      const blocks = updated.data.body as Array<{ type: string; key: string; props: Record<string, string> }>;
+      expect(blocks[0]!.props.markdown).toMatch(/^Opening\. !\[pic\]\(https:\/\/cdn\.test\//);
+      expect(blocks[1]).toEqual({ type: 'quote', key: 'q1', props: { text: 'A loud quote' } });
+
+      const stored = await db.execute<{ data: { body: Array<{ props: { markdown?: string } }> } }>(
+        sql`SELECT data FROM cms_entries WHERE id = ${entry.id}`,
+      );
+      expect(stored[0]!.data.body[0]!.props.markdown).toBe(`Opening. ![pic](asset://${asset.id}) More.`);
+    });
+
+    it('getEntry with fields returns only the named data keys', async () => {
+      const col = await seedCollection();
+      const entry = await run(() =>
+        svc.createEntry({
+          collection: col.slug,
+          slug: 'proj',
+          data: { title: 'Only me', body: 'Long body that should not come back' },
+        }),
+      );
+      const projected = await run(() => svc.getEntry(entry.id, undefined, ['title']));
+      expect(projected.data).toEqual({ title: 'Only me' });
+      const whole = await run(() => svc.getEntry(entry.id));
+      expect(Object.keys(whole.data).sort()).toEqual(['body', 'title']);
+    });
+
+    it('presentEntry returns the entry verbatim for full and a lead + word count for summary', async () => {
+      const col = await seedCollection();
+      const longBody = 'word '.repeat(300).trim();
+      const entry = await run(() =>
+        svc.createEntry({ collection: col.slug, slug: 'sum', data: { title: 'Sum', body: longBody } }),
+      );
+      const full = await run(() => svc.presentEntry(entry, 'full'));
+      expect(full).toBe(entry);
+      const summary = await run(() => svc.presentEntry(entry, 'summary'));
+      expect(summary).not.toHaveProperty('assets');
+      if (!('fieldSummary' in summary)) throw new Error('expected a summary');
+      expect(summary.title).toBe('Sum');
+      expect(summary.version).toBe(entry.version);
+      expect((summary.data.body as string).length).toBeLessThan(longBody.length);
+      expect(summary.fieldSummary.body).toEqual({ words: 300, truncated: true });
+      expect(summary.truncated).toBe(true);
+    });
+
     it('updateEntry with no field change does not invoke embedding rebuild', async () => {
       const col = await seedCollection();
       const entry = await run(() =>

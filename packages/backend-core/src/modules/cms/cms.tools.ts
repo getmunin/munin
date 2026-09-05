@@ -1,10 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
-import { CmsService, ENTRY_STATUSES } from './cms.service.ts';
+import { CmsService, ENTRY_RESPONSE_FORMATS, ENTRY_STATUSES } from './cms.service.ts';
 import { CmsSearchService } from './cms.search.ts';
 import { FIELD_TYPES, type FieldDef } from './cms.fields.ts';
 import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
+import { TEXT_REPLACEMENTS_MAX, TextReplacementSchema } from '../../common/text-replacements.ts';
 import { INSPECTOR_APP_URI } from '../../mcp/inspector.resource.ts';
 
 const FieldSchema: z.ZodType<FieldDef> = z.lazy(() =>
@@ -72,7 +73,47 @@ const ListEntriesInput = z.object({
   fields: z.array(z.string()).max(20).optional(),
 });
 
-const GetEntryInput = z.object({ id: z.string(), include: IncludeInput });
+const GetEntryInput = z.object({
+  id: z.string(),
+  include: IncludeInput,
+  fields: z
+    .array(z.string())
+    .max(20)
+    .optional()
+    .describe('Return only these fields in `data`. Omit for every field.'),
+});
+
+const ResponseFormatDefaultFull = z
+  .enum(ENTRY_RESPONSE_FORMATS)
+  .optional()
+  .describe(
+    'Shape of the returned entry. `full` (default) returns every field verbatim; `summary` shortens long text to a lead with a word count in `fieldSummary`, the same shape cms_list_entries returns.',
+  );
+
+const ResponseFormatDefaultSummary = z
+  .enum(ENTRY_RESPONSE_FORMATS)
+  .optional()
+  .describe(
+    'Shape of the returned entry. `summary` (default) shortens long text to a lead with a word count in `fieldSummary`, the same shape cms_list_entries returns; `full` returns every field verbatim.',
+  );
+
+const EntryTextReplacementsInput = z
+  .array(
+    TextReplacementSchema.extend({
+      field: z
+        .string()
+        .min(1)
+        .max(64)
+        .describe(
+          'Name of the field to edit. For a `blocks` field the match runs across the prose inside every block.',
+        ),
+    }),
+  )
+  .min(1)
+  .max(TEXT_REPLACEMENTS_MAX)
+  .describe(
+    'Targeted find-and-replace edits inside text, markdown, rich_text, array-of-text and blocks fields, applied in order and all-or-nothing. Each oldText must match the current stored text exactly once (or set replaceAll). A field may appear here or in `data`, not both.',
+  );
 
 const GetPreviewLinkInput = z.object({ id: z.string() });
 
@@ -96,6 +137,7 @@ const CreateEntryInput = z.object({
   data: z.record(z.string(), z.unknown()),
   status: z.enum(['draft', 'published']).optional(),
   publishedAt: PublishedAtInput.optional(),
+  responseFormat: ResponseFormatDefaultFull,
 });
 
 const UpdateEntryInput = z.object({
@@ -104,11 +146,14 @@ const UpdateEntryInput = z.object({
   slug: z.string().min(1).max(200).optional(),
   locale: z.string().optional(),
   data: z.record(z.string(), z.unknown()).optional(),
+  textReplacements: EntryTextReplacementsInput.optional(),
+  responseFormat: ResponseFormatDefaultFull,
 });
 
 const PublishInput = z.object({
   id: z.string(),
   ifVersion: z.number().int().nonnegative(),
+  responseFormat: ResponseFormatDefaultSummary,
 });
 
 const PublishEntryInput = PublishInput.extend({
@@ -119,6 +164,7 @@ const ScheduleInput = z.object({
   id: z.string(),
   ifVersion: z.number().int().nonnegative(),
   scheduledAt: z.string().datetime(),
+  responseFormat: ResponseFormatDefaultSummary,
 });
 
 const DeleteEntryInput = z.object({
@@ -141,6 +187,7 @@ const RestoreVersionInput = z.object({
   entryId: z.string(),
   version: z.number().int().positive(),
   ifVersion: z.number().int().nonnegative(),
+  responseFormat: ResponseFormatDefaultFull,
 });
 
 const ListAssetsInput = z.object({
@@ -354,7 +401,7 @@ export class CmsAdminTools {
     name: 'cms_get_entry',
     title: 'CMS: Read entry',
     description:
-      "Read one entry in full, including complete long-text fields. Data is projected through the collection's current field schema.",
+      "Read one entry in full, including complete long-text fields. Data is projected through the collection's current field schema. Pass `fields` to receive only the named fields in `data` — checking a title or status does not need the body.",
     audiences: ['admin'],
     scopes: ['cms:read'],
     input: GetEntryInput,
@@ -362,7 +409,7 @@ export class CmsAdminTools {
     destructiveHint: false,
   })
   getEntry(args: z.infer<typeof GetEntryInput>) {
-    return this.cms.getEntry(args.id, args.include);
+    return this.cms.getEntry(args.id, args.include, args.fields);
   }
 
   @McpTool({
@@ -384,74 +431,80 @@ export class CmsAdminTools {
     name: 'cms_create_entry',
     title: 'CMS: Create entry',
     description:
-      'Create a new entry in a collection. `data` is keyed by field name; required fields must be present. Pass `status: "published"` to publish on creation; default is draft. Published entries are stamped with `publishedAt` — pass one to preserve the original date when migrating existing content. Slugs are unique per (collection, slug, locale), so each locale can have its own slug — when the entry is a translation of an existing one, pass `translationOf` with that entry\'s id to link them.',
+      'Create a new entry in a collection. `data` is keyed by field name; required fields must be present. Pass `status: "published"` to publish on creation; default is draft. Published entries are stamped with `publishedAt` — pass one to preserve the original date when migrating existing content. Slugs are unique per (collection, slug, locale), so each locale can have its own slug — when the entry is a translation of an existing one, pass `translationOf` with that entry\'s id to link them. Returns the full entry, or a summary with `responseFormat: "summary"`.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: CreateEntryInput,
     readOnlyHint: false,
     destructiveHint: true,
   })
-  createEntry(args: z.infer<typeof CreateEntryInput>) {
-    return this.cms.createEntry(args);
+  async createEntry(args: z.infer<typeof CreateEntryInput>) {
+    const { responseFormat, ...rest } = args;
+    return this.cms.presentEntry(await this.cms.createEntry(rest), responseFormat ?? 'full');
   }
 
   @McpTool({
     name: 'cms_update_entry',
     title: 'CMS: Update entry',
     description:
-      'Update an entry. Pass `ifVersion` (the current version you read) for optimistic concurrency. `data` is a partial patch — keys you send replace the corresponding keys on the existing entry; keys you omit are preserved. Pass an explicit `null` to clear a single key. The merged payload is then re-validated against the collection schema, and search_text + embedding + references are regenerated.',
+      'Update an entry. Pass `ifVersion` (the current version you read) for optimistic concurrency. `data` is a partial patch — keys you send replace the corresponding keys on the existing entry; keys you omit are preserved. Pass an explicit `null` to clear a single key. `textReplacements` edits inside a long field without resending it: each `{ field, oldText, newText }` replaces one exact occurrence of oldText in that field\'s stored text (or every occurrence with `replaceAll: true`), reaching into the prose of every block on a `blocks` field. Edits apply in order and all-or-nothing; zero matches fails with `cms_replacement_no_match`, several matches without replaceAll with `cms_replacement_ambiguous`. Inline images may be written as either the `asset://` token or the public URL cms_get_entry showed. The merged payload is then re-validated against the collection schema, and search_text + embedding + references are regenerated. Returns the full entry, or a summary with `responseFormat: "summary"`.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: UpdateEntryInput,
     readOnlyHint: false,
     destructiveHint: true,
   })
-  updateEntry(args: z.infer<typeof UpdateEntryInput>) {
-    return this.cms.updateEntry(args);
+  async updateEntry(args: z.infer<typeof UpdateEntryInput>) {
+    const { responseFormat, ...rest } = args;
+    return this.cms.presentEntry(await this.cms.updateEntry(rest), responseFormat ?? 'full');
   }
 
   @McpTool({
     name: 'cms_publish_entry',
     title: 'CMS: Publish entry',
     description:
-      'Flip an entry to status="published". Stamps publishedAt (now, or the `publishedAt` you pass for migrated content) and fires cms.entry.published.',
+      'Flip an entry to status="published". Stamps publishedAt (now, or the `publishedAt` you pass for migrated content) and fires cms.entry.published. Content is unchanged, so the entry comes back as a summary unless `responseFormat: "full"` is passed.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: PublishEntryInput,
     readOnlyHint: false,
     destructiveHint: true,
   })
-  publishEntry(args: z.infer<typeof PublishEntryInput>) {
-    return this.cms.publishEntry(args);
+  async publishEntry(args: z.infer<typeof PublishEntryInput>) {
+    const { responseFormat, ...rest } = args;
+    return this.cms.presentEntry(await this.cms.publishEntry(rest), responseFormat ?? 'summary');
   }
 
   @McpTool({
     name: 'cms_unpublish_entry',
     title: 'CMS: Unpublish entry',
-    description: 'Revert an entry to status="draft". Clears publishedAt; fires cms.entry.unpublished.',
+    description:
+      'Revert an entry to status="draft". Clears publishedAt; fires cms.entry.unpublished. Content is unchanged, so the entry comes back as a summary unless `responseFormat: "full"` is passed.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: PublishInput,
     readOnlyHint: false,
     destructiveHint: true,
   })
-  unpublishEntry(args: z.infer<typeof PublishInput>) {
-    return this.cms.unpublishEntry(args);
+  async unpublishEntry(args: z.infer<typeof PublishInput>) {
+    const { responseFormat, ...rest } = args;
+    return this.cms.presentEntry(await this.cms.unpublishEntry(rest), responseFormat ?? 'summary');
   }
 
   @McpTool({
     name: 'cms_schedule_publish',
     title: 'CMS: Schedule entry publish',
     description:
-      'Schedule an entry to flip to published at a future ISO 8601 datetime. The schedule worker drains due rows every minute.',
+      'Schedule an entry to flip to published at a future ISO 8601 datetime. The schedule worker drains due rows every minute. Content is unchanged, so the entry comes back as a summary unless `responseFormat: "full"` is passed.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: ScheduleInput,
     readOnlyHint: false,
     destructiveHint: true,
   })
-  scheduleEntry(args: z.infer<typeof ScheduleInput>) {
-    return this.cms.scheduleEntry(args);
+  async scheduleEntry(args: z.infer<typeof ScheduleInput>) {
+    const { responseFormat, ...rest } = args;
+    return this.cms.presentEntry(await this.cms.scheduleEntry(rest), responseFormat ?? 'summary');
   }
 
   @McpTool({
@@ -531,15 +584,16 @@ export class CmsAdminTools {
     name: 'cms_restore_version',
     title: 'CMS: Restore entry version',
     description:
-      'Roll an entry back to an earlier version. Creates a new current version with that historical data.',
+      'Roll an entry back to an earlier version. Creates a new current version with that historical data. Returns the full restored entry, or a summary with `responseFormat: "summary"`.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: RestoreVersionInput,
     readOnlyHint: false,
     destructiveHint: true,
   })
-  restoreVersion(args: z.infer<typeof RestoreVersionInput>) {
-    return this.cms.restoreVersion(args);
+  async restoreVersion(args: z.infer<typeof RestoreVersionInput>) {
+    const { responseFormat, ...rest } = args;
+    return this.cms.presentEntry(await this.cms.restoreVersion(rest), responseFormat ?? 'full');
   }
 
   @McpTool({

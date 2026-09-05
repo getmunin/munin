@@ -185,13 +185,9 @@
                     }
                   },
                   "identityVerificationSecret": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   }
                 },
@@ -263,103 +259,63 @@
                     ]
                   },
                   "trackerId": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "path": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "locale": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "referrer": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "utmSource": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "utmMedium": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "utmCampaign": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "visitorId": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "endUserId": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "userAgentClass": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "dwellMs": {
@@ -387,13 +343,9 @@
                     ]
                   },
                   "country": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "metadata": {
@@ -440,23 +392,15 @@
                     "type": "string"
                   },
                   "trackerId": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "locale": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "resultCount": {
@@ -465,23 +409,15 @@
                     "maximum": 9007199254740991
                   },
                   "visitorId": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "endUserId": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "createdAt": {
@@ -1419,13 +1355,9 @@
               "maxLength": 120
             },
             "description": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
+              "type": [
+                "string",
+                "null"
               ]
             },
             "fields": {
@@ -1638,7 +1570,7 @@
   {
     "name": "cms_get_entry",
     "title": "CMS: Read entry",
-    "description": "Read one entry in full, including complete long-text fields. Data is projected through the collection's current field schema.",
+    "description": "Read one entry in full, including complete long-text fields. Data is projected through the collection's current field schema. Pass `fields` to receive only the named fields in `data` — checking a title or status does not need the body.",
     "audiences": [
       "admin"
     ],
@@ -1662,6 +1594,14 @@
             "enum": [
               "references"
             ]
+          }
+        },
+        "fields": {
+          "description": "Return only these fields in `data`. Omit for every field.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         }
       },
@@ -1700,7 +1640,7 @@
   {
     "name": "cms_create_entry",
     "title": "CMS: Create entry",
-    "description": "Create a new entry in a collection. `data` is keyed by field name; required fields must be present. Pass `status: \"published\"` to publish on creation; default is draft. Published entries are stamped with `publishedAt` — pass one to preserve the original date when migrating existing content. Slugs are unique per (collection, slug, locale), so each locale can have its own slug — when the entry is a translation of an existing one, pass `translationOf` with that entry's id to link them.",
+    "description": "Create a new entry in a collection. `data` is keyed by field name; required fields must be present. Pass `status: \"published\"` to publish on creation; default is draft. Published entries are stamped with `publishedAt` — pass one to preserve the original date when migrating existing content. Slugs are unique per (collection, slug, locale), so each locale can have its own slug — when the entry is a translation of an existing one, pass `translationOf` with that entry's id to link them. Returns the full entry, or a summary with `responseFormat: \"summary\"`.",
     "audiences": [
       "admin"
     ],
@@ -1745,8 +1685,16 @@
         "publishedAt": {
           "type": "string",
           "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
           "description": "Original publication timestamp (ISO 8601). Set this when migrating existing content so the entry keeps its real publication date; defaults to now."
+        },
+        "responseFormat": {
+          "description": "Shape of the returned entry. `full` (default) returns every field verbatim; `summary` shortens long text to a lead with a word count in `fieldSummary`, the same shape cms_list_entries returns.",
+          "type": "string",
+          "enum": [
+            "full",
+            "summary"
+          ]
         }
       },
       "required": [
@@ -1760,7 +1708,7 @@
   {
     "name": "cms_update_entry",
     "title": "CMS: Update entry",
-    "description": "Update an entry. Pass `ifVersion` (the current version you read) for optimistic concurrency. `data` is a partial patch — keys you send replace the corresponding keys on the existing entry; keys you omit are preserved. Pass an explicit `null` to clear a single key. The merged payload is then re-validated against the collection schema, and search_text + embedding + references are regenerated.",
+    "description": "Update an entry. Pass `ifVersion` (the current version you read) for optimistic concurrency. `data` is a partial patch — keys you send replace the corresponding keys on the existing entry; keys you omit are preserved. Pass an explicit `null` to clear a single key. `textReplacements` edits inside a long field without resending it: each `{ field, oldText, newText }` replaces one exact occurrence of oldText in that field's stored text (or every occurrence with `replaceAll: true`), reaching into the prose of every block on a `blocks` field. Edits apply in order and all-or-nothing; zero matches fails with `cms_replacement_no_match`, several matches without replaceAll with `cms_replacement_ambiguous`. Inline images may be written as either the `asset://` token or the public URL cms_get_entry showed. The merged payload is then re-validated against the collection schema, and search_text + embedding + references are regenerated. Returns the full entry, or a summary with `responseFormat: \"summary\"`.",
     "audiences": [
       "admin"
     ],
@@ -1795,6 +1743,52 @@
             "type": "string"
           },
           "additionalProperties": {}
+        },
+        "textReplacements": {
+          "minItems": 1,
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "oldText": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000,
+                "description": "Exact text to find, including whitespace and punctuation. Must occur exactly once unless replaceAll is set."
+              },
+              "newText": {
+                "type": "string",
+                "maxLength": 200000,
+                "description": "Text that replaces every matched occurrence. May be empty to delete."
+              },
+              "replaceAll": {
+                "description": "Replace every occurrence instead of failing when oldText occurs more than once.",
+                "type": "boolean"
+              },
+              "field": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "Name of the field to edit. For a `blocks` field the match runs across the prose inside every block."
+              }
+            },
+            "required": [
+              "oldText",
+              "newText",
+              "field"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Targeted find-and-replace edits inside text, markdown, rich_text, array-of-text and blocks fields, applied in order and all-or-nothing. Each oldText must match the current stored text exactly once (or set replaceAll). A field may appear here or in `data`, not both."
+        },
+        "responseFormat": {
+          "description": "Shape of the returned entry. `full` (default) returns every field verbatim; `summary` shortens long text to a lead with a word count in `fieldSummary`, the same shape cms_list_entries returns.",
+          "type": "string",
+          "enum": [
+            "full",
+            "summary"
+          ]
         }
       },
       "required": [
@@ -1807,7 +1801,7 @@
   {
     "name": "cms_publish_entry",
     "title": "CMS: Publish entry",
-    "description": "Flip an entry to status=\"published\". Stamps publishedAt (now, or the `publishedAt` you pass for migrated content) and fires cms.entry.published.",
+    "description": "Flip an entry to status=\"published\". Stamps publishedAt (now, or the `publishedAt` you pass for migrated content) and fires cms.entry.published. Content is unchanged, so the entry comes back as a summary unless `responseFormat: \"full\"` is passed.",
     "audiences": [
       "admin"
     ],
@@ -1828,10 +1822,18 @@
           "minimum": 0,
           "maximum": 9007199254740991
         },
+        "responseFormat": {
+          "description": "Shape of the returned entry. `summary` (default) shortens long text to a lead with a word count in `fieldSummary`, the same shape cms_list_entries returns; `full` returns every field verbatim.",
+          "type": "string",
+          "enum": [
+            "full",
+            "summary"
+          ]
+        },
         "publishedAt": {
           "type": "string",
           "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
           "description": "Original publication timestamp (ISO 8601). Set this when migrating existing content so the entry keeps its real publication date; defaults to now."
         }
       },
@@ -1845,7 +1847,7 @@
   {
     "name": "cms_unpublish_entry",
     "title": "CMS: Unpublish entry",
-    "description": "Revert an entry to status=\"draft\". Clears publishedAt; fires cms.entry.unpublished.",
+    "description": "Revert an entry to status=\"draft\". Clears publishedAt; fires cms.entry.unpublished. Content is unchanged, so the entry comes back as a summary unless `responseFormat: \"full\"` is passed.",
     "audiences": [
       "admin"
     ],
@@ -1865,6 +1867,14 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "responseFormat": {
+          "description": "Shape of the returned entry. `summary` (default) shortens long text to a lead with a word count in `fieldSummary`, the same shape cms_list_entries returns; `full` returns every field verbatim.",
+          "type": "string",
+          "enum": [
+            "full",
+            "summary"
+          ]
         }
       },
       "required": [
@@ -1877,7 +1887,7 @@
   {
     "name": "cms_schedule_publish",
     "title": "CMS: Schedule entry publish",
-    "description": "Schedule an entry to flip to published at a future ISO 8601 datetime. The schedule worker drains due rows every minute.",
+    "description": "Schedule an entry to flip to published at a future ISO 8601 datetime. The schedule worker drains due rows every minute. Content is unchanged, so the entry comes back as a summary unless `responseFormat: \"full\"` is passed.",
     "audiences": [
       "admin"
     ],
@@ -1901,7 +1911,15 @@
         "scheduledAt": {
           "type": "string",
           "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "responseFormat": {
+          "description": "Shape of the returned entry. `summary` (default) shortens long text to a lead with a word count in `fieldSummary`, the same shape cms_list_entries returns; `full` returns every field verbatim.",
+          "type": "string",
+          "enum": [
+            "full",
+            "summary"
+          ]
         }
       },
       "required": [
@@ -2055,7 +2073,7 @@
   {
     "name": "cms_restore_version",
     "title": "CMS: Restore entry version",
-    "description": "Roll an entry back to an earlier version. Creates a new current version with that historical data.",
+    "description": "Roll an entry back to an earlier version. Creates a new current version with that historical data. Returns the full restored entry, or a summary with `responseFormat: \"summary\"`.",
     "audiences": [
       "admin"
     ],
@@ -2080,6 +2098,14 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "responseFormat": {
+          "description": "Shape of the returned entry. `full` (default) returns every field verbatim; `summary` shortens long text to a lead with a word count in `fieldSummary`, the same shape cms_list_entries returns.",
+          "type": "string",
+          "enum": [
+            "full",
+            "summary"
+          ]
         }
       },
       "required": [
@@ -2596,13 +2622,9 @@
                     "maxLength": 64
                   },
                   "description": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "fields": {
@@ -2675,23 +2697,15 @@
                     "additionalProperties": {}
                   },
                   "publishedAt": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "scheduledAt": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   }
                 },
@@ -2733,13 +2747,9 @@
                     "type": "string"
                   },
                   "altText": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "metadata": {
@@ -2750,13 +2760,9 @@
                     "additionalProperties": {}
                   },
                   "base64Body": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   }
                 },
@@ -3038,13 +3044,9 @@
           "type": "string"
         },
         "assigneeUserId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "string",
+            "null"
           ]
         }
       },
@@ -3086,7 +3088,7 @@
         "snoozeUntil": {
           "type": "string",
           "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
         }
       },
       "required": [
@@ -3293,13 +3295,9 @@
           "type": "string"
         },
         "topicId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "string",
+            "null"
           ]
         }
       },
@@ -3476,13 +3474,9 @@
                     "type": "string"
                   },
                   "subject": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "status": {
@@ -3495,13 +3489,9 @@
                     ]
                   },
                   "topicSlug": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "agentMode": {
@@ -3554,13 +3544,9 @@
                     "type": "boolean"
                   },
                   "inReplyToId": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   }
                 },
@@ -3746,47 +3732,74 @@
               ]
             },
             "inbound": {
-              "type": "object",
-              "properties": {
-                "provider": {
-                  "type": "string",
-                  "const": "imap"
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "const": "imap"
+                    },
+                    "host": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 253,
+                      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
+                    },
+                    "port": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 65535
+                    },
+                    "secure": {
+                      "type": "boolean"
+                    },
+                    "username": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "password": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mailbox": {
+                      "type": "string",
+                      "maxLength": 120
+                    }
+                  },
+                  "required": [
+                    "provider",
+                    "host",
+                    "port",
+                    "secure",
+                    "username"
+                  ],
+                  "additionalProperties": false
                 },
-                "host": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 253,
-                  "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
-                },
-                "port": {
-                  "type": "integer",
-                  "minimum": 1,
-                  "maximum": 65535
-                },
-                "secure": {
-                  "type": "boolean"
-                },
-                "username": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "password": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "mailbox": {
-                  "type": "string",
-                  "maxLength": 120
+                {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "const": "relay"
+                    },
+                    "allowedForwarders": {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 253,
+                        "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
+                      }
+                    }
+                  },
+                  "required": [
+                    "provider"
+                  ],
+                  "additionalProperties": false
                 }
-              },
-              "required": [
-                "provider",
-                "host",
-                "port",
-                "secure",
-                "username"
-              ],
-              "additionalProperties": false
+              ]
             },
             "sendLimits": {
               "type": "object",
@@ -4739,23 +4752,15 @@
               "maxLength": 500
             },
             "companyId": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
+              "type": [
+                "string",
+                "null"
               ]
             },
             "ownerUserId": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
+              "type": [
+                "string",
+                "null"
               ]
             },
             "tags": {
@@ -5137,7 +5142,7 @@
         "expectedCloseAt": {
           "type": "string",
           "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
         }
       },
       "required": [
@@ -5223,12 +5228,12 @@
         "dueAt": {
           "type": "string",
           "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
         },
         "completedAt": {
           "type": "string",
           "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
         },
         "metadata": {
           "type": "object",
@@ -5306,23 +5311,15 @@
           "type": "string"
         },
         "summary": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "string",
+            "null"
           ]
         },
         "nextAction": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "string",
+            "null"
           ]
         }
       },
@@ -5602,7 +5599,7 @@
             "contactedSince": {
               "type": "string",
               "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
             }
           },
           "additionalProperties": false
@@ -5689,7 +5686,7 @@
                 "contactedSince": {
                   "type": "string",
                   "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
                 }
               },
               "additionalProperties": false
@@ -5810,7 +5807,7 @@
         "givenAt": {
           "type": "string",
           "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
         }
       },
       "required": [
@@ -5937,13 +5934,9 @@
                     "maxLength": 120
                   },
                   "description": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "filterDefinition": {
@@ -5980,7 +5973,7 @@
                       "contactedSince": {
                         "type": "string",
                         "format": "date-time",
-                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
                       }
                     },
                     "additionalProperties": false
@@ -6053,13 +6046,9 @@
                     "type": "string"
                   },
                   "companyId": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "name": {
@@ -6074,13 +6063,9 @@
                     ]
                   },
                   "email": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "phone": {
@@ -6184,33 +6169,21 @@
                     ]
                   },
                   "primaryContactId": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "companyId": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "expectedCloseAt": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   }
                 },
@@ -6242,73 +6215,45 @@
                     ]
                   },
                   "subject": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "body": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "contactId": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "companyId": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "dealId": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "dueAt": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "completedAt": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "metadata": {
@@ -6363,23 +6308,15 @@
                     "maxLength": 64
                   },
                   "startedAt": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "endedAt": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "metadata": {
@@ -6841,13 +6778,9 @@
                     "maxLength": 64
                   },
                   "description": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   }
                 },
@@ -6871,13 +6804,9 @@
                     "type": "string"
                   },
                   "slug": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "title": {
@@ -7903,13 +7832,9 @@
                     }
                   },
                   "ctaUrl": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "autoDraftFirstTouch": {
@@ -7960,13 +7885,9 @@
                     "type": "string"
                   },
                   "conversationId": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "kind": {
@@ -7990,13 +7911,9 @@
                     ]
                   },
                   "draftSubject": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "draftBody": {
@@ -8012,13 +7929,9 @@
                     "additionalProperties": {}
                   },
                   "proposedSendAt": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   },
                   "status": {
@@ -8383,7 +8296,7 @@
             {
               "type": "string",
               "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
             },
             {
               "type": "null"
@@ -8513,7 +8426,7 @@
             {
               "type": "string",
               "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
             },
             {
               "type": "null"
@@ -8611,7 +8524,7 @@
           "description": "When this draft should ideally go out, ISO-8601. Advisory: the operator who approves it inherits this time unless they name their own, and a time already in the past is treated as send-now.",
           "type": "string",
           "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
         }
       },
       "required": [
@@ -9293,13 +9206,9 @@
           ]
         },
         "subjectId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "string",
+            "null"
           ]
         }
       },

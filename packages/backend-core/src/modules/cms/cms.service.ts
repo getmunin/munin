@@ -37,7 +37,9 @@ import {
   FIELD_TYPES,
   projectData,
   remapInlineAssetUris,
+  replaceFieldText,
   rewriteInlineAssets,
+  unrewriteInlineAssets,
   validateEntryData,
   type AssetSummary,
   type ExpandedEntry,
@@ -45,9 +47,14 @@ import {
 } from './cms.fields.ts';
 import {
   fitWithinBudget,
+  SUMMARY_LEAD_CHARS,
   summarizeEntryData,
   type FieldSummaryNote,
 } from './cms.summary.ts';
+import {
+  describeReplacementFailure,
+  type TextReplacement,
+} from '../../common/text-replacements.ts';
 import { loadAssetMap } from './cms.asset-loader.ts';
 import { entryTitle, readLiveUrlTemplate, renderLiveUrl } from './cms.live-url.ts';
 import { deriveVariantColumns, type VariantColumns } from './cms.variants.ts';
@@ -132,6 +139,11 @@ export interface EntrySummaryDto {
   createdAt: string;
   updatedAt: string;
 }
+
+export const ENTRY_RESPONSE_FORMATS = ['full', 'summary'] as const;
+export type EntryResponseFormat = (typeof ENTRY_RESPONSE_FORMATS)[number];
+
+export type EntryTextReplacement = TextReplacement & { field: string };
 
 export interface EntryListResult {
   entries: EntrySummaryDto[];
@@ -542,7 +554,7 @@ export class CmsService {
     return this.transition(input, 'archived');
   }
 
-  async getEntry(id: string, include?: string[]): Promise<EntryDto> {
+  async getEntry(id: string, include?: string[], onlyFields?: string[]): Promise<EntryDto> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
       .select({ entry: schema.cmsEntries, collection: schema.cmsCollections })
@@ -556,6 +568,10 @@ export class CmsService {
     if (!rows[0]) throw new NotFoundException(`cms_not_found: entry ${id}`);
     const fields = rows[0].collection.fields as FieldDef[];
     const dto = toEntryDto(rows[0].entry, rows[0].collection.slug, fields);
+    if (onlyFields && onlyFields.length > 0) {
+      const keep = new Set(onlyFields);
+      dto.data = Object.fromEntries(Object.entries(dto.data).filter(([name]) => keep.has(name)));
+    }
     await this.expandAssetsInDtos(
       ctx.actor!.orgId,
       [dto],
@@ -899,6 +915,7 @@ export class CmsService {
     id: string;
     ifVersion: number;
     data?: Record<string, unknown>;
+    textReplacements?: EntryTextReplacement[];
     slug?: string;
     locale?: string;
   }): Promise<EntryDto> {
@@ -911,10 +928,21 @@ export class CmsService {
     const collection = await this.getCollectionById(existing.collectionId);
 
     const existingData = (existing.data ?? {});
-    const newData = input.data
+    const replacements = input.textReplacements ?? [];
+    const touchesData = input.data !== undefined || replacements.length > 0;
+    let newData = input.data
       ? { ...existingData, ...input.data }
       : existingData;
-    if (input.data) {
+    if (replacements.length > 0) {
+      newData = await this.applyTextReplacements(
+        actor.orgId,
+        collection.fields,
+        newData,
+        replacements,
+        input.data,
+      );
+    }
+    if (touchesData) {
       const errors = validateEntryData(collection.fields, newData);
       if (errors.length > 0) {
         throw new CmsInvalidError(
@@ -991,6 +1019,68 @@ export class CmsService {
       new Map([[dto.id, collection.fields]]),
     );
     return dto;
+  }
+
+  private async applyTextReplacements(
+    orgId: string,
+    fields: FieldDef[],
+    data: Record<string, unknown>,
+    replacements: EntryTextReplacement[],
+    patch: Record<string, unknown> | undefined,
+  ): Promise<Record<string, unknown>> {
+    const ctx = getCurrentContext();
+    const out = { ...data };
+    const byField = new Map<string, Array<{ index: number; edit: EntryTextReplacement }>>();
+    replacements.forEach((edit, index) => {
+      const group = byField.get(edit.field) ?? [];
+      group.push({ index, edit });
+      byField.set(edit.field, group);
+    });
+    for (const [name, group] of byField) {
+      const field = fields.find((f) => f.name === name);
+      if (!field) {
+        throw new CmsInvalidError(`textReplacements: unknown field "${name}"`);
+      }
+      if (patch && name in patch) {
+        throw new CmsInvalidError(
+          `textReplacements: field "${name}" is also present in data — send a field either as a whole value in data or as text replacements, not both`,
+        );
+      }
+      const value = out[name];
+      const assetIds = collectAssetIds([field], { [name]: value });
+      const assets = await loadAssetMap(ctx.db, orgId, assetIds);
+      const edits: TextReplacement[] = group.map(({ edit }) => ({
+        oldText: unrewriteInlineAssets(edit.oldText, assets),
+        newText: unrewriteInlineAssets(edit.newText, assets),
+        ...(edit.replaceAll === undefined ? {} : { replaceAll: edit.replaceAll }),
+      }));
+      const result = replaceFieldText(field, value, edits);
+      if (!result.ok) {
+        if (result.reason === 'no_text') {
+          throw new CmsInvalidError(
+            `textReplacements: field "${name}" (${field.type}) holds no editable text`,
+          );
+        }
+        const failure = { ...result.failure, index: group[result.failure.index]!.index };
+        throw new CmsInvalidError(describeReplacementFailure(failure, `field "${name}"`), {
+          code:
+            failure.reason === 'no_match'
+              ? 'cms_replacement_no_match'
+              : 'cms_replacement_ambiguous',
+        });
+      }
+      out[name] = result.value;
+    }
+    return out;
+  }
+
+  async presentEntry(
+    entry: EntryDto,
+    format: EntryResponseFormat,
+  ): Promise<EntryDto | EntrySummaryDto> {
+    if (format === 'full') return entry;
+    const collection = await this.getCollectionById(entry.collectionId);
+    return summarizeEntryDto(entry, collection.fields);
   }
 
   async publishEntry(input: {
@@ -2043,6 +2133,33 @@ function toEntryDto(
     publishedAt: row.publishedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function summarizeEntryDto(dto: EntryDto, fields: FieldDef[]): EntrySummaryDto {
+  const derived = deriveEntryTitle(fields, dto.data);
+  const summary = summarizeEntryData(fields, dto.data, {
+    leadChars: SUMMARY_LEAD_CHARS,
+    verbatim: new Set<string>(),
+  });
+  return {
+    id: dto.id,
+    collectionId: dto.collectionId,
+    collectionSlug: dto.collectionSlug,
+    slug: dto.slug,
+    locale: dto.locale,
+    translationGroupId: dto.translationGroupId,
+    status: dto.status,
+    title: derived.title,
+    titleFieldName: derived.fieldName,
+    data: summary.data,
+    fieldSummary: summary.fieldSummary,
+    truncated: summary.truncated,
+    version: dto.version,
+    scheduledAt: dto.scheduledAt,
+    publishedAt: dto.publishedAt,
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
   };
 }
 

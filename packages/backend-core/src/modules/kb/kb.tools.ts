@@ -2,10 +2,11 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { WEB_SCRAPE_SITE_TASK_URI } from '@getmunin/types';
-import { KbService } from './kb.service.ts';
+import { DOCUMENT_RESPONSE_FORMATS, KbService } from './kb.service.ts';
 import { KbSearchService } from './kb.search.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
+import { TEXT_REPLACEMENTS_MAX, TextReplacementSchema } from '../../common/text-replacements.ts';
 import { INSPECTOR_APP_URI } from '../../mcp/inspector.resource.ts';
 
 const TagsSchema = z.array(z.string().min(1).max(64)).max(32);
@@ -42,6 +43,21 @@ const SourceUrlSchema = z
     'The public page this document is the knowledge-base copy of, as an absolute http(s) URL. Returned by kb_search and kb_get_document so an answer can link to it.',
   );
 
+const ResponseFormatInput = z
+  .enum(DOCUMENT_RESPONSE_FORMATS)
+  .optional()
+  .describe(
+    'Shape of the returned document. `full` (default) returns the whole body; `summary` shortens the body to a lead and reports its word count in `bodySummary`.',
+  );
+
+const BodyTextReplacementsInput = z
+  .array(TextReplacementSchema)
+  .min(1)
+  .max(TEXT_REPLACEMENTS_MAX)
+  .describe(
+    'Targeted find-and-replace edits applied to the stored body in order, all-or-nothing. Each oldText must match the current body exactly once (or set replaceAll). Send either this or `body`, not both.',
+  );
+
 const CreateDocumentInput = z.object({
   spaceId: z.string(),
   title: z.string().min(1).max(300),
@@ -50,6 +66,7 @@ const CreateDocumentInput = z.object({
   audiences: AudiencesSchema.optional(),
   tags: TagsSchema.optional(),
   slug: z.string().min(1).max(64).optional(),
+  responseFormat: ResponseFormatInput,
 });
 
 const UpdateDocumentInput = z.object({
@@ -57,6 +74,7 @@ const UpdateDocumentInput = z.object({
   ifVersion: z.number().int().nonnegative(),
   title: z.string().min(1).max(300).optional(),
   body: z.string().min(1).optional(),
+  textReplacements: BodyTextReplacementsInput.optional(),
   sourceUrl: SourceUrlSchema.nullable()
     .optional()
     .describe(
@@ -64,6 +82,7 @@ const UpdateDocumentInput = z.object({
     ),
   audiences: AudiencesSchema.optional(),
   tags: TagsSchema.optional(),
+  responseFormat: ResponseFormatInput,
 });
 
 const DeleteDocumentInput = z.object({
@@ -79,6 +98,7 @@ const RestoreVersionInput = z.object({
   documentId: z.string(),
   version: z.number().int().positive(),
   ifVersion: z.number().int().nonnegative(),
+  responseFormat: ResponseFormatInput,
 });
 
 const SearchInput = z.object({
@@ -124,6 +144,7 @@ const PublishCurationRevisionInput = z.object({
     .describe(
       'The revised document `version` the proposal was diffed against, so a document edited elsewhere since is not silently overwritten.',
     ),
+  responseFormat: ResponseFormatInput,
 });
 
 const PublishCurationCandidateInput = z.object({
@@ -300,15 +321,16 @@ export class KbAdminTools {
     name: 'kb_create_document',
     title: 'KB: Create document',
     description:
-      "Create a knowledge-base document inside a space. Body should be markdown. Set `audiences: ['admin', 'self_service']` to expose it to end-user agents; defaults to `['admin']` (admin-only). Set `sourceUrl` when the document mirrors a public page — a help-centre article, a product page — and answers drawn from it can link there.",
+      "Create a knowledge-base document inside a space. Body should be markdown. Set `audiences: ['admin', 'self_service']` to expose it to end-user agents; defaults to `['admin']` (admin-only). Set `sourceUrl` when the document mirrors a public page — a help-centre article, a product page — and answers drawn from it can link there. Returns the full document, or a summary with `responseFormat: \"summary\"`.",
     audiences: ['admin'],
     scopes: ['kb:write'],
     input: CreateDocumentInput,
     readOnlyHint: false,
     destructiveHint: true,
   })
-  createDocument(args: z.infer<typeof CreateDocumentInput>) {
-    return this.kb.createDocument(args);
+  async createDocument(args: z.infer<typeof CreateDocumentInput>) {
+    const { responseFormat, ...rest } = args;
+    return this.kb.presentDocument(await this.kb.createDocument(rest), responseFormat ?? 'full');
   }
 
   @McpTool({
@@ -408,15 +430,16 @@ export class KbAdminTools {
     name: 'kb_update_document',
     title: 'KB: Update document',
     description:
-      'Update a knowledge-base document. Pass `ifVersion` (the current version you read) for optimistic concurrency; the call fails if it has changed. Omitted fields keep their current value; `sourceUrl: null` clears the recorded source page.',
+      'Update a knowledge-base document. Pass `ifVersion` (the current version you read) for optimistic concurrency; the call fails if it has changed. Omitted fields keep their current value; `sourceUrl: null` clears the recorded source page. `textReplacements` edits inside the body without resending it: each `{ oldText, newText }` replaces one exact occurrence of oldText in the stored body (or every occurrence with `replaceAll: true`). Edits apply in order and all-or-nothing; zero matches fails with `kb_replacement_no_match`, several matches without replaceAll with `kb_replacement_ambiguous`, and nothing is written. Send `body` or `textReplacements`, not both. Returns the full document, or a summary with `responseFormat: "summary"`.',
     audiences: ['admin'],
     scopes: ['kb:write'],
     input: UpdateDocumentInput,
     readOnlyHint: false,
     destructiveHint: true,
   })
-  updateDocument(args: z.infer<typeof UpdateDocumentInput>) {
-    return this.kb.updateDocument(args);
+  async updateDocument(args: z.infer<typeof UpdateDocumentInput>) {
+    const { responseFormat, ...rest } = args;
+    return this.kb.presentDocument(await this.kb.updateDocument(rest), responseFormat ?? 'full');
   }
 
   @McpTool({
@@ -556,22 +579,27 @@ export class KbAdminTools {
     destructiveHint: true,
     _meta: { ui: { visibility: ['app'] } },
   })
-  publishCurationRevision(args: z.infer<typeof PublishCurationRevisionInput>) {
-    return this.kb.publishCurationRevision(args);
+  async publishCurationRevision(args: z.infer<typeof PublishCurationRevisionInput>) {
+    const { responseFormat, ...rest } = args;
+    return this.kb.presentDocument(
+      await this.kb.publishCurationRevision(rest),
+      responseFormat ?? 'full',
+    );
   }
 
   @McpTool({
     name: 'kb_restore_version',
     title: 'KB: Restore document version',
     description:
-      'Roll a document back to an earlier version. Creates a new current version with that historical content.',
+      'Roll a document back to an earlier version. Creates a new current version with that historical content. Returns the full restored document, or a summary with `responseFormat: "summary"`.',
     audiences: ['admin'],
     scopes: ['kb:write'],
     input: RestoreVersionInput,
     readOnlyHint: false,
     destructiveHint: true,
   })
-  restoreVersion(args: z.infer<typeof RestoreVersionInput>) {
-    return this.kb.restoreVersion(args);
+  async restoreVersion(args: z.infer<typeof RestoreVersionInput>) {
+    const { responseFormat, ...rest } = args;
+    return this.kb.presentDocument(await this.kb.restoreVersion(rest), responseFormat ?? 'full');
   }
 }

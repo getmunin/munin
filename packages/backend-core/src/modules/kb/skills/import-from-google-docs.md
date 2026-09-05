@@ -67,7 +67,9 @@ For a Google Docs folder with N files:
 
 ## Updating existing docs
 
-Use `kb_update_document` with `{ id, body }` (or `title`, `tags`, `sourceUrl`). Omitted fields keep their current value; `sourceUrl: null` clears a source page that has been taken down. Versions are kept automatically — `kb_list_versions` shows history; `kb_restore_version` reverts. `sourceUrl` is provenance rather than content, so restoring an old version leaves it as it is.
+Use `kb_update_document` with `{ id, ifVersion, body }` when the whole body changes — a re-exported document — or with `textReplacements` when a few facts change and the rest should stay byte-identical (`skill://kb/revise-document`). `title`, `tags` and `sourceUrl` ride along on either. Omitted fields keep their current value; `sourceUrl: null` clears a source page that has been taken down. Versions are kept automatically — `kb_list_versions` shows history; `kb_restore_version` reverts. `sourceUrl` is provenance rather than content, so restoring an old version leaves it as it is.
+
+Pass `responseFormat: "summary"` on writes inside a bulk loop. Each call otherwise echoes the body you just sent, and over a folder of documents that echo is most of what fills your context; the summary carries `id`, `version` and a word count.
 
 ## Common pitfalls
 

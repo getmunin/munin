@@ -660,6 +660,184 @@ class StubStorage implements AssetStorage {
       expect(stored[0]!.data.body[0]!.props.markdown).toBe(`Opening. ![pic](asset://${asset.id}) More.`);
     });
 
+    async function seedBlocksEntry() {
+      await ensureLocale('en');
+      const col = await run(() =>
+        svc.createCollection({
+          name: 'Posts',
+          slug: 'posts',
+          fields: [
+            { name: 'title', type: 'text', required: true },
+            {
+              name: 'body',
+              type: 'blocks',
+              options: {
+                blockTypes: [
+                  { name: 'prose', fields: [{ name: 'markdown', type: 'markdown', required: true }] },
+                  { name: 'quote', fields: [{ name: 'quote', type: 'text', required: true }] },
+                ],
+              },
+            },
+          ],
+        }),
+      );
+      return run(() =>
+        svc.createEntry({
+          collection: col.slug,
+          slug: 'post',
+          data: {
+            title: 'Post',
+            body: [
+              { type: 'prose', key: 'intro', props: { markdown: 'Intro' } },
+              { type: 'prose', key: 'middle', props: { markdown: 'Middle' } },
+              { type: 'prose', key: 'outro', props: { markdown: 'Outro' } },
+            ],
+          },
+        }),
+      );
+    }
+
+    function blockKeys(entry: { data: Record<string, unknown> }): string[] {
+      return (entry.data.body as Array<{ key: string }>).map((b) => b.key);
+    }
+
+    it('updateEntry blockEdits insert, replace, move and delete blocks by key', async () => {
+      const entry = await seedBlocksEntry();
+      const updated = await run(() =>
+        svc.updateEntry({
+          id: entry.id,
+          ifVersion: 1,
+          blockEdits: [
+            {
+              field: 'body',
+              op: 'set',
+              key: 'pull',
+              block: { type: 'quote', props: { quote: 'A new quote' } },
+              after: 'intro',
+            },
+            { field: 'body', op: 'set', key: 'middle', block: { type: 'prose', props: { markdown: 'Rewritten' } } },
+            { field: 'body', op: 'delete', key: 'outro' },
+            { field: 'body', op: 'move', key: 'pull', position: 'end' },
+          ],
+        }),
+      );
+      expect(updated.version).toBe(2);
+      expect(blockKeys(updated)).toEqual(['intro', 'middle', 'pull']);
+      const body = updated.data.body as Array<{ type: string; key: string; props: Record<string, unknown> }>;
+      expect(body[1]).toEqual({ type: 'prose', key: 'middle', props: { markdown: 'Rewritten' } });
+      expect(body[2]).toEqual({ type: 'quote', key: 'pull', props: { quote: 'A new quote' } });
+    });
+
+    it('updateEntry blockEdits mint a key when one is not supplied', async () => {
+      const entry = await seedBlocksEntry();
+      const updated = await run(() =>
+        svc.updateEntry({
+          id: entry.id,
+          ifVersion: 1,
+          blockEdits: [
+            {
+              field: 'body',
+              op: 'set',
+              block: { type: 'prose', props: { markdown: 'Appended' } },
+              position: 'end',
+            },
+          ],
+        }),
+      );
+      const minted = blockKeys(updated)[3]!;
+      expect(minted).toMatch(/^cmb_/);
+      expect(blockKeys(updated).slice(0, 3)).toEqual(['intro', 'middle', 'outro']);
+    });
+
+    it('updateEntry blockEdits fail atomically with a coded error, leaving the entry untouched', async () => {
+      const entry = await seedBlocksEntry();
+      await expect(
+        run(() =>
+          svc.updateEntry({
+            id: entry.id,
+            ifVersion: 1,
+            blockEdits: [
+              { field: 'body', op: 'delete', key: 'intro' },
+              { field: 'body', op: 'delete', key: 'nope' },
+            ],
+          }),
+        ),
+      ).rejects.toThrow(/cms_block_not_found: blockEdits\[1\].*no block with key "nope"/);
+      const unchanged = await run(() => svc.getEntry(entry.id));
+      expect(unchanged.version).toBe(1);
+      expect(blockKeys(unchanged)).toEqual(['intro', 'middle', 'outro']);
+    });
+
+    it('updateEntry blockEdits validate the result against the collection block types', async () => {
+      const entry = await seedBlocksEntry();
+      await expect(
+        run(() =>
+          svc.updateEntry({
+            id: entry.id,
+            ifVersion: 1,
+            blockEdits: [
+              { field: 'body', op: 'set', key: 'x', block: { type: 'unknown_type', props: {} } },
+            ],
+          }),
+        ),
+      ).rejects.toThrow(/unknown block type "unknown_type"/);
+      await expect(
+        run(() =>
+          svc.updateEntry({
+            id: entry.id,
+            ifVersion: 1,
+            blockEdits: [
+              { field: 'body', op: 'set', key: 'x', block: { type: 'quote', props: {} } },
+            ],
+          }),
+        ),
+      ).rejects.toThrow(/quote: required/);
+    });
+
+    it('updateEntry blockEdits reject a non-blocks field, an unknown field, and a field also in data', async () => {
+      const entry = await seedBlocksEntry();
+      const edit = { op: 'delete' as const, key: 'intro' };
+      await expect(
+        run(() => svc.updateEntry({ id: entry.id, ifVersion: 1, blockEdits: [{ field: 'title', ...edit }] })),
+      ).rejects.toThrow(/field "title" \(text\) is not a blocks field/);
+      await expect(
+        run(() => svc.updateEntry({ id: entry.id, ifVersion: 1, blockEdits: [{ field: 'nope', ...edit }] })),
+      ).rejects.toThrow(/unknown field "nope"/);
+      await expect(
+        run(() =>
+          svc.updateEntry({
+            id: entry.id,
+            ifVersion: 1,
+            data: { body: [] },
+            blockEdits: [{ field: 'body', ...edit }],
+          }),
+        ),
+      ).rejects.toThrow(/field "body" is also present in data/);
+    });
+
+    it('updateEntry applies blockEdits before textReplacements on the same field', async () => {
+      const entry = await seedBlocksEntry();
+      const updated = await run(() =>
+        svc.updateEntry({
+          id: entry.id,
+          ifVersion: 1,
+          blockEdits: [
+            {
+              field: 'body',
+              op: 'set',
+              key: 'fresh',
+              block: { type: 'prose', props: { markdown: 'A Fresh paragraph' } },
+              after: 'intro',
+            },
+          ],
+          textReplacements: [{ field: 'body', oldText: 'Fresh', newText: 'Renewed' }],
+        }),
+      );
+      expect(blockKeys(updated)).toEqual(['intro', 'fresh', 'middle', 'outro']);
+      const body = updated.data.body as Array<{ props: { markdown?: string } }>;
+      expect(body[1]!.props.markdown).toBe('A Renewed paragraph');
+    });
+
     it('getEntry with fields returns only the named data keys', async () => {
       const col = await seedCollection();
       const entry = await run(() =>

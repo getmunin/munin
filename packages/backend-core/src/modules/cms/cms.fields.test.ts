@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   applyAssetExpansion,
+  applyBlockEdits,
   applyReferenceExpansion,
   buildInlineAssetSidecar,
   buildReferenceSidecar,
@@ -493,5 +494,162 @@ describe('replaceFieldText', () => {
       ok: false,
       reason: 'no_text',
     });
+  });
+});
+
+describe('applyBlockEdits', () => {
+  const sample = [
+    { type: 'prose', key: 'a', props: { markdown: 'A' } },
+    { type: 'prose', key: 'b', props: { markdown: 'B' } },
+    { type: 'prose', key: 'c', props: { markdown: 'C' } },
+  ];
+  const keys = (result: ReturnType<typeof applyBlockEdits>) => {
+    if (!result.ok) throw new Error(`expected ok, got ${result.failure.code}`);
+    return (result.value as Array<{ key: string }>).map((b) => b.key);
+  };
+  let counter = 0;
+  const newKey = () => `gen${(counter += 1)}`;
+
+  beforeEach(() => {
+    counter = 0;
+  });
+
+  it('set replaces an existing block in place, keeping its position', () => {
+    const result = applyBlockEdits(
+      sample,
+      [{ op: 'set', key: 'b', block: { type: 'quote', props: { quote: 'New' } } }],
+      newKey,
+    );
+    expect(keys(result)).toEqual(['a', 'b', 'c']);
+    if (!result.ok) return;
+    expect(result.value[1]).toEqual({ type: 'quote', key: 'b', props: { quote: 'New' } });
+    expect(sample[1]).toEqual({ type: 'prose', key: 'b', props: { markdown: 'B' } });
+  });
+
+  it('set with an unknown key appends, and honours before/after/position when given', () => {
+    const block = { type: 'prose', props: { markdown: 'D' } };
+    expect(keys(applyBlockEdits(sample, [{ op: 'set', key: 'd', block }], newKey))).toEqual([
+      'a',
+      'b',
+      'c',
+      'd',
+    ]);
+    expect(
+      keys(applyBlockEdits(sample, [{ op: 'set', key: 'd', block, after: 'a' }], newKey)),
+    ).toEqual(['a', 'd', 'b', 'c']);
+    expect(
+      keys(applyBlockEdits(sample, [{ op: 'set', key: 'd', block, before: 'a' }], newKey)),
+    ).toEqual(['d', 'a', 'b', 'c']);
+    expect(
+      keys(applyBlockEdits(sample, [{ op: 'set', key: 'd', block, position: 'start' }], newKey)),
+    ).toEqual(['d', 'a', 'b', 'c']);
+  });
+
+  it('set without a key inserts under a generated key', () => {
+    const result = applyBlockEdits(
+      sample,
+      [{ op: 'set', block: { type: 'prose', props: { markdown: 'D' } }, after: 'b' }],
+      newKey,
+    );
+    expect(keys(result)).toEqual(['a', 'b', 'gen1', 'c']);
+  });
+
+  it('set on an existing key with a placement replaces and repositions it', () => {
+    const result = applyBlockEdits(
+      sample,
+      [{ op: 'set', key: 'a', block: { type: 'prose', props: { markdown: 'A2' } }, position: 'end' }],
+      newKey,
+    );
+    expect(keys(result)).toEqual(['b', 'c', 'a']);
+    if (!result.ok) return;
+    expect(result.value[2]).toEqual({ type: 'prose', key: 'a', props: { markdown: 'A2' } });
+  });
+
+  it('delete removes a block and move repositions one', () => {
+    expect(keys(applyBlockEdits(sample, [{ op: 'delete', key: 'b' }], newKey))).toEqual(['a', 'c']);
+    expect(
+      keys(applyBlockEdits(sample, [{ op: 'move', key: 'a', after: 'c' }], newKey)),
+    ).toEqual(['b', 'c', 'a']);
+    expect(
+      keys(applyBlockEdits(sample, [{ op: 'move', key: 'c', position: 'start' }], newKey)),
+    ).toEqual(['c', 'a', 'b']);
+  });
+
+  it('applies edits in order, so a later edit sees an earlier insert', () => {
+    const result = applyBlockEdits(
+      sample,
+      [
+        { op: 'set', key: 'd', block: { type: 'prose', props: { markdown: 'D' } } },
+        { op: 'move', key: 'd', position: 'start' },
+        { op: 'delete', key: 'b' },
+      ],
+      newKey,
+    );
+    expect(keys(result)).toEqual(['d', 'a', 'c']);
+  });
+
+  it('starts from an empty list when the field has no value yet', () => {
+    const result = applyBlockEdits(
+      null,
+      [{ op: 'set', key: 'first', block: { type: 'prose', props: { markdown: 'A' } } }],
+      newKey,
+    );
+    expect(keys(result)).toEqual(['first']);
+  });
+
+  it('reports cms_block_not_found for an unknown target or anchor, naming the failing edit', () => {
+    expect(applyBlockEdits(sample, [{ op: 'delete', key: 'zz' }], newKey)).toEqual({
+      ok: false,
+      failure: {
+        index: 0,
+        code: 'cms_block_not_found',
+        message: 'no block with key "zz" to delete',
+      },
+    });
+    const badAnchor = applyBlockEdits(
+      sample,
+      [
+        { op: 'delete', key: 'a' },
+        { op: 'move', key: 'b', after: 'zz' },
+      ],
+      newKey,
+    );
+    expect(badAnchor.ok).toBe(false);
+    if (badAnchor.ok) return;
+    expect(badAnchor.failure.index).toBe(1);
+    expect(badAnchor.failure.code).toBe('cms_block_not_found');
+    expect(badAnchor.failure.message).toContain('place a block after');
+  });
+
+  it('reports cms_block_ambiguous when two blocks share the addressed key', () => {
+    const dupes = [
+      { type: 'prose', key: 'a', props: { markdown: 'A' } },
+      { type: 'prose', key: 'a', props: { markdown: 'A again' } },
+    ];
+    const result = applyBlockEdits(dupes, [{ op: 'delete', key: 'a' }], newKey);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.code).toBe('cms_block_ambiguous');
+    expect(result.failure.message).toContain('2 blocks share the key "a"');
+  });
+
+  it('rejects malformed edits with cms_block_invalid', () => {
+    const cases: Array<[Parameters<typeof applyBlockEdits>[1][number], string]> = [
+      [{ op: 'delete' }, 'requires key'],
+      [{ op: 'set', key: 'a' }, 'requires block'],
+      [{ op: 'move', key: 'a' }, 'requires one of before, after or position'],
+      [{ op: 'move', key: 'a', before: 'b', after: 'c' }, 'at most one of before, after and position'],
+    ];
+    for (const [edit, fragment] of cases) {
+      const result = applyBlockEdits(sample, [edit], newKey);
+      expect(result.ok).toBe(false);
+      if (result.ok) continue;
+      expect(result.failure.code).toBe('cms_block_invalid');
+      expect(result.failure.message).toContain(fragment);
+    }
+    const notList = applyBlockEdits('nope', [{ op: 'delete', key: 'a' }], newKey);
+    expect(notList.ok).toBe(false);
+    if (notList.ok) return;
+    expect(notList.failure.message).toContain('does not hold a list of blocks');
   });
 });

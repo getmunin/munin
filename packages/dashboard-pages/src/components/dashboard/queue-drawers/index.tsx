@@ -23,6 +23,7 @@ export function ScheduledDrawer({
   onRetry,
   pending,
   onCancel,
+  hideHeaderOnMobile,
   onClose,
 }: {
   item: ScheduledItem;
@@ -31,6 +32,7 @@ export function ScheduledDrawer({
   onRetry: () => void;
   pending: boolean;
   onCancel: () => void;
+  hideHeaderOnMobile?: boolean;
   onClose?: () => void;
 }) {
   if (item.kind === 'outreach') {
@@ -43,6 +45,7 @@ export function ScheduledDrawer({
         onDismiss={noop}
         onSave={noopAsync}
         onCancelScheduled={onCancel}
+        hideHeaderOnMobile={hideHeaderOnMobile}
         onClose={onClose}
       />
     );
@@ -62,6 +65,7 @@ export function ScheduledDrawer({
       onUploadAsset={() => Promise.reject(new Error('read-only'))}
       onSchedule={noopAsync}
       onCancelScheduled={onCancel}
+      hideHeaderOnMobile={hideHeaderOnMobile}
       onClose={onClose}
     />
   );

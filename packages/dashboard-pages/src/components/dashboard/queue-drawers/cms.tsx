@@ -383,7 +383,7 @@ export function CmsQueueDrawer({
           />
         )
       ) : editing ? (
-        <div className="flex flex-wrap items-center gap-2 border-t-[1px] border-rule-soft p-4 md:px-5 dark:border-rule-on-dark">
+        <div className="flex flex-wrap items-center gap-2 border-t-[1px] border-rule-soft px-5 py-4 md:px-7 dark:border-rule-on-dark">
           <Button
             variant="accent"
             onClick={() => void saveEdit()}
@@ -468,7 +468,7 @@ export function CmsQueueDrawer({
               { label: t('cmsDismiss'), disabled: blocked, run: onDismiss },
             ]}
           />
-          <div className="flex flex-wrap items-center gap-2 p-4 md:px-5">
+          <div className="flex flex-wrap items-center gap-2 px-5 py-4 md:px-7">
             <Button
               variant="accent"
               onClick={onApprove}

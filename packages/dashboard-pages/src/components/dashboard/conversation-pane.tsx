@@ -273,7 +273,7 @@ export function ConversationPane({
   );
 
   const closedFooter = (
-    <div className="flex flex-col flex-wrap items-stretch gap-2.5 p-4 md:flex-row md:items-center md:px-5">
+    <div className="flex flex-col flex-wrap items-stretch gap-2.5 px-5 py-4 md:flex-row md:items-center md:px-7">
       <Button
         variant="outline"
         onClick={() => void controller.reopenConv(detail.id)}
@@ -409,7 +409,7 @@ export function ConversationPane({
   const errBanner = err ? (
     <div
       role="alert"
-      className="flex items-center gap-3 border-b border-rule-soft px-4 py-2.5 text-[13px] font-medium text-destructive md:px-5 dark:border-rule-on-dark"
+      className="flex items-center gap-3 border-b border-rule-soft px-5 py-2.5 text-[13px] font-medium text-destructive md:px-7 dark:border-rule-on-dark"
     >
       <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-current" />
       <span className="min-w-0 flex-1 truncate">
@@ -495,12 +495,12 @@ export function ConversationPane({
             {!isOpen ? (
               closedFooter
             ) : !canReply ? (
-              <div className="flex flex-col items-stretch gap-2.5 p-4">
+              <div className="flex flex-col items-stretch gap-2.5 px-5 py-4">
                 {takeOverButton('h-11')}
                 {claimGateCaption}
               </div>
             ) : suggestionId && !dirty && !streaming ? (
-              <div className="p-4">
+              <div className="px-5 py-4">
                 <Button
                   variant="accent"
                   className="h-12 w-full"
@@ -510,7 +510,7 @@ export function ConversationPane({
                 </Button>
               </div>
             ) : (
-              <div className="flex items-stretch gap-2 p-4">
+              <div className="flex items-stretch gap-2 px-5 py-4">
                 <Button
                   variant="accent"
                   className="h-12 min-w-0 flex-1"
@@ -555,7 +555,7 @@ export function ConversationPane({
           )}
         >
         {expanded ? (
-          <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-ink bg-bone px-4 md:hidden dark:border-rule-on-dark dark:bg-background">
+          <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-ink bg-bone px-5 md:hidden dark:border-rule-on-dark dark:bg-background">
             <span className="flex min-w-0 flex-col">
               <span className="truncate text-sm font-medium leading-tight text-ink dark:text-foreground">
                 {composerTitle}
@@ -576,7 +576,7 @@ export function ConversationPane({
             </button>
           </div>
         ) : null}
-        <div className="flex shrink-0 flex-wrap items-center gap-x-5 border-b border-rule-soft px-4 md:px-5 dark:border-rule-on-dark">
+        <div className="flex shrink-0 flex-wrap items-center gap-x-5 border-b border-rule-soft px-5 md:px-7 dark:border-rule-on-dark">
           <button
             type="button"
             onClick={() => setTab('reply')}
@@ -611,7 +611,7 @@ export function ConversationPane({
           !isOpen ? (
             closedFooter
           ) : canReply ? (
-            <div className="flex flex-col gap-2.5 p-4 max-md:min-h-0 max-md:flex-1 md:px-5">
+            <div className="flex flex-col gap-2.5 px-5 py-4 max-md:min-h-0 max-md:flex-1 md:px-7">
               <textarea
                 ref={replyBoxRef}
                 value={reply}
@@ -661,13 +661,13 @@ export function ConversationPane({
               </div>
             </div>
           ) : (
-            <div className="flex flex-col flex-wrap items-stretch gap-2.5 p-4 md:flex-row md:items-center md:px-5">
+            <div className="flex flex-col flex-wrap items-stretch gap-2.5 px-5 py-4 md:flex-row md:items-center md:px-7">
               {takeOverButton('max-md:h-11')}
               {claimGateCaption}
             </div>
           )
         ) : (
-          <div className="flex flex-col gap-2.5 p-4 max-md:min-h-0 max-md:flex-1 md:px-5">
+          <div className="flex flex-col gap-2.5 px-5 py-4 max-md:min-h-0 max-md:flex-1 md:px-7">
             <textarea
               ref={noteBoxRef}
               value={noteDraft}

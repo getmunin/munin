@@ -33,6 +33,7 @@ export function OutreachQueueDrawer({
   onDismiss,
   onSave,
   onCancelScheduled,
+  hideHeaderOnMobile,
   onClose,
 }: {
   item: { id: string; title: string; snippet: string; createdAt: string; raw: OutreachProposalDto };
@@ -42,6 +43,7 @@ export function OutreachQueueDrawer({
   onDismiss: () => void;
   onSave: (body: string) => Promise<void>;
   onCancelScheduled?: () => void;
+  hideHeaderOnMobile?: boolean;
   onClose?: () => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
@@ -139,9 +141,10 @@ export function OutreachQueueDrawer({
         rightExtra={readOnly ? <Pill tone="review">{t('scheduledPill')}</Pill> : undefined}
         onClose={onClose}
         closeLabel={t('close')}
+        className={hideHeaderOnMobile ? 'max-md:hidden' : undefined}
       />
 
-      <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+      <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5 md:px-7">
         {readOnly && scheduledSendAt && (
           <ScheduledNotice
             headline={t('scheduledOutreachHeadline', { when: stamp(scheduledSendAt) })}

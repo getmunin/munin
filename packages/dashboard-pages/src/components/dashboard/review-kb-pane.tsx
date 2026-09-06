@@ -124,7 +124,7 @@ export function ReviewKbPane({
           error={actionError?.itemId === item.id ? actionError : null}
           onDismiss={onClearActionError}
         />
-        <div className="flex flex-col flex-wrap items-stretch gap-2 p-4 md:flex-row md:items-center md:px-5">
+        <div className="flex flex-col flex-wrap items-stretch gap-2 px-5 py-4 md:flex-row md:items-center md:px-7">
           <Button variant="accent" disabled={pending} onClick={onPublish} className="max-md:h-11">
             {t('publish')} <span aria-hidden>→</span>
           </Button>

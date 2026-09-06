@@ -17,7 +17,7 @@ export function QueueActionErrorBanner({
   return (
     <div
       role="alert"
-      className="flex items-center gap-3 border-b border-rule-soft px-4 py-2.5 text-[13px] font-medium text-destructive md:px-5 dark:border-rule-on-dark"
+      className="flex items-center gap-3 border-b border-rule-soft px-5 py-2.5 text-[13px] font-medium text-destructive md:px-7 dark:border-rule-on-dark"
     >
       <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-current" />
       <span className="min-w-0 flex-1">

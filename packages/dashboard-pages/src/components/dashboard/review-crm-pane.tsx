@@ -248,7 +248,7 @@ export function ReviewCrmPane({
           error={actionError?.itemId === item.id ? actionError : null}
           onDismiss={onClearActionError}
         />
-        <div className="flex flex-wrap items-center gap-2 p-4 md:px-5">
+        <div className="flex flex-wrap items-center gap-2 px-5 py-4 md:px-7">
           <Button
             variant="accent"
             disabled={pending}

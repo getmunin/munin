@@ -278,7 +278,7 @@ export function ScheduledFooter({
   note: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 border-t-[1px] border-rule-soft px-4 py-3 md:px-5 dark:border-rule-on-dark">
+    <div className="flex items-center justify-between gap-2 border-t-[1px] border-rule-soft px-5 py-3 md:px-7 dark:border-rule-on-dark">
       <Button variant="outline" size="sm" onClick={onCancel} disabled={disabled}>
         {cancelLabel}
       </Button>
@@ -310,7 +310,7 @@ export function DrawerFooter({
   return (
     <div
       className={cn(
-        'flex items-center justify-between gap-2 px-4 py-3 md:px-5',
+        'flex items-center justify-between gap-2 px-5 py-3 md:px-7',
         bordered && 'border-t-[1px] border-rule-soft dark:border-rule-on-dark',
       )}
     >

@@ -129,7 +129,7 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
           routeSelectedId ? 'max-md:hidden' : '',
         )}
       >
-        <header className="shrink-0 border-b border-rule-soft px-5 pb-3.5 pt-6 md:min-h-[146px] md:px-6 dark:border-rule-on-dark">
+        <header className="shrink-0 border-b border-rule-soft px-5 pb-3.5 pt-6 md:min-h-[146px] dark:border-rule-on-dark">
           <div className="font-mono text-[11px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
             {t('eyebrow')}
           </div>

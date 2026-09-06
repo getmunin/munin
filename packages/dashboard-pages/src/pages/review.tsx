@@ -2,17 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { cn } from '@getmunin/ui';
+import { cn, Tabs, TabsList, TabsPanel, TabsTrigger } from '@getmunin/ui';
 import { LoadFailed } from '../components/load-failed';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
 import { usePathname, useRouter } from '../i18n-navigation';
-import { useInboxData } from '../components/dashboard/inbox-sections';
+import { ScheduledCancelDialog, useInboxData } from '../components/dashboard/inbox-sections';
 import { partitionReviewQueue } from '../components/dashboard/review-queue';
 import { ReviewRow } from '../components/dashboard/review-row';
 import { ReviewKbPane } from '../components/dashboard/review-kb-pane';
 import { ReviewBlockingPane } from '../components/dashboard/review-blocking-pane';
 import { ReviewDecidedRow } from '../components/dashboard/review-decided-row';
 import { ReviewDecidedPane } from '../components/dashboard/review-decided-pane';
+import { ReviewScheduledRow } from '../components/dashboard/review-scheduled-row';
+import { ReviewScheduledPane } from '../components/dashboard/review-scheduled-pane';
 import {
   DECIDED_WINDOW_DAYS,
   useCurationDecisions,
@@ -26,6 +28,8 @@ const ROOT = '/dashboard/review';
 const FADE_FLOOR = 0.55;
 const SPLIT_BREAKPOINT = '(min-width: 768px)';
 
+type ReviewTab = 'waiting' | 'scheduled' | 'decided';
+
 export function ReviewPage({ selectedId = null }: { selectedId?: string | null }) {
   const t = useTranslations('dashboard.console.review');
   const router = useRouter();
@@ -34,7 +38,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
   const setup = useSetupState();
   const decisions = useCurationDecisions();
   const buildLoadFailedProps = useInboxLoadFailedProps();
-  const { setQueueDrawer } = inbox;
+  const { setQueueDrawer, setScheduledDrawer } = inbox;
 
   const isDesktop = useIsDesktopSplit();
 
@@ -78,48 +82,91 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
     [decisions.items],
   );
 
+  const scheduled = inbox.scheduled;
+
   const activeId = routeSelectedId;
   const selectedBlocking = activeId ? blocking.find((b) => b.id === activeId) : undefined;
   const selectedCandidate = activeId
     ? improvements.find((c) => c.id === activeId)
     : undefined;
+  const selectedScheduled = activeId ? scheduled.find((s) => s.id === activeId) : undefined;
   const selectedDecision = activeId ? recentDecisions.find((d) => d.id === activeId) : undefined;
 
   useEffect(() => {
     setQueueDrawer(selectedBlocking ?? null);
   }, [selectedBlocking, setQueueDrawer]);
 
+  useEffect(() => {
+    setScheduledDrawer(selectedScheduled ?? null);
+  }, [selectedScheduled, setScheduledDrawer]);
+
   const listLoaded = inbox.hasLoadedOnce && decisions.hasLoadedOnce;
-  const listIds = useMemo(
-    () => [
-      ...blocking.map((b) => b.id),
-      ...improvements.map((c) => c.id),
-      ...recentDecisions.map((d) => d.id),
-    ],
-    [blocking, improvements, recentDecisions],
+  const idsByTab: Record<ReviewTab, string[]> = useMemo(
+    () => ({
+      waiting: [...blocking.map((b) => b.id), ...improvements.map((c) => c.id)],
+      scheduled: scheduled.map((s) => s.id),
+      decided: recentDecisions.map((d) => d.id),
+    }),
+    [blocking, improvements, scheduled, recentDecisions],
   );
+
+  const owningTab = useMemo(() => {
+    if (!routeSelectedId) return null;
+    const found = (['waiting', 'scheduled', 'decided'] as const).find((key) =>
+      idsByTab[key].includes(routeSelectedId),
+    );
+    return found ?? null;
+  }, [routeSelectedId, idsByTab]);
+
+  const [chosenTab, setChosenTab] = useState<ReviewTab>('waiting');
+  const tab = owningTab ?? chosenTab;
+
+  useEffect(() => {
+    if (owningTab) setChosenTab(owningTab);
+  }, [owningTab]);
 
   useEffect(() => {
     if (!routeSelectedId) return;
     if (!listLoaded) return;
-    if (listIds.includes(routeSelectedId)) return;
+    if (owningTab) return;
     goToList();
-  }, [routeSelectedId, listIds, listLoaded, goToList]);
+  }, [routeSelectedId, owningTab, listLoaded, goToList]);
 
+  const activeIds = idsByTab[tab];
   useEffect(() => {
     if (routeSelectedId) return;
     if (!listLoaded) return;
     if (!isDesktop) return;
-    const first = listIds[0];
+    const first = activeIds[0];
     if (!first) return;
     select(first, true);
-  }, [routeSelectedId, listLoaded, isDesktop, listIds, select]);
+  }, [routeSelectedId, listLoaded, isDesktop, activeIds, select]);
+
+  const changeTab = useCallback(
+    (next: ReviewTab) => {
+      setChosenTab(next);
+      goToList();
+    },
+    [goToList],
+  );
 
   const backAction = useMemo(() => {
     if (!routeSelectedId) return null;
-    const title = selectedBlocking?.title ?? selectedCandidate?.title ?? selectedDecision?.title;
+    const title =
+      selectedBlocking?.title ??
+      selectedCandidate?.title ??
+      selectedScheduled?.title ??
+      selectedDecision?.title;
     return { label: t('backToList'), title, onBack: goToList };
-  }, [routeSelectedId, selectedBlocking, selectedCandidate, selectedDecision, goToList, t]);
+  }, [
+    routeSelectedId,
+    selectedBlocking,
+    selectedCandidate,
+    selectedScheduled,
+    selectedDecision,
+    goToList,
+    t,
+  ]);
   useProvideMobileBack(backAction);
 
   if (inbox.loadError && !inbox.hasLoadedOnce) {
@@ -135,7 +182,10 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
   const firstRunUndecided = setup.loading || (setup.isFirstRun && !listLoaded);
   if (firstRunUndecided) return null;
   const nothingToReview =
-    blocking.length === 0 && improvements.length === 0 && recentDecisions.length === 0;
+    blocking.length === 0 &&
+    improvements.length === 0 &&
+    scheduled.length === 0 &&
+    recentDecisions.length === 0;
   if (setup.isFirstRun && nothingToReview) {
     return <ReviewFirstRun setup={setup} decidedCount={decisions.items.length} />;
   }
@@ -153,7 +203,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
           routeSelectedId ? 'max-md:hidden' : '',
         )}
       >
-        <header className="shrink-0 border-b border-rule-soft px-5 pb-4 pt-6 md:px-6 dark:border-rule-on-dark">
+        <header className="shrink-0 border-b border-rule-soft px-5 pb-4 pt-6 dark:border-rule-on-dark">
           <div className="font-mono text-[11px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
             {t('eyebrow')}
           </div>
@@ -169,58 +219,122 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
           </p>
         </header>
 
-        <ul onScroll={onListScroll} className="pb-6 md:min-h-0 md:flex-1 md:overflow-y-auto">
-          <ConsoleSectionLabel note={blocking.length > 0 ? t('sectionBlockingNote') : undefined}>
-            {t('sectionBlocking', { count: blocking.length })}
-          </ConsoleSectionLabel>
-          {blocking.length === 0 ? (
-            <EmptySection title={t('emptyBlockingTitle')} body={t('emptyBlockingBody')} />
-          ) : (
-            blocking.map((item) => (
-              <ReviewRow
-                key={`${item.kind}-${item.id}`}
-                item={item}
-                active={item.id === activeId}
-                onSelect={() => select(item.id)}
-              />
-            ))
-          )}
+        <Tabs
+          value={tab}
+          onValueChange={(next) => changeTab(next as ReviewTab)}
+          className="flex min-h-0 flex-col md:flex-1"
+        >
+          <TabsList className="w-full shrink-0 gap-5 px-5">
+            <TabsTrigger value="waiting" className="px-0">
+              {t('tabWaiting')}
+              {idsByTab.waiting.length > 0 ? (
+                <span className="ml-1.5 text-ink-mute"> · {idsByTab.waiting.length}</span>
+              ) : null}
+            </TabsTrigger>
+            <TabsTrigger value="scheduled" className="px-0">
+              {t('tabScheduled')}
+              {scheduled.length > 0 ? (
+                <span className="ml-1.5 text-ink-mute"> · {scheduled.length}</span>
+              ) : null}
+            </TabsTrigger>
+            <TabsTrigger value="decided" className="px-0">
+              {t('tabDecided')}
+            </TabsTrigger>
+          </TabsList>
 
-          <ConsoleSectionLabel
-            note={improvements.length > 0 ? t('sectionImprovementsNote') : undefined}
+          <TabsPanel
+            value="waiting"
+            onScroll={onListScroll}
+            className="mt-0 md:min-h-0 md:flex-1 md:overflow-y-auto"
           >
-            {t('sectionImprovements', { count: improvements.length })}
-          </ConsoleSectionLabel>
-          {improvements.length === 0 ? (
-            <EmptySection title={t('emptyImprovementsTitle')} body={t('emptyImprovementsBody')} />
-          ) : (
-            improvements.map((item) => (
-              <ReviewRow
-                key={`${item.kind}-${item.id}`}
-                item={item}
-                active={item.id === activeId}
-                onSelect={() => select(item.id)}
-              />
-            ))
-          )}
-
-          {recentDecisions.length > 0 ? (
-            <>
-              <ConsoleSectionLabel>
-                {t('sectionDecided', { days: DECIDED_WINDOW_DAYS, count: recentDecisions.length })}
+            <ul className="pb-6">
+              <ConsoleSectionLabel
+                note={blocking.length > 0 ? t('sectionBlockingNote') : undefined}
+              >
+                {t('sectionBlocking', { count: blocking.length })}
               </ConsoleSectionLabel>
-              {recentDecisions.map((item) => (
-                <ReviewDecidedRow
-                  key={item.id}
-                  item={item}
-                  active={item.id === activeId}
-                  faded
-                  onSelect={() => select(item.id)}
+              {blocking.length === 0 ? (
+                <EmptySection title={t('emptyBlockingTitle')} body={t('emptyBlockingBody')} />
+              ) : (
+                blocking.map((item) => (
+                  <ReviewRow
+                    key={`${item.kind}-${item.id}`}
+                    item={item}
+                    active={item.id === activeId}
+                    onSelect={() => select(item.id)}
+                  />
+                ))
+              )}
+
+              <ConsoleSectionLabel
+                note={improvements.length > 0 ? t('sectionImprovementsNote') : undefined}
+              >
+                {t('sectionImprovements', { count: improvements.length })}
+              </ConsoleSectionLabel>
+              {improvements.length === 0 ? (
+                <EmptySection
+                  title={t('emptyImprovementsTitle')}
+                  body={t('emptyImprovementsBody')}
                 />
-              ))}
-            </>
-          ) : null}
-        </ul>
+              ) : (
+                improvements.map((item) => (
+                  <ReviewRow
+                    key={`${item.kind}-${item.id}`}
+                    item={item}
+                    active={item.id === activeId}
+                    onSelect={() => select(item.id)}
+                  />
+                ))
+              )}
+            </ul>
+          </TabsPanel>
+
+          <TabsPanel
+            value="scheduled"
+            onScroll={onListScroll}
+            className="mt-0 md:min-h-0 md:flex-1 md:overflow-y-auto"
+          >
+            <ul className="pb-6">
+              {scheduled.length === 0 ? (
+                <EmptySection title={t('emptyScheduledTitle')} body={t('emptyScheduledBody')} />
+              ) : (
+                scheduled.map((item) => (
+                  <ReviewScheduledRow
+                    key={`${item.kind}-${item.id}`}
+                    item={item}
+                    active={item.id === activeId}
+                    onSelect={() => select(item.id)}
+                  />
+                ))
+              )}
+            </ul>
+          </TabsPanel>
+
+          <TabsPanel
+            value="decided"
+            onScroll={onListScroll}
+            className="mt-0 md:min-h-0 md:flex-1 md:overflow-y-auto"
+          >
+            <ul className="pb-6">
+              {recentDecisions.length === 0 ? (
+                <EmptySection
+                  title={t('emptyDecidedTitle')}
+                  body={t('emptyDecidedBody', { days: DECIDED_WINDOW_DAYS })}
+                />
+              ) : (
+                recentDecisions.map((item) => (
+                  <ReviewDecidedRow
+                    key={item.id}
+                    item={item}
+                    active={item.id === activeId}
+                    faded
+                    onSelect={() => select(item.id)}
+                  />
+                ))
+              )}
+            </ul>
+          </TabsPanel>
+        </Tabs>
       </section>
 
       <div
@@ -230,12 +344,18 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
         )}
       >
         {!activeId ? (
-          <section className="hidden min-h-0 flex-col items-start bg-paper-deep p-8 md:flex dark:bg-secondary">
-            {listIds.length > 0 ? (
-              <span className="font-mono text-[11px] uppercase tracking-eyebrow text-ink-mute">
+          <section className="hidden min-h-0 flex-col bg-paper-deep md:flex dark:bg-secondary">
+            {activeIds.length > 0 ? (
+              <span className="p-8 font-mono text-[11px] uppercase tracking-eyebrow text-ink-mute">
                 {t('selectEmpty')}
               </span>
-            ) : null}
+            ) : (
+              <PaneEmpty
+                eyebrow={t('paneEmptyEyebrow')}
+                title={t('paneEmpty')}
+                body={t('paneEmptyBody')}
+              />
+            )}
           </section>
         ) : selectedBlocking ? (
           <ReviewBlockingPane
@@ -243,6 +363,8 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
             controller={inbox}
             afterDecision={afterDecision}
           />
+        ) : selectedScheduled ? (
+          <ReviewScheduledPane item={selectedScheduled} controller={inbox} />
         ) : selectedDecision ? (
           <ReviewDecidedPane
             item={selectedDecision}
@@ -276,6 +398,8 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
           />
         )}
       </div>
+
+      <ScheduledCancelDialog controller={inbox} />
     </div>
   );
 }
@@ -292,6 +416,30 @@ function useIsDesktopSplit(): boolean {
   }, []);
 
   return isDesktop;
+}
+
+function PaneEmpty({
+  eyebrow,
+  title,
+  body,
+}: {
+  eyebrow: string;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="px-5 pt-6 md:px-7">
+      <div className="font-mono text-[11px] uppercase tracking-eyebrow text-ink-mute">
+        {eyebrow}
+      </div>
+      <h2 className="mb-2 mt-1 font-serif text-[26px] font-normal leading-[1.05] tracking-tight text-ink md:text-[28px] dark:text-foreground">
+        {title}
+      </h2>
+      <p className="max-w-[42ch] text-[13px] leading-relaxed text-ink-soft dark:text-foreground/80">
+        {body}
+      </p>
+    </div>
+  );
 }
 
 function EmptySection({ title, body }: { title: string; body: string }) {

@@ -57,7 +57,7 @@ export function ScheduledSection({ controller }: { controller: InboxController }
   );
 }
 
-function ScheduledCancelDialog({ controller }: { controller: InboxController }) {
+export function ScheduledCancelDialog({ controller }: { controller: InboxController }) {
   const t = useTranslations('dashboard.overview.scheduled');
   const { cancelTarget, setCancelTarget, pending, cancelScheduledSend, cancelScheduledPublish } =
     controller;

@@ -15,26 +15,16 @@ import type {
   CmsAssetExpanded,
   CmsDraftDetailDto,
   CmsPreviewLink,
-  KbCandidateDto,
   OutreachProposalDetailDto,
   QueueItem,
   ScheduledItem,
 } from './queue-drawers/types';
-import {
-  clearKey,
-  contactLabel,
-  feedbackSnippet,
-  mergeLive,
-} from './inbox-helpers';
+import { clearKey, contactLabel, feedbackSnippet } from './inbox-helpers';
 import type {
-  ConvActionError,
   QueueActionError,
-  ConvDrawer,
-  ConversationDetail,
   InboxController,
   InboxQueueResponse,
   LiveSummary,
-  MessageDto,
 } from './inbox-types';
 
 function useQueueBuilder() {
@@ -144,28 +134,21 @@ export function useInboxData(): InboxController {
   const buildScheduled = useScheduledBuilder();
   const translateErr = useTranslateError();
   const [items, setItems] = useState<LiveSummary[]>([]);
-  const [details, setDetails] = useState<Record<string, ConversationDetail>>({});
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [scheduled, setScheduled] = useState<ScheduledItem[]>([]);
-  const [kbBodies, setKbBodies] = useState<Record<string, string>>({});
-  const [kbRevisedBodies, setKbRevisedBodies] = useState<Record<string, string>>({});
   const [cmsDetails, setCmsDetails] = useState<Record<string, CmsDraftDetailDto>>({});
   const [outreachDetails, setOutreachDetails] = useState<
     Record<string, OutreachProposalDetailDto>
   >({});
   const [cmsPreviewLinks, setCmsPreviewLinks] = useState<Record<string, CmsPreviewLink>>({});
-  const [convDrawer, setConvDrawer] = useState<ConvDrawer>(null);
   const [queueDrawer, setQueueDrawer] = useState<QueueItem | null>(null);
   const [scheduledDrawer, setScheduledDrawer] = useState<ScheduledItem | null>(null);
   const [cancelTarget, setCancelTarget] = useState<ScheduledItem | null>(null);
-  const [reply, setReply] = useState('');
   const [pending, setPending] = useState(false);
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [retrying, setRetrying] = useState(false);
-  const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
   const [queueDetailErrors, setQueueDetailErrors] = useState<Record<string, string>>({});
-  const [actionError, setActionError] = useState<ConvActionError>(null);
   const [queueActionError, setQueueActionError] = useState<QueueActionError>(null);
   const viewedProposals = useRef<Set<string>>(new Set());
 
@@ -173,7 +156,6 @@ export function useInboxData(): InboxController {
     try {
       const res = await api<InboxQueueResponse>('/v1/inbox');
       setItems(res.live);
-      setDetails((prev) => mergeLive(prev, res.live));
       setQueue(buildQueue(res.queue));
       setScheduled(buildScheduled(res.queue));
       setLoadError(null);
@@ -200,55 +182,11 @@ export function useInboxData(): InboxController {
     return () => clearInterval(id);
   }, [loadError, retryLoad]);
 
-  const loadDetail = useCallback(async (id: string) => {
-    try {
-      const d = await api<ConversationDetail>(`/v1/conversations/${id}`);
-      setDetails((prev) => ({ ...prev, [id]: d }));
-      setDetailErrors((prev) => {
-        if (!prev[id]) return prev;
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-    } catch (err) {
-      setDetailErrors((prev) => ({ ...prev, [id]: translateErr(err) }));
-    }
-  }, [translateErr]);
-
-  const reloadDetail = useCallback(
-    async (id: string) => {
-      await loadDetail(id);
-    },
-    [loadDetail],
-  );
-
-  const clearActionError = useCallback(() => setActionError(null), []);
   const clearQueueActionError = useCallback(() => setQueueActionError(null), []);
 
   useEffect(() => {
     void loadInbox();
   }, [loadInbox]);
-
-  useEffect(() => {
-    if (!convDrawer) return;
-    void loadDetail(convDrawer.id);
-  }, [convDrawer, loadDetail]);
-
-  const loadKbBody = useCallback(async (id: string) => {
-    try {
-      const doc = await api<KbCandidateDto & { body: string }>(
-        `/v1/kb/curation/candidates/${id}`,
-      );
-      setKbBodies((prev) => ({ ...prev, [id]: doc.body }));
-      const revisedBody = doc.revisesDocumentBody;
-      if (typeof revisedBody === 'string') {
-        setKbRevisedBodies((prev) => ({ ...prev, [id]: revisedBody }));
-      }
-      setQueueDetailErrors((prev) => clearKey(prev, id));
-    } catch (err) {
-      setQueueDetailErrors((prev) => ({ ...prev, [id]: translateErr(err) }));
-    }
-  }, [translateErr]);
 
   const loadCmsDetail = useCallback(async (id: string) => {
     try {
@@ -294,13 +232,6 @@ export function useInboxData(): InboxController {
     setQueueDetailErrors((prev) => clearKey(prev, id));
   }, []);
 
-  useEffect(() => {
-    if (!queueDrawer || queueDrawer.kind !== 'kb') return;
-    if (kbBodies[queueDrawer.id] !== undefined) return;
-    if (queueDetailErrors[queueDrawer.id]) return;
-    void loadKbBody(queueDrawer.id);
-  }, [queueDrawer, kbBodies, queueDetailErrors, loadKbBody]);
-
   const cmsDetailId =
     queueDrawer?.kind === 'cms'
       ? queueDrawer.id
@@ -340,11 +271,7 @@ export function useInboxData(): InboxController {
     void loadCmsPreviewLink(id);
   }, [queueDrawer, cmsPreviewLinks, loadCmsPreviewLink]);
 
-  const subscriptions = useMemo<SubscriptionChannel[]>(() => {
-    const subs: SubscriptionChannel[] = [{ channel: 'org' }];
-    if (convDrawer) subs.push({ channel: 'conversation', id: convDrawer.id });
-    return subs;
-  }, [convDrawer]);
+  const subscriptions = useMemo<SubscriptionChannel[]>(() => [{ channel: 'org' }], []);
 
   const { status: connectionStatus } = useRealtime(subscriptions, (event) => {
     const matches =
@@ -354,10 +281,6 @@ export function useInboxData(): InboxController {
       event.type.startsWith('outreach.proposal.') ||
       event.type.startsWith('cms.entry.');
     if (matches) void loadInbox();
-    if (event.type.startsWith('conversation.')) {
-      const eventConvId = event.payload['conversationId'];
-      if (typeof eventConvId === 'string') void loadDetail(eventConvId);
-    }
   });
 
   const wasOfflineRef = useRef(false);
@@ -368,139 +291,9 @@ export function useInboxData(): InboxController {
     }
     if (connectionStatus === 'connected' && wasOfflineRef.current) {
       wasOfflineRef.current = false;
-      setActionError(null);
-      setDetailErrors({});
       void loadInbox();
-      if (convDrawer) void loadDetail(convDrawer.id);
     }
-  }, [connectionStatus, convDrawer, loadDetail, loadInbox]);
-
-  const takeOver = useCallback(
-    async (id: string, openDrawerAfter = true) => {
-      setPending(true);
-      setActionError(null);
-      try {
-        await api(`/v1/conversations/${id}/take-over`, { method: 'POST', body: '{}' });
-        await Promise.all([loadDetail(id), loadInbox()]);
-        if (openDrawerAfter) setConvDrawer({ id });
-      } catch (err) {
-        setActionError({
-          type: 'takeOver',
-          conversationId: id,
-          message: translateErr(err),
-          code: getErrorCode(err),
-        });
-      } finally {
-        setPending(false);
-      }
-    },
-    [loadDetail, loadInbox, translateErr],
-  );
-
-  const release = useCallback(
-    async (id: string) => {
-      setPending(true);
-      setActionError(null);
-      try {
-        await api(`/v1/conversations/${id}/release`, { method: 'POST', body: '{}' });
-        await Promise.all([loadDetail(id), loadInbox()]);
-      } catch (err) {
-        setActionError({
-          type: 'release',
-          conversationId: id,
-          message: translateErr(err),
-          code: getErrorCode(err),
-        });
-      } finally {
-        setPending(false);
-      }
-    },
-    [loadDetail, loadInbox, translateErr],
-  );
-
-  const closeConv = useCallback(
-    async (id: string) => {
-      setPending(true);
-      setActionError(null);
-      try {
-        await api(`/v1/conversations/${id}/status`, {
-          method: 'POST',
-          body: JSON.stringify({ status: 'closed' }),
-        });
-        setConvDrawer(null);
-        setItems((prev) => prev.filter((it) => it.id !== id));
-        await loadInbox();
-      } catch (err) {
-        setActionError({
-          type: 'close',
-          conversationId: id,
-          message: translateErr(err),
-          code: getErrorCode(err),
-        });
-      } finally {
-        setPending(false);
-      }
-    },
-    [loadInbox, translateErr],
-  );
-
-  const send = useCallback(
-    async (
-      id: string,
-      body: string,
-      options: { claim?: boolean; fromDraftId?: string } = {},
-    ) => {
-      if (!body.trim()) return;
-      const trimmed = body.trim();
-      const temp: MessageDto = {
-        id: `pending-${Date.now()}`,
-        conversationId: id,
-        authorType: 'user',
-        authorId: 'me',
-        authorName: null,
-        body: trimmed,
-        internal: false,
-        inReplyToId: null,
-        attachments: [],
-        metadata: {},
-        createdAt: new Date().toISOString(),
-      };
-      setReply('');
-      setActionError(null);
-      setDetails((prev) => {
-        const d = prev[id];
-        if (!d) return prev;
-        return { ...prev, [id]: { ...d, messages: [...d.messages, temp] } };
-      });
-      setPending(true);
-      try {
-        const payload: Record<string, unknown> = { body: trimmed };
-        if (options.claim === false) payload.claim = false;
-        if (options.fromDraftId) payload.fromDraftId = options.fromDraftId;
-        await api(`/v1/conversations/${id}/messages`, {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
-        await Promise.all([loadInbox(), loadDetail(id)]);
-      } catch (err) {
-        setActionError({
-          type: 'send',
-          conversationId: id,
-          message: translateErr(err),
-          code: getErrorCode(err),
-        });
-        setDetails((prev) => {
-          const d = prev[id];
-          if (!d) return prev;
-          return { ...prev, [id]: { ...d, messages: d.messages.filter((m) => m.id !== temp.id) } };
-        });
-        setReply(trimmed);
-      } finally {
-        setPending(false);
-      }
-    },
-    [loadDetail, loadInbox, translateErr],
-  );
+  }, [connectionStatus, loadInbox]);
 
   const approveQueue = useCallback(
     async (item: QueueItem, sendAt?: string | null) => {
@@ -566,7 +359,6 @@ export function useInboxData(): InboxController {
             method: 'PATCH',
             body: JSON.stringify({ body }),
           });
-          setKbBodies((prev) => ({ ...prev, [item.id]: body }));
         } else if (item.kind === 'outreach') {
           await api(`/v1/outreach/proposals/${item.id}`, {
             method: 'PATCH',
@@ -746,42 +538,26 @@ export function useInboxData(): InboxController {
 
   return {
     items,
-    details,
     queue,
     pending,
     loadError,
     hasLoadedOnce,
     retrying,
     retryLoad,
-    convDrawer,
-    setConvDrawer,
     queueDrawer,
     setQueueDrawer,
     scheduledDrawer,
     setScheduledDrawer,
     cancelTarget,
     setCancelTarget,
-    reply,
-    setReply,
-    kbBodies,
-    kbRevisedBodies,
     cmsDetails,
     outreachDetails,
     cmsPreviewLinks,
     reloadCmsPreviewLink,
-    detailErrors,
     queueDetailErrors,
-    reloadDetail,
     reloadQueueDetail,
-    actionError,
-    clearActionError,
     queueActionError,
     clearQueueActionError,
-    connectionStatus,
-    takeOver,
-    release,
-    closeConv,
-    send,
     approveQueue,
     scheduled,
     cancelScheduledSend,

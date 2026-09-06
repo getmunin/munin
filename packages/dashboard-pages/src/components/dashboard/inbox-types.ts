@@ -1,5 +1,4 @@
 import type { ApiError } from '../../api';
-import type { RealtimeStatus } from '../../realtime';
 import type {
   CmsAssetExpanded,
   CmsDraftDetailDto,
@@ -67,8 +66,6 @@ export interface ActivityDto {
   createdAt: string;
 }
 
-export type ConvDrawer = { id: string; title?: string } | null;
-
 export type LiveSummary = ConversationSummary & {
   latestEndUserMessage: { body: string; createdAt: string } | null;
   claim: ConversationDetail['claim'];
@@ -87,15 +84,6 @@ export interface InboxQueueResponse {
   };
 }
 
-export type ConvActionError =
-  | {
-      type: 'send' | 'takeOver' | 'release' | 'close';
-      conversationId: string;
-      message: string;
-      code: string | null;
-    }
-  | null;
-
 export type QueueActionError =
   | {
       type: 'approve' | 'dismiss';
@@ -107,46 +95,26 @@ export type QueueActionError =
 
 export interface InboxController {
   items: LiveSummary[];
-  details: Record<string, ConversationDetail>;
   queue: QueueItem[];
   pending: boolean;
   loadError: ApiError | null;
   hasLoadedOnce: boolean;
   retrying: boolean;
   retryLoad: () => Promise<void>;
-  convDrawer: ConvDrawer;
-  setConvDrawer: (next: ConvDrawer) => void;
   queueDrawer: QueueItem | null;
   setQueueDrawer: (next: QueueItem | null) => void;
   scheduledDrawer: ScheduledItem | null;
   setScheduledDrawer: (next: ScheduledItem | null) => void;
   cancelTarget: ScheduledItem | null;
   setCancelTarget: (next: ScheduledItem | null) => void;
-  reply: string;
-  setReply: (next: string) => void;
-  kbBodies: Record<string, string>;
-  kbRevisedBodies: Record<string, string>;
   cmsDetails: Record<string, CmsDraftDetailDto>;
   outreachDetails: Record<string, OutreachProposalDetailDto>;
   cmsPreviewLinks: Record<string, CmsPreviewLink>;
   reloadCmsPreviewLink: (id: string) => Promise<void>;
-  detailErrors: Record<string, string>;
   queueDetailErrors: Record<string, string>;
-  reloadDetail: (id: string) => Promise<void>;
   reloadQueueDetail: (id: string) => void;
-  actionError: ConvActionError;
-  clearActionError: () => void;
   queueActionError: QueueActionError;
   clearQueueActionError: () => void;
-  connectionStatus: RealtimeStatus;
-  takeOver: (id: string, openDrawerAfter?: boolean) => Promise<void>;
-  release: (id: string) => Promise<void>;
-  closeConv: (id: string) => Promise<void>;
-  send: (
-    id: string,
-    body: string,
-    options?: { claim?: boolean; fromDraftId?: string },
-  ) => Promise<void>;
   approveQueue: (item: QueueItem, sendAt?: string | null) => Promise<boolean>;
   scheduled: ScheduledItem[];
   cancelScheduledSend: (id: string, reason: string) => Promise<void>;

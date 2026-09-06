@@ -1,10 +1,9 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
 import { cn } from '@getmunin/ui';
 import { Link } from '../../i18n-navigation';
 
-function StatRow({
+export function StatRow({
   href,
   count,
   dot,
@@ -66,21 +65,5 @@ function StatRow({
         </span>
       </span>
     </Link>
-  );
-}
-
-export function OverviewStats({ liveCount }: { liveCount: number }) {
-  const t = useTranslations('dashboard.overview.stats');
-  return (
-    <section className="border-b border-rule-soft border-t border-t-ink dark:border-b-rule-on-dark dark:border-t-rule-on-dark">
-      <StatRow
-        href="/dashboard/conversations"
-        count={liveCount}
-        dot="live"
-        label={t('liveLabel')}
-        note={liveCount > 0 ? t('liveNoteSome') : t('liveNoteNone')}
-        cta={t('liveOpen')}
-      />
-    </section>
   );
 }

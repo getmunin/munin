@@ -4,16 +4,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { useRealtime } from '../realtime';
 import { DashboardHero } from '../components/dashboard/dashboard-hero';
-import { OverviewStats } from '../components/dashboard/overview-stats';
+import { OverviewConversations } from '../components/dashboard/overview-conversations';
+import { OverviewReview } from '../components/dashboard/overview-review';
 import { UsageKpis, type UsageSummary } from '../components/dashboard/usage-kpis';
 import { LoadFailed } from '../components/load-failed';
 import { OverviewFirstRun, useSetupState } from '../components/first-run';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
-import {
-  useInboxData,
-  ScheduledSection,
-  InboxDrawers,
-} from '../components/dashboard/inbox-sections';
+import { useInboxData } from '../components/dashboard/inbox-data';
 
 export function DashboardPage() {
   const inbox = useInboxData();
@@ -57,15 +54,13 @@ export function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-12 px-4 pb-16 pt-11 md:px-10">
-      <DashboardHero date={new Date()} liveCount={inbox.items.length} />
+      <DashboardHero date={new Date()} />
 
-      <OverviewStats liveCount={inbox.items.length} />
+      <OverviewConversations liveCount={inbox.items.length} />
 
-      <ScheduledSection controller={inbox} />
+      <OverviewReview queue={inbox.queue} scheduled={inbox.scheduled} />
 
       <UsageKpis summary={summary} />
-
-      <InboxDrawers controller={inbox} />
     </div>
   );
 }

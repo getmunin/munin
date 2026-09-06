@@ -170,7 +170,7 @@
     }
   },
   "nav": {
-    "overview": "Overview",
+    "overview": "Dashboard",
     "settings": "Settings",
     "account": "Account",
     "team": "Team",
@@ -233,8 +233,7 @@
       "greetingMorning": "Good morning, <em>{name}</em>.",
       "greetingAfternoon": "Good afternoon, <em>{name}</em>.",
       "greetingEvening": "Good evening, <em>{name}</em>.",
-      "ledeQuiet": "Nothing waiting, nothing live. Agents are caught up.",
-      "ledeLiveOnly": "{count, plural, =1 {# conversation is} other {# conversations are}} with support. Nothing needs an admin.",
+      "lede": "Where your agents' work lands — conversations they're handling, decisions they need from you.",
       "empty": {
         "eyebrow": "Inbox · idle",
         "title": "An <em>empty</em> perch.",
@@ -247,6 +246,19 @@
         "liveNoteSome": "Handled in the console — ownership, notes, and replies live there.",
         "liveNoteNone": "No conversation needs a human.",
         "liveOpen": "Open conversations →"
+      },
+      "sections": {
+        "conversationsRecent": "Recent · open",
+        "conversationsEmpty": "No open conversations. New ones appear here the moment someone writes in.",
+        "reviewLabel": "Waiting on you",
+        "reviewNoteSome": "Nothing ships without your nod.",
+        "reviewNoteNone": "Nothing is waiting for a decision.",
+        "reviewOpen": "Open review →",
+        "waiting": "Waiting",
+        "waitingMore": "{count} in all",
+        "waitingEmpty": "Nothing waiting. Drafts, merges and outbound messages land here for a decision.",
+        "scheduled": "Scheduled · {count}",
+        "scheduledNext": "next {when}"
       },
       "queue": {
         "kindKb": "KB",
@@ -277,9 +289,6 @@
         }
       },
       "scheduled": {
-        "eyebrow": "Scheduled",
-        "subtitle": "set to run on their own · soonest first",
-        "cancel": "Call off",
         "outreachUntitled": "Outreach draft",
         "unknownDestination": "no destination on file",
         "cmsUntitled": "Untitled entry",
@@ -296,28 +305,16 @@
       "drawer": {
         "close": "close ×",
         "loading": "Loading…",
-        "suggestionLabel": "ai suggestion · edit before sending",
-        "suggestionDiscard": "discard",
         "proposal": "Proposal",
         "replyFrom": "Reply from",
         "subject": "Subject — {subject}",
-        "send": "Send ↵",
         "edit": "Edit",
         "cancel": "Cancel",
         "save": "Save",
         "approve": "Approve",
         "dismiss": "Dismiss",
-        "takeOver": "Take over",
-        "release": "Release",
-        "closeConv": "Close conversation",
-        "replyPlaceholder": "Reply…",
         "shortcutSave": "⌘↵ save · esc cancel",
         "shortcutApprove": "⌘↵ approve",
-        "pillLive": "live",
-        "pillConversation": "conversation",
-        "pillTakenOver": "taken over",
-        "metaConv": "{who} · waiting {age}",
-        "metaConvFull": "{who} · {status}",
         "metaCrm": "Contacts ×2 · {confidence} · {age}",
         "metaKb": "{slug} · {age}",
         "metaOutreach": "{kind} · {handle} · {age}",
@@ -366,41 +363,15 @@
         "outreachKindReply": "REPLY",
         "outreachKindInitial": "INITIAL",
         "outreachKindFollowup": "FOLLOW-UP {step}",
-        "conversationFallback": "Conversation #{id}",
-        "conversationUnknown": "Unknown conversation",
         "crmMergeBody": "Merge <strong>{loser}</strong> into <strong>{keeper}</strong>.",
         "crmMergeExplain": "Keeps the primary; rewrites foreign keys; archives the loser. No conversations are lost.",
         "noteMeta": "{author} · note · {time}",
         "seenAt": "Seen {time}",
         "loadFailedEyebrow": "Couldn't load",
-        "loadFailedTitle": "This conversation didn't load.",
         "detailLoadFailed": "This didn't load.",
-        "actionFailed": {
-          "send": "Couldn't send your reply",
-          "takeOver": "Couldn't take over",
-          "release": "Couldn't release",
-          "close": "Couldn't close the conversation"
-        },
-        "actionFailedShort": {
-          "send": "Send failed",
-          "takeOver": "Take over failed",
-          "release": "Release failed",
-          "close": "Close failed"
-        },
-        "actionFailedReasonConnection": "check connection",
-        "retryAction": {
-          "send": "Retry send",
-          "takeOver": "Retry",
-          "release": "Retry",
-          "close": "Retry"
-        },
-        "activityConv": "Conversation activity",
-        "activityContact": "Contact activity",
-        "activityEmpty": "No activity yet.",
         "kbSlugFallback": "kb-curation-inbox",
         "kbDismissPermanent": "Dismissing is permanent: the draft is deleted and later curation passes won't propose this conversation again.",
         "handleFallback": "—",
-        "endUserFallback": "—",
         "anonymousVisitor": "Anonymous",
         "outreachRevised": "Revised {count}× since it was drafted",
         "outreachRevisedAfterReview": "Revised {count}× after it was opened for review — read it again before approving",
@@ -1472,7 +1443,7 @@
         "voice": "Voice"
       },
       "overview": {
-        "eyebrowSetup": "Overview — setup · {done} of 2 done",
+        "eyebrowSetup": "Dashboard — setup · {done} of 2 done",
         "titleUnconfigured": "Nothing is listening <em>yet</em>.",
         "ledeUnconfigured": "Two connections and this page starts filling itself. Neither takes more than a few minutes, and they can be done in either order.",
         "stepEndpointTitle": "Point an agent at the endpoint.",
@@ -1544,7 +1515,7 @@
       "offline": "offline"
     },
     "settings": {
-      "backToOverview": "Back to overview",
+      "backToOverview": "Back to dashboard",
       "groups": {
         "workspace": "Workspace",
         "access": "Access",

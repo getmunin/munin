@@ -18,7 +18,7 @@ import type {
   OutreachProposalDetailDto,
   QueueItem,
   ScheduledItem,
-} from './queue-drawers/types';
+} from './queue-panes/types';
 import { clearKey, contactLabel, feedbackSnippet } from './inbox-helpers';
 import type {
   QueueActionError,
@@ -141,8 +141,8 @@ export function useInboxData(): InboxController {
     Record<string, OutreachProposalDetailDto>
   >({});
   const [cmsPreviewLinks, setCmsPreviewLinks] = useState<Record<string, CmsPreviewLink>>({});
-  const [queueDrawer, setQueueDrawer] = useState<QueueItem | null>(null);
-  const [scheduledDrawer, setScheduledDrawer] = useState<ScheduledItem | null>(null);
+  const [activeQueueItem, setActiveQueueItem] = useState<QueueItem | null>(null);
+  const [activeScheduledItem, setActiveScheduledItem] = useState<ScheduledItem | null>(null);
   const [cancelTarget, setCancelTarget] = useState<ScheduledItem | null>(null);
   const [pending, setPending] = useState(false);
   const [loadError, setLoadError] = useState<ApiError | null>(null);
@@ -233,10 +233,10 @@ export function useInboxData(): InboxController {
   }, []);
 
   const cmsDetailId =
-    queueDrawer?.kind === 'cms'
-      ? queueDrawer.id
-      : scheduledDrawer?.kind === 'cms'
-        ? scheduledDrawer.id
+    activeQueueItem?.kind === 'cms'
+      ? activeQueueItem.id
+      : activeScheduledItem?.kind === 'cms'
+        ? activeScheduledItem.id
         : null;
 
   useEffect(() => {
@@ -247,29 +247,29 @@ export function useInboxData(): InboxController {
   }, [cmsDetailId, cmsDetails, queueDetailErrors, loadCmsDetail]);
 
   useEffect(() => {
-    if (!queueDrawer || queueDrawer.kind !== 'outreach') return;
-    const id = queueDrawer.id;
+    if (!activeQueueItem || activeQueueItem.kind !== 'outreach') return;
+    const id = activeQueueItem.id;
     if (viewedProposals.current.has(id)) return;
     viewedProposals.current.add(id);
     void api(`/v1/outreach/proposals/${id}/viewed`, { method: 'POST' }).catch(() => {
       viewedProposals.current.delete(id);
     });
-  }, [queueDrawer]);
+  }, [activeQueueItem]);
 
   useEffect(() => {
-    if (!queueDrawer || queueDrawer.kind !== 'outreach') return;
-    const id = queueDrawer.id;
+    if (!activeQueueItem || activeQueueItem.kind !== 'outreach') return;
+    const id = activeQueueItem.id;
     if (outreachDetails[id] !== undefined) return;
     if (queueDetailErrors[id]) return;
     void loadOutreachDetail(id);
-  }, [queueDrawer, outreachDetails, queueDetailErrors, loadOutreachDetail]);
+  }, [activeQueueItem, outreachDetails, queueDetailErrors, loadOutreachDetail]);
 
   useEffect(() => {
-    if (!queueDrawer || queueDrawer.kind !== 'cms') return;
-    const id = queueDrawer.id;
+    if (!activeQueueItem || activeQueueItem.kind !== 'cms') return;
+    const id = activeQueueItem.id;
     if (cmsPreviewLinks[id] !== undefined) return;
     void loadCmsPreviewLink(id);
-  }, [queueDrawer, cmsPreviewLinks, loadCmsPreviewLink]);
+  }, [activeQueueItem, cmsPreviewLinks, loadCmsPreviewLink]);
 
   const subscriptions = useMemo<SubscriptionChannel[]>(() => [{ channel: 'org' }], []);
 
@@ -333,7 +333,7 @@ export function useInboxData(): InboxController {
           });
         }
         await loadInbox();
-        setQueueDrawer(null);
+        setActiveQueueItem(null);
         return true;
       } catch (err) {
         setQueueActionError({
@@ -458,7 +458,7 @@ export function useInboxData(): InboxController {
           });
         }
         await loadInbox();
-        setQueueDrawer(null);
+        setActiveQueueItem(null);
         return true;
       } catch (err) {
         setQueueActionError({
@@ -483,7 +483,7 @@ export function useInboxData(): InboxController {
           method: 'POST',
           body: JSON.stringify({ reason }),
         });
-        setScheduledDrawer(null);
+        setActiveScheduledItem(null);
         setCancelTarget(null);
         await loadInbox();
       } catch (err) {
@@ -502,7 +502,7 @@ export function useInboxData(): InboxController {
       try {
         await api(`/v1/cms/drafts/${id}/unschedule`, { method: 'POST', body: '{}' });
         setCmsDetails((prev) => clearKey(prev, id));
-        setScheduledDrawer(null);
+        setActiveScheduledItem(null);
         setCancelTarget(null);
         await loadInbox();
       } catch (err) {
@@ -525,7 +525,7 @@ export function useInboxData(): InboxController {
           body: JSON.stringify({ scheduledAt }),
         });
         await loadInbox();
-        setQueueDrawer(null);
+        setActiveQueueItem(null);
       } catch (err) {
         notify.error(translateErr(err));
         throw err;
@@ -544,10 +544,10 @@ export function useInboxData(): InboxController {
     hasLoadedOnce,
     retrying,
     retryLoad,
-    queueDrawer,
-    setQueueDrawer,
-    scheduledDrawer,
-    setScheduledDrawer,
+    activeQueueItem,
+    setActiveQueueItem,
+    activeScheduledItem,
+    setActiveScheduledItem,
     cancelTarget,
     setCancelTarget,
     cmsDetails,

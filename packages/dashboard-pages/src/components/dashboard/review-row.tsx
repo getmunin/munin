@@ -4,8 +4,8 @@ import { useTranslations } from 'next-intl';
 import { cn } from '@getmunin/ui';
 import { useRelative } from '../../lib/use-relative';
 import { DEFAULT_CURATION_TARGET_SPACE } from './inbox-data';
-import { RowCode } from './queue-drawers/shared';
-import { queueCodeKey, type QueueItem } from './queue-drawers/types';
+import { RowCode } from './queue-panes/shared';
+import { queueCodeKey, type QueueItem } from './queue-panes/types';
 
 function useMetaLine() {
   const t = useTranslations('dashboard.console.review');

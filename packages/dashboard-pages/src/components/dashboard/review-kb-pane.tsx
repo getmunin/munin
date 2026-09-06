@@ -7,7 +7,7 @@ import { diffLines } from '@getmunin/types';
 import { Link } from '../../i18n-navigation';
 import { useRelative } from '../../lib/use-relative';
 import { DEFAULT_CURATION_TARGET_SPACE } from './inbox-data';
-import { Markdown } from './queue-drawers/shared';
+import { Markdown } from './queue-panes/shared';
 import type { KbQueueItem } from './review-queue';
 import type { QueueActionError } from './inbox-types';
 import { QueueActionErrorBanner } from './queue-action-error';

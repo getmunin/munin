@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formatFieldValue, mergePatchChanges } from './merge-patch';
-import type { CrmContactSummary } from './queue-drawers/types';
+import type { CrmContactSummary } from './queue-panes/types';
 
 function keeper(overrides: Partial<CrmContactSummary> = {}): CrmContactSummary {
   return {

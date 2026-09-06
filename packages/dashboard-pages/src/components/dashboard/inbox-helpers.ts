@@ -1,5 +1,5 @@
 import type { useTranslations } from 'next-intl';
-import type { CrmContactSummary, FeedbackOutboxDto } from './queue-drawers/types';
+import type { CrmContactSummary, FeedbackOutboxDto } from './queue-panes/types';
 
 export const contactLabel = (c: CrmContactSummary) => c.name ?? c.email ?? c.id;
 

@@ -1,10 +1,10 @@
 'use client';
 
-import { CmsQueueDrawer } from './cms';
-import { CrmQueueDrawer } from './crm';
-import { FeedbackQueueDrawer } from './feedback';
-import { KbQueueDrawer } from './kb';
-import { OutreachQueueDrawer } from './outreach';
+import { CmsQueuePane } from './cms';
+import { CrmQueuePane } from './crm';
+import { FeedbackQueuePane } from './feedback';
+import { KbQueuePane } from './kb';
+import { OutreachQueuePane } from './outreach';
 import type {
   CmsAssetExpanded,
   CmsDraftDetailDto,
@@ -16,7 +16,7 @@ import type {
 const noop = () => {};
 const noopAsync = async () => {};
 
-export function ScheduledDrawer({
+export function ScheduledItemPane({
   item,
   cmsDetail,
   loadError,
@@ -37,7 +37,7 @@ export function ScheduledDrawer({
 }) {
   if (item.kind === 'outreach') {
     return (
-      <OutreachQueueDrawer
+      <OutreachQueuePane
         item={{ ...item, createdAt: item.raw.createdAt }}
         pending={pending}
         readOnly
@@ -51,7 +51,7 @@ export function ScheduledDrawer({
     );
   }
   return (
-    <CmsQueueDrawer
+    <CmsQueuePane
       item={{ ...item, createdAt: item.raw.updatedAt }}
       detail={cmsDetail}
       loadError={loadError}
@@ -71,7 +71,7 @@ export function ScheduledDrawer({
   );
 }
 
-export function QueueDrawer({
+export function QueueItemPane({
   item,
   kbBody,
   kbRevisedBody,
@@ -111,7 +111,7 @@ export function QueueDrawer({
   switch (item.kind) {
     case 'kb':
       return (
-        <KbQueueDrawer
+        <KbQueuePane
           item={item}
           body={kbBody}
           revisedBody={kbRevisedBody}
@@ -126,7 +126,7 @@ export function QueueDrawer({
       );
     case 'crm':
       return (
-        <CrmQueueDrawer
+        <CrmQueuePane
           item={item}
           pending={pending}
           onApprove={() => onApprove()}
@@ -136,7 +136,7 @@ export function QueueDrawer({
       );
     case 'outreach':
       return (
-        <OutreachQueueDrawer
+        <OutreachQueuePane
           item={item}
           pending={pending}
           onApprove={onApprove}
@@ -147,7 +147,7 @@ export function QueueDrawer({
       );
     case 'feedback':
       return (
-        <FeedbackQueueDrawer
+        <FeedbackQueuePane
           item={item}
           pending={pending}
           onApprove={() => onApprove()}
@@ -157,7 +157,7 @@ export function QueueDrawer({
       );
     case 'cms':
       return (
-        <CmsQueueDrawer
+        <CmsQueuePane
           item={item}
           detail={cmsDetail}
           loadError={loadError}

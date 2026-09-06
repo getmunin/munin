@@ -7,7 +7,7 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { QueueItem } from './types';
 
-export type DrawerPillTone =
+export type PanePillTone =
   | 'live'
   | 'ink'
   | 'draft'
@@ -82,7 +82,7 @@ export function useCmdEnter(handler: () => void) {
   }, [handler]);
 }
 
-export function DrawerLoadingState({ label }: { label: string }) {
+export function PaneLoadingState({ label }: { label: string }) {
   return (
     <div
       className="flex flex-1 items-center justify-center"
@@ -98,7 +98,7 @@ export function DrawerLoadingState({ label }: { label: string }) {
   );
 }
 
-export function DrawerLoadFailed({
+export function PaneLoadFailed({
   eyebrow,
   title,
   reason,
@@ -146,7 +146,7 @@ export function DrawerLoadFailed({
   );
 }
 
-export function DrawerHeader({
+export function PaneHeader({
   pillTone,
   pillLabel,
   pillGlyph,
@@ -157,7 +157,7 @@ export function DrawerHeader({
   closeLabel,
   className,
 }: {
-  pillTone: DrawerPillTone;
+  pillTone: PanePillTone;
   pillLabel: string;
   pillGlyph?: QueueItem['kind'];
   title: string;
@@ -296,7 +296,7 @@ export function toDateTimeLocalValue(date: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function DrawerFooter({
+export function PaneFooter({
   primary,
   secondary,
   shortcut,

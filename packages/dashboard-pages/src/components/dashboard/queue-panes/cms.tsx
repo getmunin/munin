@@ -21,9 +21,9 @@ import {
 } from '@getmunin/ui';
 import { useRelative } from '../../../lib/use-relative';
 import {
-  DrawerHeader,
-  DrawerLoadFailed,
-  DrawerLoadingState,
+  PaneHeader,
+  PaneLoadFailed,
+  PaneLoadingState,
   Markdown,
   ScheduledFooter,
   ScheduledNotice,
@@ -48,7 +48,7 @@ import {
 
 type EditableData = Record<string, unknown>;
 
-export function CmsQueueDrawer({
+export function CmsQueuePane({
   item,
   detail,
   loadError,
@@ -202,7 +202,7 @@ export function CmsQueueDrawer({
       setSchedulerOpen(false);
       setScheduledAt('');
     } catch (err) {
-      console.warn('[cms-drawer] schedule failed', err);
+      console.warn('[cms-pane] schedule failed', err);
     }
   };
 
@@ -231,7 +231,7 @@ export function CmsQueueDrawer({
     <>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <div className="flex min-h-full flex-col">
-          <DrawerHeader
+          <PaneHeader
             pillTone="cms"
             pillLabel={tQueue('kindCms')}
             pillGlyph="cms"
@@ -356,7 +356,7 @@ export function CmsQueueDrawer({
             </>
           ) : loadError !== undefined ? (
             <div className="flex min-h-[320px] flex-1 flex-col">
-              <DrawerLoadFailed
+              <PaneLoadFailed
                 eyebrow={t('loadFailedEyebrow')}
                 title={t('detailLoadFailed')}
                 reason={loadError}
@@ -367,7 +367,7 @@ export function CmsQueueDrawer({
             </div>
           ) : (
             <div className="flex min-h-[320px] flex-1 flex-col">
-              <DrawerLoadingState label={t('loading')} />
+              <PaneLoadingState label={t('loading')} />
             </div>
           )}
         </div>
@@ -1353,7 +1353,7 @@ function AssetDropZone({
         const uploaded = await onUploadAsset(file);
         onChange(uploaded);
       } catch (err) {
-        console.warn('[cms-drawer] asset upload failed', err);
+        console.warn('[cms-pane] asset upload failed', err);
       } finally {
         setUploading(false);
       }

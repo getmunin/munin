@@ -5,16 +5,16 @@ import { useTranslations } from 'next-intl';
 import { BodyDiff } from '@getmunin/ui';
 import { useRelative } from '../../../lib/use-relative';
 import {
-  DrawerFooter,
-  DrawerHeader,
-  DrawerLoadFailed,
-  DrawerLoadingState,
+  PaneFooter,
+  PaneHeader,
+  PaneLoadFailed,
+  PaneLoadingState,
   Markdown,
   useCmdEnter,
 } from './shared';
 import type { KbCandidateDto } from './types';
 
-export function KbQueueDrawer({
+export function KbQueuePane({
   item,
   body,
   revisedBody,
@@ -86,7 +86,7 @@ export function KbQueueDrawer({
 
   return (
     <>
-      <DrawerHeader
+      <PaneHeader
         pillTone="kb"
         pillLabel={isRevision ? tQueue('kindKbRevision') : tQueue('kindKb')}
         pillGlyph="kb"
@@ -135,7 +135,7 @@ export function KbQueueDrawer({
           </section>
         </div>
       ) : loadError !== undefined ? (
-        <DrawerLoadFailed
+        <PaneLoadFailed
           eyebrow={t('loadFailedEyebrow')}
           title={t('detailLoadFailed')}
           reason={loadError}
@@ -144,11 +144,11 @@ export function KbQueueDrawer({
           onRetry={onRetry}
         />
       ) : (
-        <DrawerLoadingState label={t('loading')} />
+        <PaneLoadingState label={t('loading')} />
       )}
 
       {editing ? (
-        <DrawerFooter
+        <PaneFooter
           primary={{
             label: t('save'),
             onClick: () => void saveEdit(),
@@ -162,7 +162,7 @@ export function KbQueueDrawer({
           <p className="px-6 pb-2 text-xs leading-relaxed text-ink-mute">
             {isRevision ? t('kbRevisionPublishNote') : t('kbDismissPermanent')}
           </p>
-          <DrawerFooter
+          <PaneFooter
             primary={{
               label: isRevision ? t('kbRevisionApprove') : t('approve'),
               onClick: onApprove,

@@ -6,7 +6,7 @@ import { useCountdown } from '../../lib/use-relative';
 import { ConsoleSectionLabel } from '../console-section-label';
 import { ReviewRow } from './review-row';
 import { StatRow } from './overview-stat-row';
-import type { QueueItem, ScheduledItem } from './queue-drawers/types';
+import type { QueueItem, ScheduledItem } from './queue-panes/types';
 
 const WAITING_LIMIT = 5;
 

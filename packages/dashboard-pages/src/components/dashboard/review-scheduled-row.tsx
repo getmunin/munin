@@ -3,8 +3,8 @@
 import { useTranslations } from 'next-intl';
 import { cn } from '@getmunin/ui';
 import { useCountdown } from '../../lib/use-relative';
-import { RowCode } from './queue-drawers/shared';
-import { queueCodeKey, type ScheduledItem } from './queue-drawers/types';
+import { RowCode } from './queue-panes/shared';
+import { queueCodeKey, type ScheduledItem } from './queue-panes/types';
 
 export function ReviewScheduledRow({
   item,

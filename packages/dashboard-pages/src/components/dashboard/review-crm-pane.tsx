@@ -4,8 +4,8 @@ import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button, Pill, cn } from '@getmunin/ui';
 import { useRelative } from '../../lib/use-relative';
-import { ModuleGlyph, useCmdEnter } from './queue-drawers/shared';
-import { humanizeFieldName, type CrmMergeProposalDto } from './queue-drawers/types';
+import { ModuleGlyph, useCmdEnter } from './queue-panes/shared';
+import { humanizeFieldName, type CrmMergeProposalDto } from './queue-panes/types';
 import {
   comparableFieldCount,
   formatFieldValue,

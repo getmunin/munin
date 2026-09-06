@@ -12,7 +12,7 @@ import type {
   OutreachProposalDto,
   QueueItem,
   ScheduledItem,
-} from './queue-drawers/types';
+} from './queue-panes/types';
 
 export type { QueueItem, ScheduledItem };
 
@@ -101,10 +101,10 @@ export interface InboxController {
   hasLoadedOnce: boolean;
   retrying: boolean;
   retryLoad: () => Promise<void>;
-  queueDrawer: QueueItem | null;
-  setQueueDrawer: (next: QueueItem | null) => void;
-  scheduledDrawer: ScheduledItem | null;
-  setScheduledDrawer: (next: ScheduledItem | null) => void;
+  activeQueueItem: QueueItem | null;
+  setActiveQueueItem: (next: QueueItem | null) => void;
+  activeScheduledItem: ScheduledItem | null;
+  setActiveScheduledItem: (next: ScheduledItem | null) => void;
   cancelTarget: ScheduledItem | null;
   setCancelTarget: (next: ScheduledItem | null) => void;
   cmsDetails: Record<string, CmsDraftDetailDto>;

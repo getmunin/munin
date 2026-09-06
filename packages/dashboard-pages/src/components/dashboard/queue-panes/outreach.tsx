@@ -15,8 +15,8 @@ import {
 import { Pill } from '@getmunin/ui';
 import { useRelative } from '../../../lib/use-relative';
 import {
-  DrawerFooter,
-  DrawerHeader,
+  PaneFooter,
+  PaneHeader,
   Markdown,
   ScheduledFooter,
   ScheduledNotice,
@@ -25,7 +25,7 @@ import {
 } from './shared';
 import type { OutreachProposalDto } from './types';
 
-export function OutreachQueueDrawer({
+export function OutreachQueuePane({
   item,
   pending,
   readOnly = false,
@@ -132,7 +132,7 @@ export function OutreachQueueDrawer({
 
   return (
     <>
-      <DrawerHeader
+      <PaneHeader
         pillTone="out"
         pillLabel={tQueue('kindOutreach')}
         pillGlyph="outreach"
@@ -312,7 +312,7 @@ export function OutreachQueueDrawer({
           note={t('scheduledNote')}
         />
       ) : editing ? (
-        <DrawerFooter
+        <PaneFooter
           primary={{
             label: t('save'),
             onClick: () => void saveEdit(),
@@ -322,7 +322,7 @@ export function OutreachQueueDrawer({
           shortcut={t('shortcutSave')}
         />
       ) : (
-        <DrawerFooter
+        <PaneFooter
           primary={{
             label: proposedSendAt
               ? t('outreachApproveScheduled', { when: stamp(proposedSendAt) })

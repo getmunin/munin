@@ -7,7 +7,7 @@ import { Button, DropdownMenuItem, PageSpinner, cn } from '@getmunin/ui';
 import { CardMenu } from '../card-kit';
 import { useRelative } from '../../lib/use-relative';
 import { useConversationTyping } from '../../realtime';
-import { useCmdEnter } from './queue-drawers/shared';
+import { useCmdEnter } from './queue-panes/shared';
 import { MessageBubble, startsAuthorGroup } from './inbox-message-bubble';
 import { LoadFailed } from '../load-failed';
 import { TestConversationBanner } from './test-conversation-banner';

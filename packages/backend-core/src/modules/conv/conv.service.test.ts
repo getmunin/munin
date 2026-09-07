@@ -1059,6 +1059,20 @@ const skipReason = TEST_URL
       expect(ids.indexOf(b.conv.id)).toBeLessThan(ids.indexOf(a.conv.id));
     });
 
+    it('a topic automation mode overrides the conversation agent mode everywhere it is read', async () => {
+      const { conv, topic } = await seedQueueConversation();
+      await db
+        .update(schema.convTopics)
+        .set({ agentMode: 'auto' })
+        .where(eq(schema.convTopics.id, topic!.id));
+      const detail = await run(() => svc.getConversation(conv.id));
+      expect(detail.agentMode).toBe('auto');
+      const page = await run(() => svc.listConversationQueuePage({}));
+      const item = page.items.find((i) => i.id === conv.id)!;
+      expect(item.agentMode).toBe('auto');
+      expect(item.topicAgentMode).toBe('auto');
+    });
+
     it('stamps a user internal message as internal_note and announces conversation.note_added', async () => {
       const { conv } = await seedQueueConversation();
       const note = await run(

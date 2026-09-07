@@ -39,6 +39,7 @@ export const CONVERSATION_EVENT_TYPES = [
   'conversation.released',
   'conversation.taken_over',
   'conversation.agent_mode_changed',
+  'conversation.topic_automation_changed',
   'conversation.handover_requested',
   'conversation.handover_resolved',
   'conversation.greet_requested',

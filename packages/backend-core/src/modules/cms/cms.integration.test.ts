@@ -1713,6 +1713,123 @@ const skipReason = TEST_URL
     });
   }, 60_000);
 
+  it('cms_update_entry blockEdits add, move and delete blocks by key, and rewire asset references', async () => {
+    const [asset] = await db
+      .insert(schema.cmsAssets)
+      .values({
+        orgId,
+        name: 'inserted.png',
+        mime: 'image/png',
+        sizeBytes: 128,
+        storageProvider: 'local',
+        storageKey: `cms/${orgId}/it-inserted.png`,
+        publicUrl: 'https://assets.test/inserted.png',
+        altText: 'Inserted image',
+        uploaded: true,
+        createdByType: 'user',
+        createdById: 'usr_test',
+      })
+      .returning();
+    const assetId = asset!.id;
+
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'cms_create_collection',
+        arguments: {
+          name: 'Chapters',
+          slug: 'chapters',
+          fields: [
+            { name: 'title', type: 'text', required: true },
+            {
+              name: 'body',
+              type: 'blocks',
+              options: {
+                blockTypes: [
+                  { name: 'prose', fields: [{ name: 'markdown', type: 'markdown', required: true }] },
+                  { name: 'figure', fields: [{ name: 'image', type: 'asset', required: true }] },
+                ],
+              },
+            },
+          ],
+        },
+      });
+
+      const created = parseToolResult<{ id: string; version: number }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'chapters',
+            slug: 'chapter-1',
+            data: {
+              title: 'Chapter one',
+              body: [
+                { type: 'prose', key: 'one', props: { markdown: 'First' } },
+                { type: 'prose', key: 'two', props: { markdown: 'Second' } },
+              ],
+            },
+            responseFormat: 'summary',
+          },
+        }),
+      );
+
+      const usageBefore = parseToolResult<Array<unknown>>(
+        await c.callTool({ name: 'cms_list_asset_usage', arguments: { assetId } }),
+      );
+      expect(usageBefore).toHaveLength(0);
+
+      const edited = parseToolResult<{
+        version: number;
+        data: { body: Array<{ type: string; key: string; props: Record<string, unknown> }> };
+      }>(
+        await c.callTool({
+          name: 'cms_update_entry',
+          arguments: {
+            id: created.id,
+            ifVersion: created.version,
+            blockEdits: [
+              {
+                field: 'body',
+                op: 'set',
+                key: 'plate',
+                block: { type: 'figure', props: { image: assetId } },
+                after: 'one',
+              },
+              { field: 'body', op: 'delete', key: 'two' },
+              { field: 'body', op: 'move', key: 'plate', position: 'start' },
+            ],
+          },
+        }),
+      );
+      expect(edited.version).toBe(created.version + 1);
+      expect(edited.data.body.map((b) => b.key)).toEqual(['plate', 'one']);
+      expect((edited.data.body[0]!.props.image as { id: string }).id).toBe(assetId);
+
+      const usageAfter = parseToolResult<Array<{ fromEntryId: string; fieldName: string }>>(
+        await c.callTool({ name: 'cms_list_asset_usage', arguments: { assetId } }),
+      );
+      expect(usageAfter).toHaveLength(1);
+      expect(usageAfter[0]!.fromEntryId).toBe(created.id);
+      expect(usageAfter[0]!.fieldName).toBe('body');
+
+      const blocked = (await c.callTool({
+        name: 'cms_delete_asset',
+        arguments: { id: assetId },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(blocked.isError).toBe(true);
+
+      const missing = (await c.callTool({
+        name: 'cms_update_entry',
+        arguments: {
+          id: created.id,
+          ifVersion: edited.version,
+          blockEdits: [{ field: 'body', op: 'move', key: 'gone', position: 'end' }],
+        },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(missing.isError).toBe(true);
+      expect(missing.content?.[0]?.text).toContain('cms_block_not_found');
+    });
+  }, 60_000);
+
   it('rich field types: array, multi_select, and array-of-text block props round-trip and validate', async () => {
     await withClient(adminKey, async (c) => {
       await c.callTool({

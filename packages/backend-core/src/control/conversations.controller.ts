@@ -17,7 +17,7 @@ import { z } from 'zod';
 import { getCurrentContext } from '@getmunin/core';
 import { MessageComponentsSchema } from '@getmunin/types';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AllowMember, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { RoleGuard } from './role.guard.ts';
@@ -181,6 +181,7 @@ export class ConversationsController {
   }
 
   @Get('queue')
+  @AllowMember()
   async queue(
     @Query('status') status?: string,
     @Query('assigneeUserId') assigneeUserId?: string,
@@ -283,6 +284,7 @@ export class ConversationsController {
   }
 
   @Get(':id')
+  @AllowMember()
   async get(@Param('id') id: string): Promise<ConversationDetailResponse> {
     const detail = await translate(() => this.conv.getConversation(id));
     const claim = await this.claims.getActiveClaim(id);
@@ -296,6 +298,7 @@ export class ConversationsController {
 
   @Post(':id/messages')
   @HttpCode(201)
+  @AllowMember()
   async reply(@Param('id') id: string, @Body() input: SendReplyBody): Promise<MessageDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -356,6 +359,7 @@ export class ConversationsController {
 
   @Post(':id/status')
   @HttpCode(200)
+  @AllowMember()
   async status(
     @Param('id') id: string,
     @Body() input: ChangeStatusBody,
@@ -379,6 +383,7 @@ export class ConversationsController {
 
   @Post(':id/take-over')
   @HttpCode(200)
+  @AllowMember()
   async takeOver(
     @Param('id') id: string,
     @Body() input: TakeOverBody,
@@ -392,6 +397,7 @@ export class ConversationsController {
 
   @Post(':id/release')
   @HttpCode(200)
+  @AllowMember()
   async release(@Param('id') id: string): Promise<{ released: boolean }> {
     await translate(() => this.claims.release({ conversationId: id }));
     return { released: true };
@@ -432,12 +438,14 @@ export class ConversationsController {
 
   @Post(':id/clear-draft')
   @HttpCode(200)
+  @AllowMember()
   async clearDraft(@Param('id') id: string): Promise<{ cleared: number }> {
     return translate(() => this.conv.clearDraftReply(id));
   }
 
   @Post(':id/request-draft')
   @HttpCode(202)
+  @AllowMember()
   async requestDraft(@Param('id') id: string): Promise<{ requested: boolean }> {
     return translate(() => this.conv.requestDraft(id));
   }

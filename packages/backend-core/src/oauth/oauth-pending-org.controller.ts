@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
-import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
+import { AllowMember, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { hasOrgScopeAssociationKey, orgScopeStore } from '../auth/org-scope-store.ts';
 
@@ -26,6 +26,7 @@ interface CookieCarryingRequest {
 @Controller('v1/oauth/pending-org')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor)
+@AllowMember()
 export class OAuthPendingOrgController {
   @Get()
   @Header('cache-control', 'no-store')

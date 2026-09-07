@@ -23,6 +23,7 @@ export class ActorIdentity {
     public readonly partnerId?: string,
     public readonly userId?: string,
     public readonly clientId?: string,
+    public readonly orgRole?: string,
   ) {}
 
   hasScope(scope: string): boolean {

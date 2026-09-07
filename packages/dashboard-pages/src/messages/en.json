@@ -1947,6 +1947,7 @@
     "claim_held_by_other": "Another teammate already holds this conversation.",
     "conv_draft_pending": "A draft is already waiting for review.",
     "conv_draft_request_invalid": "The agent can't draft here — the conversation is closed, has no customer to reply to, or the agent is switched off.",
+    "member_forbidden": "That's limited to owners and admins. Ask an owner if you need access.",
     "NETWORK_ERROR": "Couldn't reach Munin. Check your connection.",
     "SIGNUP_NOT_ALLOWED": "Signup is restricted on this Munin instance. Ask an admin to invite you.",
     "SIGNUP_DOMAIN_NOT_ALLOWED": "Your email domain isn't on the allowlist, and there's no pending invitation for this address. Ask an admin to invite you.",

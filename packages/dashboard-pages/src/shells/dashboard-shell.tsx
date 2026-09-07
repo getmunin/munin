@@ -1,14 +1,13 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useTranslations } from 'next-intl';
 import { PageSpinner } from '@getmunin/ui';
 import { authClient } from '../auth-client';
 import { useDashboardGate } from '../auth/use-dashboard-gate';
 import { SystemAlertsBanner } from '../components/system-alerts-banner';
 import { ConfirmDialogProvider } from '../components/confirm-dialog';
-import { DashboardTopbar } from '../components/munin-topbar';
 import { usePathname } from '../i18n-navigation';
+import { ConsoleShell } from './console-shell';
 
 export interface DashboardShellProps {
   brand: string;
@@ -25,7 +24,6 @@ export function DashboardShell({
   withConfirmDialog = false,
   children,
 }: DashboardShellProps) {
-  const tNav = useTranslations('nav');
   const pathname = usePathname();
   const { data: session } = authClient.useSession();
   const { ready } = useDashboardGate();
@@ -37,17 +35,19 @@ export function DashboardShell({
   const inSettings = pathname.startsWith('/dashboard/settings');
 
   const content = (
-    <div className="group flex min-h-screen flex-col bg-bone dark:bg-background">
+    <div className="group flex h-screen flex-col bg-bone dark:bg-background">
       <SystemAlertsBanner />
-      {!inSettings && (
-        <DashboardTopbar
-          brand={brand}
-          logoSrc={logoSrc}
-          leftSlot={leftSlot}
-          settingsLabel={tNav('settings')}
-        />
+      {inSettings ? (
+        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-clip bg-paper dark:bg-background">
+          {children}
+        </main>
+      ) : (
+        <div className="min-h-0 flex-1">
+          <ConsoleShell brand={brand} logoSrc={logoSrc} headSlot={leftSlot}>
+            {children}
+          </ConsoleShell>
+        </div>
       )}
-      <main className="flex-1 overflow-x-clip bg-paper dark:bg-background">{children}</main>
     </div>
   );
 

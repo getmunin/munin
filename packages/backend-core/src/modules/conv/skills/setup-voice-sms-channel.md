@@ -46,6 +46,12 @@ Replies thread. A second message from the same number on the same channel lands 
 
 Suppressed contacts drop out of `crm_list_contacts_in_segment`, so they stop appearing in outreach audiences. Do not clear the flag to re-add someone — if they ask to opt back in, that is a new consent decision a human records.
 
+## How a call transcript reads back
+
+`conv_get_conversation` returns a call as one message per turn, in the order the turns were spoken — `metadata.voiceTurnIndex` carries that position and `created_at` is derived from it, so a webhook that arrives late never reorders the transcript. The caller's turns are `author_type: end_user`, the assistant's are `agent`.
+
+A caller turn whose audio produced no words is kept as a turn with an **empty body** and `metadata.voiceNoSpeech: true` — the caller spoke or was cut off, and speech recognition returned nothing. It is kept because dropping it makes the transcript read as if the assistant answered a question nobody asked. Report it as "nothing was transcribed", never as something the caller said, and never treat the silence as agreement. The dashboard renders it as a placeholder line and the chat widget hides it.
+
 ## Verify
 
 - `conv_test_voice_sms_channel { channelId }` — vendor-shaped credential check (Twilio account fetch, MessageBird balance, etc.), no message sent.

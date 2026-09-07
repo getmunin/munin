@@ -350,7 +350,7 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
     },
     toRuntimeHistory(detail: ConversationDetail): ConversationMessage[] {
       return detail.messages
-        .filter((m) => !m.internal)
+        .filter((m) => !m.internal && m.body.trim().length > 0)
         .map((m) => ({
           authorType: m.authorType === 'user' ? 'staff' : m.authorType,
           body: m.body,

@@ -20,7 +20,10 @@ export const OSS_CONSOLE_GROUPS: ConsoleNavGroup[] = [
   },
   {
     groupKey: 'oversight',
-    items: [{ href: '/dashboard/conversations', labelKey: 'conversations', badge: 'queue' }],
+    items: [
+      { href: '/dashboard/conversations', labelKey: 'conversations', badge: 'queue' },
+      { href: '/dashboard/automation', labelKey: 'automation', adminOnly: true },
+    ],
   },
   {
     groupKey: 'workspace',

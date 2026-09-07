@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { getCurrentContext } from '@getmunin/core';
 import { AGENT_MODES, CHANNEL_TYPES, ConvService, HANDOVER_FILTERS, STATUSES } from './conv.service.ts';
+import { ConvAutomationService } from './conv-automation.service.ts';
 import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
 
 const ChannelTypeSchema = z.enum(CHANNEL_TYPES);
@@ -86,6 +87,13 @@ const SetTopicInput = z.object({
   topicId: z.string().nullable(),
 });
 
+const SetTopicAutomationInput = z.object({
+  topicId: z.string(),
+  mode: AgentModeSchema.nullable().describe(
+    '`auto` sends replies in this topic without review, `draft_only` parks every reply as a draft for the review queue, `off` stops the agent from replying in the topic, and `null` clears the override so conversations fall back to their own mode.',
+  ),
+});
+
 const SetSubjectInput = z.object({
   conversationId: z.string(),
   subject: z.string().min(1).max(200).nullable(),
@@ -137,7 +145,40 @@ const ConvImportInput = z.object({
 
 @Injectable()
 export class ConvAdminTools {
-  constructor(@Inject(ConvService) private readonly conv: ConvService) {}
+  constructor(
+    @Inject(ConvService) private readonly conv: ConvService,
+    @Inject(ConvAutomationService) private readonly automation: ConvAutomationService,
+  ) {}
+
+  @McpTool({
+    name: 'conv_list_topic_automation',
+    title: 'Conv: List topic automation',
+    description:
+      'List every conversation topic with its automation mode (`auto`, `draft_only`, `off`, or null when it inherits the conversation default) and its recent review record: weekly reply volume, and how many replies in the 30-day window were approved unedited, edited, or rejected by a human, plus the share of all replies auto-sent over the last 7 days. This is the evidence base for deciding whether a topic is ready to promote to auto-send.',
+    audiences: ['admin'],
+    scopes: ['conv:read'],
+    input: EmptyInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  listTopicAutomation() {
+    return this.automation.listTopicAutomation();
+  }
+
+  @McpTool({
+    name: 'conv_set_topic_automation',
+    title: 'Conv: Set topic automation',
+    description:
+      'Set the automation mode for one topic. A topic mode overrides the per-conversation mode for every conversation tagged with the topic: `auto` sends replies directly, `draft_only` parks each reply as a draft for human review, `off` stops the agent from replying, and `null` clears the override. Promoting to `auto` stamps when the promotion happened; any other mode clears the stamp. Emits `conversation.topic_automation_changed`.',
+    audiences: ['admin'],
+    scopes: ['conv:write'],
+    input: SetTopicAutomationInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  setTopicAutomation(args: z.infer<typeof SetTopicAutomationInput>) {
+    return this.automation.setTopicAgentMode(args);
+  }
 
   @McpTool({
     name: 'conv_list_conversations',

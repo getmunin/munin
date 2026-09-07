@@ -45,6 +45,7 @@ import { InvitationsController } from './invitations.controller.ts';
 import { AcceptInvitationController } from './accept-invitation.controller.ts';
 import { InvitationsService } from './invitations.service.ts';
 import { MembersController } from './members.controller.ts';
+import { RosterController } from './roster.controller.ts';
 import { MembershipsController } from './memberships.controller.ts';
 import { ConversationsController } from './conversations.controller.ts';
 import { ActivityController } from './activity.controller.ts';
@@ -92,6 +93,7 @@ import { ConnectorsModule } from '../modules/connectors/connectors.module.ts';
     InvitationsController,
     AcceptInvitationController,
     MembersController,
+    RosterController,
     MembershipsController,
     PublicSkillsController,
     PublicMcpToolsController,

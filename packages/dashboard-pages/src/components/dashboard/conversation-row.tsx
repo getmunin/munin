@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { cn } from '@getmunin/ui';
+import { Pill, cn } from '@getmunin/ui';
 import { useRelative } from '../../lib/use-relative';
 import type { QueueItemDto } from './conversation-queue';
 import { initialsOf } from '../../lib/initials';
@@ -82,9 +82,9 @@ export function ConversationRow({
             : 'hover:bg-paper-deep hover:!opacity-100 dark:hover:bg-card',
         )}
       >
-        <span className="inline-flex min-w-[44px] self-center justify-center border border-rule-soft bg-paper-deep px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-eyebrow text-ink dark:border-rule-on-dark dark:bg-secondary dark:text-foreground">
+        <Pill tone="ink" marker="none" className="self-center justify-self-start">
           {item.channelType}
-        </span>
+        </Pill>
         <span className="flex min-w-0 flex-col gap-0.5">
           <span
             className={cn(

@@ -79,7 +79,7 @@ export function MessageBubble({ message }: { message: MessageDto }) {
             ? 'rounded-bubble rounded-tr-[2px] bg-cobalt text-paper'
             : isAgent
               ? 'rounded-bubble rounded-tr-[2px] bg-ink text-paper dark:bg-paper dark:text-ink'
-              : 'rounded-bubble rounded-tl-[2px] bg-paper-deep text-ink dark:bg-secondary dark:text-foreground',
+              : 'rounded-bubble rounded-tl-[2px] border border-rule-soft bg-paper text-ink dark:border-rule-on-dark dark:bg-card dark:text-foreground',
         )}
       >
         <div

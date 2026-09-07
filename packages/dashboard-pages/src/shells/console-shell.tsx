@@ -308,13 +308,19 @@ export function ConsoleShell({ brand, logoSrc = '/munin-logo.png', headSlot, chi
   const pathname = usePathname();
   const router = useRouter();
   const { data: session } = authClient.useSession();
-  const { role } = useActiveRole();
+  const { role, loading: roleLoading } = useActiveRole();
   const { badges, roster } = useConsoleData();
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!roleLoading && role && !isOwnerOrAdmin(role) && pathname === '/dashboard') {
+      router.replace('/dashboard/conversations');
+    }
+  }, [roleLoading, role, pathname, router]);
 
   const groups = consoleGroupsForRole(OSS_CONSOLE_GROUPS, isOwnerOrAdmin(role));
   const activeItem = groups

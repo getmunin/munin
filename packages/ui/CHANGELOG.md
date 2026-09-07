@@ -1,5 +1,275 @@
 # @getmunin/ui
 
+## 5.16.0
+
+### Minor Changes
+
+- a9d71da: Apply the design system's conversation identity colours to the admin thread and the chat widget.
+
+  One colour per role, never per mood: **you are ink** (`#0F1419`), **the counterparty is verdigris** (`#208562`, bubble tint `#E3F5EC`), and **the agent is hueless** (`#7E8590` on `#DCE2E8`) because it is not a person. Cobalt is now reserved entirely for emphasis and actions — it is an action, not an identity.
+
+  Both surfaces previously shipped the variant the design system rejected: the admin thread painted your own messages cobalt, so your own bubble competed with the only cobalt that should matter (the approve action), while the agent wore ink and the counterparty — the one role that must carry a hue — was plain paper. The widget did the same via `--munin-theme`, and painted human operators identically to the AI.
+
+  Details:
+
+  - New `verdigris` and `agent-tint` token families in `@getmunin/ui`. Self needed no new tokens — `--munin-ink` and `--munin-fg-3` were already exactly the specified values.
+  - The agent tint is `#DCE2E8` (`#1E252C` on ink), not paper-deep. The agent has no hue to spend, so its tint spends temperature instead: every Munin surface is warm, the agent tint is cool. Paper-deep was the failing case — the admin thread is itself wrapped in `bg-paper-deep`, so the agent bubble sat at Lab ΔE 0.0 against its own background and survived only on its hairline border. The cool grey lifts the worst of the four surfaces to ΔE 8.1 (paper 10.1, paper-deep 8.1, bone 8.1, ink 8.4). Note that WCAG luminance ratio cannot measure this — on bone the two are near-equiluminant (1.03:1) and separate entirely on the b\* axis, which is the point.
+  - Direction still decides which side a message sits on; only colour carries identity, so a colleague's message sits on the outbound side wearing verdigris rather than your ink. The thread stays avatar-less — the bubble fill and the existing name label carry the role between them.
+  - Self is resolved against the viewer (`viewerUserId`) rather than `authorType === 'user'`, so a colleague is correctly "other" instead of borrowing your identity. When the viewer is unknown, staff fall back to self and the ring is suppressed entirely — an unresolved session must not invert the rule and paint your own messages as the counterparty, which is a worse failure than the flat staff bucket it replaced.
+  - Participant ring: with three or more humans in a thread, the non-self humans take `oklch(0.55 0.105 h)` at hues 165 / 32 / 210 / 75 / 315 in order of first appearance — fixed lightness and chroma, hue only. Under three humans the counterparty keeps the verdigris token. The agent never counts toward the threshold and never takes a hue.
+  - The viewer counts toward that threshold even when they have not posted in the thread, because they are a participant in any conversation they are reading. Counting only authors leaves a two-author thread — one customer, one colleague — below the threshold, so both render flat verdigris and a teammate is indistinguishable from the customer, which is the exact collision the ring exists to prevent.
+  - A ring participant's hue tints their name label as well as their bubble. With no avatar in the thread the bubble is the only other carrier, and two ring hues at a 12% tint are too close to tell apart at a glance.
+  - Widget self bubbles come off the tenant's `themeColor` entirely; that colour keeps the action surfaces (send button, email-capture button, focus rings). Human operators get the verdigris tint, split off the AI via the `authorKind` the widget already receives, and both keep their name and role label — the visitor is told who is answering.
+  - **The widget takes quiet self, not the filled ink bubble.** Self-as-ink collided with the widget's own chrome — the ink title bar and the visitor's bubble were the same hex, so their message read as a chip that fell off the header, and the answer they opened the widget to read was the palest thing on screen. Widget-side the visitor now takes `--munin-self-tint` (bone / `#272C33`) with ink text and a 2px corner on the authoring side; side and corner carry authorship, and the title bar keeps ink as the widget's one constant. The admin thread is unchanged — there, self staying a filled ink bubble is right, because no ink chrome competes with it.
+  - Chrome geometry is now a five-step radius scale (`--munin-r-panel` / `-surface` / `-control` / `-tag` / `-pill`) driven by a new `data-munin-corners` embed attribute: `square` (default — sharp corners on every panel, field and button, radius only on bubbles) or `rounded`, which restores the previous radii. Bubbles keep their radius in both, and the mobile full-screen panel stays square regardless.
+  - Cobalt is now actions only: send, the email-capture button, and focus rings. It is no longer a bubble fill, a link colour inside a bubble, or a presence dot — the dots take verdigris, and on dark the send arrow lightens to a 50% mix of the tenant colour so it stays legible on ink without abandoning the tenant's hue.
+  - The widget's dark scheme moves onto ink (`--munin-paper` `#101418`, `--munin-paper-deep` `#1F252B`) so a dark host page gets a panel that reads as one surface rather than a grey card on black.
+  - The welcome screen no longer claims a reply time. `welcomeRepliesAboutHtml` ("Replies in about **2 min**") was hardcoded in all 21 locales, backed by nothing, and wrong in both directions — seconds on an auto channel, hours once a human takes over. It is now `welcomeRepliesInstantly`, transcreated per locale, true because a widget channel always answers with the AI first, and escaped rather than interpolated as raw HTML.
+
+  Two extrapolations beyond the spec, which only gives light-mode fills: dark-mode counterparty values (`#62C39C`, with the widget's dark verdigris bubble opaque at `#1B382A` and the admin thread's translucent), and ring bubble tints derived as a 12% `color-mix` of the participant's ring colour so a single hue drives both bubble and label in either scheme.
+
+- f781f5f: First-run and empty states for Overview, Conversations, Automation and Learning
+
+  A brand-new org used to land on a dashboard of zeroes: a hero that said agents were
+  caught up, two stat rows reading 0, and five empty usage tiles. Nothing told you that
+  no channel was connected, or that the two things worth doing were pointing an agent at
+  `/mcp` and opening a way in.
+
+  The four console pages now render a first-run scene instead, driven by one shared
+  source of truth. `GET /v1/overview/setup` (new `SetupStateService`) reports the org's
+  channels, all-time conversation count, topic count, knowledge-base size and external
+  MCP tool-call activity in a single request. `useSetupState` turns that into
+  a `stage` — `unconfigured` (no channel can accept a message), `listening` (a channel is
+  live, nothing has ever arrived) or `active` — and pages branch on `setup.isFirstRun`
+  so an established org keeps exactly the behaviour it had.
+
+  Setup state is fetched from a `SetupStateProvider` mounted in `DashboardShell` rather
+  than per page. Fetching it per page meant every console navigation remounted the hook,
+  started from "unknown", and rendered the established-org layout for a frame before
+  flipping to the empty state — a visible flash on every switch. Pages now also render
+  nothing rather than the wrong branch while the answer is still undetermined, so the
+  wrong frame never reaches the screen.
+
+  The provider revalidates on navigation, keeping the last snapshot on screen while the
+  refetch is in flight, so connecting a channel in settings and walking back to the
+  console shows the new channel without a reload. Channel mutations emit no realtime
+  event, so navigation — not the event stream — is what makes that flow correct; a
+  channel opened by an agent while you sit on Overview still lands on the next
+  navigation rather than instantly.
+
+  "Has an agent been pointed at the endpoint" counts only _external_ callers. Munin's own
+  in-process runner reaches the same tools, so a first count of every non-system
+  `audit_log` row with a tool set reported 35 calls — and a green "done" — for an org
+  where nobody had ever connected anything. `externalMcpCallCount` now excludes the
+  `agent-host` actor and its per-end-user variants alongside the system actors, reusing
+  the `@getmunin/types` actor constants rather than restating the prefixes. The step
+  counter is derived from the same two facts in both stages, so a live channel with an
+  untouched endpoint reads "1 of 2 done" instead of claiming both.
+
+  The derivation is a pure function (`toSetupSnapshot`) with its own tests: stage
+  transitions, channels awaiting credentials counting as pending rather than live, the
+  endpoint counting as connected only once an external tool call is recorded, and channel
+  labels falling back from public address to channel name.
+
+  The scenes are built from a small reusable set — `FirstRunScene`, `FirstRunSteps`,
+  `FirstRunChain`, `FirstRunStatusList`, `FirstRunFigures`, `FirstRunAside`,
+  `FirstRunNote` and the shared `CopyField` — so all four pages share one editorial layout
+  rather than four bespoke empty states. `@getmunin/ui` gains an `accentOutline` button
+  variant for the quiet cobalt CTA these screens use.
+
+  The endpoint is readable by any org member, since Conversations is the one console
+  page members can open and its empty state has to distinguish "no channel connected"
+  from "connected, nothing has arrived". It returns counts and public channel config
+  only — the same redaction `conv_list_channels` applies.
+
+  The endpoint field became the shared `CopyField`: a mono value with the Copy control
+  attached inside one hard-edged ink border on `paper-deep`. `CopyableSecret` is now that
+  field plus a label and hint, `KeyReveal` on api-keys and the webhook-secret field on
+  channels use it directly, and `channels.tsx` no longer shadows `CopyableSecret` with a
+  local copy of its own — that duplicate is what kept the widget-key and Twilio dialogs
+  on the old rounded `bg-background` look while the rest of the console moved on. The
+  multi-line embed snippets in channels and trackers keep their button underneath, since
+  an attached control makes no sense on a code block, but their surface now matches. The
+  Copy control sizes itself to the wider of its two labels by rendering both in one grid
+  cell, so the field does not shift when Copy becomes Copied — and it stays correct in
+  Norwegian, where "Kopiert" is a character longer than the English word. The email
+  channel form's SMTP and IMAP fieldsets lost their `rounded-md` corners, and
+  `--munin-radius-input` drops from 2px to 0, so inputs, textareas and every
+  `rounded-input` surface are hard-edged like the rest of the system.
+
+  The four first-run scenes were then measured rather than eyeballed, at both widths and
+  in both stages: scene gap, page padding, every inter-block gap and each closing rule.
+  Two arbitrary differences fell out and are fixed — `FirstRunFootnote` closed on 20px
+  where `FirstRunNote` closed on 24px despite playing the same structural role, and the
+  chain's mobile number gutter was 44px against the steps' 52px even though both land on
+  76px from `md` up. What remains different is deliberate: Conversations closes on a soft
+  rule (a caveat) where the other pages close on an ink rule (a statement), and its
+  listening stage has no closing line at all, ending on the test affordance the way the
+  design does.
+
+  Copying the endpoint no longer crashes outside a secure context. Every copy button in
+  the dashboard reached for `navigator.clipboard.writeText` directly, and that object
+  does not exist on a plain-HTTP origin — so pressing Copy on a LAN dev host threw
+  `Cannot read properties of undefined (reading 'writeText')`. A shared `copyText` helper
+  now falls back to a selection copy and reports failure instead of throwing, and a
+  `useCopy` hook owns the "Copied" flag and its timeout. Both replace the eight
+  hand-rolled copies of that logic across api-keys, channels, trackers and
+  `CopyableSecret`.
+
+  "Send a test message" on the listening screen is a real feature rather than a mock.
+  `POST /v1/conversations/test-message` opens a conversation on the org's first live
+  channel with an inbound end-user message, flagged `setupTest` in conversation metadata
+  and surfaced as `isTest` on the conversation DTO. It goes through `createConversation`,
+  so the whole pipeline runs — classification, drafting, the lot — which is the point of
+  a test. Nothing is delivered outbound, because an `end_user`-authored first message
+  never enqueues delivery.
+
+  The test conversation is a real conversation, so the console takes over from the
+  first-run screen the moment it lands and you watch it arrive. `DELETE
+/v1/conversations/test-message/:id` removes it — refusing any conversation not carrying
+  the flag — and the pane shows that action in a banner while a test is open. Deleting
+  returns the org to zero conversations and the first-run screen comes back, so the whole
+  loop is reversible. Both endpoints are owner/admin only, which is why
+  `ConversationsController` now includes `RoleGuard` (a no-op for its existing methods,
+  none of which declare roles).
+
+  The banner reports the delete to the page rather than acting on it. Navigating and
+  refetching from inside the banner left the queue holding a conversation the server had
+  dropped, so the pane stayed mounted and its button span forever; and the shared
+  setup-state revalidation is throttled, so a delete within a couple of seconds of
+  opening the conversation silently skipped it and the console rendered its ordinary
+  empty state instead of returning to first run. `ConversationsPage` now owns the
+  aftermath — shallow-navigate to the queue, refetch the queue, force a setup reload —
+  which is the same sequence it already uses for every other conversation-level action.
+
+  The Done section is now bounded by both count and age: everything closed inside
+  `FINISHED_WINDOW_DAYS` (7) stays, and at least `FINISHED_MIN_ITEMS` (25) stays even when
+  older, so a quiet week still shows history and a busy one does not hide it. It was
+  previously a flat 25-of-any-age, which meant a busy org silently lost recent rows while
+  a quiet one showed conversations closed a year ago. `visibleFinished` expresses the
+  union as a pure function over the already-sorted page and is unit-tested on both
+  branches, the window edge, and undated rows. The closed page now fetches 100 rather
+  than 25 so the window has room; past 100 closed inside a week the section is capped,
+  since the endpoint's cursor is still unused by this page.
+
+  One caveat: a test conversation counts in usage tiles and can pick up a topic like any
+  other, so the copy promises only that it is marked as a test and deletable — not the
+  design's "counts toward nothing".
+
+  The Overview hero greets you by name. The headline was a fixed line about waiting on
+  your word regardless of who opened the page or when; it now reads "Good morning,
+  _Kjell_." — four buckets split at five, noon and six, first name in the same cobalt
+  italic the old emphasis used, with the state left in the lede where it already lived.
+  The small hours get their own line ("Still up, _Kjell_?") rather than being folded
+  into a morning that would otherwise start at midnight. `firstName` falls back to the
+  unpersonalized headline rather than guessing: a blank name, an email in the name field
+  (BetterAuth allows it), or a first token over 24 characters all keep the old line, so
+  the hero never addresses someone by their address or overflows. The Norwegian
+  greetings are transcreated to what reads naturally there — morgen, ettermiddag, kveld,
+  and "Fortsatt oppe" for the night — rather than mapping one-to-one onto the English
+  buckets.
+
+- f781f5f: Learning becomes Review, and everything waiting on an admin moves into it.
+
+  `/dashboard/learning` is now `/dashboard/review`, and the page is no longer only about
+  knowledge proposals. The four things that queue up for a human decision — CMS drafts, CRM
+  merge proposals, outreach drafts, and forwarded feedback — leave the admin overview and
+  join the KB candidates here, split into two sections that carry different urgency:
+
+  - **Blocking** — everything that stops something from shipping, sorted **oldest first** so
+    the longest wait is at the top. A blocking queue sorted by recency buries exactly the
+    item that has been ignored the longest, which is the opposite of what the section is for.
+  - **Improvements** — knowledge proposals, newest first, separated by a rule rather than a tint.
+    These have no deadline: the base is already answering customers, and a proposal only makes it
+    answer better. Keeping them in the same list as an unsent email made them look overdue, but
+    tinting or dimming the rows overcorrected — the section label carries it.
+
+  `Pill` gains a `marker` variant so the detail pane's module pill can carry the same glyph its list
+  row does — a square for CMS, a diamond for CRM, a hollow ring for KB — instead of the generic filled
+  dot every tone rendered before.
+
+  **Outreach gets a purpose-built pane** rather than the sheet drawer reused in place. It is ordered by
+  what you must not get wrong: the message as it will arrive, then why it is being sent, then when.
+
+  - The **envelope is rendered** — from, to, subject — and so is everything the send path appends,
+    as the literal text it will append rather than two booleans in a note at the bottom: the
+    campaign's CTA URL on its own line, then the fixed `---` / Unsubscribe footer, under one
+    "appended on send" marker. `ProposalCampaignSummary` gains `ctaUrl` (already selected by the
+    query, only ever used to compute `appendsCta` and then dropped), `ProposalDelivery` gains
+    `sender` / `senderName` off the channel's own addressing config (allow-listed through
+    `publicChannelConfig`, so no credential can leak into a DTO), and `ProposalContactSummary` gains
+    `companyName`, so the pane can say who it is going to.
+  - **"Why this, why now" now exists.** `evidence` was already one call away on
+    `/v1/outreach/proposals/:id` and the dashboard never fetched it. It is freeform jsonb whose shape
+    varies per drafting agent, so it is rendered by _shape_ rather than by an allow-list of keys:
+    long values and known reason keys become prose, `kb://` and `kdoc_` references become linked
+    chips, and everything else becomes a labelled chip. A parser keyed to the documented example
+    would have rendered nothing for the proposals already in the dev database, which is what the
+    tests pin.
+  - **Send timing is a control on the page**, not a dialog behind a button — the agent's proposed
+    time, send now, or a picked time. The cadence annotations the design asks for next to it need
+    campaign `cadenceRules`, which are not on the DTO yet, so they are left out rather than faked.
+  - **SMS and voice are first-class.** No subject row, no CTA or unsubscribe placeholders, a live
+    segment count as you edit, and the sender rendered as a number. A contact with no address on
+    file blocks approval outright and says why, instead of tinting a note the same weight as
+    everything else and failing at the service.
+  - `BodyDiff` gains `wrap`: these are prose bodies in a ~700px pane, where horizontal scrolling
+    through an email diff is unusable.
+
+  The reply-thread quote is deliberately _not_ carried over from the old drawer: it quoted the
+  proposal's own snippet, not the inbound message it was replying to. Showing the real thread needs
+  the conversation fetch, so the block is gone until then rather than wrong.
+
+  **CRM merges get a pane that leads with the consequence**, not a field dump. The old drawer was a
+  header and one sentence of prose while `recommendedPatch` and `evidence` — both already in the
+  browser — rendered nowhere.
+
+  - **What changes on the keeper** is the body: one row per patched field, `old → new`, tagged
+    `Differs` / `Replaced` / `Added`. `tags` and `customFields` overwrite rather than merge, so a
+    replacement names what it drops (`"newsletter" is dropped`) — the single most destructive thing
+    an apply does and previously invisible. A wholesale field the keeper doesn't have yet reads
+    `Added` with no drop note, and a patch entry that wouldn't actually change anything is not
+    rendered at all.
+  - The evidence becomes the lede sentence — matched signals plus `keeperReason` — read **by shape**,
+    like the outreach evidence, because the keys in the dev database (`sameCompanyDomain`,
+    `emailVariation`, `phoneInB`) differ from the ones `skill://crm/clean-contact-data` documents
+    (`sameEmail`, `nameMatch`, `samePhoneNormalized`). Both shapes are pinned by tests; unlabelled
+    keys are ignored rather than dumped into prose.
+  - Everything untouched collapses behind **Compare all**, a keeper-vs-archived table with identical
+    values dimmed.
+  - **And then** states what apply actually does, read off `applyMergeProposal`: history moves, the
+    duplicate is archived and set to do-not-contact, and — new — _queued outreach for the duplicate
+    is cancelled_, naming the campaign. A reviewer could previously destroy a scheduled email
+    without being told.
+
+  That needed `MergeProposalContactSummary` widened from 6 of ~24 contact columns to the patchable,
+  displayable set (both read paths already fetched the whole row), plus `companyName` and a
+  `MergeImpact` block — pending outreach on the duplicate and the count of other pending proposals
+  the apply supersedes — computed in two batched queries. `impact` is nullable rather than zeroed, so
+  the apply/dismiss responses say "not computed" instead of claiming nothing is at stake.
+
+  Selecting a blocking item renders the existing per-module drawer in the split's right pane
+  rather than a sheet, so the CMS field editor, outreach scheduling, and the merge preview all
+  work unchanged and are now deep-linkable at `/dashboard/review/:id`. `DrawerHeader`'s close
+  button became optional for that: in a persistent pane it pointed nowhere, because the list
+  immediately re-selects the first row.
+
+  The overview drops the queue concept entirely — no "Waiting on you" list, no count in the
+  hero, no stat row. The sidebar badge on Review is the single signal that work is pending,
+  and it now counts all five kinds instead of only KB candidates.
+
+### Patch Changes
+
+- f781f5f: Reviewing a CMS draft now leads with the page itself. The drawer fetches the preview link as soon as the draft opens and embeds it in a sandboxed frame behind a Preview/Fields tab pair, with a direct "open on the site" link alongside. A frame that never paints — the site refuses to be embedded, or does not answer inside fifteen seconds — falls back to the field view with a marked tab, an explanation, and a retry, rather than leaving a blank rectangle. The old approach opened a blank tab first and navigated it after the link resolved, which browsers increasingly treat as a popup and which gave no signal when the preview failed.
+
+  Every review pane's footer now fits one line on a phone. The primary action stretches to fill the row and the rest collapse into a bottom sheet behind a single "more actions" button, replacing footers that stacked three or four full-width buttons and pushed the content out of view. On mobile the panes also drop their own headers and eyebrows, since the surrounding shell already names the item. CMS drawers gain the same load-failed and loading states the other panes have, and their padding matches the rest of the console.
+
+  Two visual corrections: the confidence, channel and kind badges in the review panes are `Pill`s rather than hand-rolled spans — which is what the new `fill="solid"` variant is for — and avatar chips use ink instead of cobalt, so cobalt stays the accent it is everywhere else.
+
+- Updated dependencies [d443f42]
+- Updated dependencies [356885c]
+  - @getmunin/types@5.16.0
+
 ## 5.15.0
 
 ### Patch Changes

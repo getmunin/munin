@@ -97,7 +97,41 @@ A `blocks` value is one array, and `data` replaces a field whole — so changing
 }
 ```
 
-`field` is the blocks field itself, not a path into a block. Only text-bearing props are searched — `text`, `markdown`, `rich_text`, and items of an `array` of text — so a block's `type`, `key`, `select`, `asset` and `reference` props are never matched. Replacing a whole paragraph is one edit whose `oldText` is that block's complete prose. Adding, removing or reordering blocks still goes through `data` with the full array. The editing loop is `skill://cms/revise-entry`.
+`field` is the blocks field itself, not a path into a block. Only text-bearing props are searched — `text`, `markdown`, `rich_text`, and items of an `array` of text — so a block's `type`, `key`, `select`, `asset` and `reference` props are never matched. Replacing a whole paragraph is one edit whose `oldText` is that block's complete prose.
+
+## Adding, replacing, removing and reordering blocks
+
+Structural changes go through `blockEdits`, which addresses blocks by their **key**. This is what `key` is for: a stable handle you can point at later.
+
+```jsonc
+{
+  "name": "cms_update_entry",
+  "arguments": {
+    "id": "<entryId>",
+    "ifVersion": 4,
+    "blockEdits": [
+      { "field": "body", "op": "set", "key": "pull-1", "block": { "type": "pull_quote", "props": { "quote": "The paperwork isn't the work." } }, "after": "premise" },
+      { "field": "body", "op": "set", "key": "premise", "block": { "type": "prose", "props": { "markdown": "## Rewritten
+
+New opening." } } },
+      { "field": "body", "op": "delete", "key": "old-aside" },
+      { "field": "body", "op": "move", "key": "takeaways", "position": "end" }
+    ]
+  }
+}
+```
+
+Three operations:
+
+- **`set`** — replaces the block with that key, or inserts it when the key is new. `block` carries the whole block: its `type` and every prop. It replaces the old one outright rather than merging, so include props you want to keep. Omit `key` and a key is minted for you; give `before`, `after` or `position` and an existing block is repositioned as well as replaced.
+- **`delete`** — removes the block with that key.
+- **`move`** — repositions it. Requires one of `before`, `after` or `position`.
+
+`before` and `after` name another block's key; `position` is `"start"` or `"end"`. Pass at most one of the three per edit. Edits apply in order and all-or-nothing, so a later edit sees the result of an earlier one — insert a block, then move it, in the same call. A key that isn't there fails with `cms_block_not_found` and nothing is written.
+
+Keys must be unique within a blocks field. If two blocks share the key you address, the call fails with `cms_block_ambiguous` rather than guessing.
+
+When one call carries both `blockEdits` and `textReplacements` for the same field, the block edits run first — so you can insert a block and then fix a typo elsewhere in the body in one write. The whole editing loop is `skill://cms/revise-entry`.
 
 ## Linking to another entry inline (`ref://`)
 

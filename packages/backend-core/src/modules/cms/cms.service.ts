@@ -24,6 +24,7 @@ import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.s
 import { STORAGE } from '../../common/storage/storage.token.ts';
 import {
   applyAssetExpansion,
+  applyBlockEdits,
   applyReferenceExpansion,
   asBlock,
   buildInlineAssetSidecar,
@@ -42,6 +43,7 @@ import {
   unrewriteInlineAssets,
   validateEntryData,
   type AssetSummary,
+  type BlockEdit,
   type ExpandedEntry,
   type FieldDef,
 } from './cms.fields.ts';
@@ -144,6 +146,8 @@ export const ENTRY_RESPONSE_FORMATS = ['full', 'summary'] as const;
 export type EntryResponseFormat = (typeof ENTRY_RESPONSE_FORMATS)[number];
 
 export type EntryTextReplacement = TextReplacement & { field: string };
+
+export type EntryBlockEdit = BlockEdit & { field: string };
 
 export interface EntryListResult {
   entries: EntrySummaryDto[];
@@ -916,6 +920,7 @@ export class CmsService {
     ifVersion: number;
     data?: Record<string, unknown>;
     textReplacements?: EntryTextReplacement[];
+    blockEdits?: EntryBlockEdit[];
     slug?: string;
     locale?: string;
   }): Promise<EntryDto> {
@@ -929,10 +934,15 @@ export class CmsService {
 
     const existingData = (existing.data ?? {});
     const replacements = input.textReplacements ?? [];
-    const touchesData = input.data !== undefined || replacements.length > 0;
+    const blockEdits = input.blockEdits ?? [];
+    const touchesData =
+      input.data !== undefined || replacements.length > 0 || blockEdits.length > 0;
     let newData = input.data
       ? { ...existingData, ...input.data }
       : existingData;
+    if (blockEdits.length > 0) {
+      newData = this.applyBlockEditsToData(collection.fields, newData, blockEdits, input.data);
+    }
     if (replacements.length > 0) {
       newData = await this.applyTextReplacements(
         actor.orgId,
@@ -1019,6 +1029,50 @@ export class CmsService {
       new Map([[dto.id, collection.fields]]),
     );
     return dto;
+  }
+
+  private applyBlockEditsToData(
+    fields: FieldDef[],
+    data: Record<string, unknown>,
+    edits: EntryBlockEdit[],
+    patch: Record<string, unknown> | undefined,
+  ): Record<string, unknown> {
+    const out = { ...data };
+    const byField = new Map<string, Array<{ index: number; edit: EntryBlockEdit }>>();
+    edits.forEach((edit, index) => {
+      const group = byField.get(edit.field) ?? [];
+      group.push({ index, edit });
+      byField.set(edit.field, group);
+    });
+    for (const [name, group] of byField) {
+      const field = fields.find((f) => f.name === name);
+      if (!field) {
+        throw new CmsInvalidError(`blockEdits: unknown field "${name}"`);
+      }
+      if (field.type !== 'blocks') {
+        throw new CmsInvalidError(
+          `blockEdits: field "${name}" (${field.type}) is not a blocks field`,
+        );
+      }
+      if (patch && name in patch) {
+        throw new CmsInvalidError(
+          `blockEdits: field "${name}" is also present in data — send a field either as a whole value in data or as block edits, not both`,
+        );
+      }
+      const result = applyBlockEdits(
+        out[name],
+        group.map(({ edit }) => edit),
+        () => makeId('cmb'),
+      );
+      if (!result.ok) {
+        const globalIndex = group[result.failure.index]!.index;
+        throw new CmsInvalidError(`blockEdits[${globalIndex}]: ${result.failure.message}`, {
+          code: result.failure.code,
+        });
+      }
+      out[name] = result.value;
+    }
+    return out;
   }
 
   private async applyTextReplacements(

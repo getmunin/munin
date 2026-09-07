@@ -683,3 +683,148 @@ export function replaceFieldText(
   });
   return { ok: true, value: next, applied: result.applied };
 }
+
+export interface BlockPlacement {
+  before?: string;
+  after?: string;
+  position?: 'start' | 'end';
+}
+
+export interface BlockEdit extends BlockPlacement {
+  op: 'set' | 'delete' | 'move';
+  key?: string;
+  block?: { type: string; props: Record<string, unknown> };
+}
+
+export type BlockEditCode = 'cms_block_not_found' | 'cms_block_ambiguous' | 'cms_block_invalid';
+
+export interface BlockEditFailure {
+  index: number;
+  code: BlockEditCode;
+  message: string;
+}
+
+export type BlockEditsResult =
+  | { ok: true; value: unknown[] }
+  | { ok: false; failure: BlockEditFailure };
+
+function keyOf(raw: unknown): string | null {
+  return asBlock(raw)?.key ?? null;
+}
+
+function locateKey(blocks: readonly unknown[], key: string): number[] {
+  const found: number[] = [];
+  blocks.forEach((raw, i) => {
+    if (keyOf(raw) === key) found.push(i);
+  });
+  return found;
+}
+
+function resolveOne(
+  blocks: readonly unknown[],
+  key: string,
+  index: number,
+  role: string,
+): { at: number } | { failure: BlockEditFailure } {
+  const found = locateKey(blocks, key);
+  if (found.length === 0) {
+    return {
+      failure: {
+        index,
+        code: 'cms_block_not_found',
+        message: `no block with key "${key}" to ${role}`,
+      },
+    };
+  }
+  if (found.length > 1) {
+    return {
+      failure: {
+        index,
+        code: 'cms_block_ambiguous',
+        message: `${found.length} blocks share the key "${key}" — keys must be unique within a blocks field`,
+      },
+    };
+  }
+  return { at: found[0]! };
+}
+
+function placementIndex(
+  blocks: readonly unknown[],
+  edit: BlockEdit,
+  index: number,
+  fallback: number,
+): { at: number } | { failure: BlockEditFailure } {
+  if (edit.position === 'start') return { at: 0 };
+  if (edit.position === 'end') return { at: blocks.length };
+  const anchor = edit.before ?? edit.after;
+  if (anchor === undefined) return { at: fallback };
+  const resolved = resolveOne(blocks, anchor, index, `place a block ${edit.before ? 'before' : 'after'}`);
+  if ('failure' in resolved) return resolved;
+  return { at: edit.before === undefined ? resolved.at + 1 : resolved.at };
+}
+
+export function applyBlockEdits(
+  value: unknown,
+  edits: readonly BlockEdit[],
+  newKey: () => string,
+): BlockEditsResult {
+  const invalid = (index: number, message: string): BlockEditsResult => ({
+    ok: false,
+    failure: { index, code: 'cms_block_invalid', message },
+  });
+
+  let blocks: unknown[];
+  if (value === null || value === undefined) blocks = [];
+  else if (Array.isArray(value)) blocks = [...(value as unknown[])];
+  else return invalid(0, 'the field does not hold a list of blocks');
+
+  for (const [index, edit] of edits.entries()) {
+    const anchors = [edit.before, edit.after, edit.position].filter((a) => a !== undefined);
+    if (anchors.length > 1) {
+      return invalid(index, 'pass at most one of before, after and position');
+    }
+
+    if (edit.op === 'delete' || edit.op === 'move') {
+      if (edit.key === undefined) return invalid(index, `op "${edit.op}" requires key`);
+      const located = resolveOne(blocks, edit.key, index, edit.op);
+      if ('failure' in located) return { ok: false, failure: located.failure };
+      const [moved] = blocks.splice(located.at, 1);
+      if (edit.op === 'delete') continue;
+      if (anchors.length === 0) {
+        return invalid(index, 'op "move" requires one of before, after or position');
+      }
+      const target = placementIndex(blocks, edit, index, blocks.length);
+      if ('failure' in target) return { ok: false, failure: target.failure };
+      blocks.splice(target.at, 0, moved);
+      continue;
+    }
+
+    if (!edit.block) return invalid(index, 'op "set" requires block');
+    const existing = edit.key === undefined ? [] : locateKey(blocks, edit.key);
+    if (existing.length > 1) {
+      return {
+        ok: false,
+        failure: {
+          index,
+          code: 'cms_block_ambiguous',
+          message: `${existing.length} blocks share the key "${edit.key}" — keys must be unique within a blocks field`,
+        },
+      };
+    }
+    const next = {
+      type: edit.block.type,
+      key: edit.key ?? newKey(),
+      props: edit.block.props,
+    };
+    let fallback = blocks.length;
+    if (existing.length === 1) {
+      fallback = existing[0]!;
+      blocks.splice(existing[0]!, 1);
+    }
+    const target = placementIndex(blocks, edit, index, fallback);
+    if ('failure' in target) return { ok: false, failure: target.failure };
+    blocks.splice(target.at, 0, next);
+  }
+
+  return { ok: true, value: blocks };
+}

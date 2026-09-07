@@ -59,6 +59,15 @@ const muninPreset: Omit<Config, 'content'> = {
           soft: 'rgb(var(--munin-accent-soft) / <alpha-value>)',
           deep: 'rgb(var(--munin-accent-deep) / <alpha-value>)',
         },
+        verdigris: {
+          DEFAULT: 'rgb(var(--munin-verdigris) / <alpha-value>)',
+          soft: 'rgb(var(--munin-verdigris-soft) / <alpha-value>)',
+          tint: 'rgb(var(--munin-verdigris-tint) / <alpha-value>)',
+        },
+        'agent-tint': {
+          DEFAULT: 'rgb(var(--munin-agent-tint) / <alpha-value>)',
+          'on-dark': 'rgb(var(--munin-agent-tint-on-dark) / <alpha-value>)',
+        },
         rule: {
           DEFAULT: 'rgb(var(--munin-ink) / <alpha-value>)',
           soft: 'rgb(var(--munin-ink) / var(--munin-rule-soft-alpha))',

@@ -25,7 +25,7 @@ const hu: Strings = {
   defaultEyebrow: 'Működteti: Munin',
   defaultGreeting: 'Üdv. Miben segíthetünk?',
   defaultTitle: 'Írjon nekünk',
-  welcomeRepliesAboutHtml: 'Válasz kb. <strong>2 perc</strong>',
+  welcomeRepliesInstantly: 'Azonnal válaszol',
   startConversationLabel: 'Beszélgetés indítása',
   startConversationSub: 'Azonnal ügyintézőt állítunk rá.',
   conversationsHeader: 'Az Ön beszélgetései',

@@ -25,7 +25,7 @@ const is: Strings = {
   defaultEyebrow: 'Knúið af Munin',
   defaultGreeting: 'Halló. Hvernig getum við hjálpað?',
   defaultTitle: 'Spjallaðu við okkur',
-  welcomeRepliesAboutHtml: 'Svar á u.þ.b. <strong>2 mín</strong>',
+  welcomeRepliesInstantly: 'Svarar strax',
   startConversationLabel: 'Byrja samtal',
   startConversationSub: 'Við setjum umboðsmann á það strax.',
   conversationsHeader: 'Samtölin þín',

@@ -25,7 +25,7 @@ const pt: Strings = {
   defaultEyebrow: 'Com tecnologia Munin',
   defaultGreeting: 'Olá. Como podemos ajudar?',
   defaultTitle: 'Conversa connosco',
-  welcomeRepliesAboutHtml: 'Resposta em cerca de <strong>2 min</strong>',
+  welcomeRepliesInstantly: 'Responde de imediato',
   startConversationLabel: 'Iniciar uma conversa',
   startConversationSub: 'Vamos mobilizar um agente já.',
   conversationsHeader: 'As tuas conversas',

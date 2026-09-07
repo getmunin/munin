@@ -25,7 +25,7 @@ const pl: Strings = {
   defaultEyebrow: 'Napędzane przez Munin',
   defaultGreeting: 'Cześć. W czym możemy pomóc?',
   defaultTitle: 'Porozmawiaj z nami',
-  welcomeRepliesAboutHtml: 'Odpowiedź w ok. <strong>2 min</strong>',
+  welcomeRepliesInstantly: 'Odpowiada od razu',
   startConversationLabel: 'Rozpocznij rozmowę',
   startConversationSub: 'Zaraz weźmie się za to agent.',
   conversationsHeader: 'Twoje rozmowy',

@@ -36,6 +36,7 @@ describe('parseConfig', () => {
       locale: null,
       size: 'standard',
       fonts: 'bundled',
+      corners: 'square',
       colorScheme: 'auto',
       showHistory: true,
     });
@@ -243,6 +244,43 @@ describe('parseConfig', () => {
     expect(defaultResult.ok).toBe(true);
     if (!defaultResult.ok) return;
     expect(defaultResult.config.colorScheme).toBe('auto');
+  });
+
+  it('accepts corners=rounded and keeps square as the default', () => {
+    const rounded = makeScript({
+      'data-munin-host': 'https://h.example',
+      'data-widget-key': 'mn_widget_x',
+      'data-channel-id': 'c',
+      'data-munin-corners': 'rounded',
+    });
+    const result = parseConfig(rounded);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.config.corners).toBe('rounded');
+
+    const bare = makeScript({
+      'data-munin-host': 'https://h.example',
+      'data-widget-key': 'mn_widget_x',
+      'data-channel-id': 'c',
+    });
+    const bareResult = parseConfig(bare);
+    expect(bareResult.ok).toBe(true);
+    if (!bareResult.ok) return;
+    expect(bareResult.config.corners).toBe('square');
+  });
+
+  it('demotes invalid corners to square with a warning', () => {
+    const el = makeScript({
+      'data-munin-host': 'https://h.example',
+      'data-widget-key': 'mn_widget_x',
+      'data-channel-id': 'c',
+      'data-munin-corners': 'pill',
+    });
+    const result = parseConfig(el);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.config.corners).toBe('square');
+    expect(result.warnings.some((w) => w.attr === 'data-munin-corners')).toBe(true);
   });
 
   it('demotes an invalid color scheme to auto with a warning', () => {

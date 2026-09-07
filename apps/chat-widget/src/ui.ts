@@ -83,6 +83,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   root.className = 'root';
   root.setAttribute('data-position', config.position);
   root.setAttribute('data-size', config.size);
+  root.setAttribute('data-corners', config.corners);
   root.style.setProperty('--munin-theme', config.themeColor);
   root.style.setProperty('--munin-theme-fg', readableOn(config.themeColor));
   if (config.launcherColor) {
@@ -694,10 +695,6 @@ function renderMessage(m: ListedMessage, strings: Strings, locale: string): HTML
       role.textContent = `· ${m.authorKind === 'ai' ? strings.roleAi : strings.roleHuman}`;
       head.appendChild(role);
     }
-    const t = document.createElement('span');
-    t.className = 'msg-t';
-    t.textContent = `· ${formatTime(m.at)}`;
-    head.appendChild(t);
     wrap.appendChild(head);
   }
   const bubble = document.createElement('div');
@@ -715,12 +712,10 @@ function renderMessage(m: ListedMessage, strings: Strings, locale: string): HTML
       wrap.appendChild(el);
     }
   }
-  if (mine) {
-    const t = document.createElement('div');
-    t.className = 'msg-t mine';
-    t.textContent = formatTime(m.at);
-    wrap.appendChild(t);
-  }
+  const t = document.createElement('div');
+  t.className = mine ? 'msg-t mine' : 'msg-t';
+  t.textContent = formatTime(m.at);
+  wrap.appendChild(t);
   return wrap;
 }
 
@@ -936,7 +931,7 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
     <h2 class="welcome-h1"></h2>
     <div class="welcome-status">
       <span class="welcome-status-dot"></span>
-      <span class="welcome-status-text">${strings.welcomeRepliesAboutHtml}</span>
+      <span class="welcome-status-text">${escapeHtml(strings.welcomeRepliesInstantly)}</span>
     </div>
     <button type="button" class="cta" data-act="start">
       <span class="cta-label">

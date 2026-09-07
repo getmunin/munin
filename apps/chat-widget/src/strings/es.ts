@@ -25,7 +25,7 @@ const es: Strings = {
   defaultEyebrow: 'Con la tecnología de Munin',
   defaultGreeting: 'Hola. ¿En qué podemos ayudarte?',
   defaultTitle: 'Chatea con nosotros',
-  welcomeRepliesAboutHtml: 'Respuesta en aproximadamente <strong>2 min</strong>',
+  welcomeRepliesInstantly: 'Responde al instante',
   startConversationLabel: 'Iniciar una conversación',
   startConversationSub: 'Asignaremos un agente enseguida.',
   conversationsHeader: 'Tus conversaciones',

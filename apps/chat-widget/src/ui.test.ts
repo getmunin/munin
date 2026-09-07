@@ -16,6 +16,7 @@ const baseConfig: WidgetConfig = {
   locale: null,
   size: 'standard',
   fonts: 'inherit',
+  corners: 'square',
   colorScheme: 'auto',
   showHistory: true,
 };
@@ -307,8 +308,7 @@ describe('ui: addMessages', () => {
       { id: 'm1', role: 'agent', body: 'hi', bodyHtml: null, at: '2026-01-01T00:00:00Z', authorKind: 'ai', authorName: 'Munin', readAt: null },
       { id: 'm2', role: 'agent', body: 'taking over', bodyHtml: null, at: '2026-01-01T00:00:01Z', authorKind: 'human', authorName: 'Maja', readAt: null },
     ]);
-    const heads = $$('.msg-head');
-    const labels = heads.map((h) => h.textContent ?? '');
+    const labels = $$('.msg-head').map((h) => h.textContent ?? '');
     expect(labels.some((l) => /Munin/.test(l) && /AI/.test(l))).toBe(true);
     expect(labels.some((l) => /Maja/.test(l) && /human/.test(l))).toBe(true);
   });
@@ -323,6 +323,15 @@ describe('ui: addMessages', () => {
     expect($('[data-message-id="m2"]').classList.contains('human')).toBe(true);
     expect($('[data-message-id="m3"]').classList.contains('human')).toBe(false);
     expect($('[data-message-id="m3"]').classList.contains('mine')).toBe(true);
+  });
+
+  it('gives every message a timestamp under its bubble', () => {
+    controller!.addMessages([
+      msg({ id: 'm1', role: 'agent', body: 'hi' }),
+      msg({ id: 'm2', role: 'end_user', body: 'thanks' }),
+    ]);
+    expect($('[data-message-id="m1"]').querySelectorAll('.msg-t')).toHaveLength(1);
+    expect($('[data-message-id="m2"]').querySelectorAll('.msg-t.mine')).toHaveLength(1);
   });
 
   it('dedupes by message id across calls', () => {

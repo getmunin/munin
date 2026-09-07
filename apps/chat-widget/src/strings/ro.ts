@@ -25,7 +25,7 @@ const ro: Strings = {
   defaultEyebrow: 'Funcționează cu Munin',
   defaultGreeting: 'Bună. Cu ce vă putem ajuta?',
   defaultTitle: 'Discutați cu noi',
-  welcomeRepliesAboutHtml: 'Răspuns în aproximativ <strong>2 min</strong>',
+  welcomeRepliesInstantly: 'Răspunde imediat',
   startConversationLabel: 'Începeți o conversație',
   startConversationSub: 'Punem imediat un agent pe ea.',
   conversationsHeader: 'Conversațiile dumneavoastră',

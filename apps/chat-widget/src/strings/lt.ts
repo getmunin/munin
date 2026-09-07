@@ -25,7 +25,7 @@ const lt: Strings = {
   defaultEyebrow: 'Veikia su Munin',
   defaultGreeting: 'Sveiki. Kaip galime padėti?',
   defaultTitle: 'Rašykite mums',
-  welcomeRepliesAboutHtml: 'Atsakymas maždaug per <strong>2 min</strong>',
+  welcomeRepliesInstantly: 'Atsako iš karto',
   startConversationLabel: 'Pradėti pokalbį',
   startConversationSub: 'Iškart perduosime agentui.',
   conversationsHeader: 'Jūsų pokalbiai',

@@ -25,7 +25,7 @@ const et: Strings = {
   defaultEyebrow: 'Töötab platvormil Munin',
   defaultGreeting: 'Tere. Kuidas saame aidata?',
   defaultTitle: 'Vestle meiega',
-  welcomeRepliesAboutHtml: 'Vastus umbes <strong>2 min</strong>',
+  welcomeRepliesInstantly: 'Vastab kohe',
   startConversationLabel: 'Alusta vestlust',
   startConversationSub: 'Anname selle kohe agendile.',
   conversationsHeader: 'Sinu vestlused',

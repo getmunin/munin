@@ -25,7 +25,7 @@ const nn: Strings = {
   defaultEyebrow: 'Driven av Munin',
   defaultGreeting: 'Hei. Kva kan vi hjelpe deg med?',
   defaultTitle: 'Chat med oss',
-  welcomeRepliesAboutHtml: 'Svar på omtrent <strong>2 min</strong>',
+  welcomeRepliesInstantly: 'Svarar med ein gong',
   startConversationLabel: 'Start ein samtale',
   startConversationSub: 'Vi set ein agent på saka med ein gong.',
   conversationsHeader: 'Dine samtalar',

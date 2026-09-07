@@ -25,7 +25,7 @@ const sk: Strings = {
   defaultEyebrow: 'Beží na Munin',
   defaultGreeting: 'Dobrý deň. Ako môžeme pomôcť?',
   defaultTitle: 'Napíšte nám',
-  welcomeRepliesAboutHtml: 'Odpoveď asi za <strong>2 min</strong>',
+  welcomeRepliesInstantly: 'Odpovie hneď',
   startConversationLabel: 'Začať konverzáciu',
   startConversationSub: 'Hneď sa do toho pustí agent.',
   conversationsHeader: 'Vaše konverzácie',

@@ -34,7 +34,7 @@ export interface Strings {
   defaultEyebrow: string;
   defaultGreeting: string;
   defaultTitle: string;
-  welcomeRepliesAboutHtml: string;
+  welcomeRepliesInstantly: string;
   startConversationLabel: string;
   startConversationSub: string;
   conversationsHeader: string;

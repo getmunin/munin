@@ -137,8 +137,19 @@ export {
   type SettingsSubNavGroup,
   type SettingsGroupExtension,
 } from './nav/settings-groups';
+export {
+  OSS_CONSOLE_GROUPS,
+  consoleGroupsForRole,
+  extendConsoleGroups,
+  isConsoleItemActive,
+  type ConsoleBadge,
+  type ConsoleNavItem,
+  type ConsoleNavGroup,
+  type ConsoleGroupExtension,
+} from './nav/console-groups';
 export { SettingsShell, type SettingsShellProps } from './shells/settings-shell';
 export { DashboardShell, type DashboardShellProps } from './shells/dashboard-shell';
+export { ConsoleShell, type ConsoleShellProps } from './shells/console-shell';
 export {
   createSettingsIndexRedirect,
   type CreateSettingsIndexRedirectOptions,

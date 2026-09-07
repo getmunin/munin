@@ -47,10 +47,17 @@ const REFRESH_PREFIXES = [
   'cms.entry.',
 ];
 
-function useConsoleData(): { badges: ConsoleBadges } {
+function useConsoleData(isAdmin: boolean, roleLoading: boolean): { badges: ConsoleBadges } {
   const [badges, setBadges] = useState<ConsoleBadges>(EMPTY_BADGES);
 
   const load = useCallback(() => {
+    if (roleLoading) return;
+    if (!isAdmin) {
+      void api<{ items: unknown[] }>('/v1/conversations/queue?status=open&limit=100')
+        .then((res) => setBadges({ queue: res.items.length, review: 0 }))
+        .catch(() => undefined);
+      return;
+    }
     void api<InboxQueueResponse>('/v1/inbox')
       .then((res) =>
         setBadges({
@@ -64,7 +71,7 @@ function useConsoleData(): { badges: ConsoleBadges } {
         }),
       )
       .catch(() => undefined);
-  }, []);
+  }, [isAdmin, roleLoading]);
 
   useEffect(() => {
     load();
@@ -210,7 +217,7 @@ function ConsoleShellInner({
   const router = useRouter();
   const { data: session } = authClient.useSession();
   const { role, loading: roleLoading } = useActiveRole();
-  const { badges } = useConsoleData();
+  const { badges } = useConsoleData(isOwnerOrAdmin(role), roleLoading);
   const backAction = useMobileBackAction();
   const [menuOpen, setMenuOpen] = useState(false);
 

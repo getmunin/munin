@@ -1237,4 +1237,71 @@ interface OrgFixture {
       expect(body.message).toContain('conv_channel_config_invalid:');
     });
   });
+
+  describe('a member session reaches the inbox and nothing else', () => {
+    let memberCookie: Record<string, string>;
+
+    beforeAll(async () => {
+      const label = `cp-member-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+      const [user] = await db
+        .insert(schema.users)
+        .values({ email: `${label}@example.com`, name: 'Member User' })
+        .returning();
+      await db
+        .insert(schema.orgMembers)
+        .values({ orgId: orgA.id, userId: user!.id, role: 'member', isDefault: true });
+      const token = randomToken(32);
+      await db.insert(schema.sessions).values({
+        userId: user!.id,
+        token,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      });
+      memberCookie = cookieHeaders(token);
+    });
+
+    const denied = [
+      '/v1/crm/export',
+      '/v1/kb/export',
+      '/v1/conv/export',
+      '/v1/outreach/export',
+      '/v1/cms/transfer/export',
+      '/v1/kb/curation/candidates',
+      '/v1/crm/merge-proposals',
+      '/v1/outreach/proposals',
+      '/v1/curator/jobs',
+      '/v1/inbox',
+      '/v1/overview/backlog',
+      '/v1/orgs/me',
+      '/v1/orgs/me/roster',
+      '/v1/activity',
+      '/v1/skills',
+    ];
+
+    it.each(denied)('answers 403 with a translatable code on %s', async (path) => {
+      const res = await fetch(`${baseUrl}${path}`, { headers: memberCookie });
+      expect(res.status).toBe(403);
+      const body = (await res.json()) as { code?: string };
+      expect(body.code).toBe('member_forbidden');
+    });
+
+    it.each(['/v1/conversations/queue', '/v1/me/memberships', '/v1/overview/setup'])(
+      'still serves %s',
+      async (path) => {
+        const res = await fetch(`${baseUrl}${path}`, { headers: memberCookie });
+        expect(res.status).toBe(200);
+      },
+    );
+
+    it('leaves the bulk export open to an owner session', async () => {
+      const res = await fetch(`${baseUrl}/v1/crm/export`, {
+        headers: cookieHeaders(orgA.sessionToken),
+      });
+      expect(res.status).toBe(200);
+    });
+
+    it('leaves an unrestricted admin key untouched', async () => {
+      const res = await fetch(`${baseUrl}/v1/crm/export`, { headers: authHeaders(orgA.adminKey) });
+      expect(res.status).toBe(200);
+    });
+  });
 });

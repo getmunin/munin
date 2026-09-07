@@ -37,7 +37,7 @@ export function ReviewScheduledRow({
             : 'hover:bg-paper-deep dark:hover:bg-card',
         )}
       >
-        <RowCode kind={item.kind} className="pt-[3px]">
+        <RowCode kind={item.kind} className="self-center">
           {t(queueCodeKey(item.kind))}
         </RowCode>
         <span className="flex min-w-0 flex-1 flex-col gap-1">
@@ -46,7 +46,7 @@ export function ReviewScheduledRow({
           </span>
           <span className="truncate text-[13px] leading-snug text-ink-mute">{item.snippet}</span>
         </span>
-        <span className="shrink-0 pt-[3px] font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+        <span className="shrink-0 self-center font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
           {countdown(item.at)}
         </span>
       </div>

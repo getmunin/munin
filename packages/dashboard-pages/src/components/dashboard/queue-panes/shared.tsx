@@ -243,15 +243,10 @@ export function RowCode({
   children: string;
 }) {
   return (
-    <span
-      className={cn(
-        'flex w-14 shrink-0 items-center gap-1.5 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute',
-        className,
-      )}
-    >
-      <ModuleGlyph kind={kind} className="text-ink dark:text-foreground" />
+    <Pill tone="ink" marker="none" className={cn('w-14 shrink-0 justify-center', className)}>
+      <ModuleGlyph kind={kind} className="size-[7px]" />
       {children}
-    </span>
+    </Pill>
   );
 }
 

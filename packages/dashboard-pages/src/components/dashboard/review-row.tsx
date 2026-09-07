@@ -76,7 +76,7 @@ export function ReviewRow({
             : 'hover:bg-paper-deep dark:hover:bg-card',
         )}
       >
-        <RowCode kind={item.kind} className="pt-[3px]">
+        <RowCode kind={item.kind} className="self-center">
           {t(queueCodeKey(item.kind))}
         </RowCode>
         <span className="flex min-w-0 flex-1 flex-col gap-1">
@@ -87,7 +87,7 @@ export function ReviewRow({
             {metaLine(item)}
           </span>
         </span>
-        <span className="shrink-0 pt-[3px] font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+        <span className="shrink-0 self-center font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
           {age(item.createdAt)}
         </span>
       </div>

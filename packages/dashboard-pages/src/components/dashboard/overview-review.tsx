@@ -32,7 +32,7 @@ export function OverviewReview({
         note={queue.length > 0 ? t('reviewNoteSome') : t('reviewNoteNone')}
         cta={t('reviewOpen')}
       />
-      <ul className="-mx-5 border-t border-rule-soft dark:border-rule-on-dark">
+      <ul className="border-t border-rule-soft dark:border-rule-on-dark">
         <ConsoleSectionLabel
           note={queue.length > WAITING_LIMIT ? t('waitingMore', { count: queue.length }) : undefined}
         >
@@ -59,7 +59,7 @@ export function OverviewReview({
         <button
           type="button"
           onClick={() => router.push(`/dashboard/review/${next.id}`)}
-          className="group flex w-full items-baseline justify-between gap-4 px-1 py-3.5 text-left font-mono text-[10px] uppercase tracking-eyebrow transition-colors duration-fast ease-munin hover:bg-paper-deep dark:hover:bg-secondary"
+          className="group flex w-full items-baseline justify-between gap-4 px-5 py-3.5 text-left font-mono text-[10px] uppercase tracking-eyebrow transition-colors duration-fast ease-munin hover:bg-paper-deep dark:hover:bg-secondary"
         >
           <span className="text-ink dark:text-foreground">
             {t('scheduled', { count: scheduled.length })}

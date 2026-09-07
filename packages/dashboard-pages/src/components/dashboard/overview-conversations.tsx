@@ -47,7 +47,7 @@ export function OverviewConversations({ liveCount }: { liveCount: number }) {
         note={liveCount > 0 ? t('liveNoteSome') : t('liveNoteNone')}
         cta={t('liveOpen')}
       />
-      <ul className="-mx-5 border-t border-rule-soft dark:border-rule-on-dark">
+      <ul className="border-t border-rule-soft dark:border-rule-on-dark">
         <ConsoleSectionLabel>{tSections('conversationsRecent')}</ConsoleSectionLabel>
         {recent.length === 0 ? (
           <li className="border-b border-rule-soft px-5 py-5 text-[13px] leading-relaxed text-ink-soft dark:border-rule-on-dark dark:text-foreground/80">

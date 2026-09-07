@@ -24,7 +24,7 @@ export function StatRow({
     <Link
       href={href}
       className={cn(
-        'group flex w-full items-center gap-3.5 px-1 py-4 text-left outline-none transition-colors duration-fast ease-munin hover:bg-paper-deep focus-visible:bg-paper-deep md:gap-5 md:py-5 dark:hover:bg-secondary dark:focus-visible:bg-secondary',
+        'group flex w-full items-center gap-3.5 px-5 py-4 text-left outline-none transition-colors duration-fast ease-munin hover:bg-paper-deep focus-visible:bg-paper-deep md:gap-5 md:py-5 dark:hover:bg-secondary dark:focus-visible:bg-secondary',
         bordered && 'border-t border-rule-soft dark:border-rule-on-dark',
       )}
     >

@@ -22,7 +22,9 @@ import { KbModule } from '../modules/kb/kb.module.ts';
 import { CuratorModule } from '../modules/curator/curator.module.ts';
 import { CuratorJobsController } from './curator-jobs.controller.ts';
 import { ConvChannelsController } from './conv-channels.controller.ts';
-import { KbCandidatesController, KbCurationDecisionsController, KbSpacesController } from './kb-candidates.controller.ts';
+import { KbCandidatesController, KbCurationDecisionsController, KbSpacesController,
+  KbDocumentsController,
+} from './kb-candidates.controller.ts';
 import { KbTransferController } from './kb-transfer.controller.ts';
 import { CrmTransferController } from './crm-transfer.controller.ts';
 import { ConvTransferController } from './conv-transfer.controller.ts';
@@ -44,6 +46,7 @@ import { ConnectorJwksController } from './connector-jwks.controller.ts';
 import { InvitationsController } from './invitations.controller.ts';
 import { AcceptInvitationController } from './accept-invitation.controller.ts';
 import { InvitationsService } from './invitations.service.ts';
+import { SetupStateService } from './setup-state.service.ts';
 import { MembersController } from './members.controller.ts';
 import { RosterController } from './roster.controller.ts';
 import { MembershipsController } from './memberships.controller.ts';
@@ -113,6 +116,7 @@ import { ConnectorsModule } from '../modules/connectors/connectors.module.ts';
     KbCandidatesController,
     KbCurationDecisionsController,
     KbSpacesController,
+    KbDocumentsController,
     KbTransferController,
     CrmTransferController,
     ConvTransferController,
@@ -122,6 +126,6 @@ import { ConnectorsModule } from '../modules/connectors/connectors.module.ts';
     SlackController,
     ConnectorsController,
   ],
-  providers: [InvitationsService],
+  providers: [InvitationsService, SetupStateService],
 })
 export class ControlModule {}

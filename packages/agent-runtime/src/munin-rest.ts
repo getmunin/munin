@@ -2,6 +2,12 @@ import type { MessageComponent } from '@getmunin/types';
 import type { ConversationMessage } from './types.ts';
 import { stripTrailingSlashes } from '@getmunin/types';
 
+export interface SetDraftReplyOpts {
+  retrievedDocumentIds?: string[];
+  rationale?: string;
+  toolNames?: string[];
+}
+
 export interface ConversationDetail {
   id: string;
   status: 'open' | 'snoozed' | 'closed' | 'spam';
@@ -145,7 +151,7 @@ export interface MuninRestClient {
   setDraftReply(
     conversationId: string,
     body: string,
-    opts?: { retrievedDocumentIds?: string[]; rationale?: string; toolNames?: string[] },
+    opts?: SetDraftReplyOpts,
   ): Promise<void>;
   clearDraftReply(conversationId: string): Promise<void>;
   mintDelegatedToken(endUserId: string, ttlSeconds?: number): Promise<DelegatedToken>;
@@ -303,7 +309,7 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
     async setDraftReply(
       conversationId: string,
       body: string,
-      opts?: { retrievedDocumentIds?: string[]; rationale?: string; toolNames?: string[] },
+      opts?: SetDraftReplyOpts,
     ): Promise<void> {
       const payload: Record<string, unknown> = { body };
       if (opts?.retrievedDocumentIds?.length) {

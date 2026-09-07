@@ -10,7 +10,7 @@ Every CMS entry has a `status` (`draft | published | scheduled | archived`) and 
 ## TL;DR
 
 1. `cms_get_entry` to read the current `version`.
-2. `cms_update_entry` with `ifVersion` to refine the draft.
+2. `cms_update_entry` with `ifVersion` to refine the draft — `textReplacements` for edits inside a long field, `data` for fields you replace whole.
 3. Decide: publish now (`cms_publish_entry`) or later (`cms_schedule_publish`).
 4. If something's wrong post-publish: `cms_unpublish_entry` (back to draft) or `cms_restore_version` (roll forward to a historical version).
 
@@ -41,6 +41,26 @@ If you're picking from the queue: `cms_list_entries` with `{ "status": "draft", 
 
 Update merges the patch into the existing payload, then increments `version` to 8 and re-validates the merged result against the collection schema, regenerates the search-text + embedding, and rewires inbound references. **You now have version 8** — use it for the next write.
 
+To change a sentence, a paragraph or an image inside a long field, don't resend the field. Pass `textReplacements` instead — exact find-and-replace edits applied to the stored text, reaching into block prose on a `blocks` field:
+
+```jsonc
+{
+  "name": "cms_update_entry",
+  "arguments": {
+    "id": "<entryId>",
+    "ifVersion": 7,
+    "textReplacements": [
+      { "field": "body", "oldText": "ships every tuesday", "newText": "ships every Tuesday" }
+    ],
+    "responseFormat": "summary"
+  }
+}
+```
+
+Each `oldText` must occur exactly once in the field (or set `replaceAll: true`); a miss fails the whole call with `cms_replacement_no_match` and nothing is written. A field goes in `data` or in `textReplacements`, not both. The full editing loop, including how blocks and inline images are matched, is `skill://cms/revise-entry`.
+
+`responseFormat: "summary"` returns the entry in the `cms_list_entries` shape — long text shortened to a lead with a word count in `fieldSummary` — which is all you need to confirm the write landed. Create, update and restore default to `full`; publish, unpublish and schedule default to `summary` because they don't change content.
+
 If you get a `cms_version_conflict` error, re-read with `cms_get_entry` and retry. Don't blindly bump the number.
 
 ## Step 3 — publish
@@ -51,7 +71,7 @@ If you get a `cms_version_conflict` error, re-read with `cms_get_entry` and retr
 { "name": "cms_publish_entry", "arguments": { "id": "<entryId>", "ifVersion": 8 } }
 ```
 
-Stamps `publishedAt`, flips `status: 'published'`, returns the entry at version 9.
+Stamps `publishedAt`, flips `status: 'published'`, returns the entry at version 9 — as a summary, since the content did not change. Pass `"responseFormat": "full"` if you need the body back.
 
 ### Backdated (migrated content)
 
@@ -165,6 +185,7 @@ Restore is itself a write — it creates a *new* version (10) carrying the data 
 
 ## Related
 
+- `skill://cms/revise-entry` — editing an existing entry in place with `textReplacements`.
 - `skill://cms/preview-entry` — the draft-side sibling of `settings.liveUrl`.
 - `skill://slack/connect-slack` — routing the channel publish announcements land in.
 - `skill://cms/localize-entry` — managing per-locale entries.

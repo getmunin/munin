@@ -10,6 +10,7 @@ import {
   extractAssetReferences,
   extractReferences,
   remapInlineAssetUris,
+  replaceFieldText,
   rewriteInlineAssets,
   validateEntryData,
   type AssetSummary,
@@ -412,5 +413,85 @@ describe('json misuse lint', () => {
 
   it('allows genuinely opaque json', () => {
     expect(validateEntryData(jsonFields, { meta: { ok: true, list: [1, 2], type: 'invoice' } })).toEqual([]);
+  });
+});
+
+describe('replaceFieldText', () => {
+  const markdown: FieldDef = { name: 'body', type: 'markdown' };
+  const tags: FieldDef = { name: 'tags', type: 'array', options: { items: { name: 'item', type: 'text' } } };
+
+  it('replaces inside a top-level markdown string', () => {
+    const result = replaceFieldText(markdown, 'Hello brave world', [
+      { oldText: 'brave', newText: 'new' },
+    ]);
+    expect(result).toEqual({ ok: true, value: 'Hello new world', applied: 1 });
+  });
+
+  it('reaches prose inside block props and leaves the block shape intact', () => {
+    const blocks = blockFields[0]!;
+    const result = replaceFieldText(blocks, blockData.body, [
+      { oldText: 'see ![x]', newText: 'look ![x]' },
+    ]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const next = result.value as Array<{ type: string; key: string; props: Record<string, unknown> }>;
+    expect(next[0]).toEqual({
+      type: 'callout',
+      key: 'b1',
+      props: { text: 'look ![x](asset://cma_a)', icon: 'cma_b' },
+    });
+    expect(next.slice(1)).toEqual(blockData.body.slice(1));
+    expect(blockData.body[0]!.props.text).toBe('see ![x](asset://cma_a)');
+  });
+
+  it('treats a match across two blocks as ambiguous unless replaceAll is set', () => {
+    const blocks = blockFields[0]!;
+    const twice = [
+      { type: 'callout', key: 'a', props: { text: 'Munin is great' } },
+      { type: 'callout', key: 'b', props: { text: 'Munin is fast' } },
+    ];
+    const strict = replaceFieldText(blocks, twice, [{ oldText: 'Munin', newText: 'It' }]);
+    expect(strict).toEqual({
+      ok: false,
+      reason: 'replacement',
+      failure: { index: 0, reason: 'ambiguous', matches: 2 },
+    });
+    const all = replaceFieldText(blocks, twice, [
+      { oldText: 'Munin', newText: 'It', replaceAll: true },
+    ]);
+    expect(all.ok).toBe(true);
+    if (!all.ok) return;
+    const next = all.value as Array<{ props: { text: string } }>;
+    expect(next.map((b) => b.props.text)).toEqual(['It is great', 'It is fast']);
+  });
+
+  it('never matches block type names, keys, or non-text props', () => {
+    const blocks = blockFields[0]!;
+    expect(replaceFieldText(blocks, blockData.body, [{ oldText: 'callout', newText: 'x' }])).toEqual({
+      ok: false,
+      reason: 'replacement',
+      failure: { index: 0, reason: 'no_match', matches: 0 },
+    });
+    expect(replaceFieldText(blocks, blockData.body, [{ oldText: 'cma_b', newText: 'x' }])).toEqual({
+      ok: false,
+      reason: 'replacement',
+      failure: { index: 0, reason: 'no_match', matches: 0 },
+    });
+  });
+
+  it('edits items of an array<text> field', () => {
+    const result = replaceFieldText(tags, ['alpha', 'beta'], [{ oldText: 'beta', newText: 'gamma' }]);
+    expect(result).toEqual({ ok: true, value: ['alpha', 'gamma'], applied: 1 });
+  });
+
+  it('reports no_text for fields that hold no editable prose', () => {
+    expect(replaceFieldText({ name: 'n', type: 'integer' }, 3, [{ oldText: '3', newText: '4' }])).toEqual({
+      ok: false,
+      reason: 'no_text',
+    });
+    expect(replaceFieldText(markdown, null, [{ oldText: 'a', newText: 'b' }])).toEqual({
+      ok: false,
+      reason: 'no_text',
+    });
   });
 });

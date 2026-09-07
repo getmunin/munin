@@ -83,11 +83,14 @@ for row in source:
   }
 
   if existing:
-    cms_get_entry(existing.id) -> { version }
-    cms_update_entry(existing.id, ifVersion=version, data=payload)
+    cms_get_entry(existing.id, fields=["external"]) -> { version }
+    cms_update_entry(existing.id, ifVersion=version, data=payload, responseFormat="summary")
   else:
-    cms_create_entry(collection="blog", slug=row.slug, locale=row.locale, data=payload, status="draft")
+    cms_create_entry(collection="blog", slug=row.slug, locale=row.locale, data=payload,
+                     status="draft", responseFormat="summary")
 ```
+
+Pass `responseFormat: "summary"` on every write in the loop. Each call otherwise echoes the full body you just sent, and over a few hundred rows that echo is most of what fills your context. The summary carries `id`, `version` and a word count per long field, which is all the loop needs.
 
 Carry the source row's original publish date across — `cms_create_entry` and `cms_publish_entry` both take a `publishedAt` (ISO 8601) alongside `status: "published"`:
 
@@ -110,14 +113,23 @@ After every entry exists, walk the body fields and replace external links with i
 { "name": "cms_get_entry", "arguments": { "id": "<entryId>" } }
 ```
 
-Rewrite the body so any `<a href="https://old-cms/posts/old-id">` becomes a Munin entry reference (resolve via `cms_search_entries` on the source-id-mapped entry). Then:
+For each old link, resolve the target via `cms_search_entries` on the source-id-mapped entry, then swap the URL in place with `textReplacements` — one edit per link, `replaceAll: true` when the same link appears more than once in a body:
 
 ```jsonc
 {
   "name": "cms_update_entry",
-  "arguments": { "id": "<entryId>", "ifVersion": <v>, "data": {...rewritten...} }
+  "arguments": {
+    "id": "<entryId>",
+    "ifVersion": <v>,
+    "textReplacements": [
+      { "field": "body", "oldText": "https://old-cms/posts/old-id", "newText": "ref://<targetEntryId>", "replaceAll": true }
+    ],
+    "responseFormat": "summary"
+  }
 }
 ```
+
+This leaves every other byte of the body untouched, which matters on a second pass over content you have already spot-checked. A link that no longer appears (edited out since the import) fails with `cms_replacement_no_match` — skip it rather than retrying with a guess.
 
 Verify with `cms_list_inbound_references` on a few entries — outbound links from this entry should now show as inbound references on the target entries.
 

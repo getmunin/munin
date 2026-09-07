@@ -50,6 +50,7 @@ const WIDGET_ALLOWED_SCOPES: ReadonlySet<string> = new Set(['conv:widget:write']
 function sessionCredential(
   session: typeof schema.sessions.$inferSelect,
   orgId: string,
+  orgRole: string,
 ): ResolvedCredential {
   const actor = new ActorIdentity(
     'user',
@@ -61,6 +62,8 @@ function sessionCredential(
     session.id,
     undefined,
     session.userId,
+    undefined,
+    orgRole,
   );
   return { actor, expiresAt: session.expiresAt };
 }
@@ -227,7 +230,7 @@ export class CredentialResolver {
     if (requestedOrgId) {
       const requested = memberships.find((m) => m.orgId === requestedOrgId);
       if (!requested) throw new OrgAccessDeniedError(requestedOrgId);
-      return sessionCredential(session, requested.orgId);
+      return sessionCredential(session, requested.orgId, requested.role);
     }
 
     const membership =
@@ -235,7 +238,7 @@ export class CredentialResolver {
       [...memberships].sort((a, b) => +a.createdAt - +b.createdAt)[0];
     if (!membership) return null;
 
-    return sessionCredential(session, membership.orgId);
+    return sessionCredential(session, membership.orgId, membership.role);
   }
 
   async resolveSessionUserId(rawToken: string): Promise<string | null> {

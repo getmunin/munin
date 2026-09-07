@@ -1,5 +1,32 @@
 # @getmunin/docs-pages
 
+## 5.16.0
+
+### Patch Changes
+
+- Updated dependencies [e0e49f0]
+- Updated dependencies [7e6e223]
+- Updated dependencies [f781f5f]
+- Updated dependencies [fb77fed]
+- Updated dependencies [f781f5f]
+- Updated dependencies [e464792]
+- Updated dependencies [1a6de43]
+- Updated dependencies [f781f5f]
+- Updated dependencies [daf5e55]
+- Updated dependencies [f781f5f]
+- Updated dependencies [1378212]
+- Updated dependencies [f781f5f]
+- Updated dependencies [d443f42]
+- Updated dependencies [356885c]
+- Updated dependencies [f781f5f]
+- Updated dependencies [f781f5f]
+- Updated dependencies [f781f5f]
+- Updated dependencies [f781f5f]
+- Updated dependencies [f781f5f]
+- Updated dependencies [b085fe1]
+  - @getmunin/backend-core@5.16.0
+  - @getmunin/types@5.16.0
+
 ## 5.15.0
 
 ### Patch Changes
@@ -107,7 +134,7 @@ it pt nl pl cs sk hu ro`.
 - d1ad5a5: Restore the spaces that vanished after inline `<code>`/`<em>`/`<strong>` in the guide prose.
 
   Seven guides rendered joined-up words — "Open \_Choose tools*on the connection's menu", "must not
-  take an `email` or `customerId`argument", "**All spoofable.*_Anyone can send mail". The space was in
+  take an `email` or `customerId`argument", "\**All spoofable.*_Anyone can send mail". The space was in
   the source; Next's bundled SWC dropped it. A multi-line JSX text run whose text contains an HTML
   entity (`&rsquo;`, `&quot;`, `&lt;`, …) loses its \_leading_ space during the entity decode — the
   trailing space survives, a single-line run survives, and the same source compiled with upstream

@@ -1,5 +1,36 @@
 # @getmunin/agent-host
 
+## 5.16.0
+
+### Patch Changes
+
+- 1a6de43: Draft rationale and on-demand drafting for the Oversight review pane. The audit pass's JSON contract gains a `rationale` field — one or two sentences written for the human reviewer stating what the reply asserts and what grounds it — and the conversation handler parks it (plus the tool names of the turn) on the `draft_reply` metadata via `setDraftReply`, so the pane's "why" block reads straight off the draft and simply hides when no rationale is present. The runner now also answers `conversation.draft_requested`: a new `draft-request` handler mode forces draft delivery even on `auto` conversations and tolerates the requester's own claim, completing the "Ask for a draft" round trip started by `POST /v1/conversations/:id/request-draft`.
+- Updated dependencies [e0e49f0]
+- Updated dependencies [7e6e223]
+- Updated dependencies [f781f5f]
+- Updated dependencies [fb77fed]
+- Updated dependencies [f781f5f]
+- Updated dependencies [e464792]
+- Updated dependencies [1a6de43]
+- Updated dependencies [f781f5f]
+- Updated dependencies [daf5e55]
+- Updated dependencies [f781f5f]
+- Updated dependencies [1378212]
+- Updated dependencies [f781f5f]
+- Updated dependencies [d443f42]
+- Updated dependencies [356885c]
+- Updated dependencies [f781f5f]
+- Updated dependencies [f781f5f]
+- Updated dependencies [f781f5f]
+- Updated dependencies [f781f5f]
+- Updated dependencies [f781f5f]
+- Updated dependencies [b085fe1]
+  - @getmunin/backend-core@5.16.0
+  - @getmunin/core@5.16.0
+  - @getmunin/agent-runtime@5.16.0
+  - @getmunin/db@5.16.0
+  - @getmunin/types@5.16.0
+
 ## 5.15.0
 
 ### Minor Changes

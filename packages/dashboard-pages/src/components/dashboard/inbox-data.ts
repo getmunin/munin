@@ -27,6 +27,8 @@ import type {
   LiveSummary,
 } from './inbox-types';
 
+export const DEFAULT_CURATION_TARGET_SPACE = 'support-faq';
+
 function useQueueBuilder() {
   const tQueue = useTranslations('dashboard.overview.queue');
 
@@ -40,9 +42,9 @@ function useQueueBuilder() {
           ? tQueue('kbSnippetRevision', {
               title: k.revisesDocumentTitle ?? k.title,
             })
-          : k.proposedTargetSpaceSlug
-            ? tQueue('kbSnippetProposed', { slug: k.proposedTargetSpaceSlug })
-            : tQueue('kbSnippetFallback'),
+          : tQueue('kbSnippetProposed', {
+              space: k.proposedTargetSpaceSlug ?? DEFAULT_CURATION_TARGET_SPACE,
+            }),
         createdAt: k.updatedAt,
         raw: k,
       }));
@@ -58,9 +60,11 @@ function useQueueBuilder() {
         kind: 'outreach',
         id: o.id,
         title: o.draftSubject ?? o.campaign?.name ?? tQueue('outreachDraftFallback'),
-        snippet: o.contact?.email
-          ? `${o.contact.email} — ${o.draftBody.slice(0, 80)}`
-          : o.draftBody.slice(0, 100),
+        snippet:
+          o.delivery?.destination ??
+          o.contact?.email ??
+          o.campaign?.name ??
+          tQueue('outreachDraftFallback'),
         createdAt: o.createdAt,
         raw: o,
       }));
@@ -126,8 +130,6 @@ function useScheduledBuilder() {
     [tSched],
   );
 }
-
-export const DEFAULT_CURATION_TARGET_SPACE = 'support-faq';
 
 export function useInboxData(): InboxController {
   const buildQueue = useQueueBuilder();

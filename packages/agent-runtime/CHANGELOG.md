@@ -1,5 +1,63 @@
 # @getmunin/agent-runtime
 
+## 5.16.0
+
+### Minor Changes
+
+- 1a6de43: Draft rationale and on-demand drafting for the Oversight review pane. The audit pass's JSON contract gains a `rationale` field — one or two sentences written for the human reviewer stating what the reply asserts and what grounds it — and the conversation handler parks it (plus the tool names of the turn) on the `draft_reply` metadata via `setDraftReply`, so the pane's "why" block reads straight off the draft and simply hides when no rationale is present. The runner now also answers `conversation.draft_requested`: a new `draft-request` handler mode forces draft delivery even on `auto` conversations and tolerates the requester's own claim, completing the "Ask for a draft" round trip started by `POST /v1/conversations/:id/request-draft`.
+- f781f5f: Follow-ups from the oversight code review. The conversation list pager's cursor now carries the needs-attention flag so resuming across the attention boundary drops no rows, and the list tiebreaker matches the cursor (id, not createdAt); the list and queue endpoints share one query parser and the invalid-status error carries the `conv_invalid:` prefix. The review pane surfaces a detail-load failure with a retry instead of spinning forever, the mobile full-screen editor gains dialog semantics (role, Escape to close, focus on open), and the queue's scroll fade is driven by a CSS variable so scrolling no longer re-renders every row. The learning page reports when past decisions fail to load and labels its published/dismissed counts as recent. `SetDraftReplyOpts` is exported from the runtime and reused by the in-process client, the nav-group extension helpers share one generic implementation, agent settings gating keys off `ACCOUNT_SETTINGS_HREF` instead of a URL suffix, and the live-now dot's halo derives from the accent token in both themes.
+
+### Patch Changes
+
+- f781f5f: Settings is admin-only, the console sidebar grows a user menu, and mobile stops hiding its own controls.
+
+  A support agent used to keep Workspace → Account in the settings nav, whose only content is the organization name — an admin-only field. `PATCH /v1/orgs/me` already carried `@RequireRole('owner','admin')`, so the form was never a hole; it was a dead end that always ended in a 403. Settings now filters out for non-admins in both the console nav and the settings shell, `/dashboard/settings/*` bounces a member to conversations, and the system-alert banner drops its call to action for members since every target is a settings page they can no longer reach.
+
+  Signing out no longer lives at the foot of the settings nav, since a member can no longer reach it. Both the desktop sidebar and the mobile menu sheet now end with the signed-in user — avatar, name, and an overflow menu holding Sign out — sharing one footer component instead of the sheet-only variant that existed before.
+
+  The membership cache is keyed to the session user, so signing out as an owner and back in as a member reflects the new role without a hard refresh; previously the module-level cache survived the client-side navigation through `/login` and kept serving the first user's role.
+
+  A draft is only produced when the customer wrote the last public message. Asking otherwise gives the agent nothing to answer, and the draft comes back greeting whoever spoke last — a teammate, by name, as though they were the customer. The runtime labels operator turns correctly as `[Human teammate]`, so this was an ill-posed request rather than a misread transcript. The runtime now enforces that in every mode and the dashboard hides "Ask for a draft" on the same condition, so the button never offers a request the runner will drop. Internal notes never count as the last word.
+
+  Three paths previously disagreed. The on-demand path was exempt from the check entirely, which is how a draft could be requested with nothing to answer. The automatic path treated an operator's own message as something to reply to, reachable once a claim expired. And a draft request after the agent had already replied was allowed as a deliberate "follow-up proposal" — a feature dropped here in favour of one rule that holds everywhere, since a button offering a follow-up is indistinguishable from one offering a reply.
+
+  "Ask for a draft" is gated on holding the claim rather than merely on the conversation being open, so it no longer sits beside "Claim to reply" offering an action that lands in someone else's lane. That leaves the unclaimed footer with just the claim button, and the one remaining call in that branch was dead code once the condition tightened.
+
+  The unclaimed conversation's caption is gone — the "Claim to reply" button beside it already said the same thing, so the sentence explaining that claiming is needed to reply was restating its own call to action. The caption naming a teammate who already holds the claim stays, since that one carries information the button does not.
+
+  A claimed conversation whose last public message is from the customer now sorts under "Needs your attention" rather than "In progress". The section was driven entirely by the persisted `needsHumanAttention` flag, which nothing sets when a customer simply answers a thread you already hold, and the queue payload carried no notion of who spoke last — so the read model gains a derived `endUserSpokeLast` rather than widening what that flag means. It stays scoped to conversations you hold; extending it to unclaimed rows would sweep in every unanswered auto-mode thread.
+
+  The queue's tally strip above the list is gone, along with its three strings in both locales. Each section already states its own count in its heading, so the strip restated them a second time before the list had even started.
+
+  An empty "Needs your attention" drops its heading rather than announcing that nothing needs you; the queue reads as a list of work, and a section that is always present but usually empty is noise. Its message is deleted from both locales.
+
+  A closed conversation offers a Reopen button instead of only stating that it is read-only, which left the dashboard with no way back from a close — the status endpoint already accepted `open`, nothing surfaced it. Both the mobile and desktop composers share one footer for that state.
+
+  Returning to the queue works after reloading a conversation directly. The detail route passes its id as a prop, and the pathname match fell back to that prop the moment the URL became the queue's — so the back control rewrote the URL while the pane stayed put. The queue's own path is now authoritative over the prop, which only ever mattered on a reload since a client-side visit renders the queue route with no prop at all.
+
+  The full-screen mobile composer no longer hides its own send button behind the keyboard. It was `fixed inset-0`, which measures the layout viewport — but an on-screen keyboard shrinks only the _visual_ viewport, so the actions sat underneath it and had to be scrolled to. The overlay now covers the whole layout viewport so nothing shows through beneath it, while an inner wrapper tracks `visualViewport` height and offset through CSS variables — collapsing to `display: contents` above the mobile breakpoint so the desktop composer keeps its original layout. The composer's header carries the conversation's subject and topic instead of just the customer's name.
+
+  On mobile the conversation's own header is gone, and its title and topic move into the app bar beside the back arrow, which is the only chrome a phone has room for. The bar takes them through the same context the back action already travels on. Its detail line and identifier stay desktop-only.
+
+  On mobile the shell was measured with `h-screen`, whose `100vh` ignores the browser's own chrome on iOS, so the conversation footer — "Claim to reply" — sat underneath Safari's toolbar and could not be tapped. The shell and the document body now measure in `dvh`. The conversation pane's back link also moves out of the column header into the app header, where it replaces the hamburger for the duration of the detail view, via a small context any page can use to publish a mobile back action.
+
+- 1378212: Oversight console polish round two. Handover reasons are now recorded as internal agent notes instead of system divider messages (`requestHandover` accepts `postSystemNote: false`, and migration 0086 deletes old draft-park dividers and converts reasoned ones to the note shape). The runner's draft-request mode survives transcripts that end with a staff turn, withholds `conv_request_human`, and reports failures as internal notes. The console gets the review-driven UI batch: two-phase Thinking/Writing composer states with a locked input, per-action button spinners, auto-growing textareas, a compact mobile composer that expands to a full-screen editor, shallow conversation selection (no list remount flash), subject-first pane header, sticky settings rail, and the on-duty roster card removed.
+- b085fe1: Keep a voice turn that transcribed no speech, so a call transcript never loses the beat that explains the next answer.
+
+  A Threll call read as though the assistant answered a question nobody asked: it greeted the caller, then said "Hei Tronn, velkommen til Threll.ai" with no caller turn in between. Nothing was out of order — `voiceTurnIndex` ran 0, 2, 3, 4 and Slack mirrored exactly that. Turn 1 was missing, and Slack's collapsing of two adjacent same-speaker posts into one block made the remainder look shuffled.
+
+  Threll fixes a turn's position when the turn is _registered_, not when its text exists: a caller turn reserves its index and emits an interim, and the final follows when recognition resolves — with an empty string when it resolved to nothing, which is what happens when the caller is cut off mid-word. `ThrellAdapter` dropped every transcript event without text, so that turn vanished. It is now stored as a turn with an empty body and `metadata.voiceNoSpeech: true`, in its spoken position, in real time — no reconciliation pass and no late Slack post, because the empty final arrives on the same webhook stream as every other turn. An _agent_ turn with no text is still dropped; only a caller turn holds a slot worth showing.
+
+  An empty body is the honest record, so the placeholder lives in the surfaces instead: Slack renders `_No speech transcribed_` (`chat.postMessage` rejects empty text), the dashboard drawer renders a muted italic line, the chat widget hides the turn from the visitor who lived through it, and the conversation-list preview skips empty bodies so a call ending on an unintelligible turn keeps its last real line. A silent turn is also not the visitor speaking last: `endUserSpokeLast` skips empty bodies, so the review queue stops offering "ask for a draft" on a turn that carries no question — which the runtime would refuse anyway. The conversation pane's own client-side computation of the same signal matches.
+
+  `toRuntimeHistory` filters bodies that are empty after trimming — an empty user turn is both useless to the model and rejected outright by providers that refuse empty content blocks — and the conversation handler declines to reply when the newest public turn is a silent one, so a straggling final that lands after `call.ended` cleared `voiceActive` can't provoke a chat reply after a voice call.
+
+- Updated dependencies [e464792]
+- Updated dependencies [d443f42]
+- Updated dependencies [356885c]
+  - @getmunin/core@5.16.0
+  - @getmunin/types@5.16.0
+
 ## 5.15.0
 
 ### Minor Changes

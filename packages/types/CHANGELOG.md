@@ -1,5 +1,12 @@
 # @getmunin/types
 
+## 5.16.0
+
+### Minor Changes
+
+- d443f42: Review-queue read model for the Oversight console. `GET /v1/conversations/queue` returns rows enriched with the customer's name and email, topic, channel type, the active claim (holder and expiry), an internal-note count, and a pending-draft flag — everything a queue row needs that the plain list DTO lacked. Internal notes are `conv_messages` rows stamped `metadata.kind = 'internal_note'`, and internal messages no longer bump `last_message_at`, so recording context cannot reorder the review queue or make a stale thread look fresh. Rejecting a draft (`POST /v1/conversations/:id/clear-draft`) now stamps `draft_reply_rejected` with the rejecting user instead of hard-deleting the row, a draft replaced by a newer one is stamped `draft_reply_superseded`, and the `draft_reply_sent` stamp merges into the draft's metadata so `retrievedDocumentIds` survives approval. `GET /v1/orgs/me/roster` gives every org member (not just admins) the on-duty roster with active claim counts. `POST /v1/conversations/:id/request-draft` asks the agent for a draft on demand; new catalog events `conversation.draft_requested`, `conversation.draft_ready`, and `conversation.note_added` carry the round trip.
+- 356885c: Per-topic reply automation with promotion. `conv_topics` gains `agent_mode` and `auto_promoted_at` (migration 0085): a topic's mode, when set, overrides the per-conversation agent mode everywhere it is read — the runner's conversation detail, the queue DTO (which also carries `topicAgentMode` for the row nudge), and the dashboard. `ConvAutomationService` aggregates each topic's 30-day review record (approved-unedited / edited / rejected counts, weekly volume, auto-sent share over 7 days) and flips modes, stamping `auto_promoted_at` on promotion and emitting the new `conversation.topic_automation_changed` event. Exposed as `GET /v1/conversations/automation` + `POST /v1/conversations/topics/:topicId/agent-mode`, the MCP tools `conv_list_topic_automation` / `conv_set_topic_automation`, and the `skill://conv/promote-topic-to-auto-send` procedure. The dashboard's Automation screen shows the per-topic table with the ≥90 %-unedited readiness gate, the promote dialog with the disposition breakdown, and one-click demotion — and the queue rows now read `Topic · Auto/Review/Human`.
+
 ## 5.15.0
 
 ### Patch Changes

@@ -1,5 +1,887 @@
 # @getmunin/dashboard-pages
 
+## 5.16.0
+
+### Minor Changes
+
+- f781f5f: Console page headers share one component. Learning, Automation and Conversations each hand-rolled a `<header>` with copy-pasted eyebrow, title and lede classes, which had already drifted: all three set the title to `leading-tight` (1.25) where the console kit specifies `line-height: 1` and the settings `Hero` uses `1.05`, so console titles were looser than both — visible whenever a title wrapped.
+
+  `ConsoleHero` mirrors `Hero`'s API (`eyebrow` / `title` / `lede` / `actions`) on console-kit values: cobalt eyebrow rather than muted, a 36px serif title, and a 14px lede capped at 52ch. Titles style their own `<em>` through a descendant selector, so pages pass `t.rich('title', { em: (chunks) => <em>{chunks}</em> })` exactly as the settings pages do instead of repeating the italic-cobalt classes. Learning and Automation now render it; Automation's 7-day auto-rate moves into the `actions` slot. Conversations keeps its own markup — it is the narrow list pane, with a smaller title and a search input inside the header — but picks up the same corrected leading.
+
+  The rule under the header is gone from all three, so the console pages agree with each other. Note this departs from the kit, where `.c-inbox-head` carries `border-bottom: 1px solid var(--ink)`.
+
+  Learning gains a lede. Every settings page and Automation already had one, leaving Learning the only page in the product whose header stopped at the title; `lede` is now an explicit per-page choice rather than an omission.
+
+- a9d71da: Apply the design system's conversation identity colours to the admin thread and the chat widget.
+
+  One colour per role, never per mood: **you are ink** (`#0F1419`), **the counterparty is verdigris** (`#208562`, bubble tint `#E3F5EC`), and **the agent is hueless** (`#7E8590` on `#DCE2E8`) because it is not a person. Cobalt is now reserved entirely for emphasis and actions — it is an action, not an identity.
+
+  Both surfaces previously shipped the variant the design system rejected: the admin thread painted your own messages cobalt, so your own bubble competed with the only cobalt that should matter (the approve action), while the agent wore ink and the counterparty — the one role that must carry a hue — was plain paper. The widget did the same via `--munin-theme`, and painted human operators identically to the AI.
+
+  Details:
+
+  - New `verdigris` and `agent-tint` token families in `@getmunin/ui`. Self needed no new tokens — `--munin-ink` and `--munin-fg-3` were already exactly the specified values.
+  - The agent tint is `#DCE2E8` (`#1E252C` on ink), not paper-deep. The agent has no hue to spend, so its tint spends temperature instead: every Munin surface is warm, the agent tint is cool. Paper-deep was the failing case — the admin thread is itself wrapped in `bg-paper-deep`, so the agent bubble sat at Lab ΔE 0.0 against its own background and survived only on its hairline border. The cool grey lifts the worst of the four surfaces to ΔE 8.1 (paper 10.1, paper-deep 8.1, bone 8.1, ink 8.4). Note that WCAG luminance ratio cannot measure this — on bone the two are near-equiluminant (1.03:1) and separate entirely on the b\* axis, which is the point.
+  - Direction still decides which side a message sits on; only colour carries identity, so a colleague's message sits on the outbound side wearing verdigris rather than your ink. The thread stays avatar-less — the bubble fill and the existing name label carry the role between them.
+  - Self is resolved against the viewer (`viewerUserId`) rather than `authorType === 'user'`, so a colleague is correctly "other" instead of borrowing your identity. When the viewer is unknown, staff fall back to self and the ring is suppressed entirely — an unresolved session must not invert the rule and paint your own messages as the counterparty, which is a worse failure than the flat staff bucket it replaced.
+  - Participant ring: with three or more humans in a thread, the non-self humans take `oklch(0.55 0.105 h)` at hues 165 / 32 / 210 / 75 / 315 in order of first appearance — fixed lightness and chroma, hue only. Under three humans the counterparty keeps the verdigris token. The agent never counts toward the threshold and never takes a hue.
+  - The viewer counts toward that threshold even when they have not posted in the thread, because they are a participant in any conversation they are reading. Counting only authors leaves a two-author thread — one customer, one colleague — below the threshold, so both render flat verdigris and a teammate is indistinguishable from the customer, which is the exact collision the ring exists to prevent.
+  - A ring participant's hue tints their name label as well as their bubble. With no avatar in the thread the bubble is the only other carrier, and two ring hues at a 12% tint are too close to tell apart at a glance.
+  - Widget self bubbles come off the tenant's `themeColor` entirely; that colour keeps the action surfaces (send button, email-capture button, focus rings). Human operators get the verdigris tint, split off the AI via the `authorKind` the widget already receives, and both keep their name and role label — the visitor is told who is answering.
+  - **The widget takes quiet self, not the filled ink bubble.** Self-as-ink collided with the widget's own chrome — the ink title bar and the visitor's bubble were the same hex, so their message read as a chip that fell off the header, and the answer they opened the widget to read was the palest thing on screen. Widget-side the visitor now takes `--munin-self-tint` (bone / `#272C33`) with ink text and a 2px corner on the authoring side; side and corner carry authorship, and the title bar keeps ink as the widget's one constant. The admin thread is unchanged — there, self staying a filled ink bubble is right, because no ink chrome competes with it.
+  - Chrome geometry is now a five-step radius scale (`--munin-r-panel` / `-surface` / `-control` / `-tag` / `-pill`) driven by a new `data-munin-corners` embed attribute: `square` (default — sharp corners on every panel, field and button, radius only on bubbles) or `rounded`, which restores the previous radii. Bubbles keep their radius in both, and the mobile full-screen panel stays square regardless.
+  - Cobalt is now actions only: send, the email-capture button, and focus rings. It is no longer a bubble fill, a link colour inside a bubble, or a presence dot — the dots take verdigris, and on dark the send arrow lightens to a 50% mix of the tenant colour so it stays legible on ink without abandoning the tenant's hue.
+  - The widget's dark scheme moves onto ink (`--munin-paper` `#101418`, `--munin-paper-deep` `#1F252B`) so a dark host page gets a panel that reads as one surface rather than a grey card on black.
+  - The welcome screen no longer claims a reply time. `welcomeRepliesAboutHtml` ("Replies in about **2 min**") was hardcoded in all 21 locales, backed by nothing, and wrong in both directions — seconds on an auto channel, hours once a human takes over. It is now `welcomeRepliesInstantly`, transcreated per locale, true because a widget channel always answers with the AI first, and escaped rather than interpolated as raw HTML.
+
+  Two extrapolations beyond the spec, which only gives light-mode fills: dark-mode counterparty values (`#62C39C`, with the widget's dark verdigris bubble opaque at `#1B382A` and the admin thread's translucent), and ring bubble tints derived as a 12% `color-mix` of the participant's ring colour so a single hue drives both bubble and label in either scheme.
+
+- f781f5f: First-run and empty states for Overview, Conversations, Automation and Learning
+
+  A brand-new org used to land on a dashboard of zeroes: a hero that said agents were
+  caught up, two stat rows reading 0, and five empty usage tiles. Nothing told you that
+  no channel was connected, or that the two things worth doing were pointing an agent at
+  `/mcp` and opening a way in.
+
+  The four console pages now render a first-run scene instead, driven by one shared
+  source of truth. `GET /v1/overview/setup` (new `SetupStateService`) reports the org's
+  channels, all-time conversation count, topic count, knowledge-base size and external
+  MCP tool-call activity in a single request. `useSetupState` turns that into
+  a `stage` — `unconfigured` (no channel can accept a message), `listening` (a channel is
+  live, nothing has ever arrived) or `active` — and pages branch on `setup.isFirstRun`
+  so an established org keeps exactly the behaviour it had.
+
+  Setup state is fetched from a `SetupStateProvider` mounted in `DashboardShell` rather
+  than per page. Fetching it per page meant every console navigation remounted the hook,
+  started from "unknown", and rendered the established-org layout for a frame before
+  flipping to the empty state — a visible flash on every switch. Pages now also render
+  nothing rather than the wrong branch while the answer is still undetermined, so the
+  wrong frame never reaches the screen.
+
+  The provider revalidates on navigation, keeping the last snapshot on screen while the
+  refetch is in flight, so connecting a channel in settings and walking back to the
+  console shows the new channel without a reload. Channel mutations emit no realtime
+  event, so navigation — not the event stream — is what makes that flow correct; a
+  channel opened by an agent while you sit on Overview still lands on the next
+  navigation rather than instantly.
+
+  "Has an agent been pointed at the endpoint" counts only _external_ callers. Munin's own
+  in-process runner reaches the same tools, so a first count of every non-system
+  `audit_log` row with a tool set reported 35 calls — and a green "done" — for an org
+  where nobody had ever connected anything. `externalMcpCallCount` now excludes the
+  `agent-host` actor and its per-end-user variants alongside the system actors, reusing
+  the `@getmunin/types` actor constants rather than restating the prefixes. The step
+  counter is derived from the same two facts in both stages, so a live channel with an
+  untouched endpoint reads "1 of 2 done" instead of claiming both.
+
+  The derivation is a pure function (`toSetupSnapshot`) with its own tests: stage
+  transitions, channels awaiting credentials counting as pending rather than live, the
+  endpoint counting as connected only once an external tool call is recorded, and channel
+  labels falling back from public address to channel name.
+
+  The scenes are built from a small reusable set — `FirstRunScene`, `FirstRunSteps`,
+  `FirstRunChain`, `FirstRunStatusList`, `FirstRunFigures`, `FirstRunAside`,
+  `FirstRunNote` and the shared `CopyField` — so all four pages share one editorial layout
+  rather than four bespoke empty states. `@getmunin/ui` gains an `accentOutline` button
+  variant for the quiet cobalt CTA these screens use.
+
+  The endpoint is readable by any org member, since Conversations is the one console
+  page members can open and its empty state has to distinguish "no channel connected"
+  from "connected, nothing has arrived". It returns counts and public channel config
+  only — the same redaction `conv_list_channels` applies.
+
+  The endpoint field became the shared `CopyField`: a mono value with the Copy control
+  attached inside one hard-edged ink border on `paper-deep`. `CopyableSecret` is now that
+  field plus a label and hint, `KeyReveal` on api-keys and the webhook-secret field on
+  channels use it directly, and `channels.tsx` no longer shadows `CopyableSecret` with a
+  local copy of its own — that duplicate is what kept the widget-key and Twilio dialogs
+  on the old rounded `bg-background` look while the rest of the console moved on. The
+  multi-line embed snippets in channels and trackers keep their button underneath, since
+  an attached control makes no sense on a code block, but their surface now matches. The
+  Copy control sizes itself to the wider of its two labels by rendering both in one grid
+  cell, so the field does not shift when Copy becomes Copied — and it stays correct in
+  Norwegian, where "Kopiert" is a character longer than the English word. The email
+  channel form's SMTP and IMAP fieldsets lost their `rounded-md` corners, and
+  `--munin-radius-input` drops from 2px to 0, so inputs, textareas and every
+  `rounded-input` surface are hard-edged like the rest of the system.
+
+  The four first-run scenes were then measured rather than eyeballed, at both widths and
+  in both stages: scene gap, page padding, every inter-block gap and each closing rule.
+  Two arbitrary differences fell out and are fixed — `FirstRunFootnote` closed on 20px
+  where `FirstRunNote` closed on 24px despite playing the same structural role, and the
+  chain's mobile number gutter was 44px against the steps' 52px even though both land on
+  76px from `md` up. What remains different is deliberate: Conversations closes on a soft
+  rule (a caveat) where the other pages close on an ink rule (a statement), and its
+  listening stage has no closing line at all, ending on the test affordance the way the
+  design does.
+
+  Copying the endpoint no longer crashes outside a secure context. Every copy button in
+  the dashboard reached for `navigator.clipboard.writeText` directly, and that object
+  does not exist on a plain-HTTP origin — so pressing Copy on a LAN dev host threw
+  `Cannot read properties of undefined (reading 'writeText')`. A shared `copyText` helper
+  now falls back to a selection copy and reports failure instead of throwing, and a
+  `useCopy` hook owns the "Copied" flag and its timeout. Both replace the eight
+  hand-rolled copies of that logic across api-keys, channels, trackers and
+  `CopyableSecret`.
+
+  "Send a test message" on the listening screen is a real feature rather than a mock.
+  `POST /v1/conversations/test-message` opens a conversation on the org's first live
+  channel with an inbound end-user message, flagged `setupTest` in conversation metadata
+  and surfaced as `isTest` on the conversation DTO. It goes through `createConversation`,
+  so the whole pipeline runs — classification, drafting, the lot — which is the point of
+  a test. Nothing is delivered outbound, because an `end_user`-authored first message
+  never enqueues delivery.
+
+  The test conversation is a real conversation, so the console takes over from the
+  first-run screen the moment it lands and you watch it arrive. `DELETE
+/v1/conversations/test-message/:id` removes it — refusing any conversation not carrying
+  the flag — and the pane shows that action in a banner while a test is open. Deleting
+  returns the org to zero conversations and the first-run screen comes back, so the whole
+  loop is reversible. Both endpoints are owner/admin only, which is why
+  `ConversationsController` now includes `RoleGuard` (a no-op for its existing methods,
+  none of which declare roles).
+
+  The banner reports the delete to the page rather than acting on it. Navigating and
+  refetching from inside the banner left the queue holding a conversation the server had
+  dropped, so the pane stayed mounted and its button span forever; and the shared
+  setup-state revalidation is throttled, so a delete within a couple of seconds of
+  opening the conversation silently skipped it and the console rendered its ordinary
+  empty state instead of returning to first run. `ConversationsPage` now owns the
+  aftermath — shallow-navigate to the queue, refetch the queue, force a setup reload —
+  which is the same sequence it already uses for every other conversation-level action.
+
+  The Done section is now bounded by both count and age: everything closed inside
+  `FINISHED_WINDOW_DAYS` (7) stays, and at least `FINISHED_MIN_ITEMS` (25) stays even when
+  older, so a quiet week still shows history and a busy one does not hide it. It was
+  previously a flat 25-of-any-age, which meant a busy org silently lost recent rows while
+  a quiet one showed conversations closed a year ago. `visibleFinished` expresses the
+  union as a pure function over the already-sorted page and is unit-tested on both
+  branches, the window edge, and undated rows. The closed page now fetches 100 rather
+  than 25 so the window has room; past 100 closed inside a week the section is capped,
+  since the endpoint's cursor is still unused by this page.
+
+  One caveat: a test conversation counts in usage tiles and can pick up a topic like any
+  other, so the copy promises only that it is marked as a test and deletable — not the
+  design's "counts toward nothing".
+
+  The Overview hero greets you by name. The headline was a fixed line about waiting on
+  your word regardless of who opened the page or when; it now reads "Good morning,
+  _Kjell_." — four buckets split at five, noon and six, first name in the same cobalt
+  italic the old emphasis used, with the state left in the lede where it already lived.
+  The small hours get their own line ("Still up, _Kjell_?") rather than being folded
+  into a morning that would otherwise start at midnight. `firstName` falls back to the
+  unpersonalized headline rather than guessing: a blank name, an email in the name field
+  (BetterAuth allows it), or a first token over 24 characters all keep the old line, so
+  the hero never addresses someone by their address or overflows. The Norwegian
+  greetings are transcreated to what reads naturally there — morgen, ettermiddag, kveld,
+  and "Fortsatt oppe" for the night — rather than mapping one-to-one onto the English
+  buckets.
+
+- e6d7af6: The admin overview becomes the Oversight design's landing screen. The hero now reads "Waiting on your word." with a lede that states how many items wait on an admin, and two big count rows navigate to the console's destinations: Live now → Conversations and Learning → Learning, each with the design's dot/ring marker, serif count, and a note that flips with the count. The live-conversation cards and recent-conversations list leave the overview — conversations are handled in the review queue destination now — while the Waiting-on-you queue (with its hover actions and 560px drawers), Scheduled section, and the five-tile usage sparkline row stay.
+- 94cc025: The Oversight console shell replaces the topbar dashboard chrome. All `/dashboard/*` routes now render inside a 280px bone sidebar: a plain brand head (consumers can inject extra head content via `headSlot`) and role-gated nav groups (Admin / Workspace for now — Oversight destinations land with their own releases) with live badges fed by `/v1/inbox`. On phones the sidebar becomes a 56px header whose ☰ opens a full-screen role-gated menu sheet with a sign-out foot, per the mobile design. `DashboardShell` keeps its public props and delegates to the new `ConsoleShell`; settings routes keep their own chrome. The old `DashboardTopbar`/`SettingsTopbar` exports are removed. `nav/console-groups.ts` mirrors the settings-groups pattern (`consoleGroupsForRole`, `extendConsoleGroups`, exact-match active state for the dashboard root).
+- f781f5f: The Learning page becomes the Oversight design's proposals screen. Curation candidates render as the design's proposal cards: an accent kind line that names the revised document ("Revision — KB 07 …") or reads "New article", a serif title, a mono meta row of target space · age · a link to the conversation the candidate came from, and then the proposed article itself. A revision additionally shows its first changed passage as a before → after excerpt above the full text. Publish and Dismiss sit under the card, and the empty state is the design's bordered "Nothing proposed." panel.
+
+  Candidate text is shown in full rather than behind a "Read full" toggle. Curation candidates are agent-drafted articles a few hundred characters long, so the toggle hid roughly a paragraph behind a click and the card could not be judged without one. To make that free, `listCurationCandidates` now carries `body` and `revisesDocumentBody` on `CurationCandidateSummary`: the batched document load it already ran for revision titles now covers the candidate ids too, so the query count is unchanged and the Learning page needs no per-card detail fetch. The redundant "Proposed for <space>." snippet line goes with it — the meta row already names the space.
+
+  The card states each fact once. A candidate body written by the curation pass opens with its own `# H1` repeating the title the card already shows in serif above it, so a leading heading is dropped at render time — unconditionally, since the two often differ by a word ("Widget not loading on Safari" under a title of "Widget not loading on Safari with ITP") and an equality check would miss it. Only the leading heading goes; sections further down survive, and the stored body is untouched, so publishing still writes what the agent wrote. The "Proposed article · full" label above the text goes too — it restated the "New article" kind line and contrasted "full" against a collapsed state that no longer exists. On a revision it stays, where it genuinely separates the full document from the changed-passage excerpt above it.
+
+  The past-decisions list leaves the page along with the pending/published/dismissed counter strip, and the section header above the cards goes too now that proposals are the page's only content. Learning is now only the open proposal queue, and the `/v1/kb/curation/decisions` read it made on mount is gone. Candidate rows still refresh live off `kb.*` events through the shared inbox subscription.
+
+- daf5e55: Learning becomes its own console destination. `GET /v1/kb/curation/decisions` exposes the existing curation decision record to the dashboard, and `/dashboard/learning` renders the design's cards: pending KB candidates (revision vs article, target space, publish / review-and-edit / dismiss — reusing the inbox KB drawer for editing) followed by the decided history with published/dismissed pills and the no-refile note. KB candidates leave the admin overview's Waiting-on-you list now that Learning owns them, the overview's Learning stat row links somewhere real, and the sidebar's Learning entry (admin-only, badge = pending candidates) goes live.
+- 271cba5: The review queue becomes its own destination at `/dashboard/conversations`. Desktop is the design's two-pane layout — a sectioned list (Needs your attention / In progress / Finished, partitioned by claim ownership and attention, with client-side search) beside a full-height conversation pane; on phones the same routes become list-then-detail with a back link and stacked 44px actions. Rows carry the enriched queue DTO: channel tag, customer — subject, inbound preview, topic nudge, "No draft — you write it" / drafting badges, age, claim-holder face and note count. The pane renders the thread with interleaved amber internal notes, the agent's "why" block (audit rationale + tool-call chips off the draft metadata, hidden when absent), and a claim-gated composer with Reply / Internal note tabs: approve-or-edit the seeded draft, Reject (now stamps the audit trail via clear-draft), Restore draft, Release, Ask for a draft, and Close-no-reply. Support agents land here instead of the admin overview, and the sidebar gains the Oversight group. `errors.claim_held_by_other` and `errors.conv_draft_pending` are translated in both locales.
+- 1378212: Settings opens for support agents. The settings shell no longer bounces non-admins back to the dashboard: agents see Workspace → Account plus the "Workspace, access, and monitoring are admin-only" note, and landing on any other settings page redirects them to Account. The back link in the settings topbar is role-labelled and role-targeted — "Back to overview" → `/dashboard` for admins, "Back to conversations" → the review queue for agents — matching the console's role-based landing. `settingsGroupsForRole` joins the exported nav-data helpers so downstream shells can apply the same gating.
+- 356885c: Per-topic reply automation with promotion. `conv_topics` gains `agent_mode` and `auto_promoted_at` (migration 0085): a topic's mode, when set, overrides the per-conversation agent mode everywhere it is read — the runner's conversation detail, the queue DTO (which also carries `topicAgentMode` for the row nudge), and the dashboard. `ConvAutomationService` aggregates each topic's 30-day review record (approved-unedited / edited / rejected counts, weekly volume, auto-sent share over 7 days) and flips modes, stamping `auto_promoted_at` on promotion and emitting the new `conversation.topic_automation_changed` event. Exposed as `GET /v1/conversations/automation` + `POST /v1/conversations/topics/:topicId/agent-mode`, the MCP tools `conv_list_topic_automation` / `conv_set_topic_automation`, and the `skill://conv/promote-topic-to-auto-send` procedure. The dashboard's Automation screen shows the per-topic table with the ≥90 %-unedited readiness gate, the promote dialog with the disposition breakdown, and one-click demotion — and the queue rows now read `Topic · Auto/Review/Human`.
+- f781f5f: Review splits into Waiting / Scheduled / Decided tabs, and owns the scheduled queue
+
+  The page previously stacked three sections in one scroll: blocking decisions, knowledge
+  improvements, and the decided window. Those are two different axes — urgency of a pending
+  decision, and the past — so the lifecycle now lives in a tab bar and urgency stays as the
+  section labels inside Waiting.
+
+  Scheduled is the reason the split earns its keep. An approved-for-later outbound message or
+  CMS publish is the one thing in the system that is still cancellable, and it was only visible
+  on Overview, hidden entirely whenever the list was empty. It now sits in Review next to the
+  decision that created it, with the existing read-only pane and call-off action. Overview keeps
+  its own scheduled section for now.
+
+  Tabs are always shown, empty or not, with a count only when non-zero — a missing tab reads as
+  a missing feature, and the page already answers "nothing here" in words (`Nothing blocked.`,
+  `Nothing proposed.`, and now `Nothing scheduled.` / `Nothing decided yet.`). The whole-page
+  first-run takeover still covers a genuinely cold org, so three empty tabs never render.
+
+  Scheduled and Decided hold a single bucket each, so they carry no section label — the tab is
+  the label. Only Waiting keeps them, where Blocking and Improvements are genuinely two
+  sections. The decided window widens from 7 days to 30, and is now stated only in that tab's
+  empty state.
+
+  An empty tab used to leave the detail pane a blank slab, because the "select from the list"
+  line only rendered when the list had rows. It now carries an eyebrow / serif heading / lede
+  block borrowed from `LoadFailed`'s pane layout, top-aligned so its eyebrow lands on the same
+  line as the list column's.
+
+  Putting a second row of mono labels directly under the hero exposed a set of padding drifts
+  that were invisible while nothing sat next to them, so both console pages now hold one edge
+  per column:
+
+  - The list column headers on Review and Conversations were `px-5 md:px-6` while every section
+    label and row below them is `px-5`, leaving the hero 4px right of its own list on desktop.
+  - Every pane action row — drawer footers, the CRM/KB/outreach approve rows, the conversation
+    composer and its reply/note tab strip, the queue error banner — was `p-4 md:px-5` against
+    pane content at `px-5 md:px-7`, an 8px step at the bottom of the pane.
+  - The outreach drawer body was `px-6`, disagreeing with its own header and with the CMS drawer
+    body, so the two scheduled panes did not match each other.
+
+  The tab underline is sized by the trigger's text rather than trailing padding, matching the
+  CMS entry pane.
+
+  Deep links keep working: `/dashboard/review/<id>` derives its tab from whichever bucket owns
+  the id rather than resetting to Waiting, and the stale-route guard checks every bucket so a
+  scheduled or decided id is not bounced to the list mid-load.
+
+  Uses `Tabs`/`TabsList`/`TabsTrigger` from `@getmunin/ui` — its first consumer in the dashboard
+  — for real tab roles and roving arrow-key focus, which the bespoke `ViewTab` in the CMS pane
+  does not have.
+
+- f781f5f: Learning becomes Review, and everything waiting on an admin moves into it.
+
+  `/dashboard/learning` is now `/dashboard/review`, and the page is no longer only about
+  knowledge proposals. The four things that queue up for a human decision — CMS drafts, CRM
+  merge proposals, outreach drafts, and forwarded feedback — leave the admin overview and
+  join the KB candidates here, split into two sections that carry different urgency:
+
+  - **Blocking** — everything that stops something from shipping, sorted **oldest first** so
+    the longest wait is at the top. A blocking queue sorted by recency buries exactly the
+    item that has been ignored the longest, which is the opposite of what the section is for.
+  - **Improvements** — knowledge proposals, newest first, separated by a rule rather than a tint.
+    These have no deadline: the base is already answering customers, and a proposal only makes it
+    answer better. Keeping them in the same list as an unsent email made them look overdue, but
+    tinting or dimming the rows overcorrected — the section label carries it.
+
+  `Pill` gains a `marker` variant so the detail pane's module pill can carry the same glyph its list
+  row does — a square for CMS, a diamond for CRM, a hollow ring for KB — instead of the generic filled
+  dot every tone rendered before.
+
+  **Outreach gets a purpose-built pane** rather than the sheet drawer reused in place. It is ordered by
+  what you must not get wrong: the message as it will arrive, then why it is being sent, then when.
+
+  - The **envelope is rendered** — from, to, subject — and so is everything the send path appends,
+    as the literal text it will append rather than two booleans in a note at the bottom: the
+    campaign's CTA URL on its own line, then the fixed `---` / Unsubscribe footer, under one
+    "appended on send" marker. `ProposalCampaignSummary` gains `ctaUrl` (already selected by the
+    query, only ever used to compute `appendsCta` and then dropped), `ProposalDelivery` gains
+    `sender` / `senderName` off the channel's own addressing config (allow-listed through
+    `publicChannelConfig`, so no credential can leak into a DTO), and `ProposalContactSummary` gains
+    `companyName`, so the pane can say who it is going to.
+  - **"Why this, why now" now exists.** `evidence` was already one call away on
+    `/v1/outreach/proposals/:id` and the dashboard never fetched it. It is freeform jsonb whose shape
+    varies per drafting agent, so it is rendered by _shape_ rather than by an allow-list of keys:
+    long values and known reason keys become prose, `kb://` and `kdoc_` references become linked
+    chips, and everything else becomes a labelled chip. A parser keyed to the documented example
+    would have rendered nothing for the proposals already in the dev database, which is what the
+    tests pin.
+  - **Send timing is a control on the page**, not a dialog behind a button — the agent's proposed
+    time, send now, or a picked time. The cadence annotations the design asks for next to it need
+    campaign `cadenceRules`, which are not on the DTO yet, so they are left out rather than faked.
+  - **SMS and voice are first-class.** No subject row, no CTA or unsubscribe placeholders, a live
+    segment count as you edit, and the sender rendered as a number. A contact with no address on
+    file blocks approval outright and says why, instead of tinting a note the same weight as
+    everything else and failing at the service.
+  - `BodyDiff` gains `wrap`: these are prose bodies in a ~700px pane, where horizontal scrolling
+    through an email diff is unusable.
+
+  The reply-thread quote is deliberately _not_ carried over from the old drawer: it quoted the
+  proposal's own snippet, not the inbound message it was replying to. Showing the real thread needs
+  the conversation fetch, so the block is gone until then rather than wrong.
+
+  **CRM merges get a pane that leads with the consequence**, not a field dump. The old drawer was a
+  header and one sentence of prose while `recommendedPatch` and `evidence` — both already in the
+  browser — rendered nowhere.
+
+  - **What changes on the keeper** is the body: one row per patched field, `old → new`, tagged
+    `Differs` / `Replaced` / `Added`. `tags` and `customFields` overwrite rather than merge, so a
+    replacement names what it drops (`"newsletter" is dropped`) — the single most destructive thing
+    an apply does and previously invisible. A wholesale field the keeper doesn't have yet reads
+    `Added` with no drop note, and a patch entry that wouldn't actually change anything is not
+    rendered at all.
+  - The evidence becomes the lede sentence — matched signals plus `keeperReason` — read **by shape**,
+    like the outreach evidence, because the keys in the dev database (`sameCompanyDomain`,
+    `emailVariation`, `phoneInB`) differ from the ones `skill://crm/clean-contact-data` documents
+    (`sameEmail`, `nameMatch`, `samePhoneNormalized`). Both shapes are pinned by tests; unlabelled
+    keys are ignored rather than dumped into prose.
+  - Everything untouched collapses behind **Compare all**, a keeper-vs-archived table with identical
+    values dimmed.
+  - **And then** states what apply actually does, read off `applyMergeProposal`: history moves, the
+    duplicate is archived and set to do-not-contact, and — new — _queued outreach for the duplicate
+    is cancelled_, naming the campaign. A reviewer could previously destroy a scheduled email
+    without being told.
+
+  That needed `MergeProposalContactSummary` widened from 6 of ~24 contact columns to the patchable,
+  displayable set (both read paths already fetched the whole row), plus `companyName` and a
+  `MergeImpact` block — pending outreach on the duplicate and the count of other pending proposals
+  the apply supersedes — computed in two batched queries. `impact` is nullable rather than zeroed, so
+  the apply/dismiss responses say "not computed" instead of claiming nothing is at stake.
+
+  Selecting a blocking item renders the existing per-module drawer in the split's right pane
+  rather than a sheet, so the CMS field editor, outreach scheduling, and the merge preview all
+  work unchanged and are now deep-linkable at `/dashboard/review/:id`. `DrawerHeader`'s close
+  button became optional for that: in a persistent pane it pointed nowhere, because the list
+  immediately re-selects the first row.
+
+  The overview drops the queue concept entirely — no "Waiting on you" list, no count in the
+  hero, no stat row. The sidebar badge on Review is the single signal that work is pending,
+  and it now counts all five kinds instead of only KB candidates.
+
+- f781f5f: Topics carry a description — what belongs in them, in the operator's words
+
+  Picking a topic is an automation decision, not just filing: a topic can force `draft_only` or `off` on every conversation tagged with it. Until now the classifier made that decision from a name and its kebab-case slug — the same word twice. Nothing told it where an org draws the line between Support, Technical and Security, what its own vocabulary means, or that an existing topic already covers the case it was about to create a near-duplicate for.
+
+  `conv_topics` gains a nullable `description`. It is returned by `conv_list_topics` and `conv_list_topic_automation`, settable on `conv_create_topic`, and editable through the new `conv_update_topic` tool or the topic editor on the automation page. The slug stays fixed at creation — it is how exports and imports address a topic.
+
+  `skill://conv/set-topic-and-title` now reads descriptions ahead of names, treats a description that rules a case out as decisive, and writes one for every topic it creates. It deliberately does not edit descriptions on topics it did not create: one conversation is not enough evidence to redraw a boundary an operator drew.
+
+- f781f5f: Per-topic promote threshold, and a customer message on an always-human topic now asks for a human
+
+  The automation page hardcoded a 90% unedited bar for every topic, and the only way to
+  express a topic's policy was the Promote / Back-to-manual buttons. Topics now carry
+  `promote_threshold_pct` (default 90, so existing topics keep the current bar) and the page
+  gets an explicit mode selector — inherit, always human, drafts only, auto-send — plus a
+  threshold picker for the topics where the bar still applies. `conv_set_topic_automation`
+  and `POST /v1/conversations/topics/:id/agent-mode` accept `promoteThresholdPct`; omitting
+  it leaves the stored value alone, so changing mode never silently resets the bar.
+
+  Auto-send is a standing rule, not a one-time promotion. It is selectable at any time, and
+  the gate is evaluated at reply time on every reply: above it the agent sends unread, below
+  it the agent drafts and waits. A topic whose unedited share falls back under its gate
+  returns to drafting on its own, with no human action and no notification needed — which is
+  what the dialog copy ("below it, Munin drafts and waits for you instead") always promised.
+  `effectiveAgentModeSql` in `topic-auto-gate.ts` is the single definition, used by both the
+  conversation-detail read the runner decides from and the queue-list read the dashboard
+  labels from, so the row label and the actual behaviour cannot disagree.
+
+  That fold changes what reads mean, and the read-model tests are split to say so. A read now
+  reports two different things: `agentMode` is the gated, effective mode a caller should act
+  on, while `topicAgentMode` stays the mode an operator configured — the automation page shows
+  the second, the inbox row shows the first, and collapsing them back into one column would
+  break one of the two surfaces silently. The old single test asserted an `auto` topic reads
+  back as `auto` everywhere, which was the pre-gate contract and only passed because nothing
+  evaluated the threshold yet. It is now two: the override rule is tested with `off`, the one
+  class of mode the gate can never veto, and a second case pins the fold itself — an `auto`
+  topic with no review history reads `draft_only` while still naming `auto` as the topic mode.
+
+  Separately, a conversation on a topic whose effective agent mode is `off` could go silent
+  with nobody watching. `needs_human_attention` was only ever raised by the agent calling
+  `conv_request_human`, and on an `off` topic the agent never runs — so once a teammate had
+  replied (which clears the flag), a follow-up from the customer left the conversation
+  unflagged, unclaimed, and filed under "In progress", where it reads as though the agent
+  owns it. Inbound end-user messages now raise the flag when nothing else can answer.
+
+  The check runs on every inbound text path — widget, email, and the generic webhook channel
+  ingest — because those write `conv_messages` directly rather than going through
+  `sendMessage`. Voice is deliberately untouched: the vendor's assistant owns that response
+  loop. An already-flagged conversation keeps its original `needs_human_attention_at`, so the
+  "stopped 2h ago" age doesn't reset on every new message.
+
+  The automation console is rebuilt to the Munin Oversight design: a topic row now reads
+  topic / volume / approved-unedited / policy, with one Edit button opening a policy dialog
+  instead of inline selects and duplicated hold labels. The dialog offers four policies as
+  described radio rows — channel default, always human, drafts only, auto-send — plus an
+  ≥85/90/95/98 gate that only appears for auto-send, and tells you whether that gate is
+  sending right now or still holding.
+
+  That table stops being a table on a phone. Four columns inside a 760px minimum meant the
+  page scrolled sideways at every phone width, so the policy — the one thing you came to
+  change — sat off-screen. Under `md` each topic stacks instead: name and description, then
+  the approved-unedited percentage with a label where the column header used to be, then the
+  policy and its Edit button on one line. The weekly-volume column and the percentage's
+  progress bar are dropped there rather than shrunk; volume is context for a decision, not
+  the decision, and a bar that restates the number beside it earns none of the width it costs.
+  Both are unchanged from `md` up, where the grid still holds.
+
+  New topics default to `draft_only` rather than inheriting the channel default: a topic
+  nobody has judged yet should draft, not auto-send. Inheriting stays available as a
+  deliberate fourth policy ("channel default"), so existing topics with no override keep
+  their meaning — nothing is backfilled.
+
+  A conversation you hold the claim on now stays in "Needs your attention" for as long as you
+  hold it. Previously it dropped to "In progress" the moment you replied, because the section
+  was gated on `endUserSpokeLast` — so the conversations you had personally picked up
+  scattered between two sections depending on who happened to have spoken last, and the ones
+  where you were waiting on a customer looked like the agent's work. A claim is a statement
+  that you own the outcome, not just the next message. A flagged conversation someone else
+  holds still sits in "In progress": it is theirs to finish.
+
+  `draft_only` now means what it says on a conversation a human has claimed: the agent drafts
+  on every new customer message, claim or not. Previously the claim check ran ahead of the
+  mode and skipped the agent entirely, so a topic set to drafts-only produced nothing the
+  moment someone took the conversation over — exactly when a suggestion is most useful — and
+  the only way to get one was the explicit "ask for a draft" button.
+
+  Auto-send is unchanged: the agent still refuses to _send_ on a claimed conversation. The
+  claim gate now applies to delivery, not to thinking, so `delivery === 'send'` is what it
+  tests.
+
+  That change alone would have destroyed work. The composer seeded itself from an arriving
+  draft with `setReply(draft.body)` and no guard, so a draft landing while you were mid-reply
+  replaced your text silently. A draft now only fills an empty composer; anything you have
+  typed wins. The explicit ask-for-a-draft path still streams over the box, because there you
+  asked for it.
+
+  The console now shows when the agent is working on a conversation you didn't ask it to
+  draft. `ConversationQueueItem` gains `agentWorking`, read straight off the runner lease
+  (`runner_holder` plus an unexpired `runner_lease_expires_at`) that `tryAcquireConversation`
+  already writes — so it is the actual state of the runner, not a guess, and needed no new
+  event. Rows and the pane reuse the existing "the agent is drafting…" badge, and the queue
+  takes one extra poll 1.5s after an inbound message because the runner claims the
+  conversation just after the message event lands.
+
+  Only a draft you asked for locks the composer. Autonomous drafting shows the badge but
+  leaves the keyboard alone: taking the textarea read-only for the few seconds the model runs
+  would interrupt someone mid-sentence, which is the same reason a landing draft no longer
+  overwrites typed text.
+
+  The audit pass that runs after each agent turn now sees the conversation, not just the last
+  message. It previously received only the newest customer message plus the reply, and decides
+  from that whether to close the conversation, snooze it, mark it spam, or request a handover
+  — judgements that are close to unmakeable without context. A customer answering "Kult!!!!"
+  to a substantive answer read as a goodbye and the thread was closed under a reply that had
+  just asked "anything else?"; the same conversation had earlier been marked spam, because one
+  short line in isolation is indistinguishable from junk. The last 10 public messages now go in
+  as `[Conversation so far]`, fenced with `fenceUntrusted` since they are third-party text, and
+  the auditor is told to read a short reaction mid-thread as continuation rather than a
+  sign-off.
+
+### Patch Changes
+
+- f781f5f: Align the console and settings shells: drawer, mobile bar, and sidebar width.
+
+  The two shells had drifted into three visible differences on the same account.
+
+  The mobile drawer opened as a full-width sheet on `bg-paper` in the console and a
+  320px panel on `bg-bone` in settings, and each rendered its navigation differently —
+  the console had a `mobile` variant of `NavList` with borderless 52px rows, settings
+  reused its desktop tree. The console drawer now takes the settings panel: same width,
+  same surface, same nav treatment, which removes the `mobile` variant entirely so both
+  shells render one list in both places. The console keeps its logo, brand and user
+  footer, since those are its identity and its only route to sign out.
+
+  The mobile top bar was bone in the console and white in settings. Neither header
+  declared a background: `DashboardShell` roots at `bg-bone`, and the settings branch
+  wraps children in `bg-paper`, so each header simply inherited whatever its ancestor
+  happened to be. Both now set the bone surface explicitly rather than depending on
+  that.
+
+  The desktop sidebar was a 280px grid column in the console and `w-72` — 288px — in
+  settings. Settings now matches at 280px.
+
+  One deliberate loss: the console drawer's explicit close button is gone, because the
+  settings drawer it now matches has never had one and `SheetContent` ships no built-in
+  close — both dismiss by backdrop or Escape. Adding a close affordance to both shells
+  would be the better end state and is not done here.
+
+  `nav.closeMenu` is now unused in this repo but kept, since `dashboard-pages` is shared
+  with the cloud web app.
+
+- f781f5f: Reviewing a CMS draft now leads with the page itself. The drawer fetches the preview link as soon as the draft opens and embeds it in a sandboxed frame behind a Preview/Fields tab pair, with a direct "open on the site" link alongside. A frame that never paints — the site refuses to be embedded, or does not answer inside fifteen seconds — falls back to the field view with a marked tab, an explanation, and a retry, rather than leaving a blank rectangle. The old approach opened a blank tab first and navigated it after the link resolved, which browsers increasingly treat as a popup and which gave no signal when the preview failed.
+
+  Every review pane's footer now fits one line on a phone. The primary action stretches to fill the row and the rest collapse into a bottom sheet behind a single "more actions" button, replacing footers that stacked three or four full-width buttons and pushed the content out of view. On mobile the panes also drop their own headers and eyebrows, since the surrounding shell already names the item. CMS drawers gain the same load-failed and loading states the other panes have, and their padding matches the rest of the console.
+
+  Two visual corrections: the confidence, channel and kind badges in the review panes are `Pill`s rather than hand-rolled spans — which is what the new `fill="solid"` variant is for — and avatar chips use ink instead of cobalt, so cobalt stays the accent it is everywhere else.
+
+- f781f5f: Split the oversight composer's action row by the object each action acts on.
+
+  The row had grown to five controls (six with "ask for a draft") that answered three
+  different questions: verdicts on the conversation (send, close without reply),
+  operations on the draft (reject, restore, ask for a draft), and operations on the
+  claim (release). Restoring the agent draft is not even a conversation action — it is a
+  client-side undo of the reviewer's own edits, with no request behind it.
+
+  Release and restore now sit in the composer's status strip, each attached to the fact
+  it undoes: `yours · release` and `edited by you · restore draft`. Both were already
+  conditional on exactly the state that renders their label, so nothing new is gated.
+  The bottom row keeps only what ends the review — send, reject, close without reply —
+  which caps it at three controls. Closing without a reply used to be a smaller mono link
+  pushed to the far right; it is now a ghost button sitting with the other two, since it
+  is a verdict on the conversation like they are, and its weight rather than its size is
+  what marks it as the rarest of the three.
+
+  The strip states only what nothing else on screen already says. "Agent draft" and "no
+  draft" are gone: a pre-filled box under an "approve & send" button is a louder statement
+  that a draft arrived than a 9px label is, and an empty box with no approve button says
+  the opposite just as well. What is left is the transient run ("thinking", "writing") and
+  "edited by you", which is the one draft fact no button implies — and the fact that
+  "restore draft" undoes. Ownership states for conversations that are not yours are
+  unchanged. The queue row keeps its own no-draft badge, where triage does need it.
+
+  The hairline actions are desktop-only. On a phone the expanded composer puts release and
+  restore behind the ⋯ menu in its dialog header, next to close, leaving the strip as a
+  pure status line. Underlined 9px mono is a pointer idiom — it wants hover and precision,
+  and as a touch target it is far under the minimum — so the overflow that was wrong for
+  desktop, where there was room to show both actions outright, is right here. Nothing
+  becomes unreachable on mobile, which hiding them outright would have done: release now
+  lives only in that strip.
+
+  The whole strip is muted. Cobalt is left to the transient run only, where the pulsing
+  dot already earns it; a tinted "edited by you" sat directly above a cobalt focus ring
+  and a cobalt send button, and three blues stacked vertically read as three competing
+  claims on the eye rather than one hierarchy. The two hairline actions carry an underline
+  and hover to ink rather than cobalt, matching the state-label-plus-dismiss pair in
+  `inbox-conv-drawers.tsx` — in mono micro-text this dashboard uses cobalt for live state,
+  never for affordance.
+
+  "Edited by you" and its restore action are hidden together on the internal-note tab —
+  one condition drives both, so the label can never appear without the action it anchors.
+  There, the visible field is the note, so the label would have described something off
+  screen and restore would have silently rewritten it. The states that outlive the tab
+  switch — thinking, writing, unclaimed, owned by someone else, closed — still show.
+
+  "Reject" is now "Reject draft" — bare "Reject" did not say what it acted on, and it
+  sits next to "Send reply", which does.
+
+- f781f5f: Give the composer's action-failure banner an error tone instead of the accent one.
+
+  It rendered in cobalt with a pulsing dot, which said the wrong thing twice. Cobalt is
+  this dashboard's accent and, in the console, its live-state colour — so a failure was
+  drawn in the same hue as the send button directly beneath it, and "take-over failed" read
+  as something to act on rather than something that went wrong. The pulse claimed the
+  opposite of the truth: an action that already failed is settled, not in flight.
+
+  Now `text-destructive` with a static dot, matching `StatusLine`'s `tone: 'error'` in
+  `card-kit.tsx`, which is the dashboard's canonical dot-plus-label pattern and already
+  pairs the destructive colour with an unanimated dot. The dot stays `bg-current` so it
+  tracks the text, and `role="alert"` no longer ships an animation with it.
+
+  The load-failure hero loses its pulse for the same reason. Its colour was already right —
+  it uses the `alert-bad-*` token family meant for page-level alert surfaces — but a failed
+  load is just as settled as a failed action.
+
+- 980dfac: Rebuild the dashboard home as two sections that link out, and retire the drawers.
+
+  "Overview" is now "Dashboard" — the route has always been `/dashboard`, only the
+  sidebar label lied — and the page is two symmetric blocks mirroring the Oversight
+  nav: Conversations and Review. Each is a count, up to five rows and a way in, with
+  the usage strip below them as a footer.
+
+  The page had been four blocks at three altitudes: a one-row live stat, a scheduled
+  list borrowed from Review that rendered with its own bespoke row and cancel dialog,
+  the usage KPIs, and three off-screen Sheets. The scheduled list is now a single
+  countdown line, and it links to the scheduled item rather than to `/dashboard/review`
+  — a bare link lands on the Waiting tab, because the Review page resolves its tab from
+  the selected id. Decided is gone from the dashboard: it is an audit trail you go
+  looking for, never a glanceable number.
+
+  Rows navigate to `/dashboard/conversations/<id>` and `/dashboard/review/<id>` instead
+  of opening a drawer, so the page that owns each pane owns it everywhere. That deletes
+  a duplicate as well: `useInboxData` carried its own `send` / `takeOver` / `release` /
+  `closeConv`, reply state, a per-conversation detail cache and its error maps, all of
+  it feeding the conversation drawer alone, while `useConversationQueue` has implemented
+  the same actions for the Conversations page throughout. The KB body fetch goes with
+  them — `ReviewKbPane` reads `item.raw.body` off `/v1/inbox` and never used it.
+
+  The Conversations count and its rows come from two sources on purpose. `/v1/inbox`
+  answers "needs a human" and returns `LiveSummary`; the rows want `QueueItemDto`, so
+  they are a separate one-shot `/v1/conversations/queue` read. `status=open` there is
+  load-bearing — omitting it applies no status filter at all, which would pull closed
+  and spam conversations into "recent".
+
+  Second commit is a pure rename with no logic hunks. `queue-drawers/` had not been
+  drawers since Review became a split view: `QueueDrawer` and `ScheduledDrawer` are the
+  right-hand pane, wrapped by `ReviewBlockingPane` and `ReviewScheduledPane`. The
+  directory is now `queue-panes/`, the components `QueueItemPane` / `ScheduledItemPane`
+  / `*QueuePane`, and `shared.tsx`'s `Drawer*` helpers `Pane*`. The controller's
+  `queueDrawer` / `scheduledDrawer` become `activeQueueItem` / `activeScheduledItem`,
+  which is what they are — they render nothing, and only trigger the lazy fetches for
+  the CMS body, the CMS preview link, the outreach evidence and the `viewed` POST.
+
+  Deliberately left for later: `queue-panes/kb.tsx` and `crm.tsx` are unreachable
+  (`partitionReviewQueue` sends every KB item to `ReviewKbPane`, and `ReviewBlockingPane`
+  short-circuits CRM to `ReviewCrmPane`), but deleting them means narrowing
+  `QueueItemPane`'s `item` prop so the switch stays exhaustive — a refactor, not a
+  deletion. `InboxController.connectionStatus` has no consumers. And the
+  `dashboard.overview.drawer.*` message group is now read only by the queue panes and
+  the Review split view, so it belongs under `dashboard.console.review.pane.*` — about
+  100 keys across two locales, large enough that it would bury the diff here.
+
+- 602b390: Align the dashboard's two list sections with each other, and the relay forwarding address with the form it sits in.
+
+  - **Waiting rows now match conversation rows.** `ReviewRow` had drifted from `ConversationRow`: a flex row instead of the `[52px_minmax(0,1fr)_auto]` grid (so titles started at a different x), a 15px title against 14px, a `text-ink-mute` second line against `text-ink-soft`, and an `uppercase` age that rendered `6D` next to the conversations' `3h`. Stacked on the overview page the two sections read as two different components; they are now one row shape with one type scale. `ReviewRow` also backs the Review page's waiting tab, so that list picks up the same shape.
+  - **Dropped the "Munin will generate an address under … when you save" line.** It only ever appeared in the create dialog, promising a value the form was about to produce anyway; the address then shows up as a real field on the channel afterwards.
+  - **The forwarding address reads as a form field.** `CopyField` gains a `field` variant — form-input chrome (`rounded-input`, `border-rule-soft`, `bg-paper`, matching height and padding) instead of the heavy ink-bordered plate — and `CopyableSecret` passes the hint through `dialogHintClass` in that variant. The plate stays the default: in the one-time reveal dialogs (tracker keys, widget keys, invite links) the emphasis is the point. Only the inline relay field opts in.
+
+- f781f5f: Rebuild the Learning page as a persistent split, and show recent decisions under the queue.
+
+  The page was a single scrolling column of cards, each carrying a proposal's full body
+  and its own publish/dismiss pair. Reviewing the fourth proposal meant scrolling past
+  three complete articles, and there was no way to hold one open while looking at the
+  list. It now uses the same index-and-reading-pane split the conversation queue already
+  established: proposals on the left as compact rows (kind, title, target space, age), the
+  selected one on the right as the working surface, with the action bar pinned to the
+  bottom of the pane rather than trailing the body.
+
+  Selection lives in the URL — `/dashboard/learning/:id` — pushed shallowly the way the
+  conversation queue does it, so a proposal can be linked to and the back button walks the
+  review. On desktop the first row is selected automatically on arrival, via
+  `replaceState` so that auto-selection does not become a history entry the back button
+  has to climb over. On a phone the list and the pane are mutually exclusive, and arrival
+  still lands on the list: jumping straight into a full-screen proposal would skip the
+  browse step that makes the queue legible. A routed id that is no longer listed falls
+  back to the list instead of rendering an empty pane, which also means publishing or
+  dismissing moves you to the next proposal rather than leaving you on a dead one.
+
+  The page also only ever showed what was waiting. Everything already ruled on vanished,
+  which made "every edit teaches" hard to believe, since the record of what was taught was
+  the one thing not on screen. Decisions from the last seven days now sit in a second
+  section of the same list, below the open proposals, over the existing
+  `GET /v1/kb/curation/decisions`. One list rather than tabs, because the two are read
+  together — what is waiting, and what just happened to the neighbouring articles — and a
+  tab would have hidden the half that gives the other its context. The window keeps that
+  section from growing into an archive the queue has to scroll past; older decisions are
+  still available through the API and the MCP tool.
+
+  Decided rows are attributed: `CurationDecisionDto` gains `decidedByName`, resolved by
+  left-joining `users` on `decidedByActorId` when the decider was a person, the way
+  conversation claims already resolve `holderName`. Agent decisions carry a null name and
+  render as "Agent" — the actor type drives that label, not the absence of a name, so a
+  person whose record no longer resolves reads as "Unknown" rather than being misattributed
+  to the agent. Decided rows also carry the queue's scroll-linked fade, so the section
+  reads as settled history until you scroll to it.
+
+  The decided pane shows what was actually decided, not just that something was. A
+  published decision loads the article it produced — `kb_curation_decisions` keeps
+  `published_document_id`, and a new `GET /v1/kb/documents/:id` fetches it on selection —
+  and renders the body in the same reading treatment as a proposal. Without it the pane
+  was four lines of metadata under a headline, which is a poor argument that every edit
+  teaches: the one thing missing was what got taught. The body is rendered verbatim rather
+  than through the proposal pane's `stripLeadingHeading`, which exists because candidates
+  tend to repeat their title as an H1; a published article has no such guarantee, and
+  stripping would silently eat a real opening section heading.
+
+  Dismissed decisions say plainly that the text is gone rather than showing an empty
+  panel. Dismissing hard-deletes the candidate and its versions cascade with it, so the
+  decision row's `title` and `reason` are all that survive — an asymmetry worth stating in
+  the UI instead of leaving the reader to wonder what is missing.
+
+  Corrections, the third section in the original design, is deliberately absent. Its rows
+  mixed direct edits to published documents with rejections of proposals, and the latter is
+  what the decided section already covers; the two would have double-counted. A feed of
+  direct KB edits is a separate surface over `kb_document_versions`, not a variant of this
+  one.
+
+  Publish and dismiss are unchanged in behavior but now match the conversation composer's
+  button sizing, including the 44px touch target on mobile. Both panes take that pane's
+  horizontal padding too, and the source-conversation link drops cobalt for the muted
+  hairline treatment the composer's status actions use — in this dashboard's mono
+  micro-text, cobalt marks live state, not every link.
+
+  The section label both list columns use is now one `ConsoleSectionLabel` rather than a
+  copy in each page — the copy is what let them drift in the first place. It gains a rule
+  below it, and its padding is even top and bottom: the original `pt-4 pb-2` leaned the
+  label toward the rows beneath it, which reads as grouping while the label floats, but as
+  a misaligned box once it has a border. The conversation queue picks up both changes.
+
+- e464792: Deny the control plane to `member` sessions by default, and open the inbox back up explicitly.
+
+  The console has presented `member` as an inbox-only role since the oversight rebuild —
+  `OSS_CONSOLE_GROUPS` marks Overview, Automation, Review and Settings `adminOnly`,
+  `/dashboard` redirects members to `/dashboard/conversations`, and `SettingsShell`
+  bounces any non-admin. The backend never agreed. `RoleGuard` refuses `'member'` as a
+  gate on purpose ("all org members pass"), so the only closed routes were the ~20
+  carrying `@RequireRole('owner', 'admin')`. Everything else was open to a member with a
+  session cookie: `GET /v1/crm/export`, `/v1/kb/export`, `/v1/conv/export` (every message
+  body in the org), `/v1/cms/transfer/export`, `/v1/analytics/export/events`, their `POST
+…/import` counterparts, the whole Review feed _including_ its writes —
+  `kb/curation/candidates/{id}/publish`, `crm/merge-proposals/{id}/apply`,
+  `cms/drafts/{id}/approve` and `outreach/proposals/{id}/approve`, which is the human gate
+  that actually sends mail in the org's name — plus `/v1/curator/jobs` and its
+  claim/fail/progress endpoints, `/v1/inbox`, `/v1/overview/*`, `/v1/activity`,
+  `/v1/orgs/me`, `/v1/orgs/me/roster` and `/v1/skills`. UI-level hiding, no authorization.
+
+  Enumerating the closed set was the wrong shape: it is ~60 routes, it grows with every
+  new controller, and a controller added tomorrow joins the open side silently — which is
+  how this drifted in the first place. So the default is inverted instead.
+  `ControlPlaneGuard` — already on all 37 control-plane controllers, unlike `RoleGuard`,
+  which 21 of them never applied — now admits a user actor only when their role in the
+  active org is `owner` or `admin`, or when the route opts in with `@AllowMember()`. An
+  unrecognized future role starts closed rather than open. Refusals carry
+  `code: 'member_forbidden'` with an `errors.member_forbidden` entry in both locales,
+  since a member who types an admin URL will see it.
+
+  The member surface is now eleven routes, pinned by `member-surface.test.ts` so widening
+  it has to be a deliberate diff: the eight inbox routes the conversation pane actually
+  calls (`queue`, `{id}`, `messages`, `status`, `take-over`, `release`, `request-draft`,
+  `clear-draft`), `/v1/me/memberships` for role and org resolution, `/v1/overview/setup`
+  for the first-run copy, and `/v1/oauth/pending-org` so a member can still authorize a
+  connector — `gateOauthGrantsByRole` already assumed members complete that flow and just
+  lose `mcp:admin`.
+
+  Session credentials now carry the resolved membership role on `ActorIdentity.orgRole`,
+  so the common path costs no extra query. The guard falls back to reading `org_members`
+  when a credential arrives without one, which is what keeps a host that builds its own
+  session credentials — cloud — protected rather than locked out.
+
+  Two consequences worth naming. The console's queue badge came from `/v1/inbox`, which
+  mixes live conversations with the review feed and is now admin-only, so the shell reads
+  `/v1/conversations/queue` for non-admins instead and shows no review count; the badge
+  keeps working for members rather than silently sitting at zero. And the realtime
+  gateway is untouched: it authenticates its own WebSocket upgrade outside Nest guards, so
+  a member's socket still receives `kb.*` and `crm.merge_proposal.*` event notifications on
+  the org channel. Those carry ids and types rather than record bodies, and closing that
+  seam is follow-up work.
+
+- f781f5f: On a phone you can no longer send a draft you were never shown
+
+  The mobile review pane offered Approve & send as its primary action the moment a draft
+  existed, but the draft itself appeared nowhere on that screen: it lives in the composer
+  textarea, and on mobile the composer is collapsed to a bar. The thread doesn't render it
+  either — pending drafts are filtered out of the message list. So the one-tap path sent an
+  agent-written reply to a customer sight unseen, and the only way to read it first was to
+  notice that the secondary "Edit draft" button happened to open the full-screen editor.
+
+  The collapsed bar now carries a single full-width Review draft button. Approve & send and
+  Reject draft both live in the editor it opens, where the text is on screen — a verdict on
+  a draft is only reachable from a screen showing the draft. Rejecting blind was the quieter
+  half of the same problem: a reject counts against the topic's approved-unedited share, so
+  it moves the auto-send gate on evidence nobody read.
+
+  The no-draft state gets a matching button, in place of the bar styled as a text input. It
+  read as somewhere to type, which on a phone it never was — tapping it opened the editor. It
+  now says what it does and carries the same arrow: Write reply, or Continue reply when one
+  is already in progress, so half-written text stops being invisible behind a placeholder.
+  Ask for a draft sits beside it unchanged, and while the agent works the button carries the
+  Thinking / Writing state instead.
+
+  The editor's own gutters line up while we're here. Its header sat at 16px and the
+  reply/note tab row under it at 20px, a step visible against the textarea below (16px) — the
+  tab row and the action-failure banner were the only two strips in the footer that hadn't
+  been given a mobile value, so they kept the desktop one at both sizes. Both are 16px on
+  phones and 20px from `md` up now, and the overflow-menu trigger is pulled out by its icon
+  button's own inset so its glyph aligns with the close control above it.
+
+  Opening the editor onto an unedited draft no longer focuses the textarea. Focus raises the
+  keyboard, which covers most of the text you opened the screen to read; you get the keyboard
+  by tapping into the draft, which is also the moment you meant to edit it. Every other way
+  in — the note tab, an empty composer, a draft you have already touched — focuses as before.
+
+- f781f5f: Settings is admin-only, the console sidebar grows a user menu, and mobile stops hiding its own controls.
+
+  A support agent used to keep Workspace → Account in the settings nav, whose only content is the organization name — an admin-only field. `PATCH /v1/orgs/me` already carried `@RequireRole('owner','admin')`, so the form was never a hole; it was a dead end that always ended in a 403. Settings now filters out for non-admins in both the console nav and the settings shell, `/dashboard/settings/*` bounces a member to conversations, and the system-alert banner drops its call to action for members since every target is a settings page they can no longer reach.
+
+  Signing out no longer lives at the foot of the settings nav, since a member can no longer reach it. Both the desktop sidebar and the mobile menu sheet now end with the signed-in user — avatar, name, and an overflow menu holding Sign out — sharing one footer component instead of the sheet-only variant that existed before.
+
+  The membership cache is keyed to the session user, so signing out as an owner and back in as a member reflects the new role without a hard refresh; previously the module-level cache survived the client-side navigation through `/login` and kept serving the first user's role.
+
+  A draft is only produced when the customer wrote the last public message. Asking otherwise gives the agent nothing to answer, and the draft comes back greeting whoever spoke last — a teammate, by name, as though they were the customer. The runtime labels operator turns correctly as `[Human teammate]`, so this was an ill-posed request rather than a misread transcript. The runtime now enforces that in every mode and the dashboard hides "Ask for a draft" on the same condition, so the button never offers a request the runner will drop. Internal notes never count as the last word.
+
+  Three paths previously disagreed. The on-demand path was exempt from the check entirely, which is how a draft could be requested with nothing to answer. The automatic path treated an operator's own message as something to reply to, reachable once a claim expired. And a draft request after the agent had already replied was allowed as a deliberate "follow-up proposal" — a feature dropped here in favour of one rule that holds everywhere, since a button offering a follow-up is indistinguishable from one offering a reply.
+
+  "Ask for a draft" is gated on holding the claim rather than merely on the conversation being open, so it no longer sits beside "Claim to reply" offering an action that lands in someone else's lane. That leaves the unclaimed footer with just the claim button, and the one remaining call in that branch was dead code once the condition tightened.
+
+  The unclaimed conversation's caption is gone — the "Claim to reply" button beside it already said the same thing, so the sentence explaining that claiming is needed to reply was restating its own call to action. The caption naming a teammate who already holds the claim stays, since that one carries information the button does not.
+
+  A claimed conversation whose last public message is from the customer now sorts under "Needs your attention" rather than "In progress". The section was driven entirely by the persisted `needsHumanAttention` flag, which nothing sets when a customer simply answers a thread you already hold, and the queue payload carried no notion of who spoke last — so the read model gains a derived `endUserSpokeLast` rather than widening what that flag means. It stays scoped to conversations you hold; extending it to unclaimed rows would sweep in every unanswered auto-mode thread.
+
+  The queue's tally strip above the list is gone, along with its three strings in both locales. Each section already states its own count in its heading, so the strip restated them a second time before the list had even started.
+
+  An empty "Needs your attention" drops its heading rather than announcing that nothing needs you; the queue reads as a list of work, and a section that is always present but usually empty is noise. Its message is deleted from both locales.
+
+  A closed conversation offers a Reopen button instead of only stating that it is read-only, which left the dashboard with no way back from a close — the status endpoint already accepted `open`, nothing surfaced it. Both the mobile and desktop composers share one footer for that state.
+
+  Returning to the queue works after reloading a conversation directly. The detail route passes its id as a prop, and the pathname match fell back to that prop the moment the URL became the queue's — so the back control rewrote the URL while the pane stayed put. The queue's own path is now authoritative over the prop, which only ever mattered on a reload since a client-side visit renders the queue route with no prop at all.
+
+  The full-screen mobile composer no longer hides its own send button behind the keyboard. It was `fixed inset-0`, which measures the layout viewport — but an on-screen keyboard shrinks only the _visual_ viewport, so the actions sat underneath it and had to be scrolled to. The overlay now covers the whole layout viewport so nothing shows through beneath it, while an inner wrapper tracks `visualViewport` height and offset through CSS variables — collapsing to `display: contents` above the mobile breakpoint so the desktop composer keeps its original layout. The composer's header carries the conversation's subject and topic instead of just the customer's name.
+
+  On mobile the conversation's own header is gone, and its title and topic move into the app bar beside the back arrow, which is the only chrome a phone has room for. The bar takes them through the same context the back action already travels on. Its detail line and identifier stay desktop-only.
+
+  On mobile the shell was measured with `h-screen`, whose `100vh` ignores the browser's own chrome on iOS, so the conversation footer — "Claim to reply" — sat underneath Safari's toolbar and could not be tapped. The shell and the document body now measure in `dvh`. The conversation pane's back link also moves out of the column header into the app header, where it replaces the hamburger for the duration of the detail view, via a small context any page can use to publish a mobile back action.
+
+- 1378212: Oversight console polish round two. Handover reasons are now recorded as internal agent notes instead of system divider messages (`requestHandover` accepts `postSystemNote: false`, and migration 0086 deletes old draft-park dividers and converts reasoned ones to the note shape). The runner's draft-request mode survives transcripts that end with a staff turn, withholds `conv_request_human`, and reports failures as internal notes. The console gets the review-driven UI batch: two-phase Thinking/Writing composer states with a locked input, per-action button spinners, auto-growing textareas, a compact mobile composer that expands to a full-screen editor, shallow conversation selection (no list remount flash), subject-first pane header, sticky settings rail, and the on-duty roster card removed.
+- f781f5f: Follow-ups from the oversight code review. The conversation list pager's cursor now carries the needs-attention flag so resuming across the attention boundary drops no rows, and the list tiebreaker matches the cursor (id, not createdAt); the list and queue endpoints share one query parser and the invalid-status error carries the `conv_invalid:` prefix. The review pane surfaces a detail-load failure with a retry instead of spinning forever, the mobile full-screen editor gains dialog semantics (role, Escape to close, focus on open), and the queue's scroll fade is driven by a CSS variable so scrolling no longer re-renders every row. The learning page reports when past decisions fail to load and labels its published/dismissed counts as recent. `SetDraftReplyOpts` is exported from the runtime and reused by the in-process client, the nav-group extension helpers share one generic implementation, agent settings gating keys off `ACCOUNT_SETTINGS_HREF` instead of a URL suffix, and the live-now dot's halo derives from the accent token in both themes.
+- f781f5f: Give the conversation pane the shared load-failure state instead of a bespoke one.
+
+  When a conversation's detail fetch failed, the pane rendered its own small block: a mono
+  eyebrow, the translated message, and an outline retry button. The eyebrow used
+  `text-ink-mute` — byte-identical to the "select a conversation" empty state a few lines
+  above it — so a failure looked like an empty pane rather than something that went wrong.
+  It also dropped the diagnostics: `detailErrors` stored `translateErr(err)`, a string, so
+  the `ApiError` and with it the request id were discarded at the point of capture. A page
+  level failure hands the user a request id to quote; this one left them with nothing.
+
+  `LoadFailed` gains a third size, `pane`, beside `inbox` and `settings`. It keeps the
+  alert eyebrow with its dot and the `request_id` / `endpoint` / `status` table, and drops
+  the display type to `text-2xl` so it fits beside a working list — the `inbox` size is a
+  56px headline, which inside a split pane would claim the whole app is unreachable when
+  one fetch is. At `pane` size the heading renders as `h2`, since the list column beside it
+  already owns the page's `h1`. No auto-retry hint: unlike the queue load, a failed detail
+  fetch has no interval behind it, and the page-level copy would have promised one.
+
+  `detailErrors` on the conversation queue controller now holds the `ApiError` itself, and
+  `usePaneLoadFailedProps` translates it for the lede at render time — same message as
+  before, with the diagnostics still attached. The overview drawer's own `detailErrors` in
+  `inbox-data.ts` is a separate controller and keeps its string shape; it is a different
+  surface and is not converted here.
+
+- f781f5f: Report publish and dismiss failures inline instead of as a toast.
+
+  `inbox-data.ts` carried two conventions for the same kind of event: conversation actions
+  (`takeOver`, `release`, `closeConv`, `send`) recorded an `actionError` the pane renders as
+  a dismissible banner, while queue actions called `notify.error` and vanished after
+  Sonner's default four seconds. Nothing chose that line — it fell out of the two paths
+  being written at different times.
+
+  A toast is the wrong instrument for publish specifically. On failure `loadInbox()` is
+  skipped, so the proposal stays exactly where it was, which is indistinguishable from a
+  click that never registered — the toast is the only evidence, and it removes itself. The
+  likeliest failure is also the one that most needs to persist: publish sends `ifVersion`
+  (or `ifCandidateVersion` + `ifDocumentVersion`), so a concurrent edit comes back a
+  conflict, and "someone changed this, reload" is an instruction rather than a notice.
+  The rebuilt Learning page finally gives that message somewhere to live — the pinned
+  action bar sits under the proposal it acts on, which the old card feed and drawer did not
+  offer.
+
+  `approveQueue` and `dismissQueue` now record a `queueActionError` and return whether they
+  succeeded, mirroring the conversation queue's `runAction`. Both surfaces that call them —
+  the Learning pane and the overview queue drawer — render the same
+  `QueueActionErrorBanner`, keyed to the acted-on item so a stale error cannot appear
+  above a different proposal. The returned boolean also stops the decided list from
+  refetching after an action that decided nothing.
+
+  Toasts stay where the anchor disappears or the action is incidental: `saveQueue`,
+  `scheduleQueue`, `previewCmsDraft`, and the scheduled-send cancellations.
+
+- 602b390: One row primitive behind every queue list, and one meta-line vocabulary behind every row.
+
+  The dashboard, Conversations and Review pages between them render four list rows — conversations, waiting, scheduled, decided — that were four independent implementations of the same idiom. Each carried its own copy of the `role="button"` + Enter/Space handling, the `px-5 py-3.5` border-bottom row, the hover, the `--qfade` dim, and the active treatment. The active treatment was byte-identical in all four, which is what a shared component looks like before someone extracts it.
+
+  `QueueRow` now owns the chrome and exposes four slots — `code`, `title`, `meta`, `trailing` — with `RowTime` and `RowNote` for the trailing column. The four rows became thin callers, and the differences that were drift rather than meaning are gone:
+
+  - **One title origin.** Conversations put their channel `Pill` in a 52px grid column; review and scheduled used `RowCode` at `w-14`; decided had no code column at all, so its titles started 66px to the left of every other list. All four now sit in the same 52px column, and decided gains the `KB` module pill it was missing — a published article and a dismissed merge no longer render identically.
+  - **One timestamp column.** Ages were lowercase in two lists, uppercase in a third, and inlined into the mono meta line in the fourth. They are now a `RowTime` in the trailing column everywhere. Scheduled keeps cobalt, because "this ships without you" is meaning, not styling.
+  - **One row height.** Scheduled titles wrapped to two lines while every other list truncated to one.
+  - **One second line.** The meta line settles on the muted tone (`text-ink-mute` / `dark:text-foreground/50`) in all four lists rather than the darker `text-ink-soft` the conversation preview used, so the title carries the row and the second line stays subordinate. Decided keeps its outcome word in ink, which now reads as emphasis against the mute rather than competing with it.
+
+  The second line had a subtler problem: `QueueItem.snippet` was built for every kind in `inbox-data.ts`, and then `ReviewRow` ignored it and computed a _second_ meta line from its own `dashboard.console.review.meta*` keys. Same item, two vocabularies, and which one you saw depended on which list you were in — the waiting tab said `sarah@…`, and the same proposal's snippet said `sarah@… — Hi Sarah, following up…`. The review wording (the terser, row-shaped one) now lives in the `overview.queue` snippet keys as the single source, `useMetaLine` is deleted along with the duplicate key set, and rows read `item.snippet` everywhere. No visible change to the waiting list: it already showed this wording.
+
+  The outreach pane's "Reply from" quote was the one place the old snippet was actually rendered, so it now builds that preview from `item.raw` directly and shows exactly what it showed before. (It quotes our own draft body under a "Reply from" label, which looks wrong but is untouched here.)
+
+- 411b50f: Format phone numbers on the end-user list the same way the rest of the dashboard does — an end user identified only by phone now shows `+47 911 05 891` instead of the raw E.164 string.
+- b085fe1: Keep a voice turn that transcribed no speech, so a call transcript never loses the beat that explains the next answer.
+
+  A Threll call read as though the assistant answered a question nobody asked: it greeted the caller, then said "Hei Tronn, velkommen til Threll.ai" with no caller turn in between. Nothing was out of order — `voiceTurnIndex` ran 0, 2, 3, 4 and Slack mirrored exactly that. Turn 1 was missing, and Slack's collapsing of two adjacent same-speaker posts into one block made the remainder look shuffled.
+
+  Threll fixes a turn's position when the turn is _registered_, not when its text exists: a caller turn reserves its index and emits an interim, and the final follows when recognition resolves — with an empty string when it resolved to nothing, which is what happens when the caller is cut off mid-word. `ThrellAdapter` dropped every transcript event without text, so that turn vanished. It is now stored as a turn with an empty body and `metadata.voiceNoSpeech: true`, in its spoken position, in real time — no reconciliation pass and no late Slack post, because the empty final arrives on the same webhook stream as every other turn. An _agent_ turn with no text is still dropped; only a caller turn holds a slot worth showing.
+
+  An empty body is the honest record, so the placeholder lives in the surfaces instead: Slack renders `_No speech transcribed_` (`chat.postMessage` rejects empty text), the dashboard drawer renders a muted italic line, the chat widget hides the turn from the visitor who lived through it, and the conversation-list preview skips empty bodies so a call ending on an unintelligible turn keeps its last real line. A silent turn is also not the visitor speaking last: `endUserSpokeLast` skips empty bodies, so the review queue stops offering "ask for a draft" on a turn that carries no question — which the runtime would refuse anyway. The conversation pane's own client-side computation of the same signal matches.
+
+  `toRuntimeHistory` filters bodies that are empty after trimming — an empty user turn is both useless to the model and rejected outright by providers that refuse empty content blocks — and the conversation handler declines to reply when the newest public turn is a silent one, so a straggling final that lands after `call.ended` cleared `voiceActive` can't provoke a chat reply after a voice call.
+
+- Updated dependencies [f781f5f]
+- Updated dependencies [a9d71da]
+- Updated dependencies [f781f5f]
+- Updated dependencies [d443f42]
+- Updated dependencies [356885c]
+- Updated dependencies [f781f5f]
+  - @getmunin/ui@5.16.0
+  - @getmunin/types@5.16.0
+
 ## 5.15.0
 
 ### Patch Changes

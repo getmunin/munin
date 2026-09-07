@@ -27,6 +27,7 @@ import {
   type PreviewLinkDto,
 } from '../modules/cms/cms.service.ts';
 import type { FieldDef } from '../modules/cms/cms.fields.ts';
+import { TEXT_REPLACEMENTS_MAX, TextReplacementSchema } from '../common/text-replacements.ts';
 
 export interface CmsDraftDetailDto extends EntryDto {
   fields: FieldDef[];
@@ -35,6 +36,11 @@ export interface CmsDraftDetailDto extends EntryDto {
 class PatchDraftBody extends createZodDto(
   z.object({
     data: z.record(z.string(), z.unknown()).optional(),
+    textReplacements: z
+      .array(TextReplacementSchema.extend({ field: z.string().min(1).max(64) }))
+      .min(1)
+      .max(TEXT_REPLACEMENTS_MAX)
+      .optional(),
     slug: z.string().min(1).optional(),
     locale: z.string().min(1).optional(),
   }),
@@ -85,6 +91,7 @@ export class CmsDraftsController {
         id,
         ifVersion: existing.version,
         data: input.data,
+        textReplacements: input.textReplacements,
         slug: input.slug,
         locale: input.locale,
       });

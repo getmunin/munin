@@ -8,6 +8,7 @@ import { LoadFailed } from '../components/load-failed';
 import { TableSkeleton } from '../components/skeleton';
 import { EmptyCallout } from '../components/empty-callout';
 import { useLoadGate } from '../lib/use-load-gate';
+import { formatPhoneNumber } from '../lib/format-phone';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 import { notify } from '../lib/notify';
 import { Button, Hero, Input, SectionHead, cn } from '@getmunin/ui';
@@ -140,7 +141,7 @@ export function EndUsersPage() {
                     <div className="flex items-center gap-3">
                       <Avatar name={eu.name} email={eu.email} />
                       <div className="text-sm font-medium text-ink dark:text-foreground">
-                        {eu.name ?? eu.email ?? eu.phone ?? '—'}
+                        {eu.name ?? eu.email ?? (eu.phone ? formatPhoneNumber(eu.phone) : null) ?? '—'}
                       </div>
                     </div>
                   </td>

@@ -171,7 +171,7 @@ After your pass, the operator reviews the inbox. They can list candidates with:
 
 Each row includes `proposedTargetSpaceSlug` and `sourceConversationId` parsed from the tags. (`kb_list_documents({ tag: "candidate" })` returns the same docs without those fields.)
 
-Read each one (`kb_get_document`), edit if needed (`kb_update_document`), then promote:
+Read each one (`kb_get_document`), edit if needed (`kb_update_document` — `textReplacements` for a sentence, `body` for a rewrite; `skill://kb/revise-document`), then promote:
 
 ```jsonc
 {

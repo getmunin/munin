@@ -261,6 +261,94 @@ const skipReason = TEST_URL
     expect(secondRows[0]!.id).toBe(firstChunkId);
   });
 
+  it('applies textReplacements to the body without resending it', async () => {
+    const space = await run(() => svc.createSpace({ name: 'Docs', slug: 'docs' }));
+    const doc = await run(() =>
+      svc.createDocument({
+        spaceId: space.id,
+        title: 'Refunds',
+        body: 'Refunds take 5 days. Contact support for refunds over 30 days.',
+      }),
+    );
+    const updated = await run(() =>
+      svc.updateDocument({
+        id: doc.id,
+        ifVersion: 1,
+        textReplacements: [
+          { oldText: '5 days', newText: '7 days' },
+          { oldText: 'refunds', newText: 'returns', replaceAll: true },
+        ],
+      }),
+    );
+    expect(updated.version).toBe(2);
+    expect(updated.body).toBe('Refunds take 7 days. Contact support for returns over 30 days.');
+    expect(updated.title).toBe('Refunds');
+  });
+
+  it('textReplacements fail atomically with coded errors and refuse to combine with body', async () => {
+    const space = await run(() => svc.createSpace({ name: 'Docs', slug: 'docs' }));
+    const doc = await run(() =>
+      svc.createDocument({ spaceId: space.id, title: 'T', body: 'one two one' }),
+    );
+    await expect(
+      run(() =>
+        svc.updateDocument({
+          id: doc.id,
+          ifVersion: 1,
+          textReplacements: [
+            { oldText: 'two', newText: '2' },
+            { oldText: 'missing', newText: 'x' },
+          ],
+        }),
+      ),
+    ).rejects.toThrow(/kb_replacement_no_match: textReplacements\[1\]/);
+    await expect(
+      run(() =>
+        svc.updateDocument({
+          id: doc.id,
+          ifVersion: 1,
+          textReplacements: [{ oldText: 'one', newText: '1' }],
+        }),
+      ),
+    ).rejects.toThrow(/kb_replacement_ambiguous: textReplacements\[0\].*occurs 2 times/);
+    await expect(
+      run(() =>
+        svc.updateDocument({
+          id: doc.id,
+          ifVersion: 1,
+          body: 'whole',
+          textReplacements: [{ oldText: 'two', newText: '2' }],
+        }),
+      ),
+    ).rejects.toThrow(/body is also present/);
+    const unchanged = await run(() => svc.getDocument(doc.id));
+    expect(unchanged.version).toBe(1);
+    expect(unchanged.body).toBe('one two one');
+  });
+
+  it('presentDocument returns the document verbatim for full and a lead + word count for summary', async () => {
+    const space = await run(() => svc.createSpace({ name: 'Docs', slug: 'docs' }));
+    const longBody = 'word '.repeat(300).trim();
+    const doc = await run(() =>
+      svc.createDocument({ spaceId: space.id, title: 'Long', body: longBody }),
+    );
+    expect(svc.presentDocument(doc, 'full')).toBe(doc);
+    const summary = svc.presentDocument(doc, 'summary');
+    if (!('bodySummary' in summary)) throw new Error('expected a summary');
+    expect(summary.body.length).toBeLessThan(longBody.length);
+    expect(summary.body.endsWith('…')).toBe(true);
+    expect(summary.bodySummary).toEqual({ words: 300, truncated: true });
+    expect(summary.version).toBe(doc.version);
+
+    const short = await run(() =>
+      svc.createDocument({ spaceId: space.id, title: 'Short', body: 'Two words' }),
+    );
+    const shortSummary = svc.presentDocument(short, 'summary');
+    if (!('bodySummary' in shortSummary)) throw new Error('expected a summary');
+    expect(shortSummary.body).toBe('Two words');
+    expect(shortSummary.bodySummary).toEqual({ words: 2, truncated: false });
+  });
+
   it('restores a prior version', async () => {
     const space = await run(() => svc.createSpace({ name: 'Docs', slug: 'docs' }));
     const v1 = await run(() =>

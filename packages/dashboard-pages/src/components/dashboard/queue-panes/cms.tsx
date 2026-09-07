@@ -232,9 +232,8 @@ export function CmsQueuePane({
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <div className="flex min-h-full flex-col">
           <PaneHeader
-            pillTone="cms"
+            kind="cms"
             pillLabel={tQueue('kindCms')}
-            pillGlyph="cms"
             title={item.title}
             meta={t('metaCms', {
               collection: item.raw.collectionName,

@@ -133,9 +133,8 @@ export function OutreachQueuePane({
   return (
     <>
       <PaneHeader
-        pillTone="out"
+        kind="outreach"
         pillLabel={tQueue('kindOutreach')}
-        pillGlyph="outreach"
         title={item.title}
         meta={t('metaOutreach', { kind, handle, age: age(item.createdAt) })}
         rightExtra={readOnly ? <Pill tone="review">{t('scheduledPill')}</Pill> : undefined}

@@ -87,9 +87,8 @@ export function KbQueuePane({
   return (
     <>
       <PaneHeader
-        pillTone="kb"
+        kind="kb"
         pillLabel={isRevision ? tQueue('kindKbRevision') : tQueue('kindKb')}
-        pillGlyph="kb"
         title={item.title}
         meta={
           isRevision

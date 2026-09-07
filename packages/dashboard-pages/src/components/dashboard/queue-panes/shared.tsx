@@ -7,16 +7,6 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { QueueItem } from './types';
 
-export type PanePillTone =
-  | 'live'
-  | 'ink'
-  | 'draft'
-  | 'kb'
-  | 'crm'
-  | 'out'
-  | 'cms'
-  | 'feedback'
-  | 'review';
 
 export const MD_COMPONENTS: Components = {
   p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
@@ -147,9 +137,8 @@ export function PaneLoadFailed({
 }
 
 export function PaneHeader({
-  pillTone,
+  kind,
   pillLabel,
-  pillGlyph,
   title,
   meta,
   rightExtra,
@@ -157,9 +146,8 @@ export function PaneHeader({
   closeLabel,
   className,
 }: {
-  pillTone: PanePillTone;
+  kind: QueueItem['kind'];
   pillLabel: string;
-  pillGlyph?: QueueItem['kind'];
   title: string;
   meta?: string;
   rightExtra?: React.ReactNode;
@@ -177,10 +165,7 @@ export function PaneHeader({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
           <div className="flex items-center gap-2">
-            <Pill tone={pillTone} marker={pillGlyph ? 'none' : 'dot'}>
-              {pillGlyph ? <ModuleGlyph kind={pillGlyph} className="size-[7px]" /> : null}
-              {pillLabel}
-            </Pill>
+            <ModulePill kind={kind}>{pillLabel}</ModulePill>
             {rightExtra}
           </div>
           <h2 className="font-serif text-2xl leading-tight font-normal tracking-tight text-ink dark:text-foreground">
@@ -233,6 +218,23 @@ export function ModuleGlyph({
   );
 }
 
+export function ModulePill({
+  kind,
+  className,
+  children,
+}: {
+  kind: QueueItem['kind'];
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Pill tone="ink" marker="none" className={className}>
+      <ModuleGlyph kind={kind} className="size-[7px]" />
+      {children}
+    </Pill>
+  );
+}
+
 export function RowCode({
   kind,
   className,
@@ -243,10 +245,9 @@ export function RowCode({
   children: string;
 }) {
   return (
-    <Pill tone="ink" marker="none" className={cn('w-14 shrink-0 justify-center', className)}>
-      <ModuleGlyph kind={kind} className="size-[7px]" />
-      {children}
-    </Pill>
+    <span className={cn('flex w-14 shrink-0', className)}>
+      <ModulePill kind={kind}>{children}</ModulePill>
+    </span>
   );
 }
 

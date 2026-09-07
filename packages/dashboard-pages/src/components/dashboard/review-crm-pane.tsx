@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button, Pill, cn } from '@getmunin/ui';
 import { useRelative } from '../../lib/use-relative';
-import { ModuleGlyph, useCmdEnter } from './queue-panes/shared';
+import { ModulePill, useCmdEnter } from './queue-panes/shared';
 import { humanizeFieldName, type CrmMergeProposalDto } from './queue-panes/types';
 import {
   comparableFieldCount,
@@ -85,10 +85,7 @@ export function ReviewCrmPane({
       <div className="flex flex-1 flex-col gap-5 px-5 pb-8 pt-6 md:px-7">
         <header className="flex flex-col gap-2.5">
           <div className="flex flex-wrap items-center gap-2 max-md:hidden">
-            <Pill tone="crm" marker="none">
-              <ModuleGlyph kind="crm" className="size-[7px]" />
-              {t('eyebrow')}
-            </Pill>
+            <ModulePill kind="crm">{t('eyebrow')}</ModulePill>
             <Pill tone="ink" marker="none">
               {t(proposal.confidence === 'high' ? 'confidenceHigh' : 'confidenceMedium')}
             </Pill>

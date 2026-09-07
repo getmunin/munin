@@ -39,9 +39,8 @@ export function FeedbackQueuePane({
   return (
     <>
       <PaneHeader
-        pillTone="feedback"
+        kind="feedback"
         pillLabel={tQueue('kindFeedback')}
-        pillGlyph="feedback"
         title={item.title}
         meta={t('metaFeedback', {
           scope: f.appScope ? f.appScope.toUpperCase() : tQueue('feedbackScopeFallback'),

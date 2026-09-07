@@ -36,9 +36,8 @@ export function CrmQueuePane({
   return (
     <>
       <PaneHeader
-        pillTone="crm"
+        kind="crm"
         pillLabel={tQueue('kindCrm')}
-        pillGlyph="crm"
         title={item.title}
         meta={t('metaCrm', { confidence: proposal.confidence, age: age(item.createdAt) })}
         onClose={onClose}

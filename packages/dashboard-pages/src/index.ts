@@ -120,6 +120,7 @@ export { CredentialEntryPage } from './pages/credential-entry';
 export { TrackersPage } from './pages/trackers';
 export { EndUsersPage } from './pages/end-users';
 export { DashboardPage } from './pages/overview';
+export { ConversationsPage } from './pages/conversations';
 export { TeamPage } from './pages/team';
 export { UsagePage } from './pages/usage';
 export { ActivityPage } from './pages/activity';

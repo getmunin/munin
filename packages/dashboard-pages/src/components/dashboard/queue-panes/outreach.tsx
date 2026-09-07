@@ -191,7 +191,11 @@ export function OutreachQueuePane({
               {t('replyFrom')}
             </p>
             <p className="border-l-2 border-cobalt pl-3 font-serif italic text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft">
-              &ldquo;{item.snippet}&rdquo;
+              &ldquo;
+              {item.raw.contact?.email
+                ? `${item.raw.contact.email} — ${initialBody.slice(0, 80)}`
+                : initialBody.slice(0, 100)}
+              &rdquo;
             </p>
           </section>
         )}

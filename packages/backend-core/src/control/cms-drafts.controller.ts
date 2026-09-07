@@ -41,6 +41,26 @@ class PatchDraftBody extends createZodDto(
       .min(1)
       .max(TEXT_REPLACEMENTS_MAX)
       .optional(),
+    blockEdits: z
+      .array(
+        z.object({
+          field: z.string().min(1).max(64),
+          op: z.enum(['set', 'delete', 'move']),
+          key: z.string().min(1).max(64).optional(),
+          block: z
+            .object({
+              type: z.string().min(1).max(64),
+              props: z.record(z.string(), z.unknown()),
+            })
+            .optional(),
+          before: z.string().min(1).max(64).optional(),
+          after: z.string().min(1).max(64).optional(),
+          position: z.enum(['start', 'end']).optional(),
+        }),
+      )
+      .min(1)
+      .max(100)
+      .optional(),
     slug: z.string().min(1).optional(),
     locale: z.string().min(1).optional(),
   }),
@@ -92,6 +112,7 @@ export class CmsDraftsController {
         ifVersion: existing.version,
         data: input.data,
         textReplacements: input.textReplacements,
+        blockEdits: input.blockEdits,
         slug: input.slug,
         locale: input.locale,
       });

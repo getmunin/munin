@@ -7462,6 +7462,77 @@
             },
             "x-nestjs_zod-uses-3-point-1-syntax": true
           },
+          "blockEdits": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "set",
+                    "delete",
+                    "move"
+                  ]
+                },
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "block": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "props": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "props"
+                  ]
+                },
+                "before": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "after": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "position": {
+                  "type": "string",
+                  "enum": [
+                    "start",
+                    "end"
+                  ]
+                }
+              },
+              "required": [
+                "field",
+                "op"
+              ]
+            },
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
           "slug": {
             "type": "string",
             "minLength": 1,

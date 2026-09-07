@@ -97,6 +97,44 @@ const ResponseFormatDefaultSummary = z
     'Shape of the returned entry. `summary` (default) shortens long text to a lead with a word count in `fieldSummary`, the same shape cms_list_entries returns; `full` returns every field verbatim.',
   );
 
+const BlockEditsInput = z
+  .array(
+    z.object({
+      field: z.string().min(1).max(64).describe('Name of the `blocks` field to edit.'),
+      op: z
+        .enum(['set', 'delete', 'move'])
+        .describe(
+          '`set` replaces the block with this key, or inserts it when the key is new. `delete` removes it. `move` repositions it.',
+        ),
+      key: z
+        .string()
+        .min(1)
+        .max(64)
+        .optional()
+        .describe(
+          'Stable key of the block, as returned by cms_get_entry. Required for delete and move. On set, omit it to insert a new block under a generated key.',
+        ),
+      block: z
+        .object({
+          type: z.string().min(1).max(64),
+          props: z.record(z.string(), z.unknown()),
+        })
+        .optional()
+        .describe('The whole block for `set`: its type and every prop. Replaces the old one outright.'),
+      before: z.string().min(1).max(64).optional().describe('Place the block before the block with this key.'),
+      after: z.string().min(1).max(64).optional().describe('Place the block after the block with this key.'),
+      position: z
+        .enum(['start', 'end'])
+        .optional()
+        .describe('Place the block first or last. Use instead of before/after.'),
+    }),
+  )
+  .min(1)
+  .max(100)
+  .describe(
+    'Add, replace, remove or reorder individual blocks of a `blocks` field by key, applied in order and all-or-nothing, without resending the whole array. Pass at most one of before, after and position per edit. A field may appear here or in `data`, not both.',
+  );
+
 const EntryTextReplacementsInput = z
   .array(
     TextReplacementSchema.extend({
@@ -147,6 +185,7 @@ const UpdateEntryInput = z.object({
   locale: z.string().optional(),
   data: z.record(z.string(), z.unknown()).optional(),
   textReplacements: EntryTextReplacementsInput.optional(),
+  blockEdits: BlockEditsInput.optional(),
   responseFormat: ResponseFormatDefaultFull,
 });
 
@@ -447,7 +486,7 @@ export class CmsAdminTools {
     name: 'cms_update_entry',
     title: 'CMS: Update entry',
     description:
-      'Update an entry. Pass `ifVersion` (the current version you read) for optimistic concurrency. `data` is a partial patch — keys you send replace the corresponding keys on the existing entry; keys you omit are preserved. Pass an explicit `null` to clear a single key. `textReplacements` edits inside a long field without resending it: each `{ field, oldText, newText }` replaces one exact occurrence of oldText in that field\'s stored text (or every occurrence with `replaceAll: true`), reaching into the prose of every block on a `blocks` field. Edits apply in order and all-or-nothing; zero matches fails with `cms_replacement_no_match`, several matches without replaceAll with `cms_replacement_ambiguous`. Inline images may be written as either the `asset://` token or the public URL cms_get_entry showed. The merged payload is then re-validated against the collection schema, and search_text + embedding + references are regenerated. Returns the full entry, or a summary with `responseFormat: "summary"`.',
+      'Update an entry. Pass `ifVersion` (the current version you read) for optimistic concurrency. `data` is a partial patch — keys you send replace the corresponding keys on the existing entry; keys you omit are preserved. Pass an explicit `null` to clear a single key. `textReplacements` edits inside a long field without resending it: each `{ field, oldText, newText }` replaces one exact occurrence of oldText in that field\'s stored text (or every occurrence with `replaceAll: true`), reaching into the prose of every block on a `blocks` field. Edits apply in order and all-or-nothing; zero matches fails with `cms_replacement_no_match`, several matches without replaceAll with `cms_replacement_ambiguous`. Inline images may be written as either the `asset://` token or the public URL cms_get_entry showed. `blockEdits` adds, replaces, removes and reorders individual blocks of a `blocks` field by their key — `set` replaces a block or inserts a new one, `delete` removes one, `move` repositions one, with `before`/`after`/`position` placing it — so changing one block does not mean resending the array; a missing key fails with `cms_block_not_found`. Block edits apply before text replacements when both name the same field. The merged payload is then re-validated against the collection schema, and search_text + embedding + references are regenerated. Returns the full entry, or a summary with `responseFormat: "summary"`.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: UpdateEntryInput,

@@ -26,6 +26,7 @@ import { NativeSelect } from '../components/native-select';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 import { notify } from '../lib/notify';
+import { useCopy } from '../lib/use-copy';
 import {
   stripTrailingSlashes,
   CreateWidgetBody,
@@ -60,6 +61,8 @@ import {
   cn,
 } from '@getmunin/ui';
 import { CardGrid, CardMenu, SettingsCard, StatusLine } from '../components/card-kit';
+import { CopyField } from '../components/copy-field';
+import { CopyableSecret } from '../components/copyable-secret';
 import { formatPhoneNumber } from '../lib/format-phone';
 import { MessageBirdLogo, ThrellLogo, TwilioLogo, VapiLogo } from './channel-vendor-logos';
 
@@ -1473,7 +1476,7 @@ function EmailChannelDialog({
             </FormField>
           </div>
 
-          <fieldset className="space-y-3 rounded-md border-[1px] px-3 pb-3">
+          <fieldset className="space-y-3 border border-rule-soft px-3 pb-3 dark:border-rule-on-dark">
             <legend className="px-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">{t('email.outboundLabel')}</legend>
             <div className="grid gap-3 sm:grid-cols-2">
               <FormField label={t('email.host')} error={fieldErrors.smtpHost}>
@@ -1583,7 +1586,7 @@ function EmailChannelDialog({
             </div>
           </fieldset>
 
-          <fieldset className="space-y-3 rounded-md border-[1px] px-3 pb-3">
+          <fieldset className="space-y-3 border border-rule-soft px-3 pb-3 dark:border-rule-on-dark">
             <legend className="px-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">{t('email.inboundLabel')}</legend>
             <FormField label={t('email.inboundModeLabel')} hint={t(`email.inboundModeHint.${inboundMode}`)}>
               <NativeSelect
@@ -2124,32 +2127,6 @@ function InlineCopyButton({ value, label }: { value: string; label: string }) {
   );
 }
 
-function CopyableSecret({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  const tCommon = useTranslations('common');
-  const [copied, setCopied] = useState(false);
-  function copy() {
-    void navigator.clipboard.writeText(value).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), KEY_DISPLAY_TIMEOUT_MS);
-    });
-  }
-  return (
-    <div className="space-y-1">
-      <Label>{label}</Label>
-      <div className="flex items-center gap-2">
-        <code className="flex-1 truncate rounded-md border-[1px] bg-background px-3 py-2 font-mono text-sm">
-          {value}
-        </code>
-        <Button variant="outline" size="sm" onClick={copy}>
-          <Copy className="size-4" />
-          {copied ? tCommon('copied') : tCommon('copy')}
-        </Button>
-      </div>
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-    </div>
-  );
-}
-
 function generateWebhookSecret(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
@@ -2171,46 +2148,20 @@ function WebhookSecretField({
   regenerateLabel: string;
   emptyHint?: string;
 }) {
-  const tCommon = useTranslations('common');
-  const [copied, setCopied] = useState(false);
-  function copy() {
-    if (!value) return;
-    void navigator.clipboard.writeText(value).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), KEY_DISPLAY_TIMEOUT_MS);
-    });
-  }
   function regenerate() {
     onChange(generateWebhookSecret());
-    setCopied(false);
   }
   return (
-    <div className="flex flex-col gap-2">
-      {value ? (
-        <div className="flex items-center gap-2">
-          <code className="flex-1 truncate rounded-md border-[1px] bg-background px-3 py-2 font-mono text-sm">
-            {value}
-          </code>
-          <Button type="button" variant="outline" size="sm" onClick={copy}>
-            <Copy className="size-4" />
-            {copied ? tCommon('copied') : tCommon('copy')}
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={regenerate}>
-            <RefreshCw className="size-4" />
-            {regenerateLabel}
-          </Button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2">
-          <div className="flex-1 truncate rounded-md border-[1px] border-dashed bg-background px-3 py-2 font-mono text-sm text-muted-foreground">
-            {emptyHint ?? '••••'}
-          </div>
-          <Button type="button" variant="outline" size="sm" onClick={regenerate}>
-            <RefreshCw className="size-4" />
-            {generateLabel}
-          </Button>
-        </div>
-      )}
+    <div className="flex items-center gap-2">
+      <CopyField
+        value={value}
+        resetMs={KEY_DISPLAY_TIMEOUT_MS}
+        placeholder={emptyHint ?? '••••'}
+      />
+      <Button type="button" variant="outline" size="sm" onClick={regenerate}>
+        <RefreshCw className="size-4" />
+        {value ? regenerateLabel : generateLabel}
+      </Button>
     </div>
   );
 }
@@ -2265,8 +2216,6 @@ function EmbedSnippetDialog({
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
   const [language, setLanguage] = useState(HASH_SNIPPETS[0]!.language);
-  const [snippetCopied, setSnippetCopied] = useState(false);
-  const [hashCopied, setHashCopied] = useState(false);
 
   const host = stripTrailingSlashes(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001');
   const scriptSnippet = [
@@ -2280,18 +2229,8 @@ function EmbedSnippetDialog({
 
   const hashSnippet = HASH_SNIPPETS.find((s) => s.language === language)!.build(channel.id);
 
-  function copySnippet() {
-    void navigator.clipboard.writeText(scriptSnippet).then(() => {
-      setSnippetCopied(true);
-      setTimeout(() => setSnippetCopied(false), KEY_DISPLAY_TIMEOUT_MS);
-    });
-  }
-  function copyHash() {
-    void navigator.clipboard.writeText(hashSnippet).then(() => {
-      setHashCopied(true);
-      setTimeout(() => setHashCopied(false), KEY_DISPLAY_TIMEOUT_MS);
-    });
-  }
+  const snippetCopy = useCopy(KEY_DISPLAY_TIMEOUT_MS);
+  const hashCopy = useCopy(KEY_DISPLAY_TIMEOUT_MS);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -2303,12 +2242,12 @@ function EmbedSnippetDialog({
         <div className="space-y-8 py-2">
           <div className="space-y-3">
             <Label className={dialogLabelClass}>{t('embed.scriptLabel')}</Label>
-            <pre className="overflow-x-auto rounded-md border-[1px] bg-muted px-3 py-2 font-mono text-xs">
+            <pre className="overflow-x-auto border border-ink bg-paper-deep px-3.5 py-2.5 font-mono text-xs text-ink dark:border-rule-on-dark dark:bg-secondary dark:text-foreground">
               {scriptSnippet}
             </pre>
-            <Button variant="outline" size="sm" onClick={copySnippet}>
+            <Button variant="outline" size="sm" onClick={() => snippetCopy.copy(scriptSnippet)}>
               <Copy className="size-4" />
-              {snippetCopied ? tCommon('copied') : t('embed.copyScript')}
+              {snippetCopy.copied ? tCommon('copied') : t('embed.copyScript')}
             </Button>
             <p className={dialogHintClass}>{t('embed.scriptHint')}</p>
             <a href="/docs/guides/chat-widget" target="_blank" rel="noreferrer" className="text-[13px] underline">
@@ -2339,12 +2278,12 @@ function EmbedSnippetDialog({
                 );
               })}
             </div>
-            <pre className="overflow-x-auto rounded-md border-[1px] bg-muted px-3 py-2 font-mono text-xs">
+            <pre className="overflow-x-auto border border-ink bg-paper-deep px-3.5 py-2.5 font-mono text-xs text-ink dark:border-rule-on-dark dark:bg-secondary dark:text-foreground">
               {hashSnippet}
             </pre>
-            <Button variant="outline" size="sm" onClick={copyHash}>
+            <Button variant="outline" size="sm" onClick={() => hashCopy.copy(hashSnippet)}>
               <Copy className="size-4" />
-              {hashCopied ? tCommon('copied') : t('embed.copyHash')}
+              {hashCopy.copied ? tCommon('copied') : t('embed.copyHash')}
             </Button>
           </div>
         </div>

@@ -1,4 +1,5 @@
-export type ConsoleBadge = 'waiting' | 'queue' | 'learning';
+import { extendNavGroups } from './extend-groups';
+export type ConsoleBadge = 'queue' | 'review';
 
 export interface ConsoleNavItem {
   href: string;
@@ -16,19 +17,21 @@ export interface ConsoleNavGroup {
 export const OSS_CONSOLE_GROUPS: ConsoleNavGroup[] = [
   {
     groupKey: 'admin',
-    items: [{ href: '/dashboard', labelKey: 'overview', badge: 'waiting', adminOnly: true }],
+    items: [{ href: '/dashboard', labelKey: 'overview', adminOnly: true }],
   },
   {
     groupKey: 'oversight',
     items: [
       { href: '/dashboard/conversations', labelKey: 'conversations', badge: 'queue' },
       { href: '/dashboard/automation', labelKey: 'automation', adminOnly: true },
-      { href: '/dashboard/learning', labelKey: 'learning', badge: 'learning', adminOnly: true },
+      { href: '/dashboard/review', labelKey: 'review', badge: 'review', adminOnly: true },
     ],
   },
   {
     groupKey: 'workspace',
-    items: [{ href: '/dashboard/settings', labelKey: 'settings', trailingArrow: true }],
+    items: [
+      { href: '/dashboard/settings', labelKey: 'settings', adminOnly: true, trailingArrow: true },
+    ],
   },
 ];
 
@@ -55,46 +58,9 @@ export interface ConsoleGroupExtension {
   position?: 'start' | 'end';
 }
 
-function matchItem(item: ConsoleNavItem, key: string): boolean {
-  return item.labelKey === key || item.href.split('/').pop() === key;
-}
-
 export function extendConsoleGroups(
   base: ConsoleNavGroup[],
   extensions: ConsoleGroupExtension[],
 ): ConsoleNavGroup[] {
-  const result = base.map((group) => ({ ...group, items: [...group.items] }));
-
-  for (const ext of extensions) {
-    let group = result.find((g) => g.groupKey === ext.groupKey);
-    if (!group) {
-      group = { groupKey: ext.groupKey, items: [] };
-      result.push(group);
-    }
-
-    if (ext.insertAfter) {
-      const idx = group.items.findIndex((item) => matchItem(item, ext.insertAfter!));
-      if (idx >= 0) {
-        group.items.splice(idx + 1, 0, ...ext.items);
-        continue;
-      }
-    }
-
-    if (ext.insertBefore) {
-      const idx = group.items.findIndex((item) => matchItem(item, ext.insertBefore!));
-      if (idx >= 0) {
-        group.items.splice(idx, 0, ...ext.items);
-        continue;
-      }
-    }
-
-    if (ext.position === 'start') {
-      group.items.unshift(...ext.items);
-      continue;
-    }
-
-    group.items.push(...ext.items);
-  }
-
-  return result;
+  return extendNavGroups(base, extensions);
 }

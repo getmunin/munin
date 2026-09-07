@@ -36,13 +36,17 @@ If the conversation already has a `topicId`, don't second-guess it — skip stra
 { "name": "conv_list_topics", "arguments": {} }
 ```
 
+Each topic comes back with a `description` — the operator's own sentence about what belongs in it. **Read the descriptions before the names.** A name is one word and two orgs mean different things by it; the description is where this org drew the line, including the vocabulary its customers use and the near-misses that belong somewhere else. When a description says a case belongs elsewhere, that settles it, even if the name looks like a match.
+
+A topic with `description: null` has never been defined beyond its label. Judge it on the name, and hold it to a higher bar than a defined topic — you have less to go on, so a defined topic that fits well beats an undefined one that fits loosely.
+
 Match the conversation against the **existing** topics first. Topics are broad buckets, not fine-grained tags — "I was double-charged" and "how do I update my card" are both **Billing**. Don't hold out for a perfect match; the closest sensible existing topic wins.
 
 **Choose an existing topic** when one reasonably covers the message. Use its `id` in step 4.
 
 **Create a new topic** only when *both* are true:
 
-- None of the existing topics reasonably fit, and
+- None of the existing topics reasonably fit — check this against their descriptions, not just their names — and
 - The conversation has a clear, recurring theme that an operator would obviously want as its own bucket (e.g. the org has Support and Sales but this is plainly about **Billing**, which doesn't exist yet).
 
 When you create, keep it broad and reusable — a category, not a one-off:
@@ -50,14 +54,21 @@ When you create, keep it broad and reusable — a category, not a one-off:
 ```jsonc
 {
   "name": "conv_create_topic",
-  "arguments": { "name": "Billing", "slug": "billing" }
+  "arguments": {
+    "name": "Billing",
+    "slug": "billing",
+    "description": "Invoices, charges, payment methods and refunds after a purchase. Not pricing questions from people who haven't bought yet — those are Sales."
+  }
 }
 ```
 
 - `name`: short, title-case, singular category ("Billing", "Refunds", "Onboarding").
 - `slug`: lowercase letters, digits, hyphens — the kebab-case of the name.
+- `description`: **always write one.** One or two sentences saying what belongs here and, crucially, where the boundary runs against the topics that already exist — that's the part a name can't carry, and it's what stops the next conversation being filed twice over. Write it from what this conversation showed you, in the customer's vocabulary. Never leave it out because the name "seems obvious"; it is only obvious to you, right now.
 - Don't invent near-duplicates of an existing topic ("Support Requests" when "Support" exists). Reuse the existing one instead.
 - Don't create hyper-specific topics ("Double charge on May invoice"). That's what the title is for.
+
+Don't rewrite the description of a topic you didn't create. Operators own those definitions, and this pass sees one conversation — not enough to redraw a boundary. If an existing description is plainly wrong or missing, file the conversation as best you can and leave the description alone.
 
 `conv_create_topic` returns the new topic's `id`; use it in step 4.
 
@@ -75,6 +86,8 @@ When you create, keep it broad and reusable — a category, not a one-off:
 ```
 
 Skip this call entirely if you decided in step 2 to leave the conversation untagged.
+
+Tagging can change how the conversation is answered. A topic may carry an automation override — `draft_only` parks every reply as a draft for a human, `off` stops the agent replying at all — and that override beats the conversation's own mode. When your tag changes the effective mode, an internal note saying so is added to the conversation automatically, so the operator who opens it can see why replies started or stopped needing review. You don't write that note and you don't need to mention it; just be aware that picking a topic is an automation decision as well as a filing one, which is another reason not to force a tag on weak signal.
 
 ## Step 5 — set the title
 

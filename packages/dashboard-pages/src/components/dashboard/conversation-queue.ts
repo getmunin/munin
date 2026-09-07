@@ -9,6 +9,8 @@ import { useRealtime, type SubscriptionChannel } from '../../realtime';
 import type { ConversationDetail, MessageDto, Status } from './inbox-types';
 
 const DRAFT_REQUEST_TIMEOUT_MS = 60_000;
+const RUNNER_PICKUP_POLL_MS = 1_500;
+const AGENT_WORKING_POLL_MS = 2_000;
 
 export interface QueueClaim {
   holderId: string;
@@ -40,6 +42,8 @@ export interface QueueItemDto {
   claim: QueueClaim | null;
   noteCount: number;
   hasPendingDraft: boolean;
+  endUserSpokeLast?: boolean;
+  agentWorking?: boolean;
 }
 
 interface QueuePageResponse {
@@ -52,6 +56,7 @@ export type QueueActionType =
   | 'takeOver'
   | 'release'
   | 'close'
+  | 'reopen'
   | 'reject'
   | 'note'
   | 'requestDraft';
@@ -62,6 +67,23 @@ export type QueueActionError = {
   message: string;
   code: string | null;
 } | null;
+
+export const FINISHED_MIN_ITEMS = 25;
+export const FINISHED_WINDOW_DAYS = 7;
+
+const FINISHED_FETCH_LIMIT = 100;
+
+export function visibleFinished(
+  finished: QueueItemDto[],
+  now = Date.now(),
+): QueueItemDto[] {
+  const cutoff = now - FINISHED_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  return finished.filter((item, index) => {
+    if (index < FINISHED_MIN_ITEMS) return true;
+    const at = item.lastMessageAt ? new Date(item.lastMessageAt).getTime() : NaN;
+    return Number.isFinite(at) && at >= cutoff;
+  });
+}
 
 export interface QueueSections {
   needsYou: QueueItemDto[];
@@ -77,11 +99,11 @@ export function partitionQueue(
   const needsYou: QueueItemDto[] = [];
   const inProgress: QueueItemDto[] = [];
   for (const item of open) {
-    const mineOrFree = !item.claim || item.claim.holderId === viewerUserId;
-    if (item.needsHumanAttention && mineOrFree) needsYou.push(item);
+    const mine = !!item.claim && item.claim.holderId === viewerUserId;
+    if (mine || (item.needsHumanAttention && !item.claim)) needsYou.push(item);
     else inProgress.push(item);
   }
-  return { needsYou, inProgress, finished };
+  return { needsYou, inProgress, finished: visibleFinished(finished) };
 }
 
 export function matchesQueueSearch(item: QueueItemDto, query: string): boolean {
@@ -115,6 +137,8 @@ export interface QueueController {
   finished: QueueItemDto[];
   selectedId: string | null;
   details: Record<string, ConversationDetail>;
+  detailErrors: Record<string, ApiError>;
+  retryDetail: (id: string) => Promise<void>;
   loadError: ApiError | null;
   hasLoadedOnce: boolean;
   retrying: boolean;
@@ -125,8 +149,9 @@ export interface QueueController {
   clearActionError: () => void;
   draftRequested: Record<string, boolean>;
   takeOver: (id: string) => Promise<void>;
-  release: (id: string) => Promise<void>;
-  closeConv: (id: string) => Promise<void>;
+  release: (id: string) => Promise<boolean>;
+  closeConv: (id: string) => Promise<boolean>;
+  reopenConv: (id: string) => Promise<void>;
   send: (id: string, body: string, fromDraftId?: string) => Promise<boolean>;
   addNote: (id: string, body: string) => Promise<boolean>;
   rejectDraft: (id: string) => Promise<void>;
@@ -140,6 +165,7 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   const [finished, setFinished] = useState<QueueItemDto[]>([]);
   const selectedId = routeSelectedId ?? open[0]?.id ?? finished[0]?.id ?? null;
   const [details, setDetails] = useState<Record<string, ConversationDetail>>({});
+  const [detailErrors, setDetailErrors] = useState<Record<string, ApiError>>({});
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [retrying, setRetrying] = useState(false);
@@ -149,6 +175,7 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   const draftRequestedRef = useRef(draftRequested);
   draftRequestedRef.current = draftRequested;
   const draftTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const followUpTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
 
   const clearDraftRequested = useCallback((id: string) => {
     const timer = draftTimers.current.get(id);
@@ -166,9 +193,12 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
 
   useEffect(() => {
     const timers = draftTimers.current;
+    const followUps = followUpTimers.current;
     return () => {
       for (const timer of timers.values()) clearTimeout(timer);
       timers.clear();
+      for (const timer of followUps) clearTimeout(timer);
+      followUps.clear();
     };
   }, []);
 
@@ -176,7 +206,9 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     try {
       const [openPage, finishedPage] = await Promise.all([
         api<QueuePageResponse>('/v1/conversations/queue?status=open&limit=100'),
-        api<QueuePageResponse>('/v1/conversations/queue?status=closed&limit=25'),
+        api<QueuePageResponse>(
+          `/v1/conversations/queue?status=closed&limit=${FINISHED_FETCH_LIMIT}`,
+        ),
       ]);
       setOpen(openPage.items);
       setFinished(finishedPage.items);
@@ -213,14 +245,20 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     try {
       const d = await api<ConversationDetail>(`/v1/conversations/${id}`);
       setDetails((prev) => ({ ...prev, [id]: d }));
+      setDetailErrors((prev) => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
       if (
         draftRequestedRef.current[id] &&
         d.messages.some((m) => messageDraftKind(m) === 'draft_reply')
       ) {
         clearDraftRequested(id);
       }
-    } catch {
-      return;
+    } catch (err) {
+      if (err instanceof ApiError) setDetailErrors((prev) => ({ ...prev, [id]: err }));
     }
   }, [clearDraftRequested]);
 
@@ -231,6 +269,12 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   useEffect(() => {
     if (selectedId) void loadDetail(selectedId);
   }, [selectedId, loadDetail]);
+
+  useEffect(() => {
+    if (!open.some((item) => item.agentWorking)) return;
+    const timer = setTimeout(() => void loadQueue(), AGENT_WORKING_POLL_MS);
+    return () => clearTimeout(timer);
+  }, [open, loadQueue]);
 
   const subscriptions = useMemo<SubscriptionChannel[]>(() => {
     const subs: SubscriptionChannel[] = [{ channel: 'org' }];
@@ -243,6 +287,13 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     void loadQueue();
     const eventConvId = event.payload['conversationId'];
     if (typeof eventConvId === 'string' && eventConvId === selectedId) void loadDetail(eventConvId);
+    if (event.type === 'conversation.message.received') {
+      const timer = setTimeout(() => {
+        followUpTimers.current.delete(timer);
+        void loadQueue();
+      }, RUNNER_PICKUP_POLL_MS);
+      followUpTimers.current.add(timer);
+    }
   });
 
   const wasOfflineRef = useRef(false);
@@ -296,20 +347,30 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   );
 
   const release = useCallback(
-    async (id: string) => {
-      await runAction('release', id, () =>
+    async (id: string) =>
+      runAction('release', id, () =>
         api(`/v1/conversations/${id}/release`, { method: 'POST', body: '{}' }),
-      );
-    },
+      ),
     [runAction],
   );
 
   const closeConv = useCallback(
-    async (id: string) => {
-      await runAction('close', id, () =>
+    async (id: string) =>
+      runAction('close', id, () =>
         api(`/v1/conversations/${id}/status`, {
           method: 'POST',
           body: JSON.stringify({ status: 'closed' }),
+        }),
+      ),
+    [runAction],
+  );
+
+  const reopenConv = useCallback(
+    async (id: string) => {
+      await runAction('reopen', id, () =>
+        api(`/v1/conversations/${id}/status`, {
+          method: 'POST',
+          body: JSON.stringify({ status: 'open' }),
         }),
       );
     },
@@ -386,6 +447,8 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     finished,
     selectedId,
     details,
+    detailErrors,
+    retryDetail: loadDetail,
     loadError,
     hasLoadedOnce,
     retrying,
@@ -398,6 +461,7 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     takeOver,
     release,
     closeConv,
+    reopenConv,
     send,
     addNote,
     rejectDraft,

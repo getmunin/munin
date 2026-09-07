@@ -6,13 +6,7 @@ describe('settingsGroupsForRole', () => {
     expect(settingsGroupsForRole(OSS_SETTINGS_GROUPS, true)).toEqual(OSS_SETTINGS_GROUPS);
   });
 
-  it('support agents keep only Workspace → Account', () => {
-    const filtered = settingsGroupsForRole(OSS_SETTINGS_GROUPS, false);
-    expect(filtered).toEqual([
-      {
-        groupKey: 'workspace',
-        items: [{ href: '/dashboard/settings/account', labelKey: 'account' }],
-      },
-    ]);
+  it('support agents get no settings at all', () => {
+    expect(settingsGroupsForRole(OSS_SETTINGS_GROUPS, false)).toEqual([]);
   });
 });

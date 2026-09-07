@@ -19,6 +19,8 @@ const buttonVariants = cva(
           "text-ink hover:bg-paper-deep dark:text-foreground dark:hover:bg-secondary",
         accent:
           "border-cobalt bg-cobalt text-paper hover:border-cobalt-deep hover:bg-cobalt-deep",
+        accentOutline:
+          "border-cobalt bg-transparent text-cobalt hover:bg-cobalt hover:text-paper dark:border-cobalt-soft dark:text-cobalt-soft dark:hover:bg-cobalt-soft dark:hover:text-ink",
         destructive:
           "border-destructive bg-transparent text-destructive hover:bg-destructive hover:text-destructive-foreground",
         link:

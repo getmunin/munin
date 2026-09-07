@@ -14,7 +14,9 @@ import { useRealtime, type SubscriptionChannel } from '../../realtime';
 import type {
   CmsAssetExpanded,
   CmsDraftDetailDto,
+  CmsPreviewLink,
   KbCandidateDto,
+  OutreachProposalDetailDto,
   QueueItem,
   ScheduledItem,
 } from './queue-drawers/types';
@@ -26,6 +28,7 @@ import {
 } from './inbox-helpers';
 import type {
   ConvActionError,
+  QueueActionError,
   ConvDrawer,
   ConversationDetail,
   InboxController,
@@ -147,6 +150,10 @@ export function useInboxData(): InboxController {
   const [kbBodies, setKbBodies] = useState<Record<string, string>>({});
   const [kbRevisedBodies, setKbRevisedBodies] = useState<Record<string, string>>({});
   const [cmsDetails, setCmsDetails] = useState<Record<string, CmsDraftDetailDto>>({});
+  const [outreachDetails, setOutreachDetails] = useState<
+    Record<string, OutreachProposalDetailDto>
+  >({});
+  const [cmsPreviewLinks, setCmsPreviewLinks] = useState<Record<string, CmsPreviewLink>>({});
   const [convDrawer, setConvDrawer] = useState<ConvDrawer>(null);
   const [queueDrawer, setQueueDrawer] = useState<QueueItem | null>(null);
   const [scheduledDrawer, setScheduledDrawer] = useState<ScheduledItem | null>(null);
@@ -159,6 +166,7 @@ export function useInboxData(): InboxController {
   const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
   const [queueDetailErrors, setQueueDetailErrors] = useState<Record<string, string>>({});
   const [actionError, setActionError] = useState<ConvActionError>(null);
+  const [queueActionError, setQueueActionError] = useState<QueueActionError>(null);
   const viewedProposals = useRef<Set<string>>(new Set());
 
   const loadInbox = useCallback(async () => {
@@ -215,6 +223,7 @@ export function useInboxData(): InboxController {
   );
 
   const clearActionError = useCallback(() => setActionError(null), []);
+  const clearQueueActionError = useCallback(() => setQueueActionError(null), []);
 
   useEffect(() => {
     void loadInbox();
@@ -251,6 +260,36 @@ export function useInboxData(): InboxController {
     }
   }, [translateErr]);
 
+  const loadOutreachDetail = useCallback(async (id: string) => {
+    try {
+      const proposal = await api<OutreachProposalDetailDto>(`/v1/outreach/proposals/${id}`);
+      setOutreachDetails((prev) => ({ ...prev, [id]: proposal }));
+      setQueueDetailErrors((prev) => clearKey(prev, id));
+    } catch (err) {
+      setQueueDetailErrors((prev) => ({ ...prev, [id]: translateErr(err) }));
+    }
+  }, [translateErr]);
+
+  const loadCmsPreviewLink = useCallback(async (id: string) => {
+    try {
+      const link = await api<CmsPreviewLink>(`/v1/cms/drafts/${id}/preview-link`, {
+        method: 'POST',
+        body: '{}',
+      });
+      setCmsPreviewLinks((prev) => ({ ...prev, [id]: link }));
+    } catch {
+      setCmsPreviewLinks((prev) => ({ ...prev, [id]: { url: null, deliveryUrl: null } }));
+    }
+  }, []);
+
+  const reloadCmsPreviewLink = useCallback(
+    async (id: string) => {
+      setCmsPreviewLinks((prev) => clearKey(prev, id));
+      await loadCmsPreviewLink(id);
+    },
+    [loadCmsPreviewLink],
+  );
+
   const reloadQueueDetail = useCallback((id: string) => {
     setQueueDetailErrors((prev) => clearKey(prev, id));
   }, []);
@@ -285,6 +324,21 @@ export function useInboxData(): InboxController {
       viewedProposals.current.delete(id);
     });
   }, [queueDrawer]);
+
+  useEffect(() => {
+    if (!queueDrawer || queueDrawer.kind !== 'outreach') return;
+    const id = queueDrawer.id;
+    if (outreachDetails[id] !== undefined) return;
+    if (queueDetailErrors[id]) return;
+    void loadOutreachDetail(id);
+  }, [queueDrawer, outreachDetails, queueDetailErrors, loadOutreachDetail]);
+
+  useEffect(() => {
+    if (!queueDrawer || queueDrawer.kind !== 'cms') return;
+    const id = queueDrawer.id;
+    if (cmsPreviewLinks[id] !== undefined) return;
+    void loadCmsPreviewLink(id);
+  }, [queueDrawer, cmsPreviewLinks, loadCmsPreviewLink]);
 
   const subscriptions = useMemo<SubscriptionChannel[]>(() => {
     const subs: SubscriptionChannel[] = [{ channel: 'org' }];
@@ -451,6 +505,7 @@ export function useInboxData(): InboxController {
   const approveQueue = useCallback(
     async (item: QueueItem, sendAt?: string | null) => {
       setPending(true);
+      setQueueActionError(null);
       try {
         if (item.kind === 'kb' && item.raw.revisesDocumentId) {
           await api(`/v1/kb/curation/candidates/${item.id}/publish-revision`, {
@@ -486,8 +541,15 @@ export function useInboxData(): InboxController {
         }
         await loadInbox();
         setQueueDrawer(null);
+        return true;
       } catch (err) {
-        notify.error(translateErr(err));
+        setQueueActionError({
+          type: 'approve',
+          itemId: item.id,
+          message: translateErr(err),
+          code: getErrorCode(err),
+        });
+        return false;
       } finally {
         setPending(false);
       }
@@ -581,26 +643,10 @@ export function useInboxData(): InboxController {
     [translateErr],
   );
 
-  const previewCmsDraft = useCallback(async (item: QueueItem) => {
-    if (item.kind !== 'cms') return;
-    const w = window.open('about:blank', '_blank');
-    try {
-      const link = await api<{ url: string | null; deliveryUrl: string }>(
-        `/v1/cms/drafts/${item.id}/preview-link`,
-        { method: 'POST', body: '{}' },
-      );
-      const target = link.url ?? link.deliveryUrl;
-      if (w) w.location.href = target;
-      else window.open(target, '_blank');
-    } catch (err) {
-      w?.close();
-      notify.error(translateErr(err));
-    }
-  }, [translateErr]);
-
   const dismissQueue = useCallback(
     async (item: QueueItem) => {
       setPending(true);
+      setQueueActionError(null);
       try {
         if (item.kind === 'kb') {
           await api(`/v1/kb/curation/candidates/${item.id}/dismiss`, { method: 'POST' });
@@ -621,8 +667,15 @@ export function useInboxData(): InboxController {
         }
         await loadInbox();
         setQueueDrawer(null);
+        return true;
       } catch (err) {
-        notify.error(translateErr(err));
+        setQueueActionError({
+          type: 'dismiss',
+          itemId: item.id,
+          message: translateErr(err),
+          code: getErrorCode(err),
+        });
+        return false;
       } finally {
         setPending(false);
       }
@@ -713,12 +766,17 @@ export function useInboxData(): InboxController {
     kbBodies,
     kbRevisedBodies,
     cmsDetails,
+    outreachDetails,
+    cmsPreviewLinks,
+    reloadCmsPreviewLink,
     detailErrors,
     queueDetailErrors,
     reloadDetail,
     reloadQueueDetail,
     actionError,
     clearActionError,
+    queueActionError,
+    clearQueueActionError,
     connectionStatus,
     takeOver,
     release,
@@ -731,7 +789,6 @@ export function useInboxData(): InboxController {
     saveQueue,
     saveCmsDraft,
     uploadCmsAsset,
-    previewCmsDraft,
     dismissQueue,
     scheduleQueue,
   };

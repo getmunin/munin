@@ -3,6 +3,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -19,6 +20,8 @@ import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
+import { RoleGuard } from './role.guard.ts';
+import { RequireRole } from './role.decorator.ts';
 import {
   ConversationClaimsService,
   ClaimedByOtherError,
@@ -34,6 +37,7 @@ import {
   AGENT_MODES,
   HandoverActiveError,
   STATUSES,
+  type ConversationStatus,
   type ConversationDetail,
   type ConversationQueueItem,
   type ConversationSummary,
@@ -46,7 +50,10 @@ const AgentModeSchema = z.enum(AGENT_MODES);
 class SetAgentModeBody extends createZodDto(z.object({ mode: AgentModeSchema })) {}
 
 class SetTopicAgentModeBody extends createZodDto(
-  z.object({ mode: AgentModeSchema.nullable() }),
+  z.object({
+    mode: AgentModeSchema.nullable(),
+    promoteThresholdPct: z.number().int().min(50).max(100).optional(),
+  }),
 ) {}
 
 class SendReplyBody extends createZodDto(
@@ -114,6 +121,14 @@ class SetTopicBody extends createZodDto(
   }),
 ) {}
 
+class UpdateTopicBody extends createZodDto(
+  z.object({
+    name: z.string().min(1).max(120).optional(),
+    description: z.string().max(600).nullable().optional(),
+    color: z.string().max(16).nullable().optional(),
+  }),
+) {}
+
 class TakeOverBody extends createZodDto(
   z
     .object({
@@ -137,7 +152,7 @@ interface ConversationDetailResponse extends ConversationDetail {
 }
 
 @Controller('v1/conversations')
-@UseGuards(AuthGuard, ControlPlaneGuard)
+@UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class ConversationsController {
   constructor(
@@ -155,20 +170,9 @@ export class ConversationsController {
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ): Promise<ConversationListResponse> {
-    const parsedStatus = status ? StatusSchema.safeParse(status) : null;
-    if (parsedStatus && !parsedStatus.success) {
-      throw new BadRequestException(`invalid status: ${status}`);
-    }
-    const decodedCursor = cursor ? decodeListCursor(cursor) : undefined;
+    const query = parseListQuery({ status, needsHumanAttention, cursor, limit });
     const page = await translate(() =>
-      this.conv.listConversationsPage({
-        status: parsedStatus?.success ? parsedStatus.data : undefined,
-        assigneeUserId,
-        topicId,
-        needsHumanAttention: parseBool(needsHumanAttention),
-        limit: parseLimit(limit),
-        cursor: decodedCursor,
-      }),
+      this.conv.listConversationsPage({ ...query, assigneeUserId, topicId }),
     );
     return {
       items: page.items,
@@ -185,20 +189,9 @@ export class ConversationsController {
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ): Promise<ConversationQueueResponse> {
-    const parsedStatus = status ? StatusSchema.safeParse(status) : null;
-    if (parsedStatus && !parsedStatus.success) {
-      throw new BadRequestException(`invalid status: ${status}`);
-    }
-    const decodedCursor = cursor ? decodeListCursor(cursor) : undefined;
+    const query = parseListQuery({ status, needsHumanAttention, cursor, limit });
     const page = await translate(() =>
-      this.conv.listConversationQueuePage({
-        status: parsedStatus?.success ? parsedStatus.data : undefined,
-        assigneeUserId,
-        topicId,
-        needsHumanAttention: parseBool(needsHumanAttention),
-        limit: parseLimit(limit),
-        cursor: decodedCursor,
-      }),
+      this.conv.listConversationQueuePage({ ...query, assigneeUserId, topicId }),
     );
     return {
       items: page.items,
@@ -207,8 +200,31 @@ export class ConversationsController {
   }
 
   @Get('topics')
-  async listTopics(): Promise<Array<{ id: string; slug: string; name: string; color: string | null }>> {
+  async listTopics(): Promise<
+    Array<{
+      id: string;
+      slug: string;
+      name: string;
+      description: string | null;
+      color: string | null;
+    }>
+  > {
     return translate(() => this.conv.listTopics());
+  }
+
+  @Post('topics/:topicId')
+  @HttpCode(200)
+  async updateTopic(
+    @Param('topicId') topicId: string,
+    @Body() input: UpdateTopicBody,
+  ): Promise<{
+    id: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    color: string | null;
+  }> {
+    return translate(() => this.conv.updateTopic({ topicId, ...input }));
   }
 
   @Get('automation')
@@ -221,8 +237,22 @@ export class ConversationsController {
   async setTopicAgentMode(
     @Param('topicId') topicId: string,
     @Body() input: SetTopicAgentModeBody,
-  ): Promise<{ id: string; slug: string; agentMode: string | null; autoPromotedAt: string | null }> {
-    return translate(() => this.automation.setTopicAgentMode({ topicId, mode: input.mode }));
+  ): Promise<{
+    id: string;
+    slug: string;
+    agentMode: string | null;
+    autoPromotedAt: string | null;
+    promoteThresholdPct: number;
+  }> {
+    return translate(() =>
+      this.automation.setTopicAgentMode({
+        topicId,
+        mode: input.mode,
+        ...(input.promoteThresholdPct === undefined
+          ? {}
+          : { promoteThresholdPct: input.promoteThresholdPct }),
+      }),
+    );
   }
 
   @Get('awaiting-reply')
@@ -237,6 +267,19 @@ export class ConversationsController {
       }),
     );
     return { items };
+  }
+
+  @Post('test-message')
+  @HttpCode(201)
+  @RequireRole('owner', 'admin')
+  async createTestMessage(): Promise<ConversationDetail> {
+    return translate(() => this.conv.createTestConversation());
+  }
+
+  @Delete('test-message/:id')
+  @RequireRole('owner', 'admin')
+  async deleteTestMessage(@Param('id') id: string): Promise<{ deleted: true; id: string }> {
+    return translate(() => this.conv.deleteTestConversation(id));
   }
 
   @Get(':id')
@@ -341,7 +384,9 @@ export class ConversationsController {
     @Body() input: TakeOverBody,
   ): Promise<{ holderType: 'user'; holderId: string; expiresAt: string }> {
     const ttlMs = input.ttlMinutes ? input.ttlMinutes * 60_000 : undefined;
-    const claim = await translate(() => this.claims.claim({ conversationId: id, ttlMs }));
+    const claim = await translate(() =>
+      this.claims.claim({ conversationId: id, ttlMs, force: true }),
+    );
     return { holderType: claim.holderType, holderId: claim.holderId, expiresAt: claim.expiresAt };
   }
 
@@ -450,15 +495,50 @@ function encodeListCursor(c: { lastMessageAt: string | null; id: string }): stri
   return Buffer.from(JSON.stringify(c)).toString('base64url');
 }
 
-function decodeListCursor(raw: string): { lastMessageAt: string | null; id: string } | undefined {
+interface ListCursor {
+  lastMessageAt: string | null;
+  id: string;
+  needsHumanAttention?: boolean;
+}
+
+function decodeListCursor(raw: string): ListCursor | undefined {
   try {
     const parsed: unknown = JSON.parse(Buffer.from(raw, 'base64url').toString());
     if (!parsed || typeof parsed !== 'object') return undefined;
-    const candidate = parsed as { id?: unknown; lastMessageAt?: unknown };
+    const candidate = parsed as { id?: unknown; lastMessageAt?: unknown; needsHumanAttention?: unknown };
     if (typeof candidate.id !== 'string') return undefined;
     if (candidate.lastMessageAt !== null && typeof candidate.lastMessageAt !== 'string') return undefined;
-    return { lastMessageAt: candidate.lastMessageAt, id: candidate.id };
+    return {
+      lastMessageAt: candidate.lastMessageAt,
+      id: candidate.id,
+      ...(typeof candidate.needsHumanAttention === 'boolean'
+        ? { needsHumanAttention: candidate.needsHumanAttention }
+        : {}),
+    };
   } catch {
     return undefined;
   }
+}
+
+function parseListQuery(input: {
+  status?: string;
+  needsHumanAttention?: string;
+  cursor?: string;
+  limit?: string;
+}): {
+  status: ConversationStatus | undefined;
+  needsHumanAttention: boolean | undefined;
+  cursor: ListCursor | undefined;
+  limit: number | undefined;
+} {
+  const parsedStatus = input.status ? StatusSchema.safeParse(input.status) : null;
+  if (parsedStatus && !parsedStatus.success) {
+    throw new BadRequestException(`conv_invalid: invalid status: ${input.status}`);
+  }
+  return {
+    status: parsedStatus?.success ? parsedStatus.data : undefined,
+    needsHumanAttention: parseBool(input.needsHumanAttention),
+    cursor: input.cursor ? decodeListCursor(input.cursor) : undefined,
+    limit: parseLimit(input.limit),
+  };
 }

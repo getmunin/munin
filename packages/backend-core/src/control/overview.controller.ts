@@ -8,6 +8,7 @@ import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { CURATION_INBOX_SLUG } from '../modules/kb/kb.service.ts';
 import { RealtimeGateway } from '../realtime/realtime.gateway.ts';
+import { SetupStateService, type SetupStateDto } from './setup-state.service.ts';
 import { toIsoString } from '../common/iso.ts';
 
 export interface OverviewBacklog {
@@ -26,7 +27,15 @@ export interface AgentStatus {
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class OverviewController {
-  constructor(@Inject(RealtimeGateway) private readonly realtime: RealtimeGateway) {}
+  constructor(
+    @Inject(RealtimeGateway) private readonly realtime: RealtimeGateway,
+    @Inject(SetupStateService) private readonly setupState: SetupStateService,
+  ) {}
+
+  @Get('setup')
+  setup(): Promise<SetupStateDto> {
+    return this.setupState.read();
+  }
 
   @Get('backlog')
   async backlog(): Promise<OverviewBacklog> {

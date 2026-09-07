@@ -4,10 +4,12 @@ import type {
   CmsAssetExpanded,
   CmsDraftDetailDto,
   CmsDraftSummaryDto,
+  CmsPreviewLink,
   CmsScheduledSummaryDto,
   CrmMergeProposalDto,
   FeedbackOutboxDto,
   KbCandidateDto,
+  OutreachProposalDetailDto,
   OutreachProposalDto,
   QueueItem,
   ScheduledItem,
@@ -30,6 +32,7 @@ export interface ConversationSummary {
   lastMessageAt: string | null;
   needsHumanAttention: boolean;
   needsHumanAttentionAt: string | null;
+  isTest?: boolean;
   updatedAt: string;
   createdAt: string;
 }
@@ -93,6 +96,15 @@ export type ConvActionError =
     }
   | null;
 
+export type QueueActionError =
+  | {
+      type: 'approve' | 'dismiss';
+      itemId: string;
+      message: string;
+      code: string | null;
+    }
+  | null;
+
 export interface InboxController {
   items: LiveSummary[];
   details: Record<string, ConversationDetail>;
@@ -115,12 +127,17 @@ export interface InboxController {
   kbBodies: Record<string, string>;
   kbRevisedBodies: Record<string, string>;
   cmsDetails: Record<string, CmsDraftDetailDto>;
+  outreachDetails: Record<string, OutreachProposalDetailDto>;
+  cmsPreviewLinks: Record<string, CmsPreviewLink>;
+  reloadCmsPreviewLink: (id: string) => Promise<void>;
   detailErrors: Record<string, string>;
   queueDetailErrors: Record<string, string>;
   reloadDetail: (id: string) => Promise<void>;
   reloadQueueDetail: (id: string) => void;
   actionError: ConvActionError;
   clearActionError: () => void;
+  queueActionError: QueueActionError;
+  clearQueueActionError: () => void;
   connectionStatus: RealtimeStatus;
   takeOver: (id: string, openDrawerAfter?: boolean) => Promise<void>;
   release: (id: string) => Promise<void>;
@@ -130,14 +147,13 @@ export interface InboxController {
     body: string,
     options?: { claim?: boolean; fromDraftId?: string },
   ) => Promise<void>;
-  approveQueue: (item: QueueItem, sendAt?: string | null) => Promise<void>;
+  approveQueue: (item: QueueItem, sendAt?: string | null) => Promise<boolean>;
   scheduled: ScheduledItem[];
   cancelScheduledSend: (id: string, reason: string) => Promise<void>;
   cancelScheduledPublish: (id: string) => Promise<void>;
   saveQueue: (item: QueueItem, body: string) => Promise<void>;
   saveCmsDraft: (item: QueueItem, data: Record<string, unknown>) => Promise<void>;
   uploadCmsAsset: (item: QueueItem, file: File) => Promise<CmsAssetExpanded>;
-  previewCmsDraft: (item: QueueItem) => Promise<void>;
-  dismissQueue: (item: QueueItem) => Promise<void>;
+  dismissQueue: (item: QueueItem) => Promise<boolean>;
   scheduleQueue: (item: QueueItem, scheduledAt: string) => Promise<void>;
 }

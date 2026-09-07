@@ -95,6 +95,7 @@ const baseConfig: WidgetConfig = {
   locale: null,
   size: 'standard',
   fonts: 'inherit',
+  corners: 'square',
   colorScheme: 'auto',
   showHistory: true,
 };

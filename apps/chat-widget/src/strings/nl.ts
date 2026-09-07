@@ -25,7 +25,7 @@ const nl: Strings = {
   defaultEyebrow: 'Aangedreven door Munin',
   defaultGreeting: 'Hallo. Hoe kunnen we helpen?',
   defaultTitle: 'Chat met ons',
-  welcomeRepliesAboutHtml: 'Antwoord in ongeveer <strong>2 min</strong>',
+  welcomeRepliesInstantly: 'Reageert direct',
   startConversationLabel: 'Start een gesprek',
   startConversationSub: 'We zetten direct een agent op de zaak.',
   conversationsHeader: 'Jouw gesprekken',

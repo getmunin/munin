@@ -16,6 +16,21 @@
   --munin-accent-soft: 127 177 255; /* #7FB1FF — italic on dark */
   --munin-accent-deep: 0 72 184;    /* #0048B8 — hover/pressed */
 
+  /* Conversation identity — one colour per role, never per mood.
+     Self is ink (--munin-ink); the agent is hueless (--munin-fg-3 on
+     --munin-paper-deep); the counterparty is the only human wearing a hue.
+     Cobalt above stays an action, not an identity. */
+  --munin-verdigris: 32 133 98;      /* #208562 — the counterparty */
+  --munin-verdigris-soft: 98 195 156; /* #62C39C — counterparty on dark */
+  --munin-verdigris-tint: 227 245 236; /* #E3F5EC — counterparty bubble */
+
+  /* The agent has no hue to spend, so its tint spends temperature: every
+     Munin surface is warm, the agent tint is cool. Must read on all four
+     surfaces — paper, paper-deep, bone, ink. Was paper-deep, which vanished
+     into its own background on any paper-deep thread. */
+  --munin-agent-tint: 220 226 232;         /* #DCE2E8 — agent bubble */
+  --munin-agent-tint-on-dark: 30 37 44;    /* #1E252C — agent bubble on ink */
+
   --munin-auth-navy: 42 63 88;        /* #2A3F58 — primary CTA on auth pages */
   --munin-auth-navy-hover: 31 47 68;  /* #1F2F44 */
 

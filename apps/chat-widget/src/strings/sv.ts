@@ -25,7 +25,7 @@ const sv: Strings = {
   defaultEyebrow: 'Drivs av Munin',
   defaultGreeting: 'Hej. Vad kan vi hjälpa till med?',
   defaultTitle: 'Chatta med oss',
-  welcomeRepliesAboutHtml: 'Svar inom ca <strong>2 min</strong>',
+  welcomeRepliesInstantly: 'Svarar direkt',
   startConversationLabel: 'Starta en konversation',
   startConversationSub: 'Vi sätter en agent på det direkt.',
   conversationsHeader: 'Dina konversationer',

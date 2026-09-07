@@ -25,7 +25,7 @@ const cs: Strings = {
   defaultEyebrow: 'Běží na Munin',
   defaultGreeting: 'Dobrý den. Jak můžeme pomoct?',
   defaultTitle: 'Napište nám',
-  welcomeRepliesAboutHtml: 'Odpověď asi za <strong>2 min</strong>',
+  welcomeRepliesInstantly: 'Odpoví hned',
   startConversationLabel: 'Začít konverzaci',
   startConversationSub: 'Hned se do toho pustí agent.',
   conversationsHeader: 'Vaše konverzace',

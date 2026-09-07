@@ -25,7 +25,7 @@ const da: Strings = {
   defaultEyebrow: 'Drevet af Munin',
   defaultGreeting: 'Hej. Hvad kan vi hjælpe med?',
   defaultTitle: 'Chat med os',
-  welcomeRepliesAboutHtml: 'Svar inden for ca. <strong>2 min</strong>',
+  welcomeRepliesInstantly: 'Svarer med det samme',
   startConversationLabel: 'Start en samtale',
   startConversationSub: 'Vi sætter en agent på sagen med det samme.',
   conversationsHeader: 'Dine samtaler',

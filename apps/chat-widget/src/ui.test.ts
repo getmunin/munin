@@ -313,6 +313,18 @@ describe('ui: addMessages', () => {
     expect(labels.some((l) => /Maja/.test(l) && /human/.test(l))).toBe(true);
   });
 
+  it('marks a human operator as the hued counterparty and leaves the AI hueless', () => {
+    controller!.addMessages([
+      { id: 'm1', role: 'agent', body: 'hi', bodyHtml: null, at: '2026-01-01T00:00:00Z', authorKind: 'ai', authorName: 'Munin', readAt: null },
+      { id: 'm2', role: 'agent', body: 'taking over', bodyHtml: null, at: '2026-01-01T00:00:01Z', authorKind: 'human', authorName: 'Maja', readAt: null },
+      msg({ id: 'm3', role: 'end_user', body: 'thanks' }),
+    ]);
+    expect($('[data-message-id="m1"]').classList.contains('human')).toBe(false);
+    expect($('[data-message-id="m2"]').classList.contains('human')).toBe(true);
+    expect($('[data-message-id="m3"]').classList.contains('human')).toBe(false);
+    expect($('[data-message-id="m3"]').classList.contains('mine')).toBe(true);
+  });
+
   it('dedupes by message id across calls', () => {
     controller!.addMessages([msg({ id: 'm1', role: 'end_user', body: 'hi' })]);
     controller!.addMessages([

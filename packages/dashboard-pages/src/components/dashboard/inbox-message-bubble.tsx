@@ -5,6 +5,7 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@getmunin/ui';
 import { MessageComponents } from './inbox-product-list';
+import { messageRole, participantColor, type MessageRole } from './inbox-identity';
 import type { MessageDto } from './inbox-types';
 
 const MESSAGE_MD_COMPONENTS: Components = {
@@ -38,45 +39,58 @@ function MessageMarkdown({ body }: { body: string }) {
   );
 }
 
+const ROLE_BUBBLE: Record<Exclude<MessageRole, 'system'>, string> = {
+  self: 'border-ink bg-ink text-paper dark:border-paper dark:bg-paper dark:text-ink',
+  other:
+    'border-verdigris/20 bg-verdigris-tint text-ink dark:border-verdigris-soft/30 dark:bg-verdigris/15 dark:text-foreground',
+  agent:
+    'border-rule-soft bg-agent-tint text-ink dark:border-rule-on-dark dark:bg-agent-tint-on-dark dark:text-foreground',
+};
+
 export function MessageBubble({
   message,
   showAuthor = true,
+  viewerUserId = null,
+  hue,
 }: {
   message: MessageDto;
   showAuthor?: boolean;
+  viewerUserId?: string | null;
+  hue?: number;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
-  const isStaff = message.authorType === 'user';
-  const isAgent = message.authorType === 'agent';
-  const isOutbound = isStaff || isAgent;
-  const isSystem = message.authorType === 'system';
+  const role = messageRole(message, viewerUserId);
+  const isOutbound = message.authorType === 'user' || message.authorType === 'agent';
   const noSpeech = message.metadata.voiceNoSpeech === true;
 
-  if (isSystem) {
+  if (role === 'system') {
     return (
       <div className="self-center text-center font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
         — {message.body} —
       </div>
     );
   }
+  const label = bubbleLabel(message, t);
   if (message.internal) {
     return (
       <div
         className={cn(
           'ml-12 flex flex-col gap-1 border-l-2 bg-amber-50 px-3.5 py-2.5 text-sm dark:bg-amber-500/10',
-          isStaff ? 'border-cobalt dark:border-cobalt-soft' : 'border-ink dark:border-foreground',
+          role === 'self'
+            ? 'border-ink dark:border-paper'
+            : role === 'other'
+              ? 'border-verdigris dark:border-verdigris-soft'
+              : 'border-ink-mute',
         )}
+        style={hue === undefined ? undefined : { borderLeftColor: participantColor(hue) }}
       >
         <div
           className={cn(
             'font-mono text-[9px] uppercase tracking-eyebrow',
-            isStaff ? 'text-cobalt dark:text-cobalt-soft' : 'text-ink-soft dark:text-foreground/80',
+            role === 'agent' ? 'text-ink-mute' : 'text-ink-soft dark:text-foreground/80',
           )}
         >
-          {t('noteMeta', {
-            author: bubbleLabel(message, t),
-            time: formatSeenAt(message.createdAt),
-          })}
+          {t('noteMeta', { author: label, time: formatSeenAt(message.createdAt) })}
         </div>
         <MessageMarkdown body={message.body} />
       </div>
@@ -92,8 +106,14 @@ export function MessageBubble({
     >
       {showAuthor ? (
         <div className="flex items-baseline gap-1.5 font-mono text-[9px] uppercase tracking-meta text-ink-mute">
-          <span className="font-semibold text-ink-soft dark:text-foreground/80">
-            {bubbleLabel(message, t)}
+          <span
+            className={cn(
+              'font-semibold',
+              role === 'agent' ? 'text-ink-mute' : 'text-ink-soft dark:text-foreground/80',
+            )}
+            style={hue === undefined ? undefined : { color: participantColor(hue) }}
+          >
+            {label}
           </span>
           <span>· {formatSeenAt(message.createdAt)}</span>
         </div>
@@ -101,12 +121,17 @@ export function MessageBubble({
       <div
         className={cn(
           'max-w-full rounded-bubble border px-[13px] py-2.5 text-[13.5px] leading-[1.45]',
-          isStaff
-            ? 'rounded-br-[4px] border-cobalt bg-cobalt text-paper'
-            : isAgent
-              ? 'rounded-br-[4px] border-ink bg-ink text-paper dark:border-paper dark:bg-paper dark:text-ink'
-              : 'rounded-bl-[4px] border-rule-soft bg-paper text-ink dark:border-rule-on-dark dark:bg-card dark:text-foreground',
+          isOutbound ? 'rounded-br-[4px]' : 'rounded-bl-[4px]',
+          hue === undefined ? ROLE_BUBBLE[role] : 'text-ink dark:text-foreground',
         )}
+        style={
+          hue === undefined
+            ? undefined
+            : {
+                background: `color-mix(in oklab, ${participantColor(hue)} 12%, transparent)`,
+                borderColor: `color-mix(in oklab, ${participantColor(hue)} 30%, transparent)`,
+              }
+        }
       >
         {noSpeech ? (
           <p className="italic opacity-60">{t('noSpeech')}</p>
@@ -145,5 +170,6 @@ export function startsAuthorGroup(message: MessageDto, previous: MessageDto | un
   if (!previous) return true;
   if (previous.internal !== message.internal) return true;
   if (previous.authorType !== message.authorType) return true;
+  if (previous.authorId !== message.authorId) return true;
   return (previous.authorName ?? null) !== (message.authorName ?? null);
 }

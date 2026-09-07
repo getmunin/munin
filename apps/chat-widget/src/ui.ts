@@ -677,7 +677,7 @@ function renderMessage(m: ListedMessage, strings: Strings, locale: string): HTML
   }
   const wrap = document.createElement('div');
   const mine = m.role === 'end_user';
-  wrap.className = `msg ${mine ? 'mine' : 'theirs'}`;
+  wrap.className = `msg ${mine ? 'mine' : 'theirs'}${!mine && m.authorKind === 'human' ? ' human' : ''}`;
   wrap.setAttribute('data-message-id', m.id);
   wrap.setAttribute('data-at', m.at);
 

@@ -2,9 +2,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { asc, eq, sql } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
-import { AGENT_MODES, type AgentMode } from './conv.service.ts';
-
-export const TOPIC_AGENT_MODES = AGENT_MODES;
+import { type AgentMode } from './conv.service.ts';
 
 const STATS_WINDOW_DAYS = 30;
 const AUTO_RATE_WINDOW_DAYS = 7;

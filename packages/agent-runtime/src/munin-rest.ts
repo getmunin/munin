@@ -140,7 +140,7 @@ export interface MuninRestClient {
   postInternalNote(conversationId: string, body: string): Promise<void>;
   requestHandover(
     conversationId: string,
-    input: { reason?: string; publicFallbackMessage?: string },
+    input: { reason?: string; publicFallbackMessage?: string; postSystemNote?: boolean },
   ): Promise<void>;
   setDraftReply(
     conversationId: string,
@@ -284,7 +284,7 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
     },
     async requestHandover(
       conversationId: string,
-      input: { reason?: string; publicFallbackMessage?: string },
+      input: { reason?: string; publicFallbackMessage?: string; postSystemNote?: boolean },
     ): Promise<void> {
       await call<unknown>(
         `/v1/conversations/${encodeURIComponent(conversationId)}/request-handover`,
@@ -295,6 +295,7 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
             ...(input.publicFallbackMessage
               ? { publicFallbackMessage: input.publicFallbackMessage }
               : {}),
+            ...(input.postSystemNote === false ? { postSystemNote: false } : {}),
           }),
         },
       );

@@ -9,6 +9,7 @@ import { useRelative } from '../lib/use-relative';
 import { LoadFailed } from '../components/load-failed';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
 import { useInboxData, InboxDrawers, type QueueItem } from '../components/dashboard/inbox-sections';
+import { DEFAULT_CURATION_TARGET_SPACE } from '../components/dashboard/inbox-data';
 
 type DecisionOutcome = 'published' | 'dismissed';
 
@@ -164,7 +165,7 @@ export function LearningPage() {
                   : item.snippet
               }
               action={t('candidateAction', {
-                target: item.raw.proposedTargetSpaceSlug ?? 'support-faq',
+                target: item.raw.proposedTargetSpaceSlug ?? DEFAULT_CURATION_TARGET_SPACE,
               })}
               status={<StatusPill tone="open">{t('statusOpen')}</StatusPill>}
             >

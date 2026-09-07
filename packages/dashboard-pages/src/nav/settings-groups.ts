@@ -38,6 +38,19 @@ export const OSS_SETTINGS_GROUPS: SettingsSubNavGroup[] = [
   },
 ];
 
+export function settingsGroupsForRole(
+  groups: SettingsSubNavGroup[],
+  isAdmin: boolean,
+): SettingsSubNavGroup[] {
+  if (isAdmin) return groups;
+  return groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => item.href.split('/').pop() === 'account'),
+    }))
+    .filter((group) => group.items.length > 0);
+}
+
 export interface SettingsGroupExtension {
   groupKey: string;
   items: SettingsSubNavItem[];

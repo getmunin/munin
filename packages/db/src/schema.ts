@@ -850,6 +850,8 @@ export const convTopics = pgTable(
     name: text('name').notNull(),
     slug: varchar('slug', { length: 64 }).notNull(),
     color: varchar('color', { length: 16 }),
+    agentMode: varchar('agent_mode', { length: 16 }),
+    autoPromotedAt: timestamp('auto_promoted_at', { withTimezone: true }),
     createdAt,
     updatedAt,
   },

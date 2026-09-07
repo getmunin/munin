@@ -1315,6 +1315,36 @@ const skipReason = TEST_URL
     expect(afterBody.messages).toHaveLength(0);
   });
 
+  it('hides a voice turn that transcribed no speech from the visitor', async () => {
+    const sessionId = 'vis_no_speech';
+    const first = await call('POST', '/v1/widget/messages', widgetKey, {
+      channelId,
+      sessionId,
+      messages: [{ role: 'end_user', body: 'before the call' }],
+    });
+    expect(first.status).toBe(201);
+    const conversationId = (first.json as { conversationId: string }).conversationId;
+
+    await db.insert(schema.convMessages).values({
+      orgId,
+      conversationId,
+      authorType: 'end_user',
+      authorId: 'voice-user',
+      body: '',
+      internal: false,
+      metadata: { threllCallId: 'call_widget_no_speech', voiceTurnIndex: 1, voiceNoSpeech: true },
+    });
+
+    const listed = await call(
+      'GET',
+      `/v1/widget/messages?${qs({ channelId, sessionId })}`,
+      widgetKey,
+    );
+    expect(listed.status).toBe(200);
+    const body = listed.json as { messages: Array<{ body: string }> };
+    expect(body.messages.map((m) => m.body)).toEqual(['before the call']);
+  });
+
   it('delivers a backdated message the cursor has already passed and sorts it by spoken time', async () => {
     const sessionId = 'vis_backdated';
     const first = await call('POST', '/v1/widget/messages', widgetKey, {

@@ -16,7 +16,7 @@ The campaign decides *which* fields; you decide *what the person said*. The fiel
 
 The prompt names the channel. It changes what you are reading and when you were called, and nothing else:
 
-- **voice** — a finished call. You run once, when it ends. The turns are a transcript.
+- **voice** — a finished call. You run once, when it ends. The turns are a transcript. A turn with an empty body and `metadata.voiceNoSpeech: true` is one where speech recognition returned nothing — it carries no answer, and the silence is not agreement.
 - **email** / **sms** — the prospect replied. You run once per inbound reply, so the thread may already carry fields you wrote after an earlier one. Later answers supersede earlier ones; that is intended.
 
 Everything below applies to all three unless it says otherwise.

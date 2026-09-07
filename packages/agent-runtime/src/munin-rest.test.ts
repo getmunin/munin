@@ -35,6 +35,17 @@ describe('toRuntimeHistory', () => {
     expect(teammate?.body).toBe('what are you planning to make?');
   });
 
+  it('drops a voice turn that transcribed no speech, so no empty turn reaches the provider', () => {
+    const history = client.toRuntimeHistory(
+      makeDetail([
+        { id: 'm1', authorType: 'end_user', body: 'my account is locked', createdAt: 't1' },
+        { id: 'm2', authorType: 'end_user', body: '', createdAt: 't2' },
+        { id: 'm3', authorType: 'agent', body: 'let me look', createdAt: 't3' },
+      ]),
+    );
+    expect(history.map((m) => m.body)).toEqual(['my account is locked', 'let me look']);
+  });
+
   it('drops internal messages', () => {
     const history = client.toRuntimeHistory(
       makeDetail([

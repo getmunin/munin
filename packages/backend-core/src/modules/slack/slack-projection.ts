@@ -25,6 +25,7 @@ export interface MessageSnapshot {
   authorName: string | null;
   internal: boolean;
   body: string;
+  noSpeech?: boolean;
   attachments?: MessageAttachment[];
 }
 
@@ -93,8 +94,15 @@ export function threadParentText(conv: ConversationSnapshot): string {
   return lines.join('\n');
 }
 
+const NO_SPEECH_TEXT = '_No speech transcribed_';
+
+function renderedBody(msg: MessageSnapshot): string {
+  if (msg.noSpeech) return NO_SPEECH_TEXT;
+  return truncate(markdownToMrkdwn(msg.body));
+}
+
 export function messageText(msg: MessageSnapshot): string {
-  const quoted = truncate(markdownToMrkdwn(msg.body))
+  const quoted = renderedBody(msg)
     .split('\n')
     .map((line) => `> ${line}`)
     .join('\n');
@@ -132,7 +140,7 @@ export function speakerIdentity(kind: AuthorKind, name: string | null): SpeakerI
 }
 
 export function messageBodyText(msg: MessageSnapshot): string {
-  const rawBody = truncate(markdownToMrkdwn(msg.body));
+  const rawBody = renderedBody(msg);
   const body = msg.authorKind === 'system' ? `:gear: *${rawBody}*` : rawBody;
   const attachmentLines = (msg.attachments ?? []).map((a) => {
     const name = escapeSlackText(a.name ?? 'attachment');

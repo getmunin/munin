@@ -373,6 +373,7 @@
         "kbDismissPermanent": "Avvisning er endelig: utkastet slettes, og senere gjennomganger foreslår ikke denne samtalen på nytt.",
         "handleFallback": "—",
         "anonymousVisitor": "Anonym",
+        "noSpeech": "Ingen tale oppfattet",
         "outreachRevised": "Endret {count}× siden utkastet ble skrevet",
         "outreachRevisedAfterReview": "Endret {count}× etter at det ble åpnet til gjennomgang — les det på nytt før du godkjenner",
         "outreachRevisionReason": "Begrunnelse — {reason}",

@@ -140,7 +140,7 @@ export class WidgetIngestService {
     const slice = hasMore ? rows.slice(0, LIST_MESSAGES_LIMIT) : rows;
     const cursor = slice[slice.length - 1]?.ingestedAt.toISOString() ?? null;
     const visible = slice
-      .filter((r) => !r.internal)
+      .filter((r) => !r.internal && r.metadata.voiceNoSpeech !== true)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
     const userIdSet = new Set<string>(

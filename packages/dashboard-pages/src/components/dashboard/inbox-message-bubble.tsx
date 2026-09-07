@@ -50,6 +50,7 @@ export function MessageBubble({
   const isAgent = message.authorType === 'agent';
   const isOutbound = isStaff || isAgent;
   const isSystem = message.authorType === 'system';
+  const noSpeech = message.metadata.voiceNoSpeech === true;
 
   if (isSystem) {
     return (
@@ -107,7 +108,11 @@ export function MessageBubble({
               : 'rounded-bl-[4px] border-rule-soft bg-paper text-ink dark:border-rule-on-dark dark:bg-card dark:text-foreground',
         )}
       >
-        <MessageMarkdown body={message.body} />
+        {noSpeech ? (
+          <p className="italic opacity-60">{t('noSpeech')}</p>
+        ) : (
+          <MessageMarkdown body={message.body} />
+        )}
       </div>
       {isOutbound && <MessageComponents metadata={message.metadata} />}
       {isOutbound && message.seenAt && (

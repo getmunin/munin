@@ -274,9 +274,10 @@ export class ThrellAdapter implements ChannelAdapter {
   private async handleTranscript(channel: ChannelRow, event: ThrellEvent): Promise<void> {
     if (event.data?.isFinal !== true) return;
     const callId = event.data?.callId;
-    const text = event.data?.text?.trim();
+    const text = event.data?.text?.trim() ?? '';
     const role = mapRole(event.data?.role);
-    if (!callId || !text || !role) return;
+    if (!callId || !role) return;
+    if (!text && role !== 'user') return;
 
     await this.runAsSystem(channel, async (tx) => {
       const conversation = await this.resolveConversation(tx, channel, event);
@@ -347,6 +348,7 @@ export class ThrellAdapter implements ChannelAdapter {
       threllCallId: args.callId,
       threllRole: args.role,
       voiceTurnIndex: args.voiceTurnIndex,
+      ...(args.text ? {} : { voiceNoSpeech: true }),
     };
     const newId = makeId('cvm');
     const inserted = await tx.execute<{ id: string }>(sql`

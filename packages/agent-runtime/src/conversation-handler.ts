@@ -154,6 +154,10 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       log.info(`skip ${detail.id}: voice call in progress (vendor owns the response loop)`);
       return null;
     }
+    if (mode === 'reply' && newestTurnIsSilent(detail)) {
+      log.info(`skip ${detail.id}: newest turn transcribed no speech`);
+      return null;
+    }
     if (detail.status !== 'open') {
       log.info(`skip ${detail.id}: status=${detail.status}`);
       return null;
@@ -681,6 +685,11 @@ function lastPublicMessage(
     return m;
   }
   return null;
+}
+
+function newestTurnIsSilent(detail: ConversationDetail): boolean {
+  const newest = lastPublicMessage(detail);
+  return newest?.authorType === 'end_user' && newest.body.trim().length === 0;
 }
 
 export function assistantNamePreamble(name: string | null | undefined): string {

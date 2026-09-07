@@ -211,6 +211,46 @@ describe('createConversationHandler', () => {
     expect(postSpy).not.toHaveBeenCalled();
   });
 
+  it('skips when the newest turn transcribed no speech', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            messages: [
+              {
+                id: 'msg_1',
+                authorType: 'end_user',
+                body: 'when do you open?',
+                createdAt: new Date().toISOString(),
+                internal: false,
+              },
+              {
+                id: 'msg_2',
+                authorType: 'end_user',
+                body: '',
+                createdAt: new Date().toISOString(),
+                internal: false,
+              },
+            ],
+          }),
+        ),
+      ),
+    });
+    const postSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
   it('skips when conversation has been claimed by staff', async () => {
     const rest = buildRest({
       getConversation: vi.fn(() => Promise.resolve(buildConversation({ assigneeUserId: 'user_42' }))),

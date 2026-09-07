@@ -233,7 +233,8 @@ export function ConversationPane({
   const askedForDraft = !!controller.draftRequested[detail.id];
   const drafting = askedForDraft || item?.agentWorking === true;
   const endUserSpokeLast =
-    [...thread].reverse().find((m) => !m.internal)?.authorType === 'end_user';
+    [...thread].reverse().find((m) => !m.internal && m.body.trim().length > 0)?.authorType ===
+    'end_user';
   const agentCanDraft = !!detail.endUserId && item?.agentMode !== 'off';
   const draftInFlight = !!draft || drafting;
   const canAskDraft = canReply && endUserSpokeLast && agentCanDraft && !draftInFlight;

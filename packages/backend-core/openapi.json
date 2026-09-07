@@ -9138,6 +9138,9 @@
           "publicFallbackMessage": {
             "type": "string",
             "maxLength": 2000
+          },
+          "postSystemNote": {
+            "type": "boolean"
           }
         }
       },

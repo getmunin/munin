@@ -1,10 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { api, ApiError } from '../../api';
 import { getErrorCode, useTranslateError } from '../../i18n/translate-error';
+import { notify } from '../../lib/notify';
 import { useRealtime, type SubscriptionChannel } from '../../realtime';
 import type { ConversationDetail, MessageDto, Status } from './inbox-types';
+
+const DRAFT_REQUEST_TIMEOUT_MS = 60_000;
 
 export interface QueueClaim {
   holderId: string;
@@ -43,8 +47,17 @@ interface QueuePageResponse {
   nextCursor: string | null;
 }
 
+export type QueueActionType =
+  | 'send'
+  | 'takeOver'
+  | 'release'
+  | 'close'
+  | 'reject'
+  | 'note'
+  | 'requestDraft';
+
 export type QueueActionError = {
-  type: 'send' | 'takeOver' | 'release' | 'close' | 'reject' | 'note' | 'requestDraft';
+  type: QueueActionType;
   conversationId: string;
   message: string;
   code: string | null;
@@ -107,6 +120,7 @@ export interface QueueController {
   retrying: boolean;
   retryLoad: () => Promise<void>;
   pending: boolean;
+  pendingAction: QueueActionType | null;
   actionError: QueueActionError;
   clearActionError: () => void;
   draftRequested: Record<string, boolean>;
@@ -121,6 +135,7 @@ export interface QueueController {
 
 export function useConversationQueue(routeSelectedId: string | null): QueueController {
   const translateErr = useTranslateError();
+  const t = useTranslations('dashboard.console.queue');
   const [open, setOpen] = useState<QueueItemDto[]>([]);
   const [finished, setFinished] = useState<QueueItemDto[]>([]);
   const selectedId = routeSelectedId ?? open[0]?.id ?? finished[0]?.id ?? null;
@@ -128,9 +143,34 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [retrying, setRetrying] = useState(false);
-  const [pending, setPending] = useState(false);
+  const [pendingAction, setPendingAction] = useState<QueueActionType | null>(null);
   const [actionError, setActionError] = useState<QueueActionError>(null);
   const [draftRequested, setDraftRequested] = useState<Record<string, boolean>>({});
+  const draftRequestedRef = useRef(draftRequested);
+  draftRequestedRef.current = draftRequested;
+  const draftTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  const clearDraftRequested = useCallback((id: string) => {
+    const timer = draftTimers.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      draftTimers.current.delete(id);
+    }
+    setDraftRequested((prev) => {
+      if (!prev[id]) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const timers = draftTimers.current;
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+    };
+  }, []);
 
   const loadQueue = useCallback(async () => {
     try {
@@ -142,10 +182,15 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
       setFinished(finishedPage.items);
       setLoadError(null);
       setHasLoadedOnce(true);
+      for (const item of openPage.items) {
+        if (item.hasPendingDraft && draftRequestedRef.current[item.id]) {
+          clearDraftRequested(item.id);
+        }
+      }
     } catch (err) {
       if (err instanceof ApiError) setLoadError(err);
     }
-  }, []);
+  }, [clearDraftRequested]);
 
   const retryLoad = useCallback(async () => {
     setRetrying(true);
@@ -168,18 +213,16 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     try {
       const d = await api<ConversationDetail>(`/v1/conversations/${id}`);
       setDetails((prev) => ({ ...prev, [id]: d }));
-      setDraftRequested((prev) => {
-        if (!prev[id]) return prev;
-        const hasDraft = d.messages.some((m) => messageDraftKind(m) === 'draft_reply');
-        if (!hasDraft) return prev;
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
+      if (
+        draftRequestedRef.current[id] &&
+        d.messages.some((m) => messageDraftKind(m) === 'draft_reply')
+      ) {
+        clearDraftRequested(id);
+      }
     } catch {
       return;
     }
-  }, []);
+  }, [clearDraftRequested]);
 
   useEffect(() => {
     void loadQueue();
@@ -218,11 +261,11 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
 
   const runAction = useCallback(
     async (
-      type: NonNullable<QueueActionError>['type'],
+      type: QueueActionType,
       id: string,
       fn: () => Promise<void>,
     ): Promise<boolean> => {
-      setPending(true);
+      setPendingAction(type);
       setActionError(null);
       try {
         await fn();
@@ -237,7 +280,7 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
         });
         return false;
       } finally {
-        setPending(false);
+        setPendingAction(null);
       }
     },
     [loadDetail, loadQueue, translateErr],
@@ -315,9 +358,25 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
       const ok = await runAction('requestDraft', id, () =>
         api(`/v1/conversations/${id}/request-draft`, { method: 'POST', body: '{}' }),
       );
-      if (ok) setDraftRequested((prev) => ({ ...prev, [id]: true }));
+      if (!ok) return;
+      const existing = draftTimers.current.get(id);
+      if (existing) clearTimeout(existing);
+      setDraftRequested((prev) => ({ ...prev, [id]: true }));
+      draftTimers.current.set(
+        id,
+        setTimeout(() => {
+          draftTimers.current.delete(id);
+          if (!draftRequestedRef.current[id]) return;
+          setDraftRequested((prev) => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+          });
+          notify.error(t('draftTimeout'));
+        }, DRAFT_REQUEST_TIMEOUT_MS),
+      );
     },
-    [runAction],
+    [runAction, t],
   );
 
   const clearActionError = useCallback(() => setActionError(null), []);
@@ -331,7 +390,8 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     hasLoadedOnce,
     retrying,
     retryLoad,
-    pending,
+    pending: pendingAction !== null,
+    pendingAction,
     actionError,
     clearActionError,
     draftRequested,

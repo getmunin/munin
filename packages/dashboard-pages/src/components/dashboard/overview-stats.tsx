@@ -25,38 +25,45 @@ function StatRow({
     <Link
       href={href}
       className={cn(
-        'group flex w-full items-center gap-5 px-1 py-5 text-left',
+        'group flex w-full items-center gap-3.5 px-1 py-4 text-left md:gap-5 md:py-5',
         bordered && 'border-t border-rule-soft dark:border-rule-on-dark',
       )}
     >
-      <span
-        aria-hidden
-        className={cn(
-          'shrink-0 rounded-full',
-          dot === 'live'
-            ? cn(
-                'size-2',
-                count > 0
-                  ? 'bg-cobalt shadow-[0_0_0_4px_rgba(0,102,255,0.22)] dark:bg-cobalt-soft'
-                  : 'bg-ink-mute',
-              )
-            : cn(
-                'size-[9px] border-[1.5px] bg-transparent',
-                count > 0 ? 'border-cobalt dark:border-cobalt-soft' : 'border-ink-mute',
-              ),
-        )}
-      />
-      <span className="min-w-[52px] font-serif text-[44px] leading-none text-ink dark:text-foreground">
+      {dot === 'live' && count > 0 ? (
+        <span aria-hidden className="relative size-2 shrink-0">
+          <span className="absolute inset-0 animate-ping rounded-full bg-cobalt opacity-60 [animation-duration:2s] dark:bg-cobalt-soft" />
+          <span className="absolute inset-0 rounded-full bg-cobalt shadow-[0_0_0_4px_rgba(0,102,255,0.22)] dark:bg-cobalt-soft" />
+        </span>
+      ) : (
+        <span
+          aria-hidden
+          className={cn(
+            'shrink-0 rounded-full',
+            dot === 'live'
+              ? 'size-2 bg-ink-mute'
+              : cn(
+                  'size-[9px] border-[1.5px] bg-transparent',
+                  count > 0 ? 'border-cobalt dark:border-cobalt-soft' : 'border-ink-mute',
+                ),
+          )}
+        />
+      )}
+      <span className="min-w-[40px] font-serif text-[32px] leading-none text-ink md:min-w-[52px] md:text-[44px] dark:text-foreground">
         {count}
       </span>
-      <span className="flex min-w-0 flex-col gap-1">
-        <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5 md:gap-1">
+        <span className="truncate font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute md:text-[10px]">
           {label}
         </span>
-        <span className="text-[15px] text-ink dark:text-foreground">{note}</span>
+        <span className="text-[13.5px] text-ink md:text-[15px] dark:text-foreground">{note}</span>
       </span>
-      <span className="ml-auto whitespace-nowrap font-mono text-[10px] uppercase tracking-eyebrow text-cobalt transition-colors duration-fast ease-munin group-hover:text-cobalt-deep dark:text-cobalt-soft">
-        {cta}
+      <span className="ml-auto shrink-0 text-cobalt transition-colors duration-fast ease-munin group-hover:text-cobalt-deep dark:text-cobalt-soft">
+        <span className="hidden whitespace-nowrap font-mono text-[10px] uppercase tracking-eyebrow md:inline">
+          {cta}
+        </span>
+        <span aria-hidden className="font-mono text-base leading-none md:hidden">
+          →
+        </span>
       </span>
     </Link>
   );

@@ -94,6 +94,7 @@ class RequestHandoverBody extends createZodDto(
     .object({
       reason: z.string().max(500).optional(),
       publicFallbackMessage: z.string().max(2000).optional(),
+      postSystemNote: z.boolean().optional(),
     })
     .partial(),
 ) {}
@@ -362,6 +363,7 @@ export class ConversationsController {
         conversationId: id,
         reason: input.reason,
         publicFallbackMessage: input.publicFallbackMessage,
+        postSystemNote: input.postSystemNote,
       }),
     );
   }

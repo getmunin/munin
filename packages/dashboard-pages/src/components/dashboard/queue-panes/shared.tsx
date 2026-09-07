@@ -245,7 +245,7 @@ export function RowCode({
   children: string;
 }) {
   return (
-    <span className={cn('flex w-14 shrink-0', className)}>
+    <span className={cn('flex shrink-0', className)}>
       <ModulePill kind={kind}>{children}</ModulePill>
     </span>
   );

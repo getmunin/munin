@@ -16,7 +16,11 @@ export interface ConsoleNavGroup {
 export const OSS_CONSOLE_GROUPS: ConsoleNavGroup[] = [
   {
     groupKey: 'admin',
-    items: [{ href: '/dashboard', labelKey: 'overview', badge: 'waiting' }],
+    items: [{ href: '/dashboard', labelKey: 'overview', badge: 'waiting', adminOnly: true }],
+  },
+  {
+    groupKey: 'oversight',
+    items: [{ href: '/dashboard/conversations', labelKey: 'conversations', badge: 'queue' }],
   },
   {
     groupKey: 'workspace',

@@ -1,4 +1,4 @@
-import type { QueueItem } from './queue-drawers/types';
+import type { QueueItem } from './queue-panes/types';
 
 export type KbQueueItem = QueueItem & { kind: 'kb' };
 

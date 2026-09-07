@@ -6,7 +6,8 @@ import { cn, Tabs, TabsList, TabsPanel, TabsTrigger } from '@getmunin/ui';
 import { LoadFailed } from '../components/load-failed';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
 import { usePathname, useRouter } from '../i18n-navigation';
-import { ScheduledCancelDialog, useInboxData } from '../components/dashboard/inbox-sections';
+import { useInboxData } from '../components/dashboard/inbox-data';
+import { ScheduledCancelDialog } from '../components/dashboard/scheduled-cancel-dialog';
 import { partitionReviewQueue } from '../components/dashboard/review-queue';
 import { ReviewRow } from '../components/dashboard/review-row';
 import { ReviewKbPane } from '../components/dashboard/review-kb-pane';
@@ -38,7 +39,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
   const setup = useSetupState();
   const decisions = useCurationDecisions();
   const buildLoadFailedProps = useInboxLoadFailedProps();
-  const { setQueueDrawer, setScheduledDrawer } = inbox;
+  const { setActiveQueueItem, setActiveScheduledItem } = inbox;
 
   const isDesktop = useIsDesktopSplit();
 
@@ -93,12 +94,12 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
   const selectedDecision = activeId ? recentDecisions.find((d) => d.id === activeId) : undefined;
 
   useEffect(() => {
-    setQueueDrawer(selectedBlocking ?? null);
-  }, [selectedBlocking, setQueueDrawer]);
+    setActiveQueueItem(selectedBlocking ?? null);
+  }, [selectedBlocking, setActiveQueueItem]);
 
   useEffect(() => {
-    setScheduledDrawer(selectedScheduled ?? null);
-  }, [selectedScheduled, setScheduledDrawer]);
+    setActiveScheduledItem(selectedScheduled ?? null);
+  }, [selectedScheduled, setActiveScheduledItem]);
 
   const listLoaded = inbox.hasLoadedOnce && decisions.hasLoadedOnce;
   const idsByTab: Record<ReviewTab, string[]> = useMemo(

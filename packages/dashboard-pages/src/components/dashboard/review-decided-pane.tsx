@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { PageSpinner } from '@getmunin/ui';
 import { Link } from '../../i18n-navigation';
 import { useRelative } from '../../lib/use-relative';
-import { Markdown } from './queue-drawers/shared';
+import { Markdown } from './queue-panes/shared';
 import type { CurationDecisionDto, PublishedDocument } from './curation-decisions';
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {

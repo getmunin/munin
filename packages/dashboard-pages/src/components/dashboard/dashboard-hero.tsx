@@ -6,7 +6,6 @@ import { authClient } from '../../auth-client';
 
 interface DashboardHeroProps {
   date: Date;
-  liveCount: number;
 }
 
 export function firstName(name: string | null | undefined): string | null {
@@ -26,7 +25,7 @@ export function greetingKey(
   return 'greetingEvening';
 }
 
-export function DashboardHero({ date, liveCount }: DashboardHeroProps) {
+export function DashboardHero({ date }: DashboardHeroProps) {
   const t = useTranslations('dashboard.overview');
   const locale = useLocale();
   const { data: session } = authClient.useSession();
@@ -38,7 +37,7 @@ export function DashboardHero({ date, liveCount }: DashboardHeroProps) {
   }).format(date);
   const eyebrow = dateLabel;
 
-  const lede = liveCount === 0 ? t('ledeQuiet') : t('ledeLiveOnly', { count: liveCount });
+  const lede = t('lede');
 
   const title = name
     ? t.rich(greetingKey(date), { name, em: (chunks) => <em>{chunks}</em> })

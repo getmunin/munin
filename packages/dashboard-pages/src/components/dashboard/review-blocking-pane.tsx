@@ -1,7 +1,7 @@
 'use client';
 
-import { QueueDrawer } from './queue-drawers';
-import type { QueueItem } from './queue-drawers/types';
+import { QueueItemPane } from './queue-panes';
+import type { QueueItem } from './queue-panes/types';
 import type { InboxController } from './inbox-types';
 import { QueueActionErrorBanner } from './queue-action-error';
 import { ReviewOutreachPane } from './review-outreach-pane';
@@ -68,7 +68,7 @@ export function ReviewBlockingPane({
         error={queueActionError?.itemId === item.id ? queueActionError : null}
         onDismiss={clearQueueActionError}
       />
-      <QueueDrawer
+      <QueueItemPane
         item={item}
         cmsDetail={item.kind === 'cms' ? cmsDetails[item.id] : undefined}
         loadError={queueDetailErrors[item.id]}

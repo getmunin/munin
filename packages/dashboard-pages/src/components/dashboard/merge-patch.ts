@@ -1,4 +1,4 @@
-import type { CrmContactSummary } from './queue-drawers/types';
+import type { CrmContactSummary } from './queue-panes/types';
 
 export type MergeFieldKind = 'differs' | 'replaced' | 'added';
 

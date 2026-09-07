@@ -170,7 +170,7 @@
     }
   },
   "nav": {
-    "overview": "Oversikt",
+    "overview": "Dashbord",
     "settings": "Innstillinger",
     "account": "Konto",
     "team": "Medarbeidere",
@@ -233,8 +233,7 @@
       "greetingMorning": "God morgen, <em>{name}</em>.",
       "greetingAfternoon": "God ettermiddag, <em>{name}</em>.",
       "greetingEvening": "God kveld, <em>{name}</em>.",
-      "ledeQuiet": "Ingenting venter, ingenting pågår. Agentene er à jour.",
-      "ledeLiveOnly": "{count, plural, =1 {# samtale er} other {# samtaler er}} hos support. Ingenting trenger en administrator.",
+      "lede": "Her havner arbeidet til agentene dine — samtaler de tar seg av, og avgjørelser de trenger fra deg.",
       "empty": {
         "eyebrow": "Innboks · ledig",
         "title": "En <em>tom</em> grein.",
@@ -247,6 +246,19 @@
         "liveNoteSome": "Håndteres i konsollen — eierskap, notater og svar bor der.",
         "liveNoteNone": "Ingen samtale trenger et menneske.",
         "liveOpen": "Åpne samtalene →"
+      },
+      "sections": {
+        "conversationsRecent": "Nylige · åpne",
+        "conversationsEmpty": "Ingen åpne samtaler. Nye dukker opp her så snart noen tar kontakt.",
+        "reviewLabel": "Venter på deg",
+        "reviewNoteSome": "Ingenting går ut uten ditt ja.",
+        "reviewNoteNone": "Ingenting venter på en avgjørelse.",
+        "reviewOpen": "Åpne til vurdering →",
+        "waiting": "Venter",
+        "waitingMore": "{count} totalt",
+        "waitingEmpty": "Ingenting venter. Utkast, sammenslåinger og utgående meldinger havner her til vurdering.",
+        "scheduled": "Planlagt · {count}",
+        "scheduledNext": "neste {when}"
       },
       "queue": {
         "kindKb": "KB",
@@ -277,9 +289,6 @@
         }
       },
       "scheduled": {
-        "eyebrow": "Planlagt",
-        "subtitle": "går av seg selv · nærmest i tid først",
-        "cancel": "Avlys",
         "outreachUntitled": "Utkast til utsending",
         "unknownDestination": "ingen mottaker registrert",
         "cmsUntitled": "Uten tittel",
@@ -296,28 +305,16 @@
       "drawer": {
         "close": "lukk ×",
         "loading": "Laster…",
-        "suggestionLabel": "ai-forslag · se over før du sender",
-        "suggestionDiscard": "forkast",
         "proposal": "Forslag",
         "replyFrom": "Svar fra",
         "subject": "Emne — {subject}",
-        "send": "Send ↵",
         "edit": "Rediger",
         "cancel": "Avbryt",
         "save": "Lagre",
         "approve": "Godkjenn",
         "dismiss": "Avvis",
-        "takeOver": "Overta",
-        "release": "Slipp",
-        "closeConv": "Lukk samtale",
-        "replyPlaceholder": "Svar…",
         "shortcutSave": "⌘↵ lagre · esc avbryt",
         "shortcutApprove": "⌘↵ godkjenn",
-        "pillLive": "live",
-        "pillConversation": "samtale",
-        "pillTakenOver": "overtatt",
-        "metaConv": "{who} · venter {age}",
-        "metaConvFull": "{who} · {status}",
         "metaCrm": "Kontakter ×2 · {confidence} · {age}",
         "metaKb": "{slug} · {age}",
         "metaOutreach": "{kind} · {handle} · {age}",
@@ -366,41 +363,15 @@
         "outreachKindReply": "SVAR",
         "outreachKindInitial": "FØRSTE",
         "outreachKindFollowup": "OPPFØLGING {step}",
-        "conversationFallback": "Samtale #{id}",
-        "conversationUnknown": "Ukjent samtale",
         "crmMergeBody": "Slå sammen <strong>{loser}</strong> inn i <strong>{keeper}</strong>.",
         "crmMergeExplain": "Beholder hovedoppføringen; flytter referanser; arkiverer den andre. Ingen samtaler går tapt.",
         "noteMeta": "{author} · notat · {time}",
         "seenAt": "Sett {time}",
         "loadFailedEyebrow": "Kunne ikke laste",
-        "loadFailedTitle": "Denne samtalen lot seg ikke laste.",
         "detailLoadFailed": "Innholdet lot seg ikke laste.",
-        "actionFailed": {
-          "send": "Kunne ikke sende svaret ditt",
-          "takeOver": "Kunne ikke overta",
-          "release": "Kunne ikke slippe",
-          "close": "Kunne ikke lukke samtalen"
-        },
-        "actionFailedShort": {
-          "send": "Sending feilet",
-          "takeOver": "Overtakelse feilet",
-          "release": "Slipp feilet",
-          "close": "Lukking feilet"
-        },
-        "actionFailedReasonConnection": "sjekk tilkoblingen",
-        "retryAction": {
-          "send": "Send på nytt",
-          "takeOver": "Prøv igjen",
-          "release": "Prøv igjen",
-          "close": "Prøv igjen"
-        },
-        "activityConv": "Samtaleaktivitet",
-        "activityContact": "Kontaktaktivitet",
-        "activityEmpty": "Ingen aktivitet ennå.",
         "kbSlugFallback": "kb-curation-inbox",
         "kbDismissPermanent": "Avvisning er endelig: utkastet slettes, og senere gjennomganger foreslår ikke denne samtalen på nytt.",
         "handleFallback": "—",
-        "endUserFallback": "—",
         "anonymousVisitor": "Anonym",
         "outreachRevised": "Endret {count}× siden utkastet ble skrevet",
         "outreachRevisedAfterReview": "Endret {count}× etter at det ble åpnet til gjennomgang — les det på nytt før du godkjenner",
@@ -1472,7 +1443,7 @@
         "voice": "Tale"
       },
       "overview": {
-        "eyebrowSetup": "Oversikt — oppsett · {done} av 2 klart",
+        "eyebrowSetup": "Dashbord — oppsett · {done} av 2 klart",
         "titleUnconfigured": "Ingenting lytter <em>ennå</em>.",
         "ledeUnconfigured": "To tilkoblinger, og denne siden begynner å fylle seg selv. Ingen av dem tar mer enn noen minutter, og rekkefølgen er valgfri.",
         "stepEndpointTitle": "Pek en agent mot endepunktet.",
@@ -1544,7 +1515,7 @@
       "offline": "frakoblet"
     },
     "settings": {
-      "backToOverview": "Tilbake til oversikten",
+      "backToOverview": "Tilbake til dashbordet",
       "groups": {
         "workspace": "Arbeidsområde",
         "access": "Tilgang",

@@ -3,11 +3,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { Button, DropdownMenuItem, PageSpinner, cn } from '@getmunin/ui';
+import { Button, DropdownMenuItem, PageSpinner, Pill, cn } from '@getmunin/ui';
 import { CardMenu } from '../card-kit';
 import { useRelative } from '../../lib/use-relative';
 import { useConversationTyping } from '../../realtime';
-import { useCmdEnter } from './queue-drawers/shared';
+import { useCmdEnter } from './queue-panes/shared';
 import { MessageBubble, startsAuthorGroup } from './inbox-message-bubble';
 import { LoadFailed } from '../load-failed';
 import { TestConversationBanner } from './test-conversation-banner';
@@ -431,9 +431,9 @@ export function ConversationPane({
         <header className="shrink-0 border-b border-rule-soft px-5 pb-3 pt-4 max-md:hidden md:px-7 md:pt-5 dark:border-rule-on-dark">
           <div className="flex min-w-0 items-center gap-3">
             {channelType ? (
-              <span className="shrink-0 bg-ink px-2 py-1 font-mono text-[9px] uppercase tracking-eyebrow text-paper dark:bg-foreground dark:text-background">
+              <Pill tone="ink" marker="none" fill="solid" className="shrink-0">
                 {channelType}
-              </span>
+              </Pill>
             ) : null}
             <h2 className="min-w-0 truncate font-serif text-2xl font-normal leading-tight tracking-tight text-ink md:text-[32px] dark:text-foreground">
               {detail.subject ?? customer}

@@ -1,0 +1,6 @@
+---
+'@getmunin/backend-core': minor
+'@getmunin/types': minor
+---
+
+Review-queue read model for the Oversight console. `GET /v1/conversations/queue` returns rows enriched with the customer's name and email, topic, channel type, the active claim (holder and expiry), an internal-note count, and a pending-draft flag — everything a queue row needs that the plain list DTO lacked. Internal notes are `conv_messages` rows stamped `metadata.kind = 'internal_note'`, and internal messages no longer bump `last_message_at`, so recording context cannot reorder the review queue or make a stale thread look fresh. Rejecting a draft (`POST /v1/conversations/:id/clear-draft`) now stamps `draft_reply_rejected` with the rejecting user instead of hard-deleting the row, a draft replaced by a newer one is stamped `draft_reply_superseded`, and the `draft_reply_sent` stamp merges into the draft's metadata so `retrievedDocumentIds` survives approval. `GET /v1/orgs/me/roster` gives every org member (not just admins) the on-duty roster with active claim counts. `POST /v1/conversations/:id/request-draft` asks the agent for a draft on demand; new catalog events `conversation.draft_requested`, `conversation.draft_ready`, and `conversation.note_added` carry the round trip.

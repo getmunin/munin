@@ -6,7 +6,7 @@ import { cn } from '@getmunin/ui';
 import { authClient } from '../auth-client';
 import { LoadFailed } from '../components/load-failed';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
-import { useRouter } from '../i18n-navigation';
+import { usePathname, useRouter } from '../i18n-navigation';
 import {
   matchesQueueSearch,
   partitionQueue,
@@ -27,11 +27,22 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 export function ConversationsPage({ selectedId = null }: { selectedId?: string | null }) {
   const t = useTranslations('dashboard.console.queue');
   const router = useRouter();
-  const queue = useConversationQueue(selectedId);
+  const pathname = usePathname();
+  const routeSelectedId =
+    pathname.match(/^\/dashboard\/conversations\/([^/]+)/)?.[1] ?? selectedId;
+  const queue = useConversationQueue(routeSelectedId);
   const buildLoadFailedProps = useInboxLoadFailedProps();
   const { data: session } = authClient.useSession();
   const viewerUserId = session?.user?.id ?? null;
   const [search, setSearch] = useState('');
+  const [listProgress, setListProgress] = useState(0);
+
+  const onListScroll = (e: React.UIEvent<HTMLElement>) => {
+    const el = e.currentTarget;
+    const max = el.scrollHeight - el.clientHeight;
+    const p = max > 0 ? Math.min(1, el.scrollTop / max) : 1;
+    setListProgress((prev) => (Math.abs(p - prev) > 0.02 || p === 0 || p === 1 ? p : prev));
+  };
 
   const sections = useMemo(() => {
     const bySearch = (item: QueueItemDto) => matchesQueueSearch(item, search);
@@ -53,17 +64,28 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
     );
   }
 
-  const select = (id: string) => router.push(`/dashboard/conversations/${id}`);
+  const shallowGo = (path: string) => {
+    const { pathname: full } = window.location;
+    const cut = full.indexOf('/dashboard/conversations');
+    if (cut < 0) {
+      router.push(path);
+      return;
+    }
+    window.history.pushState(null, '', full.slice(0, cut) + path);
+  };
+  const select = (id: string) => shallowGo(`/dashboard/conversations/${id}`);
   const activeId = queue.selectedId;
   const selectedItem = activeId
     ? [...queue.open, ...queue.finished].find((i) => i.id === activeId)
     : undefined;
 
-  const renderRows = (items: QueueItemDto[]) =>
+  const fadeIn = 0.55 + 0.45 * listProgress;
+  const renderRows = (items: QueueItemDto[], dim?: number) =>
     items.map((item) => (
       <ConversationRow
         key={item.id}
         item={item}
+        dim={item.claim?.holderId === viewerUserId ? undefined : dim}
         active={item.id === activeId}
         viewerUserId={viewerUserId}
         drafting={!!queue.draftRequested[item.id]}
@@ -74,12 +96,13 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
   return (
     <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-[minmax(0,1.05fr)_minmax(0,1.4fr)]">
       <section
+        onScroll={onListScroll}
         className={cn(
-          'flex min-h-0 flex-col border-r border-ink dark:border-rule-on-dark',
-          selectedId ? 'max-md:hidden' : '',
+          'flex min-h-0 flex-col border-r border-ink max-md:overflow-y-auto dark:border-rule-on-dark',
+          routeSelectedId ? 'max-md:hidden' : '',
         )}
       >
-        <header className="shrink-0 border-b border-ink px-5 pb-3.5 pt-6 md:px-6 dark:border-rule-on-dark">
+        <header className="shrink-0 border-b border-ink px-5 pb-3.5 pt-6 md:min-h-[146px] md:px-6 dark:border-rule-on-dark">
           <div className="font-mono text-[11px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
             {t('eyebrow')}
           </div>
@@ -104,7 +127,7 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
           <span aria-hidden>·</span>
           <span className="whitespace-nowrap">{t('metaDone', { count: sections.finished.length })}</span>
         </div>
-        <ul className="min-h-0 flex-1 overflow-y-auto pb-6">
+        <ul onScroll={onListScroll} className="pb-6 md:min-h-0 md:flex-1 md:overflow-y-auto">
           <SectionLabel>{t('sectionNeedsYou', { count: sections.needsYou.length })}</SectionLabel>
           {sections.needsYou.length === 0 ? (
             <li className="border-b border-rule-soft px-5 pb-5 pt-1 font-serif text-lg italic text-ink-soft dark:border-rule-on-dark dark:text-foreground/80">
@@ -115,27 +138,31 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
           ) : (
             renderRows(sections.needsYou)
           )}
-          <SectionLabel>{t('sectionInProgress', { count: sections.inProgress.length })}</SectionLabel>
-          {renderRows(sections.inProgress)}
-          <SectionLabel>{t('sectionFinished', { count: sections.finished.length })}</SectionLabel>
-          {sections.finished.length === 0 ? (
-            <li className="px-5 pb-5 pt-1 font-mono text-[10px] uppercase tracking-meta text-ink-mute">
-              {t('emptyFinished')}
-            </li>
-          ) : (
-            renderRows(sections.finished)
-          )}
+          {sections.inProgress.length > 0 ? (
+            <>
+              <SectionLabel>{t('sectionInProgress', { count: sections.inProgress.length })}</SectionLabel>
+              {renderRows(sections.inProgress, fadeIn)}
+            </>
+          ) : null}
+          {sections.finished.length > 0 ? (
+            <>
+              <SectionLabel>{t('sectionFinished', { count: sections.finished.length })}</SectionLabel>
+              {renderRows(sections.finished, fadeIn)}
+            </>
+          ) : null}
         </ul>
       </section>
 
-      <div className={cn('min-h-0', selectedId ? 'grid' : 'hidden md:grid')}>
+      <div
+        className={cn('min-h-0 min-w-0 grid-cols-[minmax(0,1fr)]', routeSelectedId ? 'grid' : 'hidden md:grid')}
+      >
         <ConversationPane
           selectedId={activeId}
           item={selectedItem}
           detail={activeId ? queue.details[activeId] : undefined}
           controller={queue}
           viewerUserId={viewerUserId}
-          onBack={() => router.push('/dashboard/conversations')}
+          onBack={() => shallowGo('/dashboard/conversations')}
         />
       </div>
     </div>

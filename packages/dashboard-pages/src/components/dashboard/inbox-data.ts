@@ -134,6 +134,8 @@ function useScheduledBuilder() {
   );
 }
 
+export const DEFAULT_CURATION_TARGET_SPACE = 'support-faq';
+
 export function useInboxData(): InboxController {
   const buildQueue = useQueueBuilder();
   const buildScheduled = useScheduledBuilder();
@@ -459,7 +461,7 @@ export function useInboxData(): InboxController {
             }),
           });
         } else if (item.kind === 'kb') {
-          const targetSlug = item.raw.proposedTargetSpaceSlug ?? 'support-faq';
+          const targetSlug = item.raw.proposedTargetSpaceSlug ?? DEFAULT_CURATION_TARGET_SPACE;
           await api(`/v1/kb/curation/candidates/${item.id}/publish`, {
             method: 'POST',
             body: JSON.stringify({ targetSpaceSlug: targetSlug, ifVersion: item.raw.version }),

@@ -38,7 +38,7 @@ export function DashboardShell({
     <div className="group flex h-screen flex-col bg-bone dark:bg-background">
       <SystemAlertsBanner />
       {inSettings ? (
-        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-clip bg-paper dark:bg-background">
+        <main className="min-h-0 flex-1 overflow-x-clip bg-paper dark:bg-background">
           {children}
         </main>
       ) : (

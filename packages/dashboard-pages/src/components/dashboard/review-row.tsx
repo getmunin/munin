@@ -4,8 +4,8 @@ import { useTranslations } from 'next-intl';
 import { cn } from '@getmunin/ui';
 import { useRelative } from '../../lib/use-relative';
 import { DEFAULT_CURATION_TARGET_SPACE } from './inbox-data';
-import { RowCode } from './queue-drawers/shared';
-import { queueCodeKey, type QueueItem } from './queue-drawers/types';
+import { RowCode } from './queue-panes/shared';
+import { queueCodeKey, type QueueItem } from './queue-panes/types';
 
 function useMetaLine() {
   const t = useTranslations('dashboard.console.review');
@@ -76,7 +76,7 @@ export function ReviewRow({
             : 'hover:bg-paper-deep dark:hover:bg-card',
         )}
       >
-        <RowCode kind={item.kind} className="pt-[3px]">
+        <RowCode kind={item.kind} className="self-center">
           {t(queueCodeKey(item.kind))}
         </RowCode>
         <span className="flex min-w-0 flex-1 flex-col gap-1">
@@ -87,7 +87,7 @@ export function ReviewRow({
             {metaLine(item)}
           </span>
         </span>
-        <span className="shrink-0 pt-[3px] font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+        <span className="shrink-0 self-center font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
           {age(item.createdAt)}
         </span>
       </div>

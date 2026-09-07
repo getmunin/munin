@@ -1,10 +1,9 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
 import { cn } from '@getmunin/ui';
 import { Link } from '../../i18n-navigation';
 
-function StatRow({
+export function StatRow({
   href,
   count,
   dot,
@@ -25,7 +24,7 @@ function StatRow({
     <Link
       href={href}
       className={cn(
-        'group flex w-full items-center gap-3.5 px-1 py-4 text-left outline-none transition-colors duration-fast ease-munin hover:bg-paper-deep focus-visible:bg-paper-deep md:gap-5 md:py-5 dark:hover:bg-secondary dark:focus-visible:bg-secondary',
+        'group flex w-full items-center gap-3.5 px-5 py-4 text-left outline-none transition-colors duration-fast ease-munin hover:bg-paper-deep focus-visible:bg-paper-deep md:gap-5 md:py-5 dark:hover:bg-secondary dark:focus-visible:bg-secondary',
         bordered && 'border-t border-rule-soft dark:border-rule-on-dark',
       )}
     >
@@ -66,21 +65,5 @@ function StatRow({
         </span>
       </span>
     </Link>
-  );
-}
-
-export function OverviewStats({ liveCount }: { liveCount: number }) {
-  const t = useTranslations('dashboard.overview.stats');
-  return (
-    <section className="border-b border-rule-soft border-t border-t-ink dark:border-b-rule-on-dark dark:border-t-rule-on-dark">
-      <StatRow
-        href="/dashboard/conversations"
-        count={liveCount}
-        dot="live"
-        label={t('liveLabel')}
-        note={liveCount > 0 ? t('liveNoteSome') : t('liveNoteNone')}
-        cta={t('liveOpen')}
-      />
-    </section>
   );
 }

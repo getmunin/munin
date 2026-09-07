@@ -1,6 +1,5 @@
 import type { useTranslations } from 'next-intl';
-import type { CrmContactSummary, FeedbackOutboxDto } from './queue-drawers/types';
-import type { ConversationDetail, LiveSummary } from './inbox-types';
+import type { CrmContactSummary, FeedbackOutboxDto } from './queue-panes/types';
 
 export const contactLabel = (c: CrmContactSummary) => c.name ?? c.email ?? c.id;
 
@@ -14,47 +13,6 @@ export function feedbackSnippet(
     ? tQueue('feedbackSnippetAttributed', { scope })
     : tQueue('feedbackSnippet', { scope });
 }
-
-export function liveToStubDetail(c: LiveSummary): ConversationDetail {
-  const latest = c.latestEndUserMessage;
-  return {
-    ...c,
-    claim: c.claim,
-    contactEmail: null,
-    contactName: null,
-    contactPhone: null,
-    messages: latest
-      ? [
-          {
-            id: `latest-${c.id}`,
-            conversationId: c.id,
-            authorType: 'end_user',
-            authorId: c.endUserId ?? 'end_user',
-            authorName: null,
-            body: latest.body,
-            internal: false,
-            inReplyToId: null,
-            attachments: [],
-            metadata: {},
-            createdAt: latest.createdAt,
-          },
-        ]
-      : [],
-  };
-}
-
-export function mergeLive(
-  prev: Record<string, ConversationDetail>,
-  live: LiveSummary[],
-): Record<string, ConversationDetail> {
-  const next = { ...prev };
-  for (const c of live) {
-    const existing = next[c.id];
-    next[c.id] = existing ? { ...existing, ...c, claim: c.claim } : liveToStubDetail(c);
-  }
-  return next;
-}
-
 
 export function clearKey<T>(obj: Record<string, T>, key: string): Record<string, T> {
   if (!(key in obj)) return obj;

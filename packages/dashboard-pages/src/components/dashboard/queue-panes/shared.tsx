@@ -7,16 +7,6 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { QueueItem } from './types';
 
-export type DrawerPillTone =
-  | 'live'
-  | 'ink'
-  | 'draft'
-  | 'kb'
-  | 'crm'
-  | 'out'
-  | 'cms'
-  | 'feedback'
-  | 'review';
 
 export const MD_COMPONENTS: Components = {
   p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
@@ -82,7 +72,7 @@ export function useCmdEnter(handler: () => void) {
   }, [handler]);
 }
 
-export function DrawerLoadingState({ label }: { label: string }) {
+export function PaneLoadingState({ label }: { label: string }) {
   return (
     <div
       className="flex flex-1 items-center justify-center"
@@ -98,7 +88,7 @@ export function DrawerLoadingState({ label }: { label: string }) {
   );
 }
 
-export function DrawerLoadFailed({
+export function PaneLoadFailed({
   eyebrow,
   title,
   reason,
@@ -146,10 +136,9 @@ export function DrawerLoadFailed({
   );
 }
 
-export function DrawerHeader({
-  pillTone,
+export function PaneHeader({
+  kind,
   pillLabel,
-  pillGlyph,
   title,
   meta,
   rightExtra,
@@ -157,9 +146,8 @@ export function DrawerHeader({
   closeLabel,
   className,
 }: {
-  pillTone: DrawerPillTone;
+  kind: QueueItem['kind'];
   pillLabel: string;
-  pillGlyph?: QueueItem['kind'];
   title: string;
   meta?: string;
   rightExtra?: React.ReactNode;
@@ -177,10 +165,7 @@ export function DrawerHeader({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
           <div className="flex items-center gap-2">
-            <Pill tone={pillTone} marker={pillGlyph ? 'none' : 'dot'}>
-              {pillGlyph ? <ModuleGlyph kind={pillGlyph} className="size-[7px]" /> : null}
-              {pillLabel}
-            </Pill>
+            <ModulePill kind={kind}>{pillLabel}</ModulePill>
             {rightExtra}
           </div>
           <h2 className="font-serif text-2xl leading-tight font-normal tracking-tight text-ink dark:text-foreground">
@@ -233,6 +218,23 @@ export function ModuleGlyph({
   );
 }
 
+export function ModulePill({
+  kind,
+  className,
+  children,
+}: {
+  kind: QueueItem['kind'];
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Pill tone="ink" marker="none" className={className}>
+      <ModuleGlyph kind={kind} className="size-[7px]" />
+      {children}
+    </Pill>
+  );
+}
+
 export function RowCode({
   kind,
   className,
@@ -243,14 +245,8 @@ export function RowCode({
   children: string;
 }) {
   return (
-    <span
-      className={cn(
-        'flex w-14 shrink-0 items-center gap-1.5 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute',
-        className,
-      )}
-    >
-      <ModuleGlyph kind={kind} className="text-ink dark:text-foreground" />
-      {children}
+    <span className={cn('flex w-14 shrink-0', className)}>
+      <ModulePill kind={kind}>{children}</ModulePill>
     </span>
   );
 }
@@ -296,7 +292,7 @@ export function toDateTimeLocalValue(date: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function DrawerFooter({
+export function PaneFooter({
   primary,
   secondary,
   shortcut,

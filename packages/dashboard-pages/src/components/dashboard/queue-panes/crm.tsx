@@ -2,10 +2,10 @@
 
 import { useTranslations } from 'next-intl';
 import { useRelative } from '../../../lib/use-relative';
-import { DrawerFooter, DrawerHeader, useCmdEnter } from './shared';
+import { PaneFooter, PaneHeader, useCmdEnter } from './shared';
 import type { CrmContactSummary, CrmMergeProposalDto } from './types';
 
-export function CrmQueueDrawer({
+export function CrmQueuePane({
   item,
   pending,
   onApprove,
@@ -35,10 +35,9 @@ export function CrmQueueDrawer({
 
   return (
     <>
-      <DrawerHeader
-        pillTone="crm"
+      <PaneHeader
+        kind="crm"
         pillLabel={tQueue('kindCrm')}
-        pillGlyph="crm"
         title={item.title}
         meta={t('metaCrm', { confidence: proposal.confidence, age: age(item.createdAt) })}
         onClose={onClose}
@@ -63,7 +62,7 @@ export function CrmQueueDrawer({
         </section>
       </div>
 
-      <DrawerFooter
+      <PaneFooter
         primary={{ label: t('approve'), onClick: onApprove, disabled: pending }}
         secondary={[{ label: t('dismiss'), onClick: onDismiss, disabled: pending }]}
         shortcut={t('shortcutApprove')}

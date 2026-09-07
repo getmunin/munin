@@ -5,8 +5,8 @@ import { useFormatter, useTranslations } from 'next-intl';
 import { Button, BodyDiff, Pill, cn } from '@getmunin/ui';
 import { diffLines } from '@getmunin/types';
 import { useRelative } from '../../lib/use-relative';
-import { Markdown, ModuleGlyph, toDateTimeLocalValue, useCmdEnter } from './queue-drawers/shared';
-import { readOutreachEvidence, type OutreachProposalDto } from './queue-drawers/types';
+import { Markdown, ModulePill, toDateTimeLocalValue, useCmdEnter } from './queue-panes/shared';
+import { readOutreachEvidence, type OutreachProposalDto } from './queue-panes/types';
 import type { QueueActionError } from './inbox-types';
 import { QueueActionErrorBanner } from './queue-action-error';
 import { MoreActionsSheet, MoreActionsTrigger } from './pane-more-actions';
@@ -151,10 +151,7 @@ export function ReviewOutreachPane({
       <div className="flex flex-1 flex-col gap-5 px-5 pb-8 pt-6 md:px-7">
         <header className="flex flex-col gap-2.5 max-md:hidden">
           <div className="flex flex-wrap items-center gap-2">
-            <Pill tone="out" marker="none">
-              <ModuleGlyph kind="outreach" className="size-[7px]" />
-              {t('eyebrow')}
-            </Pill>
+            <ModulePill kind="outreach">{t('eyebrow')}</ModulePill>
             <Pill tone="ink" marker="none" fill="solid">
               {t(`channel_${channelType}` as 'channel_email')}
             </Pill>

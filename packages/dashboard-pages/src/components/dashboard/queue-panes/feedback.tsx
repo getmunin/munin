@@ -2,10 +2,10 @@
 
 import { useTranslations } from 'next-intl';
 import { useRelative } from '../../../lib/use-relative';
-import { DrawerFooter, DrawerHeader, useCmdEnter } from './shared';
+import { PaneFooter, PaneHeader, useCmdEnter } from './shared';
 import type { FeedbackOutboxDto } from './types';
 
-export function FeedbackQueueDrawer({
+export function FeedbackQueuePane({
   item,
   pending,
   onApprove,
@@ -38,10 +38,9 @@ export function FeedbackQueueDrawer({
 
   return (
     <>
-      <DrawerHeader
-        pillTone="feedback"
+      <PaneHeader
+        kind="feedback"
         pillLabel={tQueue('kindFeedback')}
-        pillGlyph="feedback"
         title={item.title}
         meta={t('metaFeedback', {
           scope: f.appScope ? f.appScope.toUpperCase() : tQueue('feedbackScopeFallback'),
@@ -69,7 +68,7 @@ export function FeedbackQueueDrawer({
         </section>
       </div>
 
-      <DrawerFooter
+      <PaneFooter
         primary={{ label: t('approve'), onClick: onApprove, disabled: pending }}
         secondary={[{ label: t('dismiss'), onClick: onDismiss, disabled: pending }]}
         shortcut={t('shortcutApprove')}

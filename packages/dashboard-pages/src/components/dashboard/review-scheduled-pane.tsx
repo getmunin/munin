@@ -1,7 +1,7 @@
 'use client';
 
-import { ScheduledDrawer } from './queue-drawers';
-import type { ScheduledItem } from './queue-drawers/types';
+import { ScheduledItemPane } from './queue-panes';
+import type { ScheduledItem } from './queue-panes/types';
 import type { InboxController } from './inbox-types';
 
 export function ReviewScheduledPane({
@@ -15,7 +15,7 @@ export function ReviewScheduledPane({
 
   return (
     <section className="flex min-h-0 flex-col overflow-hidden bg-paper dark:bg-background">
-      <ScheduledDrawer
+      <ScheduledItemPane
         item={item}
         cmsDetail={item.kind === 'cms' ? cmsDetails[item.id] : undefined}
         loadError={queueDetailErrors[item.id]}

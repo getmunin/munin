@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { partitionReviewQueue } from './review-queue';
-import type { QueueItem } from './queue-drawers/types';
+import type { QueueItem } from './queue-panes/types';
 
 function item(kind: QueueItem['kind'], id: string, createdAt: string): QueueItem {
   return { kind, id, title: id, snippet: '', createdAt, raw: {} } as QueueItem;

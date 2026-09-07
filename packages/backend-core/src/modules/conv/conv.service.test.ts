@@ -8,7 +8,7 @@ import {
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ConvService, ConvInvalidError } from './conv.service.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
@@ -905,7 +905,11 @@ const skipReason = TEST_URL
       const [row] = await db.execute<{ metadata: Record<string, unknown> }>(
         sql`SELECT metadata FROM conv_messages WHERE id = ${draft.id}`,
       );
-      expect(row!.metadata).toEqual({ kind: 'draft_reply_sent', sentMessageId: sent.id });
+      expect(row!.metadata).toEqual({
+        kind: 'draft_reply_sent',
+        sentMessageId: sent.id,
+        retrievedDocumentIds: ['kdoc_rates'],
+      });
     });
 
     it('leaves a retired draft out of the pending-draft lookup', async () => {
@@ -945,6 +949,205 @@ const skipReason = TEST_URL
           fromDraftId: draft.id,
         }),
       );
+    });
+  });
+
+  describe('review queue read model', () => {
+    const userActor = () =>
+      new ActorIdentity('user', userId, orgId, ['*'], ['admin'], undefined, undefined, undefined, userId);
+
+    async function seedQueueConversation(opts?: { withContact?: boolean; withTopic?: boolean }) {
+      const suffix = randomUUID().slice(0, 8);
+      const ch = await insertChannel({ type: 'chat', vendor: 'munin', name: `queue-${suffix}` });
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const [endUser] = await db
+        .insert(schema.endUsers)
+        .values({ orgId, email: `anders-${suffix}@example.com`, name: 'Anders Vik' })
+        .returning();
+      const [contact] =
+        opts?.withContact === false
+          ? [undefined]
+          : await db
+              .insert(schema.convContacts)
+              .values({ orgId, endUserId: endUser!.id, name: 'Anders V. (contact)', email: `contact-${suffix}@example.com` })
+              .returning();
+      const [topic] =
+        opts?.withTopic === false
+          ? [undefined]
+          : await db
+              .insert(schema.convTopics)
+              .values({ orgId, name: 'Document requests', slug: `docs-${suffix}` })
+              .returning();
+      const conv = await run(() =>
+        svc.createConversation({
+          channelId: ch.id,
+          body: 'Payslip upload keeps failing',
+          authorType: 'end_user',
+          authorId: endUser!.id,
+          endUserId: endUser!.id,
+          contactId: contact?.id,
+          topicId: topic?.id,
+          agentMode: 'draft_only',
+        }),
+      );
+      return { ch, endUser: endUser!, contact, topic, conv };
+    }
+
+    it('enriches queue rows with customer, topic, channel, claim, note count and pending draft', async () => {
+      const { conv, topic } = await seedQueueConversation();
+      await run(() => svc.setDraftReply({ conversationId: conv.id, body: 'Try the camera path instead.' }));
+      await db.insert(schema.claims).values({
+        orgId,
+        entityType: 'conversation',
+        entityId: conv.id,
+        userId,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      await run(
+        () =>
+          svc.sendMessage({
+            conversationId: conv.id,
+            body: 'Called him — he will retake the scan with the phone camera.',
+            internal: true,
+            authorType: 'user',
+            authorId: userId,
+          }),
+        userActor(),
+      );
+      const page = await run(() => svc.listConversationQueuePage({}));
+      const item = page.items.find((i) => i.id === conv.id);
+      expect(item).toBeDefined();
+      expect(item!.customerName).toBe('Anders V. (contact)');
+      expect(item!.channelType).toBe('chat');
+      expect(item!.topicName).toBe('Document requests');
+      expect(item!.topicSlug).toBe(topic!.slug);
+      expect(item!.claim).toMatchObject({ holderId: userId, holderName: 'Test User' });
+      expect(item!.noteCount).toBe(1);
+      expect(item!.hasPendingDraft).toBe(true);
+    });
+
+    it('falls back to the end-user identity when no contact is linked', async () => {
+      const { conv } = await seedQueueConversation({ withContact: false, withTopic: false });
+      const page = await run(() => svc.listConversationQueuePage({}));
+      const item = page.items.find((i) => i.id === conv.id);
+      expect(item!.customerName).toBe('Anders Vik');
+      expect(item!.topicName).toBeNull();
+      expect(item!.claim).toBeNull();
+      expect(item!.noteCount).toBe(0);
+      expect(item!.hasPendingDraft).toBe(false);
+    });
+
+    it('an internal note must not bump last_message_at or reorder the queue', async () => {
+      const a = await seedQueueConversation();
+      const b = await seedQueueConversation();
+      const before = await run(() => svc.getConversation(a.conv.id));
+      await run(
+        () =>
+          svc.sendMessage({
+            conversationId: a.conv.id,
+            body: 'Recording context for whoever picks this up.',
+            internal: true,
+            authorType: 'user',
+            authorId: userId,
+          }),
+        userActor(),
+      );
+      const after = await run(() => svc.getConversation(a.conv.id));
+      expect(after.lastMessageAt).toBe(before.lastMessageAt);
+      const page = await run(() => svc.listConversationQueuePage({}));
+      const ids = page.items.map((i) => i.id);
+      expect(ids.indexOf(b.conv.id)).toBeLessThan(ids.indexOf(a.conv.id));
+    });
+
+    it('stamps a user internal message as internal_note and announces conversation.note_added', async () => {
+      const { conv } = await seedQueueConversation();
+      const note = await run(
+        () =>
+          svc.sendMessage({
+            conversationId: conv.id,
+            body: 'Legal wants the retention period spelled out first.',
+            internal: true,
+            authorType: 'user',
+            authorId: userId,
+          }),
+        userActor(),
+      );
+      expect(note.metadata).toEqual({ kind: 'internal_note' });
+      const types = await eventTypes();
+      expect(types).toContain('conversation.note_added');
+      expect(types).not.toContain('conversation.message.sent');
+    });
+
+    it('a note leaves needsHumanAttention standing', async () => {
+      const { conv } = await seedQueueConversation();
+      await run(() => svc.requestHandover({ conversationId: conv.id, reason: 'two systems disagree' }));
+      await run(
+        () =>
+          svc.sendMessage({
+            conversationId: conv.id,
+            body: 'Waiting on the bank to confirm.',
+            internal: true,
+            authorType: 'user',
+            authorId: userId,
+          }),
+        userActor(),
+      );
+      const detail = await run(() => svc.getConversation(conv.id));
+      expect(detail.needsHumanAttention).toBe(true);
+    });
+
+    it('clearDraftReply stamps draft_reply_rejected with the rejecting user instead of deleting', async () => {
+      const { conv } = await seedQueueConversation();
+      const draft = await run(() =>
+        svc.setDraftReply({ conversationId: conv.id, body: 'Upload fails past 10 MB.' }),
+      );
+      const res = await run(() => svc.clearDraftReply(conv.id), userActor());
+      expect(res).toEqual({ cleared: 1 });
+      const [row] = await db.execute<{ metadata: Record<string, unknown> }>(
+        sql`SELECT metadata FROM conv_messages WHERE id = ${draft.id}`,
+      );
+      expect(row!.metadata['kind']).toBe('draft_reply_rejected');
+      expect(row!.metadata['rejectedByUserId']).toBe(userId);
+      expect(row!.metadata['rejectedAt']).toBeTruthy();
+      expect(await run(() => svc.clearDraftReply(conv.id))).toEqual({ cleared: 0 });
+    });
+
+    it('setDraftReply supersedes the previous pending draft in place of deleting it', async () => {
+      const { conv } = await seedQueueConversation();
+      const first = await run(() =>
+        svc.setDraftReply({ conversationId: conv.id, body: 'First take.' }),
+      );
+      const second = await run(() =>
+        svc.setDraftReply({ conversationId: conv.id, body: 'Better take.' }),
+      );
+      const [row] = await db.execute<{ metadata: Record<string, unknown> }>(
+        sql`SELECT metadata FROM conv_messages WHERE id = ${first.id}`,
+      );
+      expect(row!.metadata['kind']).toBe('draft_reply_superseded');
+      expect(row!.metadata['supersededByMessageId']).toBe(second.id);
+      expect(await run(() => svc.clearDraftReply(conv.id))).toEqual({ cleared: 1 });
+    });
+
+    it('setDraftReply announces conversation.draft_ready', async () => {
+      const { conv } = await seedQueueConversation();
+      await run(() => svc.setDraftReply({ conversationId: conv.id, body: 'Draft.' }));
+      expect(await eventTypes()).toContain('conversation.draft_ready');
+    });
+
+    it('requestDraft emits conversation.draft_requested for an open conversation', async () => {
+      const { conv } = await seedQueueConversation();
+      const res = await run(() => svc.requestDraft(conv.id), userActor());
+      expect(res).toEqual({ requested: true });
+      expect(await eventTypes()).toContain('conversation.draft_requested');
+    });
+
+    it('requestDraft conflicts while a draft is pending and rejects closed conversations', async () => {
+      const { conv } = await seedQueueConversation();
+      await run(() => svc.setDraftReply({ conversationId: conv.id, body: 'Pending.' }));
+      await expect(run(() => svc.requestDraft(conv.id))).rejects.toThrow(ConflictException);
+      await run(() => svc.clearDraftReply(conv.id));
+      await run(() => svc.changeStatus({ id: conv.id, status: 'closed' }));
+      await expect(run(() => svc.requestDraft(conv.id))).rejects.toThrow(BadRequestException);
     });
   });
 

@@ -1,6 +1,6 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, asc, desc, eq, ilike, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.service.ts';
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
@@ -143,7 +143,33 @@ export interface MergeProposalContactSummary {
   email: string | null;
   phone: string | null;
   companyId: string | null;
+  companyName: string | null;
   endUserId: string | null;
+  title: string | null;
+  address: string | null;
+  tags: string[];
+  customFields: Record<string, unknown>;
+  aiSummary: string | null;
+  aiNextAction: string | null;
+  engagementScore: number;
+  doNotContact: boolean;
+  unsubscribedAt: string | null;
+  lastContactedAt: string | null;
+  consentLawfulBasis: string | null;
+  consentSource: string | null;
+  createdAt: string;
+}
+
+export interface MergeImpactOutreach {
+  id: string;
+  campaignName: string | null;
+  scheduledSendAt: string | null;
+}
+
+export interface MergeImpact {
+  duplicateId: string;
+  pendingOutreach: MergeImpactOutreach[];
+  supersededProposalCount: number;
 }
 
 export interface MergeProposalDto {
@@ -155,6 +181,7 @@ export interface MergeProposalDto {
   evidence: Record<string, unknown>;
   recommendedKeeperId: string;
   recommendedPatch: Record<string, unknown>;
+  impact: MergeImpact | null;
   status: MergeStatus;
   dismissReason: string | null;
   proposedByActorType: string;
@@ -1108,14 +1135,106 @@ export class CrmService {
       .from(schema.crmContacts)
       .where(or(...Array.from(ids).map((id) => eq(schema.crmContacts.id, id))));
     const byId = new Map(contactRows.map((r) => [r.id, r]));
+    const extras = await this.loadMergeExtras(proposals, contactRows);
     return proposals.map((p) => {
       const a = byId.get(p.contactAId);
       const b = byId.get(p.contactBId);
       if (!a || !b) {
         throw new CrmInvalidError(`merge proposal ${p.id} references missing contact`);
       }
-      return toMergeProposalDto(p, a, b);
+      return toMergeProposalDto(p, a, b, {
+        companyNames: extras.companyNames,
+        impact: extras.impacts.get(p.id) ?? null,
+      });
     });
+  }
+
+  private async loadMergeExtras(
+    proposals: (typeof schema.crmMergeProposals.$inferSelect)[],
+    contacts: (typeof schema.crmContacts.$inferSelect)[],
+  ): Promise<{ companyNames: Map<string, string>; impacts: Map<string, MergeImpact> }> {
+    const ctx = getCurrentContext();
+    const companyIds = [...new Set(contacts.flatMap((c) => (c.companyId ? [c.companyId] : [])))];
+    const duplicateByProposal = new Map<string, string>();
+    for (const p of proposals) {
+      duplicateByProposal.set(
+        p.id,
+        p.recommendedKeeperId === p.contactAId ? p.contactBId : p.contactAId,
+      );
+    }
+    const duplicateIds = [...new Set(duplicateByProposal.values())];
+
+    const [companyRows, outreachRows, otherProposalRows] = await Promise.all([
+      companyIds.length > 0
+        ? ctx.db
+            .select({ id: schema.crmCompanies.id, name: schema.crmCompanies.name })
+            .from(schema.crmCompanies)
+            .where(inArray(schema.crmCompanies.id, companyIds))
+        : Promise.resolve([]),
+      duplicateIds.length > 0
+        ? ctx.db
+            .select({
+              id: schema.outreachProposals.id,
+              contactId: schema.outreachProposals.contactId,
+              scheduledSendAt: schema.outreachProposals.scheduledSendAt,
+              campaignName: schema.outreachCampaigns.name,
+            })
+            .from(schema.outreachProposals)
+            .leftJoin(
+              schema.outreachCampaigns,
+              eq(schema.outreachCampaigns.id, schema.outreachProposals.campaignId),
+            )
+            .where(
+              and(
+                inArray(schema.outreachProposals.contactId, duplicateIds),
+                inArray(schema.outreachProposals.status, ['pending', 'approved']),
+              ),
+            )
+        : Promise.resolve([]),
+      duplicateIds.length > 0
+        ? ctx.db
+            .select({
+              id: schema.crmMergeProposals.id,
+              contactAId: schema.crmMergeProposals.contactAId,
+              contactBId: schema.crmMergeProposals.contactBId,
+            })
+            .from(schema.crmMergeProposals)
+            .where(
+              and(
+                eq(schema.crmMergeProposals.status, 'pending'),
+                or(
+                  inArray(schema.crmMergeProposals.contactAId, duplicateIds),
+                  inArray(schema.crmMergeProposals.contactBId, duplicateIds),
+                ),
+              ),
+            )
+        : Promise.resolve([]),
+    ]);
+
+    const companyNames = new Map(companyRows.map((r) => [r.id, r.name]));
+    const outreachByContact = new Map<string, MergeImpactOutreach[]>();
+    for (const row of outreachRows) {
+      const list = outreachByContact.get(row.contactId) ?? [];
+      list.push({
+        id: row.id,
+        campaignName: row.campaignName ?? null,
+        scheduledSendAt: row.scheduledSendAt?.toISOString() ?? null,
+      });
+      outreachByContact.set(row.contactId, list);
+    }
+
+    const impacts = new Map<string, MergeImpact>();
+    for (const p of proposals) {
+      const duplicateId = duplicateByProposal.get(p.id)!;
+      impacts.set(p.id, {
+        duplicateId,
+        pendingOutreach: outreachByContact.get(duplicateId) ?? [],
+        supersededProposalCount: otherProposalRows.filter(
+          (o) => o.id !== p.id && (o.contactAId === duplicateId || o.contactBId === duplicateId),
+        ).length,
+      });
+    }
+    return { companyNames, impacts };
   }
 
   async getMergeProposal(id: string): Promise<MergeProposalDto> {
@@ -1136,7 +1255,11 @@ export class CrmService {
     if (!a || !b) {
       throw new CrmInvalidError(`merge proposal ${id} references missing contact`);
     }
-    return toMergeProposalDto(proposal, a, b);
+    const extras = await this.loadMergeExtras([proposal], contacts);
+    return toMergeProposalDto(proposal, a, b, {
+      companyNames: extras.companyNames,
+      impact: extras.impacts.get(proposal.id) ?? null,
+    });
   }
 
   async applyMergeProposal(input: { id: string; fingerprint: string }): Promise<MergeProposalDto> {
@@ -1957,14 +2080,31 @@ function toActivityDto(row: typeof schema.crmActivities.$inferSelect): ActivityD
   };
 }
 
-function toContactSummary(row: typeof schema.crmContacts.$inferSelect): MergeProposalContactSummary {
+function toContactSummary(
+  row: typeof schema.crmContacts.$inferSelect,
+  companyNames?: Map<string, string>,
+): MergeProposalContactSummary {
   return {
     id: row.id,
     name: row.name,
     email: row.email,
     phone: row.phone,
     companyId: row.companyId,
+    companyName: row.companyId ? (companyNames?.get(row.companyId) ?? null) : null,
     endUserId: row.endUserId,
+    title: row.title,
+    address: row.address,
+    tags: row.tags,
+    customFields: row.customFields,
+    aiSummary: row.aiSummary,
+    aiNextAction: row.aiNextAction,
+    engagementScore: row.engagementScore,
+    doNotContact: row.doNotContact,
+    unsubscribedAt: row.unsubscribedAt?.toISOString() ?? null,
+    lastContactedAt: row.lastContactedAt?.toISOString() ?? null,
+    consentLawfulBasis: row.consentLawfulBasis,
+    consentSource: row.consentSource,
+    createdAt: row.createdAt.toISOString(),
   };
 }
 
@@ -1972,16 +2112,18 @@ function toMergeProposalDto(
   row: typeof schema.crmMergeProposals.$inferSelect,
   contactA: typeof schema.crmContacts.$inferSelect,
   contactB: typeof schema.crmContacts.$inferSelect,
+  extra: { companyNames?: Map<string, string>; impact?: MergeImpact | null } = {},
 ): MergeProposalDto {
   return {
     id: row.id,
-    contactA: toContactSummary(contactA),
-    contactB: toContactSummary(contactB),
+    contactA: toContactSummary(contactA, extra.companyNames),
+    contactB: toContactSummary(contactB, extra.companyNames),
     mergeFingerprint: mergeFingerprint(row),
     confidence: row.confidence as MergeConfidence,
     evidence: row.evidence,
     recommendedKeeperId: row.recommendedKeeperId,
     recommendedPatch: row.recommendedPatch,
+    impact: extra.impact ?? null,
     status: row.status as MergeStatus,
     dismissReason: row.dismissReason,
     proposedByActorType: row.proposedByActorType,

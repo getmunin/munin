@@ -93,14 +93,16 @@ Both channels should appear with `active: true`. If either is `active: false`, t
 
 ## Step 5 — seed topics (optional)
 
-Topics are conversation labels that route inbound messages to the right humans. Create the starter set with `conv_create_topic`, one call per topic:
+Topics are conversation labels that route inbound messages to the right humans, and they also carry the automation policy that decides whether replies in them go out or wait for review. Create the starter set with `conv_create_topic`, one call per topic:
 
 ```jsonc
-{ "name": "conv_create_topic", "arguments": { "name": "Billing" } }
-{ "name": "conv_create_topic", "arguments": { "name": "Bug report" } }
-{ "name": "conv_create_topic", "arguments": { "name": "Feature request" } }
-{ "name": "conv_create_topic", "arguments": { "name": "Account access" } }
+{ "name": "conv_create_topic", "arguments": { "name": "Billing", "slug": "billing", "description": "Invoices, charges, payment methods and refunds after a purchase. Not pre-purchase pricing questions." } }
+{ "name": "conv_create_topic", "arguments": { "name": "Bug report", "slug": "bug-report", "description": "Something in the product is broken or behaving wrong for a customer who already has an account." } }
+{ "name": "conv_create_topic", "arguments": { "name": "Feature request", "slug": "feature-request", "description": "Asks for something the product doesn't do yet. Not bugs — those are Bug report." } }
+{ "name": "conv_create_topic", "arguments": { "name": "Account access", "slug": "account-access", "description": "Sign-in, password resets, SSO and seat or permission problems." } }
 ```
+
+`slug` is required and is the kebab-case of the name. `description` is optional but worth writing: it is what the triage pass reads when deciding where a new conversation belongs, and a bare name gives it nothing to distinguish adjacent topics with. Ask the operator how *they* draw the line rather than inventing definitions — and use `conv_update_topic` to correct one later.
 
 ## What NOT to do
 

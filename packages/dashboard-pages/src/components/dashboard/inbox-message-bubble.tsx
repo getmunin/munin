@@ -38,7 +38,13 @@ function MessageMarkdown({ body }: { body: string }) {
   );
 }
 
-export function MessageBubble({ message }: { message: MessageDto }) {
+export function MessageBubble({
+  message,
+  showAuthor = true,
+}: {
+  message: MessageDto;
+  showAuthor?: boolean;
+}) {
   const t = useTranslations('dashboard.overview.drawer');
   const isStaff = message.authorType === 'user';
   const isAgent = message.authorType === 'agent';
@@ -76,34 +82,36 @@ export function MessageBubble({ message }: { message: MessageDto }) {
     );
   }
   return (
-    <div className={cn('flex w-full flex-col gap-1', isOutbound ? 'items-end' : 'items-start')}>
+    <div
+      className={cn(
+        'flex w-full max-w-[86%] flex-col gap-1.5',
+        isOutbound ? 'ml-auto items-end' : 'mr-auto items-start',
+        showAuthor ? '' : '-mt-2.5',
+      )}
+    >
+      {showAuthor ? (
+        <div className="flex items-baseline gap-1.5 font-mono text-[9px] uppercase tracking-meta text-ink-mute">
+          <span className="font-semibold text-ink-soft dark:text-foreground/80">
+            {bubbleLabel(message, t)}
+          </span>
+          <span>· {formatSeenAt(message.createdAt)}</span>
+        </div>
+      ) : null}
       <div
         className={cn(
-          'max-w-[85%] px-3 py-2 text-sm',
+          'max-w-full rounded-bubble border px-[13px] py-2.5 text-[13.5px] leading-[1.45]',
           isStaff
-            ? 'rounded-bubble rounded-tr-[2px] bg-cobalt text-paper'
+            ? 'rounded-br-[4px] border-cobalt bg-cobalt text-paper'
             : isAgent
-              ? 'rounded-bubble rounded-tr-[2px] bg-ink text-paper dark:bg-paper dark:text-ink'
-              : 'rounded-bubble rounded-tl-[2px] border border-rule-soft bg-paper text-ink dark:border-rule-on-dark dark:bg-card dark:text-foreground',
+              ? 'rounded-br-[4px] border-ink bg-ink text-paper dark:border-paper dark:bg-paper dark:text-ink'
+              : 'rounded-bl-[4px] border-rule-soft bg-paper text-ink dark:border-rule-on-dark dark:bg-card dark:text-foreground',
         )}
       >
-        <div
-          className={cn(
-            'mb-0.5 font-mono text-[9px] uppercase tracking-eyebrow',
-            isStaff
-              ? 'text-paper/70'
-              : isAgent
-                ? 'text-paper/70 dark:text-ink/70'
-                : 'text-ink-mute',
-          )}
-        >
-          {bubbleLabel(message, t)}
-        </div>
         <MessageMarkdown body={message.body} />
       </div>
       {isOutbound && <MessageComponents metadata={message.metadata} />}
       {isOutbound && message.seenAt && (
-        <div className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+        <div className="font-mono text-[9px] uppercase tracking-meta text-ink-mute">
           {t('seenAt', { time: formatSeenAt(message.seenAt) })}
         </div>
       )}
@@ -126,4 +134,11 @@ function bubbleLabel(
   if (message.authorName) return message.authorName;
   if (message.authorType === 'end_user') return t('anonymousVisitor');
   return message.authorType;
+}
+
+export function startsAuthorGroup(message: MessageDto, previous: MessageDto | undefined): boolean {
+  if (!previous) return true;
+  if (previous.internal !== message.internal) return true;
+  if (previous.authorType !== message.authorType) return true;
+  return (previous.authorName ?? null) !== (message.authorName ?? null);
 }

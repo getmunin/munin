@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto';
 import { ConvService } from '../conv/conv.service.ts';
 import { CrmService, CrmInvalidError } from '../crm/crm.service.ts';
 import { EmailService } from '../conv/email/email.service.ts';
+import { publicChannelConfig } from '../conv/channels/public-config.ts';
 import { findOrCreateContactByPhone } from '../conv/contact-by-phone.ts';
 import {
   OUTREACH_VOICE_CALLERS,
@@ -151,11 +152,13 @@ export interface ProposalContactSummary {
   email: string | null;
   phone: string | null;
   companyId: string | null;
+  companyName: string | null;
 }
 
 export interface ProposalCampaignSummary {
   id: string;
   name: string;
+  ctaUrl: string | null;
 }
 
 export interface ProposalDelivery {
@@ -163,6 +166,8 @@ export interface ProposalDelivery {
   channelType: string;
   vendor: string;
   destination: string | null;
+  sender: string | null;
+  senderName: string | null;
   appendsCta: boolean;
   appendsUnsubscribe: boolean;
 }
@@ -424,6 +429,7 @@ export class OutreachService {
           email: schema.crmContacts.email,
           phone: schema.crmContacts.phone,
           companyId: schema.crmContacts.companyId,
+          companyName: schema.crmCompanies.name,
         },
         campaign: {
           id: schema.outreachCampaigns.id,
@@ -435,10 +441,12 @@ export class OutreachService {
           id: schema.convChannels.id,
           type: schema.convChannels.type,
           vendor: schema.convChannels.vendor,
+          config: schema.convChannels.config,
         },
       })
       .from(schema.outreachProposals)
       .leftJoin(schema.crmContacts, eq(schema.crmContacts.id, schema.outreachProposals.contactId))
+      .leftJoin(schema.crmCompanies, eq(schema.crmCompanies.id, schema.crmContacts.companyId))
       .leftJoin(
         schema.outreachCampaigns,
         eq(schema.outreachCampaigns.id, schema.outreachProposals.campaignId),
@@ -471,6 +479,7 @@ export class OutreachService {
           email: schema.crmContacts.email,
           phone: schema.crmContacts.phone,
           companyId: schema.crmContacts.companyId,
+          companyName: schema.crmCompanies.name,
         },
         campaign: {
           id: schema.outreachCampaigns.id,
@@ -482,10 +491,12 @@ export class OutreachService {
           id: schema.convChannels.id,
           type: schema.convChannels.type,
           vendor: schema.convChannels.vendor,
+          config: schema.convChannels.config,
         },
       })
       .from(schema.outreachProposals)
       .leftJoin(schema.crmContacts, eq(schema.crmContacts.id, schema.outreachProposals.contactId))
+      .leftJoin(schema.crmCompanies, eq(schema.crmCompanies.id, schema.crmContacts.companyId))
       .leftJoin(
         schema.outreachCampaigns,
         eq(schema.outreachCampaigns.id, schema.outreachProposals.campaignId),
@@ -2144,6 +2155,7 @@ function toProposalDto(
     name: string | null;
     email: string | null;
     phone?: string | null;
+    companyName?: string | null;
     companyId: string | null;
   } | null = null,
   campaign: {
@@ -2199,9 +2211,13 @@ function toProposalDto(
             email: contact.email,
             phone: contact.phone ?? null,
             companyId: contact.companyId,
+            companyName: contact.companyName ?? null,
           }
         : null,
-    campaign: campaign && campaign.id ? { id: campaign.id, name: campaign.name ?? '' } : null,
+    campaign:
+      campaign && campaign.id
+        ? { id: campaign.id, name: campaign.name ?? '', ctaUrl: campaign.ctaUrl ?? null }
+        : null,
     delivery,
   };
 }
@@ -2303,18 +2319,47 @@ function toMinuteOfDay(hhmm: string): number {
 function toProposalDelivery(
   contact: { email: string | null; phone?: string | null } | null,
   campaign: { ctaUrl?: string | null; unsubscribeRequired?: boolean | null } | null,
-  channel: { id: string | null; type: string | null; vendor: string | null } | null,
+  channel: {
+    id: string | null;
+    type: string | null;
+    vendor: string | null;
+    config?: unknown;
+  } | null,
 ): ProposalDelivery | null {
   if (!channel?.id || !channel.type) return null;
   const isEmail = channel.type === 'email';
+  const sender = channelSender(channel.type, channel.config);
   return {
     channelId: channel.id,
     channelType: channel.type,
     vendor: channel.vendor ?? '',
     destination: (isEmail ? contact?.email : contact?.phone) ?? null,
+    sender: sender.address,
+    senderName: sender.name,
     appendsCta: isEmail && Boolean(campaign?.ctaUrl),
     appendsUnsubscribe: isEmail && campaign?.unsubscribeRequired === true,
   };
+}
+
+function channelSender(
+  channelType: string,
+  config: unknown,
+): { address: string | null; name: string | null } {
+  const surfaced = publicChannelConfig(config);
+  if (channelType === 'email') {
+    const addressing = surfaced['addressing'];
+    if (!addressing || typeof addressing !== 'object') return { address: null, name: null };
+    const record = addressing as Record<string, unknown>;
+    return {
+      address: readString(record['fromAddress']),
+      name: readString(record['fromName']),
+    };
+  }
+  return { address: readString(surfaced['fromNumber']), name: null };
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
 function isUniqueViolation(err: unknown, constraint: string): boolean {

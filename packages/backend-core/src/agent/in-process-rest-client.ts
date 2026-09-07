@@ -23,7 +23,7 @@ import {
   type MuninRestClient,
   type UpdateCuratorJobProgressInput,
 } from '@getmunin/agent-runtime';
-import type { ConversationMessage } from '@getmunin/agent-runtime';
+import type { ConversationMessage, SetDraftReplyOpts } from '@getmunin/agent-runtime';
 import { ConvService } from '../modules/conv/conv.service.ts';
 import { ConversationClaimsService } from '../modules/conv/conv.claims.service.ts';
 import { CuratorJobsService } from '../modules/curator/curator-jobs.service.ts';
@@ -200,7 +200,7 @@ function buildClient(opts: BuildOptions): MuninRestClient {
     async setDraftReply(
       conversationId: string,
       body: string,
-      draftOpts?: { retrievedDocumentIds?: string[]; rationale?: string; toolNames?: string[] },
+      draftOpts?: SetDraftReplyOpts,
     ): Promise<void> {
       await audited('runner:setDraftReply', async () => {
         await opts.conv.setDraftReply({

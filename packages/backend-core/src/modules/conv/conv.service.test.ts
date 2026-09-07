@@ -6,7 +6,7 @@ import {
   type RequestContext,
 } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ConvService, ConvInvalidError } from './conv.service.ts';
@@ -305,6 +305,51 @@ const skipReason = TEST_URL
       await expect(
         run(() => svc.createTopic({ name: 'X', slug: 'BAD slug' })),
       ).rejects.toThrow(ConvInvalidError);
+    });
+
+    it('createTopic carries the description through to listTopics', async () => {
+      const description = 'Pricing and plans before a purchase. Not invoice disputes.';
+      await run(() => svc.createTopic({ name: 'Sales', slug: 'sales', description }));
+      const [listed] = await run(() => svc.listTopics());
+      expect(listed!.description).toBe(description);
+    });
+
+    it('createTopic stores a blank description as null', async () => {
+      const t = await run(() => svc.createTopic({ name: 'Blank', slug: 'blank', description: '  ' }));
+      expect(t.description).toBeNull();
+    });
+
+    it('updateTopic rewrites the description and leaves untouched fields alone', async () => {
+      const created = await run(() =>
+        svc.createTopic({ name: 'Support', slug: 'support', description: 'first pass' }),
+      );
+      const updated = await run(() =>
+        svc.updateTopic({ topicId: created.id, description: 'Anything broken for an existing customer.' }),
+      );
+      expect(updated.description).toBe('Anything broken for an existing customer.');
+      expect(updated.name).toBe('Support');
+      expect(updated.slug).toBe('support');
+    });
+
+    it('updateTopic clears the description when passed null', async () => {
+      const created = await run(() =>
+        svc.createTopic({ name: 'Temp', slug: 'temp', description: 'to be removed' }),
+      );
+      const updated = await run(() => svc.updateTopic({ topicId: created.id, description: null }));
+      expect(updated.description).toBeNull();
+    });
+
+    it('updateTopic rejects an empty patch', async () => {
+      const created = await run(() => svc.createTopic({ name: 'Patchless', slug: 'patchless' }));
+      await expect(run(() => svc.updateTopic({ topicId: created.id }))).rejects.toThrow(
+        ConvInvalidError,
+      );
+    });
+
+    it('updateTopic 404s on a topic from another org', async () => {
+      await expect(run(() => svc.updateTopic({ topicId: 'ctp_nope', name: 'X' }))).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -1059,17 +1104,31 @@ const skipReason = TEST_URL
       expect(ids.indexOf(b.conv.id)).toBeLessThan(ids.indexOf(a.conv.id));
     });
 
-    it('a topic automation mode overrides the conversation agent mode everywhere it is read', async () => {
+    it('an unconditional topic automation mode overrides the conversation agent mode everywhere it is read', async () => {
+      const { conv, topic } = await seedQueueConversation();
+      await db
+        .update(schema.convTopics)
+        .set({ agentMode: 'off' })
+        .where(eq(schema.convTopics.id, topic!.id));
+      const detail = await run(() => svc.getConversation(conv.id));
+      expect(detail.agentMode).toBe('off');
+      const page = await run(() => svc.listConversationQueuePage({}));
+      const item = page.items.find((i) => i.id === conv.id)!;
+      expect(item.agentMode).toBe('off');
+      expect(item.topicAgentMode).toBe('off');
+    });
+
+    it('reads report an ungated auto topic as drafting while still naming the topic mode operators set', async () => {
       const { conv, topic } = await seedQueueConversation();
       await db
         .update(schema.convTopics)
         .set({ agentMode: 'auto' })
         .where(eq(schema.convTopics.id, topic!.id));
       const detail = await run(() => svc.getConversation(conv.id));
-      expect(detail.agentMode).toBe('auto');
+      expect(detail.agentMode).toBe('draft_only');
       const page = await run(() => svc.listConversationQueuePage({}));
       const item = page.items.find((i) => i.id === conv.id)!;
-      expect(item.agentMode).toBe('auto');
+      expect(item.agentMode).toBe('draft_only');
       expect(item.topicAgentMode).toBe('auto');
     });
 
@@ -1245,6 +1304,156 @@ const skipReason = TEST_URL
       );
     });
 
+    async function automationNotesOf(conversationId: string) {
+      return db
+        .select({
+          body: schema.convMessages.body,
+          authorType: schema.convMessages.authorType,
+          internal: schema.convMessages.internal,
+          metadata: schema.convMessages.metadata,
+        })
+        .from(schema.convMessages)
+        .where(
+          and(
+            eq(schema.convMessages.conversationId, conversationId),
+            sql`${schema.convMessages.metadata} ->> 'kind' = 'automation_mode_changed'`,
+          ),
+        )
+        .orderBy(schema.convMessages.createdAt);
+    }
+
+    async function seedOtherMember(name: string) {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const [other] = await db
+        .insert(schema.users)
+        .values({ email: `other-${randomUUID().slice(0, 8)}@example.com`, name })
+        .returning();
+      await db.insert(schema.orgMembers).values({ orgId, userId: other!.id });
+      return {
+        id: other!.id,
+        actor: new ActorIdentity(
+          'user',
+          other!.id,
+          orgId,
+          ['*'],
+          ['admin'],
+          undefined,
+          undefined,
+          undefined,
+          other!.id,
+        ),
+      };
+    }
+
+    it('an unforced claim still refuses to displace another holder', async () => {
+      const { conv } = await seedQueueConversation({ withTopic: false });
+      const other = await seedOtherMember('Erik Solheim');
+      const claims = new ConversationClaimsService(new WebhookDispatcher());
+      await run(() => claims.claim({ conversationId: conv.id }), other.actor);
+
+      await expect(
+        run(() => claims.claim({ conversationId: conv.id }), userActor()),
+      ).rejects.toThrow('claim_held_by_other');
+    });
+
+    it('a forced claim moves the claim and records who took over from whom', async () => {
+      const { conv } = await seedQueueConversation({ withTopic: false });
+      const other = await seedOtherMember('Erik Solheim');
+      const claims = new ConversationClaimsService(new WebhookDispatcher());
+      await run(() => claims.claim({ conversationId: conv.id }), other.actor);
+
+      const taken = await run(
+        () => claims.claim({ conversationId: conv.id, force: true }),
+        userActor(),
+      );
+      expect(taken.holderId).toBe(userId);
+
+      const notes = await db
+        .select({
+          body: schema.convMessages.body,
+          authorType: schema.convMessages.authorType,
+          internal: schema.convMessages.internal,
+          metadata: schema.convMessages.metadata,
+        })
+        .from(schema.convMessages)
+        .where(
+          and(
+            eq(schema.convMessages.conversationId, conv.id),
+            sql`${schema.convMessages.metadata} ->> 'kind' = 'claim_taken_over'`,
+          ),
+        );
+      expect(notes).toHaveLength(1);
+      expect(notes[0]!.authorType).toBe('system');
+      expect(notes[0]!.internal).toBe(true);
+      expect(notes[0]!.body).toBe('Test User took over this conversation from Erik Solheim.');
+      expect(notes[0]!.metadata).toMatchObject({ fromUserId: other.id, toUserId: userId });
+    });
+
+    it('a forced claim on a conversation nobody holds records nothing', async () => {
+      const { conv } = await seedQueueConversation({ withTopic: false });
+      const claims = new ConversationClaimsService(new WebhookDispatcher());
+
+      await run(() => claims.claim({ conversationId: conv.id, force: true }), userActor());
+      await run(() => claims.claim({ conversationId: conv.id, force: true }), userActor());
+
+      const notes = await db
+        .select({ id: schema.convMessages.id })
+        .from(schema.convMessages)
+        .where(
+          and(
+            eq(schema.convMessages.conversationId, conv.id),
+            sql`${schema.convMessages.metadata} ->> 'kind' = 'claim_taken_over'`,
+          ),
+        );
+      expect(notes).toHaveLength(0);
+    });
+
+    it('setTopic records a system note when a topic override changes the effective agent mode', async () => {
+      const { conv } = await seedQueueConversation({ withTopic: false });
+      await db.execute(sql`UPDATE conv_conversations SET agent_mode = 'auto' WHERE id = ${conv.id}`);
+      const topic = await run(() =>
+        svc.createTopic({ name: 'Sales', slug: `sales-${randomUUID().slice(0, 8)}` }),
+      );
+      await db.execute(sql`UPDATE conv_topics SET agent_mode = 'draft_only' WHERE id = ${topic.id}`);
+
+      await run(() => svc.setTopic({ conversationId: conv.id, topicId: topic.id }));
+
+      const notes = await automationNotesOf(conv.id);
+      expect(notes).toHaveLength(1);
+      expect(notes[0]!.authorType).toBe('system');
+      expect(notes[0]!.internal).toBe(true);
+      expect(notes[0]!.body).toBe('Topic set to Sales. Replies now need review before sending.');
+      expect(notes[0]!.metadata).toMatchObject({ from: 'auto', to: 'draft_only' });
+    });
+
+    it('setTopic stays silent when the topic leaves the effective agent mode unchanged', async () => {
+      const { conv } = await seedQueueConversation({ withTopic: false });
+      const topic = await run(() =>
+        svc.createTopic({ name: 'Support', slug: `support-${randomUUID().slice(0, 8)}` }),
+      );
+
+      await run(() => svc.setTopic({ conversationId: conv.id, topicId: topic.id }));
+
+      expect(await automationNotesOf(conv.id)).toHaveLength(0);
+    });
+
+    it('setTopic records the note when clearing a topic restores automatic sending', async () => {
+      const { conv } = await seedQueueConversation({ withTopic: false });
+      await db.execute(sql`UPDATE conv_conversations SET agent_mode = 'auto' WHERE id = ${conv.id}`);
+      const topic = await run(() =>
+        svc.createTopic({ name: 'Sales', slug: `sales-${randomUUID().slice(0, 8)}` }),
+      );
+      await db.execute(sql`UPDATE conv_topics SET agent_mode = 'draft_only' WHERE id = ${topic.id}`);
+      await run(() => svc.setTopic({ conversationId: conv.id, topicId: topic.id }));
+
+      await run(() => svc.setTopic({ conversationId: conv.id, topicId: null }));
+
+      const notes = await automationNotesOf(conv.id);
+      expect(notes).toHaveLength(2);
+      expect(notes[1]!.body).toBe('Topic cleared. Replies now send automatically.');
+      expect(notes[1]!.metadata).toMatchObject({ from: 'draft_only', to: 'auto' });
+    });
+
     it('queue pagination resumes without skipping rows across the cursor boundary', async () => {
       const { conv } = await seedQueueConversation();
       await run(() =>
@@ -1263,6 +1472,37 @@ const skipReason = TEST_URL
       const seen = [...first.items, ...second.items].map((i) => i.id);
       expect(new Set(seen).size).toBe(seen.length);
       for (const id of [conv.id, ...others]) {
+        expect(seen).toContain(id);
+      }
+    });
+
+    it('list pagination crosses the needs-attention boundary without dropping rows', async () => {
+      const flagged = [];
+      for (let i = 0; i < 2; i += 1) {
+        const seeded = await seedQueueConversation();
+        await run(() =>
+          svc.requestHandover({
+            conversationId: seeded.conv.id,
+            reason: 'boundary',
+            postSystemNote: false,
+          }),
+        );
+        flagged.push(seeded.conv.id);
+      }
+      const calm = [];
+      for (let i = 0; i < 2; i += 1) {
+        const seeded = await seedQueueConversation();
+        calm.push(seeded.conv.id);
+      }
+      const first = await run(() => svc.listConversationsPage({ status: 'open', limit: 2 }));
+      expect(first.nextCursor).not.toBeNull();
+      expect(first.items.map((i) => i.id)).toEqual(expect.arrayContaining(flagged));
+      const second = await run(() =>
+        svc.listConversationsPage({ status: 'open', limit: 50, cursor: first.nextCursor! }),
+      );
+      const seen = [...first.items, ...second.items].map((i) => i.id);
+      expect(new Set(seen).size).toBe(seen.length);
+      for (const id of [...flagged, ...calm]) {
         expect(seen).toContain(id);
       }
     });

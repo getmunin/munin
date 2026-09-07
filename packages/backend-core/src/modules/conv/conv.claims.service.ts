@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, eq, gt, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 
 const ENTITY_TYPE = 'conversation';
@@ -30,6 +30,7 @@ export class ConversationClaimsService {
   async claim(input: {
     conversationId: string;
     ttlMs?: number;
+    force?: boolean;
   }): Promise<ConversationClaim> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -51,16 +52,27 @@ export class ConversationClaimsService {
     const expiresAt = new Date(Date.now() + ttlMs);
 
     const existing = await this.findActiveClaim(input.conversationId);
-    if (existing && holderIdOf(existing) !== claimer.id) {
+    const displacing = existing && holderIdOf(existing) !== claimer.id;
+    if (displacing && !input.force) {
       throw new ClaimedByOtherError(holderIdOf(existing));
     }
 
     if (existing) {
+      const previousHolderId = holderIdOf(existing);
       const [refreshed] = await ctx.db
         .update(schema.claims)
-        .set({ expiresAt })
+        .set({ expiresAt, userId: claimer.id })
         .where(eq(schema.claims.id, existing.id))
         .returning();
+      if (displacing) {
+        await this.noteTakeOver({
+          conversationId: input.conversationId,
+          orgId: actor.orgId,
+          fromUserId: previousHolderId,
+          toUserId: claimer.id,
+        });
+        await this.emitClaimed(input.conversationId, claimer.id, expiresAt);
+      }
       return toConversationClaim(refreshed!);
     }
 
@@ -75,17 +87,25 @@ export class ConversationClaimsService {
       })
       .returning();
 
+    await this.emitClaimed(input.conversationId, claimer.id, expiresAt);
+
+    return toConversationClaim(row!);
+  }
+
+  private async emitClaimed(
+    conversationId: string,
+    holderId: string,
+    expiresAt: Date,
+  ): Promise<void> {
     await this.webhooks.emit({
       type: 'conversation.taken_over',
       payload: {
-        conversationId: input.conversationId,
+        conversationId,
         holderType: 'user',
-        holderId: claimer.id,
+        holderId,
         expiresAt: expiresAt.toISOString(),
       },
     });
-
-    return toConversationClaim(row!);
   }
 
   async release(input: { conversationId: string; force?: boolean }): Promise<void> {
@@ -127,6 +147,36 @@ export class ConversationClaimsService {
   async getActiveClaim(conversationId: string): Promise<ConversationClaim | null> {
     const claim = await this.findActiveClaim(conversationId);
     return claim ? toConversationClaim(claim) : null;
+  }
+
+  private async noteTakeOver(input: {
+    conversationId: string;
+    orgId: string;
+    fromUserId: string;
+    toUserId: string;
+  }): Promise<void> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.users.id, name: schema.users.name, email: schema.users.email })
+      .from(schema.users)
+      .where(inArray(schema.users.id, [input.fromUserId, input.toUserId]));
+    const labelOf = (userId: string): string => {
+      const row = rows.find((r) => r.id === userId);
+      return row?.name ?? row?.email ?? 'A teammate';
+    };
+    await ctx.db.insert(schema.convMessages).values({
+      orgId: input.orgId,
+      conversationId: input.conversationId,
+      authorType: 'system',
+      authorId: 'conversation-claims',
+      body: `${labelOf(input.toUserId)} took over this conversation from ${labelOf(input.fromUserId)}.`,
+      internal: true,
+      metadata: {
+        kind: 'claim_taken_over',
+        fromUserId: input.fromUserId,
+        toUserId: input.toUserId,
+      },
+    });
   }
 
   private async findActiveClaim(

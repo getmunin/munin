@@ -16,6 +16,7 @@ import { FormError, toFormError, type FormErrorDetail } from '../components/form
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 import { notify } from '../lib/notify';
+import { useCopy } from '../lib/use-copy';
 import { dialogButtonClass, dialogFooterClass, dialogHintClass, dialogLabelClass } from '../lib/dialog-style';
 import {
   Button,
@@ -619,8 +620,6 @@ function EmbedSnippetDialog({
   const t = useTranslations('dashboard.trackers');
   const tCommon = useTranslations('common');
   const [language, setLanguage] = useState(HASH_SNIPPETS[0]!.language);
-  const [snippetCopied, setSnippetCopied] = useState(false);
-  const [hashCopied, setHashCopied] = useState(false);
 
   const host = stripTrailingSlashes(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001');
   const scriptSnippet = [
@@ -641,18 +640,8 @@ function EmbedSnippetDialog({
 
   const hashSnippet = HASH_SNIPPETS.find((s) => s.language === language)!.build();
 
-  function copySnippet() {
-    void navigator.clipboard.writeText(scriptSnippet).then(() => {
-      setSnippetCopied(true);
-      setTimeout(() => setSnippetCopied(false), KEY_DISPLAY_TIMEOUT_MS);
-    });
-  }
-  function copyHash() {
-    void navigator.clipboard.writeText(hashSnippet).then(() => {
-      setHashCopied(true);
-      setTimeout(() => setHashCopied(false), KEY_DISPLAY_TIMEOUT_MS);
-    });
-  }
+  const snippetCopy = useCopy(KEY_DISPLAY_TIMEOUT_MS);
+  const hashCopy = useCopy(KEY_DISPLAY_TIMEOUT_MS);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -664,12 +653,12 @@ function EmbedSnippetDialog({
         <div className="space-y-8 py-2">
           <div className="space-y-3">
             <Label className={dialogLabelClass}>{t('embed.scriptLabel')}</Label>
-            <pre className="overflow-x-auto rounded-md border-[1px] bg-muted px-3 py-2 font-mono text-xs">
+            <pre className="overflow-x-auto border border-ink bg-paper-deep px-3.5 py-2.5 font-mono text-xs text-ink dark:border-rule-on-dark dark:bg-secondary dark:text-foreground">
               {scriptSnippet}
             </pre>
-            <Button variant="outline" size="sm" onClick={copySnippet}>
+            <Button variant="outline" size="sm" onClick={() => snippetCopy.copy(scriptSnippet)}>
               <Copy className="size-4" />
-              {snippetCopied ? tCommon('copied') : t('embed.copyScript')}
+              {snippetCopy.copied ? tCommon('copied') : t('embed.copyScript')}
             </Button>
             <p className={dialogHintClass}>{t('embed.scriptHint')}</p>
           </div>
@@ -697,12 +686,12 @@ function EmbedSnippetDialog({
                 );
               })}
             </div>
-            <pre className="overflow-x-auto rounded-md border-[1px] bg-muted px-3 py-2 font-mono text-xs">
+            <pre className="overflow-x-auto border border-ink bg-paper-deep px-3.5 py-2.5 font-mono text-xs text-ink dark:border-rule-on-dark dark:bg-secondary dark:text-foreground">
               {hashSnippet}
             </pre>
-            <Button variant="outline" size="sm" onClick={copyHash}>
+            <Button variant="outline" size="sm" onClick={() => hashCopy.copy(hashSnippet)}>
               <Copy className="size-4" />
-              {hashCopied ? tCommon('copied') : t('embed.copyHash')}
+              {hashCopy.copied ? tCommon('copied') : t('embed.copyHash')}
             </Button>
           </div>
         </div>

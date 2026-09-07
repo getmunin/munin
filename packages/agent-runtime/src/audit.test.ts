@@ -235,6 +235,73 @@ describe('auditConversation', () => {
     expect(verdict.actions).toEqual([{ type: 'request_handover', reason: 'deferred' }]);
   });
 
+  it('surfaces the rationale for the human reviewer', async () => {
+    const stub = createStubProvider({
+      responses: [
+        {
+          message: {
+            role: 'assistant',
+            content:
+              '{"rationale":"States the 10 MB upload cap from KB 31; the fix follows the documented camera path.","actions":[]}',
+          },
+          finishReason: 'stop',
+          usage: {},
+        },
+      ],
+    });
+    const verdict = await auditConversation({
+      provider: { baseUrl: 'http://stub', apiKey: 'k' },
+      model: 'audit',
+      question: 'Why does my upload keep failing?',
+      reply: 'The scan exceeds our 10 MB limit — photograph it in the form instead.',
+      toolNames: ['kb_search'],
+      providerImpl: stub.provider,
+    });
+    expect(verdict.rationale).toBe(
+      'States the 10 MB upload cap from KB 31; the fix follows the documented camera path.',
+    );
+  });
+
+  it('caps an overlong rationale and nulls a blank one', async () => {
+    const long = 'a'.repeat(1500);
+    const stubLong = createStubProvider({
+      responses: [
+        {
+          message: { role: 'assistant', content: `{"rationale":"${long}","actions":[]}` },
+          finishReason: 'stop',
+          usage: {},
+        },
+      ],
+    });
+    const capped = await auditConversation({
+      provider: { baseUrl: 'http://stub', apiKey: 'k' },
+      model: 'audit',
+      question: 'q',
+      reply: 'r',
+      toolNames: [],
+      providerImpl: stubLong.provider,
+    });
+    expect(capped.rationale!.length).toBeLessThanOrEqual(1001);
+    const stubBlank = createStubProvider({
+      responses: [
+        {
+          message: { role: 'assistant', content: '{"rationale":"   ","actions":[]}' },
+          finishReason: 'stop',
+          usage: {},
+        },
+      ],
+    });
+    const blank = await auditConversation({
+      provider: { baseUrl: 'http://stub', apiKey: 'k' },
+      model: 'audit',
+      question: 'q',
+      reply: 'r',
+      toolNames: [],
+      providerImpl: stubBlank.provider,
+    });
+    expect(blank.rationale).toBeNull();
+  });
+
   it('fails open when the provider errors', async () => {
     const verdict = await auditConversation({
       provider: { baseUrl: 'http://stub', apiKey: 'k' },
@@ -244,7 +311,7 @@ describe('auditConversation', () => {
       toolNames: [],
       providerImpl: () => Promise.reject(new Error('upstream broken')),
     });
-    expect(verdict).toEqual({ actions: [] });
+    expect(verdict).toEqual({ rationale: null, actions: [] });
   });
 
   it('fails open when the model returns unparseable text', async () => {
@@ -265,6 +332,6 @@ describe('auditConversation', () => {
       toolNames: [],
       providerImpl: stub.provider,
     });
-    expect(verdict).toEqual({ actions: [] });
+    expect(verdict).toEqual({ rationale: null, actions: [] });
   });
 });

@@ -25,7 +25,7 @@ const fi: Strings = {
   defaultEyebrow: 'Toimittaa Munin',
   defaultGreeting: 'Hei. Miten voimme auttaa?',
   defaultTitle: 'Keskustele kanssamme',
-  welcomeRepliesAboutHtml: 'Vastaus noin <strong>2 min</strong>',
+  welcomeRepliesInstantly: 'Vastaa heti',
   startConversationLabel: 'Aloita keskustelu',
   startConversationSub: 'Laitamme agentin asialle heti.',
   conversationsHeader: 'Keskustelusi',

@@ -25,7 +25,7 @@ const lv: Strings = {
   defaultEyebrow: 'Nodrošina Munin',
   defaultGreeting: 'Sveiki. Kā varam palīdzēt?',
   defaultTitle: 'Tērzējiet ar mums',
-  welcomeRepliesAboutHtml: 'Atbilde apmēram <strong>2 min</strong>',
+  welcomeRepliesInstantly: 'Atbild uzreiz',
   startConversationLabel: 'Sākt sarunu',
   startConversationSub: 'Uzreiz nodosim to aģentam.',
   conversationsHeader: 'Jūsu sarunas',

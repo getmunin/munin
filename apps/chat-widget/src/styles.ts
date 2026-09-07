@@ -3,17 +3,23 @@ export function buildWidgetCss(fonts: 'bundled' | 'inherit'): string {
 }
 
 const INHERIT_FONTS_CSS = String.raw`
-:host { font-family: inherit; }
+:host { font-family: inherit; --munin-greeting-emphasis: normal; }
 .root, .root * { font-family: inherit; }
 `;
 
 const DARK_VARS = String.raw`
     --munin-bone: #2E3038;
-    --munin-paper: #1B1D22;
-    --munin-paper-deep: #24262C;
+    --munin-paper: #101418;
+    --munin-paper-deep: #1F252B;
     --munin-ink: #F5F4F0;
     --munin-ink-soft: #C7C9D1;
     --munin-ink-mute: #9297A3;
+    --munin-verdigris: #62C39C;
+    --munin-verdigris-tint: #1B382A;
+    --munin-agent-tint: #1E252C;
+    --munin-self-tint: #272C33;
+    --munin-field-border: var(--munin-rule);
+    --munin-send: color-mix(in srgb, var(--munin-theme) 50%, white);
     --munin-rule: rgba(255, 255, 255, 0.14);
     --munin-overlay: rgba(255, 255, 255, 0.08);
     --munin-edge: rgba(255, 255, 255, 0.14);
@@ -55,6 +61,18 @@ const BASE_CSS = String.raw`
   --munin-ink: #0F1419;
   --munin-ink-soft: #3D424A;
   --munin-ink-mute: #7E8590;
+  --munin-verdigris: #208562;
+  --munin-verdigris-tint: #E3F5EC;
+  --munin-agent-tint: #DCE2E8;
+  --munin-self-tint: #E8E4DC;
+  --munin-field-border: var(--munin-ink);
+
+  --munin-r-panel: 0;
+  --munin-r-surface: 0;
+  --munin-r-control: 0;
+  --munin-r-tag: 0;
+  --munin-r-pill: 0;
+  --munin-send: var(--munin-theme);
   --munin-rule: rgba(15, 20, 25, 0.18);
   --munin-overlay: rgba(15, 20, 25, 0.06);
   --munin-edge: rgba(15, 20, 25, 0.08);
@@ -80,6 +98,13 @@ const BASE_CSS = String.raw`
   line-height: 1.4;
   color: var(--munin-ink);
   color-scheme: light;
+}
+.root[data-corners='rounded'] {
+  --munin-r-panel: 16px;
+  --munin-r-surface: 12px;
+  --munin-r-control: 8px;
+  --munin-r-tag: 3px;
+  --munin-r-pill: 999px;
 }
 .root[data-position='bottom-right'] { right: 24px; }
 .root[data-position='bottom-left']  { left:  24px; }
@@ -147,7 +172,7 @@ button {
   position: absolute;
   bottom: 0;
   background: var(--munin-paper);
-  border-radius: 16px;
+  border-radius: var(--munin-r-panel);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -192,7 +217,7 @@ button {
 .panel-head-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .panel-head-mark {
   width: 30px; height: 30px;
-  border-radius: 8px;
+  border-radius: var(--munin-r-control);
   background: color-mix(in srgb, var(--munin-header-fg) 8%, transparent);
   display: inline-flex; align-items: center; justify-content: center;
 }
@@ -221,13 +246,13 @@ button {
 .panel-head-dot {
   width: 6px; height: 6px;
   border-radius: 50%;
-  background: var(--munin-theme);
+  background: var(--munin-verdigris);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--munin-header-fg) 8%, transparent);
 }
 .panel-head-right { display: flex; gap: 4px; }
 .icon-btn {
   width: 28px; height: 28px;
-  border-radius: 6px;
+  border-radius: var(--munin-r-control);
   color: color-mix(in srgb, var(--munin-header-fg) 60%, transparent);
   display: inline-flex; align-items: center; justify-content: center;
 }
@@ -294,16 +319,15 @@ button {
   margin-bottom: 22px;
 }
 .welcome-status-dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--munin-theme);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--munin-theme) 18%, transparent);
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--munin-verdigris);
 }
 
 .cta {
   width: 100%;
   background: var(--munin-paper);
   border: 1px solid var(--munin-ink);
-  border-radius: 12px;
+  border-radius: var(--munin-r-surface);
   padding: 16px 18px;
   display: flex;
   justify-content: space-between;
@@ -391,9 +415,9 @@ button {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   padding: 2px 6px;
-  border-radius: 3px;
+  border-radius: var(--munin-r-tag);
 }
-.tag-open { background: color-mix(in srgb, var(--munin-theme) 12%, transparent); color: var(--munin-theme); }
+.tag-open { background: var(--munin-verdigris-tint); color: var(--munin-verdigris); }
 .tag-closed { background: var(--munin-overlay); color: var(--munin-ink-mute); }
 .tag-snoozed { background: var(--munin-overlay); color: var(--munin-ink-soft); }
 .past-when {
@@ -406,7 +430,7 @@ button {
   margin-top: 28px;
   padding: 28px 16px;
   border: 1px dashed var(--munin-rule);
-  border-radius: 12px;
+  border-radius: var(--munin-r-surface);
   text-align: center;
   color: var(--munin-ink-soft);
 }
@@ -434,7 +458,7 @@ button {
 }
 .back-btn {
   width: 28px; height: 28px;
-  border-radius: 6px;
+  border-radius: var(--munin-r-control);
   color: var(--munin-ink-soft);
   display: inline-flex; align-items: center; justify-content: center;
 }
@@ -464,7 +488,7 @@ button {
 }
 .chat-sub-dot {
   width: 6px; height: 6px; border-radius: 50%;
-  background: var(--munin-theme);
+  background: var(--munin-verdigris);
 }
 
 .messages {
@@ -492,18 +516,18 @@ button {
   gap: 6px;
   align-items: baseline;
 }
-.msg-who { color: var(--munin-ink-soft); font-weight: 600; }
+.msg-who { color: var(--munin-ink-mute); font-weight: 600; }
 .msg-role { color: var(--munin-ink-mute); }
 .msg-t { color: var(--munin-ink-mute); font-family: var(--munin-mono); font-size: 9px; }
 .msg-t.mine { padding-right: 2px; }
 
 .bubble {
   border: 1px solid var(--munin-rule);
-  background: var(--munin-paper-deep);
+  background: var(--munin-agent-tint);
   color: var(--munin-ink);
   padding: 10px 13px;
   border-radius: 14px;
-  border-bottom-left-radius: 4px;
+  border-bottom-left-radius: 2px;
   font-family: var(--munin-sans);
   font-size: 13.5px;
   line-height: 1.45;
@@ -511,13 +535,18 @@ button {
   word-wrap: break-word;
 }
 .msg.mine .bubble {
-  background: var(--munin-theme);
-  border-color: var(--munin-theme);
-  color: var(--munin-theme-fg);
+  background: var(--munin-self-tint);
+  border-color: var(--munin-self-tint);
+  color: var(--munin-ink);
   border-bottom-left-radius: 14px;
-  border-bottom-right-radius: 4px;
+  border-bottom-right-radius: 2px;
   white-space: pre-wrap;
 }
+.msg.human .bubble {
+  background: var(--munin-verdigris-tint);
+  border-color: color-mix(in srgb, var(--munin-verdigris) 20%, transparent);
+}
+.msg.human .msg-who { color: var(--munin-verdigris); }
 .bubble p { margin: 0; }
 .bubble p + p { margin-top: 8px; }
 .bubble ul, .bubble ol { margin: 6px 0 0; padding-left: 20px; }
@@ -546,12 +575,13 @@ button {
   font-size: inherit;
 }
 .bubble a {
-  color: var(--munin-theme);
+  color: currentColor;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 .bubble strong { font-weight: 600; }
 .bubble em { font-style: italic; }
+.msg.human .bubble em { color: var(--munin-verdigris); }
 
 .bubble.typing { display: inline-flex; gap: 4px; padding: 12px 14px; }
 .bubble.typing span {
@@ -587,7 +617,7 @@ button {
   align-self: stretch;
   background: var(--munin-paper-deep);
   border: 1px solid var(--munin-rule);
-  border-radius: 12px;
+  border-radius: var(--munin-r-surface);
   padding: 14px 16px;
 }
 .card-eyebrow {
@@ -610,19 +640,23 @@ button {
   min-width: 0;
   border: 1px solid var(--munin-rule);
   background: var(--munin-paper);
-  border-radius: 8px;
+  border-radius: var(--munin-r-control);
   padding: 8px 10px;
   font: inherit;
   font-size: 13px;
   color: var(--munin-ink);
   outline: none;
 }
-.card-form input:focus { border-color: var(--munin-ink); }
+.card-form input:focus {
+  border-color: var(--munin-field-border);
+  outline: 2px solid var(--munin-theme);
+  outline-offset: -2px;
+}
 .card-form button {
   background: var(--munin-theme);
   color: var(--munin-theme-fg);
   border: 1px solid var(--munin-theme);
-  border-radius: 8px;
+  border-radius: var(--munin-r-control);
   padding: 8px 14px;
   font-family: var(--munin-mono);
   font-size: 10px;
@@ -638,7 +672,7 @@ button {
   color: var(--munin-ink-mute);
 }
 .card-skip:hover { color: var(--munin-ink); }
-.card-done .card-eyebrow { color: var(--munin-theme); }
+.card-done .card-eyebrow { color: var(--munin-verdigris); }
 .card-done .card-title { margin-bottom: 0; }
 .card-done .card-title strong { color: var(--munin-ink); font-weight: 600; }
 
@@ -655,9 +689,9 @@ button {
 .composer textarea {
   flex: 1;
   box-sizing: border-box;
-  border: 1px solid var(--munin-rule);
-  background: var(--munin-paper-deep);
-  border-radius: 12px;
+  border: 1px solid var(--munin-field-border);
+  background: var(--munin-paper);
+  border-radius: var(--munin-r-surface);
   padding: 10px 14px;
   font: inherit;
   font-size: 13.5px;
@@ -669,7 +703,11 @@ button {
   overflow-y: auto;
   min-height: 56px;
 }
-.composer textarea:focus { border-color: var(--munin-ink); background: var(--munin-paper); }
+.composer textarea:focus {
+  border-color: var(--munin-field-border);
+  outline: 2px solid var(--munin-theme);
+  outline-offset: -2px;
+}
 .composer-row {
   display: flex;
   flex-direction: column;
@@ -687,7 +725,7 @@ button {
 .send {
   width: 38px;
   height: 38px;
-  border-radius: 10px;
+  border-radius: var(--munin-r-control);
   border: 1px solid var(--munin-rule);
   color: var(--munin-ink-mute);
   display: inline-flex;
@@ -698,7 +736,7 @@ button {
 }
 .send:hover:not(:disabled) { border-color: var(--munin-ink); background: var(--munin-paper-deep); color: var(--munin-ink); }
 .send:disabled { opacity: 0.55; cursor: not-allowed; }
-.send.active { color: var(--munin-theme); border-color: var(--munin-theme); }
+.send.active { color: var(--munin-send); border-color: var(--munin-send); }
 .send svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
 
 /* ─── Voice — header trigger pill ────────────────────── */
@@ -987,7 +1025,7 @@ const PRODUCT_LIST_CSS = String.raw`
   gap: 5px;
   scroll-snap-align: start;
   border: 1px solid var(--munin-rule);
-  border-radius: 10px;
+  border-radius: var(--munin-r-surface);
   background: var(--munin-paper);
   padding: 7px;
 }
@@ -997,7 +1035,7 @@ const PRODUCT_LIST_CSS = String.raw`
   width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: contain;
-  border-radius: 6px;
+  border-radius: var(--munin-r-control);
   background: var(--munin-shot);
 }
 .pcard-shot-empty {
@@ -1018,7 +1056,7 @@ const PRODUCT_LIST_CSS = String.raw`
   align-self: flex-start;
   margin-top: 1px;
   border: 1px solid var(--munin-rule);
-  border-radius: 999px;
+  border-radius: var(--munin-r-pill);
   padding: 3px 9px;
   font-family: var(--munin-mono);
   font-size: 9px;

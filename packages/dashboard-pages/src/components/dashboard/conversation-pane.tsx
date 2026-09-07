@@ -9,6 +9,7 @@ import { useRelative } from '../../lib/use-relative';
 import { useConversationTyping } from '../../realtime';
 import { useCmdEnter } from './queue-panes/shared';
 import { MessageBubble, startsAuthorGroup } from './inbox-message-bubble';
+import { participantHues, participantKey } from './inbox-identity';
 import { LoadFailed } from '../load-failed';
 import { TestConversationBanner } from './test-conversation-banner';
 import { usePaneLoadFailedProps } from '../../lib/use-load-failed-props';
@@ -121,6 +122,7 @@ export function ConversationPane({
   }, [draft]);
 
   const thread = detail?.messages.filter((m) => messageDraftKind(m) === null) ?? [];
+  const hues = participantHues(thread, viewerUserId);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const lastMessageId = thread[thread.length - 1]?.id;
@@ -465,12 +467,14 @@ export function ConversationPane({
             key={m.id}
             message={m}
             showAuthor={startsAuthorGroup(m, arr[i - 1])}
+            viewerUserId={viewerUserId}
+            hue={hues.get(participantKey(m))}
           />
         ))}
         {visitorTyping ? (
           <div className="flex w-full flex-col items-start gap-1">
             <div
-              className="flex items-center gap-1 rounded-bubble rounded-bl-[4px] border border-rule-soft bg-paper px-3.5 py-3 dark:border-rule-on-dark dark:bg-card"
+              className="flex items-center gap-1 rounded-bubble rounded-bl-[4px] border border-verdigris/20 bg-verdigris-tint px-3.5 py-3 dark:border-verdigris-soft/30 dark:bg-verdigris/15"
               role="status"
               aria-live="polite"
               aria-label={t('customerTyping', { name: customer })}

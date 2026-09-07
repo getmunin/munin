@@ -171,6 +171,78 @@ const skipReason = TEST_URL
     });
   });
 
+  it('kb_update_document textReplacements edit the body in place and responseFormat picks the shape', async () => {
+    await withClient(adminKey, async (c) => {
+      const space = firstJson(
+        await c.callTool({
+          name: 'kb_create_space',
+          arguments: { name: 'Policies', slug: 'policies' },
+        }),
+      ) as { id: string };
+      const longBody = 'Our refund policy is simple. '.repeat(20) + 'Refunds take 5 days.';
+
+      const created = firstJson(
+        await c.callTool({
+          name: 'kb_create_document',
+          arguments: {
+            spaceId: space.id,
+            title: 'Refund policy',
+            body: longBody,
+            responseFormat: 'summary',
+          },
+        }),
+      ) as { id: string; version: number; body: string; bodySummary: { words: number; truncated: boolean } };
+      expect(created.bodySummary.truncated).toBe(true);
+      expect(created.body.length).toBeLessThan(longBody.length);
+
+      const edited = firstJson(
+        await c.callTool({
+          name: 'kb_update_document',
+          arguments: {
+            id: created.id,
+            ifVersion: created.version,
+            textReplacements: [{ oldText: 'Refunds take 5 days.', newText: 'Refunds take 7 days.' }],
+          },
+        }),
+      ) as { version: number; body: string; bodySummary?: unknown };
+      expect(edited.version).toBe(2);
+      expect(edited.body.endsWith('Refunds take 7 days.')).toBe(true);
+      expect(edited.body.startsWith('Our refund policy is simple.')).toBe(true);
+      expect(edited.bodySummary).toBeUndefined();
+
+      const noMatch = await c.callTool({
+        name: 'kb_update_document',
+        arguments: {
+          id: created.id,
+          ifVersion: 2,
+          textReplacements: [{ oldText: 'not present', newText: 'x' }],
+        },
+      });
+      expect(noMatch.isError).toBe(true);
+      expect((noMatch.content as Array<{ text?: string }>)[0]?.text).toContain('kb_replacement_no_match');
+
+      const ambiguous = await c.callTool({
+        name: 'kb_update_document',
+        arguments: {
+          id: created.id,
+          ifVersion: 2,
+          textReplacements: [{ oldText: 'refund policy', newText: 'returns policy' }],
+        },
+      });
+      expect(ambiguous.isError).toBe(true);
+      expect((ambiguous.content as Array<{ text?: string }>)[0]?.text).toContain('kb_replacement_ambiguous');
+
+      const restored = firstJson(
+        await c.callTool({
+          name: 'kb_restore_version',
+          arguments: { documentId: created.id, version: 1, ifVersion: 2, responseFormat: 'summary' },
+        }),
+      ) as { version: number; bodySummary: { words: number } };
+      expect(restored.version).toBe(3);
+      expect(restored.bodySummary.words).toBe(104);
+    });
+  });
+
   it('get_document_by_slug returns the doc when the slug exists', async () => {
     await withClient(adminKey, async (c) => {
       const spaceRes = await c.callTool({

@@ -17,6 +17,7 @@ import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
+import { TEXT_REPLACEMENTS_MAX, TextReplacementSchema } from '../common/text-replacements.ts';
 import {
   KbService,
   KbConflictError,
@@ -46,6 +47,11 @@ class UpdateCandidateBody extends createZodDto(
   z.object({
     title: z.string().min(1).optional(),
     body: z.string().min(1).optional(),
+    textReplacements: z
+      .array(TextReplacementSchema)
+      .min(1)
+      .max(TEXT_REPLACEMENTS_MAX)
+      .optional(),
   }),
 ) {}
 class DismissCandidateBody extends createZodDto(
@@ -89,6 +95,7 @@ export class KbCandidatesController {
         ifVersion: existing.version,
         title: input.title,
         body: input.body,
+        textReplacements: input.textReplacements,
       });
       return this.kb.getCurationCandidate(id);
     });
@@ -165,7 +172,9 @@ async function translate<T>(fn: () => Promise<T>): Promise<T> {
     if (err instanceof KbCurationDecidedError) {
       throw new ConflictException({ message: err.message, code: err.code });
     }
-    if (err instanceof KbInvalidError) throw new BadRequestException(err.message);
+    if (err instanceof KbInvalidError) {
+      throw new BadRequestException({ message: err.message, code: err.code });
+    }
     if (err instanceof KbNotFoundError) throw new BadRequestException(err.message);
     throw err;
   }

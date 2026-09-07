@@ -6736,7 +6736,7 @@
   {
     "name": "kb_create_document",
     "title": "KB: Create document",
-    "description": "Create a knowledge-base document inside a space. Body should be markdown. Set `audiences: ['admin', 'self_service']` to expose it to end-user agents; defaults to `['admin']` (admin-only). Set `sourceUrl` when the document mirrors a public page — a help-centre article, a product page — and answers drawn from it can link there.",
+    "description": "Create a knowledge-base document inside a space. Body should be markdown. Set `audiences: ['admin', 'self_service']` to expose it to end-user agents; defaults to `['admin']` (admin-only). Set `sourceUrl` when the document mirrors a public page — a help-centre article, a product page — and answers drawn from it can link there. Returns the full document, or a summary with `responseFormat: \"summary\"`.",
     "audiences": [
       "admin"
     ],
@@ -6791,6 +6791,14 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 64
+        },
+        "responseFormat": {
+          "description": "Shape of the returned document. `full` (default) returns the whole body; `summary` shortens the body to a lead and reports its word count in `bodySummary`.",
+          "type": "string",
+          "enum": [
+            "full",
+            "summary"
+          ]
         }
       },
       "required": [
@@ -7029,7 +7037,7 @@
   {
     "name": "kb_update_document",
     "title": "KB: Update document",
-    "description": "Update a knowledge-base document. Pass `ifVersion` (the current version you read) for optimistic concurrency; the call fails if it has changed. Omitted fields keep their current value; `sourceUrl: null` clears the recorded source page.",
+    "description": "Update a knowledge-base document. Pass `ifVersion` (the current version you read) for optimistic concurrency; the call fails if it has changed. Omitted fields keep their current value; `sourceUrl: null` clears the recorded source page. `textReplacements` edits inside the body without resending it: each `{ oldText, newText }` replaces one exact occurrence of oldText in the stored body (or every occurrence with `replaceAll: true`). Edits apply in order and all-or-nothing; zero matches fails with `kb_replacement_no_match`, several matches without replaceAll with `kb_replacement_ambiguous`, and nothing is written. Send `body` or `textReplacements`, not both. Returns the full document, or a summary with `responseFormat: \"summary\"`.",
     "audiences": [
       "admin"
     ],
@@ -7058,6 +7066,37 @@
         "body": {
           "type": "string",
           "minLength": 1
+        },
+        "textReplacements": {
+          "minItems": 1,
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "oldText": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000,
+                "description": "Exact text to find, including whitespace and punctuation. Must occur exactly once unless replaceAll is set."
+              },
+              "newText": {
+                "type": "string",
+                "maxLength": 200000,
+                "description": "Text that replaces every matched occurrence. May be empty to delete."
+              },
+              "replaceAll": {
+                "description": "Replace every occurrence instead of failing when oldText occurs more than once.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "oldText",
+              "newText"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Targeted find-and-replace edits applied to the stored body in order, all-or-nothing. Each oldText must match the current body exactly once (or set replaceAll). Send either this or `body`, not both."
         },
         "sourceUrl": {
           "description": "The public page this document is the knowledge-base copy of, as an absolute http(s) URL. Omit to leave it as it is; pass null to clear it.",
@@ -7092,6 +7131,14 @@
             "minLength": 1,
             "maxLength": 64
           }
+        },
+        "responseFormat": {
+          "description": "Shape of the returned document. `full` (default) returns the whole body; `summary` shortens the body to a lead and reports its word count in `bodySummary`.",
+          "type": "string",
+          "enum": [
+            "full",
+            "summary"
+          ]
         }
       },
       "required": [
@@ -7443,6 +7490,14 @@
           "minimum": 0,
           "maximum": 9007199254740991,
           "description": "The revised document `version` the proposal was diffed against, so a document edited elsewhere since is not silently overwritten."
+        },
+        "responseFormat": {
+          "description": "Shape of the returned document. `full` (default) returns the whole body; `summary` shortens the body to a lead and reports its word count in `bodySummary`.",
+          "type": "string",
+          "enum": [
+            "full",
+            "summary"
+          ]
         }
       },
       "required": [
@@ -7456,7 +7511,7 @@
   {
     "name": "kb_restore_version",
     "title": "KB: Restore document version",
-    "description": "Roll a document back to an earlier version. Creates a new current version with that historical content.",
+    "description": "Roll a document back to an earlier version. Creates a new current version with that historical content. Returns the full restored document, or a summary with `responseFormat: \"summary\"`.",
     "audiences": [
       "admin"
     ],
@@ -7481,6 +7536,14 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "responseFormat": {
+          "description": "Shape of the returned document. `full` (default) returns the whole body; `summary` shortens the body to a lead and reports its word count in `bodySummary`.",
+          "type": "string",
+          "enum": [
+            "full",
+            "summary"
+          ]
         }
       },
       "required": [

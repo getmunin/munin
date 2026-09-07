@@ -13,6 +13,12 @@ import {
 import type { ActorIdentity, Audience } from '@getmunin/core';
 import { EmbeddingProviderHolder } from './embedding.provider.ts';
 import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.service.ts';
+import {
+  applyTextReplacements,
+  describeReplacementFailure,
+  type TextReplacement,
+} from '../../common/text-replacements.ts';
+import { countWords, SUMMARY_LEAD_CHARS } from '../cms/cms.summary.ts';
 
 const AUDIENCES: readonly Audience[] = ['admin', 'self_service'];
 
@@ -45,9 +51,10 @@ export class KbNotFoundError extends Error {
 }
 
 export class KbInvalidError extends Error {
-  readonly code = 'kb_invalid';
-  constructor(message: string) {
-    super(`kb_invalid: ${message}`);
+  readonly code: string;
+  constructor(message: string, code = 'kb_invalid') {
+    super(`${code}: ${message}`);
+    this.code = code;
   }
 }
 
@@ -93,6 +100,14 @@ export interface DocumentDto {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface DocumentSummaryDto extends Omit<DocumentDto, 'body'> {
+  body: string;
+  bodySummary: { words: number; truncated: boolean };
+}
+
+export const DOCUMENT_RESPONSE_FORMATS = ['full', 'summary'] as const;
+export type DocumentResponseFormat = (typeof DOCUMENT_RESPONSE_FORMATS)[number];
 
 export interface CurationCandidateRefs {
   proposedTargetSpaceSlug: string | null;
@@ -349,6 +364,7 @@ export class KbService {
     ifVersion: number;
     title?: string;
     body?: string;
+    textReplacements?: TextReplacement[];
     sourceUrl?: string | null;
     audiences?: readonly string[];
     tags?: string[];
@@ -360,7 +376,7 @@ export class KbService {
       throw new KbConflictError(existing.version, input.ifVersion);
     }
     const newTitle = input.title ?? existing.title;
-    const newBody = input.body ?? existing.body;
+    const newBody = replaceBodyText(existing.body, input.body, input.textReplacements);
     const newSourceUrl =
       input.sourceUrl === undefined ? existing.sourceUrl : normaliseSourceUrl(input.sourceUrl);
     const newAudiences = input.audiences === undefined
@@ -400,6 +416,13 @@ export class KbService {
       },
     });
     return toDocumentDto(updated!);
+  }
+
+  presentDocument(
+    doc: DocumentDto,
+    format: DocumentResponseFormat,
+  ): DocumentDto | DocumentSummaryDto {
+    return format === 'full' ? doc : summarizeDocumentDto(doc);
   }
 
   async deleteDocument(input: { id: string; ifVersion: number }): Promise<{ deleted: true }> {
@@ -1126,6 +1149,36 @@ function toSpaceDto(row: typeof schema.kbSpaces.$inferSelect): SpaceDto {
     description: row.description,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function replaceBodyText(
+  current: string,
+  whole: string | undefined,
+  replacements: TextReplacement[] | undefined,
+): string {
+  if (!replacements || replacements.length === 0) return whole ?? current;
+  if (whole !== undefined) {
+    throw new KbInvalidError(
+      'textReplacements: body is also present — send the body either whole or as text replacements, not both',
+    );
+  }
+  const result = applyTextReplacements([current], replacements);
+  if (!result.ok) {
+    throw new KbInvalidError(
+      describeReplacementFailure(result.failure, 'the document body'),
+      result.failure.reason === 'no_match' ? 'kb_replacement_no_match' : 'kb_replacement_ambiguous',
+    );
+  }
+  return result.texts[0]!;
+}
+
+function summarizeDocumentDto(doc: DocumentDto): DocumentSummaryDto {
+  const truncated = doc.body.length > SUMMARY_LEAD_CHARS;
+  return {
+    ...doc,
+    body: truncated ? `${doc.body.slice(0, SUMMARY_LEAD_CHARS).trimEnd()}…` : doc.body,
+    bodySummary: { words: countWords(doc.body), truncated },
   };
 }
 

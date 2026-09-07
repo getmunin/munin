@@ -1,5 +1,10 @@
 import type { AssetVariant } from '@getmunin/types';
 import { widestVariantUrl } from './cms.variants.ts';
+import {
+  applyTextReplacements,
+  type TextReplacement,
+  type TextReplacementFailure,
+} from '../../common/text-replacements.ts';
 
 export const FIELD_TYPES = [
   'text',
@@ -492,6 +497,17 @@ export function rewriteInlineAssets(
   return out;
 }
 
+export function unrewriteInlineAssets(text: string, assets: Map<string, AssetSummary>): string {
+  let out = text;
+  for (const asset of assets.values()) {
+    const token = `asset://${asset.id}`;
+    const urls = new Set<string>([asset.publicUrl, widestVariantUrl(asset)]);
+    for (const v of asset.variants ?? []) urls.add(v.publicUrl);
+    for (const url of urls) out = out.split(url).join(token);
+  }
+  return out;
+}
+
 export function buildInlineAssetSidecar(
   fields: FieldDef[],
   data: Record<string, unknown>,
@@ -592,4 +608,78 @@ export function* extractReferences(
       }
     }
   }
+}
+
+export type TextPath = ReadonlyArray<string | number>;
+
+export function collectTextPaths(field: FieldDef, value: unknown): TextPath[] {
+  const out: TextPath[] = [];
+  const visit = (f: FieldDef, v: unknown, path: TextPath): void => {
+    if (v === null || v === undefined) return;
+    switch (f.type) {
+      case 'text':
+      case 'rich_text':
+      case 'markdown':
+        if (typeof v === 'string') out.push(path);
+        return;
+      case 'array': {
+        const items = f.options?.items;
+        if (!items || !Array.isArray(v)) return;
+        v.forEach((item, i) => visit(items, item, [...path, i]));
+        return;
+      }
+      case 'blocks':
+        forEachBlock(f, v, (blockFields, props, index) => {
+          for (const bf of blockFields) visit(bf, props[bf.name], [...path, index, 'props', bf.name]);
+        });
+        return;
+      default:
+        return;
+    }
+  };
+  visit(field, value, []);
+  return out;
+}
+
+function readTextAt(value: unknown, path: TextPath): string {
+  let cur: unknown = value;
+  for (const step of path) cur = (cur as Record<string | number, unknown>)[step];
+  return cur as string;
+}
+
+function writeTextAt(value: unknown, path: TextPath, text: string): unknown {
+  if (path.length === 0) return text;
+  const [head, ...rest] = path;
+  if (Array.isArray(value)) {
+    const items = value as unknown[];
+    const next = [...items];
+    next[head as number] = writeTextAt(items[head as number], rest, text);
+    return next;
+  }
+  const obj = value as Record<string, unknown>;
+  return { ...obj, [head as string]: writeTextAt(obj[head as string], rest, text) };
+}
+
+export type FieldTextReplacementResult =
+  | { ok: true; value: unknown; applied: number }
+  | { ok: false; reason: 'no_text' }
+  | { ok: false; reason: 'replacement'; failure: TextReplacementFailure };
+
+export function replaceFieldText(
+  field: FieldDef,
+  value: unknown,
+  replacements: readonly TextReplacement[],
+): FieldTextReplacementResult {
+  const paths = collectTextPaths(field, value);
+  if (paths.length === 0) return { ok: false, reason: 'no_text' };
+  const result = applyTextReplacements(
+    paths.map((p) => readTextAt(value, p)),
+    replacements,
+  );
+  if (!result.ok) return { ok: false, reason: 'replacement', failure: result.failure };
+  let next = value;
+  paths.forEach((p, i) => {
+    next = writeTextAt(next, p, result.texts[i]!);
+  });
+  return { ok: true, value: next, applied: result.applied };
 }

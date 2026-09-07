@@ -7426,6 +7426,42 @@
             "x-nestjs_zod-uses-3-point-1-syntax": true,
             "x-nestjs_zod-self-required": false
           },
+          "textReplacements": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "oldText": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20000,
+                  "description": "Exact text to find, including whitespace and punctuation. Must occur exactly once unless replaceAll is set."
+                },
+                "newText": {
+                  "type": "string",
+                  "maxLength": 200000,
+                  "description": "Text that replaces every matched occurrence. May be empty to delete."
+                },
+                "replaceAll": {
+                  "description": "Replace every occurrence instead of failing when oldText occurs more than once.",
+                  "type": "boolean"
+                },
+                "field": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "required": [
+                "oldText",
+                "newText",
+                "field"
+              ]
+            },
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
           "slug": {
             "type": "string",
             "minLength": 1,

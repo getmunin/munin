@@ -1589,6 +1589,130 @@ const skipReason = TEST_URL
     });
   }, 60_000);
 
+  it('cms_update_entry textReplacements edit in place, responseFormat picks the shape, and cms_get_entry projects fields', async () => {
+    const longBody = 'Paragraph one about Munin. '.repeat(40) + 'The closing line.';
+
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'cms_create_collection',
+        arguments: {
+          name: 'Revisions',
+          slug: 'revisions',
+          fields: [
+            { name: 'title', type: 'text', required: true },
+            { name: 'body', type: 'markdown' },
+          ],
+        },
+      });
+
+      const created = parseToolResult<{
+        id: string;
+        version: number;
+        data: Record<string, unknown>;
+        fieldSummary?: Record<string, { words?: number; truncated?: boolean }>;
+      }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'revisions',
+            slug: 'revision-1',
+            data: { title: 'Note', body: longBody },
+            responseFormat: 'summary',
+          },
+        }),
+      );
+      expect(created.fieldSummary?.body?.truncated).toBe(true);
+      expect((created.data.body as string).length).toBeLessThan(longBody.length);
+
+      const edited = parseToolResult<{ version: number; data: { body: string } }>(
+        await c.callTool({
+          name: 'cms_update_entry',
+          arguments: {
+            id: created.id,
+            ifVersion: created.version,
+            textReplacements: [
+              { field: 'body', oldText: 'The closing line.', newText: 'The final line.' },
+            ],
+          },
+        }),
+      );
+      expect(edited.version).toBe(created.version + 1);
+      expect(edited.data.body.endsWith('The final line.')).toBe(true);
+      expect(edited.data.body.startsWith('Paragraph one about Munin.')).toBe(true);
+
+      const noMatch = (await c.callTool({
+        name: 'cms_update_entry',
+        arguments: {
+          id: created.id,
+          ifVersion: edited.version,
+          textReplacements: [{ field: 'body', oldText: 'not in the text', newText: 'x' }],
+        },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(noMatch.isError).toBe(true);
+      expect(noMatch.content?.[0]?.text).toContain('cms_replacement_no_match');
+
+      const ambiguous = (await c.callTool({
+        name: 'cms_update_entry',
+        arguments: {
+          id: created.id,
+          ifVersion: edited.version,
+          textReplacements: [{ field: 'body', oldText: 'Munin', newText: 'Hugin' }],
+        },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(ambiguous.isError).toBe(true);
+      expect(ambiguous.content?.[0]?.text).toContain('cms_replacement_ambiguous');
+
+      const overlap = (await c.callTool({
+        name: 'cms_update_entry',
+        arguments: {
+          id: created.id,
+          ifVersion: edited.version,
+          data: { body: 'whole' },
+          textReplacements: [{ field: 'body', oldText: 'final', newText: 'last' }],
+        },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(overlap.isError).toBe(true);
+      expect(overlap.content?.[0]?.text).toContain('also present in data');
+
+      const published = parseToolResult<{
+        status: string;
+        version: number;
+        data: Record<string, unknown>;
+        fieldSummary?: Record<string, unknown>;
+      }>(
+        await c.callTool({
+          name: 'cms_publish_entry',
+          arguments: { id: created.id, ifVersion: edited.version },
+        }),
+      );
+      expect(published.status).toBe('published');
+      expect(published.fieldSummary).toBeDefined();
+      expect((published.data.body as string).length).toBeLessThan(longBody.length);
+
+      const unpublished = parseToolResult<{
+        status: string;
+        data: Record<string, unknown>;
+        fieldSummary?: Record<string, unknown>;
+      }>(
+        await c.callTool({
+          name: 'cms_unpublish_entry',
+          arguments: { id: created.id, ifVersion: published.version, responseFormat: 'full' },
+        }),
+      );
+      expect(unpublished.status).toBe('draft');
+      expect(unpublished.fieldSummary).toBeUndefined();
+      expect((unpublished.data.body as string).endsWith('The final line.')).toBe(true);
+
+      const projected = parseToolResult<{ data: Record<string, unknown> }>(
+        await c.callTool({
+          name: 'cms_get_entry',
+          arguments: { id: created.id, fields: ['title'] },
+        }),
+      );
+      expect(projected.data).toEqual({ title: 'Note' });
+    });
+  }, 60_000);
+
   it('rich field types: array, multi_select, and array-of-text block props round-trip and validate', async () => {
     await withClient(adminKey, async (c) => {
       await c.callTool({

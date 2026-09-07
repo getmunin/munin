@@ -12,7 +12,7 @@ CMS assets are uploaded out-of-band: the server hands you a **presigned upload**
 1. `cms_request_asset_upload` — server creates an `uploaded: false` row, returns `uploadUrl`, `uploadMethod`, `uploadFields`, `uploadExpiresAt`.
 2. Send the binary to `uploadUrl` using `uploadMethod` (PUT raw body for local disk storage; POST multipart for S3, including every field from `uploadFields` plus a `file` part). On S3 the embedded policy enforces `Content-Length-Range` so an oversized body is rejected by the bucket itself.
 3. `cms_complete_asset_upload` — verifies the on-storage size matches what was declared, then flips `uploaded: true`. On size mismatch the storage object is deleted; the row stays at `uploaded:false` and you can retry from step 1.
-4. Embed by writing the asset id into an entry's `data` field via `cms_update_entry`.
+4. Embed via `cms_update_entry`: write the asset id into a typed field with `data`, or place an inline image in prose with `textReplacements`.
 
 ## Step 1 — request the upload
 
@@ -98,10 +98,10 @@ There are two ways to embed an asset, depending on whether it's a standalone fie
 
 ### As a typed field
 
-A field whose collection type is `asset` (or `array` of `asset`) stores the asset id. Read the entry, write the field, send the update:
+A field whose collection type is `asset` (or `array` of `asset`) stores the asset id. Read the entry for its `version`, then send just that field — `data` is a partial patch, so the other fields are preserved:
 
 ```jsonc
-{ "name": "cms_get_entry", "arguments": { "id": "<entryId>" } }
+{ "name": "cms_get_entry", "arguments": { "id": "<entryId>", "fields": ["heroImage"] } }
 ```
 
 ```jsonc
@@ -110,7 +110,7 @@ A field whose collection type is `asset` (or `array` of `asset`) stores the asse
   "arguments": {
     "id": "<entryId>",
     "ifVersion": 12,
-    "data": { "...all other fields...": "...", "heroImage": "<assetId>" }
+    "data": { "heroImage": "<assetId>" }
   }
 }
 ```
@@ -126,6 +126,27 @@ Intro paragraph.
 
 More copy.
 ```
+
+To add that image to an existing body without resending the body, anchor on the paragraph it follows and append the image line with a text replacement (`skill://cms/revise-entry`):
+
+```jsonc
+{
+  "name": "cms_update_entry",
+  "arguments": {
+    "id": "<entryId>",
+    "ifVersion": 12,
+    "textReplacements": [
+      {
+        "field": "body",
+        "oldText": "Intro paragraph.",
+        "newText": "Intro paragraph.\n\n![Spring launch hero](asset://<assetId>)"
+      }
+    ]
+  }
+}
+```
+
+Swapping one image for another is the same call with the old image line as `oldText`. You may quote the image URL the way `cms_get_entry` showed it — the server maps a public asset URL back to its `asset://` token before matching, so either form works.
 
 The asset must already be uploaded (`uploaded: true`) — an inline reference to an unknown or unconfirmed asset is rejected when you create/update the entry. On read, the delivery API and `cms_get_entry`/`cms_search_entries` rewrite each `asset://<assetId>` to the asset's `publicUrl` and attach an `_assets` map keyed by asset id so you can also read `altText`, `mime`, and `sizeBytes`.
 
@@ -154,5 +175,6 @@ It returns one row per reference with `fromEntryId`, `fieldName`, and `kind` (`f
 
 ## Related
 
+- `skill://cms/revise-entry` — placing or swapping an image in an existing body with `textReplacements`.
 - `skill://cms/publish-entry` — the update + publish dance for the entry that embeds the asset.
 - `skill://cms/migrate-content` — when you're moving assets along with entries.

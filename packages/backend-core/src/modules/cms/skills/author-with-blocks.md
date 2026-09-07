@@ -80,6 +80,25 @@ On the delivery API and `cms_get_entry`:
 - Inline `asset://<id>` tokens in block prose are rewritten to the asset's `publicUrl`, and an `_assets` map (keyed by asset id) is attached alongside `data` for `altText`/dimensions.
 - `reference` props stay raw ids by default. Request expansion explicitly: delivery `GET /v1/cms/<org>/articles/<slug>?include=references`, or `cms_get_entry` / `cms_search_entries` with `"include": ["references"]` (`cms_list_entries` returns summaries and never expands). Expanded references resolve **one level** to `{ id, slug, collection, locale, data }`; references inside the referenced entry are not followed.
 
+## Editing block prose after the fact
+
+A `blocks` value is one array, and `data` replaces a field whole — so changing one sentence in one block by resending the array means regenerating every block. Don't. `cms_update_entry` takes `textReplacements`, and on a `blocks` field the match runs across the prose of every block:
+
+```jsonc
+{
+  "name": "cms_update_entry",
+  "arguments": {
+    "id": "<entryId>",
+    "ifVersion": 4,
+    "textReplacements": [
+      { "field": "body", "oldText": "Now shipping!", "newText": "Shipping since May." }
+    ]
+  }
+}
+```
+
+`field` is the blocks field itself, not a path into a block. Only text-bearing props are searched — `text`, `markdown`, `rich_text`, and items of an `array` of text — so a block's `type`, `key`, `select`, `asset` and `reference` props are never matched. Replacing a whole paragraph is one edit whose `oldText` is that block's complete prose. Adding, removing or reordering blocks still goes through `data` with the full array. The editing loop is `skill://cms/revise-entry`.
+
 ## Linking to another entry inline (`ref://`)
 
 To link or embed another entry from within prose (a `markdown`/`rich_text` field or block prop), write a `ref://<entryId>` token — e.g. `see [our pricing](ref://ent_pricing)`. Unlike `asset://` (which is rewritten to a URL on read), a `ref://` token is **left in place**, because the server doesn't know your site's routing. Instead, under `?include=references` the response carries a `_refs` map keyed by entry id → `{ id, slug, collection, locale, data }`; your renderer detects `ref://<id>`, looks it up in `_refs`, and builds its own link (`/blog/<slug>`) or embed. Tokens whose target isn't published (or doesn't exist) simply have no `_refs` entry.
@@ -92,6 +111,7 @@ To link or embed another entry from within prose (a `markdown`/`rich_text` field
 
 ## Related
 
+- `skill://cms/revise-entry` — editing prose inside existing blocks with `textReplacements`.
 - `skill://cms/upload-asset-and-embed` — upload an asset and get the id you embed in a block.
 - `skill://cms/publish-entry` — the update + publish dance once the block content is ready.
 - `skill://cms/design-collection` — choosing field types when you design the collection.

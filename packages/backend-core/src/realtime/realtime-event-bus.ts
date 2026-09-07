@@ -37,6 +37,10 @@ export interface GreetRequestedBusEvent {
   endUserId?: string;
 }
 
+export interface DraftRequestedBusEvent {
+  conversationId: string;
+}
+
 export interface AgentConfigChangedBusEvent {
   configId: string;
 }
@@ -47,6 +51,7 @@ export interface RealtimeBusHandlers {
   onHandoverResolved?: (event: HandoverResolvedBusEvent) => void;
   onCuratorJobPending?: (event: CuratorJobPendingBusEvent) => void;
   onGreetRequested?: (event: GreetRequestedBusEvent) => void;
+  onDraftRequested?: (event: DraftRequestedBusEvent) => void;
   onAgentConfigChanged?: (event: AgentConfigChangedBusEvent) => void;
   onConnected?: () => void;
 }
@@ -172,6 +177,13 @@ function dispatchEvent(event: EventRow, handlers: RealtimeBusHandlers): void {
       conversationId,
       endUserId: typeof payload['endUserId'] === 'string' ? payload['endUserId'] : undefined,
     });
+    return;
+  }
+
+  if (type === 'conversation.draft_requested' && handlers.onDraftRequested) {
+    const conversationId = payload['conversationId'];
+    if (typeof conversationId !== 'string') return;
+    handlers.onDraftRequested({ conversationId });
     return;
   }
 

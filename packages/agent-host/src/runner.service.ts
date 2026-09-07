@@ -24,6 +24,7 @@ import {
   type ExternalMcpEndpoint,
   type AgentConfigChangedBusEvent,
   type CuratorJobPendingBusEvent,
+  type DraftRequestedBusEvent,
   type GreetRequestedBusEvent,
   type KbDocumentChangedBusEvent,
   type MessageReceivedBusEvent,
@@ -446,6 +447,10 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
         onGreetRequested: (event: GreetRequestedBusEvent) => {
           if (this.lockManager && !this.lockManager.holds(id)) return;
           handlerRef.current?.greet({ conversationId: event.conversationId });
+        },
+        onDraftRequested: (event: DraftRequestedBusEvent) => {
+          if (this.lockManager && !this.lockManager.holds(id)) return;
+          handlerRef.current?.requestDraft({ conversationId: event.conversationId });
         },
         onCuratorJobPending: (event) => curatorWorker.onPending(event),
         onConnected: () => {

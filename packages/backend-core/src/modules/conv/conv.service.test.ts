@@ -1128,6 +1128,28 @@ const skipReason = TEST_URL
       expect(await run(() => svc.clearDraftReply(conv.id))).toEqual({ cleared: 1 });
     });
 
+    it('setDraftReply keeps the rationale and tool names for the review pane', async () => {
+      const { conv } = await seedQueueConversation();
+      const draft = await run(() =>
+        svc.setDraftReply({
+          conversationId: conv.id,
+          body: 'The scan exceeds our 10 MB cap.',
+          retrievedDocumentIds: ['kdoc_31'],
+          rationale: 'States the documented upload cap; fix follows KB 31.',
+          toolNames: ['kb_search', 'conv_history'],
+        }),
+      );
+      const [row] = await db.execute<{ metadata: Record<string, unknown> }>(
+        sql`SELECT metadata FROM conv_messages WHERE id = ${draft.id}`,
+      );
+      expect(row!.metadata).toEqual({
+        kind: 'draft_reply',
+        retrievedDocumentIds: ['kdoc_31'],
+        rationale: 'States the documented upload cap; fix follows KB 31.',
+        toolNames: ['kb_search', 'conv_history'],
+      });
+    });
+
     it('setDraftReply announces conversation.draft_ready', async () => {
       const { conv } = await seedQueueConversation();
       await run(() => svc.setDraftReply({ conversationId: conv.id, body: 'Draft.' }));

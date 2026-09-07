@@ -199,13 +199,15 @@ function buildClient(opts: BuildOptions): MuninRestClient {
     async setDraftReply(
       conversationId: string,
       body: string,
-      draftOpts?: { retrievedDocumentIds?: string[] },
+      draftOpts?: { retrievedDocumentIds?: string[]; rationale?: string; toolNames?: string[] },
     ): Promise<void> {
       await audited('runner:setDraftReply', async () => {
         await opts.conv.setDraftReply({
           conversationId,
           body,
           retrievedDocumentIds: draftOpts?.retrievedDocumentIds,
+          rationale: draftOpts?.rationale,
+          toolNames: draftOpts?.toolNames,
         });
       });
     },

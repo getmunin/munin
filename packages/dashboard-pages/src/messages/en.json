@@ -226,17 +226,27 @@
       "autoRetryHint": "Auto-retrying every 30s"
     },
     "overview": {
-      "title": "Word from the <em>flock</em>.",
-      "ledeQuiet": "All quiet. Drafts and conversations land here as they arrive.",
-      "ledeLiveOnly": "{count, plural, =1 {# live conversation is paused on you. Agents are caught up otherwise.} other {# live conversations are paused on you. Agents are caught up otherwise.}}",
-      "ledeQueueOnly": "{count, plural, =1 {# draft waiting. Agents are caught up otherwise.} other {# drafts waiting. Agents are caught up otherwise.}}",
-      "ledeBoth": "{live, plural, =1 {# live conversation is paused on you} other {# live conversations are paused on you}}, {queue, plural, =1 {# more draft waiting} other {# more drafts waiting}}. Agents are caught up otherwise.",
+      "title": "Waiting on your <em>word</em>.",
+      "ledeQuiet": "Nothing waiting, nothing live. Agents are caught up.",
+      "ledeLiveOnly": "{count, plural, =1 {# conversation is} other {# conversations are}} with support. Nothing needs an admin.",
+      "ledeQueueOnly": "{count, plural, =1 {# item waits} other {# items wait}} on you. Nothing sends, publishes, or merges without an admin.",
+      "ledeBoth": "{queue, plural, =1 {# item waits} other {# items wait}} on you, {live, plural, =1 {# conversation} other {# conversations}} with support. Nothing sends without an admin.",
       "empty": {
         "eyebrow": "Inbox · idle",
         "title": "An <em>empty</em> perch.",
         "body": "No drafts yet. Connect an agent and Munin will start collecting their work here — drafts to approve, conversations to take over, knowledge to confirm.",
         "readDocs": "Read the docs",
         "browseMcp": "Browse MCP tools"
+      },
+      "stats": {
+        "liveLabel": "Live now · with support",
+        "liveNoteSome": "Handled in the console — ownership, notes, and replies live there.",
+        "liveNoteNone": "No conversation needs a human.",
+        "liveOpen": "Open conversations →",
+        "learnLabel": "Learning · knowledge & prompts",
+        "learnNoteSome": "Knowledge proposals drawn from agent edits — publish or dismiss there.",
+        "learnNoteNone": "Nothing proposed. The knowledge base is current.",
+        "learnOpen": "Open learning →"
       },
       "liveNow": {
         "eyebrow": "Live now",

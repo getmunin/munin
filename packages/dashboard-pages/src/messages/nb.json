@@ -604,7 +604,6 @@
         },
         "relayAddressLabel": "Videresendingsadresse",
         "relayAddressHint": "Sett opp videresending til denne adressen hos din egen e-postleverandør. Behandle den som en hemmelighet — alle som kjenner den kan legge e-post inn i denne kanalen.",
-        "relayAddressPending": "Munin genererer en adresse under {domain} når du lagrer.",
         "relayCreatedTitle": "Kanalen er opprettet — sett opp videresending",
         "relayCreatedDescription": "{name} er aktiv. E-post som videresendes til adressen under blir en samtale på denne kanalen. Du finner den igjen på kanalen når som helst.",
         "relayCardPrefix": "Mottar e-post videresendt til:",

@@ -1229,7 +1229,6 @@ function EmailChannelDialog({
   const [imapMailbox, setImapMailbox] = useState('');
   const [relayAddress, setRelayAddress] = useState('');
   const [relayEnabled, setRelayEnabled] = useState(false);
-  const [relayDomain, setRelayDomain] = useState<string | null>(null);
   const [createdRelayAddress, setCreatedRelayAddress] = useState<string | null>(null);
   const [limitSending, setLimitSending] = useState(false);
   const [perDayMax, setPerDayMax] = useState('');
@@ -1286,18 +1285,16 @@ function EmailChannelDialog({
   useEffect(() => {
     if (!open) return;
     let active = true;
-    void api<{ relay?: { enabled?: boolean; domain?: string | null } }>(
+    void api<{ relay?: { enabled?: boolean } }>(
       '/v1/conversations/channels/email/capabilities',
     )
       .then((res) => {
         if (!active) return;
         setRelayEnabled(res.relay?.enabled === true);
-        setRelayDomain(res.relay?.domain ?? null);
       })
       .catch(() => {
         if (!active) return;
         setRelayEnabled(false);
-        setRelayDomain(null);
       });
     return () => {
       active = false;
@@ -1604,18 +1601,14 @@ function EmailChannelDialog({
                 )}
               </NativeSelect>
             </FormField>
-            {inboundMode === 'relay' &&
-              (relayAddress ? (
-                <CopyableSecret
-                  label={t('email.relayAddressLabel')}
-                  value={relayAddress}
-                  hint={t('email.relayAddressHint')}
-                />
-              ) : (
-                <p className="text-[13px] leading-snug text-ink-mute">
-                  {t('email.relayAddressPending', { domain: relayDomain ?? '' })}
-                </p>
-              ))}
+            {inboundMode === 'relay' && relayAddress ? (
+              <CopyableSecret
+                variant="field"
+                label={t('email.relayAddressLabel')}
+                value={relayAddress}
+                hint={t('email.relayAddressHint')}
+              />
+            ) : null}
             {inboundMode === 'imap' && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <FormField label={t('email.host')} error={fieldErrors.imapHost}>

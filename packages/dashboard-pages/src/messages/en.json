@@ -604,7 +604,6 @@
         },
         "relayAddressLabel": "Forwarding address",
         "relayAddressHint": "Set up forwarding to this address in your own mail provider. Treat it as a secret — anyone who knows it can post mail into this channel.",
-        "relayAddressPending": "Munin will generate an address under {domain} when you save.",
         "relayCreatedTitle": "Channel created — set up forwarding",
         "relayCreatedDescription": "{name} is active. Mail forwarded to the address below becomes a conversation on this channel. You can find it again on the channel at any time.",
         "relayCardPrefix": "Receives mail forwarded to:",

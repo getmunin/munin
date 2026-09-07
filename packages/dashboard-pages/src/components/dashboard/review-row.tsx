@@ -70,25 +70,23 @@ export function ReviewRow({
           }
         }}
         className={cn(
-          'flex cursor-pointer items-start gap-3.5 border-b border-rule-soft px-5 py-3.5 transition-colors duration-fast ease-munin dark:border-rule-on-dark',
+          'grid cursor-pointer grid-cols-[52px_minmax(0,1fr)_auto] items-start gap-3.5 border-b border-rule-soft px-5 py-3.5 transition-colors duration-fast ease-munin dark:border-rule-on-dark',
           active
             ? 'border-l-2 border-l-cobalt bg-paper-deep pl-[18px] dark:border-l-cobalt-soft dark:bg-card'
             : 'hover:bg-paper-deep dark:hover:bg-card',
         )}
       >
-        <RowCode kind={item.kind} className="self-center">
+        <RowCode kind={item.kind} className="w-auto self-center justify-self-start">
           {t(queueCodeKey(item.kind))}
         </RowCode>
-        <span className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="text-[15px] leading-snug text-ink dark:text-foreground">
-            {item.title}
-          </span>
-          <span className="truncate text-[13px] leading-snug text-ink-mute">
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span className="truncate text-sm text-ink dark:text-foreground">{item.title}</span>
+          <span className="truncate text-[13px] text-ink-soft dark:text-foreground/70">
             {metaLine(item)}
           </span>
         </span>
-        <span className="shrink-0 self-center font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-          {age(item.createdAt)}
+        <span className="flex min-w-[56px] flex-col items-end">
+          <span className="font-mono text-[10px] text-ink-mute">{age(item.createdAt)}</span>
         </span>
       </div>
     </li>

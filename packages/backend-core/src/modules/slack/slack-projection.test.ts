@@ -152,6 +152,27 @@ describe('messageBodyText', () => {
       .toBe('Hi there');
   });
 
+  it('renders a caller turn that transcribed no speech as a placeholder, never empty text', () => {
+    expect(
+      messageBodyText({
+        authorKind: 'end_user',
+        authorName: '+47 37 33 30 38',
+        internal: false,
+        body: '',
+        noSpeech: true,
+      }),
+    ).toBe('_No speech transcribed_');
+    expect(
+      messageText({
+        authorKind: 'end_user',
+        authorName: '+47 37 33 30 38',
+        internal: false,
+        body: '',
+        noSpeech: true,
+      }),
+    ).toContain('> _No speech transcribed_');
+  });
+
   it('renders an agent reply written in markdown as Slack mrkdwn', () => {
     const text = messageBodyText({
       authorKind: 'agent',

@@ -549,6 +549,7 @@ export class ConvService {
           WHERE conversation_id = "conv_conversations"."id"
             AND author_type = 'end_user'
             AND internal = false
+            AND body <> ''
           ORDER BY created_at DESC
           LIMIT 1
         )`;
@@ -559,6 +560,7 @@ export class ConvService {
           SELECT author_type = 'end_user' FROM conv_messages
           WHERE conversation_id = "conv_conversations"."id"
             AND internal = false
+            AND body <> ''
           ORDER BY created_at DESC
           LIMIT 1
         ), false)`;

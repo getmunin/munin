@@ -838,6 +838,65 @@ const skipReason = TEST_URL
     ]);
   });
 
+  it('keeps a caller turn that transcribed no speech, in its spoken position', async () => {
+    const callId = 'call_threll_no_speech';
+    for (const data of [
+      { callId, role: 'agent', text: 'How can I help you today?', isFinal: true, turnIndex: 0 },
+      { callId, role: 'user', text: '', isFinal: true, turnIndex: 1 },
+      { callId, role: 'agent', text: 'Welcome back, Tronn.', isFinal: true, turnIndex: 2 },
+    ] as const) {
+      const res = await postEvent({ type: 'call.transcript', data });
+      expect(res.status).toBe(204);
+    }
+
+    const convs = await db
+      .select({ id: schema.convConversations.id })
+      .from(schema.convConversations)
+      .where(
+        and(
+          eq(schema.convConversations.orgId, orgId),
+          sql`${schema.convConversations.metadata}->>'threllCallId' = ${callId}`,
+        ),
+      );
+    expect(convs.length).toBe(1);
+
+    const msgs = await db
+      .select({
+        body: schema.convMessages.body,
+        authorType: schema.convMessages.authorType,
+        metadata: schema.convMessages.metadata,
+      })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.conversationId, convs[0]!.id))
+      .orderBy(schema.convMessages.createdAt);
+    expect(msgs.map((m) => [m.authorType, m.body])).toEqual([
+      ['agent', 'How can I help you today?'],
+      ['end_user', ''],
+      ['agent', 'Welcome back, Tronn.'],
+    ]);
+    expect(msgs[1]!.metadata.voiceNoSpeech).toBe(true);
+    expect(msgs[0]!.metadata.voiceNoSpeech).toBeUndefined();
+  });
+
+  it('drops an agent turn with no text', async () => {
+    const callId = 'call_threll_silent_agent';
+    const res = await postEvent({
+      type: 'call.transcript',
+      data: { callId, role: 'agent', text: '', isFinal: true, turnIndex: 0 },
+    });
+    expect(res.status).toBe(204);
+    const convs = await db
+      .select({ id: schema.convConversations.id })
+      .from(schema.convConversations)
+      .where(
+        and(
+          eq(schema.convConversations.orgId, orgId),
+          sql`${schema.convConversations.metadata}->>'threllCallId' = ${callId}`,
+        ),
+      );
+    expect(convs.length).toBe(0);
+  });
+
   it('skips non-final transcripts', async () => {
     const callId = 'call_threll_partial';
     await postEvent({

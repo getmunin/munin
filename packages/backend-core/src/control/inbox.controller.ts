@@ -7,7 +7,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, desc, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -174,6 +174,7 @@ export class InboxController {
           inArray(schema.convMessages.conversationId, conversationIds),
           eq(schema.convMessages.authorType, 'end_user'),
           eq(schema.convMessages.internal, false),
+          ne(schema.convMessages.body, ''),
         ),
       )
       .orderBy(

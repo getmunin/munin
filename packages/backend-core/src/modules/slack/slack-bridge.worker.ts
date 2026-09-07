@@ -307,6 +307,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       authorName,
       internal: message.internal,
       body: message.body,
+      noSpeech: message.metadata.voiceNoSpeech === true,
       attachments: parseMessageAttachments(message.attachments),
     };
     const identity = speakerIdentity(authorKind, authorName);
@@ -375,6 +376,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       authorName: await this.authorName(authorKind, message.authorId, context),
       internal: message.internal,
       body: message.body,
+      noSpeech: message.metadata.voiceNoSpeech === true,
       attachments: parseMessageAttachments(message.attachments),
     };
     try {

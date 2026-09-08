@@ -44,7 +44,7 @@ export function MoreActionsSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="md:hidden">
-        <SheetTitle className="px-5 pb-2 pt-5 font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+        <SheetTitle className="px-5 pb-2 pt-5 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
           {tCommon('moreActions')}
         </SheetTitle>
         <div className="flex flex-col pb-2">

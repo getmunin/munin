@@ -197,7 +197,7 @@ export function ConversationPane({
   if (!selectedId) {
     return (
       <section className="hidden min-h-0 flex-col items-start bg-paper-deep p-8 md:flex dark:bg-secondary">
-        <span className="font-mono text-[11px] uppercase tracking-eyebrow text-ink-mute">
+        <span className="font-mono text-[11px] font-medium uppercase tracking-eyebrow text-ink-label">
           {t('selectEmpty')}
         </span>
       </section>
@@ -297,7 +297,7 @@ export function ConversationPane({
   );
 
   const claimGateCaption = claim ? (
-    <span className="font-mono text-[9px] uppercase tracking-meta leading-relaxed text-ink-mute">
+    <span className="font-mono text-[10px] font-medium uppercase tracking-meta leading-relaxed text-ink-mute">
       {t('claimGateOther', { name: claimHolderName ?? t('teammate') })}
     </span>
   ) : null;
@@ -378,7 +378,7 @@ export function ConversationPane({
   const statusStrip = (
     <span
       className={cn(
-        'flex min-w-0 flex-wrap items-center gap-x-5 gap-y-1 font-mono text-[9px] uppercase tracking-meta md:ml-auto md:justify-end',
+        'flex min-w-0 flex-wrap items-center gap-x-5 gap-y-1 font-mono text-[10px] font-medium uppercase tracking-meta md:ml-auto md:justify-end',
         composerState ? 'max-md:w-full max-md:pb-2 max-md:pt-1' : 'max-md:hidden',
       )}
     >
@@ -454,7 +454,7 @@ export function ConversationPane({
               {customer}
             </div>
           ) : null}
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[10px] uppercase tracking-meta text-ink-mute">
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
             {metaParts.map((part, i) => (
               <span key={`${i}-${part}`} className="flex min-w-0 items-center gap-2">
                 {i > 0 ? <span aria-hidden>·</span> : null}
@@ -574,7 +574,7 @@ export function ConversationPane({
                 {composerTitle}
               </span>
               {composerMeta ? (
-                <span className="truncate font-mono text-[9px] uppercase tracking-meta text-ink-mute">
+                <span className="truncate font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
                   {composerMeta}
                 </span>
               ) : null}
@@ -582,7 +582,7 @@ export function ConversationPane({
             <button
               type="button"
               onClick={() => setExpanded(false)}
-              className="ml-auto flex shrink-0 items-center gap-2.5 font-mono text-[9px] uppercase tracking-eyebrow text-ink-soft dark:text-foreground/80"
+              className="ml-auto flex shrink-0 items-center gap-2.5 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label"
             >
               {tCommon('close')}
               <X aria-hidden className="size-4 text-ink dark:text-foreground" />
@@ -594,7 +594,7 @@ export function ConversationPane({
             type="button"
             onClick={() => setTab('reply')}
             className={cn(
-              'border-b-2 py-2.5 font-mono text-[10px] uppercase tracking-meta',
+              'border-b-2 py-2.5 font-mono text-[10px] font-medium uppercase tracking-meta',
               tab === 'reply'
                 ? 'border-cobalt text-ink dark:border-cobalt-soft dark:text-foreground'
                 : 'border-transparent text-ink-mute',
@@ -606,7 +606,7 @@ export function ConversationPane({
             type="button"
             onClick={() => setTab('note')}
             className={cn(
-              'border-b-2 py-2.5 font-mono text-[10px] uppercase tracking-meta',
+              'border-b-2 py-2.5 font-mono text-[10px] font-medium uppercase tracking-meta',
               tab === 'note'
                 ? 'border-cobalt text-ink dark:border-cobalt-soft dark:text-foreground'
                 : 'border-transparent text-ink-mute',
@@ -706,7 +706,7 @@ export function ConversationPane({
               >
                 {t('addNote')}
               </Button>
-              <span className="min-w-0 truncate font-mono text-[9px] uppercase tracking-meta text-ink-mute">
+              <span className="min-w-0 truncate font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
                 {t('noteHint')}
               </span>
             </div>

@@ -31,7 +31,7 @@ export function FirstRunSteps({ steps }: { steps: FirstRunStep[] }) {
               {step.tag ? (
                 <span
                   className={cn(
-                    'font-mono text-[9px] uppercase tracking-eyebrow',
+                    'font-mono text-[10px] font-medium uppercase tracking-eyebrow',
                     step.done ? 'text-cobalt dark:text-cobalt-soft' : 'text-ink-mute',
                   )}
                 >
@@ -82,7 +82,7 @@ export function FirstRunChain({ steps }: { steps: FirstRunChainStep[] }) {
             </span>
             <span
               className={cn(
-                'mt-1 font-mono text-[9px] uppercase tracking-eyebrow md:hidden',
+                'mt-1 font-mono text-[10px] font-medium uppercase tracking-eyebrow md:hidden',
                 step.done ? 'text-cobalt dark:text-cobalt-soft' : 'text-ink-mute',
               )}
             >
@@ -91,7 +91,7 @@ export function FirstRunChain({ steps }: { steps: FirstRunChainStep[] }) {
           </div>
           <span
             className={cn(
-              'hidden font-mono text-[9px] uppercase tracking-eyebrow md:inline',
+              'hidden font-mono text-[10px] font-medium uppercase tracking-eyebrow md:inline',
               step.done ? 'text-cobalt dark:text-cobalt-soft' : 'text-ink-mute',
             )}
           >

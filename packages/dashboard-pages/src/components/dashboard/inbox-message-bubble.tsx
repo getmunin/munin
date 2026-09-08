@@ -67,7 +67,7 @@ export function MessageBubble({
 
   if (role === 'system') {
     return (
-      <div className="self-center text-center font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+      <div className="self-center text-center font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
         — {message.body} —
       </div>
     );
@@ -88,7 +88,7 @@ export function MessageBubble({
       >
         <div
           className={cn(
-            'font-mono text-[9px] uppercase tracking-eyebrow',
+            'font-mono text-[10px] font-medium uppercase tracking-eyebrow',
             role === 'agent' ? 'text-ink-mute' : 'text-ink-soft dark:text-foreground/80',
           )}
         >
@@ -107,7 +107,7 @@ export function MessageBubble({
       )}
     >
       {showAuthor ? (
-        <div className="flex items-baseline gap-1.5 font-mono text-[9px] uppercase tracking-meta text-ink-mute">
+        <div className="flex items-baseline gap-1.5 font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
           <span
             className={cn(
               'font-semibold',
@@ -143,7 +143,7 @@ export function MessageBubble({
       </div>
       {isOutbound && <MessageComponents metadata={message.metadata} />}
       {isOutbound && message.seenAt && (
-        <div className="font-mono text-[9px] uppercase tracking-meta text-ink-mute">
+        <div className="font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
           {t('seenAt', { time: formatSeenAt(message.seenAt) })}
         </div>
       )}

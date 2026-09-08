@@ -35,7 +35,7 @@ function SectionHead({
         </h2>
         {subtitle ? <p className="text-[13px] text-ink-mute">{subtitle}</p> : null}
         {meta ? (
-          <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+          <p className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
             {meta}
           </p>
         ) : null}

@@ -13,7 +13,7 @@ interface AuthShellProps {
 
 export function AuthShell({ leftZone, rightZone, variant = 'form' }: AuthShellProps) {
   return (
-    <div className="relative grid min-h-screen grid-cols-1 md:grid-cols-2">
+    <div className="munin-light-locked relative grid min-h-screen grid-cols-1 md:grid-cols-2">
       <div className="pointer-events-none absolute inset-y-0 left-1/2 hidden w-px bg-rule-soft md:block" />
 
       <Link

@@ -268,7 +268,7 @@ export function CmsQueuePane({
                     href={previewUrl ?? undefined}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className="ml-auto py-3 font-mono text-[9px] uppercase tracking-eyebrow text-cobalt hover:underline dark:text-cobalt-soft"
+                    className="ml-auto py-3 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt hover:underline dark:text-cobalt-soft"
                   >
                     {t('cmsOpenPreview')} <span aria-hidden>↗</span>
                   </a>
@@ -279,7 +279,7 @@ export function CmsQueuePane({
                 <div className="relative flex-1 min-h-[380px] overflow-hidden bg-bone dark:bg-secondary">
                   {previewState !== 'ready' ? (
                     <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-bone dark:bg-secondary">
-                      <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+                      <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
                         {t('cmsPreviewLoading')}
                       </span>
                     </div>
@@ -312,7 +312,7 @@ export function CmsQueuePane({
                 <div className="space-y-6 px-5 py-5 md:px-7">
                   {blockedEmbed && !editing ? (
                     <div className="flex flex-col gap-1 border-l-2 border-alert-bad-border bg-alert-bad px-3 py-2">
-                      <span className="font-mono text-[9px] uppercase tracking-eyebrow text-alert-bad-ink">
+                      <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-alert-bad-ink">
                         {t('cmsPreviewBlockedEyebrow')}
                       </span>
                       <span className="text-[13px] leading-relaxed text-ink dark:text-foreground">
@@ -331,7 +331,7 @@ export function CmsQueuePane({
                   ) : previewState === 'failed' && !editing ? (
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-l-2 border-alert-bad-border bg-alert-bad px-3 py-2">
                       <span className="flex min-w-0 flex-1 flex-col gap-1">
-                        <span className="font-mono text-[9px] uppercase tracking-eyebrow text-alert-bad-ink">
+                        <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-alert-bad-ink">
                           {t('cmsPreviewFailedEyebrow')}
                         </span>
                         <span className="text-[13px] leading-relaxed text-ink dark:text-foreground">
@@ -341,7 +341,7 @@ export function CmsQueuePane({
                       <button
                         type="button"
                         onClick={retryPreview}
-                        className="shrink-0 font-mono text-[9px] uppercase tracking-eyebrow text-cobalt hover:underline dark:text-cobalt-soft"
+                        className="shrink-0 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt hover:underline dark:text-cobalt-soft"
                       >
                         {tCommon('retry')} <span aria-hidden>⟳</span>
                       </button>
@@ -417,7 +417,7 @@ export function CmsQueuePane({
           <Button variant="ghost" onClick={cancelEdit} className="max-md:h-11 max-md:flex-1">
             {t('cancel')}
           </Button>
-          <span className="hidden font-mono text-[9px] uppercase tracking-meta text-ink-mute md:ml-auto md:inline">
+          <span className="hidden font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute md:ml-auto md:inline">
             {t('shortcutSave')}
           </span>
         </div>
@@ -443,7 +443,7 @@ export function CmsQueuePane({
                 }}
               >
                 <label className="flex flex-col gap-1.5">
-                  <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+                  <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
                     {t('cmsScheduleLabel')}
                   </span>
                   <input
@@ -458,7 +458,7 @@ export function CmsQueuePane({
                   />
                 </label>
                 {scheduleError && (
-                  <span className="font-mono text-[10px] uppercase tracking-eyebrow text-destructive">
+                  <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-destructive">
                     {scheduleError}
                   </span>
                 )}
@@ -524,7 +524,7 @@ export function CmsQueuePane({
             >
               {t('cmsDismiss')}
             </Button>
-            <span className="hidden font-mono text-[9px] uppercase tracking-meta text-ink-mute md:ml-auto md:inline">
+            <span className="hidden font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute md:ml-auto md:inline">
               {t('shortcutCmsApprove')}
             </span>
           </div>
@@ -571,7 +571,7 @@ function ViewTab({
       onClick={onSelect}
       aria-current={active ? 'true' : undefined}
       className={cn(
-        '-mb-px flex items-center gap-1.5 border-b-2 py-3 font-mono text-[9.5px] uppercase tracking-eyebrow transition-colors duration-fast',
+        '-mb-px flex items-center gap-1.5 border-b-2 py-3 font-mono text-[10px] font-medium uppercase tracking-eyebrow transition-colors duration-fast',
         active
           ? 'border-cobalt text-ink dark:border-cobalt-soft dark:text-foreground'
           : 'border-transparent text-ink-mute hover:text-ink dark:hover:text-foreground',
@@ -614,7 +614,7 @@ function FieldSection({
     <section className="space-y-2">
       <p
         className={cn(
-          'font-mono text-[10px] uppercase tracking-eyebrow',
+          'font-mono text-[10px] font-medium uppercase tracking-eyebrow',
           error ? 'text-destructive' : 'text-ink-mute',
         )}
       >
@@ -932,7 +932,7 @@ function BlockCard({
   return (
     <div className="space-y-3 border-[1px] border-rule-soft bg-paper-deep/50 p-3 dark:border-rule-on-dark dark:bg-secondary/40">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+        <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
           {label}
         </span>
         {controls}
@@ -948,7 +948,7 @@ function BlockProp({ children }: { children: React.ReactNode }) {
 
 function BlockPropLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute/80">{children}</p>
+    <p className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">{children}</p>
   );
 }
 
@@ -1332,7 +1332,7 @@ function AssetFigure({
           alt={asset.altText ?? ''}
           className="size-full object-cover"
         />
-        <span className="absolute right-2 bottom-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute bg-paper/85 px-1.5 py-0.5 dark:bg-card/85">
+        <span className="absolute right-2 bottom-2 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label bg-paper/85 px-1.5 py-0.5 dark:bg-card/85">
           {aspectLabel}
         </span>
       </div>
@@ -1440,17 +1440,17 @@ function AssetDropZone({
                     : 'bg-paper/70 opacity-0 group-hover:opacity-100 dark:bg-card/70',
                 )}
               >
-                <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+                <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
                   {uploading ? uploadingLabel : dragging ? activeLabel : replaceLabel}
                 </span>
               </div>
             </>
           ) : (
-            <span className="relative font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+            <span className="relative font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
               {uploading ? uploadingLabel : dragging ? activeLabel : hintLabel}
             </span>
           )}
-          <span className="absolute right-2 bottom-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute bg-paper/85 px-1.5 py-0.5 dark:bg-card/85">
+          <span className="absolute right-2 bottom-2 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label bg-paper/85 px-1.5 py-0.5 dark:bg-card/85">
             {aspectLabel}
           </span>
         </button>

@@ -213,7 +213,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
         )}
       >
         <header className="shrink-0 border-b border-rule-soft px-5 pb-4 pt-6 dark:border-rule-on-dark">
-          <div className="font-mono text-[11px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+          <div className="font-mono text-[11px] font-medium uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
             {t('eyebrow')}
           </div>
           <h1 className="mb-2 mt-1 font-serif text-[26px] font-normal leading-[1.05] tracking-tight text-ink md:text-[28px] dark:text-foreground">
@@ -362,7 +362,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
         {!activeId ? (
           <section className="hidden min-h-0 flex-col bg-paper-deep md:flex dark:bg-secondary">
             {activeIds.length > 0 ? (
-              <span className="p-8 font-mono text-[11px] uppercase tracking-eyebrow text-ink-mute">
+              <span className="p-8 font-mono text-[11px] font-medium uppercase tracking-eyebrow text-ink-label">
                 {t('selectEmpty')}
               </span>
             ) : (
@@ -445,7 +445,7 @@ function PaneEmpty({
 }) {
   return (
     <div className="px-5 pt-6 md:px-7">
-      <div className="font-mono text-[11px] uppercase tracking-eyebrow text-ink-mute">
+      <div className="font-mono text-[11px] font-medium uppercase tracking-eyebrow text-ink-label">
         {eyebrow}
       </div>
       <h2 className="mb-2 mt-1 font-serif text-[26px] font-normal leading-[1.05] tracking-tight text-ink md:text-[28px] dark:text-foreground">

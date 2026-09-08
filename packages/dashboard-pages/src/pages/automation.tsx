@@ -208,7 +208,7 @@ export function AutomationPage() {
             <div className="font-serif text-6xl leading-none text-ink md:text-7xl dark:text-foreground">
               {autoRate === null || autoRate === undefined ? '—' : `${Math.round(autoRate * 100)}%`}
             </div>
-            <div className="mt-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+            <div className="mt-2 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
               {t('autoRateCaption')}
             </div>
           </>
@@ -220,7 +220,7 @@ export function AutomationPage() {
           <div
             className={cn(
               GRID,
-              'border-b border-ink py-3.5 font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute max-md:hidden dark:border-rule-on-dark',
+              'border-b border-ink py-3.5 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label max-md:hidden dark:border-rule-on-dark',
             )}
           >
             <span>{t('colTopic')}</span>
@@ -270,7 +270,7 @@ export function AutomationPage() {
                   >
                     {pct === null ? '—' : `${pct}%`}
                   </span>
-                  <span className="font-mono text-[9px] uppercase tracking-meta text-ink-mute md:hidden">
+                  <span className="font-mono text-[10px] font-medium uppercase tracking-meta text-ink-label md:hidden">
                     {t('colUnedited')}
                   </span>
                   <span className="relative h-1 max-w-[120px] flex-1 bg-rule-soft max-md:hidden dark:bg-rule-on-dark">
@@ -286,7 +286,7 @@ export function AutomationPage() {
                 <span className="flex items-center justify-end gap-3.5 max-md:justify-between">
                   <span
                     className={cn(
-                      'font-mono text-[9.5px] uppercase tracking-meta md:text-right',
+                      'font-mono text-[10px] font-medium uppercase tracking-meta md:text-right',
                       sending
                         ? 'text-cobalt dark:text-cobalt-soft'
                         : armedButHolding
@@ -329,7 +329,7 @@ export function AutomationPage() {
           {editing ? (
             <>
               <DialogHeader>
-                <div className="font-mono text-[11px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+                <div className="font-mono text-[11px] font-medium uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
                   {t('policyFor', { name: editing.name })}
                 </div>
                 <DialogTitle className="font-serif text-3xl font-normal leading-[1.05] tracking-tight">
@@ -339,7 +339,7 @@ export function AutomationPage() {
                     ),
                   })}
                 </DialogTitle>
-                <div className="font-mono text-[10px] uppercase tracking-meta text-ink-mute">
+                <div className="font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
                   {t('dialogStats', {
                     pct: editingPct ?? 0,
                     n: editing.reviewedCount,
@@ -351,7 +351,7 @@ export function AutomationPage() {
               <div className="mb-5">
                 <label
                   htmlFor="topic-description"
-                  className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute"
+                  className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label"
                 >
                   {t('descriptionLabel')}
                 </label>
@@ -402,7 +402,7 @@ export function AutomationPage() {
                       <span className="flex min-w-0 flex-col gap-1">
                         <span
                           className={cn(
-                            'font-mono text-[11px] uppercase tracking-meta',
+                            'font-mono text-[11px] font-medium uppercase tracking-meta',
                             on ? 'text-cobalt dark:text-cobalt-soft' : 'text-ink dark:text-foreground',
                           )}
                         >
@@ -414,7 +414,7 @@ export function AutomationPage() {
                         {choice === 'auto' ? (
                           <span
                             className={cn(
-                              'font-mono text-[9px] uppercase tracking-meta',
+                              'font-mono text-[10px] font-medium uppercase tracking-meta',
                               autoSending ? 'text-cobalt dark:text-cobalt-soft' : 'text-ink-mute',
                             )}
                           >
@@ -433,7 +433,7 @@ export function AutomationPage() {
 
               {draftPolicy === 'auto' ? (
                 <div className="mt-4 border-t border-rule-soft pt-4 dark:border-rule-on-dark">
-                  <div className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+                  <div className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
                     {t('gateLabel')}
                   </div>
                   <div className="mt-2.5 flex flex-wrap items-center gap-3.5">
@@ -444,7 +444,7 @@ export function AutomationPage() {
                           type="button"
                           onClick={() => setDraftGate(gate)}
                           className={cn(
-                            'whitespace-nowrap px-2.5 py-1.5 font-mono text-[9px] uppercase tracking-meta transition-colors duration-fast ease-munin',
+                            'whitespace-nowrap px-2.5 py-1.5 font-mono text-[10px] font-medium uppercase tracking-meta transition-colors duration-fast ease-munin',
                             draftGate === gate
                               ? 'bg-ink text-paper dark:bg-foreground dark:text-background'
                               : 'text-ink-mute hover:bg-paper-deep dark:hover:bg-secondary',

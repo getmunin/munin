@@ -141,7 +141,7 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
         )}
       >
         <header className="shrink-0 border-b border-rule-soft px-5 pb-3.5 pt-6 md:min-h-[146px] dark:border-rule-on-dark">
-          <div className="font-mono text-[11px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+          <div className="font-mono text-[11px] font-medium uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
             {t('eyebrow')}
           </div>
           <h1 className="mb-2.5 mt-1 truncate font-serif text-[28px] font-normal leading-[1.05] tracking-tight text-ink md:text-3xl dark:text-foreground">

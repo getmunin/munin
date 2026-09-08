@@ -59,7 +59,7 @@ export function ReviewKbPane({
     <section className="flex min-h-0 flex-col overflow-y-auto bg-paper dark:bg-background">
       <div className="flex flex-1 flex-col gap-5 px-5 pb-8 pt-6 md:px-7">
         <div className="flex flex-col gap-2.5">
-          <div className="font-mono text-[9.5px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+          <div className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
             {isRevision
               ? t('kindRevisionOf', { title: item.raw.revisesDocumentTitle ?? item.title })
               : t('kindNew')}
@@ -67,7 +67,7 @@ export function ReviewKbPane({
           <h2 className="max-w-[42ch] font-serif text-[26px] font-normal leading-[1.2] text-ink md:text-[30px] dark:text-foreground">
             {item.title}
           </h2>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-[10px] uppercase tracking-meta text-ink-mute">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
             <span>{space}</span>
             <span aria-hidden>·</span>
             <span>{age(item.createdAt)}</span>
@@ -88,7 +88,7 @@ export function ReviewKbPane({
         <div className="flex flex-col gap-5 border-t border-rule-soft pt-5 dark:border-rule-on-dark">
           {passage ? (
             <div className="flex flex-col gap-2.5">
-              <div className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+              <div className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
                 {t('changedPassage')}
               </div>
               <p className="max-w-[62ch] text-[14.5px] leading-relaxed text-ink-soft dark:text-foreground/70">
@@ -108,7 +108,7 @@ export function ReviewKbPane({
 
           <div className="flex flex-col gap-[11px]">
             {passage ? (
-              <div className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+              <div className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
                 {t('bodyLabelRevision')}
               </div>
             ) : null}

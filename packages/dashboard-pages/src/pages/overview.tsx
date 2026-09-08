@@ -10,7 +10,7 @@ import { OverviewReview } from '../components/dashboard/overview-review';
 import { UsageKpis, type UsageSummary } from '../components/dashboard/usage-kpis';
 import { LoadFailed } from '../components/load-failed';
 import { Skeleton } from '../components/skeleton';
-import { OverviewFirstRun, useSetupState } from '../components/first-run';
+import { OverviewFirstRun, useFirstRunGate } from '../components/first-run';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
 import { useInboxData } from '../components/dashboard/inbox-data';
 
@@ -18,7 +18,7 @@ const OVERVIEW_SHELL = 'mx-auto max-w-4xl space-y-12 px-4 pb-16 pt-11 md:px-10';
 
 export function DashboardPage() {
   const inbox = useInboxData();
-  const setup = useSetupState();
+  const gate = useFirstRunGate({ content: inbox.hasLoadedOnce });
   const [summary, setSummary] = useState<UsageSummary | null>(null);
   const buildLoadFailedProps = useInboxLoadFailedProps();
 
@@ -53,8 +53,8 @@ export function DashboardPage() {
     );
   }
 
-  if (setup.loading || !inbox.hasLoadedOnce) return <OverviewSkeleton />;
-  if (setup.isFirstRun) return <OverviewFirstRun setup={setup} />;
+  if (gate.view === 'loading') return <OverviewSkeleton />;
+  if (gate.view === 'firstRun') return <OverviewFirstRun setup={gate.setup} />;
 
   return (
     <div className={OVERVIEW_SHELL}>

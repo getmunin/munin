@@ -19,7 +19,7 @@ import { notify } from '../lib/notify';
 import { useTranslateError } from '../i18n/translate-error';
 import { useRealtime } from '../realtime';
 import { LoadFailed } from '../components/load-failed';
-import { AutomationFirstRun, useSetupState } from '../components/first-run';
+import { AutomationFirstRun, useFirstRunGate } from '../components/first-run';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
 
 type TopicMode = 'auto' | 'draft_only' | 'off' | null;
@@ -73,7 +73,7 @@ function autoIsSending(row: TopicAutomationRow): boolean {
 export function AutomationPage() {
   const t = useTranslations('dashboard.console.automation');
   const translateErr = useTranslateError();
-  const setup = useSetupState();
+  const gate = useFirstRunGate({ firstRun: (s) => s.topicCount === 0 });
   const buildLoadFailedProps = useInboxLoadFailedProps();
   const [summary, setSummary] = useState<AutomationSummary | null>(null);
   const [loadError, setLoadError] = useState<ApiError | null>(null);
@@ -176,8 +176,7 @@ export function AutomationPage() {
     );
   }
 
-  const firstRunUndecided = setup.loading || (setup.isFirstRun && summary === null);
-  if (firstRunUndecided) {
+  if (gate.view === 'loading') {
     return (
       <div className="flex min-h-full flex-col">
         <ConsoleHeroSkeleton actions />
@@ -187,7 +186,7 @@ export function AutomationPage() {
       </div>
     );
   }
-  if (setup.isFirstRun && topics.length === 0) return <AutomationFirstRun setup={setup} />;
+  if (gate.view === 'firstRun') return <AutomationFirstRun setup={gate.setup} />;
 
   const autoRate = summary?.autoRate7d;
   const editingPct = editing ? uneditedPct(editing) : null;

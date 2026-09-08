@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { useDashboardBootstrap } from './dashboard-bootstrap';
 
 interface AgentConfigStatusDto {
   providerConfigured: boolean;
@@ -12,8 +13,11 @@ export function useAgentConfigStatus(): {
   loading: boolean;
   error: string | null;
 } {
-  const [configured, setConfigured] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(true);
+  const bootstrap = useDashboardBootstrap();
+  const [configured, setConfigured] = useState<boolean | null>(
+    bootstrap?.providerConfigured ?? null,
+  );
+  const [loading, setLoading] = useState(bootstrap === null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

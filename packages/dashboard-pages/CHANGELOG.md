@@ -1,5 +1,86 @@
 # @getmunin/dashboard-pages
 
+## 5.18.0
+
+### Minor Changes
+
+- ac7ea66: Name a caller by their phone number instead of "Anonymous visitor".
+
+  A voice conversation usually carries a number and nothing else — no name, no email — so every call in the queue read "Anonymous visitor", indistinguishable from the next one, while the number itself sat unformatted in the thread header. The queue read model now returns `customerPhone` (contact phone, falling back to the end user's), and the queue row, the thread header and every inbound bubble in the thread resolve identity through one `customerIdentity` helper: name, then email, then the phone formatted with `libphonenumber-js` (`+47 95 03 94 93`). Queue search matches the raw number, so pasting a caller ID from a missed call finds the conversation. The thread header drops its separate phone chip when the title already is that number, and an unparseable number is shown as written rather than hidden.
+
+  Only the fallback moved. A message that carries its own `authorName` still shows it, and "Anonymous" remains the label when the conversation genuinely has no name, email or number — a widget visitor who never identified themselves.
+
+  The API keeps the raw E.164 string; formatting is a dashboard concern.
+
+- 1397a25: A first-run workspace now renders its onboarding steps in the server HTML, with no spinner and no skeleton in front of it, and every console page decides that the same way.
+
+  The dashboard shell used to withhold every page behind a `PageSpinner` until four client fetches — session, membership, agent config, setup state — had all landed, and Dashboard and Automation then held a skeleton until a second fetch (usage summary, automation summary) landed on top of that. `readDashboardBootstrap()` now does that work on the server: a new `@getmunin/dashboard-pages/server` export reads the session cookie, fetches memberships, agent config and setup state in parallel, and feeds them to a `DashboardBootstrapProvider` that seeds `useActiveMembership`, `useAgentConfigStatus` and `useSetupState`. With those seeded the gate is satisfied on the first render, so the shell, the sidebar and the first-run scene are all in the initial HTML.
+
+  The bootstrap is deliberately conservative and returns `null` — falling back to the existing client path unchanged — when there is no session cookie, when any fetch fails or exceeds 1.5s, when setup is incomplete (that user belongs on `/setup`, and the redirect stays client-side), or when the user belongs to more than one org. The active-org pin lives in `sessionStorage`, which a server render cannot see, so for a multi-org user the server cannot tell which org to fetch; single-tenant OSS deployments always take the fast path.
+
+  On that fallback path `SetupStateProvider` now mounts alongside the spinner rather than behind it, so the setup fetch runs beside the gate's own fetches instead of queueing after them. It takes an `enabled` flag, and `useRealtime` an `enabled` option, so a signed-out visitor still opens no socket and fetches nothing.
+
+  Dashboard, Conversations, Review and Automation now share one `useFirstRunGate()` returning a single `view` of `loading | firstRun | content`, replacing four different hand-rolled conditions. A page narrows first run with its own emptiness rule — `topicCount === 0` on Automation, nothing pending on Review — and returns `null` from that rule when it cannot decide yet, which reads as `loading` rather than a wrong guess. Dashboard passes `content: inbox.hasLoadedOnce` so its own data gates only the content branch, never the first-run branch, and it names its skeleton once instead of twice. Automation additionally reads its topic count from the setup snapshot rather than from the automation summary, so deciding first run needs one request instead of two.
+
+  `useDashboardGate` also drops its duplicate `roleLoading` term — `useActiveRole` returns `useActiveMembership`'s own loading flag — in favour of three named booleans, and the three copies of "fetch JSON from the API forwarding the caller's cookie" in `setup-gate.ts`, `server-session.ts` and the new bootstrap now share one `fetchJsonWithCookie` helper.
+
+### Patch Changes
+
+- 402f00d: Overview review empty state now uses the shared console empty component, so it wraps at the same measure as the conversations one and no longer draws a stray bottom rule.
+- 56a3349: Bring the palette up to WCAG 2.2 AA
+
+  Five token pairs failed AA where they actually meet in components. Measured against every
+  surface each token lands on, not just the one it was tuned against.
+
+  **Mute text.** `--munin-fg-3` (`#7E8590`) reached 3.56:1 on paper, 3.21 on paper-deep and
+  2.93 on bone — below even the 3:1 large-text floor — across 250 uses of `text-ink-mute`, 116
+  of them at `text-xs` or smaller, plus every `Label` and every `Input` placeholder. Now
+  `#5E646C` (4.71 on bone, its binding surface). Light and dark needed opposite moves: the
+  light value lands at 3.24:1 on ink, so dark gets its own `--munin-fg-3: #868D97`, which also
+  fixes a separate 4.26:1 failure on the dark `--secondary` sidebar that the old shared value
+  had. The chat widget keeps a literal copy of the same grey across 20 rules and moves with it.
+
+  **Field boundaries.** `Input` drew its edge with `border-rule-soft` (`ink / 0.09`, 1.20:1)
+  on `bg-paper` inside a `Card` that is also `bg-paper` — nothing identified the field, failing
+  1.4.11. Adds `--munin-rule-field`, which form controls use while cards, dividers and
+  hairlines keep the decorative 0.09 rule. Light mode takes the solid ink edge the chat widget
+  already shipped; dark takes `fg-on-dark-2 / 0.36` (3.06:1). The same override in the widget's
+  dark palette had dropped its own fix back to 1.50:1, and the focused border is identical to
+  the resting one, so focus rested entirely on the outline below.
+
+  **Cobalt.** `#0066FF` was tuned on paper (4.63:1) and used at 8.5–11px on paper-deep (4.17)
+  and bone (3.81). Now `#0059DE`, which also lifts paper-on-accent from 4.63 to 5.78.
+
+  **Widget brand colour.** `themeColor` arrives from the customer and was used raw as the active
+  send icon and as the only focus outline on the composer and card forms — amber `#F59E0B` put
+  those at 2.06:1. Adds `contrastFloor()`, which darkens or lightens along the colour's own hue
+  only until it reaches 3:1 against the surface and returns a passing colour untouched. Also
+  fixes `.launcher-badge`, which hardcoded `#fff` over the brand colour (1.30:1 on a light one)
+  instead of the contrast-picked `--munin-theme-fg`.
+
+  **Verdigris.** The counterparty hue is identity text in the widget, not only a fill: 4.38:1 on
+  paper and 4.04:1 on its own tint. Now `#1B7153`.
+
+  The widget's default `themeColor` tracks cobalt to `#0059DE` so the brand blue is one value
+  across the product rather than two that differ by a contrast fix. It is a fill with
+  `--munin-theme-fg` on top, so it passed either way — this is consistency, not a contrast
+  repair. The `data-munin-theme-color` docs and the `setup-chat-widget` skill move with it.
+
+  `readableOn()` guaranteed only a 4.21:1 floor, because best-of-two across ink and paper bottoms
+  out at their crossover. It now falls through to black or white — whichever the background
+  actually favours — when neither palette value clears AA, raising the floor to exactly 4.50:1,
+  verified by sweeping 132k backgrounds. Picking the extreme on the same side as the palette
+  winner is wrong near the crossover and was the first version of this fix.
+
+  `--destructive` went `#b53d3d` → `#b23b3b` to clear 4.48:1 on bone.
+
+  Unchanged and re-verified: every dark-mode pair outside the mute finding, both identity
+  bubbles, all button fills, the alert and invite pairs, and both focus rings.
+
+- Updated dependencies [56a3349]
+  - @getmunin/ui@5.18.0
+  - @getmunin/types@5.18.0
+
 ## 5.17.0
 
 ### Minor Changes

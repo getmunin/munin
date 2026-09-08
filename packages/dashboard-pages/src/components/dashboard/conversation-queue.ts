@@ -36,6 +36,7 @@ export interface QueueItemDto {
   agentMode: 'auto' | 'draft_only' | 'off';
   customerName: string | null;
   customerEmail: string | null;
+  customerPhone: string | null;
   topicName: string | null;
   topicSlug: string | null;
   topicAgentMode: 'auto' | 'draft_only' | 'off' | null;
@@ -109,7 +110,14 @@ export function partitionQueue(
 export function matchesQueueSearch(item: QueueItemDto, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  return [item.customerName, item.customerEmail, item.subject, item.lastInboundPreview, item.topicName]
+  return [
+    item.customerName,
+    item.customerEmail,
+    item.customerPhone,
+    item.subject,
+    item.lastInboundPreview,
+    item.topicName,
+  ]
     .filter((v): v is string => typeof v === 'string')
     .some((v) => v.toLowerCase().includes(q));
 }

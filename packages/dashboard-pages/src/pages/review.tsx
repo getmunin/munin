@@ -8,7 +8,10 @@ import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
 import { usePathname, useRouter } from '../i18n-navigation';
 import { useInboxData } from '../components/dashboard/inbox-data';
 import { ScheduledCancelDialog } from '../components/dashboard/scheduled-cancel-dialog';
-import { partitionReviewQueue } from '../components/dashboard/review-queue';
+import {
+  partitionReviewQueue,
+  resolveReviewFirstRun,
+} from '../components/dashboard/review-queue';
 import { ReviewRow } from '../components/dashboard/review-row';
 import { ReviewKbPane } from '../components/dashboard/review-kb-pane';
 import { ReviewBlockingPane } from '../components/dashboard/review-blocking-pane';
@@ -109,7 +112,10 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
     improvements.length === 0 &&
     scheduled.length === 0 &&
     recentDecisions.length === 0;
-  const gate = useFirstRunGate({ firstRun: () => (listLoaded ? nothingToReview : null) });
+  const gate = useFirstRunGate({
+    firstRun: (setup) =>
+      resolveReviewFirstRun(setup.reviewQueue, { loaded: listLoaded, empty: nothingToReview }),
+  });
   const idsByTab: Record<ReviewTab, string[]> = useMemo(
     () => ({
       waiting: [...blocking.map((b) => b.id), ...improvements.map((c) => c.id)],

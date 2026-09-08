@@ -12,6 +12,11 @@ export interface SetupChannelDto {
   needsCredentials?: boolean;
 }
 
+export interface SetupReviewQueue {
+  hasPendingItems: boolean;
+  lastDecisionAt: string | null;
+}
+
 export interface SetupStateDto {
   channels: SetupChannelDto[];
   conversationCount: number;
@@ -19,6 +24,7 @@ export interface SetupStateDto {
   knowledgeDocumentCount: number;
   externalMcpCallCount: number;
   lastExternalMcpCallAt: string | null;
+  reviewQueue?: SetupReviewQueue | null;
 }
 
 export interface SetupChannel {
@@ -38,6 +44,7 @@ export interface SetupSnapshot {
   conversationCount: number;
   topicCount: number;
   knowledgeDocumentCount: number;
+  reviewQueue: SetupReviewQueue | null;
 }
 
 const CHANNEL_ORDER: SetupChannelType[] = ['email', 'chat', 'sms', 'voice'];
@@ -53,6 +60,7 @@ const UNKNOWN: SetupSnapshot = {
   conversationCount: 0,
   topicCount: 0,
   knowledgeDocumentCount: 0,
+  reviewQueue: null,
 };
 
 export function toSetupSnapshot(dto: SetupStateDto | null): SetupSnapshot {
@@ -73,6 +81,7 @@ export function toSetupSnapshot(dto: SetupStateDto | null): SetupSnapshot {
     conversationCount: dto.conversationCount,
     topicCount: dto.topicCount,
     knowledgeDocumentCount: dto.knowledgeDocumentCount,
+    reviewQueue: dto.reviewQueue ?? null,
   };
 }
 

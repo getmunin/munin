@@ -25,7 +25,7 @@ import { useProvideMobileBack } from '../shells/mobile-back';
 import { ConsoleSectionLabel } from '../components/console-section-label';
 import { ConsoleListEmpty } from '../components/console-empty';
 import { ConsoleRowsSkeleton, ConsoleSplitSkeleton } from '../components/console-skeleton';
-import { ReviewFirstRun, useSetupState } from '../components/first-run';
+import { ReviewFirstRun, useFirstRunGate } from '../components/first-run';
 
 const ROOT = '/dashboard/review';
 const FADE_FLOOR = 0.55;
@@ -39,7 +39,6 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
   const router = useRouter();
   const pathname = usePathname();
   const inbox = useInboxData();
-  const setup = useSetupState();
   const decisions = useCurationDecisions();
   const buildLoadFailedProps = useInboxLoadFailedProps();
   const { setActiveQueueItem, setActiveScheduledItem } = inbox;
@@ -105,6 +104,12 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
   }, [selectedScheduled, setActiveScheduledItem]);
 
   const listLoaded = inbox.hasLoadedOnce && decisions.hasLoadedOnce;
+  const nothingToReview =
+    blocking.length === 0 &&
+    improvements.length === 0 &&
+    scheduled.length === 0 &&
+    recentDecisions.length === 0;
+  const gate = useFirstRunGate({ firstRun: () => (listLoaded ? nothingToReview : null) });
   const idsByTab: Record<ReviewTab, string[]> = useMemo(
     () => ({
       waiting: [...blocking.map((b) => b.id), ...improvements.map((c) => c.id)],
@@ -183,15 +188,9 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
     );
   }
 
-  const firstRunUndecided = setup.loading || (setup.isFirstRun && !listLoaded);
-  if (firstRunUndecided) return <ConsoleSplitSkeleton grid={SPLIT_GRID} lede />;
-  const nothingToReview =
-    blocking.length === 0 &&
-    improvements.length === 0 &&
-    scheduled.length === 0 &&
-    recentDecisions.length === 0;
-  if (setup.isFirstRun && nothingToReview) {
-    return <ReviewFirstRun setup={setup} decidedCount={decisions.items.length} />;
+  if (gate.view === 'loading') return <ConsoleSplitSkeleton grid={SPLIT_GRID} lede />;
+  if (gate.view === 'firstRun') {
+    return <ReviewFirstRun setup={gate.setup} decidedCount={decisions.items.length} />;
   }
 
   const afterDecision = (ok: boolean) => {

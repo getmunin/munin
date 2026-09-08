@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { fetchJsonWithCookie } from './auth/api-cookie-fetch';
 import {
   isSetupIncomplete,
   type AgentConfigStatusDto,
@@ -54,42 +55,18 @@ export function hasSessionCookie(cookieHeader: string): boolean {
   return cookieHeader.includes('session_token');
 }
 
-function trimTrailingSlashes(value: string): string {
-  let end = value.length;
-  while (end > 0 && value[end - 1] === '/') end -= 1;
-  return value.slice(0, end);
-}
-
-function resolveApiUrl(options: SetupGateOptions): string {
-  return trimTrailingSlashes(
-    options.apiUrl ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001',
-  );
-}
-
-async function readJson<T>(url: string, cookie: string, timeoutMs: number): Promise<T | null> {
-  try {
-    const res = await fetch(url, {
-      headers: { cookie },
-      cache: 'no-store',
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
-  } catch (err) {
-    console.warn('[setup-gate] status fetch failed', url, err);
-    return null;
-  }
-}
-
 export async function fetchSetupIncomplete(
   cookie: string,
   options: SetupGateOptions,
 ): Promise<boolean> {
-  const apiUrl = resolveApiUrl(options);
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const fetchOptions = {
+    apiUrl: options.apiUrl,
+    timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    label: 'setup-gate',
+  };
   const [config, memberships] = await Promise.all([
-    readJson<AgentConfigStatusDto>(`${apiUrl}/v1/agent-config`, cookie, timeoutMs),
-    readJson<MembershipDto[]>(`${apiUrl}/v1/me/memberships`, cookie, timeoutMs),
+    fetchJsonWithCookie<AgentConfigStatusDto>('/v1/agent-config', cookie, fetchOptions),
+    fetchJsonWithCookie<MembershipDto[]>('/v1/me/memberships', cookie, fetchOptions),
   ]);
   return isSetupIncomplete(config, memberships);
 }

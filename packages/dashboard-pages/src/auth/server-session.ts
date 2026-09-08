@@ -2,9 +2,10 @@ import 'server-only';
 import { cookies } from 'next/headers';
 import { redirect as externalRedirect } from 'next/navigation';
 import { redirect } from '../i18n-navigation';
+import { fetchJsonWithCookie, resolveApiUrl } from './api-cookie-fetch';
 import { oauthResumeFromSearchParams, safeRedirect } from './post-signin-redirect';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const SERVER_FETCH = { label: 'server-session' };
 
 type OrgRole = 'owner' | 'admin' | 'member';
 
@@ -20,20 +21,6 @@ interface AgentConfigStatusDto {
   providerConfigured: boolean;
 }
 
-async function fetchWithCookies<T>(path: string, cookieHeader: string): Promise<T | null> {
-  try {
-    const res = await fetch(`${API_URL}${path}`, {
-      headers: { cookie: cookieHeader },
-      cache: 'no-store',
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
-  } catch (err) {
-    console.warn('[server-session] fetch failed', path, err);
-    return null;
-  }
-}
-
 export interface ServerSession {
   user: { id: string; email?: string | null } & Record<string, unknown>;
   session: { id: string } & Record<string, unknown>;
@@ -44,7 +31,7 @@ export async function getServerSession(): Promise<ServerSession | null> {
   const cookieHeader = cookieStore.toString();
   if (!cookieHeader) return null;
   try {
-    const res = await fetch(`${API_URL}/auth/get-session`, {
+    const res = await fetch(`${resolveApiUrl()}/auth/get-session`, {
       headers: { cookie: cookieHeader },
       cache: 'no-store',
     });
@@ -80,8 +67,8 @@ export async function redirectIfSetupIncomplete(opts: {
   if (!cookieHeader) return;
 
   const [config, memberships] = await Promise.all([
-    fetchWithCookies<AgentConfigStatusDto>('/v1/agent-config', cookieHeader),
-    fetchWithCookies<MembershipDto[]>('/v1/me/memberships', cookieHeader),
+    fetchJsonWithCookie<AgentConfigStatusDto>('/v1/agent-config', cookieHeader, SERVER_FETCH),
+    fetchJsonWithCookie<MembershipDto[]>('/v1/me/memberships', cookieHeader, SERVER_FETCH),
   ]);
   if (!config || !memberships) return;
 

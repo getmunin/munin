@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 import { api } from '../../api';
+import { useDashboardBootstrap } from '../../auth/dashboard-bootstrap';
 import { usePathname } from '../../i18n-navigation';
 import { useRealtime, type SubscriptionChannel } from '../../realtime';
 import { toSetupSnapshot, type SetupSnapshot, type SetupStateDto } from './setup-snapshot';
@@ -36,8 +37,14 @@ const ORG_SUBSCRIPTION: readonly SubscriptionChannel[] = [{ channel: 'org' }];
 
 const SetupStateContext = createContext<SetupState | null>(null);
 
-export function SetupStateProvider({ children }: { children: ReactNode }) {
-  const value = useFetchSetupState(true);
+export function SetupStateProvider({
+  enabled = true,
+  children,
+}: {
+  enabled?: boolean;
+  children: ReactNode;
+}) {
+  const value = useFetchSetupState(enabled);
   return <SetupStateContext.Provider value={value}>{children}</SetupStateContext.Provider>;
 }
 
@@ -48,8 +55,9 @@ export function useSetupState(): SetupState {
 }
 
 function useFetchSetupState(enabled: boolean): SetupState {
-  const [dto, setDto] = useState<SetupStateDto | null>(null);
-  const [loading, setLoading] = useState(true);
+  const bootstrap = useDashboardBootstrap();
+  const [dto, setDto] = useState<SetupStateDto | null>(bootstrap?.setup ?? null);
+  const [loading, setLoading] = useState(bootstrap === null);
   const startedAt = useRef(0);
   const pathname = usePathname();
 
@@ -71,9 +79,13 @@ function useFetchSetupState(enabled: boolean): SetupState {
     revalidate();
   }, [revalidate, pathname]);
 
-  useRealtime(ORG_SUBSCRIPTION, (event) => {
-    if (REFRESH_PREFIXES.some((prefix) => event.type.startsWith(prefix))) revalidate();
-  });
+  useRealtime(
+    ORG_SUBSCRIPTION,
+    (event) => {
+      if (REFRESH_PREFIXES.some((prefix) => event.type.startsWith(prefix))) revalidate();
+    },
+    { enabled },
+  );
 
   return useMemo(() => {
     const snapshot = toSetupSnapshot(dto);

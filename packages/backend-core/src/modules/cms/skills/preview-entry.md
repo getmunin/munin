@@ -15,6 +15,7 @@ Munin cannot render the customer's frontend itself; it delegates. The collection
 1. Once per collection: set `settings.previewUrl` via `cms_update_collection` (read-merge-write — see warning below).
 2. Per preview: `cms_get_preview_link { id }` → open the returned `url` (or `deliveryUrl` for raw JSON when no template is set).
 3. Once per frontend: a draft-mode route handler that accepts the token and re-fetches with `?preview=`.
+4. Once per frontend, to preview inside the dashboard's Review pane: let the dashboard origin frame the preview routes, and set the preview cookie `SameSite=None; Secure` (see Step 4 — both fail silently otherwise).
 
 ## Step 1 — configure the collection's preview template
 
@@ -90,7 +91,13 @@ export async function GET(req: Request) {
   const locale = params.get('locale') ?? 'en';
   if (!token || !slug) return new Response('missing token or slug', { status: 400 });
   (await draftMode()).enable();
-  (await cookies()).set('munin-preview-token', token, { httpOnly: true, secure: true, path: '/' });
+  (await cookies()).set('munin-preview-token', token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    partitioned: true,
+    path: '/',
+  });
   redirect(`/${locale}/blog/${slug}`);
 }
 ```
@@ -109,14 +116,75 @@ const res = await fetch(
 Notes:
 
 - The fetch stays **server-side** — the delivery API has no CORS headers by design (`skill://playbooks/frontend-integration`). Draft mode's own bypass cookie does not carry the Munin token, hence the extra cookie.
+- `sameSite: 'none'` on that cookie is not optional if the preview is ever opened in the Review pane — see Step 4.
 - Preview responses include `status`; render a visible "draft" banner when it isn't `published`.
 - An expired or tampered token returns **403** (never a silent fallback to the published version); a slug mismatch returns **404**. Surface these rather than swallowing them — they mean "mint a new link".
+
+## Step 4 — let the Review pane embed it
+
+The dashboard's Review pane renders the preview in an `<iframe>` next to the approve/dismiss actions, appending `munin_embed=1` to the URL so the frontend can drop its own chrome (cookie banner, nav, chat widget) for the embedded view. Two things on the frontend decide whether that frame shows anything, and **both fail silently in the browser** — a blocked frame fires `load` exactly like a successful one and exposes nothing to the embedder, so the pane cannot tell you what went wrong from the browser alone. Munin probes the preview URL server-side and names the offending header in the pane instead.
+
+**1. Framing headers must allow the dashboard origin.** A site that sends `Content-Security-Policy: frame-ancestors 'none'` or `X-Frame-Options: DENY` — a very common default, and what Next.js security-header snippets usually suggest — cannot be embedded anywhere. Scope the exception to the preview routes rather than the whole site:
+
+```js
+// next.config.mjs
+async headers() {
+  return [
+    {
+      source: '/:path*',
+      headers: [
+        { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+        { key: 'X-Frame-Options', value: 'DENY' },
+      ],
+    },
+    {
+      source: '/api/preview',
+      headers: [
+        { key: 'Content-Security-Policy', value: 'frame-ancestors https://app.example.com' },
+      ],
+    },
+    {
+      source: '/:lng/blog/:slug',
+      headers: [
+        { key: 'Content-Security-Policy', value: 'frame-ancestors https://app.example.com' },
+      ],
+    },
+  ];
+}
+```
+
+Replace `https://app.example.com` with the origin the Munin dashboard is served from. **Do not re-send `X-Frame-Options` on those routes** — it has no allowlist (`ALLOW-FROM` is dead and ignored by every current browser), so the only way to permit one embedder is to omit the header and let `frame-ancestors` decide. Browsers ignore `X-Frame-Options` when a CSP `frame-ancestors` directive is present, but Safari has not always, so leave it off rather than relying on that.
+
+**2. The preview cookie must survive a third-party context.** The dashboard is a different site from the frontend, so the frame is cross-site: a cookie set `SameSite=Lax` (the browser default when the attribute is omitted) is **not sent back** on the redirect inside the frame. The preview endpoint sets the cookie, the frame redirects, the cookie never arrives, and the reader gets the published page — or a 404 — with no error anywhere. Next's own draft-mode bypass cookie already uses `SameSite=None` in production for exactly this reason; the Munin token cookie has to match:
+
+```ts
+(await cookies()).set('munin-preview-token', token, {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'none',   // required: the dashboard frames this cross-site
+  partitioned: true,  // CHIPS — third-party cookies are blocked without it
+  path: '/',
+});
+```
+
+`sameSite: 'none'` requires `secure: true`, so preview only works over HTTPS. `partitioned: true` keys the cookie to the embedding site, which is what keeps it working as browsers finish phasing out unpartitioned third-party cookies — and is harmless where they haven't.
+
+To check both from the outside:
+
+```sh
+curl -sSI 'https://www.example.com/api/preview?token=…&slug=…&locale=en' \
+  | grep -i 'content-security-policy\|x-frame-options\|set-cookie'
+```
+
+You want `frame-ancestors` naming the dashboard origin (or no framing headers at all), no `X-Frame-Options`, and `SameSite=None; Secure` on the preview cookie. When the frame cannot be embedded, the Review pane falls back to the field view and says which header refused — the "open on the site" link keeps working either way, because a top-level navigation is not framed.
 
 ## What NOT to do
 
 - **Don't write `settings.previewUrl` without merging** the collection's existing settings (see Step 1).
 - **Don't put the preview token in client-side fetches or localStorage.** It belongs in an httpOnly cookie and server-side requests only.
 - **Don't try to preview a list page.** Tokens authorize exactly one entry; list and search routes ignore drafts unconditionally.
+- **Don't leave the preview cookie on the default `SameSite`.** It reads as working when you open the link in a tab and fails only inside the Review pane's frame, where it shows the published entry instead of the draft.
+- **Don't answer a blank preview pane by widening the site's framing headers.** Scope `frame-ancestors` to the preview routes and to the dashboard origin; `frame-ancestors *` lets anyone frame the site.
 
 ## Related
 

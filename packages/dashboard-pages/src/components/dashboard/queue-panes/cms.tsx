@@ -107,8 +107,11 @@ export function CmsQueuePane({
   const [previewState, setPreviewState] = useState<'loading' | 'ready' | 'failed'>('loading');
 
   const previewUrl = previewLink?.url ?? null;
-  const embedUrl = previewUrl ? withEmbedParam(previewUrl) : null;
-  const showPreviewTab = !!previewUrl && !editing;
+  const blockedEmbed =
+    previewLink?.embed && !previewLink.embed.embeddable ? previewLink.embed : null;
+  const embedUrl = previewUrl && !blockedEmbed ? withEmbedParam(previewUrl) : null;
+  const hasPreviewUrl = !!previewUrl && !editing;
+  const showPreviewTab = hasPreviewUrl && !blockedEmbed;
 
   useEffect(() => {
     setView('preview');
@@ -247,15 +250,17 @@ export function CmsQueuePane({
 
           {detail ? (
             <>
-              {showPreviewTab ? (
+              {hasPreviewUrl ? (
                 <div className="flex shrink-0 items-center gap-5 border-b-[1px] border-rule-soft px-5 md:px-7 dark:border-rule-on-dark">
-                  <ViewTab
-                    active={view === 'preview'}
-                    warn={previewState === 'failed'}
-                    onSelect={() => setView('preview')}
-                  >
-                    {t('cmsViewPreview')}
-                  </ViewTab>
+                  {showPreviewTab ? (
+                    <ViewTab
+                      active={view === 'preview'}
+                      warn={previewState === 'failed'}
+                      onSelect={() => setView('preview')}
+                    >
+                      {t('cmsViewPreview')}
+                    </ViewTab>
+                  ) : null}
                   <ViewTab active={view === 'read'} onSelect={() => setView('read')}>
                     {t('cmsViewRead')}
                   </ViewTab>
@@ -305,7 +310,25 @@ export function CmsQueuePane({
                 </div>
               ) : (
                 <div className="space-y-6 px-5 py-5 md:px-7">
-                  {previewState === 'failed' && !editing ? (
+                  {blockedEmbed && !editing ? (
+                    <div className="flex flex-col gap-1 border-l-2 border-alert-bad-border bg-alert-bad px-3 py-2">
+                      <span className="font-mono text-[9px] uppercase tracking-eyebrow text-alert-bad-ink">
+                        {t('cmsPreviewBlockedEyebrow')}
+                      </span>
+                      <span className="text-[13px] leading-relaxed text-ink dark:text-foreground">
+                        {blockedEmbed.reason === 'x_frame_options'
+                          ? t('cmsPreviewBlockedXfo', {
+                              host: blockedEmbed.previewHost,
+                              value: blockedEmbed.detail ?? '',
+                            })
+                          : t('cmsPreviewBlockedCsp', {
+                              host: blockedEmbed.previewHost,
+                              value: blockedEmbed.detail ?? '',
+                              embedder: blockedEmbed.embedderOrigin,
+                            })}
+                      </span>
+                    </div>
+                  ) : previewState === 'failed' && !editing ? (
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-l-2 border-alert-bad-border bg-alert-bad px-3 py-2">
                       <span className="flex min-w-0 flex-1 flex-col gap-1">
                         <span className="font-mono text-[9px] uppercase tracking-eyebrow text-alert-bad-ink">

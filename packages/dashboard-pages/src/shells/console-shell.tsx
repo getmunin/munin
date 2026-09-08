@@ -103,50 +103,44 @@ function NavList({
   onNavigate?: () => void;
 }) {
   const tNav = useTranslations('nav');
-  const tGroups = useTranslations('dashboard.console.groups');
   const pathname = usePathname();
 
   return (
-    <nav className="flex flex-col gap-6 pl-2 pr-6">
-      {groups.map((group) => (
-        <div key={group.groupKey}>
-          <p className="mb-2 px-3.5 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-            {tGroups(group.groupKey)}
-          </p>
-          <ul className="space-y-px">
-            {group.items.map((item) => {
-              const active = isConsoleItemActive(pathname, item.href);
-              const count = badgeValue(item.badge, badges);
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={onNavigate}
-                    aria-current={active ? 'page' : undefined}
-                    className={cn(
-                      'flex items-center justify-between gap-2 border-l-[3px] px-3.5 py-2 text-[14.5px] transition-colors duration-fast ease-munin',
-                      active
-                        ? 'border-cobalt bg-paper text-ink dark:border-cobalt-soft dark:bg-card dark:text-foreground'
-                        : 'border-transparent text-ink-soft hover:text-ink dark:text-foreground/70 dark:hover:text-foreground',
-                    )}
-                  >
-                    <span className="truncate">{tNav(item.labelKey)}</span>
-                    {count > 0 ? (
-                      <span className="font-mono text-[10px] text-cobalt dark:text-cobalt-soft">
-                        {count}
-                      </span>
-                    ) : item.trailingArrow ? (
-                      <span aria-hidden className="font-mono text-base leading-none text-ink-mute">
-                        →
-                      </span>
-                    ) : null}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
+    <nav>
+      <ul className="space-y-px">
+        {groups
+          .flatMap((group) => group.items)
+          .map((item) => {
+            const active = isConsoleItemActive(pathname, item.href);
+            const count = badgeValue(item.badge, badges);
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  onClick={onNavigate}
+                  aria-current={active ? 'page' : undefined}
+                  className={cn(
+                    'flex items-center justify-between gap-2 border-l-[3px] py-2 pl-[17px] pr-5 text-[14.5px] transition-colors duration-fast ease-munin',
+                    active
+                      ? 'border-cobalt bg-paper text-ink dark:border-cobalt-soft dark:bg-card dark:text-foreground'
+                      : 'border-transparent text-ink-soft hover:text-ink dark:text-foreground/70 dark:hover:text-foreground',
+                  )}
+                >
+                  <span className="truncate">{tNav(item.labelKey)}</span>
+                  {count > 0 ? (
+                    <span className="font-mono text-[10px] text-cobalt dark:text-cobalt-soft">
+                      {count}
+                    </span>
+                  ) : item.trailingArrow ? (
+                    <span aria-hidden className="font-mono text-base leading-none text-ink-mute">
+                      →
+                    </span>
+                  ) : null}
+                </Link>
+              </li>
+            );
+          })}
+      </ul>
     </nav>
   );
 }
@@ -193,9 +187,33 @@ function UserFooter({
 
 export interface ConsoleShellProps {
   brand: string;
+  brandHref?: string;
   logoSrc?: string;
   headSlot?: ReactNode;
   children: ReactNode;
+}
+
+function BrandMark({
+  href,
+  label,
+  children,
+}: {
+  href: string;
+  label: string;
+  children: ReactNode;
+}) {
+  if (/^https?:\/\//i.test(href)) {
+    return (
+      <a href={href} aria-label={label} className="block shrink-0">
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Link href={href} aria-label={label} className="block shrink-0">
+      {children}
+    </Link>
+  );
 }
 
 export function ConsoleShell(props: ConsoleShellProps) {
@@ -208,6 +226,7 @@ export function ConsoleShell(props: ConsoleShellProps) {
 
 function ConsoleShellInner({
   brand,
+  brandHref = '/dashboard',
   logoSrc = '/munin-logo.png',
   headSlot,
   children,
@@ -248,12 +267,17 @@ function ConsoleShellInner({
     <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)]">
       <aside className="hidden min-h-0 flex-col border-r border-ink bg-bone md:flex dark:border-rule-on-dark dark:bg-secondary">
         <div className="flex items-center gap-3 px-5 pb-4 pt-5">
-          <Image src={logoSrc} alt="" aria-hidden width={44} height={44} className="block size-11 object-contain" />
-          <span className="min-w-0 truncate text-[15px] font-medium text-ink dark:text-foreground">
-            {brand}
-          </span>
+          <BrandMark href={brandHref} label={brand}>
+            <Image src={logoSrc} alt="" aria-hidden width={44} height={44} className="block size-11 object-contain" />
+          </BrandMark>
+          {headSlot ? (
+            <div className="min-w-0">{headSlot}</div>
+          ) : (
+            <span className="min-w-0 truncate text-[15px] font-medium text-ink dark:text-foreground">
+              {brand}
+            </span>
+          )}
         </div>
-        {headSlot}
         <div className="min-h-0 flex-1 overflow-y-auto py-3">
           <NavList groups={groups} badges={badges} />
         </div>
@@ -293,7 +317,9 @@ function ConsoleShellInner({
             </button>
           ) : (
             <>
-              <Image src={logoSrc} alt="" aria-hidden width={26} height={26} className="block size-[26px] object-contain" />
+              <BrandMark href={brandHref} label={brand}>
+                <Image src={logoSrc} alt="" aria-hidden width={26} height={26} className="block size-[26px] object-contain" />
+              </BrandMark>
               <span className="min-w-0 truncate text-sm font-medium text-ink dark:text-foreground">
                 {brand}
               </span>
@@ -319,9 +345,12 @@ function ConsoleShellInner({
         <SheetContent side="left" className="max-w-[320px] border-0 p-0">
           <div className="flex h-full flex-col bg-bone dark:bg-secondary">
             <SheetTitle className="flex items-center gap-2.5 px-5 pb-2 pt-5 font-sans text-[15px] font-medium tracking-normal text-ink dark:text-foreground">
-              <Image src={logoSrc} alt="" aria-hidden width={26} height={26} className="block size-[26px] shrink-0 object-contain" />
+              <BrandMark href={brandHref} label={brand}>
+                <Image src={logoSrc} alt="" aria-hidden width={26} height={26} className="block size-[26px] shrink-0 object-contain" />
+              </BrandMark>
               <span className="min-w-0 truncate">{brand}</span>
             </SheetTitle>
+            {headSlot ? <div className="px-5 pb-1 pt-2">{headSlot}</div> : null}
             <div className="min-h-0 flex-1 overflow-y-auto py-2">
               <NavList groups={groups} badges={badges} onNavigate={() => setMenuOpen(false)} />
             </div>

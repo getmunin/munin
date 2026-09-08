@@ -7,6 +7,8 @@ import { authClient } from '../../auth-client';
 import { useRouter } from '../../i18n-navigation';
 import { useRealtime } from '../../realtime';
 import { ConsoleSectionLabel } from '../console-section-label';
+import { ConsoleListEmpty } from '../console-empty';
+import { ConsoleRowsSkeleton } from '../console-skeleton';
 import { ConversationRow } from './conversation-row';
 import type { QueueItemDto } from './conversation-queue';
 import { StatRow } from './overview-stat-row';
@@ -20,13 +22,15 @@ export function OverviewConversations({ liveCount }: { liveCount: number }) {
   const { data: session } = authClient.useSession();
   const viewerUserId = session?.user?.id ?? null;
   const [recent, setRecent] = useState<QueueItemDto[]>([]);
+  const [recentLoaded, setRecentLoaded] = useState(false);
 
   const loadRecent = useCallback(() => {
     void api<{ items: QueueItemDto[] }>(
       `/v1/conversations/queue?status=open&limit=${RECENT_LIMIT}`,
     )
       .then((res) => setRecent(res.items))
-      .catch(() => setRecent([]));
+      .catch(() => setRecent([]))
+      .finally(() => setRecentLoaded(true));
   }, []);
 
   useEffect(() => {
@@ -49,10 +53,10 @@ export function OverviewConversations({ liveCount }: { liveCount: number }) {
       />
       <ul className="border-t border-rule-soft dark:border-rule-on-dark">
         <ConsoleSectionLabel>{tSections('conversationsRecent')}</ConsoleSectionLabel>
-        {recent.length === 0 ? (
-          <li className="border-b border-rule-soft px-5 py-5 text-[13px] leading-relaxed text-ink-soft dark:border-rule-on-dark dark:text-foreground/80">
-            {tSections('conversationsEmpty')}
-          </li>
+        {!recentLoaded ? (
+          <ConsoleRowsSkeleton rows={3} />
+        ) : recent.length === 0 ? (
+          <ConsoleListEmpty body={tSections('conversationsEmpty')} />
         ) : (
           recent.map((item) => (
             <ConversationRow

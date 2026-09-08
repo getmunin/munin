@@ -16,10 +16,13 @@ import {
 import { ConversationRow } from '../components/dashboard/conversation-row';
 import { ConversationPane } from '../components/dashboard/conversation-pane';
 import { ConsoleSectionLabel } from '../components/console-section-label';
+import { ConsoleListEmpty } from '../components/console-empty';
+import { ConsoleRowsSkeleton, ConsoleSplitSkeleton } from '../components/console-skeleton';
 import { ConversationsFirstRun, useSetupState } from '../components/first-run';
 import { useProvideMobileBack } from '../shells/mobile-back';
 
 const FADE_FLOOR = 0.55;
+const SPLIT_GRID = 'md:grid-cols-[minmax(0,1.05fr)_minmax(0,1.4fr)]';
 
 export function ConversationsPage({ selectedId = null }: { selectedId?: string | null }) {
   const t = useTranslations('dashboard.console.queue');
@@ -100,7 +103,7 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
     );
   }
 
-  if (setup.loading) return null;
+  if (setup.loading) return <ConsoleSplitSkeleton grid={SPLIT_GRID} />;
   if (setup.isFirstRun) return <ConversationsFirstRun setup={setup} />;
 
   const select = (id: string) => shallowGo(`/dashboard/conversations/${id}`);
@@ -120,8 +123,15 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
       />
     ));
 
+  const loaded = queue.hasLoadedOnce;
+  const nothingToShow =
+    loaded &&
+    sections.needsYou.length === 0 &&
+    sections.inProgress.length === 0 &&
+    sections.finished.length === 0;
+
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-[minmax(0,1.05fr)_minmax(0,1.4fr)]">
+    <div className={cn('grid h-full min-h-0 grid-cols-1', SPLIT_GRID)}>
       <section
         onScroll={onListScroll}
         className={cn(
@@ -148,6 +158,13 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
           />
         </header>
         <ul onScroll={onListScroll} className="pb-6 md:min-h-0 md:flex-1 md:overflow-y-auto">
+          {!loaded ? <ConsoleRowsSkeleton /> : null}
+          {nothingToShow ? (
+            <ConsoleListEmpty
+              title={search ? t('emptySearchTitle') : t('emptyTitle')}
+              body={search ? t('emptySearchBody') : t('emptyBody')}
+            />
+          ) : null}
           {sections.needsYou.length > 0 ? (
             <>
               <ConsoleSectionLabel>{t('sectionNeedsYou', { count: sections.needsYou.length })}</ConsoleSectionLabel>

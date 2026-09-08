@@ -12,6 +12,8 @@ import {
   cn,
 } from '@getmunin/ui';
 import { ConsoleHero } from '../components/console-hero';
+import { ConsoleEmptyText } from '../components/console-empty';
+import { ConsoleHeroSkeleton, ConsoleTableSkeleton } from '../components/console-skeleton';
 import { api, ApiError } from '../api';
 import { notify } from '../lib/notify';
 import { useTranslateError } from '../i18n/translate-error';
@@ -175,7 +177,16 @@ export function AutomationPage() {
   }
 
   const firstRunUndecided = setup.loading || (setup.isFirstRun && summary === null);
-  if (firstRunUndecided) return null;
+  if (firstRunUndecided) {
+    return (
+      <div className="flex min-h-full flex-col">
+        <ConsoleHeroSkeleton actions />
+        <div className="flex-1 px-5 pb-10 pt-1 md:px-8">
+          <ConsoleTableSkeleton grid={GRID} />
+        </div>
+      </div>
+    );
+  }
   if (setup.isFirstRun && topics.length === 0) return <AutomationFirstRun setup={setup} />;
 
   const autoRate = summary?.autoRate7d;
@@ -206,7 +217,7 @@ export function AutomationPage() {
       />
 
       <div className="flex-1 px-5 pb-10 pt-1 md:overflow-x-auto md:px-8">
-        <div className="md:min-w-[760px]">
+        <div className="max-md:border-t max-md:border-ink md:min-w-[760px] max-md:dark:border-rule-on-dark">
           <div
             className={cn(
               GRID,
@@ -218,10 +229,11 @@ export function AutomationPage() {
             <span>{t('colUnedited')}</span>
             <span className="justify-self-end">{t('colPolicy')}</span>
           </div>
-          {topics.length === 0 ? (
-            <p className="py-6 font-mono text-[10px] uppercase tracking-meta text-ink-mute">
-              {t('empty')}
-            </p>
+          {summary === null ? <ConsoleTableSkeleton grid={GRID} /> : null}
+          {summary !== null && topics.length === 0 ? (
+            <div className="py-5">
+              <ConsoleEmptyText body={t('empty')} />
+            </div>
           ) : null}
           {topics.map((row) => {
             const pct = uneditedPct(row);

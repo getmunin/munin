@@ -8,7 +8,7 @@ export function ConsoleSectionLabel({
   children: ReactNode;
 }) {
   return (
-    <li className="flex items-baseline justify-between gap-4 border-b border-rule-soft px-5 py-3 font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute dark:border-rule-on-dark">
+    <li className="flex items-baseline justify-between gap-4 border-b border-rule-soft px-5 py-3 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label dark:border-rule-on-dark">
       <span>{children}</span>
       {note ? <span className="shrink-0 text-right">{note}</span> : null}
     </li>

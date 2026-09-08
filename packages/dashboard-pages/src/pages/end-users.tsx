@@ -176,7 +176,7 @@ function Th({ children, className }: { children?: ReactNode; className?: string 
   return (
     <th
       className={cn(
-        'pb-3 pr-4 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute font-normal',
+        'pb-3 pr-4 font-mono text-[10px] uppercase tracking-eyebrow text-ink-label font-medium',
         className,
       )}
     >
@@ -187,7 +187,7 @@ function Th({ children, className }: { children?: ReactNode; className?: string 
 
 function Avatar({ name, email }: { name: string | null; email: string | null }) {
   return (
-    <span className="inline-flex size-9 items-center justify-center rounded-full bg-paper-deep dark:bg-secondary font-mono text-[11px] uppercase text-ink dark:text-foreground">
+    <span className="inline-flex size-9 items-center justify-center rounded-full bg-paper-deep dark:bg-secondary font-mono text-[11px] font-medium uppercase text-ink dark:text-foreground">
       {avatarInitials(name, email)}
     </span>
   );

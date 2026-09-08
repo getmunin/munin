@@ -28,7 +28,7 @@ export function FirstRunStatusList({
           key={row.key}
           className="grid grid-cols-1 gap-1.5 border-b border-rule-soft py-4 last:border-b-0 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center md:gap-5 md:py-5 dark:border-rule-on-dark"
         >
-          <span className="flex items-center gap-2.5 font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+          <span className="flex items-center gap-2.5 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
             <StatusDot live={row.live === true} />
             {row.kind}
           </span>
@@ -36,7 +36,7 @@ export function FirstRunStatusList({
             {row.detail}
           </span>
           {row.meta ? (
-            <span className="font-mono text-[9px] uppercase tracking-meta text-ink-mute">
+            <span className="font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
               {row.meta}
             </span>
           ) : null}

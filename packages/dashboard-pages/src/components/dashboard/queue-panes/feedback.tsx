@@ -52,12 +52,12 @@ export function FeedbackQueuePane({
 
       <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5 md:px-7">
         <section className="space-y-2">
-          <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+          <p className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
             {t('proposal')}
           </p>
           <div className="border-[1px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:bg-card dark:border-rule-on-dark dark:text-foreground">
             <p className="whitespace-pre-wrap">{f.body}</p>
-            <p className="mt-3 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+            <p className="mt-3 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
               {t(attributionKey, { orgName: '—', userName: '—' })}
             </p>
             <p className="mt-2 text-ink-mute text-xs">{t('feedbackApproveConfirm')}</p>

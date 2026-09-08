@@ -268,7 +268,7 @@ interface CuratorJobDto {
   progress: WebImportProgress | null;
 }
 
-const MONO_LABEL = 'font-mono text-[11px] uppercase tracking-[0.14em]';
+const MONO_LABEL = 'font-mono text-[11px] font-medium uppercase tracking-[0.14em]';
 
 function WebsiteImportStatus({ jobId, initialUrl }: { jobId: string; initialUrl: string | null }) {
   const t = useTranslations('agentSetup.websiteImport.status');
@@ -359,7 +359,7 @@ function WebsiteImportStatus({ jobId, initialUrl }: { jobId: string; initialUrl:
             type="button"
             onClick={() => void retry()}
             disabled={retrying || !url}
-            className="border border-rule px-3.5 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-ink transition-colors duration-base hover:bg-ink hover:text-paper disabled:opacity-50 dark:text-foreground"
+            className="border border-rule px-3.5 py-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink transition-colors duration-base hover:bg-ink hover:text-paper disabled:opacity-50 dark:text-foreground"
           >
             {retrying ? tCommon('saving') : t('retry')}
           </button>

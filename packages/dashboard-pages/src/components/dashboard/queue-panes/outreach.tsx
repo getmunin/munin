@@ -174,7 +174,7 @@ export function OutreachQueuePane({
 
         {originalDraftBody !== null && !editing && (
           <section className="space-y-2">
-            <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+            <p className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
               {t('outreachOriginalDraft')}
             </p>
             <BodyDiff
@@ -187,7 +187,7 @@ export function OutreachQueuePane({
 
         {item.raw.kind === 'reply' && (
           <section className="space-y-2">
-            <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+            <p className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
               {t('replyFrom')}
             </p>
             <p className="border-l-2 border-cobalt pl-3 font-serif italic text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft">
@@ -201,7 +201,7 @@ export function OutreachQueuePane({
         )}
 
         <section className="space-y-2">
-          <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+          <p className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
             {t('proposal')}
           </p>
           {editing ? (
@@ -215,7 +215,7 @@ export function OutreachQueuePane({
           ) : (
             <div className="border-[1px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:bg-card dark:border-rule-on-dark dark:text-foreground">
               {item.raw.draftSubject && (
-                <p className="mb-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+                <p className="mb-2 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
                   {t('subject', { subject: item.raw.draftSubject })}
                 </p>
               )}
@@ -276,7 +276,7 @@ export function OutreachQueuePane({
             }}
           >
             <label className="flex flex-col gap-1.5">
-              <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+              <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
                 {t('outreachScheduleLabel')}
               </span>
               <input
@@ -291,7 +291,7 @@ export function OutreachQueuePane({
               />
             </label>
             {scheduleError && (
-              <span className="font-mono text-[10px] uppercase tracking-eyebrow text-destructive">
+              <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-destructive">
                 {scheduleError}
               </span>
             )}

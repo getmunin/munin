@@ -32,7 +32,7 @@ export function TestConversationBanner({
 
   return (
     <div className="mx-5 mt-4 flex flex-wrap items-center gap-x-3.5 gap-y-2.5 border border-cobalt bg-paper px-3.5 py-2.5 md:mx-7 dark:border-cobalt-soft dark:bg-card">
-      <span className="font-mono text-[9px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+      <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
         {t('testBadge')}
       </span>
       <span className="min-w-[200px] flex-1 text-[13.5px] leading-relaxed text-ink-soft dark:text-foreground/80">

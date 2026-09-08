@@ -15,7 +15,7 @@ export function FirstRunScene({
   return (
     <section className="mx-auto flex w-full max-w-[780px] flex-col gap-9 px-5 pb-16 pt-12 md:gap-11 md:px-11 md:pb-20 md:pt-16">
       <header className="flex flex-col gap-4">
-        <span className="font-mono text-[11px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+        <span className="font-mono text-[11px] font-medium uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
           {eyebrow}
         </span>
         <h1 className="font-serif text-[38px] font-normal leading-[1.05] tracking-tight text-ink md:text-[52px] dark:text-foreground [&_em]:italic [&_em]:text-cobalt dark:[&_em]:text-cobalt-soft">
@@ -47,7 +47,7 @@ export function FirstRunAside({
 }) {
   return (
     <div className="flex flex-col gap-3 border-t border-ink pt-6 dark:border-rule-on-dark">
-      <div className="flex items-baseline gap-4 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+      <div className="flex items-baseline gap-4 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
         <span>{label}</span>
         {meta ? <span className="ml-auto tracking-meta">{meta}</span> : null}
       </div>

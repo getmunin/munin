@@ -4,7 +4,7 @@ export function ConsoleEmptyText({ title, body }: { title?: ReactNode; body: Rea
   return (
     <>
       {title ? (
-        <p className="mb-1.5 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+        <p className="mb-1.5 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
           {title}
         </p>
       ) : null}

@@ -7,7 +7,7 @@ export const PARTICIPANT_HUES = [165, 32, 210, 75, 315] as const;
 const PARTICIPANT_RING_MIN_HUMANS = 3;
 
 export function participantColor(hue: number): string {
-  return `oklch(0.55 0.105 ${hue})`;
+  return `oklch(var(--munin-participant-l) 0.105 ${hue})`;
 }
 
 export function messageRole(message: MessageDto, viewerUserId: string | null): MessageRole {

@@ -15,17 +15,17 @@ const muninPreset: Omit<Config, 'content'> = {
         input: 'var(--input)',
         ring: 'var(--ring)',
         background: 'var(--background)',
-        foreground: 'var(--foreground)',
+        foreground: 'rgb(var(--foreground-rgb) / <alpha-value>)',
         primary: {
           DEFAULT: 'var(--primary)',
           foreground: 'var(--primary-foreground)',
         },
         secondary: {
-          DEFAULT: 'var(--secondary)',
+          DEFAULT: 'rgb(var(--secondary-rgb) / <alpha-value>)',
           foreground: 'var(--secondary-foreground)',
         },
         destructive: {
-          DEFAULT: 'var(--destructive)',
+          DEFAULT: 'rgb(var(--destructive-rgb) / <alpha-value>)',
           foreground: 'var(--destructive-foreground)',
         },
         muted: {
@@ -41,7 +41,7 @@ const muninPreset: Omit<Config, 'content'> = {
           foreground: 'var(--popover-foreground)',
         },
         card: {
-          DEFAULT: 'var(--card)',
+          DEFAULT: 'rgb(var(--card-rgb) / <alpha-value>)',
           foreground: 'var(--card-foreground)',
         },
         bone: 'rgb(var(--munin-bone) / <alpha-value>)',
@@ -53,6 +53,7 @@ const muninPreset: Omit<Config, 'content'> = {
           DEFAULT: 'rgb(var(--munin-ink) / <alpha-value>)',
           soft: 'rgb(var(--munin-fg-2) / <alpha-value>)',
           mute: 'rgb(var(--munin-fg-3) / <alpha-value>)',
+          label: 'rgb(var(--munin-fg-label) / <alpha-value>)',
         },
         cobalt: {
           DEFAULT: 'rgb(var(--munin-accent) / <alpha-value>)',

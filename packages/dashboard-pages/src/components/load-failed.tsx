@@ -59,7 +59,7 @@ export function LoadFailed({
       )}
     >
       <div className="space-y-3">
-        <div className="flex items-center gap-2 font-mono uppercase tracking-eyebrow text-[11px] text-alert-bad-ink">
+        <div className="flex items-center gap-2 font-mono uppercase tracking-eyebrow text-[11px] font-medium text-alert-bad-ink">
           <span
             aria-hidden
             className="size-1.5 shrink-0 rounded-full bg-alert-bad-border"
@@ -110,7 +110,7 @@ export function LoadFailed({
           {retrying ? retryingLabel : retryLabel}
         </Button>
         {autoRetryHint && (
-          <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute dark:text-foreground/60">
+          <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
             {autoRetryHint}
           </span>
         )}

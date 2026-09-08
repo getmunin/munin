@@ -27,7 +27,7 @@ export function ConsoleHero({
     >
       <div className="min-w-0 space-y-2.5">
         {eyebrow ? (
-          <div className="font-mono text-[11px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+          <div className="font-mono text-[11px] font-medium uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
             {eyebrow}
           </div>
         ) : null}

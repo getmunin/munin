@@ -120,7 +120,7 @@ export function ChooseToolsDialog({
                         {tool.name}
                       </span>
                       {tool.destructive && (
-                        <span className="font-mono text-[10px] uppercase tracking-eyebrow text-destructive">
+                        <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-destructive">
                           {t('notReadOnly')}
                         </span>
                       )}

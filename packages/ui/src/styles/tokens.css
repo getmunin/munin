@@ -9,6 +9,12 @@
   --munin-fg-1: 15 20 25;           /* #0F1419 — primary text */
   --munin-fg-2: 61 66 74;           /* #3D424A — secondary text */
   --munin-fg-3: 94 100 108;         /* #5E646C — metadata, mute */
+
+  /* Labels are the smallest type in the console — mono, uppercase, tracked
+     out, 10px. At that size the mute ramp above measures AA but reads as
+     grey noise, so the label tier gets its own colour and its own dark
+     value rather than borrowing fg-2 plus a per-site dark: override. */
+  --munin-fg-label: 61 66 74;       /* #3D424A — mono uppercase labels */
   --munin-fg-on-dark-1: 251 250 247;
   --munin-fg-on-dark-2: 244 239 230; /* used at 0.75 alpha in legacy */
 
@@ -34,6 +40,10 @@
   --munin-auth-navy: 42 63 88;        /* #2A3F58 — primary CTA on auth pages */
   --munin-auth-navy-hover: 31 47 68;  /* #1F2F44 */
 
+  /* The alert family is a set: the ink is legible on the bg *and* on the
+     page, because callers use it both ways (a tinted callout, and a bare
+     eyebrow or inline clause on the surface itself). All three therefore
+     need a dark value — a light-only maroon reaches 1.65:1 on ink. */
   --munin-alert-bad-bg: 236 211 203;     /* #ECD3CB */
   --munin-alert-bad-ink: 110 31 18;      /* #6E1F12 */
   --munin-alert-bad-border: 184 73 58;   /* #B8493A */
@@ -52,6 +62,12 @@
      the soft rule; only form controls take this one. */
   --munin-rule-field: rgb(var(--munin-ink));
 
+  /* Per-participant identity hues carry their lightness in a variable so
+     one hue reads on both schemes: the fixed 0.55 measured 4.36:1 on paper
+     and 3.35:1 on the dark card, and it is text (author names) and a 2px
+     border, not only a fill. */
+  --munin-participant-l: 0.5;
+
   --munin-serif: 'Instrument Serif', 'Times New Roman', serif;
   --munin-sans: 'Inter', 'Helvetica Neue', system-ui, sans-serif;
   --munin-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
@@ -67,22 +83,32 @@
 
   color-scheme: light;
 
+  /* Aliases a utility takes an alpha modifier on (bg-card/85,
+     dark:text-foreground/80) must resolve to a bare RGB triple: Tailwind can
+     only inject <alpha-value> into a channel list, and silently drops the
+     whole declaration when the variable already holds a finished colour.
+     Keep these three-number, and derive the plain alias below from them. */
+  --foreground-rgb: var(--munin-fg-1);
+  --card-rgb: var(--munin-paper);
+  --secondary-rgb: var(--munin-paper-deep);
+  --destructive-rgb: 178 59 59;      /* #b23b3b */
+
   /* shadcn-compatible aliases — wrapped in rgb() so they work as plain colors */
   --background: rgb(var(--munin-paper));
-  --foreground: rgb(var(--munin-fg-1));
-  --card: rgb(var(--munin-paper));
+  --foreground: rgb(var(--foreground-rgb));
+  --card: rgb(var(--card-rgb));
   --card-foreground: rgb(var(--munin-fg-1));
   --popover: rgb(var(--munin-paper));
   --popover-foreground: rgb(var(--munin-fg-1));
   --primary: rgb(var(--munin-ink));
   --primary-foreground: rgb(var(--munin-paper));
-  --secondary: rgb(var(--munin-paper-deep));
+  --secondary: rgb(var(--secondary-rgb));
   --secondary-foreground: rgb(var(--munin-fg-1));
   --muted: rgb(var(--munin-paper-deep));
   --muted-foreground: rgb(var(--munin-fg-3));
   --accent: rgb(var(--munin-paper-deep));
   --accent-foreground: rgb(var(--munin-fg-1));
-  --destructive: #b23b3b;
+  --destructive: rgb(var(--destructive-rgb));
   --destructive-foreground: rgb(var(--munin-paper));
   --border: rgb(var(--munin-ink) / var(--munin-rule-soft-alpha));
   --input: rgb(var(--munin-ink) / var(--munin-rule-soft-alpha));
@@ -98,28 +124,63 @@
        at 3.24:1 on ink, and dark's own lightest surface (--secondary) is
        the binding one at 4.73:1. */
     --munin-fg-3: 134 141 151;        /* #868D97 */
+    --munin-fg-label: 194 200 208;    /* #C2C8D0 */
     --munin-rule-field: rgb(var(--munin-fg-on-dark-2) / 0.36);
 
+    --munin-participant-l: 0.74;
+
+    --munin-alert-bad-bg: 51 24 18;        /* #331812 */
+    --munin-alert-bad-ink: 240 167 155;    /* #F0A79B */
+    --munin-alert-bad-border: 210 104 90;  /* #D2685A */
+
+    --foreground-rgb: var(--munin-fg-on-dark-1);
+    --card-rgb: 21 27 34;              /* #151B22 */
+    --secondary-rgb: 28 35 43;         /* #1C232B */
+    --destructive-rgb: 217 106 106;    /* #D96A6A */
+
     --background: rgb(var(--munin-ink));
-    --foreground: rgb(var(--munin-fg-on-dark-1));
-    --card: #151b22;
+    --foreground: rgb(var(--foreground-rgb));
+    --card: rgb(var(--card-rgb));
     --card-foreground: rgb(var(--munin-fg-on-dark-1));
-    --popover: #151b22;
+    --popover: rgb(var(--card-rgb));
     --popover-foreground: rgb(var(--munin-fg-on-dark-1));
     --primary: rgb(var(--munin-paper));
     --primary-foreground: rgb(var(--munin-ink));
-    --secondary: #1c232b;
+    --secondary: rgb(var(--secondary-rgb));
     --secondary-foreground: rgb(var(--munin-fg-on-dark-1));
-    --muted: #1c232b;
+    --muted: rgb(var(--secondary-rgb));
     --muted-foreground: rgb(var(--munin-fg-on-dark-2) / 0.75);
-    --accent: #1c232b;
+    --accent: rgb(var(--secondary-rgb));
     --accent-foreground: rgb(var(--munin-fg-on-dark-1));
-    --destructive: #d96a6a;
+    --destructive: rgb(var(--destructive-rgb));
     --destructive-foreground: rgb(var(--munin-ink));
     --border: rgb(var(--munin-fg-on-dark-2) / var(--munin-rule-on-dark-alpha));
     --input: rgb(var(--munin-fg-on-dark-2) / var(--munin-rule-on-dark-alpha));
     --ring: rgb(var(--munin-accent-soft));
   }
+}
+
+/* Auth, invitation and consent surfaces paint themselves in fixed light
+   paper whatever the OS scheme is, so they must pin the light ramp too:
+   the dark overrides above would otherwise put a dark-mode grey on light
+   paper (fg-3 lands at 3.21:1 there) and leave inputs with a near-white
+   1px edge on white. Pinning here, rather than per-site dark: overrides,
+   keeps the opt-out in one place as the palette moves.
+
+   This pins variables, not variants: darkMode is 'media', so a dark: class
+   inside a locked subtree still fires. These trees carry none today and
+   must stay that way — a page that wants a real dark mode belongs outside
+   the lock, not inside it with overrides. */
+.munin-light-locked {
+  color-scheme: light;
+  --munin-fg-2: 61 66 74;
+  --munin-fg-3: 94 100 108;
+  --munin-fg-label: 61 66 74;
+  --munin-rule-field: rgb(var(--munin-ink));
+  --munin-participant-l: 0.5;
+  --munin-alert-bad-bg: 236 211 203;
+  --munin-alert-bad-ink: 110 31 18;
+  --munin-alert-bad-border: 184 73 58;
 }
 
 @keyframes munin-pulse-dot {

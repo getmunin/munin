@@ -181,13 +181,13 @@ function Tile({
 
   return (
     <div className="bg-paper dark:bg-card p-6 flex flex-col gap-4 min-h-[180px] border-r-[1px] border-b-[1px] border-rule-soft dark:border-rule-on-dark">
-      <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+      <p className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
         {label} · {period}
       </p>
       <p className="font-serif text-4xl leading-none font-normal tracking-tight text-ink dark:text-foreground">
         {tile ? format(tile.current) : '—'}
       </p>
-      <p className="font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+      <p className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
         {tile
           ? delta.direction === 'up'
             ? t('deltaUp', { value: delta.label })
@@ -212,20 +212,20 @@ function ByAgentSection({ data }: { data: UsageByAgentDto | null }) {
           {t('title')}
           <span className="text-ink-mute"> · {t('rangeLabel', { days: data?.rangeDays ?? 30 })}</span>
         </h2>
-        <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+        <p className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
           {t('rightLabel')}
         </p>
       </div>
 
       <div className="border-t-[1px] border-rule-soft dark:border-rule-on-dark">
         <div className="grid grid-cols-[1fr_auto_auto] gap-x-12 px-1 py-3 border-b-[1px] border-rule-soft dark:border-rule-on-dark">
-          <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+          <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
             {t('colAgent')}
           </span>
-          <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute justify-self-end min-w-[7rem] text-right">
+          <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label justify-self-end min-w-[7rem] text-right">
             {t('colMcpCalls')}
           </span>
-          <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute justify-self-end min-w-[7rem] text-right">
+          <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label justify-self-end min-w-[7rem] text-right">
             {t('colLatency')}
           </span>
         </div>

@@ -1474,7 +1474,7 @@ function EmailChannelDialog({
           </div>
 
           <fieldset className="space-y-3 border border-rule-soft px-3 pb-3 dark:border-rule-on-dark">
-            <legend className="px-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">{t('email.outboundLabel')}</legend>
+            <legend className="px-2 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">{t('email.outboundLabel')}</legend>
             <div className="grid gap-3 sm:grid-cols-2">
               <FormField label={t('email.host')} error={fieldErrors.smtpHost}>
                 <Input
@@ -1584,7 +1584,7 @@ function EmailChannelDialog({
           </fieldset>
 
           <fieldset className="space-y-3 border border-rule-soft px-3 pb-3 dark:border-rule-on-dark">
-            <legend className="px-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">{t('email.inboundLabel')}</legend>
+            <legend className="px-2 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">{t('email.inboundLabel')}</legend>
             <FormField label={t('email.inboundModeLabel')} hint={t(`email.inboundModeHint.${inboundMode}`)}>
               <NativeSelect
                 value={inboundMode}
@@ -2112,7 +2112,7 @@ function InlineCopyButton({ value, label }: { value: string; label: string }) {
       ) : (
         <Copy className="size-3.5" aria-hidden />
       )}
-      {copied && <span className="font-mono text-[10px] uppercase">{tCommon('copied')}</span>}
+      {copied && <span className="font-mono text-[10px] font-medium uppercase">{tCommon('copied')}</span>}
       <span aria-live="polite" className="sr-only">
         {copied ? tCommon('copied') : ''}
       </span>
@@ -2260,7 +2260,7 @@ function EmbedSnippetDialog({
                     type="button"
                     onClick={() => setLanguage(s.language)}
                     className={cn(
-                      'w-24 h-7 px-2.5 font-mono text-[11px] uppercase tracking-eyebrow border-r-[1px] border-rule-soft last:border-r-0 transition-colors duration-fast ease-munin',
+                      'w-24 h-7 px-2.5 font-mono text-[11px] font-medium uppercase tracking-eyebrow border-r-[1px] border-rule-soft last:border-r-0 transition-colors duration-fast ease-munin',
                       active
                         ? 'bg-ink text-paper dark:bg-foreground dark:text-background'
                         : 'bg-paper hover:bg-paper-deep dark:bg-card dark:hover:bg-secondary',

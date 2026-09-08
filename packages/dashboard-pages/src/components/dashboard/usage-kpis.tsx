@@ -34,7 +34,7 @@ export function UsageKpis({ summary }: UsageKpisProps) {
         </Eyebrow>
         <Link
           href="/dashboard/settings/usage"
-          className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute hover:text-cobalt transition-colors duration-fast"
+          className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label hover:text-cobalt transition-colors duration-fast"
         >
           {t('byAgentBreakdown')}
         </Link>
@@ -98,7 +98,7 @@ function Kpi({ label, value, previous, spark, format, lowerIsBetter, tone = 'acc
   const delta = formatDelta(value, previous, format, lowerIsBetter, t);
   return (
     <div className="border-[1px] border-rule-soft bg-paper px-4 py-3.5 dark:bg-card dark:border-rule-on-dark">
-      <div className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">{label}</div>
+      <div className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">{label}</div>
       <div className="font-serif text-[28px] leading-none tracking-tight my-1.5 text-ink dark:text-foreground">
         {value === undefined ? '—' : format(value)}
       </div>

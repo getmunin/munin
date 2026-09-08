@@ -12,10 +12,12 @@ export {
 } from './auth-controller-factory.ts';
 
 export {
+  readAuthIpAddressFromEnv,
   readGoogleProviderFromEnv,
   readGithubProviderFromEnv,
   readTrustedOriginsFromEnv,
   readTurnstileCaptchaFromEnv,
+  type AuthIpAddressEnv,
   type TurnstileCaptchaEnv,
 } from './auth-env.ts';
 

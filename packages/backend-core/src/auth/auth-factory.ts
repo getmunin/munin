@@ -16,6 +16,7 @@ import {
   resolveMcpSurfaces,
   type McpSurface,
 } from '../oauth/mcp-surface.ts';
+import { readAuthIpAddressFromEnv } from '../auth-env.ts';
 import { authCookiePrefix } from './auth-cookies.ts';
 import { createDbOrgScopeStore, registerOrgScopeStore } from './org-scope-store.ts';
 import { stripTrailingSlashes } from '@getmunin/types';
@@ -77,6 +78,8 @@ export interface MuninAuthCoreOptions {
 
   rateLimit?: BetterAuthOptions['rateLimit'];
 
+  ipAddress?: NonNullable<BetterAuthOptions['advanced']>['ipAddress'];
+
   logger?: BetterAuthOptions['logger'];
 }
 
@@ -86,6 +89,7 @@ const asMuninAuth = (instance: unknown): MuninAuthInstance => instance as MuninA
 
 export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstance {
   const origins = uniqueOrigins([opts.baseUrl, ...(opts.trustedOrigins ?? [])]);
+  const ipAddress = opts.ipAddress ?? readAuthIpAddressFromEnv();
   const dashboardUrl = (opts.webBaseUrl ?? opts.trustedOrigins?.[0] ?? opts.baseUrl).replace(
     /\/+$/,
     '',
@@ -214,6 +218,7 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
       advanced: {
         useSecureCookies: dashboardUrl.startsWith('https://'),
         cookiePrefix: opts.cookiePrefix ?? authCookiePrefix(),
+        ...(ipAddress ? { ipAddress } : {}),
         ...(opts.crossSubDomainCookies
           ? {
               crossSubDomainCookies: {

@@ -30,3 +30,28 @@ export function readTrustedOriginsFromEnv(): string[] {
   if (!env) return ['http://localhost:3000', 'http://127.0.0.1:3000'];
   return env.split(',').map((s) => s.trim()).filter(Boolean);
 }
+
+export interface AuthIpAddressEnv {
+  ipAddressHeaders?: string[];
+  trustedProxies?: string[];
+}
+
+function readList(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+export function readAuthIpAddressFromEnv(): AuthIpAddressEnv | undefined {
+  const trustedProxies = readList(process.env.MUNIN_AUTH_TRUSTED_PROXIES);
+  const ipAddressHeaders = readList(process.env.MUNIN_AUTH_IP_HEADERS).map((h) =>
+    h.toLowerCase(),
+  );
+  if (trustedProxies.length === 0 && ipAddressHeaders.length === 0) return undefined;
+  return {
+    ...(ipAddressHeaders.length > 0 ? { ipAddressHeaders } : {}),
+    ...(trustedProxies.length > 0 ? { trustedProxies } : {}),
+  };
+}

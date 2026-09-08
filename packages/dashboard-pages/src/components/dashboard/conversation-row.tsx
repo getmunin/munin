@@ -5,6 +5,7 @@ import { Pill, cn } from '@getmunin/ui';
 import { useRelative } from '../../lib/use-relative';
 import type { QueueItemDto } from './conversation-queue';
 import { initialsOf } from '../../lib/initials';
+import { customerLabel } from './inbox-helpers';
 import { QueueRow, RowNote, RowTime } from './queue-row';
 
 function ClaimFace({
@@ -74,9 +75,10 @@ export function ConversationRow({
         </Pill>
       }
       emphasizeTitle={showsAttention}
-      title={`${item.customerName ?? item.customerEmail ?? t('anonymous')}${
-        item.subject ? ` — ${item.subject}` : ''
-      }`}
+      title={`${customerLabel(
+        { name: item.customerName, email: item.customerEmail, phone: item.customerPhone },
+        t('anonymous'),
+      )}${item.subject ? ` — ${item.subject}` : ''}`}
       meta={item.lastInboundPreview || undefined}
       extra={
         <>

@@ -29,6 +29,7 @@ function item(overrides: Partial<QueueItemDto>): QueueItemDto {
     agentMode: 'draft_only',
     customerName: 'Anders Vik',
     customerEmail: 'anders@example.com',
+    customerPhone: null,
     topicName: null,
     topicSlug: null,
     topicAgentMode: null,
@@ -105,6 +106,11 @@ describe('matchesQueueSearch', () => {
     expect(matchesQueueSearch(row, 'document req')).toBe(true);
     expect(matchesQueueSearch(row, 'refinancing')).toBe(false);
     expect(matchesQueueSearch(row, '  ')).toBe(true);
+  });
+
+  it('matches the raw phone number of a caller who has no name or email', () => {
+    const row = item({ customerName: null, customerEmail: null, customerPhone: '+4795039493' });
+    expect(matchesQueueSearch(row, '4795039493')).toBe(true);
   });
 });
 

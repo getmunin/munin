@@ -1001,13 +1001,22 @@ const skipReason = TEST_URL
     const userActor = () =>
       new ActorIdentity('user', userId, orgId, ['*'], ['admin'], undefined, undefined, undefined, userId);
 
-    async function seedQueueConversation(opts?: { withContact?: boolean; withTopic?: boolean }) {
+    async function seedQueueConversation(opts?: {
+      withContact?: boolean;
+      withTopic?: boolean;
+      endUser?: { name?: string | null; email?: string | null; phone?: string | null };
+    }) {
       const suffix = randomUUID().slice(0, 8);
       const ch = await insertChannel({ type: 'chat', vendor: 'munin', name: `queue-${suffix}` });
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
       const [endUser] = await db
         .insert(schema.endUsers)
-        .values({ orgId, email: `anders-${suffix}@example.com`, name: 'Anders Vik' })
+        .values({
+          orgId,
+          email: `anders-${suffix}@example.com`,
+          name: 'Anders Vik',
+          ...opts?.endUser,
+        })
         .returning();
       const [contact] =
         opts?.withContact === false
@@ -1080,6 +1089,19 @@ const skipReason = TEST_URL
       expect(item!.claim).toBeNull();
       expect(item!.noteCount).toBe(0);
       expect(item!.hasPendingDraft).toBe(false);
+    });
+
+    it('carries the caller phone number for a queue row with no name or email', async () => {
+      const { conv } = await seedQueueConversation({
+        withContact: false,
+        withTopic: false,
+        endUser: { name: null, email: null, phone: '+4795039493' },
+      });
+      const page = await run(() => svc.listConversationQueuePage({}));
+      const item = page.items.find((i) => i.id === conv.id);
+      expect(item!.customerName).toBeNull();
+      expect(item!.customerEmail).toBeNull();
+      expect(item!.customerPhone).toBe('+4795039493');
     });
 
     it('an internal note must not bump last_message_at or reorder the queue', async () => {

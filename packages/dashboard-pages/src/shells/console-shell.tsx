@@ -320,9 +320,13 @@ function ConsoleShellInner({
               <BrandMark href={brandHref} label={brand}>
                 <Image src={logoSrc} alt="" aria-hidden width={26} height={26} className="block size-[26px] object-contain" />
               </BrandMark>
-              <span className="min-w-0 truncate text-sm font-medium text-ink dark:text-foreground">
-                {brand}
-              </span>
+              {headSlot ? (
+                <div className="min-w-0">{headSlot}</div>
+              ) : (
+                <span className="min-w-0 truncate text-sm font-medium text-ink dark:text-foreground">
+                  {brand}
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => setMenuOpen(true)}
@@ -344,13 +348,21 @@ function ConsoleShellInner({
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
         <SheetContent side="left" className="max-w-[320px] border-0 p-0">
           <div className="flex h-full flex-col bg-bone dark:bg-secondary">
-            <SheetTitle className="flex items-center gap-2.5 px-5 pb-2 pt-5 font-sans text-[15px] font-medium tracking-normal text-ink dark:text-foreground">
+            <div className="flex items-center gap-2.5 px-5 pb-2 pt-5 font-sans text-[15px] font-medium tracking-normal text-ink dark:text-foreground">
               <BrandMark href={brandHref} label={brand}>
                 <Image src={logoSrc} alt="" aria-hidden width={26} height={26} className="block size-[26px] shrink-0 object-contain" />
               </BrandMark>
-              <span className="min-w-0 truncate">{brand}</span>
-            </SheetTitle>
-            {headSlot ? <div className="px-5 pb-1 pt-2">{headSlot}</div> : null}
+              {headSlot ? (
+                <>
+                  <SheetTitle className="sr-only">{brand}</SheetTitle>
+                  <div className="min-w-0">{headSlot}</div>
+                </>
+              ) : (
+                <SheetTitle className="min-w-0 truncate font-sans text-[15px] font-medium tracking-normal">
+                  {brand}
+                </SheetTitle>
+              )}
+            </div>
             <div className="min-h-0 flex-1 overflow-y-auto py-2">
               <NavList groups={groups} badges={badges} onNavigate={() => setMenuOpen(false)} />
             </div>

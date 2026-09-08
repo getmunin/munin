@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { authClient } from '../auth-client';
 import { getActiveOrgId } from './active-org';
+import { useDashboardBootstrap } from './dashboard-bootstrap';
 
 export type OrgRole = 'owner' | 'admin' | 'member';
 
@@ -73,10 +74,14 @@ export function useActiveMembership(): {
   loading: boolean;
   error: string | null;
 } {
+  const bootstrap = useDashboardBootstrap();
+  const seeded = bootstrap !== null;
   const { data: session, isPending } = authClient.useSession();
   const userId = session?.user?.id ?? null;
-  const [membership, setMembership] = useState<ActiveMembership | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [membership, setMembership] = useState<ActiveMembership | null>(
+    bootstrap?.membership ?? null,
+  );
+  const [loading, setLoading] = useState(!seeded);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -87,7 +92,7 @@ export function useActiveMembership(): {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!seeded) setLoading(true);
     setError(null);
     fetchActiveMembership(userId)
       .then((m) => {
@@ -105,7 +110,7 @@ export function useActiveMembership(): {
     return () => {
       cancelled = true;
     };
-  }, [userId, isPending]);
+  }, [userId, isPending, seeded]);
 
   return { membership, loading, error };
 }

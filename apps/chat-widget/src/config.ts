@@ -62,7 +62,7 @@ export type ParseResult =
   | { ok: false; errors: ParseError[]; warnings: ParseError[] };
 
 const DEFAULTS = {
-  themeColor: '#0066FF',
+  themeColor: '#0059DE',
   position: 'bottom-right' as Position,
   size: 'standard' as Size,
   fonts: 'bundled' as Fonts,

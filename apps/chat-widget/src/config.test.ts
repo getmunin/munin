@@ -28,7 +28,7 @@ describe('parseConfig', () => {
       host: 'https://munin.example.com',
       widgetKey: 'mn_widget_abc',
       channelId: 'cnv_001',
-      themeColor: '#0066FF',
+      themeColor: '#0059DE',
       position: 'bottom-right',
       greeting: null,
       title: null,
@@ -130,7 +130,7 @@ describe('parseConfig', () => {
     const result = parseConfig(el);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.config.themeColor).toBe('#0066FF');
+    expect(result.config.themeColor).toBe('#0059DE');
     expect(result.warnings.some((w) => w.attr === 'data-munin-theme-color')).toBe(true);
   });
 
@@ -177,7 +177,7 @@ describe('parseConfig', () => {
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.config.headerColor).toBeUndefined();
-      expect(result.config.themeColor).toBe('#0066FF');
+      expect(result.config.themeColor).toBe('#0059DE');
       expect(result.warnings.some((w) => w.attr === 'data-munin-header-color')).toBe(true);
     }
   });

@@ -72,6 +72,7 @@ const muninPreset: Omit<Config, 'content'> = {
           DEFAULT: 'rgb(var(--munin-ink) / <alpha-value>)',
           soft: 'rgb(var(--munin-ink) / var(--munin-rule-soft-alpha))',
           'on-dark': 'rgb(var(--munin-fg-on-dark-2) / var(--munin-rule-on-dark-alpha))',
+          field: 'var(--munin-rule-field)',
         },
         'auth-navy': {
           DEFAULT: 'rgb(var(--munin-auth-navy) / <alpha-value>)',

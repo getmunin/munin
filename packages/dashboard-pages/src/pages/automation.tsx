@@ -363,7 +363,7 @@ export function AutomationPage() {
                   rows={3}
                   maxLength={DESCRIPTION_MAX}
                   placeholder={t('descriptionPlaceholder')}
-                  className="mt-2 w-full rounded-input border-[1px] border-rule-soft bg-paper px-3 py-2 text-base leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt md:text-sm dark:border-rule-on-dark dark:bg-card"
+                  className="mt-2 w-full rounded-input border-[1px] border-rule-field bg-paper px-3 py-2 text-base leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt md:text-sm dark:border-rule-field dark:bg-card"
                 />
                 <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-soft dark:text-foreground/70">
                   {t('descriptionHelp')}

@@ -1,5 +1,101 @@
 # @getmunin/dashboard-pages
 
+## 5.20.0
+
+### Minor Changes
+
+- 0f80a64: Review now renders its first-run scene straight from the server HTML, instead of showing a split skeleton until the review lists land.
+
+  Review was the one console page whose first-run rule the setup snapshot could not answer. Deciding it needs to know that nothing is waiting anywhere in the review queue — curation candidates, merge proposals, outreach drafts and scheduled sends, CMS drafts and scheduled entries, pending feedback, recent curation decisions — and that answer only arrived with `/v1/inbox` and `/v1/kb/curation/decisions`, two client fetches after the bootstrap. So the page returned `null` from its rule, which reads as `loading`, and a brand-new workspace saw `ConsoleSplitSkeleton` before its onboarding steps.
+
+  `/v1/overview/setup` now carries a `reviewQueue` of `{ hasPendingItems, lastDecisionAt }`, which the server bootstrap already fetches, so the answer is in the first render. `SetupStateService` composes it from the same service calls and the same limit that `/v1/inbox` uses, rather than re-deriving each bucket's filter, so the two cannot drift apart. It reports the facts and leaves the 30-day decided window to the page, which owns that rule.
+
+  The scan runs only when the org has no conversations — exactly the window in which `isFirstRun` can be true and the field can be read — so an active workspace pays nothing for it, and a first-run one scans near-empty tables. `reviewQueue` is `null` on that path, which the page treats the same as an older backend that does not send the field at all: it waits for the lists, as before.
+
+  `resolveReviewFirstRun` gives the loaded lists the final say, so a snapshot that goes stale while the page is open cannot pin Review to its first-run scene once a real item shows up.
+
+### Patch Changes
+
+- 09fae43: fix(ui): make the console's smallest type readable, and stop Tailwind silently dropping 75 alpha colours
+
+  A second pass over the palette after #910, prompted by labels that still read as
+  grey noise. #910 audited token _pairs_; this one audits what the browser actually
+  paints, which is where the remaining failures were hiding.
+
+  **Tailwind was discarding every alpha modifier on a shadcn alias.** `--foreground`,
+  `--card`, `--secondary` and `--destructive` held finished colours (`rgb(15 20 25)`),
+  and Tailwind can only inject `<alpha-value>` into a bare channel list — so it dropped
+  the whole declaration instead. 75 utilities compiled to nothing: `dark:text-foreground/70`
+  and `/80` (51 sites) left body copy, ledes, the sidebar's inactive items and the CRM
+  merge pane falling back to their light-mode ink on a dark background at **1.57–1.83:1**,
+  and `dark:bg-foreground/15`, `dark:bg-card/85`, `bg-destructive/5` and
+  `border-destructive/40` painted nothing at all. The four aliases now resolve through
+  `--foreground-rgb` / `--card-rgb` / `--secondary-rgb` / `--destructive-rgb` triples,
+  with the plain alias derived from them, so no call site changed and all 75 utilities
+  emit. Verified 0 → 1 occurrences each in the compiled stylesheet.
+
+  **Labels get their own tier.** The console's mono uppercase labels ran 8–9.5px at
+  `text-ink-mute`: 5.72:1 on paper, which clears AA and still reads as grey noise at
+  that size — 81 sites in `dashboard-pages`, 15 more in the widget. They are now 10px
+  `font-medium`, matching what `ui`'s own `Label`, `Table` head, `Tabs` and `Button`
+  already shipped, and structural ones (section labels, column heads, field labels,
+  eyebrows) take a new `--munin-fg-label` (`text-ink-label`) at 9.69:1 light / 10.99:1
+  dark. Incidental metadata — timestamps, row counts — stays on the mute tier. Labels
+  never shrink below 10px again: `type-floor.test.ts` fails the build on `text-[<10px]`.
+
+  **Four more measured failures:**
+
+  - `text-alert-bad-ink` is used both inside its tint and bare on the page (error
+    eyebrows, an inline clause, the outreach and CMS notices), and had no dark value —
+    **1.65:1** on ink. The alert family now flips as a set: bg `#331812`, ink `#F0A79B`
+    (8.36:1 on its own tint, 8.08–9.44:1 on the three dark surfaces), border `#D2685A`.
+  - The activity feed's column heads and clocks used `text-paper/45` and `/50` on the
+    ink panel — **4.38:1** at 10px. Now `/70`, 9.01:1.
+  - `text-ink-mute/80` on CMS block-prop labels — **3.71:1**. Now the label token.
+  - `participantColor` was `oklch(0.55 …)` for both schemes — **4.36:1** worst-case on
+    paper and **3.35:1** on the dark card, as 9px semibold author names _and_ a 2px
+    bubble border. Lightness moves to `--munin-participant-l`: 0.5 light, 0.74 dark.
+
+  **#910's dark mute lift broke the auth pages.** `AuthShell` and everything under it
+  carry no `dark:` class at all — they are fixed light paper by design — so the dark
+  `--munin-fg-3` landed at **3.21:1** there (2.45:1 on the invite tint) and the dark
+  `--munin-rule-field` left inputs with a near-white 1px edge on white. They now pin the
+  light ramp via `.munin-light-locked`, one place to hold the opt-out as the palette moves.
+
+  Guarded by `tokens.contrast.test.ts` — 63 assertions over every foreground/background
+  pair the design actually meets, in light, dark and light-locked. Reverting any value
+  above fails it. Verified end to end against the running dashboard by sampling
+  `getComputedStyle` on every leaf text node across 21 pages in both schemes and
+  compositing each colour over its real backdrop: the only remaining report is the auth
+  wordmark, a false positive — it is absolutely positioned over a sibling's `bg-paper`,
+  so the DOM-tree backdrop walk reads the page background instead. Also confirmed at the
+  stylesheet level (each of the 75 utilities goes 0 → 1 occurrences) and at the
+  computed-value level. Note when checking that yourself: Tailwind only emits classes it
+  finds in source, so probing an unprefixed name reports a false failure.
+
+  Not fixed, reported separately: `/dashboard/oauth/consent` renders `bg-background`
+  with light-only `text-ink`, `text-ink-soft` and `border-ink` outline buttons, so its
+  dark mode needs a design pass rather than a token change.
+
+- a49bae9: fix(dashboard): the mobile console head identifies the org, not the product
+
+  The desktop sidebar has always preferred `headSlot` over the `brand` string — in
+  cloud that slot is the org switcher, so the sidebar reads "Acme AS" while the
+  mobile header two breakpoints away read "Munin Cloud". Same for the slide-in
+  menu, which stacked the brand line _and_ the switcher, so the product name got
+  the heading treatment and the thing you actually need on a phone sat under it.
+
+  Both now follow the sidebar's rule: render `headSlot` where it exists, fall back
+  to `brand` where it doesn't. Self-hosted OSS passes no slot and is unchanged.
+
+  The sheet keeps a `SheetTitle` either way — visually hidden when the switcher
+  takes the row — so the dialog still has an accessible name, and the switcher is
+  no longer nested inside a heading element.
+
+- Updated dependencies [09fae43]
+  - @getmunin/ui@5.20.0
+  - @getmunin/types@5.20.0
+
 ## 5.19.0
 
 ### Patch Changes

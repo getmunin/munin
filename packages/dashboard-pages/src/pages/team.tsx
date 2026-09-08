@@ -437,7 +437,7 @@ function Th({ children, className }: { children?: ReactNode; className?: string 
   return (
     <th
       className={cn(
-        'pb-3 pr-4 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute font-normal',
+        'pb-3 pr-4 font-mono text-[10px] uppercase tracking-eyebrow text-ink-label font-medium',
         className,
       )}
     >
@@ -464,7 +464,7 @@ function RoleSelect({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as MemberRole)}
-        className="appearance-none border-[1px] border-rule-field dark:border-rule-field focus-visible:border-cobalt bg-paper dark:bg-card font-mono text-[10px] uppercase tracking-eyebrow text-ink dark:text-foreground py-1.5 pl-3 pr-7 cursor-pointer focus-visible:outline-none"
+        className="appearance-none border-[1px] border-rule-field dark:border-rule-field focus-visible:border-cobalt bg-paper dark:bg-card font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink dark:text-foreground py-1.5 pl-3 pr-7 cursor-pointer focus-visible:outline-none"
       >
         <option value="owner">{labelOwner}</option>
         <option value="admin">{labelAdmin}</option>
@@ -487,7 +487,7 @@ function RoleChip({
 }) {
   const label = role === 'owner' ? t('roleOwner') : role === 'admin' ? t('roleAdmin') : t('roleMember');
   return (
-    <span className="inline-block border-[1px] border-rule-soft dark:border-rule-on-dark font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute py-1 px-2.5">
+    <span className="inline-block border-[1px] border-rule-soft dark:border-rule-on-dark font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label py-1 px-2.5">
       {label}
     </span>
   );

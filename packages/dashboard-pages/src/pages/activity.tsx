@@ -123,13 +123,13 @@ export function ActivityPage() {
       <section data-screen-label="activity · feed">
         <header className="flex items-baseline justify-between border-b-[1px] border-rule-soft dark:border-rule-on-dark pb-2 mb-0">
           <h2 className="font-serif text-2xl leading-none">{t('liveStream')}</h2>
-          <span className="font-mono text-[11px] uppercase tracking-eyebrow text-ink-mute">
+          <span className="font-mono text-[11px] font-medium uppercase tracking-eyebrow text-ink-label">
             {t('windowLabel', { count: visible.length, minutes: WINDOW_MS / 60_000 })}
           </span>
         </header>
 
         <div className="flex min-h-[12rem] flex-col bg-ink dark:bg-card text-paper dark:text-foreground font-mono text-[12px] leading-relaxed px-6 py-4">
-          <div className="grid grid-cols-[6rem_minmax(0,11rem)_minmax(0,12rem)_1fr] gap-x-6 pb-2 mb-1 border-b-[1px] border-paper/15 dark:border-rule-on-dark text-[10px] uppercase tracking-eyebrow text-paper/45 dark:text-foreground/45">
+          <div className="grid grid-cols-[6rem_minmax(0,11rem)_minmax(0,12rem)_1fr] gap-x-6 pb-2 mb-1 border-b-[1px] border-paper/15 dark:border-rule-on-dark text-[10px] font-medium uppercase tracking-eyebrow text-paper/70 dark:text-foreground/70">
             <span>{t('colTime')}</span>
             <span>{t('colType')}</span>
             <span>{t('colActor')}</span>
@@ -157,7 +157,7 @@ export function ActivityPage() {
                 key={e.id}
                 className="grid grid-cols-[6rem_minmax(0,11rem)_minmax(0,12rem)_1fr] gap-x-6 items-baseline py-0.5"
               >
-                <span className="text-paper/50 dark:text-foreground/50 whitespace-nowrap">
+                <span className="text-paper/70 dark:text-foreground/70 whitespace-nowrap">
                   {formatClock(e.createdAt)}
                 </span>
                 <span className="truncate text-cobalt-soft">{e.type}</span>
@@ -168,7 +168,7 @@ export function ActivityPage() {
               </li>
             ))}
             {hasLoadedOnce && visible.length === 0 && (
-              <li className="flex grow items-center justify-center text-paper/50 dark:text-foreground/50">
+              <li className="flex grow items-center justify-center text-paper/70 dark:text-foreground/70">
                 {t('empty')}
               </li>
             )}

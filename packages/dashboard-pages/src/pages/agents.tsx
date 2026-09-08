@@ -198,7 +198,7 @@ function Th({ children, className }: { children?: ReactNode; className?: string 
   return (
     <th
       className={cn(
-        'pb-3 pr-4 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute font-normal',
+        'pb-3 pr-4 font-mono text-[10px] uppercase tracking-eyebrow text-ink-label font-medium',
         className,
       )}
     >
@@ -218,7 +218,7 @@ function StatusChip({
   return (
     <span
       className={cn(
-        'inline-block px-2 py-0.5 font-mono text-[10px] uppercase tracking-eyebrow',
+        'inline-block px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-eyebrow',
         status === 'active'
           ? 'bg-cobalt/15 text-cobalt-deep dark:bg-cobalt-soft/20 dark:text-cobalt-soft'
           : 'border-[1px] border-rule-soft dark:border-rule-on-dark text-ink-mute',

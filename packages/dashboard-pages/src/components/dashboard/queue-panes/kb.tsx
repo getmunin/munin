@@ -109,7 +109,7 @@ export function KbQueuePane({
       {body !== undefined ? (
         <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
           <section className="space-y-2">
-            <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+            <p className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
               {isRevision ? t('proposalRevision') : t('proposal')}
             </p>
             {editing ? (

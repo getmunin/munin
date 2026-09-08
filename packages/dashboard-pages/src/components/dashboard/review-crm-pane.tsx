@@ -89,7 +89,7 @@ export function ReviewCrmPane({
             <Pill tone="ink" marker="none">
               {t(proposal.confidence === 'high' ? 'confidenceHigh' : 'confidenceMedium')}
             </Pill>
-            <span className="ml-auto font-mono text-[9px] uppercase tracking-meta text-ink-mute">
+            <span className="ml-auto font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
               {age(item.createdAt)}
             </span>
           </div>
@@ -114,10 +114,10 @@ export function ReviewCrmPane({
 
         <div className="flex flex-col gap-2.5 border-t border-ink pt-4 dark:border-rule-on-dark">
           <div className="flex items-baseline justify-between gap-4">
-            <span className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+            <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
               {t('whatChanges')}
             </span>
-            <span className="shrink-0 font-mono text-[9px] uppercase tracking-meta text-ink-mute">
+            <span className="shrink-0 font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
               {t('changeCount', { count: changes.length, total: comparableFieldCount() })}
             </span>
           </div>
@@ -135,14 +135,14 @@ export function ReviewCrmPane({
           )}
 
           <div className="flex items-baseline justify-between gap-4 border-t border-rule-soft pt-2.5 dark:border-rule-on-dark">
-            <span className="font-mono text-[9px] uppercase tracking-meta text-ink-mute">
+            <span className="font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
               {t('untouched', { count: untouchedCount })}
             </span>
             <button
               type="button"
               onClick={() => setCompareAll((open) => !open)}
               aria-expanded={compareAll}
-              className="shrink-0 font-mono text-[9px] uppercase tracking-eyebrow text-cobalt underline-offset-[3px] hover:underline dark:text-cobalt-soft"
+              className="shrink-0 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt underline-offset-[3px] hover:underline dark:text-cobalt-soft"
             >
               {compareAll ? t('compareHide') : t('compareAll')} <span aria-hidden>→</span>
             </button>
@@ -152,11 +152,11 @@ export function ReviewCrmPane({
             <table className="w-full border-collapse border border-rule-soft text-left dark:border-rule-on-dark">
               <thead>
                 <tr className="border-b border-ink dark:border-rule-on-dark">
-                  <th className="px-3 py-2 font-mono text-[8.5px] uppercase tracking-meta text-ink-mute" />
-                  <th className="border-l border-rule-soft px-3 py-2 font-mono text-[8.5px] uppercase tracking-meta text-cobalt dark:border-rule-on-dark dark:text-cobalt-soft">
+                  <th className="px-3 py-2 font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute" />
+                  <th className="border-l border-rule-soft px-3 py-2 font-mono text-[10px] font-medium uppercase tracking-meta text-cobalt dark:border-rule-on-dark dark:text-cobalt-soft">
                     {t('columnKeeper')}
                   </th>
-                  <th className="border-l border-rule-soft px-3 py-2 font-mono text-[8.5px] uppercase tracking-meta text-ink-mute dark:border-rule-on-dark">
+                  <th className="border-l border-rule-soft px-3 py-2 font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute dark:border-rule-on-dark">
                     {t('columnArchived')}
                   </th>
                 </tr>
@@ -178,7 +178,7 @@ export function ReviewCrmPane({
                     >
                       <th
                         scope="row"
-                        className="w-[112px] px-3 py-2 align-top font-mono text-[9px] font-normal uppercase tracking-meta text-ink-mute"
+                        className="w-[112px] px-3 py-2 align-top font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute"
                       >
                         {humanizeFieldName(field)}
                       </th>
@@ -211,7 +211,7 @@ export function ReviewCrmPane({
         </div>
 
         <div className="flex flex-col gap-2 border-t border-ink pt-4 dark:border-rule-on-dark">
-          <span className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+          <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
             {t('andThen')}
           </span>
           <p className="max-w-[64ch] text-[14px] leading-relaxed text-ink dark:text-foreground">
@@ -263,7 +263,7 @@ export function ReviewCrmPane({
           >
             {t('dismiss')}
           </Button>
-          <span className="hidden font-mono text-[9px] uppercase tracking-meta text-ink-mute md:ml-auto md:inline">
+          <span className="hidden font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute md:ml-auto md:inline">
             {t('shortcutApply')}
           </span>
         </div>
@@ -282,10 +282,10 @@ function ChangeRow({
   return (
     <li className="grid grid-cols-[128px_minmax(0,1fr)] border-b border-rule-soft last:border-b-0 dark:border-rule-on-dark">
       <span className="flex flex-col items-start gap-1.5 px-3 py-3">
-        <span className="font-mono text-[9px] uppercase tracking-meta text-ink-mute">
+        <span className="font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
           {humanizeFieldName(change.field)}
         </span>
-        <span className="border border-rule-soft px-1.5 py-[1px] font-mono text-[8.5px] uppercase tracking-meta text-ink-soft dark:border-rule-on-dark dark:text-foreground/70">
+        <span className="border border-rule-soft px-1.5 py-[1px] font-mono text-[10px] font-medium uppercase tracking-meta text-ink-soft dark:border-rule-on-dark dark:text-foreground/70">
           {t(`kind_${change.kind}`)}
         </span>
       </span>
@@ -304,11 +304,11 @@ function ChangeRow({
           </em>
         </span>
         {change.dropped.length > 0 ? (
-          <span className="font-mono text-[9px] uppercase tracking-meta text-alert-bad-ink">
+          <span className="font-mono text-[10px] font-medium uppercase tracking-meta text-alert-bad-ink">
             {t('replacedNote', { dropped: change.dropped.join(', ') })}
           </span>
         ) : change.kind === 'replaced' ? (
-          <span className="font-mono text-[9px] uppercase tracking-meta text-ink-mute">
+          <span className="font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
             {t('replacedNoteNoDrop')}
           </span>
         ) : null}

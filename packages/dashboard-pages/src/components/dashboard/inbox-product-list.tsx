@@ -67,7 +67,7 @@ function ProductCard({ item, viewLabel }: { item: ProductListItem; viewLabel: st
           href={item.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="self-start font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute underline underline-offset-2 hover:text-ink"
+          className="self-start font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label underline underline-offset-2 hover:text-ink"
         >
           {viewLabel} ↗
         </a>

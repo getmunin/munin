@@ -53,7 +53,7 @@ export function AuthInviteCard({
         <dl className="mb-6 mt-0 grid grid-cols-[auto_1fr] gap-x-[18px] gap-y-1.5 border-t-[1px] border-ink/[0.12] pt-[18px] font-mono text-[11px] tracking-wide text-ink-soft">
           {meta.map(({ label, value }) => (
             <div key={label} className="contents">
-              <dt className="text-[10px] uppercase tracking-eyebrow text-ink-mute">
+              <dt className="text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
                 {label}
               </dt>
               <dd className="m-0 text-ink">{value}</dd>

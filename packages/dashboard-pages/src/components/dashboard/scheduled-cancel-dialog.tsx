@@ -62,7 +62,7 @@ export function ScheduledCancelDialog({ controller }: { controller: InboxControl
         >
           {needsReason && (
             <label className="flex flex-col gap-1.5">
-              <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+              <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
                 {t('cancelReasonLabel')}
               </span>
               <input

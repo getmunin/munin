@@ -41,7 +41,7 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
   const backLink = (
     <Link
       href="/dashboard"
-      className="group inline-flex items-center gap-2.5 font-mono text-[10px] uppercase tracking-eyebrow text-ink-soft transition-colors duration-fast ease-munin hover:text-cobalt dark:text-foreground/80 dark:hover:text-cobalt-soft"
+      className="group inline-flex items-center gap-2.5 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-soft transition-colors duration-fast ease-munin hover:text-cobalt dark:text-foreground/80 dark:hover:text-cobalt-soft"
     >
       <ArrowLeft
         aria-hidden
@@ -55,7 +55,7 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
     <nav className="flex flex-col gap-6 pl-2 pr-6">
       {visibleGroups.map((group) => (
         <div key={group.groupKey}>
-          <p className="mb-2 px-3.5 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+          <p className="mb-2 px-3.5 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
             {tGroups(group.groupKey)}
           </p>
           <ul className="space-y-px">
@@ -93,7 +93,7 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
           onClick={() => setMobileOpen(true)}
           aria-label={tNav('openMenu')}
           aria-expanded={mobileOpen}
-          className="ml-auto flex items-center gap-2.5 font-mono text-[9px] uppercase tracking-eyebrow text-ink-soft dark:text-foreground/80"
+          className="ml-auto flex items-center gap-2.5 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label"
         >
           {tNav('settings')}
           <Menu aria-hidden className="size-4 text-ink dark:text-foreground" />

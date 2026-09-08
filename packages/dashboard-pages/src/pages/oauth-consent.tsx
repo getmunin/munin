@@ -253,7 +253,7 @@ function EditorialHeader({ flow, clientName, resourceName }: EditorialHeaderProp
   if (flow === 'expired') {
     return (
       <header className="mb-6">
-        <div className="mb-4 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-mute">
+        <div className="mb-4 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-ink-mute">
           {t('expired.eyebrow')}
         </div>
         <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em] min-w-0 [overflow-wrap:anywhere] [word-break:break-word]">
@@ -270,7 +270,7 @@ function EditorialHeader({ flow, clientName, resourceName }: EditorialHeaderProp
   if (flow === 'blocked') {
     return (
       <header className="mb-6">
-        <div className="mb-4 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-mute">
+        <div className="mb-4 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-ink-mute">
           {t('blocked.eyebrow')}
         </div>
         <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em] min-w-0 [overflow-wrap:anywhere] [word-break:break-word]">
@@ -288,7 +288,7 @@ function EditorialHeader({ flow, clientName, resourceName }: EditorialHeaderProp
   if (flow === 'granted') {
     return (
       <header className="mb-6">
-        <div className="mb-4 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-mute">
+        <div className="mb-4 flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-ink-mute">
           <span className="text-cobalt">✓</span>
           <span>{t('granted.eyebrow')}</span>
         </div>
@@ -307,7 +307,7 @@ function EditorialHeader({ flow, clientName, resourceName }: EditorialHeaderProp
   if (flow === 'denied') {
     return (
       <header className="mb-6">
-        <div className="mb-4 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-mute">
+        <div className="mb-4 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-ink-mute">
           {t('denied.eyebrow')}
         </div>
         <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em] min-w-0 [overflow-wrap:anywhere] [word-break:break-word]">
@@ -324,7 +324,7 @@ function EditorialHeader({ flow, clientName, resourceName }: EditorialHeaderProp
   }
   return (
     <header className="mb-6">
-      <div className="mb-4 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-mute">
+      <div className="mb-4 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-ink-mute">
         {t('eyebrow')}
       </div>
       <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em] min-w-0 [overflow-wrap:anywhere] [word-break:break-word]">
@@ -376,7 +376,7 @@ function RequestPane({
 
       <div className="px-7 pt-2 pb-1">
         <div className="flex items-baseline justify-between py-4">
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-mute">
+          <span className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-mute">
             {t('scopesLabel')}
           </span>
           <span className="font-mono text-[11px] text-ink-soft">
@@ -640,7 +640,7 @@ function ScopePill({ kind, label }: { kind: 'read' | 'write'; label: string }) {
       : 'border-rule-soft text-ink-soft';
   return (
     <span
-      className={`whitespace-nowrap rounded-full border-[1px] px-2 py-0.5 font-mono text-[9.5px] uppercase tracking-[0.1em] ${cls}`}
+      className={`whitespace-nowrap rounded-full border-[1px] px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.1em] ${cls}`}
     >
       {label}
     </span>

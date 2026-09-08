@@ -40,7 +40,7 @@ export const MD_COMPONENTS: Components = {
     </div>
   ),
   th: ({ children }) => (
-    <th className="border-[1px] border-rule-soft px-2 py-1 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute dark:border-rule-on-dark">
+    <th className="border-[1px] border-rule-soft px-2 py-1 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label dark:border-rule-on-dark">
       {children}
     </th>
   ),
@@ -117,7 +117,7 @@ export function PaneLoadFailed({
       className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
       role="alert"
     >
-      <p className="font-mono text-[10px] uppercase tracking-eyebrow text-destructive">
+      <p className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-destructive">
         {eyebrow}
       </p>
       <h3 className="font-serif text-xl leading-tight text-ink dark:text-foreground">{title}</h3>
@@ -172,7 +172,7 @@ export function PaneHeader({
             {title}
           </h2>
           {meta && (
-            <p className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+            <p className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
               {meta}
             </p>
           )}
@@ -181,7 +181,7 @@ export function PaneHeader({
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 whitespace-nowrap font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute hover:text-ink dark:hover:text-foreground"
+            className="shrink-0 whitespace-nowrap font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label hover:text-ink dark:hover:text-foreground"
             aria-label={closeLabel}
           >
             {closeLabel}
@@ -278,7 +278,7 @@ export function ScheduledFooter({
       <Button variant="outline" size="sm" onClick={onCancel} disabled={disabled}>
         {cancelLabel}
       </Button>
-      <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+      <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
         {note}
       </span>
     </div>
@@ -327,7 +327,7 @@ export function PaneFooter({
         ))}
       </div>
       {shortcut && (
-        <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+        <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
           {shortcut}
         </span>
       )}

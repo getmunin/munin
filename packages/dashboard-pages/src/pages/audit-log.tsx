@@ -262,7 +262,7 @@ function Th({ children, className }: { children?: ReactNode; className?: string 
   return (
     <th
       className={cn(
-        'pb-3 pr-4 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute font-normal',
+        'pb-3 pr-4 font-mono text-[10px] uppercase tracking-eyebrow text-ink-label font-medium',
         className,
       )}
     >
@@ -276,7 +276,7 @@ function ResultChip({ result }: { result: string | null }) {
   return (
     <span
       className={cn(
-        'inline-block px-2 py-0.5 font-mono text-[10px] uppercase tracking-eyebrow',
+        'inline-block px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-eyebrow',
         result === 'ok'
           ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
           : result === 'denied'

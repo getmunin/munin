@@ -4,7 +4,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../cn';
 
 const pillVariants = cva(
-  'inline-flex items-center gap-1.5 px-[5px] py-[2px] font-mono text-[9px] leading-none uppercase tracking-eyebrow font-medium border-[1px] border-[color-mix(in_srgb,currentColor_55%,transparent)] whitespace-nowrap',
+  'inline-flex items-center gap-1.5 px-[5px] py-[2px] font-mono text-[10px] leading-none uppercase tracking-eyebrow font-medium border-[1px] border-[color-mix(in_srgb,currentColor_55%,transparent)] whitespace-nowrap',
   {
     variants: {
       marker: {

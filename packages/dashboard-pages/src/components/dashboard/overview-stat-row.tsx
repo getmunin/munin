@@ -51,13 +51,13 @@ export function StatRow({
         {count}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5 md:gap-1">
-        <span className="truncate font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute md:text-[10px]">
+        <span className="truncate font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
           {label}
         </span>
         <span className="text-[13.5px] text-ink md:text-[15px] dark:text-foreground">{note}</span>
       </span>
       <span className="ml-auto shrink-0 text-cobalt transition-colors duration-fast ease-munin group-hover:text-cobalt-deep dark:text-cobalt-soft">
-        <span className="hidden whitespace-nowrap font-mono text-[10px] uppercase tracking-eyebrow md:inline">
+        <span className="hidden whitespace-nowrap font-mono text-[10px] font-medium uppercase tracking-eyebrow md:inline">
           {cta}
         </span>
         <span aria-hidden className="font-mono text-base leading-none md:hidden">

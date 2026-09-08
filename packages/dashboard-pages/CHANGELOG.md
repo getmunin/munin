@@ -1,5 +1,71 @@
 # @getmunin/dashboard-pages
 
+## 5.17.0
+
+### Minor Changes
+
+- 19c91b2: Say why a CMS preview will not embed, instead of showing a dead grey frame.
+
+  A frontend that sends `Content-Security-Policy: frame-ancestors 'none'` or `X-Frame-Options: DENY` — the default in most security-header snippets, including the one Next.js docs suggest — cannot be framed by the Review pane. Until now that produced a blank grey panel that stayed on the Preview tab forever, with the reason visible only in the browser console.
+
+  The pane could not have detected it. Measured in Chromium against a blocked site and an allowed one, the two are indistinguishable from the embedder: both fire `load`, both throw `SecurityError` on `contentWindow.location`, `origin`, `history` and `frameElement`, and both report `contentDocument === null` and `contentWindow.length === 0`. `frameStayedBlank()` only ever worked for a same-origin `about:blank`; on a CSP-blocked cross-origin frame its `catch` returned "not blank", which is what marked the dead frame `ready` and defeated the 15-second timeout behind it.
+
+  So the check moves server-side. `POST /v1/cms/drafts/:id/preview-link` now also returns `embed`: `{ embeddable, reason, detail, previewHost, embedderOrigin }`, from one `safeFetch` of the preview URL that reads `Content-Security-Policy` and `X-Frame-Options` and evaluates `frame-ancestors` against `MUNIN_WEB_URL`. The evaluation follows what browsers actually do — every policy in a comma-joined header must allow the embedder, `'self'` is read against the previewed site rather than the dashboard, `X-Frame-Options` is ignored whenever any `frame-ancestors` directive is present, and `ALLOW-FROM` is treated as absent because no current browser honours it. `cms_get_preview_link` is untouched: the probe hangs off the dashboard's controller, so minting a link from an agent still makes no outbound request.
+
+  When the verdict is "blocked" the pane skips the frame entirely, opens on the fields, and names the offending header and the origin it refuses — the "open on the site" link keeps working, because a top-level navigation is not framed. A probe that fails for any other reason falls open and behaves as before: a wrong "blocked" banner over a working preview would be worse than the frame we have today.
+
+  `skill://cms/preview-entry` gains the frontend side of this as Step 4, along with a second failure it shares. The preview cookie in the skill's own example carried no `sameSite`, which is `Lax` — not sent in a cross-site frame, so once the framing headers are fixed the frame redirects, the cookie never arrives, and the reader gets the published entry with nothing to indicate why. It now sets `SameSite=None; Secure; Partitioned`, as Next's own draft-mode bypass cookie already does. `skill://cms/design-collection` points at it, since both fixes belong to whoever wires the frontend up.
+
+- 19c91b2: Make the console logo a link, and let the host decide where it goes.
+
+  `DashboardShell` and `ConsoleShell` take `brandHref`, defaulting to `/dashboard`. The sidebar console that replaced `DashboardTopbar` dropped the topbar's `<Link href={brandHref}>` around the mark, so the logo has not been clickable since; the default restores that rather than only adding a prop.
+
+  Absolute URLs render as a plain `<a>` instead of the i18n `Link`, which is the whole reason this needs a branch: `Link` prefixes the active locale, so a hosted deployment pointing the mark at its marketing site would otherwise navigate to `/en/https://example.com`. Only the mark is wrapped, never the whole lockup — the brand-text slot is `headSlot`, which in a multi-tenant deployment is an org switcher, and a button inside an anchor is neither valid nor clickable. All three instances get it: sidebar, mobile header, and the menu sheet.
+
+- 19c91b2: Give the console pages a loading state, one empty-state treatment, and an Oversight order that follows the day.
+
+  **Loading.** Every settings page has had a skeleton since they shipped; none of the four console pages did. All four opened with `if (setup.loading) return null` — a blank main pane — and then, once setup resolved but their own data was still in flight, rendered a **false empty state**: `/dashboard` showed `0` live and `0` waiting with the all-clear note, Review showed "Nothing blocked." above four items that were about to arrive, Automation showed "No topics yet", and Conversations showed a header over an empty list with nothing in it at all. `hasLoadedOnce` was already on both `useInboxData` and `useConversationQueue`; nothing but the error paths read it.
+
+  Each page now renders a skeleton of its own layout while setup is undecided — deliberately a skeleton and not the real chrome, because the first-run scene is still a possible outcome at that point and must not be preceded by a flash of the ordinary page — and every empty state is gated on its data having loaded at least once. New `ConsoleRowsSkeleton` / `ConsoleSplitSkeleton` / `ConsoleTableSkeleton` / `ConsoleHeroSkeleton` in `components/console-skeleton.tsx`, alongside the existing settings skeletons.
+
+  **Empty states.** The console had four treatments: `EmptyCallout` (bordered, centred) on every settings page, Review's local `EmptySection`, Automation's one mono line, and Conversations' nothing-at-all. Review's was the odd one: an `<li>` with `border-b border-rule-soft px-5 py-6`, which is the same shell as `QueueRow` — so it read as a row you could tap and couldn't, worst on mobile where the list is the whole screen. It also put a serif `<h3>` inside a list column, where serif otherwise belongs to page heroes and panes, so on a tab with rows above it the empty read as a third header.
+
+  Automation's empty needed one thing more. Its column header carries both the rule above the list and `max-md:hidden`, so on a phone the empty sentence lost its anchor and floated in white space below the KPI, at the same weight and colour as the lede two blocks up — three grey paragraphs, none of them reading as the state. Review never had this because `ConsoleSectionLabel` renders at every width and brings its own rule. The rule now lives on the table wrapper as `max-md:border-t`, so under `md` the list has a top edge whether it is empty, loading or populated — the populated mobile list never had one either, it just got away with it because a row is dense enough to read as a start.
+
+  One quiet `ConsoleListEmpty` now serves Review, Conversations and the overview's recent list: no row border, no serif, body text only. `emptyBlockingTitle` and `emptyImprovementsTitle` are dropped rather than restyled — the section label directly above already says "Blocking · 0". Conversations gets a real empty state for the first time (`queue.emptyTitle` / `emptyBody`, plus a distinct pair for a search that matches nothing).
+
+  **Copy.** Two strings were describing the furniture instead of the reader:
+
+  - Automation's title was "Built to be <em>retired.</em>" — no subject, so read cold off the nav it parses as a deprecation notice about the feature, and what actually retires is the review step, not the automation. Its neighbours both address the reader ("What needs you, first.", "Nothing ships without your nod."). Now "Approve it until <em>you don't have to.</em>" The Norwegian was worse — `pensjonert` is what happens to people — and is now "Godkjenn til <em>du slipper.</em>"
+  - Review's pane empty said "This tab is empty.", which the reader can see. It now says what the three tabs hold, which is the one thing they cannot: "Waiting holds anything blocked on your decision. Scheduled holds what you've approved for later. Decided is the record of the last {days} days."
+
+  **Grouping.** The section labels are gone — `dashboard.console.groups.{admin,oversight,workspace}` with them, in both locales. Five links carried three labels, two of them over a single item, and the three eyebrows plus their `gap-6` separators took about as much vertical space as three more links would. The taxonomy was also wrong where it mattered most: `adminOnly` is set on Dashboard, Review, Automation **and** Settings, so "Admin" named one of the four admin-gated items while the only item that is _not_ admin-gated sat under "Oversight" — and a member, after `consoleGroupsForRole` filters, saw a lone uppercase "OVERSIGHT" over a single link. The separating whitespace went too, so the five links now render as one flat list — `NavList` flattens `groups` at render rather than emitting a `<ul>` per group, which also keeps the 1px rhythm between items uniform across what used to be a group boundary. `ConsoleNavGroup` stays as the data shape: it still carries the order, and `consoleGroupsForRole` still filters by group and drops the ones it empties. It simply has no visual output any more.
+
+  With the labels gone the column's own alignment was exposed: the nav sat in `pl-2 pr-6` and each link added `border-l-[3px] px-3.5`, putting link text at 25px against the brand row's logo edge at 20px — five pixels off, which reads as a miss rather than a choice — while the active band started 8px in and stopped 24px short of the divider, and its `border-l-[3px]` cobalt edge-marker sat nowhere near an edge. The nav padding moves onto the link (`pl-[17px] pr-5`), so text lands at 20px in the same column as the logo, the active band bleeds edge to edge with the marker on the sidebar's actual edge, and the badge gets the same 20px margin on the right that the logo has on the left. The mobile sheet, which shares `NavList` and titles at `px-5`, picks up the same alignment. This was the settings sub-nav's pattern (12 items in 6/3/3, extended by cloud through `extendSettingsGroups`) applied to a nav a third that size — and unlike the settings shell, `ConsoleShell` takes no `groups` prop, so nothing could have extended it into paying off.
+
+  **Order.** Oversight was Conversations · Automation · Review. Two of the three carry badges and are worked daily; Automation carries none and is a configuration surface, so it split the pair and dropped a settings page into the middle of the loop. It is now Conversations · Review · Automation, which is also the progression the copy describes — answer, decide, and then, when the numbers hold, flip it to auto.
+
+### Patch Changes
+
+- 19c91b2: Give `ConsoleShell`'s `headSlot` the brand text's place instead of a row of its own.
+
+  The sidebar console shell that replaced `DashboardTopbar` dropped the slot's contract along with the topbar. The topbar rendered `leftSlot` **instead of** the brand text (`leftSlot ? … : brand`); the sidebar renders the brand row unconditionally and then drops `headSlot` underneath it, outside the row's `px-5`. OSS never noticed — `apps/web` passes no `headSlot` — but cloud passes its org switcher there, so hosted Munin shipped the product name on one line and an unpadded, flush-left org switcher on the next.
+
+  `headSlot` now takes the brand text's place in the brand row, which is what the switcher is built for: its `-mx-2.5` cancels the button's own `px-2.5` so the org name lands exactly where the brand text did, beside the logo. `brand` still names the product in the mobile header and the menu sheet, and the fallback keeps every caller that passes no slot pixel-identical.
+
+  The mobile sheet gets the slot too, below the title. Since the shell rework there was no way to switch organization on a phone at all — the slot rendered only in the desktop sidebar, which is hidden under `md`.
+
+- 19c91b2: Drop 50 message keys that nothing reads, in both locales.
+
+  Audited every leaf in `messages/en.json` against every `useTranslations`/`getTranslations` call in this repo **and** in the cloud web app that merges over this tree, keeping anything reachable through a computed key — `t(\`${state}Title\`)` on the verify-email page, `t(\`moduleDescriptions.${module}.readWrite\`)`on the consent screen,`t(\`kind_${change.kind}\`)`, `t(\`saved_${policy}\`)`, `t(\`channel_${kind}\`)`, `t(\`${vendor}.${field}.placeholder\`)`, and the whole `errors.*`namespace, which is looked up by API error code. 1775 leaves down to 1725, en and nb still in exact parity, and no`t()` call in either repo resolves to a key that no longer exists.
+
+  The console rework cleaned up after itself almost completely: of the 138 keys used by the six components it deleted, 122 went with them and the other 16 are still live elsewhere. It left exactly two behind. `nav.closeMenu` was kept on purpose — its changeset says "kept, since `dashboard-pages` is shared with the cloud web app" — but the cloud app never referenced it either, so the reason it was spared does not hold. `dashboard.apiKeys.copyClipboard` went unused when `KeyReveal`'s `copyLabel` prop went away, unremarked.
+
+  The other 48 are older debris that no release has swept since: the May 2026 usage redesign (`percentUsed`, `perMinute`, `perDay`, `resetNow`, `resetMinutes`, `resetHours`), the i18n consolidation of the same month (most of `dashboard.team.*`, `dashboard.agents.*`, `dashboard.auditLog.filter*`), the August channels and trackers card-grid redesign (`imapPolling`, `smtpServer`), the App Store integrations page (`integrations.slack.notConfigured`, superseded by `notConfiguredShort`), and a dozen keys — the vendor `*Chip` strings, `dashboard.trackers.rotated`, `agentSetup.apiKey.ledeStored` — that were written into the catalogue and never wired to anything at all.
+
+- @getmunin/types@5.17.0
+  - @getmunin/ui@5.17.0
+
 ## 5.16.0
 
 ### Minor Changes

@@ -10,6 +10,8 @@ import { useConversationTyping } from '../../realtime';
 import { useCmdEnter } from './queue-panes/shared';
 import { MessageBubble, startsAuthorGroup } from './inbox-message-bubble';
 import { participantHues, participantKey } from './inbox-identity';
+import { customerIdentity } from './inbox-helpers';
+import { formatPhoneNumber } from '../../lib/format-phone';
 import { LoadFailed } from '../load-failed';
 import { TestConversationBanner } from './test-conversation-banner';
 import { usePaneLoadFailedProps } from '../../lib/use-load-failed-props';
@@ -224,8 +226,13 @@ export function ConversationPane({
     );
   }
 
-  const customer =
-    item?.customerName ?? detail.contactName ?? detail.contactEmail ?? t('anonymous');
+  const customerPhone = detail.contactPhone ? formatPhoneNumber(detail.contactPhone) : null;
+  const caller = customerIdentity({
+    name: item?.customerName ?? detail.contactName,
+    email: detail.contactEmail,
+    phone: detail.contactPhone,
+  });
+  const customer = caller ?? t('anonymous');
   const composerTitle = detail.subject ?? customer;
   const composerMeta = [item?.topicName, detail.subject ? customer : null]
     .filter((v): v is string => !!v)
@@ -319,7 +326,7 @@ export function ConversationPane({
     `#${detail.displayId}`,
     item?.topicName ?? null,
     originLine,
-    detail.contactPhone,
+    customerPhone === customer ? null : customerPhone,
   ].filter((v): v is string => !!v);
 
   const editedByYou = canReply && tab === 'reply' && dirty;
@@ -469,6 +476,7 @@ export function ConversationPane({
             showAuthor={startsAuthorGroup(m, arr[i - 1])}
             viewerUserId={viewerUserId}
             hue={hues.get(participantKey(m))}
+            endUserLabel={caller}
           />
         ))}
         {visitorTyping ? (

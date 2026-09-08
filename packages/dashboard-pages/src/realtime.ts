@@ -293,7 +293,9 @@ const client = new RealtimeClient();
 export function useRealtime(
   subscriptions: readonly SubscriptionChannel[],
   onEvent: (event: RealtimeEventRow) => void,
+  options: { enabled?: boolean } = {},
 ): { connected: boolean; status: RealtimeStatus } {
+  const enabled = options.enabled ?? true;
   const [status, setStatus] = useState<RealtimeStatus>(() => client.getStatus());
   const connected = status === 'connected';
 
@@ -306,6 +308,7 @@ export function useRealtime(
   const listenerRef = useRef<Listener | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
     const listener: Listener = {
       channels: new Set(subsRef.current.map(subKey)),
       onEvent: (event) => onEventRef.current(event),
@@ -319,7 +322,7 @@ export function useRealtime(
       listenerRef.current = null;
       unsubscribeStatus();
     };
-  }, []);
+  }, [enabled]);
 
   const subsKey = subscriptions.map(subKey).sort().join(',');
   useEffect(() => {

@@ -18,7 +18,7 @@ import { ConversationPane } from '../components/dashboard/conversation-pane';
 import { ConsoleSectionLabel } from '../components/console-section-label';
 import { ConsoleListEmpty } from '../components/console-empty';
 import { ConsoleRowsSkeleton, ConsoleSplitSkeleton } from '../components/console-skeleton';
-import { ConversationsFirstRun, useSetupState } from '../components/first-run';
+import { ConversationsFirstRun, useFirstRunGate } from '../components/first-run';
 import { useProvideMobileBack } from '../shells/mobile-back';
 
 const FADE_FLOOR = 0.55;
@@ -33,7 +33,8 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
     pathname.match(/^\/dashboard\/conversations\/([^/]+)/)?.[1] ??
     (onQueueRoute ? null : selectedId);
   const queue = useConversationQueue(routeSelectedId);
-  const setup = useSetupState();
+  const gate = useFirstRunGate();
+  const setup = gate.setup;
   const buildLoadFailedProps = useInboxLoadFailedProps();
   const { data: session } = authClient.useSession();
   const viewerUserId = session?.user?.id ?? null;
@@ -103,8 +104,8 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
     );
   }
 
-  if (setup.loading) return <ConsoleSplitSkeleton grid={SPLIT_GRID} />;
-  if (setup.isFirstRun) return <ConversationsFirstRun setup={setup} />;
+  if (gate.view === 'loading') return <ConsoleSplitSkeleton grid={SPLIT_GRID} />;
+  if (gate.view === 'firstRun') return <ConversationsFirstRun setup={gate.setup} />;
 
   const select = (id: string) => shallowGo(`/dashboard/conversations/${id}`);
 

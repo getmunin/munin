@@ -1,14 +1,13 @@
-'use client';
+import { DashboardBootstrapProvider } from '@getmunin/dashboard-pages';
+import { readDashboardBootstrap } from '@getmunin/dashboard-pages/server';
+import { DashboardChrome } from './dashboard-chrome';
 
-import { DashboardShell, useActiveMembership } from '@getmunin/dashboard-pages';
-
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { membership } = useActiveMembership();
-  const brand = membership?.name?.trim() || 'Munin';
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const bootstrap = await readDashboardBootstrap();
 
   return (
-    <DashboardShell brand={brand} withConfirmDialog>
-      {children}
-    </DashboardShell>
+    <DashboardBootstrapProvider value={bootstrap}>
+      <DashboardChrome>{children}</DashboardChrome>
+    </DashboardBootstrapProvider>
   );
 }

@@ -6,6 +6,12 @@ export {
   type SetupStage,
   type SetupState,
 } from './use-setup-state';
+export {
+  resolveFirstRunView,
+  type FirstRunGateOptions,
+  type FirstRunView,
+} from './first-run-view';
+export { useFirstRunGate, type FirstRunGate } from './use-first-run-gate';
 export { toSetupSnapshot, type SetupSnapshot, type SetupStateDto } from './setup-snapshot';
 export {
   FIRST_RUN_DOCS,

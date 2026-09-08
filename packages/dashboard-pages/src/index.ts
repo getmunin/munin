@@ -96,6 +96,11 @@ export {
   type ActiveMembership,
 } from './auth/use-active-role';
 export { useAgentConfigStatus } from './auth/use-agent-config-status';
+export {
+  DashboardBootstrapProvider,
+  useDashboardBootstrap,
+  type DashboardBootstrap,
+} from './auth/dashboard-bootstrap';
 export { useDashboardGate } from './auth/use-dashboard-gate';
 export { useSetupGate } from './auth/use-setup-gate';
 export { safeRedirect, resumeOauthAuthorizeUrl } from './auth/post-signin-redirect';

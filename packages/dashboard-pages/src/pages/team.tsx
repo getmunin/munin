@@ -464,7 +464,7 @@ function RoleSelect({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as MemberRole)}
-        className="appearance-none border-[1px] border-rule-soft dark:border-rule-on-dark focus-visible:border-cobalt bg-paper dark:bg-card font-mono text-[10px] uppercase tracking-eyebrow text-ink dark:text-foreground py-1.5 pl-3 pr-7 cursor-pointer focus-visible:outline-none"
+        className="appearance-none border-[1px] border-rule-field dark:border-rule-field focus-visible:border-cobalt bg-paper dark:bg-card font-mono text-[10px] uppercase tracking-eyebrow text-ink dark:text-foreground py-1.5 pl-3 pr-7 cursor-pointer focus-visible:outline-none"
       >
         <option value="owner">{labelOwner}</option>
         <option value="admin">{labelAdmin}</option>

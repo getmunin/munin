@@ -55,8 +55,7 @@
       "failed": "Innlogging mislyktes",
       "invalid": {
         "title": "Den e-postadressen og passordet stemmer ikke.",
-        "hint": "Sjekk adressen, eller prøv igjen.",
-        "hintWithReset": "Sjekk adressen, eller <resetLink>tilbakestill passordet</resetLink>."
+        "hint": "Sjekk adressen, eller prøv igjen."
       },
       "unreachable": {
         "title": "Får ikke kontakt med serveren.",
@@ -185,14 +184,11 @@
     "conversations": "Samtaler",
     "activity": "Aktivitet",
     "skills": "Ferdigheter",
-    "suggestions": "Forslag",
     "partner": "Partner",
     "automation": "Automatisering",
     "review": "Gjennomgang",
     "openMenu": "Åpne meny",
-    "closeMenu": "Lukk meny",
     "openUserMenu": "Åpne brukermeny",
-    "organization": "Organisasjon",
     "integrations": "Integrasjoner"
   },
   "dashboard": {
@@ -238,8 +234,7 @@
         "eyebrow": "Innboks · ledig",
         "title": "En <em>tom</em> grein.",
         "body": "Ingen utkast ennå. Koble til en agent, så begynner Munin å samle arbeidet deres her — utkast å godkjenne, samtaler å overta, kunnskap å bekrefte.",
-        "readDocs": "Les dokumentasjonen",
-        "browseMcp": "Utforsk MCP-verktøy"
+        "readDocs": "Les dokumentasjonen"
       },
       "stats": {
         "liveLabel": "Pågår nå · hos support",
@@ -333,6 +328,9 @@
         "cmsPreviewTitle": "Forhåndsvisning av utkast",
         "cmsPreviewFailedEyebrow": "Forhåndsvisningen lastet ikke",
         "cmsPreviewFailedBody": "Nettstedet svarte ikke, eller nekter å bli bygget inn. Feltene under er samme innhold.",
+        "cmsPreviewBlockedEyebrow": "Forhåndsvisningen kan ikke bygges inn",
+        "cmsPreviewBlockedCsp": "{host} sender en Content-Security-Policy med frame-ancestors {value}, så nettleseren nekter å vise den inne i {embedder}. Legg til det opphavet i frame-ancestors på forhåndsvisningsruten, eller åpne forhåndsvisningen på nettstedet. Feltene under er det samme innholdet.",
+        "cmsPreviewBlockedXfo": "{host} sender X-Frame-Options: {value}, som forbyr innbygging overalt — headeren har ingen tillatelsesliste. Fjern den på forhåndsvisningsruten og bruk Content-Security-Policy frame-ancestors i stedet, eller åpne forhåndsvisningen på nettstedet. Feltene under er det samme innholdet.",
         "cmsScheduleTitle": "Planlegg publisering",
         "cmsScheduleDescription": "Velg når utkastet skal publiseres. Munin publiserer det automatisk på det tidspunktet — ingen videre godkjenning kreves.",
         "cmsScheduleConfirm": "Godkjenn & planlegg",
@@ -443,9 +441,6 @@
       "emptyBody": "Legg MCP-URL-en inn i Claude Desktop, Cursor eller MCP-klienten din, og fullfør samtykket — tilkoblede agenter vises her.",
       "noScopes": "ingen scopes",
       "connections": "{count, plural, one {# tilkobling} other {# tilkoblinger}}",
-      "issued": "Utstedt {when}",
-      "lastUsed": "Sist brukt {when}",
-      "expires": "Utløper {when}",
       "status": {
         "active": "aktiv",
         "revoked": "frakoblet",
@@ -510,8 +505,6 @@
         "hashHint": "Hvis du vil knytte en chat til en kjent bruker (f.eks. for å gjenoppta tråden ved neste besøk), beregn en server-side HMAC med kanalens identitetshemmelighet og send den som data-user-hash:",
         "copyHash": "Kopier kode"
       },
-      "createdAt": "Opprettet {date}",
-      "createdAtShort": "opprettet {date}",
       "channelsTitleCount": "Kanaler · {count}",
       "channelsTitle": "Kanaler",
       "typeChat": "Chat-widget",
@@ -527,8 +520,6 @@
       "deleteChannel": "Slett kanal",
       "deleteChannelConfirmTitle": "Slette kanal?",
       "deleteChannelConfirm": "Slette {name}. Dette kan ikke angres.",
-      "imapPolling": "imap · polling",
-      "smtpServer": "smtp · {host}",
       "sendTestEmail": "Send test-e-post",
       "sendTest": {
         "title": "Send en test-e-post",
@@ -537,7 +528,6 @@
         "toHint": "Forhåndsutfylt med e-postadressen din — endre den for å sende testen et annet sted.",
         "submit": "Send test",
         "sending": "Sender …",
-        "successTitle": "Test sendt",
         "success": "Test-e-post sendt til {to}. Sjekk innboksen om et øyeblikk.",
         "errorTitle": "Testen feilet"
       },
@@ -646,8 +636,6 @@
         "messagingServiceSidLabel": "Messaging Service SID",
         "messagingServiceSidHint": "Starter med «MG». Finnes i Twilio-konsollen under Messaging → Services.",
         "sendTest": "Send test-SMS",
-        "messagingService": "messaging service · {sid}",
-        "accountSidChip": "account · {sid}",
         "sendTestDialog": {
           "title": "Send en test-SMS",
           "description": "Send en ekte SMS gjennom {name} for å bekrefte påloggingsinformasjon og leveranse.",
@@ -695,7 +683,6 @@
         "apiKeyHintCreate": "Vapi privat API-nøkkel — brukes på server for utgående anrop og styring av assistenten. Eksponeres aldri i nettleseren.",
         "apiKeyHintEdit": "La feltet stå tomt for å beholde eksisterende. Lim inn ny verdi for å rotere.",
         "webhookSecretLabel": "Webhook-hemmelighet",
-        "webhookSecretHintCreate": "Generert automatisk. Kopier verdien og lim den inn i Vapi-assistentens Advanced → Webhook Server → HTTP Headers som `X-Webhook-Secret`.",
         "webhookSecretHintEdit": "Klikk Generer ny for å rotere. Oppdater `X-Webhook-Secret`-headeren i Vapi til den nye verdien.",
         "webhookSecretGenerate": "Generer ny",
         "webhookSecretRegenerate": "Regenerer",
@@ -725,8 +712,6 @@
         "publicKeyLabel": "Public API-nøkkel (valgfritt)",
         "publicKeyHintCreate": "Nødvendig for stemmesamtaler i nettleseren fra chat-widgeten. Finnes i Vapi-dashbordet under kontoen/nøkler — trygg å eksponere i nettleseren.",
         "publicKeyHintEdit": "Nødvendig for stemmesamtaler i nettleseren fra chat-widgeten. Finnes i Vapi-dashbordet under kontoen/nøkler — trygg å eksponere i nettleseren.",
-        "assistantChip": "asst · {id}",
-        "phoneChip": "pn · {id}",
         "placeCall": "Ring en testsamtale",
         "placeCallDialog": {
           "title": "Ring en testsamtale",
@@ -755,8 +740,6 @@
           "descriptionAccount": "Velg threllen i {account} som skal håndtere anrop på denne kanalen.",
           "empty": "Fant ingen threller i denne kontoen. Opprett en i Threll og prøv igjen."
         },
-        "accountChip": "acct · {id}",
-        "workerChip": "worker · {id}",
         "replaceWebhook": {
           "title": "Erstatt eksisterende webhook?",
           "message": "Denne threllen har allerede et webhook-abonnement som peker et annet sted. Munin sletter det og registrerer sitt eget. Andre threller i kontoen berøres ikke. Fortsette?",
@@ -860,7 +843,6 @@
       },
       "emptyTitle": "Ingen sporingskoder ennå",
       "emptyBody": "Legg til en sporingskode for å begynne å samle statistikk om sidevisninger.",
-      "rotated": "Identitetshemmelighet rotert.",
       "revoked": "Sporingskode deaktivert.",
       "errors": {
         "load": "Kunne ikke laste sporingskoder.",
@@ -889,15 +871,12 @@
       "revealTitle": "Nøkkel laget",
       "revealSub": "Kopier nå — dette er eneste gang du ser den",
       "revealWarning": "Pass på. Munin lagrer kun en hash av denne nøkkelen. Når du lukker dialogen, er klarteksten borte for godt — kopier den til passordhåndtereren din nå.",
-      "copyClipboard": "Kopier til utklippstavle",
       "revealDone": "Jeg har lagret den · Ferdig",
       "createTitle": "Opprett en ny nøkkel",
       "createDescription": "Klartekstverdien vises ÉN GANG, umiddelbart etter opprettelse. Kopier den nå og oppbevar den i passordhåndtereren din.",
       "nameLabel": "Navn",
       "namePlaceholder": "f.eks. produksjon-backend",
       "create": "Opprett nøkkel",
-      "rowMeta": "<code>{prefix}…</code> · opprettet {created}",
-      "rowMetaWithLast": "<code>{prefix}…</code> · opprettet {created} · sist brukt {lastUsed}",
       "emptyTitle": "Ingen API-nøkler ennå",
       "emptyBody": "Opprett din første nøkkel over for å komme i gang.",
       "createdTitle": "Nøkkel opprettet — kopier den nå",
@@ -1032,17 +1011,12 @@
       "title": "<em>Rådet</em> ditt.",
       "subtitle": "Inviter medarbeidere og styr hva de ser.",
       "inviteTitle": "Inviter en medarbeider",
-      "inviteDescription": "De får en e-post med en lenke for å akseptere. Lenken utløper om 7 dager.",
       "emailLabel": "E-post",
       "emailPlaceholder": "kollega@eksempel.no",
       "roleLabel": "Rolle",
       "roleMember": "Medlem",
       "roleAdmin": "Admin",
       "roleOwner": "Eier",
-      "roleMemberLower": "medlem",
-      "roleAdminLower": "admin",
-      "roleOwnerLower": "eier",
-      "sendInvite": "Send invitasjon",
       "sending": "Sender…",
       "manualShareTitle": "E-post er ikke konfigurert",
       "manualShareBody": "Sett <code>MUNIN_MAIL_PROVIDER</code> (f.eks. <code>resend</code>) og start på nytt slik at fremtidige invitasjoner sendes automatisk.",
@@ -1069,14 +1043,11 @@
         "sent": "Sendt",
         "expires": "Utløper"
       },
-      "invitesSent": "{when}",
-      "invitesExpires": "{when}",
       "resend": "Send på nytt",
       "inviteModalTitle": "Inviter medarbeider",
       "inviteModalSub": "Sender en innloggingslenke, utløper om 7 dager",
       "inviteModalRoleHint": "Medlemmer kan lese innboksen og svare. Admins kan i tillegg styre kanaler og nøkler.",
       "inviteModalSubmit": "Send invitasjon",
-      "inviteRow": "{role} · invitert {created} · utløper {expires}",
       "editNameTitle": "Endre navn",
       "editNameSubtitle": "Oppdater visningsnavnet som vises i Munin.",
       "editNameLabel": "Visningsnavn",
@@ -1102,10 +1073,8 @@
       "emptyBody": "Generer ditt første delegerte sluttbrukertoken via <code>POST /v1/tokens/delegated</code> med en administratornøkkel fra backend-en din, og den tilsvarende EndUser vises her.",
       "tableName": "Navn",
       "tableExternalId": "Ekstern id",
-      "tableContact": "Kontakt",
       "tableCreated": "Opprettet",
       "revokeActive": "Trekk tilbake aktive token",
-      "revoking": "Trekker tilbake…",
       "revokedCount": "{count, plural, =1 {Trakk tilbake 1 token.} other {Trakk tilbake # token.}}",
       "noTokensRevoked": "Ingen aktive token å trekke tilbake for denne sluttbrukeren.",
       "errors": {
@@ -1117,19 +1086,12 @@
       "eyebrow": "Overvåking · Bruk",
       "title": "Flokken i <em>tall</em>.",
       "subtitle": "MCP-kall, API-kall og samtalesammendrag på tvers av alle agenter i denne organisasjonen. Sparklines viser de siste 14 dagene.",
-      "perMinute": "Per minutt",
-      "perDay": "Per dag",
       "summary": "{used} av {limit} verktøykall — nullstilles {resetIn}.",
-      "percentUsed": "{pct}% brukt",
-      "resetNow": "nå",
-      "resetMinutes": "om {minutes}m",
-      "resetHours": "om {hours}t",
       "errors": {
         "load": "Kunne ikke laste bruksdata."
       },
       "tiles": {
         "headline": "Bruk · denne måneden",
-        "fullReport": "Full rapport →",
         "byAgentBreakdown": "Detaljer per agent →",
         "mcpCalls": "MCP-kall",
         "apiCalls": "API-kall",
@@ -1160,14 +1122,10 @@
       "title": "Munins <em>krønike</em>.",
       "subtitle": "Et kun-tillegg-spor over hver administrative handling. Du kan ikke endre eller slette oppføringer; eksporter dem med arbeidsområde-eksporten.",
       "trailTitleCount": "Spor · {count}",
-      "trailTitle": "Spor",
       "appendOnly": "kun tillegg",
-      "filterTitle": "Filter",
-      "filterDescription": "La feltene stå tomme for å matche alle verdier.",
       "filterTool": "Verktøy",
       "filterActorType": "Aktørtype",
       "filterCorrelationId": "Korrelasjons-id",
-      "filterClient": "Klient",
       "clientAny": "Alle",
       "emptyTitle": "Ingen hendelser ennå",
       "emptyBody": "Verktøykall og kontrollplanskriving vises her. Koble til en agent og prøv et verktøy.",
@@ -1194,9 +1152,7 @@
         "sectionBlockingNote": "Eldste først",
         "sectionImprovements": "Forbedringer · {count}",
         "sectionImprovementsNote": "Ingen frist",
-        "emptyBlockingTitle": "Ingenting venter.",
         "emptyBlockingBody": "Innholdsutkast, forslag til sammenslåing og utgående meldinger havner her når en agent trenger avgjørelsen din før noe forlater huset.",
-        "emptyImprovementsTitle": "Ingen forslag.",
         "emptyImprovementsBody": "Kunnskapsbasen er à jour. Kandidater dukker opp her når en samtale avdekker noe kunnskapsbasen ikke svarer på.",
         "emptyScheduledTitle": "Ingenting planlagt.",
         "emptyScheduledBody": "Godkjenner du en utgående melding eller et CMS-utkast til et senere tidspunkt, venter det her. Du kan avlyse helt fram til det går.",
@@ -1215,9 +1171,9 @@
         "publish": "Publiser",
         "dismiss": "Avvis",
         "selectEmpty": "Velg fra listen.",
-        "paneEmptyEyebrow": "Ingenting å vise",
-        "paneEmpty": "Denne fanen er tom.",
-        "paneEmptyBody": "Det er ingenting å åpne her. En annen fane kan ha noe som venter på deg.",
+        "paneEmptyEyebrow": "Ingenting å åpne",
+        "paneEmpty": "Ingenting i denne fanen venter på deg.",
+        "paneEmptyBody": "Venter rommer alt som er blokkert av en avgjørelse fra deg. Planlagt rommer det du har godkjent til senere. Avgjort er loggen over de siste {days} dagene.",
         "backToList": "Tilbake",
         "outcomePublished": "Publisert",
         "outcomeDismissed": "Avvist",
@@ -1309,7 +1265,7 @@
       },
       "automation": {
         "eyebrow": "Automatisering — per tema",
-        "title": "Laget for å bli <em>pensjonert.</em>",
+        "title": "Godkjenn til <em>du slipper.</em>",
         "lede": "Hvert tema starter til gjennomgang. Når tallene holder, slår du på automatisk utsending — og køen blir stillere. Det er poenget.",
         "autoRateCaption": "av svarene sendt automatisk · 7 dager",
         "colTopic": "Tema",
@@ -1348,11 +1304,6 @@
         "policyAutoSending": "Sender selv · ≥{pct}%",
         "policyAutoHolding": "Kladd inntil {pct}%"
       },
-      "groups": {
-        "admin": "Admin",
-        "oversight": "Drift",
-        "workspace": "Arbeidsområde"
-      },
       "queue": {
         "modeAuto": "Auto",
         "modeManual": "Gjennomgang",
@@ -1363,6 +1314,10 @@
         "sectionNeedsYou": "Trenger deg · {count}",
         "sectionInProgress": "Pågår · {count}",
         "sectionFinished": "Ferdig · {count}",
+        "emptyTitle": "Tom kø",
+        "emptyBody": "Nye samtaler havner her så snart noen tar kontakt — fra widgeten, e-post, SMS eller en telefon.",
+        "emptySearchTitle": "Ingen treff",
+        "emptySearchBody": "Ingenting i køen passer søket ditt. Prøv et kundenavn, et emne eller en frase fra meldingen.",
         "anonymous": "Anonym besøkende",
         "noteCount": "{count, plural, one {1 notat} other {# notater}}",
         "noDraftBadge": "Ingen kladd — du skriver svaret",
@@ -1497,8 +1452,7 @@
       "title": "Rediger detaljene dine",
       "subtitle": "Oppdater navnet som vises på kontoen din.",
       "nameLabel": "Navn",
-      "emailLabel": "E-post",
-      "editAria": "Rediger kontodetaljer"
+      "emailLabel": "E-post"
     },
     "status": {
       "connected": "tilkoblet",
@@ -1568,7 +1522,6 @@
     "errors": {
       "load": "Kunne ikke laste agent-konfigurasjon.",
       "test": "Tilkoblingstest feilet.",
-      "fetchModels": "Kunne ikke hente modell-liste.",
       "save": "Kunne ikke lagre."
     },
     "provider": {
@@ -1586,7 +1539,6 @@
     },
     "apiKey": {
       "title": "API-nøkkel",
-      "ledeStored": "En API-nøkkel er lagret. Lim inn en ny for å erstatte.",
       "ledeMissing": "Lim inn API-nøkkelen din. Lagres kryptert.",
       "label": "Nøkkel",
       "placeholderStored": "•••••••• (lagret)"
@@ -1681,7 +1633,6 @@
       "reconnect": "Koble til på nytt",
       "connect": "Koble til",
       "connectVendor": "Koble til {vendor}",
-      "readOnly": "Skrivebeskyttet",
       "whatAgentsGet": "Hva agenter får",
       "liveData": "Direkte mot leverandøren — ingenting lagres i Munin.",
       "connectedCount": "{count} tilkoblet",
@@ -1695,7 +1646,6 @@
     "slack": {
       "title": "Slack",
       "lede": "Speil samtaler inn i en Slack-kanal som tråder og varsle teamet ved eskaleringer. Svar til kunden går fortsatt ut via samtalens opprinnelige kanal.",
-      "notConfigured": "Denne installasjonen har ingen Slack-app konfigurert. Sett SLACK_CLIENT_ID og SLACK_CLIENT_SECRET på backenden — agentferdigheten «Connect Slack for human handoff» har app-manifestet og stegene.",
       "connect": "Koble til Slack",
       "connectedTo": "Koblet til {workspace}.",
       "channelLabel": "Standard kanal-ID",

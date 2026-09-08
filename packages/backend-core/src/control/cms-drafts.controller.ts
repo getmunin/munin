@@ -27,6 +27,7 @@ import {
   type PreviewLinkDto,
 } from '../modules/cms/cms.service.ts';
 import type { FieldDef } from '../modules/cms/cms.fields.ts';
+import { probePreviewEmbed, type PreviewEmbedDto } from '../modules/cms/cms.preview-embed.ts';
 import { TEXT_REPLACEMENTS_MAX, TextReplacementSchema } from '../common/text-replacements.ts';
 
 export interface CmsDraftDetailDto extends EntryDto {
@@ -186,8 +187,9 @@ export class CmsDraftsController {
 
   @Post(':id/preview-link')
   @HttpCode(200)
-  async previewLink(@Param('id') id: string): Promise<PreviewLinkDto> {
-    return translate(() => this.cms.createPreviewLink(id));
+  async previewLink(@Param('id') id: string): Promise<CmsPreviewLinkResponse> {
+    const link = await translate(() => this.cms.createPreviewLink(id));
+    return { ...link, embed: link.url ? await probePreviewEmbed(link.url) : null };
   }
 
   @Post(':id/dismiss')
@@ -204,6 +206,10 @@ export class CmsDraftsController {
     const collection = await this.cms.getCollection(entry.collectionId);
     return { ...entry, fields: collection.fields };
   }
+}
+
+export interface CmsPreviewLinkResponse extends PreviewLinkDto {
+  embed: PreviewEmbedDto | null;
 }
 
 async function translate<T>(fn: () => Promise<T>): Promise<T> {

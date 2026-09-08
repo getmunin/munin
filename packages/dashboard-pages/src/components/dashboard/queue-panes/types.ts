@@ -175,9 +175,18 @@ export interface CmsScheduledSummaryDto extends CmsDraftSummaryDto {
   scheduledAt: string;
 }
 
+export interface CmsPreviewEmbed {
+  embeddable: boolean;
+  reason: 'ok' | 'frame_ancestors' | 'x_frame_options' | 'unreachable';
+  detail: string | null;
+  previewHost: string;
+  embedderOrigin: string;
+}
+
 export interface CmsPreviewLink {
   url: string | null;
   deliveryUrl: string | null;
+  embed?: CmsPreviewEmbed | null;
 }
 
 export interface CmsAssetExpanded {

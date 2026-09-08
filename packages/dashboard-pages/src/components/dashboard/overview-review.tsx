@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useRouter } from '../../i18n-navigation';
 import { useCountdown } from '../../lib/use-relative';
+import { ConsoleListEmpty } from '../console-empty';
 import { ConsoleSectionLabel } from '../console-section-label';
 import { ReviewRow } from './review-row';
 import { StatRow } from './overview-stat-row';
@@ -39,9 +40,7 @@ export function OverviewReview({
           {t('waiting')}
         </ConsoleSectionLabel>
         {queue.length === 0 ? (
-          <li className="border-b border-rule-soft px-5 py-5 text-[13px] leading-relaxed text-ink-soft dark:border-rule-on-dark dark:text-foreground/80">
-            {t('waitingEmpty')}
-          </li>
+          <ConsoleListEmpty body={t('waitingEmpty')} />
         ) : (
           queue
             .slice(0, WAITING_LIMIT)

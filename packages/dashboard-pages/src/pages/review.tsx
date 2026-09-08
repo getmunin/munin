@@ -23,11 +23,14 @@ import {
 } from '../components/dashboard/curation-decisions';
 import { useProvideMobileBack } from '../shells/mobile-back';
 import { ConsoleSectionLabel } from '../components/console-section-label';
+import { ConsoleListEmpty } from '../components/console-empty';
+import { ConsoleRowsSkeleton, ConsoleSplitSkeleton } from '../components/console-skeleton';
 import { ReviewFirstRun, useSetupState } from '../components/first-run';
 
 const ROOT = '/dashboard/review';
 const FADE_FLOOR = 0.55;
 const SPLIT_BREAKPOINT = '(min-width: 768px)';
+const SPLIT_GRID = 'md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]';
 
 type ReviewTab = 'waiting' | 'scheduled' | 'decided';
 
@@ -181,7 +184,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
   }
 
   const firstRunUndecided = setup.loading || (setup.isFirstRun && !listLoaded);
-  if (firstRunUndecided) return null;
+  if (firstRunUndecided) return <ConsoleSplitSkeleton grid={SPLIT_GRID} lede />;
   const nothingToReview =
     blocking.length === 0 &&
     improvements.length === 0 &&
@@ -196,7 +199,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
   };
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
+    <div className={cn('grid h-full min-h-0 grid-cols-1', SPLIT_GRID)}>
       <section
         onScroll={onListScroll}
         className={cn(
@@ -249,43 +252,46 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
             className="mt-0 md:min-h-0 md:flex-1 md:overflow-y-auto"
           >
             <ul className="pb-6">
-              <ConsoleSectionLabel
-                note={blocking.length > 0 ? t('sectionBlockingNote') : undefined}
-              >
-                {t('sectionBlocking', { count: blocking.length })}
-              </ConsoleSectionLabel>
-              {blocking.length === 0 ? (
-                <EmptySection title={t('emptyBlockingTitle')} body={t('emptyBlockingBody')} />
+              {!listLoaded ? (
+                <ConsoleRowsSkeleton />
               ) : (
-                blocking.map((item) => (
-                  <ReviewRow
-                    key={`${item.kind}-${item.id}`}
-                    item={item}
-                    active={item.id === activeId}
-                    onSelect={() => select(item.id)}
-                  />
-                ))
-              )}
+                <>
+                  <ConsoleSectionLabel
+                    note={blocking.length > 0 ? t('sectionBlockingNote') : undefined}
+                  >
+                    {t('sectionBlocking', { count: blocking.length })}
+                  </ConsoleSectionLabel>
+                  {blocking.length === 0 ? (
+                    <ConsoleListEmpty body={t('emptyBlockingBody')} />
+                  ) : (
+                    blocking.map((item) => (
+                      <ReviewRow
+                        key={`${item.kind}-${item.id}`}
+                        item={item}
+                        active={item.id === activeId}
+                        onSelect={() => select(item.id)}
+                      />
+                    ))
+                  )}
 
-              <ConsoleSectionLabel
-                note={improvements.length > 0 ? t('sectionImprovementsNote') : undefined}
-              >
-                {t('sectionImprovements', { count: improvements.length })}
-              </ConsoleSectionLabel>
-              {improvements.length === 0 ? (
-                <EmptySection
-                  title={t('emptyImprovementsTitle')}
-                  body={t('emptyImprovementsBody')}
-                />
-              ) : (
-                improvements.map((item) => (
-                  <ReviewRow
-                    key={`${item.kind}-${item.id}`}
-                    item={item}
-                    active={item.id === activeId}
-                    onSelect={() => select(item.id)}
-                  />
-                ))
+                  <ConsoleSectionLabel
+                    note={improvements.length > 0 ? t('sectionImprovementsNote') : undefined}
+                  >
+                    {t('sectionImprovements', { count: improvements.length })}
+                  </ConsoleSectionLabel>
+                  {improvements.length === 0 ? (
+                    <ConsoleListEmpty body={t('emptyImprovementsBody')} />
+                  ) : (
+                    improvements.map((item) => (
+                      <ReviewRow
+                        key={`${item.kind}-${item.id}`}
+                        item={item}
+                        active={item.id === activeId}
+                        onSelect={() => select(item.id)}
+                      />
+                    ))
+                  )}
+                </>
               )}
             </ul>
           </TabsPanel>
@@ -296,8 +302,10 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
             className="mt-0 md:min-h-0 md:flex-1 md:overflow-y-auto"
           >
             <ul className="pb-6">
-              {scheduled.length === 0 ? (
-                <EmptySection title={t('emptyScheduledTitle')} body={t('emptyScheduledBody')} />
+              {!listLoaded ? (
+                <ConsoleRowsSkeleton rows={3} />
+              ) : scheduled.length === 0 ? (
+                <ConsoleListEmpty title={t('emptyScheduledTitle')} body={t('emptyScheduledBody')} />
               ) : (
                 scheduled.map((item) => (
                   <ReviewScheduledRow
@@ -317,8 +325,10 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
             className="mt-0 md:min-h-0 md:flex-1 md:overflow-y-auto"
           >
             <ul className="pb-6">
-              {recentDecisions.length === 0 ? (
-                <EmptySection
+              {!listLoaded ? (
+                <ConsoleRowsSkeleton rows={3} />
+              ) : recentDecisions.length === 0 ? (
+                <ConsoleListEmpty
                   title={t('emptyDecidedTitle')}
                   body={t('emptyDecidedBody', { days: DECIDED_WINDOW_DAYS })}
                 />
@@ -354,7 +364,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
               <PaneEmpty
                 eyebrow={t('paneEmptyEyebrow')}
                 title={t('paneEmpty')}
-                body={t('paneEmptyBody')}
+                body={t('paneEmptyBody', { days: DECIDED_WINDOW_DAYS })}
               />
             )}
           </section>
@@ -440,18 +450,5 @@ function PaneEmpty({
         {body}
       </p>
     </div>
-  );
-}
-
-function EmptySection({ title, body }: { title: string; body: string }) {
-  return (
-    <li className="flex flex-col gap-2 border-b border-rule-soft px-5 py-6 dark:border-rule-on-dark">
-      <h3 className="font-serif text-lg font-normal leading-tight text-ink dark:text-foreground">
-        {title}
-      </h3>
-      <p className="max-w-[48ch] text-[13px] leading-relaxed text-ink-soft dark:text-foreground/80">
-        {body}
-      </p>
-    </li>
   );
 }

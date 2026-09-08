@@ -55,8 +55,7 @@
       "failed": "Sign-in failed",
       "invalid": {
         "title": "That email and password don't match.",
-        "hint": "Check the address, or try again.",
-        "hintWithReset": "Check the address, or <resetLink>reset your password</resetLink>."
+        "hint": "Check the address, or try again."
       },
       "unreachable": {
         "title": "Couldn't reach the server.",
@@ -185,14 +184,11 @@
     "conversations": "Conversations",
     "activity": "Activity",
     "skills": "Skills",
-    "suggestions": "Suggestions",
     "partner": "Partner",
     "automation": "Automation",
     "review": "Review",
     "openMenu": "Open menu",
-    "closeMenu": "Close menu",
     "openUserMenu": "Open user menu",
-    "organization": "Organization",
     "integrations": "Integrations"
   },
   "dashboard": {
@@ -238,8 +234,7 @@
         "eyebrow": "Inbox · idle",
         "title": "An <em>empty</em> perch.",
         "body": "No drafts yet. Connect an agent and Munin will start collecting their work here — drafts to approve, conversations to take over, knowledge to confirm.",
-        "readDocs": "Read the docs",
-        "browseMcp": "Browse MCP tools"
+        "readDocs": "Read the docs"
       },
       "stats": {
         "liveLabel": "Live now · with support",
@@ -333,6 +328,9 @@
         "cmsPreviewTitle": "Draft preview",
         "cmsPreviewFailedEyebrow": "Preview did not load",
         "cmsPreviewFailedBody": "The site did not answer, or it refuses to be embedded. The fields below are the same content.",
+        "cmsPreviewBlockedEyebrow": "Preview cannot be embedded",
+        "cmsPreviewBlockedCsp": "{host} sends a Content-Security-Policy with frame-ancestors {value}, so the browser refuses to render it inside {embedder}. Add that origin to frame-ancestors on the preview route, or open the preview on the site. The fields below are the same content.",
+        "cmsPreviewBlockedXfo": "{host} sends X-Frame-Options: {value}, which forbids embedding anywhere — the header has no allowlist. Drop it on the preview route and use Content-Security-Policy frame-ancestors instead, or open the preview on the site. The fields below are the same content.",
         "cmsScheduleTitle": "Schedule publish",
         "cmsScheduleDescription": "Pick when this draft should go live. Munin will publish it automatically at that time — no further approval needed.",
         "cmsScheduleConfirm": "Approve & schedule",
@@ -443,9 +441,6 @@
       "emptyBody": "Add the MCP URL to Claude Desktop, Cursor, or your runtime, then complete consent — connected agents will appear here.",
       "noScopes": "no scopes",
       "connections": "{count, plural, one {# connection} other {# connections}}",
-      "issued": "Issued {when}",
-      "lastUsed": "Last used {when}",
-      "expires": "Expires {when}",
       "status": {
         "active": "active",
         "revoked": "revoked",
@@ -510,8 +505,6 @@
         "hashHint": "If you want to bind a chat to a known user (e.g. so you can resume their thread next visit), compute a server-side HMAC with the channel's identity secret and pass it as data-user-hash:",
         "copyHash": "Copy code"
       },
-      "createdAt": "Created {date}",
-      "createdAtShort": "created {date}",
       "status": {
         "deactivatedMessage": "Auto-deactivated after {threshold} failed polls",
         "failingMessage": "Inbound polling failing · {attempt}/{threshold} · auto-deactivates at {threshold}",
@@ -560,8 +553,6 @@
       "deleteChannel": "Delete channel",
       "deleteChannelConfirmTitle": "Delete channel?",
       "deleteChannelConfirm": "Delete {name}. This cannot be undone.",
-      "imapPolling": "imap · polling",
-      "smtpServer": "smtp · {host}",
       "test": "Test",
       "sendTestEmail": "Send test email",
       "sendTest": {
@@ -571,7 +562,6 @@
         "toHint": "Defaults to your account email — change it to send the test somewhere else.",
         "submit": "Send test",
         "sending": "Sending…",
-        "successTitle": "Test sent",
         "success": "Test email queued for {to}. Check the inbox in a moment.",
         "errorTitle": "Test failed"
       },
@@ -646,8 +636,6 @@
         "messagingServiceSidLabel": "Messaging Service SID",
         "messagingServiceSidHint": "Starts with \"MG\". Find it in the Twilio console under Messaging → Services.",
         "sendTest": "Send test SMS",
-        "messagingService": "messaging service · {sid}",
-        "accountSidChip": "account · {sid}",
         "sendTestDialog": {
           "title": "Send a test SMS",
           "description": "Send a real SMS through {name} to confirm credentials and deliverability.",
@@ -695,7 +683,6 @@
         "apiKeyHintCreate": "Vapi private API key — used server-side to place outbound calls and manage the assistant. Never exposed to the browser.",
         "apiKeyHintEdit": "Leave blank to keep the existing key. Paste a new value to rotate.",
         "webhookSecretLabel": "Webhook Secret",
-        "webhookSecretHintCreate": "Auto-generated. Copy it and paste it into the Vapi assistant's Advanced → Webhook Server → HTTP Headers as `X-Webhook-Secret`.",
         "webhookSecretHintEdit": "Click Generate new to rotate. Update the `X-Webhook-Secret` header in Vapi to match.",
         "webhookSecretGenerate": "Generate new",
         "webhookSecretRegenerate": "Regenerate",
@@ -725,8 +712,6 @@
         "publicKeyLabel": "Public API Key (optional)",
         "publicKeyHintCreate": "Required for in-browser voice calls from the chat widget. Find it in the Vapi dashboard under your account/keys — it's safe to expose to the browser.",
         "publicKeyHintEdit": "Required for in-browser voice calls from the chat widget. Find it in the Vapi dashboard under your account/keys — it's safe to expose to the browser.",
-        "assistantChip": "asst · {id}",
-        "phoneChip": "pn · {id}",
         "placeCall": "Make a test call",
         "placeCallDialog": {
           "title": "Make a test call",
@@ -755,8 +740,6 @@
           "descriptionAccount": "Select the threll in {account} that will handle calls on this channel.",
           "empty": "No thrells found in this account. Create one in Threll, then try again."
         },
-        "accountChip": "acct · {id}",
-        "workerChip": "worker · {id}",
         "replaceWebhook": {
           "title": "Replace existing webhook?",
           "message": "This threll already has a webhook subscription pointing somewhere else. Munin will delete it and register its own. Other thrells in the account are untouched. Continue?",
@@ -860,7 +843,6 @@
       },
       "emptyTitle": "No trackers yet",
       "emptyBody": "Add a tracker to start collecting page-view analytics.",
-      "rotated": "Identity secret rotated.",
       "revoked": "Tracker revoked.",
       "errors": {
         "load": "Could not load trackers.",
@@ -889,15 +871,12 @@
       "revealTitle": "Key minted",
       "revealSub": "Copy now — this is the only time you'll see it",
       "revealWarning": "Heads up. Munin stores only a hash of this key. Once you close this dialog, the plaintext is gone forever — copy it to your secret manager now.",
-      "copyClipboard": "Copy to clipboard",
       "revealDone": "I've stored it · Done",
       "createTitle": "Create a new key",
       "createDescription": "The plaintext value is shown ONCE, immediately after creation. Copy it now and store it in your secret manager.",
       "nameLabel": "Name",
       "namePlaceholder": "e.g. production-backend",
       "create": "Create key",
-      "rowMeta": "<code>{prefix}…</code> · created {created}",
-      "rowMetaWithLast": "<code>{prefix}…</code> · created {created} · last used {lastUsed}",
       "emptyTitle": "No API keys yet",
       "emptyBody": "Create your first key above to get started.",
       "createdTitle": "Key created — copy it now",
@@ -1032,17 +1011,12 @@
       "title": "The <em>council</em>.",
       "subtitle": "Invite teammates and manage what they can see.",
       "inviteTitle": "Invite a teammate",
-      "inviteDescription": "They'll get an email with a link to accept. The link expires in 7 days.",
       "emailLabel": "Email",
       "emailPlaceholder": "teammate@example.com",
       "roleLabel": "Role",
       "roleMember": "Member",
       "roleAdmin": "Admin",
       "roleOwner": "Owner",
-      "roleMemberLower": "member",
-      "roleAdminLower": "admin",
-      "roleOwnerLower": "owner",
-      "sendInvite": "Send invite",
       "sending": "Sending…",
       "manualShareTitle": "Email isn't configured",
       "manualShareBody": "Set <code>MUNIN_MAIL_PROVIDER</code> (e.g. <code>resend</code>) and restart so future invites mail automatically.",
@@ -1069,14 +1043,11 @@
         "sent": "Sent",
         "expires": "Expires"
       },
-      "invitesSent": "{when}",
-      "invitesExpires": "{when}",
       "resend": "Resend",
       "inviteModalTitle": "Invite teammate",
       "inviteModalSub": "Sends a sign-in link, expires in 7 days",
       "inviteModalRoleHint": "Members can read inbox + reply. Admins also manage channels and keys.",
       "inviteModalSubmit": "Send invitation",
-      "inviteRow": "{role} · invited {created} · expires {expires}",
       "editNameTitle": "Edit name",
       "editNameSubtitle": "Update the display name shown across Munin.",
       "editNameLabel": "Display name",
@@ -1097,7 +1068,6 @@
       "emptyBody": "Mint your first delegated end-user token via <code>POST /v1/tokens/delegated</code> with an admin key from your backend, and the corresponding EndUser will appear here.",
       "tableName": "Name",
       "tableExternalId": "External id",
-      "tableContact": "Contact",
       "tableCreated": "Created",
       "endUsersTitleCount": "End-users · {count}",
       "endUsersTitle": "End-users",
@@ -1105,7 +1075,6 @@
       "tableLastContact": "Last contact",
       "searchPlaceholder": "search by email or name",
       "revokeActive": "Revoke active tokens",
-      "revoking": "Revoking…",
       "revokedCount": "{count, plural, =1 {Revoked 1 token.} other {Revoked # tokens.}}",
       "noTokensRevoked": "No active tokens to revoke for this end-user.",
       "errors": {
@@ -1117,19 +1086,12 @@
       "eyebrow": "Monitoring · Usage",
       "title": "The flock by the <em>numbers</em>.",
       "subtitle": "MCP call, API call, and conversation rollups across all agents in this org. Sparklines show the last 14 days.",
-      "perMinute": "Per minute",
-      "perDay": "Per day",
       "summary": "{used} of {limit} tool calls — resets {resetIn}.",
-      "percentUsed": "{pct}% used",
-      "resetNow": "now",
-      "resetMinutes": "in {minutes}m",
-      "resetHours": "in {hours}h",
       "errors": {
         "load": "Could not load usage."
       },
       "tiles": {
         "headline": "Usage · this month",
-        "fullReport": "Full report →",
         "byAgentBreakdown": "By-agent breakdown →",
         "mcpCalls": "MCP calls",
         "apiCalls": "API calls",
@@ -1160,14 +1122,10 @@
       "title": "Munin's <em>record</em>.",
       "subtitle": "Append-only trail of every administrative action. You cannot edit or delete entries; export them with the workspace export tool.",
       "trailTitleCount": "Trail · {count}",
-      "trailTitle": "Trail",
       "appendOnly": "append-only",
-      "filterTitle": "Filter",
-      "filterDescription": "Leave blank to match all values.",
       "filterTool": "Tool",
       "filterActorType": "Actor type",
       "filterCorrelationId": "Correlation id",
-      "filterClient": "Client",
       "clientAny": "Any",
       "emptyTitle": "No audit rows yet",
       "emptyBody": "Tool calls and control-plane writes appear here. Connect an agent and try a tool.",
@@ -1194,9 +1152,7 @@
         "sectionBlockingNote": "Oldest first",
         "sectionImprovements": "Improvements · {count}",
         "sectionImprovementsNote": "No clock",
-        "emptyBlockingTitle": "Nothing blocked.",
         "emptyBlockingBody": "Content drafts, merge proposals and outbound messages land here when an agent needs your decision before anything leaves the building.",
-        "emptyImprovementsTitle": "Nothing proposed.",
         "emptyImprovementsBody": "The knowledge base is current. Candidates appear here when a conversation turns up something the KB doesn't answer.",
         "emptyScheduledTitle": "Nothing scheduled.",
         "emptyScheduledBody": "Approve an outbound message or a CMS draft for a later time and it waits here. You can still call it off right up to the moment it goes.",
@@ -1215,9 +1171,9 @@
         "publish": "Publish",
         "dismiss": "Dismiss",
         "selectEmpty": "Select from the list.",
-        "paneEmptyEyebrow": "Nothing to show",
-        "paneEmpty": "This tab is empty.",
-        "paneEmptyBody": "There is nothing here to open. Another tab may have something waiting on you.",
+        "paneEmptyEyebrow": "Nothing to open",
+        "paneEmpty": "Nothing on this tab needs you.",
+        "paneEmptyBody": "Waiting holds anything blocked on your decision. Scheduled holds what you've approved for later. Decided is the record of the last {days} days.",
         "backToList": "Back",
         "outcomePublished": "Published",
         "outcomeDismissed": "Dismissed",
@@ -1309,7 +1265,7 @@
       },
       "automation": {
         "eyebrow": "Automation — per topic",
-        "title": "Built to be <em>retired.</em>",
+        "title": "Approve it until <em>you don't have to.</em>",
         "lede": "Every topic starts in review. When the numbers hold, flip it to auto — and the queue gets quieter. That is the point.",
         "autoRateCaption": "of replies auto-sent · 7 days",
         "colTopic": "Topic",
@@ -1348,11 +1304,6 @@
         "policyAutoSending": "Auto-send · ≥{pct}%",
         "policyAutoHolding": "Drafting until {pct}%"
       },
-      "groups": {
-        "admin": "Admin",
-        "oversight": "Oversight",
-        "workspace": "Workspace"
-      },
       "queue": {
         "modeAuto": "Auto",
         "modeManual": "Review",
@@ -1363,6 +1314,10 @@
         "sectionNeedsYou": "Needs your attention · {count}",
         "sectionInProgress": "In progress · {count}",
         "sectionFinished": "Done · {count}",
+        "emptyTitle": "Queue clear",
+        "emptyBody": "New conversations land here the moment someone writes in — from the widget, email, SMS or a call.",
+        "emptySearchTitle": "No match",
+        "emptySearchBody": "Nothing in the queue matches your search. Try a customer name, a subject, or a phrase from the message.",
         "anonymous": "Anonymous visitor",
         "noteCount": "{count, plural, one {1 note} other {# notes}}",
         "noDraftBadge": "No draft — you write it",
@@ -1497,8 +1452,7 @@
       "title": "Edit your details",
       "subtitle": "Update the name shown on your account.",
       "nameLabel": "Name",
-      "emailLabel": "Email",
-      "editAria": "Edit your account details"
+      "emailLabel": "Email"
     },
     "status": {
       "connected": "connected",
@@ -1568,7 +1522,6 @@
     "errors": {
       "load": "Couldn't load agent config.",
       "test": "Connection test failed.",
-      "fetchModels": "Couldn't fetch model list.",
       "save": "Couldn't save."
     },
     "provider": {
@@ -1586,7 +1539,6 @@
     },
     "apiKey": {
       "title": "API key",
-      "ledeStored": "An API key is stored. Paste a new one to replace it.",
       "ledeMissing": "Paste your provider API key. Stored encrypted at rest.",
       "label": "Key",
       "placeholderStored": "•••••••• (stored)"
@@ -1681,7 +1633,6 @@
       "reconnect": "Reconnect",
       "connect": "Connect",
       "connectVendor": "Connect {vendor}",
-      "readOnly": "Read-only",
       "whatAgentsGet": "What agents get",
       "liveData": "Live against the vendor — nothing is stored in Munin.",
       "connectedCount": "{count} connected",
@@ -1695,7 +1646,6 @@
     "slack": {
       "title": "Slack",
       "lede": "Mirror conversations into a Slack channel as threads and alert your team on handover requests. Replies to customers still go out over the conversation's original channel.",
-      "notConfigured": "This deployment has no Slack app configured. Set SLACK_CLIENT_ID and SLACK_CLIENT_SECRET on the backend — the agent skill \"Connect Slack for human handoff\" has the app manifest and steps.",
       "connect": "Connect Slack",
       "connectedTo": "Connected to {workspace}.",
       "channelLabel": "Default channel ID",

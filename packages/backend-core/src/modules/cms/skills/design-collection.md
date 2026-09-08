@@ -183,6 +183,8 @@ Then sanity-check:
 
 Create one entry by hand and confirm the editor experience matches your intent before scripting any bulk import (`skill://cms/migrate-content`).
 
+If editors will preview drafts on the customer's frontend, set `settings.previewUrl` in the same pass — and say up front that the frontend has work to do: a draft-mode route, framing headers that admit the dashboard origin, and a `SameSite=None` preview cookie. Skipping the last two leaves a preview that opens fine in a tab and shows nothing (or the published entry) inside the Review pane, with no error to go on. `skill://cms/preview-entry` has all four steps.
+
 ## Reference fields: the two-pass setup
 
 When collection A references collection B and B references A back (blog posts → author, author → featured-posts), neither can be created first with both fields populated. The convention:
@@ -232,4 +234,5 @@ The dashboard editor will warn before destructive changes; if you're driving thi
 - `skill://cms/migrate-content` — bulk-import into the new collection.
 - `skill://cms/localize-entry` — adding locale variants to a localized collection.
 - `skill://cms/upload-asset-and-embed` — wiring up the `asset` field type end-to-end.
+- `skill://cms/preview-entry` — `settings.previewUrl` plus the frontend contract for previewing drafts.
 - `skill://cms/review-stale-entries` — operational pass once the collection is in production.

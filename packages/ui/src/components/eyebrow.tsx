@@ -9,7 +9,7 @@ const eyebrowVariants = cva(
     variants: {
       tone: {
         accent: 'text-cobalt dark:text-cobalt-soft',
-        muted: 'text-ink-mute',
+        muted: 'text-ink-label',
         ink: 'text-ink dark:text-foreground',
       },
       size: {

@@ -190,7 +190,7 @@ function Th({ children, className }: { children?: ReactNode; className?: string 
   return (
     <th
       className={cn(
-        'pb-3 pr-4 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute font-normal',
+        'pb-3 pr-4 font-mono text-[10px] uppercase tracking-eyebrow text-ink-label font-medium',
         className,
       )}
     >

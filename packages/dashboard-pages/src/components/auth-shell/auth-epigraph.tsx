@@ -27,7 +27,7 @@ export function AuthEpigraph({ state, footer }: AuthEpigraphProps) {
   return (
     <aside className="relative hidden bg-bone md:flex md:items-center md:px-20 md:py-24">
       <div className="max-w-[620px]">
-        <div className="mb-[18px] font-mono text-[11px] uppercase tracking-eyebrow text-ink-mute">
+        <div className="mb-[18px] font-mono text-[11px] font-medium uppercase tracking-eyebrow text-ink-label">
           {t(`${variant}.eyebrow`)}
         </div>
         <blockquote className="m-0 font-serif italic text-[clamp(28px,2.6vw,40px)] leading-[1.2] tracking-[-0.01em] text-ink">
@@ -40,7 +40,7 @@ export function AuthEpigraph({ state, footer }: AuthEpigraphProps) {
       <div className="absolute bottom-8 right-14 inline-flex items-center gap-[18px] font-mono text-[11px] text-ink-mute">
         {footer.map((line, idx) => (
           <span key={line} className="contents">
-            {idx > 0 && <span className="text-rule-soft">·</span>}
+            {idx > 0 && <span aria-hidden>·</span>}
             <span>{line}</span>
           </span>
         ))}

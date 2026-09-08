@@ -22,7 +22,7 @@ function ClaimFace({
     return (
       <span
         aria-hidden
-        className="flex size-[22px] shrink-0 items-center justify-center rounded-full border border-dashed border-ink-mute font-mono text-[9px] text-ink-mute"
+        className="flex size-[22px] shrink-0 items-center justify-center rounded-full border border-dashed border-ink-mute font-mono text-[10px] text-ink-mute"
       >
         —
       </span>
@@ -33,10 +33,10 @@ function ClaimFace({
     <span
       title={claim.holderName ?? undefined}
       className={cn(
-        'flex size-[22px] shrink-0 items-center justify-center rounded-full font-mono text-[8px]',
+        'flex size-[22px] shrink-0 items-center justify-center rounded-full font-mono text-[10px]',
         isYou
           ? 'bg-ink text-paper dark:bg-foreground dark:text-background'
-          : 'bg-ink-mute text-ink',
+          : 'bg-ink-mute text-paper dark:text-ink',
       )}
     >
       {initialsOf(claim.holderName)}
@@ -85,7 +85,7 @@ export function ConversationRow({
           {item.topicName ? (
             <span
               className={cn(
-                'mt-0.5 flex items-center gap-1.5 truncate font-mono text-[9px] uppercase tracking-meta',
+                'mt-0.5 flex items-center gap-1.5 truncate font-mono text-[10px] font-medium uppercase tracking-meta',
                 item.agentMode === 'auto' ? 'text-cobalt dark:text-cobalt-soft' : 'text-ink-mute',
               )}
             >
@@ -99,7 +99,7 @@ export function ConversationRow({
             </span>
           ) : null}
           {drafting || showNoDraft ? (
-            <span className="mt-0.5 truncate font-mono text-[9px] uppercase tracking-meta text-cobalt dark:text-cobalt-soft">
+            <span className="mt-0.5 truncate font-mono text-[10px] font-medium uppercase tracking-meta text-cobalt dark:text-cobalt-soft">
               {drafting ? t('draftingBadge') : t('noDraftBadge')}
             </span>
           ) : null}

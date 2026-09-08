@@ -160,7 +160,7 @@ function UserFooter({
 
   return (
     <div className="flex shrink-0 items-center gap-2.5 border-t border-rule-soft px-4 py-3.5 dark:border-rule-on-dark">
-      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-ink font-mono text-[8px] text-paper dark:bg-foreground dark:text-background">
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-ink font-mono text-[10px] text-paper dark:bg-foreground dark:text-background">
         {initialsOf(name ?? null, email ?? '?')}
       </span>
       <span className="min-w-0 flex-1 truncate text-[15px] text-ink dark:text-foreground">
@@ -304,13 +304,13 @@ function ConsoleShellInner({
                     {backAction.title}
                   </span>
                   {backAction.meta ? (
-                    <span className="truncate font-mono text-[9px] uppercase tracking-meta text-ink-mute">
+                    <span className="truncate font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
                       {backAction.meta}
                     </span>
                   ) : null}
                 </span>
               ) : (
-                <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-soft dark:text-foreground/80">
+                <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
                   {backAction.label}
                 </span>
               )}
@@ -327,7 +327,7 @@ function ConsoleShellInner({
                 type="button"
                 onClick={() => setMenuOpen(true)}
                 aria-label={tNav('openMenu')}
-                className="ml-auto flex items-center gap-2.5 font-mono text-[9px] uppercase tracking-eyebrow text-ink-soft dark:text-foreground/80"
+                className="ml-auto flex items-center gap-2.5 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label"
               >
                 {activeItem ? <span>{tNav(activeItem.labelKey)}</span> : null}
                 <Menu aria-hidden className="size-4 text-ink dark:text-foreground" />

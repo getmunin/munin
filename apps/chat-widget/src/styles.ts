@@ -14,6 +14,7 @@ const DARK_VARS = String.raw`
     --munin-ink: #F5F4F0;
     --munin-ink-soft: #C7C9D1;
     --munin-ink-mute: #9297A3;
+    --munin-ink-label: #C2C8D0;
     --munin-theme-edge: var(--munin-theme-edge-dark, var(--munin-theme));
     --munin-verdigris: #62C39C;
     --munin-verdigris-tint: #1B382A;
@@ -63,6 +64,7 @@ const BASE_CSS = String.raw`
   --munin-ink: #0F1419;
   --munin-ink-soft: #3D424A;
   --munin-ink-mute: #5E646C;
+  --munin-ink-label: #3D424A;
   --munin-verdigris: #1B7153;
   --munin-verdigris-tint: #E3F5EC;
   --munin-agent-tint: #DCE2E8;
@@ -237,10 +239,11 @@ button {
 .panel-head-meta {
   margin-top: 4px;
   font-family: var(--munin-mono);
-  font-size: 9px;
+  font-size: 10px;
+  font-weight: 500;
   letter-spacing: .14em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--munin-header-fg) 60%, transparent);
+  color: color-mix(in srgb, var(--munin-header-fg) 75%, transparent);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -290,10 +293,11 @@ button {
 }
 .welcome-eyebrow {
   font-family: var(--munin-mono);
-  font-size: 9px;
+  font-size: 10px;
+  font-weight: 500;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--munin-ink-mute);
+  color: var(--munin-ink-label);
 }
 .welcome-eyebrow strong { font-weight: 500; }
 .welcome-eyebrow a { color: inherit; text-decoration: none; }
@@ -413,18 +417,19 @@ button {
 .past-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
 .tag {
   font-family: var(--munin-mono);
-  font-size: 9px;
+  font-size: 10px;
+  font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   padding: 2px 6px;
   border-radius: var(--munin-r-tag);
 }
 .tag-open { background: var(--munin-verdigris-tint); color: var(--munin-verdigris); }
-.tag-closed { background: var(--munin-overlay); color: var(--munin-ink-mute); }
+.tag-closed { background: var(--munin-overlay); color: var(--munin-ink-label); }
 .tag-snoozed { background: var(--munin-overlay); color: var(--munin-ink-soft); }
 .past-when {
   font-family: var(--munin-mono);
-  font-size: 9px;
+  font-size: 10px;
   color: var(--munin-ink-mute);
 }
 
@@ -480,10 +485,11 @@ button {
 .chat-sub {
   margin-top: 5px;
   font-family: var(--munin-mono);
-  font-size: 9px;
+  font-size: 10px;
+  font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--munin-ink-mute);
+  color: var(--munin-ink-label);
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -510,17 +516,18 @@ button {
 .msg.theirs { align-self: flex-start; align-items: flex-start; }
 .msg-head {
   font-family: var(--munin-mono);
-  font-size: 9px;
+  font-size: 10px;
+  font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--munin-ink-mute);
+  color: var(--munin-ink-label);
   display: flex;
   gap: 6px;
   align-items: baseline;
 }
-.msg-who { color: var(--munin-ink-mute); font-weight: 600; }
-.msg-role { color: var(--munin-ink-mute); }
-.msg-t { color: var(--munin-ink-mute); font-family: var(--munin-mono); font-size: 9px; }
+.msg-who { color: var(--munin-ink-label); font-weight: 600; }
+.msg-role { color: var(--munin-ink-label); }
+.msg-t { color: var(--munin-ink-mute); font-family: var(--munin-mono); font-size: 10px; }
 .msg-t.mine { padding-right: 2px; }
 
 .bubble {
@@ -605,10 +612,11 @@ button {
   gap: 10px;
   align-self: stretch;
   font-family: var(--munin-mono);
-  font-size: 9px;
+  font-size: 10px;
+  font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--munin-ink-mute);
+  color: var(--munin-ink-label);
   padding: 4px 0;
 }
 .system-line { flex: 1; height: 1px; background: var(--munin-rule); }
@@ -624,10 +632,11 @@ button {
 }
 .card-eyebrow {
   font-family: var(--munin-mono);
-  font-size: 9px;
+  font-size: 10px;
+  font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--munin-ink-mute);
+  color: var(--munin-ink-label);
 }
 .card-title {
   font-family: var(--munin-sans);
@@ -719,7 +728,7 @@ button {
 }
 .counter {
   font-family: var(--munin-mono);
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.04em;
   color: var(--munin-ink-mute);
 }
@@ -753,7 +762,7 @@ button {
   color: var(--munin-ink-soft);
   background: transparent;
   font-family: var(--munin-mono);
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   transition: border-color 120ms, background 120ms, color 120ms;
@@ -802,7 +811,7 @@ button {
 .voice-banner-timer { color: var(--munin-chrome-fg); font-variant-numeric: tabular-nums; }
 .voice-banner-muted-tag {
   margin-left: 6px;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.16em;
   color: #E0A93B;
 }
@@ -921,7 +930,7 @@ button {
   align-items: center;
   gap: 6px;
   font-family: var(--munin-mono);
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   transition: background 120ms, border-color 120ms;
@@ -952,10 +961,11 @@ button {
 .footer-credit {
   padding: 8px 16px 10px;
   font-family: var(--munin-mono);
-  font-size: 9px;
+  font-size: 10px;
+  font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--munin-ink-mute);
+  color: var(--munin-ink-label);
   text-align: center;
   border-top: 1px solid var(--munin-rule);
   background: var(--munin-paper);
@@ -1061,7 +1071,7 @@ const PRODUCT_LIST_CSS = String.raw`
   border-radius: var(--munin-r-pill);
   padding: 3px 9px;
   font-family: var(--munin-mono);
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--munin-ink-soft);

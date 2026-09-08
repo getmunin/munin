@@ -158,7 +158,7 @@ export function ReviewOutreachPane({
             <Pill tone="draft" marker="none">
               {kindLabel}
             </Pill>
-            <span className="ml-auto font-mono text-[9px] uppercase tracking-meta text-ink-mute">
+            <span className="ml-auto font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
               {proposal.campaign?.name ?? t('campaignUnknown')} · {age(item.createdAt)}
             </span>
           </div>
@@ -189,7 +189,7 @@ export function ReviewOutreachPane({
         {proposal.revisedAfterReviewAt ? (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-l-2 border-alert-bad-border bg-alert-bad px-3 py-2">
             <span className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="font-mono text-[9px] uppercase tracking-eyebrow text-alert-bad-ink">
+              <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-alert-bad-ink">
                 {t('revisedAfterReview')}
               </span>
               <span className="text-[13px] leading-relaxed text-ink dark:text-foreground">
@@ -202,7 +202,7 @@ export function ReviewOutreachPane({
               <button
                 type="button"
                 onClick={revealDiff}
-                className="shrink-0 font-mono text-[9px] uppercase tracking-eyebrow text-cobalt underline-offset-[3px] hover:underline dark:text-cobalt-soft"
+                className="shrink-0 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt underline-offset-[3px] hover:underline dark:text-cobalt-soft"
               >
                 {t('seeDiff')} <span aria-hidden>→</span>
               </button>
@@ -239,7 +239,7 @@ export function ReviewOutreachPane({
                 {proposal.delivery?.sender ?? t('senderUnknown')}
               </span>
               {!isVoice ? (
-                <span className="ml-auto font-mono text-[9px] uppercase tracking-meta text-ink-mute">
+                <span className="ml-auto font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
                   {t('smsSegments', { count: segments, chars: editedBody.length })}
                 </span>
               ) : null}
@@ -259,7 +259,7 @@ export function ReviewOutreachPane({
               <Markdown>{editedBody}</Markdown>
               {appendsCta || appendsUnsubscribe ? (
                 <div className="mt-1 flex flex-col gap-2 border-t border-dashed border-ink-mute pt-3">
-                  <span className="font-mono text-[9px] uppercase tracking-meta text-ink-mute">
+                  <span className="font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
                     {t('appendedOnSend')}
                   </span>
                   {appendsCta ? (
@@ -289,7 +289,7 @@ export function ReviewOutreachPane({
               type="button"
               onClick={() => setDiffOpen((open) => !open)}
               aria-expanded={diffOpen}
-              className="flex items-baseline justify-between gap-4 border-t border-rule-soft pt-3 text-left font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute transition-colors duration-fast hover:text-ink dark:border-rule-on-dark dark:hover:text-foreground"
+              className="flex items-baseline justify-between gap-4 border-t border-rule-soft pt-3 text-left font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label transition-colors duration-fast hover:text-ink dark:border-rule-on-dark dark:hover:text-foreground"
             >
               <span>{t('diffSummary', { count: editCount })}</span>
               <span className="shrink-0 text-cobalt dark:text-cobalt-soft">
@@ -309,7 +309,7 @@ export function ReviewOutreachPane({
 
         {parsedEvidence ? (
           <div className="flex flex-col gap-2.5 border-t border-ink pt-4 dark:border-rule-on-dark">
-            <span className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+            <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
               {t('whyThis')}
             </span>
             {parsedEvidence.prose.map((line) => (
@@ -325,7 +325,7 @@ export function ReviewOutreachPane({
                 {parsedEvidence.kbRefs.map((ref) => (
                   <span
                     key={ref}
-                    className="border border-rule-soft px-2 py-[3px] font-mono text-[9px] tracking-meta text-ink-soft dark:border-rule-on-dark dark:text-foreground/70"
+                    className="border border-rule-soft px-2 py-[3px] font-mono text-[10px] tracking-meta text-ink-soft dark:border-rule-on-dark dark:text-foreground/70"
                   >
                     {t('kbChip', { id: ref.replace(/^kb:\/\//, '') })}
                   </span>
@@ -333,7 +333,7 @@ export function ReviewOutreachPane({
                 {parsedEvidence.chips.map((chip) => (
                   <span
                     key={`${chip.label}-${chip.value}`}
-                    className="border border-rule-soft px-2 py-[3px] font-mono text-[9px] tracking-meta text-ink-soft dark:border-rule-on-dark dark:text-foreground/70"
+                    className="border border-rule-soft px-2 py-[3px] font-mono text-[10px] tracking-meta text-ink-soft dark:border-rule-on-dark dark:text-foreground/70"
                   >
                     {chip.label} = {chip.value}
                   </span>
@@ -345,7 +345,7 @@ export function ReviewOutreachPane({
 
         {!editing ? (
           <div className="flex flex-col gap-2.5 border-t border-ink pt-4 dark:border-rule-on-dark">
-            <span className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+            <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
               {t('whenItGoes')}
             </span>
             <div className="flex flex-col border border-rule-soft dark:border-rule-on-dark">
@@ -382,7 +382,7 @@ export function ReviewOutreachPane({
           </div>
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-rule-soft pt-3 font-mono text-[9.5px] uppercase tracking-meta text-ink-mute dark:border-rule-on-dark">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-rule-soft pt-3 font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute dark:border-rule-on-dark">
           <span>
             {proposal.proposedByActorType === 'user' ? t('draftedByUser') : t('draftedByAgent')} ·{' '}
             {age(item.createdAt)}
@@ -421,7 +421,7 @@ export function ReviewOutreachPane({
               <Button variant="ghost" onClick={cancelEdit} className="max-md:h-11 max-md:flex-1">
                 {t('cancel')}
               </Button>
-              <span className="hidden font-mono text-[9px] uppercase tracking-meta text-ink-mute md:ml-auto md:inline">
+              <span className="hidden font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute md:ml-auto md:inline">
                 {t('shortcutSave')}
               </span>
             </>
@@ -452,7 +452,7 @@ export function ReviewOutreachPane({
               >
                 {t('dismiss')}
               </Button>
-              <span className="hidden font-mono text-[9px] uppercase tracking-meta text-ink-mute md:ml-auto md:inline">
+              <span className="hidden font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute md:ml-auto md:inline">
                 {t('shortcutApprove')}
               </span>
             </>
@@ -478,7 +478,7 @@ function approveLabel(
 
 function EnvelopeLabel({ children }: { children: string }) {
   return (
-    <span className="font-mono text-[9px] uppercase tracking-meta text-ink-mute">{children}</span>
+    <span className="font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">{children}</span>
   );
 }
 

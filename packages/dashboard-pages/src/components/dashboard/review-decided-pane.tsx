@@ -11,7 +11,7 @@ import type { CurationDecisionDto, PublishedDocument } from './curation-decision
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-2.5">
-      <div className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">{label}</div>
+      <div className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">{label}</div>
       {children}
     </div>
   );
@@ -52,13 +52,13 @@ export function ReviewDecidedPane({
     <section className="flex min-h-0 flex-col overflow-y-auto bg-paper dark:bg-background">
       <div className="flex flex-1 flex-col gap-5 px-5 pb-8 pt-6 md:px-7">
         <div className="flex flex-col gap-2.5">
-          <div className="font-mono text-[9.5px] uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+          <div className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
             {published ? t('outcomePublished') : t('outcomeDismissed')}
           </div>
           <h2 className="max-w-[42ch] font-serif text-[26px] font-normal leading-[1.2] text-ink md:text-[30px] dark:text-foreground">
             {item.title}
           </h2>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-[10px] uppercase tracking-meta text-ink-mute">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
             <span>{decidedBy}</span>
             <span aria-hidden>·</span>
             <span>{age(item.decidedAt)}</span>

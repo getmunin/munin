@@ -58,7 +58,7 @@ export function OverviewReview({
         <button
           type="button"
           onClick={() => router.push(`/dashboard/review/${next.id}`)}
-          className="group flex w-full items-baseline justify-between gap-4 px-5 py-3.5 text-left font-mono text-[10px] uppercase tracking-eyebrow transition-colors duration-fast ease-munin hover:bg-paper-deep dark:hover:bg-secondary"
+          className="group flex w-full items-baseline justify-between gap-4 px-5 py-3.5 text-left font-mono text-[10px] font-medium uppercase tracking-eyebrow transition-colors duration-fast ease-munin hover:bg-paper-deep dark:hover:bg-secondary"
         >
           <span className="text-ink dark:text-foreground">
             {t('scheduled', { count: scheduled.length })}

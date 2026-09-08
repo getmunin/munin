@@ -52,7 +52,7 @@ export function CopyField({
           type="button"
           onClick={() => copy(value)}
           className={cn(
-            'shrink-0 border-l font-mono text-[9px] uppercase tracking-eyebrow transition-colors duration-fast ease-munin dark:border-rule-on-dark',
+            'shrink-0 border-l font-mono text-[10px] font-medium uppercase tracking-eyebrow transition-colors duration-fast ease-munin dark:border-rule-on-dark',
             isField ? 'border-rule-soft px-3' : 'border-ink px-3.5',
             copied
               ? 'text-cobalt dark:text-cobalt-soft'

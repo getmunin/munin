@@ -92,7 +92,7 @@ export function SettingsCard({
       )}
     >
       <div className="flex items-center gap-2">
-        <span className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+        <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
           {kind}
         </span>
         {menu ? <div className="ml-auto flex-none">{menu}</div> : null}
@@ -111,7 +111,7 @@ export function SettingsCard({
         <div className="mt-3 flex items-center gap-2.5">
           {footerAction}
           {footerMeta ? (
-            <span className="ml-auto font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+            <span className="ml-auto font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
               {footerMeta}
             </span>
           ) : null}

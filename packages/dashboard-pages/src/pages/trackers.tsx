@@ -321,7 +321,7 @@ function TrackerRow({
         <span className="font-serif text-[26px] leading-none tracking-tight text-ink dark:text-foreground">
           {totalViews.toLocaleString()}
         </span>
-        <span className="font-mono text-[9px] uppercase tracking-eyebrow text-ink-mute">
+        <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
           {t('viewsLabel')}
         </span>
       </div>
@@ -675,7 +675,7 @@ function EmbedSnippetDialog({
                     type="button"
                     onClick={() => setLanguage(s.language)}
                     className={cn(
-                      'w-24 h-7 px-2.5 font-mono text-[11px] uppercase tracking-eyebrow border-r-[1px] border-rule-soft last:border-r-0 transition-colors duration-fast ease-munin',
+                      'w-24 h-7 px-2.5 font-mono text-[11px] font-medium uppercase tracking-eyebrow border-r-[1px] border-rule-soft last:border-r-0 transition-colors duration-fast ease-munin',
                       active
                         ? 'bg-ink text-paper dark:bg-foreground dark:text-background'
                         : 'bg-paper hover:bg-paper-deep dark:bg-card dark:hover:bg-secondary',

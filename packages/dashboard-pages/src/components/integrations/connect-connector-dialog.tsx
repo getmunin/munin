@@ -119,7 +119,7 @@ export function ConnectConnectorDialog({
                 ? t('editVendor', { vendor: vendor.displayName })
                 : t('connectVendor', { vendor: vendor.displayName })}
             </h2>
-            <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+            <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
               {tc(`category.${present.categoryKey}`)}
             </span>
           </div>
@@ -127,7 +127,7 @@ export function ConnectConnectorDialog({
 
         <div className="grid grid-cols-1 sm:grid-cols-[260px_1fr]">
           <div className="flex flex-col gap-4 border-b-[1px] border-rule-soft bg-paper-deep px-7 py-6 dark:border-rule-on-dark dark:bg-secondary sm:border-b-0 sm:border-r-[1px]">
-            <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+            <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
               {t('whatAgentsGet')}
             </span>
             <div className="flex flex-col">

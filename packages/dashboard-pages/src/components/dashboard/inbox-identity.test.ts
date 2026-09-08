@@ -115,8 +115,8 @@ describe('participantHues', () => {
 });
 
 describe('participantColor', () => {
-  it('varies hue only, holding lightness and chroma fixed', () => {
-    expect(participantColor(165)).toBe('oklch(0.55 0.105 165)');
-    expect(participantColor(315)).toBe('oklch(0.55 0.105 315)');
+  it('varies hue only, deferring lightness to the scheme-aware token so one hue reads on both', () => {
+    expect(participantColor(165)).toBe('oklch(var(--munin-participant-l) 0.105 165)');
+    expect(participantColor(315)).toBe('oklch(var(--munin-participant-l) 0.105 315)');
   });
 });

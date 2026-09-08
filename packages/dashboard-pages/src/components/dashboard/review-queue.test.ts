@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { partitionReviewQueue } from './review-queue';
+import { partitionReviewQueue, resolveReviewFirstRun } from './review-queue';
 import type { QueueItem } from './queue-panes/types';
 
 function item(kind: QueueItem['kind'], id: string, createdAt: string): QueueItem {
@@ -57,5 +57,40 @@ describe('partitionReviewQueue', () => {
     ];
     partitionReviewQueue(queue);
     expect(queue.map((i) => i.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('resolveReviewFirstRun', () => {
+  const now = new Date('2026-09-08T10:00:00.000Z').getTime();
+  const unloaded = { loaded: false, empty: false };
+
+  it('answers from the setup snapshot before the lists land, so no skeleton precedes first run', () => {
+    const setupQueue = { hasPendingItems: false, lastDecisionAt: null };
+    expect(resolveReviewFirstRun(setupQueue, unloaded, now)).toBe(true);
+  });
+
+  it('waits for the lists when the snapshot predates them', () => {
+    expect(resolveReviewFirstRun(null, unloaded, now)).toBeNull();
+  });
+
+  it('waits for the lists when the snapshot reports work waiting', () => {
+    const setupQueue = { hasPendingItems: true, lastDecisionAt: null };
+    expect(resolveReviewFirstRun(setupQueue, unloaded, now)).toBeNull();
+  });
+
+  it('waits for the lists when a decision still falls inside the decided window', () => {
+    const setupQueue = { hasPendingItems: false, lastDecisionAt: '2026-09-01T10:00:00.000Z' };
+    expect(resolveReviewFirstRun(setupQueue, unloaded, now)).toBeNull();
+  });
+
+  it('ignores a decision that has aged out of the decided window', () => {
+    const setupQueue = { hasPendingItems: false, lastDecisionAt: '2026-01-01T10:00:00.000Z' };
+    expect(resolveReviewFirstRun(setupQueue, unloaded, now)).toBe(true);
+  });
+
+  it('lets the loaded lists overrule a snapshot that has gone stale', () => {
+    const setupQueue = { hasPendingItems: false, lastDecisionAt: null };
+    expect(resolveReviewFirstRun(setupQueue, { loaded: true, empty: false }, now)).toBe(false);
+    expect(resolveReviewFirstRun(setupQueue, { loaded: true, empty: true }, now)).toBe(true);
   });
 });

@@ -14,6 +14,7 @@ function setupState(overrides: Partial<SetupState> = {}): SetupState {
     conversationCount: 0,
     topicCount: 0,
     knowledgeDocumentCount: 0,
+    reviewQueue: null,
     loading: false,
     isFirstRun: false,
     reload: async () => {},

@@ -12,7 +12,12 @@ export {
   type FirstRunView,
 } from './first-run-view';
 export { useFirstRunGate, type FirstRunGate } from './use-first-run-gate';
-export { toSetupSnapshot, type SetupSnapshot, type SetupStateDto } from './setup-snapshot';
+export {
+  toSetupSnapshot,
+  type SetupReviewQueue,
+  type SetupSnapshot,
+  type SetupStateDto,
+} from './setup-snapshot';
 export {
   FIRST_RUN_DOCS,
   FIRST_RUN_ROUTES,

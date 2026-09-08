@@ -107,6 +107,7 @@ const skipReason = TEST_URL
     knowledgeDocumentCount: number;
     externalMcpCallCount: number;
     lastExternalMcpCallAt: string | null;
+    reviewQueue: { hasPendingItems: boolean; lastDecisionAt: string | null } | null;
   }
 
   async function getSetup(adminKey: string): Promise<SetupBody> {
@@ -163,6 +164,7 @@ const skipReason = TEST_URL
     expect(setup.knowledgeDocumentCount).toBe(0);
     expect(setup.externalMcpCallCount).toBe(0);
     expect(setup.lastExternalMcpCallAt).toBeNull();
+    expect(setup.reviewQueue).toEqual({ hasPendingItems: false, lastDecisionAt: null });
   });
 
   it('setup ignores tool calls made by the in-process agent host', async () => {
@@ -307,6 +309,14 @@ const skipReason = TEST_URL
     const b = await getSetup(adminKeyB);
     expect(b.channels).toEqual([]);
     expect(b.conversationCount).toBe(0);
+  });
+
+  it('setup skips the review-queue scan for an org past first run, and reports it for one still in it', async () => {
+    const a = await getSetup(adminKeyA);
+    expect(a.reviewQueue).toBeNull();
+
+    const b = await getSetup(adminKeyB);
+    expect(b.reviewQueue?.hasPendingItems).toBe(true);
   });
 
   it('setup excludes curation candidates from the knowledge-base count', async () => {

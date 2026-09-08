@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { and, eq, isNotNull, ne, notInArray, notLike, or, sql } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
@@ -13,7 +13,11 @@ import {
   getCurrentContext,
 } from '@getmunin/core';
 import { ConvService, type ChannelDto } from '../modules/conv/conv.service.ts';
-import { CURATION_INBOX_SLUG } from '../modules/kb/kb.service.ts';
+import { CURATION_INBOX_SLUG, KbService } from '../modules/kb/kb.service.ts';
+import { CrmService } from '../modules/crm/crm.service.ts';
+import { OutreachService } from '../modules/outreach/outreach.service.ts';
+import { CmsService } from '../modules/cms/cms.service.ts';
+import { FeedbackService } from '../modules/feedback/feedback.service.ts';
 import { toIsoString } from '../common/iso.ts';
 
 const RESERVED_KB_SPACE_SLUGS = [
@@ -22,6 +26,11 @@ const RESERVED_KB_SPACE_SLUGS = [
   COMPANY_PROFILE_SPACE_SLUG,
 ];
 
+export interface SetupReviewQueueDto {
+  hasPendingItems: boolean;
+  lastDecisionAt: string | null;
+}
+
 export interface SetupStateDto {
   channels: ChannelDto[];
   conversationCount: number;
@@ -29,11 +38,21 @@ export interface SetupStateDto {
   knowledgeDocumentCount: number;
   externalMcpCallCount: number;
   lastExternalMcpCallAt: string | null;
+  reviewQueue: SetupReviewQueueDto | null;
 }
+
+const REVIEW_QUEUE_SCAN_LIMIT = 50;
 
 @Injectable()
 export class SetupStateService {
-  constructor(@Inject(ConvService) private readonly conv: ConvService) {}
+  constructor(
+    @Inject(ConvService) private readonly conv: ConvService,
+    @Inject(KbService) private readonly kb: KbService,
+    @Inject(CrmService) private readonly crm: CrmService,
+    @Inject(OutreachService) private readonly outreach: OutreachService,
+    @Inject(CmsService) private readonly cms: CmsService,
+    @Optional() @Inject(FeedbackService) private readonly feedback: FeedbackService | null = null,
+  ) {}
 
   async read(): Promise<SetupStateDto> {
     const [channels, conversationCount, topicCount, knowledgeDocumentCount, mcp] =
@@ -52,6 +71,42 @@ export class SetupStateService {
       knowledgeDocumentCount,
       externalMcpCallCount: mcp.count,
       lastExternalMcpCallAt: mcp.lastAt,
+      reviewQueue: conversationCount === 0 ? await this.readReviewQueue() : null,
+    };
+  }
+
+  private async readReviewQueue(): Promise<SetupReviewQueueDto> {
+    const limit = REVIEW_QUEUE_SCAN_LIMIT;
+    const [
+      candidates,
+      merges,
+      proposals,
+      approvedProposals,
+      drafts,
+      scheduledEntries,
+      feedbackItems,
+      decisions,
+    ] = await Promise.all([
+      this.kb.listCurationCandidates(limit),
+      this.crm.listMergeProposals({ status: 'pending', limit }),
+      this.outreach.listProposals({ status: 'pending', limit }),
+      this.outreach.listProposals({ status: 'approved', limit }),
+      this.cms.listDraftEntries(limit),
+      this.cms.listScheduledEntries(limit),
+      this.feedback ? this.feedback.listPending() : Promise.resolve([]),
+      this.kb.listCurationDecisions({ limit: 1 }),
+    ]);
+
+    return {
+      hasPendingItems:
+        candidates.length > 0 ||
+        merges.length > 0 ||
+        proposals.length > 0 ||
+        approvedProposals.some((proposal) => proposal.scheduledSendAt !== null) ||
+        drafts.length > 0 ||
+        scheduledEntries.length > 0 ||
+        feedbackItems.length > 0,
+      lastDecisionAt: decisions[0]?.decidedAt ?? null,
     };
   }
 

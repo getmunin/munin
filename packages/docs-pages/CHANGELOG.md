@@ -1,5 +1,13 @@
 # @getmunin/docs-pages
 
+## 5.20.0
+
+### Patch Changes
+
+- Updated dependencies [0f80a64]
+  - @getmunin/backend-core@5.20.0
+  - @getmunin/types@5.20.0
+
 ## 5.19.0
 
 ### Patch Changes

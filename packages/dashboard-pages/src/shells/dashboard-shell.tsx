@@ -12,6 +12,7 @@ import { ConsoleShell } from './console-shell';
 
 export interface DashboardShellProps {
   brand: string;
+  brandHref?: string;
   logoSrc?: string;
   leftSlot?: ReactNode;
   withConfirmDialog?: boolean;
@@ -20,6 +21,7 @@ export interface DashboardShellProps {
 
 export function DashboardShell({
   brand,
+  brandHref,
   logoSrc = '/munin-logo.png',
   leftSlot,
   withConfirmDialog = false,
@@ -45,7 +47,7 @@ export function DashboardShell({
           </main>
         ) : (
           <div className="min-h-0 flex-1">
-            <ConsoleShell brand={brand} logoSrc={logoSrc} headSlot={leftSlot}>
+            <ConsoleShell brand={brand} brandHref={brandHref} logoSrc={logoSrc} headSlot={leftSlot}>
               {children}
             </ConsoleShell>
           </div>

@@ -159,6 +159,7 @@ export interface ConversationQueueItem extends ConversationSummary {
   channelType: string;
   customerName: string | null;
   customerEmail: string | null;
+  customerPhone: string | null;
   topicName: string | null;
   topicSlug: string | null;
   topicAgentMode: AgentMode | null;
@@ -643,8 +644,10 @@ export class ConvService {
         channelType: schema.convChannels.type,
         contactName: schema.convContacts.name,
         contactEmail: schema.convContacts.email,
+        contactPhone: schema.convContacts.phone,
         endUserName: schema.endUsers.name,
         endUserEmail: schema.endUsers.email,
+        endUserPhone: schema.endUsers.phone,
         topicName: schema.convTopics.name,
         topicSlug: schema.convTopics.slug,
         topicAgentMode: schema.convTopics.agentMode,
@@ -739,6 +742,7 @@ export class ConvService {
         channelType: row.channelType,
         customerName: row.contactName ?? row.endUserName ?? null,
         customerEmail: row.contactEmail ?? row.endUserEmail ?? null,
+        customerPhone: row.contactPhone ?? row.endUserPhone ?? null,
         topicName: row.topicName,
         topicSlug: row.topicSlug,
         topicAgentMode: (row.topicAgentMode as AgentMode | null) ?? null,

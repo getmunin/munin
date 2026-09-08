@@ -52,11 +52,13 @@ export function MessageBubble({
   showAuthor = true,
   viewerUserId = null,
   hue,
+  endUserLabel = null,
 }: {
   message: MessageDto;
   showAuthor?: boolean;
   viewerUserId?: string | null;
   hue?: number;
+  endUserLabel?: string | null;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const role = messageRole(message, viewerUserId);
@@ -70,7 +72,7 @@ export function MessageBubble({
       </div>
     );
   }
-  const label = bubbleLabel(message, t);
+  const label = bubbleLabel(message, t, endUserLabel);
   if (message.internal) {
     return (
       <div
@@ -160,9 +162,10 @@ function formatSeenAt(iso: string): string {
 function bubbleLabel(
   message: MessageDto,
   t: ReturnType<typeof useTranslations<'dashboard.overview.drawer'>>,
+  endUserLabel: string | null = null,
 ): string {
   if (message.authorName) return message.authorName;
-  if (message.authorType === 'end_user') return t('anonymousVisitor');
+  if (message.authorType === 'end_user') return endUserLabel ?? t('anonymousVisitor');
   return message.authorType;
 }
 

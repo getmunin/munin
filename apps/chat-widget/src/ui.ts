@@ -3,7 +3,7 @@ import type { WidgetConfig } from './config.ts';
 import { WIDGET_END_USER_BODY_MAX_CHARS } from './config.ts';
 import { buildWidgetCss } from './styles.ts';
 import { registerBundledFonts } from './fonts.ts';
-import { readableOn } from './color.ts';
+import { contrastFloor, readableOn } from './color.ts';
 import { pickLocale } from './strings/index.ts';
 import type { Strings } from './strings/index.ts';
 import { renderMarkdownInto } from './markdown.ts';
@@ -86,6 +86,8 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   root.setAttribute('data-corners', config.corners);
   root.style.setProperty('--munin-theme', config.themeColor);
   root.style.setProperty('--munin-theme-fg', readableOn(config.themeColor));
+  host.style.setProperty('--munin-theme-edge-light', contrastFloor(config.themeColor, '#FBFAF7'));
+  host.style.setProperty('--munin-theme-edge-dark', contrastFloor(config.themeColor, '#101418'));
   if (config.launcherColor) {
     root.style.setProperty('--munin-launcher', config.launcherColor);
     root.style.setProperty(

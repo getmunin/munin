@@ -14,11 +14,12 @@ const DARK_VARS = String.raw`
     --munin-ink: #F5F4F0;
     --munin-ink-soft: #C7C9D1;
     --munin-ink-mute: #9297A3;
+    --munin-theme-edge: var(--munin-theme-edge-dark, var(--munin-theme));
     --munin-verdigris: #62C39C;
     --munin-verdigris-tint: #1B382A;
     --munin-agent-tint: #1E252C;
     --munin-self-tint: #272C33;
-    --munin-field-border: var(--munin-rule);
+    --munin-field-border: rgba(255, 255, 255, 0.34);
     --munin-send: color-mix(in srgb, var(--munin-theme) 50%, white);
     --munin-rule: rgba(255, 255, 255, 0.14);
     --munin-overlay: rgba(255, 255, 255, 0.08);
@@ -44,8 +45,9 @@ ${DARK_VARS}
 
 const BASE_CSS = String.raw`
 :host {
-  --munin-theme: #0066FF;
+  --munin-theme: #0059DE;
   --munin-theme-fg: #FBFAF7;
+  --munin-theme-edge: var(--munin-theme-edge-light, var(--munin-theme));
 
   --munin-chrome: #0F1419;
   --munin-chrome-fg: #FBFAF7;
@@ -60,8 +62,8 @@ const BASE_CSS = String.raw`
   --munin-paper-deep: #F0EEE8;
   --munin-ink: #0F1419;
   --munin-ink-soft: #3D424A;
-  --munin-ink-mute: #7E8590;
-  --munin-verdigris: #208562;
+  --munin-ink-mute: #5E646C;
+  --munin-verdigris: #1B7153;
   --munin-verdigris-tint: #E3F5EC;
   --munin-agent-tint: #DCE2E8;
   --munin-self-tint: #E8E4DC;
@@ -72,7 +74,7 @@ const BASE_CSS = String.raw`
   --munin-r-control: 0;
   --munin-r-tag: 0;
   --munin-r-pill: 0;
-  --munin-send: var(--munin-theme);
+  --munin-send: var(--munin-theme-edge);
   --munin-rule: rgba(15, 20, 25, 0.18);
   --munin-overlay: rgba(15, 20, 25, 0.06);
   --munin-edge: rgba(15, 20, 25, 0.08);
@@ -155,7 +157,7 @@ button {
   box-sizing: border-box;
   border-radius: 999px;
   background: var(--munin-theme);
-  color: #fff;
+  color: var(--munin-theme-fg);
   font-family: var(--munin-mono);
   font-size: 11px;
   font-weight: 600;
@@ -649,7 +651,7 @@ button {
 }
 .card-form input:focus {
   border-color: var(--munin-field-border);
-  outline: 2px solid var(--munin-theme);
+  outline: 2px solid var(--munin-theme-edge);
   outline-offset: -2px;
 }
 .card-form button {
@@ -705,7 +707,7 @@ button {
 }
 .composer textarea:focus {
   border-color: var(--munin-field-border);
-  outline: 2px solid var(--munin-theme);
+  outline: 2px solid var(--munin-theme-edge);
   outline-offset: -2px;
 }
 .composer-row {

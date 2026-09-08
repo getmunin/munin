@@ -93,7 +93,7 @@ export default function WidgetGuide() {
         <dt>data-munin-theme-color</dt>
         <dd>
           Hex accent color for the unread badge, send button, links, and visitor bubbles. Defaults to{' '}
-          <code>#0066FF</code>. Text drawn on top of it flips between ink and paper automatically,
+          <code>#0059DE</code>. Text drawn on top of it flips between ink and paper automatically,
           whichever contrasts better.
         </dd>
         <dt>data-munin-launcher-color</dt>

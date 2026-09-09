@@ -1,7 +1,7 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { describeError, safeFetch } from '@getmunin/core';
 import { stripTrailingSlashes } from '@getmunin/types';
-import { AGENT_CONFIG_REPOSITORY } from './injection-tokens.ts';
+import { AGENT_CONFIG_REPOSITORY, DEFAULT_PROVIDER_MODELS } from './injection-tokens.ts';
 import type { AgentConfigRepository } from './config.repository.ts';
 import { authHeaders } from './provider-auth.ts';
 
@@ -37,15 +37,22 @@ export class AgentModelsService implements ProviderModelLister {
 
   constructor(
     @Inject(AGENT_CONFIG_REPOSITORY) private readonly repo: AgentConfigRepository,
+    @Optional()
+    @Inject(DEFAULT_PROVIDER_MODELS)
+    private readonly defaultProviderModels: readonly string[] = [],
   ) {}
 
   async listForCurrentActor(): Promise<ListModelsResult> {
     const id = this.repo.resolveCurrentId();
-    const config = await this.repo.read(id);
     const apiKey = await this.repo.readDecryptedProviderKey(id);
     if (!apiKey) {
-      return { supported: false, models: [], fetchedAt: new Date().toISOString() };
+      return {
+        supported: this.defaultProviderModels.length > 0,
+        models: this.defaultProviderModels.map(toModelEntry),
+        fetchedAt: new Date().toISOString(),
+      };
     }
+    const config = await this.repo.read(id);
     return this.listForProvider(id, config.providerBaseUrl, apiKey);
   }
 
@@ -99,6 +106,25 @@ export class AgentModelsService implements ProviderModelLister {
       fetchedAt: new Date().toISOString(),
     };
   }
+}
+
+export function normalizeProviderModels(models: readonly string[] | undefined): string[] {
+  if (!models) return [];
+  const seen = new Set<string>();
+  for (const model of models) {
+    const trimmed = model.trim();
+    if (trimmed.length > 0) seen.add(trimmed);
+  }
+  return [...seen];
+}
+
+function toModelEntry(id: string): ModelEntry {
+  return {
+    id,
+    contextLength: null,
+    promptCostPerMillion: null,
+    completionCostPerMillion: null,
+  };
 }
 
 function parseOpenAiCompatModels(body: unknown): ModelEntry[] | null {

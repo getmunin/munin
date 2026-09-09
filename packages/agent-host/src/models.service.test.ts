@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as core from '@getmunin/core';
-import { AgentModelsService } from './models.service.ts';
+import { AgentModelsService, normalizeProviderModels } from './models.service.ts';
 import type { AgentConfigRepository, AgentConfigRow } from './config.repository.ts';
 
 const baseRow: AgentConfigRow = {
@@ -54,6 +54,22 @@ describe('AgentModelsService', () => {
     const result = await svc.listForCurrentActor();
     expect(result.supported).toBe(false);
     expect(result.models).toEqual([]);
+  });
+
+  it('serves the built-in model list when the org has no key of its own', async () => {
+    const repo = makeRepo({ apiKey: null });
+    const svc = new AgentModelsService(repo, ['gpt-oss-120b', 'gemma-4-26b-a4b-it']);
+    const result = await svc.listForCurrentActor();
+    expect(result.supported).toBe(true);
+    expect(result.models.map((m) => m.id)).toEqual(['gpt-oss-120b', 'gemma-4-26b-a4b-it']);
+  });
+
+  it('prefers the org provider over the built-in list once a key is stored', async () => {
+    mockSafeFetch({ status: 200, body: { data: [{ id: 'anthropic/claude-opus-5' }] } });
+    const repo = makeRepo({ apiKey: 'sk-test' });
+    const svc = new AgentModelsService(repo, ['gpt-oss-120b']);
+    const result = await svc.listForCurrentActor();
+    expect(result.models.map((m) => m.id)).toEqual(['anthropic/claude-opus-5']);
   });
 
   it('parses OpenRouter-shaped responses with context_length and pricing', async () => {
@@ -182,5 +198,17 @@ describe('AgentModelsService', () => {
     expect(init.headers['x-api-key']).toBe('sk-ant-test');
     expect(init.headers['anthropic-version']).toBe('2023-06-01');
     expect(init.headers.authorization).toBeUndefined();
+  });
+});
+
+describe('normalizeProviderModels', () => {
+  it('is empty when nothing is configured', () => {
+    expect(normalizeProviderModels(undefined)).toEqual([]);
+  });
+
+  it('trims, drops blanks and keeps the configured order without duplicates', () => {
+    expect(
+      normalizeProviderModels([' gpt-oss-120b ', '', '  ', 'gemma-4-26b-a4b-it', 'gpt-oss-120b']),
+    ).toEqual(['gpt-oss-120b', 'gemma-4-26b-a4b-it']);
   });
 });

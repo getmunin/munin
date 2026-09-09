@@ -308,3 +308,88 @@ describe('AgentConfigService provider/model reconciliation', () => {
     expect(models.invalidate).not.toHaveBeenCalled();
   });
 });
+
+describe('AgentConfigService with a managed built-in provider', () => {
+  const BUILT_IN = ['gpt-oss-120b', 'gemma-4-26b-a4b-it'];
+  const managedRow: AgentConfigRow = { ...baseRow, fastModel: 'gpt-oss-120b' };
+
+  function makeService(models: string[] = BUILT_IN) {
+    const repo = makeRepo({ before: managedRow, after: managedRow, apiKey: null });
+    const providerModels = makeModels(['ignored-because-there-is-no-org-key']);
+    const svc = new AgentConfigService(
+      repo,
+      makeWebhooks(),
+      makeHealthStub(),
+      providerModels,
+      true,
+      models,
+    );
+    return { repo, providerModels, svc };
+  }
+
+  it('persists a built-in model the managed provider offers', async () => {
+    const { repo, svc } = makeService();
+
+    await svc.upsertForCurrentActor({ fastModel: 'gemma-4-26b-a4b-it' });
+
+    expect(repo.update).toHaveBeenCalledWith('singleton', { fastModel: 'gemma-4-26b-a4b-it' });
+  });
+
+  it('rejects a model the managed provider does not offer instead of silently ignoring it', async () => {
+    const { repo, svc } = makeService();
+
+    await expect(
+      svc.upsertForCurrentActor({ fastModel: 'qwen3.5-397b-a17b' }),
+    ).rejects.toThrow(/agent_config_invalid_model/);
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects a smart model outside the built-in list', async () => {
+    const { repo, svc } = makeService();
+
+    await expect(
+      svc.upsertForCurrentActor({ smartModel: 'qwen3.5-397b-a17b' }),
+    ).rejects.toThrow(/agent_config_invalid_model/);
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it('never asks the org provider for a model list when the org has no key', async () => {
+    const { providerModels, svc } = makeService();
+
+    await svc.upsertForCurrentActor({ fastModel: 'gpt-oss-120b' });
+
+    expect(providerModels.listForProvider).not.toHaveBeenCalled();
+  });
+
+  it('moves an org back onto a built-in model when it clears its own provider key', async () => {
+    const byokRow: AgentConfigRow = {
+      ...baseRow,
+      fastModel: 'anthropic/claude-haiku-4.5',
+      providerApiKeySet: true,
+    };
+    const repo = makeRepo({ before: byokRow, after: byokRow, apiKey: null });
+    const svc = new AgentConfigService(
+      repo,
+      makeWebhooks(),
+      makeHealthStub(),
+      makeModels(['anthropic/claude-haiku-4.5']),
+      true,
+      BUILT_IN,
+    );
+
+    await svc.upsertForCurrentActor({ providerApiKey: null });
+
+    expect(repo.update).toHaveBeenCalledWith('singleton', {
+      providerApiKey: null,
+      fastModel: 'gpt-oss-120b',
+    });
+  });
+
+  it('accepts any model when no built-in list is configured', async () => {
+    const { repo, svc } = makeService([]);
+
+    await svc.upsertForCurrentActor({ fastModel: 'whatever-they-call-it' });
+
+    expect(repo.update).toHaveBeenCalledWith('singleton', { fastModel: 'whatever-they-call-it' });
+  });
+});

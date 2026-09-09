@@ -5,6 +5,8 @@ import { RealtimeModule } from '../../realtime/realtime.module.ts';
 import { PublicThrottleModule } from '../../common/rate-limit/public-throttle.module.ts';
 import { ConvService } from './conv.service.ts';
 import { ConvAttachmentsService } from './attachments/conv-attachments.service.ts';
+import { AttachmentGcWorker } from './attachments/attachment-gc.worker.ts';
+import { InlineImageBackfillService } from './attachments/inline-image-backfill.service.ts';
 import { ConvAutomationService } from './conv-automation.service.ts';
 import { ConvSchedulerService } from './conv-scheduler.service.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
@@ -84,6 +86,8 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
   providers: [
     ConvService,
     ConvAttachmentsService,
+    AttachmentGcWorker,
+    InlineImageBackfillService,
     ConvAutomationService,
     ConvSchedulerService,
     ConversationClaimsService,
@@ -181,6 +185,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
     OUTREACH_VOICE_CALLERS,
     ConvService,
     ConvAttachmentsService,
+    InlineImageBackfillService,
     ConvAutomationService,
     ConversationClaimsService,
     EmailService,

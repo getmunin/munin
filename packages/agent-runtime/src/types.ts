@@ -29,7 +29,7 @@ export interface AgentConfig {
   maxHistoryChars?: number;
   responseFormat?: 'json_object';
   enablePromptCache?: boolean;
-  supportsVision?: boolean;
+  supportsVision?: boolean | null;
 }
 
 export interface McpTool {

@@ -24,6 +24,7 @@ export interface HandlerConfig {
   debounceMs: number;
   auditEnabled?: boolean;
   auditModel?: string;
+  supportsVision?: boolean | null;
 }
 
 const MAX_RETRIES = 3;
@@ -346,6 +347,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
               apiKey: deps.config.providerApiKey,
             },
             model: deps.config.model,
+            supportsVision: deps.config.supportsVision,
             systemPrompt,
             volatileSystemPrompt,
             maxToolIterations: deps.config.maxToolIterations,

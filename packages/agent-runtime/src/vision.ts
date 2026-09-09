@@ -12,30 +12,6 @@ export const VISION_SUPPORTED_MIME_TYPES: readonly string[] = [
   'image/webp',
 ];
 
-const VISION_CAPABLE_MODEL_PATTERNS: readonly RegExp[] = [
-  /^claude-3/,
-  /^claude-(?:opus|sonnet|haiku|fable|mythos)-/,
-  /^gpt-4o/,
-  /^gpt-4\.1/,
-  /^gpt-4-turbo/,
-  /^gpt-5/,
-  /^o[34](?:-|$)/,
-  /^gemini-(?:1\.5|[2-9])/,
-  /^pixtral/,
-  /vision/,
-];
-
-export function normalizeModelId(model: string): string {
-  const withoutVendor = model.includes('/') ? model.slice(model.lastIndexOf('/') + 1) : model;
-  return (withoutVendor.split(':')[0] ?? '').trim().toLowerCase();
-}
-
-export function modelSupportsVision(model: string): boolean {
-  const id = normalizeModelId(model);
-  if (id.length === 0) return false;
-  return VISION_CAPABLE_MODEL_PATTERNS.some((pattern) => pattern.test(id));
-}
-
 export function isSupportedImageMime(mime: string): boolean {
   return VISION_SUPPORTED_MIME_TYPES.includes(mime.trim().toLowerCase());
 }

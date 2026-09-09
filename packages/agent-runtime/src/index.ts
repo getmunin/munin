@@ -12,8 +12,6 @@ export {
   imageBudgetChars,
   isSupportedImageMime,
   loadHistoryImages,
-  modelSupportsVision,
-  normalizeModelId,
   VISION_IMAGE_HISTORY_CHAR_COST,
   VISION_MAX_IMAGE_BYTES,
   VISION_MAX_IMAGES_PER_TURN,

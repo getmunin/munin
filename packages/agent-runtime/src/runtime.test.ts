@@ -9,6 +9,7 @@ import {
 } from './vision.ts';
 import type {
   AgentConfig,
+  ChatMessage,
   ConversationMessage,
   McpToolHandle,
   ProviderResponse,
@@ -446,11 +447,11 @@ describe('runAgent vision', () => {
     expect(turn?.content).toBe('');
   });
 
-  it('falls back to a text placeholder on a model with no vision, and never downloads', async () => {
+  it('falls back to a text placeholder when the provider reports no image support, and never downloads', async () => {
     const fetchImage = vi.fn<ImageFetch>(okImage);
     const { provider, calls } = createStubProvider({ responses: [plainTextResponse('ok')] });
     await runAgent({
-      config: { ...baseConfig, model: 'gpt-3.5-turbo' },
+      config: { ...baseConfig, model: 'gpt-3.5-turbo', supportsVision: false },
       history: [photo],
       mcp: idleMcp(),
       provider,
@@ -463,7 +464,54 @@ describe('runAgent vision', () => {
     expect(turn?.content).toBe('[customer attached photo.jpg]');
   });
 
-  it('honours an explicit supportsVision override for a model not on the allow-list', async () => {
+  it('retries the turn without images when an undeclared model rejects the request', async () => {
+    const seen: Array<{ hadImages: boolean; content: unknown }> = [];
+    let call = 0;
+    const provider = (args: { messages: ChatMessage[] }): Promise<ProviderResponse> => {
+      call += 1;
+      const last = args.messages.at(-1);
+      seen.push({ hadImages: (last?.images?.length ?? 0) > 0, content: last?.content });
+      if (call === 1) {
+        return Promise.reject(Object.assign(new Error('image input not supported'), { status: 400 }));
+      }
+      return Promise.resolve(plainTextResponse('recovered'));
+    };
+
+    const reply = await runAgent({
+      config: { ...baseConfig, model: 'mystery-model' },
+      history: [photo],
+      mcp: idleMcp(),
+      provider,
+      fetchImage: okImage,
+    });
+
+    expect(reply.body).toBe('recovered');
+    expect(seen).toHaveLength(2);
+    expect(seen[0]!.hadImages).toBe(true);
+    expect(seen[1]!.hadImages).toBe(false);
+    expect(seen[1]!.content).toBe('[customer attached photo.jpg]');
+  });
+
+  it('does not mask a rejection from a model the provider declared image-capable', async () => {
+    let call = 0;
+    const provider = (): Promise<ProviderResponse> => {
+      call += 1;
+      return Promise.reject(Object.assign(new Error('bad request'), { status: 400 }));
+    };
+
+    await expect(
+      runAgent({
+        config: { ...baseConfig, model: 'declared-vision', supportsVision: true },
+        history: [photo],
+        mcp: idleMcp(),
+        provider,
+        fetchImage: okImage,
+      }),
+    ).rejects.toThrow(/bad request/);
+    expect(call).toBe(1);
+  });
+
+  it('honours an explicit supportsVision override for a model the provider says nothing about', async () => {
     const { provider, calls } = createStubProvider({ responses: [plainTextResponse('ok')] });
     await runAgent({
       config: { ...baseConfig, model: 'self-hosted-vlm', supportsVision: true },

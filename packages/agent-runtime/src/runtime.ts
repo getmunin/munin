@@ -4,7 +4,6 @@ import { fenceUntrusted, sanitizeToolName } from './untrusted.ts';
 import {
   imageBudgetChars,
   loadHistoryImages,
-  modelSupportsVision,
   type ImageFetch,
   type TurnImages,
 } from './vision.ts';
@@ -15,6 +14,7 @@ import type {
   ConversationMessage,
   McpToolHandle,
   Provider,
+  ProviderResponse,
   ProviderUsage,
   ToolCallTrace,
 } from './types.ts';
@@ -68,13 +68,28 @@ export async function runAgent({
       imagesAllowed: mapsToUserTurn(msg.authorType),
     })),
     {
-      visionEnabled: config.supportsVision ?? modelSupportsVision(config.model),
+      visionEnabled: config.supportsVision !== false,
       fetch: fetchImage,
     },
   );
   compacted.history.forEach((msg, index) => {
     messages.push(historyToChatMessage(msg, turnImages[index]));
   });
+  const preludeLength = messages.length - compacted.history.length;
+
+  async function replaceHistoryWithoutImages(): Promise<void> {
+    const textOnly = await loadHistoryImages(
+      compacted.history.map((msg) => ({
+        attachments: msg.attachments,
+        imagesAllowed: mapsToUserTurn(msg.authorType),
+      })),
+      { visionEnabled: false, fetch: fetchImage },
+    );
+    messages.length = preludeLength;
+    compacted.history.forEach((msg, index) => {
+      messages.push(historyToChatMessage(msg, textOnly[index]));
+    });
+  }
 
   const toolCalls: ToolCallTrace[] = [];
   const usageTotal = { prompt: 0, completion: 0, total: 0 };
@@ -85,7 +100,15 @@ export async function runAgent({
       throw new DOMException('aborted', 'AbortError');
     }
 
-    const response = await provider({ config, messages, tools, abortSignal });
+    let response: ProviderResponse;
+    try {
+      response = await provider({ config, messages, tools, abortSignal });
+    } catch (err) {
+      if (iteration > 0 || !shouldRetryWithoutImages(err, config, messages)) throw err;
+      markVisionUnsupported(config.model);
+      await replaceHistoryWithoutImages();
+      response = await provider({ config, messages, tools, abortSignal });
+    }
     accumulateUsage(usageTotal, response.usage);
 
     if (response.finishReason === 'tool_calls' && response.message.tool_calls?.length) {
@@ -159,6 +182,27 @@ function historyEntryChars(msg: ConversationMessage): number {
 
 function mapsToUserTurn(authorType: ConversationMessage['authorType']): boolean {
   return authorType !== 'agent' && authorType !== 'staff' && authorType !== 'system';
+}
+
+const visionUnsupportedModels = new Set<string>();
+
+function markVisionUnsupported(model: string): void {
+  if (model) visionUnsupportedModels.add(model);
+}
+
+export function visionKnownUnsupported(model: string): boolean {
+  return visionUnsupportedModels.has(model);
+}
+
+function shouldRetryWithoutImages(
+  err: unknown,
+  config: AgentConfig,
+  messages: readonly ChatMessage[],
+): boolean {
+  if (config.supportsVision != null) return false;
+  if (!messages.some((m) => (m.images?.length ?? 0) > 0)) return false;
+  const status = (err as { status?: unknown } | null)?.status;
+  return status === 400 || status === 422;
 }
 
 function historyToChatMessage(msg: ConversationMessage, images?: TurnImages): ChatMessage {

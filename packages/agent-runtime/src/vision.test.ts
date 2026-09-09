@@ -4,8 +4,6 @@ import {
   imageBudgetChars,
   isSupportedImageMime,
   loadHistoryImages,
-  modelSupportsVision,
-  normalizeModelId,
   VISION_IMAGE_HISTORY_CHAR_COST,
   VISION_MAX_IMAGES_PER_TURN,
   type ImageFetch,
@@ -25,41 +23,6 @@ function imageResponse(bytes: number, status = 200): Awaited<ReturnType<ImageFet
 function attachment(over: Partial<ConversationAttachment> = {}): ConversationAttachment {
   return { mime: 'image/png', url: 'https://munin.test/v1/c/a/tok', name: 'photo.jpg', ...over };
 }
-
-describe('modelSupportsVision', () => {
-  it('accepts the Claude, OpenAI and Gemini families the presets actually point at', () => {
-    for (const model of [
-      'claude-opus-5',
-      'claude-haiku-4-5',
-      'anthropic/claude-haiku-4.5',
-      'claude-3-5-sonnet-latest',
-      'gpt-4o-mini',
-      'openai/gpt-4.1',
-      'gpt-5',
-      'gemini-2.5-pro',
-    ]) {
-      expect(modelSupportsVision(model), model).toBe(true);
-    }
-  });
-
-  it('refuses to assume vision for a model that is not on the allow-list', () => {
-    for (const model of [
-      'gpt-3.5-turbo',
-      'claude-2.1',
-      'claude-instant-1',
-      'mistralai/mistral-7b-instruct',
-      'deepseek-chat',
-      '',
-    ]) {
-      expect(modelSupportsVision(model), model).toBe(false);
-    }
-  });
-
-  it('strips the openrouter vendor prefix and route suffix before matching', () => {
-    expect(normalizeModelId('anthropic/claude-opus-5:beta')).toBe('claude-opus-5');
-    expect(modelSupportsVision('anthropic/claude-opus-5:beta')).toBe(true);
-  });
-});
 
 describe('isSupportedImageMime', () => {
   it('mirrors the attachment store allow-list and rejects svg', () => {
@@ -244,5 +207,35 @@ describe('attachmentPlaceholder', () => {
     expect(attachmentPlaceholder(attachment({ name: undefined }))).toBe(
       '[customer attached image.png]',
     );
+  });
+});
+
+describe('unknown vision capability', () => {
+  const attachment = { mime: 'image/png', url: 'https://munin.example/a', name: 'shot.png' };
+
+  it('attempts the image when the provider never declared a capability', async () => {
+    const turns = await loadHistoryImages([{ attachments: [attachment] }], {
+      visionEnabled: true,
+      fetch: () =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          headers: { get: () => '4' },
+          arrayBuffer: () => Promise.resolve(new Uint8Array([1, 2, 3, 4]).buffer),
+        }),
+    });
+    expect(turns[0]!.images).toHaveLength(1);
+    expect(turns[0]!.notes).toHaveLength(0);
+  });
+
+  it('falls back to a named placeholder when vision is known to be unsupported', async () => {
+    const turns = await loadHistoryImages([{ attachments: [attachment] }], {
+      visionEnabled: false,
+      fetch: () => {
+        throw new Error('must not fetch when vision is off');
+      },
+    });
+    expect(turns[0]!.images).toHaveLength(0);
+    expect(turns[0]!.notes).toEqual(['[customer attached shot.png]']);
   });
 });

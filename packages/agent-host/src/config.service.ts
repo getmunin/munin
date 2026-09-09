@@ -1,7 +1,11 @@
 import { BadRequestException, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { WebhookDispatcher } from '@getmunin/core';
 import { defaultFastModelForBaseUrl } from '@getmunin/types';
-import { AGENT_CONFIG_REPOSITORY, DEFAULT_PROVIDER_AVAILABLE } from './injection-tokens.ts';
+import {
+  AGENT_CONFIG_REPOSITORY,
+  DEFAULT_PROVIDER_AVAILABLE,
+  DEFAULT_PROVIDER_MODELS,
+} from './injection-tokens.ts';
 import type {
   AgentConfigPatch,
   AgentConfigRepository,
@@ -25,6 +29,8 @@ export interface AgentConfigDto {
   updatedAt: string;
 }
 
+const BUILT_IN_PROVIDER = 'the built-in model provider';
+
 @Injectable()
 export class AgentConfigService {
   private readonly log = new Logger('AgentConfigService');
@@ -37,6 +43,9 @@ export class AgentConfigService {
     @Optional()
     @Inject(DEFAULT_PROVIDER_AVAILABLE)
     private readonly defaultProviderAvailable: boolean = false,
+    @Optional()
+    @Inject(DEFAULT_PROVIDER_MODELS)
+    private readonly defaultProviderModels: readonly string[] = [],
   ) {}
 
   async getForCurrentActor(): Promise<AgentConfigDto> {
@@ -103,16 +112,19 @@ export class AgentConfigService {
   }): Promise<AgentConfigPatch> {
     const { id, input, before, baseUrl, apiKey, credentialsTouched } = args;
     const modelsTouched = input.fastModel !== undefined || input.smartModel !== undefined;
-    if (!apiKey || (!credentialsTouched && !modelsTouched)) return input;
+    if (!credentialsTouched && !modelsTouched) return input;
 
-    const offered = await this.offeredModels(id, baseUrl, apiKey);
+    const offered = apiKey
+      ? await this.offeredModels(id, baseUrl, apiKey)
+      : this.builtInModels();
     if (!offered) return input;
+    const source = apiKey ? baseUrl : BUILT_IN_PROVIDER;
 
     if (input.fastModel !== undefined && !offered.has(input.fastModel)) {
-      throw invalidModel(input.fastModel, baseUrl);
+      throw invalidModel(input.fastModel, source);
     }
     if (input.smartModel != null && !offered.has(input.smartModel)) {
-      throw invalidModel(input.smartModel, baseUrl);
+      throw invalidModel(input.smartModel, source);
     }
 
     if (!credentialsTouched) return input;
@@ -140,6 +152,10 @@ export class AgentConfigService {
     return patch;
   }
 
+  private builtInModels(): Set<string> | null {
+    return this.defaultProviderModels.length > 0 ? new Set(this.defaultProviderModels) : null;
+  }
+
   private async offeredModels(
     id: string,
     baseUrl: string,
@@ -154,9 +170,9 @@ export class AgentConfigService {
   }
 }
 
-function invalidModel(model: string, baseUrl: string): BadRequestException {
+function invalidModel(model: string, source: string): BadRequestException {
   return new BadRequestException({
-    message: `agent_config_invalid_model: ${model} is not offered by ${baseUrl}`,
+    message: `agent_config_invalid_model: ${model} is not offered by ${source}`,
     code: 'agent_config_invalid_model',
   });
 }

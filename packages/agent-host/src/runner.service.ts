@@ -120,8 +120,20 @@ export type GenerateTrigger = 'chat' | 'scheduled';
 export interface ResolvedProviderAuth {
   apiKey: string;
   baseUrl?: string;
-  model?: string;
+  models?: readonly string[];
   managed: boolean;
+}
+
+export function resolveModelTiers(
+  auth: ResolvedProviderAuth,
+  config: { fastModel: string; smartModel: string | null },
+): { fastModel: string; smartModel: string } {
+  const smart = config.smartModel ?? config.fastModel;
+  const offered = auth.models ?? [];
+  if (offered.length === 0) return { fastModel: config.fastModel, smartModel: smart };
+  const allowed = new Set(offered);
+  const fastModel = allowed.has(config.fastModel) ? config.fastModel : offered[0]!;
+  return { fastModel, smartModel: allowed.has(smart) ? smart : fastModel };
 }
 
 export interface AgentHostRunnerOptions {
@@ -389,8 +401,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
 
     const providerApiKey = auth.apiKey;
     const providerBaseUrl = auth.baseUrl ?? config.providerBaseUrl;
-    const fastModel = auth.model ?? config.fastModel;
-    const smartModel = auth.model ?? config.smartModel ?? config.fastModel;
+    const { fastModel, smartModel } = resolveModelTiers(auth, config);
     const managed = auth.managed;
     const provider =
       this.options?.createProvider?.({ orgId, config, managed }) ??

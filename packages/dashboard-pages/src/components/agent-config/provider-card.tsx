@@ -105,7 +105,12 @@ export function ProviderCard({
       setKeyDirty(false);
       const managedModels = managedPreset?.models ?? [];
       setMessage(tCommon('saved'));
-      onSaved?.(updated, { supported: managedModels.length > 0, models: managedModels });
+      onSaved?.(
+        updated,
+        managedModels.length > 0
+          ? { supported: true, models: managedModels }
+          : await api<ListModelsResult>('/v1/agent-config/models'),
+      );
     } catch (err) {
       setError(translate(err) || t('errors.test'));
     } finally {

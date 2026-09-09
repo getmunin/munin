@@ -987,6 +987,46 @@ export const convMessages = pgTable(
   }),
 );
 
+export const convAttachments = pgTable(
+  'conv_attachments',
+  {
+    id: id('cva'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => convConversations.id, { onDelete: 'cascade' }),
+    messageId: text('message_id').references(() => convMessages.id, { onDelete: 'cascade' }),
+    sessionId: text('session_id'),
+    name: text('name').notNull(),
+    mime: text('mime').notNull(),
+    sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull().default(0),
+    width: integer('width'),
+    height: integer('height'),
+    variants: jsonb('variants').$type<AssetVariant[]>().notNull().default([]),
+    storageProvider: varchar('storage_provider', { length: 16 }).notNull(),
+    storageKey: text('storage_key'),
+    inline: boolean('inline').notNull().default(false),
+    contentId: text('content_id'),
+    uploaded: boolean('uploaded').notNull().default(false),
+    createdByType: varchar('created_by_type', { length: 16 }).notNull(),
+    createdById: text('created_by_id').notNull(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+    deletedByType: varchar('deleted_by_type', { length: 16 }),
+    deletedById: text('deleted_by_id'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('conv_attachments_org_idx').on(t.orgId),
+    convIdx: index('conv_attachments_conv_idx').on(t.conversationId, t.createdAt),
+    msgIdx: index('conv_attachments_msg_idx').on(t.messageId),
+    keyUq: uniqueIndex('conv_attachments_key_uq').on(t.storageKey),
+    pendingIdx: index('conv_attachments_pending_idx').on(t.uploaded, t.createdAt),
+  }),
+);
+
 // Outbound delivery bookkeeping for the email channel. One row per
 // outbound message that needs to leave the building over SMTP.
 // EmailOutboundWorker drains queued rows; updates with sent_at on

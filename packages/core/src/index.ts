@@ -79,6 +79,13 @@ export {
   verifyEmailOpenToken,
 } from './crypto/email-open-token.ts';
 export {
+  type AttachmentTokenPayload,
+  AttachmentTokenError,
+  signAttachmentToken,
+  verifyAttachmentToken,
+  ATTACHMENT_TOKEN_MAX_AGE_SECONDS,
+} from './crypto/attachment-token.ts';
+export {
   type ViewTokenPayload,
   ViewTokenError,
   signViewToken,

@@ -155,8 +155,7 @@ export class WidgetIngestService {
       ? firstWord(userNames.get(conv[0].assigneeUserId)) ?? null
       : null;
 
-    const hasAgentMessage = visible.some((r) => r.authorType === 'agent');
-    const assistantName = hasAgentMessage ? await this.loadAssistantName(tx, orgId) : null;
+    const assistantName = await this.loadAssistantName(tx, orgId);
     const agentDisplayName = assistantName ?? 'Munin';
 
     const readableIds = visible
@@ -190,6 +189,7 @@ export class WidgetIngestService {
       status: conv[0].status,
       handedOver: !!conv[0].assigneeUserId,
       assigneeName,
+      agentName: agentDisplayName,
       contactEmail: contactRow?.email ?? null,
     };
 

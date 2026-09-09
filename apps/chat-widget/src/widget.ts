@@ -271,7 +271,7 @@ export function start(config: WidgetConfig): void {
     if (env?.handedOver) {
       return env.assigneeName ?? strings.defaultTeammateName;
     }
-    return strings.defaultAuthorName;
+    return env?.agentName ?? strings.defaultAuthorName;
   }
 
   async function probeVoiceAvailability(conversationId: string): Promise<void> {

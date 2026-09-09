@@ -421,6 +421,82 @@ const skipReason = TEST_URL
     expect(dto.thumbnailUrl).toBeNull();
   });
 
+  it('never puts a time-limited signed url into the persisted message projection', async () => {
+    const body = await pngBytes(1200);
+    const projection = await asAdmin(orgA, async () => {
+      const handle = await service.requestUpload({
+        conversationId: convA,
+        name: 'projected.png',
+        mime: 'image/png',
+        sizeBytes: body.length,
+      });
+      await uploadThroughPresignedUrl(handle.uploadUrl, body);
+      const dto = await service.completeUpload({ id: handle.id });
+      return service.projectForMessage([dto]);
+    });
+
+    expect(projection).toHaveLength(1);
+    expect(projection[0]).not.toHaveProperty('url');
+    expect(projection[0]).not.toHaveProperty('thumbnailUrl');
+    expect(JSON.stringify(projection)).not.toContain('/v1/c/a/');
+    expect(projection[0]!.thumbnailWidth).toBeGreaterThan(0);
+  });
+
+  it('hydrates a persisted projection into freshly signed urls that resolve', async () => {
+    const body = await pngBytes(1200);
+    const projection = await asAdmin(orgA, async () => {
+      const handle = await service.requestUpload({
+        conversationId: convA,
+        name: 'hydrated.png',
+        mime: 'image/png',
+        sizeBytes: body.length,
+      });
+      await uploadThroughPresignedUrl(handle.uploadUrl, body);
+      const dto = await service.completeUpload({ id: handle.id });
+      return service.projectForMessage([dto]);
+    });
+
+    const hydrated = service.hydrateProjection(orgA, projection);
+    expect(hydrated[0]!.url).toContain('/v1/c/a/');
+    expect(hydrated[0]!.thumbnailUrl).toContain('?w=');
+
+    const served = await fetch(hydrated[0]!.url!.replace(/^https?:\/\/[^/]+/, baseUrl));
+    expect(served.status).toBe(200);
+    const thumb = await fetch(hydrated[0]!.thumbnailUrl!.replace(/^https?:\/\/[^/]+/, baseUrl));
+    expect(thumb.status).toBe(200);
+    expect(thumb.headers.get('content-type')).toBe('image/webp');
+  });
+
+  it('hydrates a tombstoned projection to null urls rather than a dead link', async () => {
+    const body = await pngBytes(400);
+    const { projection, id } = await asAdmin(orgA, async () => {
+      const handle = await service.requestUpload({
+        conversationId: convA,
+        name: 'gone.png',
+        mime: 'image/png',
+        sizeBytes: body.length,
+      });
+      await uploadThroughPresignedUrl(handle.uploadUrl, body);
+      const dto = await service.completeUpload({ id: handle.id });
+      await service.attachToMessage({
+        messageId: messageA,
+        conversationId: convA,
+        attachmentIds: [handle.id],
+      });
+      return { projection: service.projectForMessage([dto]), id: handle.id };
+    });
+
+    await asAdmin(orgA, () => service.delete({ id }));
+
+    const stale = service.hydrateProjection(orgA, projection);
+    expect(stale[0]!.url).toContain('/v1/c/a/');
+    expect(await fetch(stale[0]!.url!.replace(/^https?:\/\/[^/]+/, baseUrl)).then((r) => r.status)).toBe(404);
+
+    const fresh = service.hydrateProjection(orgA, [{ ...projection[0]!, deleted: true }]);
+    expect(fresh[0]!.url).toBeNull();
+    expect(fresh[0]!.thumbnailUrl).toBeNull();
+  });
+
   it('re-deleting a tombstone is idempotent rather than a 404', async () => {
     const body = await pngBytes(400);
     const id = await asAdmin(orgA, async () => {

@@ -34,6 +34,7 @@ import {
 import type {
   AttachmentDto,
   AttachmentUploadHandle,
+  HydratedMessageAttachment,
   MessageAttachmentProjection,
 } from './conv-attachments.types.ts';
 
@@ -296,10 +297,21 @@ export class ConvAttachmentsService {
       sizeBytes: r.sizeBytes,
       width: r.width,
       height: r.height,
+      thumbnailWidth: r.thumbnailWidth,
       inline: r.inline,
       cid: r.contentId,
-      url: r.url,
       deleted: r.deleted,
+    }));
+  }
+
+  hydrateProjection(
+    orgId: string,
+    rows: readonly MessageAttachmentProjection[],
+  ): HydratedMessageAttachment[] {
+    return rows.map((r) => ({
+      ...r,
+      url: r.deleted ? null : this.signUrl(orgId, r.id),
+      thumbnailUrl: r.deleted ? null : this.signUrl(orgId, r.id, r.thumbnailWidth),
     }));
   }
 
@@ -317,6 +329,7 @@ export class ConvAttachmentsService {
       inline: row.inline,
       contentId: row.contentId,
       uploaded: row.uploaded,
+      thumbnailWidth: smallestVariant(row.variants),
       url: deleted ? null : this.signUrl(row.orgId, row.id),
       thumbnailUrl: deleted ? null : this.signUrl(row.orgId, row.id, smallestVariant(row.variants)),
       deleted,

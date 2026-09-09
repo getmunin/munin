@@ -25,3 +25,9 @@ unsent, so the stored thread has to keep recording that something was attached.
 
 `assetExtensionFromName`, SVG rejection and the storage-key generator move out of `cms.service.ts`
 into `common/storage/asset-validation.ts` so both modules share one definition.
+
+The persisted message projection deliberately carries no URL. Signed attachment tokens expire
+after an hour, so a URL copied into the `conv_messages.attachments` jsonb — or into a stored
+`body_html` — is dead by the time most threads are read again, and renders as a broken image.
+`projectForMessage` now emits durable metadata only, and `hydrateProjection` mints fresh URLs at
+read time for whoever is building a DTO.

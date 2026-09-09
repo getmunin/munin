@@ -12,6 +12,7 @@ export interface AttachmentDto {
   inline: boolean;
   contentId: string | null;
   uploaded: boolean;
+  thumbnailWidth: number | null;
   url: string | null;
   thumbnailUrl: string | null;
   deleted: boolean;
@@ -32,10 +33,15 @@ export interface MessageAttachmentProjection {
   sizeBytes: number;
   width: number | null;
   height: number | null;
+  thumbnailWidth: number | null;
   inline: boolean;
   cid: string | null;
-  url: string | null;
   deleted: boolean;
+}
+
+export interface HydratedMessageAttachment extends MessageAttachmentProjection {
+  url: string | null;
+  thumbnailUrl: string | null;
 }
 
 export interface AttachmentVariants {

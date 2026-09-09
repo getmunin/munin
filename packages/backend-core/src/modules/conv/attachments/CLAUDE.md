@@ -22,6 +22,11 @@ CMS library. Same plumbing (`AssetStorage`, `deriveVariantColumns`), different t
 - The token's max age is `ATTACHMENT_TOKEN_MAX_AGE_SECONDS` (1h). **The serve route re-checks
   `deleted_at` and `uploaded` on every request** — a valid signature is not authorization to
   serve, which is what makes deletion effective against already-minted URLs.
+- **Because the token expires, a signed URL must never be persisted.** Not in
+  `conv_messages.attachments`, not in `body_html`, not in a cached payload. Mint one per request,
+  in the request that serves it — `listForMessages()` and `hydrateProjection()` exist for exactly
+  that. A URL written to the database is dead an hour later and renders as a broken image on
+  every thread older than that.
 - Token version is `av1`. Do not reuse `v1`: the email-open and attachment payloads are the
   same shape, so a shared version string lets one token verify as the other. There is a test
   for this (`attachment-token.test.ts`).
@@ -38,7 +43,8 @@ inside the caller's tenant transaction via `getCurrentContext()`.
 | `persistBytes({conversationId, messageId?, name, mime, body, inline?, contentId?})` | Server-side ingest where we already hold the bytes: inbound email MIME parts, MMS media we fetched. One call, no presign. |
 | `attachToMessage({messageId, conversationId, attachmentIds, sessionId?})` | Link uploaded rows to a message at send time. Validates ownership, conversation match, upload completion, and that the row is not already on another message. |
 | `listForMessages(messageIds)` | Batch-load for DTO assembly. Returns `Map<messageId, AttachmentDto[]>`. |
-| `projectForMessage(dtos)` | Shape for the denormalized `conv_messages.attachments` jsonb (see below). |
+| `projectForMessage(dtos)` | Shape for the denormalized `conv_messages.attachments` jsonb (see below). Carries no URL by design. |
+| `hydrateProjection(orgId, projections)` | Read-time counterpart: takes rows out of the jsonb column and mints fresh `url` / `thumbnailUrl`. Use this when building a DTO. |
 | `delete({id})` | Pre-send rows are hard-deleted; rows on a message are tombstoned. Idempotent. |
 | `signUrl(orgId, id, variantWidth?)` | Mint a serve URL. Returns `null` when `MUNIN_KEY_PEPPER` is unset. |
 
@@ -60,8 +66,17 @@ inside the caller's tenant transaction via `getCurrentContext()`.
 The column predates this work and is already read by `slack-projection.ts`
 (`parseMessageAttachments`) and returned in `MessageDto`. Channel PRs write
 `projectForMessage()` output into it so those readers keep working; `conv_attachments` rows stay
-authoritative. A tombstoned row projects as `{id, name, deleted: true}` with `url: null` — every
-renderer must handle `deleted` and show a placeholder rather than a broken image.
+authoritative.
+
+**The projection deliberately contains no URL** — only durable metadata (`id`, `name`, `mime`,
+`sizeBytes`, `width`, `height`, `thumbnailWidth`, `inline`, `cid`, `deleted`). Anything reading
+the column and handing it to a client runs it through `hydrateProjection()` first. A tombstoned
+row projects with `deleted: true` and hydrates to `url: null`; every renderer must handle
+`deleted` and show a placeholder rather than a broken image.
+
+Inline email images are stored the same way: the HTML keeps its `cid:` reference and the
+attachment row carries the matching `content_id`, so the `cid:` → URL mapping is also resolved at
+read time. Nothing time-limited is written into `body_html`.
 
 ## Deletion is two-shaped
 
@@ -99,5 +114,9 @@ renderer must handle `deleted` and show a placeholder rather than a broken image
 `conv-attachments.integration.test.ts` (gated on `TEST_DATABASE_URL`) covers the presigned
 round-trip, variant derivation, size-mismatch rejection, mime rejection, the per-session cap,
 every `attachToMessage` refusal, both delete shapes, purge of master + variants, post-delete 404
-on a previously valid URL, cross-tenant token replay, and RLS isolation between orgs. Extend it
-rather than starting a new file for the channel work.
+on a previously valid URL, cross-tenant token replay, RLS isolation between orgs, and the
+invariant that no signed URL reaches the persisted projection.
+
+Extend it when you are working alone on this tree. When several PRs are in flight at once, put
+channel-specific cases in a file under your own module directory instead — a shared test file is
+the one guaranteed merge conflict between otherwise disjoint channel PRs.

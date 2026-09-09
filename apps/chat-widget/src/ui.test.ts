@@ -505,7 +505,7 @@ describe('ui: composer', () => {
   it('emits onSend on submit and clears the textarea', () => {
     setText('hi there');
     ($('.composer')).dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-    expect(onSend).toHaveBeenCalledWith('hi there');
+    expect(onSend).toHaveBeenCalledWith('hi there', []);
     expect($<HTMLTextAreaElement>('textarea').value).toBe('');
   });
 
@@ -547,7 +547,7 @@ describe('ui: composer', () => {
     setText('hi');
     const ta = $<HTMLTextAreaElement>('textarea');
     ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true, bubbles: true }));
-    expect(onSend).toHaveBeenCalledWith('hi');
+    expect(onSend).toHaveBeenCalledWith('hi', []);
     onSend.mockClear();
     setText('hi2');
     ta.dispatchEvent(

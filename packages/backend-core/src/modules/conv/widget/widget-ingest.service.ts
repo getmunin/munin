@@ -14,8 +14,12 @@ import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from '../set-topic-job.ts';
 import { reopenClosedConversation } from '../conversation-reopen.ts';
 import { raiseAttentionWhenAgentIsOff } from '../unanswerable-handover.ts';
+import { ConvAttachmentsService } from '../attachments/conv-attachments.service.ts';
+import type { AttachmentDto } from '../attachments/conv-attachments.types.ts';
 import { WidgetChannelConfig } from './widget.types.ts';
 import type {
+  WidgetCompleteAttachmentInputT,
+  WidgetCompleteAttachmentResult,
   WidgetConversationEnvelope,
   WidgetConversationSummary,
   WidgetIngestInputT,
@@ -24,7 +28,10 @@ import type {
   WidgetListConversationsResult,
   WidgetListMessagesQueryT,
   WidgetListMessagesResult,
+  WidgetListedAttachment,
   WidgetListedMessage,
+  WidgetRequestAttachmentInputT,
+  WidgetRequestAttachmentResult,
   WidgetSetVisitorInputT,
   WidgetSetVisitorResult,
   WidgetStartConversationInputT,
@@ -42,6 +49,7 @@ export class WidgetIngestService {
   constructor(
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(CuratorJobsService) private readonly curatorJobs: CuratorJobsService,
+    @Inject(ConvAttachmentsService) private readonly attachments: ConvAttachmentsService,
   ) {}
 
   async ingest(
@@ -52,6 +60,108 @@ export class WidgetIngestService {
     const ctx = getCurrentContext();
     await ctx.db.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
     return this.ingestInTx(ctx.db as Tx, orgId, input, requestContext);
+  }
+
+  async requestAttachmentUpload(
+    orgId: string,
+    input: WidgetRequestAttachmentInputT,
+    requestContext: { origin?: string } = {},
+  ): Promise<WidgetRequestAttachmentResult> {
+    const ctx = getCurrentContext();
+    await ctx.db.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+    const tx = ctx.db as Tx;
+    await this.resolveOwnedConversation(tx, orgId, input, requestContext);
+
+    const handle = await this.attachments.requestUpload({
+      conversationId: input.conversationId,
+      name: input.name,
+      mime: input.mime,
+      sizeBytes: input.sizeBytes,
+      sessionId: input.sessionId,
+    });
+    return {
+      id: handle.id,
+      name: handle.name,
+      mime: handle.mime,
+      sizeBytes: handle.sizeBytes,
+      uploadUrl: handle.uploadUrl,
+      uploadMethod: handle.uploadMethod,
+      uploadFields: handle.uploadFields,
+      uploadExpiresAt: handle.uploadExpiresAt,
+    };
+  }
+
+  async completeAttachmentUpload(
+    orgId: string,
+    attachmentId: string,
+    input: WidgetCompleteAttachmentInputT,
+    requestContext: { origin?: string } = {},
+  ): Promise<WidgetCompleteAttachmentResult> {
+    const ctx = getCurrentContext();
+    await ctx.db.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+    const tx = ctx.db as Tx;
+    await this.resolveOwnedConversation(tx, orgId, input, requestContext);
+
+    const dto = await this.attachments.completeUpload({
+      id: attachmentId,
+      sessionId: input.sessionId,
+    });
+    if (dto.conversationId !== input.conversationId) {
+      throw new NotFoundException(`conv_not_found: attachment ${attachmentId}`);
+    }
+    return toWidgetAttachment(dto);
+  }
+
+  private async resolveOwnedConversation(
+    tx: Tx,
+    orgId: string,
+    input: {
+      channelId: string;
+      conversationId: string;
+      sessionId: string;
+      verifiedExternalId?: string;
+      userHash?: string;
+    },
+    requestContext: { origin?: string },
+  ): Promise<void> {
+    const channel = await this.loadChannel(tx, orgId, input.channelId);
+    const channelConfig = WidgetChannelConfig.parse(channel.config);
+    enforceOriginAllowlist(channelConfig, requestContext.origin);
+    const identity = verifyIdentity(channelConfig, {
+      verifiedExternalId: input.verifiedExternalId,
+      userHash: input.userHash,
+    });
+
+    const rows = await tx
+      .select({
+        id: schema.convConversations.id,
+        orgId: schema.convConversations.orgId,
+        channelId: schema.convConversations.channelId,
+        contactId: schema.convConversations.contactId,
+        metadata: schema.convConversations.metadata,
+      })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, input.conversationId))
+      .limit(1);
+    const conv = rows[0];
+    if (!conv || conv.orgId !== orgId) {
+      throw new NotFoundException(`conversation ${input.conversationId} not found`);
+    }
+    if (conv.channelId !== channel.id) {
+      throw new ForbiddenException('conversation_channel_mismatch');
+    }
+    const convSessionId = (conv.metadata as { sessionId?: unknown } | null)?.sessionId;
+    if (convSessionId !== input.sessionId) {
+      throw new ForbiddenException('conversation_session_mismatch');
+    }
+    if (conv.contactId) {
+      await assertContactIdentityOwnership(
+        tx,
+        conv.contactId,
+        identity,
+        'conversation_identity_mismatch',
+      );
+    }
   }
 
   async listMessages(
@@ -166,6 +276,8 @@ export class WidgetIngestService {
         ? await this.loadReadsForEndUser(tx, readableIds, conv[0].endUserId)
         : new Map<string, Date>();
 
+    const attachmentsByMessageId = await this.attachments.listForMessages(visible.map((r) => r.id));
+
     const messages: WidgetListedMessage[] = visible.map((r) => ({
       id: r.id,
       role: normalizeRole(r.authorType),
@@ -181,6 +293,7 @@ export class WidgetIngestService {
       at: r.createdAt.toISOString(),
       readAt: readsByMessageId.get(r.id)?.toISOString() ?? null,
       ...visibleComponents(r.authorType, r.metadata),
+      ...visibleAttachments(attachmentsByMessageId.get(r.id)),
     }));
 
     const envelope: WidgetConversationEnvelope = {
@@ -657,7 +770,20 @@ export class WidgetIngestService {
         skipped += 1;
         continue;
       }
-      events.push({ messageId: insertedId!, authorType });
+      const messageId = insertedId!;
+      if (msg.attachmentIds.length > 0) {
+        const linked = await this.attachments.attachToMessage({
+          messageId,
+          conversationId: conv.id,
+          attachmentIds: msg.attachmentIds,
+          sessionId: input.sessionId,
+        });
+        await tx
+          .update(schema.convMessages)
+          .set({ attachments: this.attachments.projectForMessage(linked) })
+          .where(eq(schema.convMessages.id, messageId));
+      }
+      events.push({ messageId, authorType });
       inserted += 1;
     }
 
@@ -1131,6 +1257,27 @@ function authorKindFor(authorType: string): WidgetListedMessage['authorKind'] {
   if (authorType === 'user') return 'human';
   if (authorType === 'agent') return 'ai';
   return null;
+}
+
+function toWidgetAttachment(dto: AttachmentDto): WidgetListedAttachment {
+  return {
+    id: dto.id,
+    name: dto.name,
+    mime: dto.mime,
+    sizeBytes: dto.sizeBytes,
+    width: dto.width,
+    height: dto.height,
+    url: dto.url,
+    thumbnailUrl: dto.thumbnailUrl,
+    deleted: dto.deleted,
+  };
+}
+
+function visibleAttachments(
+  dtos: AttachmentDto[] | undefined,
+): { attachments?: WidgetListedAttachment[] } {
+  if (!dtos || dtos.length === 0) return {};
+  return { attachments: dtos.map(toWidgetAttachment) };
 }
 
 function visibleComponents(

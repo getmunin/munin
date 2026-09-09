@@ -57,6 +57,16 @@ const is: Strings = {
   voiceTapToReturn: 'Pikkaðu til að snúa aftur',
   voiceFailed: 'Talsímtal mistókst',
   productViewLabel: 'Sjá',
+  attachAriaLabel: 'Hengja mynd við',
+  attachDropHint: 'Slepptu myndinni hér',
+  attachUploading: 'Hleð upp…',
+  attachFailed: 'Myndin var ekki send. Prófaðu aftur.',
+  attachRemoveAriaLabel: 'Fjarlægja mynd',
+  attachTooMany: 'Þú getur hengt við allt að {n} myndir.',
+  attachTypeRejected: 'Við tökum PNG, JPEG, GIF og WebP.',
+  attachTooLarge: 'Myndir verða að vera undir {n} MB.',
+  attachmentUnavailable: 'Myndin er ekki lengur tiltæk',
+  lightboxCloseAriaLabel: 'Loka mynd',
 };
 
 export default is;

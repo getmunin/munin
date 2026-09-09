@@ -1,20 +1,36 @@
-import type { ConversationEnvelope, ConversationSummary, ListedMessage } from './api.ts';
+import type {
+  ConversationEnvelope,
+  ConversationSummary,
+  ListedAttachment,
+  ListedMessage,
+} from './api.ts';
 import type { WidgetConfig } from './config.ts';
 import { WIDGET_END_USER_BODY_MAX_CHARS } from './config.ts';
 import { buildWidgetCss } from './styles.ts';
 import { registerBundledFonts } from './fonts.ts';
 import { contrastFloor, readableOn } from './color.ts';
-import { pickLocale } from './strings/index.ts';
+import { format, pickLocale } from './strings/index.ts';
 import type { Strings } from './strings/index.ts';
 import { renderMarkdownInto } from './markdown.ts';
 import { renderMessageComponents } from './product-list.ts';
+import {
+  ATTACHMENT_BYTES_MAX,
+  ATTACHMENT_MIME_ALLOWLIST,
+  ATTACHMENT_PER_MESSAGE_MAX,
+  rejectionFor,
+} from './upload.ts';
 
 export type ConnectionLabel = 'connected' | 'reconnecting' | 'closed' | 'idle' | 'connecting';
 
 const RECONNECT_STATUS_GRACE_MS = 1500;
 
+export interface UploadedAttachment {
+  id: string;
+}
+
 export interface UiHooks {
-  onSend: (text: string) => void;
+  onSend: (text: string, attachmentIds: string[]) => void;
+  onUploadAttachment?: (file: File) => Promise<UploadedAttachment>;
   onTypingIntent: (intent: 'typing' | 'stopped') => void;
   onOpen?: () => void;
   onClose?: () => void;
@@ -56,6 +72,17 @@ export interface UiController {
 }
 
 const TYPING_IDLE_MS = 800;
+const COMPOSER_NOTE_MS = 5000;
+const ATTACHMENT_MB_MAX = Math.floor(ATTACHMENT_BYTES_MAX / (1024 * 1024));
+
+interface PendingAttachment {
+  key: string;
+  previewUrl: string;
+  name: string;
+  id: string | null;
+  state: 'uploading' | 'ready' | 'error';
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CREDIT_URL =
   'https://www.getmunin.com/?utm_source=widget&utm_medium=referral&utm_campaign=powered_by';
@@ -441,6 +468,9 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
 
   let connectionDisabled = false;
   let sendingNow = false;
+  let pendingAttachments: PendingAttachment[] = [];
+  let attachCounter = 0;
+  let composerNoteTimer: ReturnType<typeof setTimeout> | null = null;
 
   let reconnectGraceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -493,7 +523,9 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
 
   function canSend(): boolean {
     const v = panel.textarea.value.trim();
-    return v.length > 0 && v.length <= WIDGET_END_USER_BODY_MAX_CHARS;
+    if (v.length > WIDGET_END_USER_BODY_MAX_CHARS) return false;
+    if (pendingAttachments.some((a) => a.state === 'uploading')) return false;
+    return v.length > 0 || readyAttachmentIds().length > 0;
   }
 
   function refreshComposerState(): void {
@@ -502,11 +534,185 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     panel.counterEl.classList.toggle('over', len > WIDGET_END_USER_BODY_MAX_CHARS);
     const composerLocked = connectionDisabled || sendingNow;
     panel.textarea.disabled = composerLocked;
+    panel.attachBtn.disabled =
+      composerLocked || !hooks.onUploadAttachment || pendingAttachments.length >= ATTACHMENT_PER_MESSAGE_MAX;
     const enabled = canSend() && !composerLocked;
     panel.sendBtn.disabled = !enabled;
     panel.sendBtn.classList.toggle('active', enabled);
   }
+  panel.attachBtn.hidden = !hooks.onUploadAttachment;
   refreshComposerState();
+
+  function readyAttachmentIds(): string[] {
+    return pendingAttachments
+      .filter((a): a is PendingAttachment & { id: string } => a.state === 'ready' && !!a.id)
+      .map((a) => a.id);
+  }
+
+  function showComposerNote(text: string): void {
+    panel.composerNoteEl.textContent = text;
+    panel.composerNoteEl.hidden = false;
+    if (composerNoteTimer) clearTimeout(composerNoteTimer);
+    composerNoteTimer = setTimeout(() => {
+      panel.composerNoteEl.hidden = true;
+      panel.composerNoteEl.textContent = '';
+      composerNoteTimer = null;
+    }, COMPOSER_NOTE_MS);
+  }
+
+  function renderAttachmentTray(): void {
+    panel.attachTrayEl.innerHTML = '';
+    panel.attachTrayEl.hidden = pendingAttachments.length === 0;
+    for (const item of pendingAttachments) {
+      const chip = document.createElement('div');
+      chip.className = `att-chip att-chip-${item.state}`;
+      const img = document.createElement('img');
+      img.className = 'att-chip-shot';
+      img.src = item.previewUrl;
+      img.alt = item.name;
+      chip.appendChild(img);
+      if (item.state !== 'ready') {
+        const badge = document.createElement('span');
+        badge.className = 'att-chip-badge';
+        badge.textContent = item.state === 'uploading' ? '…' : '!';
+        badge.title = item.state === 'uploading' ? strings.attachUploading : strings.attachFailed;
+        chip.appendChild(badge);
+      }
+      const drop = document.createElement('button');
+      drop.type = 'button';
+      drop.className = 'att-chip-drop';
+      drop.setAttribute('aria-label', strings.attachRemoveAriaLabel);
+      drop.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>';
+      drop.addEventListener('click', () => removeAttachment(item.key));
+      chip.appendChild(drop);
+      panel.attachTrayEl.appendChild(chip);
+    }
+  }
+
+  function removeAttachment(key: string): void {
+    const item = pendingAttachments.find((a) => a.key === key);
+    if (!item) return;
+    pendingAttachments = pendingAttachments.filter((a) => a.key !== key);
+    revokePreview(item);
+    renderAttachmentTray();
+    refreshComposerState();
+  }
+
+  function clearAttachments(): void {
+    for (const item of pendingAttachments) revokePreview(item);
+    pendingAttachments = [];
+    renderAttachmentTray();
+  }
+
+  function revokePreview(item: PendingAttachment): void {
+    if (item.previewUrl.startsWith('blob:')) URL.revokeObjectURL(item.previewUrl);
+  }
+
+  function acceptFiles(files: readonly File[]): void {
+    const upload = hooks.onUploadAttachment;
+    if (!upload) return;
+    for (const file of files) {
+      if (pendingAttachments.length >= ATTACHMENT_PER_MESSAGE_MAX) {
+        showComposerNote(format(strings.attachTooMany, locale, { n: ATTACHMENT_PER_MESSAGE_MAX }));
+        break;
+      }
+      const rejection = rejectionFor(file);
+      if (rejection === 'mime') {
+        showComposerNote(strings.attachTypeRejected);
+        continue;
+      }
+      if (rejection === 'too_large') {
+        showComposerNote(format(strings.attachTooLarge, locale, { n: ATTACHMENT_MB_MAX }));
+        continue;
+      }
+      attachCounter += 1;
+      const item: PendingAttachment = {
+        key: `att-${attachCounter}`,
+        previewUrl: URL.createObjectURL(file),
+        name: file.name || 'image',
+        id: null,
+        state: 'uploading',
+      };
+      pendingAttachments = [...pendingAttachments, item];
+      renderAttachmentTray();
+      refreshComposerState();
+      void upload(file).then(
+        (res) => {
+          if (!pendingAttachments.includes(item)) return;
+          item.id = res.id;
+          item.state = 'ready';
+          renderAttachmentTray();
+          refreshComposerState();
+        },
+        () => {
+          if (!pendingAttachments.includes(item)) return;
+          item.state = 'error';
+          showComposerNote(strings.attachFailed);
+          renderAttachmentTray();
+          refreshComposerState();
+        },
+      );
+    }
+  }
+
+  function imageFilesFrom(list: FileList | null | undefined): File[] {
+    if (!list) return [];
+    return Array.from(list).filter((f) => f.type.startsWith('image/'));
+  }
+
+  function openLightbox(src: string, alt: string): void {
+    panel.lightboxImg.src = src;
+    panel.lightboxImg.alt = alt;
+    panel.lightboxEl.hidden = false;
+  }
+
+  function closeLightbox(): void {
+    panel.lightboxEl.hidden = true;
+    panel.lightboxImg.removeAttribute('src');
+    panel.lightboxImg.alt = '';
+  }
+
+  panel.attachBtn.addEventListener('click', () => {
+    panel.attachInput.click();
+  });
+  panel.attachInput.addEventListener('change', () => {
+    acceptFiles(imageFilesFrom(panel.attachInput.files));
+    panel.attachInput.value = '';
+  });
+  panel.textarea.addEventListener('paste', (e) => {
+    if (!hooks.onUploadAttachment) return;
+    const files = imageFilesFrom(e.clipboardData?.files);
+    if (files.length === 0) return;
+    e.preventDefault();
+    acceptFiles(files);
+  });
+  panel.chatEl.addEventListener('dragover', (e) => {
+    if (!hooks.onUploadAttachment) return;
+    if (!Array.from(e.dataTransfer?.types ?? []).includes('Files')) return;
+    e.preventDefault();
+    panel.dropHintEl.hidden = false;
+  });
+  panel.chatEl.addEventListener('dragleave', (e) => {
+    if (e.target !== panel.chatEl && panel.chatEl.contains(e.target as Node)) return;
+    panel.dropHintEl.hidden = true;
+  });
+  panel.chatEl.addEventListener('drop', (e) => {
+    if (!hooks.onUploadAttachment) return;
+    e.preventDefault();
+    panel.dropHintEl.hidden = true;
+    acceptFiles(imageFilesFrom(e.dataTransfer?.files));
+  });
+  panel.messagesEl.addEventListener('click', (e) => {
+    const target = (e.target as HTMLElement | null)?.closest('[data-lightbox-src]');
+    if (!(target instanceof HTMLElement)) return;
+    const src = target.getAttribute('data-lightbox-src');
+    if (!src) return;
+    openLightbox(src, target.getAttribute('data-lightbox-alt') ?? '');
+  });
+  panel.lightboxCloseBtn.addEventListener('click', () => closeLightbox());
+  panel.lightboxEl.addEventListener('click', (e) => {
+    if (e.target === panel.lightboxEl) closeLightbox();
+  });
 
   function resetChat(): void {
     seenIds.clear();
@@ -518,6 +724,9 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     emailCardEl = null;
     emailSaved = null;
     conversationEnvelope = null;
+    clearAttachments();
+    closeLightbox();
+    refreshComposerState();
     paintChatHead();
   }
 
@@ -582,7 +791,9 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   function doSend(): void {
     const text = panel.textarea.value.trim();
     if (!canSend()) return;
+    const attachmentIds = readyAttachmentIds();
     panel.textarea.value = '';
+    clearAttachments();
     autoGrow(panel.textarea);
     refreshComposerState();
     if (typingIdleTimer) {
@@ -590,12 +801,14 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
       typingIdleTimer = null;
     }
     hooks.onTypingIntent('stopped');
-    hooks.onSend(text);
+    hooks.onSend(text, attachmentIds);
   }
 
   function destroy(): void {
     if (agentTypingTimer) clearTimeout(agentTypingTimer);
     if (typingIdleTimer) clearTimeout(typingIdleTimer);
+    if (composerNoteTimer) clearTimeout(composerNoteTimer);
+    clearAttachments();
     stopCallTimer();
     unlockBodyScroll();
     readObserver?.disconnect();
@@ -699,14 +912,20 @@ function renderMessage(m: ListedMessage, strings: Strings, locale: string): HTML
     }
     wrap.appendChild(head);
   }
-  const bubble = document.createElement('div');
-  bubble.className = 'bubble';
-  if (mine) {
-    bubble.textContent = m.body;
-  } else {
-    renderMarkdownInto(bubble, m.body);
+  const attachments = m.attachments ?? [];
+  if (m.body.trim().length > 0 || attachments.length === 0) {
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    if (mine) {
+      bubble.textContent = m.body;
+    } else {
+      renderMarkdownInto(bubble, m.body);
+    }
+    wrap.appendChild(bubble);
   }
-  wrap.appendChild(bubble);
+  if (attachments.length > 0) {
+    wrap.appendChild(renderAttachments(attachments, strings));
+  }
   if (!mine) {
     const appEls = renderMessageComponents(m.components, locale, strings);
     if (appEls.length > 0) wrap.classList.add('has-app');
@@ -719,6 +938,38 @@ function renderMessage(m: ListedMessage, strings: Strings, locale: string): HTML
   t.textContent = formatTime(m.at);
   wrap.appendChild(t);
   return wrap;
+}
+
+function renderAttachments(attachments: ListedAttachment[], strings: Strings): HTMLElement {
+  const grid = document.createElement('div');
+  grid.className = 'msg-atts';
+  for (const att of attachments) {
+    if (att.deleted || !att.url) {
+      const gone = document.createElement('span');
+      gone.className = 'msg-att msg-att-gone';
+      gone.textContent = strings.attachmentUnavailable;
+      grid.appendChild(gone);
+      continue;
+    }
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'msg-att';
+    btn.setAttribute('data-lightbox-src', att.url);
+    btn.setAttribute('data-lightbox-alt', att.name);
+    const img = document.createElement('img');
+    img.src = att.thumbnailUrl ?? att.url;
+    img.alt = att.name;
+    img.loading = 'lazy';
+    img.addEventListener('error', () => {
+      const gone = document.createElement('span');
+      gone.className = 'msg-att msg-att-gone';
+      gone.textContent = strings.attachmentUnavailable;
+      btn.replaceWith(gone);
+    });
+    btn.appendChild(img);
+    grid.appendChild(btn);
+  }
+  return grid;
 }
 
 function renderPastList(
@@ -871,6 +1122,14 @@ interface PanelHandles {
   textarea: HTMLTextAreaElement;
   counterEl: HTMLSpanElement;
   sendBtn: HTMLButtonElement;
+  attachBtn: HTMLButtonElement;
+  attachInput: HTMLInputElement;
+  attachTrayEl: HTMLDivElement;
+  composerNoteEl: HTMLDivElement;
+  dropHintEl: HTMLDivElement;
+  lightboxEl: HTMLDivElement;
+  lightboxImg: HTMLImageElement;
+  lightboxCloseBtn: HTMLButtonElement;
   voiceTrigger: HTMLButtonElement;
   voiceBanner: HTMLButtonElement;
   voiceBannerLabel: HTMLSpanElement;
@@ -997,17 +1256,34 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
       <span class="voice-banner-right">${escapeHtml(strings.voiceTapToReturn)} ↗</span>
     </button>
     <div class="messages"></div>
+    <div class="drop-hint" hidden>
+      <span>${escapeHtml(strings.attachDropHint)}</span>
+    </div>
     <form class="composer">
-      <textarea rows="1" autocomplete="off" autocorrect="off" placeholder="${escapeAttr(strings.composerPlaceholder)}" aria-label="${escapeAttr(strings.messageAriaLabel)}"></textarea>
+      <div class="composer-main">
+        <div class="composer-note" hidden></div>
+        <div class="composer-atts" hidden></div>
+        <textarea rows="1" autocomplete="off" autocorrect="off" placeholder="${escapeAttr(strings.composerPlaceholder)}" aria-label="${escapeAttr(strings.messageAriaLabel)}"></textarea>
+      </div>
       <div class="composer-row">
         <button type="submit" class="send" aria-label="${escapeAttr(strings.sendAriaLabel)}" disabled>
           <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
             <path d="M5 12h14M13 6l6 6-6 6" />
           </svg>
         </button>
+        <button type="button" class="attach" aria-label="${escapeAttr(strings.attachAriaLabel)}" title="${escapeAttr(strings.attachAriaLabel)}">
+          ${paperclipIconSvg()}
+        </button>
         <span class="counter"></span>
       </div>
+      <input type="file" class="attach-input" accept="${escapeAttr(ATTACHMENT_MIME_ALLOWLIST.join(','))}" multiple hidden />
     </form>
+    <div class="lightbox" hidden>
+      <button type="button" class="lightbox-close" aria-label="${escapeAttr(strings.lightboxCloseAriaLabel)}">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+      </button>
+      <img class="lightbox-img" alt="" />
+    </div>
     <div class="footer-credit">${creditLinkHtml(strings)}</div>
     <div class="voice-call" hidden>
       <button type="button" class="voice-call-min" aria-label="${escapeAttr(strings.voiceMinimizeAriaLabel)}">↙ ${escapeHtml(strings.voiceBackToChat)}</button>
@@ -1045,6 +1321,14 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
   textarea.maxLength = WIDGET_END_USER_BODY_MAX_CHARS + 200;
   const counterEl = chatEl.querySelector('.counter') as HTMLSpanElement;
   const sendBtn = chatEl.querySelector('.send') as HTMLButtonElement;
+  const attachBtn = chatEl.querySelector('.attach') as HTMLButtonElement;
+  const attachInput = chatEl.querySelector('.attach-input') as HTMLInputElement;
+  const attachTrayEl = chatEl.querySelector('.composer-atts') as HTMLDivElement;
+  const composerNoteEl = chatEl.querySelector('.composer-note') as HTMLDivElement;
+  const dropHintEl = chatEl.querySelector('.drop-hint') as HTMLDivElement;
+  const lightboxEl = chatEl.querySelector('.lightbox') as HTMLDivElement;
+  const lightboxImg = chatEl.querySelector('.lightbox-img') as HTMLImageElement;
+  const lightboxCloseBtn = chatEl.querySelector('.lightbox-close') as HTMLButtonElement;
   const voiceTrigger = chatEl.querySelector('.voice-trigger') as HTMLButtonElement;
   const voiceBanner = chatEl.querySelector('.voice-banner') as HTMLButtonElement;
   const voiceBannerLabel = chatEl.querySelector('.voice-banner-label') as HTMLSpanElement;
@@ -1095,6 +1379,14 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
     textarea,
     counterEl,
     sendBtn,
+    attachBtn,
+    attachInput,
+    attachTrayEl,
+    composerNoteEl,
+    dropHintEl,
+    lightboxEl,
+    lightboxImg,
+    lightboxCloseBtn,
     voiceTrigger,
     voiceBanner,
     voiceBannerLabel,
@@ -1113,6 +1405,10 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
     voiceMuteLabel,
     voiceCallEndBtn,
   };
+}
+
+function paperclipIconSvg(): string {
+  return '<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M21.4 11.1l-8.5 8.5a5 5 0 0 1-7.1-7.1l8.1-8.1a3.4 3.4 0 0 1 4.8 4.8l-8.1 8.1a1.7 1.7 0 0 1-2.4-2.4l7.4-7.4" /></svg>';
 }
 
 function phoneIconSvg(): string {

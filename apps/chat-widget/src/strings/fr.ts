@@ -57,6 +57,16 @@ const fr: Strings = {
   voiceTapToReturn: 'Touchez pour revenir',
   voiceFailed: "L'appel vocal a échoué",
   productViewLabel: 'Voir',
+  attachAriaLabel: 'Joindre une image',
+  attachDropHint: 'Déposez l’image ici',
+  attachUploading: 'Envoi…',
+  attachFailed: 'L’image n’a pas été envoyée. Réessayez.',
+  attachRemoveAriaLabel: 'Retirer l’image',
+  attachTooMany: 'Vous pouvez joindre jusqu’à {n} images.',
+  attachTypeRejected: 'Nous acceptons PNG, JPEG, GIF et WebP.',
+  attachTooLarge: 'Les images doivent peser moins de {n} Mo.',
+  attachmentUnavailable: 'Image plus disponible',
+  lightboxCloseAriaLabel: 'Fermer l’image',
 };
 
 export default fr;

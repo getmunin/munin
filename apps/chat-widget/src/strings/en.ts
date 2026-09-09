@@ -57,6 +57,16 @@ const en: Strings = {
   voiceTapToReturn: 'Tap to return',
   voiceFailed: 'Voice call failed',
   productViewLabel: 'View',
+  attachAriaLabel: 'Attach an image',
+  attachDropHint: 'Drop the image here',
+  attachUploading: 'Uploading…',
+  attachFailed: "That image didn't upload. Try again.",
+  attachRemoveAriaLabel: 'Remove image',
+  attachTooMany: 'You can attach up to {n} images.',
+  attachTypeRejected: 'We take PNG, JPEG, GIF and WebP.',
+  attachTooLarge: 'Images have to be under {n} MB.',
+  attachmentUnavailable: 'Image no longer available',
+  lightboxCloseAriaLabel: 'Close image',
 };
 
 export default en;

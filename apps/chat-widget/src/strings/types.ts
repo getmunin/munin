@@ -66,6 +66,16 @@ export interface Strings {
   voiceTapToReturn: string;
   voiceFailed: string;
   productViewLabel: string;
+  attachAriaLabel: string;
+  attachDropHint: string;
+  attachUploading: string;
+  attachFailed: string;
+  attachRemoveAriaLabel: string;
+  attachTooMany: string;
+  attachTypeRejected: string;
+  attachTooLarge: string;
+  attachmentUnavailable: string;
+  lightboxCloseAriaLabel: string;
 }
 
 const PLURAL_KEYS: readonly (keyof PluralValue)[] = ['zero', 'one', 'two', 'few', 'many', 'other'];

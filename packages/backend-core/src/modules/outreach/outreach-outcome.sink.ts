@@ -32,6 +32,7 @@ export class OutreachOutcomeSink implements EventSink {
       typeof event.payload.conversationId === 'string' ? event.payload.conversationId : null;
     if (!conversationId) return;
     if (event.type === MESSAGE_RECEIVED && event.payload.authorType !== 'end_user') return;
+    if (event.payload.autoReply === true) return;
 
     const ctx = getCurrentContext();
     const [conversation] = await ctx.db

@@ -124,6 +124,7 @@ const skipReason = TEST_URL
       authorType: 'user' | 'agent' | 'end_user' | 'system';
       internal?: boolean;
       offsetMs: number;
+      suppressed?: string;
     }>;
   }): Promise<string> {
     displayCounter += 1;
@@ -152,6 +153,7 @@ const skipReason = TEST_URL
         authorId: 'author',
         body: 'x',
         internal: m.internal ?? false,
+        metadata: m.suppressed ? { suppressed: m.suppressed } : {},
         createdAt: new Date(base + m.offsetMs),
       });
     }
@@ -169,6 +171,27 @@ const skipReason = TEST_URL
 
   it('includes a conversation whose latest message is from the visitor', async () => {
     const id = await mkConv({ messages: [{ authorType: 'end_user', offsetMs: 0 }] });
+    expect(await awaitingIds()).toContain(id);
+  });
+
+  it('treats an auto-reply as not a visitor turn the agent owes an answer to', async () => {
+    const id = await mkConv({
+      messages: [
+        { authorType: 'end_user', offsetMs: 0 },
+        { authorType: 'agent', offsetMs: 1 },
+        { authorType: 'end_user', offsetMs: 2, suppressed: 'auto_reply' },
+      ],
+    });
+    expect(await awaitingIds()).not.toContain(id);
+  });
+
+  it('still answers a real message that arrived before an auto-reply', async () => {
+    const id = await mkConv({
+      messages: [
+        { authorType: 'end_user', offsetMs: 0 },
+        { authorType: 'end_user', offsetMs: 1, suppressed: 'auto_reply' },
+      ],
+    });
     expect(await awaitingIds()).toContain(id);
   });
 

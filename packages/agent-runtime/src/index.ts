@@ -8,6 +8,22 @@ export {
 } from './untrusted.ts';
 export { openAiCompatibleProvider } from './providers/openai-compatible.ts';
 export {
+  attachmentPlaceholder,
+  imageBudgetChars,
+  isSupportedImageMime,
+  loadHistoryImages,
+  modelSupportsVision,
+  normalizeModelId,
+  VISION_IMAGE_HISTORY_CHAR_COST,
+  VISION_MAX_IMAGE_BYTES,
+  VISION_MAX_IMAGES_PER_TURN,
+  VISION_MAX_TOTAL_IMAGE_BYTES,
+  VISION_SUPPORTED_MIME_TYPES,
+  type ImageFetch,
+  type LoadHistoryImagesOptions,
+  type TurnImages,
+} from './vision.ts';
+export {
   anthropicNativeProvider,
   isAnthropicNativeBaseUrl,
 } from './providers/anthropic-native.ts';
@@ -46,6 +62,7 @@ export {
 } from './audit.ts';
 export {
   createMuninRestClient,
+  parseAttachments,
   type AckCuratorJobInput,
   type AwaitingReplyConversation,
   type ClaimCuratorJobsInput,
@@ -112,9 +129,11 @@ export type {
   AgentConfig,
   AgentReply,
   AuthorType,
+  ChatImage,
   ChatMessage,
   ChatToolCall,
   ChatToolDefinition,
+  ConversationAttachment,
   ConversationMessage,
   McpTool,
   McpToolHandle,

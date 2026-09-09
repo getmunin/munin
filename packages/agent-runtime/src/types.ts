@@ -1,9 +1,16 @@
 export type AuthorType = 'user' | 'agent' | 'end_user' | 'system' | 'staff';
 
+export interface ConversationAttachment {
+  mime: string;
+  url: string | null;
+  name?: string;
+}
+
 export interface ConversationMessage {
   authorType: AuthorType;
   body: string;
   createdAt?: string;
+  attachments?: ConversationAttachment[];
 }
 
 export interface ProviderConfig {
@@ -22,6 +29,7 @@ export interface AgentConfig {
   maxHistoryChars?: number;
   responseFormat?: 'json_object';
   enablePromptCache?: boolean;
+  supportsVision?: boolean;
 }
 
 export interface McpTool {
@@ -58,9 +66,15 @@ export interface AgentReply {
   toolCalls: ToolCallTrace[];
 }
 
+export interface ChatImage {
+  mime: string;
+  base64: string;
+}
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string | null;
+  images?: ChatImage[];
   name?: string;
   tool_call_id?: string;
   tool_calls?: ChatToolCall[];

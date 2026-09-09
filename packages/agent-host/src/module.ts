@@ -17,7 +17,7 @@ import {
 } from '@getmunin/backend-core';
 import { AgentConfigService } from './config.service.ts';
 import { AgentConfigController } from './config.controller.ts';
-import { AgentModelsService } from './models.service.ts';
+import { AgentModelsService, normalizeProviderModels } from './models.service.ts';
 import { AgentHealthService } from './agent-health.service.ts';
 import { AgentHostRunner, type AgentHostRunnerOptions } from './runner.service.ts';
 import {
@@ -25,6 +25,7 @@ import {
   AGENT_HOST_DB,
   ALERT_RECORDER,
   DEFAULT_PROVIDER_AVAILABLE,
+  DEFAULT_PROVIDER_MODELS,
 } from './injection-tokens.ts';
 import type { AgentConfigRepository } from './config.repository.ts';
 
@@ -34,6 +35,7 @@ export interface AgentHostModuleOptions {
   configRepository: Type<AgentConfigRepository>;
   runnerOptions?: AgentHostRunnerOptions;
   defaultProviderAvailable?: boolean;
+  defaultProviderModels?: readonly string[];
 }
 
 export interface AgentHostModuleAsyncOptions extends Pick<ModuleMetadata, 'imports'> {
@@ -41,39 +43,49 @@ export interface AgentHostModuleAsyncOptions extends Pick<ModuleMetadata, 'impor
   inject?: Array<InjectionToken | OptionalFactoryDependency>;
   useFactory: (...args: never[]) => AgentHostRunnerOptions | Promise<AgentHostRunnerOptions>;
   defaultProviderAvailable?: boolean;
+  defaultProviderModels?: readonly string[];
 }
 
 @Module({})
 export class AgentHostModule {
   static forRoot(options: AgentHostModuleOptions): DynamicModule {
-    return buildModule(
-      options.configRepository,
-      { provide: RUNNER_OPTIONS, useValue: options.runnerOptions ?? {} },
-      [],
-      options.defaultProviderAvailable ?? false,
-    );
+    return buildModule({
+      configRepository: options.configRepository,
+      runnerOptionsProvider: { provide: RUNNER_OPTIONS, useValue: options.runnerOptions ?? {} },
+      defaultProviderAvailable: options.defaultProviderAvailable ?? false,
+      defaultProviderModels: options.defaultProviderModels,
+    });
   }
 
   static forRootAsync(options: AgentHostModuleAsyncOptions): DynamicModule {
-    return buildModule(
-      options.configRepository,
-      {
+    return buildModule({
+      configRepository: options.configRepository,
+      runnerOptionsProvider: {
         provide: RUNNER_OPTIONS,
         useFactory: options.useFactory,
         inject: options.inject ?? [],
       },
-      options.imports ?? [],
-      options.defaultProviderAvailable ?? false,
-    );
+      extraImports: options.imports ?? [],
+      defaultProviderAvailable: options.defaultProviderAvailable ?? false,
+      defaultProviderModels: options.defaultProviderModels,
+    });
   }
 }
 
-function buildModule(
-  configRepository: Type<AgentConfigRepository>,
-  runnerOptionsProvider: Provider,
-  extraImports: NonNullable<ModuleMetadata['imports']> = [],
-  defaultProviderAvailable = false,
-): DynamicModule {
+function buildModule(args: {
+  configRepository: Type<AgentConfigRepository>;
+  runnerOptionsProvider: Provider;
+  extraImports?: NonNullable<ModuleMetadata['imports']>;
+  defaultProviderAvailable?: boolean;
+  defaultProviderModels?: readonly string[];
+}): DynamicModule {
+  const {
+    configRepository,
+    runnerOptionsProvider,
+    extraImports = [],
+    defaultProviderAvailable = false,
+    defaultProviderModels,
+  } = args;
   return {
     module: AgentHostModule,
     imports: [DbModule, McpModule, RealtimeModule, AgentRunnerSupportModule, ...extraImports],
@@ -81,6 +93,10 @@ function buildModule(
       { provide: AGENT_CONFIG_REPOSITORY, useClass: configRepository },
       { provide: AGENT_HOST_DB, useExisting: DB },
       { provide: DEFAULT_PROVIDER_AVAILABLE, useValue: defaultProviderAvailable },
+      {
+        provide: DEFAULT_PROVIDER_MODELS,
+        useValue: normalizeProviderModels(defaultProviderModels),
+      },
       runnerOptionsProvider,
       { provide: ALERT_RECORDER, useExisting: AlertsService },
       configRepository,

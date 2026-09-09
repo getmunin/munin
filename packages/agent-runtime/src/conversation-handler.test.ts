@@ -211,7 +211,84 @@ describe('createConversationHandler', () => {
     expect(postSpy).not.toHaveBeenCalled();
   });
 
-  it('skips when the newest turn transcribed no speech', async () => {
+  it('replies to an image-only newest turn: an empty body plus attachments is not silence', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            messages: [
+              {
+                id: 'msg_1',
+                authorType: 'end_user',
+                body: '',
+                createdAt: new Date().toISOString(),
+                internal: false,
+                attachments: [
+                  {
+                    id: 'a1',
+                    mime: 'image/jpeg',
+                    name: 'photo.jpg',
+                    url: 'https://munin.test/v1/c/a/tok',
+                  },
+                ],
+              },
+            ],
+          }),
+        ),
+      ),
+    });
+    const postSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([assistantStop('That dent looks like shipping damage.')]),
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(postSpy).toHaveBeenCalled();
+  });
+
+  it('still skips an image-only turn whose attachment projection carries nothing usable', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            messages: [
+              {
+                id: 'msg_1',
+                authorType: 'end_user',
+                body: '   ',
+                createdAt: new Date().toISOString(),
+                internal: false,
+                attachments: [{ id: 'a1' }],
+              },
+            ],
+          }),
+        ),
+      ),
+    });
+    const postSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([assistantStop('should never be reached')]),
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('skips when the newest turn transcribed no speech and carried no attachments', async () => {
     const rest = buildRest({
       getConversation: vi.fn(() =>
         Promise.resolve(
@@ -245,6 +322,7 @@ describe('createConversationHandler', () => {
       openMcp: () => Promise.resolve(buildMcp()),
       logger: silentLogger,
       scheduler: noDelayScheduler,
+      provider: sequenceProvider([assistantStop('should never be reached')]),
     });
     handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
     await handler.flush();

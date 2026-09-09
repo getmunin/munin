@@ -10,6 +10,7 @@ import type {
   Provider,
 } from './types.ts';
 import type { PromptResolver } from './prompt-resolver.ts';
+import { parseAttachments } from './munin-rest.ts';
 import type { ConversationDetail, MuninRestClient } from './munin-rest.ts';
 import { FALLBACK_GREET, FALLBACK_HANDOVER, pickFallback } from './fallback-messages.ts';
 import { fenceUntrusted } from './untrusted.ts';
@@ -689,7 +690,9 @@ function lastPublicMessage(
 
 function newestTurnIsSilent(detail: ConversationDetail): boolean {
   const newest = lastPublicMessage(detail);
-  return newest?.authorType === 'end_user' && newest.body.trim().length === 0;
+  if (newest?.authorType !== 'end_user') return false;
+  if (parseAttachments(newest.attachments).length > 0) return false;
+  return newest.body.trim().length === 0;
 }
 
 export function assistantNamePreamble(name: string | null | undefined): string {

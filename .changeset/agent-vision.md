@@ -18,6 +18,14 @@ failure — a 404 for an image that was deleted, a socket error, an expired toke
 An image-only inbound message (empty body) now survives `toRuntimeHistory`'s empty-body filter,
 which previously made a wordless photo invisible.
 
+Two empty-body guards had to move together for that to work. `newestTurnIsSilent` was written for
+voice turns that transcribed nothing, and it short-circuits in `resolveDelivery` before history is
+ever assembled — so once the widget started accepting a message with no body but an attachment, a
+customer who sent only a photo got total silence: the agent never ran at all. It now treats a
+newest turn carrying attachments as not silent, while a genuinely wordless voice turn with no
+attachments still skips. An attachment projection with nothing usable in it counts as silence too,
+so garbage in the column cannot wake the agent on an empty turn.
+
 Images are capped hard, because they are expensive and would otherwise silently exhaust the context
 budget: at most three per turn, 2MB per image, 5MB across the whole request, with the total budget
 spent newest-turn-first so the photo the customer just sent is the one that gets through.

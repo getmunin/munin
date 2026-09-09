@@ -16,6 +16,15 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { getCurrentContext } from '@getmunin/core';
 import { MessageComponentsSchema } from '@getmunin/types';
+import { ConvAttachmentsService } from '../modules/conv/attachments/conv-attachments.service.ts';
+import {
+  CONV_ATTACHMENT_BYTES_MAX,
+  CONV_ATTACHMENT_PER_MESSAGE_MAX,
+} from '../modules/conv/attachments/conv-attachments.constants.ts';
+import type {
+  AttachmentDto,
+  AttachmentUploadHandle,
+} from '../modules/conv/attachments/conv-attachments.types.ts';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { AllowMember, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
@@ -67,6 +76,18 @@ class SendReplyBody extends createZodDto(
     totalTokens: z.number().int().nonnegative().optional(),
     components: MessageComponentsSchema.optional(),
     fromDraftId: z.string().min(1).max(64).optional(),
+    attachmentIds: z
+      .array(z.string().min(1).max(64))
+      .max(CONV_ATTACHMENT_PER_MESSAGE_MAX)
+      .optional(),
+  }),
+) {}
+
+class RequestAttachmentUploadBody extends createZodDto(
+  z.object({
+    name: z.string().min(1).max(255),
+    mime: z.string().min(1).max(120),
+    sizeBytes: z.number().int().positive().max(CONV_ATTACHMENT_BYTES_MAX),
   }),
 ) {}
 
@@ -159,6 +180,7 @@ export class ConversationsController {
     private readonly conv: ConvService,
     private readonly claims: ConversationClaimsService,
     private readonly automation: ConvAutomationService,
+    private readonly attachments: ConvAttachmentsService,
   ) {}
 
   @Get()
@@ -314,10 +336,44 @@ export class ConversationsController {
         claim: input.claim,
         components: input.components,
         fromDraftId: input.fromDraftId,
+        attachmentIds: input.attachmentIds,
         authorType: actor.type === 'user' ? 'user' : 'agent',
         authorId: actor.id,
       }),
     );
+  }
+
+  @Post(':id/attachments/upload-request')
+  @HttpCode(201)
+  @AllowMember()
+  async requestAttachmentUpload(
+    @Param('id') id: string,
+    @Body() input: RequestAttachmentUploadBody,
+  ): Promise<AttachmentUploadHandle> {
+    return this.attachments.requestUpload({
+      conversationId: id,
+      name: input.name,
+      mime: input.mime,
+      sizeBytes: input.sizeBytes,
+    });
+  }
+
+  @Post(':id/attachments/:attachmentId/complete')
+  @HttpCode(200)
+  @AllowMember()
+  async completeAttachmentUpload(
+    @Param('attachmentId') attachmentId: string,
+  ): Promise<AttachmentDto> {
+    return this.attachments.completeUpload({ id: attachmentId });
+  }
+
+  @Delete(':id/attachments/:attachmentId')
+  @HttpCode(200)
+  @AllowMember()
+  async deleteAttachment(
+    @Param('attachmentId') attachmentId: string,
+  ): Promise<{ deleted: true; id: string; alreadyDeleted: boolean }> {
+    return this.attachments.delete({ id: attachmentId });
   }
 
   @Post(':id/runner-claim')

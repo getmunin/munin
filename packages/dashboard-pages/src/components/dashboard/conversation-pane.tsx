@@ -9,6 +9,9 @@ import { useRelative } from '../../lib/use-relative';
 import { useConversationTyping } from '../../realtime';
 import { useCmdEnter } from './queue-panes/shared';
 import { MessageBubble, startsAuthorGroup } from './inbox-message-bubble';
+import { useAttachmentUploads } from './use-attachment-uploads';
+import { useConfirm } from '../confirm-dialog';
+import type { MessageAttachment } from './inbox-types';
 import { participantHues, participantKey } from './inbox-identity';
 import { customerIdentity } from './inbox-helpers';
 import { formatPhoneNumber } from '../../lib/format-phone';
@@ -61,6 +64,10 @@ export function ConversationPane({
   const replyBoxRef = useRef<HTMLTextAreaElement | null>(null);
   const noteBoxRef = useRef<HTMLTextAreaElement | null>(null);
   const composerRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const uploads = useAttachmentUploads(selectedId);
+  const tAtt = useTranslations('dashboard.overview.drawer.attachments');
+  const confirm = useConfirm();
 
   useLayoutEffect(() => {
     for (const el of [replyBoxRef.current, noteBoxRef.current]) {
@@ -150,12 +157,29 @@ export function ConversationPane({
   const reviewingDraft = suggestionId !== null && !dirty;
 
   const sendReply = (): void => {
-    if (!selectedId || !reply.trim() || controller.pending || streaming) return;
-    void controller.send(selectedId, reply, suggestionId ?? undefined).then((ok) => {
-      if (ok) {
-        setReply('');
-        setExpanded(false);
-      }
+    if (!selectedId || !reply.trim() || controller.pending || streaming || uploads.busy) return;
+    void controller
+      .send(selectedId, reply, suggestionId ?? undefined, uploads.readyIds)
+      .then((ok) => {
+        if (ok) {
+          setReply('');
+          setExpanded(false);
+          uploads.reset();
+        }
+      });
+  };
+
+  const requestAttachmentDelete = (attachment: MessageAttachment): void => {
+    if (!selectedId) return;
+    const conversationId = selectedId;
+    void confirm({
+      title: tAtt('confirmTitle'),
+      message: tAtt('confirmBody'),
+      confirmLabel: tAtt('confirmAction'),
+      cancelLabel: tCommon('cancel'),
+      destructive: true,
+    }).then((ok) => {
+      if (ok) void controller.deleteAttachment(conversationId, attachment.id);
     });
   };
 
@@ -478,6 +502,7 @@ export function ConversationPane({
         <div ref={bodyRef} className="flex flex-col gap-4 px-5 py-5 md:min-h-0 md:flex-1 md:overflow-y-auto md:px-7">
         {thread.map((m, i, arr) => (
           <MessageBubble
+            onDeleteAttachment={canReply ? requestAttachmentDelete : undefined}
             key={m.id}
             message={m}
             showAuthor={startsAuthorGroup(m, arr[i - 1])}
@@ -645,15 +670,61 @@ export function ConversationPane({
                 placeholder={t('replyPlaceholder', { name: customer })}
                 className="w-full resize-none rounded-input border border-rule-soft bg-paper px-3.5 py-3 text-base leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt max-md:min-h-0 max-md:flex-1 md:text-sm dark:border-rule-on-dark dark:bg-card"
               />
+              {uploads.pending.length > 0 && (
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  {uploads.pending.map((p) => (
+                    <div
+                      key={p.key}
+                      className="relative overflow-hidden rounded-lg border border-line"
+                    >
+                      <img src={p.previewUrl} alt={p.name} className="h-16 w-16 object-cover" />
+                      {p.status !== 'ready' && (
+                        <span className="absolute inset-0 flex items-center justify-center bg-paper/80 px-1 text-center text-[10px] text-ink-mute">
+                          {p.status === 'uploading' ? tAtt('uploading') : tAtt('uploadFailed')}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => uploads.remove(p.key)}
+                        aria-label={tAtt('remove')}
+                        className="absolute right-0 top-0 bg-paper/90 px-1 text-[11px] text-ink-mute"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="flex shrink-0 flex-col flex-wrap items-stretch gap-2 md:flex-row md:items-center">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/gif,image/webp"
+                  multiple
+                  hidden
+                  onChange={(e) => {
+                    void uploads.addFiles(Array.from(e.target.files ?? []));
+                    e.target.value = '';
+                  }}
+                />
                 <Button
                   variant="accent"
                   onClick={sendReply}
-                  disabled={controller.pending || streaming || askedForDraft || !reply.trim()}
+                  disabled={
+                    controller.pending || streaming || askedForDraft || !reply.trim() || uploads.busy
+                  }
                   pending={controller.pendingAction === 'send'}
                   className="max-md:h-11"
                 >
                   {suggestionId && !dirty ? t('approveSend') : t('sendReply')}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={controller.pending || streaming || askedForDraft}
+                  className="max-md:h-11"
+                >
+                  {tAtt('attach')}
                 </Button>
                 {suggestionId ? (
                   <Button

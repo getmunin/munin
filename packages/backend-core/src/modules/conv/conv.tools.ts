@@ -4,6 +4,8 @@ import { McpTool } from '@getmunin/mcp-toolkit';
 import { getCurrentContext } from '@getmunin/core';
 import { AGENT_MODES, CHANNEL_TYPES, ConvService, HANDOVER_FILTERS, STATUSES } from './conv.service.ts';
 import { ConvAutomationService } from './conv-automation.service.ts';
+import { CONV_ATTACHMENT_PER_MESSAGE_MAX } from './attachments/conv-attachments.constants.ts';
+import { ConvAttachmentsService } from './attachments/conv-attachments.service.ts';
 import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
 
 const ChannelTypeSchema = z.enum(CHANNEL_TYPES);
@@ -37,6 +39,14 @@ const SendMessageInput = z.object({
   body: z.string().min(1).max(50_000),
   internal: z.boolean().optional(),
   inReplyToId: z.string().optional(),
+  attachmentIds: z
+    .array(z.string().min(1).max(64))
+    .max(CONV_ATTACHMENT_PER_MESSAGE_MAX)
+    .optional(),
+});
+
+const DeleteAttachmentInput = z.object({
+  attachmentId: z.string().min(1).max(64),
 });
 
 const AssignInput = z.object({
@@ -176,6 +186,7 @@ export class ConvAdminTools {
   constructor(
     @Inject(ConvService) private readonly conv: ConvService,
     @Inject(ConvAutomationService) private readonly automation: ConvAutomationService,
+    @Inject(ConvAttachmentsService) private readonly attachments: ConvAttachmentsService,
   ) {}
 
   @McpTool({
@@ -241,7 +252,7 @@ export class ConvAdminTools {
     name: 'conv_send_message',
     title: 'Conv: Send message in conversation',
     description:
-      'Append a message to a conversation. Pass `internal: true` to leave a staff-only note (drafts, side comments) — end-user agents never see internal messages.',
+      'Append a message to a conversation. Pass `internal: true` to leave a staff-only note (drafts, side comments) — end-user agents never see internal messages. `attachmentIds` attaches images already stored on this conversation, listed as `attachments` on each message from conv_get_conversation; it cannot upload new files, and an id belonging to another conversation or already on another message is rejected.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: SendMessageInput,
@@ -256,6 +267,21 @@ export class ConvAdminTools {
       authorType: actor.type === 'user' ? 'user' : 'agent',
       authorId: actor.id,
     });
+  }
+
+  @McpTool({
+    name: 'conv_delete_attachment',
+    title: 'Conv: Delete an attachment',
+    description:
+      'Permanently delete an image attached to a conversation message. The stored file is erased. An attachment on a message that has already been sent or received keeps its filename, type and size on the thread so the record still shows something was attached, and stops being viewable; an attachment not yet on a message is removed outright. Already-deleted attachments report alreadyDeleted rather than failing.',
+    audiences: ['admin'],
+    scopes: ['conv:write'],
+    input: DeleteAttachmentInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  deleteAttachment(args: z.infer<typeof DeleteAttachmentInput>) {
+    return this.attachments.delete({ id: args.attachmentId });
   }
 
   @McpTool({

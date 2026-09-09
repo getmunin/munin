@@ -49,3 +49,18 @@ export interface AttachmentVariants {
   height: number | null;
   variants: AssetVariant[];
 }
+
+export interface MessageAttachmentGateway {
+  attachToMessage(input: {
+    messageId: string;
+    conversationId: string;
+    attachmentIds: readonly string[];
+    sessionId?: string;
+  }): Promise<AttachmentDto[]>;
+  projectForMessage(rows: readonly AttachmentDto[]): MessageAttachmentProjection[];
+  hydrateProjection(
+    orgId: string,
+    rows: readonly MessageAttachmentProjection[],
+  ): HydratedMessageAttachment[];
+  hydrateRaw(orgId: string, raw: unknown): HydratedMessageAttachment[];
+}

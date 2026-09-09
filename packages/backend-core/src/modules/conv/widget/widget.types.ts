@@ -170,6 +170,7 @@ export interface WidgetConversationEnvelope {
   status: string;
   handedOver: boolean;
   assigneeName: string | null;
+  agentName: string | null;
   contactEmail: string | null;
 }
 

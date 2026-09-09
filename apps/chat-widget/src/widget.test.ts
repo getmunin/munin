@@ -6,10 +6,24 @@ const h = vi.hoisted(() => {
   return {
     listeners,
     identify: vi.fn(() => Promise.resolve({ endUserId: 'eu_1', contactId: 'ctc_1' })),
-    backfillSince: vi.fn(() =>
-      Promise.resolve({ messages: [], hasMore: false, conversation: null }),
+    backfillSince: vi.fn(
+      (): Promise<{
+        messages: unknown[];
+        hasMore: boolean;
+        cursor?: string | null;
+        conversation: {
+          id: string;
+          subject: string | null;
+          status: string;
+          handedOver: boolean;
+          assigneeName: string | null;
+          agentName: string | null;
+          contactEmail: string | null;
+        } | null;
+      }> => Promise.resolve({ messages: [], hasMore: false, conversation: null }),
     ),
     listConversations: vi.fn(() => Promise.resolve([])),
+    setVoiceCallWho: vi.fn(),
   };
 });
 
@@ -70,6 +84,7 @@ vi.mock('./ui.ts', () => ({
         open = false;
       },
       isOpen: () => open,
+      setVoiceCallWho: h.setVoiceCallWho,
     };
     return new Proxy(stateful, {
       get: (target, prop) => (typeof prop === 'string' && prop in target ? target[prop] : vi.fn()),
@@ -232,5 +247,63 @@ describe('window.mn.widget collisions', () => {
     expect(getMnWidget().isOpen()).toBe(true);
     expect(warn.mock.calls.flat().join(' ')).toContain('already installed');
     warn.mockRestore();
+  });
+});
+
+describe('voice call name', () => {
+  const envelope = {
+    id: 'conv_1',
+    subject: null,
+    status: 'open',
+    handedOver: false,
+    assigneeName: null,
+    agentName: null,
+    contactEmail: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.listeners.state = undefined;
+    document.body.innerHTML = '';
+    delete (window as Window & WindowWithMnWidget).mn;
+  });
+
+  it('uses the org assistant name from the conversation envelope', async () => {
+    h.backfillSince.mockResolvedValueOnce({
+      messages: [],
+      hasMore: false,
+      conversation: { ...envelope, agentName: 'Thea' },
+    });
+    start({ ...baseConfig });
+    h.listeners.state!('connected');
+
+    await vi.waitFor(() => expect(h.setVoiceCallWho).toHaveBeenCalled());
+    expect(h.setVoiceCallWho).toHaveBeenCalledWith('Thea');
+  });
+
+  it('falls back to the generic author name when no assistant name is set', async () => {
+    h.backfillSince.mockResolvedValueOnce({
+      messages: [],
+      hasMore: false,
+      conversation: { ...envelope, agentName: null },
+    });
+    start({ ...baseConfig });
+    h.listeners.state!('connected');
+
+    await vi.waitFor(() => expect(h.setVoiceCallWho).toHaveBeenCalled());
+    expect(h.setVoiceCallWho).toHaveBeenCalledWith('Agent');
+  });
+
+  it('prefers the human assignee over the assistant name once handed over', async () => {
+    h.backfillSince.mockResolvedValueOnce({
+      messages: [],
+      hasMore: false,
+      conversation: { ...envelope, handedOver: true, assigneeName: 'Maja', agentName: 'Thea' },
+    });
+    start({ ...baseConfig });
+    h.listeners.state!('connected');
+
+    await vi.waitFor(() => expect(h.setVoiceCallWho).toHaveBeenCalled());
+    expect(h.setVoiceCallWho).toHaveBeenCalledWith('Maja');
   });
 });

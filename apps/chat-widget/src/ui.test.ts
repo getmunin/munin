@@ -385,6 +385,7 @@ describe('ui: handover envelope', () => {
       status: 'open',
       handedOver: true,
       assigneeName: 'Maja',
+      agentName: null,
       contactEmail: null,
     });
     expect($('.chat-sub-label').textContent).toMatch(/Maja/);
@@ -397,6 +398,7 @@ describe('ui: handover envelope', () => {
       status: 'open',
       handedOver: false,
       assigneeName: null,
+      agentName: null,
       contactEmail: null,
     });
     expect($('.chat-sub-label').textContent).toMatch(/Online now/);

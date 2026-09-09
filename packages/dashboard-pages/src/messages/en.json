@@ -371,6 +371,8 @@
         "handleFallback": "—",
         "anonymousVisitor": "Anonymous",
         "noSpeech": "No speech transcribed",
+        "autoReply": "Auto-reply",
+        "bounceNotice": "Bounced",
         "outreachRevised": "Revised {count}× since it was drafted",
         "outreachRevisedAfterReview": "Revised {count}× after it was opened for review — read it again before approving",
         "outreachRevisionReason": "Reason — {reason}",

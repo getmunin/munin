@@ -404,6 +404,74 @@ class StubImapFetcher implements ImapFetcher {
     expect(newcomer).toHaveLength(1);
   }, 30_000);
 
+  it('an out-of-office reply lands in the thread but raises no attention and starts no jobs', async () => {
+    const channel = (
+      await db.select().from(schema.convChannels).where(eq(schema.convChannels.orgId, orgId))
+    )[0]!;
+    await db
+      .update(schema.convChannels)
+      .set({ defaultAgentMode: 'off' })
+      .where(eq(schema.convChannels.id, channel.id));
+
+    const convFor = async (email: string) => {
+      const [contact] = await db
+        .select()
+        .from(schema.convContacts)
+        .where(and(eq(schema.convContacts.orgId, orgId), eq(schema.convContacts.email, email)));
+      const [conv] = await db
+        .select()
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.contactId, contact!.id));
+      return conv!;
+    };
+
+    try {
+      fetcher.push(rfc822({
+        from: 'Irene Brodtkorb <irene@ooo.test>',
+        to: 'support@acme.test',
+        subject: 'Question about pricing',
+        messageId: 'ooo-human@ooo.test',
+        body: 'What does it cost?',
+      }));
+      expect((await inboundWorker.tick()).messagesIngested).toBe(1);
+      expect((await convFor('irene@ooo.test')).needsHumanAttention).toBe(true);
+      expect(
+        await db.select().from(schema.curatorJobs).where(eq(schema.curatorJobs.orgId, orgId)),
+      ).not.toHaveLength(0);
+      await db.delete(schema.curatorJobs).where(eq(schema.curatorJobs.orgId, orgId));
+
+      fetcher.push(rfc822({
+        from: 'Terje Bang <terje@ooo.test>',
+        to: 'support@acme.test',
+        subject: 'Automatic reply: Question about pricing',
+        messageId: 'ooo-auto@ooo.test',
+        extraHeaders: ['Auto-Submitted: auto-replied'],
+        body: 'I am out of the office until Friday 11/9-26. If any urgency please call +47 90574994.',
+      }));
+      expect((await inboundWorker.tick()).messagesIngested).toBe(1);
+
+      const conv = await convFor('terje@ooo.test');
+      expect(conv.needsHumanAttention).toBe(false);
+
+      const messages = await db
+        .select()
+        .from(schema.convMessages)
+        .where(eq(schema.convMessages.conversationId, conv.id));
+      expect(messages).toHaveLength(1);
+      expect(messages[0]!.body).toContain('out of the office');
+      expect(messages[0]!.metadata['suppressed']).toBe('auto_reply');
+
+      expect(
+        await db.select().from(schema.curatorJobs).where(eq(schema.curatorJobs.orgId, orgId)),
+      ).toHaveLength(0);
+    } finally {
+      await db
+        .update(schema.convChannels)
+        .set({ defaultAgentMode: channel.defaultAgentMode })
+        .where(eq(schema.convChannels.id, channel.id));
+    }
+  }, 30_000);
+
   it('reply that fails threading on a draft_only channel opens a draft_only conversation', async () => {
     await db
       .update(schema.convChannels)
@@ -535,6 +603,7 @@ function rfc822(input: {
   messageId: string;
   inReplyTo?: string;
   references?: string[];
+  extraHeaders?: string[];
   body: string;
 }): string {
   const lines = [
@@ -551,5 +620,6 @@ function rfc822(input: {
   if (input.references?.length) {
     lines.push(`References: ${input.references.map((r) => `<${r}>`).join(' ')}`);
   }
+  for (const header of input.extraHeaders ?? []) lines.push(header);
   return `${lines.join('\r\n')}\r\n\r\n${input.body}\r\n`;
 }

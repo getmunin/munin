@@ -77,6 +77,32 @@ describe('createRealtimeClient', () => {
     });
   });
 
+  it('carries the autoReply flag through so the runner can leave auto-replies alone', async () => {
+    const events: MessageReceivedEvent[] = [];
+    const client = createRealtimeClient({
+      baseUrl,
+      adminApiKey: 'mn_admin_test',
+      onMessageReceived: (e) => events.push(e),
+      logger: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+    client.start();
+    await waitForConnection();
+    send('conversation.message.received', {
+      conversationId: 'ccv_2',
+      messageId: 'cvm_2',
+      authorType: 'end_user',
+      autoReply: true,
+    });
+    send('conversation.message.received', {
+      conversationId: 'ccv_3',
+      messageId: 'cvm_3',
+      authorType: 'end_user',
+    });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    await client.stop();
+    expect(events.map((e) => e.autoReply)).toEqual([true, false]);
+  });
+
   it('fires onHandoverResolved on conversation.handover_resolved', async () => {
     const events: HandoverResolvedEvent[] = [];
     const client = createRealtimeClient({

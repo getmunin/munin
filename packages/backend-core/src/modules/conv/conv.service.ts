@@ -789,6 +789,7 @@ export class ConvService {
             SELECT author_type FROM conv_messages
             WHERE conversation_id = ${schema.convConversations.id}
               AND internal = false
+              AND metadata->>'suppressed' IS NULL
             ORDER BY created_at DESC
             LIMIT 1
           ) = 'end_user'`,

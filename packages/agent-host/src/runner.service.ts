@@ -439,6 +439,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       {
         onMessageReceived: (event: MessageReceivedBusEvent) => {
           if (this.lockManager && !this.lockManager.holds(id)) return;
+          if (event.autoReply) return;
           handlerRef.current?.handle({
             conversationId: event.conversationId,
             authorType: event.authorType,

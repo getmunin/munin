@@ -73,6 +73,7 @@ export function MessageBubble({
     );
   }
   const label = bubbleLabel(message, t, endUserLabel);
+  const suppressed = suppressedKind(message);
   if (message.internal) {
     return (
       <div
@@ -118,6 +119,11 @@ export function MessageBubble({
             {label}
           </span>
           <span>· {formatSeenAt(message.createdAt)}</span>
+          {suppressed ? (
+            <span className="text-ink-label">
+              · {suppressed === 'bounce' ? t('bounceNotice') : t('autoReply')}
+            </span>
+          ) : null}
         </div>
       ) : null}
       <div
@@ -169,8 +175,14 @@ function bubbleLabel(
   return message.authorType;
 }
 
+export function suppressedKind(message: MessageDto): string | null {
+  const value = message.metadata['suppressed'];
+  return typeof value === 'string' ? value : null;
+}
+
 export function startsAuthorGroup(message: MessageDto, previous: MessageDto | undefined): boolean {
   if (!previous) return true;
+  if (suppressedKind(previous) !== suppressedKind(message)) return true;
   if (previous.internal !== message.internal) return true;
   if (previous.authorType !== message.authorType) return true;
   if (previous.authorId !== message.authorId) return true;

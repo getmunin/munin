@@ -18,7 +18,7 @@ Replies must answer what the prospect actually said. If they asked a question, a
 
 1. **Read the conversation** with `conv_get_conversation(<conversationId>)` (the user prompt names it). Note the `outreachCampaignId`.
 2. **Read the campaign** with `outreach_get_campaign(<campaignId>)` for the brief — the reply should stay on-message.
-3. **Identify the latest end-user message** — that's what you're replying TO. Earlier messages are context only.
+3. **Identify the latest end-user message** — that's what you're replying TO. Earlier messages are context only. Skip any message carrying `metadata.suppressed` (`auto_reply` or `bounce`): a mail server wrote it, not the prospect. If every inbound message on the thread is suppressed, stop without filing a proposal — the prospect has not answered yet.
 4. **Decide intent**: question, decline, ask-for-human, off-topic, low-quality, etc. The right reply differs sharply by intent.
 5. **Ground product claims** with `kb_search` if the prospect asked something factual.
 6. **Draft** a 30–120-word reply that addresses the inbound. Plain prose, no headings, no JSON-escaping. **No unsubscribe footer** — replies thread inside the existing email chain which already carries the original link.

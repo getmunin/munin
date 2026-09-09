@@ -6,6 +6,7 @@ export interface MessageReceivedEvent {
   messageId: string;
   authorType: 'user' | 'agent' | 'end_user' | 'system';
   endUserId?: string;
+  autoReply?: boolean;
 }
 
 export interface KbDocumentChangedEvent {
@@ -153,6 +154,7 @@ export function createRealtimeClient(opts: RealtimeClientOptions): RealtimeClien
                 ? (authorType as MessageReceivedEvent['authorType'])
                 : 'end_user',
             endUserId: typeof payload['endUserId'] === 'string' ? payload['endUserId'] : undefined,
+            autoReply: payload['autoReply'] === true,
           });
           return;
         }

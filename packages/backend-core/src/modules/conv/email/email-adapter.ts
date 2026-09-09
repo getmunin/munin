@@ -43,7 +43,7 @@ import {
   stripQuotedReplyText,
   stripSignatureHtml,
 } from './reply-history.ts';
-import { classifySender, hasAnyClassification } from './classify-sender.ts';
+import { classifySender, hasAnyClassification, suppressionReason } from './classify-sender.ts';
 import type {
   ChannelAdapter,
   ChannelRow,
@@ -355,6 +355,7 @@ export class EmailAdapter implements ChannelAdapter {
           conversationId = newConv!.id;
         }
 
+        const suppressed = suppressionReason(parsed.senderClassification);
         const quoteStrippedText = stripQuotedReplyText(parsed.bodyText);
         const { clean: cleanText, signature: regexSignature } = splitSignatureText(quoteStrippedText);
         const regexCutSignature = regexSignature !== null;
@@ -383,14 +384,18 @@ export class EmailAdapter implements ChannelAdapter {
           .set({ lastMessageAt: new Date(), updatedAt: new Date() })
           .where(eq(schema.convConversations.id, conversationId));
 
-        if (resolution && (await reopenClosedConversation(tx, conversationId))) {
+        if (
+          !suppressed &&
+          resolution &&
+          (await reopenClosedConversation(tx, conversationId))
+        ) {
           await this.webhooks.emit({
             type: 'conversation.status_changed',
             payload: { conversationId, status: 'open' },
           });
         }
 
-        await raiseAttentionWhenAgentIsOff(tx, conversationId);
+        if (!suppressed) await raiseAttentionWhenAgentIsOff(tx, conversationId);
 
         await this.webhooks.emit({
           type: 'conversation.message.received',
@@ -399,8 +404,11 @@ export class EmailAdapter implements ChannelAdapter {
             messageId: msg!.id,
             authorType: 'end_user',
             internal: false,
+            ...(suppressed ? { autoReply: true, suppressed } : {}),
           },
         });
+
+        if (suppressed) return;
 
         if (!regexCutSignature && cleanText && cleanText.length >= 80) {
           await this.curatorJobs.enqueue({
@@ -547,6 +555,8 @@ function buildInboundMetadata(
   if (hasAnyClassification(parsed.senderClassification)) {
     meta.senderClassification = parsed.senderClassification;
   }
+  const suppressed = suppressionReason(parsed.senderClassification);
+  if (suppressed) meta.suppressed = suppressed;
   if (parsed.authenticationResults.length > 0) {
     meta.authenticationResults = parsed.authenticationResults;
   }

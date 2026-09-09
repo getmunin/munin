@@ -1764,7 +1764,8 @@ export class OutreachService {
         ${campaignFilter}
         AND NOT EXISTS (
           SELECT 1 FROM conv_messages m
-          WHERE m.conversation_id = a.conversation_id AND m.author_type = 'end_user')
+          WHERE m.conversation_id = a.conversation_id AND m.author_type = 'end_user'
+            AND m.metadata->>'suppressed' IS NULL)
         AND NOT EXISTS (
           SELECT 1 FROM outreach_proposals q
           WHERE q.campaign_id = a.campaign_id AND q.contact_id = a.contact_id

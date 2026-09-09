@@ -1157,13 +1157,14 @@ const skipReason = TEST_URL
       );
     }
 
-    async function insertInbound(conversationId: string) {
+    async function insertInbound(conversationId: string, metadata: Record<string, unknown> = {}) {
       await db.insert(schema.convMessages).values({
         orgId,
         conversationId,
         authorType: 'end_user',
         authorId: 'prospect',
         body: 'Thanks, tell me more!',
+        metadata,
       });
     }
 
@@ -1479,6 +1480,15 @@ const skipReason = TEST_URL
         await backdateSent(sent.id, 4);
         await insertInbound(sent.conversationId!);
         expect(await run(() => svc.listDueFollowups({}))).toEqual([]);
+      });
+
+      it('keeps a step due when the only inbound message is an out-of-office auto-reply', async () => {
+        const c = await createSeqCampaign('due-auto-reply');
+        const sent = await sendInitial(c.id);
+        await backdateSent(sent.id, 4);
+        await insertInbound(sent.conversationId!, { suppressed: 'auto_reply' });
+        const due = await run(() => svc.listDueFollowups({}));
+        expect(due.map((d) => d.nextStep)).toEqual([1]);
       });
 
       it('excludes pairs with a pending follow-up or reply draft', async () => {
@@ -2638,6 +2648,15 @@ const skipReason = TEST_URL
           channelType: 'email',
         });
         await callEnded(conversationId);
+        expect(enqueued).toEqual([]);
+      });
+
+      it('ignores an out-of-office auto-reply, which says nothing about the outcome', async () => {
+        const conversationId = await outreachConversation({
+          extractionSchema: FIELDS,
+          channelType: 'email',
+        });
+        await replyReceived(conversationId, { autoReply: true });
         expect(enqueued).toEqual([]);
       });
 

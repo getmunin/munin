@@ -1910,6 +1910,71 @@ const skipReason = TEST_URL
     }
   });
 
+  it('carries the configured assistants.name as conversation.agentName', async () => {
+    await db
+      .insert(schema.assistants)
+      .values({ orgId, name: 'Thea' })
+      .onConflictDoUpdate({
+        target: schema.assistants.orgId,
+        set: { name: 'Thea', updatedAt: new Date() },
+      });
+    try {
+      const sid = `vis_envelope_name_${Date.now()}`;
+      const first = await call('POST', '/v1/widget/messages', widgetKey, {
+        channelId,
+        sessionId: sid,
+        messages: [{ role: 'end_user', body: 'hi' }],
+      });
+      expect(first.status).toBe(201);
+      await insertAgentMessage(
+        (first.json as { conversationId: string }).conversationId,
+        'hello there',
+        sid,
+      );
+      const res = await call(
+        'GET',
+        `/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
+        widgetKey,
+      );
+      const body = res.json as { conversation: { agentName: string | null } | null };
+      expect(body.conversation?.agentName).toBe('Thea');
+    } finally {
+      await db.delete(schema.assistants).where(eq(schema.assistants.orgId, orgId));
+    }
+  });
+
+  it('carries conversation.agentName before the agent has replied', async () => {
+    await db
+      .insert(schema.assistants)
+      .values({ orgId, name: 'Thea' })
+      .onConflictDoUpdate({
+        target: schema.assistants.orgId,
+        set: { name: 'Thea', updatedAt: new Date() },
+      });
+    try {
+      const sid = `vis_envelope_early_${Date.now()}`;
+      const first = await call('POST', '/v1/widget/messages', widgetKey, {
+        channelId,
+        sessionId: sid,
+        messages: [{ role: 'end_user', body: 'hi' }],
+      });
+      expect(first.status).toBe(201);
+      const res = await call(
+        'GET',
+        `/v1/widget/messages?${qs({ channelId, sessionId: sid })}`,
+        widgetKey,
+      );
+      const body = res.json as {
+        messages: Array<{ role: string }>;
+        conversation: { agentName: string | null } | null;
+      };
+      expect(body.messages.some((m) => m.role === 'agent')).toBe(false);
+      expect(body.conversation?.agentName).toBe('Thea');
+    } finally {
+      await db.delete(schema.assistants).where(eq(schema.assistants.orgId, orgId));
+    }
+  });
+
   it('returns first-name only for human-author messages', async () => {
     const [op] = await db
       .insert(schema.users)

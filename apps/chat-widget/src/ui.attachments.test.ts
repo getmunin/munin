@@ -220,4 +220,39 @@ describe('ui: attachment bubbles', () => {
     $<HTMLButtonElement>('.lightbox-close').click();
     expect($('.lightbox').hidden).toBe(true);
   });
+
+  it('ignores an injected element carrying a plausible url in a data attribute, because the handler reads no DOM text', () => {
+    controller = mountChat({ onSend: () => {}, onTypingIntent: () => {} });
+    controller.addMessages([
+      msg({ id: 'm5', role: 'end_user', body: '', attachments: [attachment()] }),
+    ]);
+
+    const planted = $('[data-message-id="m5"]').ownerDocument.createElement('span');
+    planted.setAttribute('data-lightbox', '');
+    planted.setAttribute('data-lightbox-src', 'https://evil.example/planted.png');
+    $('[data-message-id="m5"]').appendChild(planted);
+
+    planted.click();
+    expect($('.lightbox').hidden).toBe(true);
+    expect($<HTMLImageElement>('.lightbox-img').getAttribute('src')).toBeNull();
+  });
+
+  it('refuses a non-http attachment url rather than assigning it to an image source', () => {
+    controller = mountChat({ onSend: () => {}, onTypingIntent: () => {} });
+    controller.addMessages([
+      msg({
+        id: 'm6',
+        role: 'end_user',
+        body: '',
+        attachments: [{ ...attachment(), url: 'javascript:alert(1)', thumbnailUrl: null }],
+      }),
+    ]);
+
+    $<HTMLButtonElement>('[data-message-id="m6"] .msg-att').click();
+    expect($('.lightbox').hidden).toBe(true);
+    expect($<HTMLImageElement>('.lightbox-img').getAttribute('src')).toBeNull();
+    expect(
+      $<HTMLImageElement>('[data-message-id="m6"] .msg-att img').getAttribute('src'),
+    ).toBeNull();
+  });
 });

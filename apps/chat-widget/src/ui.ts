@@ -661,7 +661,9 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   }
 
   function openLightbox(src: string, alt: string): void {
-    panel.lightboxImg.src = src;
+    const safe = safeImageUrl(src);
+    if (!safe) return;
+    panel.lightboxImg.src = safe;
     panel.lightboxImg.alt = alt;
     panel.lightboxEl.hidden = false;
   }
@@ -703,11 +705,11 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     acceptFiles(imageFilesFrom(e.dataTransfer?.files));
   });
   panel.messagesEl.addEventListener('click', (e) => {
-    const target = (e.target as HTMLElement | null)?.closest('[data-lightbox-src]');
+    const target = (e.target as HTMLElement | null)?.closest('[data-lightbox]');
     if (!(target instanceof HTMLElement)) return;
-    const src = target.getAttribute('data-lightbox-src');
-    if (!src) return;
-    openLightbox(src, target.getAttribute('data-lightbox-alt') ?? '');
+    const attachment = lightboxTargetFor(target);
+    if (!attachment) return;
+    openLightbox(attachment.url, attachment.alt);
   });
   panel.lightboxCloseBtn.addEventListener('click', () => closeLightbox());
   panel.lightboxEl.addEventListener('click', (e) => {
@@ -940,6 +942,32 @@ function renderMessage(m: ListedMessage, strings: Strings, locale: string): HTML
   return wrap;
 }
 
+interface LightboxTarget {
+  url: string;
+  alt: string;
+}
+
+const lightboxTargets = new WeakMap<Element, LightboxTarget>();
+
+function setLightboxTarget(el: Element, target: LightboxTarget): void {
+  lightboxTargets.set(el, target);
+}
+
+function lightboxTargetFor(el: Element | null | undefined): LightboxTarget | null {
+  return el ? lightboxTargets.get(el) ?? null : null;
+}
+
+function safeImageUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw, document.baseURI);
+  } catch {
+    return null;
+  }
+  return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.href : null;
+}
+
 function renderAttachments(attachments: ListedAttachment[], strings: Strings): HTMLElement {
   const grid = document.createElement('div');
   grid.className = 'msg-atts';
@@ -954,10 +982,11 @@ function renderAttachments(attachments: ListedAttachment[], strings: Strings): H
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'msg-att';
-    btn.setAttribute('data-lightbox-src', att.url);
-    btn.setAttribute('data-lightbox-alt', att.name);
+    btn.setAttribute('data-lightbox', '');
+    setLightboxTarget(btn, { url: att.url, alt: att.name });
     const img = document.createElement('img');
-    img.src = att.thumbnailUrl ?? att.url;
+    const thumb = safeImageUrl(att.thumbnailUrl ?? att.url);
+    if (thumb) img.src = thumb;
     img.alt = att.name;
     img.loading = 'lazy';
     img.addEventListener('error', () => {

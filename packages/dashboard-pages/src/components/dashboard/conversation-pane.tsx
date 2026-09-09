@@ -233,6 +233,8 @@ export function ConversationPane({
     phone: detail.contactPhone,
   });
   const customer = caller ?? t('anonymous');
+  const customerEmail =
+    detail.contactEmail && detail.contactEmail !== customer ? detail.contactEmail : null;
   const composerTitle = detail.subject ?? customer;
   const composerMeta = [item?.topicName, detail.subject ? customer : null]
     .filter((v): v is string => !!v)
@@ -449,9 +451,14 @@ export function ConversationPane({
               {detail.subject ?? customer}
             </h2>
           </div>
-          {detail.subject ? (
+          {detail.subject || customerEmail ? (
             <div className="mt-0.5 truncate text-[15px] text-ink md:text-[17px] dark:text-foreground">
-              {customer}
+              {detail.subject ? customer : null}
+              {customerEmail ? (
+                <span className={cn('text-ink-mute', detail.subject ? 'ml-1.5' : '')}>
+                  {`<${customerEmail}>`}
+                </span>
+              ) : null}
             </div>
           ) : null}
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">

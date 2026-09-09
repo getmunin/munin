@@ -83,6 +83,14 @@ export function hasAnyClassification(c: SenderClassification): boolean {
   return c.isMailingList || c.isAutoReply || c.isRoleAccount || c.isBounce;
 }
 
+export type SuppressionReason = 'auto_reply' | 'bounce';
+
+export function suppressionReason(c: SenderClassification): SuppressionReason | null {
+  if (c.isBounce) return 'bounce';
+  if (c.isAutoReply) return 'auto_reply';
+  return null;
+}
+
 function headerValue(
   headerLines: ReadonlyArray<{ key: string; line: string }>,
   name: string,

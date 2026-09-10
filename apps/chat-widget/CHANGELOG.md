@@ -1,5 +1,102 @@
 # @getmunin/chat-widget
 
+## 5.21.0
+
+### Minor Changes
+
+- 0817af4: Let chat-widget visitors send images, and render the ones sent back to them.
+
+  Two new widget routes sit on top of the attachment store: `POST /v1/widget/attachments` hands out
+  a presigned target and `POST /v1/widget/attachments/:id/complete` confirms the bytes. Both go
+  through the same key-to-channel check and origin allowlist as ingest, and both pass the caller's
+  `sessionId` into `ConvAttachmentsService`, so a visitor can only complete an upload their own
+  session requested. `WidgetIngestMessage.attachmentIds` links completed uploads at send time via
+  `attachToMessage`, which re-validates ownership, conversation match and upload completion — a
+  client-supplied id is never trusted, and an id belonging to another session or another
+  conversation is refused rather than silently dropped.
+
+  A message may now carry attachments with an empty `body`; previously `body` was required, which
+  made an image-only message impossible to express. A message with neither is still rejected.
+
+  `GET /v1/widget/messages` returns an `attachments` array per message, so outbound agent and human
+  images render in the widget too. Realtime already signals only a `messageId` and the widget
+  refetches, so no gateway change was needed. A tombstoned attachment serializes as
+  `deleted: true` with null URLs and the widget shows a placeholder — a deleted image never
+  degrades into a broken one.
+
+  In the bundle, images can be attached from a composer button, pasted from the clipboard or dropped
+  onto the panel, are downscaled and re-encoded to WebP in the browser before upload, and render as
+  tappable bubbles with a lightbox. The downscale mirrors the dashboard's `prepareImageForUpload`
+  rather than importing it, because the widget ships as a standalone bundle.
+
+### Patch Changes
+
+- b787e96: Share one set of attachment limits between the server and both clients, and validate uploads in the
+  dashboard composer before they leave the browser.
+
+  The allowlist, the 10 MB cap and the per-message maximum existed in two places — the server's
+  `conv-attachments.constants.ts` and the widget's `upload.ts` — and in neither for the dashboard,
+  which reused `lib/upload-image.ts`, the CMS asset helper (SVG allowed, no size cap). A wrong file
+  type was silently dropped, an oversized one round-tripped to the server and came back as a bare
+  "Upload failed", and nothing enforced the per-message cap client-side. An SVG was the sharp edge: it
+  passed the `image/*` filter, uploaded untouched, then failed the server allowlist with no hint why.
+
+  `@getmunin/types` now owns `CONV_ATTACHMENT_*` plus `attachmentRejectionFor`, and all three callers
+  read from it. The dashboard checks type, size and count up front and reports each rejection through
+  the conversation pane's existing `role="alert"` banner rather than a second, quieter channel — so an
+  attachment failure now reads like every other action failure in that pane. Attachment deletion also
+  stops reporting itself as "Send failed": `QueueActionType` gains `attach`.
+
+  Icons in the attachment UI stop being characters. The removed-attachment chip swaps its 🚫 emoji for
+  lucide's `ImageOff`, and both remove buttons swap `✕` for lucide's `X`, so all three render in the
+  pane's own ink and follow dark mode instead of leaning on the platform emoji and text fonts. The
+  widget inlines the same `X` geometry — it draws into a shadow root and cannot import from
+  lucide-react — so its chip control stays visually matched to the dashboard's.
+
+- b787e96: Make the widget's composer error behave like the dashboard's, and stop losing failed sends in the
+  console.
+
+  The composer note was a bare red line that erased itself after five seconds, so the reason a file
+  was rejected disappeared while its error chip stayed on screen. It is now a dismissible alert — dot,
+  message, Close — carrying `role="alert"` so assistive tech announces it, and it persists until the
+  visitor dismisses it or sends the message. A message that fails to send used to be `console.warn`
+  only, invisible to the visitor; it now surfaces in the same note.
+
+  The attachment chip's remove control also picks up the dashboard's affordance — the same `✕` glyph
+  on a translucent paper pill in muted ink, instead of a filled dark circle with an SVG cross.
+
+- b787e96: Clear the chat widget's drop hint when a drag leaves the panel without dropping.
+
+  The `dragleave` handler decided whether the drag had really left by inspecting `e.target`, but
+  `dragleave` fires on the element being left and bubbles, so the last event before the pointer exits
+  the panel almost always targets a descendant — a message bubble, the message list — not `.chat`
+  itself. The old guard read that as an internal move and returned early, leaving "Slipp bildet her"
+  covering the conversation until the next drag. It now keys off `e.relatedTarget`, the node being
+  entered: still inside `.chat` means an internal move, anything else (including `null` when the drag
+  leaves the window) hides the hint.
+
+- 9b48cf5: fix(widget): the voice call screen names the org's assistant
+
+  The voice overlay and its minimized banner had exactly two cases: a human took
+  over (use `assigneeName`) or it's the AI, in which case they fell back to the
+  localized `defaultAuthorName` — "Agent" in every locale. An org that named its
+  assistant Thea saw "Thea" in the chat transcript and "Agent" the moment the
+  caller switched to voice.
+
+  The name was already resolved server-side, but only per message: list-messages
+  stamped `assistants.name` on each agent message's `authorName` and never put it
+  on the conversation envelope, which is all the overlay reads. `agentName` now
+  rides along on the envelope (falling back to `Munin`, matching the per-message
+  behaviour), and the widget prefers it over the generic string. A human assignee
+  still wins once the conversation is handed over.
+
+  The lookup also no longer waits for an agent message to exist, so a brand-new
+  conversation — the common case for starting a call before the assistant has said
+  anything — has the name available on its first load.
+
+- Updated dependencies [b787e96]
+  - @getmunin/types@5.21.0
+
 ## 5.20.0
 
 ### Patch Changes

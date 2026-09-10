@@ -1,5 +1,97 @@
 # @getmunin/core
 
+## 5.21.0
+
+### Minor Changes
+
+- 25857bf: Add the conversation attachment store that image support on email and the chat widget will be
+  built on.
+
+  Bytes live in the existing `AssetStorage` backend under a `conv/<orgId>/<conversationId>/` prefix
+  and are reachable only through short-lived HMAC-signed URLs (`GET /v1/c/a/:token`), never a
+  public key — conversation media is private per-conversation data, so it deliberately does not go
+  into `cms_assets` and never appears in the CMS library. The serve route re-checks the row on
+  every request, which is what lets a deletion invalidate URLs that were already handed out.
+
+  The attachment token uses its own `av1` version prefix. The email-open and attachment token
+  payloads are structurally identical, so sharing a version string would let a token minted for one
+  purpose verify as the other; there is now a test asserting they do not cross over.
+
+  Deletion is deliberately two-shaped. A not-yet-sent upload is hard-deleted, while an attachment on
+  a message that has already gone out is tombstoned: the objects are purged (master _and_ every
+  derived variant, which `cms.deleteAsset` neglects for its own assets), but name, mime and size
+  survive with `deleted_at` for the audit trail. A message already delivered to a customer cannot be
+  unsent, so the stored thread has to keep recording that something was attached.
+
+  `assetExtensionFromName`, SVG rejection and the storage-key generator move out of `cms.service.ts`
+  into `common/storage/asset-validation.ts` so both modules share one definition.
+
+  The persisted message projection deliberately carries no URL. Signed attachment tokens expire
+  after an hour, so a URL copied into the `conv_messages.attachments` jsonb — or into a stored
+  `body_html` — is dead by the time most threads are read again, and renders as a broken image.
+  `projectForMessage` now emits durable metadata only, and `hydrateProjection` mints fresh URLs at
+  read time for whoever is building a DTO.
+
+- 68a769c: Images in and out over the email channel.
+
+  Inbound: `parseMessage()` now carries `parsed.attachments` (content, contentType,
+  filename, cid, contentDisposition, related) instead of discarding them, and
+  `EmailAdapter.ingest()` persists the survivors through
+  `ConvAttachmentsService.persistBytes()` inside the existing ingest transaction,
+  writing `projectForMessage()` output into `conv_messages.attachments`. Both inbound
+  entry points share the change — the IMAP poll path and the relay path go through the
+  same `parseMessage` + `adapter.ingest` pair.
+
+  The noise filter is the substance and lives on its own in `email/inbound-attachments.ts`
+  so it can be unit-tested without a database. Business mail carries a tracking pixel and
+  a signature logo on nearly every message, so a part is dropped when its mime is outside
+  `CONV_ATTACHMENT_MIME_ALLOWLIST`, when it is under `CONV_ATTACHMENT_INBOUND_BYTES_MIN`
+  or has an edge under `CONV_ATTACHMENT_INBOUND_EDGE_MIN_PX`, when sharp cannot decode it,
+  when it is an `inline` part whose Content-ID no longer appears in the HTML body, or once
+  `CONV_ATTACHMENT_PER_MESSAGE_MAX` parts have been kept. The cid-reference test runs
+  against the _stripped_ HTML — after `stripQuotedReplyHtml` and `stripSignatureHtml` —
+  which is what actually keeps signature logos out; a filter placed before stripping would
+  keep every one of them. Filenames take their extension from the part's mime, so a
+  PNG-mimed part named `payload.svg` cannot reach the store's SVG rejection by extension.
+
+  `simpleParser` is now called with `keepCidLinks: true`. By default mailparser rewrites
+  every `cid:` reference in `parsed.html` into a base64 `data:` URI, which meant inbound
+  inline images were being inlined whole into `conv_messages.body_html` — a multi-hundred-
+  kilobyte text column per message and no attachment row to show for it. The stored HTML
+  keeps its `cid:` references, normalized (unbracketed, lowercased) to match the
+  `content_id` column exactly so read-time hydration can mint a fresh URL per request;
+  nothing time-limited is written to the database. An `<img>` whose part the filter dropped
+  is removed rather than left pointing at a cid that will never resolve.
+
+  Outbound: `buildOutbound()` takes an `attachments` input and nests the message properly —
+  `multipart/related; type="text/html"` around the alternative when a part is inline and
+  its cid is actually referenced, `multipart/mixed` for files, both nested when a message
+  carries each. Parts are base64-encoded at 76 columns with `Content-Disposition` and, for
+  inline parts, `Content-ID`; a non-ASCII filename goes out RFC 2231-encoded. `EmailAdapter.send()`
+  loads the bytes with `storage.readBytes()` and embeds real MIME parts — a signed
+  attachment URL would outlive its TTL in the recipient's mailbox and leak on forward — and
+  an attachment whose object has gone (a tombstoned row) is left out rather than failing
+  the send.
+
+  `MailMessage` gains `attachments` and `ResendMailer` maps it onto the Resend API's
+  attachment array (`SmtpMailer` maps it onto nodemailer's, which would otherwise have
+  dropped it silently). The transactional `mailer` path hands its attachments to the mailer
+  rather than through `built.raw`, deliberately: that path already loses HTML through
+  `extractTextBody`, and feeding it a MIME body full of base64 would have put the encoded
+  image into the message text.
+
+  `widget-email-fallback.worker.ts` deliberately sends no attachments. It composes a
+  "you have unread messages" digest that points the recipient back at the widget rather
+  than reproducing the thread, so shipping the images a second time by mail is duplication,
+  not delivery.
+
+### Patch Changes
+
+- Updated dependencies [b787e96]
+- Updated dependencies [25857bf]
+  - @getmunin/types@5.21.0
+  - @getmunin/db@5.21.0
+
 ## 5.20.0
 
 ### Patch Changes

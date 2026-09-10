@@ -1372,6 +1372,8 @@
         "sendReply": "Send svar",
         "rejectDraft": "Avvis kladden",
         "reviewDraft": "Se over kladden",
+        "draftPreviewLabel": "Kladd fra agenten",
+        "draftPreviewHint": "Skrivebeskyttet til du tar saken",
         "writeReply": "Skriv svar",
         "continueReply": "Fortsett svaret",
         "restoreDraft": "Hent tilbake kladden",

@@ -15,6 +15,7 @@ export type QuotaResource =
   | 'cms_collections'
   | 'cms_entries'
   | 'cms_assets'
+  | 'conv_attachments'
   | 'crm_contacts';
 
 export abstract class QuotasService {

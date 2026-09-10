@@ -1,5 +1,149 @@
 # @getmunin/backend-core
 
+## 5.23.0
+
+### Minor Changes
+
+- c1ca0d2: File newsletter out-of-office replies away instead of parking them in the inbox forever.
+
+  An org that puts its support address in the Reply-To of a marketing send gets one
+  auto-reply per recipient with a holiday responder on. Suppression already kept those away
+  from the agent, but suppression stopped the _work_, not the _record_: contact,
+  conversation and message are all persisted before `if (suppressed) return`, so each one
+  still opened a conversation.
+
+  And that conversation never closed. `listConversationsAwaitingUserReply` — the feed behind
+  the 2-day auto-close — requires the last non-internal message to be from `agent` or
+  `user`. An auto-reply-only thread's last message is `end_user`, so it was never eligible;
+  a 30-day-old one is still open. `metadata->>'suppressed'` appeared exactly once in
+  `conv.service.ts`, in the awaiting-reply gate, and the auto-close query knew nothing about
+  it. The queue therefore grew by one row per newsletter send per responder, permanently.
+
+  A new conversation whose first message is `suppressed: 'auto_reply'` is now created with
+  `status: 'closed'`. The record survives and stays searchable, it just never enters the
+  inbox queue, which needs no auto-close backlog to drain. An auto-reply landing on an
+  _existing_ thread leaves it open — the customer's question there is still owed an answer.
+  Bounces keep today's behaviour and stay open on purpose: a DSN is how an operator learns a
+  customer never got their reply, and `conv_retry_delivery` depends on being able to see it.
+
+  Detection widened to match, because the well-behaved responders were never the problem:
+
+  - **A subject-only autoresponder was not detected at all.** "Automatisk svar: …" or
+    "Out of Office: …" with no `Auto-Submitted` header created a conversation the agent then
+    drafted a reply to. Anchored prefixes now cover the Nordic, English, German and French
+    forms, matched after folding `æ`/`ø`/`ß` and stripping diacritics so `Fraværende:` and
+    `Frånvarande:` both land, and after peeling any `Re:`/`Sv:` the responder added. The
+    prefix must be followed by a colon or dash, so "Out of office hours support?" and
+    "Autosvaret deres virker ikke" stay answerable.
+  - **`Precedence: bulk` with no list headers** now counts as an auto-reply. A real mailing
+    list carries `List-Id`/`List-Unsubscribe`/`List-Post` and is unaffected — that required
+    splitting `hasListHeaders` out of `isMailingList`, which is derived partly _from_
+    `Precedence: bulk` and so could never have been used as the guard.
+
+  Also: `SlackEventSink` mirrored `conversation.message.received` with no suppression check,
+  so every one of these was reposted into the operator's Slack channel. It now drops any
+  event flagged `autoReply`, which covers bounces there too — the inbox is where a delivery
+  failure belongs, not a chat channel.
+
+- c1ca0d2: Stop spending agent tokens on bounces and auto-replies.
+
+  Inbound bounce and auto-reply detection already existed: `classifySender` stamps
+  `metadata.suppressed`, the ingest path skips curator work, the realtime trigger drops
+  events flagged `autoReply`, and `listConversationsAwaitingAgentReply` ignores conversations
+  whose latest non-suppressed message isn't from the customer. Three holes let mail through
+  anyway, and a DSN that gets through is expensive — the ones in the wild echo back forty
+  lines of base64 `X-HE-Meta` before the model has read a word of anything useful.
+
+  - **ESP bounce mailboxes were not detected.** `isBounce` matched only `mailer-daemon@` and
+    `postmaster@`, so `bounces@amazonses.com`, `bounce@sendgrid.net` and Mailgun's
+    `bounce+tag@` VERP addresses sailed past every gate and the agent drafted a
+    customer-facing reply to a robot. The classifier already listed `bounce`/`bounces` in
+    `ROLE_LOCAL_PARTS`, but `suppressionReason` reads only `isBounce` and `isAutoReply`, so
+    recognizing them as role accounts changed nothing. There is now a `BOUNCE_LOCAL_PARTS`
+    set folded into `isBounce`.
+  - **The two standard machine markers were not checked at all**: RFC 3464's
+    `Content-Type: multipart/report; report-type=delivery-status` (quoted or bare) and
+    Gmail's `X-Failed-Recipients`. Either one now marks a bounce whatever address it arrives
+    from, which is what catches relays that sign DSNs as `noreply@`.
+  - **Suppression gated the trigger but never the context.** A bounce landing on a thread
+    where the customer is still owed an answer left the conversation eligible — correctly,
+    the customer's question still needs replying to — but the DSN went into the prompt along
+    with it. `toRuntimeHistory` now drops suppressed messages, falling back to the unfiltered
+    set rather than handing the model an empty history when a human explicitly requests a
+    draft on a bounce-only thread.
+
+  Two things surfaced while fixing those. Inbound bodies were stored whole, so the base64
+  block was paid for by every downstream reader and stored twice — once as the body and
+  again as `metadata.preStripBody`. `clampInboundBody` collapses wrapped encoded blocks and
+  caps the body at 24k characters, applied once to `quoteStrippedText` so every derived copy
+  inherits it. And `in-process-rest-client.ts` had its own `toRuntimeHistory` that filtered
+  nothing — not internal notes, not empty voice turns, not suppressed mail — and did not
+  remap `user` to `staff`, so the in-process runner that `apps/backend` ships was quietly
+  feeding the model more than the REST runner did. Both now call one exported
+  `toRuntimeHistory`.
+
+  `skill://conv/recover-failed-deliveries` gains a section stating the rule plainly: the DSN
+  is not a customer, act on the original message instead.
+
+- c1ca0d2: Show when an outgoing message never reached the customer, and let an operator retry it.
+
+  Outbound email and SMS are delivered by `OutboundDeliveryWorker` after `conv_send_message`
+  returns, so the message row exists in the thread before anything is actually sent. When the
+  send failed the worker recorded that faithfully — five attempts with exponential backoff,
+  then `status: 'dead'` plus the provider's error on `conv_message_deliveries` — but nothing
+  read those two columns back out. `getConversation` joined the delivery table only for
+  open-tracking, so a message that died after five SMTP authentication failures rendered in
+  the inbox byte-identical to one that was delivered and read. The only way to learn about it
+  was to subscribe to the `conversation.message.delivery_failed` webhook and build your own
+  listener.
+
+  Four changes close that loop:
+
+  - **`MessageDto` carries the delivery state.** The existing per-message aggregate now also
+    reports `deliveryStatus`, `deliveryError`, `deliveryAttempts` and `deliveryNextAttemptAt`.
+    A message can have more than one delivery row (the widget email-fallback worker inserts
+    one against messages that already have a widget delivery), so the aggregate orders by
+    severity — `dead` before `failed` before `queued` before `sent` — and reports the worst
+    one, with the error text from that same row rather than an arbitrary one.
+  - **The thread pane renders it.** A `dead` delivery replaces the "Seen" line with a
+    destructive-coloured "Not delivered", the truncated provider error, and a Retry button; a
+    `failed` one says it is still retrying and offers no button, because the worker has not
+    given up yet. Everything keys off `status`, never off the presence of `deliveryError` —
+    a send deferred by the channel's rate limit stays `queued` and parks its reason in that
+    same column, and must not read as a failure.
+  - **`conv_retry_delivery` re-queues a dead delivery** (`POST
+/v1/conversations/:id/messages/:messageId/retry-delivery`), resetting it to `queued` with
+    `attempt: 0` and a cleared error so the worker picks it up on its next pass. It
+    pre-checks rather than relying on the write failing: a delivery that is not `dead` throws
+    `conv_delivery_not_retryable`, and one whose channel has been switched off or archived
+    throws `conv_delivery_channel_inactive` instead of burning five fresh attempts on a
+    channel that cannot send. Both codes are translated in the dashboard.
+  - **A permanent failure now opens a `channel_outbound` alert.** That alert source and its
+    "open channel settings" CTA already existed in `ALERT_SOURCES` and the banner; nothing
+    had ever raised one. The worker opens it against the channel on the final attempt and
+    resolves it as soon as anything sends successfully on that channel again.
+
+  `skill://conv/recover-failed-deliveries` documents the workflow for agents: read
+  `deliveryError` before retrying, since a `550 Recipient address rejected` is a verdict
+  rather than a hiccup and needs a corrected contact and a new message, not a retry.
+
+### Patch Changes
+
+- c8d437d: Count topic automation volume from inbound conversations instead of replies sent
+
+  The Automation page's "Volume / window" figure was computed from non-internal outbound messages (`author_type` in `agent`, `user`) on topic-tagged conversations, so a topic with a backed-up queue read as `~0/wk` no matter how much traffic it was taking — inbound customer messages are `author_type = 'end_user'` and were excluded outright. An operator reading the page to decide whether a topic is worth automating got zero exactly when the answer mattered most.
+
+  `weeklyVolume` now counts distinct conversations on the topic that received an inbound customer message in the 30-day window, still averaged to a week. A conversation counts once however many messages the customer sent in it, and it counts whether or not anyone has replied yet. The review counters (`approvedUnedited`, `edited`, `rejected`, `autoSent`) and `autoRate7d` are unchanged — those are about replies and should be.
+
+- Updated dependencies [c1ca0d2]
+  - @getmunin/agent-runtime@5.23.0
+  - @getmunin/inspector-app@5.23.0
+  - @getmunin/core@5.23.0
+  - @getmunin/db@5.23.0
+  - @getmunin/emails@5.23.0
+  - @getmunin/mcp-toolkit@5.23.0
+  - @getmunin/types@5.23.0
+
 ## 5.22.0
 
 ### Patch Changes

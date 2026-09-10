@@ -327,6 +327,84 @@ const RELAY_DOMAIN = 'in.getmunin.test';
       expect(JSON.stringify(bounce!.metadata)).not.toContain('U2FsdGVkX1');
     });
 
+    function rawOutOfOffice(messageId: string, from: string): string {
+      return [
+        `From: Kari Nordmann <${from}>`,
+        `To: <${relayAddress}>`,
+        'Subject: Automatisk svar: Nyhetsbrev februar',
+        `Message-ID: <${messageId}>`,
+        'Content-Type: text/plain; charset="utf-8"',
+        '',
+        'Jeg er ute av kontoret til 3. mars.',
+        '',
+      ].join('\r\n');
+    }
+
+    it('files a newsletter out-of-office away closed, so it never reaches the inbox queue', async () => {
+      const res = await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(rawOutOfOffice('ooo-1@kunde.no', 'kari@kunde.no')).toString('base64'),
+      });
+      expect(res.status).toBe(201);
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const msg = (
+        await db.select().from(schema.convMessages).where(eq(schema.convMessages.orgId, orgId))
+      ).find((m) => m.body.includes('ute av kontoret'));
+      expect(msg).toBeDefined();
+      expect(msg!.metadata).toMatchObject({ suppressed: 'auto_reply' });
+
+      const conv = (
+        await db
+          .select()
+          .from(schema.convConversations)
+          .where(eq(schema.convConversations.id, msg!.conversationId))
+      )[0];
+      expect(conv!.status).toBe('closed');
+      expect(conv!.needsHumanAttention).toBe(false);
+    });
+
+    it('leaves a live customer thread open when a later auto-reply lands on it', async () => {
+      await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(
+          [
+            'From: Ola Nordmann <ola@kunde.no>',
+            `To: <${relayAddress}>`,
+            'Subject: Faktura mangler',
+            'Message-ID: <real-1@kunde.no>',
+            'Content-Type: text/plain; charset="utf-8"',
+            '',
+            'Jeg har ikke fått fakturaen.',
+            '',
+          ].join('\r\n'),
+        ).toString('base64'),
+      });
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const real = (
+        await db.select().from(schema.convMessages).where(eq(schema.convMessages.orgId, orgId))
+      ).find((m) => m.body.includes('ikke fått fakturaen'));
+      const convId = real!.conversationId;
+
+      await db.insert(schema.convMessages).values({
+        orgId,
+        conversationId: convId,
+        authorType: 'end_user',
+        authorId: real!.authorId,
+        body: 'Automatisk svar',
+        metadata: { suppressed: 'auto_reply' },
+      });
+
+      const conv = (
+        await db
+          .select()
+          .from(schema.convConversations)
+          .where(eq(schema.convConversations.id, convId))
+      )[0];
+      expect(conv!.status).toBe('open');
+    });
+
     it('ingests a message far above the 4mb global JSON body limit', async () => {
       const raw = Buffer.from(rawWithAttachment('big-1@example.test', 4_800_000));
       expect(raw.byteLength).toBeGreaterThan(6 * 1024 * 1024);

@@ -316,6 +316,23 @@ function buttonValues(blocks: unknown[] | undefined): string[] {
     return link ?? null;
   }
 
+  it('does not mirror a suppressed auto-reply or bounce into Slack', async () => {
+    await emit('conversation.message.received', {
+      conversationId: 'ccv_never_mirrored',
+      messageId: 'cvm_never_mirrored',
+      authorType: 'end_user',
+      internal: false,
+      autoReply: true,
+      suppressed: 'auto_reply',
+    });
+
+    const rows = await db
+      .select()
+      .from(schema.slackDeliveries)
+      .where(eq(schema.slackDeliveries.integrationId, integrationId));
+    expect(rows).toHaveLength(0);
+  });
+
   it('posts a merge proposal with buttons and records a notification link', async () => {
     const api = new FakeSlackApi();
     const worker = new SlackBridgeWorker(db, api);

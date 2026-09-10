@@ -150,6 +150,46 @@ describe('classifySender', () => {
     expect(suppressionReason(c)).toBeNull();
   });
 
+  it('suppresses an out-of-office reply that carries no auto-reply header, only the subject prefix', () => {
+    for (const subject of [
+      'Automatisk svar: Nyhetsbrev februar',
+      'Autosvar: Nyhetsbrev',
+      'Ute av kontoret: Nyhetsbrev',
+      'Out of Office: February newsletter',
+      'Automatic reply: February newsletter',
+      'Fraværende: Nyhetsbrev',
+      'Abwesenheitsnotiz: Newsletter',
+      'Re: Automatisk svar: Nyhetsbrev',
+    ]) {
+      const c = classifySender(h({ Subject: subject }), 'kari@kunde.no');
+      expect(suppressionReason(c), subject).toBe('auto_reply');
+    }
+  });
+
+  it('does not read an ordinary subject that merely mentions the office as an auto-reply', () => {
+    for (const subject of [
+      'Spørsmål om automatisk svar i skjemaet',
+      'Out of office hours support?',
+      'Autosvaret deres virker ikke',
+    ]) {
+      const c = classifySender(h({ Subject: subject }), 'kari@kunde.no');
+      expect(suppressionReason(c), subject).toBeNull();
+    }
+  });
+
+  it('suppresses Precedence: bulk with no list headers, which is machine mail nobody should answer', () => {
+    const c = classifySender(h({ Precedence: 'bulk' }), 'noreply@vendor.example');
+    expect(suppressionReason(c)).toBe('auto_reply');
+  });
+
+  it('still leaves a real mailing-list post answerable even though it is Precedence: bulk', () => {
+    const c = classifySender(
+      h({ Precedence: 'bulk', 'List-Id': 'announce.acme.com' }),
+      'list@acme.com',
+    );
+    expect(suppressionReason(c)).toBeNull();
+  });
+
   it('does not suppress a mailing-list post or a role account', () => {
     const list = classifySender(h({ 'List-Id': 'announce.acme.com' }), 'jane@acme.com');
     expect(suppressionReason(list)).toBeNull();

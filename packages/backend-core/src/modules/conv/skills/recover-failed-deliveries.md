@@ -68,13 +68,28 @@ to the channel. Munin ingests it like any other inbound mail, but classifies it 
 `Content-Type: multipart/report; report-type=delivery-status`, or `X-Failed-Recipients`.
 
 A suppressed message is deliberately inert: it does not wake the agent, does not
-enqueue curation work, and is left out of the context the agent reads when it drafts
-on that conversation. The long base64 header blocks DSNs echo back are stripped at
-ingest, and bodies are capped, so a bounce cannot cost a large context window.
+enqueue curation work, is not mirrored into Slack, and is left out of the context the
+agent reads when it drafts on that conversation. The long base64 header blocks DSNs
+echo back are stripped at ingest, and bodies are capped, so a bounce cannot cost a
+large context window.
 
 So the DSN shows up in the inbox for a human to read, and nothing tries to answer it.
 Never reply to one — the recipient is a robot. Act on the *original* message instead,
 which is what the rest of this skill is about.
+
+**Auto-replies are suppressed the same way but filed differently.** Out-of-office
+replies are detected from `Auto-Submitted`, `X-Auto-Response-Suppress`, `X-Autoreply`,
+`Precedence: junk`, `Precedence: bulk` with no list headers, or a subject that begins
+with an autoresponder prefix (`Automatisk svar:`, `Ute av kontoret:`, `Out of Office:`,
+`Automatic reply:` and their Nordic, German and French equivalents). When one of those
+opens a *new* conversation it is created already `closed`, because nobody needs to read
+it — an org that puts a support address in the Reply-To of a newsletter gets one per
+recipient who has a holiday responder on. It stays searchable and can be reopened.
+An auto-reply landing on an existing thread never closes it; the customer's question
+there is still owed an answer.
+
+Bounces deliberately do **not** get that treatment — a bounce conversation stays open,
+because a DSN is how an operator finds out a customer never got their reply.
 
 ## Step 2 — read the error before retrying
 

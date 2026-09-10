@@ -1,5 +1,58 @@
 # @getmunin/dashboard-pages
 
+## 5.22.0
+
+### Minor Changes
+
+- ba7c5ac: Show a model's name in the picker, not just its id.
+
+  The picker rendered the raw model id, so a deployment offering built-in models could only
+  present them as `gpt-oss-120b` and `qwen3.5-397b-a17b` — accurate, and unreadable to the
+  person choosing. `ModelEntry` gains a `label`, and `formatModel` uses it as the head of the
+  option while pushing the id into the detail line beside context length and pricing, so the
+  list reads `GPT-OSS 120B (chat) · gpt-oss-120b · 128k ctx`. The id stays visible on purpose:
+  it is what actually goes to the provider, and it is what an operator matches against the
+  provider's own catalogue.
+
+  Two sources fill it, mirroring how `supportsVision` is resolved:
+
+  - **The host**, through `AgentHostModule`'s `defaultProviderModels`: `ProviderModelOffer`
+    gains an optional `label`, so `{ id: 'gpt-oss-120b', label: 'GPT-OSS 120B' }` names a
+    managed model. Bare strings keep working and report `null`.
+  - **The provider's own `/models` payload**, which already carried the name the host was
+    hardcoding. OpenRouter returns `name` ("Anthropic: Claude Haiku 4.5") and Anthropic
+    returns `display_name`; `readModelLabel` reads either. Plain OpenAI returns neither, so
+    those entries keep showing the id — which is what its own docs call them anyway.
+
+  The picker's sort moves from the id to the displayed name (`modelSortKey`), because a list
+  labelled with names but ordered by hidden ids looks arbitrary. `value` on each option is
+  still the id, so nothing about what gets saved or sent changes.
+
+### Patch Changes
+
+- ba7c5ac: Fill the model picker on first paint for an org with no provider key of its own.
+
+  `useAgentConfig` skipped `GET /v1/agent-config/models` unless `providerApiKeySet` was true.
+  That guard was correct when it was written — the endpoint could only answer by asking the
+  org's own provider — but it outlived its reason: the endpoint now serves the deployment's
+  managed list to an org with no key. The client kept not asking, so `models` stayed `null`,
+  and `ModelsCard` — which treats a managed provider as credentialed — fell through every
+  branch to its loading state and stayed there.
+
+  A host whose managed preset still carried a hardcoded `models` array masked it, because the
+  page fed that array to the card instead. The moment a host deletes the array and relies on
+  the endpoint, as the endpoint now invites, the picker reads `Loading…` on the settings page
+  and on the equivalent step of the first-run wizard until the operator presses Save on the
+  provider card, which is the one action that already refetched.
+
+  The guard now waits only for the config to arrive. An org that is neither keyed nor covered
+  by a managed list gets `supported: false` and renders the "needs a key" branch it already
+  had, so the extra request costs one small GET and removes the client's stale assumption
+  about when the server has something to say.
+
+- @getmunin/types@5.22.0
+  - @getmunin/ui@5.22.0
+
 ## 5.21.0
 
 ### Minor Changes

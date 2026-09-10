@@ -413,7 +413,11 @@
           "attach": "Legg ved bilde",
           "uploading": "Laster opp …",
           "uploadFailed": "Opplastingen feilet",
-          "remove": "Fjern"
+          "remove": "Fjern",
+          "rejectedType": "Vi tar imot PNG, JPEG, GIF og WebP.",
+          "rejectedSize": "Bilder må være under {mb} MB.",
+          "rejectedCount": "Du kan legge ved opptil {max} bilder.",
+          "uploadFailedNamed": "{name} ble ikke lastet opp. Prøv igjen."
         }
       },
       "relative": {
@@ -1360,7 +1364,8 @@
           "close": "Lukkingen feilet",
           "reject": "Avvisningen feilet",
           "note": "Notatet feilet",
-          "requestDraft": "Kladd-forespørselen feilet"
+          "requestDraft": "Kladd-forespørselen feilet",
+          "attach": "Vedlegget feilet"
         },
         "replyPlaceholder": "Skriv svaret til {name} …",
         "approveSend": "Godkjenn og send",

@@ -1,13 +1,8 @@
-export const CONV_ATTACHMENT_MIME_ALLOWLIST: readonly string[] = [
-  'image/png',
-  'image/jpeg',
-  'image/gif',
-  'image/webp',
-];
-
-export const CONV_ATTACHMENT_BYTES_MAX = 10 * 1024 * 1024;
-
-export const CONV_ATTACHMENT_PER_MESSAGE_MAX = 10;
+export {
+  CONV_ATTACHMENT_MIME_ALLOWLIST,
+  CONV_ATTACHMENT_BYTES_MAX,
+  CONV_ATTACHMENT_PER_MESSAGE_MAX,
+} from '@getmunin/types';
 
 export const CONV_ATTACHMENT_PENDING_PER_SESSION_MAX = 10;
 

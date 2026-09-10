@@ -1475,8 +1475,12 @@ export class CmsService {
       );
     }
 
-    await this.storage.delete(rows[0].storageKey).catch(() => {
-    });
+    for (const key of [rows[0].storageKey, ...rows[0].variants.map((v) => v.storageKey)]) {
+      if (!key) continue;
+      await this.storage.delete(key).catch((err: unknown) => {
+        console.warn(`[cms] could not remove ${key} for asset ${input.id}: ${describeError(err)}`);
+      });
+    }
     await ctx.db.delete(schema.cmsAssets).where(eq(schema.cmsAssets.id, input.id));
     return { deleted: true };
   }

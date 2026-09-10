@@ -1,6 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { runSkillPass, withAllowedToolPrefixes, type SkillReader } from './skill-pass.ts';
-import type { McpTool, McpToolHandle, McpToolResult } from './types.ts';
+import type {
+  ChatMessage,
+  McpTool,
+  McpToolHandle,
+  McpToolResult,
+  ProviderResponse,
+} from './types.ts';
 
 const noopMcp: McpToolHandle = {
   listTools: () => Promise.resolve([]),
@@ -79,5 +85,70 @@ describe('runSkillPass', () => {
       callTool: () => Promise.resolve({ content: [] }),
     };
     expect(withAllowedToolPrefixes(inner, [])).toBe(inner);
+  });
+
+  it('puts conversation images on the synthetic user turn so the curator can see them', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: () => '3' },
+        arrayBuffer: () => Promise.resolve(new Uint8Array([1, 2, 3]).buffer),
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const seen: ChatMessage[][] = [];
+    const provider = (args: { messages: ChatMessage[] }): Promise<ProviderResponse> => {
+      seen.push(args.messages);
+      return Promise.resolve({
+        message: { role: 'assistant', content: 'done' },
+        finishReason: 'stop',
+      });
+    };
+    try {
+      const result = await runSkillPass({
+        mcp: noopMcp,
+        skills: { readSkill: () => Promise.resolve('# skill body') },
+        providerBaseUrl: 'https://api.anthropic.com',
+        providerApiKey: 'k',
+        model: 'm',
+        skillUri: 'skill://conv/set-topic-and-title',
+        userPrompt: 'title this conversation',
+        userPromptAttachments: [
+          { mime: 'image/png', url: 'https://assets.example.com/a.png', name: 'a.png' },
+        ],
+        providerImpl: provider,
+      });
+      expect(result.ok).toBe(true);
+      expect(fetchMock).toHaveBeenCalledWith('https://assets.example.com/a.png');
+      const userTurn = seen[0]?.find((m) => m.role === 'user');
+      expect(userTurn?.images).toHaveLength(1);
+      expect(userTurn?.images?.[0]?.mime).toBe('image/png');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('leaves the user turn imageless when the job names no conversation attachments', async () => {
+    const seen: ChatMessage[][] = [];
+    const provider = (args: { messages: ChatMessage[] }): Promise<ProviderResponse> => {
+      seen.push(args.messages);
+      return Promise.resolve({
+        message: { role: 'assistant', content: 'done' },
+        finishReason: 'stop',
+      });
+    };
+    const result = await runSkillPass({
+      mcp: noopMcp,
+      skills: { readSkill: () => Promise.resolve('# skill body') },
+      providerBaseUrl: 'https://api.anthropic.com',
+      providerApiKey: 'k',
+      model: 'm',
+      skillUri: 'skill://conv/set-topic-and-title',
+      userPrompt: 'title this conversation',
+      providerImpl: provider,
+    });
+    expect(result.ok).toBe(true);
+    expect(seen[0]?.find((m) => m.role === 'user')?.images).toBeUndefined();
   });
 });

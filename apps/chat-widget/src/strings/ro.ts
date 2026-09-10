@@ -61,6 +61,7 @@ const ro: Strings = {
   attachDropHint: 'Trage imaginea aici',
   attachUploading: 'Se încarcă…',
   attachFailed: 'Imaginea nu a fost încărcată. Încearcă din nou.',
+  sendFailed: 'Mesajul nu a fost trimis. Încearcă din nou.',
   attachRemoveAriaLabel: 'Elimină imaginea',
   attachTooMany: 'Poți atașa până la {n} imagini.',
   attachTypeRejected: 'Acceptăm PNG, JPEG, GIF și WebP.',

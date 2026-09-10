@@ -116,6 +116,8 @@ class StubImapFetcher implements ImapFetcher {
     }
   });
 
+  const imapChannel = () => imapChannelFor(db, orgId);
+
   beforeEach(() => {
     mailer.clear();
   });
@@ -579,6 +581,109 @@ class StubImapFetcher implements ImapFetcher {
     expect((rows[0]!.config as { outbound?: unknown }).outbound).toBeDefined();
   }, 30_000);
 
+
+  it('holds the IMAP cursor at the last stored message when an ingest fails, so no email is lost', async () => {
+    const channel = await imapChannel();
+    const run = Math.random().toString(36).slice(2, 8);
+    await resetCursor(db, channel.id);
+
+    async function cursorUid(): Promise<number | null> {
+      const [row] = await db
+        .select({ cursor: schema.convInboundState.cursor })
+        .from(schema.convInboundState)
+        .where(eq(schema.convInboundState.channelId, channel.id));
+      const value = (row?.cursor as { lastUid?: unknown } | undefined)?.lastUid;
+      return typeof value === 'number' ? value : null;
+    }
+
+    const ids = [`stall-a-${run}`, `stall-b-${run}`, `stall-c-${run}`];
+    const stallFetcher = new StubImapFetcher();
+    for (const id of ids) {
+      stallFetcher.push(
+        rfc822({
+          from: 'Cursor Tester <cursor@example.com>',
+          to: 'support@acme.test',
+          subject: `cursor ${id}`,
+          messageId: `${id}@example.com`,
+          body: `body of ${id}`,
+        }),
+      );
+    }
+    const originalFetcher = emailAdapter['fetcher'];
+    const originalIngest = emailAdapter.ingest.bind(emailAdapter);
+    emailAdapter.setFetcher(stallFetcher);
+
+    let call = 0;
+    emailAdapter.ingest = (ch, parsed, origin) => {
+      call += 1;
+      if (call === 2) return Promise.reject(new Error('storage unavailable'));
+      return originalIngest(ch, parsed, origin);
+    };
+
+    try {
+      const stalled = await emailAdapter.inbound.tick(channel);
+      expect(stalled.stalled).toBe(true);
+      expect(stalled.messagesIngested).toBe(1);
+      expect(await cursorUid()).toBe(1);
+    } finally {
+      emailAdapter.ingest = originalIngest;
+    }
+
+    try {
+      const recovered = await emailAdapter.inbound.tick(channel);
+      expect(recovered.stalled).toBe(false);
+      expect(recovered.messagesIngested).toBe(2);
+      expect(await cursorUid()).toBe(3);
+    } finally {
+      emailAdapter.setFetcher(originalFetcher);
+    }
+
+    const stored = await db
+      .select({ body: schema.convMessages.body })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.orgId, orgId));
+    for (const id of ids) {
+      expect(stored.some((m) => m.body.includes(`body of ${id}`))).toBe(true);
+    }
+  }, 30_000);
+
+  it('advances past an unparseable message so one bad email cannot stall the channel forever', async () => {
+    const channel = await imapChannel();
+    const run = Math.random().toString(36).slice(2, 8);
+    await resetCursor(db, channel.id);
+
+    const badFetcher = new StubImapFetcher();
+    badFetcher.push('');
+    badFetcher.push(
+      rfc822({
+        from: 'After Bad <afterbad@example.com>',
+        to: 'support@acme.test',
+        subject: 'after the bad one',
+        messageId: `after-bad-${run}@example.com`,
+        body: `this one is fine ${run}`,
+      }),
+    );
+    const originalFetcher = emailAdapter['fetcher'];
+    emailAdapter.setFetcher(badFetcher);
+    try {
+      const result = await emailAdapter.inbound.tick(channel);
+      expect(result.stalled).toBe(false);
+      const [row] = await db
+        .select({ cursor: schema.convInboundState.cursor })
+        .from(schema.convInboundState)
+        .where(eq(schema.convInboundState.channelId, channel.id));
+      expect((row!.cursor as { lastUid: number }).lastUid).toBe(2);
+    } finally {
+      emailAdapter.setFetcher(originalFetcher);
+    }
+
+    const stored = await db
+      .select({ body: schema.convMessages.body })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.orgId, orgId));
+    expect(stored.some((m) => m.body.includes(`this one is fine ${run}`))).toBe(true);
+  }, 30_000);
+
 });
 
 async function waitFor(check: () => Promise<boolean>, timeoutMs = 2000): Promise<void> {
@@ -622,4 +727,33 @@ function rfc822(input: {
   }
   for (const header of input.extraHeaders ?? []) lines.push(header);
   return `${lines.join('\r\n')}\r\n\r\n${input.body}\r\n`;
+}
+
+async function imapChannelFor(
+  db: ReturnType<typeof createDb>,
+  orgId: string,
+): Promise<typeof schema.convChannels.$inferSelect> {
+  const rows = await db
+    .select()
+    .from(schema.convChannels)
+    .where(
+      and(
+        eq(schema.convChannels.orgId, orgId),
+        eq(schema.convChannels.type, 'email'),
+        sql`${schema.convChannels.config} -> 'inbound' ->> 'provider' = 'imap'`,
+      ),
+    );
+  const found = rows[0];
+  if (!found) throw new Error('no imap-inbound email channel seeded for this org');
+  return found;
+}
+
+async function resetCursor(db: ReturnType<typeof createDb>, channelId: string): Promise<void> {
+  await db
+    .insert(schema.convInboundState)
+    .values({ channelId, cursor: { lastUid: 0 } })
+    .onConflictDoUpdate({
+      target: schema.convInboundState.channelId,
+      set: { cursor: { lastUid: 0 } },
+    });
 }

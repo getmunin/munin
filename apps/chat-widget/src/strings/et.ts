@@ -61,6 +61,7 @@ const et: Strings = {
   attachDropHint: 'Kukuta pilt siia',
   attachUploading: 'Laadin üles…',
   attachFailed: 'Pilti ei õnnestunud üles laadida. Proovi uuesti.',
+  sendFailed: 'Sõnumit ei õnnestunud saata. Proovi uuesti.',
   attachRemoveAriaLabel: 'Eemalda pilt',
   attachTooMany: 'Saad lisada kuni {n} pilti.',
   attachTypeRejected: 'Võtame vastu PNG, JPEG, GIF ja WebP.',

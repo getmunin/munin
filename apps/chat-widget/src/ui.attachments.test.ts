@@ -126,7 +126,7 @@ describe('ui: attachment composer', () => {
     input.dispatchEvent(new Event('change'));
 
     await vi.waitFor(() => expect($$('.att-chip-error')).toHaveLength(1));
-    expect($('.composer-note').textContent).toBe(strings.attachFailed);
+    expect($('.composer-note-text').textContent).toBe(strings.attachFailed);
     expect($<HTMLButtonElement>('.send').disabled).toBe(true);
 
     $<HTMLTextAreaElement>('textarea').value = 'text anyway';
@@ -150,7 +150,7 @@ describe('ui: attachment composer', () => {
 
     expect(onUploadAttachment).not.toHaveBeenCalled();
     expect($$('.att-chip')).toHaveLength(0);
-    expect($('.composer-note').textContent).toBe(strings.attachTypeRejected);
+    expect($('.composer-note-text').textContent).toBe(strings.attachTypeRejected);
   });
 
   it('drops a chip on its remove button', async () => {
@@ -254,5 +254,129 @@ describe('ui: attachment bubbles', () => {
     expect(
       $<HTMLImageElement>('[data-message-id="m6"] .msg-att img').getAttribute('src'),
     ).toBeNull();
+  });
+});
+
+describe('ui: drag-and-drop hint', () => {
+  function dragEvent(type: string, init: { relatedTarget?: EventTarget | null } = {}): Event {
+    const e = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(e, 'dataTransfer', {
+      value: { types: ['Files'], files: [] },
+      configurable: true,
+    });
+    if ('relatedTarget' in init) {
+      Object.defineProperty(e, 'relatedTarget', {
+        value: init.relatedTarget,
+        configurable: true,
+      });
+    }
+    return e;
+  }
+
+  it('hides the hint when the drag leaves the panel from over a descendant', () => {
+    controller = mountChat({
+      onSend: () => {},
+      onTypingIntent: () => {},
+      onUploadAttachment: () => Promise.resolve({ id: 'att' }),
+    });
+    controller.addMessages([msg({ id: 'm1', role: 'end_user', body: 'hello' })]);
+
+    const chat = $('.chat');
+    const inner = $('[data-message-id="m1"]');
+    chat.dispatchEvent(dragEvent('dragover'));
+    expect($('.drop-hint').hidden).toBe(false);
+
+    inner.dispatchEvent(dragEvent('dragleave', { relatedTarget: document.body }));
+    expect($('.drop-hint').hidden).toBe(true);
+  });
+
+  it('hides the hint when the drag leaves the window entirely', () => {
+    controller = mountChat({
+      onSend: () => {},
+      onTypingIntent: () => {},
+      onUploadAttachment: () => Promise.resolve({ id: 'att' }),
+    });
+
+    const chat = $('.chat');
+    chat.dispatchEvent(dragEvent('dragover'));
+    expect($('.drop-hint').hidden).toBe(false);
+
+    chat.dispatchEvent(dragEvent('dragleave', { relatedTarget: null }));
+    expect($('.drop-hint').hidden).toBe(true);
+  });
+
+  it('keeps the hint while the drag moves between elements inside the panel', () => {
+    controller = mountChat({
+      onSend: () => {},
+      onTypingIntent: () => {},
+      onUploadAttachment: () => Promise.resolve({ id: 'att' }),
+    });
+    controller.addMessages([msg({ id: 'm1', role: 'end_user', body: 'hello' })]);
+
+    const chat = $('.chat');
+    const inner = $('[data-message-id="m1"]');
+    chat.dispatchEvent(dragEvent('dragover'));
+    expect($('.drop-hint').hidden).toBe(false);
+
+    chat.dispatchEvent(dragEvent('dragleave', { relatedTarget: inner }));
+    expect($('.drop-hint').hidden).toBe(false);
+  });
+});
+
+describe('ui: composer note', () => {
+  it('keeps the note up until it is dismissed rather than timing out', async () => {
+    vi.useFakeTimers();
+    try {
+      controller = mountChat({
+        onSend: () => {},
+        onTypingIntent: () => {},
+        onUploadAttachment: () => Promise.reject(new Error('boom')),
+      });
+      const input = $<HTMLInputElement>('.attach-input');
+      Object.defineProperty(input, 'files', { value: [pngFile()], configurable: true });
+      input.dispatchEvent(new Event('change'));
+      await vi.waitFor(() => expect($('.composer-note').hidden).toBe(false));
+
+      vi.advanceTimersByTime(60_000);
+      expect($('.composer-note').hidden).toBe(false);
+
+      $<HTMLButtonElement>('.composer-note-close').click();
+      expect($('.composer-note').hidden).toBe(true);
+      expect($('.composer-note-text').textContent).toBe('');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('marks the note as an alert so assistive tech announces it', () => {
+    controller = mountChat({ onSend: () => {}, onTypingIntent: () => {} });
+    expect($('.composer-note').getAttribute('role')).toBe('alert');
+  });
+
+  it('surfaces a send failure through the same note', () => {
+    controller = mountChat({ onSend: () => {}, onTypingIntent: () => {} });
+    controller.showComposerError(strings.sendFailed);
+    expect($('.composer-note').hidden).toBe(false);
+    expect($('.composer-note-text').textContent).toBe(strings.sendFailed);
+  });
+
+  it('clears the note once a message actually goes out', async () => {
+    const onSend = vi.fn();
+    controller = mountChat({
+      onSend,
+      onTypingIntent: () => {},
+      onUploadAttachment: () => Promise.reject(new Error('boom')),
+    });
+    const input = $<HTMLInputElement>('.attach-input');
+    Object.defineProperty(input, 'files', { value: [pngFile()], configurable: true });
+    input.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => expect($('.composer-note').hidden).toBe(false));
+
+    $<HTMLTextAreaElement>('textarea').value = 'sending anyway';
+    $<HTMLTextAreaElement>('textarea').dispatchEvent(new Event('input'));
+    $('.composer').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+
+    expect(onSend).toHaveBeenCalledWith('sending anyway', []);
+    expect($('.composer-note').hidden).toBe(true);
   });
 });

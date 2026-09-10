@@ -61,6 +61,7 @@ const nb: Strings = {
   attachDropHint: 'Slipp bildet her',
   attachUploading: 'Laster opp…',
   attachFailed: 'Bildet ble ikke lastet opp. Prøv igjen.',
+  sendFailed: 'Meldingen ble ikke sendt. Prøv igjen.',
   attachRemoveAriaLabel: 'Fjern bildet',
   attachTooMany: 'Du kan legge ved opptil {n} bilder.',
   attachTypeRejected: 'Vi tar imot PNG, JPEG, GIF og WebP.',

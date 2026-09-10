@@ -55,6 +55,7 @@ export interface SendResult {
 export interface PollTickResult {
   messagesIngested: number;
   lastError?: string | null;
+  stalled?: boolean;
 }
 
 export interface IncomingWebhookRequest {

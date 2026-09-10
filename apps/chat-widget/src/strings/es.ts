@@ -61,6 +61,7 @@ const es: Strings = {
   attachDropHint: 'Suelta la imagen aquí',
   attachUploading: 'Subiendo…',
   attachFailed: 'La imagen no se subió. Inténtalo de nuevo.',
+  sendFailed: 'El mensaje no se envió. Inténtalo de nuevo.',
   attachRemoveAriaLabel: 'Quitar la imagen',
   attachTooMany: 'Puedes adjuntar hasta {n} imágenes.',
   attachTypeRejected: 'Aceptamos PNG, JPEG, GIF y WebP.',

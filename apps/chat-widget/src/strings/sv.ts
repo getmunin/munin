@@ -61,6 +61,7 @@ const sv: Strings = {
   attachDropHint: 'Släpp bilden här',
   attachUploading: 'Laddar upp…',
   attachFailed: 'Bilden laddades inte upp. Försök igen.',
+  sendFailed: 'Meddelandet skickades inte. Försök igen.',
   attachRemoveAriaLabel: 'Ta bort bilden',
   attachTooMany: 'Du kan bifoga upp till {n} bilder.',
   attachTypeRejected: 'Vi tar PNG, JPEG, GIF och WebP.',

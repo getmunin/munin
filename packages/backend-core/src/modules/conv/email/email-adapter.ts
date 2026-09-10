@@ -170,7 +170,7 @@ export class EmailAdapter implements ChannelAdapter {
     this.fetcher = f;
   }
 
-  readonly inbound: InboundMode = {
+  readonly inbound: Extract<InboundMode, { mode: 'poll' }> = {
     mode: 'poll',
     intervalMs: POLL_INTERVAL_MS,
     tick: (channel) => this.pollOne(channel),
@@ -291,20 +291,35 @@ export class EmailAdapter implements ChannelAdapter {
     let highWater = sinceUid ?? 0;
     let ingested = 0;
     let lastError: string | null = null;
+    let stalled = false;
     for (const msg of messages) {
+      let parsed: ParsedInboundEmail;
       try {
-        const parsed = await parseMessage(msg.source);
-        await this.ingest(channel, parsed);
-        ingested += 1;
+        parsed = await parseMessage(msg.source);
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         lastError = errMsg;
         this.logger.warn(`parse failed uid=${msg.uid} channel=${channel.id}: ${errMsg}`);
+        if (msg.uid > highWater) highWater = msg.uid;
+        continue;
       }
-      if (msg.uid > highWater) highWater = msg.uid;
+
+      try {
+        await this.ingest(channel, parsed);
+        ingested += 1;
+        if (msg.uid > highWater) highWater = msg.uid;
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        lastError = errMsg;
+        stalled = true;
+        this.logger.error(
+          `ingest failed uid=${msg.uid} channel=${channel.id}, holding cursor at ${highWater}: ${errMsg}`,
+        );
+        break;
+      }
     }
     await this.writeCursor(channel.id, { lastUid: highWater });
-    return { messagesIngested: ingested, lastError };
+    return { messagesIngested: ingested, lastError, stalled };
   }
 
   async ingest(

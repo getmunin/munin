@@ -153,6 +153,56 @@ const skipReason = TEST_URL
     expect(posted!.metadata.components).toEqual(components);
   });
 
+  it('carries hydrated message attachments through getConversation and toRuntimeHistory', async () => {
+    const dispatcher = new WebhookDispatcher();
+    const claims = new ConversationClaimsService(dispatcher);
+    const hydrated = {
+      id: 'cva_inprocess1',
+      name: 'receipt.png',
+      mime: 'image/png',
+      sizeBytes: 2048,
+      width: 800,
+      height: 600,
+      thumbnailWidth: 320,
+      inline: false,
+      cid: null,
+      deleted: false,
+      url: 'https://assets.example.com/receipt.png',
+      thumbnailUrl: 'https://assets.example.com/receipt-thumb.png',
+    };
+    const conv = new ConvService(
+      dispatcher,
+      claims,
+      new CuratorJobsService(dispatcher),
+      new AlertsService(dispatcher),
+      { ...stubAttachmentGateway(), hydrateRaw: () => [hydrated] },
+    );
+    const factory = new InProcessMuninRestClientFactoryService(
+      db,
+      conv,
+      claims,
+      new CuratorJobsService(dispatcher),
+    );
+    const client = factory.forOrg(orgId);
+
+    const target = await freshConversation(103);
+    await db.insert(schema.convMessages).values({
+      orgId,
+      conversationId: target,
+      authorType: 'end_user',
+      authorId: endUserId,
+      body: '',
+    });
+
+    const detail = await client.getConversation(target);
+    expect(detail.messages[0]!.attachments).toEqual([hydrated]);
+
+    const history = client.toRuntimeHistory(detail);
+    expect(history[0]!.attachments).toEqual([
+      { mime: 'image/png', url: 'https://assets.example.com/receipt.png', name: 'receipt.png' },
+    ]);
+  });
+
   it('leaves metadata empty when postAgentMessage carries no components', async () => {
     const dispatcher = new WebhookDispatcher();
     const claims = new ConversationClaimsService(dispatcher);

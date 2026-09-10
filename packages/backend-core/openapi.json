@@ -5131,6 +5131,38 @@
         "security": []
       }
     },
+    "/v1/c/a/{token}": {
+      "get": {
+        "operationId": "ConvAttachmentsController_serve",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "w",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvAttachments"
+        ],
+        "security": []
+      }
+    },
     "/v1/c/o/{token}.gif": {
       "get": {
         "operationId": "EmailOpensController_open",

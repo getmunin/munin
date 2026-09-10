@@ -23,6 +23,12 @@ import {
 import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.service.ts';
 import { STORAGE } from '../../common/storage/storage.token.ts';
 import {
+  assetExtensionFromName,
+  isSvgAsset,
+  isSvgMime,
+  randomKeySegment,
+} from '../../common/storage/asset-validation.ts';
+import {
   applyAssetExpansion,
   applyBlockEdits,
   applyReferenceExpansion,
@@ -2444,15 +2450,6 @@ export function makePublishedPayload(
   };
 }
 
-function randomKeySegment(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function isSvgMime(mime: string): boolean {
-  const normalized = mime.trim().toLowerCase().split(';')[0]!.trim();
-  return normalized === 'image/svg+xml' || normalized === 'image/svg';
-}
-
 const UPLOAD_BYTES_MAX = 100 * 1024;
 
 function decodeAssetBody(base64Body: string): Buffer {
@@ -2475,10 +2472,6 @@ function decodeAssetBody(base64Body: string): Buffer {
     throw new CmsInvalidError('base64Body contains invalid characters');
   }
   return body;
-}
-
-function assetExtensionFromName(name: string): string {
-  return (name.split('.').pop() ?? 'bin').toLowerCase().slice(0, 16);
 }
 
 function readStringField(data: unknown, field: string): string | null {
@@ -2514,7 +2507,7 @@ export function deriveEntryTitle(
 }
 
 function rejectSvgAsset(ext: string, mime: string): void {
-  if (ext === 'svg' || isSvgMime(mime)) {
+  if (isSvgAsset(ext, mime)) {
     throw new CmsInvalidError(
       'svg uploads are not allowed: SVG can carry inline scripts that execute in the browser',
     );

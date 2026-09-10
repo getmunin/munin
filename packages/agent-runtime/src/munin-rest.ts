@@ -31,6 +31,7 @@ export interface ConversationDetail {
     createdAt: string;
     internal?: boolean;
     attachments?: unknown[];
+    metadata?: Record<string, unknown> | null;
   }>;
 }
 
@@ -195,6 +196,30 @@ function errorCodeFrom(text: string): string | null {
     return /^([a-z_]+):/.exec(text)?.[1] ?? null;
   }
   return null;
+}
+
+export function toRuntimeHistory(detail: ConversationDetail): ConversationMessage[] {
+  const visible = detail.messages
+    .map((m) => ({ message: m, attachments: parseAttachments(m.attachments) }))
+    .filter(
+      ({ message, attachments }) =>
+        !message.internal && (message.body.trim().length > 0 || attachments.length > 0),
+    );
+  const answerable = visible.filter(({ message }) => !isSuppressed(message));
+  return (answerable.length > 0 ? answerable : visible).map(({ message, attachments }) => {
+    const runtimeMessage: ConversationMessage = {
+      authorType: message.authorType === 'user' ? 'staff' : message.authorType,
+      body: message.body,
+      createdAt: message.createdAt,
+    };
+    if (attachments.length > 0) runtimeMessage.attachments = attachments;
+    return runtimeMessage;
+  });
+}
+
+export function isSuppressed(message: { metadata?: Record<string, unknown> | null }): boolean {
+  const value = message.metadata?.['suppressed'];
+  return typeof value === 'string' && value.length > 0;
 }
 
 export function parseAttachments(raw: unknown): ConversationAttachment[] {
@@ -367,21 +392,7 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
       });
     },
     toRuntimeHistory(detail: ConversationDetail): ConversationMessage[] {
-      return detail.messages
-        .map((m) => ({ message: m, attachments: parseAttachments(m.attachments) }))
-        .filter(
-          ({ message, attachments }) =>
-            !message.internal && (message.body.trim().length > 0 || attachments.length > 0),
-        )
-        .map(({ message, attachments }) => {
-          const runtimeMessage: ConversationMessage = {
-            authorType: message.authorType === 'user' ? 'staff' : message.authorType,
-            body: message.body,
-            createdAt: message.createdAt,
-          };
-          if (attachments.length > 0) runtimeMessage.attachments = attachments;
-          return runtimeMessage;
-        });
+      return toRuntimeHistory(detail);
     },
     async changeStatus(
       conversationId: string,

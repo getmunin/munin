@@ -51,6 +51,7 @@ const TITLE_WORDS_BY_VERB: Record<string, readonly string[]> = {
   request: ['request'],
   resolve: ['resolve'],
   restore: ['restore'],
+  retry: ['retry'],
   revise: ['revise'],
   revoke: ['revoke'],
   rotate: ['rotate'],

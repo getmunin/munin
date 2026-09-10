@@ -208,6 +208,7 @@
       "alertReasonSingle": "{title}",
       "alertReasonMultiple": "{title} (+{count} more)",
       "channelInboundFailing": "Inbound polling failing on \"{name}\"",
+      "channelOutboundFailing": "Replies are not going out on \"{name}\"",
       "openChannelSettings": "Open channel settings →"
     },
     "loadFailed": {
@@ -364,6 +365,10 @@
         "crmMergeExplain": "Keeps the primary; rewrites foreign keys; archives the loser. No conversations are lost.",
         "noteMeta": "{author} · note · {time}",
         "seenAt": "Seen {time}",
+        "deliveryFailed": "Not delivered",
+        "deliveryRetrying": "Send failed · retrying (attempt {attempt})",
+        "deliveryRetry": "Retry",
+        "deliveryRetryPending": "Retrying…",
         "loadFailedEyebrow": "Couldn't load",
         "detailLoadFailed": "This didn't load.",
         "kbSlugFallback": "kb-curation-inbox",
@@ -1365,7 +1370,8 @@
           "reject": "Reject failed",
           "note": "Note failed",
           "requestDraft": "Draft request failed",
-          "attach": "Attachment failed"
+          "attach": "Attachment failed",
+          "retryDelivery": "Retry failed"
         },
         "replyPlaceholder": "Write the reply to {name}…",
         "approveSend": "Approve & send",
@@ -1950,6 +1956,8 @@
     "conv_attachment_too_many": "Too many images on one message. Remove one and try again.",
     "conv_attachment_upload_missing": "The upload did not finish. Try attaching the image again.",
     "conv_channel_config_invalid": "This channel's saved settings are incomplete, so it can't be used yet. Open its settings, fill in what's missing and save to repair it.",
+    "conv_delivery_channel_inactive": "The channel this message goes out on is switched off, so sending it again would fail too. Turn the channel back on in settings, then retry.",
+    "conv_delivery_not_retryable": "This message is no longer waiting to be resent — it went out, or Munin is already retrying it. Reload the conversation to see where it stands.",
     "conv_draft_pending": "A draft is already waiting for review.",
     "conv_draft_request_invalid": "The agent can't draft here — the conversation is closed, has no customer to reply to, or the agent is switched off.",
     "conv_invalid": "This draft is no longer the one waiting on this conversation — it was already sent, or the agent has written a newer one. Reopen the conversation to see where it stands.",

@@ -343,6 +343,18 @@ export class ConversationsController {
     );
   }
 
+  @Post(':id/messages/:messageId/retry-delivery')
+  @HttpCode(200)
+  @AllowMember()
+  async retryDelivery(@Param('messageId') messageId: string): Promise<{
+    retried: true;
+    messageId: string;
+    conversationId: string;
+    deliveryIds: string[];
+  }> {
+    return translate(() => this.conv.retryMessageDelivery({ messageId }));
+  }
+
   @Post(':id/attachments/upload-request')
   @HttpCode(201)
   @AllowMember()

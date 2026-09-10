@@ -1,8 +1,17 @@
+export type AutoReplySignal =
+  | 'auto_submitted'
+  | 'precedence_junk'
+  | 'precedence_bulk'
+  | 'x_autoreply'
+  | 'x_autorespond'
+  | 'subject';
+
 export interface SenderClassification {
   isMailingList: boolean;
   isAutoReply: boolean;
   isRoleAccount: boolean;
   isBounce: boolean;
+  autoReplySignal: AutoReplySignal | null;
 }
 
 const ROLE_LOCAL_PARTS = new Set([
@@ -67,6 +76,8 @@ const AUTO_REPLY_SUBJECT_PREFIXES = [
 
 const SUBJECT_REPLY_PREFIX = /^(?:(?:re|sv|svar|aw|fwd?|vs|vb)\s*:\s*)+/;
 
+const AUTO_SUBMITTED_AUTO_REPLY = new Set(['auto-replied', 'auto-generated', 'auto-notified']);
+
 const BOUNCE_LOCAL_PARTS = new Set([
   'mailer-daemon',
   'mailerdaemon',
@@ -93,14 +104,13 @@ export function classifySender(
 
   const isMailingList = hasListHeaders || /\b(bulk|list)\b/.test(precedence);
 
-  const isAutoReply =
-    (autoSubmitted !== '' && autoSubmitted !== 'no') ||
-    /\bjunk\b/.test(precedence) ||
-    hasHeader(headerLines, 'x-auto-response-suppress') ||
-    hasHeader(headerLines, 'x-autoreply') ||
-    hasHeader(headerLines, 'x-autorespond') ||
-    hasAutoReplySubject(headerValue(headerLines, 'subject')) ||
-    (/\bbulk\b/.test(precedence) && !hasListHeaders);
+  const autoReplySignal = detectAutoReplySignal(
+    headerLines,
+    autoSubmitted,
+    precedence,
+    hasListHeaders,
+  );
+  const isAutoReply = autoReplySignal !== null;
 
   const local = (fromAddress.split('@')[0] ?? '').toLowerCase();
   const localBase = local.split('+')[0] ?? local;
@@ -120,7 +130,23 @@ export function classifySender(
 
   const isRoleAccount = ROLE_LOCAL_PARTS.has(localBase) || /^no-?reply|^do-?not-?reply/.test(localBase);
 
-  return { isMailingList, isAutoReply, isRoleAccount, isBounce };
+  return { isMailingList, isAutoReply, isRoleAccount, isBounce, autoReplySignal };
+}
+
+function detectAutoReplySignal(
+  headerLines: ReadonlyArray<{ key: string; line: string }>,
+  autoSubmitted: string,
+  precedence: string,
+  hasListHeaders: boolean,
+): AutoReplySignal | null {
+  const autoSubmittedToken = autoSubmitted.split(/[;(\s]/)[0] ?? '';
+  if (AUTO_SUBMITTED_AUTO_REPLY.has(autoSubmittedToken)) return 'auto_submitted';
+  if (/\bjunk\b/.test(precedence)) return 'precedence_junk';
+  if (hasHeader(headerLines, 'x-autoreply')) return 'x_autoreply';
+  if (hasHeader(headerLines, 'x-autorespond')) return 'x_autorespond';
+  if (hasAutoReplySubject(headerValue(headerLines, 'subject'))) return 'subject';
+  if (/\bbulk\b/.test(precedence) && !hasListHeaders) return 'precedence_bulk';
+  return null;
 }
 
 export function hasAutoReplySubject(subject: string | null): boolean {

@@ -14,6 +14,7 @@ describe('classifySender', () => {
       isAutoReply: false,
       isRoleAccount: false,
       isBounce: false,
+      autoReplySignal: null,
     });
     expect(hasAnyClassification(c)).toBe(false);
   });
@@ -47,6 +48,61 @@ describe('classifySender', () => {
   it('does not flag Auto-Submitted: no', () => {
     const c = classifySender(h({ 'Auto-Submitted': 'no' }), 'jane@acme.com');
     expect(c.isAutoReply).toBe(false);
+  });
+
+  it('reads Auto-Submitted past its parameters', () => {
+    const c = classifySender(
+      h({ 'Auto-Submitted': 'auto-replied; owner-email="oof@acme.com"' }),
+      'jane@acme.com',
+    );
+    expect(c.autoReplySignal).toBe('auto_submitted');
+  });
+
+  it('keeps a human mail answerable when a forwarding hop stamped it Auto-Submitted: auto-forwarded', () => {
+    const c = classifySender(h({ 'Auto-Submitted': 'auto-forwarded' }), 'kari@kunde.no');
+    expect(suppressionReason(c)).toBeNull();
+  });
+
+  it('keeps a human mail answerable when Exchange stamped X-Auto-Response-Suppress on the forwarded copy', () => {
+    const c = classifySender(
+      h({
+        From: 'kari@kunde.no',
+        Subject: 'SV: Feil i mine opplysninger.',
+        'X-Auto-Response-Suppress': 'All',
+        'Auto-Submitted': 'auto-forwarded',
+      }),
+      'kari@kunde.no',
+    );
+    expect(c.isAutoReply).toBe(false);
+    expect(suppressionReason(c)).toBeNull();
+  });
+
+  it('still suppresses a real out-of-office that also carries X-Auto-Response-Suppress', () => {
+    const c = classifySender(
+      h({
+        Subject: 'Automatic reply: Vi har oppdatert dine gjeldsdata',
+        'X-Auto-Response-Suppress': 'All',
+      }),
+      'preben@kunde.no',
+    );
+    expect(suppressionReason(c)).toBe('auto_reply');
+    expect(c.autoReplySignal).toBe('subject');
+  });
+
+  it('names the rule that flagged the message', () => {
+    expect(classifySender(h({ Precedence: 'junk' }), 'jane@acme.com').autoReplySignal).toBe(
+      'precedence_junk',
+    );
+    expect(classifySender(h({ 'X-Autoreply': 'yes' }), 'jane@acme.com').autoReplySignal).toBe(
+      'x_autoreply',
+    );
+    expect(classifySender(h({ 'X-Autorespond': 'yes' }), 'jane@acme.com').autoReplySignal).toBe(
+      'x_autorespond',
+    );
+    expect(
+      classifySender(h({ Precedence: 'bulk' }), 'noreply@vendor.example').autoReplySignal,
+    ).toBe('precedence_bulk');
+    expect(classifySender(h({ From: 'jane@acme.com' }), 'jane@acme.com').autoReplySignal).toBeNull();
   });
 
   it('detects bounce via empty Return-Path', () => {
@@ -220,6 +276,7 @@ describe('classifySender', () => {
         isAutoReply: true,
         isRoleAccount: false,
         isBounce: false,
+        autoReplySignal: 'subject',
       }),
     ).toBe(true);
   });

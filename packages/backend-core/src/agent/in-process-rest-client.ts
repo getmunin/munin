@@ -22,6 +22,7 @@ import {
   type FailCuratorJobInput,
   type MuninRestClient,
   type UpdateCuratorJobProgressInput,
+  parseAttachments,
 } from '@getmunin/agent-runtime';
 import type { ConversationMessage, SetDraftReplyOpts } from '@getmunin/agent-runtime';
 import { ConvService } from '../modules/conv/conv.service.ts';
@@ -133,6 +134,7 @@ function buildClient(opts: BuildOptions): MuninRestClient {
             body: m.body,
             createdAt: m.createdAt,
             internal: m.internal,
+            attachments: m.attachments,
           })),
         };
       });
@@ -313,13 +315,17 @@ function buildClient(opts: BuildOptions): MuninRestClient {
     },
 
     toRuntimeHistory(detail: ConversationDetail): ConversationMessage[] {
-      return detail.messages.map((m) => ({
-        id: m.id,
-        authorType: m.authorType,
-        body: m.body,
-        createdAt: m.createdAt,
-        internal: m.internal,
-      }));
+      return detail.messages.map((m) => {
+        const attachments = parseAttachments(m.attachments);
+        return {
+          id: m.id,
+          authorType: m.authorType,
+          body: m.body,
+          createdAt: m.createdAt,
+          internal: m.internal,
+          ...(attachments.length > 0 ? { attachments } : {}),
+        };
+      });
     },
   };
 }

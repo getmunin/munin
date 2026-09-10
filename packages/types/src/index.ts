@@ -80,6 +80,16 @@ export {
 export { type WebImportProgress } from './web-import.ts';
 export { type AssetVariant } from './asset-variants.ts';
 export {
+  CONV_ATTACHMENT_MIME_ALLOWLIST,
+  CONV_ATTACHMENT_BYTES_MAX,
+  CONV_ATTACHMENT_PER_MESSAGE_MAX,
+  CONV_ATTACHMENT_MB_MAX,
+  normalizeAttachmentMime,
+  isAllowedAttachmentMime,
+  attachmentRejectionFor,
+  type AttachmentRejection,
+} from './conv-attachments.ts';
+export {
   MESSAGE_COMPONENT_MAX_ITEMS,
   MESSAGE_COMPONENTS_MAX,
   ProductListItemSchema,

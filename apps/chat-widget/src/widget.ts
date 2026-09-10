@@ -484,6 +484,7 @@ export function start(config: WidgetConfig): void {
       } else {
         console.warn('[munin-widget] send failed:', err);
       }
+      ui.showComposerError(strings.sendFailed);
     } finally {
       ui.setSending(false);
     }

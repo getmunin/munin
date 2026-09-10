@@ -61,6 +61,7 @@ const is: Strings = {
   attachDropHint: 'Slepptu myndinni hér',
   attachUploading: 'Hleð upp…',
   attachFailed: 'Myndin var ekki send. Prófaðu aftur.',
+  sendFailed: 'Skilaboðin voru ekki send. Prófaðu aftur.',
   attachRemoveAriaLabel: 'Fjarlægja mynd',
   attachTooMany: 'Þú getur hengt við allt að {n} myndir.',
   attachTypeRejected: 'Við tökum PNG, JPEG, GIF og WebP.',

@@ -61,6 +61,7 @@ const hu: Strings = {
   attachDropHint: 'Húzza ide a képet',
   attachUploading: 'Feltöltés…',
   attachFailed: 'A képet nem sikerült feltölteni. Próbálja újra.',
+  sendFailed: 'Az üzenetet nem sikerült elküldeni. Próbálja újra.',
   attachRemoveAriaLabel: 'Kép eltávolítása',
   attachTooMany: 'Legfeljebb {n} képet csatolhat.',
   attachTypeRejected: 'PNG, JPEG, GIF és WebP formátumot fogadunk.',

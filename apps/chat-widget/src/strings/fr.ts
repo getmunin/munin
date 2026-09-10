@@ -61,6 +61,7 @@ const fr: Strings = {
   attachDropHint: 'Déposez l’image ici',
   attachUploading: 'Envoi…',
   attachFailed: 'L’image n’a pas été envoyée. Réessayez.',
+  sendFailed: 'Le message n’a pas été envoyé. Réessayez.',
   attachRemoveAriaLabel: 'Retirer l’image',
   attachTooMany: 'Vous pouvez joindre jusqu’à {n} images.',
   attachTypeRejected: 'Nous acceptons PNG, JPEG, GIF et WebP.',

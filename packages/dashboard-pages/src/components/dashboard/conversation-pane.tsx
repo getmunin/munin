@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Button, DropdownMenuItem, PageSpinner, Pill, cn } from '@getmunin/ui';
@@ -10,6 +10,7 @@ import { useConversationTyping } from '../../realtime';
 import { useCmdEnter } from './queue-panes/shared';
 import { MessageBubble, startsAuthorGroup } from './inbox-message-bubble';
 import { useAttachmentUploads } from './use-attachment-uploads';
+import type { AttachmentRejection } from '@getmunin/types';
 import { useConfirm } from '../confirm-dialog';
 import type { MessageAttachment } from './inbox-types';
 import { participantHues, participantKey } from './inbox-identity';
@@ -65,8 +66,27 @@ export function ConversationPane({
   const noteBoxRef = useRef<HTMLTextAreaElement | null>(null);
   const composerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const uploads = useAttachmentUploads(selectedId);
   const tAtt = useTranslations('dashboard.overview.drawer.attachments');
+  const uploadMessages = useMemo(
+    () => ({
+      rejected: (rejection: AttachmentRejection, ctx: { max: number; mb: number }) =>
+        rejection === 'mime'
+          ? tAtt('rejectedType')
+          : rejection === 'too_large'
+            ? tAtt('rejectedSize', { mb: ctx.mb })
+            : tAtt('rejectedCount', { max: ctx.max }),
+      failed: (name: string) => tAtt('uploadFailedNamed', { name }),
+    }),
+    [tAtt],
+  );
+  const reportAttachmentError = controller.reportAttachmentError;
+  const onAttachmentError = useCallback(
+    (message: string) => {
+      if (selectedId) reportAttachmentError(selectedId, message);
+    },
+    [reportAttachmentError, selectedId],
+  );
+  const uploads = useAttachmentUploads(selectedId, uploadMessages, onAttachmentError);
   const confirm = useConfirm();
 
   useLayoutEffect(() => {
@@ -657,19 +677,6 @@ export function ConversationPane({
             closedFooter
           ) : canReply ? (
             <div className="flex flex-col gap-2.5 px-5 py-4 max-md:min-h-0 max-md:flex-1 md:px-7">
-              <textarea
-                ref={replyBoxRef}
-                value={reply}
-                readOnly={streaming || askedForDraft}
-                onChange={(e) => {
-                  setReply(e.target.value);
-                  notifyTyping(e.target.value.trim().length > 0);
-                  if (err) controller.clearActionError();
-                }}
-                rows={4}
-                placeholder={t('replyPlaceholder', { name: customer })}
-                className="w-full resize-none rounded-input border border-rule-soft bg-paper px-3.5 py-3 text-base leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt max-md:min-h-0 max-md:flex-1 md:text-sm dark:border-rule-on-dark dark:bg-card"
-              />
               {uploads.pending.length > 0 && (
                 <div className="flex shrink-0 flex-wrap gap-2">
                   {uploads.pending.map((p) => (
@@ -687,14 +694,27 @@ export function ConversationPane({
                         type="button"
                         onClick={() => uploads.remove(p.key)}
                         aria-label={tAtt('remove')}
-                        className="absolute right-0 top-0 bg-paper/90 px-1 text-[11px] text-ink-mute"
+                        className="absolute right-0 top-0 flex items-center justify-center rounded-md bg-paper/90 px-1 py-0.5 text-ink-mute"
                       >
-                        ✕
+                        <X aria-hidden className="size-3" />
                       </button>
                     </div>
                   ))}
                 </div>
               )}
+              <textarea
+                ref={replyBoxRef}
+                value={reply}
+                readOnly={streaming || askedForDraft}
+                onChange={(e) => {
+                  setReply(e.target.value);
+                  notifyTyping(e.target.value.trim().length > 0);
+                  if (err) controller.clearActionError();
+                }}
+                rows={4}
+                placeholder={t('replyPlaceholder', { name: customer })}
+                className="w-full resize-none rounded-input border border-rule-soft bg-paper px-3.5 py-3 text-base leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt max-md:min-h-0 max-md:flex-1 md:text-sm dark:border-rule-on-dark dark:bg-card"
+              />
               <div className="flex shrink-0 flex-col flex-wrap items-stretch gap-2 md:flex-row md:items-center">
                 <input
                   ref={fileInputRef}

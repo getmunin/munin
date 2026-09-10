@@ -61,6 +61,7 @@ const pl: Strings = {
   attachDropHint: 'Upuść obraz tutaj',
   attachUploading: 'Przesyłanie…',
   attachFailed: 'Nie udało się przesłać obrazu. Spróbuj ponownie.',
+  sendFailed: 'Nie udało się wysłać wiadomości. Spróbuj ponownie.',
   attachRemoveAriaLabel: 'Usuń obraz',
   attachTooMany: 'Możesz dodać maksymalnie {n} obrazów.',
   attachTypeRejected: 'Przyjmujemy PNG, JPEG, GIF i WebP.',

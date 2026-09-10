@@ -61,6 +61,7 @@ const fi: Strings = {
   attachDropHint: 'Pudota kuva tähän',
   attachUploading: 'Lähetetään…',
   attachFailed: 'Kuvan lähetys ei onnistunut. Yritä uudelleen.',
+  sendFailed: 'Viestin lähetys ei onnistunut. Yritä uudelleen.',
   attachRemoveAriaLabel: 'Poista kuva',
   attachTooMany: 'Voit liittää enintään {n} kuvaa.',
   attachTypeRejected: 'Otamme vastaan PNG-, JPEG-, GIF- ja WebP-kuvia.',

@@ -61,6 +61,7 @@ const pt: Strings = {
   attachDropHint: 'Solte a imagem aqui',
   attachUploading: 'A enviar…',
   attachFailed: 'A imagem não foi enviada. Tente de novo.',
+  sendFailed: 'A mensagem não foi enviada. Tente de novo.',
   attachRemoveAriaLabel: 'Remover a imagem',
   attachTooMany: 'Pode anexar até {n} imagens.',
   attachTypeRejected: 'Aceitamos PNG, JPEG, GIF e WebP.',

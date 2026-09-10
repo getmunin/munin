@@ -1,7 +1,13 @@
 import { assistantNamePreamble } from './conversation-handler.ts';
 import { classifyProviderError, type ProviderErrorCode } from './providers/transport.ts';
 import { runAgent } from './runtime.ts';
-import type { McpTool, McpToolHandle, McpToolResult, Provider } from './types.ts';
+import type {
+  ConversationAttachment,
+  McpTool,
+  McpToolHandle,
+  McpToolResult,
+  Provider,
+} from './types.ts';
 
 export interface SkillReader {
   readSkill(uri: string): Promise<string | null>;
@@ -15,6 +21,7 @@ export interface SkillPassOptions {
   model: string;
   skillUri: string;
   userPrompt: string;
+  userPromptAttachments?: ConversationAttachment[];
   assistantName?: string | null;
   maxToolIterations?: number;
   maxHistoryChars?: number;
@@ -91,6 +98,9 @@ export async function runSkillPass(opts: SkillPassOptions): Promise<SkillPassRes
           authorType: 'user',
           body: opts.userPrompt,
           createdAt: new Date().toISOString(),
+          ...(opts.userPromptAttachments?.length
+            ? { attachments: opts.userPromptAttachments }
+            : {}),
         },
       ],
       mcp,

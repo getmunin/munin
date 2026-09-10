@@ -61,6 +61,7 @@ const da: Strings = {
   attachDropHint: 'Slip billedet her',
   attachUploading: 'Uploader…',
   attachFailed: 'Billedet blev ikke uploadet. Prøv igen.',
+  sendFailed: 'Beskeden blev ikke sendt. Prøv igen.',
   attachRemoveAriaLabel: 'Fjern billedet',
   attachTooMany: 'Du kan vedhæfte op til {n} billeder.',
   attachTypeRejected: 'Vi tager PNG, JPEG, GIF og WebP.',

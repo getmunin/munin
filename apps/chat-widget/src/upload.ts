@@ -1,19 +1,22 @@
+import {
+  CONV_ATTACHMENT_BYTES_MAX,
+  CONV_ATTACHMENT_MIME_ALLOWLIST,
+  CONV_ATTACHMENT_PER_MESSAGE_MAX,
+  attachmentRejectionFor,
+  type AttachmentRejection,
+} from '@getmunin/types';
+
 const MAX_EDGE_PX = 1600;
 const SKIP_REENCODE_BELOW_BYTES = 128 * 1024;
 const PASSTHROUGH_MIMES = new Set(['image/gif']);
 
-export const ATTACHMENT_MIME_ALLOWLIST: readonly string[] = [
-  'image/png',
-  'image/jpeg',
-  'image/gif',
-  'image/webp',
-];
+export const ATTACHMENT_MIME_ALLOWLIST = CONV_ATTACHMENT_MIME_ALLOWLIST;
 
-export const ATTACHMENT_BYTES_MAX = 10 * 1024 * 1024;
+export const ATTACHMENT_BYTES_MAX = CONV_ATTACHMENT_BYTES_MAX;
 
-export const ATTACHMENT_PER_MESSAGE_MAX = 10;
+export const ATTACHMENT_PER_MESSAGE_MAX = CONV_ATTACHMENT_PER_MESSAGE_MAX;
 
-export type AttachmentRejection = 'mime' | 'too_large';
+export type { AttachmentRejection };
 
 export interface PreparedUpload {
   blob: Blob;
@@ -28,15 +31,11 @@ export interface PresignedUploadTarget {
 }
 
 export function rejectionFor(file: File): AttachmentRejection | null {
-  if (!ATTACHMENT_MIME_ALLOWLIST.includes(normalizeMime(file.type))) return 'mime';
-  if (file.size > ATTACHMENT_BYTES_MAX) return 'too_large';
-  return null;
+  return attachmentRejectionFor({ mime: file.type, sizeBytes: file.size });
 }
 
 export function rejectionForPrepared(prepared: PreparedUpload): AttachmentRejection | null {
-  if (!ATTACHMENT_MIME_ALLOWLIST.includes(normalizeMime(prepared.mime))) return 'mime';
-  if (prepared.blob.size > ATTACHMENT_BYTES_MAX) return 'too_large';
-  return null;
+  return attachmentRejectionFor({ mime: prepared.mime, sizeBytes: prepared.blob.size });
 }
 
 export async function prepareImageForUpload(file: File): Promise<PreparedUpload> {

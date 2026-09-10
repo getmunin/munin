@@ -1314,6 +1314,36 @@ class StubStorage implements AssetStorage {
       expect(list.find((a) => a.id === handle.id)).toBeFalsy();
     });
 
+    it('deleteAsset removes the derived variant objects too, not just the master', async () => {
+      const handle = await run(() =>
+        svc.requestAssetUpload({ name: 'wide.png', mime: 'image/png', sizeBytes: 2048 }),
+      );
+      const variantKeys = [
+        `${handle.storageKey}.w320.webp`,
+        `${handle.storageKey}.w640.webp`,
+      ];
+      await db.execute(sql`
+        UPDATE cms_assets
+        SET variants = ${JSON.stringify(
+          variantKeys.map((key, i) => ({
+            width: i === 0 ? 320 : 640,
+            height: 100,
+            format: 'webp',
+            storageKey: key,
+            publicUrl: `https://cdn.test/${key}`,
+            sizeBytes: 10,
+          })),
+        )}::jsonb
+        WHERE id = ${handle.id}
+      `);
+
+      storage.deletes.length = 0;
+      await run(() => svc.deleteAsset({ id: handle.id }));
+
+      expect(storage.deletes).toContain(handle.storageKey);
+      for (const key of variantKeys) expect(storage.deletes).toContain(key);
+    });
+
     it('deleteAsset returns 404 for unknown id', async () => {
       await expect(run(() => svc.deleteAsset({ id: randomUUID() }))).rejects.toThrow(
         NotFoundException,

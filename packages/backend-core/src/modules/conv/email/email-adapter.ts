@@ -62,6 +62,7 @@ import {
   stripSignatureHtml,
 } from './reply-history.ts';
 import { classifySender, hasAnyClassification, suppressionReason } from './classify-sender.ts';
+import { clampInboundBody } from './inbound-body-limits.ts';
 import type {
   ChannelAdapter,
   ChannelRow,
@@ -401,7 +402,7 @@ export class EmailAdapter implements ChannelAdapter {
         }
 
         const suppressed = suppressionReason(parsed.senderClassification);
-        const quoteStrippedText = stripQuotedReplyText(parsed.bodyText);
+        const quoteStrippedText = clampInboundBody(stripQuotedReplyText(parsed.bodyText));
         const { clean: cleanText, signature: regexSignature } = splitSignatureText(quoteStrippedText);
         const regexCutSignature = regexSignature !== null;
         const detectedSignatureForMeta =

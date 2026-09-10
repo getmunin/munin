@@ -137,6 +137,12 @@ const SetSubjectInput = z.object({
   subject: z.string().min(1).max(200).nullable(),
 });
 
+const RetryDeliveryInput = z.object({
+  messageId: z
+    .string()
+    .describe('Id of the outgoing message whose delivery failed permanently (`deliveryStatus: "dead"`).'),
+});
+
 const StripMessageSignatureInput = z.object({
   messageId: z.string(),
   body: z.string().min(1).max(50_000),
@@ -446,6 +452,21 @@ export class ConvAdminTools {
   })
   setSubject(args: z.infer<typeof SetSubjectInput>) {
     return this.conv.setSubject(args);
+  }
+
+  @McpTool({
+    name: 'conv_retry_delivery',
+    title: 'Conv: Retry a failed outbound delivery',
+    description:
+      "Re-queue the outbound delivery of an outgoing message that permanently failed to send. Outbound email and SMS are delivered by a background worker that retries five times with exponential backoff; after the last attempt the delivery is marked `dead` and the message sits in the thread undelivered. This tool resets such a delivery to `queued` so the worker picks it up again on its next pass — use it after fixing the cause, such as repaired SMTP credentials or a corrected recipient address. `conv_get_conversation` reports each message's `deliveryStatus`, `deliveryError` and `deliveryAttempts`; only a message whose status is `dead` can be retried. Refuses with `conv_delivery_not_retryable` if the delivery is still queued, already sent, or between automatic attempts, and with `conv_delivery_channel_inactive` if the channel it would send through has been deactivated or archived.",
+    audiences: ['admin'],
+    scopes: ['conv:write'],
+    input: RetryDeliveryInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  retryDelivery(args: z.infer<typeof RetryDeliveryInput>) {
+    return this.conv.retryMessageDelivery(args);
   }
 
   @McpTool({

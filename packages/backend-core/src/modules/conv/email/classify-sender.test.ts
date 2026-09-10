@@ -104,6 +104,52 @@ describe('classifySender', () => {
     expect(suppressionReason(c)).toBe('bounce');
   });
 
+  it('suppresses an ESP bounce mailbox that is not mailer-daemon or postmaster', () => {
+    for (const from of [
+      'bounces@amazonses.com',
+      'bounce@sendgrid.net',
+      'bounce+tag-abc@mg.acme.com',
+      'mailerdaemon@old.example.com',
+    ]) {
+      expect(suppressionReason(classifySender(h({ From: from }), from))).toBe('bounce');
+    }
+  });
+
+  it('suppresses an RFC 3464 delivery-status report whatever address it comes from', () => {
+    const c = classifySender(
+      h({
+        From: 'noreply@relay.acme.com',
+        'Content-Type': 'multipart/report; report-type=delivery-status; boundary="x"',
+      }),
+      'noreply@relay.acme.com',
+    );
+    expect(suppressionReason(c)).toBe('bounce');
+  });
+
+  it('suppresses a delivery-status report whose report-type is quoted', () => {
+    const c = classifySender(
+      h({ 'Content-Type': 'multipart/report; report-type="delivery-status"' }),
+      'noreply@relay.acme.com',
+    );
+    expect(suppressionReason(c)).toBe('bounce');
+  });
+
+  it('suppresses a bounce carrying X-Failed-Recipients', () => {
+    const c = classifySender(
+      h({ From: 'noreply@relay.acme.com', 'X-Failed-Recipients': 'edma@rosenberg.as' }),
+      'noreply@relay.acme.com',
+    );
+    expect(suppressionReason(c)).toBe('bounce');
+  });
+
+  it('does not treat an ordinary multipart report as a bounce', () => {
+    const c = classifySender(
+      h({ 'Content-Type': 'multipart/report; report-type=disposition-notification' }),
+      'jane@acme.com',
+    );
+    expect(suppressionReason(c)).toBeNull();
+  });
+
   it('does not suppress a mailing-list post or a role account', () => {
     const list = classifySender(h({ 'List-Id': 'announce.acme.com' }), 'jane@acme.com');
     expect(suppressionReason(list)).toBeNull();

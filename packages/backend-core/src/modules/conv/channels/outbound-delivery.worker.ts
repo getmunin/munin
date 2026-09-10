@@ -13,6 +13,7 @@ import type { SendLimits } from '@getmunin/types';
 import { randomUUID } from 'node:crypto';
 import { DB } from '../../../common/db/db.module.ts';
 import { withSchedulerLock } from '../../../common/scheduler-lock/index.ts';
+import { AlertsService } from '../../system-alerts/system-alerts.service.ts';
 import {
   CHANNEL_ADAPTERS,
   ChannelAdapterRegistry,
@@ -35,6 +36,15 @@ const BACKOFF_BASE_MS = 30_000;
 
 type AttemptOutcome = 'sent' | 'deferred' | 'failed';
 
+interface DeliveryContext {
+  delivery: typeof schema.convMessageDeliveries.$inferSelect;
+  message: typeof schema.convMessages.$inferSelect;
+  conversation: typeof schema.convConversations.$inferSelect;
+  channel: typeof schema.convChannels.$inferSelect;
+  contact: typeof schema.convContacts.$inferSelect | null;
+  attempt: number;
+}
+
 @Injectable()
 export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(OutboundDeliveryWorker.name);
@@ -51,6 +61,7 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
     @Inject(DB) private readonly db: Db,
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(CHANNEL_ADAPTERS) adapters: ChannelAdapter[],
+    @Inject(AlertsService) private readonly alerts: AlertsService,
   ) {
     this.registry = new ChannelAdapterRegistry(adapters);
   }
@@ -112,7 +123,7 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
     if (!adapter) {
       await this.recordFailure(
         deliveryId,
-        ctx.attempt,
+        ctx,
         `no adapter registered for channel '${ctx.channel.type}:${ctx.channel.vendor}'`,
       );
       return 'failed';
@@ -143,7 +154,7 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
       };
       result = await adapter.send(sendCtx);
     } catch (err) {
-      await this.recordFailure(deliveryId, ctx.attempt, errorMessage(err));
+      await this.recordFailure(deliveryId, ctx, errorMessage(err));
       return 'failed';
     }
 
@@ -165,6 +176,9 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
       conversationId: ctx.conversation.id,
       messageId: ctx.message.id,
       channelId: ctx.channel.id,
+    });
+    await this.withChannelContext(ctx.channel.orgId, async () => {
+      await this.alerts.resolveAlert({ source: 'channel_outbound', subjectId: ctx.channel.id });
     });
     return 'sent';
   }
@@ -227,10 +241,14 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private async recordFailure(deliveryId: string, priorAttempts: number, error: string): Promise<void> {
-    const next = priorAttempts + 1;
+  private async recordFailure(
+    deliveryId: string,
+    ctx: DeliveryContext,
+    error: string,
+  ): Promise<void> {
+    const next = ctx.attempt + 1;
     const final = next >= MAX_ATTEMPTS;
-    const backoff = BACKOFF_BASE_MS * 2 ** priorAttempts;
+    const backoff = BACKOFF_BASE_MS * 2 ** ctx.attempt;
     const jitter = Math.floor(backoff * 0.1 * Math.random());
     await this.db
       .update(schema.convMessageDeliveries)
@@ -243,52 +261,56 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
       })
       .where(eq(schema.convMessageDeliveries.id, deliveryId));
 
-    if (final) {
-      const row = await this.db
-        .select()
-        .from(schema.convMessageDeliveries)
-        .where(eq(schema.convMessageDeliveries.id, deliveryId))
-        .limit(1);
-      const d = row[0];
-      if (d) {
-        const msg = await this.db
-          .select({ conversationId: schema.convMessages.conversationId })
-          .from(schema.convMessages)
-          .where(eq(schema.convMessages.id, d.messageId))
-          .limit(1);
-        await this.fireWebhook('conversation.message.delivery_failed', {
-          orgId: d.orgId,
-          conversationId: msg[0]?.conversationId ?? '',
-          messageId: d.messageId,
-          channelId: d.channelId,
-          error,
+    if (!final) return;
+
+    await this.fireWebhook('conversation.message.delivery_failed', {
+      orgId: ctx.message.orgId,
+      conversationId: ctx.conversation.id,
+      messageId: ctx.message.id,
+      channelId: ctx.channel.id,
+      error,
+      attempts: next,
+    });
+    await this.withChannelContext(ctx.channel.orgId, async () => {
+      const result = await this.alerts.openAlert({
+        source: 'channel_outbound',
+        subjectId: ctx.channel.id,
+        severity: 'error',
+        title: 'Outbound delivery failing',
+        detail: error,
+        metadata: {
+          channelType: ctx.channel.type,
+          channelId: ctx.channel.id,
+          channelName: ctx.channel.name ?? ctx.channel.type,
+          conversationId: ctx.conversation.id,
+          messageId: ctx.message.id,
           attempts: next,
-        });
-      }
-    }
+        },
+      });
+      await this.alerts.updateMetadata(result.alertId, {
+        undeliveredCount: result.occurrenceCount,
+      });
+    });
+  }
+
+  private async withChannelContext(orgId: string, fn: () => Promise<void>): Promise<void> {
+    const actor = new ActorIdentity('system', 'outbound-delivery-worker', orgId, ['*'], ['admin']);
+    await this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
+      await withContext(ctx, fn);
+    });
   }
 
   private async fireWebhook(type: string, payload: Record<string, unknown>): Promise<void> {
     const orgId = payload.orgId as string;
     if (!orgId) return;
-    const actor = new ActorIdentity('system', 'outbound-delivery-worker', orgId, ['*'], ['admin']);
-    await this.db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
-      const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
-      await withContext(ctx, async () => {
-        await this.webhooks.emit({ type, payload });
-      });
+    await this.withChannelContext(orgId, async () => {
+      await this.webhooks.emit({ type, payload });
     });
   }
 
-  private async loadContext(deliveryId: string): Promise<{
-    delivery: typeof schema.convMessageDeliveries.$inferSelect;
-    message: typeof schema.convMessages.$inferSelect;
-    conversation: typeof schema.convConversations.$inferSelect;
-    channel: typeof schema.convChannels.$inferSelect;
-    contact: typeof schema.convContacts.$inferSelect | null;
-    attempt: number;
-  } | null> {
+  private async loadContext(deliveryId: string): Promise<DeliveryContext | null> {
     const rows = await this.db
       .select({
         delivery: schema.convMessageDeliveries,

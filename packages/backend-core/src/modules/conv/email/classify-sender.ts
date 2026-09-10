@@ -44,6 +44,17 @@ const ROLE_LOCAL_PARTS = new Set([
   'bounces',
 ]);
 
+const BOUNCE_LOCAL_PARTS = new Set([
+  'mailer-daemon',
+  'mailerdaemon',
+  'mail-daemon',
+  'postmaster',
+  'bounce',
+  'bounces',
+  'bounced',
+  'bounce-handler',
+]);
+
 export function classifySender(
   headerLines: ReadonlyArray<{ key: string; line: string }>,
   fromAddress: string,
@@ -65,15 +76,22 @@ export function classifySender(
     hasHeader(headerLines, 'x-autoreply') ||
     hasHeader(headerLines, 'x-autorespond');
 
+  const local = (fromAddress.split('@')[0] ?? '').toLowerCase();
+  const localBase = local.split('+')[0] ?? local;
+
+  const contentType = (headerValue(headerLines, 'content-type') ?? '').toLowerCase();
+  const isDeliveryStatusReport =
+    /multipart\/report/.test(contentType) &&
+    /report-type\s*=\s*"?delivery-status"?/.test(contentType);
+
   const isBounce =
     /^<\s*>$/.test(returnPath) ||
     /^<?mailer-daemon@/i.test(returnPath) ||
     /^<?postmaster@/i.test(returnPath) ||
-    /^mailer-daemon@/i.test(fromAddress) ||
-    /^postmaster@/i.test(fromAddress);
+    BOUNCE_LOCAL_PARTS.has(localBase) ||
+    isDeliveryStatusReport ||
+    hasHeader(headerLines, 'x-failed-recipients');
 
-  const local = (fromAddress.split('@')[0] ?? '').toLowerCase();
-  const localBase = local.split('+')[0] ?? local;
   const isRoleAccount = ROLE_LOCAL_PARTS.has(localBase) || /^no-?reply|^do-?not-?reply/.test(localBase);
 
   return { isMailingList, isAutoReply, isRoleAccount, isBounce };

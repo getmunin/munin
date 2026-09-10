@@ -290,6 +290,43 @@ const RELAY_DOMAIN = 'in.getmunin.test';
       expect(messages).toHaveLength(1);
     });
 
+    function rawEspBounce(): string {
+      const blob = 'U2FsdGVkX1+vR016HqB5QcbgGd5+4Eex4u6/2A6RhuuR0TsOhj9aUu1DZ5vUzKqAKhK7CEw';
+      return [
+        'From: Mail Delivery Subsystem <bounces@amazonses.com>',
+        `To: <${relayAddress}>`,
+        'Subject: 4.2.2 Automatically rejected mail',
+        'Message-ID: <bounce-1@amazonses.com>',
+        'Content-Type: text/plain; charset="utf-8"',
+        '',
+        "Your message to edma@rosenberg.as was rejected: the recipient's mailbox is full.",
+        '',
+        `X-HE-Meta: ${blob}`,
+        ...Array.from({ length: 40 }, () => blob),
+        '',
+      ].join('\r\n');
+    }
+
+    it('stamps an ESP bounce as suppressed and strips the encoded blob it echoes back', async () => {
+      const res = await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(rawEspBounce()).toString('base64'),
+      });
+      expect(res.status).toBe(201);
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const messages = await db
+        .select()
+        .from(schema.convMessages)
+        .where(eq(schema.convMessages.orgId, orgId));
+      const bounce = messages.find((m) => m.body.includes('rejected'));
+      expect(bounce).toBeDefined();
+      expect(bounce!.metadata).toMatchObject({ suppressed: 'bounce' });
+      expect(bounce!.body).not.toContain('U2FsdGVkX1');
+      expect(bounce!.body).toContain('lines of encoded data removed');
+      expect(JSON.stringify(bounce!.metadata)).not.toContain('U2FsdGVkX1');
+    });
+
     it('ingests a message far above the 4mb global JSON body limit', async () => {
       const raw = Buffer.from(rawWithAttachment('big-1@example.test', 4_800_000));
       expect(raw.byteLength).toBeGreaterThan(6 * 1024 * 1024);

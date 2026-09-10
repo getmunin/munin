@@ -9,6 +9,8 @@ import { MessageAttachments } from './inbox-attachments';
 import { messageRole, participantColor, type MessageRole } from './inbox-identity';
 import type { MessageAttachment, MessageDto } from './inbox-types';
 
+const DELIVERY_ERROR_MAX_CHARS = 160;
+
 const MESSAGE_MD_COMPONENTS: Components = {
   p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
   ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>,
@@ -55,6 +57,8 @@ export function MessageBubble({
   hue,
   endUserLabel = null,
   onDeleteAttachment,
+  onRetryDelivery,
+  retryingDelivery = false,
 }: {
   message: MessageDto;
   showAuthor?: boolean;
@@ -62,6 +66,8 @@ export function MessageBubble({
   hue?: number;
   endUserLabel?: string | null;
   onDeleteAttachment?: (attachment: MessageAttachment) => void;
+  onRetryDelivery?: (message: MessageDto) => void;
+  retryingDelivery?: boolean;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const role = messageRole(message, viewerUserId);
@@ -77,6 +83,7 @@ export function MessageBubble({
   }
   const label = bubbleLabel(message, t, endUserLabel);
   const suppressed = suppressedKind(message);
+  const failure = deliveryFailure(message);
   if (message.internal) {
     return (
       <div
@@ -152,13 +159,54 @@ export function MessageBubble({
       </div>
       <MessageAttachments attachments={message.attachments} onDelete={onDeleteAttachment} />
       {isOutbound && <MessageComponents metadata={message.metadata} />}
-      {isOutbound && message.seenAt && (
+      {isOutbound && failure ? (
+        <div
+          role="status"
+          className="flex flex-wrap items-baseline justify-end gap-x-2 gap-y-0.5 text-right font-mono text-[10px] font-medium uppercase tracking-meta text-destructive"
+        >
+          <span>
+            {failure === 'dead'
+              ? t('deliveryFailed')
+              : t('deliveryRetrying', { attempt: message.deliveryAttempts ?? 0 })}
+          </span>
+          {message.deliveryError ? (
+            <span className="max-w-full normal-case tracking-normal opacity-80 [overflow-wrap:anywhere]">
+              {truncateDeliveryError(message.deliveryError)}
+            </span>
+          ) : null}
+          {failure === 'dead' && onRetryDelivery ? (
+            <button
+              type="button"
+              onClick={() => onRetryDelivery(message)}
+              disabled={retryingDelivery}
+              className="shrink-0 uppercase underline underline-offset-[3px] disabled:opacity-50"
+            >
+              {retryingDelivery ? t('deliveryRetryPending') : t('deliveryRetry')}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {isOutbound && !failure && message.seenAt && (
         <div className="font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
           {t('seenAt', { time: formatSeenAt(message.seenAt) })}
         </div>
       )}
     </div>
   );
+}
+
+export function deliveryFailure(message: MessageDto): 'dead' | 'failed' | null {
+  if (message.authorType !== 'user' && message.authorType !== 'agent') return null;
+  if (message.internal) return null;
+  const status = message.deliveryStatus;
+  return status === 'dead' || status === 'failed' ? status : null;
+}
+
+function truncateDeliveryError(error: string): string {
+  const collapsed = error.replace(/\s+/g, ' ').trim();
+  return collapsed.length > DELIVERY_ERROR_MAX_CHARS
+    ? `${collapsed.slice(0, DELIVERY_ERROR_MAX_CHARS)}…`
+    : collapsed;
 }
 
 function formatSeenAt(iso: string): string {

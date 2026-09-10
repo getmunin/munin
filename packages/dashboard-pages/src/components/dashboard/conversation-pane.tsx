@@ -12,7 +12,7 @@ import { MessageBubble, startsAuthorGroup } from './inbox-message-bubble';
 import { useAttachmentUploads } from './use-attachment-uploads';
 import type { AttachmentRejection } from '@getmunin/types';
 import { useConfirm } from '../confirm-dialog';
-import type { MessageAttachment } from './inbox-types';
+import type { MessageAttachment, MessageDto } from './inbox-types';
 import { participantHues, participantKey } from './inbox-identity';
 import { customerIdentity } from './inbox-helpers';
 import { formatPhoneNumber } from '../../lib/format-phone';
@@ -58,6 +58,17 @@ export function ConversationPane({
   const [suggestionId, setSuggestionId] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [retryingDeliveryId, setRetryingDeliveryId] = useState<string | null>(null);
+
+  const retryDelivery = useCallback(
+    (message: MessageDto) => {
+      setRetryingDeliveryId(message.id);
+      void controller
+        .retryDelivery(message.conversationId, message.id)
+        .finally(() => setRetryingDeliveryId(null));
+    },
+    [controller],
+  );
   const seededDraftId = useRef<string | null>(null);
   const streamTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const wasDrafting = useRef(false);
@@ -536,6 +547,8 @@ export function ConversationPane({
             viewerUserId={viewerUserId}
             hue={hues.get(participantKey(m))}
             endUserLabel={caller}
+            onRetryDelivery={retryDelivery}
+            retryingDelivery={retryingDeliveryId === m.id}
           />
         ))}
         {visitorTyping ? (

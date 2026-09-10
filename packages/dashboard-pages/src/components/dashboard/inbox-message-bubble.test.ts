@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { startsAuthorGroup, suppressedKind } from './inbox-message-bubble';
+import { deliveryFailure, startsAuthorGroup, suppressedKind } from './inbox-message-bubble';
 import type { MessageDto } from './inbox-types';
 
 const message = (overrides: Partial<MessageDto> = {}): MessageDto => ({
@@ -35,5 +35,33 @@ describe('startsAuthorGroup', () => {
 
   it('still groups consecutive messages from the same sender', () => {
     expect(startsAuthorGroup(message({ id: 'cvm_2' }), message())).toBe(false);
+  });
+});
+
+describe('deliveryFailure', () => {
+  const outgoing = (overrides: Partial<MessageDto> = {}) =>
+    message({ authorType: 'user', authorId: 'usr_1', ...overrides });
+
+  it('separates a permanently dead delivery from one still being retried', () => {
+    expect(deliveryFailure(outgoing({ deliveryStatus: 'dead' }))).toBe('dead');
+    expect(deliveryFailure(outgoing({ deliveryStatus: 'failed' }))).toBe('failed');
+  });
+
+  it('treats a rate-limit deferral as healthy even though it carries an error', () => {
+    expect(
+      deliveryFailure(
+        outgoing({ deliveryStatus: 'queued', deliveryError: 'rate_limited: hourly cap reached' }),
+      ),
+    ).toBeNull();
+  });
+
+  it('stays silent for a delivered message and for one with no delivery at all', () => {
+    expect(deliveryFailure(outgoing({ deliveryStatus: 'sent' }))).toBeNull();
+    expect(deliveryFailure(outgoing())).toBeNull();
+  });
+
+  it('ignores inbound messages and internal notes, which are never delivered', () => {
+    expect(deliveryFailure(message({ deliveryStatus: 'dead' }))).toBeNull();
+    expect(deliveryFailure(outgoing({ deliveryStatus: 'dead', internal: true }))).toBeNull();
   });
 });

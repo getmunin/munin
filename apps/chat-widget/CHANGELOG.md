@@ -1,5 +1,11 @@
 # @getmunin/chat-widget
 
+## 5.23.1
+
+### Patch Changes
+
+- @getmunin/types@5.23.1
+
 ## 5.23.0
 
 ### Patch Changes

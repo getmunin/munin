@@ -3773,7 +3773,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## @inquirer/ansi@2.0.7
+## @inquirer/ansi@2.0.8
 
 - Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/ansi/README.md
 - Author: Simon Boudrias
@@ -3806,7 +3806,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/confirm@6.3.0
+## @inquirer/confirm@6.3.2
 
 > Inquirer confirm prompt
 - Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/confirm/README.md
@@ -3840,7 +3840,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/core@12.0.1
+## @inquirer/core@12.0.3
 
 > Core Inquirer prompt API
 - Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/core/README.md
@@ -3874,7 +3874,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/figures@2.0.8
+## @inquirer/figures@2.0.9
 
 > Vendored version of figures, for CJS compatibility
 - Homepage: https://github.com/SBoudrias/Inquirer.js#readme
@@ -3908,7 +3908,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/type@4.1.0
+## @inquirer/type@4.1.1
 
 > Inquirer core TS types
 - Homepage: https://github.com/SBoudrias/Inquirer.js#readme
@@ -10718,7 +10718,7 @@ MIT License
 
 ---
 
-## @types/node@22.20.1
+## @types/node@22.20.1, 22.20.2
 
 > TypeScript definitions for node
 - Homepage: https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node
@@ -24137,7 +24137,7 @@ THE SOFTWARE.
 
 ---
 
-## nodemailer@9.1.0
+## nodemailer@9.1.0, 9.1.1
 
 > Easy as cake e-mail sending from your Node.js applications
 - Homepage: https://nodemailer.com/
@@ -30204,7 +30204,7 @@ SOFTWARE.
 
 ---
 
-## tldts@7.4.11
+## tldts@7.4.12
 
 > Library to work against complex domain names, subdomains and URIs.
 - Homepage: https://github.com/remusao/tldts#readme
@@ -30229,7 +30229,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTH
 
 ---
 
-## tldts-core@7.4.11
+## tldts-core@7.4.12
 
 > tldts core primitives (internal module)
 - Homepage: https://github.com/remusao/tldts#readme

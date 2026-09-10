@@ -1,5 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
+export interface OutboundAttachment {
+  filename: string;
+  contentType: string;
+  content: Buffer;
+  inline?: boolean;
+  contentId?: string | null;
+}
+
 export interface BuildOutboundInput {
   from: string;
   to: string;
@@ -11,12 +19,24 @@ export interface BuildOutboundInput {
   inReplyTo?: string;
   references?: string[];
   trackerUrl?: string;
+  attachments?: readonly OutboundAttachment[];
 }
 
 export interface BuiltMessage {
   raw: string;
   messageId: string;
 }
+
+type MimePart =
+  | {
+      kind: 'leaf';
+      contentType: string;
+      encoding: string;
+      disposition?: string;
+      contentId?: string;
+      body: string;
+    }
+  | { kind: 'multipart'; subtype: string; params?: string; parts: MimePart[] };
 
 export function buildOutbound(input: BuildOutboundInput): BuiltMessage {
   const localPart = randomUUID();
@@ -35,38 +55,134 @@ export function buildOutbound(input: BuildOutboundInput): BuiltMessage {
     headers.push(['References', input.references.map((r) => `<${r}>`).join(' ')]);
   }
 
-  const text = input.text;
-  const html = input.html;
-  let body: string;
-  if (html) {
-    const boundary = `munin-boundary-${randomUUID()}`;
-    headers.push(['Content-Type', `multipart/alternative; boundary="${boundary}"`]);
-    const htmlWithTracker = input.trackerUrl
-      ? injectTrackingPixel(html, input.trackerUrl)
-      : html;
-    body = [
-      `--${boundary}`,
-      'Content-Type: text/plain; charset="utf-8"',
-      'Content-Transfer-Encoding: 7bit',
-      '',
-      text,
-      '',
-      `--${boundary}`,
-      'Content-Type: text/html; charset="utf-8"',
-      'Content-Transfer-Encoding: 7bit',
-      '',
-      htmlWithTracker,
-      '',
-      `--${boundary}--`,
-    ].join('\r\n');
-  } else {
-    headers.push(['Content-Type', 'text/plain; charset="utf-8"']);
-    headers.push(['Content-Transfer-Encoding', '7bit']);
-    body = text;
+  const html = input.html
+    ? input.trackerUrl
+      ? injectTrackingPixel(input.html, input.trackerUrl)
+      : input.html
+    : undefined;
+
+  const textPart: MimePart = {
+    kind: 'leaf',
+    contentType: 'text/plain; charset="utf-8"',
+    encoding: '7bit',
+    body: input.text,
+  };
+  let root: MimePart = html
+    ? {
+        kind: 'multipart',
+        subtype: 'alternative',
+        parts: [
+          textPart,
+          {
+            kind: 'leaf',
+            contentType: 'text/html; charset="utf-8"',
+            encoding: '7bit',
+            body: html,
+          },
+        ],
+      }
+    : textPart;
+
+  const attachments = input.attachments ?? [];
+  const inlineParts = attachments.filter((a) => isReferencedInline(a, html));
+  const fileParts = attachments.filter((a) => !isReferencedInline(a, html));
+
+  if (inlineParts.length > 0) {
+    root = {
+      kind: 'multipart',
+      subtype: 'related',
+      params: 'type="text/html"',
+      parts: [root, ...inlineParts.map((a) => attachmentPart(a, true))],
+    };
+  }
+  if (fileParts.length > 0) {
+    root = {
+      kind: 'multipart',
+      subtype: 'mixed',
+      parts: [root, ...fileParts.map((a) => attachmentPart(a, false))],
+    };
   }
 
+  const rendered = renderPart(root);
+  for (const header of rendered.headers) headers.push(header);
   const headerLines = headers.map(([k, v]) => `${k}: ${v}`).join('\r\n');
-  return { raw: `${headerLines}\r\n\r\n${body}`, messageId };
+  return { raw: `${headerLines}\r\n\r\n${rendered.body}`, messageId };
+}
+
+function isReferencedInline(part: OutboundAttachment, html: string | undefined): boolean {
+  const cid = bareContentId(part.contentId);
+  if (!part.inline || !cid || !html) return false;
+  return html.toLowerCase().includes(`cid:${cid.toLowerCase()}`);
+}
+
+function bareContentId(raw: string | null | undefined): string | null {
+  const trimmed = (raw ?? '').trim().replace(/^</, '').replace(/>$/, '').trim();
+  return trimmed || null;
+}
+
+function attachmentPart(part: OutboundAttachment, inline: boolean): MimePart {
+  const cid = bareContentId(part.contentId);
+  const nameParam = asciiFilenameParam(part.filename);
+  return {
+    kind: 'leaf',
+    contentType: [sanitizeHeaderToken(part.contentType) || 'application/octet-stream', nameParam]
+      .filter(Boolean)
+      .join('; '),
+    encoding: 'base64',
+    disposition: `${inline ? 'inline' : 'attachment'}; ${filenameParam(part.filename)}`,
+    ...(inline && cid ? { contentId: `<${sanitizeHeaderToken(cid)}>` } : {}),
+    body: wrapBase64(part.content.toString('base64')),
+  };
+}
+
+function renderPart(part: MimePart): { headers: [string, string][]; body: string } {
+  if (part.kind === 'leaf') {
+    const headers: [string, string][] = [
+      ['Content-Type', part.contentType],
+      ['Content-Transfer-Encoding', part.encoding],
+    ];
+    if (part.disposition) headers.push(['Content-Disposition', part.disposition]);
+    if (part.contentId) headers.push(['Content-ID', part.contentId]);
+    return { headers, body: part.body };
+  }
+
+  const boundary = `munin-boundary-${randomUUID()}`;
+  const contentType = [`multipart/${part.subtype}`, part.params, `boundary="${boundary}"`]
+    .filter(Boolean)
+    .join('; ');
+  const chunks = part.parts.map((child) => {
+    const rendered = renderPart(child);
+    const childHeaders = rendered.headers.map(([k, v]) => `${k}: ${v}`).join('\r\n');
+    return `--${boundary}\r\n${childHeaders}\r\n\r\n${rendered.body}`;
+  });
+  return {
+    headers: [['Content-Type', contentType]],
+    body: `${chunks.join('\r\n')}\r\n--${boundary}--`,
+  };
+}
+
+function wrapBase64(b64: string): string {
+  const lines: string[] = [];
+  for (let i = 0; i < b64.length; i += 76) lines.push(b64.slice(i, i + 76));
+  return lines.join('\r\n');
+}
+
+function sanitizeHeaderToken(value: string): string {
+  return value.replace(/[\r\n";]/g, '').trim();
+}
+
+function isAscii(value: string): boolean {
+  return /^[\x20-\x7e]*$/.test(value);
+}
+
+function filenameParam(name: string): string {
+  const clean = sanitizeHeaderToken(name) || 'attachment';
+  return isAscii(clean) ? `filename="${clean}"` : `filename*=utf-8''${encodeURIComponent(clean)}`;
+}
+
+function asciiFilenameParam(name: string): string {
+  const clean = sanitizeHeaderToken(name);
+  return clean && isAscii(clean) ? `name="${clean}"` : '';
 }
 
 function encodeHeaderValue(value: string): string {

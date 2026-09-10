@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import {
   ActorIdentity,
   WebhookDispatcher,
@@ -9,15 +9,17 @@ import {
   resolvePublicHost,
   signEmailOpenToken,
   withContext,
+  type AssetStorage,
   type Mailer,
   type RequestContext,
 } from '@getmunin/core';
 import { ImapFlow } from 'imapflow';
-import { simpleParser, type ParsedMail, type AddressObject } from 'mailparser';
+import { simpleParser, type Attachment, type ParsedMail, type AddressObject } from 'mailparser';
 import { randomUUID } from 'node:crypto';
 import { createTransport, type Transporter } from 'nodemailer';
 import { DB } from '../../../common/db/db.module.ts';
 import { MAILER } from '../../../common/mail/mail.module.ts';
+import { STORAGE } from '../../../common/storage/storage.token.ts';
 import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from '../set-topic-job.ts';
 import {
@@ -27,9 +29,25 @@ import {
   type StoredEmailChannelConfig,
 } from './email.service.ts';
 import { smtpTransportOptions } from './email-probe.service.ts';
-import { buildOutbound, stripMessageIdBrackets, parseMessageIdHeader, type BuiltMessage } from './mime.ts';
+import {
+  buildOutbound,
+  stripMessageIdBrackets,
+  parseMessageIdHeader,
+  type BuiltMessage,
+  type OutboundAttachment,
+} from './mime.ts';
 import { renderEmailHtml } from './markdown.ts';
 import { resolveInbound, type ParsedInboundEmail } from './threading.ts';
+import {
+  filterInboundAttachments,
+  normalizeCidReferences,
+  type InboundEmailAttachment,
+} from './inbound-attachments.ts';
+import { ConvAttachmentsService } from '../attachments/conv-attachments.service.ts';
+import type {
+  AttachmentDto,
+  MessageAttachmentProjection,
+} from '../attachments/conv-attachments.types.ts';
 import type { ForwardOrigin } from './forwarded-sender.ts';
 import { reopenClosedConversation } from '../conversation-reopen.ts';
 import { raiseAttentionWhenAgentIsOff } from '../unanswerable-handover.ts';
@@ -144,6 +162,8 @@ export class EmailAdapter implements ChannelAdapter {
     @Inject(MAILER) private readonly mailer: Mailer,
     @Inject(EmailService) private readonly emailService: EmailService,
     @Inject(CuratorJobsService) private readonly curatorJobs: CuratorJobsService,
+    @Inject(ConvAttachmentsService) private readonly attachments: ConvAttachmentsService,
+    @Inject(STORAGE) private readonly storage: AssetStorage,
   ) {}
 
   setFetcher(f: ImapFetcher): void {
@@ -178,6 +198,8 @@ export class EmailAdapter implements ChannelAdapter {
     const isReply = prior.length > 0 || ctx.delivery.inReplyToHeader != null;
     const subject = isReply ? ensureReSubject(rawSubject) : (rawSubject ?? '(no subject)');
     const trackerUrl = trackerUrlFor(config, ctx, html);
+    const outboundAttachments = await this.loadOutboundAttachments(ctx);
+    const embedInMime = config.outbound.provider === 'smtp';
 
     const built: BuiltMessage = buildOutbound({
       from: composeFrom(config.addressing.fromName, config.addressing.fromAddress),
@@ -190,6 +212,7 @@ export class EmailAdapter implements ChannelAdapter {
       inReplyTo: ctx.delivery.inReplyToHeader ?? undefined,
       references: ctx.delivery.inReplyToHeader ? [ctx.delivery.inReplyToHeader] : undefined,
       trackerUrl,
+      attachments: embedInMime ? outboundAttachments : undefined,
     });
 
     if (config.outbound.provider === 'smtp') {
@@ -224,6 +247,13 @@ export class EmailAdapter implements ChannelAdapter {
         headers: {
           'Message-ID': `<${built.messageId}>`,
         },
+        attachments: outboundAttachments.length
+          ? outboundAttachments.map((a) => ({
+              filename: a.filename,
+              content: a.content,
+              contentType: a.contentType,
+            }))
+          : undefined,
       });
     }
 
@@ -362,6 +392,11 @@ export class EmailAdapter implements ChannelAdapter {
         const detectedSignatureForMeta =
           regexSignature ?? detectSignatureBlock(quoteStrippedText, parsed.bodyHtml);
         const cleanHtml = stripSignatureHtml(stripQuotedReplyHtml(parsed.bodyHtml));
+        const stored = await this.persistInboundAttachments(
+          conversationId,
+          parsed.attachments,
+          cleanHtml,
+        );
         const [msg] = await tx
           .insert(schema.convMessages)
           .values({
@@ -370,7 +405,8 @@ export class EmailAdapter implements ChannelAdapter {
             authorType: 'end_user',
             authorId: contact.id,
             body: cleanText || '(no body)',
-            bodyHtml: cleanHtml,
+            bodyHtml: stored.bodyHtml,
+            attachments: stored.projection,
             internal: false,
             metadata: buildInboundMetadata(parsed, {
               regexSignatureText: detectedSignatureForMeta,
@@ -379,6 +415,13 @@ export class EmailAdapter implements ChannelAdapter {
             }),
           })
           .returning();
+        if (stored.dtos.length > 0) {
+          await this.attachments.attachToMessage({
+            messageId: msg!.id,
+            conversationId,
+            attachmentIds: stored.dtos.map((a) => a.id),
+          });
+        }
         await tx
           .update(schema.convConversations)
           .set({ lastMessageAt: new Date(), updatedAt: new Date() })
@@ -437,6 +480,102 @@ export class EmailAdapter implements ChannelAdapter {
     });
   }
 
+  private async loadOutboundAttachments(ctx: SendContext): Promise<OutboundAttachment[]> {
+    const projectedIds = projectedAttachmentIds(ctx.message.attachments);
+    if (projectedIds.length === 0) return [];
+
+    const rows = await this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      return tx
+        .select({
+          id: schema.convAttachments.id,
+          name: schema.convAttachments.name,
+          mime: schema.convAttachments.mime,
+          storageKey: schema.convAttachments.storageKey,
+          inline: schema.convAttachments.inline,
+          contentId: schema.convAttachments.contentId,
+        })
+        .from(schema.convAttachments)
+        .where(
+          and(
+            eq(schema.convAttachments.orgId, ctx.message.orgId),
+            eq(schema.convAttachments.messageId, ctx.message.id),
+            isNull(schema.convAttachments.deletedAt),
+          ),
+        );
+    });
+
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const out: OutboundAttachment[] = [];
+    for (const id of projectedIds) {
+      const row = byId.get(id);
+      if (!row?.storageKey) continue;
+      const content = await this.storage.readBytes(row.storageKey);
+      if (!content) {
+        this.logger.warn(
+          `attachment ${id} on message ${ctx.message.id} has no bytes in storage — sending without it`,
+        );
+        continue;
+      }
+      out.push({
+        filename: row.name,
+        contentType: row.mime,
+        content,
+        inline: row.inline,
+        contentId: row.contentId,
+      });
+    }
+    return out;
+  }
+
+  private async persistInboundAttachments(
+    conversationId: string,
+    parts: readonly InboundEmailAttachment[],
+    cleanHtml: string | null,
+  ): Promise<{
+    bodyHtml: string | null;
+    projection: MessageAttachmentProjection[];
+    dtos: AttachmentDto[];
+  }> {
+    if (parts.length === 0) return { bodyHtml: cleanHtml, projection: [], dtos: [] };
+
+    const filtered = await filterInboundAttachments(parts, { html: cleanHtml });
+    if (filtered.dropped.length > 0) {
+      this.logger.log(
+        `dropped ${filtered.dropped.length} inbound image part(s) on conversation ${conversationId}: ` +
+          filtered.dropped.map((d) => `${d.name}=${d.reason}`).join(', '),
+      );
+    }
+    const keptCids = new Set(
+      filtered.kept
+        .filter((part) => part.inline && part.contentId)
+        .map((part) => part.contentId!),
+    );
+    if (filtered.kept.length === 0) {
+      return { bodyHtml: normalizeCidReferences(cleanHtml, keptCids), projection: [], dtos: [] };
+    }
+
+    const dtos: AttachmentDto[] = [];
+    for (const part of filtered.kept) {
+      dtos.push(
+        await this.attachments.persistBytes({
+          conversationId,
+          name: part.name,
+          mime: part.mime,
+          body: part.content,
+          inline: part.inline,
+          contentId: part.contentId,
+        }),
+      );
+    }
+
+    return {
+      bodyHtml: normalizeCidReferences(cleanHtml, keptCids),
+      projection: this.attachments.projectForMessage(dtos),
+      dtos,
+    };
+  }
+
   private async readCursor(channelId: string): Promise<Record<string, unknown>> {
     return this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
@@ -477,7 +616,7 @@ export class EmailAdapter implements ChannelAdapter {
 }
 
 export async function parseMessage(source: Buffer | string): Promise<ParsedInboundEmail> {
-  const parsed: ParsedMail = await simpleParser(source);
+  const parsed: ParsedMail = await simpleParser(source, { keepCidLinks: true });
   const recipients = collectAddresses(parsed.to)
     .concat(collectAddresses(parsed.cc))
     .concat(collectAddresses(parsed.bcc))
@@ -516,7 +655,30 @@ export async function parseMessage(source: Buffer | string): Promise<ParsedInbou
     arcAuthenticationResults,
     forwardedFor: extractHeaderValues(parsed.headerLines, 'x-forwarded-for'),
     forwardedTo: extractHeaderValues(parsed.headerLines, 'x-forwarded-to'),
+    attachments: (parsed.attachments ?? []).map(toInboundAttachment),
   };
+}
+
+function toInboundAttachment(part: Attachment): InboundEmailAttachment {
+  return {
+    content: Buffer.isBuffer(part.content) ? part.content : Buffer.from(part.content ?? []),
+    contentType: part.contentType ?? 'application/octet-stream',
+    filename: part.filename ?? null,
+    cid: part.cid ?? part.contentId ?? null,
+    contentDisposition: part.contentDisposition ?? null,
+    related: part.related === true,
+  };
+}
+
+function projectedAttachmentIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const id = (entry as { id?: unknown }).id;
+    if (typeof id === 'string' && id) out.push(id);
+  }
+  return out;
 }
 
 function extractHeaderValues(

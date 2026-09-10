@@ -25,6 +25,9 @@ import type { ConversationDetail } from './inbox-types';
 
 const COMPOSER_MAX_HEIGHT_PX = 320;
 
+const REPLY_BOX_CLASS =
+  'w-full resize-none rounded-input border border-rule-soft bg-paper px-3.5 py-3 text-base leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt max-md:min-h-0 max-md:flex-1 md:text-sm dark:border-rule-on-dark dark:bg-card';
+
 export function ConversationPane({
   selectedId,
   item,
@@ -62,15 +65,15 @@ export function ConversationPane({
   const noteBoxRef = useRef<HTMLTextAreaElement | null>(null);
   const composerRef = useRef<HTMLDivElement | null>(null);
 
+  const draft = pendingDraftOf(detail);
+
   useLayoutEffect(() => {
     for (const el of [replyBoxRef.current, noteBoxRef.current]) {
       if (!el) continue;
       el.style.height = 'auto';
       el.style.height = `${Math.min(el.scrollHeight, COMPOSER_MAX_HEIGHT_PX)}px`;
     }
-  }, [reply, noteDraft, tab, expanded]);
-
-  const draft = pendingDraftOf(detail);
+  }, [reply, noteDraft, tab, expanded, draft?.body]);
 
   const stopStream = () => {
     if (streamTimer.current) {
@@ -298,11 +301,15 @@ export function ConversationPane({
     </div>
   );
 
-  const claimGateCaption = claim ? (
-    <span className="font-mono text-[10px] font-medium uppercase tracking-meta leading-relaxed text-ink-mute">
-      {t('claimGateOther', { name: claimHolderName ?? t('teammate') })}
+  const gateCaption = (text: string) => (
+    <span className="min-w-0 font-mono text-[10px] font-medium uppercase tracking-meta leading-relaxed text-ink-mute">
+      {text}
     </span>
-  ) : null;
+  );
+
+  const claimGateCaption = claim
+    ? gateCaption(t('claimGateOther', { name: claimHolderName ?? t('teammate') }))
+    : null;
 
   const askDraftButton = (className?: string) =>
     canAskDraft ? (
@@ -643,7 +650,7 @@ export function ConversationPane({
                 }}
                 rows={4}
                 placeholder={t('replyPlaceholder', { name: customer })}
-                className="w-full resize-none rounded-input border border-rule-soft bg-paper px-3.5 py-3 text-base leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt max-md:min-h-0 max-md:flex-1 md:text-sm dark:border-rule-on-dark dark:bg-card"
+                className={REPLY_BOX_CLASS}
               />
               <div className="flex shrink-0 flex-col flex-wrap items-stretch gap-2 md:flex-row md:items-center">
                 <Button
@@ -678,6 +685,24 @@ export function ConversationPane({
                 >
                   {t('closeNoReply')}
                 </Button>
+              </div>
+            </div>
+          ) : draft ? (
+            <div className="flex flex-col gap-2.5 px-5 py-4 max-md:min-h-0 max-md:flex-1 md:px-7">
+              <textarea
+                ref={replyBoxRef}
+                value={draft.body}
+                readOnly
+                rows={4}
+                aria-label={t('draftPreviewLabel')}
+                className={cn(
+                  REPLY_BOX_CLASS,
+                  'bg-bone text-ink-soft dark:bg-secondary dark:text-foreground/80',
+                )}
+              />
+              <div className="flex shrink-0 flex-col flex-wrap items-stretch gap-2.5 md:flex-row md:items-center">
+                {takeOverButton('max-md:h-11')}
+                {claimGateCaption ?? gateCaption(t('draftPreviewHint'))}
               </div>
             </div>
           ) : (

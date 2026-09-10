@@ -125,6 +125,57 @@ const skipReason = TEST_URL
     expect(summary.autoRate7d).toBe(0.25);
   });
 
+  async function seedTopicWithInbound(inboundPerConversation: number[]) {
+    const [channel] = await db
+      .insert(schema.convChannels)
+      .values({ orgId, type: 'chat', vendor: 'munin', name: `vol-${randomUUID().slice(0, 8)}` })
+      .returning();
+    const [topic] = await db
+      .insert(schema.convTopics)
+      .values({ orgId, name: 'Support', slug: `support-${randomUUID().slice(0, 8)}` })
+      .returning();
+    for (const inbound of inboundPerConversation) {
+      const [conv] = await db
+        .insert(schema.convConversations)
+        .values({
+          orgId,
+          displayId: Math.floor(Math.random() * 1_000_000),
+          channelId: channel!.id,
+          topicId: topic!.id,
+          status: 'open',
+        })
+        .returning();
+      for (let i = 0; i < inbound; i += 1) {
+        await db.insert(schema.convMessages).values({
+          orgId,
+          conversationId: conv!.id,
+          authorType: 'end_user',
+          authorId: 'seed',
+          body: 'seeded',
+          internal: false,
+          metadata: {},
+        });
+      }
+    }
+    return topic!;
+  }
+
+  it('measures volume by inbound conversations on the topic, not by replies sent', async () => {
+    const topic = await seedTopicWithInbound([1, 1, 1, 1, 1, 1, 1, 1, 1]);
+    const summary = await run(() => svc.listTopicAutomation());
+    const row = summary.topics.find((t) => t.id === topic.id);
+    expect(row!.weeklyVolume).toBe(2);
+    expect(row!.reviewedCount).toBe(0);
+    expect(row!.autoSent).toBe(0);
+  });
+
+  it('counts an inbound conversation once however many messages the customer sent in it', async () => {
+    const topic = await seedTopicWithInbound([5, 1, 1, 1, 1, 1, 1, 1, 1]);
+    const summary = await run(() => svc.listTopicAutomation());
+    const row = summary.topics.find((t) => t.id === topic.id);
+    expect(row!.weeklyVolume).toBe(2);
+  });
+
   it('promoting stamps auto_promoted_at once and demoting clears it', async () => {
     const { topic } = await seedTopicWithHistory();
     const promoted = await run(() => svc.setTopicAgentMode({ topicId: topic.id, mode: 'auto' }));

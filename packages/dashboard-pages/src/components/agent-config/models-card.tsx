@@ -17,6 +17,7 @@ import { NativeSelect } from '../native-select';
 import { useTranslateError } from '../../i18n/translate-error';
 import {
   formatModel,
+  modelSortKey,
   BARE_CARD,
   type AgentConfigDto,
   type ListModelsResult,
@@ -57,7 +58,7 @@ export function ModelsCard({
 
   const sortedModels = useMemo(() => {
     if (!models?.supported) return [];
-    return [...models.models].sort((a, b) => a.id.localeCompare(b.id));
+    return [...models.models].sort((a, b) => modelSortKey(a).localeCompare(modelSortKey(b)));
   }, [models]);
 
   const knownIds = useMemo(() => new Set(sortedModels.map((m) => m.id)), [sortedModels]);

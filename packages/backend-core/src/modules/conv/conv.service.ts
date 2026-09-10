@@ -67,6 +67,13 @@ export const HANDOVER_FILTERS = ['active', 'resolved', 'never'] as const;
 export type HandoverFilter = (typeof HANDOVER_FILTERS)[number];
 
 const DELIVERABLE_CHANNEL_TYPES: readonly string[] = ['email', 'sms'];
+
+const DELIVERY_SEVERITY_SQL = sql`CASE ${schema.convMessageDeliveries.status}
+  WHEN 'dead' THEN 0
+  WHEN 'failed' THEN 1
+  WHEN 'queued' THEN 2
+  WHEN 'sent' THEN 3
+  ELSE 4 END`;
 export type ChannelType = (typeof CHANNEL_TYPES)[number];
 export type ConversationStatus = (typeof STATUSES)[number];
 export type AgentMode = (typeof AGENT_MODES)[number];
@@ -94,6 +101,9 @@ export interface TopicDto {
   color: string | null;
 }
 
+export const DELIVERY_STATUSES = ['queued', 'sent', 'failed', 'dead'] as const;
+export type DeliveryStatus = (typeof DELIVERY_STATUSES)[number];
+
 export interface ApprovedDraftStamp {
   draftMessageId: string;
   draftBody: string;
@@ -117,6 +127,10 @@ export interface MessageDto {
   firstOpenedAt: string | null;
   lastOpenedAt: string | null;
   openCount: number | null;
+  deliveryStatus: DeliveryStatus | null;
+  deliveryError: string | null;
+  deliveryAttempts: number | null;
+  deliveryNextAttemptAt: string | null;
 }
 
 export interface EmailOpenStatsChannel {
@@ -887,7 +901,7 @@ export class ConvService {
       .groupBy(schema.convMessageReads.messageId)
       .as('reads');
 
-    const opens = ctx.db
+    const deliveries = ctx.db
       .select({
         messageId: schema.convMessageDeliveries.messageId,
         firstOpenedAt: sql<string | null>`MIN(${schema.convMessageDeliveries.firstOpenedAt})`.as(
@@ -899,6 +913,18 @@ export class ConvService {
         openCount: sql<number>`COALESCE(SUM(${schema.convMessageDeliveries.openCount}), 0)::int`.as(
           'open_count',
         ),
+        deliveryStatus: sql<string | null>`(ARRAY_AGG(${schema.convMessageDeliveries.status} ORDER BY ${DELIVERY_SEVERITY_SQL}))[1]`.as(
+          'delivery_status',
+        ),
+        deliveryError: sql<string | null>`(ARRAY_AGG(${schema.convMessageDeliveries.error} ORDER BY ${DELIVERY_SEVERITY_SQL}))[1]`.as(
+          'delivery_error',
+        ),
+        deliveryAttempts: sql<number | null>`(ARRAY_AGG(${schema.convMessageDeliveries.attempt} ORDER BY ${DELIVERY_SEVERITY_SQL}))[1]`.as(
+          'delivery_attempts',
+        ),
+        deliveryNextAttemptAt: sql<string | null>`(ARRAY_AGG(${schema.convMessageDeliveries.nextAttemptAt} ORDER BY ${DELIVERY_SEVERITY_SQL}))[1]`.as(
+          'delivery_next_attempt_at',
+        ),
       })
       .from(schema.convMessageDeliveries)
       .innerJoin(
@@ -907,19 +933,23 @@ export class ConvService {
       )
       .where(eq(schema.convMessages.conversationId, id))
       .groupBy(schema.convMessageDeliveries.messageId)
-      .as('opens');
+      .as('deliveries');
 
     const rows = await ctx.db
       .select({
         msg: schema.convMessages,
         seenAt: reads.seenAt,
-        firstOpenedAt: opens.firstOpenedAt,
-        lastOpenedAt: opens.lastOpenedAt,
-        openCount: opens.openCount,
+        firstOpenedAt: deliveries.firstOpenedAt,
+        lastOpenedAt: deliveries.lastOpenedAt,
+        openCount: deliveries.openCount,
+        deliveryStatus: deliveries.deliveryStatus,
+        deliveryError: deliveries.deliveryError,
+        deliveryAttempts: deliveries.deliveryAttempts,
+        deliveryNextAttemptAt: deliveries.deliveryNextAttemptAt,
       })
       .from(schema.convMessages)
       .leftJoin(reads, eq(reads.messageId, schema.convMessages.id))
-      .leftJoin(opens, eq(opens.messageId, schema.convMessages.id))
+      .leftJoin(deliveries, eq(deliveries.messageId, schema.convMessages.id))
       .where(eq(schema.convMessages.conversationId, id))
       .orderBy(asc(schema.convMessages.createdAt));
 
@@ -938,6 +968,10 @@ export class ConvService {
             firstOpenedAt: r.firstOpenedAt,
             lastOpenedAt: r.lastOpenedAt,
             openCount: r.openCount,
+            status: r.deliveryStatus,
+            error: r.deliveryError,
+            attempts: r.deliveryAttempts,
+            nextAttemptAt: r.deliveryNextAttemptAt,
           },
           this.attachments.hydrateRaw(r.msg.orgId, r.msg.attachments),
         ),
@@ -1514,6 +1548,80 @@ export class ConvService {
       nextAttemptAt: new Date(),
       inReplyToHeader: prior[0]?.messageIdHeader ?? null,
     });
+  }
+
+  async retryMessageDelivery(input: { messageId: string }): Promise<{
+    retried: true;
+    messageId: string;
+    conversationId: string;
+    deliveryIds: string[];
+  }> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({
+        deliveryId: schema.convMessageDeliveries.id,
+        status: schema.convMessageDeliveries.status,
+        conversationId: schema.convMessages.conversationId,
+        channelId: schema.convChannels.id,
+        channelName: schema.convChannels.name,
+        channelActive: schema.convChannels.active,
+        channelArchivedAt: schema.convChannels.archivedAt,
+      })
+      .from(schema.convMessageDeliveries)
+      .innerJoin(
+        schema.convMessages,
+        eq(schema.convMessages.id, schema.convMessageDeliveries.messageId),
+      )
+      .innerJoin(
+        schema.convChannels,
+        eq(schema.convChannels.id, schema.convMessageDeliveries.channelId),
+      )
+      .where(eq(schema.convMessageDeliveries.messageId, input.messageId));
+
+    if (rows.length === 0) {
+      throw new NotFoundException(
+        `conv_not_found: message ${input.messageId} has no outbound delivery to retry`,
+      );
+    }
+
+    const dead = rows.filter((r) => r.status === 'dead');
+    if (dead.length === 0) {
+      const statuses = [...new Set(rows.map((r) => r.status))].sort().join(', ');
+      throw new ConflictException({
+        message: `conv_conflict: delivery for message ${input.messageId} is ${statuses}, not dead — only a permanently failed delivery can be retried`,
+        code: 'conv_delivery_not_retryable',
+      });
+    }
+
+    const inactive = dead.find((r) => !r.channelActive || r.channelArchivedAt !== null);
+    if (inactive) {
+      throw new ConflictException({
+        message: `conv_conflict: channel ${inactive.channelName} is not active, so retrying delivery of message ${input.messageId} would fail again`,
+        code: 'conv_delivery_channel_inactive',
+      });
+    }
+
+    const deliveryIds = dead.map((r) => r.deliveryId);
+    await ctx.db
+      .update(schema.convMessageDeliveries)
+      .set({
+        status: 'queued',
+        attempt: 0,
+        error: null,
+        nextAttemptAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(inArray(schema.convMessageDeliveries.id, deliveryIds));
+
+    this.logger.log(
+      `requeued ${deliveryIds.length} dead delivery(ies) for message ${input.messageId}`,
+    );
+    return {
+      retried: true,
+      messageId: input.messageId,
+      conversationId: dead[0]!.conversationId,
+      deliveryIds,
+    };
   }
 
   async stripMessageSignature(input: {
@@ -2404,17 +2512,25 @@ function toConversationSummary(
   };
 }
 
-interface MessageOpens {
+interface MessageDeliveryState {
   firstOpenedAt: Date | string | null;
   lastOpenedAt: Date | string | null;
   openCount: number | null;
+  status: string | null;
+  error: string | null;
+  attempts: number | null;
+  nextAttemptAt: Date | string | null;
+}
+
+function toDeliveryStatus(value: string | null): DeliveryStatus | null {
+  return DELIVERY_STATUSES.includes(value as DeliveryStatus) ? (value as DeliveryStatus) : null;
 }
 
 function toMessageDto(
   row: typeof schema.convMessages.$inferSelect,
   authorNames: Map<string, string> = new Map(),
   seenAt: Date | string | null = null,
-  opens: MessageOpens | null = null,
+  delivery: MessageDeliveryState | null = null,
   attachments: HydratedMessageAttachment[] = [],
 ): MessageDto {
   return {
@@ -2430,9 +2546,13 @@ function toMessageDto(
     metadata: row.metadata,
     createdAt: toIsoString(row.createdAt) ?? new Date(0).toISOString(),
     seenAt: toIsoString(seenAt),
-    firstOpenedAt: toIsoString(opens?.firstOpenedAt ?? null),
-    lastOpenedAt: toIsoString(opens?.lastOpenedAt ?? null),
-    openCount: opens?.openCount ?? null,
+    firstOpenedAt: toIsoString(delivery?.firstOpenedAt ?? null),
+    lastOpenedAt: toIsoString(delivery?.lastOpenedAt ?? null),
+    openCount: delivery?.openCount ?? null,
+    deliveryStatus: toDeliveryStatus(delivery?.status ?? null),
+    deliveryError: delivery?.error ?? null,
+    deliveryAttempts: delivery?.attempts ?? null,
+    deliveryNextAttemptAt: toIsoString(delivery?.nextAttemptAt ?? null),
   };
 }
 

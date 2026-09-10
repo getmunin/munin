@@ -61,7 +61,8 @@ export type QueueActionType =
   | 'reject'
   | 'note'
   | 'requestDraft'
-  | 'attach';
+  | 'attach'
+  | 'retryDelivery';
 
 export type QueueActionError = {
   type: QueueActionType;
@@ -169,6 +170,7 @@ export interface QueueController {
     attachmentIds?: string[],
   ) => Promise<boolean>;
   deleteAttachment: (conversationId: string, attachmentId: string) => Promise<boolean>;
+  retryDelivery: (conversationId: string, messageId: string) => Promise<boolean>;
   addNote: (id: string, body: string) => Promise<boolean>;
   rejectDraft: (id: string) => Promise<void>;
   requestDraft: (id: string) => Promise<void>;
@@ -421,6 +423,17 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     [runAction],
   );
 
+  const retryDelivery = useCallback(
+    async (conversationId: string, messageId: string) =>
+      runAction('retryDelivery', conversationId, () =>
+        api(`/v1/conversations/${conversationId}/messages/${messageId}/retry-delivery`, {
+          method: 'POST',
+          body: '{}',
+        }),
+      ),
+    [runAction],
+  );
+
   const addNote = useCallback(
     async (id: string, body: string) => {
       const trimmed = body.trim();
@@ -499,6 +512,7 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     reopenConv,
     send,
     deleteAttachment,
+    retryDelivery,
     addNote,
     rejectDraft,
     requestDraft,

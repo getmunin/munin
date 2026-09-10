@@ -173,12 +173,14 @@ function describeAlertReason(
   alert: AlertDto,
   t: ReturnType<typeof useTranslations<'dashboard.runnerStatusBanner'>>,
 ): string {
-  if (alert.source === 'channel_inbound') {
+  if (alert.source === 'channel_inbound' || alert.source === 'channel_outbound') {
     const name =
       typeof alert.metadata['channelName'] === 'string'
         ? alert.metadata['channelName']
         : (alert.subjectId ?? '');
-    return t('channelInboundFailing', { name });
+    return alert.source === 'channel_inbound'
+      ? t('channelInboundFailing', { name })
+      : t('channelOutboundFailing', { name });
   }
   return alert.title;
 }

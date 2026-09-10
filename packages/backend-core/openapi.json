@@ -3995,6 +3995,37 @@
         ]
       }
     },
+    "/v1/conversations/{id}/messages/{messageId}/retry-delivery": {
+      "post": {
+        "operationId": "ConversationsController_retryDelivery",
+        "parameters": [
+          {
+            "name": "messageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/{id}/attachments/upload-request": {
       "post": {
         "operationId": "ConversationsController_requestAttachmentUpload",

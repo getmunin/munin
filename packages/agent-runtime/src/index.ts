@@ -61,6 +61,7 @@ export {
 export {
   createMuninRestClient,
   parseAttachments,
+  toRuntimeHistory,
   type AckCuratorJobInput,
   type AwaitingReplyConversation,
   type ClaimCuratorJobsInput,

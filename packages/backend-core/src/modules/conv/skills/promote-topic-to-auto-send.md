@@ -18,7 +18,7 @@ Returns each topic with its mode and the last 30 days of review outcomes:
 
 - `approvedUnedited` / `edited` / `rejected` — how humans dispatched the agent's drafts.
 - `reviewedCount` — the sample those three sum to.
-- `weeklyVolume` — outbound replies per week in the topic.
+- `weeklyVolume` — inbound conversations per week in the topic, averaged over the 30-day window. A conversation counts once however many messages the customer sent in it, and it counts whether or not anyone has replied yet.
 - `autoSent` — replies already sent without review (from conversations whose own mode is `auto`).
 - `autoRate7d` (top level) — share of all replies auto-sent over the last 7 days.
 

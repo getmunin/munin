@@ -7,6 +7,7 @@ import { ConversationClaimsService } from '../modules/conv/conv.claims.service.t
 import { CuratorJobsService } from '../modules/curator/curator-jobs.service.ts';
 import { AlertsService } from '../modules/system-alerts/system-alerts.service.ts';
 import { InProcessMuninRestClientFactoryService } from './in-process-rest-client.ts';
+import { stubAttachmentGateway } from '../modules/conv/attachments/conv-attachments.test-stub.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -78,6 +79,7 @@ const skipReason = TEST_URL
       claims,
       new CuratorJobsService(dispatcher),
       new AlertsService(dispatcher),
+      stubAttachmentGateway(),
     );
     const factory = new InProcessMuninRestClientFactoryService(
       db,
@@ -110,6 +112,7 @@ const skipReason = TEST_URL
       claims,
       new CuratorJobsService(dispatcher),
       new AlertsService(dispatcher),
+      stubAttachmentGateway(),
     );
     const factory = new InProcessMuninRestClientFactoryService(
       db,
@@ -158,6 +161,7 @@ const skipReason = TEST_URL
       claims,
       new CuratorJobsService(dispatcher),
       new AlertsService(dispatcher),
+      stubAttachmentGateway(),
     );
     const factory = new InProcessMuninRestClientFactoryService(
       db,

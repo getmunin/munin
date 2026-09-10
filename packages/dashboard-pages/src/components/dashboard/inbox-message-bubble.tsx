@@ -5,8 +5,9 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@getmunin/ui';
 import { MessageComponents } from './inbox-product-list';
+import { MessageAttachments } from './inbox-attachments';
 import { messageRole, participantColor, type MessageRole } from './inbox-identity';
-import type { MessageDto } from './inbox-types';
+import type { MessageAttachment, MessageDto } from './inbox-types';
 
 const MESSAGE_MD_COMPONENTS: Components = {
   p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
@@ -53,12 +54,14 @@ export function MessageBubble({
   viewerUserId = null,
   hue,
   endUserLabel = null,
+  onDeleteAttachment,
 }: {
   message: MessageDto;
   showAuthor?: boolean;
   viewerUserId?: string | null;
   hue?: number;
   endUserLabel?: string | null;
+  onDeleteAttachment?: (attachment: MessageAttachment) => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const role = messageRole(message, viewerUserId);
@@ -147,6 +150,7 @@ export function MessageBubble({
           <MessageMarkdown body={message.body} />
         )}
       </div>
+      <MessageAttachments attachments={message.attachments} onDelete={onDeleteAttachment} />
       {isOutbound && <MessageComponents metadata={message.metadata} />}
       {isOutbound && message.seenAt && (
         <div className="font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">

@@ -13,6 +13,7 @@ import { ConvService, ConvInvalidError } from './conv.service.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
+import { stubAttachmentGateway } from './attachments/conv-attachments.test-stub.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -53,6 +54,7 @@ const skipReason = TEST_URL
       new ConversationClaimsService(dispatcher),
       new CuratorJobsService(dispatcher),
       new AlertsService(dispatcher),
+      stubAttachmentGateway(),
     );
   });
 

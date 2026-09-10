@@ -12,6 +12,7 @@ import { SlackInboundService } from './slack-inbound.service.ts';
 import { SlackUserMappingService } from './slack-user-mapping.service.ts';
 import { SlackBridgeWorker } from './slack-bridge.worker.ts';
 import { encryptSecretValue } from './slack.service.ts';
+import { stubAttachmentGateway } from '../conv/attachments/conv-attachments.test-stub.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -157,6 +158,7 @@ class FakeSlackApi extends SlackApiClient {
       new ConversationClaimsService(dispatcher),
       new CuratorJobsService(dispatcher),
       new AlertsService(dispatcher),
+      stubAttachmentGateway(),
     );
     const mapping = new SlackUserMappingService(db, api);
     inbound = new SlackInboundService(db, api, conv, mapping);

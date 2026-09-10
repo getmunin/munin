@@ -20,6 +20,7 @@ import { SlackInteractionsService } from './slack-interactions.service.ts';
 import { SlackUserMappingService } from './slack-user-mapping.service.ts';
 import { SlackService, encryptSecretValue } from './slack.service.ts';
 import { mergeFingerprint } from '../crm/merge-fingerprint.ts';
+import { stubAttachmentGateway } from '../conv/attachments/conv-attachments.test-stub.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -150,7 +151,13 @@ class FakeSlackApi extends SlackApiClient {
     const dispatcher = new WebhookDispatcher();
     dispatcher.registerSink(new SlackEventSink());
     const claims = new ConversationClaimsService(dispatcher);
-    const conv = new ConvService(dispatcher, claims, new CuratorJobsService(dispatcher), new AlertsService(dispatcher));
+    const conv = new ConvService(
+      dispatcher,
+      claims,
+      new CuratorJobsService(dispatcher),
+      new AlertsService(dispatcher),
+      stubAttachmentGateway(),
+    );
     const crm = new CrmService(dispatcher, new DefaultQuotasService());
     const outreach = new OutreachService(
       dispatcher,

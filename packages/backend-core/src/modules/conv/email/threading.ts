@@ -1,6 +1,7 @@
 import { schema, type Db, type Tx } from '@getmunin/db';
 import { and, eq, inArray } from 'drizzle-orm';
 import type { SenderClassification } from './classify-sender.ts';
+import type { InboundEmailAttachment } from './inbound-attachments.ts';
 import {
   extractPlusAddressedConvId,
   parseMessageIdHeader,
@@ -21,6 +22,7 @@ export interface ParsedInboundEmail {
   arcAuthenticationResults: string[];
   forwardedFor: string[];
   forwardedTo: string[];
+  attachments: InboundEmailAttachment[];
 }
 
 export interface ThreadResolution {

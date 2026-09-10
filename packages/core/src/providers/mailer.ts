@@ -1,5 +1,11 @@
 import { stripTrailingSlashes } from '@getmunin/types';
 
+export interface MailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+}
+
 export interface MailMessage {
   to: string;
   subject: string;
@@ -8,6 +14,7 @@ export interface MailMessage {
   replyTo?: string;
   from?: string;
   headers?: Record<string, string>;
+  attachments?: readonly MailAttachment[];
 }
 
 export interface Mailer {
@@ -54,6 +61,13 @@ export class ResendMailer implements Mailer {
         html: msg.html,
         reply_to: msg.replyTo,
         headers: msg.headers,
+        attachments: msg.attachments?.length
+          ? msg.attachments.map((a) => ({
+              filename: a.filename,
+              content: a.content.toString('base64'),
+              content_type: a.contentType,
+            }))
+          : undefined,
       }),
     });
     if (!res.ok) {
@@ -102,6 +116,13 @@ export class SmtpMailer implements Mailer {
       html: msg.html,
       replyTo: msg.replyTo,
       headers: msg.headers,
+      attachments: msg.attachments?.length
+        ? msg.attachments.map((a) => ({
+            filename: a.filename,
+            content: a.content,
+            contentType: a.contentType,
+          }))
+        : undefined,
     };
     await this.transporter.sendMail(mail);
   }

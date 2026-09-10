@@ -3995,6 +3995,109 @@
         ]
       }
     },
+    "/v1/conversations/{id}/attachments/upload-request": {
+      "post": {
+        "operationId": "ConversationsController_requestAttachmentUpload",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestAttachmentUploadBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conversations/{id}/attachments/{attachmentId}/complete": {
+      "post": {
+        "operationId": "ConversationsController_completeAttachmentUpload",
+        "parameters": [
+          {
+            "name": "attachmentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conversations/{id}/attachments/{attachmentId}": {
+      "delete": {
+        "operationId": "ConversationsController_deleteAttachment",
+        "parameters": [
+          {
+            "name": "attachmentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/{id}/runner-claim": {
       "post": {
         "operationId": "ConversationsController_runnerClaim",
@@ -9249,10 +9352,48 @@
             "minLength": 1,
             "maxLength": 64,
             "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "attachmentIds": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "x-nestjs_zod-uses-3-point-1-syntax": true
           }
         },
         "required": [
           "body"
+        ]
+      },
+      "RequestAttachmentUploadBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "mime": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 10485760,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          }
+        },
+        "required": [
+          "name",
+          "mime",
+          "sizeBytes"
         ]
       },
       "RunnerClaimBody": {

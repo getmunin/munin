@@ -17,6 +17,11 @@ import { effectiveAgentModeSql, topicUneditedPctSql } from './topic-auto-gate.ts
 import { buildDeltaCurationPrompt, buildGapCurationPrompt } from './curation-job.ts';
 import { applyTenancyGUCs } from '../../common/tenancy/tenancy.interceptor.ts';
 import { ConversationClaimsService } from './conv.claims.service.ts';
+import { ConvAttachmentsService } from './attachments/conv-attachments.service.ts';
+import type {
+  HydratedMessageAttachment,
+  MessageAttachmentGateway,
+} from './attachments/conv-attachments.types.ts';
 import { countSignatureHints, isTrailingSignatureSplit } from './email/reply-history.ts';
 import { readPendingSetup } from './channels/channel-admin.ts';
 import { publicChannelConfig } from './channels/public-config.ts';
@@ -105,7 +110,7 @@ export interface MessageDto {
   body: string;
   internal: boolean;
   inReplyToId: string | null;
-  attachments: unknown[];
+  attachments: HydratedMessageAttachment[];
   metadata: Record<string, unknown>;
   createdAt: string;
   seenAt: string | null;
@@ -221,6 +226,7 @@ export class ConvService {
     @Inject(ConversationClaimsService) private readonly claims: ConversationClaimsService,
     @Inject(CuratorJobsService) private readonly curatorJobs: CuratorJobsService,
     @Inject(AlertsService) private readonly alerts: AlertsService,
+    @Inject(ConvAttachmentsService) private readonly attachments: MessageAttachmentGateway,
   ) {}
 
 
@@ -924,11 +930,17 @@ export class ConvService {
       ...summary,
       agentMode: (row.effectiveAgentMode as AgentMode | null) ?? summary.agentMode,
       messages: rows.map((r) =>
-        toMessageDto(r.msg, authorNames, r.seenAt, {
-          firstOpenedAt: r.firstOpenedAt,
-          lastOpenedAt: r.lastOpenedAt,
-          openCount: r.openCount,
-        }),
+        toMessageDto(
+          r.msg,
+          authorNames,
+          r.seenAt,
+          {
+            firstOpenedAt: r.firstOpenedAt,
+            lastOpenedAt: r.lastOpenedAt,
+            openCount: r.openCount,
+          },
+          this.attachments.hydrateRaw(r.msg.orgId, r.msg.attachments),
+        ),
       ),
       assistantName: row.assistantName ?? null,
       endUserLocale: row.endUserLocale ?? null,
@@ -1205,6 +1217,7 @@ export class ConvService {
     claim?: boolean;
     components?: MessageComponent[];
     fromDraftId?: string;
+    attachmentIds?: string[];
   }): Promise<MessageDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -1300,6 +1313,20 @@ export class ConvService {
           )`,
         })
         .where(eq(schema.convMessages.id, approvedDraft.stamp.draftMessageId));
+    }
+
+    const linkedAttachments = input.attachmentIds?.length
+      ? await this.attachments.attachToMessage({
+          messageId: row!.id,
+          conversationId: input.conversationId,
+          attachmentIds: input.attachmentIds,
+        })
+      : [];
+    if (linkedAttachments.length > 0) {
+      await ctx.db
+        .update(schema.convMessages)
+        .set({ attachments: this.attachments.projectForMessage(linkedAttachments) })
+        .where(eq(schema.convMessages.id, row!.id));
     }
 
     if (!row!.internal && (input.authorType === 'agent' || input.authorType === 'user')) {
@@ -1443,7 +1470,16 @@ export class ConvService {
         await this.enqueueOutboundDelivery(row!.id, conv.id, conv.channelId);
       }
     }
-    return toMessageDto(row!);
+    return toMessageDto(
+      row!,
+      new Map(),
+      null,
+      null,
+      this.attachments.hydrateProjection(
+        actor.orgId,
+        this.attachments.projectForMessage(linkedAttachments),
+      ),
+    );
   }
 
   private async enqueueOutboundDelivery(
@@ -2046,7 +2082,9 @@ export class ConvService {
       .orderBy(desc(schema.convMessages.createdAt))
       .limit(limit);
     const authorNames = await this.loadAuthorNames(rows);
-    return rows.map((r) => toMessageDto(r, authorNames));
+    return rows.map((r) =>
+      toMessageDto(r, authorNames, null, null, this.attachments.hydrateRaw(r.orgId, r.attachments)),
+    );
   }
 
 
@@ -2377,6 +2415,7 @@ function toMessageDto(
   authorNames: Map<string, string> = new Map(),
   seenAt: Date | string | null = null,
   opens: MessageOpens | null = null,
+  attachments: HydratedMessageAttachment[] = [],
 ): MessageDto {
   return {
     id: row.id,
@@ -2387,7 +2426,7 @@ function toMessageDto(
     body: row.body,
     internal: row.internal,
     inReplyToId: row.inReplyToId,
-    attachments: row.attachments,
+    attachments,
     metadata: row.metadata,
     createdAt: toIsoString(row.createdAt) ?? new Date(0).toISOString(),
     seenAt: toIsoString(seenAt),

@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import type { AssetVariant } from '@getmunin/types';
-import { and, count, eq, inArray, isNull } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
   describeError,
   getCurrentContext,
@@ -25,6 +25,7 @@ import {
   randomKeySegment,
 } from '../../../common/storage/asset-validation.ts';
 import { deriveVariantColumns } from '../../cms/cms.variants.ts';
+import { parseMessageAttachmentProjection } from './conv-attachments.projection.ts';
 import {
   CONV_ATTACHMENT_BYTES_MAX,
   CONV_ATTACHMENT_MIME_ALLOWLIST,
@@ -286,7 +287,27 @@ export class ConvAttachmentsService {
         updatedAt: new Date(),
       })
       .where(eq(schema.convAttachments.id, input.id));
+
+    await this.markDeletedInProjection(existing.messageId, input.id);
     return { deleted: true, id: input.id, alreadyDeleted: false };
+  }
+
+  private async markDeletedInProjection(messageId: string, attachmentId: string): Promise<void> {
+    const ctx = getCurrentContext();
+    await ctx.db.execute(sql`
+      UPDATE conv_messages
+      SET attachments = COALESCE((
+        SELECT jsonb_agg(
+          CASE WHEN elem->>'id' = ${attachmentId}
+               THEN elem || jsonb_build_object('deleted', true)
+               ELSE elem END
+          ORDER BY ord
+        )
+        FROM jsonb_array_elements(attachments) WITH ORDINALITY AS t(elem, ord)
+      ), attachments)
+      WHERE id = ${messageId}
+        AND jsonb_typeof(attachments) = 'array'
+    `);
   }
 
   projectForMessage(rows: readonly AttachmentDto[]): MessageAttachmentProjection[] {
@@ -302,6 +323,10 @@ export class ConvAttachmentsService {
       cid: r.contentId,
       deleted: r.deleted,
     }));
+  }
+
+  hydrateRaw(orgId: string, raw: unknown): HydratedMessageAttachment[] {
+    return this.hydrateProjection(orgId, parseMessageAttachmentProjection(raw));
   }
 
   hydrateProjection(

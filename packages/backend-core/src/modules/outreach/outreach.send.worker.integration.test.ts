@@ -21,6 +21,7 @@ import { ThrellOutreachCaller } from '../conv/threll/threll-outreach-caller.ts';
 import { ConversationClaimsService } from '../conv/conv.claims.service.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { EmailService } from '../conv/email/email.service.ts';
+import { stubAttachmentGateway } from '../conv/attachments/conv-attachments.test-stub.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -68,6 +69,7 @@ const skipReason = TEST_URL
       claims,
       new CuratorJobsService(dispatcher),
       new AlertsService(dispatcher),
+      stubAttachmentGateway(),
     );
     svc = new OutreachService(
       dispatcher,

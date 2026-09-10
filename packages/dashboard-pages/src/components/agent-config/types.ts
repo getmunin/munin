@@ -72,7 +72,6 @@ export function presetForUrl(url: string): PresetId {
 
 export function formatModel(m: ModelEntry, labels?: ModalityLabels): string {
   const parts: string[] = [modelHead(m, labels)];
-  if (m.label) parts.push(m.id);
   if (m.contextLength) parts.push(`${(m.contextLength / 1000).toFixed(0)}k ctx`);
   if (m.promptCostPerMillion !== null) {
     parts.push(`$${m.promptCostPerMillion.toFixed(2)}/M in`);

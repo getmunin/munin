@@ -57,6 +57,16 @@ const et: Strings = {
   voiceTapToReturn: 'Puuduta naasmiseks',
   voiceFailed: 'Kõne ebaõnnestus',
   productViewLabel: 'Vaata',
+  attachAriaLabel: 'Lisa pilt',
+  attachDropHint: 'Kukuta pilt siia',
+  attachUploading: 'Laadin üles…',
+  attachFailed: 'Pilti ei õnnestunud üles laadida. Proovi uuesti.',
+  attachRemoveAriaLabel: 'Eemalda pilt',
+  attachTooMany: 'Saad lisada kuni {n} pilti.',
+  attachTypeRejected: 'Võtame vastu PNG, JPEG, GIF ja WebP.',
+  attachTooLarge: 'Pilt peab olema alla {n} MB.',
+  attachmentUnavailable: 'Pilt ei ole enam saadaval',
+  lightboxCloseAriaLabel: 'Sulge pilt',
 };
 
 export default et;

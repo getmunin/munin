@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import type { MessageComponent } from '@getmunin/types';
+import {
+  CONV_ATTACHMENT_BYTES_MAX,
+  CONV_ATTACHMENT_PER_MESSAGE_MAX,
+} from '../attachments/conv-attachments.constants.ts';
 
 export const WidgetChannelConfig = z.object({
   provider: z.literal('widget'),
@@ -15,18 +19,27 @@ export type WidgetChannelConfigT = z.infer<typeof WidgetChannelConfig>;
 export const WIDGET_END_USER_BODY_MAX_CHARS = 1_000;
 export const WIDGET_END_USER_BODY_HTML_MAX_CHARS = 4_000;
 
-export const WidgetIngestMessage = z.object({
-  role: z.literal('end_user').default('end_user'),
-  body: z.string().min(1).max(WIDGET_END_USER_BODY_MAX_CHARS),
-  bodyHtml: z.string().max(WIDGET_END_USER_BODY_HTML_MAX_CHARS).optional(),
-  providerMessageId: z.string().min(1).max(200).optional(),
-  inReplyTo: z.string().min(1).max(200).optional(),
-  at: z
-    .string()
-    .datetime()
-    .optional()
-    .transform((s) => (s ? new Date(s) : undefined)),
-});
+export const WidgetIngestMessage = z
+  .object({
+    role: z.literal('end_user').default('end_user'),
+    body: z.string().max(WIDGET_END_USER_BODY_MAX_CHARS),
+    bodyHtml: z.string().max(WIDGET_END_USER_BODY_HTML_MAX_CHARS).optional(),
+    providerMessageId: z.string().min(1).max(200).optional(),
+    inReplyTo: z.string().min(1).max(200).optional(),
+    attachmentIds: z
+      .array(z.string().min(1).max(64))
+      .max(CONV_ATTACHMENT_PER_MESSAGE_MAX)
+      .default([]),
+    at: z
+      .string()
+      .datetime()
+      .optional()
+      .transform((s) => (s ? new Date(s) : undefined)),
+  })
+  .refine((m) => m.body.trim().length > 0 || m.attachmentIds.length > 0, {
+    message: 'a message needs either a body or at least one attachment',
+    path: ['body'],
+  });
 
 export const WidgetIngestInput = z.object({
   channelId: z.string().min(1),
@@ -152,6 +165,18 @@ export const WidgetListMessagesQuery = z.object({
 
 export type WidgetListMessagesQueryT = z.infer<typeof WidgetListMessagesQuery>;
 
+export interface WidgetListedAttachment {
+  id: string;
+  name: string;
+  mime: string;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+  url: string | null;
+  thumbnailUrl: string | null;
+  deleted: boolean;
+}
+
 export interface WidgetListedMessage {
   id: string;
   role: 'end_user' | 'agent' | 'system';
@@ -162,6 +187,7 @@ export interface WidgetListedMessage {
   at: string;
   readAt: string | null;
   components?: MessageComponent[];
+  attachments?: WidgetListedAttachment[];
 }
 
 export interface WidgetConversationEnvelope {
@@ -281,3 +307,45 @@ export interface WidgetStartConversationResult {
   displayId: number;
   contactId: string;
 }
+
+export const WidgetRequestAttachmentInput = z.object({
+  channelId: z.string().min(1),
+  conversationId: z.string().min(1),
+  sessionId: z.string().min(1).max(200),
+  verifiedExternalId: z.string().min(1).max(200).optional(),
+  userHash: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest')
+    .optional(),
+  name: z.string().min(1).max(255),
+  mime: z.string().min(1).max(120),
+  sizeBytes: z.number().int().positive().max(CONV_ATTACHMENT_BYTES_MAX),
+});
+
+export type WidgetRequestAttachmentInputT = z.infer<typeof WidgetRequestAttachmentInput>;
+
+export interface WidgetRequestAttachmentResult {
+  id: string;
+  name: string;
+  mime: string;
+  sizeBytes: number;
+  uploadUrl: string;
+  uploadMethod: 'PUT' | 'POST';
+  uploadFields: Record<string, string>;
+  uploadExpiresAt: string;
+}
+
+export const WidgetCompleteAttachmentInput = z.object({
+  channelId: z.string().min(1),
+  conversationId: z.string().min(1),
+  sessionId: z.string().min(1).max(200),
+  verifiedExternalId: z.string().min(1).max(200).optional(),
+  userHash: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest')
+    .optional(),
+});
+
+export type WidgetCompleteAttachmentInputT = z.infer<typeof WidgetCompleteAttachmentInput>;
+
+export type WidgetCompleteAttachmentResult = WidgetListedAttachment;

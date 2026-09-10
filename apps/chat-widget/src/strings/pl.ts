@@ -57,6 +57,16 @@ const pl: Strings = {
   voiceTapToReturn: 'Dotknij, aby wrócić',
   voiceFailed: 'Rozmowa głosowa nieudana',
   productViewLabel: 'Zobacz',
+  attachAriaLabel: 'Dodaj obraz',
+  attachDropHint: 'Upuść obraz tutaj',
+  attachUploading: 'Przesyłanie…',
+  attachFailed: 'Nie udało się przesłać obrazu. Spróbuj ponownie.',
+  attachRemoveAriaLabel: 'Usuń obraz',
+  attachTooMany: 'Możesz dodać maksymalnie {n} obrazów.',
+  attachTypeRejected: 'Przyjmujemy PNG, JPEG, GIF i WebP.',
+  attachTooLarge: 'Obraz musi mieć mniej niż {n} MB.',
+  attachmentUnavailable: 'Obraz jest już niedostępny',
+  lightboxCloseAriaLabel: 'Zamknij obraz',
 };
 
 export default pl;

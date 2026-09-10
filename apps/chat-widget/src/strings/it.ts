@@ -57,6 +57,16 @@ const it: Strings = {
   voiceTapToReturn: 'Tocca per tornare',
   voiceFailed: 'Chiamata vocale fallita',
   productViewLabel: 'Vedi',
+  attachAriaLabel: 'Allega un’immagine',
+  attachDropHint: 'Trascina qui l’immagine',
+  attachUploading: 'Caricamento…',
+  attachFailed: 'L’immagine non è stata caricata. Riprova.',
+  attachRemoveAriaLabel: 'Rimuovi l’immagine',
+  attachTooMany: 'Puoi allegare fino a {n} immagini.',
+  attachTypeRejected: 'Accettiamo PNG, JPEG, GIF e WebP.',
+  attachTooLarge: 'Le immagini devono pesare meno di {n} MB.',
+  attachmentUnavailable: 'Immagine non più disponibile',
+  lightboxCloseAriaLabel: 'Chiudi l’immagine',
 };
 
 export default it;

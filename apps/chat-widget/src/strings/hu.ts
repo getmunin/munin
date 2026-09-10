@@ -57,6 +57,16 @@ const hu: Strings = {
   voiceTapToReturn: 'Koppintson a visszatéréshez',
   voiceFailed: 'A hanghívás nem sikerült',
   productViewLabel: 'Megnézem',
+  attachAriaLabel: 'Kép csatolása',
+  attachDropHint: 'Húzza ide a képet',
+  attachUploading: 'Feltöltés…',
+  attachFailed: 'A képet nem sikerült feltölteni. Próbálja újra.',
+  attachRemoveAriaLabel: 'Kép eltávolítása',
+  attachTooMany: 'Legfeljebb {n} képet csatolhat.',
+  attachTypeRejected: 'PNG, JPEG, GIF és WebP formátumot fogadunk.',
+  attachTooLarge: 'A kép legfeljebb {n} MB lehet.',
+  attachmentUnavailable: 'A kép már nem elérhető',
+  lightboxCloseAriaLabel: 'Kép bezárása',
 };
 
 export default hu;

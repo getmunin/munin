@@ -57,6 +57,16 @@ const nl: Strings = {
   voiceTapToReturn: 'Tik om terug te keren',
   voiceFailed: 'Spraakoproep mislukt',
   productViewLabel: 'Bekijk',
+  attachAriaLabel: 'Afbeelding toevoegen',
+  attachDropHint: 'Laat de afbeelding hier vallen',
+  attachUploading: 'Uploaden…',
+  attachFailed: 'De afbeelding is niet geüpload. Probeer het nog eens.',
+  attachRemoveAriaLabel: 'Afbeelding verwijderen',
+  attachTooMany: 'Je kunt maximaal {n} afbeeldingen toevoegen.',
+  attachTypeRejected: 'We nemen PNG, JPEG, GIF en WebP.',
+  attachTooLarge: 'Afbeeldingen moeten kleiner zijn dan {n} MB.',
+  attachmentUnavailable: 'Afbeelding niet meer beschikbaar',
+  lightboxCloseAriaLabel: 'Afbeelding sluiten',
 };
 
 export default nl;

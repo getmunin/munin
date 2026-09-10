@@ -37,7 +37,7 @@ interface RateRow extends Record<string, unknown> {
 
 interface TopicStatsRow extends Record<string, unknown> {
   topic_id: string;
-  outbound: number;
+  inbound_conversations: number;
   auto_sent: number;
   approved_unedited: number;
   edited: number;
@@ -57,9 +57,9 @@ export class ConvAutomationService {
 
     const stats = await ctx.db.execute<TopicStatsRow>(sql`
       SELECT c.topic_id,
-        COUNT(*) FILTER (
-          WHERE m.internal = false AND m.author_type IN ('agent', 'user')
-        )::int AS outbound,
+        COUNT(DISTINCT c.id) FILTER (
+          WHERE m.internal = false AND m.author_type = 'end_user'
+        )::int AS inbound_conversations,
         COUNT(*) FILTER (
           WHERE m.internal = false AND m.author_type = 'agent'
         )::int AS auto_sent,
@@ -110,7 +110,7 @@ export class ConvAutomationService {
           autoPromotedAt: topic.autoPromotedAt?.toISOString() ?? null,
           promoteThresholdPct: topic.promoteThresholdPct,
           windowDays: STATS_WINDOW_DAYS,
-          weeklyVolume: Math.round(((s?.outbound ?? 0) / STATS_WINDOW_DAYS) * 7),
+          weeklyVolume: Math.round(((s?.inbound_conversations ?? 0) / STATS_WINDOW_DAYS) * 7),
           reviewedCount: reviewed,
           approvedUnedited: s?.approved_unedited ?? 0,
           edited: s?.edited ?? 0,

@@ -57,6 +57,16 @@ const lv: Strings = {
   voiceTapToReturn: 'Pieskarieties, lai atgrieztos',
   voiceFailed: 'Balss zvans neizdevās',
   productViewLabel: 'Skatīt',
+  attachAriaLabel: 'Pievienot attēlu',
+  attachDropHint: 'Nometiet attēlu šeit',
+  attachUploading: 'Augšupielādē…',
+  attachFailed: 'Attēlu neizdevās augšupielādēt. Mēģiniet vēlreiz.',
+  attachRemoveAriaLabel: 'Noņemt attēlu',
+  attachTooMany: 'Varat pievienot līdz {n} attēliem.',
+  attachTypeRejected: 'Pieņemam PNG, JPEG, GIF un WebP.',
+  attachTooLarge: 'Attēlam jābūt mazākam par {n} MB.',
+  attachmentUnavailable: 'Attēls vairs nav pieejams',
+  lightboxCloseAriaLabel: 'Aizvērt attēlu',
 };
 
 export default lv;

@@ -57,6 +57,16 @@ const sk: Strings = {
   voiceTapToReturn: 'Ťuknutím sa vrátite',
   voiceFailed: 'Hlasový hovor sa nepodaril',
   productViewLabel: 'Zobraziť',
+  attachAriaLabel: 'Pridať obrázok',
+  attachDropHint: 'Presuňte obrázok sem',
+  attachUploading: 'Nahráva sa…',
+  attachFailed: 'Obrázok sa nepodarilo nahrať. Skúste to znova.',
+  attachRemoveAriaLabel: 'Odstrániť obrázok',
+  attachTooMany: 'Môžete pridať až {n} obrázkov.',
+  attachTypeRejected: 'Prijímame PNG, JPEG, GIF a WebP.',
+  attachTooLarge: 'Obrázok musí mať menej ako {n} MB.',
+  attachmentUnavailable: 'Obrázok už nie je dostupný',
+  lightboxCloseAriaLabel: 'Zavrieť obrázok',
 };
 
 export default sk;

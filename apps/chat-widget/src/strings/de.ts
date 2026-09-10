@@ -57,6 +57,16 @@ const de: Strings = {
   voiceTapToReturn: 'Tippen, um zurückzukehren',
   voiceFailed: 'Sprachanruf fehlgeschlagen',
   productViewLabel: 'Ansehen',
+  attachAriaLabel: 'Bild anhängen',
+  attachDropHint: 'Bild hier ablegen',
+  attachUploading: 'Wird hochgeladen…',
+  attachFailed: 'Das Bild wurde nicht hochgeladen. Bitte nochmal versuchen.',
+  attachRemoveAriaLabel: 'Bild entfernen',
+  attachTooMany: 'Du kannst bis zu {n} Bilder anhängen.',
+  attachTypeRejected: 'Wir nehmen PNG, JPEG, GIF und WebP.',
+  attachTooLarge: 'Bilder müssen kleiner als {n} MB sein.',
+  attachmentUnavailable: 'Bild nicht mehr verfügbar',
+  lightboxCloseAriaLabel: 'Bild schließen',
 };
 
 export default de;

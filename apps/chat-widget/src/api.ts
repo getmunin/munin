@@ -1,5 +1,6 @@
 import type { MessageComponent } from '@getmunin/types';
 import type { WidgetVisitor } from './config.ts';
+import type { PresignedUploadTarget } from './upload.ts';
 
 export interface ApiIdentity {
   externalId: string;
@@ -18,6 +19,18 @@ export interface ApiClientDeps {
   fetchImpl?: typeof fetch;
 }
 
+export interface ListedAttachment {
+  id: string;
+  name: string;
+  mime: string;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+  url: string | null;
+  thumbnailUrl: string | null;
+  deleted: boolean;
+}
+
 export interface ListedMessage {
   id: string;
   role: 'end_user' | 'agent' | 'system';
@@ -28,6 +41,15 @@ export interface ListedMessage {
   at: string;
   readAt: string | null;
   components?: MessageComponent[];
+  attachments?: ListedAttachment[];
+}
+
+export interface AttachmentUploadHandle extends PresignedUploadTarget {
+  id: string;
+  name: string;
+  mime: string;
+  sizeBytes: number;
+  uploadExpiresAt: string;
 }
 
 export interface ConversationEnvelope {
@@ -101,7 +123,17 @@ export interface VoiceEventInput {
 }
 
 export interface ApiClient {
-  postMessage(text: string): Promise<PostResult>;
+  postMessage(text: string, attachmentIds?: string[]): Promise<PostResult>;
+  requestAttachment(input: {
+    conversationId: string;
+    name: string;
+    mime: string;
+    sizeBytes: number;
+  }): Promise<AttachmentUploadHandle>;
+  completeAttachment(input: {
+    conversationId: string;
+    attachmentId: string;
+  }): Promise<ListedAttachment>;
   backfillSince(since: Date | undefined): Promise<BackfillResult>;
   listConversations(sessionIds: string[]): Promise<ConversationSummary[]>;
   setVisitorEmail(email: string): Promise<void>;
@@ -144,11 +176,13 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
     return headers;
   }
 
-  function ingestPayload(text: string): Record<string, unknown> {
+  function ingestPayload(text: string, attachmentIds: string[]): Record<string, unknown> {
+    const message: Record<string, unknown> = { role: 'end_user', body: text };
+    if (attachmentIds.length > 0) message.attachmentIds = attachmentIds;
     const payload: Record<string, unknown> = {
       channelId: deps.channelId,
       sessionId,
-      messages: [{ role: 'end_user', body: text }],
+      messages: [message],
     };
     if (deps.visitorId) payload.visitorId = deps.visitorId;
     const identity = deps.getIdentity?.();
@@ -165,14 +199,60 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
       sessionId = next;
     },
 
-    async postMessage(text) {
+    async postMessage(text, attachmentIds = []) {
       const res = await fetchImpl(messagesUrl, {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify(ingestPayload(text)),
+        body: JSON.stringify(ingestPayload(text, attachmentIds)),
       });
       if (!res.ok) throw new WidgetApiError(res.status, await safeJson(res));
       return (await res.json()) as PostResult;
+    },
+
+    async requestAttachment({ conversationId, name, mime, sizeBytes }) {
+      const payload: Record<string, unknown> = {
+        channelId: deps.channelId,
+        conversationId,
+        sessionId,
+        name,
+        mime,
+        sizeBytes,
+      };
+      const identity = deps.getIdentity?.();
+      if (identity) {
+        payload.verifiedExternalId = identity.externalId;
+        payload.userHash = identity.userHash;
+      }
+      const res = await fetchImpl(`${base}/attachments`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new WidgetApiError(res.status, await safeJson(res));
+      return (await res.json()) as AttachmentUploadHandle;
+    },
+
+    async completeAttachment({ conversationId, attachmentId }) {
+      const payload: Record<string, unknown> = {
+        channelId: deps.channelId,
+        conversationId,
+        sessionId,
+      };
+      const identity = deps.getIdentity?.();
+      if (identity) {
+        payload.verifiedExternalId = identity.externalId;
+        payload.userHash = identity.userHash;
+      }
+      const res = await fetchImpl(
+        `${base}/attachments/${encodeURIComponent(attachmentId)}/complete`,
+        {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify(payload),
+        },
+      );
+      if (!res.ok) throw new WidgetApiError(res.status, await safeJson(res));
+      return (await res.json()) as ListedAttachment;
     },
 
     async backfillSince(since) {

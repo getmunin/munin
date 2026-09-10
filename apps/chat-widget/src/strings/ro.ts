@@ -57,6 +57,16 @@ const ro: Strings = {
   voiceTapToReturn: 'Atingeți pentru a reveni',
   voiceFailed: 'Apelul vocal a eșuat',
   productViewLabel: 'Vezi',
+  attachAriaLabel: 'Atașează o imagine',
+  attachDropHint: 'Trage imaginea aici',
+  attachUploading: 'Se încarcă…',
+  attachFailed: 'Imaginea nu a fost încărcată. Încearcă din nou.',
+  attachRemoveAriaLabel: 'Elimină imaginea',
+  attachTooMany: 'Poți atașa până la {n} imagini.',
+  attachTypeRejected: 'Acceptăm PNG, JPEG, GIF și WebP.',
+  attachTooLarge: 'Imaginile trebuie să aibă mai puțin de {n} MB.',
+  attachmentUnavailable: 'Imaginea nu mai este disponibilă',
+  lightboxCloseAriaLabel: 'Închide imaginea',
 };
 
 export default ro;

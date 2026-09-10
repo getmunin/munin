@@ -1078,4 +1078,165 @@ const PRODUCT_LIST_CSS = String.raw`
   text-decoration: none;
 }
 .pcard-view:hover { border-color: var(--munin-ink); color: var(--munin-ink); }
+
+.composer-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.composer-main textarea { flex: 1; }
+
+.composer-note {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--munin-danger);
+  padding: 0 2px;
+}
+
+.composer-atts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 2px;
+}
+
+.att-chip {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--munin-r-control);
+  border: 1px solid var(--munin-rule);
+  overflow: hidden;
+  background: var(--munin-shot);
+  flex: 0 0 auto;
+}
+.att-chip-shot { display: block; width: 100%; height: 100%; object-fit: cover; }
+.att-chip-uploading .att-chip-shot { opacity: 0.5; }
+.att-chip-error { border-color: var(--munin-danger); }
+.att-chip-error .att-chip-shot { opacity: 0.4; }
+
+.att-chip-badge {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--munin-mono);
+  font-size: 13px;
+  color: var(--munin-ink);
+  pointer-events: none;
+}
+.att-chip-error .att-chip-badge { color: var(--munin-danger); }
+
+.att-chip-drop {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--munin-ink);
+  color: var(--munin-paper);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.att-chip-drop svg { width: 9px; height: 9px; fill: none; stroke: currentColor; stroke-width: 3; }
+
+.attach {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--munin-r-control);
+  border: 1px solid var(--munin-rule);
+  color: var(--munin-ink-mute);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  transition: border-color 120ms, background 120ms, color 120ms;
+}
+.attach:hover:not(:disabled) { border-color: var(--munin-ink); background: var(--munin-paper-deep); color: var(--munin-ink); }
+.attach:disabled { opacity: 0.55; cursor: not-allowed; }
+.attach svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
+
+.drop-hint {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--munin-paper) 88%, transparent);
+  pointer-events: none;
+}
+.drop-hint span {
+  border: 1px dashed var(--munin-ink-soft);
+  border-radius: var(--munin-r-surface);
+  padding: 10px 16px;
+  font-size: 12.5px;
+  color: var(--munin-ink-soft);
+  background: var(--munin-paper);
+}
+
+.msg-atts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 100%;
+}
+.msg.mine .msg-atts { justify-content: flex-end; }
+
+.msg-att {
+  padding: 0;
+  border: 1px solid var(--munin-rule);
+  border-radius: var(--munin-r-surface);
+  overflow: hidden;
+  background: var(--munin-shot);
+  max-width: 180px;
+  display: inline-flex;
+}
+.msg-att img { display: block; max-width: 100%; max-height: 180px; object-fit: cover; }
+.msg-att-gone {
+  padding: 10px 12px;
+  font-size: 11.5px;
+  color: var(--munin-ink-mute);
+  background: var(--munin-paper-deep);
+  align-items: center;
+}
+
+.lightbox {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, #101418 88%, transparent);
+}
+.lightbox-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--munin-r-surface);
+}
+.lightbox-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.lightbox-close svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
 `;

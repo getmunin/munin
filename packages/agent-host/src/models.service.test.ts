@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as core from '@getmunin/core';
-import { AgentModelsService, normalizeProviderModels } from './models.service.ts';
+import { AgentModelsService, normalizeProviderModels, readSupportsVision, normalizeProviderOfferings } from './models.service.ts';
 import type { AgentConfigRepository, AgentConfigRow } from './config.repository.ts';
 
 const baseRow: AgentConfigRow = {
@@ -99,6 +99,7 @@ describe('AgentModelsService', () => {
       contextLength: 200_000,
       promptCostPerMillion: 1,
       completionCostPerMillion: 5,
+      supportsVision: null,
     });
     expect(result.models[1]?.promptCostPerMillion).toBe(3);
   });
@@ -120,6 +121,7 @@ describe('AgentModelsService', () => {
       contextLength: null,
       promptCostPerMillion: null,
       completionCostPerMillion: null,
+      supportsVision: null,
     });
   });
 
@@ -210,5 +212,45 @@ describe('normalizeProviderModels', () => {
     expect(
       normalizeProviderModels([' gpt-oss-120b ', '', '  ', 'gemma-4-26b-a4b-it', 'gpt-oss-120b']),
     ).toEqual(['gpt-oss-120b', 'gemma-4-26b-a4b-it']);
+  });
+});
+
+describe('readSupportsVision', () => {
+  it('reads image support from an OpenRouter-shaped entry', () => {
+    expect(
+      readSupportsVision({ architecture: { input_modalities: ['text', 'image', 'file'] } }),
+    ).toBe(true);
+    expect(readSupportsVision({ architecture: { input_modalities: ['text'] } })).toBe(false);
+  });
+
+  it('reads image support from an Anthropic-shaped entry', () => {
+    expect(readSupportsVision({ capabilities: { image_input: { supported: true } } })).toBe(true);
+    expect(readSupportsVision({ capabilities: { image_input: { supported: false } } })).toBe(false);
+  });
+
+  it('returns null when the provider says nothing, rather than guessing from the id', () => {
+    expect(readSupportsVision({ id: 'gpt-4o' })).toBeNull();
+    expect(readSupportsVision({ architecture: {} })).toBeNull();
+    expect(readSupportsVision({ capabilities: { image_input: {} } })).toBeNull();
+    expect(readSupportsVision(null)).toBeNull();
+  });
+});
+
+describe('normalizeProviderOfferings', () => {
+  it('accepts bare model ids so a host that supplies strings keeps working', () => {
+    expect(normalizeProviderOfferings(['a', 'b'])).toEqual([{ id: 'a' }, { id: 'b' }]);
+  });
+
+  it('carries a host-declared capability through', () => {
+    expect(normalizeProviderOfferings([{ id: 'a', supportsVision: true }, 'b'])).toEqual([
+      { id: 'a', supportsVision: true },
+      { id: 'b' },
+    ]);
+  });
+
+  it('drops blanks and keeps the first entry for a repeated id', () => {
+    expect(
+      normalizeProviderOfferings(['  ', { id: 'a', supportsVision: true }, { id: 'a' }]),
+    ).toEqual([{ id: 'a', supportsVision: true }]);
   });
 });

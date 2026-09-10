@@ -1572,7 +1572,9 @@
       "fastHint": "Used for: chat-bot replies, signature stripping, classification, short summarization. Latency and cost matter more than smarts here.",
       "smart": "Smart model",
       "smartUseHint": "Used for: KB curation, CRM hygiene, outreach drafts — anywhere the agent needs to weigh judgment over many messages.",
-      "smartSameAsFast": "Same as fast model"
+      "smartSameAsFast": "Same as fast model",
+      "capabilityChat": "chat",
+      "capabilityVision": "vision"
     },
     "websiteImport": {
       "title": "Seed from your website",

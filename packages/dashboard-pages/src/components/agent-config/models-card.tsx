@@ -42,6 +42,10 @@ export function ModelsCard({
   onSaved,
 }: ModelsCardProps) {
   const t = useTranslations('agentSetup');
+  const modalityLabels = {
+    chat: t('models.capabilityChat'),
+    vision: t('models.capabilityVision'),
+  };
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
 
@@ -106,7 +110,7 @@ export function ModelsCard({
               >
                 {sortedModels.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {formatModel(m)}
+                    {formatModel(m, modalityLabels)}
                   </option>
                 ))}
               </NativeSelect>
@@ -122,7 +126,7 @@ export function ModelsCard({
                 <option value="">{t('models.smartSameAsFast')}</option>
                 {sortedModels.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {formatModel(m)}
+                    {formatModel(m, modalityLabels)}
                   </option>
                 ))}
               </NativeSelect>

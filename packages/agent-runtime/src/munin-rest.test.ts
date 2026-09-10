@@ -100,3 +100,95 @@ describe('MuninRestError code extraction', () => {
     });
   });
 });
+
+describe('toRuntimeHistory attachments', () => {
+  const client = createMuninRestClient({
+    baseUrl: 'http://stub',
+    adminApiKey: 'stub',
+    fetch: () => Promise.reject(new Error('network not used in this test')),
+  });
+
+  it('keeps an image-only message, which the empty-body filter used to drop', () => {
+    const history = client.toRuntimeHistory(
+      makeDetail([
+        {
+          id: 'm1',
+          authorType: 'end_user',
+          body: '',
+          createdAt: 't1',
+          attachments: [
+            { id: 'a1', mime: 'image/jpeg', name: 'photo.jpg', url: 'https://munin.test/v1/c/a/t' },
+          ],
+        },
+      ]),
+    );
+
+    expect(history).toHaveLength(1);
+    expect(history[0]?.body).toBe('');
+    expect(history[0]?.attachments).toEqual([
+      { mime: 'image/jpeg', url: 'https://munin.test/v1/c/a/t', name: 'photo.jpg' },
+    ]);
+  });
+
+  it('still drops an internal message even when it carries an attachment', () => {
+    const history = client.toRuntimeHistory(
+      makeDetail([
+        {
+          id: 'm1',
+          authorType: 'agent',
+          body: '',
+          createdAt: 't1',
+          internal: true,
+          attachments: [{ id: 'a1', mime: 'image/png', url: 'https://munin.test/v1/c/a/t' }],
+        },
+      ]),
+    );
+
+    expect(history).toEqual([]);
+  });
+
+  it('nulls the url of a tombstoned attachment so the loader placeholders it', () => {
+    const history = client.toRuntimeHistory(
+      makeDetail([
+        {
+          id: 'm1',
+          authorType: 'end_user',
+          body: 'here it is',
+          createdAt: 't1',
+          attachments: [
+            { id: 'a1', mime: 'image/png', name: 'gone.png', url: null, deleted: true },
+          ],
+        },
+      ]),
+    );
+
+    expect(history[0]?.attachments).toEqual([
+      { mime: 'image/png', url: null, name: 'gone.png' },
+    ]);
+  });
+
+  it('ignores projection rows that carry no usable mime', () => {
+    const history = client.toRuntimeHistory(
+      makeDetail([
+        {
+          id: 'm1',
+          authorType: 'end_user',
+          body: 'hello',
+          createdAt: 't1',
+          attachments: [{ id: 'a1' }, 'nonsense', null],
+        },
+      ]),
+    );
+
+    expect(history).toHaveLength(1);
+    expect(history[0]?.attachments).toBeUndefined();
+  });
+
+  it('leaves an attachment-free message without an attachments field', () => {
+    const history = client.toRuntimeHistory(
+      makeDetail([{ id: 'm1', authorType: 'end_user', body: 'hello', createdAt: 't1' }]),
+    );
+
+    expect(history[0]?.attachments).toBeUndefined();
+  });
+});

@@ -12,7 +12,15 @@ export interface ModelEntry {
   contextLength: number | null;
   promptCostPerMillion: number | null;
   completionCostPerMillion: number | null;
+  supportsVision: boolean | null;
 }
+
+export interface ProviderModelOffer {
+  id: string;
+  supportsVision?: boolean;
+}
+
+export type ProviderModelOffering = string | ProviderModelOffer;
 
 export interface ListModelsResult {
   supported: boolean;
@@ -39,7 +47,7 @@ export class AgentModelsService implements ProviderModelLister {
     @Inject(AGENT_CONFIG_REPOSITORY) private readonly repo: AgentConfigRepository,
     @Optional()
     @Inject(DEFAULT_PROVIDER_MODELS)
-    private readonly defaultProviderModels: readonly string[] = [],
+    private readonly defaultProviderModels: readonly ProviderModelOffering[] = [],
   ) {}
 
   async listForCurrentActor(): Promise<ListModelsResult> {
@@ -64,6 +72,18 @@ export class AgentModelsService implements ProviderModelLister {
     const result = await this.fetchModels(baseUrl, apiKey);
     this.cache.set(cacheKey, { result, expiresAt: Date.now() + CACHE_TTL_MS });
     return result;
+  }
+
+  async supportsVisionFor(modelId: string): Promise<boolean | null> {
+    if (!modelId) return null;
+    try {
+      const listing = await this.listForCurrentActor();
+      if (!listing.supported) return null;
+      return listing.models.find((m) => m.id === modelId)?.supportsVision ?? null;
+    } catch (err) {
+      this.logger.warn(`vision capability lookup failed for ${modelId}: ${describeError(err)}`);
+      return null;
+    }
   }
 
   invalidate(id: string): void {
@@ -108,22 +128,42 @@ export class AgentModelsService implements ProviderModelLister {
   }
 }
 
-export function normalizeProviderModels(models: readonly string[] | undefined): string[] {
+export function normalizeProviderModels(
+  models: readonly ProviderModelOffering[] | undefined,
+): string[] {
   if (!models) return [];
   const seen = new Set<string>();
   for (const model of models) {
-    const trimmed = model.trim();
+    const trimmed = offeringId(model).trim();
     if (trimmed.length > 0) seen.add(trimmed);
   }
   return [...seen];
 }
 
-function toModelEntry(id: string): ModelEntry {
+export function normalizeProviderOfferings(
+  models: readonly ProviderModelOffering[] | undefined,
+): ProviderModelOffer[] {
+  if (!models) return [];
+  const byId = new Map<string, ProviderModelOffer>();
+  for (const model of models) {
+    const id = offeringId(model).trim();
+    if (id.length === 0 || byId.has(id)) continue;
+    byId.set(id, typeof model === 'string' ? { id } : { ...model, id });
+  }
+  return [...byId.values()];
+}
+
+function offeringId(model: ProviderModelOffering): string {
+  return typeof model === 'string' ? model : model.id;
+}
+
+function toModelEntry(model: ProviderModelOffering): ModelEntry {
   return {
-    id,
+    id: offeringId(model),
     contextLength: null,
     promptCostPerMillion: null,
     completionCostPerMillion: null,
+    supportsVision: typeof model === 'string' ? null : model.supportsVision ?? null,
   };
 }
 
@@ -141,9 +181,34 @@ function parseOpenAiCompatModels(body: unknown): ModelEntry[] | null {
       contextLength: readContextLength(item),
       promptCostPerMillion: readPromptCost(item),
       completionCostPerMillion: readCompletionCost(item),
+      supportsVision: readSupportsVision(item),
     });
   }
   return out;
+}
+
+export function readSupportsVision(item: unknown): boolean | null {
+  if (!item || typeof item !== 'object') return null;
+  const record = item as Record<string, unknown>;
+
+  const architecture = record['architecture'];
+  if (architecture && typeof architecture === 'object') {
+    const modalities = (architecture as Record<string, unknown>)['input_modalities'];
+    if (Array.isArray(modalities)) {
+      return modalities.some((m) => typeof m === 'string' && m.toLowerCase() === 'image');
+    }
+  }
+
+  const capabilities = record['capabilities'];
+  if (capabilities && typeof capabilities === 'object') {
+    const imageInput = (capabilities as Record<string, unknown>)['image_input'];
+    if (imageInput && typeof imageInput === 'object') {
+      const supported = (imageInput as Record<string, unknown>)['supported'];
+      if (typeof supported === 'boolean') return supported;
+    }
+  }
+
+  return null;
 }
 
 function readContextLength(item: unknown): number | null {

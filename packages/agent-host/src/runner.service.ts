@@ -58,6 +58,7 @@ import {
 } from '@getmunin/types';
 import { AGENT_CONFIG_REPOSITORY, AGENT_HOST_DB } from './injection-tokens.ts';
 import type { AgentConfigRepository, AgentConfigRow } from './config.repository.ts';
+import { AgentModelsService } from './models.service.ts';
 import { runWithServiceContext } from './service-context.ts';
 import { ReplicaLockManager } from './replica-lock.ts';
 import { runWebImportJob } from './web-import.handler.ts';
@@ -198,6 +199,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     @Inject(InProcessMuninRestClientFactoryService)
     private readonly restClientFactory: InProcessMuninRestClientFactoryService,
     @Inject(AgentHealthService) private readonly health: AgentHealthService,
+    @Inject(AgentModelsService) private readonly models: AgentModelsService,
     @Optional() @Inject(RateLimitService) private readonly rateLimit: RateLimitService | undefined,
     @Optional() @Inject('AGENT_HOST_RUNNER_OPTIONS') options?: AgentHostRunnerOptions,
   ) {
@@ -425,6 +427,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       providerBaseUrl,
       providerApiKey,
       model: fastModel,
+      supportsVision: await this.models.supportsVisionFor(fastModel),
       maxToolIterations: config.maxToolIterations,
       maxHistoryChars: config.maxHistoryChars,
       debounceMs: config.debounceMs,

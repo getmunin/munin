@@ -17,7 +17,11 @@ import {
 } from '@getmunin/backend-core';
 import { AgentConfigService } from './config.service.ts';
 import { AgentConfigController } from './config.controller.ts';
-import { AgentModelsService, normalizeProviderModels } from './models.service.ts';
+import {
+  AgentModelsService,
+  normalizeProviderOfferings,
+  type ProviderModelOffering,
+} from './models.service.ts';
 import { AgentHealthService } from './agent-health.service.ts';
 import { AgentHostRunner, type AgentHostRunnerOptions } from './runner.service.ts';
 import {
@@ -35,7 +39,7 @@ export interface AgentHostModuleOptions {
   configRepository: Type<AgentConfigRepository>;
   runnerOptions?: AgentHostRunnerOptions;
   defaultProviderAvailable?: boolean;
-  defaultProviderModels?: readonly string[];
+  defaultProviderModels?: readonly ProviderModelOffering[];
 }
 
 export interface AgentHostModuleAsyncOptions extends Pick<ModuleMetadata, 'imports'> {
@@ -43,7 +47,7 @@ export interface AgentHostModuleAsyncOptions extends Pick<ModuleMetadata, 'impor
   inject?: Array<InjectionToken | OptionalFactoryDependency>;
   useFactory: (...args: never[]) => AgentHostRunnerOptions | Promise<AgentHostRunnerOptions>;
   defaultProviderAvailable?: boolean;
-  defaultProviderModels?: readonly string[];
+  defaultProviderModels?: readonly ProviderModelOffering[];
 }
 
 @Module({})
@@ -77,7 +81,7 @@ function buildModule(args: {
   runnerOptionsProvider: Provider;
   extraImports?: NonNullable<ModuleMetadata['imports']>;
   defaultProviderAvailable?: boolean;
-  defaultProviderModels?: readonly string[];
+  defaultProviderModels?: readonly ProviderModelOffering[];
 }): DynamicModule {
   const {
     configRepository,
@@ -95,7 +99,7 @@ function buildModule(args: {
       { provide: DEFAULT_PROVIDER_AVAILABLE, useValue: defaultProviderAvailable },
       {
         provide: DEFAULT_PROVIDER_MODELS,
-        useValue: normalizeProviderModels(defaultProviderModels),
+        useValue: normalizeProviderOfferings(defaultProviderModels),
       },
       runnerOptionsProvider,
       { provide: ALERT_RECORDER, useExisting: AlertsService },

@@ -17,6 +17,12 @@ export interface ModelEntry {
   contextLength: number | null;
   promptCostPerMillion: number | null;
   completionCostPerMillion: number | null;
+  supportsVision?: boolean | null;
+}
+
+export interface ModalityLabels {
+  chat: string;
+  vision: string;
 }
 
 export interface ListModelsResult {
@@ -63,8 +69,8 @@ export function presetForUrl(url: string): PresetId {
   return match?.id ?? 'custom';
 }
 
-export function formatModel(m: ModelEntry): string {
-  const parts: string[] = [m.id];
+export function formatModel(m: ModelEntry, labels?: ModalityLabels): string {
+  const parts: string[] = [modelHead(m, labels)];
   if (m.contextLength) parts.push(`${(m.contextLength / 1000).toFixed(0)}k ctx`);
   if (m.promptCostPerMillion !== null) {
     parts.push(`$${m.promptCostPerMillion.toFixed(2)}/M in`);
@@ -73,4 +79,10 @@ export function formatModel(m: ModelEntry): string {
     parts.push(`$${m.completionCostPerMillion.toFixed(2)}/M out`);
   }
   return parts.join(' · ');
+}
+
+function modelHead(m: ModelEntry, labels?: ModalityLabels): string {
+  if (!labels || m.supportsVision == null) return m.id;
+  const modalities = m.supportsVision ? [labels.chat, labels.vision] : [labels.chat];
+  return `${m.id} (${modalities.join(', ')})`;
 }

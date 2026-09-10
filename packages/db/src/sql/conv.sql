@@ -94,3 +94,38 @@ CREATE POLICY tenant_isolation ON conv_messages
     )
   )
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
+-- Attachments: visibility inherits from the parent conversation, exactly as
+-- conv_messages does — an end-user audience may only reach rows on their own
+-- conversation. Attachments hanging off an internal message are additionally
+-- hidden from the end-user audience, mirroring the internal-note rule above,
+-- so a staff-only screenshot can never leak through a delegated token.
+--
+-- Rows with message_id IS NULL are pending composer/widget uploads that are
+-- not yet on any message; they stay visible to the org so the pending-upload
+-- GC and the composer can see them.
+ALTER TABLE conv_attachments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conv_attachments FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON conv_attachments;
+CREATE POLICY tenant_isolation ON conv_attachments
+  USING (
+    app_bypass_rls()
+    OR (
+      org_id = app_org_id()
+      AND EXISTS (
+        SELECT 1 FROM conv_conversations c
+        WHERE c.id = conv_attachments.conversation_id
+          AND (app_end_user_id() = '' OR c.end_user_id = app_end_user_id())
+      )
+      AND (
+        app_end_user_id() = ''
+        OR message_id IS NULL
+        OR EXISTS (
+          SELECT 1 FROM conv_messages m
+          WHERE m.id = conv_attachments.message_id
+            AND m.internal = false
+        )
+      )
+    )
+  )
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());

@@ -39,7 +39,7 @@ export function useAgentConfig(): UseAgentConfigResult {
   }, [tryLoad]);
 
   useEffect(() => {
-    if (!config?.providerApiKeySet) return;
+    if (!config) return;
     void api<ListModelsResult>('/v1/agent-config/models')
       .then(setModels)
       .catch(() => undefined);

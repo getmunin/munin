@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as core from '@getmunin/core';
-import { AgentModelsService, normalizeProviderModels, readSupportsVision, normalizeProviderOfferings } from './models.service.ts';
+import { AgentModelsService, normalizeProviderModels, readModelLabel, readSupportsVision, normalizeProviderOfferings } from './models.service.ts';
 import type { AgentConfigRepository, AgentConfigRow } from './config.repository.ts';
 
 const baseRow: AgentConfigRow = {
@@ -64,6 +64,19 @@ describe('AgentModelsService', () => {
     expect(result.models.map((m) => m.id)).toEqual(['gpt-oss-120b', 'gemma-4-26b-a4b-it']);
   });
 
+  it('publishes a host-declared label for a built-in model', async () => {
+    const repo = makeRepo({ apiKey: null });
+    const svc = new AgentModelsService(repo, [
+      { id: 'gpt-oss-120b', label: 'GPT-OSS 120B' },
+      'gemma-4-26b-a4b-it',
+    ]);
+    const result = await svc.listForCurrentActor();
+    expect(result.models.map((m) => [m.id, m.label])).toEqual([
+      ['gpt-oss-120b', 'GPT-OSS 120B'],
+      ['gemma-4-26b-a4b-it', null],
+    ]);
+  });
+
   it('prefers the org provider over the built-in list once a key is stored', async () => {
     mockSafeFetch({ status: 200, body: { data: [{ id: 'anthropic/claude-opus-5' }] } });
     const repo = makeRepo({ apiKey: 'sk-test' });
@@ -96,6 +109,7 @@ describe('AgentModelsService', () => {
     expect(result.models).toHaveLength(2);
     expect(result.models[0]).toEqual({
       id: 'anthropic/claude-haiku-4.5',
+      label: null,
       contextLength: 200_000,
       promptCostPerMillion: 1,
       completionCostPerMillion: 5,
@@ -118,6 +132,7 @@ describe('AgentModelsService', () => {
     expect(result.supported).toBe(true);
     expect(result.models[0]).toEqual({
       id: 'gpt-4o-mini',
+      label: null,
       contextLength: null,
       promptCostPerMillion: null,
       completionCostPerMillion: null,
@@ -236,6 +251,27 @@ describe('readSupportsVision', () => {
   });
 });
 
+describe('readModelLabel', () => {
+  it("reads OpenRouter's name", () => {
+    expect(readModelLabel({ id: 'anthropic/claude-haiku-4.5', name: 'Anthropic: Claude Haiku 4.5' })).toBe(
+      'Anthropic: Claude Haiku 4.5',
+    );
+  });
+
+  it("reads Anthropic's display_name", () => {
+    expect(readModelLabel({ id: 'claude-haiku-4-5', display_name: 'Claude Haiku 4.5' })).toBe(
+      'Claude Haiku 4.5',
+    );
+  });
+
+  it('returns null when the provider names nothing usable', () => {
+    expect(readModelLabel({ id: 'gpt-4o-mini' })).toBeNull();
+    expect(readModelLabel({ id: 'x', name: '   ' })).toBeNull();
+    expect(readModelLabel({ id: 'x', name: 42 })).toBeNull();
+    expect(readModelLabel(null)).toBeNull();
+  });
+});
+
 describe('normalizeProviderOfferings', () => {
   it('accepts bare model ids so a host that supplies strings keeps working', () => {
     expect(normalizeProviderOfferings(['a', 'b'])).toEqual([{ id: 'a' }, { id: 'b' }]);
@@ -244,6 +280,13 @@ describe('normalizeProviderOfferings', () => {
   it('carries a host-declared capability through', () => {
     expect(normalizeProviderOfferings([{ id: 'a', supportsVision: true }, 'b'])).toEqual([
       { id: 'a', supportsVision: true },
+      { id: 'b' },
+    ]);
+  });
+
+  it('carries a host-declared label through', () => {
+    expect(normalizeProviderOfferings([{ id: 'a', label: 'Model A' }, 'b'])).toEqual([
+      { id: 'a', label: 'Model A' },
       { id: 'b' },
     ]);
   });

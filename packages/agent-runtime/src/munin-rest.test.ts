@@ -46,6 +46,53 @@ describe('toRuntimeHistory', () => {
     expect(history.map((m) => m.body)).toEqual(['my account is locked', 'let me look']);
   });
 
+  it('keeps a bounce out of the context so the model never pays for a DSN blob', () => {
+    const history = client.toRuntimeHistory(
+      makeDetail([
+        { id: 'm1', authorType: 'end_user', body: 'where is my filter?', createdAt: 't1' },
+        {
+          id: 'm2',
+          authorType: 'end_user',
+          body: 'X-HE-Meta: U2FsdGVkX1+vR016HqB5QcbgGd5',
+          createdAt: 't2',
+          metadata: { suppressed: 'bounce' },
+        },
+      ]),
+    );
+    expect(history.map((m) => m.body)).toEqual(['where is my filter?']);
+  });
+
+  it('keeps an out-of-office auto-reply out of the context too', () => {
+    const history = client.toRuntimeHistory(
+      makeDetail([
+        { id: 'm1', authorType: 'end_user', body: 'please cancel my order', createdAt: 't1' },
+        {
+          id: 'm2',
+          authorType: 'end_user',
+          body: 'I am on holiday until 3 August',
+          createdAt: 't2',
+          metadata: { suppressed: 'auto_reply' },
+        },
+      ]),
+    );
+    expect(history.map((m) => m.body)).toEqual(['please cancel my order']);
+  });
+
+  it('falls back to the suppressed messages rather than handing the model an empty history', () => {
+    const history = client.toRuntimeHistory(
+      makeDetail([
+        {
+          id: 'm1',
+          authorType: 'end_user',
+          body: '4.2.2 mailbox full',
+          createdAt: 't1',
+          metadata: { suppressed: 'bounce' },
+        },
+      ]),
+    );
+    expect(history.map((m) => m.body)).toEqual(['4.2.2 mailbox full']);
+  });
+
   it('drops internal messages', () => {
     const history = client.toRuntimeHistory(
       makeDetail([

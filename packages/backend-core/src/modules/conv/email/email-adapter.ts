@@ -62,6 +62,7 @@ import {
   stripSignatureHtml,
 } from './reply-history.ts';
 import { classifySender, hasAnyClassification, suppressionReason } from './classify-sender.ts';
+import { clampInboundBody } from './inbound-body-limits.ts';
 import type {
   ChannelAdapter,
   ChannelRow,
@@ -357,6 +358,7 @@ export class EmailAdapter implements ChannelAdapter {
           if (dup[0]) return;
         }
         const resolution = await resolveInbound(tx, orgId, parsed, replyDomain);
+        const suppressed = suppressionReason(parsed.senderClassification);
         const contact = await this.emailService.findOrCreateContactByEmail(
           tx,
           orgId,
@@ -391,7 +393,7 @@ export class EmailAdapter implements ChannelAdapter {
               channelId: channel.id,
               contactId: contact.id,
               endUserId: contact.endUserId,
-              status: 'open',
+              status: suppressed === 'auto_reply' ? 'closed' : 'open',
               subject: parsed.subject || null,
               agentMode: channel.defaultAgentMode,
               lastMessageAt: new Date(),
@@ -400,8 +402,7 @@ export class EmailAdapter implements ChannelAdapter {
           conversationId = newConv!.id;
         }
 
-        const suppressed = suppressionReason(parsed.senderClassification);
-        const quoteStrippedText = stripQuotedReplyText(parsed.bodyText);
+        const quoteStrippedText = clampInboundBody(stripQuotedReplyText(parsed.bodyText));
         const { clean: cleanText, signature: regexSignature } = splitSignatureText(quoteStrippedText);
         const regexCutSignature = regexSignature !== null;
         const detectedSignatureForMeta =

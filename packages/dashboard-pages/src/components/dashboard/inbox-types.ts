@@ -30,6 +30,8 @@ export type { QueueItem, ScheduledItem };
 
 export type Status = 'open' | 'snoozed' | 'closed' | 'spam';
 
+export type DeliveryStatus = 'queued' | 'sent' | 'failed' | 'dead';
+
 export interface ConversationSummary {
   id: string;
   displayId: number;
@@ -61,6 +63,10 @@ export interface MessageDto {
   metadata: Record<string, unknown>;
   createdAt: string;
   seenAt?: string | null;
+  deliveryStatus?: DeliveryStatus | null;
+  deliveryError?: string | null;
+  deliveryAttempts?: number | null;
+  deliveryNextAttemptAt?: string | null;
 }
 
 export interface ConversationDetail extends ConversationSummary {

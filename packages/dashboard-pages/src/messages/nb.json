@@ -208,6 +208,7 @@
       "alertReasonSingle": "{title}",
       "alertReasonMultiple": "{title} (+{count} til)",
       "channelInboundFailing": "Henting av nye meldinger feiler på «{name}»",
+      "channelOutboundFailing": "Svar kommer ikke ut på «{name}»",
       "openChannelSettings": "Åpne kanalinnstillinger →"
     },
     "loadFailed": {
@@ -364,6 +365,10 @@
         "crmMergeExplain": "Beholder hovedoppføringen; flytter referanser; arkiverer den andre. Ingen samtaler går tapt.",
         "noteMeta": "{author} · notat · {time}",
         "seenAt": "Sett {time}",
+        "deliveryFailed": "Ikke levert",
+        "deliveryRetrying": "Sendingen feilet · prøver igjen (forsøk {attempt})",
+        "deliveryRetry": "Send på nytt",
+        "deliveryRetryPending": "Sender…",
         "loadFailedEyebrow": "Kunne ikke laste",
         "detailLoadFailed": "Innholdet lot seg ikke laste.",
         "kbSlugFallback": "kb-curation-inbox",
@@ -1365,7 +1370,8 @@
           "reject": "Avvisningen feilet",
           "note": "Notatet feilet",
           "requestDraft": "Kladd-forespørselen feilet",
-          "attach": "Vedlegget feilet"
+          "attach": "Vedlegget feilet",
+          "retryDelivery": "Ny sending feilet"
         },
         "replyPlaceholder": "Skriv svaret til {name} …",
         "approveSend": "Godkjenn og send",
@@ -1950,6 +1956,8 @@
     "conv_attachment_too_many": "For mange bilder i én melding. Fjern ett og prøv igjen.",
     "conv_attachment_upload_missing": "Opplastingen ble ikke fullført. Prøv å legge ved bildet på nytt.",
     "conv_channel_config_invalid": "Kanalen har ufullstendige innstillinger og kan ikke brukes ennå. Åpne innstillingene, fyll ut det som mangler og lagre for å reparere den.",
+    "conv_delivery_channel_inactive": "Kanalen denne meldingen skal ut på er slått av, så en ny sending ville feilet også. Slå kanalen på igjen i innstillingene, og prøv på nytt.",
+    "conv_delivery_not_retryable": "Denne meldingen venter ikke lenger på å sendes på nytt — den gikk ut, eller Munin prøver allerede igjen. Last samtalen på nytt for å se hvor den står.",
     "conv_draft_pending": "En kladd venter allerede på gjennomgang.",
     "conv_draft_request_invalid": "Agenten kan ikke lage utkast her – samtalen er lukket, mangler en kunde å svare, eller agenten er slått av.",
     "conv_invalid": "Dette utkastet ligger ikke lenger til behandling i samtalen – det er allerede sendt, eller agenten har skrevet et nyere. Åpne samtalen på nytt for å se hvor den står.",

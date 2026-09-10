@@ -104,6 +104,103 @@ describe('classifySender', () => {
     expect(suppressionReason(c)).toBe('bounce');
   });
 
+  it('suppresses an ESP bounce mailbox that is not mailer-daemon or postmaster', () => {
+    for (const from of [
+      'bounces@amazonses.com',
+      'bounce@sendgrid.net',
+      'bounce+tag-abc@mg.acme.com',
+      'mailerdaemon@old.example.com',
+    ]) {
+      expect(suppressionReason(classifySender(h({ From: from }), from))).toBe('bounce');
+    }
+  });
+
+  it('suppresses an RFC 3464 delivery-status report whatever address it comes from', () => {
+    const c = classifySender(
+      h({
+        From: 'noreply@relay.acme.com',
+        'Content-Type': 'multipart/report; report-type=delivery-status; boundary="x"',
+      }),
+      'noreply@relay.acme.com',
+    );
+    expect(suppressionReason(c)).toBe('bounce');
+  });
+
+  it('suppresses a delivery-status report whose report-type is quoted', () => {
+    const c = classifySender(
+      h({ 'Content-Type': 'multipart/report; report-type="delivery-status"' }),
+      'noreply@relay.acme.com',
+    );
+    expect(suppressionReason(c)).toBe('bounce');
+  });
+
+  it('suppresses a bounce carrying X-Failed-Recipients', () => {
+    const c = classifySender(
+      h({ From: 'noreply@relay.acme.com', 'X-Failed-Recipients': 'edma@rosenberg.as' }),
+      'noreply@relay.acme.com',
+    );
+    expect(suppressionReason(c)).toBe('bounce');
+  });
+
+  it('does not treat an ordinary multipart report as a bounce', () => {
+    const c = classifySender(
+      h({ 'Content-Type': 'multipart/report; report-type=disposition-notification' }),
+      'jane@acme.com',
+    );
+    expect(suppressionReason(c)).toBeNull();
+  });
+
+  it('suppresses an out-of-office reply that carries no auto-reply header, only the subject prefix', () => {
+    for (const subject of [
+      'Automatisk svar: Nyhetsbrev februar',
+      'Autosvar: Nyhetsbrev',
+      'Ute av kontoret: Nyhetsbrev',
+      'Out of Office: February newsletter',
+      'Automatic reply: February newsletter',
+      'Fraværende: Nyhetsbrev',
+      'Abwesenheitsnotiz: Newsletter',
+      'Re: Automatisk svar: Nyhetsbrev',
+    ]) {
+      const c = classifySender(h({ Subject: subject }), 'kari@kunde.no');
+      expect(suppressionReason(c), subject).toBe('auto_reply');
+    }
+  });
+
+  it('does not read an ordinary subject that merely mentions the office as an auto-reply', () => {
+    for (const subject of [
+      'Spørsmål om automatisk svar i skjemaet',
+      'Out of office hours support?',
+      'Autosvaret deres virker ikke',
+    ]) {
+      const c = classifySender(h({ Subject: subject }), 'kari@kunde.no');
+      expect(suppressionReason(c), subject).toBeNull();
+    }
+  });
+
+  it('keeps a human reply answerable when the newsletter subject itself opens with those words', () => {
+    for (const subject of [
+      'Re: Ute av kontoret? Slik setter du opp autosvar',
+      'Sv: Out of office made easy — februar',
+      'Re: Nyhetsbrev februar',
+    ]) {
+      const c = classifySender(h({ Subject: subject }), 'siri@kunde.no');
+      expect(suppressionReason(c), subject).toBeNull();
+    }
+  });
+
+  it('suppresses Precedence: bulk with no list headers, which is machine mail nobody should answer', () => {
+    const c = classifySender(h({ Precedence: 'bulk' }), 'noreply@vendor.example');
+    expect(suppressionReason(c)).toBe('auto_reply');
+  });
+
+  it('still leaves a real mailing-list post answerable even though it is Precedence: bulk', () => {
+    const c = classifySender(
+      h({ Precedence: 'bulk', 'List-Id': 'announce.acme.com' }),
+      'list@acme.com',
+    );
+    expect(suppressionReason(c)).toBeNull();
+  });
+
   it('does not suppress a mailing-list post or a role account', () => {
     const list = classifySender(h({ 'List-Id': 'announce.acme.com' }), 'jane@acme.com');
     expect(suppressionReason(list)).toBeNull();

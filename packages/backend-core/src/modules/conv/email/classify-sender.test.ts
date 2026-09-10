@@ -177,6 +177,17 @@ describe('classifySender', () => {
     }
   });
 
+  it('keeps a human reply answerable when the newsletter subject itself opens with those words', () => {
+    for (const subject of [
+      'Re: Ute av kontoret? Slik setter du opp autosvar',
+      'Sv: Out of office made easy — februar',
+      'Re: Nyhetsbrev februar',
+    ]) {
+      const c = classifySender(h({ Subject: subject }), 'siri@kunde.no');
+      expect(suppressionReason(c), subject).toBeNull();
+    }
+  });
+
   it('suppresses Precedence: bulk with no list headers, which is machine mail nobody should answer', () => {
     const c = classifySender(h({ Precedence: 'bulk' }), 'noreply@vendor.example');
     expect(suppressionReason(c)).toBe('auto_reply');

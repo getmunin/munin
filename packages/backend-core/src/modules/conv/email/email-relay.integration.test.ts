@@ -405,6 +405,60 @@ const RELAY_DOMAIN = 'in.getmunin.test';
       expect(conv!.status).toBe('open');
     });
 
+    it('still answers a real question sent as a reply to the same newsletter', async () => {
+      await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(rawOutOfOffice('ooo-2@kunde.no', 'siri@kunde.no')).toString('base64'),
+      });
+
+      const real = [
+        'From: Siri Hansen <siri@kunde.no>',
+        `To: <${relayAddress}>`,
+        'Subject: Re: Nyhetsbrev februar',
+        'Message-ID: <real-2@kunde.no>',
+        'In-Reply-To: <newsletter-feb@marketing.uscore.no>',
+        'References: <newsletter-feb@marketing.uscore.no>',
+        'Content-Type: text/plain; charset="utf-8"',
+        '',
+        'Hei! Tilbudet i nyhetsbrevet, gjelder det ogsa for eksisterende kunder?',
+        '',
+      ].join('\r\n');
+      const res = await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(real).toString('base64'),
+      });
+      expect(res.status).toBe(201);
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const rows = await db
+        .select()
+        .from(schema.convMessages)
+        .where(eq(schema.convMessages.orgId, orgId));
+      const question = rows.find((m) => m.body.includes('gjelder det ogsa'));
+      const ooo = rows.find(
+        (m) => m.body.includes('ute av kontoret') && m.conversationId !== question?.conversationId,
+      );
+
+      expect(question).toBeDefined();
+      expect(question!.metadata).not.toHaveProperty('suppressed');
+      expect(question!.conversationId).not.toBe(ooo?.conversationId);
+
+      const conv = (
+        await db
+          .select()
+          .from(schema.convConversations)
+          .where(eq(schema.convConversations.id, question!.conversationId))
+      )[0];
+      expect(conv!.status).toBe('open');
+      expect(conv!.endUserId).not.toBeNull();
+
+      const awaiting = await fetch(`${baseUrl}/v1/conversations/awaiting-reply`, {
+        headers: { Authorization: `Bearer ${adminKey}` },
+      });
+      const body = (await awaiting.json()) as { items: Array<{ id: string }> };
+      expect(body.items.map((i) => i.id)).toContain(question!.conversationId);
+    });
+
     it('ingests a message far above the 4mb global JSON body limit', async () => {
       const raw = Buffer.from(rawWithAttachment('big-1@example.test', 4_800_000));
       expect(raw.byteLength).toBeGreaterThan(6 * 1024 * 1024);

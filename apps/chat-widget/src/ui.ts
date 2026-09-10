@@ -53,6 +53,7 @@ export interface UiController {
   setAgentTyping(isTyping: boolean): void;
   setConnectionState(state: ConnectionLabel): void;
   setSending(sending: boolean): void;
+  showComposerError(text: string): void;
   setPastConversations(convs: ConversationSummary[]): void;
   setConversation(envelope: ConversationEnvelope | null): void;
   setLauncherUnread(count: number): void;
@@ -72,7 +73,6 @@ export interface UiController {
 }
 
 const TYPING_IDLE_MS = 800;
-const COMPOSER_NOTE_MS = 5000;
 const ATTACHMENT_MB_MAX = Math.floor(ATTACHMENT_BYTES_MAX / (1024 * 1024));
 
 interface PendingAttachment {
@@ -470,7 +470,6 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   let sendingNow = false;
   let pendingAttachments: PendingAttachment[] = [];
   let attachCounter = 0;
-  let composerNoteTimer: ReturnType<typeof setTimeout> | null = null;
 
   let reconnectGraceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -550,14 +549,13 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   }
 
   function showComposerNote(text: string): void {
-    panel.composerNoteEl.textContent = text;
+    panel.composerNoteTextEl.textContent = text;
     panel.composerNoteEl.hidden = false;
-    if (composerNoteTimer) clearTimeout(composerNoteTimer);
-    composerNoteTimer = setTimeout(() => {
-      panel.composerNoteEl.hidden = true;
-      panel.composerNoteEl.textContent = '';
-      composerNoteTimer = null;
-    }, COMPOSER_NOTE_MS);
+  }
+
+  function clearComposerNote(): void {
+    panel.composerNoteEl.hidden = true;
+    panel.composerNoteTextEl.textContent = '';
   }
 
   function renderAttachmentTray(): void {
@@ -582,7 +580,8 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
       drop.type = 'button';
       drop.className = 'att-chip-drop';
       drop.setAttribute('aria-label', strings.attachRemoveAriaLabel);
-      drop.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>';
+      drop.innerHTML =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>';
       drop.addEventListener('click', () => removeAttachment(item.key));
       chip.appendChild(drop);
       panel.attachTrayEl.appendChild(chip);
@@ -674,6 +673,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     panel.lightboxImg.alt = '';
   }
 
+  panel.composerNoteCloseBtn.addEventListener('click', () => clearComposerNote());
   panel.attachBtn.addEventListener('click', () => {
     panel.attachInput.click();
   });
@@ -695,7 +695,8 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     panel.dropHintEl.hidden = false;
   });
   panel.chatEl.addEventListener('dragleave', (e) => {
-    if (e.target !== panel.chatEl && panel.chatEl.contains(e.target as Node)) return;
+    const next = e.relatedTarget;
+    if (next instanceof Node && panel.chatEl.contains(next)) return;
     panel.dropHintEl.hidden = true;
   });
   panel.chatEl.addEventListener('drop', (e) => {
@@ -727,6 +728,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     emailSaved = null;
     conversationEnvelope = null;
     clearAttachments();
+    clearComposerNote();
     closeLightbox();
     refreshComposerState();
     paintChatHead();
@@ -796,6 +798,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     const attachmentIds = readyAttachmentIds();
     panel.textarea.value = '';
     clearAttachments();
+    clearComposerNote();
     autoGrow(panel.textarea);
     refreshComposerState();
     if (typingIdleTimer) {
@@ -809,7 +812,6 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   function destroy(): void {
     if (agentTypingTimer) clearTimeout(agentTypingTimer);
     if (typingIdleTimer) clearTimeout(typingIdleTimer);
-    if (composerNoteTimer) clearTimeout(composerNoteTimer);
     clearAttachments();
     stopCallTimer();
     unlockBodyScroll();
@@ -841,6 +843,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     setAgentTyping,
     setConnectionState,
     setSending,
+    showComposerError: showComposerNote,
     setPastConversations,
     setConversation,
     setLauncherUnread,
@@ -1155,6 +1158,8 @@ interface PanelHandles {
   attachInput: HTMLInputElement;
   attachTrayEl: HTMLDivElement;
   composerNoteEl: HTMLDivElement;
+  composerNoteTextEl: HTMLSpanElement;
+  composerNoteCloseBtn: HTMLButtonElement;
   dropHintEl: HTMLDivElement;
   lightboxEl: HTMLDivElement;
   lightboxImg: HTMLImageElement;
@@ -1290,7 +1295,11 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
     </div>
     <form class="composer">
       <div class="composer-main">
-        <div class="composer-note" hidden></div>
+        <div class="composer-note" role="alert" hidden>
+          <span class="composer-note-dot" aria-hidden="true"></span>
+          <span class="composer-note-text"></span>
+          <button type="button" class="composer-note-close">${escapeHtml(strings.closeAriaLabel)}</button>
+        </div>
         <div class="composer-atts" hidden></div>
         <textarea rows="1" autocomplete="off" autocorrect="off" placeholder="${escapeAttr(strings.composerPlaceholder)}" aria-label="${escapeAttr(strings.messageAriaLabel)}"></textarea>
       </div>
@@ -1354,6 +1363,8 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
   const attachInput = chatEl.querySelector('.attach-input') as HTMLInputElement;
   const attachTrayEl = chatEl.querySelector('.composer-atts') as HTMLDivElement;
   const composerNoteEl = chatEl.querySelector('.composer-note') as HTMLDivElement;
+  const composerNoteTextEl = chatEl.querySelector('.composer-note-text') as HTMLSpanElement;
+  const composerNoteCloseBtn = chatEl.querySelector('.composer-note-close') as HTMLButtonElement;
   const dropHintEl = chatEl.querySelector('.drop-hint') as HTMLDivElement;
   const lightboxEl = chatEl.querySelector('.lightbox') as HTMLDivElement;
   const lightboxImg = chatEl.querySelector('.lightbox-img') as HTMLImageElement;
@@ -1412,6 +1423,8 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
     attachInput,
     attachTrayEl,
     composerNoteEl,
+    composerNoteTextEl,
+    composerNoteCloseBtn,
     dropHintEl,
     lightboxEl,
     lightboxImg,

@@ -70,6 +70,7 @@ export interface Strings {
   attachDropHint: string;
   attachUploading: string;
   attachFailed: string;
+  sendFailed: string;
   attachRemoveAriaLabel: string;
   attachTooMany: string;
   attachTypeRejected: string;

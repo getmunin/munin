@@ -60,7 +60,8 @@ export type QueueActionType =
   | 'reopen'
   | 'reject'
   | 'note'
-  | 'requestDraft';
+  | 'requestDraft'
+  | 'attach';
 
 export type QueueActionError = {
   type: QueueActionType;
@@ -155,6 +156,7 @@ export interface QueueController {
   pendingAction: QueueActionType | null;
   actionError: QueueActionError;
   clearActionError: () => void;
+  reportAttachmentError: (conversationId: string, message: string) => void;
   draftRequested: Record<string, boolean>;
   takeOver: (id: string) => Promise<void>;
   release: (id: string) => Promise<boolean>;
@@ -411,7 +413,7 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
 
   const deleteAttachment = useCallback(
     async (conversationId: string, attachmentId: string) =>
-      runAction('send', conversationId, () =>
+      runAction('attach', conversationId, () =>
         api(`/v1/conversations/${conversationId}/attachments/${attachmentId}`, {
           method: 'DELETE',
         }),
@@ -470,6 +472,10 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
 
   const clearActionError = useCallback(() => setActionError(null), []);
 
+  const reportAttachmentError = useCallback((conversationId: string, message: string) => {
+    setActionError({ type: 'attach', conversationId, message, code: null });
+  }, []);
+
   return {
     open,
     finished,
@@ -485,6 +491,7 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     pendingAction,
     actionError,
     clearActionError,
+    reportAttachmentError,
     draftRequested,
     takeOver,
     release,

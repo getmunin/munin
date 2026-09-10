@@ -61,6 +61,7 @@ const nn: Strings = {
   attachDropHint: 'Slepp biletet her',
   attachUploading: 'Lastar opp…',
   attachFailed: 'Biletet vart ikkje lasta opp. Prøv igjen.',
+  sendFailed: 'Meldinga vart ikkje sendt. Prøv igjen.',
   attachRemoveAriaLabel: 'Fjern biletet',
   attachTooMany: 'Du kan leggje ved opptil {n} bilete.',
   attachTypeRejected: 'Vi tek imot PNG, JPEG, GIF og WebP.',

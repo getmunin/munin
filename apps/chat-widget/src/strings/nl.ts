@@ -61,6 +61,7 @@ const nl: Strings = {
   attachDropHint: 'Laat de afbeelding hier vallen',
   attachUploading: 'Uploaden…',
   attachFailed: 'De afbeelding is niet geüpload. Probeer het nog eens.',
+  sendFailed: 'Het bericht is niet verzonden. Probeer het nog eens.',
   attachRemoveAriaLabel: 'Afbeelding verwijderen',
   attachTooMany: 'Je kunt maximaal {n} afbeeldingen toevoegen.',
   attachTypeRejected: 'We nemen PNG, JPEG, GIF en WebP.',

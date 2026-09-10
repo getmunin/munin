@@ -61,6 +61,7 @@ const cs: Strings = {
   attachDropHint: 'Přetáhněte obrázek sem',
   attachUploading: 'Nahrávání…',
   attachFailed: 'Obrázek se nepodařilo nahrát. Zkuste to znovu.',
+  sendFailed: 'Zprávu se nepodařilo odeslat. Zkuste to znovu.',
   attachRemoveAriaLabel: 'Odebrat obrázek',
   attachTooMany: 'Můžete přidat až {n} obrázků.',
   attachTypeRejected: 'Přijímáme PNG, JPEG, GIF a WebP.',

@@ -110,6 +110,7 @@ export {
 } from './providers/embedding.ts';
 export {
   type Mailer,
+  type MailAttachment,
   type MailMessage,
   type SentMessage,
   ResendMailer,

@@ -57,6 +57,16 @@ const lt: Strings = {
   voiceTapToReturn: 'Palieskite, kad grįžtumėte',
   voiceFailed: 'Balso skambutis nepavyko',
   productViewLabel: 'Žiūrėti',
+  attachAriaLabel: 'Pridėti vaizdą',
+  attachDropHint: 'Nuvilkite vaizdą čia',
+  attachUploading: 'Įkeliama…',
+  attachFailed: 'Vaizdo įkelti nepavyko. Bandykite dar kartą.',
+  attachRemoveAriaLabel: 'Pašalinti vaizdą',
+  attachTooMany: 'Galite pridėti iki {n} vaizdų.',
+  attachTypeRejected: 'Priimame PNG, JPEG, GIF ir WebP.',
+  attachTooLarge: 'Vaizdas turi būti mažesnis nei {n} MB.',
+  attachmentUnavailable: 'Vaizdas nebepasiekiamas',
+  lightboxCloseAriaLabel: 'Uždaryti vaizdą',
 };
 
 export default lt;

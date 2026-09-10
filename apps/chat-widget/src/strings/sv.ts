@@ -57,6 +57,16 @@ const sv: Strings = {
   voiceTapToReturn: 'Tryck för att återgå',
   voiceFailed: 'Röstsamtal misslyckades',
   productViewLabel: 'Visa',
+  attachAriaLabel: 'Bifoga en bild',
+  attachDropHint: 'Släpp bilden här',
+  attachUploading: 'Laddar upp…',
+  attachFailed: 'Bilden laddades inte upp. Försök igen.',
+  attachRemoveAriaLabel: 'Ta bort bilden',
+  attachTooMany: 'Du kan bifoga upp till {n} bilder.',
+  attachTypeRejected: 'Vi tar PNG, JPEG, GIF och WebP.',
+  attachTooLarge: 'Bilder måste vara under {n} MB.',
+  attachmentUnavailable: 'Bilden är inte längre tillgänglig',
+  lightboxCloseAriaLabel: 'Stäng bilden',
 };
 
 export default sv;

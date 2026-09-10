@@ -57,6 +57,16 @@ const fi: Strings = {
   voiceTapToReturn: 'Palaa napauttamalla',
   voiceFailed: 'Äänipuhelu epäonnistui',
   productViewLabel: 'Katso',
+  attachAriaLabel: 'Liitä kuva',
+  attachDropHint: 'Pudota kuva tähän',
+  attachUploading: 'Lähetetään…',
+  attachFailed: 'Kuvan lähetys ei onnistunut. Yritä uudelleen.',
+  attachRemoveAriaLabel: 'Poista kuva',
+  attachTooMany: 'Voit liittää enintään {n} kuvaa.',
+  attachTypeRejected: 'Otamme vastaan PNG-, JPEG-, GIF- ja WebP-kuvia.',
+  attachTooLarge: 'Kuvan koko saa olla enintään {n} MB.',
+  attachmentUnavailable: 'Kuva ei ole enää saatavilla',
+  lightboxCloseAriaLabel: 'Sulje kuva',
 };
 
 export default fi;

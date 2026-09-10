@@ -1,6 +1,6 @@
 ---
 title: Conv: Set up a chat widget
-description: Provision a per-channel widget API key, push transcripts via POST /v1/widget/messages, and wire the human-handoff webhook.
+description: Provision a per-channel widget API key, push transcripts and image attachments via POST /v1/widget/messages, and wire the human-handoff webhook.
 audiences: [admin]
 ---
 
@@ -137,6 +137,23 @@ If you set `providerMessageId` on a message, replays of the same identifier are 
 `visitor.email` enables CRM linkage: the contact is matched on (org, email). If you don't have an email, the contact is matched on `metadata.sessionId` so re-pushes update the same row. Once the visitor identifies themselves, send the email — the existing contact gets enriched rather than duplicated.
 
 Send `visitor.name` too whenever you know it. It is what every customer-facing surface displays first, and no other part of the pipeline can infer it — see the note under §1's visitor attributes. On the drop-in embed, the same three fields are `data-munin-visitor-name` / `-email` / `-meta`.
+
+### Attaching images
+
+A visitor message can carry up to 10 images. Upload each one first, then name the ids on the message.
+
+1. `POST /v1/widget/attachments` with `{ channelId, conversationId, sessionId, name, mime, sizeBytes }` returns `{ id, uploadUrl, uploadMethod, uploadFields, uploadExpiresAt }`.
+2. `PUT` (or `POST`, per `uploadMethod`) the bytes to `uploadUrl`.
+3. `POST /v1/widget/attachments/<id>/complete` with `{ channelId, conversationId, sessionId }` confirms the bytes, derives thumbnails, and returns the attachment with its signed `url` and `thumbnailUrl`.
+4. `POST /v1/widget/messages` with `attachmentIds: ["<id>", …]` on the message.
+
+`conversationId` comes from `POST /v1/widget/conversations` (or from any earlier ingest response), and the `sessionId` must be the one that owns that conversation — an upload can only be completed, and only be attached to a message, by the session that requested it. Accepted types are PNG, JPEG, GIF and WebP, at most 10 MB each; SVG is refused outright because it can carry inline scripts. A session may hold at most 10 uploads that are not yet on a message.
+
+A message with `attachmentIds` may leave `body` empty; a message with neither body nor attachments is rejected.
+
+`GET /v1/widget/messages` returns an `attachments` array on every message that has one — inbound visitor images and outbound agent/human images alike — each with `url`, `thumbnailUrl` (a smaller webp variant), `width`, `height` and `deleted`. Both URLs are short-lived signed links, valid for an hour, and the serve route re-checks the row on every request, so refetch rather than caching them. A deleted attachment comes back as `deleted: true` with `url` and `thumbnailUrl` set to `null` while keeping its `name` — render a placeholder, never a broken image.
+
+Errors carry a machine-readable `code`: `conv_attachment_mime_rejected`, `conv_attachment_too_large`, `conv_attachment_too_many`, `conv_attachment_upload_missing`, `conv_attachment_size_mismatch`, `conv_attachment_conflict`, `conv_attachment_deleted`.
 
 ## 3. Receive replies from a human / Munin agent
 

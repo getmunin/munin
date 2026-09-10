@@ -15,6 +15,7 @@ import {
 } from './api.ts';
 import { createRealtimeClient, type IncomingTyping } from './realtime.ts';
 import { mount, type UiController } from './ui.ts';
+import { prepareImageForUpload, rejectionForPrepared, uploadToPresigned } from './upload.ts';
 import { pickLocale } from './strings/index.ts';
 import { createVoiceSession, type VoiceSession } from '@getmunin/widget-voice';
 
@@ -210,6 +211,7 @@ export function start(config: WidgetConfig): void {
     agentTurnsThisSession = 0;
     emailCardShown = false;
     currentConversationId = null;
+    startConversationInFlight = null;
     currentEnvelope = null;
     voiceProbedFor = null;
     if (voiceSession) {
@@ -227,7 +229,7 @@ export function start(config: WidgetConfig): void {
   function startConversation(): void {
     ui.setChatKind('new');
     switchToSession(mintNewSession(config.channelId, config.cookieDomain));
-    api.startConversation().catch((err) => {
+    ensureConversation().catch((err) => {
       if (err instanceof WidgetApiError) {
         console.warn(`[munin-widget] start conversation failed: ${err.status}`);
       } else {
@@ -261,6 +263,7 @@ export function start(config: WidgetConfig): void {
   }
 
   let currentConversationId: string | null = null;
+  let startConversationInFlight: Promise<string> | null = null;
   let currentEnvelope: ConversationEnvelope | null = null;
   let voiceSession: VoiceSession | null = null;
   let voiceProbedFor: string | null = null;
@@ -384,8 +387,11 @@ export function start(config: WidgetConfig): void {
 
   const { strings } = pickLocale(config.locale);
   const ui: UiController = mount(config, strings, {
-    onSend(text) {
-      void sendMessage(text);
+    onSend(text, attachmentIds) {
+      void sendMessage(text, attachmentIds);
+    },
+    onUploadAttachment(file) {
+      return uploadAttachment(file);
     },
     onTypingIntent(intent) {
       realtime.sendTyping(intent === 'typing');
@@ -433,10 +439,45 @@ export function start(config: WidgetConfig): void {
     document.dispatchEvent(new CustomEvent('munin:widget-ready'));
   }
 
-  async function sendMessage(text: string): Promise<void> {
+  async function uploadAttachment(file: File): Promise<{ id: string }> {
+    const conversationId = currentConversationId ?? (await ensureConversation());
+    const prepared = await prepareImageForUpload(file);
+    if (rejectionForPrepared(prepared) !== null) {
+      throw new Error('attachment rejected after downscale');
+    }
+    const handle = await api.requestAttachment({
+      conversationId,
+      name: prepared.name,
+      mime: prepared.mime,
+      sizeBytes: prepared.blob.size,
+    });
+    await uploadToPresigned(handle, prepared);
+    const completed = await api.completeAttachment({
+      conversationId,
+      attachmentId: handle.id,
+    });
+    return { id: completed.id };
+  }
+
+  async function ensureConversation(): Promise<string> {
+    if (currentConversationId) return currentConversationId;
+    if (!startConversationInFlight) {
+      startConversationInFlight = api
+        .startConversation()
+        .then((res) => res.conversationId)
+        .finally(() => {
+          startConversationInFlight = null;
+        });
+    }
+    const id = await startConversationInFlight;
+    currentConversationId ??= id;
+    return id;
+  }
+
+  async function sendMessage(text: string, attachmentIds: string[]): Promise<void> {
     ui.setSending(true);
     try {
-      await api.postMessage(text);
+      await api.postMessage(text, attachmentIds);
     } catch (err) {
       if (err instanceof WidgetApiError) {
         console.warn(`[munin-widget] send failed: ${err.status}`);

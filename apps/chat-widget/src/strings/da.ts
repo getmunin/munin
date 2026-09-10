@@ -57,6 +57,16 @@ const da: Strings = {
   voiceTapToReturn: 'Tryk for at vende tilbage',
   voiceFailed: 'Taleopkald mislykkedes',
   productViewLabel: 'Se',
+  attachAriaLabel: 'Vedhæft et billede',
+  attachDropHint: 'Slip billedet her',
+  attachUploading: 'Uploader…',
+  attachFailed: 'Billedet blev ikke uploadet. Prøv igen.',
+  attachRemoveAriaLabel: 'Fjern billedet',
+  attachTooMany: 'Du kan vedhæfte op til {n} billeder.',
+  attachTypeRejected: 'Vi tager PNG, JPEG, GIF og WebP.',
+  attachTooLarge: 'Billeder skal være under {n} MB.',
+  attachmentUnavailable: 'Billedet er ikke længere tilgængeligt',
+  lightboxCloseAriaLabel: 'Luk billedet',
 };
 
 export default da;

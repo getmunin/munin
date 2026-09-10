@@ -7017,6 +7017,59 @@
         ]
       }
     },
+    "/v1/widget/attachments": {
+      "post": {
+        "operationId": "WidgetController_requestAttachment",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Widget"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/widget/attachments/{id}/complete": {
+      "post": {
+        "operationId": "WidgetController_completeAttachment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Widget"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/widget/conversations": {
       "get": {
         "operationId": "WidgetController_listConversations",

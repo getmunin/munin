@@ -5,6 +5,7 @@ import {
   Get,
   Headers,
   Inject,
+  Param,
   Patch,
   Post,
   Query,
@@ -19,8 +20,10 @@ import { AuthGuard } from '../../../common/auth/auth.guard.ts';
 import { TenancyInterceptor } from '../../../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../../../common/audit/audit.interceptor.ts';
 import {
+  WidgetCompleteAttachmentInput,
   WidgetIdentifyInput,
   WidgetIngestInput,
+  WidgetRequestAttachmentInput,
   WidgetVoiceAvailableQuery,
   WidgetVoiceEventInput,
   WidgetVoiceStartInput,
@@ -30,8 +33,10 @@ import {
   WidgetStartConversationInput,
 } from './widget.types.ts';
 import type {
+  WidgetCompleteAttachmentResult,
   WidgetIdentifyResult,
   WidgetIngestInputT,
+  WidgetRequestAttachmentResult,
   WidgetIngestResult,
   WidgetListConversationsResult,
   WidgetListMessagesResult,
@@ -108,6 +113,71 @@ export class WidgetController {
 
     const orgId = key.orgId ?? actor.orgId;
     return this.ingestService.ingest(orgId, input, { origin });
+  }
+
+  @Post('attachments')
+  async requestAttachment(
+    @Body() rawBody: unknown,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<WidgetRequestAttachmentResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor;
+    if (!actor) throw new ForbiddenException('widget_auth_required');
+
+    const keyRow = await ctx.db
+      .select({ channelId: schema.apiKeys.channelId, orgId: schema.apiKeys.orgId })
+      .from(schema.apiKeys)
+      .where(eq(schema.apiKeys.id, actor.id))
+      .limit(1);
+    const key = keyRow[0];
+    if (!key || !key.channelId) {
+      throw new ForbiddenException('widget_key_required');
+    }
+
+    const parsed = WidgetRequestAttachmentInput.safeParse(rawBody);
+    if (!parsed.success) {
+      throw new ForbiddenException(`invalid_widget_input: ${parsed.error.message}`);
+    }
+    const input = parsed.data;
+    if (input.channelId !== key.channelId) {
+      throw new ForbiddenException('widget_channel_mismatch');
+    }
+
+    const orgId = key.orgId ?? actor.orgId;
+    return this.ingestService.requestAttachmentUpload(orgId, input, { origin });
+  }
+
+  @Post('attachments/:id/complete')
+  async completeAttachment(
+    @Param('id') attachmentId: string,
+    @Body() rawBody: unknown,
+    @Headers('origin') origin: string | undefined,
+  ): Promise<WidgetCompleteAttachmentResult> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor;
+    if (!actor) throw new ForbiddenException('widget_auth_required');
+
+    const keyRow = await ctx.db
+      .select({ channelId: schema.apiKeys.channelId, orgId: schema.apiKeys.orgId })
+      .from(schema.apiKeys)
+      .where(eq(schema.apiKeys.id, actor.id))
+      .limit(1);
+    const key = keyRow[0];
+    if (!key || !key.channelId) {
+      throw new ForbiddenException('widget_key_required');
+    }
+
+    const parsed = WidgetCompleteAttachmentInput.safeParse(rawBody);
+    if (!parsed.success) {
+      throw new ForbiddenException(`invalid_widget_input: ${parsed.error.message}`);
+    }
+    const input = parsed.data;
+    if (input.channelId !== key.channelId) {
+      throw new ForbiddenException('widget_channel_mismatch');
+    }
+
+    const orgId = key.orgId ?? actor.orgId;
+    return this.ingestService.completeAttachmentUpload(orgId, attachmentId, input, { origin });
   }
 
   @Get('messages')

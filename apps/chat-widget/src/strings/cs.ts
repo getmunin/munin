@@ -57,6 +57,16 @@ const cs: Strings = {
   voiceTapToReturn: 'Klepnutím se vrátíte',
   voiceFailed: 'Hlasový hovor se nezdařil',
   productViewLabel: 'Zobrazit',
+  attachAriaLabel: 'Přidat obrázek',
+  attachDropHint: 'Přetáhněte obrázek sem',
+  attachUploading: 'Nahrávání…',
+  attachFailed: 'Obrázek se nepodařilo nahrát. Zkuste to znovu.',
+  attachRemoveAriaLabel: 'Odebrat obrázek',
+  attachTooMany: 'Můžete přidat až {n} obrázků.',
+  attachTypeRejected: 'Přijímáme PNG, JPEG, GIF a WebP.',
+  attachTooLarge: 'Obrázek musí mít méně než {n} MB.',
+  attachmentUnavailable: 'Obrázek už není dostupný',
+  lightboxCloseAriaLabel: 'Zavřít obrázek',
 };
 
 export default cs;

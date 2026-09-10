@@ -57,6 +57,16 @@ const nb: Strings = {
   voiceTapToReturn: 'Trykk for å gå tilbake',
   voiceFailed: 'Taleanrop mislyktes',
   productViewLabel: 'Se',
+  attachAriaLabel: 'Legg ved bilde',
+  attachDropHint: 'Slipp bildet her',
+  attachUploading: 'Laster opp…',
+  attachFailed: 'Bildet ble ikke lastet opp. Prøv igjen.',
+  attachRemoveAriaLabel: 'Fjern bildet',
+  attachTooMany: 'Du kan legge ved opptil {n} bilder.',
+  attachTypeRejected: 'Vi tar imot PNG, JPEG, GIF og WebP.',
+  attachTooLarge: 'Bildet må være under {n} MB.',
+  attachmentUnavailable: 'Bildet er ikke tilgjengelig lenger',
+  lightboxCloseAriaLabel: 'Lukk bildet',
 };
 
 export default nb;

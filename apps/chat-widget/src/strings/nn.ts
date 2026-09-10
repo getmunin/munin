@@ -57,6 +57,16 @@ const nn: Strings = {
   voiceTapToReturn: 'Trykk for å gå tilbake',
   voiceFailed: 'Taleanropet mislukka',
   productViewLabel: 'Sjå',
+  attachAriaLabel: 'Legg ved bilete',
+  attachDropHint: 'Slepp biletet her',
+  attachUploading: 'Lastar opp…',
+  attachFailed: 'Biletet vart ikkje lasta opp. Prøv igjen.',
+  attachRemoveAriaLabel: 'Fjern biletet',
+  attachTooMany: 'Du kan leggje ved opptil {n} bilete.',
+  attachTypeRejected: 'Vi tek imot PNG, JPEG, GIF og WebP.',
+  attachTooLarge: 'Biletet må vere under {n} MB.',
+  attachmentUnavailable: 'Biletet er ikkje tilgjengeleg lenger',
+  lightboxCloseAriaLabel: 'Lukk biletet',
 };
 
 export default nn;

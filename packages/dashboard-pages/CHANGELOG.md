@@ -1,5 +1,173 @@
 # @getmunin/dashboard-pages
 
+## 5.21.0
+
+### Minor Changes
+
+- 727e2a3: Wire conversation image attachments through the operator surfaces: the read path, `conv_send_message`,
+  the dashboard composer and thread pane, and deletion from both the UI and MCP.
+
+  The read path is the piece the rest of the stack was waiting on. `conv_get_conversation` and the
+  `/v1/conversations/*` DTOs now mint attachment URLs per request via `hydrateProjection`, so the
+  denormalized `conv_messages.attachments` column stays free of expiring tokens while readers still get
+  a working link. Without this the in-house agent runner received `url: null` for every image and could
+  only ever see a text placeholder.
+
+  `conv_send_message` and the reply endpoint take `attachmentIds`, which reference images already on the
+  conversation. There is deliberately no tool that uploads bytes to a conversation: an agent can send a
+  customer's own photo back with an annotation, but cannot introduce a new file onto a channel that
+  reaches customers. Ids from another conversation, ids already committed to a different message, and
+  deleted ids are all rejected before the insert rather than at commit time.
+
+  Deleting an attachment also rewrites the `deleted` flag inside the message's projection. Tombstoning
+  only the `conv_attachments` row left the thread claiming the image was live, so the dashboard rendered
+  a broken image instead of the "removed" placeholder — the serve route correctly refused the bytes, but
+  nothing told the reader why.
+
+  Members gain three routes (attachment upload-request, complete, delete). A member who can already post
+  a reply should be able to attach an image to it and take one back down, and `member-surface.test.ts`
+  records the widening.
+
+- cae6a1b: Read vision capability from the provider instead of a hardcoded model allow-list, and show it in the
+  model picker.
+
+  The allow-list was wrong on the day it was written — it classified `o1` and `qwen2.5-vl` as text-only,
+  both of which accept images — and every new model release would have widened the gap. It is gone.
+
+  The capability was already in a payload the host fetches. `models.service` calls `{baseUrl}/models`
+  and parses `context_length` and `pricing`; the same response carries OpenRouter's
+  `architecture.input_modalities` and Anthropic's `capabilities.image_input.supported`, and both are now
+  read into `ModelEntry.supportsVision`.
+
+  A managed provider supplies its own model list and never hits that endpoint, so `DEFAULT_PROVIDER_MODELS`
+  widens from `string[]` to accept `{ id, supportsVision? }` as well. Hosts passing bare strings keep
+  working unchanged and report `null`.
+
+  `null` means the provider did not say, and is treated as "attempt": the request goes out with images,
+  and if an undeclared model rejects it the turn is retried once without them, the model is remembered as
+  image-less for the life of the process, and the customer still gets a reply. Guessing pessimistically
+  would have silently blinded the agent on providers that simply do not advertise modalities — plain
+  OpenAI among them — and guessing optimistically would have failed the turn outright. A rejection from a
+  model the provider _declared_ image-capable is not retried, so a real error is never masked.
+
+  The model picker now labels each option `(chat, vision)` or `(chat)`, from the same field the gate
+  reads, so the list cannot disagree with behaviour. An option shows no label when capability is unknown
+  rather than claiming text-only.
+
+### Patch Changes
+
+- b787e96: Share one set of attachment limits between the server and both clients, and validate uploads in the
+  dashboard composer before they leave the browser.
+
+  The allowlist, the 10 MB cap and the per-message maximum existed in two places — the server's
+  `conv-attachments.constants.ts` and the widget's `upload.ts` — and in neither for the dashboard,
+  which reused `lib/upload-image.ts`, the CMS asset helper (SVG allowed, no size cap). A wrong file
+  type was silently dropped, an oversized one round-tripped to the server and came back as a bare
+  "Upload failed", and nothing enforced the per-message cap client-side. An SVG was the sharp edge: it
+  passed the `image/*` filter, uploaded untouched, then failed the server allowlist with no hint why.
+
+  `@getmunin/types` now owns `CONV_ATTACHMENT_*` plus `attachmentRejectionFor`, and all three callers
+  read from it. The dashboard checks type, size and count up front and reports each rejection through
+  the conversation pane's existing `role="alert"` banner rather than a second, quieter channel — so an
+  attachment failure now reads like every other action failure in that pane. Attachment deletion also
+  stops reporting itself as "Send failed": `QueueActionType` gains `attach`.
+
+  Icons in the attachment UI stop being characters. The removed-attachment chip swaps its 🚫 emoji for
+  lucide's `ImageOff`, and both remove buttons swap `✕` for lucide's `X`, so all three render in the
+  pane's own ink and follow dark mode instead of leaning on the platform emoji and text fonts. The
+  widget inlines the same `X` geometry — it draws into a shadow root and cannot import from
+  lucide-react — so its chip control stays visually matched to the dashboard's.
+
+- e07fa6c: feat(agent-host): let a managed provider offer several models instead of pinning one
+
+  A deployment can supply the LLM itself, so an org never has to bring its own key. That
+  managed provider resolved the model through `ResolvedProviderAuth.model`, and the runner
+  applied that one value to **both** tiers: `auth.model ?? config.fastModel` and
+  `auth.model ?? config.smartModel ?? …`. So an org on the managed provider could pick a
+  model in the dashboard, the write would persist, and generation would silently ignore it.
+  Offering a second managed model was impossible without changing this line.
+
+  **Breaking for hosts that pass `resolveProviderAuth`:** `model` is replaced by `models`,
+  the list of models that provider offers, first entry the default. A single-element list
+  is the old pinning behaviour exactly, so `model: 'x'` becomes `models: ['x']`. The two
+  fields together would have allowed a default outside its own allow-list — one more state
+  to define and test for nothing, since ordering already expresses which is the default.
+  Dropping `model` also makes the migration a compile error rather than a silently ignored
+  property. Display order is unaffected: the dashboard sorts models by id.
+
+  `resolveModelTiers` reads the org's own `fastModel` / `smartModel` whenever they appear
+  in the list, falling back to the first entry for a choice the provider no longer offers.
+  Hosts that pass no `models` (every org on its own key) keep reading the org's config as
+  before.
+
+  Two consequences of the old shape are fixed with it:
+
+  - **An org on the managed provider could persist a model that does not exist.**
+    `resolveModels` bailed on `!apiKey` before validating, because validation meant asking
+    the org's provider for its `/models`. It now validates against the managed list when
+    the org has no key of its own, throwing the same `agent_config_invalid_model` the
+    bring-your-own-key path throws — the dashboard's existing
+    `errors.agent_config_invalid_model` copy already reads correctly for it. With no
+    managed list configured the early return stands, so deployments without one behave
+    exactly as before.
+  - **`GET /v1/agent-config/models` answered `supported: false` for those orgs**, leaving a
+    host no way to publish its managed models other than hardcoding them into its provider
+    preset. It now serves them, and switching a provider card to the managed preset reads
+    the endpoint when the preset carries no list of its own, so the model picker fills in
+    without a reload. A preset that does list models still wins. `listForCurrentActor` also
+    stops reading the config row before it knows whether there is a key to use it with.
+
+  The list reaches both through `AgentHostModule.forRoot{,Async}({ defaultProviderModels })`,
+  normalized (trimmed, blanks dropped, deduped, configured order kept) into the new
+  `DEFAULT_PROVIDER_MODELS` token.
+
+  Note for whoever wires a second model up: token quotas are counted per token with no
+  regard for which model produced them, so a frontier-priced model shares the cap of a
+  cheap one until the host weights it.
+
+- 8ddf18f: Keep inbound auto-replies and bounces out of the operator queue
+
+  `classifySender` has always detected machine-generated inbound mail (RFC 3834 `Auto-Submitted`,
+  `X-Autoreply`, `X-Autorespond`, `Precedence: junk`, `X-Auto-Response-Suppress`, an empty or
+  `mailer-daemon` `Return-Path`), but nothing read the verdict. An out-of-office notice therefore ran
+  the whole chain: attention flag, an LLM turn, a parked draft, and a `requestHandover` that put the
+  thread in front of a human. A campaign to a few hundred prospects filled the console with holiday
+  notices.
+
+  Ingest now stamps such a message `metadata.suppressed` (`auto_reply` or `bounce`) and stops there:
+  no attention flag, no reopen of a closed thread, no topic or signature pass, and
+  `conversation.message.received` carries `autoReply: true` so the runner skips its turn and the
+  outreach outcome extractor skips the thread. The message is still stored, still in the thread, still
+  readable by agents and by the operator, now marked in the console. Suppression is per message —
+  the next real reply from the same sender is handled normally.
+
+  Two follow-on fixes fall out of the same stamp: the awaiting-reply sweep looks at the newest
+  _non-suppressed_ public message, so a conversation is no longer resurrected by an auto-reply and a
+  genuine message that arrived before one still gets answered; and `listDueFollowups` no longer treats
+  an out-of-office as "the prospect replied", which silently ended the follow-up sequence for exactly
+  the contacts who were merely away.
+
+- 4a80275: Let an operator read the agent's draft before claiming the conversation
+
+  Deciding whether to take a conversation over meant claiming it first, which is the one move you
+  cannot make speculatively — it moves the claim off a teammate. When a pending draft exists the
+  composer now renders the reply box read-only with the draft body, above the same claim/take-over
+  button as before, so the draft is readable without owning the thread. Editing and sending still
+  require the claim, and a conversation with no draft keeps today's behaviour: no composer until you
+  claim it.
+
+- 8ddf18f: Show the sender's email address beside their name in the conversation thread pane
+
+  The pane header named the contact but not the address the mail came from, which matters most
+  precisely when several people at one company are in the same campaign. The sub-line now reads
+  `Bang, Terje <terje.bang@post.no>`, and falls to its own line when the conversation has no subject
+  so the address never lands inside the headline. A contact whose only identity is the address still
+  shows it once, not twice.
+
+- Updated dependencies [b787e96]
+  - @getmunin/types@5.21.0
+  - @getmunin/ui@5.21.0
+
 ## 5.20.0
 
 ### Minor Changes

@@ -1,5 +1,263 @@
 # @getmunin/backend-core
 
+## 5.21.0
+
+### Minor Changes
+
+- b787e96: Four follow-ups to conversation image support.
+
+  **A failed inbound store no longer loses the email.** The IMAP poll advanced its cursor past every
+  message it had fetched, whether or not the message was actually stored — so a transient storage or
+  database error during ingest silently dropped that email for good. The loop now distinguishes a
+  permanent failure from a transient one: an unparseable message is skipped and the cursor moves past it
+  (retrying forever would only stall the channel behind one bad email), while a failed _store_ holds the
+  cursor at the last message that landed and stops the tick, so the next poll re-fetches and retries.
+  A held cursor also raises its own alert, keyed separately from the polling-failure alert so it does not
+  feed the auto-deactivation counter — mail is safe on the server, and deactivating the channel would
+  break outreach approvals for no reason.
+
+  **Legacy inlined images can be extracted.** `mailparser` was rewriting every inbound `cid:` image into
+  a base64 `data:` URI inside `conv_messages.body_html` (fixed separately by passing `keepCidLinks`), so
+  existing rows hold whole images inside a text column. `pnpm -F @getmunin/backend-core
+backfill:inline-email-images` walks each org, promotes the qualifying images to real attachments, and
+  rewrites the HTML to a `cid:` reference matching the new `content_id`. It takes `--dry-run`, is
+  idempotent, and applies the same floor as inbound ingest, so tracking pixels stay inlined rather than
+  becoming attachments. On the smoke-test corpus one message went from 240,483 characters to 72.
+
+  **Deleting a CMS asset no longer leaks its variants.** `cms.deleteAsset` removed only the master
+  object, so every deleted image left up to five orphaned webp derivatives in storage forever. It now
+  deletes the keys named in `variants` as well.
+
+  **Abandoned uploads get collected.** `AttachmentGcWorker` deletes attachment rows that never made it
+  onto a message once they are past a grace period (default 60 minutes,
+  `MUNIN_ATTACHMENT_GC_GRACE_MINUTES`), purging the master and variant objects with them. It claims rows
+  with `FOR UPDATE SKIP LOCKED` so several instances can run it, and never touches a row that is already
+  on a message.
+
+- 25857bf: Add the conversation attachment store that image support on email and the chat widget will be
+  built on.
+
+  Bytes live in the existing `AssetStorage` backend under a `conv/<orgId>/<conversationId>/` prefix
+  and are reachable only through short-lived HMAC-signed URLs (`GET /v1/c/a/:token`), never a
+  public key — conversation media is private per-conversation data, so it deliberately does not go
+  into `cms_assets` and never appears in the CMS library. The serve route re-checks the row on
+  every request, which is what lets a deletion invalidate URLs that were already handed out.
+
+  The attachment token uses its own `av1` version prefix. The email-open and attachment token
+  payloads are structurally identical, so sharing a version string would let a token minted for one
+  purpose verify as the other; there is now a test asserting they do not cross over.
+
+  Deletion is deliberately two-shaped. A not-yet-sent upload is hard-deleted, while an attachment on
+  a message that has already gone out is tombstoned: the objects are purged (master _and_ every
+  derived variant, which `cms.deleteAsset` neglects for its own assets), but name, mime and size
+  survive with `deleted_at` for the audit trail. A message already delivered to a customer cannot be
+  unsent, so the stored thread has to keep recording that something was attached.
+
+  `assetExtensionFromName`, SVG rejection and the storage-key generator move out of `cms.service.ts`
+  into `common/storage/asset-validation.ts` so both modules share one definition.
+
+  The persisted message projection deliberately carries no URL. Signed attachment tokens expire
+  after an hour, so a URL copied into the `conv_messages.attachments` jsonb — or into a stored
+  `body_html` — is dead by the time most threads are read again, and renders as a broken image.
+  `projectForMessage` now emits durable metadata only, and `hydrateProjection` mints fresh URLs at
+  read time for whoever is building a DTO.
+
+- 727e2a3: Wire conversation image attachments through the operator surfaces: the read path, `conv_send_message`,
+  the dashboard composer and thread pane, and deletion from both the UI and MCP.
+
+  The read path is the piece the rest of the stack was waiting on. `conv_get_conversation` and the
+  `/v1/conversations/*` DTOs now mint attachment URLs per request via `hydrateProjection`, so the
+  denormalized `conv_messages.attachments` column stays free of expiring tokens while readers still get
+  a working link. Without this the in-house agent runner received `url: null` for every image and could
+  only ever see a text placeholder.
+
+  `conv_send_message` and the reply endpoint take `attachmentIds`, which reference images already on the
+  conversation. There is deliberately no tool that uploads bytes to a conversation: an agent can send a
+  customer's own photo back with an annotation, but cannot introduce a new file onto a channel that
+  reaches customers. Ids from another conversation, ids already committed to a different message, and
+  deleted ids are all rejected before the insert rather than at commit time.
+
+  Deleting an attachment also rewrites the `deleted` flag inside the message's projection. Tombstoning
+  only the `conv_attachments` row left the thread claiming the image was live, so the dashboard rendered
+  a broken image instead of the "removed" placeholder — the serve route correctly refused the bytes, but
+  nothing told the reader why.
+
+  Members gain three routes (attachment upload-request, complete, delete). A member who can already post
+  a reply should be able to attach an image to it and take one back down, and `member-surface.test.ts`
+  records the widening.
+
+- 68a769c: Images in and out over the email channel.
+
+  Inbound: `parseMessage()` now carries `parsed.attachments` (content, contentType,
+  filename, cid, contentDisposition, related) instead of discarding them, and
+  `EmailAdapter.ingest()` persists the survivors through
+  `ConvAttachmentsService.persistBytes()` inside the existing ingest transaction,
+  writing `projectForMessage()` output into `conv_messages.attachments`. Both inbound
+  entry points share the change — the IMAP poll path and the relay path go through the
+  same `parseMessage` + `adapter.ingest` pair.
+
+  The noise filter is the substance and lives on its own in `email/inbound-attachments.ts`
+  so it can be unit-tested without a database. Business mail carries a tracking pixel and
+  a signature logo on nearly every message, so a part is dropped when its mime is outside
+  `CONV_ATTACHMENT_MIME_ALLOWLIST`, when it is under `CONV_ATTACHMENT_INBOUND_BYTES_MIN`
+  or has an edge under `CONV_ATTACHMENT_INBOUND_EDGE_MIN_PX`, when sharp cannot decode it,
+  when it is an `inline` part whose Content-ID no longer appears in the HTML body, or once
+  `CONV_ATTACHMENT_PER_MESSAGE_MAX` parts have been kept. The cid-reference test runs
+  against the _stripped_ HTML — after `stripQuotedReplyHtml` and `stripSignatureHtml` —
+  which is what actually keeps signature logos out; a filter placed before stripping would
+  keep every one of them. Filenames take their extension from the part's mime, so a
+  PNG-mimed part named `payload.svg` cannot reach the store's SVG rejection by extension.
+
+  `simpleParser` is now called with `keepCidLinks: true`. By default mailparser rewrites
+  every `cid:` reference in `parsed.html` into a base64 `data:` URI, which meant inbound
+  inline images were being inlined whole into `conv_messages.body_html` — a multi-hundred-
+  kilobyte text column per message and no attachment row to show for it. The stored HTML
+  keeps its `cid:` references, normalized (unbracketed, lowercased) to match the
+  `content_id` column exactly so read-time hydration can mint a fresh URL per request;
+  nothing time-limited is written to the database. An `<img>` whose part the filter dropped
+  is removed rather than left pointing at a cid that will never resolve.
+
+  Outbound: `buildOutbound()` takes an `attachments` input and nests the message properly —
+  `multipart/related; type="text/html"` around the alternative when a part is inline and
+  its cid is actually referenced, `multipart/mixed` for files, both nested when a message
+  carries each. Parts are base64-encoded at 76 columns with `Content-Disposition` and, for
+  inline parts, `Content-ID`; a non-ASCII filename goes out RFC 2231-encoded. `EmailAdapter.send()`
+  loads the bytes with `storage.readBytes()` and embeds real MIME parts — a signed
+  attachment URL would outlive its TTL in the recipient's mailbox and leak on forward — and
+  an attachment whose object has gone (a tombstoned row) is left out rather than failing
+  the send.
+
+  `MailMessage` gains `attachments` and `ResendMailer` maps it onto the Resend API's
+  attachment array (`SmtpMailer` maps it onto nodemailer's, which would otherwise have
+  dropped it silently). The transactional `mailer` path hands its attachments to the mailer
+  rather than through `built.raw`, deliberately: that path already loses HTML through
+  `extractTextBody`, and feeding it a MIME body full of base64 would have put the encoded
+  image into the message text.
+
+  `widget-email-fallback.worker.ts` deliberately sends no attachments. It composes a
+  "you have unread messages" digest that points the recipient back at the widget rather
+  than reproducing the thread, so shipping the images a second time by mail is duplication,
+  not delivery.
+
+- 0817af4: Let chat-widget visitors send images, and render the ones sent back to them.
+
+  Two new widget routes sit on top of the attachment store: `POST /v1/widget/attachments` hands out
+  a presigned target and `POST /v1/widget/attachments/:id/complete` confirms the bytes. Both go
+  through the same key-to-channel check and origin allowlist as ingest, and both pass the caller's
+  `sessionId` into `ConvAttachmentsService`, so a visitor can only complete an upload their own
+  session requested. `WidgetIngestMessage.attachmentIds` links completed uploads at send time via
+  `attachToMessage`, which re-validates ownership, conversation match and upload completion — a
+  client-supplied id is never trusted, and an id belonging to another session or another
+  conversation is refused rather than silently dropped.
+
+  A message may now carry attachments with an empty `body`; previously `body` was required, which
+  made an image-only message impossible to express. A message with neither is still rejected.
+
+  `GET /v1/widget/messages` returns an `attachments` array per message, so outbound agent and human
+  images render in the widget too. Realtime already signals only a `messageId` and the widget
+  refetches, so no gateway change was needed. A tombstoned attachment serializes as
+  `deleted: true` with null URLs and the widget shows a placeholder — a deleted image never
+  degrades into a broken one.
+
+  In the bundle, images can be attached from a composer button, pasted from the clipboard or dropped
+  onto the panel, are downscaled and re-encoded to WebP in the browser before upload, and render as
+  tappable bubbles with a lightbox. The downscale mirrors the dashboard's `prepareImageForUpload`
+  rather than importing it, because the widget ships as a standalone bundle.
+
+### Patch Changes
+
+- b787e96: Share one set of attachment limits between the server and both clients, and validate uploads in the
+  dashboard composer before they leave the browser.
+
+  The allowlist, the 10 MB cap and the per-message maximum existed in two places — the server's
+  `conv-attachments.constants.ts` and the widget's `upload.ts` — and in neither for the dashboard,
+  which reused `lib/upload-image.ts`, the CMS asset helper (SVG allowed, no size cap). A wrong file
+  type was silently dropped, an oversized one round-tripped to the server and came back as a bare
+  "Upload failed", and nothing enforced the per-message cap client-side. An SVG was the sharp edge: it
+  passed the `image/*` filter, uploaded untouched, then failed the server allowlist with no hint why.
+
+  `@getmunin/types` now owns `CONV_ATTACHMENT_*` plus `attachmentRejectionFor`, and all three callers
+  read from it. The dashboard checks type, size and count up front and reports each rejection through
+  the conversation pane's existing `role="alert"` banner rather than a second, quieter channel — so an
+  attachment failure now reads like every other action failure in that pane. Attachment deletion also
+  stops reporting itself as "Send failed": `QueueActionType` gains `attach`.
+
+  Icons in the attachment UI stop being characters. The removed-attachment chip swaps its 🚫 emoji for
+  lucide's `ImageOff`, and both remove buttons swap `✕` for lucide's `X`, so all three render in the
+  pane's own ink and follow dark mode instead of leaning on the platform emoji and text fonts. The
+  widget inlines the same `X` geometry — it draws into a shadow root and cannot import from
+  lucide-react — so its chip control stays visually matched to the dashboard's.
+
+- b787e96: Carry message attachments through the in-process runner REST client, so the agent actually sees
+  customer images.
+
+  The HTTP `createMuninRestClient` learned to pass attachments through, but `AgentHostRunner` always
+  resolves its client from `InProcessMuninRestClientFactoryService`, and that client dropped the field
+  in two places: `getConversation` rebuilt each message as `{ id, authorType, body, createdAt,
+internal }`, and its own `toRuntimeHistory` did the same. `ConversationMessage.attachments` was
+  therefore always `undefined` on the path the OSS backend runs, so `loadHistoryImages` saw nothing to
+  fetch — no image reached the model, and no placeholder note explained the gap. `newestTurnIsSilent`
+  reads the same dropped field, so an image-only customer turn was still treated as silence.
+
+  Both mappings now carry `attachments`, and the integration test asserts a hydrated attachment
+  survives `getConversation` and comes out of `toRuntimeHistory` as `{ mime, url, name }`.
+
+- 8ddf18f: Keep inbound auto-replies and bounces out of the operator queue
+
+  `classifySender` has always detected machine-generated inbound mail (RFC 3834 `Auto-Submitted`,
+  `X-Autoreply`, `X-Autorespond`, `Precedence: junk`, `X-Auto-Response-Suppress`, an empty or
+  `mailer-daemon` `Return-Path`), but nothing read the verdict. An out-of-office notice therefore ran
+  the whole chain: attention flag, an LLM turn, a parked draft, and a `requestHandover` that put the
+  thread in front of a human. A campaign to a few hundred prospects filled the console with holiday
+  notices.
+
+  Ingest now stamps such a message `metadata.suppressed` (`auto_reply` or `bounce`) and stops there:
+  no attention flag, no reopen of a closed thread, no topic or signature pass, and
+  `conversation.message.received` carries `autoReply: true` so the runner skips its turn and the
+  outreach outcome extractor skips the thread. The message is still stored, still in the thread, still
+  readable by agents and by the operator, now marked in the console. Suppression is per message —
+  the next real reply from the same sender is handled normally.
+
+  Two follow-on fixes fall out of the same stamp: the awaiting-reply sweep looks at the newest
+  _non-suppressed_ public message, so a conversation is no longer resurrected by an auto-reply and a
+  genuine message that arrived before one still gets answered; and `listDueFollowups` no longer treats
+  an out-of-office as "the prospect replied", which silently ended the follow-up sequence for exactly
+  the contacts who were merely away.
+
+- 9b48cf5: fix(widget): the voice call screen names the org's assistant
+
+  The voice overlay and its minimized banner had exactly two cases: a human took
+  over (use `assigneeName`) or it's the AI, in which case they fell back to the
+  localized `defaultAuthorName` — "Agent" in every locale. An org that named its
+  assistant Thea saw "Thea" in the chat transcript and "Agent" the moment the
+  caller switched to voice.
+
+  The name was already resolved server-side, but only per message: list-messages
+  stamped `assistants.name` on each agent message's `authorName` and never put it
+  on the conversation envelope, which is all the overlay reads. `agentName` now
+  rides along on the envelope (falling back to `Munin`, matching the per-message
+  behaviour), and the widget prefers it over the generic string. A human assignee
+  still wins once the conversation is handed over.
+
+  The lookup also no longer waits for an agent message to exist, so a brand-new
+  conversation — the common case for starting a call before the assistant has said
+  anything — has the name available on its first load.
+
+- Updated dependencies [cae6a1b]
+- Updated dependencies [b787e96]
+- Updated dependencies [25857bf]
+- Updated dependencies [68a769c]
+- Updated dependencies [b787e96]
+- Updated dependencies [8ddf18f]
+- Updated dependencies [cae6a1b]
+  - @getmunin/agent-runtime@5.21.0
+  - @getmunin/types@5.21.0
+  - @getmunin/core@5.21.0
+  - @getmunin/db@5.21.0
+  - @getmunin/inspector-app@5.21.0
+  - @getmunin/mcp-toolkit@5.21.0
+  - @getmunin/emails@5.21.0
+
 ## 5.20.0
 
 ### Minor Changes

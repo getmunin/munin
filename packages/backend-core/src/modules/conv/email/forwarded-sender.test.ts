@@ -20,6 +20,7 @@ function parsed(overrides: Partial<ParsedInboundEmail>): ParsedInboundEmail {
       isAutoReply: false,
       isRoleAccount: false,
       isBounce: false,
+      autoReplySignal: null,
     },
     authenticationResults: [],
     arcAuthenticationResults: [],

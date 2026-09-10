@@ -61,6 +61,7 @@ const lv: Strings = {
   attachDropHint: 'Nometiet attēlu šeit',
   attachUploading: 'Augšupielādē…',
   attachFailed: 'Attēlu neizdevās augšupielādēt. Mēģiniet vēlreiz.',
+  sendFailed: 'Ziņu neizdevās nosūtīt. Mēģiniet vēlreiz.',
   attachRemoveAriaLabel: 'Noņemt attēlu',
   attachTooMany: 'Varat pievienot līdz {n} attēliem.',
   attachTypeRejected: 'Pieņemam PNG, JPEG, GIF un WebP.',

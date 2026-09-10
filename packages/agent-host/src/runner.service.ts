@@ -38,6 +38,8 @@ import {
   defaultProvider,
   openHttpMcpClient,
   runSkillPass,
+  parseAttachments,
+  type ConversationAttachment,
   type ExternalToolSource,
   type AwaitingReplyConversation,
   type ConversationHandler,
@@ -123,6 +125,34 @@ export interface ResolvedProviderAuth {
   baseUrl?: string;
   models?: readonly string[];
   managed: boolean;
+}
+
+export function conversationIdOf(job: { sourceEventPayload: unknown }): string | null {
+  const payload = job.sourceEventPayload as { conversationId?: unknown } | null;
+  const id = payload?.conversationId;
+  return typeof id === 'string' && id.length > 0 ? id : null;
+}
+
+async function conversationAttachmentsFor(
+  job: CuratorJob,
+  rest: MuninRestClient,
+  log: { warn: (msg: string) => void },
+): Promise<ConversationAttachment[] | undefined> {
+  const conversationId = conversationIdOf(job);
+  if (!conversationId) return undefined;
+  let detail: Awaited<ReturnType<MuninRestClient['getConversation']>>;
+  try {
+    detail = await rest.getConversation(conversationId);
+  } catch (err) {
+    log.warn(`attachment hydration failed for ${conversationId}: ${describe(err)}`);
+    return undefined;
+  }
+  const out: ConversationAttachment[] = [];
+  for (const message of detail.messages) {
+    if (message.internal) continue;
+    out.push(...parseAttachments(message.attachments).filter((a) => a.url !== null));
+  }
+  return out.length > 0 ? out : undefined;
 }
 
 export function resolveModelTiers(
@@ -673,6 +703,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
             model,
             skillUri: job.jobUri,
             userPrompt: job.userPrompt,
+            userPromptAttachments: await conversationAttachmentsFor(job, opts.rest, log),
             assistantName: job.assistantName,
             maxToolIterations: CURATOR_MAX_TOOL_ITERATIONS,
             maxHistoryChars: opts.config.maxHistoryChars,

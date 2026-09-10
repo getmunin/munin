@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ImageOff, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@getmunin/ui';
 import type { MessageAttachment } from './inbox-types';
@@ -25,7 +26,7 @@ export function MessageAttachments({
               key={a.id}
               className="flex items-center gap-2 rounded-lg border border-dashed border-line px-3 py-2 text-[11px] text-ink-mute"
             >
-              <span aria-hidden>🚫</span>
+              <ImageOff aria-hidden className="size-3.5 shrink-0" />
               <span className="max-w-[14rem] truncate">{t('removed', { name: a.name })}</span>
             </div>
           ) : (
@@ -53,7 +54,7 @@ export function MessageAttachments({
                     'opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100',
                   )}
                 >
-                  ✕
+                  <X aria-hidden className="size-3" />
                 </button>
               )}
             </div>

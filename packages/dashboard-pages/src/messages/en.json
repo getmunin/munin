@@ -413,7 +413,11 @@
           "attach": "Attach an image",
           "uploading": "Uploading…",
           "uploadFailed": "Upload failed",
-          "remove": "Remove"
+          "remove": "Remove",
+          "rejectedType": "We take PNG, JPEG, GIF and WebP.",
+          "rejectedSize": "Images have to be under {mb} MB.",
+          "rejectedCount": "You can attach up to {max} images.",
+          "uploadFailedNamed": "{name} did not upload. Try again."
         }
       },
       "relative": {
@@ -1360,7 +1364,8 @@
           "close": "Close failed",
           "reject": "Reject failed",
           "note": "Note failed",
-          "requestDraft": "Draft request failed"
+          "requestDraft": "Draft request failed",
+          "attach": "Attachment failed"
         },
         "replyPlaceholder": "Write the reply to {name}…",
         "approveSend": "Approve & send",

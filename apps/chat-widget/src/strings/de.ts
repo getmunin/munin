@@ -61,6 +61,7 @@ const de: Strings = {
   attachDropHint: 'Bild hier ablegen',
   attachUploading: 'Wird hochgeladen…',
   attachFailed: 'Das Bild wurde nicht hochgeladen. Bitte nochmal versuchen.',
+  sendFailed: 'Die Nachricht wurde nicht gesendet. Bitte nochmal versuchen.',
   attachRemoveAriaLabel: 'Bild entfernen',
   attachTooMany: 'Du kannst bis zu {n} Bilder anhängen.',
   attachTypeRejected: 'Wir nehmen PNG, JPEG, GIF und WebP.',

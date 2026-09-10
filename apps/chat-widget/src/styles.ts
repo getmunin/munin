@@ -1089,10 +1089,30 @@ const PRODUCT_LIST_CSS = String.raw`
 .composer-main textarea { flex: 1; }
 
 .composer-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 11.5px;
   line-height: 1.35;
+  font-weight: 500;
   color: var(--munin-danger);
   padding: 0 2px;
+}
+.composer-note-dot {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: currentColor;
+}
+.composer-note-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.composer-note-close {
+  flex: 0 0 auto;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .composer-atts {
@@ -1132,20 +1152,26 @@ const PRODUCT_LIST_CSS = String.raw`
 
 .att-chip-drop {
   position: absolute;
-  top: 1px;
-  right: 1px;
-  width: 16px;
-  height: 16px;
-  padding: 0;
+  top: 0;
+  right: 0;
+  padding: 1px 3px;
   border: none;
-  border-radius: 50%;
-  background: var(--munin-ink);
-  color: var(--munin-paper);
+  border-radius: var(--munin-r-control);
+  background: color-mix(in srgb, var(--munin-paper) 90%, transparent);
+  color: var(--munin-ink-mute);
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
-.att-chip-drop svg { width: 9px; height: 9px; fill: none; stroke: currentColor; stroke-width: 3; }
+.att-chip-drop svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
 .attach {
   width: 38px;

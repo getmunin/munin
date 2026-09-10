@@ -61,6 +61,7 @@ const sk: Strings = {
   attachDropHint: 'Presuňte obrázok sem',
   attachUploading: 'Nahráva sa…',
   attachFailed: 'Obrázok sa nepodarilo nahrať. Skúste to znova.',
+  sendFailed: 'Správu sa nepodarilo odoslať. Skúste to znova.',
   attachRemoveAriaLabel: 'Odstrániť obrázok',
   attachTooMany: 'Môžete pridať až {n} obrázkov.',
   attachTypeRejected: 'Prijímame PNG, JPEG, GIF a WebP.',

@@ -91,6 +91,11 @@ export class InboundPollWorker implements OnModuleInit, OnModuleDestroy {
         } else {
           this.logger.debug(`poll ${channel.type} channel=${channel.id} (no new messages)`);
         }
+        if (result.stalled) {
+          await this.openIngestStallAlertFor(channel, result.lastError ?? 'ingest failed');
+        } else {
+          await this.resolveIngestStallAlertFor(channel);
+        }
         await this.resolveAlertFor(channel);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -129,6 +134,38 @@ export class InboundPollWorker implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  private async openIngestStallAlertFor(
+    channel: { id: string; orgId: string; type: string; name: string | null },
+    detail: string,
+  ): Promise<void> {
+    await this.withChannelContext(channel.orgId, async () => {
+      const result = await this.alerts.openAlert({
+        source: 'channel_inbound',
+        subjectId: ingestStallSubjectId(channel.id),
+        severity: 'error',
+        title: 'Inbound message could not be stored',
+        detail,
+        metadata: {
+          channelType: channel.type,
+          channelId: channel.id,
+          channelName: channel.name ?? channel.type,
+        },
+      });
+      await this.alerts.updateMetadata(result.alertId, {
+        attemptCount: result.occurrenceCount,
+      });
+    });
+  }
+
+  private async resolveIngestStallAlertFor(channel: { id: string; orgId: string }): Promise<void> {
+    await this.withChannelContext(channel.orgId, async () => {
+      await this.alerts.resolveAlert({
+        source: 'channel_inbound',
+        subjectId: ingestStallSubjectId(channel.id),
+      });
+    });
+  }
+
   private async autoDeactivate(
     channel: { id: string; orgId: string; type: string; name: string | null },
     alertId: string,
@@ -164,4 +201,8 @@ export class InboundPollWorker implements OnModuleInit, OnModuleDestroy {
       await withContext(ctx, fn);
     });
   }
+}
+
+function ingestStallSubjectId(channelId: string): string {
+  return `${channelId}:ingest`;
 }

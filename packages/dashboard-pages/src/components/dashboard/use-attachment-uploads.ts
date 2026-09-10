@@ -1,6 +1,12 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import {
+  CONV_ATTACHMENT_MB_MAX,
+  CONV_ATTACHMENT_PER_MESSAGE_MAX,
+  attachmentRejectionFor,
+  type AttachmentRejection,
+} from '@getmunin/types';
 import { api } from '../../api';
 import { prepareImageForUpload, uploadToPresigned } from '../../lib/upload-image';
 
@@ -19,7 +25,16 @@ interface UploadHandle {
   uploadFields: Record<string, string>;
 }
 
-export function useAttachmentUploads(conversationId: string | null) {
+export interface AttachmentUploadMessages {
+  rejected: (rejection: AttachmentRejection, ctx: { max: number; mb: number }) => string;
+  failed: (name: string) => string;
+}
+
+export function useAttachmentUploads(
+  conversationId: string | null,
+  messages?: AttachmentUploadMessages,
+  onError?: (message: string) => void,
+) {
   const [pending, setPending] = useState<PendingAttachment[]>([]);
 
   const reset = useCallback(() => {
@@ -40,8 +55,28 @@ export function useAttachmentUploads(conversationId: string | null) {
   const addFiles = useCallback(
     async (files: File[]) => {
       if (!conversationId) return;
+      const reject = (rejection: AttachmentRejection): void => {
+        onError?.(
+          messages?.rejected(rejection, {
+            max: CONV_ATTACHMENT_PER_MESSAGE_MAX,
+            mb: CONV_ATTACHMENT_MB_MAX,
+          }) ?? rejection,
+        );
+      };
+
+      let room = CONV_ATTACHMENT_PER_MESSAGE_MAX - pending.length;
+
       for (const file of files) {
-        if (!file.type.startsWith('image/')) continue;
+        if (room <= 0) {
+          reject('too_many');
+          break;
+        }
+        const rejection = attachmentRejectionFor({ mime: file.type, sizeBytes: file.size });
+        if (rejection) {
+          reject(rejection);
+          continue;
+        }
+        room -= 1;
         const key = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const previewUrl = URL.createObjectURL(file);
         setPending((prev) => [
@@ -75,10 +110,11 @@ export function useAttachmentUploads(conversationId: string | null) {
           setPending((prev) =>
             prev.map((p) => (p.key === key ? { ...p, status: 'failed' } : p)),
           );
+          if (messages) onError?.(messages.failed(file.name));
         }
       }
     },
-    [conversationId],
+    [conversationId, messages, onError, pending.length],
   );
 
   const readyIds = pending

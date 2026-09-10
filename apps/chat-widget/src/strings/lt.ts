@@ -61,6 +61,7 @@ const lt: Strings = {
   attachDropHint: 'Nuvilkite vaizdą čia',
   attachUploading: 'Įkeliama…',
   attachFailed: 'Vaizdo įkelti nepavyko. Bandykite dar kartą.',
+  sendFailed: 'Žinutės išsiųsti nepavyko. Bandykite dar kartą.',
   attachRemoveAriaLabel: 'Pašalinti vaizdą',
   attachTooMany: 'Galite pridėti iki {n} vaizdų.',
   attachTypeRejected: 'Priimame PNG, JPEG, GIF ir WebP.',

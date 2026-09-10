@@ -61,6 +61,7 @@ const it: Strings = {
   attachDropHint: 'Trascina qui l’immagine',
   attachUploading: 'Caricamento…',
   attachFailed: 'L’immagine non è stata caricata. Riprova.',
+  sendFailed: 'Il messaggio non è stato inviato. Riprova.',
   attachRemoveAriaLabel: 'Rimuovi l’immagine',
   attachTooMany: 'Puoi allegare fino a {n} immagini.',
   attachTypeRejected: 'Accettiamo PNG, JPEG, GIF e WebP.',

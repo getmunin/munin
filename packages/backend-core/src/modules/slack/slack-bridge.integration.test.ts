@@ -20,6 +20,12 @@ const skipReason = TEST_URL
   ? null
   : 'Set TEST_DATABASE_URL to a Postgres URL to run slack bridge tests.';
 
+const ORDERED_AT = [
+  '2026-08-21T09:00:00.000Z',
+  '2026-08-21T09:00:01.000Z',
+  '2026-08-21T09:00:02.000Z',
+] as const;
+
 interface PostedMessage {
   channel: string;
   text: string;
@@ -224,7 +230,12 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     return conversation!.id;
   }
 
-  async function seedMessage(conversationId: string, body: string, internal = false) {
+  async function seedMessage(
+    conversationId: string,
+    body: string,
+    internal = false,
+    createdAt?: Date,
+  ) {
     const [message] = await db
       .insert(schema.convMessages)
       .values({
@@ -234,6 +245,7 @@ function actionIds(blocks: unknown[] | undefined): string[] {
         authorId: contactId,
         body,
         internal,
+        ...(createdAt ? { createdAt } : {}),
       })
       .returning();
     return message!.id;
@@ -409,8 +421,8 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     api.failNextPosts = 1;
     const worker = new SlackBridgeWorker(db, api);
     const conversationId = await seedConversation();
-    const firstId = await seedMessage(conversationId, 'first');
-    const secondId = await seedMessage(conversationId, 'second');
+    const firstId = await seedMessage(conversationId, 'first', false, new Date(ORDERED_AT[0]));
+    const secondId = await seedMessage(conversationId, 'second', false, new Date(ORDERED_AT[1]));
     await enqueue('conversation.message.received', conversationId, {
       conversationId,
       messageId: firstId,
@@ -944,9 +956,14 @@ function actionIds(blocks: unknown[] | undefined): string[] {
 
   it('keeps non-voice conversations in message createdAt order', async () => {
     const conversationId = await seedConversation();
-    const first = await seedMessage(conversationId, 'First email');
-    const second = await seedMessage(conversationId, 'Second email');
-    const third = await seedMessage(conversationId, 'Third email');
+    const first = await seedMessage(conversationId, 'First email', false, new Date(ORDERED_AT[0]));
+    const second = await seedMessage(
+      conversationId,
+      'Second email',
+      false,
+      new Date(ORDERED_AT[1]),
+    );
+    const third = await seedMessage(conversationId, 'Third email', false, new Date(ORDERED_AT[2]));
 
     await emitReceived([third, first, second], conversationId);
 

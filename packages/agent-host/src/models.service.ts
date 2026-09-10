@@ -9,6 +9,7 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 
 export interface ModelEntry {
   id: string;
+  label: string | null;
   contextLength: number | null;
   promptCostPerMillion: number | null;
   completionCostPerMillion: number | null;
@@ -17,6 +18,7 @@ export interface ModelEntry {
 
 export interface ProviderModelOffer {
   id: string;
+  label?: string;
   supportsVision?: boolean;
 }
 
@@ -160,6 +162,7 @@ function offeringId(model: ProviderModelOffering): string {
 function toModelEntry(model: ProviderModelOffering): ModelEntry {
   return {
     id: offeringId(model),
+    label: typeof model === 'string' ? null : model.label?.trim() || null,
     contextLength: null,
     promptCostPerMillion: null,
     completionCostPerMillion: null,
@@ -178,6 +181,7 @@ function parseOpenAiCompatModels(body: unknown): ModelEntry[] | null {
     if (typeof id !== 'string') continue;
     out.push({
       id,
+      label: readModelLabel(item),
       contextLength: readContextLength(item),
       promptCostPerMillion: readPromptCost(item),
       completionCostPerMillion: readCompletionCost(item),
@@ -185,6 +189,16 @@ function parseOpenAiCompatModels(body: unknown): ModelEntry[] | null {
     });
   }
   return out;
+}
+
+export function readModelLabel(item: unknown): string | null {
+  if (!item || typeof item !== 'object') return null;
+  const record = item as Record<string, unknown>;
+  for (const key of ['name', 'display_name']) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+  }
+  return null;
 }
 
 export function readSupportsVision(item: unknown): boolean | null {

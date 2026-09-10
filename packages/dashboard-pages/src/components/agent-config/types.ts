@@ -14,6 +14,7 @@ export interface AgentConfigDto {
 
 export interface ModelEntry {
   id: string;
+  label?: string | null;
   contextLength: number | null;
   promptCostPerMillion: number | null;
   completionCostPerMillion: number | null;
@@ -71,6 +72,7 @@ export function presetForUrl(url: string): PresetId {
 
 export function formatModel(m: ModelEntry, labels?: ModalityLabels): string {
   const parts: string[] = [modelHead(m, labels)];
+  if (m.label) parts.push(m.id);
   if (m.contextLength) parts.push(`${(m.contextLength / 1000).toFixed(0)}k ctx`);
   if (m.promptCostPerMillion !== null) {
     parts.push(`$${m.promptCostPerMillion.toFixed(2)}/M in`);
@@ -82,7 +84,12 @@ export function formatModel(m: ModelEntry, labels?: ModalityLabels): string {
 }
 
 function modelHead(m: ModelEntry, labels?: ModalityLabels): string {
-  if (!labels || m.supportsVision == null) return m.id;
+  const head = m.label || m.id;
+  if (!labels || m.supportsVision == null) return head;
   const modalities = m.supportsVision ? [labels.chat, labels.vision] : [labels.chat];
-  return `${m.id} (${modalities.join(', ')})`;
+  return `${head} (${modalities.join(', ')})`;
+}
+
+export function modelSortKey(m: ModelEntry): string {
+  return m.label || m.id;
 }

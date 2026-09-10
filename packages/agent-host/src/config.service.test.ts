@@ -49,6 +49,7 @@ function makeModels(modelIds: string[] = []): ProviderModelLister & {
       supported: modelIds.length > 0,
       models: modelIds.map((id) => ({
         id,
+        label: null,
         contextLength: null,
         promptCostPerMillion: null,
         completionCostPerMillion: null,

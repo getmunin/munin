@@ -1572,7 +1572,9 @@
       "fastHint": "Brukes til: chat-bot-svar, signaturfjerning, klassifisering, korte oppsummeringer. Latens og kostnad veier tyngre enn intelligens her.",
       "smart": "Smart modell",
       "smartUseHint": "Brukes til: KB-kurering, CRM-hygiene, utgående utkast — overalt der agenten må vurdere på tvers av mange meldinger.",
-      "smartSameAsFast": "Samme som rask modell"
+      "smartSameAsFast": "Samme som rask modell",
+      "capabilityChat": "chat",
+      "capabilityVision": "bilde"
     },
     "websiteImport": {
       "title": "Hent innhold fra nettstedet",

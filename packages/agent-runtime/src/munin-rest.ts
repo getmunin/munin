@@ -1,5 +1,5 @@
 import type { MessageComponent } from '@getmunin/types';
-import type { ConversationMessage } from './types.ts';
+import type { ConversationAttachment, ConversationMessage } from './types.ts';
 import { stripTrailingSlashes } from '@getmunin/types';
 
 export interface SetDraftReplyOpts {
@@ -30,6 +30,7 @@ export interface ConversationDetail {
     body: string;
     createdAt: string;
     internal?: boolean;
+    attachments?: unknown[];
   }>;
 }
 
@@ -196,6 +197,23 @@ function errorCodeFrom(text: string): string | null {
   return null;
 }
 
+export function parseAttachments(raw: unknown): ConversationAttachment[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ConversationAttachment[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const row = entry as { mime?: unknown; url?: unknown; name?: unknown; deleted?: unknown };
+    if (typeof row.mime !== 'string' || row.mime.length === 0) continue;
+    const attachment: ConversationAttachment = {
+      mime: row.mime,
+      url: row.deleted === true || typeof row.url !== 'string' ? null : row.url,
+    };
+    if (typeof row.name === 'string' && row.name.length > 0) attachment.name = row.name;
+    out.push(attachment);
+  }
+  return out;
+}
+
 export function createMuninRestClient(opts: CreateMuninRestClientOptions): MuninRestClient {
   const baseUrl = stripTrailingSlashes(opts.baseUrl);
   const fetchImpl = opts.fetch ?? globalThis.fetch;
@@ -350,12 +368,20 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
     },
     toRuntimeHistory(detail: ConversationDetail): ConversationMessage[] {
       return detail.messages
-        .filter((m) => !m.internal && m.body.trim().length > 0)
-        .map((m) => ({
-          authorType: m.authorType === 'user' ? 'staff' : m.authorType,
-          body: m.body,
-          createdAt: m.createdAt,
-        }));
+        .map((m) => ({ message: m, attachments: parseAttachments(m.attachments) }))
+        .filter(
+          ({ message, attachments }) =>
+            !message.internal && (message.body.trim().length > 0 || attachments.length > 0),
+        )
+        .map(({ message, attachments }) => {
+          const runtimeMessage: ConversationMessage = {
+            authorType: message.authorType === 'user' ? 'staff' : message.authorType,
+            body: message.body,
+            createdAt: message.createdAt,
+          };
+          if (attachments.length > 0) runtimeMessage.attachments = attachments;
+          return runtimeMessage;
+        });
     },
     async changeStatus(
       conversationId: string,

@@ -479,3 +479,69 @@ describe('toProviderUsage', () => {
 function toolCall(id: string, name: string, args = '{}'): ChatToolCall {
   return { id, type: 'function', function: { name, arguments: args } };
 }
+
+describe('toNativeMessages image blocks', () => {
+  it('puts image blocks before the text block on a user turn', () => {
+    const native = toNativeMessages(
+      [
+        {
+          role: 'user',
+          content: 'why is my order dented?',
+          images: [
+            { mime: 'image/png', base64: 'AAA' },
+            { mime: 'image/jpeg', base64: 'BBB' },
+          ],
+        },
+      ],
+      false,
+    );
+
+    expect(native).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAA' } },
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'BBB' } },
+          { type: 'text', text: 'why is my order dented?' },
+        ],
+      },
+    ]);
+  });
+
+  it('keeps an image-only user turn, which the text-only mapper used to drop', () => {
+    const native = toNativeMessages(
+      [{ role: 'user', content: '', images: [{ mime: 'image/webp', base64: 'CCC' }] }],
+      false,
+    );
+
+    expect(native).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/webp', data: 'CCC' } },
+        ],
+      },
+    ]);
+  });
+
+  it('never emits an image block for an assistant turn', () => {
+    const native = toNativeMessages(
+      [
+        { role: 'user', content: 'hi' },
+        { role: 'assistant', content: 'hello', images: [{ mime: 'image/png', base64: 'AAA' }] },
+      ],
+      false,
+    );
+
+    expect(native[1]).toEqual({ role: 'assistant', content: [{ type: 'text', text: 'hello' }] });
+  });
+
+  it('does not put cache_control on a trailing image block', () => {
+    const native = toNativeMessages(
+      [{ role: 'user', content: '', images: [{ mime: 'image/png', base64: 'AAA' }] }],
+      true,
+    );
+
+    expect(native[0]?.content[0]).not.toHaveProperty('cache_control');
+  });
+});

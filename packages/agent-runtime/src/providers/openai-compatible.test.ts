@@ -2,6 +2,7 @@ import { afterEach, describe, it, expect, vi } from 'vitest';
 import * as core from '@getmunin/core';
 import {
   shouldEnablePromptCache,
+  toOpenAiMessages,
   withSystemPromptCache,
   withToolsCache,
 } from './openai-compatible.ts';
@@ -297,5 +298,74 @@ describe('withToolsCache', () => {
 
   it('returns the same array when there are no tools', () => {
     expect(withToolsCache([])).toEqual([]);
+  });
+});
+
+describe('toOpenAiMessages', () => {
+  it('renders images as data-uri image_url parts ahead of the text part', () => {
+    const messages: ChatMessage[] = [
+      {
+        role: 'user',
+        content: 'why is my order dented?',
+        images: [
+          { mime: 'image/png', base64: 'AAA' },
+          { mime: 'image/jpeg', base64: 'BBB' },
+        ],
+      },
+    ];
+
+    expect(toOpenAiMessages(messages)).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: 'data:image/png;base64,AAA' } },
+          { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,BBB' } },
+          { type: 'text', text: 'why is my order dented?' },
+        ],
+      },
+    ]);
+  });
+
+  it('keeps an image-only user turn', () => {
+    const messages: ChatMessage[] = [
+      { role: 'user', content: '', images: [{ mime: 'image/webp', base64: 'CCC' }] },
+    ];
+
+    expect(toOpenAiMessages(messages)).toEqual([
+      {
+        role: 'user',
+        content: [{ type: 'image_url', image_url: { url: 'data:image/webp;base64,CCC' } }],
+      },
+    ]);
+  });
+
+  it('strips the runtime-only images field so it never reaches the provider', () => {
+    const messages: ChatMessage[] = [
+      { role: 'assistant', content: 'hello', images: [{ mime: 'image/png', base64: 'AAA' }] },
+      { role: 'user', content: 'hi' },
+    ];
+
+    for (const message of toOpenAiMessages(messages)) {
+      expect(message).not.toHaveProperty('images');
+    }
+  });
+
+  it('leaves the system-prompt cache marker working on top of the image transform', () => {
+    const messages: ChatMessage[] = [
+      { role: 'system', content: 'prompt' },
+      { role: 'user', content: '', images: [{ mime: 'image/png', base64: 'AAA' }] },
+    ];
+
+    const result = withSystemPromptCache(toOpenAiMessages(messages)) as Array<{
+      role: string;
+      content: unknown;
+    }>;
+
+    expect(result[0]?.content).toEqual([
+      { type: 'text', text: 'prompt', cache_control: { type: 'ephemeral' } },
+    ]);
+    expect(result[1]?.content).toEqual([
+      { type: 'image_url', image_url: { url: 'data:image/png;base64,AAA' } },
+    ]);
   });
 });

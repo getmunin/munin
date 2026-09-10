@@ -1,4 +1,5 @@
 import { BadRequestException, Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import type { ProviderModelOffering } from './models.service.ts';
 import { WebhookDispatcher } from '@getmunin/core';
 import { defaultFastModelForBaseUrl } from '@getmunin/types';
 import {
@@ -45,7 +46,7 @@ export class AgentConfigService {
     private readonly defaultProviderAvailable: boolean = false,
     @Optional()
     @Inject(DEFAULT_PROVIDER_MODELS)
-    private readonly defaultProviderModels: readonly string[] = [],
+    private readonly defaultProviderModels: readonly ProviderModelOffering[] = [],
   ) {}
 
   async getForCurrentActor(): Promise<AgentConfigDto> {
@@ -153,7 +154,10 @@ export class AgentConfigService {
   }
 
   private builtInModels(): Set<string> | null {
-    return this.defaultProviderModels.length > 0 ? new Set(this.defaultProviderModels) : null;
+    if (this.defaultProviderModels.length === 0) return null;
+    return new Set(
+      this.defaultProviderModels.map((m) => (typeof m === 'string' ? m : m.id)),
+    );
   }
 
   private async offeredModels(

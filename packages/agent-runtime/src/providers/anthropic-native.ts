@@ -23,6 +23,11 @@ interface NativeTextBlock {
   text: string;
 }
 
+interface NativeImageBlock {
+  type: 'image';
+  source: { type: 'base64'; media_type: string; data: string };
+}
+
 interface NativeToolUseBlock {
   type: 'tool_use';
   id: string;
@@ -169,10 +174,8 @@ export function toNativeMessages(
       continue;
     }
 
-    if (typeof m.content === 'string' && m.content.length > 0) {
-      const block: NativeTextBlock = { type: 'text', text: m.content };
-      out.push({ role: 'user', content: [block] });
-    }
+    const content = userContent(m);
+    if (content.length > 0) out.push({ role: 'user', content });
   }
 
   if (out.length === 0 || out[0]?.role !== 'user') {
@@ -188,6 +191,22 @@ export function toNativeMessages(
     ...out.slice(0, -1),
     { ...last, content: markLastContentBlock(last.content, CACHE_TURN) },
   ];
+}
+
+function userContent(m: ChatMessage): unknown[] {
+  const content: unknown[] = [];
+  for (const image of m.images ?? []) {
+    const block: NativeImageBlock = {
+      type: 'image',
+      source: { type: 'base64', media_type: image.mime, data: image.base64 },
+    };
+    content.push(block);
+  }
+  if (typeof m.content === 'string' && m.content.length > 0) {
+    const block: NativeTextBlock = { type: 'text', text: m.content };
+    content.push(block);
+  }
+  return content;
 }
 
 function assistantContent(m: ChatMessage): unknown[] {

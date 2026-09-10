@@ -34,6 +34,7 @@ import { VapiService } from '../conv/vapi/vapi.service.ts';
 import { ConversationClaimsService } from '../conv/conv.claims.service.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { EmailService } from '../conv/email/email.service.ts';
+import { stubAttachmentGateway } from '../conv/attachments/conv-attachments.test-stub.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -70,7 +71,13 @@ const skipReason = TEST_URL
     crm = new CrmService(dispatcher, new DefaultQuotasService());
     const claims = new ConversationClaimsService(dispatcher);
     const curatorJobs = new CuratorJobsService(dispatcher);
-    conv = new ConvService(dispatcher, claims, curatorJobs, new AlertsService(dispatcher));
+    conv = new ConvService(
+      dispatcher,
+      claims,
+      curatorJobs,
+      new AlertsService(dispatcher),
+      stubAttachmentGateway(),
+    );
     const email = new EmailService();
     const vapiCaller = new VapiOutreachCaller(new VapiClientService(db));
     const threllCaller = new ThrellOutreachCaller(new ThrellClientService(db));

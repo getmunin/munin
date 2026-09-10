@@ -1,3 +1,15 @@
+export interface MessageAttachment {
+  id: string;
+  name: string;
+  mime: string;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+  url: string | null;
+  thumbnailUrl: string | null;
+  deleted: boolean;
+}
+
 import type { ApiError } from '../../api';
 import type {
   CmsAssetExpanded,
@@ -45,7 +57,7 @@ export interface MessageDto {
   body: string;
   internal: boolean;
   inReplyToId: string | null;
-  attachments: unknown[];
+  attachments: MessageAttachment[];
   metadata: Record<string, unknown>;
   createdAt: string;
   seenAt?: string | null;

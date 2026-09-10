@@ -160,7 +160,13 @@ export interface QueueController {
   release: (id: string) => Promise<boolean>;
   closeConv: (id: string) => Promise<boolean>;
   reopenConv: (id: string) => Promise<void>;
-  send: (id: string, body: string, fromDraftId?: string) => Promise<boolean>;
+  send: (
+    id: string,
+    body: string,
+    fromDraftId?: string,
+    attachmentIds?: string[],
+  ) => Promise<boolean>;
+  deleteAttachment: (conversationId: string, attachmentId: string) => Promise<boolean>;
   addNote: (id: string, body: string) => Promise<boolean>;
   rejectDraft: (id: string) => Promise<void>;
   requestDraft: (id: string) => Promise<void>;
@@ -386,16 +392,30 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   );
 
   const send = useCallback(
-    async (id: string, body: string, fromDraftId?: string) => {
+    async (id: string, body: string, fromDraftId?: string, attachmentIds?: string[]) => {
       const trimmed = body.trim();
       if (!trimmed) return false;
       return runAction('send', id, () =>
         api(`/v1/conversations/${id}/messages`, {
           method: 'POST',
-          body: JSON.stringify({ body: trimmed, ...(fromDraftId ? { fromDraftId } : {}) }),
+          body: JSON.stringify({
+            body: trimmed,
+            ...(fromDraftId ? { fromDraftId } : {}),
+            ...(attachmentIds?.length ? { attachmentIds } : {}),
+          }),
         }),
       );
     },
+    [runAction],
+  );
+
+  const deleteAttachment = useCallback(
+    async (conversationId: string, attachmentId: string) =>
+      runAction('send', conversationId, () =>
+        api(`/v1/conversations/${conversationId}/attachments/${attachmentId}`, {
+          method: 'DELETE',
+        }),
+      ),
     [runAction],
   );
 
@@ -471,6 +491,7 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     closeConv,
     reopenConv,
     send,
+    deleteAttachment,
     addNote,
     rejectDraft,
     requestDraft,

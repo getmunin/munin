@@ -160,6 +160,49 @@ describe('classifySender', () => {
     expect(suppressionReason(c)).toBe('bounce');
   });
 
+  it('reads a Microsoft 365 out-of-office as an auto-reply, not as a bounce', () => {
+    const c = classifySender(
+      h({
+        From: 'Ole-Martin <ole-martin@nortekstil.no>',
+        'Return-Path': '<postmaster@osppr02cu001.outbound.protection.outlook.com>',
+        Subject: 'Automatic reply: Vi har oppdatert dine gjeldsdata',
+        'Auto-Submitted': 'auto-replied',
+      }),
+      'ole-martin@nortekstil.no',
+    );
+    expect(c.isBounce).toBe(false);
+    expect(suppressionReason(c)).toBe('auto_reply');
+  });
+
+  it('reads the RFC 3834 null envelope sender on a vacation reply as an auto-reply', () => {
+    const c = classifySender(
+      h({ 'Return-Path': '<>', Subject: 'Automatisk svar: Nyhetsbrev februar' }),
+      'kari@post.no',
+    );
+    expect(c.isBounce).toBe(false);
+    expect(suppressionReason(c)).toBe('auto_reply');
+  });
+
+  it('still calls a postmaster envelope sender a bounce when nothing says auto-reply', () => {
+    const c = classifySender(
+      h({ 'Return-Path': '<postmaster@mail.acme.com>' }),
+      'jane@acme.com',
+    );
+    expect(suppressionReason(c)).toBe('bounce');
+  });
+
+  it('reports bounce over auto-reply when the mail carries a delivery-status report', () => {
+    const c = classifySender(
+      h({
+        'Return-Path': '<postmaster@mail.acme.com>',
+        Subject: 'Automatic reply: Question about pricing',
+        'Content-Type': 'multipart/report; report-type=delivery-status; boundary=x',
+      }),
+      'jane@acme.com',
+    );
+    expect(suppressionReason(c)).toBe('bounce');
+  });
+
   it('suppresses an ESP bounce mailbox that is not mailer-daemon or postmaster', () => {
     for (const from of [
       'bounces@amazonses.com',

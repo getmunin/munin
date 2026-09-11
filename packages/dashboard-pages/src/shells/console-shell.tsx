@@ -61,7 +61,7 @@ function useConsoleData(isAdmin: boolean, roleLoading: boolean): { badges: Conso
     void api<InboxQueueResponse>('/v1/inbox')
       .then((res) =>
         setBadges({
-          queue: res.live.length,
+          queue: res.liveTotal,
           review:
             res.queue.kb.length +
             res.queue.crm.length +

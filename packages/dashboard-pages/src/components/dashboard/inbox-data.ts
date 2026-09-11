@@ -136,6 +136,7 @@ export function useInboxData(): InboxController {
   const buildScheduled = useScheduledBuilder();
   const translateErr = useTranslateError();
   const [items, setItems] = useState<LiveSummary[]>([]);
+  const [itemsTotal, setItemsTotal] = useState(0);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [scheduled, setScheduled] = useState<ScheduledItem[]>([]);
   const [cmsDetails, setCmsDetails] = useState<Record<string, CmsDraftDetailDto>>({});
@@ -158,6 +159,7 @@ export function useInboxData(): InboxController {
     try {
       const res = await api<InboxQueueResponse>('/v1/inbox');
       setItems(res.live);
+      setItemsTotal(res.liveTotal);
       setQueue(buildQueue(res.queue));
       setScheduled(buildScheduled(res.queue));
       setLoadError(null);
@@ -540,6 +542,7 @@ export function useInboxData(): InboxController {
 
   return {
     items,
+    itemsTotal,
     queue,
     pending,
     loadError,

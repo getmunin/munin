@@ -60,7 +60,7 @@ export function DashboardPage() {
     <div className={OVERVIEW_SHELL}>
       <DashboardHero date={new Date()} />
 
-      <OverviewConversations liveCount={inbox.items.length} />
+      <OverviewConversations liveCount={inbox.itemsTotal} />
 
       <OverviewReview queue={inbox.queue} scheduled={inbox.scheduled} />
 

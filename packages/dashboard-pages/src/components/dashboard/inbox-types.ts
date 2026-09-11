@@ -91,6 +91,7 @@ export type LiveSummary = ConversationSummary & {
 
 export interface InboxQueueResponse {
   live: LiveSummary[];
+  liveTotal: number;
   queue: {
     kb: KbCandidateDto[];
     crm: CrmMergeProposalDto[];
@@ -113,6 +114,7 @@ export type QueueActionError =
 
 export interface InboxController {
   items: LiveSummary[];
+  itemsTotal: number;
   queue: QueueItem[];
   pending: boolean;
   loadError: ApiError | null;

@@ -1,3 +1,4 @@
+import { senderDisplayName } from './sender-name.ts';
 import type { ParsedInboundEmail } from './threading.ts';
 
 export type ForwardKind = 'direct' | 'auto-forward' | 'manual-forward';
@@ -109,9 +110,8 @@ export function parseAddressLine(value: string): { address: string; name: string
     const name = cleaned
       .slice(0, angled.index)
       .trim()
-      .replace(/^["']|["']$/g, '')
-      .trim();
-    return { address: angled[1]!.toLowerCase(), name: name || null };
+      .replace(/^["']|["']$/g, '');
+    return { address: angled[1]!.toLowerCase(), name: senderDisplayName(name) };
   }
   const bare = cleaned.match(/([^\s<>@,;"']+@[^\s<>@,;"']+\.[^\s<>@,;"']+)/);
   if (bare) return { address: bare[1]!.toLowerCase(), name: null };

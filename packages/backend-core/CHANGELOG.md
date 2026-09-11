@@ -1,5 +1,60 @@
 # @getmunin/backend-core
 
+## 5.23.3
+
+### Patch Changes
+
+- 96d2ca2: First-run onboarding now shows the MCP endpoint the running server reports, instead of the one baked into the client bundle at build time.
+
+  `NEXT_PUBLIC_MCP_URL` is read inside `'use client'` components, so its value is inlined when the Next app is compiled — not when the container starts. A deployment that sets the variable only as a runtime container env var (which is how the cloud stack passes it) therefore shipped the local fallback, and every operator opening a fresh dashboard in production was told to point their agent at `http://localhost:3001/mcp`.
+
+  `/v1/overview/setup` now carries `mcpUrl` (the backend's own `mcpResourceBase()`, resolved per request), the setup snapshot threads it through to `SetupSnapshot.mcpUrl`, and the first-run overview and review scenes prefer it, falling back to the build-time constant only when the endpoint could not be read.
+
+- 6640bb1: Report the real "needs your attention" count on the overview and sidebar badge instead of saturating at 50.
+
+  `GET /v1/inbox` returns `live` as a preview list capped at 50 conversations, and the dashboard counted that array: the overview stat row and the console sidebar badge both froze at 50 once an org had more flagged conversations than that. An org with 65 waiting saw 50, with no hint anything was missing.
+
+  The response now carries `liveTotal` — a `COUNT(*)` over the same filters the list uses (flagged and not closed/spam, plus actively claimed conversations whose flag was already cleared) — and both counters read that instead of `live.length`. The list itself stays capped; only the number is exact.
+
+  Two smaller consequences: `ConvService.countConversations` is new and shares `buildConversationListFilters` with the list queries, so filters can never drift between count and page; and `listConversationsByIds` takes an optional `needsHumanAttention` filter, which lets the claimed-only branch ask for exactly the unflagged claims rather than subtracting a truncated id set — previously a flagged-and-claimed conversation ranked past the 50th leaked into the list through that subtraction.
+
+- 9419210: Show the address when a sender's display name is a placeholder
+
+  Mail whose `From` display name carries no letters or digits — `? <name@example.com>`, from a
+  client that fills the field rather than leaving it out — stored that punctuation as the
+  contact's name. Every surface that prefers a name over an address then showed it: the queue
+  row read `? — Missing last message`, the conversation header `? <name@example.com>`, and each
+  message bubble was signed `?`.
+
+  Inbound parsing now treats a display name with no letter or digit as absent, on both the
+  direct `From` header and the `From:` line read out of a manually forwarded body, so the
+  contact keeps a null name and every one of those surfaces falls back to the address it
+  already falls back to for mail that omits the name entirely.
+
+  Migration 0093 clears the names already stored the same way, across conversation contacts,
+  end users and CRM contacts. The predicate matches only names made up entirely of whitespace
+  and punctuation, so names in any script are untouched.
+
+- c73c424: File away mail from an address that takes no replies
+
+  A mailbox deleted at the far end answers with an ordinary email, not a bounce: `noreply.autoresponder.no@kaefer.no` writing "the email address you have tried to reach does not exist within our company anymore". It carries no `Auto-Submitted`, no auto-reply subject and no delivery-status report, so nothing suppressed it — it opened a conversation, raised the attention flag, and the agent drafted a courteous reply to an address that by construction discards it.
+
+  `classifySender` already saw this: `isRoleAccount` was true. But role accounts are deliberately answerable, because a human reads `support@` and `sales@`. A `noreply@` / `do-not-reply@` address is the narrower case where a reply is guaranteed to go nowhere, so it is now its own classification, `isNoReplyAddress`, and its own suppression reason, `no_reply_address` — filed away closed at ingest with no draft and no attention, exactly like an out-of-office.
+
+  A bounce or an auto-reply still reports its own reason over this one, which says least about the mail. A mailing-list post from a no-reply address stays answerable, the same carve-out `Precedence: bulk` already has.
+
+  Detection is on the address alone. Body phrases like "no longer available" are multilingual and a quoted original can carry them, so the "mailbox does not exist" wording is not matched — a no-reply sender that no human reads is a fact about the header.
+
+- Updated dependencies [96d2ca2]
+- Updated dependencies [9419210]
+  - @getmunin/core@5.23.3
+  - @getmunin/db@5.23.3
+  - @getmunin/inspector-app@5.23.3
+  - @getmunin/agent-runtime@5.23.3
+  - @getmunin/mcp-toolkit@5.23.3
+  - @getmunin/emails@5.23.3
+  - @getmunin/types@5.23.3
+
 ## 5.23.2
 
 ### Patch Changes

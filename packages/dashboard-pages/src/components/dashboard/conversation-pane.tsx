@@ -127,6 +127,7 @@ export function ConversationPane({
     seededDraftId.current = null;
     seededBody.current = null;
     setSuggestionId(null);
+    replyRef.current = '';
     setReply('');
     setNoteDraft('');
     setTab('reply');

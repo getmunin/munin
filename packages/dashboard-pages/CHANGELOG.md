@@ -1,5 +1,54 @@
 # @getmunin/dashboard-pages
 
+## 5.23.3
+
+### Patch Changes
+
+- b4afb60: Give the OAuth consent screen a head-only shell instead of the full console
+
+  An authorization request arrived framed by the whole dashboard — sidebar, nav counts,
+  alerts banner, user footer — none of which belongs on a page whose only question is
+  whether to hand a client a token.
+
+  `DashboardShell` now renders `/dashboard/oauth/consent` with a head-only shell: the brand
+  head, then the page. The head is the same `BrandHead` the console sidebar uses, fed by the
+  same `brand` / `brandHref` / `logoSrc` / `leftSlot` props, so a host that puts an
+  organization switcher in the sidebar gets that switcher here and one that passes no slot
+  gets its organization name — one contract, not two. `BrandMark` and the brand/slot
+  resolution move to `shells/brand-head.tsx`, shared by the sidebar, the mobile header and
+  the consent head so they cannot drift.
+
+- 96d2ca2: First-run onboarding now shows the MCP endpoint the running server reports, instead of the one baked into the client bundle at build time.
+
+  `NEXT_PUBLIC_MCP_URL` is read inside `'use client'` components, so its value is inlined when the Next app is compiled — not when the container starts. A deployment that sets the variable only as a runtime container env var (which is how the cloud stack passes it) therefore shipped the local fallback, and every operator opening a fresh dashboard in production was told to point their agent at `http://localhost:3001/mcp`.
+
+  `/v1/overview/setup` now carries `mcpUrl` (the backend's own `mcpResourceBase()`, resolved per request), the setup snapshot threads it through to `SetupSnapshot.mcpUrl`, and the first-run overview and review scenes prefer it, falling back to the build-time constant only when the endpoint could not be read.
+
+- d4a0327: Stop the inbox composer from reporting a pending draft as "edited by you" when you reopen a conversation you have already visited.
+
+  `conversation-pane` mirrors the composer text in `replyRef` so the draft-seeding effect can read it without depending on it. The per-conversation reset effect cleared the `reply` state but not that mirror, and the mirror is only re-synced on the next render. Reopening a conversation whose detail is already cached puts the selection change and the draft in the same commit, so the seeding effect ran with the _previous_ conversation's text still in the ref, judged the composer "touched", and skipped seeding — leaving an empty box with a non-null `suggestionId`, which renders as "edited by you" plus a Restore draft button. The reset now clears the mirror alongside the state, so the cached draft seeds exactly as it does on a fresh page load.
+
+- 6640bb1: Report the real "needs your attention" count on the overview and sidebar badge instead of saturating at 50.
+
+  `GET /v1/inbox` returns `live` as a preview list capped at 50 conversations, and the dashboard counted that array: the overview stat row and the console sidebar badge both froze at 50 once an org had more flagged conversations than that. An org with 65 waiting saw 50, with no hint anything was missing.
+
+  The response now carries `liveTotal` — a `COUNT(*)` over the same filters the list uses (flagged and not closed/spam, plus actively claimed conversations whose flag was already cleared) — and both counters read that instead of `live.length`. The list itself stays capped; only the number is exact.
+
+  Two smaller consequences: `ConvService.countConversations` is new and shares `buildConversationListFilters` with the list queries, so filters can never drift between count and page; and `listConversationsByIds` takes an optional `needsHumanAttention` filter, which lets the claimed-only branch ask for exactly the unflagged claims rather than subtracting a truncated id set — previously a flagged-and-claimed conversation ranked past the 50th leaked into the list through that subtraction.
+
+- c73c424: File away mail from an address that takes no replies
+
+  A mailbox deleted at the far end answers with an ordinary email, not a bounce: `noreply.autoresponder.no@kaefer.no` writing "the email address you have tried to reach does not exist within our company anymore". It carries no `Auto-Submitted`, no auto-reply subject and no delivery-status report, so nothing suppressed it — it opened a conversation, raised the attention flag, and the agent drafted a courteous reply to an address that by construction discards it.
+
+  `classifySender` already saw this: `isRoleAccount` was true. But role accounts are deliberately answerable, because a human reads `support@` and `sales@`. A `noreply@` / `do-not-reply@` address is the narrower case where a reply is guaranteed to go nowhere, so it is now its own classification, `isNoReplyAddress`, and its own suppression reason, `no_reply_address` — filed away closed at ingest with no draft and no attention, exactly like an out-of-office.
+
+  A bounce or an auto-reply still reports its own reason over this one, which says least about the mail. A mailing-list post from a no-reply address stays answerable, the same carve-out `Precedence: bulk` already has.
+
+  Detection is on the address alone. Body phrases like "no longer available" are multilingual and a quoted original can carry them, so the "mailbox does not exist" wording is not matched — a no-reply sender that no human reads is a fact about the header.
+
+- @getmunin/types@5.23.3
+  - @getmunin/ui@5.23.3
+
 ## 5.23.2
 
 ### Patch Changes

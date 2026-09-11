@@ -480,13 +480,21 @@ export class ConvService {
 
   async listConversationsByIds(
     ids: string[],
-    options: { excludeStatuses?: readonly ConversationStatus[] } = {},
+    options: {
+      excludeStatuses?: readonly ConversationStatus[];
+      needsHumanAttention?: boolean;
+    } = {},
   ): Promise<ConversationSummary[]> {
     if (ids.length === 0) return [];
     const ctx = getCurrentContext();
     const filters: SQL[] = [inArray(schema.convConversations.id, ids)];
     if (options.excludeStatuses && options.excludeStatuses.length > 0) {
       filters.push(notInArray(schema.convConversations.status, [...options.excludeStatuses]));
+    }
+    if (options.needsHumanAttention !== undefined) {
+      filters.push(
+        eq(schema.convConversations.needsHumanAttention, options.needsHumanAttention),
+      );
     }
     const rows = await ctx.db
       .select()
@@ -508,6 +516,25 @@ export class ConvService {
   }): Promise<ConversationSummary[]> {
     const page = await this.listConversationsPage({ ...input });
     return page.items;
+  }
+
+  async countConversations(input: {
+    status?: ConversationStatus;
+    excludeStatuses?: readonly ConversationStatus[];
+    assigneeUserId?: string;
+    topicId?: string;
+    endUserId?: string;
+    needsHumanAttention?: boolean;
+    handover?: HandoverFilter;
+    since?: string;
+  }): Promise<number> {
+    const ctx = getCurrentContext();
+    const filters = this.buildConversationListFilters({ ...input });
+    const [row] = await ctx.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(schema.convConversations)
+      .where(filters.length === 0 ? undefined : and(...filters));
+    return row?.count ?? 0;
   }
 
   private buildConversationListFilters(input: {

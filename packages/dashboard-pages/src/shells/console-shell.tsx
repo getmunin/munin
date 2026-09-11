@@ -30,6 +30,7 @@ import {
   type ConsoleNavGroup,
 } from '../nav/console-groups';
 import type { InboxQueueResponse } from '../components/dashboard/inbox-types';
+import { BrandHead, BrandMark } from './brand-head';
 import { MobileBackProvider, useMobileBackAction } from './mobile-back';
 
 interface ConsoleBadges {
@@ -193,29 +194,6 @@ export interface ConsoleShellProps {
   children: ReactNode;
 }
 
-function BrandMark({
-  href,
-  label,
-  children,
-}: {
-  href: string;
-  label: string;
-  children: ReactNode;
-}) {
-  if (/^https?:\/\//i.test(href)) {
-    return (
-      <a href={href} aria-label={label} className="block shrink-0">
-        {children}
-      </a>
-    );
-  }
-  return (
-    <Link href={href} aria-label={label} className="block shrink-0">
-      {children}
-    </Link>
-  );
-}
-
 export function ConsoleShell(props: ConsoleShellProps) {
   return (
     <MobileBackProvider>
@@ -267,16 +245,15 @@ function ConsoleShellInner({
     <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)]">
       <aside className="hidden min-h-0 flex-col border-r border-ink bg-bone md:flex dark:border-rule-on-dark dark:bg-secondary">
         <div className="flex items-center gap-3 px-5 pb-4 pt-5">
-          <BrandMark href={brandHref} label={brand}>
-            <Image src={logoSrc} alt="" aria-hidden width={44} height={44} className="block size-11 object-contain" />
-          </BrandMark>
-          {headSlot ? (
-            <div className="min-w-0">{headSlot}</div>
-          ) : (
-            <span className="min-w-0 truncate text-[15px] font-medium text-ink dark:text-foreground">
-              {brand}
-            </span>
-          )}
+          <BrandHead
+            brand={brand}
+            brandHref={brandHref}
+            logoSrc={logoSrc}
+            logoSize={44}
+            logoClassName="size-11"
+            headSlot={headSlot}
+            brandClassName="text-[15px] font-medium text-ink dark:text-foreground"
+          />
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto py-3">
           <NavList groups={groups} badges={badges} />
@@ -317,16 +294,15 @@ function ConsoleShellInner({
             </button>
           ) : (
             <>
-              <BrandMark href={brandHref} label={brand}>
-                <Image src={logoSrc} alt="" aria-hidden width={26} height={26} className="block size-[26px] object-contain" />
-              </BrandMark>
-              {headSlot ? (
-                <div className="min-w-0">{headSlot}</div>
-              ) : (
-                <span className="min-w-0 truncate text-sm font-medium text-ink dark:text-foreground">
-                  {brand}
-                </span>
-              )}
+              <BrandHead
+                brand={brand}
+                brandHref={brandHref}
+                logoSrc={logoSrc}
+                logoSize={26}
+                logoClassName="size-[26px]"
+                headSlot={headSlot}
+                brandClassName="text-sm font-medium text-ink dark:text-foreground"
+              />
               <button
                 type="button"
                 onClick={() => setMenuOpen(true)}

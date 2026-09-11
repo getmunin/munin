@@ -152,7 +152,7 @@ export function OAuthConsentPage({
 
   if (!clientId || !oauthQuery) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-bone px-6 dark:bg-background">
+      <div className="flex min-h-[60vh] items-center justify-center bg-bone px-6 dark:bg-background">
         <div className="max-w-md border-[1px] border-ink bg-paper p-6 text-sm text-destructive dark:border-rule-on-dark dark:bg-card">
           {t('missingParams')}
         </div>
@@ -189,7 +189,7 @@ export function OAuthConsentPage({
   const resourceName = denial?.resourceName ?? resourceInfo?.name ?? '';
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background">
       <main className="mx-auto flex w-full max-w-[720px] flex-col px-6 py-12 sm:py-16">
         <EditorialHeader
           flow={stale ? 'expired' : blocked ? 'blocked' : flow}

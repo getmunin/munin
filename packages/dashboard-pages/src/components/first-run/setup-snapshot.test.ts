@@ -36,6 +36,14 @@ describe('toSetupSnapshot', () => {
     expect(snapshot.stage).toBe('active');
   });
 
+  it('carries the endpoint the server reports, not the one baked in at build time', () => {
+    expect(toSetupSnapshot(dto({ mcpUrl: 'https://mcp.example.com' })).mcpUrl).toBe(
+      'https://mcp.example.com',
+    );
+    expect(toSetupSnapshot(dto()).mcpUrl).toBeNull();
+    expect(toSetupSnapshot(null).mcpUrl).toBeNull();
+  });
+
   it('is unconfigured when no channel can accept a message', () => {
     expect(toSetupSnapshot(dto()).stage).toBe('unconfigured');
   });

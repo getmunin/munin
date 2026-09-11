@@ -6,6 +6,7 @@ function setupState(overrides: Partial<SetupState> = {}): SetupState {
   return {
     known: true,
     stage: 'active',
+    mcpUrl: null,
     liveChannels: [],
     pendingChannels: [],
     agentConnected: false,

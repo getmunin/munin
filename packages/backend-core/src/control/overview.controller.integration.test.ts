@@ -101,6 +101,7 @@ const skipReason = TEST_URL
   }
 
   interface SetupBody {
+    mcpUrl: string;
     channels: Array<{ id: string; type: string; active: boolean }>;
     conversationCount: number;
     topicCount: number;
@@ -154,6 +155,11 @@ const skipReason = TEST_URL
     expect(body.selfServiceAgentSubscriberCount).toBe(0);
     expect(body.lastInboundEndUserMessageAt).toBeNull();
     expect(body.lastAgentMessageAt).toBeNull();
+  });
+
+  it('setup hands the dashboard the running server\'s MCP endpoint', async () => {
+    const setup = await getSetup(adminKeyA);
+    expect(setup.mcpUrl).toMatch(/^https?:\/\/\S+[^/]$/);
   });
 
   it('setup reports a brand-new org as having nothing to listen with', async () => {

@@ -21,6 +21,7 @@ export {
 } from './request/credentials.ts';
 export {
   canonicalMcpResource,
+  mcpResourceBase,
   mcpResourcePaths,
   mcpResourceUrls,
   registerMcpResourcePaths,

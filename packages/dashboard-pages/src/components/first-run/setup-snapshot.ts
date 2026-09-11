@@ -18,6 +18,7 @@ export interface SetupReviewQueue {
 }
 
 export interface SetupStateDto {
+  mcpUrl?: string | null;
   channels: SetupChannelDto[];
   conversationCount: number;
   topicCount: number;
@@ -36,6 +37,7 @@ export interface SetupChannel {
 export interface SetupSnapshot {
   known: boolean;
   stage: SetupStage;
+  mcpUrl: string | null;
   liveChannels: SetupChannel[];
   pendingChannels: SetupChannel[];
   agentConnected: boolean;
@@ -52,6 +54,7 @@ const CHANNEL_ORDER: SetupChannelType[] = ['email', 'chat', 'sms', 'voice'];
 const UNKNOWN: SetupSnapshot = {
   known: false,
   stage: 'active',
+  mcpUrl: null,
   liveChannels: [],
   pendingChannels: [],
   agentConnected: false,
@@ -71,6 +74,7 @@ export function toSetupSnapshot(dto: SetupStateDto | null): SetupSnapshot {
 
   return {
     known: true,
+    mcpUrl: dto.mcpUrl ?? null,
     stage:
       dto.conversationCount > 0 ? 'active' : live.length > 0 ? 'listening' : 'unconfigured',
     liveChannels: toSetupChannels(live),

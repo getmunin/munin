@@ -645,6 +645,13 @@
       "when": 1789072935496,
       "tag": "0091_conv_repair_forwarded_auto_reply",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1789109942979,
+      "tag": "0092_conv_close_suppressed_conversations",
+      "breakpoints": true
     }
   ]
 }

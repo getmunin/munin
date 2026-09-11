@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { CopyField } from '../copy-field';
-import { MCP_ENDPOINT } from './first-run-links';
+import { mcpEndpoint } from './first-run-links';
 import { FirstRunFootnote, FirstRunNote, FirstRunScene } from './first-run-scene';
 import { FirstRunFigures } from './first-run-status';
 import type { SetupState } from './use-setup-state';
@@ -24,7 +24,7 @@ export function ReviewFirstRun({
         title={t.rich('review.titleEmptyBase', { em: (chunks) => <em>{chunks}</em> })}
         lede={t.rich('review.ledeEmptyBase', { code: (chunks) => <code>{chunks}</code> })}
       >
-        <CopyField value={MCP_ENDPOINT} className="max-w-[460px]" />
+        <CopyField value={mcpEndpoint(setup)} className="max-w-[460px]" />
         <FirstRunNote>{t('review.noteEmptyBase')}</FirstRunNote>
       </FirstRunScene>
     );

@@ -11,6 +11,7 @@ import {
   AGENT_RUNTIME_PROMPT_SPACE_SLUG,
   COMPANY_PROFILE_SPACE_SLUG,
   getCurrentContext,
+  mcpResourceBase,
 } from '@getmunin/core';
 import { ConvService, type ChannelDto } from '../modules/conv/conv.service.ts';
 import { CURATION_INBOX_SLUG, KbService } from '../modules/kb/kb.service.ts';
@@ -32,6 +33,7 @@ export interface SetupReviewQueueDto {
 }
 
 export interface SetupStateDto {
+  mcpUrl: string;
   channels: ChannelDto[];
   conversationCount: number;
   topicCount: number;
@@ -65,6 +67,7 @@ export class SetupStateService {
       ]);
 
     return {
+      mcpUrl: mcpResourceBase(),
       channels,
       conversationCount,
       topicCount,

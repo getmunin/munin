@@ -421,6 +421,41 @@ const RELAY_DOMAIN = 'in.getmunin.test';
       expect(conv!.needsHumanAttention).toBe(false);
     });
 
+    it('files away closed a deleted-mailbox notice from an address that takes no replies', async () => {
+      const raw = [
+        'From: noreply.autoresponder_NO_01 <noreply.autoresponder.no@kaefer.no>',
+        `To: <${relayAddress}>`,
+        'Subject: This mailbox is no longer available',
+        'Message-ID: <deleted-mailbox@kaefer.no>',
+        'Content-Type: text/plain; charset="utf-8"',
+        '',
+        'We are sorry, but the email address you have tried to reach does not exist',
+        'within our company anymore.',
+        '',
+      ].join('\r\n');
+      const res = await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(raw).toString('base64'),
+      });
+      expect(res.status).toBe(201);
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const msg = (
+        await db.select().from(schema.convMessages).where(eq(schema.convMessages.orgId, orgId))
+      ).find((m) => m.body.includes('does not exist'));
+      expect(msg).toBeDefined();
+      expect(msg!.metadata).toMatchObject({ suppressed: 'no_reply_address' });
+
+      const conv = (
+        await db
+          .select()
+          .from(schema.convConversations)
+          .where(eq(schema.convConversations.id, msg!.conversationId))
+      )[0];
+      expect(conv!.status).toBe('closed');
+      expect(conv!.needsHumanAttention).toBe(false);
+    });
+
     it('leaves a live customer thread open when a later auto-reply lands on it', async () => {
       await postRelay({
         recipient: relayAddress,

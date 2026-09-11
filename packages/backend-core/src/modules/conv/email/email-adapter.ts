@@ -37,6 +37,7 @@ import {
   type OutboundAttachment,
 } from './mime.ts';
 import { renderEmailHtml } from './markdown.ts';
+import { senderDisplayName } from './sender-name.ts';
 import { resolveInbound, type ParsedInboundEmail } from './threading.ts';
 import {
   filterInboundAttachments,
@@ -644,7 +645,7 @@ export async function parseMessage(source: Buffer | string): Promise<ParsedInbou
 
   const fromList = parsed.from?.value ?? [];
   const fromAddress = (fromList[0]?.address ?? '').toLowerCase();
-  const fromName = fromList[0]?.name?.trim() || null;
+  const fromName = senderDisplayName(fromList[0]?.name);
 
   const html = typeof parsed.html === 'string' ? parsed.html : null;
   const text = (parsed.text ?? '').trim() || stripHtml(html ?? '');

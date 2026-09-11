@@ -39,6 +39,13 @@ describe('parseAddressLine', () => {
     });
   });
 
+  it('drops a placeholder display name so the address is what shows', () => {
+    expect(parseAddressLine('? <kari@example.com>')).toEqual({
+      address: 'kari@example.com',
+      name: null,
+    });
+  });
+
   it('strips the mailto: prefix Outlook adds', () => {
     expect(parseAddressLine('Kari Nordmann <mailto:kari@example.com>')).toEqual({
       address: 'kari@example.com',

@@ -364,6 +364,63 @@ const RELAY_DOMAIN = 'in.getmunin.test';
       expect(conv!.needsHumanAttention).toBe(false);
     });
 
+    it('files a Microsoft 365 out-of-office away closed, though its envelope sender is postmaster@', async () => {
+      const raw = [
+        'From: Ole-Martin <ole-martin@nortekstil.no>',
+        `To: <${relayAddress}>`,
+        'Return-Path: <postmaster@osppr02cu001.outbound.protection.outlook.com>',
+        'Subject: Automatic reply: Nyhetsbrev februar',
+        'Message-ID: <ooo-m365@nortekstil.no>',
+        'Content-Type: text/plain; charset="utf-8"',
+        '',
+        'Jeg er paa reise, men leser og svarer epost naar jeg har mulighet.',
+        '',
+      ].join('\r\n');
+      const res = await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(raw).toString('base64'),
+      });
+      expect(res.status).toBe(201);
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const msg = (
+        await db.select().from(schema.convMessages).where(eq(schema.convMessages.orgId, orgId))
+      ).find((m) => m.body.includes('paa reise'));
+      expect(msg).toBeDefined();
+      expect(msg!.metadata).toMatchObject({ suppressed: 'auto_reply' });
+
+      const conv = (
+        await db
+          .select()
+          .from(schema.convConversations)
+          .where(eq(schema.convConversations.id, msg!.conversationId))
+      )[0];
+      expect(conv!.status).toBe('closed');
+    });
+
+    it('files a bounce that opens a conversation of its own away closed too', async () => {
+      const res = await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(rawEspBounce()).toString('base64'),
+      });
+      expect(res.status).toBe(201);
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const msg = (
+        await db.select().from(schema.convMessages).where(eq(schema.convMessages.orgId, orgId))
+      ).find((m) => m.body.includes('rejected'));
+      expect(msg).toBeDefined();
+
+      const conv = (
+        await db
+          .select()
+          .from(schema.convConversations)
+          .where(eq(schema.convConversations.id, msg!.conversationId))
+      )[0];
+      expect(conv!.status).toBe('closed');
+      expect(conv!.needsHumanAttention).toBe(false);
+    });
+
     it('leaves a live customer thread open when a later auto-reply lands on it', async () => {
       await postRelay({
         recipient: relayAddress,

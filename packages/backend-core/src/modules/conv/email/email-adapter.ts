@@ -393,7 +393,7 @@ export class EmailAdapter implements ChannelAdapter {
               channelId: channel.id,
               contactId: contact.id,
               endUserId: contact.endUserId,
-              status: suppressed === 'auto_reply' ? 'closed' : 'open',
+              status: suppressed ? 'closed' : 'open',
               subject: parsed.subject || null,
               agentMode: channel.defaultAgentMode,
               lastMessageAt: new Date(),

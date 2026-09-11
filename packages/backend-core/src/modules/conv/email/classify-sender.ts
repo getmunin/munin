@@ -120,13 +120,16 @@ export function classifySender(
     /multipart\/report/.test(contentType) &&
     /report-type\s*=\s*"?delivery-status"?/.test(contentType);
 
-  const isBounce =
-    /^<\s*>$/.test(returnPath) ||
-    /^<?mailer-daemon@/i.test(returnPath) ||
-    /^<?postmaster@/i.test(returnPath) ||
-    BOUNCE_LOCAL_PARTS.has(localBase) ||
+  const reportsDeliveryFailure =
     isDeliveryStatusReport ||
-    hasHeader(headerLines, 'x-failed-recipients');
+    hasHeader(headerLines, 'x-failed-recipients') ||
+    BOUNCE_LOCAL_PARTS.has(localBase) ||
+    /^<?mailer-daemon@/i.test(returnPath);
+
+  const bounceShapedEnvelopeSender =
+    /^<\s*>$/.test(returnPath) || /^<?postmaster@/i.test(returnPath);
+
+  const isBounce = reportsDeliveryFailure || (bounceShapedEnvelopeSender && !isAutoReply);
 
   const isRoleAccount = ROLE_LOCAL_PARTS.has(localBase) || /^no-?reply|^do-?not-?reply/.test(localBase);
 

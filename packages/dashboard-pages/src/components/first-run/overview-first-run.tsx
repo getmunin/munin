@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { CopyField } from '../copy-field';
-import { FIRST_RUN_DOCS, FIRST_RUN_ROUTES, FirstRunLink, MCP_ENDPOINT } from './first-run-links';
+import { FIRST_RUN_DOCS, FIRST_RUN_ROUTES, FirstRunLink, mcpEndpoint } from './first-run-links';
 import { FirstRunAside, FirstRunNote, FirstRunScene } from './first-run-scene';
 import { FirstRunSteps } from './first-run-steps';
 import { FirstRunStatusList, type FirstRunStatusRow } from './first-run-status';
@@ -23,6 +23,7 @@ function stepsDone(setup: SetupState): number {
 
 function UnconfiguredOverview({ setup }: { setup: SetupState }) {
   const t = useTranslations('dashboard.firstRun');
+  const endpoint = mcpEndpoint(setup);
   return (
     <FirstRunScene
       eyebrow={t('overview.eyebrowSetup', { done: stepsDone(setup) })}
@@ -41,7 +42,7 @@ function UnconfiguredOverview({ setup }: { setup: SetupState }) {
             }),
             actions: (
               <>
-                <CopyField value={MCP_ENDPOINT} className="mb-1 max-w-[460px] basis-full" />
+                <CopyField value={endpoint} className="mb-1 max-w-[460px] basis-full" />
                 <FirstRunLink href={FIRST_RUN_DOCS.connectClient} accent>
                   {t('actions.clientSetup')}
                 </FirstRunLink>
@@ -71,6 +72,7 @@ function UnconfiguredOverview({ setup }: { setup: SetupState }) {
 function ListeningOverview({ setup }: { setup: SetupState }) {
   const t = useTranslations('dashboard.firstRun');
   const channelKind = useChannelKindLabel();
+  const endpoint = mcpEndpoint(setup);
 
   const rows: FirstRunStatusRow[] = setup.liveChannels.map((channel) => ({
     key: channel.id,
@@ -88,7 +90,7 @@ function ListeningOverview({ setup }: { setup: SetupState }) {
     live: setup.agentConnected,
     detail: (
       <>
-        <code>{MCP_ENDPOINT}</code>{' '}
+        <code>{endpoint}</code>{' '}
         <span>
           —{' '}
           {setup.agentConnected

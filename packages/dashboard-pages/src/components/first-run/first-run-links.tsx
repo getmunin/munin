@@ -5,6 +5,10 @@ import { DEFAULT_DOCS_HOST, DEFAULT_MCP_HOST } from '../../data/mcp-setups';
 
 export const MCP_ENDPOINT = DEFAULT_MCP_HOST;
 
+export function mcpEndpoint(setup: { mcpUrl: string | null }): string {
+  return setup.mcpUrl ?? MCP_ENDPOINT;
+}
+
 export const FIRST_RUN_ROUTES = {
   channels: '/dashboard/settings/channels',
 } as const;

@@ -23,6 +23,7 @@ export {
   FIRST_RUN_ROUTES,
   FirstRunLink,
   MCP_ENDPOINT,
+  mcpEndpoint,
 } from './first-run-links';
 export {
   FirstRunActions,

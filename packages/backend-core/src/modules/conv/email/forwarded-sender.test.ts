@@ -19,6 +19,7 @@ function parsed(overrides: Partial<ParsedInboundEmail>): ParsedInboundEmail {
       isMailingList: false,
       isAutoReply: false,
       isRoleAccount: false,
+      isNoReplyAddress: false,
       isBounce: false,
       autoReplySignal: null,
     },

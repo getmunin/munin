@@ -131,7 +131,12 @@ export function MessageBubble({
           <span>· {formatSeenAt(message.createdAt)}</span>
           {suppressed ? (
             <span className="text-ink-label">
-              · {suppressed === 'bounce' ? t('bounceNotice') : t('autoReply')}
+              ·{' '}
+              {suppressed === 'bounce'
+                ? t('bounceNotice')
+                : suppressed === 'no_reply_address'
+                  ? t('noReplyAddress')
+                  : t('autoReply')}
             </span>
           ) : null}
         </div>

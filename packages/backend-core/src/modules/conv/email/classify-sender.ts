@@ -10,6 +10,7 @@ export interface SenderClassification {
   isMailingList: boolean;
   isAutoReply: boolean;
   isRoleAccount: boolean;
+  isNoReplyAddress: boolean;
   isBounce: boolean;
   autoReplySignal: AutoReplySignal | null;
 }
@@ -131,9 +132,10 @@ export function classifySender(
 
   const isBounce = reportsDeliveryFailure || (bounceShapedEnvelopeSender && !isAutoReply);
 
-  const isRoleAccount = ROLE_LOCAL_PARTS.has(localBase) || /^no-?reply|^do-?not-?reply/.test(localBase);
+  const isNoReplyAddress = /^no-?reply|^do-?not-?reply/.test(localBase);
+  const isRoleAccount = ROLE_LOCAL_PARTS.has(localBase) || isNoReplyAddress;
 
-  return { isMailingList, isAutoReply, isRoleAccount, isBounce, autoReplySignal };
+  return { isMailingList, isAutoReply, isRoleAccount, isNoReplyAddress, isBounce, autoReplySignal };
 }
 
 function detectAutoReplySignal(
@@ -170,14 +172,17 @@ function foldDiacritics(value: string): string {
 }
 
 export function hasAnyClassification(c: SenderClassification): boolean {
-  return c.isMailingList || c.isAutoReply || c.isRoleAccount || c.isBounce;
+  return (
+    c.isMailingList || c.isAutoReply || c.isRoleAccount || c.isNoReplyAddress || c.isBounce
+  );
 }
 
-export type SuppressionReason = 'auto_reply' | 'bounce';
+export type SuppressionReason = 'auto_reply' | 'bounce' | 'no_reply_address';
 
 export function suppressionReason(c: SenderClassification): SuppressionReason | null {
   if (c.isBounce) return 'bounce';
   if (c.isAutoReply) return 'auto_reply';
+  if (c.isNoReplyAddress && !c.isMailingList) return 'no_reply_address';
   return null;
 }
 

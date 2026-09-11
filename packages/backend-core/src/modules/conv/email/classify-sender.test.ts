@@ -13,6 +13,7 @@ describe('classifySender', () => {
       isMailingList: false,
       isAutoReply: false,
       isRoleAccount: false,
+      isNoReplyAddress: false,
       isBounce: false,
       autoReplySignal: null,
     });
@@ -300,6 +301,51 @@ describe('classifySender', () => {
     expect(suppressionReason(c)).toBeNull();
   });
 
+  it('suppresses a sender whose address says it takes no replies', () => {
+    for (const from of [
+      'noreply.autoresponder.no@kaefer.no',
+      'noreply@vendor.example',
+      'no-reply+thread-42@acme.com',
+      'donotreply@acme.com',
+      'do-not-reply@acme.com',
+    ]) {
+      const c = classifySender(h({ From: from }), from);
+      expect(c.isNoReplyAddress, from).toBe(true);
+      expect(suppressionReason(c), from).toBe('no_reply_address');
+    }
+  });
+
+  it('reports bounce and auto-reply over a no-reply address, which says least about the mail', () => {
+    const bounce = classifySender(
+      h({ From: 'noreply@acme.com', 'X-Failed-Recipients': 'kari@acme.com' }),
+      'noreply@acme.com',
+    );
+    expect(suppressionReason(bounce)).toBe('bounce');
+    const ooo = classifySender(
+      h({ From: 'noreply@acme.com', Subject: 'Automatic reply: hei' }),
+      'noreply@acme.com',
+    );
+    expect(suppressionReason(ooo)).toBe('auto_reply');
+  });
+
+  it('leaves a mailing-list post from a no-reply address answerable, as Precedence: bulk already does', () => {
+    const c = classifySender(
+      h({ From: 'noreply@acme.com', 'List-Id': 'announce.acme.com' }),
+      'noreply@acme.com',
+    );
+    expect(c.isNoReplyAddress).toBe(true);
+    expect(suppressionReason(c)).toBeNull();
+  });
+
+  it('does not treat an ordinary role account as a no-reply address', () => {
+    for (const from of ['support@acme.com', 'sales@acme.com', 'info@acme.com']) {
+      const c = classifySender(h({ From: from }), from);
+      expect(c.isRoleAccount, from).toBe(true);
+      expect(c.isNoReplyAddress, from).toBe(false);
+      expect(suppressionReason(c), from).toBeNull();
+    }
+  });
+
   it('does not suppress a mailing-list post or a role account', () => {
     const list = classifySender(h({ 'List-Id': 'announce.acme.com' }), 'jane@acme.com');
     expect(suppressionReason(list)).toBeNull();
@@ -318,6 +364,7 @@ describe('classifySender', () => {
         isMailingList: false,
         isAutoReply: true,
         isRoleAccount: false,
+        isNoReplyAddress: false,
         isBounce: false,
         autoReplySignal: 'subject',
       }),

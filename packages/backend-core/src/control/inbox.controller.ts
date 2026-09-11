@@ -44,9 +44,11 @@ interface LiveConversation extends ConversationSummary {
 }
 
 const EXCLUDED_LIVE_STATUSES = ['closed', 'spam'] as const;
+const LIVE_LIST_LIMIT = 50;
 
 interface InboxQueueResponse {
   live: LiveConversation[];
+  liveTotal: number;
   queue: {
     kb: CurationCandidateSummary[];
     crm: MergeProposalDto[];
@@ -75,7 +77,7 @@ export class InboxController {
   @Get()
   async queue(): Promise<InboxQueueResponse> {
     const [
-      live,
+      liveResult,
       kbItems,
       crmItems,
       outreachItems,
@@ -95,7 +97,8 @@ export class InboxController {
     ]);
 
     return {
-      live,
+      live: liveResult.live,
+      liveTotal: liveResult.total,
       queue: {
         kb: kbItems,
         crm: crmItems,
@@ -108,7 +111,7 @@ export class InboxController {
     };
   }
 
-  private async loadLive(): Promise<LiveConversation[]> {
+  private async loadLive(): Promise<{ live: LiveConversation[]; total: number }> {
     const ctx = getCurrentContext();
     const claimedIdRows = await ctx.db
       .select({ id: schema.claims.entityId })
@@ -120,23 +123,27 @@ export class InboxController {
           gt(schema.claims.expiresAt, sql`now()`),
         ),
       );
-    const claimedIds = new Set(claimedIdRows.map((r) => r.id));
+    const claimedIds = [...new Set(claimedIdRows.map((r) => r.id))];
 
-    const flaggedSummaries = await this.conv.listConversations({
-      needsHumanAttention: true,
-      excludeStatuses: EXCLUDED_LIVE_STATUSES,
-      limit: 50,
-    });
-    const flaggedIds = new Set(flaggedSummaries.map((c) => c.id));
-    const missingClaimedIds = [...claimedIds].filter((id) => !flaggedIds.has(id));
-    const claimedOnly =
-      missingClaimedIds.length > 0
-        ? await this.conv.listConversationsByIds(missingClaimedIds, {
-            excludeStatuses: EXCLUDED_LIVE_STATUSES,
-          })
-        : [];
+    const [flaggedSummaries, flaggedTotal, claimedOnly] = await Promise.all([
+      this.conv.listConversations({
+        needsHumanAttention: true,
+        excludeStatuses: EXCLUDED_LIVE_STATUSES,
+        limit: LIVE_LIST_LIMIT,
+      }),
+      this.conv.countConversations({
+        needsHumanAttention: true,
+        excludeStatuses: EXCLUDED_LIVE_STATUSES,
+      }),
+      this.conv.listConversationsByIds(claimedIds, {
+        excludeStatuses: EXCLUDED_LIVE_STATUSES,
+        needsHumanAttention: false,
+      }),
+    ]);
+
     const summaries = [...flaggedSummaries, ...claimedOnly];
-    if (summaries.length === 0) return [];
+    const total = flaggedTotal + claimedOnly.length;
+    if (summaries.length === 0) return { live: [], total };
 
     const ids = summaries.map((c) => c.id);
 
@@ -151,11 +158,14 @@ export class InboxController {
       }),
     ]);
 
-    return summaries.map((s) => ({
-      ...s,
-      latestEndUserMessage: latestByConv.get(s.id) ?? null,
-      claim: claimsByConv.get(s.id) ?? null,
-    }));
+    return {
+      live: summaries.map((s) => ({
+        ...s,
+        latestEndUserMessage: latestByConv.get(s.id) ?? null,
+        claim: claimsByConv.get(s.id) ?? null,
+      })),
+      total,
+    };
   }
 
   private async loadLatestEndUserMessages(

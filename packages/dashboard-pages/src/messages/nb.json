@@ -378,6 +378,7 @@
         "noSpeech": "Ingen tale oppfattet",
         "autoReply": "Autosvar",
         "bounceNotice": "Returmelding",
+        "noReplyAddress": "Ingen svaradresse",
         "outreachRevised": "Endret {count}× siden utkastet ble skrevet",
         "outreachRevisedAfterReview": "Endret {count}× etter at det ble åpnet til gjennomgang — les det på nytt før du godkjenner",
         "outreachRevisionReason": "Begrunnelse — {reason}",

@@ -48,6 +48,7 @@ import {
   STATUSES,
   type ConversationStatus,
   type ConversationDetail,
+  type ConversationQueueCounts,
   type ConversationQueueItem,
   type ConversationSummary,
   type MessageDto,
@@ -220,6 +221,20 @@ export class ConversationsController {
       items: page.items,
       nextCursor: page.nextCursor ? encodeListCursor(page.nextCursor) : null,
     };
+  }
+
+  @Get('queue/counts')
+  @AllowMember()
+  async queueCounts(
+    @Query('assigneeUserId') assigneeUserId?: string,
+    @Query('topicId') topicId?: string,
+  ): Promise<ConversationQueueCounts> {
+    return translate(() =>
+      this.conv.countConversationQueueSections({
+        ...(assigneeUserId ? { assigneeUserId } : {}),
+        ...(topicId ? { topicId } : {}),
+      }),
+    );
   }
 
   @Get('topics')

@@ -14,6 +14,8 @@ import { randomUUID } from 'node:crypto';
 import { DB } from '../../../common/db/db.module.ts';
 import { withSchedulerLock } from '../../../common/scheduler-lock/index.ts';
 import { AlertsService } from '../../system-alerts/system-alerts.service.ts';
+import { AddressDeliverabilityService } from '../../crm/address-deliverability.service.ts';
+import { classifySmtpFailure } from '../../crm/address-deliverability.ts';
 import {
   CHANNEL_ADAPTERS,
   ChannelAdapterRegistry,
@@ -62,6 +64,8 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(CHANNEL_ADAPTERS) adapters: ChannelAdapter[],
     @Inject(AlertsService) private readonly alerts: AlertsService,
+    @Inject(AddressDeliverabilityService)
+    private readonly deliverability: AddressDeliverabilityService,
   ) {
     this.registry = new ChannelAdapterRegistry(adapters);
   }
@@ -263,6 +267,8 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
 
     if (!final) return;
 
+    await this.recordDeadDelivery(ctx, error);
+
     await this.fireWebhook('conversation.message.delivery_failed', {
       orgId: ctx.message.orgId,
       conversationId: ctx.conversation.id,
@@ -289,6 +295,28 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
       });
       await this.alerts.updateMetadata(result.alertId, {
         undeliveredCount: result.occurrenceCount,
+      });
+    });
+  }
+
+  private async recordDeadDelivery(ctx: DeliveryContext, error: string): Promise<void> {
+    if (ctx.channel.type !== 'email') return;
+    const address = ctx.contact?.email ?? readRecipient(ctx.message.metadata);
+    if (!address) return;
+    const severity = classifySmtpFailure(error);
+    if (severity === 'inconclusive') return;
+    await this.withChannelContext(ctx.channel.orgId, async () => {
+      await this.deliverability.recordFailure({
+        address,
+        severity,
+        reason: severity === 'hard' ? 'smtp_rejected' : 'delivery_dead',
+        evidence: {
+          conversationId: ctx.conversation.id,
+          messageId: ctx.message.id,
+          channelId: ctx.channel.id,
+          attempts: MAX_ATTEMPTS,
+          error,
+        },
       });
     });
   }
@@ -349,6 +377,12 @@ export class OutboundDeliveryWorker implements OnModuleInit, OnModuleDestroy {
       attempt: row.delivery.attempt,
     };
   }
+}
+
+function readRecipient(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== 'object') return null;
+  const value = (metadata as { recipient?: unknown }).recipient;
+  return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
 function errorMessage(err: unknown): string {

@@ -1230,6 +1230,38 @@ export const crmContacts = pgTable(
   }),
 );
 
+// Address deliverability: whether mail can physically arrive at an address,
+// tracked separately from consent (crm_contacts.do_not_contact /
+// unsubscribed_at). A colleague who changed jobs has not opted out, and a
+// corrected address must be reachable again — so the state is keyed by the
+// address rather than by the contact, and it is reversible.
+export const crmAddressDeliverability = pgTable(
+  'crm_address_deliverability',
+  {
+    id: id('cadr'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    address: text('address').notNull(),
+    state: varchar('state', { length: 16 }).notNull().default('valid'),
+    // 'valid' | 'soft_failing' | 'undeliverable'
+    reason: varchar('reason', { length: 32 }),
+    evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull().default({}),
+    failureCount: integer('failure_count').notNull().default(0),
+    firstFailureAt: timestamp('first_failure_at', { withTimezone: true }),
+    lastFailureAt: timestamp('last_failure_at', { withTimezone: true }),
+    stateChangedAt: timestamp('state_changed_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedByActorType: varchar('updated_by_actor_type', { length: 16 }),
+    updatedByActorId: text('updated_by_actor_id'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    addressUq: uniqueIndex('crm_address_deliverability_org_address_uq').on(t.orgId, t.address),
+    stateIdx: index('crm_address_deliverability_state_idx').on(t.orgId, t.state),
+  }),
+);
+
 export const crmSegments = pgTable(
   'crm_segments',
   {

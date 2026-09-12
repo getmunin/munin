@@ -5,6 +5,7 @@ import { eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { NotFoundException, ConflictException } from '@nestjs/common';
 import { CrmService, CrmInvalidError } from './crm.service.ts';
+import { AddressDeliverabilityService } from './address-deliverability.service.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
@@ -39,7 +40,7 @@ const skipReason = TEST_URL
     endUserId = eu!.id;
     actor = new ActorIdentity('admin_agent', 'agt_crm_test', orgId, ['*'], ['admin']);
 
-    svc = new CrmService(new WebhookDispatcher(), new DefaultQuotasService());
+    svc = new CrmService(new WebhookDispatcher(), new DefaultQuotasService(), new AddressDeliverabilityService());
   });
 
   afterAll(async () => {

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CrmModule } from '../crm/crm.module.ts';
 import { CuratorModule } from '../curator/curator.module.ts';
 import { McpModule } from '../../mcp/mcp.module.ts';
 import { RealtimeModule } from '../../realtime/realtime.module.ts';
@@ -75,6 +76,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
 
 @Module({
   imports: [
+    CrmModule,
     CuratorModule,
     McpModule,
     RealtimeModule,

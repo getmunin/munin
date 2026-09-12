@@ -15,7 +15,11 @@ import {
 } from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
 import { ConvService } from '../conv/conv.service.ts';
-import { CrmService, CrmInvalidError } from '../crm/crm.service.ts';
+import { CrmService, CrmInvalidError, type ContactDto } from '../crm/crm.service.ts';
+import type {
+  AddressDeliverabilityDto,
+  AddressDeliverabilityState,
+} from '../crm/address-deliverability.ts';
 import { EmailService } from '../conv/email/email.service.ts';
 import { publicChannelConfig } from '../conv/channels/public-config.ts';
 import { findOrCreateContactByPhone } from '../conv/contact-by-phone.ts';
@@ -35,9 +39,16 @@ import { stripTrailingSlashes } from '@getmunin/types';
 export { draftFingerprint } from './proposal-fingerprint.ts';
 
 export class OutreachInvalidError extends Error {
-  readonly code = 'outreach_invalid';
+  readonly code: string;
+  constructor(message: string, code = 'outreach_invalid') {
+    super(`${code}: ${message}`);
+    this.code = code;
+  }
+}
+
+export class OutreachUndeliverableError extends OutreachInvalidError {
   constructor(message: string) {
-    super(`outreach_invalid: ${message}`);
+    super(message, 'outreach_undeliverable');
   }
 }
 
@@ -161,11 +172,18 @@ export interface ProposalCampaignSummary {
   ctaUrl: string | null;
 }
 
+export interface ProposalDeliverability {
+  state: AddressDeliverabilityState;
+  reason: string | null;
+  stateChangedAt: string;
+}
+
 export interface ProposalDelivery {
   channelId: string;
   channelType: string;
   vendor: string;
   destination: string | null;
+  destinationDeliverability: ProposalDeliverability | null;
   sender: string | null;
   senderName: string | null;
   appendsCta: boolean;
@@ -443,6 +461,11 @@ export class OutreachService {
           vendor: schema.convChannels.vendor,
           config: schema.convChannels.config,
         },
+        deliverability: {
+          state: schema.crmAddressDeliverability.state,
+          reason: schema.crmAddressDeliverability.reason,
+          stateChangedAt: schema.crmAddressDeliverability.stateChangedAt,
+        },
       })
       .from(schema.outreachProposals)
       .leftJoin(schema.crmContacts, eq(schema.crmContacts.id, schema.outreachProposals.contactId))
@@ -452,6 +475,11 @@ export class OutreachService {
         eq(schema.outreachCampaigns.id, schema.outreachProposals.campaignId),
       )
       .leftJoin(schema.convChannels, eq(schema.convChannels.id, schema.outreachCampaigns.channelId))
+      .leftJoin(
+        schema.crmAddressDeliverability,
+        sql`${schema.crmAddressDeliverability.orgId} = ${schema.crmContacts.orgId}
+            AND ${schema.crmAddressDeliverability.address} = lower(btrim(${schema.crmContacts.email}))`,
+      )
       .where(filters.length === 0 ? undefined : and(...filters))
       .orderBy(
         input.status === 'approved'
@@ -464,7 +492,7 @@ export class OutreachService {
         r.hasEvidence,
         r.contact,
         r.campaign,
-        toProposalDelivery(r.contact, r.campaign, r.channel),
+        toProposalDelivery(r.contact, r.campaign, r.channel, toProposalDeliverability(r.deliverability)),
       ));
   }
 
@@ -493,6 +521,11 @@ export class OutreachService {
           vendor: schema.convChannels.vendor,
           config: schema.convChannels.config,
         },
+        deliverability: {
+          state: schema.crmAddressDeliverability.state,
+          reason: schema.crmAddressDeliverability.reason,
+          stateChangedAt: schema.crmAddressDeliverability.stateChangedAt,
+        },
       })
       .from(schema.outreachProposals)
       .leftJoin(schema.crmContacts, eq(schema.crmContacts.id, schema.outreachProposals.contactId))
@@ -502,6 +535,11 @@ export class OutreachService {
         eq(schema.outreachCampaigns.id, schema.outreachProposals.campaignId),
       )
       .leftJoin(schema.convChannels, eq(schema.convChannels.id, schema.outreachCampaigns.channelId))
+      .leftJoin(
+        schema.crmAddressDeliverability,
+        sql`${schema.crmAddressDeliverability.orgId} = ${schema.crmContacts.orgId}
+            AND ${schema.crmAddressDeliverability.address} = lower(btrim(${schema.crmContacts.email}))`,
+      )
       .where(eq(schema.outreachProposals.id, id))
       .limit(1);
     if (!rows[0]) throw new NotFoundException(`outreach_not_found: proposal ${id}`);
@@ -509,7 +547,7 @@ export class OutreachService {
       rows[0].proposal,
       rows[0].contact,
       rows[0].campaign,
-      toProposalDelivery(rows[0].contact, rows[0].campaign, rows[0].channel),
+      toProposalDelivery(rows[0].contact, rows[0].campaign, rows[0].channel, toProposalDeliverability(rows[0].deliverability)),
     );
   }
 
@@ -540,6 +578,7 @@ export class OutreachService {
         `contact ${input.contactId} is suppressed or has no recorded lawful basis`,
       );
     }
+    assertDeliverable(contact, channel.type);
     if ((channel.type === 'voice' || channel.type === 'sms') && !contact.phone) {
       throw new OutreachInvalidError(
         `contact ${input.contactId} has no phone number — required for ${channel.type} campaigns`,
@@ -603,7 +642,7 @@ export class OutreachService {
           companyId: contact.companyId,
         },
         { id: campaign.id, name: campaign.name },
-        toProposalDelivery(contact, campaign, channel),
+        toProposalDelivery(contact, campaign, channel, contactDeliverability(contact.deliverability)),
       );
     } catch (err) {
       if (isUniqueViolation(err, 'outreach_proposals_open_pair_uq')) {
@@ -711,7 +750,7 @@ export class OutreachService {
           companyId: crmContact.companyId,
         },
         { id: replyCampaign.id, name: replyCampaign.name },
-        toProposalDelivery(crmContact, replyCampaign, replyChannel),
+        toProposalDelivery(crmContact, replyCampaign, replyChannel, contactDeliverability(crmContact.deliverability)),
       );
     } catch (err) {
       if (isUniqueViolation(err, 'outreach_proposals_open_pair_uq')) {
@@ -831,6 +870,7 @@ export class OutreachService {
         `contact ${anchor.contactId} is suppressed or has no recorded lawful basis`,
       );
     }
+    assertDeliverable(contact, channel.type);
     try {
       const [row] = await ctx.db
         .insert(schema.outreachProposals)
@@ -870,7 +910,7 @@ export class OutreachService {
           companyId: contact.companyId,
         },
         { id: campaign.id, name: campaign.name },
-        toProposalDelivery(contact, campaign, channel),
+        toProposalDelivery(contact, campaign, channel, contactDeliverability(contact.deliverability)),
       );
     } catch (err) {
       if (isUniqueViolation(err, 'outreach_proposals_open_pair_uq')) {
@@ -1096,6 +1136,7 @@ export class OutreachService {
         `contact ${contact.id} is no longer eligible (suppression or consent withdrawn)`,
       );
     }
+    assertDeliverable(contact, channel.type);
 
     if (channel.type === 'voice') {
       return this.deliverInitialVoice(proposal, campaign, contact, channel);
@@ -1480,6 +1521,8 @@ export class OutreachService {
         `contact ${contact.id} is no longer eligible (suppression or consent withdrawn)`,
       );
     }
+    const followupChannel = await this.loadOutreachChannel(campaign.channelId);
+    assertDeliverable(contact, followupChannel.type);
     const [inbound] = await ctx.db
       .select({ id: schema.convMessages.id })
       .from(schema.convMessages)
@@ -1758,6 +1801,12 @@ export class OutreachService {
        AND ct.do_not_contact = false
        AND ct.unsubscribed_at IS NULL
        AND ct.consent_lawful_basis IS NOT NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM crm_address_deliverability d
+         JOIN conv_channels ch ON ch.id = c.channel_id AND ch.type = 'email'
+         WHERE d.org_id = ct.org_id
+           AND d.address = lower(btrim(ct.email))
+           AND d.state = 'undeliverable')
       WHERE a.last_sent_at
             + make_interval(days => (c.sequence_steps -> a.last_step ->> 'waitDays')::int)
             <= now()
@@ -2326,6 +2375,7 @@ function toProposalDelivery(
     vendor: string | null;
     config?: unknown;
   } | null,
+  deliverability: ProposalDeliverability | null,
 ): ProposalDelivery | null {
   if (!channel?.id || !channel.type) return null;
   const isEmail = channel.type === 'email';
@@ -2335,11 +2385,30 @@ function toProposalDelivery(
     channelType: channel.type,
     vendor: channel.vendor ?? '',
     destination: (isEmail ? contact?.email : contact?.phone) ?? null,
+    destinationDeliverability: isEmail ? deliverability : null,
     sender: sender.address,
     senderName: sender.name,
     appendsCta: isEmail && Boolean(campaign?.ctaUrl),
     appendsUnsubscribe: isEmail && campaign?.unsubscribeRequired === true,
   };
+}
+
+function toProposalDeliverability(
+  row: { state: string | null; reason: string | null; stateChangedAt: Date | null } | null,
+): ProposalDeliverability | null {
+  if (!row?.state || row.state === 'valid' || !row.stateChangedAt) return null;
+  return {
+    state: row.state as AddressDeliverabilityState,
+    reason: row.reason,
+    stateChangedAt: row.stateChangedAt.toISOString(),
+  };
+}
+
+function contactDeliverability(
+  state: AddressDeliverabilityDto | null,
+): ProposalDeliverability | null {
+  if (!state || state.state === 'valid') return null;
+  return { state: state.state, reason: state.reason, stateChangedAt: state.stateChangedAt };
 }
 
 function channelSender(
@@ -2418,4 +2487,14 @@ function composeOutreachBody(input: {
     body += `\n\n---\n[Unsubscribe](${input.unsubscribeUrl})`;
   }
   return body;
+}
+
+function assertDeliverable(contact: ContactDto, channelType: string): void {
+  if (channelType !== 'email') return;
+  const state = contact.deliverability;
+  if (!state || state.state !== 'undeliverable') return;
+  throw new OutreachUndeliverableError(
+    `mail cannot reach ${state.address} (${state.reason ?? 'no reason recorded'}, since ${state.stateChangedAt}) — ` +
+      `correct contact ${contact.id}'s address, or clear the address's deliverability state if it works again`,
+  );
 }

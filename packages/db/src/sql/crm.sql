@@ -123,3 +123,18 @@ CREATE POLICY tenant_isolation ON crm_segments
     OR (org_id = app_org_id() AND app_end_user_id() = '')
   )
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
+-- Address deliverability: org-scoped, admin-only. Whether mail can reach an
+-- address is operator bookkeeping about outbound reachability, not something
+-- an end user's own self-service token has any business reading — and the
+-- table is keyed by address rather than by contact, so it carries no
+-- end_user_id to scope a dual-scope policy on.
+ALTER TABLE crm_address_deliverability ENABLE ROW LEVEL SECURITY;
+ALTER TABLE crm_address_deliverability FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON crm_address_deliverability;
+CREATE POLICY tenant_isolation ON crm_address_deliverability
+  USING (
+    app_bypass_rls()
+    OR (org_id = app_org_id() AND app_end_user_id() = '')
+  )
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());

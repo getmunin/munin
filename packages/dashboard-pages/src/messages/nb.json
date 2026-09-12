@@ -1221,6 +1221,10 @@
           "senderUnknown": "Avsender ikke satt opp",
           "noEmail": "Denne kontakten har ingen e-postadresse, så det er ingenting å godkjenne. Legg inn en i CRM først.",
           "noPhone": "Denne kontakten har ingen telefonnummer, så det er ingenting å godkjenne. Legg inn ett i CRM først.",
+          "undeliverableHeading": "Adressen kan ikke nås",
+          "undeliverableDetail": "E-post hit har feilet siden {since}, så dette kan ikke godkjennes. Rett adressen i CRM-en, eller nullstill den når postkassen virker igjen. Dette er ikke et samtykkefrafall – kontakten har ikke meldt seg av.",
+          "softFailingHeading": "Adressen kan være ute av drift",
+          "softFailingDetail": "E-post hit har feilet minst én gang siden {since}. Det er fortsatt verdt et forsøk, men sjekk adressen hvis det gjentar seg.",
           "from": "Fra",
           "to": "Til",
           "subject": "Emne",
@@ -1965,7 +1969,8 @@
     "kb_curation_decided": "Denne er allerede behandlet – publisert eller forkastet – og blir ikke foreslått igjen. Oppdater køen.",
     "kb_version_conflict": "Noen endret teksten mens du hadde den åpen, så ingenting ble lagret. Åpne den på nytt for å se gjeldende versjon og ta stilling til den.",
     "member_forbidden": "Dette er forbeholdt eiere og administratorer. Spør en eier hvis du trenger tilgang.",
-    "org_access_denied": "Denne fanen var åpen i en organisasjon du ikke lenger har tilgang til. Laster inn på nytt med organisasjonen du er i nå."
+    "org_access_denied": "Denne fanen var åpen i en organisasjon du ikke lenger har tilgang til. Laster inn på nytt med organisasjonen du er i nå.",
+    "outreach_undeliverable": "E-post kommer ikke fram til den adressen. Rett opp e-postadressen til kontakten, eller nullstill adressen når den virker igjen."
   },
   "footer": {
     "privacy": "Personvern",

@@ -130,6 +130,8 @@ export function ReviewOutreachPane({
   const timeOnly = (d: Date) => format.dateTime(d, { hour: '2-digit', minute: '2-digit' });
 
   const destination = proposal.delivery?.destination ?? null;
+  const deliverability = proposal.delivery?.destinationDeliverability ?? null;
+  const undeliverable = deliverability?.state === 'undeliverable';
   const contactName = proposal.contact?.name ?? null;
   const companyName = proposal.contact?.companyName ?? null;
   const appendsCta = proposal.delivery?.appendsCta === true;
@@ -185,6 +187,19 @@ export function ReviewOutreachPane({
             {t(isEmail ? 'noEmail' : 'noPhone')}
           </span>
         )}
+
+        {deliverability ? (
+          <div className="flex flex-col gap-1 border-l-2 border-alert-bad-border bg-alert-bad px-3 py-2">
+            <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-alert-bad-ink">
+              {t(undeliverable ? 'undeliverableHeading' : 'softFailingHeading')}
+            </span>
+            <span className="text-[13px] leading-relaxed text-ink dark:text-foreground">
+              {t(undeliverable ? 'undeliverableDetail' : 'softFailingDetail', {
+                since: stamp(new Date(deliverability.stateChangedAt)),
+              })}
+            </span>
+          </div>
+        ) : null}
 
         {proposal.revisedAfterReviewAt ? (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-l-2 border-alert-bad-border bg-alert-bad px-3 py-2">
@@ -429,7 +444,7 @@ export function ReviewOutreachPane({
             <>
               <Button
                 variant="accent"
-                disabled={pending || !destination || pickInvalid}
+                disabled={pending || !destination || undeliverable || pickInvalid}
                 onClick={approve}
                 className="max-md:h-11 max-md:flex-1"
               >

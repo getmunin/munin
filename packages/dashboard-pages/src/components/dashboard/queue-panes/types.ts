@@ -81,6 +81,11 @@ export interface OutreachProposalDto {
     channelType: string;
     vendor: string;
     destination: string | null;
+    destinationDeliverability?: {
+      state: 'valid' | 'soft_failing' | 'undeliverable';
+      reason: string | null;
+      stateChangedAt: string;
+    } | null;
     sender?: string | null;
     senderName?: string | null;
     appendsCta: boolean;

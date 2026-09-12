@@ -52,6 +52,12 @@ interface QueuePageResponse {
   nextCursor: string | null;
 }
 
+export interface QueueCounts {
+  needsYou: number;
+  inProgress: number;
+  total: number;
+}
+
 export type QueueActionType =
   | 'send'
   | 'takeOver'
@@ -75,6 +81,38 @@ export const FINISHED_MIN_ITEMS = 25;
 export const FINISHED_WINDOW_DAYS = 7;
 
 const FINISHED_FETCH_LIMIT = 100;
+const OPEN_PAGE_LIMIT = 100;
+
+function queueUrl(status: 'open' | 'closed', limit: number, cursor?: string | null): string {
+  const params = new URLSearchParams({ status, limit: String(limit) });
+  if (cursor) params.set('cursor', cursor);
+  return `/v1/conversations/queue?${params.toString()}`;
+}
+
+function dedupeById(items: QueueItemDto[]): QueueItemDto[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
+
+export async function loadOpenPages(
+  pages: number,
+): Promise<{ items: QueueItemDto[]; nextCursor: string | null }> {
+  const items: QueueItemDto[] = [];
+  let cursor: string | null = null;
+  for (let i = 0; i < pages; i += 1) {
+    const page: QueuePageResponse = await api<QueuePageResponse>(
+      queueUrl('open', OPEN_PAGE_LIMIT, cursor),
+    );
+    items.push(...page.items);
+    cursor = page.nextCursor;
+    if (!cursor) break;
+  }
+  return { items: dedupeById(items), nextCursor: cursor };
+}
 
 export function visibleFinished(
   finished: QueueItemDto[],
@@ -145,6 +183,10 @@ export function pendingDraftOf(detail: ConversationDetail | undefined): MessageD
 export interface QueueController {
   open: QueueItemDto[];
   finished: QueueItemDto[];
+  counts: QueueCounts | null;
+  hasMoreOpen: boolean;
+  loadingMore: boolean;
+  loadMoreOpen: () => Promise<void>;
   selectedId: string | null;
   details: Record<string, ConversationDetail>;
   detailErrors: Record<string, ApiError>;
@@ -181,6 +223,14 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   const t = useTranslations('dashboard.console.queue');
   const [open, setOpen] = useState<QueueItemDto[]>([]);
   const [finished, setFinished] = useState<QueueItemDto[]>([]);
+  const [counts, setCounts] = useState<QueueCounts | null>(null);
+  const [openCursor, setOpenCursor] = useState<string | null>(null);
+  const openCursorRef = useRef(openCursor);
+  openCursorRef.current = openCursor;
+  const openPagesRef = useRef(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadingMoreRef = useRef(loadingMore);
+  loadingMoreRef.current = loadingMore;
   const selectedId = routeSelectedId ?? open[0]?.id ?? finished[0]?.id ?? null;
   const [details, setDetails] = useState<Record<string, ConversationDetail>>({});
   const [detailErrors, setDetailErrors] = useState<Record<string, ApiError>>({});
@@ -222,17 +272,18 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
 
   const loadQueue = useCallback(async () => {
     try {
-      const [openPage, finishedPage] = await Promise.all([
-        api<QueuePageResponse>('/v1/conversations/queue?status=open&limit=100'),
-        api<QueuePageResponse>(
-          `/v1/conversations/queue?status=closed&limit=${FINISHED_FETCH_LIMIT}`,
-        ),
+      const [openPages, openCounts, finishedPage] = await Promise.all([
+        loadOpenPages(openPagesRef.current),
+        api<QueueCounts>('/v1/conversations/queue/counts'),
+        api<QueuePageResponse>(queueUrl('closed', FINISHED_FETCH_LIMIT)),
       ]);
-      setOpen(openPage.items);
+      setOpen(openPages.items);
+      setOpenCursor(openPages.nextCursor);
+      setCounts(openCounts);
       setFinished(finishedPage.items);
       setLoadError(null);
       setHasLoadedOnce(true);
-      for (const item of openPage.items) {
+      for (const item of openPages.items) {
         if (item.hasPendingDraft && draftRequestedRef.current[item.id]) {
           clearDraftRequested(item.id);
         }
@@ -241,6 +292,23 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
       if (err instanceof ApiError) setLoadError(err);
     }
   }, [clearDraftRequested]);
+
+  const loadMoreOpen = useCallback(async () => {
+    const cursor = openCursorRef.current;
+    if (!cursor || loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    try {
+      const page = await api<QueuePageResponse>(queueUrl('open', OPEN_PAGE_LIMIT, cursor));
+      openPagesRef.current += 1;
+      setOpen((prev) => dedupeById([...prev, ...page.items]));
+      setOpenCursor(page.nextCursor);
+    } catch (err) {
+      if (err instanceof ApiError) setLoadError(err);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, []);
 
   const retryLoad = useCallback(async () => {
     setRetrying(true);
@@ -492,6 +560,10 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   return {
     open,
     finished,
+    counts,
+    hasMoreOpen: openCursor !== null,
+    loadingMore,
+    loadMoreOpen,
     selectedId,
     details,
     detailErrors,

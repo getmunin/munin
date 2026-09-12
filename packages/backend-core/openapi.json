@@ -3705,6 +3705,45 @@
         ]
       }
     },
+    "/v1/conversations/queue/counts": {
+      "get": {
+        "operationId": "ConversationsController_queueCounts",
+        "parameters": [
+          {
+            "name": "assigneeUserId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "topicId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/topics": {
       "get": {
         "operationId": "ConversationsController_listTopics",

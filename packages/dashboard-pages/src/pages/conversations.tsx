@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { cn } from '@getmunin/ui';
+import { Button, cn } from '@getmunin/ui';
 import { authClient } from '../auth-client';
 import { LoadFailed } from '../components/load-failed';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
@@ -26,6 +26,7 @@ const SPLIT_GRID = 'md:grid-cols-[minmax(0,1.05fr)_minmax(0,1.4fr)]';
 
 export function ConversationsPage({ selectedId = null }: { selectedId?: string | null }) {
   const t = useTranslations('dashboard.console.queue');
+  const tCommon = useTranslations('common');
   const router = useRouter();
   const pathname = usePathname();
   const onQueueRoute = /^\/dashboard\/conversations\/?$/.test(pathname);
@@ -109,8 +110,6 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
 
   const select = (id: string) => shallowGo(`/dashboard/conversations/${id}`);
 
-  const dimInProgress = sections.needsYou.length > 0;
-
   const renderRows = (items: QueueItemDto[], faded?: boolean) =>
     items.map((item) => (
       <ConversationRow
@@ -125,11 +124,13 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
     ));
 
   const loaded = queue.hasLoadedOnce;
+  const searching = search.trim().length > 0;
+  const counts = searching ? null : queue.counts;
+  const needsYouCount = counts ? counts.needsYou : sections.needsYou.length;
+  const inProgressCount = counts ? counts.inProgress : sections.inProgress.length;
+  const dimInProgress = needsYouCount > 0;
   const nothingToShow =
-    loaded &&
-    sections.needsYou.length === 0 &&
-    sections.inProgress.length === 0 &&
-    sections.finished.length === 0;
+    loaded && needsYouCount === 0 && inProgressCount === 0 && sections.finished.length === 0;
 
   return (
     <div className={cn('grid h-full min-h-0 grid-cols-1', SPLIT_GRID)}>
@@ -166,17 +167,29 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
               body={search ? t('emptySearchBody') : t('emptyBody')}
             />
           ) : null}
-          {sections.needsYou.length > 0 ? (
+          {needsYouCount > 0 ? (
             <>
-              <ConsoleSectionLabel>{t('sectionNeedsYou', { count: sections.needsYou.length })}</ConsoleSectionLabel>
+              <ConsoleSectionLabel>{t('sectionNeedsYou', { count: needsYouCount })}</ConsoleSectionLabel>
               {renderRows(sections.needsYou)}
             </>
           ) : null}
-          {sections.inProgress.length > 0 ? (
+          {inProgressCount > 0 ? (
             <>
-              <ConsoleSectionLabel>{t('sectionInProgress', { count: sections.inProgress.length })}</ConsoleSectionLabel>
+              <ConsoleSectionLabel>{t('sectionInProgress', { count: inProgressCount })}</ConsoleSectionLabel>
               {renderRows(sections.inProgress, dimInProgress)}
             </>
+          ) : null}
+          {queue.hasMoreOpen ? (
+            <li className="flex justify-center border-b border-rule-soft px-5 py-3 dark:border-rule-on-dark">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={queue.loadingMore}
+                onClick={() => void queue.loadMoreOpen()}
+              >
+                {tCommon('loadMore')}
+              </Button>
+            </li>
           ) : null}
           {sections.finished.length > 0 ? (
             <>

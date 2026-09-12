@@ -7,6 +7,7 @@ const SRC_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
 const EXPECTED_MEMBER_SURFACE = [
   'v1/conversations GET queue',
+  'v1/conversations GET queue/counts',
   'v1/conversations GET :id',
   'v1/conversations POST :id/messages',
   'v1/conversations POST :id/messages/:messageId/retry-delivery',

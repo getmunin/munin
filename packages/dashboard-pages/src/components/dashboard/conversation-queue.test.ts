@@ -1,14 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   FINISHED_MIN_ITEMS,
   FINISHED_WINDOW_DAYS,
+  loadOpenPages,
   matchesQueueSearch,
   messageDraftKind,
   partitionQueue,
   visibleFinished,
   type QueueItemDto,
 } from './conversation-queue';
+import { api } from '../../api';
 import type { MessageDto } from './inbox-types';
+
+vi.mock('../../api', () => ({ api: vi.fn(), ApiError: class ApiError extends Error {} }));
+
+const apiMock = vi.mocked(api);
 
 function item(overrides: Partial<QueueItemDto>): QueueItemDto {
   return {
@@ -189,5 +195,61 @@ describe('visibleFinished', () => {
   it('is applied by partitionQueue, so the Done section is already trimmed', () => {
     const finished = closedRun(FINISHED_MIN_ITEMS + 10, FINISHED_WINDOW_DAYS + 5);
     expect(partitionQueue([], finished, 'me').finished).toHaveLength(FINISHED_MIN_ITEMS);
+  });
+});
+
+describe('loadOpenPages', () => {
+  beforeEach(() => {
+    apiMock.mockReset();
+  });
+
+  function respondWithPages(pages: Array<{ ids: string[]; nextCursor: string | null }>): void {
+    let call = 0;
+    apiMock.mockImplementation(() => {
+      const page = pages[call];
+      call += 1;
+      if (!page) throw new Error(`unexpected page request ${call}`);
+      return Promise.resolve({
+        items: page.ids.map((id) => item({ id })),
+        nextCursor: page.nextCursor,
+      });
+    });
+  }
+
+  it('fetches a single page by default and reports the cursor the caller can follow', async () => {
+    respondWithPages([{ ids: ['a', 'b'], nextCursor: 'cur_1' }]);
+    const page = await loadOpenPages(1);
+    expect(apiMock).toHaveBeenCalledTimes(1);
+    expect(apiMock.mock.calls[0]![0]).toBe('/v1/conversations/queue?status=open&limit=100');
+    expect(page.items.map((i) => i.id)).toEqual(['a', 'b']);
+    expect(page.nextCursor).toBe('cur_1');
+  });
+
+  it('follows the cursor for as many pages as were loaded before', async () => {
+    respondWithPages([
+      { ids: ['a'], nextCursor: 'cur_1' },
+      { ids: ['b'], nextCursor: 'cur_2' },
+      { ids: ['c'], nextCursor: null },
+    ]);
+    const page = await loadOpenPages(3);
+    expect(apiMock.mock.calls[1]![0]).toContain('cursor=cur_1');
+    expect(page.items.map((i) => i.id)).toEqual(['a', 'b', 'c']);
+    expect(page.nextCursor).toBeNull();
+  });
+
+  it('stops early when the queue runs out before the requested page count', async () => {
+    respondWithPages([{ ids: ['a'], nextCursor: null }]);
+    const page = await loadOpenPages(5);
+    expect(apiMock).toHaveBeenCalledTimes(1);
+    expect(page.nextCursor).toBeNull();
+  });
+
+  it('keeps one row when a conversation shifts across a page boundary', async () => {
+    respondWithPages([
+      { ids: ['a', 'b'], nextCursor: 'cur_1' },
+      { ids: ['b', 'c'], nextCursor: null },
+    ]);
+    const page = await loadOpenPages(2);
+    expect(page.items.map((i) => i.id)).toEqual(['a', 'b', 'c']);
   });
 });

@@ -174,6 +174,12 @@ export interface ConversationSummary {
   createdAt: string;
 }
 
+export interface ConversationQueueCounts {
+  needsYou: number;
+  inProgress: number;
+  total: number;
+}
+
 export interface ConversationQueueItem extends ConversationSummary {
   channelType: string;
   customerName: string | null;
@@ -804,6 +810,43 @@ export class ConvService {
     const nextCursor =
       rows.length > limit && last ? { lastMessageAt: last.lastMessageAt, id: last.id } : null;
     return { items, nextCursor };
+  }
+
+  async countConversationQueueSections(input?: {
+    assigneeUserId?: string;
+    topicId?: string;
+  }): Promise<ConversationQueueCounts> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor;
+    const viewerUserId = actor
+      ? actor.type === 'user'
+        ? actor.id
+        : (actor.userId ?? null)
+      : null;
+    const filters = this.buildConversationListFilters({ status: 'open', ...input });
+    const claimHolder = sql`(
+          SELECT ${schema.claims.userId} FROM ${schema.claims}
+          WHERE ${schema.claims.entityType} = 'conversation'
+            AND ${schema.claims.entityId} = ${schema.convConversations.id}
+            AND ${schema.claims.userId} IS NOT NULL
+            AND ${schema.claims.expiresAt} > now()
+          ORDER BY ${schema.claims.createdAt} DESC
+          LIMIT 1
+        )`;
+    const claimedByViewer = viewerUserId ? sql`${claimHolder} = ${viewerUserId}` : sql`false`;
+    const [row] = await ctx.db
+      .select({
+        total: sql<number>`count(*)::int`,
+        needsYou: sql<number>`count(*) FILTER (
+          WHERE ${claimedByViewer}
+             OR (${schema.convConversations.needsHumanAttention} AND ${claimHolder} IS NULL)
+        )::int`,
+      })
+      .from(schema.convConversations)
+      .where(filters.length === 0 ? undefined : and(...filters));
+    const total = row?.total ?? 0;
+    const needsYou = row?.needsYou ?? 0;
+    return { needsYou, inProgress: total - needsYou, total };
   }
 
   async listConversationsAwaitingAgentReply(input?: {

@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { schema, type Db } from '@getmunin/db';
+import { schema, type Db, type Tx } from '@getmunin/db';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import {
   ActorIdentity,
@@ -62,7 +62,14 @@ import {
   stripQuotedReplyText,
   stripSignatureHtml,
 } from './reply-history.ts';
-import { classifySender, hasAnyClassification, suppressionReason } from './classify-sender.ts';
+import {
+  classifySender,
+  hasAnyClassification,
+  suppressionReason,
+  type SuppressionReason,
+} from './classify-sender.ts';
+import { extractFailedRecipients } from './failed-recipients.ts';
+import { AddressDeliverabilityService } from '../../crm/address-deliverability.service.ts';
 import { clampInboundBody } from './inbound-body-limits.ts';
 import type {
   ChannelAdapter,
@@ -166,6 +173,8 @@ export class EmailAdapter implements ChannelAdapter {
     @Inject(CuratorJobsService) private readonly curatorJobs: CuratorJobsService,
     @Inject(ConvAttachmentsService) private readonly attachments: ConvAttachmentsService,
     @Inject(STORAGE) private readonly storage: AssetStorage,
+    @Inject(AddressDeliverabilityService)
+    private readonly deliverability: AddressDeliverabilityService,
   ) {}
 
   setFetcher(f: ImapFetcher): void {
@@ -444,6 +453,15 @@ export class EmailAdapter implements ChannelAdapter {
           .set({ lastMessageAt: new Date(), updatedAt: new Date() })
           .where(eq(schema.convConversations.id, conversationId));
 
+        await this.recordDeliverability({
+          tx,
+          parsed,
+          suppressed,
+          threaded: resolution !== null,
+          conversationId,
+          messageId: msg!.id,
+        });
+
         if (
           !suppressed &&
           resolution &&
@@ -494,6 +512,51 @@ export class EmailAdapter implements ChannelAdapter {
           );
         }
       });
+    });
+  }
+
+  private async recordDeliverability(input: {
+    tx: Tx;
+    parsed: ParsedInboundEmail;
+    suppressed: SuppressionReason | null;
+    threaded: boolean;
+    conversationId: string;
+    messageId: string;
+  }): Promise<void> {
+    const { parsed, suppressed } = input;
+    const evidence = {
+      conversationId: input.conversationId,
+      messageId: input.messageId,
+      reportedBy: parsed.fromAddress,
+      subject: parsed.subject || null,
+    };
+    if (suppressed === 'bounce') {
+      for (const address of parsed.failedRecipients) {
+        await this.deliverability.recordFailure({
+          address,
+          severity: 'hard',
+          reason: 'hard_bounce',
+          evidence,
+        });
+      }
+      return;
+    }
+    if (suppressed !== 'no_reply_address' || !input.threaded) return;
+    const [row] = await input.tx
+      .select({ email: schema.convContacts.email })
+      .from(schema.convConversations)
+      .innerJoin(
+        schema.convContacts,
+        eq(schema.convContacts.id, schema.convConversations.contactId),
+      )
+      .where(eq(schema.convConversations.id, input.conversationId))
+      .limit(1);
+    if (!row?.email || row.email.toLowerCase() === parsed.fromAddress) return;
+    await this.deliverability.recordFailure({
+      address: row.email,
+      severity: 'soft',
+      reason: 'no_reply_notice',
+      evidence,
     });
   }
 
@@ -652,6 +715,9 @@ export async function parseMessage(source: Buffer | string): Promise<ParsedInbou
   const refs = parsed.references;
   const referencesText = Array.isArray(refs) ? refs.join(' ') : refs;
   const senderClassification = classifySender(parsed.headerLines, fromAddress);
+  const deliveryStatusParts = (parsed.attachments ?? [])
+    .filter((a) => /^message\/delivery-status$/i.test(a.contentType ?? ''))
+    .map((a) => (Buffer.isBuffer(a.content) ? a.content : Buffer.from(a.content ?? [])).toString('utf8'));
   const authenticationResults = extractHeaderValues(parsed.headerLines, 'authentication-results');
   const arcAuthenticationResults = extractHeaderValues(
     parsed.headerLines,
@@ -672,6 +738,9 @@ export async function parseMessage(source: Buffer | string): Promise<ParsedInbou
     arcAuthenticationResults,
     forwardedFor: extractHeaderValues(parsed.headerLines, 'x-forwarded-for'),
     forwardedTo: extractHeaderValues(parsed.headerLines, 'x-forwarded-to'),
+    failedRecipients: senderClassification.isBounce
+      ? extractFailedRecipients({ headerLines: parsed.headerLines, deliveryStatusParts, bodyText: text })
+      : [],
     attachments: (parsed.attachments ?? []).map(toInboundAttachment),
   };
 }

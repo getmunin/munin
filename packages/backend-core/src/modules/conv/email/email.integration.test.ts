@@ -647,6 +647,132 @@ class StubImapFetcher implements ImapFetcher {
     }
   }, 30_000);
 
+  it('a send that dies on a permanent recipient rejection marks the address undeliverable', async () => {
+    const channel = await imapChannel();
+    const [contact] = await db
+      .insert(schema.convContacts)
+      .values({ orgId, name: 'Departed', email: 'Departed@Customer.test' })
+      .returning();
+    const [conv] = await db
+      .insert(schema.convConversations)
+      .values({
+        orgId,
+        displayId: 8801,
+        channelId: channel.id,
+        contactId: contact!.id,
+        status: 'open',
+        subject: 'Following up',
+      })
+      .returning();
+    const [message] = await db
+      .insert(schema.convMessages)
+      .values({
+        orgId,
+        conversationId: conv!.id,
+        authorType: 'agent',
+        authorId: 'agt_test',
+        body: 'Just checking in.',
+      })
+      .returning();
+    await db.insert(schema.convMessageDeliveries).values({
+      orgId,
+      messageId: message!.id,
+      channelId: channel.id,
+      status: 'failed',
+      attempt: 4,
+      nextAttemptAt: new Date(Date.now() - 1000),
+    });
+
+    const originalSend = mailer.send.bind(mailer);
+    mailer.send = () =>
+      Promise.reject(new Error('550 5.1.1 <departed@customer.test>: Recipient address rejected'));
+    try {
+      await outboundWorker.tick();
+    } finally {
+      mailer.send = originalSend;
+    }
+
+    const [delivery] = await db
+      .select()
+      .from(schema.convMessageDeliveries)
+      .where(eq(schema.convMessageDeliveries.messageId, message!.id));
+    expect(delivery!.status).toBe('dead');
+
+    const [state] = await db
+      .select()
+      .from(schema.crmAddressDeliverability)
+      .where(
+        and(
+          eq(schema.crmAddressDeliverability.orgId, orgId),
+          eq(schema.crmAddressDeliverability.address, 'departed@customer.test'),
+        ),
+      );
+    expect(state!.state).toBe('undeliverable');
+    expect(state!.reason).toBe('smtp_rejected');
+  }, 30_000);
+
+  it('learns nothing about an address from a send that died on our side of the wire', async () => {
+    const channel = await imapChannel();
+    const [contact] = await db
+      .insert(schema.convContacts)
+      .values({ orgId, name: 'Fine Person', email: 'fine.person@customer.test' })
+      .returning();
+    const [conv] = await db
+      .insert(schema.convConversations)
+      .values({
+        orgId,
+        displayId: 8802,
+        channelId: channel.id,
+        contactId: contact!.id,
+        status: 'open',
+        subject: 'Following up',
+      })
+      .returning();
+    const [message] = await db
+      .insert(schema.convMessages)
+      .values({
+        orgId,
+        conversationId: conv!.id,
+        authorType: 'agent',
+        authorId: 'agt_test',
+        body: 'Just checking in.',
+      })
+      .returning();
+    await db.insert(schema.convMessageDeliveries).values({
+      orgId,
+      messageId: message!.id,
+      channelId: channel.id,
+      status: 'failed',
+      attempt: 4,
+      nextAttemptAt: new Date(Date.now() - 1000),
+    });
+
+    const originalSend = mailer.send.bind(mailer);
+    mailer.send = () => Promise.reject(new Error('535 5.7.8 Authentication credentials invalid'));
+    try {
+      await outboundWorker.tick();
+    } finally {
+      mailer.send = originalSend;
+    }
+
+    const [delivery] = await db
+      .select()
+      .from(schema.convMessageDeliveries)
+      .where(eq(schema.convMessageDeliveries.messageId, message!.id));
+    expect(delivery!.status).toBe('dead');
+
+    const states = await db
+      .select()
+      .from(schema.crmAddressDeliverability)
+      .where(
+        and(
+          eq(schema.crmAddressDeliverability.orgId, orgId),
+          eq(schema.crmAddressDeliverability.address, 'fine.person@customer.test'),
+        ),
+      );
+    expect(states).toHaveLength(0);
+  }, 30_000);
+
   it('advances past an unparseable message so one bad email cannot stall the channel forever', async () => {
     const channel = await imapChannel();
     const run = Math.random().toString(36).slice(2, 8);

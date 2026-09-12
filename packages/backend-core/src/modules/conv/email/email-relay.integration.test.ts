@@ -602,6 +602,123 @@ const RELAY_DOMAIN = 'in.getmunin.test';
       expect(res.body).toContain('message too large');
     });
 
+    it('records the recipient a delivery-status report names as undeliverable', async () => {
+      const raw = [
+        'From: Mail Delivery System <MAILER-DAEMON@mx.kaefer.no>',
+        `To: <${relayAddress}>`,
+        'Subject: Undelivered Mail Returned to Sender',
+        'Message-ID: <dsn-945@mx.kaefer.no>',
+        'Content-Type: multipart/report; report-type=delivery-status; boundary="dsnsep"',
+        '',
+        '--dsnsep',
+        'Content-Type: text/plain; charset="us-ascii"',
+        '',
+        'This is the mail system at host mx.kaefer.no.',
+        '',
+        '--dsnsep',
+        'Content-Type: message/delivery-status',
+        '',
+        'Reporting-MTA: dns; mx.kaefer.no',
+        '',
+        'Final-Recipient: rfc822; Gone.Person@Kaefer.no',
+        'Action: failed',
+        'Status: 5.1.1',
+        'Diagnostic-Code: smtp; 550 5.1.1 User unknown',
+        '',
+        '--dsnsep--',
+        '',
+      ].join('\r\n');
+
+      const res = await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(raw).toString('base64'),
+      });
+      expect(res.status).toBe(201);
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const rows = await db
+        .select()
+        .from(schema.crmAddressDeliverability)
+        .where(
+          and(
+            eq(schema.crmAddressDeliverability.orgId, orgId),
+            eq(schema.crmAddressDeliverability.address, 'gone.person@kaefer.no'),
+          ),
+        );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.state).toBe('undeliverable');
+      expect(rows[0]!.reason).toBe('hard_bounce');
+      expect(rows[0]!.failureCount).toBe(1);
+    });
+
+    it('soft-marks the address a no-reply mailbox notice answers on an existing thread', async () => {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const [contact] = await db
+        .insert(schema.convContacts)
+        .values({ orgId, name: 'Gone Colleague', email: 'Gone.Colleague@Kaefer.no' })
+        .returning();
+      const [conv] = await db
+        .insert(schema.convConversations)
+        .values({
+          orgId,
+          displayId: 9945,
+          channelId,
+          contactId: contact!.id,
+          status: 'open',
+          subject: 'Introduksjon',
+        })
+        .returning();
+      const [outbound] = await db
+        .insert(schema.convMessages)
+        .values({
+          orgId,
+          conversationId: conv!.id,
+          authorType: 'agent',
+          authorId: 'agt_test',
+          body: 'Hei!',
+        })
+        .returning();
+      await db.insert(schema.convMessageDeliveries).values({
+        orgId,
+        messageId: outbound!.id,
+        channelId,
+        status: 'sent',
+        messageIdHeader: 'outbound-945@getmunin.test',
+      });
+
+      const raw = [
+        'From: noreply.autoresponder_NO_01 <noreply.autoresponder.no@kaefer.no>',
+        `To: <${relayAddress}>`,
+        'Subject: This mailbox is no longer available',
+        'Message-ID: <no-reply-945@kaefer.no>',
+        'In-Reply-To: <outbound-945@getmunin.test>',
+        'Content-Type: text/plain; charset="utf-8"',
+        '',
+        'We are sorry, but the email address you have tried to reach does not exist',
+        'within our company anymore.',
+        '',
+      ].join('\r\n');
+      const res = await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(raw).toString('base64'),
+      });
+      expect(res.status).toBe(201);
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const rows = await db
+        .select()
+        .from(schema.crmAddressDeliverability)
+        .where(
+          and(
+            eq(schema.crmAddressDeliverability.orgId, orgId),
+            eq(schema.crmAddressDeliverability.address, 'gone.colleague@kaefer.no'),
+          ),
+        );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.state).toBe('soft_failing');
+      expect(rows[0]!.reason).toBe('no_reply_notice');
+    });
+
     it('is not throttled per client IP: 65 signed posts in a minute all get through', async () => {
       const statuses: number[] = [];
       for (let i = 0; i < 65; i++) {

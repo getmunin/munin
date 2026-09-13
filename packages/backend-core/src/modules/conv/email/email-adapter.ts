@@ -63,6 +63,7 @@ import {
   stripSignatureHtml,
 } from './reply-history.ts';
 import { classifySender, hasAnyClassification, suppressionReason } from './classify-sender.ts';
+import { parseQuotedThread, type QuotedTurn } from './quoted-thread.ts';
 import { clampInboundBody } from './inbound-body-limits.ts';
 import type {
   ChannelAdapter,
@@ -403,6 +404,8 @@ export class EmailAdapter implements ChannelAdapter {
           conversationId = newConv!.id;
         }
 
+        const clampedRawText = clampInboundBody(parsed.bodyText);
+        const quotedThread = parseQuotedThread(clampedRawText);
         const quoteStrippedText = clampInboundBody(stripQuotedReplyText(parsed.bodyText));
         const { clean: cleanText, signature: regexSignature } = splitSignatureText(quoteStrippedText);
         const regexCutSignature = regexSignature !== null;
@@ -429,6 +432,7 @@ export class EmailAdapter implements ChannelAdapter {
               regexSignatureText: detectedSignatureForMeta,
               preStripBody: regexCutSignature ? quoteStrippedText : null,
               origin: sender,
+              quotedThread,
             }),
           })
           .returning();
@@ -718,6 +722,7 @@ function buildInboundMetadata(
     regexSignatureText: string | null;
     preStripBody: string | null;
     origin?: ForwardOrigin;
+    quotedThread?: QuotedTurn[];
   },
 ): Record<string, unknown> {
   const meta: Record<string, unknown> = {};
@@ -731,6 +736,9 @@ function buildInboundMetadata(
   }
   if (extras.regexSignatureText) meta.signatureText = extras.regexSignatureText;
   if (extras.preStripBody) meta.preStripBody = extras.preStripBody;
+  if (extras.quotedThread && extras.quotedThread.length > 0) {
+    meta.quotedThread = extras.quotedThread;
+  }
   if (hasAnyClassification(parsed.senderClassification)) {
     meta.senderClassification = parsed.senderClassification;
   }

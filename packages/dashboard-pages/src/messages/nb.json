@@ -424,7 +424,10 @@
           "rejectedSize": "Bilder må være under {mb} MB.",
           "rejectedCount": "Du kan legge ved opptil {max} bilder.",
           "uploadFailedNamed": "{name} ble ikke lastet opp. Prøv igjen."
-        }
+        },
+        "quotedThreadToggle": "Tidligere i tråden ({count})",
+        "quotedThreadNotice": "Gjenskapt fra sitert tekst i e-posten. Disse meldingene er ikke sendt gjennom Munin og inngår ikke i samtaleloggen.",
+        "quotedThreadUnknownSender": "Ukjent avsender"
       },
       "relative": {
         "justNow": "akkurat nå",

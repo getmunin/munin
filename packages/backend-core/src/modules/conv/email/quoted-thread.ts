@@ -1,3 +1,5 @@
+import { normalizeFlattenedWhitespace } from './inbound-body-limits.ts';
+
 export interface QuotedTurn {
   from: string | null;
   to: string | null;
@@ -177,19 +179,7 @@ export function findHeaderBlockQuoteCut(lines: string[]): number | null {
 }
 
 function normalizeQuotedBody(lines: string[]): string {
-  const out: string[] = [];
-  let pendingBlank = false;
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (line === '') {
-      pendingBlank = out.length > 0;
-      continue;
-    }
-    if (pendingBlank) out.push('');
-    pendingBlank = false;
-    out.push(line);
-  }
-  const joined = out.join('\n').trim();
+  const joined = normalizeFlattenedWhitespace(lines.join('\n'));
   if (joined.length <= MAX_QUOTED_TURN_CHARS) return joined;
   return `${joined.slice(0, MAX_QUOTED_TURN_CHARS)}…`;
 }

@@ -65,7 +65,8 @@ describe('parseQuotedThread', () => {
   it('collapses the whitespace-only lines that HTML-to-text flattening leaves behind', () => {
     const turns = parseQuotedThread(HEADER_BLOCK_THREAD);
     expect(turns[0]!.body).not.toMatch(/\n{3}/);
-    expect(turns[0]!.body.split('\n').every((l) => l === l.trim())).toBe(true);
+    expect(turns[0]!.body.split('\n').every((l) => l === l.replace(/\s+$/, ''))).toBe(true);
+    expect(turns[0]!.body.startsWith('kunde@example.no')).toBe(true);
   });
 
   it('reads localized Outlook header labels', () => {

@@ -8,6 +8,43 @@ export function clampInboundBody(body: string): string {
   return truncate(collapseEncodedBlocks(body));
 }
 
+export function normalizeFlattenedWhitespace(body: string): string {
+  if (!body) return body;
+  const lines = body.split(/\r?\n/).map((l) => l.replace(/\s+$/, ''));
+  const indent = commonLeadingWhitespace(lines);
+  const dedented = indent ? lines.map((l) => (l ? l.slice(indent.length) : l)) : lines;
+  const out: string[] = [];
+  let pendingBlank = false;
+  for (const line of dedented) {
+    if (line === '') {
+      pendingBlank = out.length > 0;
+      continue;
+    }
+    if (pendingBlank) out.push('');
+    pendingBlank = false;
+    out.push(line);
+  }
+  return out.join('\n');
+}
+
+function commonLeadingWhitespace(lines: string[]): string {
+  let prefix: string | null = null;
+  for (const line of lines) {
+    if (line === '') continue;
+    const leading = /^[ \t]*/.exec(line)![0];
+    if (leading.length === 0) return '';
+    if (prefix === null) {
+      prefix = leading;
+      continue;
+    }
+    let i = 0;
+    while (i < prefix.length && i < leading.length && prefix[i] === leading[i]) i += 1;
+    prefix = prefix.slice(0, i);
+    if (prefix.length === 0) return '';
+  }
+  return prefix ?? '';
+}
+
 export function collapseEncodedBlocks(body: string): string {
   const lines = body.split('\n');
   const out: string[] = [];

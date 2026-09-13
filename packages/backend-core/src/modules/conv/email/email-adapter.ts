@@ -64,7 +64,7 @@ import {
 } from './reply-history.ts';
 import { classifySender, hasAnyClassification, suppressionReason } from './classify-sender.ts';
 import { parseQuotedThread, type QuotedTurn } from './quoted-thread.ts';
-import { clampInboundBody } from './inbound-body-limits.ts';
+import { clampInboundBody, normalizeFlattenedWhitespace } from './inbound-body-limits.ts';
 import type {
   ChannelAdapter,
   ChannelRow,
@@ -404,9 +404,9 @@ export class EmailAdapter implements ChannelAdapter {
           conversationId = newConv!.id;
         }
 
-        const clampedRawText = clampInboundBody(parsed.bodyText);
-        const quotedThread = parseQuotedThread(clampedRawText);
-        const quoteStrippedText = clampInboundBody(stripQuotedReplyText(parsed.bodyText));
+        const normalizedText = normalizeFlattenedWhitespace(parsed.bodyText);
+        const quotedThread = parseQuotedThread(clampInboundBody(normalizedText));
+        const quoteStrippedText = clampInboundBody(stripQuotedReplyText(normalizedText));
         const { clean: cleanText, signature: regexSignature } = splitSignatureText(quoteStrippedText);
         const regexCutSignature = regexSignature !== null;
         const detectedSignatureForMeta =

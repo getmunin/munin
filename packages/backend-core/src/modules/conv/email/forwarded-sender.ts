@@ -1,4 +1,5 @@
 import { senderDisplayName } from './sender-name.ts';
+import { CC_LABELS, FROM_LABELS, TO_LABELS } from './header-labels.ts';
 import type { ParsedInboundEmail } from './threading.ts';
 
 export type ForwardKind = 'direct' | 'auto-forward' | 'manual-forward';
@@ -8,6 +9,12 @@ export interface ForwardOrigin {
   senderAddress: string;
   senderName: string | null;
   forwardedBy: string | null;
+}
+
+export interface ManualForwardBlock {
+  address: string;
+  name: string | null;
+  recipients: string[];
 }
 
 export const FORWARD_MARKERS: RegExp[] = [
@@ -22,19 +29,20 @@ export const FORWARD_MARKERS: RegExp[] = [
   /^\s*_{10,}\s*$/,
 ];
 
-const FROM_LABELS = ['from', 'fra', 'von', 'de', 'från', 'da'];
-
 const FORWARD_SUBJECT_PREFIX = /^\s*(fwd?|vs|vb|vidsend|wg|tr|rv|enc)\s*:/i;
 
 const SCAN_LINES_AFTER_MARKER = 12;
 const MAX_SCANNED_LINES = 400;
+const RECIPIENT_LINES_AFTER_FROM = 6;
+const MAX_LABEL_CHARS = 20;
 
 export function resolveForwardOrigin(
   parsed: ParsedInboundEmail,
   relayAddress: string,
+  ownAddresses: readonly string[] = [],
 ): ForwardOrigin {
   const manual = parseManualForward(parsed.bodyText, parsed.subject);
-  if (manual && manual.address !== parsed.fromAddress) {
+  if (manual && isForwardedSender(manual, parsed.fromAddress, relayAddress, ownAddresses)) {
     return {
       kind: 'manual-forward',
       senderAddress: manual.address,
@@ -61,46 +69,98 @@ export function resolveForwardOrigin(
   };
 }
 
+function isForwardedSender(
+  manual: ManualForwardBlock,
+  envelopeFrom: string,
+  relayAddress: string,
+  ownAddresses: readonly string[],
+): boolean {
+  const sender = normalise(envelopeFrom);
+  if (!sender) return false;
+  if (manual.address === sender) return false;
+  if (manual.recipients.includes(sender)) return false;
+  const ours = new Set(
+    [relayAddress, ...ownAddresses].map(normalise).filter((a): a is string => a !== null),
+  );
+  return !ours.has(manual.address);
+}
+
+function normalise(address: string | null | undefined): string | null {
+  const trimmed = address?.trim().toLowerCase();
+  return trimmed ? trimmed : null;
+}
+
 export function parseManualForward(
   bodyText: string,
   subject: string,
-): { address: string; name: string | null } | null {
+): ManualForwardBlock | null {
   if (!bodyText) return null;
   const lines = bodyText.split(/\r?\n/, MAX_SCANNED_LINES);
 
   for (let i = 0; i < lines.length; i += 1) {
     if (!FORWARD_MARKERS.some((re) => re.test(lines[i]!))) continue;
-    const found = scanForFromLine(lines, i + 1, i + 1 + SCAN_LINES_AFTER_MARKER);
+    const found = scanForHeaderBlock(lines, i + 1, i + 1 + SCAN_LINES_AFTER_MARKER);
     if (found) return found;
   }
 
   if (FORWARD_SUBJECT_PREFIX.test(subject)) {
-    const found = scanForFromLine(lines, 0, Math.min(lines.length, MAX_SCANNED_LINES));
+    const found = scanForHeaderBlock(lines, 0, Math.min(lines.length, MAX_SCANNED_LINES));
     if (found) return found;
   }
 
   return null;
 }
 
-function scanForFromLine(
+function scanForHeaderBlock(
   lines: string[],
   start: number,
   end: number,
-): { address: string; name: string | null } | null {
+): ManualForwardBlock | null {
   for (let i = start; i < Math.min(end, lines.length); i += 1) {
-    const line = lines[i]!;
-    const colon = line.indexOf(':');
-    if (colon < 1 || colon > 20) continue;
-    const label = line
-      .slice(0, colon)
-      .replace(/^[\s>*]+/, '')
-      .trim()
-      .toLowerCase();
-    if (!FROM_LABELS.includes(label)) continue;
-    const parsed = parseAddressLine(line.slice(colon + 1));
-    if (parsed) return parsed;
+    const value = labelledValue(lines[i]!, FROM_LABELS);
+    if (value === null) continue;
+    const sender = parseAddressLine(value);
+    if (!sender) continue;
+    return {
+      address: sender.address,
+      name: sender.name,
+      recipients: collectRecipients(lines, i + 1, i + 1 + RECIPIENT_LINES_AFTER_FROM),
+    };
   }
   return null;
+}
+
+function collectRecipients(lines: string[], start: number, end: number): string[] {
+  const out: string[] = [];
+  for (let i = start; i < Math.min(end, lines.length); i += 1) {
+    const value =
+      labelledValue(lines[i]!, TO_LABELS) ?? labelledValue(lines[i]!, CC_LABELS);
+    if (value === null) continue;
+    out.push(...parseAddressList(value));
+  }
+  return out;
+}
+
+function labelledValue(line: string, labels: readonly string[]): string | null {
+  const colon = line.indexOf(':');
+  if (colon < 1 || colon > MAX_LABEL_CHARS) return null;
+  const label = line
+    .slice(0, colon)
+    .replace(/^[\s>*]+/, '')
+    .trim()
+    .toLowerCase();
+  if (!labels.includes(label)) return null;
+  const value = line.slice(colon + 1).trim();
+  return value.length > 0 ? value : null;
+}
+
+export function parseAddressList(value: string): string[] {
+  const cleaned = value.replace(/\bmailto:/gi, '');
+  const out: string[] = [];
+  for (const match of cleaned.matchAll(/([^\s<>@,;"']+@[^\s<>@,;"']+\.[^\s<>@,;"']+)/g)) {
+    out.push(match[1]!.toLowerCase());
+  }
+  return out;
 }
 
 export function parseAddressLine(value: string): { address: string; name: string | null } | null {

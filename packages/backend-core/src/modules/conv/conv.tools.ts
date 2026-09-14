@@ -135,6 +135,12 @@ const SetTopicAutomationInput = z.object({
 const SetSubjectInput = z.object({
   conversationId: z.string(),
   subject: z.string().min(1).max(200).nullable(),
+  overwrite: z
+    .boolean()
+    .optional()
+    .describe(
+      'Replace a subject the conversation already has. Omit it (the default) and a conversation that already carries a subject is left alone with `conv_subject_exists`.',
+    ),
 });
 
 const RetryDeliveryInput = z.object({
@@ -443,7 +449,7 @@ export class ConvAdminTools {
     name: 'conv_set_subject',
     title: 'Conv: Set or clear a conversation subject',
     description:
-      "Set a conversation's subject — the short human-readable title shown in the inbox and the chat widget — or pass `subject: null` to clear it. Used by the set-topic-and-title curator skill to title conversations that arrive without a subject (chat, SMS, voice). Email conversations already carry the email Subject line; don't overwrite it.",
+      "Set a conversation's subject — the short human-readable title shown in the inbox and the chat widget — or pass `subject: null` to clear it. Used by the set-topic-and-title curator skill to title conversations that arrive without a subject (chat, SMS, voice). Email conversations already carry the email Subject line, so a conversation that already has a subject is refused with `conv_subject_exists` unless `overwrite: true` is passed.",
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: SetSubjectInput,

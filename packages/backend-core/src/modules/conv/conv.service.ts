@@ -460,8 +460,23 @@ export class ConvService {
   async setSubject(input: {
     conversationId: string;
     subject: string | null;
+    overwrite?: boolean;
   }): Promise<ConversationSummary> {
     const ctx = getCurrentContext();
+    if (input.subject !== null && input.overwrite !== true) {
+      const [current] = await ctx.db
+        .select({ subject: schema.convConversations.subject })
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, input.conversationId))
+        .limit(1);
+      const existing = current?.subject?.trim() ?? '';
+      if (existing.length > 0 && existing !== input.subject.trim()) {
+        throw new ConflictException(
+          `conv_subject_exists: conversation ${input.conversationId} already has a subject; ` +
+            `pass overwrite: true to replace it`,
+        );
+      }
+    }
     const [updated] = await ctx.db
       .update(schema.convConversations)
       .set({ subject: input.subject, updatedAt: new Date() })
@@ -1771,8 +1786,9 @@ export class ConvService {
     if (input.status === 'snoozed' && !input.snoozeUntil) {
       throw new ConvInvalidError('snoozeUntil is required when status is "snoozed"');
     }
-    const clearAttention = input.status === 'closed';
-    const releaseRunner = input.status === 'closed';
+    const settled = input.status === 'closed' || input.status === 'spam';
+    const clearAttention = settled;
+    const releaseRunner = settled;
     const result = await ctx.db
       .update(schema.convConversations)
       .set({

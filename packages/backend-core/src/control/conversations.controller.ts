@@ -433,7 +433,7 @@ export class ConversationsController {
     @Body() input: ChangeStatusBody,
   ): Promise<ConversationSummary> {
     return translate(async () => {
-      if (input.status === 'closed') {
+      if (input.status === 'closed' || input.status === 'spam') {
         await this.claims.release({ conversationId: id, force: true });
       }
       return this.conv.changeStatus({ id, ...input });

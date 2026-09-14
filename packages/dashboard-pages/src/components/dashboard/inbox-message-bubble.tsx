@@ -11,6 +11,63 @@ import type { MessageAttachment, MessageDto } from './inbox-types';
 
 const DELIVERY_ERROR_MAX_CHARS = 160;
 
+interface QuotedTurn {
+  from: string | null;
+  to: string | null;
+  date: string | null;
+  subject: string | null;
+  body: string;
+}
+
+function readQuotedTurns(metadata: Record<string, unknown>): QuotedTurn[] {
+  const raw = metadata.quotedThread;
+  if (!Array.isArray(raw)) return [];
+  const turns: QuotedTurn[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const turn = item as Record<string, unknown>;
+    if (typeof turn.body !== 'string') continue;
+    turns.push({
+      from: typeof turn.from === 'string' ? turn.from : null,
+      to: typeof turn.to === 'string' ? turn.to : null,
+      date: typeof turn.date === 'string' ? turn.date : null,
+      subject: typeof turn.subject === 'string' ? turn.subject : null,
+      body: turn.body,
+    });
+  }
+  return turns;
+}
+
+function QuotedThread({ turns }: { turns: QuotedTurn[] }) {
+  const t = useTranslations('dashboard.overview.drawer');
+  return (
+    <details className="w-full rounded-bubble border border-dashed border-rule-soft px-[13px] py-2 dark:border-rule-on-dark">
+      <summary className="cursor-pointer list-none font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
+        {t('quotedThreadToggle', { count: turns.length })}
+      </summary>
+      <p className="mt-1.5 text-[10.5px] italic leading-snug text-ink-label">
+        {t('quotedThreadNotice')}
+      </p>
+      <ol className="mt-2 flex flex-col gap-2.5">
+        {turns.map((turn, index) => (
+          <li
+            key={index}
+            className="border-l-2 border-rule-soft pl-2.5 dark:border-rule-on-dark"
+          >
+            <div className="font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
+              {turn.from ?? t('quotedThreadUnknownSender')}
+              {turn.date ? ` · ${turn.date}` : ''}
+            </div>
+            <div className="mt-1 whitespace-pre-wrap break-words text-[12.5px] leading-[1.45] text-ink-soft [overflow-wrap:anywhere] dark:text-foreground/70">
+              {turn.body}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </details>
+  );
+}
+
 const MESSAGE_MD_COMPONENTS: Components = {
   p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
   ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>,
@@ -73,6 +130,7 @@ export function MessageBubble({
   const role = messageRole(message, viewerUserId);
   const isOutbound = message.authorType === 'user' || message.authorType === 'agent';
   const noSpeech = message.metadata.voiceNoSpeech === true;
+  const quoted = readQuotedTurns(message.metadata);
 
   if (role === 'system') {
     return (
@@ -163,6 +221,7 @@ export function MessageBubble({
         )}
       </div>
       <MessageAttachments attachments={message.attachments} onDelete={onDeleteAttachment} />
+      {quoted.length > 0 ? <QuotedThread turns={quoted} /> : null}
       {isOutbound && <MessageComponents metadata={message.metadata} />}
       {isOutbound && failure ? (
         <div

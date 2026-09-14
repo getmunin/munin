@@ -92,6 +92,74 @@ describe('stripQuotedReplyText', () => {
     expect(stripQuotedReplyText(body)).toBe(body);
   });
 
+  it('cuts a quote that uses a From/Date/Subject/To block instead of > markers', () => {
+    const body = [
+      'Jeg har sendt det nå, men dette burde kvalitetssikres bedre.',
+      '',
+      '       From:   <kunde@example.no>',
+      '       Date:  September 12th, 2026 13:56',
+      '       Subject:  Re: Spørsmål om faktura',
+      '       To:   <support@example.com>',
+      '',
+      'Se vedlegg.',
+    ].join('\n');
+    expect(stripQuotedReplyText(body)).toBe(
+      'Jeg har sendt det nå, men dette burde kvalitetssikres bedre.',
+    );
+  });
+
+  it('cuts a Norwegian Outlook Fra/Sendt/Til/Emne block', () => {
+    const body = [
+      'Takk for svaret!',
+      '',
+      'Fra: Kundeservice <support@example.com>',
+      'Sendt: torsdag 10. september 2026 09:14',
+      'Til: Ada Berg <ada@example.no>',
+      'Emne: SV: Verdivurdering',
+      '',
+      'Hei, verdien er et estimat.',
+    ].join('\n');
+    expect(stripQuotedReplyText(body)).toBe('Takk for svaret!');
+  });
+
+  it('still leaves a reply printed above the first header block', () => {
+    const body = [
+      'Jeg har sendt det nå.',
+      '',
+      'Hei, har du tatt kontakt med leverandøren?',
+      'Med vennlig hilsen, Kundeservice',
+      '',
+      '       From:   <kunde@example.no>',
+      '       Date:  September 12th, 2026 13:56',
+      '       Subject:  Re: Spørsmål om faktura',
+      '       To:   <support@example.com>',
+      '',
+      'Se vedlegg.',
+    ].join('\n');
+    const kept = stripQuotedReplyText(body);
+    expect(kept).toContain('Jeg har sendt det nå.');
+    expect(kept).toContain('Med vennlig hilsen, Kundeservice');
+    expect(kept).not.toContain('Se vedlegg.');
+  });
+
+  it('prefers an "On ... wrote:" attribution over a later header block', () => {
+    const body = [
+      'Mitt svar.',
+      '',
+      'On Wed, 26 Aug 2026 at 14:05, Support <s@x.example> wrote:',
+      '',
+      '> From: someone@x.example',
+      '> Date: yesterday',
+      '> To: me@x.example',
+    ].join('\n');
+    expect(stripQuotedReplyText(body)).toBe('Mitt svar.');
+  });
+
+  it('does not cut on a From: line that no companion headers follow', () => {
+    const body = 'Hei,\n\nFrom: the invoice you sent I can see the wrong total.';
+    expect(stripQuotedReplyText(body)).toBe(body);
+  });
+
   it('handles empty input', () => {
     expect(stripQuotedReplyText('')).toBe('');
   });

@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { schema, type Db, type Tx } from '@getmunin/db';
-import { and, eq, isNull, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
 import {
   ActorIdentity,
   WebhookDispatcher,
@@ -72,7 +72,8 @@ import {
 } from './classify-sender.ts';
 import { extractFailedRecipients } from './failed-recipients.ts';
 import { AddressDeliverabilityService } from '../../crm/address-deliverability.service.ts';
-import { clampInboundBody } from './inbound-body-limits.ts';
+import { dropRecordedTurns, parseQuotedThread, type QuotedTurn } from './quoted-thread.ts';
+import { clampInboundBody, normalizeFlattenedWhitespace } from './inbound-body-limits.ts';
 import type {
   ChannelAdapter,
   ChannelRow,
@@ -84,6 +85,7 @@ import type {
 
 const POLL_INTERVAL_MS = parseEnvInt({ name: 'MUNIN_EMAIL_INBOUND_POLL_MS', default: 60_000 });
 const MAX_MESSAGES_PER_TICK = 100;
+const RECORDED_BODY_LOOKBACK = 50;
 
 interface ImapMessageMin {
   uid: number;
@@ -376,12 +378,13 @@ export class EmailAdapter implements ChannelAdapter {
           sender.senderAddress,
           sender.senderName ?? undefined,
         );
+        const normalizedText = normalizeFlattenedWhitespace(parsed.bodyText);
         const suppressed: InboundSuppression | null =
           suppressionReason(parsed.senderClassification) ??
           (contact.spamMarkedAt ? 'spam_sender' : null) ??
           (hasNoAnswerableContent({
             subject: parsed.subject,
-            bodyText: stripQuotedReplyText(parsed.bodyText),
+            bodyText: stripQuotedReplyText(normalizedText),
           })
             ? 'no_content'
             : null);
@@ -423,7 +426,22 @@ export class EmailAdapter implements ChannelAdapter {
           conversationId = newConv!.id;
         }
 
-        const quoteStrippedText = clampInboundBody(stripQuotedReplyText(parsed.bodyText));
+        const recorded = await tx
+          .select({ body: schema.convMessages.body })
+          .from(schema.convMessages)
+          .where(
+            and(
+              eq(schema.convMessages.orgId, orgId),
+              eq(schema.convMessages.conversationId, conversationId),
+            ),
+          )
+          .orderBy(desc(schema.convMessages.createdAt))
+          .limit(RECORDED_BODY_LOOKBACK);
+        const quotedThread = dropRecordedTurns(
+          parseQuotedThread(clampInboundBody(normalizedText)),
+          recorded.map((r) => r.body),
+        );
+        const quoteStrippedText = clampInboundBody(stripQuotedReplyText(normalizedText));
         const { clean: cleanText, signature: regexSignature } = splitSignatureText(quoteStrippedText);
         const regexCutSignature = regexSignature !== null;
         const detectedSignatureForMeta =
@@ -449,6 +467,7 @@ export class EmailAdapter implements ChannelAdapter {
               regexSignatureText: detectedSignatureForMeta,
               preStripBody: regexCutSignature ? quoteStrippedText : null,
               origin: sender,
+              quotedThread,
               suppressed,
             }),
           })
@@ -826,6 +845,7 @@ function buildInboundMetadata(
     regexSignatureText: string | null;
     preStripBody: string | null;
     origin?: ForwardOrigin;
+    quotedThread?: QuotedTurn[];
     suppressed?: InboundSuppression | null;
   },
 ): Record<string, unknown> {
@@ -840,6 +860,9 @@ function buildInboundMetadata(
   }
   if (extras.regexSignatureText) meta.signatureText = extras.regexSignatureText;
   if (extras.preStripBody) meta.preStripBody = extras.preStripBody;
+  if (extras.quotedThread && extras.quotedThread.length > 0) {
+    meta.quotedThread = extras.quotedThread;
+  }
   if (hasAnyClassification(parsed.senderClassification)) {
     meta.senderClassification = parsed.senderClassification;
   }

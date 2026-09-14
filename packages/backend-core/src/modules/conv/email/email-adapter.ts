@@ -379,12 +379,14 @@ export class EmailAdapter implements ChannelAdapter {
           sender.senderName ?? undefined,
         );
         const normalizedText = normalizeFlattenedWhitespace(parsed.bodyText);
+        const forwardedSender =
+          sender.kind === 'manual-forward' ? sender.senderAddress : null;
         const suppressed: InboundSuppression | null =
           suppressionReason(parsed.senderClassification) ??
           (contact.spamMarkedAt ? 'spam_sender' : null) ??
           (hasNoAnswerableContent({
             subject: parsed.subject,
-            bodyText: stripQuotedReplyText(normalizedText),
+            bodyText: stripQuotedReplyText(normalizedText, forwardedSender),
           })
             ? 'no_content'
             : null);
@@ -438,10 +440,12 @@ export class EmailAdapter implements ChannelAdapter {
           .orderBy(desc(schema.convMessages.createdAt))
           .limit(RECORDED_BODY_LOOKBACK);
         const quotedThread = dropRecordedTurns(
-          parseQuotedThread(clampInboundBody(normalizedText)),
+          parseQuotedThread(clampInboundBody(normalizedText), forwardedSender),
           recorded.map((r) => r.body),
         );
-        const quoteStrippedText = clampInboundBody(stripQuotedReplyText(normalizedText));
+        const quoteStrippedText = clampInboundBody(
+          stripQuotedReplyText(normalizedText, forwardedSender),
+        );
         const { clean: cleanText, signature: regexSignature } = splitSignatureText(quoteStrippedText);
         const regexCutSignature = regexSignature !== null;
         const detectedSignatureForMeta =

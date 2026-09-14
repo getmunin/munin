@@ -56,6 +56,7 @@ So a mistaken mark repairs itself the moment anyone engages with the sender. The
 | `bounce` | A delivery-status report from a mail daemon. |
 | `no_reply_address` | Sent from an address that takes no replies. |
 | `spam_sender` | The sender carries a spam flag. |
+| `no_content` | Neither the subject nor the body carried an answerable question. |
 | `null` | A person opened this conversation. |
 
 A conversation an operator marked spam by hand keeps `suppressed_reason: null` — the status already records the judgment, and the column is reserved for what ingest decided on its own. `conv_list_conversations` takes `status` and `suppressedReason` filters, which is how you audit what was settled automatically.

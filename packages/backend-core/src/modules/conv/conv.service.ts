@@ -68,6 +68,7 @@ export const SUPPRESSED_REASONS = [
   'bounce',
   'no_reply_address',
   'spam_sender',
+  'no_content',
 ] as const;
 export type SuppressedReason = (typeof SUPPRESSED_REASONS)[number];
 

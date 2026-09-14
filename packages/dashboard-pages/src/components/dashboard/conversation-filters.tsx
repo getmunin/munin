@@ -1,6 +1,6 @@
 'use client';
 
-import { X } from 'lucide-react';
+import { Funnel, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@getmunin/ui';
 import { NativeSelect } from '../native-select';
@@ -45,14 +45,16 @@ export function ConversationFiltersTrigger({
       type="button"
       onClick={onToggle}
       aria-expanded={open}
+      aria-label={t('label')}
+      title={t('label')}
       className={cn(
-        'flex shrink-0 items-center justify-center rounded-input border px-3.5 font-mono text-[11px] font-medium uppercase tracking-eyebrow transition-colors duration-fast',
+        'flex aspect-square shrink-0 items-center justify-center rounded-input border transition-colors duration-fast',
         highlight
           ? 'border-cobalt text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft'
           : 'border-rule-soft text-ink-mute hover:text-ink dark:border-rule-on-dark dark:hover:text-foreground',
       )}
     >
-      {t('label')}
+      <Funnel aria-hidden className="size-4" />
     </button>
   );
 }

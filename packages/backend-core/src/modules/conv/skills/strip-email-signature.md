@@ -30,6 +30,12 @@ A trailing block that pairs a name/title/company with two or more contact detail
 (email, phone, postal address, website) is a signature even when it follows the
 message body directly with no greeting.
 
+A trailing block is a signature only when it is **boilerplate** — the same block
+this person's mail client appends to everything they send. A closing plus a name
+is not boilerplate when it carries a personal identifier, or when it names
+someone other than the mailbox the mail came from; that is content. See rules 2
+and 3.
+
 The signature is **always at the end** of the body. Never in the middle.
 
 ## Inputs
@@ -45,19 +51,35 @@ The user prompt below contains:
 
 1. **Preserve all sender-typed content verbatim.** No paraphrasing, no
    reformatting, no fixing typos.
-2. **Only ever remove a trailing block.** If a candidate signature appears
+2. **Never cut a case identifier.** A signature is *boilerplate* — the block
+   that would arrive unchanged on every mail this person sends: role, company,
+   postal address, phone, website, mobile-client tagline. A name paired with an
+   identifier that points at one specific record — a date of birth, customer or
+   member number, order or invoice reference, policy or case number, booking
+   code — is **content**, because the sender is telling you which record to
+   open. Keep the whole trailing block when it carries one, even if it opens
+   with `Mvh,` or `Best regards,` and otherwise reads like a sign-off.
+3. **Keep a bare sign-off that names someone other than the account.** The
+   `Sender:` line is the mailbox the mail arrived from, which is not always the
+   person writing — a spouse, a parent, an assistant, a shared family address.
+   When the trailing block is only a closing and a personal name, with no role,
+   company, or contact details, and that name does not match the sender
+   address, it is the only record of who actually wrote. Leave it. A full
+   contact block stays boilerplate either way: strip it as usual even when the
+   name does not match the address, as with role and shared mailboxes.
+4. **Only ever remove a trailing block.** If a candidate signature appears
    somewhere in the middle of the body (because the sender wrote a P.S. after
    it, or interleaved their text with a previous reply), do not cut.
-3. **Be conservative.** If you're not confident, return the body unchanged.
-4. **Don't cut into real content.** The cap protects against eating the
+5. **Be conservative.** If you're not confident, return the body unchanged.
+6. **Don't cut into real content.** The cap protects against eating the
    sender's prose — not against short messages. A one-line reply followed by a
    large contact block is fine to strip down to that one line, *provided* the
    removed block is unambiguously a signature (name/title/company plus two or
    more contact details). Pass that block as `signatureText` so the tool can
    verify the cut. When the trailing block is ambiguous, leave it.
-5. **If the body has no signature, return it unchanged.** This is the common
+7. **If the body has no signature, return it unchanged.** This is the common
    case for terse replies ("Sounds good!", "Thanks", "Approved.").
-6. **Single output.** Make exactly one call to `conv_strip_message_signature`
+8. **Single output.** Make exactly one call to `conv_strip_message_signature`
    and then stop. Do not call any other tools. Do not write any prose reply.
 
 ## Tool call
@@ -193,5 +215,50 @@ Tool call:
 conv_strip_message_signature({
   messageId: "ccm_…",
   body: "I'll think about it and get back to you.\n\nJane"
+})
+```
+
+**Example 6 — name plus a case identifier, keep the whole block**
+
+`01.01.70` is a date of birth: the sender is saying which record the question is
+about. The closing looks like a sign-off, but cutting it throws away the only
+thing that lets a colleague find the case.
+
+Input body:
+```
+Hei, jeg ser fortsatt ikke at kredittscoren er oppdatert. Kan dere oppdatere den?
+
+Mvh, Ola Nordmann, 01.01.70
+```
+
+Tool call:
+```
+conv_strip_message_signature({
+  messageId: "ccm_…",
+  body: "Hei, jeg ser fortsatt ikke at kredittscoren er oppdatert. Kan dere oppdatere den?\n\nMvh, Ola Nordmann, 01.01.70"
+})
+```
+
+**Example 7 — the sign-off names someone other than the mailbox**
+
+`Sender: per.nordmann@example.com`, but the mail is signed by a different
+person and carries no contact block — someone is writing from another person's
+mailbox. That name is the only record of who actually wrote, so it stays. Had
+the block been a full contact signature, rule 3 would not apply and the normal
+cut would stand.
+
+Input body:
+```
+Hei, kan dere sjekke saken min en gang til?
+
+Med vennlig hilsen
+Kari Nordmann
+```
+
+Tool call:
+```
+conv_strip_message_signature({
+  messageId: "ccm_…",
+  body: "Hei, kan dere sjekke saken min en gang til?\n\nMed vennlig hilsen\nKari Nordmann"
 })
 ```

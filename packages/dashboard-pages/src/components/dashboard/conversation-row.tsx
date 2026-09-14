@@ -48,33 +48,18 @@ export function ConversationRow({
   item,
   active,
   viewerUserId,
-  drafting,
   faded,
   onSelect,
 }: {
   item: QueueItemDto;
   active: boolean;
   viewerUserId: string | null;
-  drafting: boolean;
   faded?: boolean;
   onSelect: () => void;
 }) {
   const t = useTranslations('dashboard.console.queue');
   const age = useRelative();
   const showsAttention = item.status === 'open' && item.needsHumanAttention;
-  const draftReady = item.hasPendingDraft && !drafting;
-  const agentHasSomething = drafting || draftReady;
-  const statusParts = [
-    item.topicName,
-    item.topicName
-      ? item.agentMode === 'off'
-        ? t('modeHuman')
-        : item.agentMode === 'auto'
-          ? t('modeAuto')
-          : t('modeManual')
-      : null,
-    drafting ? t('draftingBadge') : draftReady ? t('draftReadyBadge') : null,
-  ].filter((part): part is string => !!part);
 
   return (
     <QueueRow
@@ -95,21 +80,6 @@ export function ConversationRow({
         item.lastInboundPreview || (
           <span className="italic text-ink-mute/80 dark:text-foreground/40">{t('noMessage')}</span>
         )
-      }
-      extra={
-        statusParts.length > 0 ? (
-          <span
-            className={cn(
-              'mt-0.5 flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-meta',
-              agentHasSomething ? 'text-cobalt dark:text-cobalt-soft' : 'text-ink-mute',
-            )}
-          >
-            {item.topicName ? (
-              <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-current" />
-            ) : null}
-            <span className="truncate">{statusParts.join(' · ')}</span>
-          </span>
-        ) : null
       }
       trailing={
         <>

@@ -30204,7 +30204,7 @@ SOFTWARE.
 
 ---
 
-## tldts@7.4.12
+## tldts@7.4.13
 
 > Library to work against complex domain names, subdomains and URIs.
 - Homepage: https://github.com/remusao/tldts#readme
@@ -30229,7 +30229,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTH
 
 ---
 
-## tldts-core@7.4.12
+## tldts-core@7.4.13
 
 > tldts core primitives (internal module)
 - Homepage: https://github.com/remusao/tldts#readme

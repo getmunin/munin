@@ -68,16 +68,18 @@ export class ChannelIngestService {
         if (dup[0]) return false;
 
         const contact = await findOrCreateContact(tx, orgId, msg.fromIdentity);
+        const spamSender = contact.spamMarkedAt !== null;
 
         const conversation =
           (await findThreadableConversation(tx, orgId, channel.id, contact.id)) ??
-          (await createConversation(tx, orgId, channel, contact, msg.receivedAt));
+          (await createConversation(tx, orgId, channel, contact, msg.receivedAt, spamSender));
 
         const metadata: Record<string, unknown> = {
           providerMessageId: msg.providerMessageId,
         };
         if (msg.inReplyTo) metadata.inReplyTo = msg.inReplyTo;
         if (msg.raw) metadata.raw = msg.raw;
+        if (spamSender) metadata.suppressed = 'spam_sender';
 
         const [stored] = await tx
           .insert(schema.convMessages)
@@ -95,10 +97,23 @@ export class ChannelIngestService {
 
         await tx
           .update(schema.convConversations)
-          .set({ lastMessageAt: msg.receivedAt, updatedAt: new Date() })
+          .set({
+            lastMessageAt: msg.receivedAt,
+            updatedAt: new Date(),
+            ...(spamSender
+              ? {
+                  status: 'spam',
+                  suppressedReason: 'spam_sender',
+                  needsHumanAttention: false,
+                  needsHumanAttentionAt: null,
+                  runnerHolder: null,
+                  runnerLeaseExpiresAt: null,
+                }
+              : {}),
+          })
           .where(eq(schema.convConversations.id, conversation.id));
 
-        await raiseAttentionWhenAgentIsOff(tx, conversation.id);
+        if (!spamSender) await raiseAttentionWhenAgentIsOff(tx, conversation.id);
 
         await this.webhooks.emit({
           type: 'conversation.message.received',
@@ -107,11 +122,14 @@ export class ChannelIngestService {
             messageId: stored!.id,
             authorType: 'end_user',
             internal: false,
+            ...(spamSender ? { autoReply: true, suppressed: 'spam_sender' } : {}),
           },
         });
         if (channel.type === 'sms' && isOptOutKeyword(msg.body)) {
           await suppressContactByPhone(tx, orgId, contact.phone, channel.id);
         }
+
+        if (spamSender) return true;
 
         await this.curatorJobs.enqueue(
           buildSetTopicAndTitleJob({ conversationId: conversation.id, channelType: channel.type }),
@@ -207,6 +225,7 @@ async function createConversation(
   channel: ChannelRow,
   contact: typeof schema.convContacts.$inferSelect,
   receivedAt: Date,
+  spamSender: boolean,
 ): Promise<typeof schema.convConversations.$inferSelect> {
   const next = await tx.execute<{ next: number } & Record<string, unknown>>(
     sql`SELECT conv_next_display_id(${orgId}) AS next`,
@@ -219,7 +238,8 @@ async function createConversation(
       channelId: channel.id,
       contactId: contact.id,
       endUserId: contact.endUserId,
-      status: 'open',
+      status: spamSender ? 'spam' : 'open',
+      suppressedReason: spamSender ? 'spam_sender' : null,
       subject: null,
       agentMode: channel.defaultAgentMode,
       lastMessageAt: receivedAt,

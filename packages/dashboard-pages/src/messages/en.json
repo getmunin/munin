@@ -1346,10 +1346,10 @@
         "emptySearchTitle": "No match",
         "emptySearchBody": "Nothing in the queue matches your search. Try a customer name, a subject, or a phrase from the message.",
         "anonymous": "Anonymous visitor",
-        "noteCount": "{count, plural, one {1 note} other {# notes}}",
-        "noDraftBadge": "No draft — you write it",
+        "noMessage": "No message",
         "draftTimeout": "The agent didn't deliver a draft. Try again, or write the reply yourself.",
-        "draftingBadge": "The agent is drafting…",
+        "draftingBadge": "Drafting…",
+        "draftReadyBadge": "Draft ready",
         "selectEmpty": "Select a conversation.",
         "backToQueue": "Queue",
         "originDrafted": "Drafted by the agent · {age}",
@@ -1371,6 +1371,7 @@
           "takeOver": "Take-over failed",
           "release": "Release failed",
           "close": "Close failed",
+          "spam": "Mark as spam failed",
           "reject": "Reject failed",
           "note": "Note failed",
           "requestDraft": "Draft request failed",
@@ -1390,6 +1391,7 @@
         "release": "Release",
         "askDraft": "Ask for a draft",
         "closeNoReply": "Close, no reply",
+        "markSpam": "Mark as spam",
         "moreActions": "More actions",
         "claimToReply": "Claim to reply",
         "takeOverToReply": "Take over to reply",
@@ -1400,7 +1402,54 @@
         "addNote": "Add internal note",
         "noteHint": "Never sent to the customer · lands in the thread",
         "detailFailed": "This conversation didn't load.",
-        "customerTyping": "{name} is typing…"
+        "customerTyping": "{name} is typing…",
+        "filters": {
+          "label": "Filters",
+          "showing": "Showing",
+          "clearAll": "Clear all",
+          "removeFilter": "Remove the {dimension} filter",
+          "status": "Status",
+          "statusOption": {
+            "any": "Any status",
+            "open": "Open",
+            "snoozed": "Snoozed",
+            "closed": "Closed",
+            "spam": "Spam"
+          },
+          "origin": "Origin",
+          "originOption": {
+            "any": "Any origin",
+            "human": "Opened by a person",
+            "auto": "Filed automatically",
+            "auto_reply": "Auto-replies",
+            "bounce": "Bounces",
+            "no_reply_address": "No-reply senders",
+            "spam_sender": "Known junk senders",
+            "no_content": "No question asked"
+          },
+          "channel": "Channel",
+          "channelOption": {
+            "any": "Any channel",
+            "email": "Email",
+            "chat": "Chat",
+            "sms": "SMS",
+            "voice": "Voice"
+          },
+          "since": "Activity",
+          "sinceOption": {
+            "any": "Any time",
+            "1d": "Last 24 hours",
+            "7d": "Last 7 days",
+            "30d": "Last 30 days"
+          },
+          "topic": "Topic",
+          "topicOption": {
+            "any": "Any topic"
+          },
+          "results": "Results ({count})",
+          "emptyFilteredTitle": "Nothing matches these filters",
+          "emptyFilteredBody": "Widen the status, origin or activity window — or clear the filters to go back to the queue."
+        }
       }
     },
     "firstRun": {

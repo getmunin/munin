@@ -2,7 +2,14 @@ import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { getCurrentContext } from '@getmunin/core';
-import { AGENT_MODES, CHANNEL_TYPES, ConvService, HANDOVER_FILTERS, STATUSES } from './conv.service.ts';
+import {
+  AGENT_MODES,
+  CHANNEL_TYPES,
+  ConvService,
+  HANDOVER_FILTERS,
+  STATUSES,
+  SUPPRESSED_REASON_FILTERS,
+} from './conv.service.ts';
 import { ConvAutomationService } from './conv-automation.service.ts';
 import { CONV_ATTACHMENT_PER_MESSAGE_MAX } from './attachments/conv-attachments.constants.ts';
 import { ConvAttachmentsService } from './attachments/conv-attachments.service.ts';
@@ -12,6 +19,7 @@ const ChannelTypeSchema = z.enum(CHANNEL_TYPES);
 const StatusSchema = z.enum(STATUSES);
 const AgentModeSchema = z.enum(AGENT_MODES);
 const HandoverSchema = z.enum(HANDOVER_FILTERS);
+const SuppressedReasonFilterSchema = z.enum(SUPPRESSED_REASON_FILTERS);
 
 const ListConversationsInput = z.object({
   status: StatusSchema.optional(),
@@ -22,6 +30,12 @@ const ListConversationsInput = z.object({
   ),
   handover: HandoverSchema.optional().describe(
     '`active` = waiting on a human right now, `resolved` = a handover was answered and cleared, `never` = no handover on record.',
+  ),
+  suppressedReason: SuppressedReasonFilterSchema.optional().describe(
+    'Keeps only conversations settled at ingest without an agent pass. A specific reason (`auto_reply`, `bounce`, `no_reply_address`, `spam_sender`, `no_content`), `any` for all of them, or `none` for conversations a person actually opened.',
+  ),
+  channelType: ChannelTypeSchema.optional().describe(
+    'Keeps only conversations on channels of this type.',
   ),
   since: z
     .string()
@@ -135,6 +149,12 @@ const SetTopicAutomationInput = z.object({
 const SetSubjectInput = z.object({
   conversationId: z.string(),
   subject: z.string().min(1).max(200).nullable(),
+  overwrite: z
+    .boolean()
+    .optional()
+    .describe(
+      'Replace a subject the conversation already has. Omit it (the default) and a conversation that already carries a subject is left alone with `conv_subject_exists`.',
+    ),
 });
 
 const RetryDeliveryInput = z.object({
@@ -443,7 +463,7 @@ export class ConvAdminTools {
     name: 'conv_set_subject',
     title: 'Conv: Set or clear a conversation subject',
     description:
-      "Set a conversation's subject — the short human-readable title shown in the inbox and the chat widget — or pass `subject: null` to clear it. Used by the set-topic-and-title curator skill to title conversations that arrive without a subject (chat, SMS, voice). Email conversations already carry the email Subject line; don't overwrite it.",
+      "Set a conversation's subject — the short human-readable title shown in the inbox and the chat widget — or pass `subject: null` to clear it. Used by the set-topic-and-title curator skill to title conversations that arrive without a subject (chat, SMS, voice). Email conversations already carry the email Subject line, so a conversation that already has a subject is refused with `conv_subject_exists` unless `overwrite: true` is passed.",
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: SetSubjectInput,

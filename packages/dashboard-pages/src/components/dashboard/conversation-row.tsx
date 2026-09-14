@@ -6,7 +6,7 @@ import { useRelative } from '../../lib/use-relative';
 import type { QueueItemDto } from './conversation-queue';
 import { initialsOf } from '../../lib/initials';
 import { customerLabel } from './inbox-helpers';
-import { QueueRow, RowNote, RowTime } from './queue-row';
+import { QueueRow, RowTime } from './queue-row';
 
 function ClaimFace({
   claim,
@@ -62,7 +62,19 @@ export function ConversationRow({
   const t = useTranslations('dashboard.console.queue');
   const age = useRelative();
   const showsAttention = item.status === 'open' && item.needsHumanAttention;
-  const showNoDraft = showsAttention && !item.hasPendingDraft;
+  const draftReady = item.hasPendingDraft && !drafting;
+  const agentHasSomething = drafting || draftReady;
+  const statusParts = [
+    item.topicName,
+    item.topicName
+      ? item.agentMode === 'off'
+        ? t('modeHuman')
+        : item.agentMode === 'auto'
+          ? t('modeAuto')
+          : t('modeManual')
+      : null,
+    drafting ? t('draftingBadge') : draftReady ? t('draftReadyBadge') : null,
+  ].filter((part): part is string => !!part);
 
   return (
     <QueueRow
@@ -79,31 +91,25 @@ export function ConversationRow({
         { name: item.customerName, email: item.customerEmail, phone: item.customerPhone },
         t('anonymous'),
       )}${item.subject ? ` — ${item.subject}` : ''}`}
-      meta={item.lastInboundPreview || undefined}
+      meta={
+        item.lastInboundPreview || (
+          <span className="italic text-ink-mute/80 dark:text-foreground/40">{t('noMessage')}</span>
+        )
+      }
       extra={
-        <>
-          {item.topicName ? (
-            <span
-              className={cn(
-                'mt-0.5 flex items-center gap-1.5 truncate font-mono text-[10px] font-medium uppercase tracking-meta',
-                item.agentMode === 'auto' ? 'text-cobalt dark:text-cobalt-soft' : 'text-ink-mute',
-              )}
-            >
+        statusParts.length > 0 ? (
+          <span
+            className={cn(
+              'mt-0.5 flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-meta',
+              agentHasSomething ? 'text-cobalt dark:text-cobalt-soft' : 'text-ink-mute',
+            )}
+          >
+            {item.topicName ? (
               <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-current" />
-              {item.topicName} ·{' '}
-              {item.agentMode === 'off'
-                ? t('modeHuman')
-                : item.agentMode === 'auto'
-                  ? t('modeAuto')
-                  : t('modeManual')}
-            </span>
-          ) : null}
-          {drafting || showNoDraft ? (
-            <span className="mt-0.5 truncate font-mono text-[10px] font-medium uppercase tracking-meta text-cobalt dark:text-cobalt-soft">
-              {drafting ? t('draftingBadge') : t('noDraftBadge')}
-            </span>
-          ) : null}
-        </>
+            ) : null}
+            <span className="truncate">{statusParts.join(' · ')}</span>
+          </span>
+        ) : null
       }
       trailing={
         <>
@@ -113,7 +119,6 @@ export function ConversationRow({
             viewerUserId={viewerUserId}
             showUnclaimed={showsAttention}
           />
-          {item.noteCount > 0 ? <RowNote>{t('noteCount', { count: item.noteCount })}</RowNote> : null}
         </>
       }
     />

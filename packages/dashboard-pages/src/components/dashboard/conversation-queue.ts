@@ -57,6 +57,7 @@ export type QueueActionType =
   | 'takeOver'
   | 'release'
   | 'close'
+  | 'spam'
   | 'reopen'
   | 'reject'
   | 'note'
@@ -159,9 +160,10 @@ export interface QueueController {
   clearActionError: () => void;
   reportAttachmentError: (conversationId: string, message: string) => void;
   draftRequested: Record<string, boolean>;
-  takeOver: (id: string) => Promise<void>;
+  takeOver: (id: string) => Promise<boolean>;
   release: (id: string) => Promise<boolean>;
   closeConv: (id: string) => Promise<boolean>;
+  markSpam: (id: string) => Promise<boolean>;
   reopenConv: (id: string) => Promise<void>;
   send: (
     id: string,
@@ -356,11 +358,10 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   );
 
   const takeOver = useCallback(
-    async (id: string) => {
-      await runAction('takeOver', id, () =>
+    async (id: string) =>
+      runAction('takeOver', id, () =>
         api(`/v1/conversations/${id}/take-over`, { method: 'POST', body: '{}' }),
-      );
-    },
+      ),
     [runAction],
   );
 
@@ -378,6 +379,17 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
         api(`/v1/conversations/${id}/status`, {
           method: 'POST',
           body: JSON.stringify({ status: 'closed' }),
+        }),
+      ),
+    [runAction],
+  );
+
+  const markSpam = useCallback(
+    async (id: string) =>
+      runAction('spam', id, () =>
+        api(`/v1/conversations/${id}/status`, {
+          method: 'POST',
+          body: JSON.stringify({ status: 'spam' }),
         }),
       ),
     [runAction],
@@ -514,6 +526,7 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     deleteAttachment,
     retryDelivery,
     addNote,
+    markSpam,
     rejectDraft,
     requestDraft,
   };

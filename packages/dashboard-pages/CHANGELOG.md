@@ -1,5 +1,127 @@
 # @getmunin/dashboard-pages
 
+## 5.24.0
+
+### Minor Changes
+
+- a2b6100: Recognise header-block quoting on inbound email, and show the quoted thread as reconstructed history.
+
+  Many mail clients and ticketing systems quote a reply by printing a `From: / Date: / Subject: / To:` header block rather than `>` markers or an `On … wrote:` attribution. `stripQuotedReplyText` matched neither, so the whole thread was stored as one message body: the dashboard showed a wall of text, and the agent runtime read every earlier turn — including the organisation's own replies — as a single end-user utterance.
+
+  Inbound bodies are now cut at the first header block, with the labels localised across the same languages the existing attribution patterns cover. Detection requires a `From:` line followed by at least two companion header lines, so prose that happens to begin with `From:` is left alone, and a body that _opens_ with a header block (a bare forward) keeps its text.
+
+  A header block that a forward marker introduces is not a quote cut. In a manually forwarded mail the text below the block _is_ the message — Munin attributes the conversation to the original sender, not to the forwarder — so cutting there would have stored the forwarder's cover note as the customer's words and left the real complaint out of everything the runtime reads. Forward-introduced blocks are therefore skipped, in the same languages `forwarded-sender.ts` already recognises, and the cut lands on the first header block that follows without one: a forwarded mail that itself quotes an older reply still gets that older reply cut and reconstructed.
+
+  The quoted chain is no longer merely discarded. It is parsed into turns and kept on the message's `metadata.quotedThread`, and the conversation view renders them under a collapsed "Earlier in this thread" disclosure. This matters most where an organisation auto-forwards a shared mailbox into Munin and answers elsewhere: the quoted block is then the only record Munin will ever hold of the other half of the exchange.
+
+  A turn the conversation already holds is not reconstructed at all. When a customer replies to a mail Munin sent, the quoted block contains Munin's own answer — which is already a `conv_messages` row a few bubbles up — so showing it again under a disclosure captioned "not delivered through Munin" was both duplication and a false caption. Each reconstructed turn is now compared against the bodies already recorded in that conversation and dropped when it matches; the comparison collapses whitespace and accepts a truncated quote, since clients reflow and cut what they quote. The auto-forward case is untouched, because there no such row exists.
+
+  Reconstructed turns are deliberately not written as `conv_messages` rows. They carry no Message-ID, no delivery state and no author, and the quoted text is composed by the sender rather than observed by us — so they stay labelled, read-only, and outside the conversation record that curation, export, analytics and webhooks draw on. Sender-formatted dates are kept verbatim instead of being parsed into timestamps, turn count and per-turn length are capped, and where a system prints a reply above its first header block that reply still stays with the visible message.
+
+  Inbound bodies are also normalised for the whitespace that HTML-to-text flattening leaves behind: trailing whitespace goes, runs of blank lines collapse to one, and the indentation shared by every line is removed. That last part matters because the conversation view renders the body as Markdown, where four leading spaces mean a code block — a flattened message could render as grey monospace. Only the _common_ indentation is stripped, so a pasted stack trace or snippet keeps its relative shape.
+
+- 91179f9: Track address deliverability separately from consent, and check it before an outreach send
+
+  Munin had no notion of an email address being undeliverable. It knew only about consent — `crm_contacts.do_not_contact` and `unsubscribed_at` — so when an address died, outreach kept mailing it forever.
+
+  Overloading the consent fields would have been the wrong fix: someone who changed jobs has not opted out, and `do_not_contact` suppresses the _person_, on every channel, permanently. Consent is permission; deliverability is reachability. They now move independently.
+
+  **New state.** `crm_address_deliverability` is keyed by `(org_id, address)` — not by contact, because a contact has more than one address over time and the whole value is being able to say "that one is dead, this one isn't". It holds `valid | soft_failing | undeliverable`, the rule that fired, the evidence, a failure count and the timestamps. `crm_get_contact` surfaces it as `deliverability` (null while the address is fine).
+
+  **Signals**, strongest first:
+
+  - A delivery-status report (RFC 3464) or `X-Failed-Recipients` naming the recipient → `undeliverable`, `hard_bounce`. Only a named recipient counts; a bounce that names nobody records nothing.
+  - An outbound delivery reaching `dead` → `undeliverable`/`smtp_rejected` when the SMTP error is a permanent recipient rejection (`5.1.x`, "user unknown"), `soft_failing`/`delivery_dead` when it is about the mailbox itself (full, over quota), and **nothing** otherwise. Bad credentials, an unreachable host or a content-policy rejection say nothing about the recipient — a broken channel must not condemn every address it touches.
+  - A no-reply "mailbox no longer available" notice on an existing thread → `soft_failing`/`no_reply_notice`. It is prose from a company's autoresponder rather than an MTA, so it is corroboration, not a verdict.
+
+  Soft failures reach `undeliverable` only at three inside a rolling 30 days, and the window resets — a full mailbox or a weekend outage does not accumulate into a permanent verdict by accident.
+
+  **The gates.** All five outreach send gates now check it — `proposeInitial`, `proposeFollowup`, `deliverInitial`, `deliverFollowup`, and the follow-up sweep's SQL — and only for email channels, since the state is about an email address. They fail with `outreach_undeliverable`, distinct from the consent refusal's `outreach_invalid`, so a caller can tell "we may not mail this person" from "we cannot reach them here". The dashboard's outreach review pane shows the warning before the operator clicks Approve, and the error is translated (en/nb).
+
+  **The way back.** `crm_set_address_deliverability` lets a human or an agent condemn an address or reopen it (`state: "valid"` zeroes the failure count), and `crm_list_address_deliverability` shows the backlog. `skill://crm/repair-undeliverable-address` walks an agent through finding a person's current address — and through why the answer is never `do_not_contact`.
+
+  Surfaced by uScore conv #186, where a recipient had left their employer and `kaefer.no` answered every send with "the email address you have tried to reach does not exist within our company anymore".
+
+### Patch Changes
+
+- 5dbec11: Give the conversation composer a "Mark as spam" action, and move the three destructive actions into one menu.
+
+  The composer's action row carried Send, Attach, Reject draft, Ask for a draft and Close-no-reply side by side, with no way to mark junk at all — an operator looking at an obvious spam thread could only close it, which settles the thread and tells Munin nothing about the sender. Meanwhile a second, mobile-only "more actions" menu sat up in the status strip holding Release and Restore draft, so the pane had two competing overflow menus depending on viewport.
+
+  There is now one menu, on every viewport, next to Send: Release, Restore draft (when you have edited the agent's text), Reject draft (when there is one), **Mark as spam**, and Close, no reply — the last three styled as destructive. The row itself is down to Send, Attach and Ask for a draft, and on mobile Send and the menu share a line instead of the menu stretching across its own.
+
+  Marking spam needs no confirmation dialog because it is reversible in one step: reopening the conversation restores it _and_ clears the sender's spam flag.
+
+- 9f28c8a: Filter the conversation list by status, origin, channel, topic and activity window.
+
+  The conversations page fetched exactly two things — open and closed — and offered a text search over what came back. Everything settled automatically was therefore invisible from the dashboard: an operator could not see what the auto-reply and bounce classifiers had filed away, could not review what had been marked spam, and had no way to check whether something real had been caught by mistake. The data was there; nothing asked for it.
+
+  A "Filters" toggle beside the search box opens a panel with five controls:
+
+  - **Status** — any, open, snoozed, closed, spam.
+  - **Origin** — opened by a person, filed automatically, or one specific reason: auto-replies, bounces, no-reply senders, known junk senders, no question asked.
+  - **Channel** — email, chat, SMS, voice.
+  - **Topic** — the org's own topics, fetched the first time the panel opens.
+  - **Activity** — last 24 hours, 7 days, 30 days.
+
+  The panel is collapsed by default and the trigger carries a count when anything is set, so the page costs no vertical space until you want it. With no filter the list keeps its three sections (Needs you / In progress / Finished) from the same two requests as before; with any filter set it becomes one flat "Results" list from a single request, and the empty state says the filters are what is hiding everything.
+
+  `GET /v1/conversations/topics` gains `@AllowMember()` — it was the only conversation read on the operator's own page that members could not make, so the topic filter would have silently disappeared for them.
+
+- 9f28c8a: Polish the conversation list and composer after reviewing them on a real inbox.
+
+  **The filter surface is collapsed with a receipt.** The panel folds away and what stays is one mono line of what is currently applied — `SHOWING · STATUS · OPEN ×` `CHANNEL · CHAT ×` `CLEAR ALL` — one removable token per narrowed dimension. The count and icon come off the trigger, since the receipt says the same thing precisely instead of numerically, and `Clear all` moves out of the panel so it is reachable without reopening it. The panel itself moves below the header into its own shaded block with labels above each field, two columns and Topic spanning both. With nothing applied the page shows only a search box and a `Filters` button. The trigger takes its height from the search input via `items-stretch` rather than a hard-coded value, because the input's height is padding-and-font-driven and differs per breakpoint.
+
+  **The row's status line is one line, and it marks the row worth clicking.** Topic, agent mode and state now join into a single run (`BILLING & INVOICES · REVIEW · DRAFT READY`) instead of stacking two lines, so every row is at most three lines and the list scans evenly.
+
+  The badge itself changed ends. `No draft — you write it` was an instruction in a list you cannot act from, it reported an absence in the loudest colour the row has, and it was the fourth thing on the row saying "a human is needed" after the section header, the bold title and the dashed claim face. Meanwhile the one row type where a badge changes what you do — _a draft is waiting, this is an approve not a write_ — carried no badge at all. So the slot now says `Draft ready`, agent-stopped is left to be inferred from context, and cobalt means one coherent thing: the agent has something for you. The conversation pane keeps its fuller `The agent stopped · 4d — nothing drafted`, which is where the reason and the age actually matter.
+
+  **Rows with no inbound message say so.** A conversation the customer has not written in rendered a blank line where the preview goes, indistinguishable from one whose preview was merely truncated away. It now reads a muted italic `No message` — which is every outreach thread we started and every widget conversation opened by a greeting.
+
+  **The note count is gone**, from the row, the `RowNote` component, the `ConversationQueueItem` DTO and the `COUNT(*) FILTER` that computed it. Nothing consumed it.
+
+  **Composer action row:** the attach button becomes a paperclip icon, the overflow trigger is an outline button matching the others' height, and on mobile Send, attach and `⋯` share one line. Only `Close, no reply` is styled destructive — `Reject draft` and `Mark as spam` are both reversible. `Release` is dropped from the menu on desktop, where it is already a text action in the status strip, and kept on mobile where that strip is hidden. The collapsed mobile footer's buttons drop from `h-12` to `h-11` so every primary button in the pane is the same height.
+
+- 86268eb: Add React component test infrastructure and pin the inbox composer state machine.
+
+  The package had 117 `.tsx` files and no way to render any of them: no `vitest.config.ts`, so
+  every test ran in vitest's default node environment. `vitest.config.ts` now declares two
+  projects — `logic` (`*.test.ts`, node) and `components` (`*.test.tsx`, happy-dom) — so the
+  existing pure-logic tests keep their environment while `@testing-library/react` renders
+  components in the other. `src/test/render.tsx` supplies `StrictMode` +
+  `NextIntlClientProvider` (real `en.json`) + `ConfirmDialogProvider`; `src/test/inbox-fixtures.ts`
+  supplies `ConversationDetail`, `QueueItemDto` and a full `QueueController` stub.
+
+  `conversation-pane.test.tsx` covers the composer's `suggestionId` / `dirty` / `reviewingDraft`
+  transitions by name. Two of them fail against the pre-fix component: reopening a conversation
+  whose detail is already cached delivered the selection change and the draft in one commit, and
+  the render-time `replyRef` mirror still held the previous conversation's text, so the seeding
+  effect judged the composer "touched" and left an empty box labelled "edited by you". That is a
+  commit-ordering defect — it needs two conversations, a real selection change and React's actual
+  effect ordering, which is why no pure-helper test could express it. StrictMode is on in the test
+  render so double-invoked effects surface this class of bug rather than hiding it.
+
+  `scripts/coverage.mjs` stops lending the package backend-core's vitest binary now that it owns one.
+
+- 532d6da: On mobile, claiming a conversation opens the composer instead of stopping a step short.
+
+  "Claim to review draft" took the claim and left the operator on the collapsed footer, which then offered "Review draft" — a second tap to reach the thing they had just said they wanted to do. Claiming from the mobile footer now opens the full-screen composer as soon as the claim lands.
+
+  Only that call site expands. `takeOverButton` takes an explicit `expandOnSuccess`, and the pane's two other instances sit _inside_ the composer, which on mobile is already expanded; `expanded` also drives `role="dialog"` and `aria-modal`, which would be wrong on desktop where the composer is never a dialog. The draft is already in the textarea by then — it is seeded by an effect that does not depend on the claim — and `runAction` refetches the detail before resolving, so the expanded composer renders editable rather than as a read-only preview.
+
+  Not covered by an automated test: `dashboard-pages` has no component-rendering harness, and the `apps/web` e2e suite does not sign in.
+
+- 19da6d9: Count the whole Conversations queue server-side, and let the list reach past the first 100 rows.
+
+  The Conversations page loaded one 100-row page of open conversations and partitioned it client-side, so `Needs your attention · {count}` counted only what the client happened to fetch. The queue is ordered by `lastMessageAt DESC`, so the rows that fell off the bottom were the least recently active ones — exactly the flagged, un-replied conversations the header is meant to point at. They were neither counted nor reachable from the page.
+
+  `GET /v1/conversations/queue/counts` is new: `ConvService.countConversationQueueSections` runs one aggregate over the open conversations, splitting them into `needsYou` / `inProgress` with the same rule the client used (claimed by the caller, or flagged and unclaimed) by resolving each conversation's newest live claim in SQL. It reuses `buildConversationListFilters`, so the counts cannot drift from the list. The page headers read those totals, and the member sidebar badge reads `total` instead of the length of a `limit=100` fetch that saturated at 100.
+
+  The list itself now follows `nextCursor` behind a "Load more" button rather than fetching every page on load, and a refresh re-fetches as many pages as are on screen so a realtime event does not collapse the list back to the first page. The Done section keeps its client-side 7-day window.
+
+- @getmunin/types@5.24.0
+  - @getmunin/ui@5.24.0
+
 ## 5.23.3
 
 ### Patch Changes

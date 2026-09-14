@@ -22,6 +22,11 @@ const PACKAGES = [
   { dir: 'packages/agent-runtime', filter: '@getmunin/agent-runtime', include: ['src/**/*.ts'] },
   { dir: 'packages/backend-core', filter: '@getmunin/backend-core', include: ['src/**/*.ts'] },
   { dir: 'packages/core', filter: '@getmunin/core', include: ['src/**/*.ts'] },
+  {
+    dir: 'packages/dashboard-pages',
+    filter: '@getmunin/dashboard-pages',
+    include: ['src/**/*.{ts,tsx}'],
+  },
   { dir: 'packages/db', filter: '@getmunin/db', include: ['src/**/*.ts'] },
   { dir: 'packages/emails', filter: '@getmunin/emails', include: ['src/**/*.{ts,tsx}'] },
   { dir: 'packages/mcp-toolkit', filter: '@getmunin/mcp-toolkit', include: ['src/**/*.ts'] },
@@ -40,7 +45,6 @@ const PACKAGES = [
     filter: '@getmunin/web',
     include: ['app/**/*.{ts,tsx}', 'i18n/**/*.{ts,tsx}'],
   },
-  { dir: 'packages/dashboard-pages', mode: 'borrow', include: ['src/**/*.{ts,tsx}'] },
   { dir: 'packages/docs-pages', mode: 'borrow', include: ['src/**/*.{ts,tsx}'] },
   { dir: 'packages/ui', mode: 'borrow', include: ['src/**/*.{ts,tsx}'] },
 ];

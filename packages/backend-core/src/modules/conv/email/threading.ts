@@ -22,6 +22,7 @@ export interface ParsedInboundEmail {
   arcAuthenticationResults: string[];
   forwardedFor: string[];
   forwardedTo: string[];
+  failedRecipients: string[];
   attachments: InboundEmailAttachment[];
 }
 

@@ -45,7 +45,7 @@ A draft can carry `proposedSendAt` — the time the curator thinks it should go 
 
 A scheduled proposal comes back as `status: "approved"` with `scheduledSendAt` set, and no `sentMessageId` yet. `outreach_list_proposals({ "status": "approved" })` lists everything waiting, soonest first.
 
-**The send-time re-checks are the point.** Approval authorizes the message; it does not freeze the world. When the worker picks the proposal up it re-verifies the campaign is still enabled, the contact is still not suppressed and still has a lawful basis, and — for a `followup` — that the prospect has not replied in the meantime. A proposal that fails any of those lands on `status: "failed"` with `failureReason`, and an `outreach.proposal.send_failed` event fires. It is never sent to someone who became ineligible while it waited.
+**The send-time re-checks are the point.** Approval authorizes the message; it does not freeze the world. When the worker picks the proposal up it re-verifies the campaign is still enabled, the contact is still not suppressed and still has a lawful basis, that the address it is going to still accepts mail, and — for a `followup` — that the prospect has not replied in the meantime. A proposal that fails any of those lands on `status: "failed"` with `failureReason`, and an `outreach.proposal.send_failed` event fires. It is never sent to someone who became ineligible while it waited.
 
 Quiet hours and blackout dates behave differently from the other checks: on a voice or SMS campaign the worker holds the proposal rather than failing it, and sends when the window next opens. Scheduling a call for 06:00 on a campaign that does not call before 09:00 means the call goes out at 09:00, not that it errors.
 
@@ -87,6 +87,8 @@ In hosts without MCP Apps support the decision tools appear as ordinary tools, a
    - `outreach_approve_proposal({ "id": "...", "fingerprint": "...", "sendAt": "2026-08-11T07:00:00Z" })` — schedule for a time the operator named. Pass `"sendAt": null` instead to send now despite the draft proposing a later time.
    - `outreach_dismiss_proposal({ "id": "...", "reason": "..." })` — no send; the reason lands on the proposal for the curator's next pass.
 5. **Handle refusals cleanly.** Both tools reject non-`pending` proposals (someone else may have decided it since listing — refresh rather than retry; a proposal now `approved` is scheduled, not available to decide again). Approval also rejects a stale `fingerprint` (the draft changed after the operator read it), and rejects when the campaign was disabled, when the contact became suppressed since drafting, when an immediate send would land inside the campaign's quiet hours or on a blackout date, and — for `followup` proposals — when the prospect replied after the draft was filed (dismiss it; the reply flow owns the conversation now). That is the safety floor working, not an error to route around. A `sendAt` in the past is also refused: drop the argument to send now.
+
+   One refusal is not about permission. `outreach_undeliverable` means mail cannot physically reach the address — a bounce, a rejected recipient, or an operator who marked it dead. The person has not opted out, so the fix is a working address, not a dismissal: see `skill://crm/repair-undeliverable-address`. Every other refusal here is the consent floor, and those you leave alone.
 
 ## What not to do
 

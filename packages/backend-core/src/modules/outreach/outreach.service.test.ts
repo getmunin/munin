@@ -14,6 +14,7 @@ import {
   MAX_SEND_ATTEMPTS,
   OutreachService,
   OutreachInvalidError,
+  OutreachUndeliverableError,
   SEND_WORKER_ACTOR_ID,
   SMS_DRAFT_MAX_CHARS,
   type ExtractionField,
@@ -23,6 +24,7 @@ import {
   type JobEnqueuer,
 } from './outreach-outcome.sink.ts';
 import { CrmService } from '../crm/crm.service.ts';
+import { AddressDeliverabilityService } from '../crm/address-deliverability.service.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
 import { ConvService } from '../conv/conv.service.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
@@ -46,6 +48,7 @@ const skipReason = TEST_URL
   let appDb: ReturnType<typeof createDb>;
   let svc: OutreachService;
   let crm: CrmService;
+  let deliverability: AddressDeliverabilityService;
   let conv: ConvService;
   let orgId: string;
   let actor: ActorIdentity;
@@ -68,7 +71,8 @@ const skipReason = TEST_URL
     actor = new ActorIdentity('admin_agent', 'agt_outreach_test', orgId, ['*'], ['admin']);
 
     const dispatcher = new WebhookDispatcher();
-    crm = new CrmService(dispatcher, new DefaultQuotasService());
+    deliverability = new AddressDeliverabilityService();
+    crm = new CrmService(dispatcher, new DefaultQuotasService(), deliverability);
     const claims = new ConversationClaimsService(dispatcher);
     const curatorJobs = new CuratorJobsService(dispatcher);
     conv = new ConvService(
@@ -110,6 +114,7 @@ const skipReason = TEST_URL
     await db.execute(sql`DELETE FROM conv_contacts WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM conv_channels WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM crm_activities WHERE org_id = ${orgId}`);
+    await db.execute(sql`DELETE FROM crm_address_deliverability WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM crm_contacts WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM crm_segments WHERE org_id = ${orgId}`);
 
@@ -301,6 +306,84 @@ const skipReason = TEST_URL
       await expect(
         run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint })),
       ).rejects.toThrow(OutreachInvalidError);
+    });
+
+    it('propose refuses an undeliverable address with its own error code', async () => {
+      const c = await run(() =>
+        svc.createCampaign({ name: 'dead', brief: 'b', segmentId, channelId, enabled: true }),
+      );
+      await run(() =>
+        deliverability.markUndeliverable({ address: 'jane@acme.com', note: 'left the company' }),
+      );
+      const err = await run(() =>
+        svc
+          .proposeInitial({
+            campaignId: c.id,
+            contactId,
+            draftSubject: 'subject',
+            draftBody: 'body',
+          })
+          .then(
+            () => null,
+            (e: unknown) => e,
+          ),
+      );
+      expect(err).toBeInstanceOf(OutreachUndeliverableError);
+      expect((err as OutreachUndeliverableError).code).toBe('outreach_undeliverable');
+      expect((err as Error).message).toContain('jane@acme.com');
+    });
+
+    it('a dead address does not read as suppression, and clearing it lets outreach through again', async () => {
+      const c = await run(() =>
+        svc.createCampaign({ name: 'revived', brief: 'b', segmentId, channelId, enabled: true }),
+      );
+      await run(() => deliverability.markUndeliverable({ address: 'jane@acme.com' }));
+      const suppressed = await run(() => crm.getContact(contactId));
+      expect(suppressed.doNotContact).toBe(false);
+      expect(suppressed.unsubscribedAt).toBeNull();
+      expect(suppressed.deliverability?.state).toBe('undeliverable');
+
+      await run(() => deliverability.clear({ address: 'jane@acme.com', note: 'mailbox restored' }));
+      const cleared = await run(() => crm.getContact(contactId));
+      expect(cleared.deliverability?.state).toBe('valid');
+      const p = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId,
+          draftSubject: 'subject',
+          draftBody: 'body',
+        }),
+      );
+      expect(p.status).toBe('pending');
+    });
+
+    it('approve refuses when the address dies between draft and approval', async () => {
+      const c = await run(() =>
+        svc.createCampaign({ name: 'late-bounce', brief: 'b', segmentId, channelId, enabled: true }),
+      );
+      const p = await run(() =>
+        svc.proposeInitial({
+          campaignId: c.id,
+          contactId,
+          draftSubject: 'subject',
+          draftBody: 'body',
+        }),
+      );
+      await run(() =>
+        deliverability.recordFailure({
+          address: 'jane@acme.com',
+          severity: 'hard',
+          reason: 'hard_bounce',
+        }),
+      );
+      await expect(
+        run(() =>
+          svc.approveProposal(p.id, {
+            publicBaseUrl: 'https://test.local',
+            fingerprint: p.draftFingerprint,
+          }),
+        ),
+      ).rejects.toThrow(OutreachUndeliverableError);
     });
 
     it('approve refuses when campaign is disabled', async () => {

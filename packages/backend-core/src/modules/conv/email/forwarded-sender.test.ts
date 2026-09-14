@@ -27,6 +27,7 @@ function parsed(overrides: Partial<ParsedInboundEmail>): ParsedInboundEmail {
     arcAuthenticationResults: [],
     forwardedFor: [],
     forwardedTo: [],
+    failedRecipients: [],
     attachments: [],
     ...overrides,
   };

@@ -21,6 +21,7 @@ import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import {
   OutreachInvalidError,
   OutreachService,
+  OutreachUndeliverableError,
   PROPOSAL_KINDS,
   PROPOSAL_STATUSES,
   type ProposalDto,
@@ -156,6 +157,9 @@ async function translate<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err) {
+    if (err instanceof OutreachUndeliverableError) {
+      throw new BadRequestException({ message: err.message, code: err.code });
+    }
     if (err instanceof OutreachInvalidError) throw new BadRequestException(err.message);
     throw err;
   }

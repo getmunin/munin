@@ -1,5 +1,6 @@
 import { schema, type Db } from '@getmunin/db';
 import { and, desc, eq, sql } from 'drizzle-orm';
+import { findHeaderBlockQuoteCut } from './quoted-thread.ts';
 
 const QUOTE_HEADER_PATTERNS: RegExp[] = [
   /^on .+ wrote:\s*$/i,
@@ -43,7 +44,10 @@ export function stripQuotedReplyText(body: string): string {
   if (!body) return body;
   const lines = unwrapAttributionBreaks(body.split(/\r?\n/));
   const cut =
-    findQuoteHeaderCut(lines) ?? findTrailingQuoteCut(lines) ?? findQuoteCutAboveSignature(lines);
+    findQuoteHeaderCut(lines) ??
+    findHeaderBlockQuoteCut(lines) ??
+    findTrailingQuoteCut(lines) ??
+    findQuoteCutAboveSignature(lines);
   if (cut === null) return lines.join('\n').replace(/\s+$/g, '').trim();
   return joinAroundQuote(lines, cut);
 }

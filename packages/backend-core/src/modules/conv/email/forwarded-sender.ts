@@ -10,7 +10,7 @@ export interface ForwardOrigin {
   forwardedBy: string | null;
 }
 
-const FORWARD_MARKERS: RegExp[] = [
+export const FORWARD_MARKERS: RegExp[] = [
   /^\s*-{2,}\s*forwarded message\s*-{2,}\s*$/i,
   /^\s*-{2,}\s*original message\s*-{2,}\s*$/i,
   /^\s*-{2,}\s*videresendt melding\s*-{2,}\s*$/i,

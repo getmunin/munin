@@ -3,6 +3,7 @@ import {
   MAX_INBOUND_BODY_CHARS,
   clampInboundBody,
   collapseEncodedBlocks,
+  normalizeFlattenedWhitespace,
 } from './inbound-body-limits.ts';
 
 const b64 = (n: number): string => 'U2FsdGVkX1+vR016HqB5QcbgGd5+4Eex4u6/2A6RhuuR0TsOhj9aUu1'.repeat(
@@ -86,5 +87,54 @@ describe('clampInboundBody', () => {
     expect(clampInboundBody('Hei, kan dere sende faktura på nytt?')).toBe(
       'Hei, kan dere sende faktura på nytt?',
     );
+  });
+});
+
+describe('normalizeFlattenedWhitespace', () => {
+  it('collapses the runs of whitespace-only lines HTML-to-text flattening produces', () => {
+    const body = ['Hei,', ' ', ' ', ' ', '   ', 'Takk for hjelpen.'].join('\n');
+    expect(normalizeFlattenedWhitespace(body)).toBe('Hei,\n\nTakk for hjelpen.');
+  });
+
+  it('drops leading and trailing blank lines', () => {
+    expect(normalizeFlattenedWhitespace('  \n \nHei,\n \n  \n')).toBe('Hei,');
+  });
+
+  it('strips trailing whitespace so soft breaks are not turned into markdown line breaks', () => {
+    expect(normalizeFlattenedWhitespace('Hei,   \nTakk.  ')).toBe('Hei,\nTakk.');
+  });
+
+  it('removes the shared indentation that would otherwise render as a markdown code block', () => {
+    const body = ['       Hei,', '', '       Takk for hjelpen.'].join('\n');
+    expect(normalizeFlattenedWhitespace(body)).toBe('Hei,\n\nTakk for hjelpen.');
+  });
+
+  it('keeps relative indentation so a pasted stack trace holds its shape', () => {
+    const body = [
+      '    Traceback (most recent call last):',
+      '      File "app.py", line 12, in <module>',
+      '        raise ValueError(msg)',
+    ].join('\n');
+    expect(normalizeFlattenedWhitespace(body)).toBe(
+      [
+        'Traceback (most recent call last):',
+        '  File "app.py", line 12, in <module>',
+        '    raise ValueError(msg)',
+      ].join('\n'),
+    );
+  });
+
+  it('dedents nothing when any line already starts at column zero', () => {
+    const body = ['Here is the snippet:', '', '    const x = 1;'].join('\n');
+    expect(normalizeFlattenedWhitespace(body)).toBe(body);
+  });
+
+  it('leaves ordinary prose untouched', () => {
+    const body = 'Hei,\n\nJeg lurer på en ting om prisen.\n\nMvh Ada';
+    expect(normalizeFlattenedWhitespace(body)).toBe(body);
+  });
+
+  it('handles empty input', () => {
+    expect(normalizeFlattenedWhitespace('')).toBe('');
   });
 });

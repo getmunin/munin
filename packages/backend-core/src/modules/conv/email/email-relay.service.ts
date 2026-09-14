@@ -3,7 +3,11 @@ import { sql } from 'drizzle-orm';
 import type { Db } from '@getmunin/db';
 import { DB } from '../../../common/db/db.module.ts';
 import { EmailAdapter, parseMessage } from './email-adapter.ts';
-import { jsonbToStored, relayInbound } from './email.service.ts';
+import {
+  jsonbToStored,
+  relayInbound,
+  type StoredEmailChannelConfig,
+} from './email.service.ts';
 import { resolveForwardOrigin } from './forwarded-sender.ts';
 import type { ChannelRow } from '../channels/adapter.ts';
 
@@ -59,9 +63,9 @@ export class EmailRelayService {
     }
     if (!parsed.fromAddress) return { status: 'unparseable' };
 
-    const origin = resolveForwardOrigin(parsed, recipient);
-
     const stored = jsonbToStored(channel.config);
+    const origin = resolveForwardOrigin(parsed, recipient, ownAddresses(stored));
+
     const allowed = relayInbound(stored)?.allowedForwarders;
     if (allowed?.length && !forwarderAllowed(origin.forwardedBy, parsed.fromAddress, allowed)) {
       this.logger.warn(
@@ -112,6 +116,13 @@ export function normaliseAddress(value: string): string | null {
   const address = angled ? angled[1]! : trimmed;
   if (!address.includes('@') || /\s/.test(address)) return null;
   return address;
+}
+
+export function ownAddresses(stored: StoredEmailChannelConfig): string[] {
+  const out = [stored.addressing.fromAddress];
+  const relay = relayInbound(stored)?.address;
+  if (relay) out.push(relay);
+  return out.map((a) => a.trim().toLowerCase()).filter((a) => a.length > 0);
 }
 
 export function forwarderAllowed(

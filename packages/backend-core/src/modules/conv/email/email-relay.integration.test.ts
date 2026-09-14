@@ -290,6 +290,62 @@ const RELAY_DOMAIN = 'in.getmunin.test';
       expect(messages).toHaveLength(1);
     });
 
+    it('attributes an Outlook reply to its sender, not to the support address it quotes', async () => {
+      const res = await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(
+          [
+            'From: Theis Grotting <theis@kunde.test>',
+            `To: <${relayAddress}>`,
+            'Subject: Survey response: nei',
+            'Message-ID: <reply-1@kunde.test>',
+            'Content-Type: text/plain; charset="utf-8"',
+            '',
+            'nei',
+            '',
+            '________________________________',
+            'Fra: Acme Support <support@acme.test>',
+            'Sendt: mandag 14. september 2026 16:11',
+            'Til: Theis Grotting <theis@kunde.test>',
+            'Emne: Har du 1 minutt til overs?',
+            '',
+            'Svar her.',
+            '',
+          ].join('\r\n'),
+        ).toString('base64'),
+      });
+      expect(res.status).toBe(201);
+      expect(res.body).toContain('ingested');
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+
+      const emails = (
+        await db.select().from(schema.convContacts).where(eq(schema.convContacts.orgId, orgId))
+      ).map((c) => c.email);
+      expect(emails).toContain('theis@kunde.test');
+      expect(emails).not.toContain('support@acme.test');
+
+      const reply = (
+        await db.select().from(schema.convMessages).where(eq(schema.convMessages.orgId, orgId))
+      ).find((m) => m.metadata.inboundMessageId === 'reply-1@kunde.test');
+      expect(reply).toBeDefined();
+      expect(reply!.metadata).not.toHaveProperty('forwarding');
+
+      const conversation = (
+        await db
+          .select()
+          .from(schema.convConversations)
+          .where(eq(schema.convConversations.id, reply!.conversationId))
+      )[0];
+      const contact = (
+        await db
+          .select()
+          .from(schema.convContacts)
+          .where(eq(schema.convContacts.id, conversation!.contactId!))
+      )[0];
+      expect(contact!.email).toBe('theis@kunde.test');
+    });
+
     it('leaves a quoted turn out of the reconstructed history when Munin already holds it as a message', async () => {
       await postRelay({
         recipient: relayAddress,

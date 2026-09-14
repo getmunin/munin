@@ -497,6 +497,151 @@ const RELAY_DOMAIN = 'in.getmunin.test';
       expect(conv!.status).toBe('open');
     });
 
+    it('settles a new thread from a sender already judged junk, without an agent pass', async () => {
+      const junk = 'gonchar-it@example.test';
+      const rawFrom = (messageId: string, subject: string, body: string) =>
+        [
+          `From: Spammy Sender <${junk}>`,
+          `To: <${relayAddress}>`,
+          `Subject: ${subject}`,
+          `Message-ID: <${messageId}>`,
+          'Content-Type: text/plain; charset="utf-8"',
+          '',
+          body,
+          '',
+        ].join('\r\n');
+
+      const first = await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(rawFrom('junk-1@example.test', 'Callback request', 'Call me back')).toString('base64'),
+      });
+      expect(first.status).toBe(201);
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const firstMsg = (
+        await db.select().from(schema.convMessages).where(eq(schema.convMessages.orgId, orgId))
+      ).find((m) => m.body.includes('Call me back'));
+      expect(firstMsg).toBeDefined();
+      const firstConvId = firstMsg!.conversationId;
+
+      const [firstConv] = await db
+        .select()
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, firstConvId));
+      expect(firstConv!.status).toBe('open');
+      expect(firstConv!.suppressedReason).toBeNull();
+
+      await withClient(adminKey, async (c) => {
+        await c.callTool({
+          name: 'conv_change_status',
+          arguments: { id: firstConvId, status: 'spam' },
+        });
+      });
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const [contact] = await db
+        .select()
+        .from(schema.convContacts)
+        .where(and(eq(schema.convContacts.orgId, orgId), eq(schema.convContacts.email, junk)));
+      expect(contact!.spamMarkedAt).not.toBeNull();
+
+      const second = await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(
+          rawFrom('junk-2@example.test', 'UBS Wealth Management consultation request', 'Second thread'),
+        ).toString('base64'),
+      });
+      expect(second.status).toBe(201);
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const secondMsg = (
+        await db.select().from(schema.convMessages).where(eq(schema.convMessages.orgId, orgId))
+      ).find((m) => m.body.includes('Second thread'));
+      expect(secondMsg).toBeDefined();
+      expect(secondMsg!.conversationId).not.toBe(firstConvId);
+      expect(secondMsg!.metadata).toMatchObject({ suppressed: 'spam_sender' });
+
+      const [secondConv] = await db
+        .select()
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, secondMsg!.conversationId));
+      expect(secondConv!.status).toBe('spam');
+      expect(secondConv!.suppressedReason).toBe('spam_sender');
+      expect(secondConv!.needsHumanAttention).toBe(false);
+
+      const jobs = await db.execute<{ n: number } & Record<string, unknown>>(
+        sql`SELECT count(*)::int AS n FROM curator_jobs
+            WHERE org_id = ${orgId}
+              AND source_event_payload->>'conversationId' = ${secondMsg!.conversationId}`,
+      );
+      expect(jobs[0]!.n).toBe(0);
+    });
+
+    it('a human reply to a flagged sender takes the flag off, and their next thread lands open again', async () => {
+      const reformed = 'reformed-it@example.test';
+      const rawFrom = (messageId: string, body: string) =>
+        [
+          `From: Reformed Sender <${reformed}>`,
+          `To: <${relayAddress}>`,
+          'Subject: Question about pricing',
+          `Message-ID: <${messageId}>`,
+          'Content-Type: text/plain; charset="utf-8"',
+          '',
+          body,
+          '',
+        ].join('\r\n');
+
+      await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(rawFrom('reformed-1@example.test', 'First contact here')).toString('base64'),
+      });
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const firstMsg = (
+        await db.select().from(schema.convMessages).where(eq(schema.convMessages.orgId, orgId))
+      ).find((m) => m.body.includes('First contact here'));
+      const convId = firstMsg!.conversationId;
+
+      await withClient(adminKey, async (c) => {
+        await c.callTool({ name: 'conv_change_status', arguments: { id: convId, status: 'spam' } });
+      });
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const [flagged] = await db
+        .select()
+        .from(schema.convContacts)
+        .where(and(eq(schema.convContacts.orgId, orgId), eq(schema.convContacts.email, reformed)));
+      expect(flagged!.spamMarkedAt).not.toBeNull();
+
+      await withClient(adminKey, async (c) => {
+        await c.callTool({ name: 'conv_change_status', arguments: { id: convId, status: 'open' } });
+      });
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const [cleared] = await db
+        .select()
+        .from(schema.convContacts)
+        .where(and(eq(schema.convContacts.orgId, orgId), eq(schema.convContacts.email, reformed)));
+      expect(cleared!.spamMarkedAt).toBeNull();
+      expect(cleared!.spamMarkedBy).toBeNull();
+
+      await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(rawFrom('reformed-2@example.test', 'Second contact here')).toString('base64'),
+      });
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const secondMsg = (
+        await db.select().from(schema.convMessages).where(eq(schema.convMessages.orgId, orgId))
+      ).find((m) => m.body.includes('Second contact here'));
+      const [secondConv] = await db
+        .select()
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, secondMsg!.conversationId));
+      expect(secondConv!.status).toBe('open');
+      expect(secondConv!.suppressedReason).toBeNull();
+    });
+
     it('still answers a real question sent as a reply to the same newsletter', async () => {
       await postRelay({
         recipient: relayAddress,

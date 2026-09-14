@@ -3093,6 +3093,28 @@
             "never"
           ]
         },
+        "suppressedReason": {
+          "description": "Keeps only conversations settled at ingest without an agent pass. A specific reason (`auto_reply`, `bounce`, `no_reply_address`, `spam_sender`), `any` for all of them, or `none` for conversations a person actually opened.",
+          "type": "string",
+          "enum": [
+            "auto_reply",
+            "bounce",
+            "no_reply_address",
+            "spam_sender",
+            "any",
+            "none"
+          ]
+        },
+        "channelType": {
+          "description": "Keeps only conversations on channels of this type.",
+          "type": "string",
+          "enum": [
+            "email",
+            "voice",
+            "chat",
+            "sms"
+          ]
+        },
         "since": {
           "description": "ISO 8601 timestamp; keeps only conversations whose last message is at or after it.",
           "type": "string",
@@ -3556,7 +3578,7 @@
   {
     "name": "conv_set_subject",
     "title": "Conv: Set or clear a conversation subject",
-    "description": "Set a conversation's subject — the short human-readable title shown in the inbox and the chat widget — or pass `subject: null` to clear it. Used by the set-topic-and-title curator skill to title conversations that arrive without a subject (chat, SMS, voice). Email conversations already carry the email Subject line; don't overwrite it.",
+    "description": "Set a conversation's subject — the short human-readable title shown in the inbox and the chat widget — or pass `subject: null` to clear it. Used by the set-topic-and-title curator skill to title conversations that arrive without a subject (chat, SMS, voice). Email conversations already carry the email Subject line, so a conversation that already has a subject is refused with `conv_subject_exists` unless `overwrite: true` is passed.",
     "audiences": [
       "admin"
     ],
@@ -3583,6 +3605,10 @@
               "type": "null"
             }
           ]
+        },
+        "overwrite": {
+          "description": "Replace a subject the conversation already has. Omit it (the default) and a conversation that already carries a subject is left alone with `conv_subject_exists`.",
+          "type": "boolean"
         }
       },
       "required": [

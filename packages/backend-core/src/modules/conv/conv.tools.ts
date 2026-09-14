@@ -2,7 +2,14 @@ import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { getCurrentContext } from '@getmunin/core';
-import { AGENT_MODES, CHANNEL_TYPES, ConvService, HANDOVER_FILTERS, STATUSES } from './conv.service.ts';
+import {
+  AGENT_MODES,
+  CHANNEL_TYPES,
+  ConvService,
+  HANDOVER_FILTERS,
+  STATUSES,
+  SUPPRESSED_REASON_FILTERS,
+} from './conv.service.ts';
 import { ConvAutomationService } from './conv-automation.service.ts';
 import { CONV_ATTACHMENT_PER_MESSAGE_MAX } from './attachments/conv-attachments.constants.ts';
 import { ConvAttachmentsService } from './attachments/conv-attachments.service.ts';
@@ -12,6 +19,7 @@ const ChannelTypeSchema = z.enum(CHANNEL_TYPES);
 const StatusSchema = z.enum(STATUSES);
 const AgentModeSchema = z.enum(AGENT_MODES);
 const HandoverSchema = z.enum(HANDOVER_FILTERS);
+const SuppressedReasonFilterSchema = z.enum(SUPPRESSED_REASON_FILTERS);
 
 const ListConversationsInput = z.object({
   status: StatusSchema.optional(),
@@ -22,6 +30,12 @@ const ListConversationsInput = z.object({
   ),
   handover: HandoverSchema.optional().describe(
     '`active` = waiting on a human right now, `resolved` = a handover was answered and cleared, `never` = no handover on record.',
+  ),
+  suppressedReason: SuppressedReasonFilterSchema.optional().describe(
+    'Keeps only conversations settled at ingest without an agent pass. A specific reason (`auto_reply`, `bounce`, `no_reply_address`, `spam_sender`), `any` for all of them, or `none` for conversations a person actually opened.',
+  ),
+  channelType: ChannelTypeSchema.optional().describe(
+    'Keeps only conversations on channels of this type.',
   ),
   since: z
     .string()

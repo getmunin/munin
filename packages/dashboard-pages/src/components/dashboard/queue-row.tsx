@@ -86,10 +86,3 @@ export function RowTime({
   );
 }
 
-export function RowNote({ children }: { children: ReactNode }) {
-  return (
-    <span className="truncate font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
-      {children}
-    </span>
-  );
-}

@@ -17,6 +17,7 @@ import {
 } from '../components/dashboard/conversation-queue';
 import {
   ConversationFiltersPanel,
+  ConversationFiltersReceipt,
   ConversationFiltersTrigger,
   type TopicOption,
 } from '../components/dashboard/conversation-filters';
@@ -177,7 +178,7 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
               ),
             })}
           </h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-stretch gap-2">
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -190,15 +191,16 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
               onToggle={() => setFiltersOpen((v) => !v)}
             />
           </div>
-          {filtersOpen ? (
-            <ConversationFiltersPanel
-              filters={filters}
-              topics={topics}
-              onChange={setFilters}
-              onClear={() => setFilters(DEFAULT_QUEUE_FILTERS)}
-            />
-          ) : null}
+          <ConversationFiltersReceipt
+            filters={filters}
+            topics={topics}
+            onChange={setFilters}
+            onClear={() => setFilters(DEFAULT_QUEUE_FILTERS)}
+          />
         </header>
+        {filtersOpen ? (
+          <ConversationFiltersPanel filters={filters} topics={topics} onChange={setFilters} />
+        ) : null}
         <ul onScroll={onListScroll} className="pb-6 md:min-h-0 md:flex-1 md:overflow-y-auto">
           {!loaded ? <ConsoleRowsSkeleton /> : null}
           {nothingToShow ? (

@@ -1343,10 +1343,10 @@
         "emptySearchTitle": "No match",
         "emptySearchBody": "Nothing in the queue matches your search. Try a customer name, a subject, or a phrase from the message.",
         "anonymous": "Anonymous visitor",
-        "noteCount": "{count, plural, one {1 note} other {# notes}}",
-        "noDraftBadge": "No draft — you write it",
+        "noMessage": "No message",
         "draftTimeout": "The agent didn't deliver a draft. Try again, or write the reply yourself.",
-        "draftingBadge": "The agent is drafting…",
+        "draftingBadge": "Drafting…",
+        "draftReadyBadge": "Draft ready",
         "selectEmpty": "Select a conversation.",
         "backToQueue": "Queue",
         "originDrafted": "Drafted by the agent · {age}",
@@ -1402,7 +1402,9 @@
         "customerTyping": "{name} is typing…",
         "filters": {
           "label": "Filters",
-          "activeCount": "{count, plural, =0 {No filters applied} one {# filter applied} other {# filters applied}}",
+          "showing": "Showing",
+          "clearAll": "Clear all",
+          "removeFilter": "Remove the {dimension} filter",
           "status": "Status",
           "statusOption": {
             "any": "Any status",
@@ -1441,7 +1443,6 @@
           "topicOption": {
             "any": "Any topic"
           },
-          "clear": "Clear filters",
           "results": "Results ({count})",
           "emptyFilteredTitle": "Nothing matches these filters",
           "emptyFilteredBody": "Widen the status, origin or activity window — or clear the filters to go back to the queue."

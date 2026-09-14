@@ -1343,10 +1343,10 @@
         "emptySearchTitle": "Ingen treff",
         "emptySearchBody": "Ingenting i køen passer søket ditt. Prøv et kundenavn, et emne eller en frase fra meldingen.",
         "anonymous": "Anonym besøkende",
-        "noteCount": "{count, plural, one {1 notat} other {# notater}}",
-        "noDraftBadge": "Ingen kladd — du skriver svaret",
+        "noMessage": "Ingen melding",
         "draftTimeout": "Agenten leverte ingen kladd. Prøv igjen, eller skriv svaret selv.",
-        "draftingBadge": "Agenten skriver kladd …",
+        "draftingBadge": "Skriver kladd …",
+        "draftReadyBadge": "Kladd klar",
         "selectEmpty": "Velg en samtale.",
         "backToQueue": "Køen",
         "originDrafted": "Kladd fra agenten · {age}",
@@ -1402,7 +1402,9 @@
         "customerTyping": "{name} skriver …",
         "filters": {
           "label": "Filtre",
-          "activeCount": "{count, plural, =0 {Ingen filtre er satt} one {# filter er satt} other {# filtre er satt}}",
+          "showing": "Viser",
+          "clearAll": "Nullstill alt",
+          "removeFilter": "Fjern filteret for {dimension}",
           "status": "Status",
           "statusOption": {
             "any": "Alle statuser",
@@ -1441,7 +1443,6 @@
           "topicOption": {
             "any": "Alle temaer"
           },
-          "clear": "Nullstill filtre",
           "results": "Treff ({count})",
           "emptyFilteredTitle": "Ingenting treffer disse filtrene",
           "emptyFilteredBody": "Utvid status, opphav eller tidsrom — eller nullstill filtrene for å gå tilbake til køen."

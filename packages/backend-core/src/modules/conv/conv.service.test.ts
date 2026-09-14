@@ -1078,7 +1078,6 @@ const skipReason = TEST_URL
       expect(item!.topicName).toBe('Document requests');
       expect(item!.topicSlug).toBe(topic!.slug);
       expect(item!.claim).toMatchObject({ holderId: userId, holderName: 'Test User' });
-      expect(item!.noteCount).toBe(1);
       expect(item!.hasPendingDraft).toBe(true);
     });
 
@@ -1089,7 +1088,6 @@ const skipReason = TEST_URL
       expect(item!.customerName).toBe('Anders Vik');
       expect(item!.topicName).toBeNull();
       expect(item!.claim).toBeNull();
-      expect(item!.noteCount).toBe(0);
       expect(item!.hasPendingDraft).toBe(false);
     });
 

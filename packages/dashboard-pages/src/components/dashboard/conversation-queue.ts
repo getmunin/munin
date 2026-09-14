@@ -41,7 +41,6 @@ export interface QueueItemDto {
   topicSlug: string | null;
   topicAgentMode: 'auto' | 'draft_only' | 'off' | null;
   claim: QueueClaim | null;
-  noteCount: number;
   hasPendingDraft: boolean;
   endUserSpokeLast?: boolean;
   agentWorking?: boolean;

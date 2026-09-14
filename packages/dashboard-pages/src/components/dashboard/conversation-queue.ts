@@ -41,10 +41,72 @@ export interface QueueItemDto {
   topicSlug: string | null;
   topicAgentMode: 'auto' | 'draft_only' | 'off' | null;
   claim: QueueClaim | null;
-  noteCount: number;
   hasPendingDraft: boolean;
   endUserSpokeLast?: boolean;
   agentWorking?: boolean;
+}
+
+export const QUEUE_STATUS_FILTERS = ['any', 'open', 'snoozed', 'closed', 'spam'] as const;
+export type QueueStatusFilter = (typeof QUEUE_STATUS_FILTERS)[number];
+
+export const QUEUE_ORIGIN_FILTERS = [
+  'any',
+  'human',
+  'auto',
+  'auto_reply',
+  'bounce',
+  'no_reply_address',
+  'spam_sender',
+  'no_content',
+] as const;
+export type QueueOriginFilter = (typeof QUEUE_ORIGIN_FILTERS)[number];
+
+export const QUEUE_CHANNEL_FILTERS = ['any', 'email', 'chat', 'sms', 'voice'] as const;
+export type QueueChannelFilter = (typeof QUEUE_CHANNEL_FILTERS)[number];
+
+export const QUEUE_SINCE_FILTERS = ['any', '1d', '7d', '30d'] as const;
+export type QueueSinceFilter = (typeof QUEUE_SINCE_FILTERS)[number];
+
+const SINCE_DAYS: Record<Exclude<QueueSinceFilter, 'any'>, number> = { '1d': 1, '7d': 7, '30d': 30 };
+
+export interface QueueFilters {
+  status: QueueStatusFilter;
+  origin: QueueOriginFilter;
+  channelType: QueueChannelFilter;
+  topicId: string;
+  since: QueueSinceFilter;
+}
+
+export const DEFAULT_QUEUE_FILTERS: QueueFilters = {
+  status: 'any',
+  origin: 'any',
+  channelType: 'any',
+  topicId: 'any',
+  since: 'any',
+};
+
+export function activeQueueFilterCount(filters: QueueFilters): number {
+  return (Object.keys(DEFAULT_QUEUE_FILTERS) as Array<keyof QueueFilters>).filter(
+    (key) => filters[key] !== DEFAULT_QUEUE_FILTERS[key],
+  ).length;
+}
+
+export function queueFiltersActive(filters: QueueFilters): boolean {
+  return activeQueueFilterCount(filters) > 0;
+}
+
+export function buildQueueFilterQuery(filters: QueueFilters, now = Date.now()): string {
+  const params = new URLSearchParams();
+  if (filters.status !== 'any') params.set('status', filters.status);
+  if (filters.origin === 'human') params.set('suppressedReason', 'none');
+  else if (filters.origin === 'auto') params.set('suppressedReason', 'any');
+  else if (filters.origin !== 'any') params.set('suppressedReason', filters.origin);
+  if (filters.channelType !== 'any') params.set('channelType', filters.channelType);
+  if (filters.topicId !== 'any') params.set('topicId', filters.topicId);
+  if (filters.since !== 'any') {
+    params.set('since', new Date(now - SINCE_DAYS[filters.since] * 86_400_000).toISOString());
+  }
+  return params.toString();
 }
 
 interface QueuePageResponse {
@@ -63,6 +125,7 @@ export type QueueActionType =
   | 'takeOver'
   | 'release'
   | 'close'
+  | 'spam'
   | 'reopen'
   | 'reject'
   | 'note'
@@ -181,6 +244,8 @@ export function pendingDraftOf(detail: ConversationDetail | undefined): MessageD
 }
 
 export interface QueueController {
+  results: QueueItemDto[];
+  filtersActive: boolean;
   open: QueueItemDto[];
   finished: QueueItemDto[];
   counts: QueueCounts | null;
@@ -201,9 +266,10 @@ export interface QueueController {
   clearActionError: () => void;
   reportAttachmentError: (conversationId: string, message: string) => void;
   draftRequested: Record<string, boolean>;
-  takeOver: (id: string) => Promise<void>;
+  takeOver: (id: string) => Promise<boolean>;
   release: (id: string) => Promise<boolean>;
   closeConv: (id: string) => Promise<boolean>;
+  markSpam: (id: string) => Promise<boolean>;
   reopenConv: (id: string) => Promise<void>;
   send: (
     id: string,
@@ -218,11 +284,15 @@ export interface QueueController {
   requestDraft: (id: string) => Promise<void>;
 }
 
-export function useConversationQueue(routeSelectedId: string | null): QueueController {
+export function useConversationQueue(
+  routeSelectedId: string | null,
+  filters: QueueFilters = DEFAULT_QUEUE_FILTERS,
+): QueueController {
   const translateErr = useTranslateError();
   const t = useTranslations('dashboard.console.queue');
   const [open, setOpen] = useState<QueueItemDto[]>([]);
   const [finished, setFinished] = useState<QueueItemDto[]>([]);
+  const [results, setResults] = useState<QueueItemDto[]>([]);
   const [counts, setCounts] = useState<QueueCounts | null>(null);
   const [openCursor, setOpenCursor] = useState<string | null>(null);
   const openCursorRef = useRef(openCursor);
@@ -231,7 +301,10 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   const [loadingMore, setLoadingMore] = useState(false);
   const loadingMoreRef = useRef(loadingMore);
   loadingMoreRef.current = loadingMore;
-  const selectedId = routeSelectedId ?? open[0]?.id ?? finished[0]?.id ?? null;
+  const filtersActive = queueFiltersActive(filters);
+  const filterQuery = buildQueueFilterQuery(filters);
+  const selectedId =
+    routeSelectedId ?? (filtersActive ? results[0]?.id : open[0]?.id ?? finished[0]?.id) ?? null;
   const [details, setDetails] = useState<Record<string, ConversationDetail>>({});
   const [detailErrors, setDetailErrors] = useState<Record<string, ApiError>>({});
   const [loadError, setLoadError] = useState<ApiError | null>(null);
@@ -272,18 +345,34 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
 
   const loadQueue = useCallback(async () => {
     try {
-      const [openPages, openCounts, finishedPage] = await Promise.all([
-        loadOpenPages(openPagesRef.current),
-        api<QueueCounts>('/v1/conversations/queue/counts'),
-        api<QueuePageResponse>(queueUrl('closed', FINISHED_FETCH_LIMIT)),
-      ]);
-      setOpen(openPages.items);
-      setOpenCursor(openPages.nextCursor);
-      setCounts(openCounts);
-      setFinished(finishedPage.items);
+      let loaded: QueueItemDto[];
+      if (filterQuery) {
+        const page = await api<QueuePageResponse>(
+          `/v1/conversations/queue?${filterQuery}&limit=${OPEN_PAGE_LIMIT}`,
+        );
+        openPagesRef.current = 1;
+        setResults(page.items);
+        setOpen([]);
+        setOpenCursor(null);
+        setCounts(null);
+        setFinished([]);
+        loaded = page.items;
+      } else {
+        const [openPages, openCounts, finishedPage] = await Promise.all([
+          loadOpenPages(openPagesRef.current),
+          api<QueueCounts>('/v1/conversations/queue/counts'),
+          api<QueuePageResponse>(queueUrl('closed', FINISHED_FETCH_LIMIT)),
+        ]);
+        setResults([]);
+        setOpen(openPages.items);
+        setOpenCursor(openPages.nextCursor);
+        setCounts(openCounts);
+        setFinished(finishedPage.items);
+        loaded = openPages.items;
+      }
       setLoadError(null);
       setHasLoadedOnce(true);
-      for (const item of openPages.items) {
+      for (const item of loaded) {
         if (item.hasPendingDraft && draftRequestedRef.current[item.id]) {
           clearDraftRequested(item.id);
         }
@@ -291,7 +380,7 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     } catch (err) {
       if (err instanceof ApiError) setLoadError(err);
     }
-  }, [clearDraftRequested]);
+  }, [clearDraftRequested, filterQuery]);
 
   const loadMoreOpen = useCallback(async () => {
     const cursor = openCursorRef.current;
@@ -357,10 +446,10 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   }, [selectedId, loadDetail]);
 
   useEffect(() => {
-    if (!open.some((item) => item.agentWorking)) return;
+    if (![...open, ...results].some((item) => item.agentWorking)) return;
     const timer = setTimeout(() => void loadQueue(), AGENT_WORKING_POLL_MS);
     return () => clearTimeout(timer);
-  }, [open, loadQueue]);
+  }, [open, results, loadQueue]);
 
   const subscriptions = useMemo<SubscriptionChannel[]>(() => {
     const subs: SubscriptionChannel[] = [{ channel: 'org' }];
@@ -424,11 +513,10 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   );
 
   const takeOver = useCallback(
-    async (id: string) => {
-      await runAction('takeOver', id, () =>
+    async (id: string) =>
+      runAction('takeOver', id, () =>
         api(`/v1/conversations/${id}/take-over`, { method: 'POST', body: '{}' }),
-      );
-    },
+      ),
     [runAction],
   );
 
@@ -446,6 +534,17 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
         api(`/v1/conversations/${id}/status`, {
           method: 'POST',
           body: JSON.stringify({ status: 'closed' }),
+        }),
+      ),
+    [runAction],
+  );
+
+  const markSpam = useCallback(
+    async (id: string) =>
+      runAction('spam', id, () =>
+        api(`/v1/conversations/${id}/status`, {
+          method: 'POST',
+          body: JSON.stringify({ status: 'spam' }),
         }),
       ),
     [runAction],
@@ -560,6 +659,8 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   return {
     open,
     finished,
+    results,
+    filtersActive,
     counts,
     hasMoreOpen: openCursor !== null,
     loadingMore,
@@ -586,6 +687,7 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     deleteAttachment,
     retryDelivery,
     addNote,
+    markSpam,
     rejectDraft,
     requestDraft,
   };

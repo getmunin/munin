@@ -40,7 +40,6 @@ function item(overrides: Partial<QueueItemDto>): QueueItemDto {
     topicSlug: null,
     topicAgentMode: null,
     claim: null,
-    noteCount: 0,
     hasPendingDraft: false,
     ...overrides,
   };

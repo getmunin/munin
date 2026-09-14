@@ -46,7 +46,11 @@ import {
   AGENT_MODES,
   HandoverActiveError,
   STATUSES,
+  SUPPRESSED_REASON_FILTERS,
+  CHANNEL_TYPES,
+  type ChannelType,
   type ConversationStatus,
+  type SuppressedReasonFilter,
   type ConversationDetail,
   type ConversationQueueCounts,
   type ConversationQueueItem,
@@ -55,6 +59,8 @@ import {
 } from '../modules/conv/conv.service.ts';
 
 const StatusSchema = z.enum(STATUSES);
+const SuppressedReasonFilterSchema = z.enum(SUPPRESSED_REASON_FILTERS);
+const ChannelTypeSchema = z.enum(CHANNEL_TYPES);
 const AgentModeSchema = z.enum(AGENT_MODES);
 
 class SetAgentModeBody extends createZodDto(z.object({ mode: AgentModeSchema })) {}
@@ -190,10 +196,21 @@ export class ConversationsController {
     @Query('assigneeUserId') assigneeUserId?: string,
     @Query('topicId') topicId?: string,
     @Query('needsHumanAttention') needsHumanAttention?: string,
+    @Query('suppressedReason') suppressedReason?: string,
+    @Query('channelType') channelType?: string,
+    @Query('since') since?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ): Promise<ConversationListResponse> {
-    const query = parseListQuery({ status, needsHumanAttention, cursor, limit });
+    const query = parseListQuery({
+      status,
+      needsHumanAttention,
+      suppressedReason,
+      channelType,
+      since,
+      cursor,
+      limit,
+    });
     const page = await translate(() =>
       this.conv.listConversationsPage({ ...query, assigneeUserId, topicId }),
     );
@@ -210,10 +227,21 @@ export class ConversationsController {
     @Query('assigneeUserId') assigneeUserId?: string,
     @Query('topicId') topicId?: string,
     @Query('needsHumanAttention') needsHumanAttention?: string,
+    @Query('suppressedReason') suppressedReason?: string,
+    @Query('channelType') channelType?: string,
+    @Query('since') since?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ): Promise<ConversationQueueResponse> {
-    const query = parseListQuery({ status, needsHumanAttention, cursor, limit });
+    const query = parseListQuery({
+      status,
+      needsHumanAttention,
+      suppressedReason,
+      channelType,
+      since,
+      cursor,
+      limit,
+    });
     const page = await translate(() =>
       this.conv.listConversationQueuePage({ ...query, assigneeUserId, topicId }),
     );
@@ -238,6 +266,7 @@ export class ConversationsController {
   }
 
   @Get('topics')
+  @AllowMember()
   async listTopics(): Promise<
     Array<{
       id: string;
@@ -448,7 +477,7 @@ export class ConversationsController {
     @Body() input: ChangeStatusBody,
   ): Promise<ConversationSummary> {
     return translate(async () => {
-      if (input.status === 'closed') {
+      if (input.status === 'closed' || input.status === 'spam') {
         await this.claims.release({ conversationId: id, force: true });
       }
       return this.conv.changeStatus({ id, ...input });
@@ -614,11 +643,17 @@ function decodeListCursor(raw: string): ListCursor | undefined {
 function parseListQuery(input: {
   status?: string;
   needsHumanAttention?: string;
+  suppressedReason?: string;
+  channelType?: string;
+  since?: string;
   cursor?: string;
   limit?: string;
 }): {
   status: ConversationStatus | undefined;
   needsHumanAttention: boolean | undefined;
+  suppressedReason: SuppressedReasonFilter | undefined;
+  channelType: ChannelType | undefined;
+  since: string | undefined;
   cursor: ListCursor | undefined;
   limit: number | undefined;
 } {
@@ -626,9 +661,29 @@ function parseListQuery(input: {
   if (parsedStatus && !parsedStatus.success) {
     throw new BadRequestException(`conv_invalid: invalid status: ${input.status}`);
   }
+  const parsedSuppressed = input.suppressedReason
+    ? SuppressedReasonFilterSchema.safeParse(input.suppressedReason)
+    : null;
+  if (parsedSuppressed && !parsedSuppressed.success) {
+    throw new BadRequestException(
+      `conv_invalid: invalid suppressedReason: ${input.suppressedReason}`,
+    );
+  }
+  const parsedChannelType = input.channelType
+    ? ChannelTypeSchema.safeParse(input.channelType)
+    : null;
+  if (parsedChannelType && !parsedChannelType.success) {
+    throw new BadRequestException(`conv_invalid: invalid channelType: ${input.channelType}`);
+  }
+  if (input.since && Number.isNaN(new Date(input.since).getTime())) {
+    throw new BadRequestException(`conv_invalid: since must be an ISO 8601 timestamp`);
+  }
   return {
     status: parsedStatus?.success ? parsedStatus.data : undefined,
     needsHumanAttention: parseBool(input.needsHumanAttention),
+    suppressedReason: parsedSuppressed?.success ? parsedSuppressed.data : undefined,
+    channelType: parsedChannelType?.success ? parsedChannelType.data : undefined,
+    since: input.since || undefined,
     cursor: input.cursor ? decodeListCursor(input.cursor) : undefined,
     limit: parseLimit(input.limit),
   };

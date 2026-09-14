@@ -1,10 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { MoreHorizontal, Paperclip, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { Button, DropdownMenuItem, PageSpinner, Pill, cn } from '@getmunin/ui';
-import { CardMenu } from '../card-kit';
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  PageSpinner,
+  Pill,
+  cn,
+} from '@getmunin/ui';
 import { useRelative } from '../../lib/use-relative';
 import { useConversationTyping } from '../../realtime';
 import { useCmdEnter } from './queue-panes/shared';
@@ -323,6 +331,18 @@ export function ConversationPane({
     });
   };
 
+  const closeNoReply = () => {
+    void controller.closeConv(detail.id).then((ok) => {
+      if (ok) setExpanded(false);
+    });
+  };
+
+  const markSpam = () => {
+    void controller.markSpam(detail.id).then((ok) => {
+      if (ok) setExpanded(false);
+    });
+  };
+
   const takeOverLabel = draft
     ? claim
       ? t('takeOverToReviewDraft')
@@ -331,11 +351,15 @@ export function ConversationPane({
       ? t('takeOverToReply')
       : t('claimToReply');
 
-  const takeOverButton = (className: string) => (
+  const takeOverButton = (className: string, opts?: { expandOnSuccess?: boolean }) => (
     <Button
       variant="accent"
       className={className}
-      onClick={() => void controller.takeOver(detail.id)}
+      onClick={() =>
+        void controller.takeOver(detail.id).then((ok) => {
+          if (ok && opts?.expandOnSuccess) setExpanded(true);
+        })
+      }
       disabled={controller.pending}
       pending={controller.pendingAction === 'takeOver'}
     >
@@ -427,18 +451,39 @@ export function ConversationPane({
     </span>
   );
 
-  const mobileActionsMenu = canReply ? (
-    <span className="-mr-[7px] ml-auto shrink-0 md:hidden">
-      <CardMenu label={t('moreActions')} disabled={controller.pending}>
-        <DropdownMenuItem onClick={releaseClaim}>{t('release')}</DropdownMenuItem>
+  const composerActionsMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="outline"
+            aria-label={t('moreActions')}
+            disabled={controller.pending}
+            className="shrink-0 max-md:h-11 md:order-last"
+          />
+        }
+      >
+        <MoreHorizontal aria-hidden className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem className="md:hidden" onClick={releaseClaim}>
+          {t('release')}
+        </DropdownMenuItem>
         {editedByYou ? (
           <DropdownMenuItem onClick={() => setReply(draft.body)}>
             {t('restoreDraft')}
           </DropdownMenuItem>
         ) : null}
-      </CardMenu>
-    </span>
-  ) : null;
+        {suggestionId ? (
+          <DropdownMenuItem onClick={rejectAndClear}>{t('rejectDraft')}</DropdownMenuItem>
+        ) : null}
+        <DropdownMenuItem onClick={markSpam}>{t('markSpam')}</DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onClick={closeNoReply}>
+          {t('closeNoReply')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 
   const statusStrip = (
     <span
@@ -582,14 +627,14 @@ export function ConversationPane({
               closedFooter
             ) : !canReply ? (
               <div className="flex flex-col items-stretch gap-2.5 px-5 py-4">
-                {takeOverButton('h-11')}
+                {takeOverButton('h-11', { expandOnSuccess: true })}
                 {claimGateCaption}
               </div>
             ) : suggestionId && !dirty && !streaming ? (
               <div className="px-5 py-4">
                 <Button
                   variant="accent"
-                  className="h-12 w-full"
+                  className="h-11 w-full"
                   onClick={() => setExpanded(true)}
                 >
                   {t('reviewDraft')} <span aria-hidden>→</span>
@@ -599,7 +644,7 @@ export function ConversationPane({
               <div className="flex items-stretch gap-2 px-5 py-4">
                 <Button
                   variant="accent"
-                  className="h-12 min-w-0 flex-1"
+                  className="h-11 min-w-0 flex-1"
                   onClick={() => setExpanded(true)}
                 >
                   {streaming || drafting ? (
@@ -617,7 +662,7 @@ export function ConversationPane({
                     </>
                   )}
                 </Button>
-                {askDraftButton('h-12 shrink-0')}
+                {askDraftButton('h-11 shrink-0')}
               </div>
             )}
           </div>
@@ -687,7 +732,6 @@ export function ConversationPane({
           >
             {t('noteTab')}
           </button>
-          {mobileActionsMenu}
           {statusStrip}
         </div>
 
@@ -748,48 +792,35 @@ export function ConversationPane({
                     e.target.value = '';
                   }}
                 />
-                <Button
-                  variant="accent"
-                  onClick={sendReply}
-                  disabled={
-                    controller.pending || streaming || askedForDraft || !reply.trim() || uploads.busy
-                  }
-                  pending={controller.pendingAction === 'send'}
-                  className="max-md:h-11"
-                >
-                  {suggestionId && !dirty ? t('approveSend') : t('sendReply')}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={controller.pending || streaming || askedForDraft}
-                  className="max-md:h-11"
-                >
-                  {tAtt('attach')}
-                </Button>
-                {suggestionId ? (
+                <div className="flex items-stretch gap-2 md:contents">
+                  <Button
+                    variant="accent"
+                    onClick={sendReply}
+                    disabled={
+                      controller.pending ||
+                      streaming ||
+                      askedForDraft ||
+                      !reply.trim() ||
+                      uploads.busy
+                    }
+                    pending={controller.pendingAction === 'send'}
+                    className="max-md:h-11 max-md:min-w-0 max-md:flex-1"
+                  >
+                    {suggestionId && !dirty ? t('approveSend') : t('sendReply')}
+                  </Button>
                   <Button
                     variant="outline"
-                    onClick={rejectAndClear}
-                    disabled={controller.pending || streaming}
-                    className="max-md:h-11"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={controller.pending || streaming || askedForDraft}
+                    aria-label={tAtt('attach')}
+                    title={tAtt('attach')}
+                    className="shrink-0 max-md:h-11"
                   >
-                    {t('rejectDraft')}
+                    <Paperclip aria-hidden className="size-4" />
                   </Button>
-                ) : null}
+                  {composerActionsMenu}
+                </div>
                 {askDraftButton('max-md:h-11')}
-                <Button
-                  variant="ghost"
-                  onClick={() =>
-                    void controller.closeConv(detail.id).then((ok) => {
-                      if (ok) setExpanded(false);
-                    })
-                  }
-                  disabled={controller.pending}
-                  className="max-md:h-11"
-                >
-                  {t('closeNoReply')}
-                </Button>
               </div>
             </div>
           ) : draft ? (

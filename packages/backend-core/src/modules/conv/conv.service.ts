@@ -62,6 +62,18 @@ export class AgentReplyRaceError extends Error {
 
 export const CHANNEL_TYPES = ['email', 'voice', 'chat', 'sms'] as const;
 export const STATUSES = ['open', 'snoozed', 'closed', 'spam'] as const;
+
+export const SUPPRESSED_REASONS = [
+  'auto_reply',
+  'bounce',
+  'no_reply_address',
+  'spam_sender',
+  'no_content',
+] as const;
+export type SuppressedReason = (typeof SUPPRESSED_REASONS)[number];
+
+export const SUPPRESSED_REASON_FILTERS = [...SUPPRESSED_REASONS, 'any', 'none'] as const;
+export type SuppressedReasonFilter = (typeof SUPPRESSED_REASON_FILTERS)[number];
 export const AGENT_MODES = ['auto', 'draft_only', 'off'] as const;
 export const HANDOVER_FILTERS = ['active', 'resolved', 'never'] as const;
 export type HandoverFilter = (typeof HANDOVER_FILTERS)[number];
@@ -161,6 +173,7 @@ export interface ConversationSummary {
   topicId: string | null;
   assigneeUserId: string | null;
   subject: string | null;
+  suppressedReason: SuppressedReason | null;
   lastMessageAt: string | null;
   lastInboundPreview?: string | null;
   needsHumanAttention: boolean;
@@ -189,7 +202,6 @@ export interface ConversationQueueItem extends ConversationSummary {
   topicSlug: string | null;
   topicAgentMode: AgentMode | null;
   claim: { holderId: string; holderName: string | null; expiresAt: string } | null;
-  noteCount: number;
   hasPendingDraft: boolean;
   endUserSpokeLast: boolean;
   agentWorking: boolean;
@@ -466,8 +478,23 @@ export class ConvService {
   async setSubject(input: {
     conversationId: string;
     subject: string | null;
+    overwrite?: boolean;
   }): Promise<ConversationSummary> {
     const ctx = getCurrentContext();
+    if (input.subject !== null && input.overwrite !== true) {
+      const [current] = await ctx.db
+        .select({ subject: schema.convConversations.subject })
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, input.conversationId))
+        .limit(1);
+      const existing = current?.subject?.trim() ?? '';
+      if (existing.length > 0 && existing !== input.subject.trim()) {
+        throw new ConflictException(
+          `conv_subject_exists: conversation ${input.conversationId} already has a subject; ` +
+            `pass overwrite: true to replace it`,
+        );
+      }
+    }
     const [updated] = await ctx.db
       .update(schema.convConversations)
       .set({ subject: input.subject, updatedAt: new Date() })
@@ -517,6 +544,8 @@ export class ConvService {
     endUserId?: string;
     needsHumanAttention?: boolean;
     handover?: HandoverFilter;
+    suppressedReason?: SuppressedReasonFilter;
+    channelType?: string;
     since?: string;
     limit?: number;
   }): Promise<ConversationSummary[]> {
@@ -532,6 +561,8 @@ export class ConvService {
     endUserId?: string;
     needsHumanAttention?: boolean;
     handover?: HandoverFilter;
+    suppressedReason?: SuppressedReasonFilter;
+    channelType?: string;
     since?: string;
   }): Promise<number> {
     const ctx = getCurrentContext();
@@ -551,6 +582,8 @@ export class ConvService {
     endUserId?: string;
     needsHumanAttention?: boolean;
     handover?: HandoverFilter;
+    suppressedReason?: SuppressedReasonFilter;
+    channelType?: string;
     since?: string;
     cursor?: { lastMessageAt: string | null; id: string; needsHumanAttention?: boolean };
   }): SQL[] {
@@ -561,6 +594,20 @@ export class ConvService {
     }
     if (input.assigneeUserId) filters.push(eq(schema.convConversations.assigneeUserId, input.assigneeUserId));
     if (input.topicId) filters.push(eq(schema.convConversations.topicId, input.topicId));
+    if (input.suppressedReason === 'any') {
+      filters.push(isNotNull(schema.convConversations.suppressedReason));
+    } else if (input.suppressedReason === 'none') {
+      filters.push(isNull(schema.convConversations.suppressedReason));
+    } else if (input.suppressedReason) {
+      filters.push(eq(schema.convConversations.suppressedReason, input.suppressedReason));
+    }
+    if (input.channelType) {
+      filters.push(
+        sql`${schema.convConversations.channelId} IN (
+          SELECT id FROM conv_channels WHERE type = ${input.channelType}
+        )`,
+      );
+    }
     if (input.endUserId) filters.push(eq(schema.convConversations.endUserId, input.endUserId));
     if (input.needsHumanAttention !== undefined) {
       filters.push(eq(schema.convConversations.needsHumanAttention, input.needsHumanAttention));
@@ -628,6 +675,8 @@ export class ConvService {
     endUserId?: string;
     needsHumanAttention?: boolean;
     handover?: HandoverFilter;
+    suppressedReason?: SuppressedReasonFilter;
+    channelType?: string;
     since?: string;
     limit?: number;
     cursor?: { lastMessageAt: string | null; id: string; needsHumanAttention?: boolean };
@@ -676,6 +725,8 @@ export class ConvService {
     endUserId?: string;
     needsHumanAttention?: boolean;
     handover?: HandoverFilter;
+    suppressedReason?: SuppressedReasonFilter;
+    channelType?: string;
     since?: string;
     limit?: number;
     cursor?: { lastMessageAt: string | null; id: string; needsHumanAttention?: boolean };
@@ -730,7 +781,7 @@ export class ConvService {
       string,
       { holderId: string; holderName: string | null; expiresAt: string }
     >();
-    const statsByConversation = new Map<string, { noteCount: number; pendingDrafts: number }>();
+    const statsByConversation = new Map<string, { pendingDrafts: number }>();
     if (pageIds.length > 0) {
       const claimRows = await ctx.db
         .select({
@@ -762,10 +813,6 @@ export class ConvService {
       const statRows = await ctx.db
         .select({
           conversationId: schema.convMessages.conversationId,
-          noteCount: sql<number>`COUNT(*) FILTER (
-            WHERE ${schema.convMessages.authorType} IN ('user', 'agent')
-              AND COALESCE(${schema.convMessages.metadata} ->> 'kind', '') NOT LIKE 'draft_reply%'
-          )::int`,
           pendingDrafts: sql<number>`COUNT(*) FILTER (
             WHERE ${schema.convMessages.metadata} ->> 'kind' = 'draft_reply'
           )::int`,
@@ -779,10 +826,7 @@ export class ConvService {
         )
         .groupBy(schema.convMessages.conversationId);
       for (const row of statRows) {
-        statsByConversation.set(row.conversationId, {
-          noteCount: row.noteCount,
-          pendingDrafts: row.pendingDrafts,
-        });
+        statsByConversation.set(row.conversationId, { pendingDrafts: row.pendingDrafts });
       }
     }
 
@@ -800,7 +844,6 @@ export class ConvService {
         topicSlug: row.topicSlug,
         topicAgentMode: (row.topicAgentMode as AgentMode | null) ?? null,
         claim: claimByConversation.get(row.conv.id) ?? null,
-        noteCount: stats?.noteCount ?? 0,
         hasPendingDraft: (stats?.pendingDrafts ?? 0) > 0,
         endUserSpokeLast: row.endUserSpokeLast,
         agentWorking: row.agentWorking === true,
@@ -1333,6 +1376,7 @@ export class ConvService {
         needsHumanAttention: schema.convConversations.needsHumanAttention,
         outreachCampaignId: schema.convConversations.outreachCampaignId,
         agentMode: schema.convConversations.agentMode,
+        contactId: schema.convConversations.contactId,
       })
       .from(schema.convConversations)
       .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.convConversations.channelId))
@@ -1458,6 +1502,10 @@ export class ConvService {
 
     if (input.authorType === 'end_user' && !input.internal) {
       await raiseAttentionWhenAgentIsOff(ctx.db, input.conversationId);
+    }
+
+    if (input.authorType === 'user' && !input.internal) {
+      await this.clearContactSpam(conv.contactId);
     }
 
     if (
@@ -1805,6 +1853,38 @@ export class ConvService {
     return toConversationSummary(updated);
   }
 
+  private spamActorStamp(): string {
+    const actor = getCurrentContext().actor;
+    if (!actor) return 'system';
+    return actor.userId ?? `${actor.type}:${actor.id}`;
+  }
+
+  private async markContactSpam(contactId: string | null, markedBy: string): Promise<void> {
+    if (!contactId) return;
+    await getCurrentContext()
+      .db.update(schema.convContacts)
+      .set({ spamMarkedAt: new Date(), spamMarkedBy: markedBy, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.convContacts.id, contactId),
+          isNull(schema.convContacts.spamMarkedAt),
+        ),
+      );
+  }
+
+  private async clearContactSpam(contactId: string | null): Promise<void> {
+    if (!contactId) return;
+    await getCurrentContext()
+      .db.update(schema.convContacts)
+      .set({ spamMarkedAt: null, spamMarkedBy: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.convContacts.id, contactId),
+          isNotNull(schema.convContacts.spamMarkedAt),
+        ),
+      );
+  }
+
   async changeStatus(input: {
     id: string;
     status: ConversationStatus;
@@ -1814,8 +1894,9 @@ export class ConvService {
     if (input.status === 'snoozed' && !input.snoozeUntil) {
       throw new ConvInvalidError('snoozeUntil is required when status is "snoozed"');
     }
-    const clearAttention = input.status === 'closed';
-    const releaseRunner = input.status === 'closed';
+    const settled = input.status === 'closed' || input.status === 'spam';
+    const clearAttention = settled;
+    const releaseRunner = settled;
     const result = await ctx.db
       .update(schema.convConversations)
       .set({
@@ -1832,10 +1913,16 @@ export class ConvService {
         ...(releaseRunner
           ? { runnerHolder: null, runnerLeaseExpiresAt: null }
           : {}),
+        ...(input.status === 'open' ? { suppressedReason: null } : {}),
       })
       .where(eq(schema.convConversations.id, input.id))
       .returning();
     if (!result[0]) throw new NotFoundException(`conv_not_found: conversation ${input.id}`);
+    if (input.status === 'spam') {
+      await this.markContactSpam(result[0].contactId, this.spamActorStamp());
+    } else if (input.status === 'open') {
+      await this.clearContactSpam(result[0].contactId);
+    }
     await this.webhooks.emit({
       type: 'conversation.status_changed',
       payload: { conversationId: input.id, status: input.status },
@@ -2566,6 +2653,7 @@ function toConversationSummary(
     topicId: row.topicId,
     assigneeUserId: row.assigneeUserId,
     subject: row.subject,
+    suppressedReason: (row.suppressedReason as SuppressedReason | null) ?? null,
     lastMessageAt: row.lastMessageAt?.toISOString() ?? null,
     ...(lastInboundPreview !== undefined
       ? { lastInboundPreview: previewText(lastInboundPreview) }

@@ -251,6 +251,7 @@ export class ConversationsController {
   }
 
   @Get('topics')
+  @AllowMember()
   async listTopics(): Promise<
     Array<{
       id: string;

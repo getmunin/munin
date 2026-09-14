@@ -1399,7 +1399,53 @@
         "addNote": "Add internal note",
         "noteHint": "Never sent to the customer · lands in the thread",
         "detailFailed": "This conversation didn't load.",
-        "customerTyping": "{name} is typing…"
+        "customerTyping": "{name} is typing…",
+        "filters": {
+          "label": "Filters",
+          "activeCount": "{count, plural, =0 {No filters applied} one {# filter applied} other {# filters applied}}",
+          "status": "Status",
+          "statusOption": {
+            "any": "Any status",
+            "open": "Open",
+            "snoozed": "Snoozed",
+            "closed": "Closed",
+            "spam": "Spam"
+          },
+          "origin": "Origin",
+          "originOption": {
+            "any": "Any origin",
+            "human": "Opened by a person",
+            "auto": "Filed automatically",
+            "auto_reply": "Auto-replies",
+            "bounce": "Bounces",
+            "no_reply_address": "No-reply senders",
+            "spam_sender": "Known junk senders",
+            "no_content": "No question asked"
+          },
+          "channel": "Channel",
+          "channelOption": {
+            "any": "Any channel",
+            "email": "Email",
+            "chat": "Chat",
+            "sms": "SMS",
+            "voice": "Voice"
+          },
+          "since": "Activity",
+          "sinceOption": {
+            "any": "Any time",
+            "1d": "Last 24 hours",
+            "7d": "Last 7 days",
+            "30d": "Last 30 days"
+          },
+          "topic": "Topic",
+          "topicOption": {
+            "any": "Any topic"
+          },
+          "clear": "Clear filters",
+          "results": "Results ({count})",
+          "emptyFilteredTitle": "Nothing matches these filters",
+          "emptyFilteredBody": "Widen the status, origin or activity window — or clear the filters to go back to the queue."
+        }
       }
     },
     "firstRun": {

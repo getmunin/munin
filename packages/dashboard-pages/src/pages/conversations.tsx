@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@getmunin/ui';
 import { authClient } from '../auth-client';
@@ -8,11 +8,19 @@ import { LoadFailed } from '../components/load-failed';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
 import { usePathname, useRouter } from '../i18n-navigation';
 import {
+  DEFAULT_QUEUE_FILTERS,
   matchesQueueSearch,
   partitionQueue,
   useConversationQueue,
+  type QueueFilters,
   type QueueItemDto,
 } from '../components/dashboard/conversation-queue';
+import {
+  ConversationFiltersPanel,
+  ConversationFiltersTrigger,
+  type TopicOption,
+} from '../components/dashboard/conversation-filters';
+import { api } from '../api';
 import { ConversationRow } from '../components/dashboard/conversation-row';
 import { ConversationPane } from '../components/dashboard/conversation-pane';
 import { ConsoleSectionLabel } from '../components/console-section-label';
@@ -32,13 +40,29 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
   const routeSelectedId =
     pathname.match(/^\/dashboard\/conversations\/([^/]+)/)?.[1] ??
     (onQueueRoute ? null : selectedId);
-  const queue = useConversationQueue(routeSelectedId);
+  const [filters, setFilters] = useState<QueueFilters>(DEFAULT_QUEUE_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [topics, setTopics] = useState<TopicOption[]>([]);
+  const queue = useConversationQueue(routeSelectedId, filters);
   const gate = useFirstRunGate();
   const setup = gate.setup;
   const buildLoadFailedProps = useInboxLoadFailedProps();
   const { data: session } = authClient.useSession();
   const viewerUserId = session?.user?.id ?? null;
   const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    if (!filtersOpen || topics.length > 0) return;
+    let cancelled = false;
+    void api<TopicOption[]>('/v1/conversations/topics')
+      .then((rows) => {
+        if (!cancelled) setTopics(rows.map((t) => ({ id: t.id, name: t.name })));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [filtersOpen, topics.length]);
 
   const onListScroll = (e: React.UIEvent<HTMLElement>) => {
     const el = e.currentTarget;
@@ -54,8 +78,9 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
       needsYou: parts.needsYou.filter(bySearch),
       inProgress: parts.inProgress.filter(bySearch),
       finished: parts.finished.filter(bySearch),
+      results: queue.results.filter(bySearch),
     };
-  }, [queue.open, queue.finished, viewerUserId, search]);
+  }, [queue.open, queue.finished, queue.results, viewerUserId, search]);
 
   const shallowGo = useCallback(
     (path: string) => {
@@ -81,7 +106,7 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
 
   const activeId = queue.selectedId;
   const selectedItem = activeId
-    ? [...queue.open, ...queue.finished].find((i) => i.id === activeId)
+    ? [...queue.open, ...queue.finished, ...queue.results].find((i) => i.id === activeId)
     : undefined;
   const backAction = useMemo(() => {
     if (!routeSelectedId) return null;
@@ -129,7 +154,8 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
     loaded &&
     sections.needsYou.length === 0 &&
     sections.inProgress.length === 0 &&
-    sections.finished.length === 0;
+    sections.finished.length === 0 &&
+    sections.results.length === 0;
 
   return (
     <div className={cn('grid h-full min-h-0 grid-cols-1', SPLIT_GRID)}>
@@ -151,20 +177,55 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
               ),
             })}
           </h1>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('searchPlaceholder')}
-            className="w-full rounded-input border border-rule-soft bg-paper px-2.5 py-2 text-base outline-none focus-visible:border-cobalt md:py-1.5 md:text-[12.5px] dark:border-rule-on-dark dark:bg-card"
-          />
+          <div className="flex items-center gap-2">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t('searchPlaceholder')}
+              className="min-w-0 flex-1 rounded-input border border-rule-soft bg-paper px-2.5 py-2 text-base outline-none focus-visible:border-cobalt md:py-1.5 md:text-[12.5px] dark:border-rule-on-dark dark:bg-card"
+            />
+            <ConversationFiltersTrigger
+              filters={filters}
+              open={filtersOpen}
+              onToggle={() => setFiltersOpen((v) => !v)}
+            />
+          </div>
+          {filtersOpen ? (
+            <ConversationFiltersPanel
+              filters={filters}
+              topics={topics}
+              onChange={setFilters}
+              onClear={() => setFilters(DEFAULT_QUEUE_FILTERS)}
+            />
+          ) : null}
         </header>
         <ul onScroll={onListScroll} className="pb-6 md:min-h-0 md:flex-1 md:overflow-y-auto">
           {!loaded ? <ConsoleRowsSkeleton /> : null}
           {nothingToShow ? (
             <ConsoleListEmpty
-              title={search ? t('emptySearchTitle') : t('emptyTitle')}
-              body={search ? t('emptySearchBody') : t('emptyBody')}
+              title={
+                queue.filtersActive
+                  ? t('filters.emptyFilteredTitle')
+                  : search
+                    ? t('emptySearchTitle')
+                    : t('emptyTitle')
+              }
+              body={
+                queue.filtersActive
+                  ? t('filters.emptyFilteredBody')
+                  : search
+                    ? t('emptySearchBody')
+                    : t('emptyBody')
+              }
             />
+          ) : null}
+          {sections.results.length > 0 ? (
+            <>
+              <ConsoleSectionLabel>
+                {t('filters.results', { count: sections.results.length })}
+              </ConsoleSectionLabel>
+              {renderRows(sections.results)}
+            </>
           ) : null}
           {sections.needsYou.length > 0 ? (
             <>

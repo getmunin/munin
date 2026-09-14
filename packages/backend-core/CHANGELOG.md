@@ -1,5 +1,142 @@
 # @getmunin/backend-core
 
+## 5.24.0
+
+### Minor Changes
+
+- a2b6100: Recognise header-block quoting on inbound email, and show the quoted thread as reconstructed history.
+
+  Many mail clients and ticketing systems quote a reply by printing a `From: / Date: / Subject: / To:` header block rather than `>` markers or an `On … wrote:` attribution. `stripQuotedReplyText` matched neither, so the whole thread was stored as one message body: the dashboard showed a wall of text, and the agent runtime read every earlier turn — including the organisation's own replies — as a single end-user utterance.
+
+  Inbound bodies are now cut at the first header block, with the labels localised across the same languages the existing attribution patterns cover. Detection requires a `From:` line followed by at least two companion header lines, so prose that happens to begin with `From:` is left alone, and a body that _opens_ with a header block (a bare forward) keeps its text.
+
+  A header block that a forward marker introduces is not a quote cut. In a manually forwarded mail the text below the block _is_ the message — Munin attributes the conversation to the original sender, not to the forwarder — so cutting there would have stored the forwarder's cover note as the customer's words and left the real complaint out of everything the runtime reads. Forward-introduced blocks are therefore skipped, in the same languages `forwarded-sender.ts` already recognises, and the cut lands on the first header block that follows without one: a forwarded mail that itself quotes an older reply still gets that older reply cut and reconstructed.
+
+  The quoted chain is no longer merely discarded. It is parsed into turns and kept on the message's `metadata.quotedThread`, and the conversation view renders them under a collapsed "Earlier in this thread" disclosure. This matters most where an organisation auto-forwards a shared mailbox into Munin and answers elsewhere: the quoted block is then the only record Munin will ever hold of the other half of the exchange.
+
+  A turn the conversation already holds is not reconstructed at all. When a customer replies to a mail Munin sent, the quoted block contains Munin's own answer — which is already a `conv_messages` row a few bubbles up — so showing it again under a disclosure captioned "not delivered through Munin" was both duplication and a false caption. Each reconstructed turn is now compared against the bodies already recorded in that conversation and dropped when it matches; the comparison collapses whitespace and accepts a truncated quote, since clients reflow and cut what they quote. The auto-forward case is untouched, because there no such row exists.
+
+  Reconstructed turns are deliberately not written as `conv_messages` rows. They carry no Message-ID, no delivery state and no author, and the quoted text is composed by the sender rather than observed by us — so they stay labelled, read-only, and outside the conversation record that curation, export, analytics and webhooks draw on. Sender-formatted dates are kept verbatim instead of being parsed into timestamps, turn count and per-turn length are capped, and where a system prints a reply above its first header block that reply still stays with the visible message.
+
+  Inbound bodies are also normalised for the whitespace that HTML-to-text flattening leaves behind: trailing whitespace goes, runs of blank lines collapse to one, and the indentation shared by every line is removed. That last part matters because the conversation view renders the body as Markdown, where four leading spaces mean a code block — a flattened message could render as grey monospace. Only the _common_ indentation is stripped, so a pasted stack trace or snippet keeps its relative shape.
+
+- 91179f9: Track address deliverability separately from consent, and check it before an outreach send
+
+  Munin had no notion of an email address being undeliverable. It knew only about consent — `crm_contacts.do_not_contact` and `unsubscribed_at` — so when an address died, outreach kept mailing it forever.
+
+  Overloading the consent fields would have been the wrong fix: someone who changed jobs has not opted out, and `do_not_contact` suppresses the _person_, on every channel, permanently. Consent is permission; deliverability is reachability. They now move independently.
+
+  **New state.** `crm_address_deliverability` is keyed by `(org_id, address)` — not by contact, because a contact has more than one address over time and the whole value is being able to say "that one is dead, this one isn't". It holds `valid | soft_failing | undeliverable`, the rule that fired, the evidence, a failure count and the timestamps. `crm_get_contact` surfaces it as `deliverability` (null while the address is fine).
+
+  **Signals**, strongest first:
+
+  - A delivery-status report (RFC 3464) or `X-Failed-Recipients` naming the recipient → `undeliverable`, `hard_bounce`. Only a named recipient counts; a bounce that names nobody records nothing.
+  - An outbound delivery reaching `dead` → `undeliverable`/`smtp_rejected` when the SMTP error is a permanent recipient rejection (`5.1.x`, "user unknown"), `soft_failing`/`delivery_dead` when it is about the mailbox itself (full, over quota), and **nothing** otherwise. Bad credentials, an unreachable host or a content-policy rejection say nothing about the recipient — a broken channel must not condemn every address it touches.
+  - A no-reply "mailbox no longer available" notice on an existing thread → `soft_failing`/`no_reply_notice`. It is prose from a company's autoresponder rather than an MTA, so it is corroboration, not a verdict.
+
+  Soft failures reach `undeliverable` only at three inside a rolling 30 days, and the window resets — a full mailbox or a weekend outage does not accumulate into a permanent verdict by accident.
+
+  **The gates.** All five outreach send gates now check it — `proposeInitial`, `proposeFollowup`, `deliverInitial`, `deliverFollowup`, and the follow-up sweep's SQL — and only for email channels, since the state is about an email address. They fail with `outreach_undeliverable`, distinct from the consent refusal's `outreach_invalid`, so a caller can tell "we may not mail this person" from "we cannot reach them here". The dashboard's outreach review pane shows the warning before the operator clicks Approve, and the error is translated (en/nb).
+
+  **The way back.** `crm_set_address_deliverability` lets a human or an agent condemn an address or reopen it (`state: "valid"` zeroes the failure count), and `crm_list_address_deliverability` shows the backlog. `skill://crm/repair-undeliverable-address` walks an agent through finding a person's current address — and through why the answer is never `do_not_contact`.
+
+  Surfaced by Globex conv #186, where a recipient had left their employer and `contoso.test` answered every send with "the email address you have tried to reach does not exist within our company anymore".
+
+### Patch Changes
+
+- 9f28c8a: Filter the conversation list by status, origin, channel, topic and activity window.
+
+  The conversations page fetched exactly two things — open and closed — and offered a text search over what came back. Everything settled automatically was therefore invisible from the dashboard: an operator could not see what the auto-reply and bounce classifiers had filed away, could not review what had been marked spam, and had no way to check whether something real had been caught by mistake. The data was there; nothing asked for it.
+
+  A "Filters" toggle beside the search box opens a panel with five controls:
+
+  - **Status** — any, open, snoozed, closed, spam.
+  - **Origin** — opened by a person, filed automatically, or one specific reason: auto-replies, bounces, no-reply senders, known junk senders, no question asked.
+  - **Channel** — email, chat, SMS, voice.
+  - **Topic** — the org's own topics, fetched the first time the panel opens.
+  - **Activity** — last 24 hours, 7 days, 30 days.
+
+  The panel is collapsed by default and the trigger carries a count when anything is set, so the page costs no vertical space until you want it. With no filter the list keeps its three sections (Needs you / In progress / Finished) from the same two requests as before; with any filter set it becomes one flat "Results" list from a single request, and the empty state says the filters are what is hiding everything.
+
+  `GET /v1/conversations/topics` gains `@AllowMember()` — it was the only conversation read on the operator's own page that members could not make, so the topic filter would have silently disappeared for them.
+
+- 9f28c8a: Polish the conversation list and composer after reviewing them on a real inbox.
+
+  **The filter surface is collapsed with a receipt.** The panel folds away and what stays is one mono line of what is currently applied — `SHOWING · STATUS · OPEN ×` `CHANNEL · CHAT ×` `CLEAR ALL` — one removable token per narrowed dimension. The count and icon come off the trigger, since the receipt says the same thing precisely instead of numerically, and `Clear all` moves out of the panel so it is reachable without reopening it. The panel itself moves below the header into its own shaded block with labels above each field, two columns and Topic spanning both. With nothing applied the page shows only a search box and a `Filters` button. The trigger takes its height from the search input via `items-stretch` rather than a hard-coded value, because the input's height is padding-and-font-driven and differs per breakpoint.
+
+  **The row's status line is one line, and it marks the row worth clicking.** Topic, agent mode and state now join into a single run (`BILLING & INVOICES · REVIEW · DRAFT READY`) instead of stacking two lines, so every row is at most three lines and the list scans evenly.
+
+  The badge itself changed ends. `No draft — you write it` was an instruction in a list you cannot act from, it reported an absence in the loudest colour the row has, and it was the fourth thing on the row saying "a human is needed" after the section header, the bold title and the dashed claim face. Meanwhile the one row type where a badge changes what you do — _a draft is waiting, this is an approve not a write_ — carried no badge at all. So the slot now says `Draft ready`, agent-stopped is left to be inferred from context, and cobalt means one coherent thing: the agent has something for you. The conversation pane keeps its fuller `The agent stopped · 4d — nothing drafted`, which is where the reason and the age actually matter.
+
+  **Rows with no inbound message say so.** A conversation the customer has not written in rendered a blank line where the preview goes, indistinguishable from one whose preview was merely truncated away. It now reads a muted italic `No message` — which is every outreach thread we started and every widget conversation opened by a greeting.
+
+  **The note count is gone**, from the row, the `RowNote` component, the `ConversationQueueItem` DTO and the `COUNT(*) FILTER` that computed it. Nothing consumed it.
+
+  **Composer action row:** the attach button becomes a paperclip icon, the overflow trigger is an outline button matching the others' height, and on mobile Send, attach and `⋯` share one line. Only `Close, no reply` is styled destructive — `Reject draft` and `Mark as spam` are both reversible. `Release` is dropped from the menu on desktop, where it is already a text action in the status strip, and kept on mobile where that strip is hidden. The collapsed mobile footer's buttons drop from `h-12` to `h-11` so every primary button in the pane is the same height.
+
+- c7997e2: Stop the inbound-email signature stripper from cutting the sender's identity claim.
+
+  `skill://conv/strip-email-signature` treated any trailing closing-plus-name block as
+  boilerplate. When a customer writes from someone else's mailbox — a spouse, a parent,
+  an assistant — and signs off with their own name, sometimes alongside a date of birth
+  or customer number, that block is the only record of who actually wrote and which
+  record the question is about. Cutting it left operators with nothing to search on, and
+  left the draft agent choosing between a sign-off it could no longer see and a contact
+  name derived from nothing more than the From header's display name.
+
+  The skill now separates boilerplate from content: a trailing block is a signature only
+  when it would arrive unchanged on every mail that person sends. A name paired with a
+  case identifier is kept, as is a bare closing-plus-name whose name doesn't match the
+  sending address. A full contact block stays strippable either way, so role and shared
+  mailboxes are unaffected.
+
+- 5187e80: File away inbound mail whose subject _and_ body both carry nothing, before any model runs.
+
+  The header classifier already settles bounces, out-of-office replies and `no-reply@` senders at ingest, for zero tokens. It had nothing to say about mail from an ordinary human mailbox that simply contains no question — an empty body under an auto-generated subject, or a bare link under a date. Each of those opened a conversation, drew a knowledge-base search and a drafted reply, and landed in the review queue. The expensive case was the one that looked cheapest: `(no body)` plus screenshot attachments feeds the images through vision.
+
+  `hasNoAnswerableContent` adds a `no_content` suppression reason, and it is deliberately narrow — it fires only when **neither** half says anything. The body must be empty or nothing but URLs, _and_ the subject must be empty or machine-written (a bare date, `Screenshot …`, `IMG_20260911`, a lone `Fwd:`, a URL). Any real word in the subject and the message goes through: "Callback request" with an empty body is a normal shape for a genuine terse enquiry, and guessing otherwise would drop real mail. Senders who do this repeatedly are caught by the sender-level spam flag instead, which reads a pattern no single message shows.
+
+  Attachments do not rescue a message here, which is the one accepted risk: an empty body under a machine subject is filed away even with images attached. The conversation is closed rather than deleted, carries `suppressed_reason: 'no_content'` for the inbox filter, and reopens on the sender's next real message.
+
+- 19da6d9: Count the whole Conversations queue server-side, and let the list reach past the first 100 rows.
+
+  The Conversations page loaded one 100-row page of open conversations and partitioned it client-side, so `Needs your attention · {count}` counted only what the client happened to fetch. The queue is ordered by `lastMessageAt DESC`, so the rows that fell off the bottom were the least recently active ones — exactly the flagged, un-replied conversations the header is meant to point at. They were neither counted nor reachable from the page.
+
+  `GET /v1/conversations/queue/counts` is new: `ConvService.countConversationQueueSections` runs one aggregate over the open conversations, splitting them into `needsYou` / `inProgress` with the same rule the client used (claimed by the caller, or flagged and unclaimed) by resolving each conversation's newest live claim in SQL. It reuses `buildConversationListFilters`, so the counts cannot drift from the list. The page headers read those totals, and the member sidebar badge reads `total` instead of the length of a `limit=100` fetch that saturated at 100.
+
+  The list itself now follows `nextCursor` behind a "Load more" button rather than fetching every page on load, and a refresh re-fetches as many pages as are on screen so a realtime event does not collapse the list back to the first page. The Done section keeps its client-side 7-day window.
+
+- eed5055: Remember a junk sender, so their next thread costs nothing.
+
+  A spammer does not send one message — they send eight, each in its own thread with its own subject. `mark_spam` (the runtime audit action) and an operator's own mark both wrote `conv_conversations.status` and nothing else, so the judgment died with the thread: the same sender was re-judged eight times, each at the cost of a knowledge-base search, a drafted reply and an audit pass, and each of those drafts then sat in the review queue waiting for a human to delete it. `resolveDelivery` only ever checked the status of the conversation in front of it.
+
+  Marking a conversation spam now stamps its contact (`conv_contacts.spam_marked_at` / `spam_marked_by`). Inbound from a stamped contact is settled during ingest — the conversation is created `spam`, no handover is raised, no curator job is enqueued, and the realtime event carries the suppression so the runner returns before it fetches anything. No model runs at all. An existing open thread from a flagged sender is settled the same way when their next message lands.
+
+  The flag comes off through ordinary operator actions rather than a special tool: reopening any of that sender's conversations clears it, and so does a teammate posting a public reply on one — a person choosing to answer someone is proof they are not junk. A mistaken mark repairs itself the moment anyone engages.
+
+  `conv_conversations.suppressed_reason` is new alongside it: `auto_reply`, `bounce`, `no_reply_address` or `spam_sender` when ingest settled a conversation on its own, `null` when a person opened it (including when an operator marked it spam by hand — the status already records that judgment). The same fact was already on the first inbound message's metadata, but JSONB is not something the inbox can index, and an operator auditing what got suppressed needs exactly this column. `conv_list_conversations` and `GET /v1/conversations{,/queue}` take `suppressedReason` (a reason, `any`, or `none`) and `channelType` filters, and `since` now reaches the control plane too.
+
+  Migration `0094_conv_spam_sender_memory` backfills all three: existing suppressed conversations get their reason lifted off the message metadata, contacts who already own a spam-marked conversation are stamped, and their unanswered open threads are settled — a thread a teammate has already replied to keeps its status whatever the sender's reputation.
+
+  `skill://conv/stop-junk-senders` documents the whole lifecycle, including when _not_ to mark spam: a terse message, an empty body with the detail in an attachment, or a real question in broken English are all normal shapes for genuine mail.
+
+- 0075b67: Wire the `spam` conversation status the rest of the way, and stop the titling pass from clobbering a sender's own Subject line.
+
+  `changeStatus` treated only `closed` as a settled state. Marking a conversation `spam` left `needs_human_attention` set and the runner lease held, so junk kept counting toward the "needs your attention" badge and the agent kept holding a lease on a conversation nobody would ever answer. Both `closed` and `spam` now clear the attention columns, stamp `handover_resolved_at`, and release the runner. `POST /v1/conversations/:id/status` releases the operator claim for `spam` too, so marking junk never leaves it owned.
+
+  `conv_set_subject` now pre-checks the conversation's current subject and refuses with `conv_subject_exists` unless `overwrite: true` is passed. `skill://conv/set-topic-and-title` has always told the titling pass to leave an existing subject alone — email conversations carry the sender's own Subject header — but nothing enforced it, and a single misread would have replaced a real Subject with a generated summary irreversibly. Clearing a subject (`subject: null`) and re-setting the same value are both still unconditional.
+
+- Updated dependencies [79701a4]
+- Updated dependencies [eed5055]
+- Updated dependencies [91179f9]
+  - @getmunin/agent-runtime@5.24.0
+  - @getmunin/db@5.24.0
+  - @getmunin/inspector-app@5.24.0
+  - @getmunin/core@5.24.0
+  - @getmunin/mcp-toolkit@5.24.0
+  - @getmunin/emails@5.24.0
+  - @getmunin/types@5.24.0
+
 ## 5.23.3
 
 ### Patch Changes

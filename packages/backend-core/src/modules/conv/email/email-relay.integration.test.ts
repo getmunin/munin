@@ -290,6 +290,84 @@ const RELAY_DOMAIN = 'in.getmunin.test';
       expect(messages).toHaveLength(1);
     });
 
+    it('leaves a quoted turn out of the reconstructed history when Munin already holds it as a message', async () => {
+      await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(
+          [
+            'From: Ada Berg <ada@kunde.no>',
+            `To: <${relayAddress}>`,
+            'Subject: Spørsmål om faktura',
+            'Message-ID: <dedupe-1@kunde.no>',
+            'Content-Type: text/plain; charset="utf-8"',
+            '',
+            'Jeg finner ikke fakturaen for august.',
+            '',
+          ].join('\r\n'),
+        ).toString('base64'),
+      });
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const opening = (
+        await db.select().from(schema.convMessages).where(eq(schema.convMessages.orgId, orgId))
+      ).find((m) => m.body.includes('finner ikke fakturaen'));
+      expect(opening).toBeDefined();
+
+      const answer = 'Hei Ada, fakturaen ble sendt på nytt i går kveld. Si fra om den ikke dukker opp.';
+      const [sent] = await db
+        .insert(schema.convMessages)
+        .values({
+          orgId,
+          conversationId: opening!.conversationId,
+          authorType: 'agent',
+          authorId: 'agent',
+          body: answer,
+        })
+        .returning();
+      await db.insert(schema.convMessageDeliveries).values({
+        orgId,
+        messageId: sent!.id,
+        channelId,
+        status: 'sent',
+        messageIdHeader: 'sent-1@acme.test',
+      });
+
+      const res = await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(
+          [
+            'From: Ada Berg <ada@kunde.no>',
+            `To: <${relayAddress}>`,
+            'Subject: SV: Spørsmål om faktura',
+            'Message-ID: <dedupe-2@kunde.no>',
+            'In-Reply-To: <sent-1@acme.test>',
+            'Content-Type: text/plain; charset="utf-8"',
+            '',
+            'Ordrenummeret er 40318.',
+            '',
+            'Fra: Acme Support <support@acme.test>',
+            'Sendt: mandag 14. september 2026 14:58',
+            'Til: Ada Berg <ada@kunde.no>',
+            'Emne: Re: Spørsmål om faktura',
+            '',
+            answer,
+            '',
+          ].join('\r\n'),
+        ).toString('base64'),
+      });
+      expect(res.status).toBe(201);
+
+      const reply = (
+        await db
+          .select()
+          .from(schema.convMessages)
+          .where(eq(schema.convMessages.conversationId, opening!.conversationId))
+      ).find((m) => m.body.includes('Ordrenummeret'));
+      expect(reply).toBeDefined();
+      expect(reply!.body).toBe('Ordrenummeret er 40318.');
+      expect(reply!.metadata).not.toHaveProperty('quotedThread');
+    });
+
     function rawEspBounce(): string {
       const blob = 'U2FsdGVkX1+vR016HqB5QcbgGd5+4Eex4u6/2A6RhuuR0TsOhj9aUu1DZ5vUzKqAKhK7CEw';
       return [

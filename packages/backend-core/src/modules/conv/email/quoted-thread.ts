@@ -1,4 +1,5 @@
 import { normalizeFlattenedWhitespace } from './inbound-body-limits.ts';
+import { FORWARD_MARKERS } from './forwarded-sender.ts';
 
 export interface QuotedTurn {
   from: string | null;
@@ -108,6 +109,7 @@ const MAX_HEADER_LINE_CHARS = 400;
 const MAX_HEADER_BLOCK_SCAN = 6;
 const MIN_COMPANION_LABELS = 2;
 const MAX_QUOTED_TURNS = 20;
+const MIN_PARTIAL_MATCH_CHARS = 40;
 const MAX_QUOTED_TURN_CHARS = 4_000;
 
 function buildLabelPattern(labels: string[]): RegExp {
@@ -171,11 +173,27 @@ export function findHeaderBlocks(lines: string[]): QuotedHeaderBlock[] {
   return blocks;
 }
 
+function isForwardIntroduced(lines: string[], start: number): boolean {
+  for (let i = start - 1; i >= 0; i -= 1) {
+    if (lines[i]!.trim() === '') continue;
+    return FORWARD_MARKERS.some((re) => re.test(lines[i]!));
+  }
+  return false;
+}
+
+function findQuotedHistoryStart(lines: string[], blocks: QuotedHeaderBlock[]): number | null {
+  for (let i = 0; i < blocks.length; i += 1) {
+    if (isForwardIntroduced(lines, blocks[i]!.start)) continue;
+    if (!lines.slice(0, blocks[i]!.start).some((l) => l.trim() !== '')) return null;
+    return i;
+  }
+  return null;
+}
+
 export function findHeaderBlockQuoteCut(lines: string[]): number | null {
-  const first = findHeaderBlocks(lines)[0];
-  if (!first) return null;
-  if (!lines.slice(0, first.start).some((l) => l.trim() !== '')) return null;
-  return first.start;
+  const blocks = findHeaderBlocks(lines);
+  const start = findQuotedHistoryStart(lines, blocks);
+  return start === null ? null : blocks[start]!.start;
 }
 
 function normalizeQuotedBody(lines: string[]): string {
@@ -188,9 +206,10 @@ export function parseQuotedThread(body: string): QuotedTurn[] {
   if (!body) return [];
   const lines = body.split(/\r?\n/);
   const blocks = findHeaderBlocks(lines);
-  if (blocks.length === 0) return [];
+  const start = findQuotedHistoryStart(lines, blocks);
+  if (start === null) return [];
   const turns: QuotedTurn[] = [];
-  for (let i = 0; i < blocks.length && turns.length < MAX_QUOTED_TURNS; i += 1) {
+  for (let i = start; i < blocks.length && turns.length < MAX_QUOTED_TURNS; i += 1) {
     const block = blocks[i]!;
     const nextStart = blocks[i + 1]?.start ?? lines.length;
     turns.push({
@@ -202,4 +221,24 @@ export function parseQuotedThread(body: string): QuotedTurn[] {
     });
   }
   return turns;
+}
+
+function comparableBody(body: string): string {
+  return body.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function sameText(a: string, b: string): boolean {
+  if (a.length === 0 || b.length === 0) return false;
+  if (a === b) return true;
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  return shorter.length >= MIN_PARTIAL_MATCH_CHARS && longer.includes(shorter);
+}
+
+export function dropRecordedTurns(turns: QuotedTurn[], recordedBodies: string[]): QuotedTurn[] {
+  const recorded = recordedBodies.map(comparableBody).filter((b) => b.length > 0);
+  if (recorded.length === 0) return turns;
+  return turns.filter((turn) => {
+    const body = comparableBody(turn.body);
+    return !recorded.some((existing) => sameText(existing, body));
+  });
 }

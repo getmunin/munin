@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import {
   ActorIdentity,
   WebhookDispatcher,
@@ -63,7 +63,7 @@ import {
   stripSignatureHtml,
 } from './reply-history.ts';
 import { classifySender, hasAnyClassification, suppressionReason } from './classify-sender.ts';
-import { parseQuotedThread, type QuotedTurn } from './quoted-thread.ts';
+import { dropRecordedTurns, parseQuotedThread, type QuotedTurn } from './quoted-thread.ts';
 import { clampInboundBody, normalizeFlattenedWhitespace } from './inbound-body-limits.ts';
 import type {
   ChannelAdapter,
@@ -76,6 +76,7 @@ import type {
 
 const POLL_INTERVAL_MS = parseEnvInt({ name: 'MUNIN_EMAIL_INBOUND_POLL_MS', default: 60_000 });
 const MAX_MESSAGES_PER_TICK = 100;
+const RECORDED_BODY_LOOKBACK = 50;
 
 interface ImapMessageMin {
   uid: number;
@@ -405,7 +406,21 @@ export class EmailAdapter implements ChannelAdapter {
         }
 
         const normalizedText = normalizeFlattenedWhitespace(parsed.bodyText);
-        const quotedThread = parseQuotedThread(clampInboundBody(normalizedText));
+        const recorded = await tx
+          .select({ body: schema.convMessages.body })
+          .from(schema.convMessages)
+          .where(
+            and(
+              eq(schema.convMessages.orgId, orgId),
+              eq(schema.convMessages.conversationId, conversationId),
+            ),
+          )
+          .orderBy(desc(schema.convMessages.createdAt))
+          .limit(RECORDED_BODY_LOOKBACK);
+        const quotedThread = dropRecordedTurns(
+          parseQuotedThread(clampInboundBody(normalizedText)),
+          recorded.map((r) => r.body),
+        );
         const quoteStrippedText = clampInboundBody(stripQuotedReplyText(normalizedText));
         const { clean: cleanText, signature: regexSignature } = splitSignatureText(quoteStrippedText);
         const regexCutSignature = regexSignature !== null;

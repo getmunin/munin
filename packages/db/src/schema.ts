@@ -879,6 +879,11 @@ export const convContacts = pgTable(
     name: text('name'),
     email: text('email'),
     phone: text('phone'),
+    // Set when a conversation from this sender is marked spam; cleared the
+    // moment a human replies to them. Inbound from a stamped contact is
+    // settled at ingest instead of costing an agent pass per thread.
+    spamMarkedAt: timestamp('spam_marked_at', { withTimezone: true }),
+    spamMarkedBy: text('spam_marked_by'),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
     createdAt,
     updatedAt,
@@ -887,6 +892,9 @@ export const convContacts = pgTable(
     orgIdx: index('conv_contacts_org_idx').on(t.orgId),
     emailIdx: index('conv_contacts_email_idx').on(t.orgId, t.email),
     endUserIdx: index('conv_contacts_end_user_idx').on(t.endUserId),
+    spamIdx: index('conv_contacts_spam_idx')
+      .on(t.orgId, t.spamMarkedAt)
+      .where(sql`spam_marked_at IS NOT NULL`),
   }),
 );
 
@@ -916,6 +924,11 @@ export const convConversations = pgTable(
     subject: text('subject'),
     status: varchar('status', { length: 16 }).notNull().default('open'),
     // 'open' | 'snoozed' | 'closed' | 'spam'
+    // Why this conversation was settled without an agent pass, when it was:
+    // 'auto_reply' | 'bounce' | 'no_reply_address' | 'spam_sender'. NULL means
+    // a person opened it. Mirrors the message-level `suppressed` metadata so
+    // the inbox can filter on it without reaching into JSONB.
+    suppressedReason: varchar('suppressed_reason', { length: 32 }),
     snoozeUntil: timestamp('snooze_until', { withTimezone: true }),
     lastMessageAt: timestamp('last_message_at', { withTimezone: true }),
     needsHumanAttention: boolean('needs_human_attention').notNull().default(false),
@@ -950,6 +963,9 @@ export const convConversations = pgTable(
       .on(t.orgId, t.handoverResolvedAt)
       .where(sql`handover_resolved_at IS NOT NULL`),
     outreachCampaignIdx: index('conv_conversations_outreach_campaign_idx').on(t.outreachCampaignId),
+    suppressedIdx: index('conv_conversations_suppressed_idx')
+      .on(t.orgId, t.suppressedReason)
+      .where(sql`suppressed_reason IS NOT NULL`),
   }),
 );
 

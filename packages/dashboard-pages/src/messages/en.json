@@ -424,7 +424,10 @@
           "rejectedSize": "Images have to be under {mb} MB.",
           "rejectedCount": "You can attach up to {max} images.",
           "uploadFailedNamed": "{name} did not upload. Try again."
-        }
+        },
+        "quotedThreadToggle": "Earlier in this thread ({count})",
+        "quotedThreadNotice": "Reconstructed from the text quoted in this email. These turns were not delivered through Munin and are not part of the conversation record.",
+        "quotedThreadUnknownSender": "Unknown sender"
       },
       "relative": {
         "justNow": "just now",

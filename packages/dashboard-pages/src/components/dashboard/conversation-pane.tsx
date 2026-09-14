@@ -343,11 +343,15 @@ export function ConversationPane({
       ? t('takeOverToReply')
       : t('claimToReply');
 
-  const takeOverButton = (className: string) => (
+  const takeOverButton = (className: string, opts?: { expandOnSuccess?: boolean }) => (
     <Button
       variant="accent"
       className={className}
-      onClick={() => void controller.takeOver(detail.id)}
+      onClick={() =>
+        void controller.takeOver(detail.id).then((ok) => {
+          if (ok && opts?.expandOnSuccess) setExpanded(true);
+        })
+      }
       disabled={controller.pending}
       pending={controller.pendingAction === 'takeOver'}
     >
@@ -605,7 +609,7 @@ export function ConversationPane({
               closedFooter
             ) : !canReply ? (
               <div className="flex flex-col items-stretch gap-2.5 px-5 py-4">
-                {takeOverButton('h-11')}
+                {takeOverButton('h-11', { expandOnSuccess: true })}
                 {claimGateCaption}
               </div>
             ) : suggestionId && !dirty && !streaming ? (

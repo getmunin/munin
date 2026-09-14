@@ -1347,10 +1347,10 @@
         "emptySearchTitle": "Ingen treff",
         "emptySearchBody": "Ingenting i køen passer søket ditt. Prøv et kundenavn, et emne eller en frase fra meldingen.",
         "anonymous": "Anonym besøkende",
-        "noteCount": "{count, plural, one {1 notat} other {# notater}}",
-        "noDraftBadge": "Ingen kladd — du skriver svaret",
+        "noMessage": "Ingen melding",
         "draftTimeout": "Agenten leverte ingen kladd. Prøv igjen, eller skriv svaret selv.",
-        "draftingBadge": "Agenten skriver kladd …",
+        "draftingBadge": "Skriver kladd …",
+        "draftReadyBadge": "Kladd klar",
         "selectEmpty": "Velg en samtale.",
         "backToQueue": "Køen",
         "originDrafted": "Kladd fra agenten · {age}",
@@ -1372,6 +1372,7 @@
           "takeOver": "Overtakelsen feilet",
           "release": "Frigivelsen feilet",
           "close": "Lukkingen feilet",
+          "spam": "Merking som søppelpost feilet",
           "reject": "Avvisningen feilet",
           "note": "Notatet feilet",
           "requestDraft": "Kladd-forespørselen feilet",
@@ -1391,6 +1392,7 @@
         "release": "Frigi",
         "askDraft": "Be om en kladd",
         "closeNoReply": "Lukk uten svar",
+        "markSpam": "Merk som søppelpost",
         "moreActions": "Flere handlinger",
         "claimToReply": "Ta saken for å svare",
         "takeOverToReply": "Overta for å svare",
@@ -1401,7 +1403,54 @@
         "addNote": "Legg til internt notat",
         "noteHint": "Sendes aldri til kunden · havner i tråden",
         "detailFailed": "Samtalen ble ikke lastet.",
-        "customerTyping": "{name} skriver …"
+        "customerTyping": "{name} skriver …",
+        "filters": {
+          "label": "Filtre",
+          "showing": "Viser",
+          "clearAll": "Nullstill alt",
+          "removeFilter": "Fjern filteret for {dimension}",
+          "status": "Status",
+          "statusOption": {
+            "any": "Alle statuser",
+            "open": "Åpne",
+            "snoozed": "Utsatte",
+            "closed": "Lukkede",
+            "spam": "Søppelpost"
+          },
+          "origin": "Opphav",
+          "originOption": {
+            "any": "Alt opphav",
+            "human": "Åpnet av en person",
+            "auto": "Lagt bort automatisk",
+            "auto_reply": "Autosvar",
+            "bounce": "Returmeldinger",
+            "no_reply_address": "Avsendere uten svaradresse",
+            "spam_sender": "Kjente søppelavsendere",
+            "no_content": "Uten spørsmål"
+          },
+          "channel": "Kanal",
+          "channelOption": {
+            "any": "Alle kanaler",
+            "email": "E-post",
+            "chat": "Chat",
+            "sms": "SMS",
+            "voice": "Telefon"
+          },
+          "since": "Aktivitet",
+          "sinceOption": {
+            "any": "Når som helst",
+            "1d": "Siste døgn",
+            "7d": "Siste 7 dager",
+            "30d": "Siste 30 dager"
+          },
+          "topic": "Tema",
+          "topicOption": {
+            "any": "Alle temaer"
+          },
+          "results": "Treff ({count})",
+          "emptyFilteredTitle": "Ingenting treffer disse filtrene",
+          "emptyFilteredBody": "Utvid status, opphav eller tidsrom — eller nullstill filtrene for å gå tilbake til køen."
+        }
       }
     },
     "firstRun": {

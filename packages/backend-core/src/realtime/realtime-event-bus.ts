@@ -10,6 +10,7 @@ export interface MessageReceivedBusEvent {
   authorType: 'user' | 'agent' | 'end_user' | 'system';
   endUserId?: string;
   autoReply?: boolean;
+  suppressed?: string;
 }
 
 export interface KbDocumentChangedBusEvent {
@@ -152,6 +153,9 @@ function dispatchEvent(event: EventRow, handlers: RealtimeBusHandlers): void {
           : 'end_user',
       endUserId: typeof payload['endUserId'] === 'string' ? payload['endUserId'] : undefined,
       autoReply: payload['autoReply'] === true,
+      ...(typeof payload['suppressed'] === 'string'
+        ? { suppressed: payload['suppressed'] }
+        : {}),
     });
     return;
   }

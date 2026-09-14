@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { schema, type Db, type Tx } from '@getmunin/db';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull, ne, sql } from 'drizzle-orm';
 import {
   ActorIdentity,
   WebhookDispatcher,
@@ -62,11 +62,13 @@ import {
   stripQuotedReplyText,
   stripSignatureHtml,
 } from './reply-history.ts';
+import { hasNoAnswerableContent } from './classify-content.ts';
 import {
   classifySender,
   hasAnyClassification,
+  suppressedConversationStatus,
   suppressionReason,
-  type SuppressionReason,
+  type InboundSuppression,
 } from './classify-sender.ts';
 import { extractFailedRecipients } from './failed-recipients.ts';
 import { AddressDeliverabilityService } from '../../crm/address-deliverability.service.ts';
@@ -368,13 +370,21 @@ export class EmailAdapter implements ChannelAdapter {
           if (dup[0]) return;
         }
         const resolution = await resolveInbound(tx, orgId, parsed, replyDomain);
-        const suppressed = suppressionReason(parsed.senderClassification);
         const contact = await this.emailService.findOrCreateContactByEmail(
           tx,
           orgId,
           sender.senderAddress,
           sender.senderName ?? undefined,
         );
+        const suppressed: InboundSuppression | null =
+          suppressionReason(parsed.senderClassification) ??
+          (contact.spamMarkedAt ? 'spam_sender' : null) ??
+          (hasNoAnswerableContent({
+            subject: parsed.subject,
+            bodyText: stripQuotedReplyText(parsed.bodyText),
+          })
+            ? 'no_content'
+            : null);
 
         let conversationId: string;
         if (resolution) {
@@ -403,7 +413,8 @@ export class EmailAdapter implements ChannelAdapter {
               channelId: channel.id,
               contactId: contact.id,
               endUserId: contact.endUserId,
-              status: suppressed ? 'closed' : 'open',
+              status: suppressed ? suppressedConversationStatus(suppressed) : 'open',
+              suppressedReason: suppressed,
               subject: parsed.subject || null,
               agentMode: channel.defaultAgentMode,
               lastMessageAt: new Date(),
@@ -438,6 +449,7 @@ export class EmailAdapter implements ChannelAdapter {
               regexSignatureText: detectedSignatureForMeta,
               preStripBody: regexCutSignature ? quoteStrippedText : null,
               origin: sender,
+              suppressed,
             }),
           })
           .returning();
@@ -471,6 +483,33 @@ export class EmailAdapter implements ChannelAdapter {
             type: 'conversation.status_changed',
             payload: { conversationId, status: 'open' },
           });
+        }
+
+        if (suppressed === 'spam_sender' && resolution) {
+          const settled = await tx
+            .update(schema.convConversations)
+            .set({
+              status: 'spam',
+              suppressedReason: 'spam_sender',
+              needsHumanAttention: false,
+              needsHumanAttentionAt: null,
+              runnerHolder: null,
+              runnerLeaseExpiresAt: null,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(schema.convConversations.id, conversationId),
+                ne(schema.convConversations.status, 'spam'),
+              ),
+            )
+            .returning({ id: schema.convConversations.id });
+          if (settled[0]) {
+            await this.webhooks.emit({
+              type: 'conversation.status_changed',
+              payload: { conversationId, status: 'spam' },
+            });
+          }
         }
 
         if (!suppressed) await raiseAttentionWhenAgentIsOff(tx, conversationId);
@@ -518,7 +557,7 @@ export class EmailAdapter implements ChannelAdapter {
   private async recordDeliverability(input: {
     tx: Tx;
     parsed: ParsedInboundEmail;
-    suppressed: SuppressionReason | null;
+    suppressed: InboundSuppression | null;
     threaded: boolean;
     conversationId: string;
     messageId: string;
@@ -787,6 +826,7 @@ function buildInboundMetadata(
     regexSignatureText: string | null;
     preStripBody: string | null;
     origin?: ForwardOrigin;
+    suppressed?: InboundSuppression | null;
   },
 ): Record<string, unknown> {
   const meta: Record<string, unknown> = {};
@@ -803,7 +843,7 @@ function buildInboundMetadata(
   if (hasAnyClassification(parsed.senderClassification)) {
     meta.senderClassification = parsed.senderClassification;
   }
-  const suppressed = suppressionReason(parsed.senderClassification);
+  const suppressed = extras.suppressed ?? suppressionReason(parsed.senderClassification);
   if (suppressed) meta.suppressed = suppressed;
   if (parsed.authenticationResults.length > 0) {
     meta.authenticationResults = parsed.authenticationResults;

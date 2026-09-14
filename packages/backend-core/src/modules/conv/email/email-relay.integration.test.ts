@@ -537,6 +537,55 @@ const RELAY_DOMAIN = 'in.getmunin.test';
       expect(jobs[0]!.n).toBe(0);
     });
 
+    it('lists what was filed automatically, and what a person actually opened', async () => {
+      await withClient(adminKey, async (c) => {
+        type Row = { id: string; status: string; suppressedReason: string | null };
+
+        const auto = parseToolResult<Row[]>(
+          await c.callTool({
+            name: 'conv_list_conversations',
+            arguments: { suppressedReason: 'any', limit: 200 },
+          }),
+        );
+        expect(auto.length).toBeGreaterThan(0);
+        expect(auto.every((r) => r.suppressedReason !== null)).toBe(true);
+
+        const human = parseToolResult<Row[]>(
+          await c.callTool({
+            name: 'conv_list_conversations',
+            arguments: { suppressedReason: 'none', limit: 200 },
+          }),
+        );
+        expect(human.every((r) => r.suppressedReason === null)).toBe(true);
+        expect(human.some((r) => auto.some((a) => a.id === r.id))).toBe(false);
+
+        const autoReplies = parseToolResult<Row[]>(
+          await c.callTool({
+            name: 'conv_list_conversations',
+            arguments: { suppressedReason: 'auto_reply', limit: 200 },
+          }),
+        );
+        expect(autoReplies.length).toBeGreaterThan(0);
+        expect(autoReplies.every((r) => r.suppressedReason === 'auto_reply')).toBe(true);
+
+        const onEmail = parseToolResult<Row[]>(
+          await c.callTool({
+            name: 'conv_list_conversations',
+            arguments: { channelType: 'email', limit: 200 },
+          }),
+        );
+        expect(onEmail.length).toBeGreaterThan(0);
+
+        const onChat = parseToolResult<Row[]>(
+          await c.callTool({
+            name: 'conv_list_conversations',
+            arguments: { channelType: 'chat', limit: 200 },
+          }),
+        );
+        expect(onChat).toHaveLength(0);
+      });
+    });
+
     it('answers an empty-bodied message whose subject reads like a real request', async () => {
       const raw = [
         'From: Prospective Buyer <buyer@example.test>',
@@ -832,3 +881,9 @@ const RELAY_DOMAIN = 'in.getmunin.test';
     });
   },
 );
+
+function parseToolResult<T>(result: unknown): T {
+  const r = result as { content?: Array<{ type: string; text?: string }> };
+  const text = r.content?.[0]?.text ?? '';
+  return JSON.parse(text) as T;
+}

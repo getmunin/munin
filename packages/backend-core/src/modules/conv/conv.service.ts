@@ -196,7 +196,6 @@ export interface ConversationQueueItem extends ConversationSummary {
   topicSlug: string | null;
   topicAgentMode: AgentMode | null;
   claim: { holderId: string; holderName: string | null; expiresAt: string } | null;
-  noteCount: number;
   hasPendingDraft: boolean;
   endUserSpokeLast: boolean;
   agentWorking: boolean;
@@ -776,7 +775,7 @@ export class ConvService {
       string,
       { holderId: string; holderName: string | null; expiresAt: string }
     >();
-    const statsByConversation = new Map<string, { noteCount: number; pendingDrafts: number }>();
+    const statsByConversation = new Map<string, { pendingDrafts: number }>();
     if (pageIds.length > 0) {
       const claimRows = await ctx.db
         .select({
@@ -808,10 +807,6 @@ export class ConvService {
       const statRows = await ctx.db
         .select({
           conversationId: schema.convMessages.conversationId,
-          noteCount: sql<number>`COUNT(*) FILTER (
-            WHERE ${schema.convMessages.authorType} IN ('user', 'agent')
-              AND COALESCE(${schema.convMessages.metadata} ->> 'kind', '') NOT LIKE 'draft_reply%'
-          )::int`,
           pendingDrafts: sql<number>`COUNT(*) FILTER (
             WHERE ${schema.convMessages.metadata} ->> 'kind' = 'draft_reply'
           )::int`,
@@ -825,10 +820,7 @@ export class ConvService {
         )
         .groupBy(schema.convMessages.conversationId);
       for (const row of statRows) {
-        statsByConversation.set(row.conversationId, {
-          noteCount: row.noteCount,
-          pendingDrafts: row.pendingDrafts,
-        });
+        statsByConversation.set(row.conversationId, { pendingDrafts: row.pendingDrafts });
       }
     }
 
@@ -846,7 +838,6 @@ export class ConvService {
         topicSlug: row.topicSlug,
         topicAgentMode: (row.topicAgentMode as AgentMode | null) ?? null,
         claim: claimByConversation.get(row.conv.id) ?? null,
-        noteCount: stats?.noteCount ?? 0,
         hasPendingDraft: (stats?.pendingDrafts ?? 0) > 0,
         endUserSpokeLast: row.endUserSpokeLast,
         agentWorking: row.agentWorking === true,

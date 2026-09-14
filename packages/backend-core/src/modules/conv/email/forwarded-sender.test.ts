@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { parseAddressLine, parseManualForward, resolveForwardOrigin } from './forwarded-sender.ts';
+import {
+  parseAddressLine,
+  parseAddressList,
+  parseManualForward,
+  resolveForwardOrigin,
+} from './forwarded-sender.ts';
 import type { ParsedInboundEmail } from './threading.ts';
 
 const RELAY = 'acme-7f3c@in.getmunin.com';
@@ -71,6 +76,25 @@ describe('parseAddressLine', () => {
   });
 });
 
+describe('parseAddressList', () => {
+  it('reads every address off a recipient line', () => {
+    expect(parseAddressList('Kari <kari@example.com>; Ola <ola@example.com>')).toEqual([
+      'kari@example.com',
+      'ola@example.com',
+    ]);
+  });
+
+  it('strips the mailto: prefix Outlook adds', () => {
+    expect(parseAddressList('Kari Nordmann <mailto:kari@example.com>')).toEqual([
+      'kari@example.com',
+    ]);
+  });
+
+  it('returns nothing for a line with no address', () => {
+    expect(parseAddressList('Kari Nordmann')).toEqual([]);
+  });
+});
+
 describe('parseManualForward', () => {
   it('reads the original sender out of a Gmail forward', () => {
     const body = [
@@ -87,6 +111,7 @@ describe('parseManualForward', () => {
     expect(parseManualForward(body, 'Fwd: Help please')).toEqual({
       address: 'kari@example.com',
       name: 'Kari Nordmann',
+      recipients: ['support@acme.com'],
     });
   });
 
@@ -126,6 +151,7 @@ describe('parseManualForward', () => {
     expect(parseManualForward(body, 'VS: Trenger hjelp')).toEqual({
       address: 'kari@example.com',
       name: 'Kari Nordmann',
+      recipients: ['support@acme.com'],
     });
   });
 
@@ -213,6 +239,111 @@ describe('resolveForwardOrigin', () => {
       senderName: 'Kari Nordmann',
       forwardedBy: 'ops@acme.com',
     });
+  });
+
+  it('stays direct when an Outlook reply quotes the mail the sender is answering', () => {
+    const origin = resolveForwardOrigin(
+      parsed({
+        fromAddress: 'theis@example.com',
+        fromName: 'Theis',
+        subject: 'Survey response: nei',
+        recipients: [RELAY],
+        bodyText: [
+          'nei',
+          '',
+          '________________________________',
+          'Fra: Acme <support@acme.com>',
+          'Sendt: mandag 14. september 2026 16:11',
+          'Til: Theis <theis@example.com>',
+          'Emne: Har du 1 minutt til overs?',
+        ].join('\n'),
+      }),
+      RELAY,
+      ['support@acme.com'],
+    );
+    expect(origin.kind).toBe('direct');
+    expect(origin.senderAddress).toBe('theis@example.com');
+  });
+
+  it('stays direct when the quoted block cc-s the sender rather than addressing them', () => {
+    const origin = resolveForwardOrigin(
+      parsed({
+        fromAddress: 'theis@example.com',
+        subject: 'Sv: Har du 1 minutt til overs?',
+        recipients: [RELAY],
+        bodyText: [
+          'nei',
+          '',
+          '________________________________',
+          'Fra: Acme <support@acme.com>',
+          'Sendt: mandag 14. september 2026 16:11',
+          'Til: Ola <ola@example.com>',
+          'Kopi: Theis <theis@example.com>',
+        ].join('\n'),
+      }),
+      RELAY,
+      ['support@acme.com'],
+    );
+    expect(origin.kind).toBe('direct');
+    expect(origin.senderAddress).toBe('theis@example.com');
+  });
+
+  it('never attributes a message to the channel\'s own address', () => {
+    const origin = resolveForwardOrigin(
+      parsed({
+        fromAddress: 'theis@example.com',
+        subject: 'VS: Har du 1 minutt til overs?',
+        recipients: [RELAY],
+        bodyText: [
+          '________________________________',
+          'Fra: Acme <support@acme.com>',
+          'Sendt: mandag 14. september 2026 16:11',
+          'Emne: Har du 1 minutt til overs?',
+        ].join('\n'),
+      }),
+      RELAY,
+      ['support@acme.com'],
+    );
+    expect(origin.kind).toBe('direct');
+    expect(origin.senderAddress).toBe('theis@example.com');
+  });
+
+  it('never attributes a message to the relay address', () => {
+    const origin = resolveForwardOrigin(
+      parsed({
+        fromAddress: 'theis@example.com',
+        subject: 'VS: Har du 1 minutt til overs?',
+        recipients: [RELAY],
+        bodyText: ['---------- Forwarded message ---------', `From: Acme <${RELAY}>`].join('\n'),
+      }),
+      RELAY,
+    );
+    expect(origin.kind).toBe('direct');
+    expect(origin.senderAddress).toBe('theis@example.com');
+  });
+
+  it('still attributes a genuine forward the operator sent on behalf of a customer', () => {
+    const origin = resolveForwardOrigin(
+      parsed({
+        fromAddress: 'ops@acme.com',
+        subject: 'VS: Trenger hjelp',
+        recipients: [RELAY],
+        bodyText: [
+          'Kan dere se på denne?',
+          '',
+          '________________________________',
+          'Fra: Kari Nordmann <kari@example.com>',
+          'Sendt: mandag 14. september 2026 16:11',
+          'Til: Acme <support@acme.com>',
+          'Emne: Trenger hjelp',
+        ].join('\n'),
+      }),
+      RELAY,
+      ['support@acme.com'],
+    );
+    expect(origin.kind).toBe('manual-forward');
+    expect(origin.senderAddress).toBe('kari@example.com');
+    expect(origin.forwardedBy).toBe('ops@acme.com');
   });
 
   it('stays direct when the forwarded block names the same sender as the header', () => {

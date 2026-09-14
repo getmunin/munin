@@ -1,5 +1,12 @@
 import { normalizeFlattenedWhitespace } from './inbound-body-limits.ts';
 import { FORWARD_MARKERS } from './forwarded-sender.ts';
+import {
+  CC_LABELS,
+  DATE_LABELS,
+  FROM_LABELS,
+  SUBJECT_LABELS,
+  TO_LABELS,
+} from './header-labels.ts';
 
 export interface QuotedTurn {
   from: string | null;
@@ -17,93 +24,6 @@ export interface QuotedHeaderBlock {
   date: string | null;
   subject: string | null;
 }
-
-const FROM_LABELS = [
-  'from',
-  'fra',
-  'från',
-  'frá',
-  'von',
-  'de',
-  'da',
-  'van',
-  'od',
-  'lähettäjä',
-  'mittente',
-  'remitente',
-  'nadawca',
-  'odesílatel',
-  'kimden',
-  'gönderen',
-  'от',
-  'отправитель',
-  'από',
-];
-
-const TO_LABELS = [
-  'to',
-  'til',
-  'till',
-  'an',
-  'à',
-  'a',
-  'para',
-  'aan',
-  'do',
-  'komu',
-  'vastaanottaja',
-  'destinatario',
-  'destinatário',
-  'adresat',
-  'kime',
-  'alıcı',
-  'кому',
-  'προς',
-];
-
-const DATE_LABELS = [
-  'date',
-  'sent',
-  'dato',
-  'sendt',
-  'datum',
-  'skickat',
-  'gesendet',
-  'envoyé',
-  'enviado',
-  'inviato',
-  'verzonden',
-  'wysłano',
-  'odesláno',
-  'päivämäärä',
-  'lähetetty',
-  'data',
-  'tarih',
-  'дата',
-  'отправлено',
-  'ημερομηνία',
-];
-
-const SUBJECT_LABELS = [
-  'subject',
-  'emne',
-  'ämne',
-  'efni',
-  'betreff',
-  'objet',
-  'asunto',
-  'assunto',
-  'oggetto',
-  'onderwerp',
-  'temat',
-  'předmět',
-  'aihe',
-  'konu',
-  'тема',
-  'θέμα',
-];
-
-const CC_LABELS = ['cc', 'kopi', 'kopia', 'kopie', 'copia', 'копия'];
 
 const MAX_HEADER_LINE_CHARS = 400;
 const MAX_HEADER_BLOCK_SCAN = 6;

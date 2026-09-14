@@ -54,6 +54,18 @@ const GMAIL_FORWARD = [
   'My order never arrived, can you help?',
 ].join('\n');
 
+const OUTLOOK_REPLY = [
+  'nei',
+  '',
+  '________________________________',
+  'Fra: Globex <support@globex.test>',
+  'Sendt: mandag 14. september 2026 16:11',
+  'Til: Ola Nordmann <ola@kunde.test>',
+  'Emne: Har du 1 minutt til overs?',
+  '',
+  'Hva tror du Norges Bank gjør 24. september?',
+].join('\n');
+
 const FORWARDED_REPLY_CHAIN = [
   'Please handle this one.',
   '',
@@ -141,6 +153,25 @@ describe('parseQuotedThread', () => {
     expect(turns[0]!.body).toBe('We have shipped it.');
   });
 
+  it('reconstructs the mail an Outlook reply quotes, once the message is known not to be a forward', () => {
+    const turns = parseQuotedThread(OUTLOOK_REPLY, null);
+    expect(turns).toHaveLength(1);
+    expect(turns[0]).toMatchObject({
+      from: 'Globex <support@globex.test>',
+      to: 'Ola Nordmann <ola@kunde.test>',
+      subject: 'Har du 1 minutt til overs?',
+    });
+    expect(turns[0]!.body).toBe('Hva tror du Norges Bank gjør 24. september?');
+  });
+
+  it('keeps a forwarded message out of the history when it is the forward the origin names', () => {
+    expect(parseQuotedThread(GMAIL_FORWARD, 'kari@example.test')).toEqual([]);
+  });
+
+  it('treats an underscore rule as a forward marker when the origin is unknown', () => {
+    expect(parseQuotedThread(OUTLOOK_REPLY)).toEqual([]);
+  });
+
   it('returns nothing when the body carries no header block', () => {
     expect(parseQuotedThread('Hei, jeg lurer på noe.')).toEqual([]);
     expect(parseQuotedThread('')).toEqual([]);
@@ -169,6 +200,15 @@ describe('parseQuotedThread', () => {
 });
 
 describe('findHeaderBlockQuoteCut', () => {
+  it('cuts an Outlook reply at the block it quotes once the message is known not to be a forward', () => {
+    const lines = OUTLOOK_REPLY.split('\n');
+    expect(findHeaderBlockQuoteCut(lines, null)).toBe(3);
+  });
+
+  it('still protects a forwarded message body when the origin names its sender', () => {
+    expect(findHeaderBlockQuoteCut(GMAIL_FORWARD.split('\n'), 'kari@example.test')).toBeNull();
+  });
+
   it('cuts at the first header block', () => {
     const lines = HEADER_BLOCK_THREAD.split('\n');
     const cut = findHeaderBlockQuoteCut(lines);

@@ -1336,9 +1336,6 @@
         "policyAutoHolding": "Kladd inntil {pct}%"
       },
       "queue": {
-        "modeAuto": "Auto",
-        "modeManual": "Gjennomgang",
-        "modeHuman": "Menneske",
         "eyebrow": "Samtaler",
         "title": "Det som trenger deg, <em>først.</em>",
         "searchPlaceholder": "Søk på kunde, emne eller tekst …",
@@ -1352,8 +1349,6 @@
         "anonymous": "Anonym besøkende",
         "noMessage": "Ingen melding",
         "draftTimeout": "Agenten leverte ingen kladd. Prøv igjen, eller skriv svaret selv.",
-        "draftingBadge": "Skriver kladd …",
-        "draftReadyBadge": "Kladd klar",
         "selectEmpty": "Velg en samtale.",
         "backToQueue": "Køen",
         "originDrafted": "Kladd fra agenten · {age}",

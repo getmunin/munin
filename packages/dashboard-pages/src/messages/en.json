@@ -1336,9 +1336,6 @@
         "policyAutoHolding": "Drafting until {pct}%"
       },
       "queue": {
-        "modeAuto": "Auto",
-        "modeManual": "Review",
-        "modeHuman": "Human",
         "eyebrow": "Conversations",
         "title": "What needs you, <em>first.</em>",
         "searchPlaceholder": "Search customer, subject, or text…",
@@ -1352,8 +1349,6 @@
         "anonymous": "Anonymous visitor",
         "noMessage": "No message",
         "draftTimeout": "The agent didn't deliver a draft. Try again, or write the reply yourself.",
-        "draftingBadge": "Drafting…",
-        "draftReadyBadge": "Draft ready",
         "selectEmpty": "Select a conversation.",
         "backToQueue": "Queue",
         "originDrafted": "Drafted by the agent · {age}",

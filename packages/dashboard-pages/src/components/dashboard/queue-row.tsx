@@ -8,7 +8,6 @@ export function QueueRow({
   title,
   emphasizeTitle,
   meta,
-  extra,
   trailing,
   active,
   faded,
@@ -18,7 +17,6 @@ export function QueueRow({
   title: ReactNode;
   emphasizeTitle?: boolean;
   meta?: ReactNode;
-  extra?: ReactNode;
   trailing?: ReactNode;
   active: boolean;
   faded?: boolean;
@@ -59,7 +57,6 @@ export function QueueRow({
               {meta}
             </span>
           ) : null}
-          {extra}
         </span>
         <span className="flex min-w-[56px] flex-col items-end gap-1.5">{trailing}</span>
       </div>

@@ -6,15 +6,13 @@ import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.s
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 import { mergeFingerprint } from './merge-fingerprint.ts';
+import { CrmInvalidError } from './crm.errors.ts';
+import { AddressDeliverabilityService } from './address-deliverability.service.ts';
+import { normalizeAddress, type AddressDeliverabilityDto } from './address-deliverability.ts';
 
 export { mergeFingerprint } from './merge-fingerprint.ts';
 
-export class CrmInvalidError extends Error {
-  readonly code = 'crm_invalid';
-  constructor(message: string) {
-    super(`crm_invalid: ${message}`);
-  }
-}
+export { CrmInvalidError } from './crm.errors.ts';
 
 export const ACTIVITY_TYPES = ['note', 'call', 'email', 'meeting', 'task'] as const;
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
@@ -43,6 +41,7 @@ export interface ContactDto {
   consentGivenAt: string | null;
   consentSource: string | null;
   consentEvidence: Record<string, unknown> | null;
+  deliverability: AddressDeliverabilityDto | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -286,7 +285,17 @@ export class CrmService {
   constructor(
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(QUOTAS_SERVICE) private readonly quotas: QuotasService,
+    private readonly deliverability: AddressDeliverabilityService,
   ) {}
+
+  private async hydrateContact(row: ContactRow): Promise<ContactDto> {
+    return toContactDto(row, await this.deliverability.lookup(row.email));
+  }
+
+  private async hydrateContacts(rows: ContactRow[]): Promise<ContactDto[]> {
+    const states = await this.deliverability.lookupMany(rows.map((r) => r.email));
+    return rows.map((r) => toContactDto(r, states.get(normalizeAddress(r.email) ?? '') ?? null));
+  }
 
   async listContacts(input: {
     companyId?: string;
@@ -306,7 +315,7 @@ export class CrmService {
       .where(filters.length === 0 ? undefined : and(...filters))
       .orderBy(desc(schema.crmContacts.updatedAt))
       .limit(limit);
-    return rows.map(toContactDto);
+    return this.hydrateContacts(rows);
   }
 
   async getContact(id: string): Promise<ContactDto> {
@@ -317,7 +326,7 @@ export class CrmService {
       .where(eq(schema.crmContacts.id, id))
       .limit(1);
     if (!rows[0]) throw new NotFoundException(`crm_not_found: contact ${id}`);
-    return toContactDto(rows[0]);
+    return this.hydrateContact(rows[0]);
   }
 
   async getMyContact(): Promise<ContactDto> {
@@ -330,7 +339,7 @@ export class CrmService {
       .where(eq(schema.crmContacts.endUserId, actor.endUserId))
       .limit(1);
     if (!rows[0]) throw new NotFoundException(`crm_not_found: no contact linked to your end-user record`);
-    return toContactDto(rows[0]);
+    return this.hydrateContact(rows[0]);
   }
 
   async findContact(input: { email?: string; phone?: string }): Promise<ContactDto | null> {
@@ -347,7 +356,7 @@ export class CrmService {
       .where(or(...filters))
       .orderBy(MERGED_AWAY_LAST, desc(schema.crmContacts.updatedAt))
       .limit(1);
-    return rows[0] ? toContactDto(rows[0]) : null;
+    return rows[0] ? this.hydrateContact(rows[0]) : null;
   }
 
   async createContact(input: {
@@ -395,7 +404,7 @@ export class CrmService {
         endUserId: row!.endUserId,
       },
     });
-    return toContactDto(row!);
+    return this.hydrateContact(row!);
   }
 
   async bulkCreateContacts(
@@ -455,7 +464,7 @@ export class CrmService {
       if (!existing[0]) throw new NotFoundException(`crm_not_found: contact ${input.id}`);
       effectivePatch = computeBackfillPatch(existing[0], input.patch).apply;
       if (Object.keys(effectivePatch).length === 0) {
-        return toContactDto(existing[0]);
+        return this.hydrateContact(existing[0]);
       }
     }
 
@@ -495,7 +504,7 @@ export class CrmService {
         fields: Object.keys(effectivePatch),
       },
     });
-    return toContactDto(result[0]);
+    return this.hydrateContact(result[0]);
   }
 
   async setAiSummary(input: {
@@ -559,7 +568,7 @@ export class CrmService {
       body: `Lawful basis: ${input.lawfulBasis}; source: ${input.source}`,
       metadata: { consent: { lawfulBasis: input.lawfulBasis, source: input.source, evidence: input.evidence ?? {} } },
     });
-    return toContactDto(result[0]);
+    return this.hydrateContact(result[0]);
   }
 
   async listSegments(): Promise<SegmentDto[]> {
@@ -700,7 +709,7 @@ export class CrmService {
       .where(and(...filters))
       .orderBy(desc(schema.crmContacts.updatedAt))
       .limit(limit);
-    return rows.map(toContactDto);
+    return this.hydrateContacts(rows);
   }
 
   async listCompanies(input: { limit?: number }): Promise<CompanyDto[]> {
@@ -1007,7 +1016,7 @@ export class CrmService {
       )
       .orderBy(desc(schema.crmContacts.updatedAt))
       .limit(limit);
-    return rows.map(toContactDto);
+    return this.hydrateContacts(rows);
   }
 
   async proposeMerge(input: {
@@ -1986,7 +1995,12 @@ export function computeBackfillPatch(
   return { apply, skipped };
 }
 
-function toContactDto(row: typeof schema.crmContacts.$inferSelect): ContactDto {
+type ContactRow = typeof schema.crmContacts.$inferSelect;
+
+function toContactDto(
+  row: ContactRow,
+  deliverability: AddressDeliverabilityDto | null = null,
+): ContactDto {
   return {
     id: row.id,
     name: row.name,
@@ -2009,6 +2023,7 @@ function toContactDto(row: typeof schema.crmContacts.$inferSelect): ContactDto {
     consentGivenAt: row.consentGivenAt?.toISOString() ?? null,
     consentSource: row.consentSource,
     consentEvidence: row.consentEvidence ?? null,
+    deliverability,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

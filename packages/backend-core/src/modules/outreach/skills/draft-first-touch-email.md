@@ -37,6 +37,8 @@ Each row carries `id`, `name`, `brief`, `segmentId`, `channelId`, `cadenceRules`
 
 You get `ContactDto[]` already pre-filtered. Each contact has `id`, `name`, `email`, `companyId`, `tags`, `consentLawfulBasis`, `lastContactedAt`, etc. **Do not** call `crm_list_contacts` directly — that surface bypasses the suppression+consent floor.
 
+Segments are channel-agnostic, so one thing they do *not* filter is whether mail can physically arrive. Skip any contact whose `deliverability.state` is `"undeliverable"` — that address bounces, and `outreach_propose_first_touch` will refuse it with `outreach_undeliverable`. It is not an opt-out: see `skill://crm/repair-undeliverable-address` for finding the person's current address.
+
 If the segment returns 0 contacts, skip this campaign entirely.
 
 ## Step 3 — dedupe before drafting

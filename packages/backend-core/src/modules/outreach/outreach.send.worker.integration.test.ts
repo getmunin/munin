@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { OutreachService } from './outreach.service.ts';
 import { OutreachSendWorker } from './outreach.send.worker.ts';
 import { CrmService } from '../crm/crm.service.ts';
+import { AddressDeliverabilityService } from '../crm/address-deliverability.service.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
 import { ConvService } from '../conv/conv.service.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
@@ -62,7 +63,7 @@ const skipReason = TEST_URL
     );
 
     const dispatcher = new WebhookDispatcher();
-    const crm = new CrmService(dispatcher, new DefaultQuotasService());
+    const crm = new CrmService(dispatcher, new DefaultQuotasService(), new AddressDeliverabilityService());
     const claims = new ConversationClaimsService(dispatcher);
     const conv = new ConvService(
       dispatcher,

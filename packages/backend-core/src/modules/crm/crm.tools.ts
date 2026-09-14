@@ -9,6 +9,8 @@ import {
   MERGE_STATUSES,
   RELATIONSHIP_TYPES,
 } from './crm.service.ts';
+import { AddressDeliverabilityService } from './address-deliverability.service.ts';
+import { ADDRESS_DELIVERABILITY_STATES } from './address-deliverability.ts';
 import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
 import { INSPECTOR_APP_URI } from '../../mcp/inspector.resource.ts';
 
@@ -22,6 +24,17 @@ const ListContactsInput = z.object({
 });
 
 const GetContactInput = z.object({ id: z.string() });
+
+const ListAddressDeliverabilityInput = z.object({
+  state: z.enum(ADDRESS_DELIVERABILITY_STATES).optional(),
+  limit: z.number().int().positive().max(200).optional(),
+});
+
+const SetAddressDeliverabilityInput = z.object({
+  address: z.string().email(),
+  state: z.enum(['valid', 'undeliverable']),
+  note: z.string().max(500).optional(),
+});
 
 const FindContactInput = z
   .object({
@@ -323,7 +336,11 @@ const CrmImportInput = z.object({
 
 @Injectable()
 export class CrmAdminTools {
-  constructor(@Inject(CrmService) private readonly crm: CrmService) {}
+  constructor(
+    @Inject(CrmService) private readonly crm: CrmService,
+    @Inject(AddressDeliverabilityService)
+    private readonly deliverability: AddressDeliverabilityService,
+  ) {}
 
   @McpTool({
     name: 'crm_list_contacts',
@@ -342,7 +359,8 @@ export class CrmAdminTools {
   @McpTool({
     name: 'crm_get_contact',
     title: 'CRM: Read contact',
-    description: 'Read one contact, including AI fields, tags, custom fields, and compliance flags.',
+    description:
+      "Read one contact, including AI fields, tags, custom fields, and compliance flags. `deliverability` reports whether mail can physically reach the contact's email address, which is separate from consent — it is null while the address is fine.",
     audiences: ['admin'],
     scopes: ['crm:read'],
     input: GetContactInput,
@@ -735,6 +753,36 @@ export class CrmAdminTools {
   })
   setContactConsent(args: z.infer<typeof SetContactConsentInput>) {
     return this.crm.setContactConsent(args);
+  }
+
+  @McpTool({
+    name: 'crm_list_address_deliverability',
+    title: 'CRM: List address deliverability',
+    description:
+      "List email addresses this org can no longer reach, newest state change first. Deliverability is separate from consent: `undeliverable` means mail bounces or is rejected, not that the person opted out. Each row carries the state (`valid`, `soft_failing`, `undeliverable`), the rule that set it (`hard_bounce`, `smtp_rejected`, `delivery_dead`, `no_reply_notice`, `repeated_soft_failure`, `manual`), the evidence, and how many failures have been seen. Defaults to everything that is not `valid`.",
+    audiences: ['admin'],
+    scopes: ['crm:read'],
+    input: ListAddressDeliverabilityInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  listAddressDeliverability(args: z.infer<typeof ListAddressDeliverabilityInput>) {
+    return this.deliverability.list(args);
+  }
+
+  @McpTool({
+    name: 'crm_set_address_deliverability',
+    title: 'CRM: Set address deliverability',
+    description:
+      "Record whether mail can reach an email address. `state: \"undeliverable\"` stops outreach sending to it — use when a bounce, a mailbox-closed notice, or the person's colleague tells you the address is dead. `state: \"valid\"` reopens it and zeroes the failure count — use once the address is corrected or the mailbox is confirmed working. This is a statement about the address, not about permission: it neither records an opt-out nor suppresses the contact on other channels, and consent is unchanged either way. `note` is short prose saying what you saw.",
+    audiences: ['admin'],
+    scopes: ['crm:write'],
+    input: SetAddressDeliverabilityInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  setAddressDeliverability(args: z.infer<typeof SetAddressDeliverabilityInput>) {
+    return this.deliverability.setState(args);
   }
 
   @McpTool({

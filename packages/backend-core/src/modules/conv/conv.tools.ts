@@ -32,7 +32,7 @@ const ListConversationsInput = z.object({
     '`active` = waiting on a human right now, `resolved` = a handover was answered and cleared, `never` = no handover on record.',
   ),
   suppressedReason: SuppressedReasonFilterSchema.optional().describe(
-    'Keeps only conversations settled at ingest without an agent pass. A specific reason (`auto_reply`, `bounce`, `no_reply_address`, `spam_sender`), `any` for all of them, or `none` for conversations a person actually opened.',
+    'Keeps only conversations settled at ingest without an agent pass. A specific reason (`auto_reply`, `bounce`, `no_reply_address`, `spam_sender`, `no_content`), `any` for all of them, or `none` for conversations a person actually opened.',
   ),
   channelType: ChannelTypeSchema.optional().describe(
     'Keeps only conversations on channels of this type.',

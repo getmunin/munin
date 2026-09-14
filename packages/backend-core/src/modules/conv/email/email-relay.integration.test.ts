@@ -330,6 +330,10 @@ const RELAY_DOMAIN = 'in.getmunin.test';
       ).find((m) => m.metadata.inboundMessageId === 'reply-1@kunde.test');
       expect(reply).toBeDefined();
       expect(reply!.metadata).not.toHaveProperty('forwarding');
+      expect(reply!.body).toBe('nei');
+      expect(reply!.metadata.quotedThread).toMatchObject([
+        { from: 'Acme Support <support@acme.test>', subject: 'Har du 1 minutt til overs?' },
+      ]);
 
       const conversation = (
         await db

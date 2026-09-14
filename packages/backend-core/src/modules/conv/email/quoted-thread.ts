@@ -1,5 +1,5 @@
 import { normalizeFlattenedWhitespace } from './inbound-body-limits.ts';
-import { FORWARD_MARKERS } from './forwarded-sender.ts';
+import { FORWARD_MARKERS, parseAddressList } from './forwarded-sender.ts';
 import {
   CC_LABELS,
   DATE_LABELS,
@@ -15,6 +15,8 @@ export interface QuotedTurn {
   subject: string | null;
   body: string;
 }
+
+export type ForwardedSender = string | null | undefined;
 
 export interface QuotedHeaderBlock {
   start: number;
@@ -101,18 +103,36 @@ function isForwardIntroduced(lines: string[], start: number): boolean {
   return false;
 }
 
-function findQuotedHistoryStart(lines: string[], blocks: QuotedHeaderBlock[]): number | null {
+function introducesForwardedMessage(
+  lines: string[],
+  block: QuotedHeaderBlock,
+  forwardedSender: ForwardedSender,
+): boolean {
+  if (!isForwardIntroduced(lines, block.start)) return false;
+  if (forwardedSender === undefined) return true;
+  if (forwardedSender === null) return false;
+  return parseAddressList(block.from).includes(forwardedSender.trim().toLowerCase());
+}
+
+function findQuotedHistoryStart(
+  lines: string[],
+  blocks: QuotedHeaderBlock[],
+  forwardedSender: ForwardedSender,
+): number | null {
   for (let i = 0; i < blocks.length; i += 1) {
-    if (isForwardIntroduced(lines, blocks[i]!.start)) continue;
+    if (introducesForwardedMessage(lines, blocks[i]!, forwardedSender)) continue;
     if (!lines.slice(0, blocks[i]!.start).some((l) => l.trim() !== '')) return null;
     return i;
   }
   return null;
 }
 
-export function findHeaderBlockQuoteCut(lines: string[]): number | null {
+export function findHeaderBlockQuoteCut(
+  lines: string[],
+  forwardedSender?: ForwardedSender,
+): number | null {
   const blocks = findHeaderBlocks(lines);
-  const start = findQuotedHistoryStart(lines, blocks);
+  const start = findQuotedHistoryStart(lines, blocks, forwardedSender);
   return start === null ? null : blocks[start]!.start;
 }
 
@@ -122,11 +142,11 @@ function normalizeQuotedBody(lines: string[]): string {
   return `${joined.slice(0, MAX_QUOTED_TURN_CHARS)}…`;
 }
 
-export function parseQuotedThread(body: string): QuotedTurn[] {
+export function parseQuotedThread(body: string, forwardedSender?: ForwardedSender): QuotedTurn[] {
   if (!body) return [];
   const lines = body.split(/\r?\n/);
   const blocks = findHeaderBlocks(lines);
-  const start = findQuotedHistoryStart(lines, blocks);
+  const start = findQuotedHistoryStart(lines, blocks, forwardedSender);
   if (start === null) return [];
   const turns: QuotedTurn[] = [];
   for (let i = start; i < blocks.length && turns.length < MAX_QUOTED_TURNS; i += 1) {

@@ -1,6 +1,6 @@
 import { schema, type Db } from '@getmunin/db';
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { findHeaderBlockQuoteCut } from './quoted-thread.ts';
+import { findHeaderBlockQuoteCut, type ForwardedSender } from './quoted-thread.ts';
 
 const QUOTE_HEADER_PATTERNS: RegExp[] = [
   /^on .+ wrote:\s*$/i,
@@ -40,12 +40,12 @@ const TIME_OF_DAY = /\d{1,2}[.:]\d{2}/;
 const DATE_FIRST_QUOTE_VERB = /\b(?:skrev|skreiv|skrifaði|kirjoitti)\b/i;
 const MAX_QUOTE_HEADER_LENGTH = 200;
 
-export function stripQuotedReplyText(body: string): string {
+export function stripQuotedReplyText(body: string, forwardedSender?: ForwardedSender): string {
   if (!body) return body;
   const lines = unwrapAttributionBreaks(body.split(/\r?\n/));
   const cut =
     findQuoteHeaderCut(lines) ??
-    findHeaderBlockQuoteCut(lines) ??
+    findHeaderBlockQuoteCut(lines, forwardedSender) ??
     findTrailingQuoteCut(lines) ??
     findQuoteCutAboveSignature(lines);
   if (cut === null) return lines.join('\n').replace(/\s+$/g, '').trim();

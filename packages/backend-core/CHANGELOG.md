@@ -1,5 +1,40 @@
 # @getmunin/backend-core
 
+## 5.24.1
+
+### Patch Changes
+
+- 7db0272: Stop reading an Outlook reply's sender off the block it quotes.
+
+  `FORWARD_MARKERS` counts a rule of ten or more underscores as a forward marker. Outlook and Exchange print exactly that rule above the header block they quote — on replies as much as on forwards — so `resolveForwardOrigin` scanned the lines below it, found the quoted `Fra:`, and filed the address the customer was _answering_ as the address they wrote from. The real sender, which is the envelope `From` and was never in doubt, was demoted to `metadata.forwarding.forwardedBy`.
+
+  Where an organisation sends campaign or transactional mail from the same address its support channel receives on, every Outlook reply therefore collapsed onto one contact: the organisation's own support address. Unrelated customers shared a single identity and a single history, `crm_get_my_contact` answered with the organisation rather than the person, and an approved draft would have been addressed back at the mailbox it arrived from.
+
+  A manual forward is now distinguished from a quoted reply by two facts already present in the block being parsed. If the quoted `To:` or `Cc:` names the envelope sender, that sender was the original _recipient_ — they replied, they did not forward — and the header block is quoted history, not a forward. And a forward origin is never allowed to resolve to an address the channel itself owns: neither its `addressing.fromAddress` nor its inbound relay address. Genuine forwards are unaffected, including the divider-only block Outlook writes when an operator forwards a customer's mail on.
+
+  Recipient labels are read with the same localised vocabulary the quoted-thread parser already carried, now shared between the two rather than duplicated, so the `To:` check holds in every language the `From:` detection that triggers the block does.
+
+  A migration repairs the messages already misattributed this way. The sender is recovered from `forwardedBy`, the conversation, its messages and its identity are re-pointed at that person — reusing their existing contact where one exists rather than minting a second — and a display name is lifted from the quoted recipient line when one sits there, left null otherwise, since a wrong name reaches the customer in a greeting while a missing one only shows the address. The organisation's own address is then dropped as a contact once nothing points at it. Ids are derived from org and address so a re-run converges rather than duplicating.
+
+- 2125993: Reconstruct the quoted history of an Outlook reply instead of mistaking it for a forward.
+
+  `isForwardIntroduced` asked a purely syntactic question — does a forward marker sit above this header block? — and `FORWARD_MARKERS` counts a rule of ten or more underscores, which Outlook prints above every block it quotes, on replies as much as on forwards. So an Outlook reply's quoted block was read as the header of a forwarded message, `findQuotedHistoryStart` skipped it, and `metadata.quotedThread` stayed empty. The disclosure the dashboard renders under a message never appeared for the single most common mail client in the customer base.
+
+  That protection is real and stays: in a genuinely forwarded mail the text below the block _is_ the message, so cutting or reconstructing there would store the forwarder's cover note as the customer's words. What was wrong is the question. Whether a block introduces a forwarded message is not something the surrounding lines can answer on their own — it is what `resolveForwardOrigin` already decided for the message as a whole. The two now agree: a block is the forward's own header only when a marker introduces it **and** its `From:` names the address the origin resolved to.
+
+  `parseQuotedThread`, `findHeaderBlockQuoteCut` and `stripQuotedReplyText` take that address as an optional argument, and the email adapter passes it from the origin it has already resolved. The three states are distinct on purpose: an address means the message is a forward from that sender, `null` means it is not a forward at all so no block is a forward header, and omitting it keeps the old marker-only rule for callers that cannot know — the conservative reading, since a bad cut costs the customer's words while a missed reconstruction costs only a convenience.
+
+  Where an organisation answers a shared mailbox elsewhere and the quoted block is the only record Munin will ever hold of the other half of an exchange, that record now survives the reply arriving from Outlook. A quoted turn the conversation already holds is still dropped, so a customer replying to a mail Munin sent does not see our own answer repeated under a "not delivered through Munin" caption.
+
+- Updated dependencies [7db0272]
+  - @getmunin/db@5.24.1
+  - @getmunin/core@5.24.1
+  - @getmunin/inspector-app@5.24.1
+  - @getmunin/agent-runtime@5.24.1
+  - @getmunin/mcp-toolkit@5.24.1
+  - @getmunin/emails@5.24.1
+  - @getmunin/types@5.24.1
+
 ## 5.24.0
 
 ### Minor Changes

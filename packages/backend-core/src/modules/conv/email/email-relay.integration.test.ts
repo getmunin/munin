@@ -497,6 +497,77 @@ const RELAY_DOMAIN = 'in.getmunin.test';
       expect(conv!.status).toBe('open');
     });
 
+    it('files away a message whose subject and body both say nothing, before any model runs', async () => {
+      const raw = [
+        'From: Drive-by <driveby@example.test>',
+        `To: <${relayAddress}>`,
+        'Subject: 12 сентября 2026 г.',
+        'Message-ID: <nocontent-1@example.test>',
+        'Content-Type: text/plain; charset="utf-8"',
+        '',
+        'https://youtube.com/shorts/PG2CDjhxcXs?is=9jMgBanPOxoKpcM8',
+        '',
+      ].join('\r\n');
+      const res = await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(raw).toString('base64'),
+      });
+      expect(res.status).toBe(201);
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const msg = (
+        await db.select().from(schema.convMessages).where(eq(schema.convMessages.orgId, orgId))
+      ).find((m) => m.body.includes('PG2CDjhxcXs'));
+      expect(msg).toBeDefined();
+      expect(msg!.metadata).toMatchObject({ suppressed: 'no_content' });
+
+      const [conv] = await db
+        .select()
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, msg!.conversationId));
+      expect(conv!.status).toBe('closed');
+      expect(conv!.suppressedReason).toBe('no_content');
+      expect(conv!.needsHumanAttention).toBe(false);
+
+      const jobs = await db.execute<{ n: number } & Record<string, unknown>>(
+        sql`SELECT count(*)::int AS n FROM curator_jobs
+            WHERE org_id = ${orgId}
+              AND source_event_payload->>'conversationId' = ${msg!.conversationId}`,
+      );
+      expect(jobs[0]!.n).toBe(0);
+    });
+
+    it('answers an empty-bodied message whose subject reads like a real request', async () => {
+      const raw = [
+        'From: Prospective Buyer <buyer@example.test>',
+        `To: <${relayAddress}>`,
+        'Subject: Callback request',
+        'Message-ID: <terse-1@example.test>',
+        'Content-Type: text/plain; charset="utf-8"',
+        '',
+        '',
+      ].join('\r\n');
+      const res = await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(raw).toString('base64'),
+      });
+      expect(res.status).toBe(201);
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const [conv] = await db
+        .select()
+        .from(schema.convConversations)
+        .where(
+          and(
+            eq(schema.convConversations.orgId, orgId),
+            eq(schema.convConversations.subject, 'Callback request'),
+          ),
+        );
+      expect(conv).toBeDefined();
+      expect(conv!.status).toBe('open');
+      expect(conv!.suppressedReason).toBeNull();
+    });
+
     it('settles a new thread from a sender already judged junk, without an agent pass', async () => {
       const junk = 'gonchar-it@example.test';
       const rawFrom = (messageId: string, subject: string, body: string) =>

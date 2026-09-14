@@ -62,6 +62,7 @@ import {
   stripQuotedReplyText,
   stripSignatureHtml,
 } from './reply-history.ts';
+import { hasNoAnswerableContent } from './classify-content.ts';
 import {
   classifySender,
   hasAnyClassification,
@@ -373,7 +374,13 @@ export class EmailAdapter implements ChannelAdapter {
         );
         const suppressed: InboundSuppression | null =
           suppressionReason(parsed.senderClassification) ??
-          (contact.spamMarkedAt ? 'spam_sender' : null);
+          (contact.spamMarkedAt ? 'spam_sender' : null) ??
+          (hasNoAnswerableContent({
+            subject: parsed.subject,
+            bodyText: stripQuotedReplyText(parsed.bodyText),
+          })
+            ? 'no_content'
+            : null);
 
         let conversationId: string;
         if (resolution) {

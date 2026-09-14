@@ -1,5 +1,13 @@
 # @getmunin/agent-runtime
 
+## 5.24.0
+
+### Patch Changes
+
+- 79701a4: Trim the assistant turn before it becomes a reply draft or an outgoing message. Qwen3-family models served over an OpenAI-compatible endpoint hand back content that still carries the chat template's `<think>\n\n</think>` residue as two leading blank lines, so every draft opened in the dashboard started with an empty gap. The final body is now newline-normalised: CRLF folded, runs of three or more newlines collapsed to one blank line, and leading/trailing whitespace stripped. Paragraph breaks and single newlines inside a paragraph are untouched.
+- @getmunin/core@5.24.0
+  - @getmunin/types@5.24.0
+
 ## 5.23.3
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @getmunin/dashboard-pages
 
+## 5.24.1
+
+### Patch Changes
+
+- 5a22a2d: Trim the conversations queue: the filter trigger is now a funnel icon instead of the FILTERS label, and the third row line (topic · agent mode · draft state) is gone — its cobalt colouring dominated the list without earning the space.
+- @getmunin/types@5.24.1
+  - @getmunin/ui@5.24.1
+
 ## 5.24.0
 
 ### Minor Changes

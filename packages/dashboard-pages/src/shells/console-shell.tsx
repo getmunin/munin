@@ -29,6 +29,7 @@ import {
   type ConsoleBadge,
   type ConsoleNavGroup,
 } from '../nav/console-groups';
+import type { QueueCounts } from '../components/dashboard/conversation-queue';
 import type { InboxQueueResponse } from '../components/dashboard/inbox-types';
 import { BrandHead, BrandMark } from './brand-head';
 import { MobileBackProvider, useMobileBackAction } from './mobile-back';
@@ -54,8 +55,8 @@ function useConsoleData(isAdmin: boolean, roleLoading: boolean): { badges: Conso
   const load = useCallback(() => {
     if (roleLoading) return;
     if (!isAdmin) {
-      void api<{ items: unknown[] }>('/v1/conversations/queue?status=open&limit=100')
-        .then((res) => setBadges({ queue: res.items.length, review: 0 }))
+      void api<QueueCounts>('/v1/conversations/queue/counts')
+        .then((res) => setBadges({ queue: res.total, review: 0 }))
         .catch(() => undefined);
       return;
     }

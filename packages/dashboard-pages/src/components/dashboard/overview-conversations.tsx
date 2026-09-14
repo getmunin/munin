@@ -64,7 +64,6 @@ export function OverviewConversations({ liveCount }: { liveCount: number }) {
               item={item}
               active={false}
               viewerUserId={viewerUserId}
-              drafting={false}
               onSelect={() => router.push(`/dashboard/conversations/${item.id}`)}
             />
           ))

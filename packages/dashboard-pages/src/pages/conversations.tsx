@@ -144,7 +144,6 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
         faded={faded && item.claim?.holderId !== viewerUserId}
         active={item.id === activeId}
         viewerUserId={viewerUserId}
-        drafting={!!queue.draftRequested[item.id] || item.agentWorking === true}
         onSelect={() => select(item.id)}
       />
     ));

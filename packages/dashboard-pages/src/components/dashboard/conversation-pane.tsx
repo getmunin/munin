@@ -1,10 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { MoreHorizontal, Paperclip, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { Button, DropdownMenuItem, PageSpinner, Pill, cn } from '@getmunin/ui';
-import { CardMenu } from '../card-kit';
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  PageSpinner,
+  Pill,
+  cn,
+} from '@getmunin/ui';
 import { useRelative } from '../../lib/use-relative';
 import { useConversationTyping } from '../../realtime';
 import { useCmdEnter } from './queue-panes/shared';
@@ -444,27 +452,37 @@ export function ConversationPane({
   );
 
   const composerActionsMenu = (
-    <span className="flex shrink-0 items-center max-md:h-11 md:order-last">
-      <CardMenu label={t('moreActions')} disabled={controller.pending}>
-        <DropdownMenuItem onClick={releaseClaim}>{t('release')}</DropdownMenuItem>
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="outline"
+            aria-label={t('moreActions')}
+            disabled={controller.pending}
+            className="shrink-0 max-md:h-11 md:order-last"
+          />
+        }
+      >
+        <MoreHorizontal aria-hidden className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem className="md:hidden" onClick={releaseClaim}>
+          {t('release')}
+        </DropdownMenuItem>
         {editedByYou ? (
           <DropdownMenuItem onClick={() => setReply(draft.body)}>
             {t('restoreDraft')}
           </DropdownMenuItem>
         ) : null}
         {suggestionId ? (
-          <DropdownMenuItem variant="destructive" onClick={rejectAndClear}>
-            {t('rejectDraft')}
-          </DropdownMenuItem>
+          <DropdownMenuItem onClick={rejectAndClear}>{t('rejectDraft')}</DropdownMenuItem>
         ) : null}
-        <DropdownMenuItem variant="destructive" onClick={markSpam}>
-          {t('markSpam')}
-        </DropdownMenuItem>
+        <DropdownMenuItem onClick={markSpam}>{t('markSpam')}</DropdownMenuItem>
         <DropdownMenuItem variant="destructive" onClick={closeNoReply}>
           {t('closeNoReply')}
         </DropdownMenuItem>
-      </CardMenu>
-    </span>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 
   const statusStrip = (
@@ -616,7 +634,7 @@ export function ConversationPane({
               <div className="px-5 py-4">
                 <Button
                   variant="accent"
-                  className="h-12 w-full"
+                  className="h-11 w-full"
                   onClick={() => setExpanded(true)}
                 >
                   {t('reviewDraft')} <span aria-hidden>→</span>
@@ -626,7 +644,7 @@ export function ConversationPane({
               <div className="flex items-stretch gap-2 px-5 py-4">
                 <Button
                   variant="accent"
-                  className="h-12 min-w-0 flex-1"
+                  className="h-11 min-w-0 flex-1"
                   onClick={() => setExpanded(true)}
                 >
                   {streaming || drafting ? (
@@ -644,7 +662,7 @@ export function ConversationPane({
                     </>
                   )}
                 </Button>
-                {askDraftButton('h-12 shrink-0')}
+                {askDraftButton('h-11 shrink-0')}
               </div>
             )}
           </div>
@@ -790,16 +808,18 @@ export function ConversationPane({
                   >
                     {suggestionId && !dirty ? t('approveSend') : t('sendReply')}
                   </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={controller.pending || streaming || askedForDraft}
+                    aria-label={tAtt('attach')}
+                    title={tAtt('attach')}
+                    className="shrink-0 max-md:h-11"
+                  >
+                    <Paperclip aria-hidden className="size-4" />
+                  </Button>
                   {composerActionsMenu}
                 </div>
-                <Button
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={controller.pending || streaming || askedForDraft}
-                  className="max-md:h-11"
-                >
-                  {tAtt('attach')}
-                </Button>
                 {askDraftButton('max-md:h-11')}
               </div>
             </div>

@@ -41,10 +41,72 @@ export interface QueueItemDto {
   topicSlug: string | null;
   topicAgentMode: 'auto' | 'draft_only' | 'off' | null;
   claim: QueueClaim | null;
-  noteCount: number;
   hasPendingDraft: boolean;
   endUserSpokeLast?: boolean;
   agentWorking?: boolean;
+}
+
+export const QUEUE_STATUS_FILTERS = ['any', 'open', 'snoozed', 'closed', 'spam'] as const;
+export type QueueStatusFilter = (typeof QUEUE_STATUS_FILTERS)[number];
+
+export const QUEUE_ORIGIN_FILTERS = [
+  'any',
+  'human',
+  'auto',
+  'auto_reply',
+  'bounce',
+  'no_reply_address',
+  'spam_sender',
+  'no_content',
+] as const;
+export type QueueOriginFilter = (typeof QUEUE_ORIGIN_FILTERS)[number];
+
+export const QUEUE_CHANNEL_FILTERS = ['any', 'email', 'chat', 'sms', 'voice'] as const;
+export type QueueChannelFilter = (typeof QUEUE_CHANNEL_FILTERS)[number];
+
+export const QUEUE_SINCE_FILTERS = ['any', '1d', '7d', '30d'] as const;
+export type QueueSinceFilter = (typeof QUEUE_SINCE_FILTERS)[number];
+
+const SINCE_DAYS: Record<Exclude<QueueSinceFilter, 'any'>, number> = { '1d': 1, '7d': 7, '30d': 30 };
+
+export interface QueueFilters {
+  status: QueueStatusFilter;
+  origin: QueueOriginFilter;
+  channelType: QueueChannelFilter;
+  topicId: string;
+  since: QueueSinceFilter;
+}
+
+export const DEFAULT_QUEUE_FILTERS: QueueFilters = {
+  status: 'any',
+  origin: 'any',
+  channelType: 'any',
+  topicId: 'any',
+  since: 'any',
+};
+
+export function activeQueueFilterCount(filters: QueueFilters): number {
+  return (Object.keys(DEFAULT_QUEUE_FILTERS) as Array<keyof QueueFilters>).filter(
+    (key) => filters[key] !== DEFAULT_QUEUE_FILTERS[key],
+  ).length;
+}
+
+export function queueFiltersActive(filters: QueueFilters): boolean {
+  return activeQueueFilterCount(filters) > 0;
+}
+
+export function buildQueueFilterQuery(filters: QueueFilters, now = Date.now()): string {
+  const params = new URLSearchParams();
+  if (filters.status !== 'any') params.set('status', filters.status);
+  if (filters.origin === 'human') params.set('suppressedReason', 'none');
+  else if (filters.origin === 'auto') params.set('suppressedReason', 'any');
+  else if (filters.origin !== 'any') params.set('suppressedReason', filters.origin);
+  if (filters.channelType !== 'any') params.set('channelType', filters.channelType);
+  if (filters.topicId !== 'any') params.set('topicId', filters.topicId);
+  if (filters.since !== 'any') {
+    params.set('since', new Date(now - SINCE_DAYS[filters.since] * 86_400_000).toISOString());
+  }
+  return params.toString();
 }
 
 interface QueuePageResponse {
@@ -144,6 +206,8 @@ export function pendingDraftOf(detail: ConversationDetail | undefined): MessageD
 }
 
 export interface QueueController {
+  results: QueueItemDto[];
+  filtersActive: boolean;
   open: QueueItemDto[];
   finished: QueueItemDto[];
   selectedId: string | null;
@@ -178,12 +242,19 @@ export interface QueueController {
   requestDraft: (id: string) => Promise<void>;
 }
 
-export function useConversationQueue(routeSelectedId: string | null): QueueController {
+export function useConversationQueue(
+  routeSelectedId: string | null,
+  filters: QueueFilters = DEFAULT_QUEUE_FILTERS,
+): QueueController {
   const translateErr = useTranslateError();
   const t = useTranslations('dashboard.console.queue');
   const [open, setOpen] = useState<QueueItemDto[]>([]);
   const [finished, setFinished] = useState<QueueItemDto[]>([]);
-  const selectedId = routeSelectedId ?? open[0]?.id ?? finished[0]?.id ?? null;
+  const [results, setResults] = useState<QueueItemDto[]>([]);
+  const filtersActive = queueFiltersActive(filters);
+  const filterQuery = buildQueueFilterQuery(filters);
+  const selectedId =
+    routeSelectedId ?? (filtersActive ? results[0]?.id : open[0]?.id ?? finished[0]?.id) ?? null;
   const [details, setDetails] = useState<Record<string, ConversationDetail>>({});
   const [detailErrors, setDetailErrors] = useState<Record<string, ApiError>>({});
   const [loadError, setLoadError] = useState<ApiError | null>(null);
@@ -224,17 +295,26 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
 
   const loadQueue = useCallback(async () => {
     try {
-      const [openPage, finishedPage] = await Promise.all([
-        api<QueuePageResponse>('/v1/conversations/queue?status=open&limit=100'),
-        api<QueuePageResponse>(
-          `/v1/conversations/queue?status=closed&limit=${FINISHED_FETCH_LIMIT}`,
-        ),
-      ]);
-      setOpen(openPage.items);
-      setFinished(finishedPage.items);
+      const pages = filterQuery
+        ? [await api<QueuePageResponse>(`/v1/conversations/queue?${filterQuery}&limit=100`)]
+        : await Promise.all([
+            api<QueuePageResponse>('/v1/conversations/queue?status=open&limit=100'),
+            api<QueuePageResponse>(
+              `/v1/conversations/queue?status=closed&limit=${FINISHED_FETCH_LIMIT}`,
+            ),
+          ]);
+      if (filterQuery) {
+        setResults(pages[0]!.items);
+        setOpen([]);
+        setFinished([]);
+      } else {
+        setResults([]);
+        setOpen(pages[0]!.items);
+        setFinished(pages[1]!.items);
+      }
       setLoadError(null);
       setHasLoadedOnce(true);
-      for (const item of openPage.items) {
+      for (const item of pages[0]!.items) {
         if (item.hasPendingDraft && draftRequestedRef.current[item.id]) {
           clearDraftRequested(item.id);
         }
@@ -242,7 +322,7 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
     } catch (err) {
       if (err instanceof ApiError) setLoadError(err);
     }
-  }, [clearDraftRequested]);
+  }, [clearDraftRequested, filterQuery]);
 
   const retryLoad = useCallback(async () => {
     setRetrying(true);
@@ -291,10 +371,10 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   }, [selectedId, loadDetail]);
 
   useEffect(() => {
-    if (!open.some((item) => item.agentWorking)) return;
+    if (![...open, ...results].some((item) => item.agentWorking)) return;
     const timer = setTimeout(() => void loadQueue(), AGENT_WORKING_POLL_MS);
     return () => clearTimeout(timer);
-  }, [open, loadQueue]);
+  }, [open, results, loadQueue]);
 
   const subscriptions = useMemo<SubscriptionChannel[]>(() => {
     const subs: SubscriptionChannel[] = [{ channel: 'org' }];
@@ -504,6 +584,8 @@ export function useConversationQueue(routeSelectedId: string | null): QueueContr
   return {
     open,
     finished,
+    results,
+    filtersActive,
     selectedId,
     details,
     detailErrors,

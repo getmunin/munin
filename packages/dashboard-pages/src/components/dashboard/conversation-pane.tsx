@@ -323,6 +323,18 @@ export function ConversationPane({
     });
   };
 
+  const closeNoReply = () => {
+    void controller.closeConv(detail.id).then((ok) => {
+      if (ok) setExpanded(false);
+    });
+  };
+
+  const markSpam = () => {
+    void controller.markSpam(detail.id).then((ok) => {
+      if (ok) setExpanded(false);
+    });
+  };
+
   const takeOverLabel = draft
     ? claim
       ? t('takeOverToReviewDraft')
@@ -427,8 +439,8 @@ export function ConversationPane({
     </span>
   );
 
-  const mobileActionsMenu = canReply ? (
-    <span className="-mr-[7px] ml-auto shrink-0 md:hidden">
+  const composerActionsMenu = (
+    <span className="flex shrink-0 items-center max-md:h-11 md:order-last">
       <CardMenu label={t('moreActions')} disabled={controller.pending}>
         <DropdownMenuItem onClick={releaseClaim}>{t('release')}</DropdownMenuItem>
         {editedByYou ? (
@@ -436,9 +448,20 @@ export function ConversationPane({
             {t('restoreDraft')}
           </DropdownMenuItem>
         ) : null}
+        {suggestionId ? (
+          <DropdownMenuItem variant="destructive" onClick={rejectAndClear}>
+            {t('rejectDraft')}
+          </DropdownMenuItem>
+        ) : null}
+        <DropdownMenuItem variant="destructive" onClick={markSpam}>
+          {t('markSpam')}
+        </DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onClick={closeNoReply}>
+          {t('closeNoReply')}
+        </DropdownMenuItem>
       </CardMenu>
     </span>
-  ) : null;
+  );
 
   const statusStrip = (
     <span
@@ -687,7 +710,6 @@ export function ConversationPane({
           >
             {t('noteTab')}
           </button>
-          {mobileActionsMenu}
           {statusStrip}
         </div>
 
@@ -748,17 +770,24 @@ export function ConversationPane({
                     e.target.value = '';
                   }}
                 />
-                <Button
-                  variant="accent"
-                  onClick={sendReply}
-                  disabled={
-                    controller.pending || streaming || askedForDraft || !reply.trim() || uploads.busy
-                  }
-                  pending={controller.pendingAction === 'send'}
-                  className="max-md:h-11"
-                >
-                  {suggestionId && !dirty ? t('approveSend') : t('sendReply')}
-                </Button>
+                <div className="flex items-stretch gap-2 md:contents">
+                  <Button
+                    variant="accent"
+                    onClick={sendReply}
+                    disabled={
+                      controller.pending ||
+                      streaming ||
+                      askedForDraft ||
+                      !reply.trim() ||
+                      uploads.busy
+                    }
+                    pending={controller.pendingAction === 'send'}
+                    className="max-md:h-11 max-md:min-w-0 max-md:flex-1"
+                  >
+                    {suggestionId && !dirty ? t('approveSend') : t('sendReply')}
+                  </Button>
+                  {composerActionsMenu}
+                </div>
                 <Button
                   variant="outline"
                   onClick={() => fileInputRef.current?.click()}
@@ -767,29 +796,7 @@ export function ConversationPane({
                 >
                   {tAtt('attach')}
                 </Button>
-                {suggestionId ? (
-                  <Button
-                    variant="outline"
-                    onClick={rejectAndClear}
-                    disabled={controller.pending || streaming}
-                    className="max-md:h-11"
-                  >
-                    {t('rejectDraft')}
-                  </Button>
-                ) : null}
                 {askDraftButton('max-md:h-11')}
-                <Button
-                  variant="ghost"
-                  onClick={() =>
-                    void controller.closeConv(detail.id).then((ok) => {
-                      if (ok) setExpanded(false);
-                    })
-                  }
-                  disabled={controller.pending}
-                  className="max-md:h-11"
-                >
-                  {t('closeNoReply')}
-                </Button>
               </div>
             </div>
           ) : draft ? (

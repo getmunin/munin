@@ -179,6 +179,12 @@ export function hasAnyClassification(c: SenderClassification): boolean {
 
 export type SuppressionReason = 'auto_reply' | 'bounce' | 'no_reply_address';
 
+export type InboundSuppression = SuppressionReason | 'spam_sender';
+
+export function suppressedConversationStatus(reason: InboundSuppression): 'closed' | 'spam' {
+  return reason === 'spam_sender' ? 'spam' : 'closed';
+}
+
 export function suppressionReason(c: SenderClassification): SuppressionReason | null {
   if (c.isBounce) return 'bounce';
   if (c.isAutoReply) return 'auto_reply';

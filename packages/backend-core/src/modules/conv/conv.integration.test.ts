@@ -623,6 +623,67 @@ const skipReason = TEST_URL
     });
   }, 30_000);
 
+  it('changeStatus to spam clears needsHumanAttention so junk stops counting as work', async () => {
+    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
+      body: 'Buy cheap watches at example.test',
+    });
+    const conv = startResp.body;
+
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'conv_request_handover',
+        arguments: { conversationId: conv.id, reason: 'unclear' },
+      });
+      await c.callTool({
+        name: 'conv_change_status',
+        arguments: { id: conv.id, status: 'spam' },
+      });
+      const detail = parseToolResult<{
+        status: string;
+        needsHumanAttention: boolean;
+        needsHumanAttentionAt: string | null;
+      }>(await c.callTool({ name: 'conv_get_conversation', arguments: { id: conv.id } }));
+      expect(detail.status).toBe('spam');
+      expect(detail.needsHumanAttention).toBe(false);
+      expect(detail.needsHumanAttentionAt).toBeNull();
+    });
+  }, 30_000);
+
+  it('setSubject refuses to overwrite a subject the sender already wrote unless told to', async () => {
+    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
+      body: 'The export button does nothing.',
+    });
+    const conv = startResp.body;
+
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'conv_set_subject',
+        arguments: { conversationId: conv.id, subject: 'Export button broken' },
+      });
+
+      const clobber = (await c.callTool({
+        name: 'conv_set_subject',
+        arguments: { conversationId: conv.id, subject: 'Something else entirely' },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(clobber.isError).toBe(true);
+      expect(clobber.content?.[0]?.text).toContain('conv_subject_exists');
+
+      const kept = parseToolResult<{ subject: string | null }>(
+        await c.callTool({ name: 'conv_get_conversation', arguments: { id: conv.id } }),
+      );
+      expect(kept.subject).toBe('Export button broken');
+
+      await c.callTool({
+        name: 'conv_set_subject',
+        arguments: { conversationId: conv.id, subject: 'Something else entirely', overwrite: true },
+      });
+      const replaced = parseToolResult<{ subject: string | null }>(
+        await c.callTool({ name: 'conv_get_conversation', arguments: { id: conv.id } }),
+      );
+      expect(replaced.subject).toBe('Something else entirely');
+    });
+  }, 30_000);
+
   it('createTopic returns an actionable conflict on a duplicate slug (not a 500)', async () => {
     await withClient(adminKey, async (c) => {
       await c.callTool({

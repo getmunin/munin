@@ -247,6 +247,42 @@ const skipReason = TEST_URL
     expect(released.body.released).toBe(true);
   }, 30_000);
 
+  it('marking spam releases the claim so junk never sits owned by an operator', async () => {
+    const startResp = await rest<{ id: string }>(
+      endUserToken,
+      'POST',
+      '/v1/end-users/me/conversations',
+      { body: 'CHEAP BACKLINKS click here' },
+    );
+    expect(startResp.status).toBe(201);
+    const started = startResp.body;
+
+    const claim = await rest<{ holderId: string }>(
+      adminKeyA,
+      'POST',
+      `/v1/conversations/${started.id}/take-over`,
+      {},
+    );
+    expect(claim.status).toBe(200);
+
+    const marked = await rest<{ status: string }>(
+      adminKeyA,
+      'POST',
+      `/v1/conversations/${started.id}/status`,
+      { status: 'spam' },
+    );
+    expect(marked.status).toBe(200);
+    expect(marked.body.status).toBe('spam');
+
+    const after = await rest<{ claim: { holderId: string } | null; needsHumanAttention: boolean }>(
+      adminKeyA,
+      'GET',
+      `/v1/conversations/${started.id}`,
+    );
+    expect(after.body.claim).toBeNull();
+    expect(after.body.needsHumanAttention).toBe(false);
+  }, 30_000);
+
   it('draft-reply parks a draft and replaces it instead of stacking', async () => {
     const startResp = await rest<{ id: string }>(
       endUserToken,

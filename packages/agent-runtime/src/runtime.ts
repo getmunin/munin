@@ -130,7 +130,7 @@ export async function runAgent({
     }
 
     return {
-      body: response.message.content ?? '',
+      body: normalizeReplyBody(response.message.content),
       usage: {
         promptTokens: usageTotal.prompt,
         completionTokens: usageTotal.completion,
@@ -153,6 +153,11 @@ export async function runAgent({
     finishReason: 'tool_iteration_limit',
     toolCalls,
   };
+}
+
+export function normalizeReplyBody(content: string | null | undefined): string {
+  if (typeof content !== 'string') return '';
+  return content.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 export function compactHistory(

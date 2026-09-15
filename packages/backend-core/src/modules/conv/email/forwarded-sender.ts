@@ -17,19 +17,39 @@ export interface ManualForwardBlock {
   recipients: string[];
 }
 
-export const FORWARD_MARKERS: RegExp[] = [
+export type ForwardMarkerKind = 'declared' | 'ambiguous';
+
+const DECLARED_FORWARD_MARKERS: RegExp[] = [
   /^\s*-{2,}\s*forwarded message\s*-{2,}\s*$/i,
-  /^\s*-{2,}\s*original message\s*-{2,}\s*$/i,
   /^\s*-{2,}\s*videresendt melding\s*-{2,}\s*$/i,
-  /^\s*-{2,}\s*opprinnelig melding\s*-{2,}\s*$/i,
   /^\s*-{2,}\s*vidarebefordrat meddelande\s*-{2,}\s*$/i,
   /^\s*-{2,}\s*weitergeleitete nachricht\s*-{2,}\s*$/i,
   /^\s*begin forwarded message:\s*$/i,
   /^\s*videresendt melding:\s*$/i,
+];
+
+const AMBIGUOUS_FORWARD_MARKERS: RegExp[] = [
+  /^\s*-{2,}\s*original message\s*-{2,}\s*$/i,
+  /^\s*-{2,}\s*opprinnelig melding\s*-{2,}\s*$/i,
   /^\s*_{10,}\s*$/,
 ];
 
+export const FORWARD_MARKERS: RegExp[] = [
+  ...DECLARED_FORWARD_MARKERS,
+  ...AMBIGUOUS_FORWARD_MARKERS,
+];
+
+export function forwardMarkerKind(line: string): ForwardMarkerKind | null {
+  if (DECLARED_FORWARD_MARKERS.some((re) => re.test(line))) return 'declared';
+  if (AMBIGUOUS_FORWARD_MARKERS.some((re) => re.test(line))) return 'ambiguous';
+  return null;
+}
+
 const FORWARD_SUBJECT_PREFIX = /^\s*(fwd?|vs|vb|vidsend|wg|tr|rv|enc)\s*:/i;
+
+export function subjectDeclaresForward(subject: string | null | undefined): boolean {
+  return FORWARD_SUBJECT_PREFIX.test(subject ?? '');
+}
 
 const SCAN_LINES_AFTER_MARKER = 12;
 const MAX_SCANNED_LINES = 400;

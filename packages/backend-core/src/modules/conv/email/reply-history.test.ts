@@ -122,6 +122,41 @@ describe('stripQuotedReplyText', () => {
     expect(stripQuotedReplyText(body)).toBe('Takk for svaret!');
   });
 
+  it('keeps a declared forward whose sender is the person forwarding it', () => {
+    const body = [
+      '---------- Forwarded message ---------',
+      'From: Ada Berg <ada@example.no>',
+      'Date: Mon, 1 Sep 2025 at 10:00',
+      'Subject: Faktura',
+      'To: <support@acme.test>',
+      '',
+      'Kan dere hjelpe meg med denne fakturaen?',
+    ].join('\n');
+    expect(stripQuotedReplyText(body, { forwardedSender: null })).toContain(
+      'Kan dere hjelpe meg med denne fakturaen?',
+    );
+  });
+
+  it('keeps an underscore-ruled forward, note and all, when the subject declares a forward', () => {
+    const body = [
+      'Hei, se under.',
+      '',
+      '________________________________',
+      'Fra: Ada Berg <ada@example.no>',
+      'Sendt: mandag 14. september 2026 16:11',
+      'Til: Kundeservice <support@acme.test>',
+      'Emne: Faktura',
+      '',
+      'Kan dere hjelpe meg med denne fakturaen?',
+    ].join('\n');
+    const kept = stripQuotedReplyText(body, { forwardedSender: null, subject: 'VS: Faktura' });
+    expect(kept).toContain('Hei, se under.');
+    expect(kept).toContain('Kan dere hjelpe meg med denne fakturaen?');
+    expect(splitSignatureText(kept, { subject: 'VS: Faktura' }).clean).toContain(
+      'Kan dere hjelpe meg med denne fakturaen?',
+    );
+  });
+
   it('still leaves a reply printed above the first header block', () => {
     const body = [
       'Jeg har sendt det nå.',

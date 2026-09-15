@@ -52,10 +52,10 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
   );
 
   const navTree = (
-    <nav className="flex flex-col gap-6 pl-2 pr-6">
+    <nav className="flex flex-col gap-6">
       {visibleGroups.map((group) => (
         <div key={group.groupKey}>
-          <p className="mb-2 px-3.5 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
+          <p className="mb-2 px-5 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
             {tGroups(group.groupKey)}
           </p>
           <ul className="space-y-px">
@@ -67,7 +67,7 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
                     href={item.href}
                     aria-current={active ? 'page' : undefined}
                     className={cn(
-                      'flex items-center border-l-[3px] px-3.5 py-2 text-[14.5px] transition-colors duration-fast ease-munin',
+                      'flex items-center border-l-[3px] py-2 pl-[17px] pr-5 text-[14.5px] transition-colors duration-fast ease-munin',
                       active
                         ? 'border-cobalt bg-paper text-ink dark:border-cobalt-soft dark:bg-card dark:text-foreground'
                         : 'border-transparent text-ink-soft hover:text-ink dark:text-foreground/70 dark:hover:text-foreground',

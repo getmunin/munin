@@ -1426,11 +1426,11 @@ export class ConvService {
       }
     }
 
+    const isPublicAgentReply = input.authorType === 'agent' && !input.internal;
+    const reviewedElsewhere = Boolean(input.fromDraftId || conv.outreachCampaignId);
     if (
-      input.authorType === 'agent' &&
-      !input.internal &&
-      !input.fromDraftId &&
-      !conv.outreachCampaignId &&
+      isPublicAgentReply &&
+      !reviewedElsewhere &&
       (await this.effectiveAgentModeOf(input.conversationId)) === 'draft_only'
     ) {
       throw new AgentSendNotAutoError(input.conversationId);

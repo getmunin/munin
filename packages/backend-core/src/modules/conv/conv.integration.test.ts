@@ -269,6 +269,89 @@ const skipReason = TEST_URL
     });
   }, 30_000);
 
+  it('refuses an agent send once the conversation resolves to a draft_only topic, and allows it again once the override is cleared', async () => {
+    const started = (
+      await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
+        body: 'Is the office open on Saturday?',
+      })
+    ).body;
+
+    await withClient(adminKey, async (c) => {
+      const topic = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'conv_create_topic',
+          arguments: { name: 'Gated', slug: `gated-${Date.now()}` },
+        }),
+      );
+      await c.callTool({
+        name: 'conv_set_topic_automation',
+        arguments: { topicId: topic.id, mode: 'draft_only' },
+      });
+      await c.callTool({
+        name: 'conv_set_topic',
+        arguments: { conversationId: started.id, topicId: topic.id },
+      });
+
+      const refused = await c.callTool({
+        name: 'conv_send_message',
+        arguments: { conversationId: started.id, body: 'We are open 10-16.' },
+      });
+      expect((refused as { isError?: boolean }).isError).toBe(true);
+      expect(JSON.stringify(refused)).toContain('agent_send_not_auto');
+
+      const afterRefusal = parseToolResult<{ messages: Array<{ body: string }> }>(
+        await c.callTool({ name: 'conv_get_conversation', arguments: { id: started.id } }),
+      );
+      expect(afterRefusal.messages.some((m) => m.body === 'We are open 10-16.')).toBe(false);
+
+      await c.callTool({
+        name: 'conv_set_topic_automation',
+        arguments: { topicId: topic.id, mode: null },
+      });
+      const sent = await c.callTool({
+        name: 'conv_send_message',
+        arguments: { conversationId: started.id, body: 'We are open 10-16.' },
+      });
+      expect((sent as { isError?: boolean }).isError).toBeFalsy();
+
+      const afterSend = parseToolResult<{ messages: Array<{ body: string }> }>(
+        await c.callTool({ name: 'conv_get_conversation', arguments: { id: started.id } }),
+      );
+      expect(afterSend.messages.some((m) => m.body === 'We are open 10-16.')).toBe(true);
+    });
+  }, 30_000);
+
+  it('still lets an agent leave an internal note on a draft_only topic', async () => {
+    const started = (
+      await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
+        body: 'Do you ship to Svalbard?',
+      })
+    ).body;
+
+    await withClient(adminKey, async (c) => {
+      const topic = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'conv_create_topic',
+          arguments: { name: 'Gated notes', slug: `gated-notes-${Date.now()}` },
+        }),
+      );
+      await c.callTool({
+        name: 'conv_set_topic_automation',
+        arguments: { topicId: topic.id, mode: 'draft_only' },
+      });
+      await c.callTool({
+        name: 'conv_set_topic',
+        arguments: { conversationId: started.id, topicId: topic.id },
+      });
+
+      const note = await c.callTool({
+        name: 'conv_send_message',
+        arguments: { conversationId: started.id, body: 'Checking the courier.', internal: true },
+      });
+      expect((note as { isError?: boolean }).isError).toBeFalsy();
+    });
+  }, 30_000);
+
   it('admin agent requests handover; flag is set, internal note appears, idempotent, then user reply clears it', async () => {
     const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
       body: 'Can I get a partial refund for last month?',

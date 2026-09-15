@@ -48,6 +48,15 @@ export class HandoverActiveError extends Error {
   }
 }
 
+export class AgentSendNotAutoError extends Error {
+  readonly code = 'agent_send_not_auto';
+  constructor(public readonly conversationId: string) {
+    super(
+      `agent_send_not_auto: conversation ${conversationId} resolves to draft_only, so an agent reply must be parked for review instead of sent`,
+    );
+  }
+}
+
 export class AgentReplyRaceError extends Error {
   readonly code = 'agent_reply_race';
   constructor(
@@ -1415,6 +1424,15 @@ export class ConvService {
       if (conflictRows[0]) {
         throw new AgentReplyRaceError(input.conversationId, conflictRows[0].id);
       }
+    }
+
+    if (
+      input.authorType === 'agent' &&
+      !input.internal &&
+      !input.fromDraftId &&
+      (await this.effectiveAgentModeOf(input.conversationId)) === 'draft_only'
+    ) {
+      throw new AgentSendNotAutoError(input.conversationId);
     }
 
     const attachComponents =

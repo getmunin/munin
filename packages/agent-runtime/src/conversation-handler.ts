@@ -386,7 +386,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
               );
             return;
           }
-          if (delivery === 'draft') {
+          const parkForReview = async (): Promise<void> => {
             await deps.rest.setDraftReply(conversationId, reply.body, {
               retrievedDocumentIds: deriveRetrievedDocumentIds(reply.toolCalls),
               ...(audit.rationale ? { rationale: audit.rationale } : {}),
@@ -407,16 +407,32 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
             log.info(
               `${conversationId} drafted for review (model=${reply.model}, tools=${reply.toolCalls.length}, tokens=${reply.usage.totalTokens})`,
             );
+          };
+          if (delivery === 'draft') {
+            await parkForReview();
             return;
           }
           const handoverReason = llmHandoverReason ?? audit.handoverReason;
           const handoverThisTurn = handoverReason !== null && handoverReason !== undefined;
-          await deps.rest.postAgentMessage(conversationId, reply.body, {
-            preserveAttention: handoverThisTurn,
-            sinceMessageId,
-            totalTokens: reply.usage.totalTokens,
-            components: deriveMessageComponents(reply.toolCalls),
-          });
+          try {
+            await deps.rest.postAgentMessage(conversationId, reply.body, {
+              preserveAttention: handoverThisTurn,
+              sinceMessageId,
+              totalTokens: reply.usage.totalTokens,
+              components: deriveMessageComponents(reply.toolCalls),
+            });
+          } catch (err) {
+            if (!(err instanceof Error) || errorCode(err) !== 'agent_send_not_auto') throw err;
+            if (detail.outreachCampaignId) {
+              log.info(
+                `${conversationId} turned draft_only mid-turn; outreach curator owns the draft, discarding`,
+              );
+              return;
+            }
+            log.info(`${conversationId} turned draft_only mid-turn; parking the reply for review`);
+            await parkForReview();
+            return;
+          }
           log.info(
             `${conversationId} replied (model=${reply.model}, tools=${reply.toolCalls.length}, tokens=${reply.usage.totalTokens})`,
           );

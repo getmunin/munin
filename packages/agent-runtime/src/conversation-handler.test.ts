@@ -1359,6 +1359,126 @@ describe('createConversationHandler', () => {
     expect(call[2]?.sinceMessageId).toBe(lastMessageId);
   });
 
+  it('parks the reply for review when the send is rejected because the topic turned draft_only', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() => Promise.resolve(buildConversation({ channelType: 'email' }))),
+    });
+    const postSpy = vi.fn(() =>
+      Promise.reject(
+        new MuninRestError(
+          'munin POST /v1/conversations/conv_1/messages \u2192 409: agent_send_not_auto: conversation conv_1 resolves to draft_only, so an agent reply must be parked for review instead of sent',
+          409,
+          'agent_send_not_auto',
+        ),
+      ),
+    );
+    const draftSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    const handoverSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    rest.setDraftReply = draftSpy;
+    rest.requestHandover = handoverSpy;
+
+    const handler = createConversationHandler({
+      config: { ...baseConfig, auditEnabled: false },
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([assistantStop('We open at 10am.')]),
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    expect(draftSpy.mock.calls[0]).toEqual([
+      'conv_1',
+      'We open at 10am.',
+      { retrievedDocumentIds: undefined },
+    ]);
+    expect(handoverSpy).toHaveBeenCalledWith('conv_1', {
+      reason: 'draft reply ready for review',
+      postSystemNote: false,
+    });
+  });
+
+  it('parks the reply on a coded in-process rejection too (backend runner bypasses the REST client)', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() => Promise.resolve(buildConversation({ channelType: 'email' }))),
+    });
+    const inProcessError = Object.assign(
+      new Error(
+        'agent_send_not_auto: conversation conv_1 resolves to draft_only, so an agent reply must be parked for review instead of sent',
+      ),
+      { code: 'agent_send_not_auto' },
+    );
+    const postSpy = vi.fn(() => Promise.reject(inProcessError));
+    const draftSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    const handoverSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    rest.setDraftReply = draftSpy;
+    rest.requestHandover = handoverSpy;
+
+    const handler = createConversationHandler({
+      config: { ...baseConfig, auditEnabled: false },
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([assistantStop('We open at 10am.')]),
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    expect(draftSpy).toHaveBeenCalledTimes(1);
+    expect(handoverSpy).toHaveBeenCalledWith('conv_1', {
+      reason: 'draft reply ready for review',
+      postSystemNote: false,
+    });
+  });
+
+  it('discards a rejected send on an outreach conversation rather than parking a draft the curator owns', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({ channelType: 'email', outreachCampaignId: 'ocp_1' }),
+        ),
+      ),
+    });
+    const postSpy = vi.fn(() =>
+      Promise.reject(
+        new MuninRestError(
+          'munin POST /v1/conversations/conv_1/messages \u2192 409: agent_send_not_auto: conversation conv_1 resolves to draft_only, so an agent reply must be parked for review instead of sent',
+          409,
+          'agent_send_not_auto',
+        ),
+      ),
+    );
+    const draftSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    const handoverSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    rest.setDraftReply = draftSpy;
+    rest.requestHandover = handoverSpy;
+
+    const handler = createConversationHandler({
+      config: { ...baseConfig, auditEnabled: false },
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([assistantStop('We open at 10am.')]),
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    expect(draftSpy).not.toHaveBeenCalled();
+    expect(handoverSpy).not.toHaveBeenCalled();
+  });
+
   it('skips without retry or handover when the post is rejected because a human took over', async () => {
     const rest = buildRest({
       getConversation: vi.fn(() => Promise.resolve(buildConversation())),

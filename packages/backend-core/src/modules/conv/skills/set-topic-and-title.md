@@ -87,7 +87,7 @@ Don't rewrite the description of a topic you didn't create. Operators own those 
 
 Skip this call entirely if you decided in step 2 to leave the conversation untagged.
 
-Tagging can change how the conversation is answered. A topic may carry an automation override — `draft_only` parks every reply as a draft for a human, `off` stops the agent replying at all — and that override beats the conversation's own mode. When your tag changes the effective mode, an internal note saying so is added to the conversation automatically, so the operator who opens it can see why replies started or stopped needing review. You don't write that note and you don't need to mention it; just be aware that picking a topic is an automation decision as well as a filing one, which is another reason not to force a tag on weak signal.
+Tagging can change how the conversation is answered. A topic may carry an automation override — `draft_only` parks every reply as a draft for a human, `off` stops the agent replying at all — and that override beats the conversation's own mode. When your tag changes the effective mode, an internal note saying so is added to the conversation automatically, so the operator who opens it can see why replies started or stopped needing review. You don't write that note and you don't need to mention it; just be aware that picking a topic is an automation decision as well as a filing one, which is another reason not to force a tag on weak signal. The override applies from the moment you set it, including to a reply already being composed: a send that lands after the tag is refused with `agent_send_not_auto` and the reply is parked as a draft instead, so tagging late never leaks an unreviewed answer.
 
 ## Step 5 — set the title
 

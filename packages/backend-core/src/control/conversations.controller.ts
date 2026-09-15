@@ -43,6 +43,7 @@ import {
   ConvService,
   ConvInvalidError,
   AgentReplyRaceError,
+  AgentSendNotAutoError,
   AGENT_MODES,
   HandoverActiveError,
   STATUSES,
@@ -586,6 +587,9 @@ async function translate<T>(fn: () => Promise<T>): Promise<T> {
       throw new ConflictException({ message: err.message, code: err.code });
     }
     if (err instanceof AgentReplyRaceError) {
+      throw new ConflictException({ message: err.message, code: err.code });
+    }
+    if (err instanceof AgentSendNotAutoError) {
       throw new ConflictException({ message: err.message, code: err.code });
     }
     throw err;

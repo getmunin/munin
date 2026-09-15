@@ -1517,6 +1517,35 @@ const skipReason = TEST_URL
       ).rejects.toThrow(/no longer eligible/);
     });
 
+    it('approves and sends even though every outreach conversation is draft_only by construction', async () => {
+      const c = await createSeqCampaign('seq-draft-only-exempt');
+      const sent = await sendInitial(c.id);
+      await backdateSent(sent.id, 10);
+
+      const [conv] = await db
+        .select({ agentMode: schema.convConversations.agentMode })
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, sent.conversationId!));
+      expect(conv!.agentMode).toBe('draft_only');
+
+      const proposal = await run(() =>
+        svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'bump' }),
+      );
+      const delivered = await run(() =>
+        svc.approveProposal(proposal.id, {
+          publicBaseUrl: 'https://test.local',
+          fingerprint: proposal.draftFingerprint,
+        }),
+      );
+      expect(delivered.status).toBe('sent');
+
+      const messages = await db
+        .select({ body: schema.convMessages.body, internal: schema.convMessages.internal })
+        .from(schema.convMessages)
+        .where(eq(schema.convMessages.conversationId, sent.conversationId!));
+      expect(messages.some((m) => m.body.includes('bump') && !m.internal)).toBe(true);
+    });
+
     it('step 2 anchors on the sent step-1 follow-up', async () => {
       const c = await createSeqCampaign('seq-chain');
       const sent = await sendInitial(c.id);

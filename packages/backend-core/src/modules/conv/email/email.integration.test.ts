@@ -630,6 +630,44 @@ class StubImapFetcher implements ImapFetcher {
       .toBe('auto-replied');
   }, 30_000);
 
+  it('reconstructs the quoted history of an Apple Mail reply, which quotes without a header block', async () => {
+    fetcher.push(rfc822({
+      from: 'Quoter <quoter@customer.test>',
+      to: 'support@acme.test',
+      subject: 'Re: Munin test message',
+      messageId: 'apple-quote-1@customer.test',
+      body: [
+        'Hei! Dette er en test.',
+        '',
+        '> On 15 Sep 2026, at 09:37, Acme Support <support@acme.test> wrote:',
+        '> ',
+        '> This is an automated test from Munin.',
+      ].join('\n'),
+    }));
+    await inboundWorker.tick();
+
+    const [contact] = await db
+      .select()
+      .from(schema.convContacts)
+      .where(
+        and(eq(schema.convContacts.orgId, orgId), eq(schema.convContacts.email, 'quoter@customer.test')),
+      );
+    const [conv] = await db
+      .select()
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.contactId, contact!.id));
+    const [message] = await db
+      .select()
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.conversationId, conv!.id));
+
+    expect(message!.body).toBe('Hei! Dette er en test.');
+    const turns = message!.metadata['quotedThread'] as Array<{ from: string | null; body: string }>;
+    expect(turns).toHaveLength(1);
+    expect(turns[0]!.from).toBe('Acme Support <support@acme.test>');
+    expect(turns[0]!.body).toBe('This is an automated test from Munin.');
+  }, 30_000);
+
   it('reply that fails threading on a draft_only channel opens a draft_only conversation', async () => {
     await db
       .update(schema.convChannels)

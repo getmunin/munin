@@ -85,6 +85,26 @@ const FORWARDED_REPLY_CHAIN = [
   'We have shipped it.',
 ].join('\n');
 
+const SELF_FORWARD = [
+  '---------- Forwarded message ---------',
+  'From: Ada Berg <ada@example.no>',
+  'Date: Mon, 1 Sep 2025 at 10:00',
+  'Subject: Faktura',
+  'To: <support@acme.test>',
+  '',
+  'Kan dere hjelpe meg med denne fakturaen?',
+].join('\n');
+
+const OUTLOOK_SELF_FORWARD = [
+  '________________________________',
+  'Fra: Ada Berg <ada@example.no>',
+  'Sendt: mandag 14. september 2026 16:11',
+  'Til: Kundeservice <support@acme.test>',
+  'Emne: Faktura',
+  '',
+  'Kan dere hjelpe meg med denne fakturaen?',
+].join('\n');
+
 describe('parseQuotedThread', () => {
   it('recovers one turn per From/Date/Subject/To block', () => {
     const turns = parseQuotedThread(HEADER_BLOCK_THREAD);
@@ -154,7 +174,7 @@ describe('parseQuotedThread', () => {
   });
 
   it('reconstructs the mail an Outlook reply quotes, once the message is known not to be a forward', () => {
-    const turns = parseQuotedThread(OUTLOOK_REPLY, null);
+    const turns = parseQuotedThread(OUTLOOK_REPLY, { forwardedSender: null });
     expect(turns).toHaveLength(1);
     expect(turns[0]).toMatchObject({
       from: 'uScore <support@uscore.test>',
@@ -165,7 +185,26 @@ describe('parseQuotedThread', () => {
   });
 
   it('keeps a forwarded message out of the history when it is the forward the origin names', () => {
-    expect(parseQuotedThread(GMAIL_FORWARD, 'kari@example.test')).toEqual([]);
+    expect(parseQuotedThread(GMAIL_FORWARD, { forwardedSender: 'kari@example.test' })).toEqual([]);
+  });
+
+  it('keeps a declared forward in the body even when the forward names no third-party sender', () => {
+    expect(parseQuotedThread(SELF_FORWARD, { forwardedSender: null })).toEqual([]);
+  });
+
+  it('keeps an underscore-ruled forward in the body when the subject declares a forward', () => {
+    expect(
+      parseQuotedThread(OUTLOOK_SELF_FORWARD, { forwardedSender: null, subject: 'VS: Faktura' }),
+    ).toEqual([]);
+  });
+
+  it('still reconstructs an underscore-ruled block when the subject declares a reply', () => {
+    const turns = parseQuotedThread(OUTLOOK_SELF_FORWARD, {
+      forwardedSender: null,
+      subject: 'SV: Faktura',
+    });
+    expect(turns).toHaveLength(1);
+    expect(turns[0]!.body).toBe('Kan dere hjelpe meg med denne fakturaen?');
   });
 
   it('treats an underscore rule as a forward marker when the origin is unknown', () => {
@@ -202,11 +241,26 @@ describe('parseQuotedThread', () => {
 describe('findHeaderBlockQuoteCut', () => {
   it('cuts an Outlook reply at the block it quotes once the message is known not to be a forward', () => {
     const lines = OUTLOOK_REPLY.split('\n');
-    expect(findHeaderBlockQuoteCut(lines, null)).toBe(3);
+    expect(findHeaderBlockQuoteCut(lines, { forwardedSender: null })).toBe(3);
   });
 
   it('still protects a forwarded message body when the origin names its sender', () => {
-    expect(findHeaderBlockQuoteCut(GMAIL_FORWARD.split('\n'), 'kari@example.test')).toBeNull();
+    expect(findHeaderBlockQuoteCut(GMAIL_FORWARD.split('\n'), {
+      forwardedSender: 'kari@example.test',
+    })).toBeNull();
+  });
+
+  it('declines to cut a declared forward whose sender is the person forwarding it', () => {
+    expect(findHeaderBlockQuoteCut(SELF_FORWARD.split('\n'), { forwardedSender: null })).toBeNull();
+  });
+
+  it('declines to cut an underscore-ruled forward when the subject declares a forward', () => {
+    expect(
+      findHeaderBlockQuoteCut(OUTLOOK_SELF_FORWARD.split('\n'), {
+        forwardedSender: null,
+        subject: 'VS: Faktura',
+      }),
+    ).toBeNull();
   });
 
   it('cuts at the first header block', () => {

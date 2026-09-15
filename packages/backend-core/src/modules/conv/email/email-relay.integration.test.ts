@@ -350,6 +350,39 @@ const RELAY_DOMAIN = 'in.getmunin.test';
       expect(contact!.email).toBe('ola@kunde.test');
     });
 
+    it('keeps the payload of a forward in the body when the sender forwarded their own mail', async () => {
+      const res = await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(
+          [
+            'From: Ada Berg <ada@kunde.no>',
+            `To: <${relayAddress}>`,
+            'Subject: Fwd: Gjeld',
+            'Message-ID: <self-forward-1@kunde.no>',
+            'Content-Type: text/plain; charset="utf-8"',
+            '',
+            '---------- Forwarded message ---------',
+            'Fra: Ada Berg <ada@kunde.no>',
+            'Date: man. 15. sep. 2026 kl. 01:02',
+            'Subject: Gjeld',
+            'To: Acme Support <support@acme.test>',
+            '',
+            'Kan dere hjelpe meg med å finne ut hvor mye jeg skylder?',
+            '',
+          ].join('\r\n'),
+        ).toString('base64'),
+      });
+      expect(res.status).toBe(201);
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const message = (
+        await db.select().from(schema.convMessages).where(eq(schema.convMessages.orgId, orgId))
+      ).find((m) => m.metadata.inboundMessageId === 'self-forward-1@kunde.no');
+      expect(message).toBeDefined();
+      expect(message!.body).toContain('hvor mye jeg skylder');
+      expect(message!.metadata).not.toHaveProperty('quotedThread');
+    });
+
     it('leaves a quoted turn out of the reconstructed history when Munin already holds it as a message', async () => {
       await postRelay({
         recipient: relayAddress,

@@ -1,5 +1,18 @@
 # @getmunin/backend-core
 
+## 5.25.1
+
+### Patch Changes
+
+- Updated dependencies [2bd3138]
+  - @getmunin/db@5.25.1
+  - @getmunin/core@5.25.1
+  - @getmunin/agent-runtime@5.25.1
+  - @getmunin/mcp-toolkit@5.25.1
+  - @getmunin/emails@5.25.1
+  - @getmunin/inspector-app@5.25.1
+  - @getmunin/types@5.25.1
+
 ## 5.25.0
 
 ### Minor Changes

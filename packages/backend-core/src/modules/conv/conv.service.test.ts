@@ -27,6 +27,8 @@ const skipReason = TEST_URL
   let orgId: string;
   let userId: string;
   let actor: ActorIdentity;
+  let humanActor: ActorIdentity;
+  let claims: ConversationClaimsService;
 
   beforeAll(async () => {
     await runMigrations(TEST_URL!);
@@ -48,10 +50,13 @@ const skipReason = TEST_URL
     await db.insert(schema.orgMembers).values({ orgId, userId });
     actor = new ActorIdentity('admin_agent', 'agt_conv_test', orgId, ['*'], ['admin']);
 
+    humanActor = new ActorIdentity('user', userId, orgId, ['*'], ['admin']);
+
     const dispatcher = new WebhookDispatcher();
+    claims = new ConversationClaimsService(dispatcher);
     svc = new ConvService(
       dispatcher,
-      new ConversationClaimsService(dispatcher),
+      claims,
       new CuratorJobsService(dispatcher),
       new AlertsService(dispatcher),
       stubAttachmentGateway(),
@@ -72,6 +77,7 @@ const skipReason = TEST_URL
     await db.execute(sql`DELETE FROM outreach_proposals WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM outreach_campaigns WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM crm_segments WHERE org_id = ${orgId}`);
+    await db.execute(sql`DELETE FROM claims WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM conv_messages WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM conv_conversations WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM conv_topics WHERE org_id = ${orgId}`);
@@ -671,6 +677,37 @@ const skipReason = TEST_URL
       const closed = await run(() => svc.changeStatus({ id: conv.id, status: 'closed' }));
       expect(closed.status).toBe('closed');
       expect(await eventTypes()).toContain('conversation.status_changed');
+    });
+
+    it('changeStatus to closed releases a human claim held by another actor, so the next reply is not blocked', async () => {
+      const conv = await seedConv();
+      await run(() => claims.claim({ conversationId: conv.id }), humanActor);
+      expect(await run(() => claims.isClaimed(conv.id))).toBe(true);
+
+      await run(() => svc.changeStatus({ id: conv.id, status: 'closed' }));
+
+      expect(await run(() => claims.getActiveClaim(conv.id))).toBeNull();
+      expect(await eventTypes()).toContain('conversation.released');
+    });
+
+    it('changeStatus to spam releases a human claim', async () => {
+      const conv = await seedConv();
+      await run(() => claims.claim({ conversationId: conv.id }), humanActor);
+      await run(() => svc.changeStatus({ id: conv.id, status: 'spam' }));
+      expect(await run(() => claims.getActiveClaim(conv.id))).toBeNull();
+    });
+
+    it('changeStatus to snoozed leaves a human claim in place', async () => {
+      const conv = await seedConv();
+      await run(() => claims.claim({ conversationId: conv.id }), humanActor);
+      await run(() =>
+        svc.changeStatus({
+          id: conv.id,
+          status: 'snoozed',
+          snoozeUntil: new Date(Date.now() + 60_000).toISOString(),
+        }),
+      );
+      expect(await run(() => claims.getActiveClaim(conv.id))).not.toBeNull();
     });
 
     it('changeStatus to closed enqueues a CRM contact-extract curator job', async () => {

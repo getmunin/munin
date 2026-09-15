@@ -1897,6 +1897,9 @@ export class ConvService {
     const settled = input.status === 'closed' || input.status === 'spam';
     const clearAttention = settled;
     const releaseRunner = settled;
+    if (settled) {
+      await this.claims.release({ conversationId: input.id, force: true });
+    }
     const result = await ctx.db
       .update(schema.convConversations)
       .set({

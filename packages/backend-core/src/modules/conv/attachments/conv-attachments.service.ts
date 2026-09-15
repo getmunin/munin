@@ -37,6 +37,7 @@ import type {
   AttachmentUploadHandle,
   HydratedMessageAttachment,
   MessageAttachmentProjection,
+  StoredAttachmentBytes,
 } from './conv-attachments.types.ts';
 
 type AttachmentRow = typeof schema.convAttachments.$inferSelect;
@@ -142,15 +143,12 @@ export class ConvAttachmentsService {
     return this.toDto(row);
   }
 
-  async persistBytes(input: {
+  async storeBytes(input: {
     conversationId: string;
-    messageId?: string;
     name: string;
     mime: string;
     body: Buffer;
-    inline?: boolean;
-    contentId?: string | null;
-  }): Promise<AttachmentDto> {
+  }): Promise<StoredAttachmentBytes> {
     this.assertMime(input.mime, input.name);
     this.assertSize(input.body.length);
     await this.quotas.assertCanAdd('conv_attachments');
@@ -158,12 +156,25 @@ export class ConvAttachmentsService {
       throw new Error('storage backend does not support direct writes');
     }
 
+    const actor = getCurrentContext().actor!;
+    const mime = normalizeMime(input.mime);
+    const storageKey = this.storageKeyFor(actor.orgId, input.conversationId, input.name);
+    await this.storage.writeDirect(storageKey, input.body, { mime });
+    const derived = await this.deriveVariantsOrDefer(mime, storageKey, input.body);
+    return { storageKey, mime, sizeBytes: input.body.length, ...derived };
+  }
+
+  async recordStoredBytes(input: {
+    stored: StoredAttachmentBytes;
+    conversationId: string;
+    messageId?: string;
+    name: string;
+    inline?: boolean;
+    contentId?: string | null;
+  }): Promise<AttachmentDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    const mime = normalizeMime(input.mime);
-    const key = this.storageKeyFor(actor.orgId, input.conversationId, input.name);
-    await this.storage.writeDirect(key, input.body, { mime });
-    const derived = await this.deriveVariantsOrDefer(mime, key, input.body);
+    const { storageKey, mime, sizeBytes, ...derived } = input.stored;
 
     const [row] = await ctx.db
       .insert(schema.convAttachments)
@@ -173,10 +184,10 @@ export class ConvAttachmentsService {
         messageId: input.messageId ?? null,
         name: input.name,
         mime,
-        sizeBytes: input.body.length,
+        sizeBytes,
         ...derived,
         storageProvider: this.storage.provider,
-        storageKey: key,
+        storageKey,
         inline: input.inline ?? false,
         contentId: input.contentId ?? null,
         uploaded: true,
@@ -185,6 +196,31 @@ export class ConvAttachmentsService {
       })
       .returning();
     return this.toDto(row!);
+  }
+
+  async persistBytes(input: {
+    conversationId: string;
+    messageId?: string;
+    name: string;
+    mime: string;
+    body: Buffer;
+    inline?: boolean;
+    contentId?: string | null;
+  }): Promise<AttachmentDto> {
+    const stored = await this.storeBytes({
+      conversationId: input.conversationId,
+      name: input.name,
+      mime: input.mime,
+      body: input.body,
+    });
+    return this.recordStoredBytes({
+      stored,
+      conversationId: input.conversationId,
+      messageId: input.messageId,
+      name: input.name,
+      inline: input.inline,
+      contentId: input.contentId,
+    });
   }
 
   async attachToMessage(input: {

@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { schema, type Db, type Tx } from '@getmunin/db';
+import { makeId, schema, type Db, type Tx } from '@getmunin/db';
 import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
 import {
   ActorIdentity,
@@ -48,6 +48,7 @@ import { ConvAttachmentsService } from '../attachments/conv-attachments.service.
 import type {
   AttachmentDto,
   MessageAttachmentProjection,
+  StoredAttachmentBytes,
 } from '../attachments/conv-attachments.types.ts';
 import type { ForwardOrigin } from './forwarded-sender.ts';
 import { reopenClosedConversation } from '../conversation-reopen.ts';
@@ -90,6 +91,13 @@ const RECORDED_BODY_LOOKBACK = 50;
 interface ImapMessageMin {
   uid: number;
   source: Buffer | string;
+}
+
+interface StoredInboundAttachment {
+  bytes: StoredAttachmentBytes;
+  name: string;
+  inline: boolean;
+  contentId: string | null;
 }
 
 export interface ImapFetcher {
@@ -389,42 +397,7 @@ export class EmailAdapter implements ChannelAdapter {
             ? 'no_content'
             : null);
 
-        let conversationId: string;
-        if (resolution) {
-          conversationId = resolution.conversationId;
-          if (contact.endUserId) {
-            await tx
-              .update(schema.convConversations)
-              .set({ endUserId: contact.endUserId })
-              .where(
-                and(
-                  eq(schema.convConversations.id, conversationId),
-                  sql`${schema.convConversations.endUserId} IS NULL`,
-                ),
-              );
-          }
-        } else {
-          const next = await tx.execute<{ next: number } & Record<string, unknown>>(
-            sql`SELECT conv_next_display_id(${orgId}) AS next`,
-          );
-          const displayId = next[0]!.next;
-          const [newConv] = await tx
-            .insert(schema.convConversations)
-            .values({
-              orgId,
-              displayId,
-              channelId: channel.id,
-              contactId: contact.id,
-              endUserId: contact.endUserId,
-              status: suppressed ? suppressedConversationStatus(suppressed) : 'open',
-              suppressedReason: suppressed,
-              subject: parsed.subject || null,
-              agentMode: channel.defaultAgentMode,
-              lastMessageAt: new Date(),
-            })
-            .returning();
-          conversationId = newConv!.id;
-        }
+        const conversationId = resolution?.conversationId ?? makeId('ccv');
 
         const recorded = await tx
           .select({ body: schema.convMessages.body })
@@ -447,11 +420,44 @@ export class EmailAdapter implements ChannelAdapter {
         const detectedSignatureForMeta =
           regexSignature ?? detectSignatureBlock(quoteStrippedText, parsed.bodyHtml);
         const cleanHtml = stripSignatureHtml(stripQuotedReplyHtml(parsed.bodyHtml));
-        const stored = await this.persistInboundAttachments(
+        const prepared = await this.storeInboundAttachments(
           conversationId,
           parsed.attachments,
           cleanHtml,
         );
+
+        if (resolution) {
+          if (contact.endUserId) {
+            await tx
+              .update(schema.convConversations)
+              .set({ endUserId: contact.endUserId })
+              .where(
+                and(
+                  eq(schema.convConversations.id, conversationId),
+                  sql`${schema.convConversations.endUserId} IS NULL`,
+                ),
+              );
+          }
+        } else {
+          const next = await tx.execute<{ next: number } & Record<string, unknown>>(
+            sql`SELECT conv_next_display_id(${orgId}) AS next`,
+          );
+          await tx.insert(schema.convConversations).values({
+            id: conversationId,
+            orgId,
+            displayId: next[0]!.next,
+            channelId: channel.id,
+            contactId: contact.id,
+            endUserId: contact.endUserId,
+            status: suppressed ? suppressedConversationStatus(suppressed) : 'open',
+            suppressedReason: suppressed,
+            subject: parsed.subject || null,
+            agentMode: channel.defaultAgentMode,
+            lastMessageAt: new Date(),
+          });
+        }
+
+        const stored = await this.recordInboundAttachments(conversationId, prepared.stored);
         const [msg] = await tx
           .insert(schema.convMessages)
           .values({
@@ -460,7 +466,7 @@ export class EmailAdapter implements ChannelAdapter {
             authorType: 'end_user',
             authorId: contact.id,
             body: cleanText || '(no body)',
-            bodyHtml: stored.bodyHtml,
+            bodyHtml: prepared.bodyHtml,
             attachments: stored.projection,
             internal: false,
             metadata: buildInboundMetadata(parsed, {
@@ -666,16 +672,12 @@ export class EmailAdapter implements ChannelAdapter {
     return out;
   }
 
-  private async persistInboundAttachments(
+  private async storeInboundAttachments(
     conversationId: string,
     parts: readonly InboundEmailAttachment[],
     cleanHtml: string | null,
-  ): Promise<{
-    bodyHtml: string | null;
-    projection: MessageAttachmentProjection[];
-    dtos: AttachmentDto[];
-  }> {
-    if (parts.length === 0) return { bodyHtml: cleanHtml, projection: [], dtos: [] };
+  ): Promise<{ bodyHtml: string | null; stored: StoredInboundAttachment[] }> {
+    if (parts.length === 0) return { bodyHtml: cleanHtml, stored: [] };
 
     const filtered = await filterInboundAttachments(parts, { html: cleanHtml });
     if (filtered.dropped.length > 0) {
@@ -689,29 +691,43 @@ export class EmailAdapter implements ChannelAdapter {
         .filter((part) => part.inline && part.contentId)
         .map((part) => part.contentId!),
     );
-    if (filtered.kept.length === 0) {
-      return { bodyHtml: normalizeCidReferences(cleanHtml, keptCids), projection: [], dtos: [] };
-    }
+    const bodyHtml = normalizeCidReferences(cleanHtml, keptCids);
 
-    const dtos: AttachmentDto[] = [];
+    const stored: StoredInboundAttachment[] = [];
     for (const part of filtered.kept) {
-      dtos.push(
-        await this.attachments.persistBytes({
+      stored.push({
+        bytes: await this.attachments.storeBytes({
           conversationId,
           name: part.name,
           mime: part.mime,
           body: part.content,
-          inline: part.inline,
-          contentId: part.contentId,
+        }),
+        name: part.name,
+        inline: part.inline,
+        contentId: part.contentId,
+      });
+    }
+
+    return { bodyHtml, stored };
+  }
+
+  private async recordInboundAttachments(
+    conversationId: string,
+    stored: readonly StoredInboundAttachment[],
+  ): Promise<{ projection: MessageAttachmentProjection[]; dtos: AttachmentDto[] }> {
+    const dtos: AttachmentDto[] = [];
+    for (const item of stored) {
+      dtos.push(
+        await this.attachments.recordStoredBytes({
+          stored: item.bytes,
+          conversationId,
+          name: item.name,
+          inline: item.inline,
+          contentId: item.contentId,
         }),
       );
     }
-
-    return {
-      bodyHtml: normalizeCidReferences(cleanHtml, keptCids),
-      projection: this.attachments.projectForMessage(dtos),
-      dtos,
-    };
+    return { projection: this.attachments.projectForMessage(dtos), dtos };
   }
 
   private async readCursor(channelId: string): Promise<Record<string, unknown>> {

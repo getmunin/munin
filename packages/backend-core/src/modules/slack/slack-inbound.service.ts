@@ -10,8 +10,14 @@ import { SlackApiClient } from './slack-api.client.ts';
 import { SlackUserMappingService } from './slack-user-mapping.service.ts';
 import { decryptSecretValue } from './slack.service.ts';
 import { routePromptBlocks, routePromptText } from './slack-projection.ts';
+import {
+  collectSlackMentionIds,
+  mrkdwnToMarkdown,
+  type SlackMentionNames,
+} from './slack-mrkdwn-inbound.ts';
 
 const INTERNAL_NOTE_PREFIX = '!';
+const MENTION_LOOKUP_LIMIT = 5;
 const ASSIGN_COMMAND_RE = /^!assign\s+(?:<@([A-Z0-9]+)(?:\|[^>]*)?>|me)\s*$/i;
 const ALLOWED_SUBTYPES = new Set(['thread_broadcast', 'file_share']);
 
@@ -147,8 +153,9 @@ export class SlackInboundService {
     }
 
     const internal = text.startsWith(INTERNAL_NOTE_PREFIX);
-    const body = internal ? text.slice(INTERNAL_NOTE_PREFIX.length).trim() : text;
-    if (body.length === 0) return;
+    const raw = internal ? text.slice(INTERNAL_NOTE_PREFIX.length).trim() : text;
+    if (raw.length === 0) return;
+    const body = mrkdwnToMarkdown(raw, await this.resolveMentionNames(raw, token));
 
     const actor = new ActorIdentity(
       'user',
@@ -191,6 +198,28 @@ export class SlackInboundService {
         `:warning: Your message was sent *without* the ${fileCount} attached file${fileCount === 1 ? '' : 's'} — attachments are not forwarded to customers yet.`,
       );
     }
+  }
+
+  private async resolveMentionNames(text: string, token: string): Promise<SlackMentionNames> {
+    const { users, channels } = collectSlackMentionIds(text);
+    const names: SlackMentionNames = {};
+    for (const user of users.slice(0, MENTION_LOOKUP_LIMIT)) {
+      try {
+        const info = await this.api.usersInfo({ token, user });
+        if (info.displayName) names.users = { ...names.users, [user]: info.displayName };
+      } catch (err) {
+        this.logger.warn(`users.info failed for ${user}: ${describeError(err)}`);
+      }
+    }
+    for (const channel of channels.slice(0, MENTION_LOOKUP_LIMIT)) {
+      try {
+        const info = await this.api.conversationsInfo({ token, channel });
+        if (info.name) names.channels = { ...names.channels, [channel]: info.name };
+      } catch (err) {
+        this.logger.warn(`conversations.info failed for ${channel}: ${describeError(err)}`);
+      }
+    }
+    return names;
   }
 
   private async forgetDeletedMessage(event: MessageDeletedEvent): Promise<void> {

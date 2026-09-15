@@ -33,6 +33,7 @@ import {
   buildOutbound,
   stripMessageIdBrackets,
   parseMessageIdHeader,
+  AUTO_SUBMITTED_HEADERS,
   type BuiltMessage,
   type OutboundAttachment,
 } from './mime.ts';
@@ -215,6 +216,7 @@ export class EmailAdapter implements ChannelAdapter {
     const trackerUrl = trackerUrlFor(config, ctx, html);
     const outboundAttachments = await this.loadOutboundAttachments(ctx);
     const embedInMime = config.outbound.provider === 'smtp';
+    const autoSubmitted = ctx.message.authorType === 'agent';
 
     const built: BuiltMessage = buildOutbound({
       from: composeFrom(config.addressing.fromName, config.addressing.fromAddress),
@@ -227,6 +229,7 @@ export class EmailAdapter implements ChannelAdapter {
       inReplyTo: ctx.delivery.inReplyToHeader ?? undefined,
       references: ctx.delivery.inReplyToHeader ? [ctx.delivery.inReplyToHeader] : undefined,
       trackerUrl,
+      autoSubmitted,
       attachments: embedInMime ? outboundAttachments : undefined,
     });
 
@@ -261,6 +264,7 @@ export class EmailAdapter implements ChannelAdapter {
         replyTo: config.addressing.replyToTemplate ?? undefined,
         headers: {
           'Message-ID': `<${built.messageId}>`,
+          ...(autoSubmitted ? AUTO_SUBMITTED_HEADERS : {}),
         },
         attachments: outboundAttachments.length
           ? outboundAttachments.map((a) => ({
@@ -370,6 +374,17 @@ export class EmailAdapter implements ChannelAdapter {
             )
             .limit(1);
           if (dup[0]) return;
+          const ownSend = await tx
+            .select({ id: schema.convMessageDeliveries.id })
+            .from(schema.convMessageDeliveries)
+            .where(
+              and(
+                eq(schema.convMessageDeliveries.orgId, orgId),
+                eq(schema.convMessageDeliveries.messageIdHeader, parsed.messageId),
+              ),
+            )
+            .limit(1);
+          if (ownSend[0]) return;
         }
         const resolution = await resolveInbound(tx, orgId, parsed, replyDomain);
         const contact = await this.emailService.findOrCreateContactByEmail(

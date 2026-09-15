@@ -12,7 +12,7 @@ import { DB } from '../../../common/db/db.module.ts';
 import { MAILER } from '../../../common/mail/mail.module.ts';
 import { EmailService, jsonbToStored, type StoredEmailChannelConfig } from '../email/email.service.ts';
 import { smtpTransportOptions } from '../email/email-probe.service.ts';
-import { buildOutbound, type BuiltMessage } from '../email/mime.ts';
+import { buildOutbound, AUTO_SUBMITTED_HEADERS, type BuiltMessage } from '../email/mime.ts';
 import {
   formatQuotedHistory,
   loadPriorMessagesForQuote,
@@ -417,6 +417,7 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
       subject,
       text,
       messageIdDomain: config.addressing.fromAddress,
+      autoSubmitted: true,
     });
   }
 
@@ -471,7 +472,7 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
         subject: extractSubject(built.raw) ?? 'New message',
         text: extractTextBody(built.raw),
         replyTo,
-        headers: { 'Message-ID': `<${built.messageId}>` },
+        headers: { 'Message-ID': `<${built.messageId}>`, ...AUTO_SUBMITTED_HEADERS },
       });
     }
   }

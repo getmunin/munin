@@ -20,6 +20,7 @@ import {
   smtpTransportOptions,
 } from './email-probe.service.ts';
 import { EmailService, EmailChannelConfigInput, jsonbToStored } from './email.service.ts';
+import { AUTO_SUBMITTED_HEADERS } from './mime.ts';
 
 const SetupInput = z.object({
   channelId: z.string().optional(),
@@ -104,7 +105,7 @@ export class EmailAdminTools {
     name: 'conv_send_email_channel_test',
     title: 'Conv: Send a test email',
     description:
-      "Send a real test email through this channel's configured outbound transport (SMTP or Mailer). The message is addressed `to` the recipient you pass in. Useful for confirming credentials and deliverability end-to-end.",
+      "Send a real test email through this channel's configured outbound transport (SMTP or Mailer). The message is addressed `to` the recipient you pass in, which must be a mailbox other than the channel's own address. Useful for confirming credentials and deliverability end-to-end.",
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: SendTestInput,
@@ -123,6 +124,12 @@ export class EmailAdminTools {
     const config = jsonbToStored(channel.config);
 
     const fromAddress = config.addressing.fromAddress;
+    if (args.to.trim().toLowerCase() === fromAddress.trim().toLowerCase()) {
+      throw new BadRequestException({
+        message: `conv_test_self_addressed: ${fromAddress} is this channel's own address; send the test to a mailbox you can read instead.`,
+        code: 'conv_test_self_addressed',
+      });
+    }
     const fromName = config.addressing.fromName;
     const from = fromName ? `${fromName} <${fromAddress}>` : fromAddress;
     const tpl = await renderChannelTestEmail({
@@ -152,6 +159,7 @@ export class EmailAdminTools {
             subject: tpl.subject,
             text: tpl.text,
             html: tpl.html,
+            headers: { ...AUTO_SUBMITTED_HEADERS },
             envelope: { from: fromAddress, to: args.to },
           });
         } finally {
@@ -164,6 +172,7 @@ export class EmailAdminTools {
           subject: tpl.subject,
           text: tpl.text,
           html: tpl.html,
+          headers: { ...AUTO_SUBMITTED_HEADERS },
         });
       }
     } catch (err) {

@@ -2013,6 +2013,7 @@
     "conv_draft_pending": "A draft is already waiting for review.",
     "conv_draft_request_invalid": "The agent can't draft here — the conversation is closed, has no customer to reply to, or the agent is switched off.",
     "conv_invalid": "This draft is no longer the one waiting on this conversation — it was already sent, or the agent has written a newer one. Reopen the conversation to see where it stands.",
+    "conv_test_self_addressed": "That address is the channel's own. Send the test to a different mailbox you can read.",
     "kb_curation_decided": "This one was already decided — published or dismissed — so it won't be proposed again. Refresh the queue.",
     "kb_version_conflict": "Someone changed this text while you had it open, so nothing was saved. Reopen it to see the current version and decide on that.",
     "member_forbidden": "That's limited to owners and admins. Ask an owner if you need access.",

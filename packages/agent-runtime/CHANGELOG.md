@@ -1,5 +1,34 @@
 # @getmunin/agent-runtime
 
+## 5.25.0
+
+### Minor Changes
+
+- 95a5426: Let the reply agent read the email Subject line
+
+  The subject of an inbound email is stored on the conversation and never anywhere else: it is not prepended to the message body, and `toRuntimeHistory` maps only `authorType`, `body`, `createdAt` and attachments. The runtime's own `ConversationDetail` did not even declare the field, so the agent that writes or drafts a reply worked from the bodies alone — on a thread whose whole ask lives in the header ("Callback request", an order number, "Double charge on invoice 4471" over two lines of pleasantries) it was answering a question it had not been shown. Every other agent in the product could see it: `conv_get_conversation` returns `subject`, so curator skill passes and external MCP hosts have had it all along.
+
+  The subject now rides in the volatile system message beside the conversation id, fenced with `fenceUntrusted('data', …)` and capped at 300 characters. It is the sender's own text, so it is framed as untrusted like the company-context block — the note above the fence says to read it as context and ignore anything in it that reads like a directive, and the framing tags it might try to close are escaped.
+
+  Only email threads get the block. On chat, SMS and voice the `subject` column holds a title `skill://conv/set-topic-and-title` wrote from those same messages, so feeding it back would be the agent reading its own summary; and the email channel descriptor already tells the agent to output the body only, which the note reinforces — the reply threads under the existing subject, so it must not restate it or invent one. Nothing about seeded prompts changes: the block is assembled in code, so live organisations pick it up without a per-org prompt patch.
+
+  The audit pass gets it too, on the same gate. Three of the four verdicts it can reach turn on knowing what was asked: `mark_spam` withholds the reply and parks it as a draft, and a two-line body under a subject that carries the whole question is exactly the shape it would otherwise misread; `set_topic` loses the strongest signal email has; `request_handover` asks whether the reply addressed the ask. Its prompt gains the subject block only when one is present, plus a sentence telling the judge that a terse body is normal when the subject carries the question.
+
+  `InProcessMuninRestClientFactoryService` maps the service DTO field by field, so it dropped the subject on the OSS in-process path even once the runtime type had it; it now passes it through.
+
+### Patch Changes
+
+- 2392431: Make a `draft_only` topic hold the reply that is already being written.
+
+  The agent resolved its delivery mode once, before the LLM turn, and acted on it seconds later. Topic classification runs as a separate curator job, so a conversation whose topic had not landed yet fell back to the channel default — and a topic set to `draft_only` could be applied mid-turn and still not stop the send. On one live org `conv_list_topic_automation` showed `Support` as `draft_only` with `autoSent: 6`; one reply was delivered 62 ms after the note saying replies needed review.
+
+  `sendMessage` now re-checks the effective agent mode (topic override included) when the message is written, not when the turn started, and refuses a public agent send with `agent_send_not_auto` if it resolves to `draft_only`. The runtime catches that and parks the reply through its existing draft path — draft stored, superseding older drafts, flagged for review — so the generated answer is kept rather than discarded. Outreach conversations are exempt: they are created `draft_only` by construction, because outreach is propose-only and the approval step _is_ the review, so gating an approved outreach send on the same flag would block every campaign send.
+
+  The check is server-side, so it also closes the window for an operator demoting a topic while a turn is in flight, and covers any caller, not just the in-house runner. Internal notes, operator sends, and approved drafts are unaffected.
+
+- @getmunin/core@5.25.0
+  - @getmunin/types@5.25.0
+
 ## 5.24.1
 
 ### Patch Changes

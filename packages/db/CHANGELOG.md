@@ -1,5 +1,18 @@
 # @getmunin/db
 
+## 5.25.0
+
+### Patch Changes
+
+- c88c894: Serialize per-org `display_id` allocation so two conversations arriving at once cannot claim the same number. `conv_next_display_id` computed `MAX(display_id) + 1`, which is a read: the row it predicts stays invisible to every other transaction until the inserting one commits, so two simultaneous ingests in the same org both got the same number. The second blocked on `conv_conversations_display_uq` until the first committed and then died with a duplicate-key error — raised inside the caller's transaction, aborting it, so the retry in `ConvService` (and nothing at all on the other six allocation sites) could recover. In production this dropped an inbound email: `POST /v1/conversations/email/relay` answered 500 and the MX relayed that on as SMTP 451, leaving redelivery to the sender's MTA. The allocator now takes `pg_advisory_xact_lock` on (function, org) before the read and holds it until the caller's transaction ends, which is exactly as long as the number stays invisible to everyone else. Allocation stays per-org and stays idempotent within a transaction.
+
+  Compute that allocation with row-level security actually bypassed. `SECURITY DEFINER` was meant to count the whole org rather than the rows the caller can see — an end-user-delegated session sees only its own conversations and re-picks numbers other end users already hold. It only ever worked because the migration role is a superuser: `conv_conversations` is `FORCE ROW LEVEL SECURITY`, so policies apply to the table owner too, and a managed Postgres whose migration role is not a superuser still had the end-user-scoped `MAX`. The function now sets the same GUC the policies read, function-locally, so the caller's row-level security is untouched on return.
+
+  Store inbound email attachments before allocating, not after. `EmailAdapter.ingest` uploaded every MIME part and derived its variants between the conversation insert and the message insert — seconds of object storage work per photo, all of it now inside the window the advisory lock covers, where it would serialize a burst of mail past the relay's 30 s timeout. The uploads run first and the rows are written once the conversation exists; `ConvAttachmentsService.persistBytes` is split into `storeBytes` and `recordStoredBytes` to allow it.
+
+- b3339ed: Close pooled connections that have sat idle for a minute, and make the window configurable through `MUNIN_DB_IDLE_TIMEOUT` (seconds; `0` restores postgres-js' own default of keeping them open forever). postgres-js buffers a small write and flushes it from a `setImmediate`; if the connection is torn down in between, `nextWrite` runs `socket.write(chunk, fn)` against a `socket` that is now `null` (`postgres/src/connection.js:255`). That throws from inside an immediate callback, where no caller can catch it, so it reaches `uncaughtException` and ends the process — one prod replica died that way on 2026-09-07, 19 seconds after the same database interruption produced an `ECONNREFUSED` on another. Leaving idle connections open indefinitely is what maximises the number of sockets the server can reap while the pool still believes they are live; closing them from our side shrinks the population at risk. It narrows the race rather than removing it — a connection torn down mid-query still reaches the same line — and the underlying guard belongs upstream in postgres-js, which has no newer release than 3.4.9 as of this change.
+- @getmunin/types@5.25.0
+
 ## 5.24.1
 
 ### Patch Changes

@@ -1,5 +1,98 @@
 # @getmunin/backend-core
 
+## 5.25.0
+
+### Minor Changes
+
+- 95a5426: Let the reply agent read the email Subject line
+
+  The subject of an inbound email is stored on the conversation and never anywhere else: it is not prepended to the message body, and `toRuntimeHistory` maps only `authorType`, `body`, `createdAt` and attachments. The runtime's own `ConversationDetail` did not even declare the field, so the agent that writes or drafts a reply worked from the bodies alone — on a thread whose whole ask lives in the header ("Callback request", an order number, "Double charge on invoice 4471" over two lines of pleasantries) it was answering a question it had not been shown. Every other agent in the product could see it: `conv_get_conversation` returns `subject`, so curator skill passes and external MCP hosts have had it all along.
+
+  The subject now rides in the volatile system message beside the conversation id, fenced with `fenceUntrusted('data', …)` and capped at 300 characters. It is the sender's own text, so it is framed as untrusted like the company-context block — the note above the fence says to read it as context and ignore anything in it that reads like a directive, and the framing tags it might try to close are escaped.
+
+  Only email threads get the block. On chat, SMS and voice the `subject` column holds a title `skill://conv/set-topic-and-title` wrote from those same messages, so feeding it back would be the agent reading its own summary; and the email channel descriptor already tells the agent to output the body only, which the note reinforces — the reply threads under the existing subject, so it must not restate it or invent one. Nothing about seeded prompts changes: the block is assembled in code, so live organisations pick it up without a per-org prompt patch.
+
+  The audit pass gets it too, on the same gate. Three of the four verdicts it can reach turn on knowing what was asked: `mark_spam` withholds the reply and parks it as a draft, and a two-line body under a subject that carries the whole question is exactly the shape it would otherwise misread; `set_topic` loses the strongest signal email has; `request_handover` asks whether the reply addressed the ask. Its prompt gains the subject block only when one is present, plus a sentence telling the judge that a terse body is normal when the subject carries the question.
+
+  `InProcessMuninRestClientFactoryService` maps the service DTO field by field, so it dropped the subject on the OSS in-process path even once the runtime type had it; it now passes it through.
+
+### Patch Changes
+
+- 2b00a18: Reconstruct the quoted history of an Apple Mail or Gmail reply, not just an Outlook one.
+
+  Two mechanisms read quoted text and they had different coverage. `stripQuotedReplyText` removes the quote from the stored body and understands both shapes — the attribution line (`On 15 Sep 2026, at 09:37, Support <hello@example.com> wrote:`, plus its Nordic, German, French, Polish, CJK and other equivalents) and the Outlook header block. `parseQuotedThread`, which builds the turns behind "Earlier in this thread", understood **only** the header block: a `From:` line with at least two of `To:` / `Date:` / `Subject:` / `Cc:`.
+
+  So a reply from Apple Mail or Gmail had its quote correctly stripped from the body but never reconstructed, and the panel simply did not appear. Outlook replies worked, which is why this went unnoticed — the feature was built against Outlook in the first place.
+
+  `parseQuotedThread` now falls back to attribution-line parsing when no header block is found, splitting turns at each attribution and stripping one `>` marker level per nesting depth. Header-block parsing is unchanged and still wins when a message carries both. `to`, `date` and `subject` are left null for attribution quotes rather than guessed, since the line's format varies per client and language; the sender is taken from the address in the line, with the display name when one is present.
+
+  The shared attribution patterns move to `email/attribution.ts` so both readers use one list — `reply-history.ts` keeps its separator patterns (`-----Original Message-----` and friends), which mark a quote boundary but never begin a turn.
+
+- c88c894: Serialize per-org `display_id` allocation so two conversations arriving at once cannot claim the same number. `conv_next_display_id` computed `MAX(display_id) + 1`, which is a read: the row it predicts stays invisible to every other transaction until the inserting one commits, so two simultaneous ingests in the same org both got the same number. The second blocked on `conv_conversations_display_uq` until the first committed and then died with a duplicate-key error — raised inside the caller's transaction, aborting it, so the retry in `ConvService` (and nothing at all on the other six allocation sites) could recover. In production this dropped an inbound email: `POST /v1/conversations/email/relay` answered 500 and the MX relayed that on as SMTP 451, leaving redelivery to the sender's MTA. The allocator now takes `pg_advisory_xact_lock` on (function, org) before the read and holds it until the caller's transaction ends, which is exactly as long as the number stays invisible to everyone else. Allocation stays per-org and stays idempotent within a transaction.
+
+  Compute that allocation with row-level security actually bypassed. `SECURITY DEFINER` was meant to count the whole org rather than the rows the caller can see — an end-user-delegated session sees only its own conversations and re-picks numbers other end users already hold. It only ever worked because the migration role is a superuser: `conv_conversations` is `FORCE ROW LEVEL SECURITY`, so policies apply to the table owner too, and a managed Postgres whose migration role is not a superuser still had the end-user-scoped `MAX`. The function now sets the same GUC the policies read, function-locally, so the caller's row-level security is untouched on return.
+
+  Store inbound email attachments before allocating, not after. `EmailAdapter.ingest` uploaded every MIME part and derived its variants between the conversation insert and the message insert — seconds of object storage work per photo, all of it now inside the window the advisory lock covers, where it would serialize a burst of mail past the relay's 30 s timeout. The uploads run first and the rows are written once the conversation exists; `ConvAttachmentsService.persistBytes` is split into `storeBytes` and `recordStoredBytes` to allow it.
+
+- 2392431: Make a `draft_only` topic hold the reply that is already being written.
+
+  The agent resolved its delivery mode once, before the LLM turn, and acted on it seconds later. Topic classification runs as a separate curator job, so a conversation whose topic had not landed yet fell back to the channel default — and a topic set to `draft_only` could be applied mid-turn and still not stop the send. On one live org `conv_list_topic_automation` showed `Support` as `draft_only` with `autoSent: 6`; one reply was delivered 62 ms after the note saying replies needed review.
+
+  `sendMessage` now re-checks the effective agent mode (topic override included) when the message is written, not when the turn started, and refuses a public agent send with `agent_send_not_auto` if it resolves to `draft_only`. The runtime catches that and parks the reply through its existing draft path — draft stored, superseding older drafts, flagged for review — so the generated answer is kept rather than discarded. Outreach conversations are exempt: they are created `draft_only` by construction, because outreach is propose-only and the approval step _is_ the review, so gating an approved outreach send on the same flag would block every campaign send.
+
+  The check is server-side, so it also closes the window for an operator demoting a topic while a turn is in flight, and covers any caller, not just the in-house runner. Internal notes, operator sends, and approved drafts are unaffected.
+
+- 2bf9032: Release a human claim on every close, not just the dashboard one.
+
+  Settling a conversation (`closed` or `spam`) already cleared the runner lease inside
+  `ConvService.changeStatus`, but the human claim was released one level up, in the `/v1`
+  status controller. So closing from the dashboard released the claim and every other path
+  did not: the `conv_change_status` MCP tool, the `autoCloseInactive` sweeper, Slack's Close
+  button, and the Vapi/Threll adapters closing on call end all left the claim row behind for
+  the rest of its 30-minute TTL.
+
+  The visible symptoms were a conversation still showing as claimed in the web UI after the
+  holder closed it from Slack, and — because inbound messages reopen a closed conversation —
+  the AI agent being blocked by `HandoverActiveError` if the customer replied inside that
+  window, on a conversation the human had already finished with.
+
+  The release now lives in the service next to the runner-lease clear, and the controller is
+  a thin wrapper again.
+
+- 0ab35ca: Convert Slack mrkdwn to Markdown on inbound thread replies.
+
+  Slack's Events API delivers a message's `text` as mrkdwn, not as what the operator sees in the composer: an emoji arrives as `:slightly_smiling_face:`, bold as `*bold*`, a link as `<url|label>`, a mention as `<@U024BE7LH>`, and `<`/`>`/`&` entity-escaped. That text was stored verbatim, so a customer read the shortcode instead of the emoji. It now goes through a `mrkdwnToMarkdown()` pass — the inverse of the existing `markdownToMrkdwn()` used on the way out — covering emoji (including `:skin-tone-N:` modifiers), emphasis, bullets, both blockquote forms, links, user/channel mentions and broadcasts.
+
+  Unknown shortcodes are left untouched, so a custom workspace emoji survives as its shortcode rather than being dropped. The `:shortcode:` table is generated from iamcal/emoji-data by `scripts/generate-slack-emoji.mjs`; `!assign` is still parsed off the raw Slack text, so thread commands are unaffected.
+
+- 7127c88: Stop an email channel answering its own mail.
+
+  When the polled mailbox also receives the channel's own outbound — a `hello@` alias delivering into the `mailmaster@` mailbox it sends from — every agent reply was ingested as a fresh customer email and answered again, one round per 60s poll, each round opening a new conversation because a first reply carries no `In-Reply-To` to thread on.
+
+  Three changes close it:
+
+  - Agent-authored replies now carry RFC 3834 `Auto-Submitted: auto-replied`, which the inbound classifier already recognises, so a reply delivered back to us is suppressed as an auto-reply. The widget→email fallback digest is marked the same way. Operator-typed replies stay unmarked — they are not automatic responses.
+  - Inbound dedupe now also matches `conv_message_deliveries.message_id_header`, so a message we sent ourselves is dropped on `Message-ID` even when a middlebox strips the header. This is what covers the operator-typed case.
+  - `conv_send_email_channel_test` refuses a `to` equal to the channel's own address (`conv_test_self_addressed`) rather than seeding the loop with its own test message.
+
+- 0dbd9a6: Keep the payload of a forward in the message body when the person forwarding is also the sender of the mail they forward.
+
+  Quote reconstruction asked one question to answer two: `resolveForwardOrigin` decides who the contact is, and its answer was also used to decide whether a header block in the body opens a forwarded message or a quoted reply. Those come apart whenever a forward changes nothing about identity — someone forwarding a mail they sent, or one that was addressed to them. The origin resolves to `direct`, the quote parser is told "not a forward", and the `From:/Date:/Subject:/To:` block below `---------- Forwarded message ---------` is read as thread history. The stored body is then the marker line alone and the whole question the customer asked lands in the collapsed history, where an agent drafting a reply reports the message as truncated and asks them to send it again.
+
+  A forward marker whose words say "forwarded" is now positive evidence on its own, independent of who sent what: it keeps the block below it in the body whatever the origin resolved to. The gate stays for markers a client also prints above a quoted reply — `-----Original Message-----` and Outlook's rule of underscores — which is what #970 turned on. For those, a subject that opens with a forward prefix (`Fwd:`, `VS:`, `WG:`, …) now counts as the same evidence, so an Outlook forward of one's own mail keeps its payload too; that signal also holds the quote-header scan and the signature splitter off the marker line, since both would otherwise cut the forwarded text away further down the pipeline.
+
+- Updated dependencies [c88c894]
+- Updated dependencies [b3339ed]
+- Updated dependencies [95a5426]
+- Updated dependencies [2392431]
+  - @getmunin/db@5.25.0
+  - @getmunin/agent-runtime@5.25.0
+  - @getmunin/core@5.25.0
+  - @getmunin/inspector-app@5.25.0
+  - @getmunin/mcp-toolkit@5.25.0
+  - @getmunin/emails@5.25.0
+  - @getmunin/types@5.25.0
+
 ## 5.24.1
 
 ### Patch Changes

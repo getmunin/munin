@@ -477,12 +477,7 @@ export class ConversationsController {
     @Param('id') id: string,
     @Body() input: ChangeStatusBody,
   ): Promise<ConversationSummary> {
-    return translate(async () => {
-      if (input.status === 'closed' || input.status === 'spam') {
-        await this.claims.release({ conversationId: id, force: true });
-      }
-      return this.conv.changeStatus({ id, ...input });
-    });
+    return translate(() => this.conv.changeStatus({ id, ...input }));
   }
 
   @Post(':id/agent-mode')

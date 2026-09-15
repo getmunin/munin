@@ -41,6 +41,7 @@ inside the caller's tenant transaction via `getCurrentContext()`.
 | `requestUpload({conversationId, name, mime, sizeBytes, sessionId?})` | Client-side upload (dashboard composer, widget). Returns an `AttachmentUploadHandle` with a presigned target; the row is `uploaded: false` until confirmed. |
 | `completeUpload({id, sessionId?})` | Confirm a presigned upload. Verifies the object's real size against what was declared, derives variants. Pass `sessionId` from the widget so a session can only complete its own. |
 | `persistBytes({conversationId, messageId?, name, mime, body, inline?, contentId?})` | Server-side ingest where we already hold the bytes: inbound email MIME parts, MMS media we fetched. One call, no presign. |
+| `storeBytes({conversationId, name, mime, body})` / `recordStoredBytes({stored, conversationId, messageId?, name, inline?, contentId?})` | The two halves of `persistBytes`, for a caller that must not do object-storage work at that point in its transaction. See below. |
 | `attachToMessage({messageId, conversationId, attachmentIds, sessionId?})` | Link uploaded rows to a message at send time. Validates ownership, conversation match, upload completion, and that the row is not already on another message. |
 | `listForMessages(messageIds)` | Batch-load for DTO assembly. Returns `Map<messageId, AttachmentDto[]>`. |
 | `projectForMessage(dtos)` | Shape for the denormalized `conv_messages.attachments` jsonb (see below). Carries no URL by design. |
@@ -60,6 +61,25 @@ inside the caller's tenant transaction via `getCurrentContext()`.
 - `CONV_ATTACHMENT_PENDING_PER_SESSION_MAX` — 10 uncommitted uploads per widget session.
 - `CONV_ATTACHMENT_INBOUND_BYTES_MIN` / `CONV_ATTACHMENT_INBOUND_EDGE_MIN_PX` — the floor the
   inbound-email filter uses to drop tracking pixels and signature logos. Unused until PR 2.
+
+## Why `persistBytes` comes apart
+
+`storeBytes` writes the object and derives variants; `recordStoredBytes` inserts the row.
+`persistBytes` is still the two of them in order and stays the right call for most ingest.
+
+Inbound email splits them because of where the object writes land in its transaction. A new
+conversation's `display_id` is allocated by `conv_next_display_id`, which holds a per-org
+advisory lock until the transaction commits — that is what stops two simultaneous inbound
+messages from picking the same number. Everything the transaction does after that allocation is
+therefore serialized against every other conversation being created in the org, and a photo
+attachment is seconds of upload and resize per part. So `EmailAdapter.ingest` calls `storeBytes`
+for every kept part *before* it allocates, and `recordStoredBytes` after the conversation row
+exists — the rows carry an FK to it, so they cannot be written any earlier. Keep that order:
+uploading inside the lock window is what turned a burst of mail into a 30 s relay timeout.
+
+The storage key is `conv/<orgId>/<conversationId>/<random>.<ext>`, so the id has to be known
+before the upload. For a new conversation the adapter mints it with `makeId('ccv')` and inserts
+it explicitly, the same way the voice adapters do.
 
 ## `conv_messages.attachments` is a projection, not the source of truth
 

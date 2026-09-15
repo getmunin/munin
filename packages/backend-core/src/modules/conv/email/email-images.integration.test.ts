@@ -7,11 +7,19 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import sharp from 'sharp';
 import { and, eq, sql } from 'drizzle-orm';
-import { ActorIdentity, withContext, type RequestContext, type StubMailer } from '@getmunin/core';
+import {
+  ActorIdentity,
+  getCurrentContext,
+  withContext,
+  type AssetStorage,
+  type RequestContext,
+  type StubMailer,
+} from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { createApp } from '../../../bootstrap-app.ts';
 import { AppModule } from '../../../app.module.ts';
 import { MAILER } from '../../../common/mail/mail.module.ts';
+import { STORAGE } from '../../../common/storage/storage.token.ts';
 import { ConvAttachmentsService } from '../attachments/conv-attachments.service.ts';
 import { OutboundDeliveryWorker } from '../channels/outbound-delivery.worker.ts';
 import type { ChannelRow } from '../channels/adapter.ts';
@@ -432,5 +440,55 @@ function buildEml(input: {
     expect(tombstoned).toHaveLength(1);
     expect(tombstoned[0]!.deletedAt).not.toBeNull();
     expect(tombstoned[0]!.storageKey).toBeNull();
+  });
+
+  it('stores attachment bytes before it takes the per-org display-id lock', async () => {
+    const before = await db
+      .select({ id: schema.convConversations.id })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.orgId, orgId));
+    const storage = app.get<AssetStorage>(STORAGE);
+    const write = storage.writeDirect!.bind(storage);
+    const advisoryLocksHeldDuringWrite: number[] = [];
+    storage.writeDirect = async (key, body, opts) => {
+      const held = await getCurrentContext().db.execute<{ count: number }>(
+        sql`SELECT count(*)::int AS count
+            FROM pg_locks
+            WHERE locktype = 'advisory' AND pid = pg_backend_pid()`,
+      );
+      advisoryLocksHeldDuringWrite.push(held[0]!.count);
+      await write(key, body, opts);
+    };
+
+    const eml = buildEml({
+      from: 'Customer Four <c4@customer.test>',
+      to: 'support@acme.test',
+      subject: 'Upload ordering',
+      messageId: `img-inbound-ordering-${randomUUID()}@customer.test`,
+      text: 'Photo attached.',
+      html: '<div dir="ltr"><p>Photo attached.</p></div>',
+      parts: [
+        {
+          contentType: 'image/jpeg',
+          disposition: 'attachment',
+          filename: 'ordering.jpg',
+          content: photo,
+        },
+      ],
+    });
+
+    try {
+      await adapter.ingest(channel, await parseMessage(eml));
+    } finally {
+      storage.writeDirect = write;
+    }
+
+    const after = await db
+      .select({ id: schema.convConversations.id })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.orgId, orgId));
+    expect(after).toHaveLength(before.length + 1);
+    expect(advisoryLocksHeldDuringWrite.length).toBeGreaterThan(0);
+    expect(advisoryLocksHeldDuringWrite.some((held) => held > 0)).toBe(false);
   });
 });

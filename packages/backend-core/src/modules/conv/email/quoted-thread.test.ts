@@ -330,3 +330,72 @@ describe('dropRecordedTurns', () => {
     expect(dropRecordedTurns(turns, [])).toEqual(turns);
   });
 });
+
+const APPLE_MAIL_NESTED = [
+  'Hei! Dette er en test.',
+  '',
+  'Kjell Rune Monsø',
+  '',
+  '> On 15 Sep 2026, at 09:37, Apps Support <hello@apps.no> wrote:',
+  '> ',
+  '> This is an automated test from Munin.',
+  '> ',
+  '>> On 14 Sep 2026, at 11:20, Kjell Rune Monsø <kjell@apps.no> wrote:',
+  '>> ',
+  '>> Can you confirm the address works?',
+].join('\n');
+
+describe('parseQuotedThread: attribution-line quoting', () => {
+  it('reconstructs an Apple Mail reply, which quotes without a header block', () => {
+    const turns = parseQuotedThread(APPLE_MAIL_NESTED);
+    expect(turns).toHaveLength(2);
+    expect(turns[0]).toMatchObject({
+      from: 'Apps Support <hello@apps.no>',
+      body: 'This is an automated test from Munin.',
+    });
+    expect(turns[1]).toMatchObject({
+      from: 'Kjell Rune Monsø <kjell@apps.no>',
+      body: 'Can you confirm the address works?',
+    });
+  });
+
+  it('strips one level of quote marker per nesting depth', () => {
+    const turns = parseQuotedThread(APPLE_MAIL_NESTED);
+    expect(turns.some((t) => t.body.includes('>'))).toBe(false);
+  });
+
+  it('leaves to, date and subject null rather than inventing them', () => {
+    const turn = parseQuotedThread(APPLE_MAIL_NESTED)[0]!;
+    expect(turn.to).toBeNull();
+    expect(turn.date).toBeNull();
+    expect(turn.subject).toBeNull();
+  });
+
+  it('reads a Gmail-style attribution without angle brackets', () => {
+    const turns = parseQuotedThread(
+      ['Thanks!', '', 'On Mon, Sep 15, 2026 at 9:37 AM hello@apps.no wrote:', '> the original'].join('\n'),
+    );
+    expect(turns).toHaveLength(1);
+    expect(turns[0]!.from).toBe('hello@apps.no');
+  });
+
+  it('reads a Norwegian attribution line', () => {
+    const turns = parseQuotedThread(
+      ['Takk!', '', 'Den 15. sep. 2026 kl. 09:37 skrev Apps Support <hello@apps.no>:', '> originalen'].join('\n'),
+    );
+    expect(turns).toHaveLength(1);
+    expect(turns[0]).toMatchObject({ from: 'Apps Support <hello@apps.no>', body: 'originalen' });
+  });
+
+  it('stays silent when the whole message is quoted, which is a forward not a reply', () => {
+    expect(
+      parseQuotedThread(['> On 15 Sep 2026, at 09:37, A <a@b.test> wrote:', '> hi'].join('\n')),
+    ).toEqual([]);
+  });
+
+  it('prefers the header-block reading when a message carries both', () => {
+    const turns = parseQuotedThread(HEADER_BLOCK_THREAD);
+    expect(turns.length).toBeGreaterThan(0);
+    expect(turns[0]!.subject).toBe('Re: Spørsmål om faktura');
+  });
+});

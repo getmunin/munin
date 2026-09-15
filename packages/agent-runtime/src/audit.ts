@@ -25,6 +25,7 @@ export interface AuditConversationArgs {
   model: string;
   question: string;
   reply: string;
+  subject?: string | null;
   thread?: readonly AuditThreadMessage[];
   toolNames: string[];
   topicCatalog?: AuditTopic[];
@@ -39,6 +40,7 @@ export interface AuditVerdict {
 
 const MAX_RATIONALE_CHARS = 1000;
 const MAX_THREAD_MESSAGE_CHARS = 600;
+const MAX_SUBJECT_CHARS = 300;
 
 const THREAD_ROLE: Record<AuthorType, string> = {
   end_user: 'customer',
@@ -89,15 +91,20 @@ Judge the latest turn in the context of the whole conversation, not the last mes
 
 `;
 
+const SUBJECT_GUIDE = `
+An [Email subject] block is present: that is the Subject line the customer wrote on this thread, and it is part of what they said. A thin or terse body is normal when the subject carries the question, so weigh it before calling the message spam, and read it as evidence when picking a topic.`;
+
 export async function auditConversation(args: AuditConversationArgs): Promise<AuditVerdict> {
   const provider = args.providerImpl ?? defaultProvider;
-  const systemPrompt = buildSystemPrompt(args.topicCatalog);
+  const subject = normaliseSubject(args.subject);
+  const systemPrompt = buildSystemPrompt(args.topicCatalog, subject !== null);
   const userPrompt = buildUserPrompt(
     args.question,
     args.reply,
     args.toolNames,
     args.topicCatalog,
     args.thread,
+    subject,
   );
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt },
@@ -125,8 +132,15 @@ export async function auditConversation(args: AuditConversationArgs): Promise<Au
   return parseVerdict(response.message.content ?? '', args.topicCatalog);
 }
 
-function buildSystemPrompt(topicCatalog: AuditTopic[] | undefined): string {
+function normaliseSubject(raw: string | null | undefined): string | null {
+  const trimmed = (raw ?? '').trim();
+  if (trimmed === '') return null;
+  return truncate(trimmed, MAX_SUBJECT_CHARS);
+}
+
+function buildSystemPrompt(topicCatalog: AuditTopic[] | undefined, hasSubject: boolean): string {
   const parts = [SYSTEM_PROMPT_HEAD, ACTION_GUIDE];
+  if (hasSubject) parts.push(SUBJECT_GUIDE);
   if (!topicCatalog || topicCatalog.length === 0) {
     parts.push(
       '\nThe org has no topics defined yet — skip the `set_topic` action entirely.',
@@ -141,8 +155,12 @@ function buildUserPrompt(
   toolNames: string[],
   topicCatalog: AuditTopic[] | undefined,
   thread: readonly AuditThreadMessage[] | undefined,
+  subject: string | null,
 ): string {
   const lines: string[] = [];
+  if (subject) {
+    lines.push('[Email subject]', fenceUntrusted('data', subject), '');
+  }
   if (thread && thread.length > 0) {
     lines.push(
       '[Conversation so far, oldest first]',

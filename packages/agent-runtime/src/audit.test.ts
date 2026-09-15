@@ -29,6 +29,57 @@ describe('auditConversation', () => {
     ]);
   });
 
+  it('shows the email Subject line to the judge, fenced, so a thin body is not read as spam', async () => {
+    const stub = createStubProvider({
+      responses: [
+        {
+          message: { role: 'assistant', content: '{"actions":[]}' },
+          finishReason: 'stop',
+          usage: {},
+        },
+      ],
+    });
+    await auditConversation({
+      provider: { baseUrl: 'http://stub', apiKey: 'k' },
+      model: 'audit',
+      question: 'see subject',
+      reply: 'Invoice 4471 was charged twice; the duplicate is refunded.',
+      subject: 'Double charge on invoice 4471',
+      toolNames: [],
+      providerImpl: stub.provider,
+    });
+    const messages = stub.calls[0]!.messages;
+    const system = messages.find((m) => m.role === 'system')!.content;
+    const user = messages.find((m) => m.role === 'user')!.content;
+    expect(user).toContain('[Email subject]');
+    expect(user).toContain('<data>\nDouble charge on invoice 4471\n</data>');
+    expect(system).toContain('A thin or terse body is normal when the subject carries the question');
+  });
+
+  it('says nothing about a subject when the conversation has none', async () => {
+    const stub = createStubProvider({
+      responses: [
+        {
+          message: { role: 'assistant', content: '{"actions":[]}' },
+          finishReason: 'stop',
+          usage: {},
+        },
+      ],
+    });
+    await auditConversation({
+      provider: { baseUrl: 'http://stub', apiKey: 'k' },
+      model: 'audit',
+      question: 'when do you open?',
+      reply: 'We open at 10am.',
+      subject: '   ',
+      toolNames: [],
+      providerImpl: stub.provider,
+    });
+    const messages = stub.calls[0]!.messages;
+    expect(messages.find((m) => m.role === 'user')!.content).not.toContain('[Email subject]');
+    expect(messages.find((m) => m.role === 'system')!.content).not.toContain('[Email subject]');
+  });
+
   it('returns close_conversation for explicit goodbyes', async () => {
     const stub = createStubProvider({
       responses: [

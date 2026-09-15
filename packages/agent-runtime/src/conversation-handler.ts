@@ -423,12 +423,6 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
             });
           } catch (err) {
             if (!(err instanceof Error) || errorCode(err) !== 'agent_send_not_auto') throw err;
-            if (detail.outreachCampaignId) {
-              log.info(
-                `${conversationId} turned draft_only mid-turn; outreach curator owns the draft, discarding`,
-              );
-              return;
-            }
             log.info(`${conversationId} turned draft_only mid-turn; parking the reply for review`);
             await parkForReview();
             return;

@@ -1439,46 +1439,6 @@ describe('createConversationHandler', () => {
     });
   });
 
-  it('discards a rejected send on an outreach conversation rather than parking a draft the curator owns', async () => {
-    const rest = buildRest({
-      getConversation: vi.fn(() =>
-        Promise.resolve(
-          buildConversation({ channelType: 'email', outreachCampaignId: 'ocp_1' }),
-        ),
-      ),
-    });
-    const postSpy = vi.fn(() =>
-      Promise.reject(
-        new MuninRestError(
-          'munin POST /v1/conversations/conv_1/messages \u2192 409: agent_send_not_auto: conversation conv_1 resolves to draft_only, so an agent reply must be parked for review instead of sent',
-          409,
-          'agent_send_not_auto',
-        ),
-      ),
-    );
-    const draftSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
-    const handoverSpy = vi.fn(() => Promise.resolve());
-    rest.postAgentMessage = postSpy;
-    rest.setDraftReply = draftSpy;
-    rest.requestHandover = handoverSpy;
-
-    const handler = createConversationHandler({
-      config: { ...baseConfig, auditEnabled: false },
-      rest,
-      prompts: buildPrompts(),
-      openMcp: () => Promise.resolve(buildMcp()),
-      logger: silentLogger,
-      scheduler: noDelayScheduler,
-      provider: sequenceProvider([assistantStop('We open at 10am.')]),
-    });
-    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
-    await handler.flush();
-
-    expect(postSpy).toHaveBeenCalledTimes(1);
-    expect(draftSpy).not.toHaveBeenCalled();
-    expect(handoverSpy).not.toHaveBeenCalled();
-  });
-
   it('skips without retry or handover when the post is rejected because a human took over', async () => {
     const rest = buildRest({
       getConversation: vi.fn(() => Promise.resolve(buildConversation())),

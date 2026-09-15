@@ -1430,6 +1430,7 @@ export class ConvService {
       input.authorType === 'agent' &&
       !input.internal &&
       !input.fromDraftId &&
+      !conv.outreachCampaignId &&
       (await this.effectiveAgentModeOf(input.conversationId)) === 'draft_only'
     ) {
       throw new AgentSendNotAutoError(input.conversationId);

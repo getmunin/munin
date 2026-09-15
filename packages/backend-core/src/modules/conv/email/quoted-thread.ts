@@ -1,5 +1,10 @@
 import { normalizeFlattenedWhitespace } from './inbound-body-limits.ts';
-import { FORWARD_MARKERS, parseAddressList } from './forwarded-sender.ts';
+import {
+  forwardMarkerKind,
+  parseAddressList,
+  subjectDeclaresForward,
+  type ForwardMarkerKind,
+} from './forwarded-sender.ts';
 import {
   CC_LABELS,
   DATE_LABELS,
@@ -17,6 +22,11 @@ export interface QuotedTurn {
 }
 
 export type ForwardedSender = string | null | undefined;
+
+export interface QuoteContext {
+  forwardedSender?: ForwardedSender;
+  subject?: string | null;
+}
 
 export interface QuotedHeaderBlock {
   start: number;
@@ -95,20 +105,24 @@ export function findHeaderBlocks(lines: string[]): QuotedHeaderBlock[] {
   return blocks;
 }
 
-function isForwardIntroduced(lines: string[], start: number): boolean {
+function markerAbove(lines: string[], start: number): ForwardMarkerKind | null {
   for (let i = start - 1; i >= 0; i -= 1) {
     if (lines[i]!.trim() === '') continue;
-    return FORWARD_MARKERS.some((re) => re.test(lines[i]!));
+    return forwardMarkerKind(lines[i]!);
   }
-  return false;
+  return null;
 }
 
 function introducesForwardedMessage(
   lines: string[],
   block: QuotedHeaderBlock,
-  forwardedSender: ForwardedSender,
+  context: QuoteContext,
 ): boolean {
-  if (!isForwardIntroduced(lines, block.start)) return false;
+  const marker = markerAbove(lines, block.start);
+  if (marker === null) return false;
+  if (marker === 'declared') return true;
+  if (subjectDeclaresForward(context.subject)) return true;
+  const { forwardedSender } = context;
   if (forwardedSender === undefined) return true;
   if (forwardedSender === null) return false;
   return parseAddressList(block.from).includes(forwardedSender.trim().toLowerCase());
@@ -117,10 +131,10 @@ function introducesForwardedMessage(
 function findQuotedHistoryStart(
   lines: string[],
   blocks: QuotedHeaderBlock[],
-  forwardedSender: ForwardedSender,
+  context: QuoteContext,
 ): number | null {
   for (let i = 0; i < blocks.length; i += 1) {
-    if (introducesForwardedMessage(lines, blocks[i]!, forwardedSender)) continue;
+    if (introducesForwardedMessage(lines, blocks[i]!, context)) continue;
     if (!lines.slice(0, blocks[i]!.start).some((l) => l.trim() !== '')) return null;
     return i;
   }
@@ -129,10 +143,10 @@ function findQuotedHistoryStart(
 
 export function findHeaderBlockQuoteCut(
   lines: string[],
-  forwardedSender?: ForwardedSender,
+  context: QuoteContext = {},
 ): number | null {
   const blocks = findHeaderBlocks(lines);
-  const start = findQuotedHistoryStart(lines, blocks, forwardedSender);
+  const start = findQuotedHistoryStart(lines, blocks, context);
   return start === null ? null : blocks[start]!.start;
 }
 
@@ -142,11 +156,11 @@ function normalizeQuotedBody(lines: string[]): string {
   return `${joined.slice(0, MAX_QUOTED_TURN_CHARS)}…`;
 }
 
-export function parseQuotedThread(body: string, forwardedSender?: ForwardedSender): QuotedTurn[] {
+export function parseQuotedThread(body: string, context: QuoteContext = {}): QuotedTurn[] {
   if (!body) return [];
   const lines = body.split(/\r?\n/);
   const blocks = findHeaderBlocks(lines);
-  const start = findQuotedHistoryStart(lines, blocks, forwardedSender);
+  const start = findQuotedHistoryStart(lines, blocks, context);
   if (start === null) return [];
   const turns: QuotedTurn[] = [];
   for (let i = start; i < blocks.length && turns.length < MAX_QUOTED_TURNS; i += 1) {

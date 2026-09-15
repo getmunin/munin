@@ -72,7 +72,12 @@ import {
 } from './classify-sender.ts';
 import { extractFailedRecipients } from './failed-recipients.ts';
 import { AddressDeliverabilityService } from '../../crm/address-deliverability.service.ts';
-import { dropRecordedTurns, parseQuotedThread, type QuotedTurn } from './quoted-thread.ts';
+import {
+  dropRecordedTurns,
+  parseQuotedThread,
+  type QuoteContext,
+  type QuotedTurn,
+} from './quoted-thread.ts';
 import { clampInboundBody, normalizeFlattenedWhitespace } from './inbound-body-limits.ts';
 import type {
   ChannelAdapter,
@@ -379,14 +384,16 @@ export class EmailAdapter implements ChannelAdapter {
           sender.senderName ?? undefined,
         );
         const normalizedText = normalizeFlattenedWhitespace(parsed.bodyText);
-        const forwardedSender =
-          sender.kind === 'manual-forward' ? sender.senderAddress : null;
+        const quoteContext: QuoteContext = {
+          forwardedSender: sender.kind === 'manual-forward' ? sender.senderAddress : null,
+          subject: parsed.subject,
+        };
         const suppressed: InboundSuppression | null =
           suppressionReason(parsed.senderClassification) ??
           (contact.spamMarkedAt ? 'spam_sender' : null) ??
           (hasNoAnswerableContent({
             subject: parsed.subject,
-            bodyText: stripQuotedReplyText(normalizedText, forwardedSender),
+            bodyText: stripQuotedReplyText(normalizedText, quoteContext),
           })
             ? 'no_content'
             : null);
@@ -440,13 +447,16 @@ export class EmailAdapter implements ChannelAdapter {
           .orderBy(desc(schema.convMessages.createdAt))
           .limit(RECORDED_BODY_LOOKBACK);
         const quotedThread = dropRecordedTurns(
-          parseQuotedThread(clampInboundBody(normalizedText), forwardedSender),
+          parseQuotedThread(clampInboundBody(normalizedText), quoteContext),
           recorded.map((r) => r.body),
         );
         const quoteStrippedText = clampInboundBody(
-          stripQuotedReplyText(normalizedText, forwardedSender),
+          stripQuotedReplyText(normalizedText, quoteContext),
         );
-        const { clean: cleanText, signature: regexSignature } = splitSignatureText(quoteStrippedText);
+        const { clean: cleanText, signature: regexSignature } = splitSignatureText(
+          quoteStrippedText,
+          quoteContext,
+        );
         const regexCutSignature = regexSignature !== null;
         const detectedSignatureForMeta =
           regexSignature ?? detectSignatureBlock(quoteStrippedText, parsed.bodyHtml);

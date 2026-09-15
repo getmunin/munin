@@ -1,6 +1,7 @@
 import { schema, type Db } from '@getmunin/db';
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { findHeaderBlockQuoteCut, type ForwardedSender } from './quoted-thread.ts';
+import { findHeaderBlockQuoteCut, type QuoteContext } from './quoted-thread.ts';
+import { forwardMarkerKind, subjectDeclaresForward } from './forwarded-sender.ts';
 
 const QUOTE_HEADER_PATTERNS: RegExp[] = [
   /^on .+ wrote:\s*$/i,
@@ -40,16 +41,16 @@ const TIME_OF_DAY = /\d{1,2}[.:]\d{2}/;
 const DATE_FIRST_QUOTE_VERB = /\b(?:skrev|skreiv|skrifaði|kirjoitti)\b/i;
 const MAX_QUOTE_HEADER_LENGTH = 200;
 
-export function stripQuotedReplyText(body: string, forwardedSender?: ForwardedSender): string {
+export function stripQuotedReplyText(body: string, context: QuoteContext = {}): string {
   if (!body) return body;
   const lines = unwrapAttributionBreaks(body.split(/\r?\n/));
   const cut =
-    findQuoteHeaderCut(lines) ??
-    findHeaderBlockQuoteCut(lines, forwardedSender) ??
+    findQuoteHeaderCut(lines, context) ??
+    findHeaderBlockQuoteCut(lines, context) ??
     findTrailingQuoteCut(lines) ??
-    findQuoteCutAboveSignature(lines);
+    findQuoteCutAboveSignature(lines, context);
   if (cut === null) return lines.join('\n').replace(/\s+$/g, '').trim();
-  return joinAroundQuote(lines, cut);
+  return joinAroundQuote(lines, cut, context);
 }
 
 function hasUnclosedAngle(line: string): boolean {
@@ -79,9 +80,11 @@ function isQuoteHeaderLine(line: string): boolean {
   return text.endsWith(':') && TIME_OF_DAY.test(text) && DATE_FIRST_QUOTE_VERB.test(text);
 }
 
-function findQuoteHeaderCut(lines: string[]): number | null {
+function findQuoteHeaderCut(lines: string[], context: QuoteContext): number | null {
+  const keepsForwardedPayload = subjectDeclaresForward(context.subject);
   for (let i = 0; i < lines.length; i += 1) {
     if (!isQuoteHeaderLine(lines[i]!)) continue;
+    if (keepsForwardedPayload && forwardMarkerKind(lines[i]!) !== null) continue;
     if (!lines.slice(0, i).some((l) => l.trim() !== '')) return null;
     return i;
   }
@@ -102,16 +105,16 @@ function findTrailingQuoteCut(lines: string[]): number | null {
   return null;
 }
 
-function findQuoteCutAboveSignature(lines: string[]): number | null {
-  const opener = findSignatureOpener(lines);
+function findQuoteCutAboveSignature(lines: string[], context: QuoteContext): number | null {
+  const opener = findSignatureOpener(lines, context);
   if (opener === null) return null;
   return findTrailingQuoteCut(lines.slice(0, opener));
 }
 
-function joinAroundQuote(lines: string[], cut: number): string {
+function joinAroundQuote(lines: string[], cut: number, context: QuoteContext): string {
   const kept = lines.slice(0, cut).join('\n').replace(/\s+$/g, '').trim();
   const below = lines.slice(cut);
-  const opener = findSignatureOpener(below);
+  const opener = findSignatureOpener(below, context);
   if (opener === null) return kept;
   const signature = below.slice(opener);
   if (signature.some((l) => l.trimStart().startsWith('>'))) return kept;
@@ -166,17 +169,23 @@ export function stripSignatureText(body: string): string {
   return splitSignatureText(body).clean;
 }
 
-function findSignatureOpener(lines: string[]): number | null {
+function findSignatureOpener(lines: string[], context: QuoteContext = {}): number | null {
+  const keepsForwardedPayload = subjectDeclaresForward(context.subject);
   for (let i = 0; i < lines.length; i += 1) {
-    if (SIGNATURE_OPENERS.some((re) => re.test(lines[i]!.trim()))) return i;
+    const line = lines[i]!.trim();
+    if (keepsForwardedPayload && forwardMarkerKind(line) !== null) continue;
+    if (SIGNATURE_OPENERS.some((re) => re.test(line))) return i;
   }
   return null;
 }
 
-export function splitSignatureText(body: string): { clean: string; signature: string | null } {
+export function splitSignatureText(
+  body: string,
+  context: QuoteContext = {},
+): { clean: string; signature: string | null } {
   if (!body) return { clean: body, signature: null };
   const lines = body.split(/\r?\n/);
-  const cut = findSignatureOpener(lines);
+  const cut = findSignatureOpener(lines, context);
   if (cut === null) return { clean: body, signature: null };
   const kept = lines.slice(0, cut);
   let nonEmpty = 0;

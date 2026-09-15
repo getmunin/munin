@@ -1,5 +1,12 @@
 # @getmunin/docs-pages
 
+## 5.25.1
+
+### Patch Changes
+
+- @getmunin/backend-core@5.25.1
+  - @getmunin/types@5.25.1
+
 ## 5.25.0
 
 ### Patch Changes

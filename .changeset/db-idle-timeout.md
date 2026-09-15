@@ -1,0 +1,5 @@
+---
+'@getmunin/db': patch
+---
+
+Close pooled connections that have sat idle for a minute, and make the window configurable through `MUNIN_DB_IDLE_TIMEOUT` (seconds; `0` restores postgres-js' own default of keeping them open forever). postgres-js buffers a small write and flushes it from a `setImmediate`; if the connection is torn down in between, `nextWrite` runs `socket.write(chunk, fn)` against a `socket` that is now `null` (`postgres/src/connection.js:255`). That throws from inside an immediate callback, where no caller can catch it, so it reaches `uncaughtException` and ends the process — one prod replica died that way on 2026-09-07, 19 seconds after the same database interruption produced an `ECONNREFUSED` on another. Leaving idle connections open indefinitely is what maximises the number of sockets the server can reap while the pool still believes they are live; closing them from our side shrinks the population at risk. It narrows the race rather than removing it — a connection torn down mid-query still reaches the same line — and the underlying guard belongs upstream in postgres-js, which has no newer release than 3.4.9 as of this change.

@@ -4,26 +4,43 @@
 -- ============================================================================
 
 -- ───────────────────────── per-org display id ─────────────────────────────
--- Pre-MAX-and-coalesce based allocation: given the org_id, return the next
--- display_id (1-based). Called inside the conversation-insert transaction so
--- the read-and-write is atomic. Locking via a row-level FOR UPDATE on the
--- max row would be overkill at our scale; a simple SELECT + INSERT inside
--- a transaction is monotonic enough — concurrent inserts in the same org
--- block on the unique (org_id, display_id) index and retry at the
--- application layer. Conversations service catches the conflict and retries.
-
--- SECURITY DEFINER + the org_id arg means the per-org sequence is computed
--- against ALL conversations in the org, not just rows visible to the caller's
--- RLS context. End-user-delegated calls would otherwise see only their own
--- conversations and re-pick display_id values already taken by other
--- end-users — colliding with conv_conversations_display_uq. Postgres aborts
--- the transaction after the first conflict, so the application-layer retry
--- can't recover. SECURITY DEFINER keeps the unique-sequence invariant correct
--- regardless of the caller's tenancy context.
+-- Given the org_id, return the next display_id (1-based). Called inside the
+-- conversation-insert transaction, and the whole read-and-insert has to be
+-- serialized per org: MAX(display_id) + 1 is a read, the row it predicts is
+-- not visible to anyone else until the inserting transaction commits, so two
+-- concurrent ingests in the same org both compute the same number. The second
+-- one then blocks on conv_conversations_display_uq until the first commits and
+-- dies with a duplicate-key error — which Postgres raises *inside* the caller's
+-- transaction, aborting it, so no application-layer retry can recover. That is
+-- an inbound email lost to a 500 (relayed on as SMTP 451) whenever two messages
+-- for one org land at once, and the window is as wide as the slowest ingest
+-- transaction: inbound attachments upload to object storage before the commit.
+--
+-- pg_advisory_xact_lock is therefore taken on (function, org) before the read
+-- and held until the caller's transaction ends, which is exactly as long as the
+-- predicted number stays invisible to everyone else. Allocation is per-org, so
+-- one org's slow ingest never blocks another's. The function stays idempotent
+-- within a transaction — calling it twice returns the same number, since the
+-- lock is re-entrant and nothing is consumed by reading.
+--
+-- SECURITY DEFINER + the org_id arg means the sequence is computed against ALL
+-- conversations in the org, not just rows visible to the caller's RLS context.
+-- End-user-delegated calls would otherwise see only their own conversations and
+-- re-pick display_id values already taken by other end-users. SECURITY DEFINER
+-- alone is not enough for that: conv_conversations is FORCE ROW LEVEL SECURITY,
+-- so policies apply to the table owner too, and switching to the owner only
+-- bypasses RLS when that owner happens to be a superuser. That holds for a
+-- local or CI database and not for a managed Postgres whose migration role is
+-- not a superuser, where the end-user-scoped MAX comes back. The function-local
+-- SET is what makes it true in both: it turns on the same GUC the policies read
+-- for the duration of the call only, and Postgres restores the caller's value on
+-- exit, so nothing downstream in the transaction inherits a bypass.
 CREATE OR REPLACE FUNCTION conv_next_display_id(p_org_id text) RETURNS integer
   LANGUAGE sql VOLATILE SECURITY DEFINER
   SET search_path = pg_catalog, public
+  SET app.bypass_rls = 'on'
   AS $$
+    SELECT pg_advisory_xact_lock(hashtext('conv_next_display_id'), hashtext(p_org_id));
     SELECT COALESCE(MAX(display_id), 0) + 1
     FROM conv_conversations
     WHERE org_id = p_org_id;

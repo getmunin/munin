@@ -44,6 +44,15 @@ export interface HydratedMessageAttachment extends MessageAttachmentProjection {
   thumbnailUrl: string | null;
 }
 
+export interface StoredAttachmentBytes {
+  storageKey: string;
+  mime: string;
+  sizeBytes: number;
+  width?: number | null;
+  height?: number | null;
+  variants?: AssetVariant[];
+}
+
 export interface AttachmentVariants {
   width: number | null;
   height: number | null;

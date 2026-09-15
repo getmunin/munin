@@ -21500,7 +21500,7 @@ SOFTWARE.
 
 ---
 
-## mailparser@3.9.19
+## mailparser@3.9.26
 
 > Parse e-mails
 - Homepage: https://github.com/nodemailer/mailparser#readme
@@ -24137,7 +24137,7 @@ THE SOFTWARE.
 
 ---
 
-## nodemailer@9.1.0, 9.1.1
+## nodemailer@9.1.1, 10.0.9
 
 > Easy as cake e-mail sending from your Node.js applications
 - Homepage: https://nodemailer.com/
@@ -30204,7 +30204,7 @@ SOFTWARE.
 
 ---
 
-## tldts@7.4.12
+## tldts@7.4.13
 
 > Library to work against complex domain names, subdomains and URIs.
 - Homepage: https://github.com/remusao/tldts#readme
@@ -30229,7 +30229,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTH
 
 ---
 
-## tldts-core@7.4.12
+## tldts-core@7.4.13
 
 > tldts core primitives (internal module)
 - Homepage: https://github.com/remusao/tldts#readme

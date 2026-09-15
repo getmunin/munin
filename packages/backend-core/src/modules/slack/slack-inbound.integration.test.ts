@@ -40,6 +40,10 @@ class FakeSlackApi extends SlackApiClient {
     });
   }
 
+  override conversationsInfo(input: { token: string; channel: string }) {
+    return Promise.resolve({ id: input.channel, name: 'support', isMember: true });
+  }
+
   override postEphemeral(input: { token: string; channel: string; user: string; text: string }) {
     this.ephemerals.push({ channel: input.channel, user: input.user, text: input.text });
     return Promise.resolve();
@@ -233,6 +237,39 @@ class FakeSlackApi extends SlackApiClient {
     const remirrored = api.posted.filter((p) => p.text.includes('Hello from Slack'));
     expect(remirrored).toHaveLength(0);
     expect(api.ephemerals).toHaveLength(0);
+  });
+
+  it('stores a reply as markdown rather than raw Slack mrkdwn', async () => {
+    const [member] = await db
+      .select({ email: schema.users.email })
+      .from(schema.users)
+      .where(eq(schema.users.id, memberUserId));
+    api.usersById.set('U_OPERATOR', { email: member!.email });
+    await inbound.processEventCallback(
+      replyPayload({
+        text: 'Bare hyggelig :slightly_smiling_face: — se <https://getmunin.com|dokumentasjonen> &amp; <#CHELP01> for *mer*',
+      }),
+    );
+
+    const rows = await messages();
+    expect(rows[0]!.body).toBe(
+      'Bare hyggelig 🙂 — se [dokumentasjonen](https://getmunin.com) & #support for **mer**',
+    );
+  });
+
+  it('resolves a mention in an internal note to a display name', async () => {
+    const [member] = await db
+      .select({ email: schema.users.email })
+      .from(schema.users)
+      .where(eq(schema.users.id, memberUserId));
+    api.usersById.set('U_OPERATOR', { email: member!.email });
+    await inbound.processEventCallback(replyPayload({ text: '!<@UHELPER1> kan du se på denne?' }));
+
+    const rows = await messages();
+    expect(rows[0]).toMatchObject({
+      internal: true,
+      body: '@Fake User kan du se på denne?',
+    });
   });
 
   it('reuses the cached user link without calling users.info again', async () => {

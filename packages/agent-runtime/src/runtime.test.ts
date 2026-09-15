@@ -640,3 +640,65 @@ describe('compactHistory image budget', () => {
     expect(compactHistory(many, budget - 1).truncated).toBe(1);
   });
 });
+
+describe('runAgent quoted email history', () => {
+  const quotedTurn = {
+    from: 'uScore <support@uscore.no>',
+    date: 'tirsdag 15. september 2026 13:23',
+    subject: 'Sjekk din betalingsrisiko',
+    body: 'Hvor sannsynlig er det at du misser en regning?',
+  };
+
+  it('sends the quoted email with the turn, fenced and marked as not the customer speaking', async () => {
+    const { provider, calls } = createStubProvider({ responses: [plainTextResponse('ok')] });
+
+    await runAgent({
+      config: baseConfig,
+      history: [
+        {
+          authorType: 'end_user',
+          body: 'Dette er bullshit. Moderat risiko?',
+          quotedHistory: [quotedTurn],
+        },
+      ],
+      mcp: makeMcp(),
+      provider,
+    });
+
+    const sent = calls[0]?.messages ?? [];
+    const turn = sent[sent.length - 1];
+    expect(turn?.role).toBe('user');
+    expect(turn?.content).toContain('Dette er bullshit. Moderat risiko?');
+    expect(turn?.content).toContain('<quoted_history>');
+    expect(turn?.content).toContain('Hvor sannsynlig er det at du misser en regning?');
+    expect(sent.some((m) => m.content?.toString().includes('it is not what they wrote to you'))).toBe(
+      true,
+    );
+  });
+
+  it('leaves the prompt untouched when no turn quoted anything', async () => {
+    const { provider, calls } = createStubProvider({ responses: [plainTextResponse('ok')] });
+
+    await runAgent({
+      config: baseConfig,
+      history: [{ authorType: 'end_user', body: 'hei' }],
+      mcp: makeMcp(),
+      provider,
+    });
+
+    const sent = calls[0]?.messages ?? [];
+    expect(sent.some((m) => m.content?.toString().includes('<quoted_history>'))).toBe(false);
+    expect(sent.filter((m) => m.role === 'system')).toHaveLength(2);
+  });
+
+  it('charges the quoted block to the compaction budget so a long quote cannot overrun it', () => {
+    const withQuote: ConversationMessage = {
+      authorType: 'end_user',
+      body: 'short',
+      quotedHistory: [{ from: null, date: null, subject: null, body: 'q'.repeat(900) }],
+    };
+    const kept = compactHistory([{ authorType: 'end_user', body: 'earlier' }, withQuote], 400);
+    expect(kept.history).toEqual([]);
+    expect(kept.truncated).toBe(2);
+  });
+});

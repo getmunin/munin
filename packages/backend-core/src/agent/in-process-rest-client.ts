@@ -136,6 +136,7 @@ function buildClient(opts: BuildOptions): MuninRestClient {
             createdAt: m.createdAt,
             internal: m.internal,
             attachments: m.attachments,
+            metadata: m.metadata,
           })),
         };
       });

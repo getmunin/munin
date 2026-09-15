@@ -1,3 +1,5 @@
+import type { QuotedHistoryTurn } from './quoted-history.ts';
+
 export type AuthorType = 'user' | 'agent' | 'end_user' | 'system' | 'staff';
 
 export interface ConversationAttachment {
@@ -11,6 +13,7 @@ export interface ConversationMessage {
   body: string;
   createdAt?: string;
   attachments?: ConversationAttachment[];
+  quotedHistory?: QuotedHistoryTurn[];
 }
 
 export interface ProviderConfig {

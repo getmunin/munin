@@ -239,3 +239,53 @@ describe('toRuntimeHistory attachments', () => {
     expect(history[0]?.attachments).toBeUndefined();
   });
 });
+
+describe('toRuntimeHistory quoted history', () => {
+  const client = createMuninRestClient({
+    baseUrl: 'http://stub',
+    adminApiKey: 'stub',
+    fetch: () => Promise.reject(new Error('network not used in this test')),
+  });
+
+  it('carries the quoted email forward, so a reply to a newsletter is not context-free', () => {
+    const history = client.toRuntimeHistory(
+      makeDetail([
+        {
+          id: 'm1',
+          authorType: 'end_user',
+          body: 'Dette er bullshit. Moderat risiko?',
+          createdAt: 't1',
+          metadata: {
+            quotedThread: [
+              {
+                from: 'uScore <support@uscore.no>',
+                date: 'tirsdag 15. september 2026 13:23',
+                subject: 'Sjekk din betalingsrisiko',
+                body: 'Hvor sannsynlig er det at du misser en regning?',
+              },
+            ],
+          },
+        },
+      ]),
+    );
+
+    expect(history[0]?.body).toBe('Dette er bullshit. Moderat risiko?');
+    expect(history[0]?.quotedHistory).toEqual([
+      {
+        from: 'uScore <support@uscore.no>',
+        date: 'tirsdag 15. september 2026 13:23',
+        subject: 'Sjekk din betalingsrisiko',
+        body: 'Hvor sannsynlig er det at du misser en regning?',
+      },
+    ]);
+  });
+
+  it('leaves quotedHistory unset on a message that quoted nothing', () => {
+    const history = client.toRuntimeHistory(
+      makeDetail([
+        { id: 'm1', authorType: 'end_user', body: 'hei', createdAt: 't1', metadata: {} },
+      ]),
+    );
+    expect(history[0]?.quotedHistory).toBeUndefined();
+  });
+});

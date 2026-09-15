@@ -2,28 +2,9 @@ import { schema, type Db } from '@getmunin/db';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { findHeaderBlockQuoteCut, type QuoteContext } from './quoted-thread.ts';
 import { forwardMarkerKind, subjectDeclaresForward } from './forwarded-sender.ts';
+import { QUOTE_ATTRIBUTION_PATTERNS, QUOTE_MARKER } from './attribution.ts';
 
-const QUOTE_HEADER_PATTERNS: RegExp[] = [
-  /^on .+ wrote:\s*$/i,
-  /^op .+ schreef .+:\s*$/i,
-  /^den .+ skrev .+:\s*$/i,
-  /^den .+ skreiv .+:\s*$/i,
-  /^þann .+ skrifaði .+:\s*$/i,
-  /^.+ kirjoitti:\s*$/i,
-  /^le .+ a écrit\s*:\s*$/i,
-  /^am .+ schrieb .+:\s*$/i,
-  /^el .+ escribió\s*:\s*$/i,
-  /^em .+ escreveu\s*:\s*$/i,
-  /^il .+ ha scritto\s*:\s*$/i,
-  /^w dniu .+ napisał(?:\(a\))?\s*:\s*$/i,
-  /^.+ napsal(?:\(a\))?\s*:\s*$/i,
-  /^.+ tarihinde .+ yazdı\s*:\s*$/i,
-  /^.+ написал[аои]?\s*:\s*$/i,
-  /^στις .+ έγραψε.*:\s*$/i,
-  /^在 .+ 写道[：:]\s*$/,
-  /^於 .+ 寫道[：:]\s*$/,
-  /^.+ さんが.*書き(?:ました|込みました)[:：]?\s*$/,
-  /^.+ 작성:\s*$/,
+const QUOTE_SEPARATOR_PATTERNS: RegExp[] = [
   /^-{2,}\s*original\s+message\s*-{2,}\s*$/i,
   /^-{2,}\s*opprinnelig\s+melding\s*-{2,}\s*$/i,
   /^-{2,}\s*original\s+meddelelse\s*-{2,}\s*$/i,
@@ -35,7 +16,11 @@ const QUOTE_HEADER_PATTERNS: RegExp[] = [
   /^_{5,}\s*$/,
 ];
 
-const QUOTE_MARKER = /^(?:>\s?)+/;
+const QUOTE_HEADER_PATTERNS: RegExp[] = [
+  ...QUOTE_ATTRIBUTION_PATTERNS,
+  ...QUOTE_SEPARATOR_PATTERNS,
+];
+
 const WRAPPED_ADDRESS_TAIL = /^>\s*:$/;
 const TIME_OF_DAY = /\d{1,2}[.:]\d{2}/;
 const DATE_FIRST_QUOTE_VERB = /\b(?:skrev|skreiv|skrifaði|kirjoitti)\b/i;

@@ -12,6 +12,7 @@ import {
   SUBJECT_LABELS,
   TO_LABELS,
 } from './header-labels.ts';
+import { isAttributionLine, senderFromAttribution, stripQuoteMarker } from './attribution.ts';
 
 export interface QuotedTurn {
   from: string | null;
@@ -156,12 +157,36 @@ function normalizeQuotedBody(lines: string[]): string {
   return `${joined.slice(0, MAX_QUOTED_TURN_CHARS)}…`;
 }
 
+function parseAttributionThread(lines: string[]): QuotedTurn[] {
+  const marks: number[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    if (isAttributionLine(lines[i]!)) marks.push(i);
+  }
+  if (marks.length === 0) return [];
+  if (!lines.slice(0, marks[0]).some((l) => l.trim() !== '')) return [];
+
+  const turns: QuotedTurn[] = [];
+  for (let i = 0; i < marks.length && turns.length < MAX_QUOTED_TURNS; i += 1) {
+    const at = marks[i]!;
+    const nextStart = marks[i + 1] ?? lines.length;
+    const attribution = stripQuoteMarker(lines[at]!).trim();
+    turns.push({
+      from: senderFromAttribution(attribution),
+      to: null,
+      date: null,
+      subject: null,
+      body: normalizeQuotedBody(lines.slice(at + 1, nextStart).map(stripQuoteMarker)),
+    });
+  }
+  return turns;
+}
+
 export function parseQuotedThread(body: string, context: QuoteContext = {}): QuotedTurn[] {
   if (!body) return [];
   const lines = body.split(/\r?\n/);
   const blocks = findHeaderBlocks(lines);
   const start = findQuotedHistoryStart(lines, blocks, context);
-  if (start === null) return [];
+  if (start === null) return parseAttributionThread(lines);
   const turns: QuotedTurn[] = [];
   for (let i = start; i < blocks.length && turns.length < MAX_QUOTED_TURNS; i += 1) {
     const block = blocks[i]!;

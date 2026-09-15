@@ -1394,19 +1394,13 @@ export class ConvService {
     const conv = convRows[0];
     if (!conv) throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
 
-    if (
-      input.authorType === 'agent' &&
-      !input.internal &&
-      (await this.claims.isHeldByOther(input.conversationId))
-    ) {
+    const isPublicAgentReply = input.authorType === 'agent' && !input.internal;
+
+    if (isPublicAgentReply && (await this.claims.isHeldByOther(input.conversationId))) {
       throw new HandoverActiveError(input.conversationId);
     }
 
-    if (
-      input.authorType === 'agent' &&
-      !input.internal &&
-      input.sinceMessageId
-    ) {
+    if (isPublicAgentReply && input.sinceMessageId) {
       const conflictRows = await ctx.db
         .select({ id: schema.convMessages.id })
         .from(schema.convMessages)
@@ -1426,14 +1420,10 @@ export class ConvService {
       }
     }
 
-    const isPublicAgentReply = input.authorType === 'agent' && !input.internal;
     const reviewedElsewhere = Boolean(input.fromDraftId || conv.outreachCampaignId);
-    if (
-      isPublicAgentReply &&
-      !reviewedElsewhere &&
-      (await this.effectiveAgentModeOf(input.conversationId)) === 'draft_only'
-    ) {
-      throw new AgentSendNotAutoError(input.conversationId);
+    if (isPublicAgentReply && !reviewedElsewhere) {
+      const mode = await this.effectiveAgentModeOf(input.conversationId);
+      if (mode === 'draft_only') throw new AgentSendNotAutoError(input.conversationId);
     }
 
     const attachComponents =

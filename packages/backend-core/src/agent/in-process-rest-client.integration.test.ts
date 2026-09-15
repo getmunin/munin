@@ -232,6 +232,56 @@ const skipReason = TEST_URL
     ]);
   });
 
+  it('carries inbound message metadata through getConversation into the runtime history', async () => {
+    const dispatcher = new WebhookDispatcher();
+    const claims = new ConversationClaimsService(dispatcher);
+    const conv = new ConvService(
+      dispatcher,
+      claims,
+      new CuratorJobsService(dispatcher),
+      new AlertsService(dispatcher),
+      stubAttachmentGateway(),
+    );
+    const factory = new InProcessMuninRestClientFactoryService(
+      db,
+      conv,
+      claims,
+      new CuratorJobsService(dispatcher),
+    );
+    const client = factory.forOrg(orgId);
+
+    const target = await freshConversation(107);
+    await db.insert(schema.convMessages).values({
+      orgId,
+      conversationId: target,
+      authorType: 'end_user',
+      authorId: endUserId,
+      body: 'Dette er bullshit. Moderat risiko?',
+      metadata: {
+        quotedThread: [
+          {
+            from: 'uScore <support@uscore.no>',
+            to: null,
+            date: 'tirsdag 15. september 2026 13:23',
+            subject: 'Sjekk din betalingsrisiko',
+            body: 'Hvor sannsynlig er det at du misser en regning?',
+          },
+        ],
+      },
+    });
+
+    const detail = await client.getConversation(target);
+    const history = client.toRuntimeHistory(detail);
+    expect(history[0]!.quotedHistory).toEqual([
+      {
+        from: 'uScore <support@uscore.no>',
+        date: 'tirsdag 15. september 2026 13:23',
+        subject: 'Sjekk din betalingsrisiko',
+        body: 'Hvor sannsynlig er det at du misser en regning?',
+      },
+    ]);
+  });
+
   it('leaves metadata empty when postAgentMessage carries no components', async () => {
     const dispatcher = new WebhookDispatcher();
     const claims = new ConversationClaimsService(dispatcher);

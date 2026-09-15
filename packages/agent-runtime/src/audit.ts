@@ -1,4 +1,5 @@
 import { defaultProvider } from './providers/default-provider.ts';
+import { summarizeQuotedHistory, type QuotedHistoryTurn } from './quoted-history.ts';
 import { fenceUntrusted } from './untrusted.ts';
 import type { AuthorType, ChatMessage, Provider, ProviderConfig } from './types.ts';
 
@@ -12,6 +13,7 @@ export type AuditAction =
 export interface AuditThreadMessage {
   authorType: AuthorType;
   body: string;
+  quotedHistory?: QuotedHistoryTurn[];
 }
 
 export interface AuditTopic {
@@ -166,9 +168,7 @@ function buildUserPrompt(
       '[Conversation so far, oldest first]',
       fenceUntrusted(
         'data',
-        thread
-          .map((m) => `${THREAD_ROLE[m.authorType]}: ${truncate(m.body, MAX_THREAD_MESSAGE_CHARS)}`)
-          .join('\n'),
+        thread.map(threadLine).join('\n'),
       ),
       '',
     );
@@ -190,6 +190,12 @@ function buildUserPrompt(
     }
   }
   return lines.join('\n');
+}
+
+function threadLine(m: AuditThreadMessage): string {
+  const line = `${THREAD_ROLE[m.authorType]}: ${truncate(m.body, MAX_THREAD_MESSAGE_CHARS)}`;
+  const quoted = summarizeQuotedHistory(m.quotedHistory ?? []);
+  return quoted ? `${line}\n  ${quoted}` : line;
 }
 
 function truncate(s: string, max: number): string {

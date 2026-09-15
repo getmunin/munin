@@ -1,4 +1,5 @@
 import type { MessageComponent } from '@getmunin/types';
+import { readQuotedHistory } from './quoted-history.ts';
 import type { ConversationAttachment, ConversationMessage } from './types.ts';
 import { stripTrailingSlashes } from '@getmunin/types';
 
@@ -214,6 +215,8 @@ export function toRuntimeHistory(detail: ConversationDetail): ConversationMessag
       createdAt: message.createdAt,
     };
     if (attachments.length > 0) runtimeMessage.attachments = attachments;
+    const quotedHistory = readQuotedHistory(message.metadata);
+    if (quotedHistory.length > 0) runtimeMessage.quotedHistory = quotedHistory;
     return runtimeMessage;
   });
 }

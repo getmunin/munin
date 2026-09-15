@@ -474,6 +474,162 @@ class StubImapFetcher implements ImapFetcher {
     }
   }, 30_000);
 
+  it('refuses to send a channel test to the channel\'s own address', async () => {
+    const channel = await imapChannel();
+    mailer.clear();
+
+    const result = await withClient(adminKey, async (c) =>
+      c.callTool({
+        name: 'conv_send_email_channel_test',
+        arguments: { channelId: channel.id, to: 'support@acme.test' },
+      }),
+    );
+
+    expect((result as { isError?: boolean }).isError).toBe(true);
+    expect(JSON.stringify(result)).toContain('conv_test_self_addressed');
+    expect(mailer.outbox).toHaveLength(0);
+  }, 30_000);
+
+  it('drops a message we sent ourselves when the mailbox delivers it back, instead of answering it', async () => {
+    fetcher.push(rfc822({
+      from: 'Loop Tester <loop@customer.test>',
+      to: 'support@acme.test',
+      subject: 'Does the channel work?',
+      messageId: 'loop-inbound-1@customer.test',
+      body: 'Just checking the support address is live.',
+    }));
+    await inboundWorker.tick();
+
+    const [contact] = await db
+      .select()
+      .from(schema.convContacts)
+      .where(
+        and(eq(schema.convContacts.orgId, orgId), eq(schema.convContacts.email, 'loop@customer.test')),
+      );
+    const [conv] = await db
+      .select()
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.contactId, contact!.id));
+
+    const reply = await withClient(adminKey, async (c) =>
+      parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'conv_send_message',
+          arguments: { conversationId: conv!.id, body: 'Yes — the channel is live.' },
+        }),
+      ),
+    );
+    await outboundWorker.tick();
+
+    const [sentRow] = await db
+      .select()
+      .from(schema.convMessageDeliveries)
+      .where(eq(schema.convMessageDeliveries.messageId, reply.id));
+    expect(sentRow!.status).toBe('sent');
+    const ownMessageId = sentRow!.messageIdHeader!;
+    expect(ownMessageId).toBeTruthy();
+
+    const convsBefore = await db
+      .select()
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.orgId, orgId));
+    const messagesBefore = await db
+      .select()
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.conversationId, conv!.id));
+
+    fetcher.push(rfc822({
+      from: 'Acme Support <support@acme.test>',
+      to: 'support@acme.test',
+      subject: 'Yes — the channel is live.',
+      messageId: ownMessageId,
+      body: 'Yes — the channel is live.',
+    }));
+    await inboundWorker.tick();
+
+    const convsAfter = await db
+      .select()
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.orgId, orgId));
+    expect(convsAfter).toHaveLength(convsBefore.length);
+
+    const messagesAfter = await db
+      .select()
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.conversationId, conv!.id));
+    expect(messagesAfter).toHaveLength(messagesBefore.length);
+
+    const reingested = await db
+      .select()
+      .from(schema.convMessages)
+      .where(
+        and(
+          eq(schema.convMessages.orgId, orgId),
+          sql`${schema.convMessages.metadata}->>'inboundMessageId' = ${ownMessageId}`,
+        ),
+      );
+    expect(reingested).toHaveLength(0);
+  }, 30_000);
+
+  it('stamps Auto-Submitted on an agent reply but not on one an operator typed', async () => {
+    const channel = await imapChannel();
+
+    fetcher.push(rfc822({
+      from: 'Header Tester <headers@customer.test>',
+      to: 'support@acme.test',
+      subject: 'Who answers here?',
+      messageId: 'header-inbound-1@customer.test',
+      body: 'Is anyone on this address?',
+    }));
+    await inboundWorker.tick();
+
+    const [contact] = await db
+      .select()
+      .from(schema.convContacts)
+      .where(
+        and(
+          eq(schema.convContacts.orgId, orgId),
+          eq(schema.convContacts.email, 'headers@customer.test'),
+        ),
+      );
+    const [conv] = await db
+      .select()
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.contactId, contact!.id));
+
+    const queueReply = async (authorType: 'user' | 'agent', body: string) => {
+      const [msg] = await db
+        .insert(schema.convMessages)
+        .values({
+          orgId,
+          conversationId: conv!.id,
+          authorType,
+          authorId: `${authorType}:test`,
+          body,
+          internal: false,
+          metadata: {},
+        })
+        .returning();
+      await db.insert(schema.convMessageDeliveries).values({
+        orgId,
+        messageId: msg!.id,
+        channelId: channel.id,
+        status: 'queued',
+        attempt: 0,
+        nextAttemptAt: new Date(),
+      });
+      mailer.clear();
+      await outboundWorker.tick();
+      expect(mailer.outbox).toHaveLength(1);
+      return mailer.outbox[0]!;
+    };
+
+    expect((await queueReply('user', 'A human is answering you.')).headers?.['Auto-Submitted'])
+      .toBeUndefined();
+    expect((await queueReply('agent', 'An agent is answering you.')).headers?.['Auto-Submitted'])
+      .toBe('auto-replied');
+  }, 30_000);
+
   it('reply that fails threading on a draft_only channel opens a draft_only conversation', async () => {
     await db
       .update(schema.convChannels)

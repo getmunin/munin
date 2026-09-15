@@ -2013,6 +2013,7 @@
     "conv_draft_pending": "En kladd venter allerede på gjennomgang.",
     "conv_draft_request_invalid": "Agenten kan ikke lage utkast her – samtalen er lukket, mangler en kunde å svare, eller agenten er slått av.",
     "conv_invalid": "Dette utkastet ligger ikke lenger til behandling i samtalen – det er allerede sendt, eller agenten har skrevet et nyere. Åpne samtalen på nytt for å se hvor den står.",
+    "conv_test_self_addressed": "Den adressen tilhører kanalen selv. Send testen til en annen postkasse du har tilgang til.",
     "kb_curation_decided": "Denne er allerede behandlet – publisert eller forkastet – og blir ikke foreslått igjen. Oppdater køen.",
     "kb_version_conflict": "Noen endret teksten mens du hadde den åpen, så ingenting ble lagret. Åpne den på nytt for å se gjeldende versjon og ta stilling til den.",
     "member_forbidden": "Dette er forbeholdt eiere og administratorer. Spør en eier hvis du trenger tilgang.",

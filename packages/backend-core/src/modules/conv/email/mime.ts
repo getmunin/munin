@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
+export const AUTO_SUBMITTED_VALUE = 'auto-replied';
+
+export const AUTO_SUBMITTED_HEADERS: Readonly<Record<string, string>> = Object.freeze({
+  'Auto-Submitted': AUTO_SUBMITTED_VALUE,
+});
+
 export interface OutboundAttachment {
   filename: string;
   contentType: string;
@@ -19,6 +25,7 @@ export interface BuildOutboundInput {
   inReplyTo?: string;
   references?: string[];
   trackerUrl?: string;
+  autoSubmitted?: boolean;
   attachments?: readonly OutboundAttachment[];
 }
 
@@ -50,6 +57,7 @@ export function buildOutbound(input: BuildOutboundInput): BuiltMessage {
     ['MIME-Version', '1.0'],
   ];
   if (input.replyTo) headers.push(['Reply-To', input.replyTo]);
+  if (input.autoSubmitted) headers.push(['Auto-Submitted', AUTO_SUBMITTED_VALUE]);
   if (input.inReplyTo) headers.push(['In-Reply-To', `<${input.inReplyTo}>`]);
   if (input.references?.length) {
     headers.push(['References', input.references.map((r) => `<${r}>`).join(' ')]);

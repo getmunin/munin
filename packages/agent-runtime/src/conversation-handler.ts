@@ -376,6 +376,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
             conversationId,
             reply,
             history,
+            subject: emailSubject(detail),
             mcp,
             log,
             delivery,
@@ -527,6 +528,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     conversationId: string;
     reply: { body: string; toolCalls: { name: string }[] };
     history: ConversationMessage[];
+    subject: string | null;
     mcp: McpToolHandle;
     log: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
     delivery: Delivery;
@@ -552,6 +554,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       model: deps.config.auditModel ?? deps.config.model,
       question: lastUser.body,
       reply: args.reply.body,
+      subject: args.subject,
       thread: args.history
         .slice(-AUDIT_THREAD_MESSAGES)
         .map((m) => ({ authorType: m.authorType, body: m.body })),
@@ -703,12 +706,19 @@ function newestTurnIsSilent(detail: ConversationDetail): boolean {
   return newest.body.trim().length === 0;
 }
 
+export function emailSubject(
+  detail: Pick<ConversationDetail, 'channelType' | 'subject'>,
+): string | null {
+  if (detail.channelType !== 'email') return null;
+  const subject = (detail.subject ?? '').trim().slice(0, SUBJECT_MAX_CHARS);
+  return subject.length > 0 ? subject : null;
+}
+
 export function emailSubjectBlock(
   detail: Pick<ConversationDetail, 'channelType' | 'subject'>,
 ): string {
-  if (detail.channelType !== 'email') return '';
-  const subject = (detail.subject ?? '').trim().slice(0, SUBJECT_MAX_CHARS);
-  if (subject.length === 0) return '';
+  const subject = emailSubject(detail);
+  if (subject === null) return '';
   return `\n\n[Email subject]\n${EMAIL_SUBJECT_NOTE}\n${fenceUntrusted('data', subject)}`;
 }
 

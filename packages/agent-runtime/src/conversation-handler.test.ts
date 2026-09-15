@@ -512,11 +512,18 @@ describe('createConversationHandler', () => {
     expect(toolNames).not.toContain('conv_request_human');
   });
 
-  it('an email draft sees the Subject line the customer wrote', async () => {
-    const seen: Array<{ config: { volatileSystemPrompt?: string } }> = [];
+  it('an email draft, and the audit that judges it, both see the Subject line', async () => {
+    const seen: Array<{
+      config: { volatileSystemPrompt?: string };
+      messages: Array<{ role: string; content: string }>;
+    }> = [];
+    let call = 0;
     const provider: Provider = (args) => {
-      seen.push(args);
-      return Promise.resolve(assistantStop('Refund is on its way.'));
+      seen.push(args as (typeof seen)[number]);
+      call += 1;
+      return Promise.resolve(
+        call === 1 ? assistantStop('Refund is on its way.') : assistantStop('{"actions":[]}'),
+      );
     };
     const rest = buildRest({
       getConversation: vi.fn(() =>
@@ -541,6 +548,50 @@ describe('createConversationHandler', () => {
     handler.requestDraft({ conversationId: 'conv_1' });
     await handler.flush();
     expect(seen[0]!.config.volatileSystemPrompt).toContain('Double charge on invoice 4471');
+    const auditPrompt = seen[1]!.messages.find((m) => m.role === 'user')!.content;
+    expect(auditPrompt).toContain('[Email subject]');
+    expect(auditPrompt).toContain('Double charge on invoice 4471');
+  });
+
+  it('a chat conversation sends its agent-written title to neither the draft nor the audit', async () => {
+    const seen: Array<{
+      config: { volatileSystemPrompt?: string };
+      messages: Array<{ role: string; content: string }>;
+    }> = [];
+    let call = 0;
+    const provider: Provider = (args) => {
+      seen.push(args as (typeof seen)[number]);
+      call += 1;
+      return Promise.resolve(
+        call === 1 ? assistantStop('We open at 10am.') : assistantStop('{"actions":[]}'),
+      );
+    };
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            agentMode: 'draft_only',
+            channelType: 'chat',
+            subject: 'Opening hours on Saturday',
+          }),
+        ),
+      ),
+    });
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider,
+    });
+    handler.requestDraft({ conversationId: 'conv_1' });
+    await handler.flush();
+    expect(seen[0]!.config.volatileSystemPrompt).not.toContain('Opening hours on Saturday');
+    expect(seen[1]!.messages.find((m) => m.role === 'user')!.content).not.toContain(
+      '[Email subject]',
+    );
   });
 
   it('the audit sees the thread, so a short reaction is judged in context', async () => {

@@ -512,6 +512,37 @@ describe('createConversationHandler', () => {
     expect(toolNames).not.toContain('conv_request_human');
   });
 
+  it('an email draft sees the Subject line the customer wrote', async () => {
+    const seen: Array<{ config: { volatileSystemPrompt?: string } }> = [];
+    const provider: Provider = (args) => {
+      seen.push(args);
+      return Promise.resolve(assistantStop('Refund is on its way.'));
+    };
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            agentMode: 'draft_only',
+            channelType: 'email',
+            subject: 'Double charge on invoice 4471',
+          }),
+        ),
+      ),
+    });
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider,
+    });
+    handler.requestDraft({ conversationId: 'conv_1' });
+    await handler.flush();
+    expect(seen[0]!.config.volatileSystemPrompt).toContain('Double charge on invoice 4471');
+  });
+
   it('the audit sees the thread, so a short reaction is judged in context', async () => {
     const seen: Array<{ messages: Array<{ role: string; content: string }> }> = [];
     let call = 0;

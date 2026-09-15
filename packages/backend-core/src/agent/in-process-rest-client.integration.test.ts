@@ -104,6 +104,35 @@ const skipReason = TEST_URL
     expect(after.claim).toMatchObject({ holderType: 'user', holderId: userId });
   });
 
+  it('carries the email Subject line through getConversation', async () => {
+    const dispatcher = new WebhookDispatcher();
+    const claims = new ConversationClaimsService(dispatcher);
+    const conv = new ConvService(
+      dispatcher,
+      claims,
+      new CuratorJobsService(dispatcher),
+      new AlertsService(dispatcher),
+      stubAttachmentGateway(),
+    );
+    const factory = new InProcessMuninRestClientFactoryService(
+      db,
+      conv,
+      claims,
+      new CuratorJobsService(dispatcher),
+    );
+    const client = factory.forOrg(orgId);
+
+    const target = await freshConversation(104);
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    await db
+      .update(schema.convConversations)
+      .set({ subject: 'Double charge on invoice 4471' })
+      .where(sql`id = ${target}`);
+
+    const detail = await client.getConversation(target);
+    expect(detail.subject).toBe('Double charge on invoice 4471');
+  });
+
   it('carries message components through postAgentMessage into conv_messages.metadata', async () => {
     const dispatcher = new WebhookDispatcher();
     const claims = new ConversationClaimsService(dispatcher);

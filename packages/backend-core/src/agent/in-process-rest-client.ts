@@ -114,6 +114,7 @@ function buildClient(opts: BuildOptions): MuninRestClient {
           id: detail.id,
           status: detail.status,
           channelType: detail.channelType,
+          subject: detail.subject,
           endUserId: detail.endUserId,
           assigneeUserId: detail.assigneeUserId,
           claim: claim

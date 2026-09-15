@@ -110,6 +110,12 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
     expect(secondDisplayId).toBe(firstDisplayId + 1);
   });
 
+  it('carries no custom GUC in proconfig, which a non-superuser migration role cannot attach', async () => {
+    const [row] = await probe<{ proconfig: string[] | null }[]>`
+      SELECT proconfig FROM pg_proc WHERE proname = 'conv_next_display_id'`;
+    expect((row!.proconfig ?? []).filter((entry) => entry.startsWith('app.'))).toEqual([]);
+  });
+
   it('counts the whole org when the caller is scoped to a single end user', async () => {
     const all = await probe.begin(async (sql) => {
       await sql`SELECT set_config('app.bypass_rls', 'on', true)`;

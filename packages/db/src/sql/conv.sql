@@ -31,19 +31,40 @@
 -- so policies apply to the table owner too, and switching to the owner only
 -- bypasses RLS when that owner happens to be a superuser. That holds for a
 -- local or CI database and not for a managed Postgres whose migration role is
--- not a superuser, where the end-user-scoped MAX comes back. The function-local
--- SET is what makes it true in both: it turns on the same GUC the policies read
--- for the duration of the call only, and Postgres restores the caller's value on
--- exit, so nothing downstream in the transaction inherits a bypass.
+-- not a superuser, where the end-user-scoped MAX comes back. Turning on the
+-- same GUC the policies read is what makes it true in both.
+--
+-- It is turned on from the body rather than as a `SET app.bypass_rls` function
+-- attribute, because attaching a custom GUC to a function is itself privileged:
+-- `app.bypass_rls` is a placeholder no extension defines, so ALTER/CREATE
+-- FUNCTION ... SET checks pg_parameter_aclcheck for it and a non-superuser
+-- without `GRANT SET ON PARAMETER` is refused with "permission denied to set
+-- parameter". That GRANT needs a superuser to issue, so on exactly the managed
+-- Postgres this exists for, the migration cannot create the function at all.
+-- set_config() at run time has no such check — it is how the application sets
+-- these GUCs on every request — so the body sets it and puts the caller's own
+-- value back before returning, leaving nothing downstream in the transaction
+-- with a bypass it did not have. An error between the two aborts the
+-- (sub)transaction, which rolls the setting back anyway.
 CREATE OR REPLACE FUNCTION conv_next_display_id(p_org_id text) RETURNS integer
-  LANGUAGE sql VOLATILE SECURITY DEFINER
+  LANGUAGE plpgsql VOLATILE SECURITY DEFINER
   SET search_path = pg_catalog, public
-  SET app.bypass_rls = 'on'
   AS $$
-    SELECT pg_advisory_xact_lock(hashtext('conv_next_display_id'), hashtext(p_org_id));
+  DECLARE
+    v_caller_bypass text := COALESCE(current_setting('app.bypass_rls', true), 'off');
+    v_next integer;
+  BEGIN
+    PERFORM pg_advisory_xact_lock(hashtext('conv_next_display_id'), hashtext(p_org_id));
+    PERFORM set_config('app.bypass_rls', 'on', true);
+
     SELECT COALESCE(MAX(display_id), 0) + 1
+    INTO v_next
     FROM conv_conversations
     WHERE org_id = p_org_id;
+
+    PERFORM set_config('app.bypass_rls', v_caller_bypass, true);
+    RETURN v_next;
+  END;
   $$;
 
 -- ───────────────────────── desk RLS ───────────────────────────────────────

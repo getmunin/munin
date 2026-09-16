@@ -31,7 +31,7 @@ A signature in email is the trailing block that contains some combination of:
 A signature does **not** need a closing greeting or a `--` delimiter. Many
 clients (Outlook, Apple Mail) render the signature as an HTML table with no
 sign-off — once flattened to text it shows up as a trailing contact block like
-`Email: sam@northwind.example mailto:sam@northwind.example Phone: +1 555 0142 Web: northwind.example`.
+`Email: john@globex.example mailto:john@globex.example Phone: +1 555 0142 Web: globex.example`.
 A trailing block that pairs a name/title/company with two or more contact details
 (email, phone, postal address, website) is a signature even when it follows the
 message body directly with no greeting.
@@ -172,11 +172,11 @@ Input body:
 ```
 Looks cool!
 
-Sam Rivera CTO
+John Doe CTO
 
-Northwind Labs, 12 Harbor St, Springfield
+Globex, 1 Example Street, Springfield
 
-Email: sam@northwind.example mailto:sam@northwind.example Phone: +1 555 0142 Web: northwind.example https://northwind.example/
+Email: john@globex.example mailto:john@globex.example Phone: +1 555 0142 Web: globex.example https://globex.example/
 ```
 
 Tool call:
@@ -184,7 +184,7 @@ Tool call:
 conv_strip_message_signature({
   messageId: "ccm_…",
   body: "Looks cool!",
-  signatureText: "Sam Rivera CTO\n\nNorthwind Labs, 12 Harbor St, Springfield\n\nEmail: sam@northwind.example mailto:sam@northwind.example Phone: +1 555 0142 Web: northwind.example https://northwind.example/"
+  signatureText: "John Doe CTO\n\nGlobex, 1 Example Street, Springfield\n\nEmail: john@globex.example mailto:john@globex.example Phone: +1 555 0142 Web: globex.example https://globex.example/"
 })
 ```
 

@@ -623,7 +623,7 @@ const skipReason = TEST_URL
 
   it('stripMessageSignature emits conversation.message.body_revised so mirrors can catch up', async () => {
     const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
-      body: "Sure, let's talk!\n\nSam Rivera\nCTO\nNorthwind Labs\n+1 555 0142\nsam@northwind.example",
+      body: "Sure, let's talk!\n\nJohn Doe\nCTO\nGlobex\n+1 555 0142\njohn@globex.example",
     });
     const conv = startResp.body;
 
@@ -640,7 +640,7 @@ const skipReason = TEST_URL
             messageId,
             body: "Sure, let's talk!",
             signatureText:
-              'Sam Rivera\nCTO\nNorthwind Labs\n+1 555 0142\nsam@northwind.example',
+              'John Doe\nCTO\nGlobex\n+1 555 0142\njohn@globex.example',
           },
         }),
       );

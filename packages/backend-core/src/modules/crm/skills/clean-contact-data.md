@@ -141,5 +141,5 @@ The dashboard "Needs attention" backlog card surfaces the count of pending propo
 
 ## Related
 
-- `skill://crm/deduplicate-contacts` — manual reconcile pattern (no proposals table). Documents the same archive convention `crm_apply_merge_proposal` uses, so the manual and automated paths produce identical end states.
+- `skill://crm/deduplicate-contacts` — the one-off path for a single pair you hit during other work: same proposal tools, no batch bookkeeping.
 - `skill://kb/review-content` — sibling curator pass for conversation → KB document proposals. Different domain, same "propose, don't apply" philosophy.

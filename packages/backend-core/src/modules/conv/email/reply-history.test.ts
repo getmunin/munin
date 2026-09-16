@@ -248,20 +248,20 @@ describe('detectSignatureBlock', () => {
     const body = [
       'Hello, what can you do for me?',
       '',
-      'Sam Rivera',
+      'John Doe',
       'CTO',
       '',
-      'Northwind Labs',
-      '12 Harbor St',
+      'Globex',
+      '1 Example Street',
       'Springfield',
       '',
-      'Email: sam@northwind.example',
+      'Email: john@globex.example',
       'Phone: +1 555 0142',
-      'Web: northwind.example',
+      'Web: globex.example',
     ].join('\n');
     const sig = detectSignatureBlock(body);
     expect(sig).not.toBeNull();
-    expect(sig).toContain('Email: sam@northwind.example');
+    expect(sig).toContain('Email: john@globex.example');
     expect(sig).toContain('Phone: +1 555 0142');
   });
 
@@ -316,9 +316,9 @@ describe('detectSignatureBlock', () => {
 describe('countSignatureHints', () => {
   it('counts distinct contact-info hint types across lines', () => {
     const sig = [
-      'Sam Rivera CTO',
-      'Northwind Labs, 12 Harbor St, Springfield',
-      'Email: sam@northwind.example Phone: +1 555 0142 Web: northwind.example',
+      'John Doe CTO',
+      'Globex, 1 Example Street, Springfield',
+      'Email: john@globex.example Phone: +1 555 0142 Web: globex.example',
     ].join('\n');
     expect(countSignatureHints(sig)).toBeGreaterThanOrEqual(2);
   });
@@ -333,24 +333,24 @@ describe('isTrailingSignatureSplit', () => {
   const original = [
     'Looks cool!',
     '',
-    'Sam Rivera CTO',
+    'John Doe CTO',
     '',
-    'Email: sam@northwind.example Phone: +1 555 0142',
+    'Email: john@globex.example Phone: +1 555 0142',
   ].join('\n');
 
   it('confirms body is a prefix and signature the trailing remainder', () => {
-    const signature = 'Sam Rivera CTO\n\nEmail: sam@northwind.example Phone: +1 555 0142';
+    const signature = 'John Doe CTO\n\nEmail: john@globex.example Phone: +1 555 0142';
     expect(isTrailingSignatureSplit(original, 'Looks cool!', signature)).toBe(true);
   });
 
   it('tolerates whitespace differences', () => {
-    const signature = 'Sam Rivera CTO   Email: sam@northwind.example Phone:  +1 555 0142';
+    const signature = 'John Doe CTO   Email: john@globex.example Phone:  +1 555 0142';
     expect(isTrailingSignatureSplit(original, 'Looks   cool!', signature)).toBe(true);
   });
 
   it('rejects when the body is not a prefix of the original', () => {
     expect(
-      isTrailingSignatureSplit(original, 'Something else', 'Email: sam@northwind.example Phone: x'),
+      isTrailingSignatureSplit(original, 'Something else', 'Email: john@globex.example Phone: x'),
     ).toBe(false);
   });
 

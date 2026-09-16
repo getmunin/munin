@@ -23,8 +23,8 @@ When a customer hands you a list of leads (CSV from a webinar, scraped from an e
   "arguments": {
     "contacts": [
       {
-        "name": "Vita Costa",
-        "email": "vita@acme.com",
+        "name": "Ola Nordmann",
+        "email": "ola@acme.com",
         "phone": "+4799887766",
         "title": "Head of Ops",
         "tags": ["webinar-2026-04"],
@@ -136,6 +136,6 @@ Both `summary` and `nextAction` are free-text. `null` clears the field. Also set
 ## Related
 
 - `skill://crm/onboard-new-customer` — slower path for a single named customer.
-- `skill://crm/deduplicate-contacts` — what to do when a list has overlap with existing contacts.
+- `skill://crm/deduplicate-contacts` — how to merge a pair when a list turns out to overlap existing contacts.
 - `skill://crm/progress-deal-through-pipeline` — moving the new deals through stages.
 - `skill://playbooks/customer-acquisition` — end-to-end CRM + Conv flow that starts from this import.

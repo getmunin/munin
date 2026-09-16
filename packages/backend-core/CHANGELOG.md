@@ -1,5 +1,85 @@
 # @getmunin/backend-core
 
+## 5.27.0
+
+### Minor Changes
+
+- 5c38fab: Search the whole conversation archive from the queue page, not just the rows already loaded.
+
+  The search box filtered the queue client-side, over the ~100 open and ~100 closed rows the page happened to have fetched. Anything older, anything on page two, and anything whose only match was a phrase deeper in the thread than the last inbound preview simply did not exist as far as the box was concerned — and because the "Load more" button was wired to the unfiltered open cursor, a search with no hits still offered to load more of a list it was not searching.
+
+  `GET /v1/conversations` and `GET /v1/conversations/queue` now take `q`, and `conv_list_conversations` takes the matching `search` argument. One case-insensitive substring is matched against the conversation subject, the customer's name / email / phone (contact or end user), the topic name, and the body of every public message; a bare number, or `#number`, also matches that conversation number. `%` and `_` are escaped, so a term like `100%` is matched literally. Internal notes and drafts are deliberately excluded. Terms over 200 characters are rejected with `conv_invalid`.
+
+  The dashboard sends the term (debounced) with whatever filters are set, so a search spans every status unless the status filter narrows it, results paginate through the same cursor as the rest of the queue, and "Load more" now appears only when there really is another page of matches.
+
+  Two fixes alongside it: the filter button next to the search box rendered ~18px wide because `aspect-square` takes its width from content inside a stretched flex row — it is now square at both breakpoints — and the queue query is memoized per filter set, so an active "Activity" window no longer rebuilds its `since` timestamp on every render and refetches in a loop.
+
+### Patch Changes
+
+- dad4ff1: Make every skill name tools that exist, and keep it that way.
+
+  A skill is the agent-facing UI for a feature, so a tool name in one is a promise
+  an agent will try to keep. Four skills had drifted:
+
+  - `crm/deduplicate-contacts` still said there was no merge tool and walked
+    through a manual reconcile — copy the fields across, tag the loser, accept
+    that activities stay behind. `crm_propose_merge` and `crm_apply_merge_proposal`
+    have done that atomically for a while, and the manual pattern now produces a
+    worse end state than the tools do. Rewritten around the proposal flow, with
+    `clean-contact-data` keeping the scheduled population sweep.
+  - The `customer-acquisition` and `publish-and-distribute` playbooks opened
+    conversations with `conv_start_conversation`. No such tool exists — and a test
+    asserts it never appears — so cold outbound now routes through outreach, where
+    an approved proposal is what creates the conversation and sends.
+  - `conv/setup-email-channel` offered `conv_change_agent_mode` as the
+    per-conversation override. Per-conversation posture is dashboard-only; an agent
+    changes a channel default or a topic override.
+  - `connectors/connect-external-system` never mentioned OAuth, while
+    `seo/improve-search-performance` pointed at it for the redirect Google Search
+    Console needs. It now documents the authorize-url flow, why a connection stays
+    `pending` until the grant lands, and the sensitive-scope verification caveat.
+
+  `scripts/check-skill-tool-refs.mjs` runs in pre-commit and CI. A prefixed
+  snake_case name in a skill must match an `@McpTool`, or at least exist somewhere
+  in non-test source — which is what separates a renamed tool from an error code or
+  a table name. Names in a `"name": "…"` call position get no such latitude. Both
+  allow-lists are keyed by reason, so excusing a name is a visible decision; the one
+  entry that needs it is `crm_close_deal`, which a skill names precisely to say it
+  does not exist.
+
+  Also swaps the signature-stripping fixtures onto obvious placeholders — the
+  persona in `conv/strip-email-signature` and its tests read like a real person.
+
+- 551dce9: Keep real people out of published surfaces, starting before the write
+
+  Fixtures, changesets, commit messages and pull request bodies all end up
+  somewhere that cannot be fully retracted — a tarball, a changelog, a release
+  note. The existing fixture check caught email addresses and Norwegian phone
+  numbers in committed files, which left three gaps: numbers from every other
+  country, hostnames (a customer's own domain identifies them as surely as their
+  address does), and the surfaces that are not files at all.
+
+  The detection rules now live in one module behind four gates: the tracked-file
+  scan, the commit message, the pull request title and body in CI, and a
+  PreToolUse hook that inspects what an agent is about to write before the write
+  lands. Phone numbers are checked against the unassignable ranges of every
+  numbering plan rather than one country's, and hostnames are held to the same
+  reserved-domain rule as email.
+
+  Read paths are deliberately untouched. Querying live data to diagnose a problem
+  is the point of having the tools; only the flow of that data back into the
+  repository is gated. Fixtures carrying assignable numbers have been moved into
+  reserved ranges, and the three allow-lists remain the review checkpoint.
+
+- Updated dependencies [551dce9]
+  - @getmunin/agent-runtime@5.27.0
+  - @getmunin/inspector-app@5.27.0
+  - @getmunin/core@5.27.0
+  - @getmunin/db@5.27.0
+  - @getmunin/emails@5.27.0
+  - @getmunin/mcp-toolkit@5.27.0
+  - @getmunin/types@5.27.0
+
 ## 5.26.0
 
 ### Minor Changes

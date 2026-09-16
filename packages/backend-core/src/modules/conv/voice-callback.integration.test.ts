@@ -66,11 +66,11 @@ const skipReason = TEST_URL
 
     const [alice] = await db
       .insert(schema.endUsers)
-      .values({ orgId, externalId: 'eu-alice-vcb', name: 'Alice', phone: '+14155551111' })
+      .values({ orgId, externalId: 'eu-alice-vcb', name: 'Alice', phone: '+14155550101' })
       .returning();
     const [bob] = await db
       .insert(schema.endUsers)
-      .values({ orgId, externalId: 'eu-bob-vcb', name: 'Bob', phone: '+14155552222' })
+      .values({ orgId, externalId: 'eu-bob-vcb', name: 'Bob', phone: '+14155550104' })
       .returning();
 
     aliceToken = buildApiKey('dlg');
@@ -101,11 +101,11 @@ const skipReason = TEST_URL
 
     const [aliceContact] = await db
       .insert(schema.convContacts)
-      .values({ orgId, endUserId: alice!.id, name: 'Alice', phone: '+14155551111' })
+      .values({ orgId, endUserId: alice!.id, name: 'Alice', phone: '+14155550101' })
       .returning();
     const [bobContact] = await db
       .insert(schema.convContacts)
-      .values({ orgId, endUserId: bob!.id, name: 'Bob', phone: '+14155552222' })
+      .values({ orgId, endUserId: bob!.id, name: 'Bob', phone: '+14155550104' })
       .returning();
 
     const [aliceConv] = await db
@@ -249,7 +249,7 @@ const skipReason = TEST_URL
       for (const name of ['conv_call_channel', 'conv_call_contact']) {
         const res = (await c.callTool({
           name,
-          arguments: { conversationId: bobConvId, channelId: voiceChannelId, to: '+14155552222' },
+          arguments: { conversationId: bobConvId, channelId: voiceChannelId, to: '+14155550104' },
         })) as { isError?: boolean };
         expect(res.isError).toBe(true);
       }
@@ -270,9 +270,9 @@ const skipReason = TEST_URL
     expect(result.initiated).toBe(true);
     expect(result.callId).toBe('call_stub_001');
     expect(result.channelId).toBe(voiceChannelId);
-    expect(result.to).toBe('+14155551111');
+    expect(result.to).toBe('+14155550101');
     expect(calls.length).toBe(1);
-    expect(calls[0]!.body ?? '').toContain('"+14155551111"');
+    expect(calls[0]!.body ?? '').toContain('"+14155550101"');
     expect(calls[0]!.body ?? '').toContain('asst_vcb');
   });
 
@@ -334,7 +334,7 @@ const skipReason = TEST_URL
     } finally {
       await db
         .update(schema.convContacts)
-        .set({ phone: '+14155552222' })
+        .set({ phone: '+14155550104' })
         .where(sql`org_id = ${orgId} AND end_user_id = (SELECT id FROM end_users WHERE external_id = 'eu-bob-vcb' AND org_id = ${orgId})`);
     }
   });

@@ -1164,7 +1164,7 @@ const skipReason = TEST_URL
           orgId,
           name: 'Text Me',
           email: 'blackout@example.com',
-          phone: '+14155559999',
+          phone: '+14155550115',
           consentLawfulBasis: 'consent',
         })
         .returning();
@@ -1840,7 +1840,7 @@ const skipReason = TEST_URL
           orgId,
           name: 'Voice Contact',
           email: 'voice@example.com',
-          phone: '+14155559999',
+          phone: '+14155550115',
           consentLawfulBasis: 'legitimate_interest',
           doNotContact: false,
         })
@@ -1974,7 +1974,7 @@ const skipReason = TEST_URL
       );
       expect(p.delivery?.channelType).toBe('voice');
       expect(p.delivery?.vendor).toBe('threll');
-      expect(p.delivery?.destination).toBe('+14155559999');
+      expect(p.delivery?.destination).toBe('+14155550115');
     });
 
     it('rejects a voice vendor with no registered outreach caller', async () => {
@@ -2028,7 +2028,7 @@ const skipReason = TEST_URL
       expect((approved.evidence).vapiCallId).toBe('call_test_42');
 
       expect(calls.length).toBe(1);
-      expect(calls[0]!.body ?? '').toContain('"+14155559999"');
+      expect(calls[0]!.body ?? '').toContain('"+14155550115"');
       expect(calls[0]!.body ?? '').toContain('asst_outreach');
       expect(calls[0]!.body ?? '').toContain('outreachProposalId');
 
@@ -2291,7 +2291,7 @@ const skipReason = TEST_URL
           orgId,
           name: 'Text Me',
           email: 'text@example.com',
-          phone: '+14155558888',
+          phone: '+14155550114',
           consentLawfulBasis: 'consent',
           doNotContact: false,
         })
@@ -2337,7 +2337,7 @@ const skipReason = TEST_URL
       );
       expect(p.draftSubject).toBeNull();
       expect(p.delivery?.channelType).toBe('sms');
-      expect(p.delivery?.destination).toBe('+14155558888');
+      expect(p.delivery?.destination).toBe('+14155550114');
       expect(p.delivery?.appendsUnsubscribe).toBe(false);
     });
 

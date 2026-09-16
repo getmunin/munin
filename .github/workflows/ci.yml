@@ -81,6 +81,15 @@ jobs:
       - name: Fixture data check
         run: node scripts/check-fixture-pii.mjs
 
+      - name: Pull request text check
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          printf '%s\n%s\n' "$PR_TITLE" "$PR_BODY" \
+            | node scripts/check-pii-text.mjs - 'Pull request title and body'
+
       - name: Skill tool-reference check
         run: node scripts/check-skill-tool-refs.mjs
 

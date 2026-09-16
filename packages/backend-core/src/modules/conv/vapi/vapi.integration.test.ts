@@ -244,7 +244,7 @@ const skipReason = TEST_URL
       transcriptType: 'final',
       role: 'user',
       transcript: 'Hello, my account is locked.',
-      call: { id: callId, customer: { number: '+14155551212' } },
+      call: { id: callId, customer: { number: '+14155550102' } },
     });
     expect(r1.status).toBe(204);
 
@@ -253,7 +253,7 @@ const skipReason = TEST_URL
       transcriptType: 'final',
       role: 'assistant',
       transcript: "I can help with that. Let's verify a few details.",
-      call: { id: callId, customer: { number: '+14155551212' } },
+      call: { id: callId, customer: { number: '+14155550102' } },
     });
     expect(r2.status).toBe(204);
 
@@ -291,7 +291,7 @@ const skipReason = TEST_URL
       transcriptType: 'partial',
       role: 'user',
       transcript: 'I want to ch—',
-      call: { id: callId, customer: { number: '+14155553030' } },
+      call: { id: callId, customer: { number: '+14155550105' } },
     });
     const convs = await db
       .select({ id: schema.convConversations.id })
@@ -307,7 +307,7 @@ const skipReason = TEST_URL
 
   it('handles assistant-request: pre-creates conversation + contact, returns fail-soft body when Vapi API unreachable', async () => {
     const callId = 'call_vapi_inbound_first';
-    const callerNumber = '+14155556060';
+    const callerNumber = '+14155550110';
     const res = await postEvent({
       type: 'assistant-request',
       call: { id: callId, customer: { number: callerNumber } },
@@ -368,7 +368,7 @@ const skipReason = TEST_URL
 
     const res = await postEvent({
       type: 'assistant-request',
-      call: { customer: { number: '+14155557070' } },
+      call: { customer: { number: '+14155550112' } },
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
@@ -388,7 +388,7 @@ const skipReason = TEST_URL
       transcriptType: 'final',
       role: 'user',
       transcript: 'Goodbye',
-      call: { id: callId, customer: { number: '+14155554040' } },
+      call: { id: callId, customer: { number: '+14155550107' } },
     });
     const r = await postEvent({
       type: 'end-of-call-report',

@@ -556,6 +556,7 @@ export class ConvService {
     suppressedReason?: SuppressedReasonFilter;
     channelType?: string;
     since?: string;
+    search?: string;
     limit?: number;
   }): Promise<ConversationSummary[]> {
     const page = await this.listConversationsPage({ ...input });
@@ -573,6 +574,7 @@ export class ConvService {
     suppressedReason?: SuppressedReasonFilter;
     channelType?: string;
     since?: string;
+    search?: string;
   }): Promise<number> {
     const ctx = getCurrentContext();
     const filters = this.buildConversationListFilters({ ...input });
@@ -594,6 +596,7 @@ export class ConvService {
     suppressedReason?: SuppressedReasonFilter;
     channelType?: string;
     since?: string;
+    search?: string;
     cursor?: { lastMessageAt: string | null; id: string; needsHumanAttention?: boolean };
   }): SQL[] {
     const filters: SQL[] = [];
@@ -635,6 +638,38 @@ export class ConvService {
         throw new ConvInvalidError(`since must be an ISO 8601 timestamp, got "${input.since}"`);
       }
       filters.push(gte(schema.convConversations.lastMessageAt, since));
+    }
+    const search = input.search?.trim();
+    if (search) {
+      const pattern = `%${escapeLikePattern(search)}%`;
+      const displayId = /^#?\d{1,9}$/.test(search) ? Number(search.replace('#', '')) : null;
+      const matches: SQL[] = [
+        sql`${schema.convConversations.subject} ILIKE ${pattern}`,
+        sql`EXISTS (
+          SELECT 1 FROM conv_contacts c
+          WHERE c.id = ${schema.convConversations.contactId}
+            AND (c.name ILIKE ${pattern} OR c.email ILIKE ${pattern} OR c.phone ILIKE ${pattern})
+        )`,
+        sql`EXISTS (
+          SELECT 1 FROM end_users u
+          WHERE u.id = ${schema.convConversations.endUserId}
+            AND (u.name ILIKE ${pattern} OR u.email ILIKE ${pattern} OR u.phone ILIKE ${pattern})
+        )`,
+        sql`EXISTS (
+          SELECT 1 FROM conv_topics t
+          WHERE t.id = ${schema.convConversations.topicId} AND t.name ILIKE ${pattern}
+        )`,
+        sql`EXISTS (
+          SELECT 1 FROM conv_messages m
+          WHERE m.conversation_id = ${schema.convConversations.id}
+            AND m.internal = false
+            AND m.body ILIKE ${pattern}
+        )`,
+      ];
+      if (displayId !== null) {
+        matches.push(sql`${schema.convConversations.displayId} = ${displayId}`);
+      }
+      filters.push(sql`(${sql.join(matches, sql` OR `)})`);
     }
     if (input.cursor) {
       const { lastMessageAt, id, needsHumanAttention } = input.cursor;
@@ -687,6 +722,7 @@ export class ConvService {
     suppressedReason?: SuppressedReasonFilter;
     channelType?: string;
     since?: string;
+    search?: string;
     limit?: number;
     cursor?: { lastMessageAt: string | null; id: string; needsHumanAttention?: boolean };
   }): Promise<{
@@ -737,6 +773,7 @@ export class ConvService {
     suppressedReason?: SuppressedReasonFilter;
     channelType?: string;
     since?: string;
+    search?: string;
     limit?: number;
     cursor?: { lastMessageAt: string | null; id: string; needsHumanAttention?: boolean };
   }): Promise<{ items: ConversationQueueItem[]; nextCursor: { lastMessageAt: string | null; id: string } | null }> {
@@ -2740,6 +2777,10 @@ function normalizeTopicDescription(value: string | null | undefined): string | n
   if (value === undefined || value === null) return null;
   const trimmed = value.trim();
   return trimmed.length === 0 ? null : trimmed;
+}
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 }
 
 function clampLimit(value: number | undefined, fallback: number, max: number): number {

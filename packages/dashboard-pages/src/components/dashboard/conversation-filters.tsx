@@ -48,7 +48,7 @@ export function ConversationFiltersTrigger({
       aria-label={t('label')}
       title={t('label')}
       className={cn(
-        'flex aspect-square shrink-0 items-center justify-center rounded-input border transition-colors duration-fast',
+        'flex w-[42px] shrink-0 items-center justify-center rounded-input border transition-colors duration-fast md:w-[38px]',
         highlight
           ? 'border-cobalt text-cobalt dark:border-cobalt-soft dark:text-cobalt-soft'
           : 'border-rule-soft text-ink-mute hover:text-ink dark:border-rule-on-dark dark:hover:text-foreground',

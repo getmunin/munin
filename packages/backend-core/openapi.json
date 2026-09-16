@@ -4986,6 +4986,45 @@
         ]
       }
     },
+    "/v1/review": {
+      "get": {
+        "operationId": "ReviewController_list",
+        "parameters": [
+          {
+            "name": "state",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Review"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/crm/merge-proposals": {
       "get": {
         "operationId": "CrmMergeProposalsController_list",

@@ -668,6 +668,50 @@ class StubImapFetcher implements ImapFetcher {
     expect(turns[0]!.body).toBe('This is an automated test from Munin.');
   }, 30_000);
 
+  it('reconstructs the quoted history of a forward whose text part is empty, leaving only html to read', async () => {
+    fetcher.push(rfc822Alternative({
+      from: 'Forwarder <forwarder@customer.test>',
+      to: 'support@acme.test',
+      subject: 'Re: Sesongens tilbud',
+      messageId: 'html-only-forward-1@customer.test',
+      text: '   \r\n',
+      html: [
+        '<html><head><style>* { box-sizing: border-box; }</style></head>',
+        '<body><div>Sendt fra min iPad</div><div><br>',
+        '<blockquote type="cite">Den 10. juli 2026 kl.&nbsp;00:04 skrev Nyhetsbrev',
+        ' &lt;nyheter@example.test&gt;:<br><br>',
+        '<table><tr><td><p>Hei Ola!</p><p>Her er&nbsp;oversikten din.</p></td></tr></table>',
+        '</blockquote></div></body></html>',
+      ].join('\n'),
+    }));
+    await inboundWorker.tick();
+
+    const [contact] = await db
+      .select()
+      .from(schema.convContacts)
+      .where(
+        and(
+          eq(schema.convContacts.orgId, orgId),
+          eq(schema.convContacts.email, 'forwarder@customer.test'),
+        ),
+      );
+    const [conv] = await db
+      .select()
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.contactId, contact!.id));
+    const [message] = await db
+      .select()
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.conversationId, conv!.id));
+
+    expect(message!.body).toBe('Sendt fra min iPad');
+    expect(message!.body).not.toContain('box-sizing');
+    const turns = message!.metadata['quotedThread'] as Array<{ from: string | null; body: string }>;
+    expect(turns).toHaveLength(1);
+    expect(turns[0]!.from).toBe('Nyhetsbrev <nyheter@example.test>');
+    expect(turns[0]!.body).toContain('Her er oversikten din.');
+  }, 30_000);
+
   it('reply that fails threading on a draft_only channel opens a draft_only conversation', async () => {
     await db
       .update(schema.convChannels)
@@ -1047,6 +1091,40 @@ function rfc822(input: {
   }
   for (const header of input.extraHeaders ?? []) lines.push(header);
   return `${lines.join('\r\n')}\r\n\r\n${input.body}\r\n`;
+}
+
+function rfc822Alternative(input: {
+  from: string;
+  to: string;
+  subject: string;
+  messageId: string;
+  text: string;
+  html: string;
+}): string {
+  const boundary = 'munin-test-boundary';
+  const headers = [
+    `From: ${input.from}`,
+    `To: ${input.to}`,
+    `Subject: ${input.subject}`,
+    `Date: ${new Date().toUTCString()}`,
+    `Message-ID: <${input.messageId}>`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+  ];
+  const parts = [
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="utf-8"',
+    'Content-Transfer-Encoding: 8bit',
+    '',
+    input.text,
+    `--${boundary}`,
+    'Content-Type: text/html; charset="utf-8"',
+    'Content-Transfer-Encoding: 8bit',
+    '',
+    input.html,
+    `--${boundary}--`,
+  ];
+  return `${headers.join('\r\n')}\r\n\r\n${parts.join('\r\n')}\r\n`;
 }
 
 async function imapChannelFor(

@@ -10559,7 +10559,7 @@
   {
     "name": "feedback_create_item",
     "title": "Feedback: Create a feedback item",
-    "description": "Submit feedback about Munin. Stays local until an org admin approves it; dismissal deletes the item. Set includeOrgName / includeUserName to attach attribution; both default false.",
+    "description": "Submit feedback about Munin. Stays local until an org admin approves or dismisses it. Set includeOrgName / includeUserName to attach attribution; both default false.",
     "audiences": [
       "admin"
     ],
@@ -10654,7 +10654,7 @@
   {
     "name": "feedback_approve",
     "title": "Feedback: Approve and forward",
-    "description": "Approve a feedback item: transmits the contents to Munin developers and deletes the local row on success. Attribution is included only when the submitter opted in.",
+    "description": "Approve a feedback item: transmits the contents to Munin developers and records who approved it. Attribution is included only when the submitter opted in.",
     "audiences": [
       "admin"
     ],
@@ -10680,7 +10680,7 @@
   {
     "name": "feedback_dismiss",
     "title": "Feedback: Dismiss",
-    "description": "Dismiss (delete) a pending feedback item. Nothing is sent to Munin.",
+    "description": "Dismiss a pending feedback item, optionally recording a reason. Nothing is sent to Munin; the item is kept, with the actor and timestamp, as the record of the decision. Fails if the item has already been approved or dismissed.",
     "audiences": [
       "admin"
     ],
@@ -10695,6 +10695,11 @@
       "properties": {
         "id": {
           "type": "string"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
         }
       },
       "required": [

@@ -15,6 +15,11 @@ const CreateInput = z.object({
 
 const IdInput = z.object({ id: z.string() });
 
+const DismissInput = z.object({
+  id: z.string(),
+  reason: z.string().min(1).max(500).optional(),
+});
+
 const EmptyInput = z.object({});
 
 const StatusSchema = z.enum(['open', 'planned', 'in_progress', 'done', 'wontfix', 'duplicate']);
@@ -93,22 +98,23 @@ export class FeedbackTools {
   })
   async approve(args: z.infer<typeof IdInput>) {
     await this.service.approve(args.id);
-    return { ok: true };
+    return { approved: true, id: args.id };
   }
 
   @McpTool({
     name: 'feedback_dismiss',
     title: 'Feedback: Dismiss',
-    description: 'Dismiss a pending feedback item. Nothing is sent to Munin; the item is kept as a record of the decision.',
+    description:
+      'Dismiss a pending feedback item, optionally recording a reason. Nothing is sent to Munin; the item is kept, with the actor and timestamp, as the record of the decision. Fails if the item has already been approved or dismissed.',
     audiences: ['admin'],
     scopes: ['feedback:write'],
-    input: IdInput,
+    input: DismissInput,
     readOnlyHint: false,
     destructiveHint: true,
   })
-  async dismiss(args: z.infer<typeof IdInput>) {
-    await this.service.dismiss(args.id);
-    return { ok: true };
+  async dismiss(args: z.infer<typeof DismissInput>) {
+    await this.service.dismiss(args.id, args.reason);
+    return { dismissed: true, id: args.id };
   }
 
   @McpTool({

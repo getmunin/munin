@@ -1385,7 +1385,7 @@
         "emptyTitle": "Queue clear",
         "emptyBody": "New conversations land here the moment someone writes in — from the widget, email, SMS or a call.",
         "emptySearchTitle": "No match",
-        "emptySearchBody": "Nothing in the queue matches your search. Try a customer name, a subject, or a phrase from the message.",
+        "emptySearchBody": "No conversation matches your search — open or closed. Try a customer name, a subject, a phone number, or a phrase from a message.",
         "anonymous": "Anonymous visitor",
         "noMessage": "No message",
         "draftTimeout": "The agent didn't deliver a draft. Try again, or write the reply yourself.",

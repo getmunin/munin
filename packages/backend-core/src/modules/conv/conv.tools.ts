@@ -43,6 +43,14 @@ const ListConversationsInput = z.object({
     .max(40)
     .optional()
     .describe('ISO 8601 timestamp; keeps only conversations whose last message is at or after it.'),
+  search: z
+    .string()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe(
+      'Case-insensitive substring; keeps only conversations whose subject, customer name / email / phone, topic name or public message body contains it. A bare number (or #number) also matches that conversation number.',
+    ),
   limit: z.number().int().positive().max(200).optional(),
 });
 
@@ -249,7 +257,7 @@ export class ConvAdminTools {
     name: 'conv_list_conversations',
     title: 'Conv: List conversations',
     description:
-      'List conversations for your org, newest activity first. Filter by status (open / snoozed / closed / spam), assignee, topic, handover state (`active` / `resolved` / `never`), or `since` an ISO timestamp. `handover: "resolved"` plus `since` is the set a knowledge-curation pass works from: questions a human answered inside the window.',
+      'List conversations for your org, newest activity first. Filter by status (open / snoozed / closed / spam), assignee, topic, handover state (`active` / `resolved` / `never`), or `since` an ISO timestamp, and narrow to a `search` term matched against subject, customer, topic and message text. `handover: "resolved"` plus `since` is the set a knowledge-curation pass works from: questions a human answered inside the window.',
     audiences: ['admin'],
     scopes: ['conv:read'],
     input: ListConversationsInput,

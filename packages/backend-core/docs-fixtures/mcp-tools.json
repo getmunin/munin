@@ -3052,7 +3052,7 @@
   {
     "name": "conv_list_conversations",
     "title": "Conv: List conversations",
-    "description": "List conversations for your org, newest activity first. Filter by status (open / snoozed / closed / spam), assignee, topic, handover state (`active` / `resolved` / `never`), or `since` an ISO timestamp. `handover: \"resolved\"` plus `since` is the set a knowledge-curation pass works from: questions a human answered inside the window.",
+    "description": "List conversations for your org, newest activity first. Filter by status (open / snoozed / closed / spam), assignee, topic, handover state (`active` / `resolved` / `never`), or `since` an ISO timestamp, and narrow to a `search` term matched against subject, customer, topic and message text. `handover: \"resolved\"` plus `since` is the set a knowledge-curation pass works from: questions a human answered inside the window.",
     "audiences": [
       "admin"
     ],
@@ -3121,6 +3121,12 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 40
+        },
+        "search": {
+          "description": "Case-insensitive substring; keeps only conversations whose subject, customer name / email / phone, topic name or public message body contains it. A bare number (or #number) also matches that conversation number.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
         },
         "limit": {
           "type": "integer",

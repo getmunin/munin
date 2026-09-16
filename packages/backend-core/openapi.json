@@ -3634,6 +3634,14 @@
             }
           },
           {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "cursor",
             "required": true,
             "in": "query",
@@ -3722,6 +3730,14 @@
           },
           {
             "name": "since",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
             "required": true,
             "in": "query",
             "schema": {

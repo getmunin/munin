@@ -1385,7 +1385,7 @@
         "emptyTitle": "Tom kø",
         "emptyBody": "Nye samtaler havner her så snart noen tar kontakt — fra widgeten, e-post, SMS eller en telefon.",
         "emptySearchTitle": "Ingen treff",
-        "emptySearchBody": "Ingenting i køen passer søket ditt. Prøv et kundenavn, et emne eller en frase fra meldingen.",
+        "emptySearchBody": "Ingen samtaler passer søket — verken åpne eller avsluttede. Prøv et kundenavn, et emne, et telefonnummer eller en frase fra en melding.",
         "anonymous": "Anonym besøkende",
         "noMessage": "Ingen melding",
         "draftTimeout": "Agenten leverte ingen kladd. Prøv igjen, eller skriv svaret selv.",

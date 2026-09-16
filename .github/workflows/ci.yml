@@ -90,6 +90,9 @@ jobs:
           printf '%s\n%s\n' "$PR_TITLE" "$PR_BODY" \
             | node scripts/check-pii-text.mjs - 'Pull request title and body'
 
+      - name: Skill tool-reference check
+        run: node scripts/check-skill-tool-refs.mjs
+
       - name: Lint
         run: pnpm lint
 

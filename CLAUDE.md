@@ -173,6 +173,8 @@ Conventions for `skill://*` markdown under `packages/backend-core/src/modules/*/
 
 A feature an agent operates isn't done until a skill describes it. The skill markdown *is* the agent-facing UI here, so treat adding or extending one as a first-class deliverable of the feature — not a follow-up — and regenerate fixtures with `pnpm -F @getmunin/backend-core docs:generate`.
 
+Because a tool name in a skill is a promise an agent will try to keep, `scripts/check-skill-tool-refs.mjs` (pre-commit + CI) fails on a prefixed snake_case name that matches no `@McpTool` and appears nowhere in non-test source — which is what tells a renamed tool apart from an error code or a table name. A name in a `"name": "…"` call position must be a real tool, full stop. Its two allow-lists are keyed by reason: `ALLOWED_MISSING_TOOLS` for a tool a skill names *to say it doesn't exist*, `NOT_TOOL_NAMES` for prefixed identifiers that were never tools. Renaming a tool means grepping the skills, not just the code.
+
 ### Slug
 
 - **verb-object[-qualifier]**, lowercase, hyphen-separated.

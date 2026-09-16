@@ -65,28 +65,11 @@ Conventions worth following:
 
 If you're updating an already-published entry, the simplest pattern today is **delete + recreate** the KB mirror — `kb_create_document` doesn't have an upsert, and there's no built-in "get document by tag" lookup. Track the kb document id alongside the cms entry id in your own state if you want clean updates.
 
-## Step 3 — announce in a conversation
+## Step 3 — announce it
 
-Pick the channel for the announcement. For internal: a dedicated conv channel for the team. For customer-facing: a designated broadcast channel (note: there's no "broadcast to all conversations" tool — fan-out is per-conversation).
+There is no tool that opens a conversation, and no broadcast tool — nothing fans a message out to every thread. What you announce into depends on who the audience is.
 
-```jsonc
-{
-  "name": "conv_list_channels",
-  "arguments": {}
-}
-```
-
-Then send the announcement message into a chosen conversation. If it's a fresh announcement thread:
-
-```jsonc
-{
-  "name": "conv_start_conversation",
-  "arguments": {
-    "channelId": "<channelId>",
-    "subject": "Published: <entry.data.title>"
-  }
-}
-```
+**An existing thread.** If the announcement belongs in a conversation that already exists (a customer who asked for exactly this, an internal thread the team is using), post into it:
 
 ```jsonc
 {
@@ -98,7 +81,11 @@ Then send the announcement message into a chosen conversation. If it's a fresh a
 }
 ```
 
-For widget or email channels, the message is delivered to the recipient like any other; for an internal-only channel that exists just for announcements, this becomes a thread the team can react to.
+`internal: true` leaves it as a staff-only note on the thread instead of sending it to the customer.
+
+**A list of customers.** That is outbound to people who didn't ask, so it runs through outreach — a campaign over the segment you want to reach, drafts filed per contact, and a human approving each one. Follow `skill://outreach/draft-first-touch-email`, then `skill://outreach/review-proposals`. The approval creates the conversation and sends; nothing leaves without it.
+
+**The team.** If the Slack bridge is connected, operator-facing announcements belong there rather than in a customer channel — see `skill://slack/connect-slack`.
 
 ## Step 4 — verify
 

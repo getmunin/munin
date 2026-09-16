@@ -2,8 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   FINISHED_MIN_ITEMS,
   FINISHED_WINDOW_DAYS,
-  loadOpenPages,
-  matchesQueueSearch,
+  loadQueuePages,
   messageDraftKind,
   partitionQueue,
   visibleFinished,
@@ -103,22 +102,6 @@ describe('partitionQueue', () => {
   });
 });
 
-describe('matchesQueueSearch', () => {
-  it('matches customer, subject, preview and topic case-insensitively', () => {
-    const row = item({ topicName: 'Document requests' });
-    expect(matchesQueueSearch(row, 'ANDERS')).toBe(true);
-    expect(matchesQueueSearch(row, 'payslip')).toBe(true);
-    expect(matchesQueueSearch(row, 'document req')).toBe(true);
-    expect(matchesQueueSearch(row, 'refinancing')).toBe(false);
-    expect(matchesQueueSearch(row, '  ')).toBe(true);
-  });
-
-  it('matches the raw phone number of a caller who has no name or email', () => {
-    const row = item({ customerName: null, customerEmail: null, customerPhone: '+4799999999' });
-    expect(matchesQueueSearch(row, '4799999999')).toBe(true);
-  });
-});
-
 describe('messageDraftKind', () => {
   const base: MessageDto = {
     id: 'm1',
@@ -197,7 +180,7 @@ describe('visibleFinished', () => {
   });
 });
 
-describe('loadOpenPages', () => {
+describe('loadQueuePages', () => {
   beforeEach(() => {
     apiMock.mockReset();
   });
@@ -217,7 +200,7 @@ describe('loadOpenPages', () => {
 
   it('fetches a single page by default and reports the cursor the caller can follow', async () => {
     respondWithPages([{ ids: ['a', 'b'], nextCursor: 'cur_1' }]);
-    const page = await loadOpenPages(1);
+    const page = await loadQueuePages(1, 'status=open');
     expect(apiMock).toHaveBeenCalledTimes(1);
     expect(apiMock.mock.calls[0]![0]).toBe('/v1/conversations/queue?status=open&limit=100');
     expect(page.items.map((i) => i.id)).toEqual(['a', 'b']);
@@ -230,7 +213,7 @@ describe('loadOpenPages', () => {
       { ids: ['b'], nextCursor: 'cur_2' },
       { ids: ['c'], nextCursor: null },
     ]);
-    const page = await loadOpenPages(3);
+    const page = await loadQueuePages(3, 'status=open');
     expect(apiMock.mock.calls[1]![0]).toContain('cursor=cur_1');
     expect(page.items.map((i) => i.id)).toEqual(['a', 'b', 'c']);
     expect(page.nextCursor).toBeNull();
@@ -238,7 +221,7 @@ describe('loadOpenPages', () => {
 
   it('stops early when the queue runs out before the requested page count', async () => {
     respondWithPages([{ ids: ['a'], nextCursor: null }]);
-    const page = await loadOpenPages(5);
+    const page = await loadQueuePages(5, 'status=open');
     expect(apiMock).toHaveBeenCalledTimes(1);
     expect(page.nextCursor).toBeNull();
   });
@@ -248,7 +231,17 @@ describe('loadOpenPages', () => {
       { ids: ['a', 'b'], nextCursor: 'cur_1' },
       { ids: ['b', 'c'], nextCursor: null },
     ]);
-    const page = await loadOpenPages(2);
+    const page = await loadQueuePages(2, 'status=open');
     expect(page.items.map((i) => i.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('carries a search term into every page it walks', async () => {
+    respondWithPages([
+      { ids: ['a'], nextCursor: 'cur_1' },
+      { ids: ['b'], nextCursor: null },
+    ]);
+    await loadQueuePages(2, 'q=payslip');
+    expect(apiMock.mock.calls[0]![0]).toBe('/v1/conversations/queue?q=payslip&limit=100');
+    expect(apiMock.mock.calls[1]![0]).toBe('/v1/conversations/queue?q=payslip&limit=100&cursor=cur_1');
   });
 });

@@ -200,6 +200,7 @@ export class ConversationsController {
     @Query('suppressedReason') suppressedReason?: string,
     @Query('channelType') channelType?: string,
     @Query('since') since?: string,
+    @Query('q') q?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ): Promise<ConversationListResponse> {
@@ -209,6 +210,7 @@ export class ConversationsController {
       suppressedReason,
       channelType,
       since,
+      q,
       cursor,
       limit,
     });
@@ -231,6 +233,7 @@ export class ConversationsController {
     @Query('suppressedReason') suppressedReason?: string,
     @Query('channelType') channelType?: string,
     @Query('since') since?: string,
+    @Query('q') q?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ): Promise<ConversationQueueResponse> {
@@ -240,6 +243,7 @@ export class ConversationsController {
       suppressedReason,
       channelType,
       since,
+      q,
       cursor,
       limit,
     });
@@ -604,6 +608,15 @@ function parseLimit(value: string | undefined): number | undefined {
   return Math.min(n, 200);
 }
 
+function parseSearch(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.length > 200) {
+    throw new BadRequestException('conv_invalid: q must be 200 characters or fewer');
+  }
+  return trimmed;
+}
+
 function parsePositiveInt(value: string | undefined): number | undefined {
   const n = value ? Number.parseInt(value, 10) : NaN;
   if (!Number.isFinite(n) || n <= 0) return undefined;
@@ -645,6 +658,7 @@ function parseListQuery(input: {
   suppressedReason?: string;
   channelType?: string;
   since?: string;
+  q?: string;
   cursor?: string;
   limit?: string;
 }): {
@@ -653,6 +667,7 @@ function parseListQuery(input: {
   suppressedReason: SuppressedReasonFilter | undefined;
   channelType: ChannelType | undefined;
   since: string | undefined;
+  search: string | undefined;
   cursor: ListCursor | undefined;
   limit: number | undefined;
 } {
@@ -683,6 +698,7 @@ function parseListQuery(input: {
     suppressedReason: parsedSuppressed?.success ? parsedSuppressed.data : undefined,
     channelType: parsedChannelType?.success ? parsedChannelType.data : undefined,
     since: input.since || undefined,
+    search: parseSearch(input.q),
     cursor: input.cursor ? decodeListCursor(input.cursor) : undefined,
     limit: parseLimit(input.limit),
   };

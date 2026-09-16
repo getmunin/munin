@@ -81,6 +81,7 @@ import {
   type QuotedTurn,
 } from './quoted-thread.ts';
 import { clampInboundBody, normalizeFlattenedWhitespace } from './inbound-body-limits.ts';
+import { htmlToText } from './html-text.ts';
 import type {
   ChannelAdapter,
   ChannelRow,
@@ -814,7 +815,7 @@ export async function parseMessage(source: Buffer | string): Promise<ParsedInbou
   const fromName = senderDisplayName(fromList[0]?.name);
 
   const html = typeof parsed.html === 'string' ? parsed.html : null;
-  const text = (parsed.text ?? '').trim() || stripHtml(html ?? '');
+  const text = (parsed.text ?? '').trim() || htmlToText(html ?? '');
   const refs = parsed.references;
   const referencesText = Array.isArray(refs) ? refs.join(' ') : refs;
   const senderClassification = classifySender(parsed.headerLines, fromAddress);
@@ -929,10 +930,6 @@ function collectAddresses(field: AddressObject | AddressObject[] | undefined): s
     .flatMap((obj) => obj.value)
     .map((a) => (a.name ? `${a.name} <${a.address ?? ''}>` : (a.address ?? '')))
     .filter(Boolean);
-}
-
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function composeFrom(name: string | undefined, address: string): string {

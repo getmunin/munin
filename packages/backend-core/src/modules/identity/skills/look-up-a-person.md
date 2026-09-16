@@ -39,6 +39,8 @@ The response also carries `crmContactId`. Read it as a status flag, not as an id
 
 `identity_resolve` never creates anything. A miss is a miss; it does not leave a row behind.
 
+**No identifier at all?** When all you have is a phrase — a subject line, a company name, an order number someone quoted — `conv_list_conversations({ search: "…" })` matches it against conversation subjects, customer name / email / phone, topic names and public message bodies, across every status. A bare number (or `#number`) matches the conversation number itself. Each hit carries the `endUserId` to resume this skill from.
+
 ## Step 2 — read the whole person
 
 ```jsonc

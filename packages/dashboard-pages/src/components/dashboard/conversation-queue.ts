@@ -95,7 +95,11 @@ export function queueFiltersActive(filters: QueueFilters): boolean {
   return activeQueueFilterCount(filters) > 0;
 }
 
-export function buildQueueFilterQuery(filters: QueueFilters, now = Date.now()): string {
+export function buildQueueFilterQuery(
+  filters: QueueFilters,
+  now = Date.now(),
+  search = '',
+): string {
   const params = new URLSearchParams();
   if (filters.status !== 'any') params.set('status', filters.status);
   if (filters.origin === 'human') params.set('suppressedReason', 'none');
@@ -106,6 +110,7 @@ export function buildQueueFilterQuery(filters: QueueFilters, now = Date.now()): 
   if (filters.since !== 'any') {
     params.set('since', new Date(now - SINCE_DAYS[filters.since] * 86_400_000).toISOString());
   }
+  if (search.trim()) params.set('q', search.trim());
   return params.toString();
 }
 
@@ -145,9 +150,14 @@ export const FINISHED_WINDOW_DAYS = 7;
 
 const FINISHED_FETCH_LIMIT = 100;
 const OPEN_PAGE_LIMIT = 100;
+const SEARCH_DEBOUNCE_MS = 250;
 
-function queueUrl(status: 'open' | 'closed', limit: number, cursor?: string | null): string {
-  const params = new URLSearchParams({ status, limit: String(limit) });
+const OPEN_QUERY = 'status=open';
+const FINISHED_QUERY = 'status=closed';
+
+function queueUrl(query: string, limit: number, cursor?: string | null): string {
+  const params = new URLSearchParams(query);
+  params.set('limit', String(limit));
   if (cursor) params.set('cursor', cursor);
   return `/v1/conversations/queue?${params.toString()}`;
 }
@@ -161,14 +171,15 @@ function dedupeById(items: QueueItemDto[]): QueueItemDto[] {
   });
 }
 
-export async function loadOpenPages(
+export async function loadQueuePages(
   pages: number,
+  query: string,
 ): Promise<{ items: QueueItemDto[]; nextCursor: string | null }> {
   const items: QueueItemDto[] = [];
   let cursor: string | null = null;
   for (let i = 0; i < pages; i += 1) {
     const page: QueuePageResponse = await api<QueuePageResponse>(
-      queueUrl('open', OPEN_PAGE_LIMIT, cursor),
+      queueUrl(query, OPEN_PAGE_LIMIT, cursor),
     );
     items.push(...page.items);
     cursor = page.nextCursor;
@@ -210,21 +221,6 @@ export function partitionQueue(
   return { needsYou, inProgress, finished: visibleFinished(finished) };
 }
 
-export function matchesQueueSearch(item: QueueItemDto, query: string): boolean {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  return [
-    item.customerName,
-    item.customerEmail,
-    item.customerPhone,
-    item.subject,
-    item.lastInboundPreview,
-    item.topicName,
-  ]
-    .filter((v): v is string => typeof v === 'string')
-    .some((v) => v.toLowerCase().includes(q));
-}
-
 const DRAFT_KINDS = ['draft_reply', 'draft_reply_sent', 'draft_reply_superseded', 'draft_reply_rejected'];
 
 export function messageDraftKind(message: MessageDto): string | null {
@@ -249,9 +245,9 @@ export interface QueueController {
   open: QueueItemDto[];
   finished: QueueItemDto[];
   counts: QueueCounts | null;
-  hasMoreOpen: boolean;
+  hasMore: boolean;
   loadingMore: boolean;
-  loadMoreOpen: () => Promise<void>;
+  loadMore: () => Promise<void>;
   selectedId: string | null;
   details: Record<string, ConversationDetail>;
   detailErrors: Record<string, ApiError>;
@@ -284,9 +280,19 @@ export interface QueueController {
   requestDraft: (id: string) => Promise<void>;
 }
 
+function useDebounced(value: string, delayMs: number): string {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(timer);
+  }, [value, delayMs]);
+  return debounced;
+}
+
 export function useConversationQueue(
   routeSelectedId: string | null,
   filters: QueueFilters = DEFAULT_QUEUE_FILTERS,
+  search = '',
 ): QueueController {
   const translateErr = useTranslateError();
   const t = useTranslations('dashboard.console.queue');
@@ -294,17 +300,24 @@ export function useConversationQueue(
   const [finished, setFinished] = useState<QueueItemDto[]>([]);
   const [results, setResults] = useState<QueueItemDto[]>([]);
   const [counts, setCounts] = useState<QueueCounts | null>(null);
-  const [openCursor, setOpenCursor] = useState<string | null>(null);
-  const openCursorRef = useRef(openCursor);
-  openCursorRef.current = openCursor;
-  const openPagesRef = useRef(1);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const cursorRef = useRef(cursor);
+  cursorRef.current = cursor;
+  const pagesRef = useRef(1);
+  const loadedQueryRef = useRef<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const loadingMoreRef = useRef(loadingMore);
   loadingMoreRef.current = loadingMore;
   const filtersActive = queueFiltersActive(filters);
-  const filterQuery = buildQueueFilterQuery(filters);
+  const searchTerm = useDebounced(search, SEARCH_DEBOUNCE_MS).trim();
+  const query = useMemo(
+    () => buildQueueFilterQuery(filters, Date.now(), searchTerm),
+    [filters, searchTerm],
+  );
+  const queryRef = useRef(query);
+  queryRef.current = query;
   const selectedId =
-    routeSelectedId ?? (filtersActive ? results[0]?.id : open[0]?.id ?? finished[0]?.id) ?? null;
+    routeSelectedId ?? (query ? results[0]?.id : open[0]?.id ?? finished[0]?.id) ?? null;
   const [details, setDetails] = useState<Record<string, ConversationDetail>>({});
   const [detailErrors, setDetailErrors] = useState<Record<string, ApiError>>({});
   const [loadError, setLoadError] = useState<ApiError | null>(null);
@@ -344,28 +357,29 @@ export function useConversationQueue(
   }, []);
 
   const loadQueue = useCallback(async () => {
+    if (loadedQueryRef.current !== query) {
+      loadedQueryRef.current = query;
+      pagesRef.current = 1;
+    }
     try {
       let loaded: QueueItemDto[];
-      if (filterQuery) {
-        const page = await api<QueuePageResponse>(
-          `/v1/conversations/queue?${filterQuery}&limit=${OPEN_PAGE_LIMIT}`,
-        );
-        openPagesRef.current = 1;
+      if (query) {
+        const page = await loadQueuePages(pagesRef.current, query);
         setResults(page.items);
+        setCursor(page.nextCursor);
         setOpen([]);
-        setOpenCursor(null);
         setCounts(null);
         setFinished([]);
         loaded = page.items;
       } else {
         const [openPages, openCounts, finishedPage] = await Promise.all([
-          loadOpenPages(openPagesRef.current),
+          loadQueuePages(pagesRef.current, OPEN_QUERY),
           api<QueueCounts>('/v1/conversations/queue/counts'),
-          api<QueuePageResponse>(queueUrl('closed', FINISHED_FETCH_LIMIT)),
+          api<QueuePageResponse>(queueUrl(FINISHED_QUERY, FINISHED_FETCH_LIMIT)),
         ]);
         setResults([]);
         setOpen(openPages.items);
-        setOpenCursor(openPages.nextCursor);
+        setCursor(openPages.nextCursor);
         setCounts(openCounts);
         setFinished(finishedPage.items);
         loaded = openPages.items;
@@ -380,18 +394,23 @@ export function useConversationQueue(
     } catch (err) {
       if (err instanceof ApiError) setLoadError(err);
     }
-  }, [clearDraftRequested, filterQuery]);
+  }, [clearDraftRequested, query]);
 
-  const loadMoreOpen = useCallback(async () => {
-    const cursor = openCursorRef.current;
-    if (!cursor || loadingMoreRef.current) return;
+  const loadMore = useCallback(async () => {
+    const next = cursorRef.current;
+    if (!next || loadingMoreRef.current) return;
     loadingMoreRef.current = true;
     setLoadingMore(true);
     try {
-      const page = await api<QueuePageResponse>(queueUrl('open', OPEN_PAGE_LIMIT, cursor));
-      openPagesRef.current += 1;
-      setOpen((prev) => dedupeById([...prev, ...page.items]));
-      setOpenCursor(page.nextCursor);
+      const pageQuery = queryRef.current;
+      const page = await api<QueuePageResponse>(
+        queueUrl(pageQuery || OPEN_QUERY, OPEN_PAGE_LIMIT, next),
+      );
+      pagesRef.current += 1;
+      const append = (prev: QueueItemDto[]) => dedupeById([...prev, ...page.items]);
+      if (pageQuery) setResults(append);
+      else setOpen(append);
+      setCursor(page.nextCursor);
     } catch (err) {
       if (err instanceof ApiError) setLoadError(err);
     } finally {
@@ -662,9 +681,9 @@ export function useConversationQueue(
     results,
     filtersActive,
     counts,
-    hasMoreOpen: openCursor !== null,
+    hasMore: cursor !== null,
     loadingMore,
-    loadMoreOpen,
+    loadMore,
     selectedId,
     details,
     detailErrors,

@@ -9,7 +9,6 @@ import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
 import { usePathname, useRouter } from '../i18n-navigation';
 import {
   DEFAULT_QUEUE_FILTERS,
-  matchesQueueSearch,
   partitionQueue,
   useConversationQueue,
   type QueueFilters,
@@ -45,13 +44,13 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
   const [filters, setFilters] = useState<QueueFilters>(DEFAULT_QUEUE_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [topics, setTopics] = useState<TopicOption[]>([]);
-  const queue = useConversationQueue(routeSelectedId, filters);
+  const [search, setSearch] = useState('');
+  const queue = useConversationQueue(routeSelectedId, filters, search);
   const gate = useFirstRunGate();
   const setup = gate.setup;
   const buildLoadFailedProps = useInboxLoadFailedProps();
   const { data: session } = authClient.useSession();
   const viewerUserId = session?.user?.id ?? null;
-  const [search, setSearch] = useState('');
 
   useEffect(() => {
     if (!filtersOpen || topics.length > 0) return;
@@ -74,15 +73,9 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
   };
 
   const sections = useMemo(() => {
-    const bySearch = (item: QueueItemDto) => matchesQueueSearch(item, search);
     const parts = partitionQueue(queue.open, queue.finished, viewerUserId);
-    return {
-      needsYou: parts.needsYou.filter(bySearch),
-      inProgress: parts.inProgress.filter(bySearch),
-      finished: parts.finished.filter(bySearch),
-      results: queue.results.filter(bySearch),
-    };
-  }, [queue.open, queue.finished, queue.results, viewerUserId, search]);
+    return { ...parts, results: queue.results };
+  }, [queue.open, queue.finished, queue.results, viewerUserId]);
 
   const shallowGo = useCallback(
     (path: string) => {
@@ -244,13 +237,13 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
               {renderRows(sections.inProgress, dimInProgress)}
             </>
           ) : null}
-          {queue.hasMoreOpen ? (
+          {queue.hasMore ? (
             <li className="flex justify-center border-b border-rule-soft px-5 py-3 dark:border-rule-on-dark">
               <Button
                 variant="outline"
                 size="sm"
                 disabled={queue.loadingMore}
-                onClick={() => void queue.loadMoreOpen()}
+                onClick={() => void queue.loadMore()}
               >
                 {tCommon('loadMore')}
               </Button>

@@ -47,6 +47,16 @@ describe('buildQueueFilterQuery', () => {
     );
   });
 
+  it('appends the trimmed search term so the server, not the loaded page, does the matching', () => {
+    expect(buildQueueFilterQuery(DEFAULT_QUEUE_FILTERS, Date.now(), '  payslip  ')).toBe(
+      'q=payslip',
+    );
+    expect(buildQueueFilterQuery(DEFAULT_QUEUE_FILTERS, Date.now(), '   ')).toBe('');
+    expect(buildQueueFilterQuery(at({ status: 'closed' }), Date.now(), 'anders@example.com')).toBe(
+      'status=closed&q=anders%40example.com',
+    );
+  });
+
   it('combines every dimension into one query', () => {
     const now = Date.parse('2026-09-14T12:00:00.000Z');
     expect(

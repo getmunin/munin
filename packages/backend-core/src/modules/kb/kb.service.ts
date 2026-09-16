@@ -2,6 +2,12 @@ import { Injectable, Inject } from '@nestjs/common';
 import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { schema } from '@getmunin/db';
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
+import {
+  decidedBefore,
+  toDecidedActor,
+  type DecidedQuery,
+  type ReviewDecision,
+} from '../../common/review-decision.ts';
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 import {
   chunkDocument,
@@ -561,6 +567,48 @@ export class KbService {
       .orderBy(desc(schema.kbCurationDecisions.decidedAt))
       .limit(clampLimit(input?.limit, 50, 200));
     return rows.map((row) => toCurationDecisionDto(row.decision, row.decidedByName));
+  }
+
+  async listDecided(input: DecidedQuery): Promise<ReviewDecision<CurationDecisionDto>[]> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({
+        decision: schema.kbCurationDecisions,
+        decidedByName: schema.users.name,
+      })
+      .from(schema.kbCurationDecisions)
+      .leftJoin(
+        schema.users,
+        and(
+          eq(schema.kbCurationDecisions.decidedByActorType, 'user'),
+          eq(schema.users.id, schema.kbCurationDecisions.decidedByActorId),
+        ),
+      )
+      .where(
+        decidedBefore(
+          schema.kbCurationDecisions.decidedAt,
+          schema.kbCurationDecisions.id,
+          input.cursor,
+        ),
+      )
+      .orderBy(desc(schema.kbCurationDecisions.decidedAt), desc(schema.kbCurationDecisions.id))
+      .limit(clampLimit(input.limit, 50, 200));
+
+    return rows.map(({ decision, decidedByName }) => ({
+      id: decision.id,
+      decidedAt: decision.decidedAt.toISOString(),
+      outcome: decision.outcome === 'published' ? ('approved' as const) : ('dismissed' as const),
+      reason: decision.reason,
+      decidedBy: toDecidedActor(
+        decision.decidedByActorType,
+        decision.decidedByActorId,
+        decidedByName,
+      ),
+      producedRef: decision.publishedDocumentId
+        ? { type: 'kb_document' as const, id: decision.publishedDocumentId }
+        : null,
+      raw: toCurationDecisionDto(decision, decidedByName),
+    }));
   }
 
   async listCurationCandidates(limit?: number): Promise<CurationCandidateSummary[]> {

@@ -21,6 +21,11 @@ import {
   type AssetStorage,
 } from '@getmunin/core';
 import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.service.ts';
+import {
+  toDecidedActor,
+  type DecidedQuery,
+  type ReviewDecision,
+} from '../../common/review-decision.ts';
 import { STORAGE } from '../../common/storage/storage.token.ts';
 import {
   assetExtensionFromName,
@@ -494,6 +499,67 @@ export class CmsService {
     return rows.flatMap((r) =>
       r.scheduledAt ? [{ ...this.toEntrySummary(r), scheduledAt: r.scheduledAt.toISOString() }] : [],
     );
+  }
+
+  async listDecided(input: DecidedQuery): Promise<ReviewDecision<CmsDraftEntrySummary>[]> {
+    const ctx = getCurrentContext();
+    const decidedAt = sql<Date>`coalesce(${schema.cmsEntries.publishedAt}, ${schema.cmsEntries.archivedAt})`;
+    const filters = [
+      inArray(schema.cmsEntries.status, ['published', 'archived']),
+      sql`coalesce(${schema.cmsEntries.publishedAt}, ${schema.cmsEntries.archivedAt}) is not null`,
+    ];
+    if (input.cursor) {
+      const at = new Date(input.cursor.decidedAt).toISOString();
+      filters.push(
+        sql`(coalesce(${schema.cmsEntries.publishedAt}, ${schema.cmsEntries.archivedAt}), ${schema.cmsEntries.id})
+            < (${at}::timestamptz, ${input.cursor.id}::text)`,
+      );
+    }
+    const rows = await ctx.db
+      .select({
+        id: schema.cmsEntries.id,
+        collectionId: schema.cmsEntries.collectionId,
+        slug: schema.cmsEntries.slug,
+        locale: schema.cmsEntries.locale,
+        data: schema.cmsEntries.data,
+        version: schema.cmsEntries.version,
+        updatedAt: schema.cmsEntries.updatedAt,
+        scheduledAt: schema.cmsEntries.scheduledAt,
+        collectionName: schema.cmsCollections.name,
+        collectionSlug: schema.cmsCollections.slug,
+        collectionFields: schema.cmsCollections.fields,
+        status: schema.cmsEntries.status,
+        dismissReason: schema.cmsEntries.dismissReason,
+        decidedAt,
+        decidedByType: schema.cmsEntries.updatedByType,
+        decidedById: schema.cmsEntries.updatedById,
+        decidedByName: schema.users.name,
+      })
+      .from(schema.cmsEntries)
+      .innerJoin(
+        schema.cmsCollections,
+        eq(schema.cmsCollections.id, schema.cmsEntries.collectionId),
+      )
+      .leftJoin(
+        schema.users,
+        and(
+          eq(schema.cmsEntries.updatedByType, 'user'),
+          eq(schema.users.id, schema.cmsEntries.updatedById),
+        ),
+      )
+      .where(and(...filters))
+      .orderBy(desc(decidedAt), desc(schema.cmsEntries.id))
+      .limit(clampLimit(input.limit, 50, 200));
+
+    return rows.map((r) => ({
+      id: r.id,
+      decidedAt: new Date(r.decidedAt).toISOString(),
+      outcome: r.status === 'published' ? ('approved' as const) : ('dismissed' as const),
+      reason: r.dismissReason,
+      decidedBy: toDecidedActor(r.decidedByType, r.decidedById, r.decidedByName),
+      producedRef: { type: 'cms_entry' as const, id: r.id },
+      raw: this.toEntrySummary(r),
+    }));
   }
 
   private selectEntrySummaryRows(

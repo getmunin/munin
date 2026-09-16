@@ -1,7 +1,35 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { makeId, schema, type Db } from '@getmunin/db';
 import { DB } from '../../common/db/db.module.ts';
-import { and, asc, desc, eq, getTableColumns, inArray, ne, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  getTableColumns,
+  inArray,
+  isNotNull,
+  ne,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
+import {
+  decidedBefore,
+  toDecidedActor,
+  type DecidedQuery,
+  type ReviewDecision,
+  type ReviewDecisionOutcome,
+} from '../../common/review-decision.ts';
+
+const DECIDED_PROPOSAL_STATUSES = ['sent', 'dismissed', 'withdrawn', 'failed'] as const;
+
+type ProposalRow = Awaited<ReturnType<OutreachService['selectProposalRows']>>[number];
+
+function outcomeOfProposal(status: string): ReviewDecisionOutcome {
+  if (status === 'sent') return 'approved';
+  if (status === 'failed') return 'failed';
+  return 'dismissed';
+}
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 import {
@@ -430,14 +458,85 @@ export class OutreachService {
     contactId?: string;
     limit?: number;
   }): Promise<ProposalSummaryDto[]> {
-    const ctx = getCurrentContext();
-    const limit = clampLimit(input.limit, 25, 200);
     const filters: SQL[] = [];
     if (input.status) filters.push(eq(schema.outreachProposals.status, input.status));
     if (input.campaignId) filters.push(eq(schema.outreachProposals.campaignId, input.campaignId));
     if (input.kind) filters.push(eq(schema.outreachProposals.kind, input.kind));
     if (input.contactId) filters.push(eq(schema.outreachProposals.contactId, input.contactId));
+    const rows = await this.selectProposalRows(
+      filters,
+      input.status === 'approved'
+        ? asc(schema.outreachProposals.scheduledSendAt)
+        : desc(schema.outreachProposals.createdAt),
+      clampLimit(input.limit, 25, 200),
+    );
+    return rows.map((r) => this.toSummary(r));
+  }
+
+  async listDecided(input: DecidedQuery): Promise<ReviewDecision<ProposalSummaryDto>[]> {
+    const filters: SQL[] = [
+      inArray(schema.outreachProposals.status, DECIDED_PROPOSAL_STATUSES),
+      isNotNull(schema.outreachProposals.decidedAt),
+    ];
+    const keyset = decidedBefore(
+      schema.outreachProposals.decidedAt,
+      schema.outreachProposals.id,
+      input.cursor,
+    );
+    if (keyset) filters.push(keyset);
+    const rows = await this.selectProposalRows(
+      filters,
+      desc(schema.outreachProposals.decidedAt),
+      clampLimit(input.limit, 50, 200),
+      desc(schema.outreachProposals.id),
+    );
+    const names = await this.loadDeciderNames(rows.map((r) => r.proposal));
+    return rows.flatMap((r) => {
+      const p = r.proposal;
+      if (!p.decidedAt) return [];
+      return [
+        {
+          id: p.id,
+          decidedAt: p.decidedAt.toISOString(),
+          outcome: outcomeOfProposal(p.status),
+          reason: p.dismissReason ?? p.withdrawReason ?? p.failureReason ?? null,
+          decidedBy: toDecidedActor(
+            p.decidedByActorType,
+            p.decidedByActorId,
+            names.get(p.decidedByActorId ?? '') ?? null,
+          ),
+          producedRef: p.sentMessageId
+            ? { type: 'conv_message' as const, id: p.sentMessageId }
+            : null,
+          raw: this.toSummary(r),
+        },
+      ];
+    });
+  }
+
+  private async loadDeciderNames(
+    proposals: Array<{ decidedByActorType: string | null; decidedByActorId: string | null }>,
+  ): Promise<Map<string, string>> {
+    const ctx = getCurrentContext();
+    const ids = proposals
+      .filter((p) => p.decidedByActorType === 'user' && p.decidedByActorId)
+      .map((p) => p.decidedByActorId!);
+    if (ids.length === 0) return new Map();
     const rows = await ctx.db
+      .select({ id: schema.users.id, name: schema.users.name })
+      .from(schema.users)
+      .where(inArray(schema.users.id, ids));
+    return new Map(rows.flatMap((r) => (r.name ? [[r.id, r.name] as const] : [])));
+  }
+
+  private async selectProposalRows(
+    filters: SQL[],
+    order: SQL,
+    limit: number,
+    tiebreak?: SQL,
+  ) {
+    const ctx = getCurrentContext();
+    return ctx.db
       .select({
         proposal: PROPOSAL_SUMMARY_COLUMNS,
         hasEvidence: sql<boolean>`${schema.outreachProposals.evidence} <> '{}'::jsonb`,
@@ -481,19 +580,23 @@ export class OutreachService {
             AND ${schema.crmAddressDeliverability.address} = lower(btrim(${schema.crmContacts.email}))`,
       )
       .where(filters.length === 0 ? undefined : and(...filters))
-      .orderBy(
-        input.status === 'approved'
-          ? asc(schema.outreachProposals.scheduledSendAt)
-          : desc(schema.outreachProposals.createdAt),
-      )
+      .orderBy(...(tiebreak ? [order, tiebreak] : [order]))
       .limit(limit);
-    return rows.map((r) => toProposalSummaryDto(
-        r.proposal,
-        r.hasEvidence,
+  }
+
+  private toSummary(r: ProposalRow): ProposalSummaryDto {
+    return toProposalSummaryDto(
+      r.proposal,
+      r.hasEvidence,
+      r.contact,
+      r.campaign,
+      toProposalDelivery(
         r.contact,
         r.campaign,
-        toProposalDelivery(r.contact, r.campaign, r.channel, toProposalDeliverability(r.deliverability)),
-      ));
+        r.channel,
+        toProposalDeliverability(r.deliverability),
+      ),
+    );
   }
 
   async getProposal(id: string): Promise<ProposalDto> {

@@ -1,6 +1,24 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, asc, desc, eq, ilike, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
+import {
+  decidedBefore,
+  toDecidedActor,
+  type DecidedQuery,
+  type ReviewDecision,
+} from '../../common/review-decision.ts';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.service.ts';
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
@@ -1133,6 +1151,69 @@ export class CrmService {
       .where(eq(schema.crmMergeProposals.status, status))
       .orderBy(desc(schema.crmMergeProposals.createdAt))
       .limit(limit);
+    return this.hydrateMergeProposals(proposals);
+  }
+
+  async listDecided(input: DecidedQuery): Promise<ReviewDecision<MergeProposalDto>[]> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({
+        proposal: schema.crmMergeProposals,
+        decidedByName: schema.users.name,
+      })
+      .from(schema.crmMergeProposals)
+      .leftJoin(
+        schema.users,
+        and(
+          eq(schema.crmMergeProposals.decidedByActorType, 'user'),
+          eq(schema.users.id, schema.crmMergeProposals.decidedByActorId),
+        ),
+      )
+      .where(
+        and(
+          inArray(schema.crmMergeProposals.status, ['applied', 'dismissed']),
+          isNotNull(schema.crmMergeProposals.decidedAt),
+          decidedBefore(
+            schema.crmMergeProposals.decidedAt,
+            schema.crmMergeProposals.id,
+            input.cursor,
+          ),
+        ),
+      )
+      .orderBy(desc(schema.crmMergeProposals.decidedAt), desc(schema.crmMergeProposals.id))
+      .limit(clampLimit(input.limit, 50, 200));
+
+    const dtos = await this.hydrateMergeProposals(rows.map((r) => r.proposal));
+    const byId = new Map(dtos.map((dto) => [dto.id, dto]));
+    return rows.flatMap(({ proposal, decidedByName }) => {
+      const raw = byId.get(proposal.id);
+      if (!raw || !proposal.decidedAt) return [];
+      return [
+        {
+          id: proposal.id,
+          decidedAt: proposal.decidedAt.toISOString(),
+          outcome:
+            proposal.status === 'applied' ? ('approved' as const) : ('dismissed' as const),
+          reason: proposal.dismissReason,
+          decidedBy: toDecidedActor(
+            proposal.decidedByActorType,
+            proposal.decidedByActorId,
+            decidedByName,
+          ),
+          producedRef:
+            proposal.status === 'applied'
+              ? { type: 'crm_contact' as const, id: proposal.recommendedKeeperId }
+              : null,
+          raw,
+        },
+      ];
+    });
+  }
+
+  private async hydrateMergeProposals(
+    proposals: (typeof schema.crmMergeProposals.$inferSelect)[],
+  ): Promise<MergeProposalDto[]> {
+    const ctx = getCurrentContext();
     if (proposals.length === 0) return [];
     const ids = new Set<string>();
     for (const p of proposals) {

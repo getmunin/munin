@@ -1,5 +1,9 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { KbService, type CurationCandidateSummary } from '../kb/kb.service.ts';
+import {
+  KbService,
+  type CurationCandidateSummary,
+  type CurationDecisionDto,
+} from '../kb/kb.service.ts';
 import { CrmService, type MergeProposalDto } from '../crm/crm.service.ts';
 import { OutreachService, type ProposalSummaryDto } from '../outreach/outreach.service.ts';
 import {
@@ -8,18 +12,44 @@ import {
   type CmsScheduledEntrySummary,
 } from '../cms/cms.service.ts';
 import { FeedbackService, type FeedbackOutboxDto } from '../feedback/feedback.service.ts';
+import {
+  type DecidedCursor,
+  type ReviewDecisionActor,
+  type ReviewDecisionOutcome,
+  type ReviewProducedRef,
+} from '../../common/review-decision.ts';
 
 export const REVIEW_DEFAULT_LIMIT = 50;
 
 export type ReviewKind = 'kb' | 'crm' | 'outreach' | 'cms' | 'feedback';
 export type ReviewState = 'waiting' | 'scheduled' | 'decided';
 
+export interface ReviewDecidedFields {
+  outcome: ReviewDecisionOutcome;
+  reason: string | null;
+  decidedBy: ReviewDecisionActor;
+  producedRef: ReviewProducedRef | null;
+}
+
+type Item<K extends ReviewKind, Raw> = {
+  kind: K;
+  state: ReviewState;
+  id: string;
+  at: string;
+  raw: Raw;
+} & Partial<ReviewDecidedFields>;
+
 export type ReviewItem =
-  | { kind: 'kb'; state: ReviewState; id: string; at: string; raw: CurationCandidateSummary }
-  | { kind: 'crm'; state: ReviewState; id: string; at: string; raw: MergeProposalDto }
-  | { kind: 'outreach'; state: ReviewState; id: string; at: string; raw: ProposalSummaryDto }
-  | { kind: 'cms'; state: ReviewState; id: string; at: string; raw: CmsDraftEntrySummary }
-  | { kind: 'feedback'; state: ReviewState; id: string; at: string; raw: FeedbackOutboxDto };
+  | Item<'kb', CurationCandidateSummary | CurationDecisionDto>
+  | Item<'crm', MergeProposalDto>
+  | Item<'outreach', ProposalSummaryDto>
+  | Item<'cms', CmsDraftEntrySummary>
+  | Item<'feedback', FeedbackOutboxDto>;
+
+export interface DecidedPage {
+  items: ReviewItem[];
+  nextCursor: DecidedCursor | null;
+}
 
 export interface ReviewSnapshot {
   kb: CurationCandidateSummary[];
@@ -129,6 +159,38 @@ export class ReviewService {
     return items.sort((a, b) => millis(b.at) - millis(a.at));
   }
 
+  async listDecided(input: {
+    cursor?: DecidedCursor;
+    limit?: number;
+  }): Promise<DecidedPage> {
+    const limit = Math.min(Math.max(input.limit ?? REVIEW_DEFAULT_LIMIT, 1), 200);
+    const query = { ...(input.cursor ? { cursor: input.cursor } : {}), limit: limit + 1 };
+
+    const [kb, crm, outreach, cms, feedback] = await Promise.all([
+      this.kb.listDecided(query),
+      this.crm.listDecided(query),
+      this.outreach.listDecided(query),
+      this.cms.listDecided(query),
+      this.feedback ? this.feedback.listDecided(query) : Promise.resolve([]),
+    ]);
+
+    const merged: ReviewItem[] = [
+      ...kb.map((d) => decidedItem('kb', d)),
+      ...crm.map((d) => decidedItem('crm', d)),
+      ...outreach.map((d) => decidedItem('outreach', d)),
+      ...cms.map((d) => decidedItem('cms', d)),
+      ...feedback.map((d) => decidedItem('feedback', d)),
+    ].sort((a, b) => millis(b.at) - millis(a.at) || (a.id < b.id ? 1 : -1));
+
+    const items = merged.slice(0, limit);
+    const last = items[items.length - 1];
+    return {
+      items,
+      nextCursor:
+        merged.length > limit && last ? { decidedAt: last.at, id: last.id } : null,
+    };
+  }
+
   selectScheduled(snapshot: ReviewSnapshot): ReviewItem[] {
     const items: ReviewItem[] = [
       ...snapshot.outreachScheduled.flatMap<ReviewItem>((raw) =>
@@ -146,4 +208,21 @@ export class ReviewService {
     ];
     return items.sort((a, b) => millis(a.at) - millis(b.at));
   }
+}
+
+function decidedItem<K extends ReviewKind, Raw>(
+  kind: K,
+  decision: { id: string; decidedAt: string; raw: Raw } & ReviewDecidedFields,
+): Item<K, Raw> {
+  return {
+    kind,
+    state: 'decided',
+    id: decision.id,
+    at: decision.decidedAt,
+    outcome: decision.outcome,
+    reason: decision.reason,
+    decidedBy: decision.decidedBy,
+    producedRef: decision.producedRef,
+    raw: decision.raw,
+  };
 }

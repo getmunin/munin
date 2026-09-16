@@ -11,8 +11,9 @@ import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { ReviewService, type ReviewItem } from '../modules/review/review.service.ts';
+import { decodeCursor, encodeCursor } from '../common/transfer/transfer.helpers.ts';
 
-const LISTABLE_STATES = ['waiting', 'scheduled'] as const;
+const LISTABLE_STATES = ['waiting', 'scheduled', 'decided'] as const;
 
 type ListableState = (typeof LISTABLE_STATES)[number];
 
@@ -31,10 +32,27 @@ export class ReviewController {
   async list(
     @Query('state') state?: string,
     @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
   ): Promise<ReviewListResponse> {
     const take = clampLimit(limit, 50, 200);
+    const resolved = readState(state);
+
+    if (resolved === 'decided') {
+      const decoded = decodeCursor(cursor);
+      const page = await this.review.listDecided({
+        limit: take,
+        ...(decoded ? { cursor: { decidedAt: decoded.createdAt, id: decoded.id } } : {}),
+      });
+      return {
+        items: page.items,
+        nextCursor: page.nextCursor
+          ? encodeCursor(page.nextCursor.decidedAt, page.nextCursor.id)
+          : null,
+      };
+    }
+
     const items =
-      readState(state) === 'scheduled'
+      resolved === 'scheduled'
         ? await this.review.listScheduled(take)
         : await this.review.listWaiting(take);
     return { items, nextCursor: null };

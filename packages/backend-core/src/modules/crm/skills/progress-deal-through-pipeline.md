@@ -88,7 +88,7 @@ The AI summary is the field that drives "what's hot" in the dashboard. Don't lea
   "arguments": {
     "entityType": "deal",
     "id": "<dealId>",
-    "summary": "$50k TCV, 200-seat fintech. Cleared legal review (EU residency). Pricing call set for May 5. Champion: Vita (Head of Ops).",
+    "summary": "$50k TCV, 200-seat fintech. Cleared legal review (EU residency). Pricing call set for May 5. Champion: Kari (Head of Ops).",
     "nextAction": "Send revised quote with annual discount tier; confirm signing authority."
   }
 }

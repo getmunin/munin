@@ -71,7 +71,7 @@ If the channel is currently deactivated, the update also re-tests the stored cre
 
 ## Step 2b — decide what the agent does with inbound mail
 
-`defaultAgentMode` on the channel sets the posture every new conversation inherits (`conv_change_agent_mode` overrides it per conversation):
+`defaultAgentMode` on the channel sets the posture every new conversation inherits. A topic can override it for the conversations it matches (`conv_set_topic_automation`); a single conversation can be switched by a person in the dashboard, but no MCP tool does it — an agent changes the posture for a whole channel or a whole topic, never one thread:
 
 - `auto` (default) — the agent answers the sender directly.
 - `draft_only` — the agent does the same work (knowledge-base lookups, CRM, connectors, the audit pass) but writes the answer to an **internal draft** and flags the conversation for human attention instead of sending. The draft appears in the dashboard inbox, pre-filled in an editable composer; a teammate edits and sends it. The sender sees nothing until a human sends — no reply, no typing indicator.

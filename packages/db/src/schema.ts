@@ -1558,6 +1558,8 @@ export const cmsEntries = pgTable(
     embedding: embeddingColumn('embedding'),
     scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
     publishedAt: timestamp('published_at', { withTimezone: true }),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    dismissReason: text('dismiss_reason'),
     createdByType: varchar('created_by_type', { length: 16 }).notNull(),
     createdById: text('created_by_id').notNull(),
     updatedByType: varchar('updated_by_type', { length: 16 }).notNull(),
@@ -1576,6 +1578,11 @@ export const cmsEntries = pgTable(
       t.locale,
     ),
     scheduledIdx: index('cms_entries_scheduled_idx').on(t.scheduledAt),
+    decidedIdx: index('cms_entries_decided_idx').on(
+      t.orgId,
+      t.status,
+      sql`coalesce(published_at, archived_at) desc`,
+    ),
     slugUq: uniqueIndex('cms_entries_slug_uq').on(t.orgId, t.collectionId, t.slug, t.locale),
     translationGroupLocaleUq: uniqueIndex('cms_entries_translation_group_locale_uq').on(
       t.orgId,
@@ -2108,14 +2115,21 @@ export const feedbackOutbox = pgTable(
     appScope: varchar('app_scope', { length: 32 }),
     includeOrgName: boolean('include_org_name').notNull().default(false),
     includeUserName: boolean('include_user_name').notNull().default(false),
+    status: varchar('status', { length: 16 }).notNull().default('pending'),
+    // 'pending' | 'approved' | 'dismissed'
     approvedAt: timestamp('approved_at', { withTimezone: true }),
     sentAt: timestamp('sent_at', { withTimezone: true }),
     forwardError: text('forward_error'),
+    dismissReason: text('dismiss_reason'),
+    decidedByActorType: varchar('decided_by_actor_type', { length: 16 }),
+    decidedByActorId: text('decided_by_actor_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
     createdAt,
     updatedAt,
   },
   (t) => ({
     orgIdx: index('feedback_outbox_org_idx').on(t.orgId, t.createdAt),
+    orgStatusIdx: index('feedback_outbox_org_status_idx').on(t.orgId, t.status, t.decidedAt),
   }),
 );
 

@@ -1,21 +1,43 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { schema } from '@getmunin/db';
-import { getCurrentContext } from '@getmunin/core';
+import { WebhookDispatcher, getCurrentContext } from '@getmunin/core';
 import {
   FeedbackForwarder,
+  type ForwardPayload,
+  type ForwardResult,
   type PublicFeedbackItem,
   type SearchParams,
   type VoteResult,
 } from './feedback.forwarder.ts';
 
+export interface FeedbackIntake {
+  forward(input: ForwardPayload): Promise<ForwardResult>;
+  search(params: SearchParams): Promise<PublicFeedbackItem[]>;
+  vote(input: { feedbackId: string; comment?: string }): Promise<VoteResult>;
+}
+
+export interface FeedbackEventEmitter {
+  emit(input: { type: string; payload: Record<string, unknown> }): Promise<unknown>;
+}
+
 const APP_SCOPES = ['kb', 'conv', 'crm', 'cms', 'core'] as const;
 export type FeedbackAppScope = (typeof APP_SCOPES)[number];
+
+const FEEDBACK_STATUSES = ['pending', 'approved', 'dismissed'] as const;
+export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
 
 export class FeedbackNotFoundError extends Error {
   readonly code = 'feedback_not_found';
   constructor(id: string) {
     super(`feedback_not_found: no item with id ${id}`);
+  }
+}
+
+export class FeedbackDecidedError extends Error {
+  readonly code = 'feedback_decided';
+  constructor(id: string, status: string) {
+    super(`feedback_decided: item ${id} is already ${status}`);
   }
 }
 
@@ -35,13 +57,21 @@ export interface FeedbackOutboxDto {
   includeUserName: boolean;
   submittedByUserId: string | null;
   createdAt: string;
+  status: FeedbackStatus;
   approvedAt: string | null;
   forwardError: string | null;
+  dismissReason: string | null;
+  decidedByActorType: 'user' | 'agent' | null;
+  decidedByActorId: string | null;
+  decidedAt: string | null;
 }
 
 @Injectable()
 export class FeedbackService {
-  constructor(@Inject(FeedbackForwarder) private readonly forwarder: FeedbackForwarder) {}
+  constructor(
+    @Inject(FeedbackForwarder) private readonly forwarder: FeedbackIntake,
+    @Inject(WebhookDispatcher) private readonly webhooks: FeedbackEventEmitter,
+  ) {}
 
   async create(input: {
     title: string;
@@ -72,6 +102,7 @@ export class FeedbackService {
     const rows = await ctx.db
       .select()
       .from(schema.feedbackOutbox)
+      .where(eq(schema.feedbackOutbox.status, 'pending'))
       .orderBy(desc(schema.feedbackOutbox.createdAt));
     return rows.map(toDto);
   }
@@ -82,19 +113,34 @@ export class FeedbackService {
     return toDto(row);
   }
 
-  async dismiss(id: string): Promise<void> {
+  async dismiss(id: string, reason?: string): Promise<void> {
     const ctx = getCurrentContext();
-    const result = await ctx.db
-      .delete(schema.feedbackOutbox)
-      .where(eq(schema.feedbackOutbox.id, id))
-      .returning({ id: schema.feedbackOutbox.id });
-    if (result.length === 0) throw new FeedbackNotFoundError(id);
+    const row = await this.findById(id);
+    if (!row) throw new FeedbackNotFoundError(id);
+    if (row.status !== 'pending') throw new FeedbackDecidedError(id, row.status);
+
+    await ctx.db
+      .update(schema.feedbackOutbox)
+      .set({
+        status: 'dismissed',
+        dismissReason: reason ?? null,
+        ...this.decidedStamp(),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(schema.feedbackOutbox.id, id), eq(schema.feedbackOutbox.status, 'pending')),
+      );
+    await this.webhooks.emit({
+      type: 'feedback.item.dismissed',
+      payload: { feedbackId: id, title: row.title },
+    });
   }
 
   async approve(id: string): Promise<void> {
     const ctx = getCurrentContext();
     const row = await this.findById(id);
     if (!row) throw new FeedbackNotFoundError(id);
+    if (row.status !== 'pending') throw new FeedbackDecidedError(id, row.status);
 
     const attribution = await this.buildAttribution(row);
     const result = await this.forwarder.forward({
@@ -105,9 +151,22 @@ export class FeedbackService {
     });
 
     if (result.ok) {
+      const now = new Date();
       await ctx.db
-        .delete(schema.feedbackOutbox)
+        .update(schema.feedbackOutbox)
+        .set({
+          status: 'approved',
+          approvedAt: now,
+          sentAt: now,
+          forwardError: null,
+          ...this.decidedStamp(now),
+          updatedAt: now,
+        })
         .where(eq(schema.feedbackOutbox.id, id));
+      await this.webhooks.emit({
+        type: 'feedback.item.approved',
+        payload: { feedbackId: id, title: row.title },
+      });
       return;
     }
 
@@ -136,6 +195,15 @@ export class FeedbackService {
 
   vote(input: { feedbackId: string; comment?: string }): Promise<VoteResult> {
     return this.forwarder.vote(input);
+  }
+
+  private decidedStamp(at: Date = new Date()) {
+    const actor = getCurrentContext().actor!;
+    return {
+      decidedByActorType: actor.type === 'user' ? ('user' as const) : ('agent' as const),
+      decidedByActorId: actor.id,
+      decidedAt: at,
+    };
   }
 
   private async findById(id: string) {
@@ -188,9 +256,14 @@ function toDto(row: typeof schema.feedbackOutbox.$inferSelect): FeedbackOutboxDt
     includeUserName: row.includeUserName,
     submittedByUserId: row.submittedByUserId,
     createdAt: row.createdAt.toISOString(),
+    status: (row.status as FeedbackStatus | null) ?? 'pending',
     approvedAt: row.approvedAt ? row.approvedAt.toISOString() : null,
     forwardError: row.forwardError,
+    dismissReason: row.dismissReason,
+    decidedByActorType: (row.decidedByActorType as 'user' | 'agent' | null) ?? null,
+    decidedByActorId: row.decidedByActorId,
+    decidedAt: row.decidedAt ? row.decidedAt.toISOString() : null,
   };
 }
 
-export { APP_SCOPES };
+export { APP_SCOPES, FEEDBACK_STATUSES };

@@ -1142,6 +1142,43 @@ class StubStorage implements AssetStorage {
       expect(await eventTypes()).toContain('cms.entry.archived');
     });
 
+    it('archiveEntry dates the archival and keeps the reason given', async () => {
+      const col = await seedCollection();
+      const entry = await run(() =>
+        svc.createEntry({ collection: col.slug, slug: 'a2', data: { title: 'A2' } }),
+      );
+      await run(() =>
+        svc.archiveEntry({
+          id: entry.id,
+          ifVersion: entry.version,
+          reason: 'Duplicate of the launch post',
+        }),
+      );
+      const [row] = await db
+        .select()
+        .from(schema.cmsEntries)
+        .where(eq(schema.cmsEntries.id, entry.id));
+      expect(row?.archivedAt).not.toBeNull();
+      expect(row?.dismissReason).toBe('Duplicate of the launch post');
+    });
+
+    it('clears the archival date when an archived entry is published again', async () => {
+      const col = await seedCollection();
+      const entry = await run(() =>
+        svc.createEntry({ collection: col.slug, slug: 'a3', data: { title: 'A3' } }),
+      );
+      const archived = await run(() =>
+        svc.archiveEntry({ id: entry.id, ifVersion: entry.version, reason: 'Too early' }),
+      );
+      await run(() => svc.publishEntry({ id: entry.id, ifVersion: archived.version }));
+      const [row] = await db
+        .select()
+        .from(schema.cmsEntries)
+        .where(eq(schema.cmsEntries.id, entry.id));
+      expect(row?.archivedAt).toBeNull();
+      expect(row?.publishedAt).not.toBeNull();
+    });
+
     it('publishing resolves a per-locale liveUrl map against the entry locale', async () => {
       const col = await run(() =>
         svc.createCollection({

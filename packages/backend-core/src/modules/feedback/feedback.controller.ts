@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   HttpCode,
   HttpStatus,
@@ -18,6 +19,7 @@ import { TenancyInterceptor } from '../../common/tenancy/tenancy.interceptor.ts'
 import { AuditInterceptor } from '../../common/audit/audit.interceptor.ts';
 import {
   APP_SCOPES,
+  FeedbackDecidedError,
   FeedbackForwardFailedError,
   FeedbackNotFoundError,
   FeedbackService,
@@ -31,6 +33,12 @@ class CreateFeedbackBody extends createZodDto(
     appScope: z.enum(APP_SCOPES).optional(),
     includeOrgName: z.boolean().optional(),
     includeUserName: z.boolean().optional(),
+  }),
+) {}
+
+class DismissFeedbackBody extends createZodDto(
+  z.object({
+    reason: z.string().min(1).max(500).optional(),
   }),
 ) {}
 
@@ -58,6 +66,9 @@ export class FeedbackController {
       if (err instanceof FeedbackForwardFailedError) {
         throw new BadRequestException(err.message);
       }
+      if (err instanceof FeedbackDecidedError) {
+        throw new ConflictException(err.message);
+      }
       throw err;
     }
   }
@@ -65,11 +76,12 @@ export class FeedbackController {
   @Post(':id/dismiss')
   @UseGuards(ControlPlaneGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  async dismiss(@Param('id') id: string): Promise<void> {
+  async dismiss(@Param('id') id: string, @Body() input: DismissFeedbackBody): Promise<void> {
     try {
-      await this.service.dismiss(id);
+      await this.service.dismiss(id, input.reason);
     } catch (err) {
       if (err instanceof FeedbackNotFoundError) throw new NotFoundException(err.message);
+      if (err instanceof FeedbackDecidedError) throw new ConflictException(err.message);
       throw err;
     }
   }

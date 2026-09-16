@@ -1464,6 +1464,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DismissDraftBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -7849,6 +7859,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DismissFeedbackBody"
+              }
+            }
+          }
+        },
         "responses": {
           "204": {
             "description": ""
@@ -8336,6 +8356,16 @@
           "mime",
           "sizeBytes"
         ]
+      },
+      "DismissDraftBody": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
       },
       "ImportCmsBody": {
         "type": "object",
@@ -11853,6 +11883,16 @@
           "title",
           "body"
         ]
+      },
+      "DismissFeedbackBody": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
       }
     }
   }

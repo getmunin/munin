@@ -560,7 +560,11 @@ export class CmsService {
     };
   }
 
-  async archiveEntry(input: { id: string; ifVersion: number }): Promise<EntryDto> {
+  async archiveEntry(input: {
+    id: string;
+    ifVersion: number;
+    reason?: string;
+  }): Promise<EntryDto> {
     return this.transition(input, 'archived');
   }
 
@@ -1942,7 +1946,13 @@ export class CmsService {
   }
 
   private async transition(
-    input: { id: string; ifVersion: number; scheduledAt?: Date; publishedAt?: Date },
+    input: {
+      id: string;
+      ifVersion: number;
+      scheduledAt?: Date;
+      publishedAt?: Date;
+      reason?: string;
+    },
     status: EntryStatus,
   ): Promise<EntryDto> {
     const ctx = getCurrentContext();
@@ -1964,13 +1974,18 @@ export class CmsService {
     if (status === 'published') {
       updates.publishedAt = input.publishedAt ?? new Date();
       updates.scheduledAt = null;
+      updates.archivedAt = null;
     } else if (status === 'scheduled') {
       updates.scheduledAt = input.scheduledAt;
+      updates.archivedAt = null;
     } else if (status === 'draft') {
       updates.publishedAt = null;
       updates.scheduledAt = null;
+      updates.archivedAt = null;
     } else if (status === 'archived') {
       updates.scheduledAt = null;
+      updates.archivedAt = new Date();
+      updates.dismissReason = input.reason ?? null;
     }
 
     const [updated] = await ctx.db

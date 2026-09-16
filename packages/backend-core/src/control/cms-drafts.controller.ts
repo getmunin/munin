@@ -67,6 +67,12 @@ class PatchDraftBody extends createZodDto(
   }),
 ) {}
 
+class DismissDraftBody extends createZodDto(
+  z.object({
+    reason: z.string().min(1).max(500).optional(),
+  }),
+) {}
+
 class ScheduleDraftBody extends createZodDto(
   z.object({
     scheduledAt: z.string().min(1),
@@ -194,10 +200,17 @@ export class CmsDraftsController {
 
   @Post(':id/dismiss')
   @HttpCode(200)
-  async dismiss(@Param('id') id: string): Promise<{ dismissed: true }> {
+  async dismiss(
+    @Param('id') id: string,
+    @Body() input: DismissDraftBody,
+  ): Promise<{ dismissed: true }> {
     await translate(async () => {
       const existing = await this.cms.getEntry(id);
-      return this.cms.archiveEntry({ id, ifVersion: existing.version });
+      return this.cms.archiveEntry({
+        id,
+        ifVersion: existing.version,
+        ...(input.reason ? { reason: input.reason } : {}),
+      });
     });
     return { dismissed: true };
   }

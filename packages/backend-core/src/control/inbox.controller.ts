@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Inject,
-  Optional,
-  UseGuards,
-  UseInterceptors,
-} from '@nestjs/common';
+import { Controller, Get, UseGuards, UseInterceptors } from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { and, desc, eq, gt, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
@@ -13,30 +6,12 @@ import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
-import {
-  ConvService,
-  type ConversationSummary,
-} from '../modules/conv/conv.service.ts';
+import { ConvService, type ConversationSummary } from '../modules/conv/conv.service.ts';
 import {
   ConversationClaimsService,
   type ConversationClaim,
 } from '../modules/conv/conv.claims.service.ts';
-import {
-  KbService,
-  type CurationCandidateSummary,
-} from '../modules/kb/kb.service.ts';
-import { CrmService, type MergeProposalDto } from '../modules/crm/crm.service.ts';
-import {
-  OutreachService,
-  type ProposalSummaryDto,
-} from '../modules/outreach/outreach.service.ts';
-import { FeedbackService } from '../modules/feedback/feedback.service.ts';
-import type { FeedbackOutboxDto } from '../modules/feedback/feedback.service.ts';
-import {
-  CmsService,
-  type CmsDraftEntrySummary,
-  type CmsScheduledEntrySummary,
-} from '../modules/cms/cms.service.ts';
+import { ReviewService, type ReviewSnapshot } from '../modules/review/review.service.ts';
 
 interface LiveConversation extends ConversationSummary {
   latestEndUserMessage: { body: string; createdAt: string } | null;
@@ -45,19 +20,12 @@ interface LiveConversation extends ConversationSummary {
 
 const EXCLUDED_LIVE_STATUSES = ['closed', 'spam'] as const;
 const LIVE_LIST_LIMIT = 50;
+const QUEUE_SCAN_LIMIT = 50;
 
 interface InboxQueueResponse {
   live: LiveConversation[];
   liveTotal: number;
-  queue: {
-    kb: CurationCandidateSummary[];
-    crm: MergeProposalDto[];
-    outreach: ProposalSummaryDto[];
-    outreachScheduled: ProposalSummaryDto[];
-    cms: CmsDraftEntrySummary[];
-    cmsScheduled: CmsScheduledEntrySummary[];
-    feedback?: FeedbackOutboxDto[];
-  };
+  queue: ReviewSnapshot;
 }
 
 @Controller('v1/inbox')
@@ -67,47 +35,20 @@ export class InboxController {
   constructor(
     private readonly conv: ConvService,
     private readonly claims: ConversationClaimsService,
-    private readonly kb: KbService,
-    private readonly crm: CrmService,
-    private readonly outreach: OutreachService,
-    private readonly cms: CmsService,
-    @Optional() @Inject(FeedbackService) private readonly feedback: FeedbackService | null = null,
+    private readonly review: ReviewService,
   ) {}
 
   @Get()
   async queue(): Promise<InboxQueueResponse> {
-    const [
-      liveResult,
-      kbItems,
-      crmItems,
-      outreachItems,
-      outreachScheduled,
-      cmsItems,
-      cmsScheduled,
-      feedbackItems,
-    ] = await Promise.all([
+    const [liveResult, snapshot] = await Promise.all([
       this.loadLive(),
-      this.kb.listCurationCandidates(50),
-      this.crm.listMergeProposals({ status: 'pending', limit: 50 }),
-      this.outreach.listProposals({ status: 'pending', limit: 50 }),
-      this.outreach.listProposals({ status: 'approved', limit: 50 }),
-      this.cms.listDraftEntries(50),
-      this.cms.listScheduledEntries(50),
-      this.feedback ? this.feedback.listPending() : Promise.resolve(undefined),
+      this.review.readSnapshot(QUEUE_SCAN_LIMIT),
     ]);
 
     return {
       live: liveResult.live,
       liveTotal: liveResult.total,
-      queue: {
-        kb: kbItems,
-        crm: crmItems,
-        outreach: outreachItems,
-        outreachScheduled,
-        cms: cmsItems,
-        cmsScheduled,
-        ...(feedbackItems ? { feedback: feedbackItems } : {}),
-      },
+      queue: snapshot,
     };
   }
 

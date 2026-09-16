@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { and, eq, isNotNull, ne, notInArray, notLike, or, sql } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
@@ -15,10 +15,7 @@ import {
 } from '@getmunin/core';
 import { ConvService, type ChannelDto } from '../modules/conv/conv.service.ts';
 import { CURATION_INBOX_SLUG, KbService } from '../modules/kb/kb.service.ts';
-import { CrmService } from '../modules/crm/crm.service.ts';
-import { OutreachService } from '../modules/outreach/outreach.service.ts';
-import { CmsService } from '../modules/cms/cms.service.ts';
-import { FeedbackService } from '../modules/feedback/feedback.service.ts';
+import { ReviewService } from '../modules/review/review.service.ts';
 import { toIsoString } from '../common/iso.ts';
 
 const RESERVED_KB_SPACE_SLUGS = [
@@ -50,10 +47,7 @@ export class SetupStateService {
   constructor(
     @Inject(ConvService) private readonly conv: ConvService,
     @Inject(KbService) private readonly kb: KbService,
-    @Inject(CrmService) private readonly crm: CrmService,
-    @Inject(OutreachService) private readonly outreach: OutreachService,
-    @Inject(CmsService) private readonly cms: CmsService,
-    @Optional() @Inject(FeedbackService) private readonly feedback: FeedbackService | null = null,
+    @Inject(ReviewService) private readonly review: ReviewService,
   ) {}
 
   async read(): Promise<SetupStateDto> {
@@ -79,36 +73,13 @@ export class SetupStateService {
   }
 
   private async readReviewQueue(): Promise<SetupReviewQueueDto> {
-    const limit = REVIEW_QUEUE_SCAN_LIMIT;
-    const [
-      candidates,
-      merges,
-      proposals,
-      approvedProposals,
-      drafts,
-      scheduledEntries,
-      feedbackItems,
-      decisions,
-    ] = await Promise.all([
-      this.kb.listCurationCandidates(limit),
-      this.crm.listMergeProposals({ status: 'pending', limit }),
-      this.outreach.listProposals({ status: 'pending', limit }),
-      this.outreach.listProposals({ status: 'approved', limit }),
-      this.cms.listDraftEntries(limit),
-      this.cms.listScheduledEntries(limit),
-      this.feedback ? this.feedback.listPending() : Promise.resolve([]),
+    const [snapshot, decisions] = await Promise.all([
+      this.review.readSnapshot(REVIEW_QUEUE_SCAN_LIMIT),
       this.kb.listCurationDecisions({ limit: 1 }),
     ]);
 
     return {
-      hasPendingItems:
-        candidates.length > 0 ||
-        merges.length > 0 ||
-        proposals.length > 0 ||
-        approvedProposals.some((proposal) => proposal.scheduledSendAt !== null) ||
-        drafts.length > 0 ||
-        scheduledEntries.length > 0 ||
-        feedbackItems.length > 0,
+      hasPendingItems: this.review.hasPendingItems(snapshot),
       lastDecisionAt: decisions[0]?.decidedAt ?? null,
     };
   }

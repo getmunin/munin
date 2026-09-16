@@ -61,6 +61,8 @@ import { SlackController } from './slack.controller.ts';
 import { SlackModule } from '../modules/slack/slack.module.ts';
 import { ConnectorsController } from './connectors.controller.ts';
 import { ConnectorsModule } from '../modules/connectors/connectors.module.ts';
+import { ReviewController } from './review.controller.ts';
+import { ReviewModule } from '../modules/review/review.module.ts';
 
 @Module({
   imports: [
@@ -76,6 +78,7 @@ import { ConnectorsModule } from '../modules/connectors/connectors.module.ts';
     WebhooksModule,
     SlackModule,
     ConnectorsModule,
+    ReviewModule,
   ],
   controllers: [
     ApiKeysController,
@@ -108,6 +111,7 @@ import { ConnectorsModule } from '../modules/connectors/connectors.module.ts';
     EndUserConversationsController,
     OverviewController,
     InboxController,
+    ReviewController,
     CrmMergeProposalsController,
     CrmSegmentsController,
     OutreachUnsubscribeController,

@@ -1,12 +1,12 @@
 ---
 title: 'Connectors: Connect an external system'
-description: Connect Shopify, Magento 2, or Gastroplanner so agents can answer order and booking questions — create the vendor credential, register the connection, test it, and understand the identity model that keeps customers scoped to their own data.
+description: Connect Shopify, Magento 2, Gastroplanner, Bing Webmaster Tools or Google Search Console so agents can answer order, booking and search-performance questions — create the vendor credential (pasted key or OAuth redirect), register the connection, test it, and understand the identity model that keeps customers scoped to their own data.
 audiences: [admin]
 ---
 
 # Connect an external system
 
-Connectors give agents read access to the org's third-party systems, grouped by domain: **commerce** (orders + product catalog — Shopify, Magento 2) and **bookings** (bookings — Gastroplanner). Admin agents use the lookup tools while handling a support conversation; customers' own agents get the self-service tools (`commerce_list_my_orders`, `bookings_list_my_bookings`), scoped server-side to their own records.
+Connectors give agents read access to the org's third-party systems, grouped by domain: **commerce** (orders + product catalog — Shopify, Magento 2), **bookings** (Gastroplanner) and **seo** (search performance — Bing Webmaster Tools, Google Search Console). Admin agents use the lookup tools while handling a support conversation; customers' own agents get the self-service tools (`commerce_list_my_orders`, `bookings_list_my_bookings`), scoped server-side to their own records. Not every domain has that second half — **seo** is operator-facing only, because no customer asks about impressions or average position.
 
 For a system no vendor adapter covers — a proprietary CRM, a subscription database — the org can host its own MCP server and connect it with the `custom-mcp` vendor instead: see `skill://connectors/connect-custom-mcp-server`.
 
@@ -82,6 +82,42 @@ Gastroplanner's customer API (`https://api.gastroplanner.eu/docs/customer/`) use
 ```
 
 Run `connectors_test_connection` after creating it — the probe lists the restaurants the token can access and fails with the available URIs if `restaurantUri` doesn't match one. Note: Gastroplanner bookings have no confirmation code; guests identify a booking by the `bookingRef` from a listing.
+
+## Vendors that authorize by redirect
+
+Most vendors above are a pasted key: the human opens the credential link and enters a token. A vendor that authorizes by OAuth instead — Google Search Console today — needs one extra step, and `connectors_list_vendors` marks which ones those are.
+
+The org registers **its own** OAuth client (Google Cloud console → APIs & Services → Credentials → OAuth client ID, type "Web application"), with Munin's callback as an authorized redirect URI. The client id and secret are per-connection config, not deployment settings, so a self-hoster uses their own client rather than Munin's.
+
+```json
+{
+  "vendor": "google_search_console",
+  "name": "Main site",
+  "config": {
+    "clientId": "000000000000-xxxxxxxx.apps.googleusercontent.com"
+  }
+}
+```
+
+`clientSecret` is a secret field, so it goes through the credential link like any other — never in `config`.
+
+Then hand the human the authorization link:
+
+```jsonc
+{ "name": "connectors_get_authorize_url", "arguments": { "connectionId": "<connectionId>" } }
+```
+
+They open it in a browser and approve the Google account that owns the Search Console property. The callback exchanges the code and stores the grant.
+
+Three things worth knowing:
+
+- **The link is short-lived** — it expires after 10 minutes. Call the tool again for a fresh one rather than re-sending an old link.
+- **The connection stays `pending` until the grant lands**, even once the client secret is stored, because a client secret alone cannot call the vendor. `credentialState` reads `active` only after the redirect completes.
+- **`credentialState: "expired"` means the grant was revoked or lapsed** — the fix is the same call: mint a new authorization link and have the human approve it again. Tokens refresh themselves in the background otherwise.
+
+Finish with `connectors_test_connection` as usual, then `seo_list_properties` to confirm the account's verified sites are visible — see `skill://seo/improve-search-performance`.
+
+Google's `webmasters.readonly` is a **sensitive scope**. An org's own OAuth client works unverified against accounts that org owns, which covers the normal case. Distributing one client to other people's accounts is what triggers Google's app-verification process (CASA assessment, privacy policy, demo video) — worth knowing before promising a customer a one-click connect.
 
 ## Multiple connections
 

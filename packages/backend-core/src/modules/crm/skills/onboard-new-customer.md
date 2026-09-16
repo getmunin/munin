@@ -18,7 +18,7 @@ audiences: [admin]
 Always check first:
 
 ```jsonc
-{ "name": "crm_lookup_contact", "arguments": { "email": "vita@acme.com" } }
+{ "name": "crm_lookup_contact", "arguments": { "email": "kari@acme.com" } }
 ```
 
 Returns `null` if no match, or the contact DTO. **Do not** call `crm_create_contact` without checking — duplicate emails are allowed at the schema level (so two real people at the same shared inbox can coexist) but consolidating fragments of one human across rows is painful later.
@@ -29,8 +29,8 @@ Returns `null` if no match, or the contact DTO. **Do not** call `crm_create_cont
 {
   "name": "crm_create_contact",
   "arguments": {
-    "email": "vita@acme.com",
-    "name": "Vita Soto",
+    "email": "kari@acme.com",
+    "name": "Kari Nordmann",
     "title": "Head of Ops",
     "phone": "+1-555-0100",
     "metadata": { "source": "signup", "utm_campaign": "spring-launch" }
@@ -81,7 +81,7 @@ This is the highest-leverage call. The summary surfaces in conversation views, o
   "name": "crm_set_ai_summary",
   "arguments": {
     "contactId": "<contactId>",
-    "summary": "Vita runs ops at Acme Corp (50-person logistics SaaS). Just signed up for Pro after attending our spring webinar. Cited integration with their ticketing system as the deciding factor."
+    "summary": "Kari runs ops at Acme Corp (50-person logistics SaaS). Just signed up for Pro after attending our spring webinar. Cited integration with their ticketing system as the deciding factor."
   }
 }
 ```

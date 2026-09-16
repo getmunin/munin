@@ -81,6 +81,9 @@ jobs:
       - name: Fixture data check
         run: node scripts/check-fixture-pii.mjs
 
+      - name: Skill tool-reference check
+        run: node scripts/check-skill-tool-refs.mjs
+
       - name: Lint
         run: pnpm lint
 

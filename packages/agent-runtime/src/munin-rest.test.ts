@@ -239,3 +239,53 @@ describe('toRuntimeHistory attachments', () => {
     expect(history[0]?.attachments).toBeUndefined();
   });
 });
+
+describe('toRuntimeHistory quoted history', () => {
+  const client = createMuninRestClient({
+    baseUrl: 'http://stub',
+    adminApiKey: 'stub',
+    fetch: () => Promise.reject(new Error('network not used in this test')),
+  });
+
+  it('carries the quoted email forward, so a reply to a newsletter is not context-free', () => {
+    const history = client.toRuntimeHistory(
+      makeDetail([
+        {
+          id: 'm1',
+          authorType: 'end_user',
+          body: 'Dette stemmer ikke. Moderat nivå?',
+          createdAt: 't1',
+          metadata: {
+            quotedThread: [
+              {
+                from: 'Globex <support@globex.test>',
+                date: 'tirsdag 15. september 2026 13:23',
+                subject: 'Din månedsoppdatering',
+                body: 'Nivået ditt denne måneden er moderat.',
+              },
+            ],
+          },
+        },
+      ]),
+    );
+
+    expect(history[0]?.body).toBe('Dette stemmer ikke. Moderat nivå?');
+    expect(history[0]?.quotedHistory).toEqual([
+      {
+        from: 'Globex <support@globex.test>',
+        date: 'tirsdag 15. september 2026 13:23',
+        subject: 'Din månedsoppdatering',
+        body: 'Nivået ditt denne måneden er moderat.',
+      },
+    ]);
+  });
+
+  it('leaves quotedHistory unset on a message that quoted nothing', () => {
+    const history = client.toRuntimeHistory(
+      makeDetail([
+        { id: 'm1', authorType: 'end_user', body: 'hei', createdAt: 't1', metadata: {} },
+      ]),
+    );
+    expect(history[0]?.quotedHistory).toBeUndefined();
+  });
+});

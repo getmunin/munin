@@ -113,6 +113,12 @@ export {
   type WebCrawlerOptions,
 } from './web-crawl.ts';
 export {
+  readQuotedHistory,
+  renderQuotedHistory,
+  summarizeQuotedHistory,
+  type QuotedHistoryTurn,
+} from './quoted-history.ts';
+export {
   createRealtimeClient,
   type AgentConfigChangedEvent,
   type CuratorJobPendingEvent,

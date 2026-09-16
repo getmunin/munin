@@ -3,6 +3,7 @@ export const RESERVED_FRAMING_TAGS = [
   'tool_result',
   'company_context',
   'source_page',
+  'quoted_history',
 ] as const;
 
 const FRAMING_TAG_RE = new RegExp(

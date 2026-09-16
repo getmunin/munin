@@ -56,6 +56,44 @@ describe('auditConversation', () => {
     expect(system).toContain('A thin or terse body is normal when the subject carries the question');
   });
 
+  it('shows the judge the quoted email the customer replied to, so a grounded reply is not read as invented', async () => {
+    const stub = createStubProvider({
+      responses: [
+        {
+          message: { role: 'assistant', content: '{"actions":[]}' },
+          finishReason: 'stop',
+          usage: {},
+        },
+      ],
+    });
+    await auditConversation({
+      provider: { baseUrl: 'http://stub', apiKey: 'k' },
+      model: 'audit',
+      question: 'Dette stemmer ikke. Moderat nivå?',
+      reply: 'Nivået i nyhetsbrevet er et estimat, ikke en garanti.',
+      thread: [
+        {
+          authorType: 'end_user',
+          body: 'Dette stemmer ikke. Moderat nivå?',
+          quotedHistory: [
+            {
+              from: 'Globex',
+              date: '15. september',
+              subject: null,
+              body: 'Se hvordan vi har beregnet nivået ditt denne måneden.',
+            },
+          ],
+        },
+      ],
+      toolNames: [],
+      providerImpl: stub.provider,
+    });
+    const user = stub.calls[0]!.messages.find((m) => m.role === 'user')!.content;
+    expect(user).toContain('customer: Dette stemmer ikke. Moderat nivå?');
+    expect(user).toContain('(quoted email the customer replied to, not their words)');
+    expect(user).toContain('hvordan vi har beregnet nivået ditt');
+  });
+
   it('says nothing about a subject when the conversation has none', async () => {
     const stub = createStubProvider({
       responses: [

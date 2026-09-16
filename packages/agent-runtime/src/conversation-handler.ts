@@ -567,7 +567,11 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       subject: args.subject,
       thread: args.history
         .slice(-AUDIT_THREAD_MESSAGES)
-        .map((m) => ({ authorType: m.authorType, body: m.body })),
+        .map((m) => ({
+          authorType: m.authorType,
+          body: m.body,
+          ...(m.quotedHistory ? { quotedHistory: m.quotedHistory } : {}),
+        })),
       toolNames: args.reply.toolCalls.map((t) => t.name),
       topicCatalog,
       providerImpl: deps.provider,

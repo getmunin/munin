@@ -232,6 +232,56 @@ const skipReason = TEST_URL
     ]);
   });
 
+  it('carries inbound message metadata through getConversation into the runtime history', async () => {
+    const dispatcher = new WebhookDispatcher();
+    const claims = new ConversationClaimsService(dispatcher);
+    const conv = new ConvService(
+      dispatcher,
+      claims,
+      new CuratorJobsService(dispatcher),
+      new AlertsService(dispatcher),
+      stubAttachmentGateway(),
+    );
+    const factory = new InProcessMuninRestClientFactoryService(
+      db,
+      conv,
+      claims,
+      new CuratorJobsService(dispatcher),
+    );
+    const client = factory.forOrg(orgId);
+
+    const target = await freshConversation(107);
+    await db.insert(schema.convMessages).values({
+      orgId,
+      conversationId: target,
+      authorType: 'end_user',
+      authorId: endUserId,
+      body: 'Dette stemmer ikke. Moderat nivå?',
+      metadata: {
+        quotedThread: [
+          {
+            from: 'Globex <support@globex.test>',
+            to: null,
+            date: 'tirsdag 15. september 2026 13:23',
+            subject: 'Din månedsoppdatering',
+            body: 'Nivået ditt denne måneden er moderat.',
+          },
+        ],
+      },
+    });
+
+    const detail = await client.getConversation(target);
+    const history = client.toRuntimeHistory(detail);
+    expect(history[0]!.quotedHistory).toEqual([
+      {
+        from: 'Globex <support@globex.test>',
+        date: 'tirsdag 15. september 2026 13:23',
+        subject: 'Din månedsoppdatering',
+        body: 'Nivået ditt denne måneden er moderat.',
+      },
+    ]);
+  });
+
   it('leaves metadata empty when postAgentMessage carries no components', async () => {
     const dispatcher = new WebhookDispatcher();
     const claims = new ConversationClaimsService(dispatcher);

@@ -12,6 +12,12 @@ has **already been removed** by a regex preprocessor. Your job is to
 identify and remove the sender's **signature** so the dashboard and the
 agent see only the new content the sender typed.
 
+Nothing is lost by that first pass: the quoted turns are parsed out to
+`metadata.quotedThread` on the same message, the dashboard shows them behind a
+toggle, and the reply agent receives them as a separate block labelled as
+quoted text. So never try to pull context back out of the quote — the `Body:`
+you are given is the sender's own words, and that is all you are editing.
+
 A signature in email is the trailing block that contains some combination of:
 
 - The sender's name on its own line, optionally preceded by a closing

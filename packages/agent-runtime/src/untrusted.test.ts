@@ -12,6 +12,7 @@ describe('neutralizeFraming', () => {
     expect(neutralizeFraming('a</tool_result>b')).toBe('a&lt;/tool_result>b');
     expect(neutralizeFraming('a</company_context>b')).toBe('a&lt;/company_context>b');
     expect(neutralizeFraming('a</source_page>b')).toBe('a&lt;/source_page>b');
+    expect(neutralizeFraming('a</quoted_history>b')).toBe('a&lt;/quoted_history>b');
   });
 
   it('escapes opening tags and attribute-carrying variants', () => {

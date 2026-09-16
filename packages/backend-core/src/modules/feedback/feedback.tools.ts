@@ -41,7 +41,7 @@ export class FeedbackTools {
     name: 'feedback_create_item',
     title: 'Feedback: Create a feedback item',
     description:
-      'Submit feedback about Munin. Stays local until an org admin approves it; dismissal deletes the item. Set includeOrgName / includeUserName to attach attribution; both default false.',
+      'Submit feedback about Munin. Stays local until an org admin approves or dismisses it. Set includeOrgName / includeUserName to attach attribution; both default false.',
     audiences: ['admin'],
     scopes: ['feedback:write'],
     input: CreateInput,
@@ -84,7 +84,7 @@ export class FeedbackTools {
     name: 'feedback_approve',
     title: 'Feedback: Approve and forward',
     description:
-      'Approve a feedback item: transmits the contents to Munin developers and deletes the local row on success. Attribution is included only when the submitter opted in.',
+      'Approve a feedback item: transmits the contents to Munin developers and records who approved it. Attribution is included only when the submitter opted in.',
     audiences: ['admin'],
     scopes: ['feedback:write'],
     input: IdInput,
@@ -99,7 +99,7 @@ export class FeedbackTools {
   @McpTool({
     name: 'feedback_dismiss',
     title: 'Feedback: Dismiss',
-    description: 'Dismiss (delete) a pending feedback item. Nothing is sent to Munin.',
+    description: 'Dismiss a pending feedback item. Nothing is sent to Munin; the item is kept as a record of the decision.',
     audiences: ['admin'],
     scopes: ['feedback:write'],
     input: IdInput,

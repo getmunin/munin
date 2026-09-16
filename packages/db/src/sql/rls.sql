@@ -186,8 +186,9 @@ CREATE POLICY tenant_isolation ON curator_jobs
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 
 -- ───────────────────────── feedback_outbox ─────────────────────────────────
--- Pending feedback items, gated by org admin approval before forwarding to
--- Munin's cloud roadmap. Org-scoped, no end-user delegation.
+-- Feedback items, gated by org admin approval before forwarding to Munin's
+-- cloud roadmap. Decided items stay as the record behind the console's Decided
+-- tab. Org-scoped, no end-user delegation.
 ALTER TABLE feedback_outbox ENABLE ROW LEVEL SECURITY;
 ALTER TABLE feedback_outbox FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON feedback_outbox;

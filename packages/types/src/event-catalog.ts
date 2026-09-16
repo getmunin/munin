@@ -65,6 +65,11 @@ export const OUTREACH_EVENT_TYPES = [
   'outreach.proposal.withdrawn',
 ] as const;
 
+export const FEEDBACK_EVENT_TYPES = [
+  'feedback.item.approved',
+  'feedback.item.dismissed',
+] as const;
+
 export const SYSTEM_EVENT_TYPES = [
   'org_alert.opened',
   'org_alert.acknowledged',
@@ -78,6 +83,7 @@ export const EVENT_TYPES_BY_MODULE = {
   kb: KB_EVENT_TYPES,
   conv: CONVERSATION_EVENT_TYPES,
   outreach: OUTREACH_EVENT_TYPES,
+  feedback: FEEDBACK_EVENT_TYPES,
   system: SYSTEM_EVENT_TYPES,
 } as const;
 
@@ -87,6 +93,7 @@ export const KNOWN_EVENT_TYPES = [
   ...KB_EVENT_TYPES,
   ...CONVERSATION_EVENT_TYPES,
   ...OUTREACH_EVENT_TYPES,
+  ...FEEDBACK_EVENT_TYPES,
   ...SYSTEM_EVENT_TYPES,
 ] as const;
 

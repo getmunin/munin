@@ -187,7 +187,7 @@ Read each one (`kb_get_document`), edit if needed (`kb_update_document` — `tex
 
 That moves the doc into the target space, drops the candidate tags, and sets the audiences (default `['admin', 'self_service']` so the self-service agent can find it next time).
 
-Rejecting instead? `kb_dismiss_curation_candidate({ candidateDocumentId, ifVersion, reason })`. It deletes the draft and records the rejection, so no later pass can refile that conversation — give it a `reason` when you have one; it's what the next reader (human or agent) sees in `kb_list_curation_decisions`.
+Rejecting instead? `kb_dismiss_curation_candidate({ candidateDocumentId, ifVersion, reason })`. It deletes the draft and records the rejection, so no later pass can refile that conversation — give it a `reason` when you have one; it's what the next reader (human or agent) sees in `kb_list_curation_decisions`, and what the operator reads in the dashboard's **Decided** tab, which keeps the last 30 days of decisions across every review queue.
 
 **Publishing is bound to the text that was reviewed.** `ifVersion` is the candidate's `version` as the operator read it. If the draft moved since — your own `kb_update_document`, or anyone else's — the publish fails with `kb_version_conflict` and nothing is written to the target space. Don't re-read the document and retry with the new version: that publishes text the operator never saw. Re-read it, show them the current body, and get their word on that. The same applies to a card in the panel or a Slack button posted before the edit; both refuse rather than publishing stale text.
 

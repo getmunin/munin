@@ -30,6 +30,8 @@ Approving is not only a send. If the campaign declares an `extractionSchema`, wh
 
 Dismiss is a decision about the draft; withdraw is the agent admitting the draft was a mistake. Don't reach for dismiss to clean up after yourself, and don't withdraw a draft an operator asked you to reject — the reasons land in different fields and read differently in the audit trail.
 
+Both reasons outlive the proposal. The dashboard's **Decided** tab keeps the last 30 days of decisions from every review queue — who decided, when, and the reason they gave — so a dismissal written as "no" reads as "no" to whoever opens it next week. Spend the sentence.
+
 ## Scheduling a send
 
 A draft can carry `proposedSendAt` — the time the curator thinks it should go out. It is advisory until an operator approves; approval is what turns it into a real, authorized send time.

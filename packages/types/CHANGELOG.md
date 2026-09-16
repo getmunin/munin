@@ -1,5 +1,37 @@
 # @getmunin/types
 
+## 5.26.0
+
+### Minor Changes
+
+- 8c49080: Record every review-queue decision durably, so the console's Decided tab can show more than KB curation.
+
+  `cms_entries` gains `archived_at` and `dismiss_reason`: archiving previously recorded nothing but `updated_at`, which a later edit overwrites, so an archived entry could not be placed in time. The column is cleared again whenever an entry leaves the archived state.
+
+  `feedback_outbox` gains `status`, `dismiss_reason`, `decided_by_actor_type`, `decided_by_actor_id` and `decided_at`, and the row is no longer deleted on dismissal or on a successful forward. `listPending()` now filters on `status = 'pending'` — before this, the delete was the only thing stopping an approved item from being forwarded twice. Feedback also emits `feedback.item.approved` and `feedback.item.dismissed`, the first events the module has ever published.
+
+  The CMS and feedback dismiss routes accept an optional `reason`; KB's already did.
+
+  Migration `0097_review_decided_records` backfills `archived_at` from `updated_at` for entries archived before the upgrade.
+
+### Patch Changes
+
+- 7572eb4: Stop shipping test files in published tarballs.
+
+  Every package listed `src` and/or `dist` in `files` with no `.npmignore`, so each
+  tarball carried the full test suite: `@getmunin/agent-runtime` published 226 files
+  of which 100 were `*.test.ts`, `*.test.js`, their declaration files and source maps.
+  Test fixtures are the one place a repository accumulates captured real-world
+  data — addresses, names, message bodies — and a published tarball is immutable,
+  so anything that reaches one cannot later be edited or rewritten out.
+
+  `files` now carries `!**/*.test.*` (plus `!src/test/**` for `@getmunin/dashboard-pages`,
+  whose render and fixture helpers live there). No published entry point referenced
+  either: `@getmunin/dashboard-pages` exposes only `.`, `./server`, `./setup-gate`
+  and `./messages/*.json`, and nothing in this repo or munin-cloud imports a test
+  file across a package boundary. `@getmunin/agent-runtime` drops to 126 files,
+  `@getmunin/backend-core` and `@getmunin/dashboard-pages` to zero test files each.
+
 ## 5.25.1
 
 ## 5.25.0

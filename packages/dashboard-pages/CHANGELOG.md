@@ -1,5 +1,60 @@
 # @getmunin/dashboard-pages
 
+## 5.26.0
+
+### Minor Changes
+
+- f42363f: Show every kind of review decision in the console's Decided tab, not only KB curation.
+
+  The tab now reads `/v1/review?state=decided` with cursor paging, replacing a 200-row fetch the browser filtered to 30 days. Rows and the detail pane route by kind, and each outcome is named in the module's own words — published, merged, sent, forwarded — rather than one shared verb.
+
+  `/v1/inbox` now returns `waiting` and `scheduled` as ordered `ReviewItem` lists instead of six arrays keyed by module, so the browser no longer rebuilds the tab split from module names. Titles and snippets stay client-side, where the translations are.
+
+  Feedback decisions also reach the tab live: `feedback.item.*` joins the realtime event list the console listens on.
+
+### Patch Changes
+
+- 7572eb4: Stop shipping test files in published tarballs.
+
+  Every package listed `src` and/or `dist` in `files` with no `.npmignore`, so each
+  tarball carried the full test suite: `@getmunin/agent-runtime` published 226 files
+  of which 100 were `*.test.ts`, `*.test.js`, their declaration files and source maps.
+  Test fixtures are the one place a repository accumulates captured real-world
+  data — addresses, names, message bodies — and a published tarball is immutable,
+  so anything that reaches one cannot later be edited or rewritten out.
+
+  `files` now carries `!**/*.test.*` (plus `!src/test/**` for `@getmunin/dashboard-pages`,
+  whose render and fixture helpers live there). No published entry point referenced
+  either: `@getmunin/dashboard-pages` exposes only `.`, `./server`, `./setup-gate`
+  and `./messages/*.json`, and nothing in this repo or munin-cloud imports a test
+  file across a package boundary. `@getmunin/agent-runtime` drops to 126 files,
+  `@getmunin/backend-core` and `@getmunin/dashboard-pages` to zero test files each.
+
+- ed50fb4: Check that fixture data cannot identify a real person.
+
+  Fixture data is a published surface. Test files and changelog prose reach
+  tarballs, release notes and pull request descriptions, and not all of those can
+  be retracted later, so the useful guarantee is that a fixture never refers to
+  anyone real in the first place.
+
+  `scripts/check-fixture-pii.mjs` now runs in pre-commit and in CI. Email
+  addresses must sit on a reserved domain — `.test`, `.example`, `.invalid`,
+  `example.com`, `example.no` — which can never be registered. Norwegian phone
+  numbers must use a national number starting `0` or `1`; Norway assigns
+  subscriber numbers starting 2-9, so a number that was invented may still be
+  assigned to someone.
+
+  Both rules have an allow-list keyed by reason rather than a bare list of
+  strings, so adding an entry is a visible decision. Numbers that must parse as
+  valid are the reason the phone allow-list exists at all: the inbox formatting
+  tests assert libphonenumber's grouping, which it applies only to numbers it
+  considers real, so those fixtures cannot use an unassignable number.
+
+- Updated dependencies [7572eb4]
+- Updated dependencies [8c49080]
+  - @getmunin/types@5.26.0
+  - @getmunin/ui@5.26.0
+
 ## 5.25.1
 
 ### Patch Changes

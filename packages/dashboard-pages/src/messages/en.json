@@ -1184,7 +1184,7 @@
         "emptyScheduledTitle": "Nothing scheduled.",
         "emptyScheduledBody": "Approve an outbound message or a CMS draft for a later time and it waits here. You can still call it off right up to the moment it goes.",
         "emptyDecidedTitle": "Nothing decided yet.",
-        "emptyDecidedBody": "Everything you publish or dismiss stays here for {days} days, with who decided it and the reason they gave.",
+        "emptyDecidedBody": "Everything the queue decides stays here for {days} days, with who decided it and the reason they gave.",
         "codeKb": "KB",
         "codeCrm": "CRM",
         "codeOutreach": "OUT",
@@ -1202,15 +1202,18 @@
         "paneEmpty": "Nothing on this tab needs you.",
         "paneEmptyBody": "Waiting holds anything blocked on your decision. Scheduled holds what you've approved for later. Decided is the record of the last {days} days.",
         "backToList": "Back",
-        "outcomePublished": "Published",
-        "outcomeDismissed": "Dismissed",
+        "outcomeDismissed": {
+          "kb": "Dismissed",
+          "crm": "Kept separate",
+          "outreach": "Dismissed",
+          "cms": "Discarded",
+          "feedback": "Dismissed"
+        },
         "decisionReason": "Reason given",
         "decidedByAgent": "Agent",
         "decidedByUnknown": "Unknown",
         "publishedBodyLabel": "Published article",
         "publishedBodyUnavailable": "The published article could not be loaded. It may have been deleted since.",
-        "dismissedBodyLabel": "Proposed text",
-        "dismissedBodyGone": "The draft was discarded when this proposal was dismissed, so its text is no longer stored.",
         "outreach": {
           "eyebrow": "Outreach",
           "channel_email": "Email",
@@ -1292,6 +1295,43 @@
           "apply": "Apply merge",
           "dismiss": "Dismiss",
           "shortcutApply": "⌘↵ apply · there is no unmerge"
+        },
+        "outcomeApproved": {
+          "kb": "Published",
+          "crm": "Merged",
+          "outreach": "Sent",
+          "cms": "Published",
+          "feedback": "Forwarded"
+        },
+        "outcomeFailed": "Send failed",
+        "decidedUntitled": "Untitled",
+        "decisionRecordLabel": "What happened",
+        "decidedSummary": {
+          "kb": {
+            "approved": "The candidate was published to the knowledge base.",
+            "dismissed": "The candidate was dismissed, so its text is no longer stored.",
+            "failed": "The decision could not be completed."
+          },
+          "crm": {
+            "approved": "The duplicate was merged into the contact that was kept.",
+            "dismissed": "The two contacts were kept separate.",
+            "failed": "The merge could not be completed."
+          },
+          "outreach": {
+            "approved": "The message was sent to the contact.",
+            "dismissed": "The draft was dismissed and never sent.",
+            "failed": "Sending failed and the message never reached the contact."
+          },
+          "cms": {
+            "approved": "The entry was published.",
+            "dismissed": "The draft was discarded.",
+            "failed": "Publishing could not be completed."
+          },
+          "feedback": {
+            "approved": "The item was forwarded to the Munin team.",
+            "dismissed": "The item was dismissed and nothing was sent.",
+            "failed": "Forwarding failed and nothing reached the Munin team."
+          }
         }
       },
       "automation": {

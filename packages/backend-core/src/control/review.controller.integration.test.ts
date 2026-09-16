@@ -469,19 +469,17 @@ interface ReviewResponse {
     expect(JSON.stringify(await bad.json())).toContain('review_invalid');
   });
 
-  it('agrees with the queue /v1/inbox still serves', async () => {
+  it('serves the same waiting and scheduled lists through /v1/inbox', async () => {
     const res = await get('/v1/inbox');
     expect(res.status).toBe(200);
     const inbox = (await res.json()) as {
-      queue: { kb: Array<{ id: string }>; cmsScheduled: Array<{ id: string }> };
+      waiting: ReviewItem[];
+      scheduled: ReviewItem[];
     };
     const waiting = await review('waiting');
-    expect(inbox.queue.kb.map((k) => k.id)).toEqual(
-      waiting.items.filter((i) => i.kind === 'kb').map((i) => i.id),
-    );
     const scheduled = await review('scheduled');
-    expect(inbox.queue.cmsScheduled.map((c) => c.id)).toEqual(
-      scheduled.items.filter((i) => i.kind === 'cms').map((i) => i.id),
-    );
+    expect(inbox.waiting.map((i) => i.id)).toEqual(waiting.items.map((i) => i.id));
+    expect(inbox.scheduled.map((i) => i.id)).toEqual(scheduled.items.map((i) => i.id));
+    expect(inbox.waiting.every((i) => i.state === 'waiting')).toBe(true);
   });
 });

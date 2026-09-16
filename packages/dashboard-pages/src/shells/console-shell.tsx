@@ -64,12 +64,7 @@ function useConsoleData(isAdmin: boolean, roleLoading: boolean): { badges: Conso
       .then((res) =>
         setBadges({
           queue: res.liveTotal,
-          review:
-            res.queue.kb.length +
-            res.queue.crm.length +
-            res.queue.outreach.length +
-            res.queue.cms.length +
-            (res.queue.feedback?.length ?? 0),
+          review: res.waiting.length,
         }),
       )
       .catch(() => undefined);

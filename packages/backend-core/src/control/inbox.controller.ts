@@ -11,7 +11,7 @@ import {
   ConversationClaimsService,
   type ConversationClaim,
 } from '../modules/conv/conv.claims.service.ts';
-import { ReviewService, type ReviewSnapshot } from '../modules/review/review.service.ts';
+import { ReviewService, type ReviewItem } from '../modules/review/review.service.ts';
 
 interface LiveConversation extends ConversationSummary {
   latestEndUserMessage: { body: string; createdAt: string } | null;
@@ -25,7 +25,8 @@ const QUEUE_SCAN_LIMIT = 50;
 interface InboxQueueResponse {
   live: LiveConversation[];
   liveTotal: number;
-  queue: ReviewSnapshot;
+  waiting: ReviewItem[];
+  scheduled: ReviewItem[];
 }
 
 @Controller('v1/inbox')
@@ -48,7 +49,8 @@ export class InboxController {
     return {
       live: liveResult.live,
       liveTotal: liveResult.total,
-      queue: snapshot,
+      waiting: this.review.selectWaiting(snapshot),
+      scheduled: this.review.selectScheduled(snapshot),
     };
   }
 

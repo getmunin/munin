@@ -3,45 +3,45 @@
 import { useTranslations } from 'next-intl';
 import { cn } from '@getmunin/ui';
 import { useRelative } from '../../lib/use-relative';
-import type { CurationDecisionDto } from './curation-decisions';
+import type { ReviewDecidedItem } from './review-decided';
+import { decidedOutcomeLabel, decidedTitle } from './review-decided-labels';
 import { RowCode } from './queue-panes/shared';
+import { queueCodeKey } from './queue-panes/types';
 import { QueueRow, RowTime } from './queue-row';
 
 export function ReviewDecidedRow({
   item,
   active,
-  faded,
   onSelect,
 }: {
-  item: CurationDecisionDto;
+  item: ReviewDecidedItem;
   active: boolean;
-  faded?: boolean;
   onSelect: () => void;
 }) {
   const t = useTranslations('dashboard.console.review');
   const age = useRelative();
-  const published = item.outcome === 'published';
   const decidedBy =
-    item.decidedByActorType === 'user'
-      ? (item.decidedByName ?? t('decidedByUnknown'))
+    item.decidedBy.actorType === 'user'
+      ? (item.decidedBy.name ?? t('decidedByUnknown'))
       : t('decidedByAgent');
 
   return (
     <QueueRow
       active={active}
-      faded={faded}
       onSelect={onSelect}
-      code={<RowCode kind="kb">{t('codeKb')}</RowCode>}
-      title={item.title}
+      code={<RowCode kind={item.kind}>{t(queueCodeKey(item.kind))}</RowCode>}
+      title={decidedTitle(item, t)}
       meta={
         <>
-          <span className={cn(published && 'text-ink dark:text-foreground')}>
-            {published ? t('outcomePublished') : t('outcomeDismissed')}
+          <span
+            className={cn(item.outcome === 'approved' && 'text-ink dark:text-foreground')}
+          >
+            {decidedOutcomeLabel(item, t)}
           </span>
           {` · ${decidedBy}`}
         </>
       }
-      trailing={<RowTime>{age(item.decidedAt)}</RowTime>}
+      trailing={<RowTime>{age(item.at)}</RowTime>}
     />
   );
 }

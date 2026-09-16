@@ -25,7 +25,8 @@
   "files": [
     "README.md",
     "dist",
-    "src"
+    "src",
+    "!**/*.test.*"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",

@@ -29,7 +29,8 @@
     "dist",
     "src",
     "docs-fixtures",
-    "openapi.json"
+    "openapi.json",
+    "!**/*.test.*"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node ./scripts/copy-skills.mjs",

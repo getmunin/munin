@@ -127,7 +127,7 @@ describe('parseRobots', () => {
     expect(r.isAllowed('/personvernerklaering')).toBe(true);
     expect(r.isAllowed('/intervju')).toBe(false);
     expect(r.isAllowed('/api/orders')).toBe(false);
-    expect(r.sitemaps).toEqual(['https://klarlagt.no/sitemap.xml']);
+    expect(r.sitemaps).toEqual(['https://klarlagt.test/sitemap.xml']);
   });
   it('does not inherit the next agent’s Disallow across an empty Disallow', () => {
     const r = parseRobots(`User-agent: *\nDisallow:\n\nUser-agent: Bytespider\nDisallow: /\n`);
@@ -181,7 +181,7 @@ Disallow: /logg-inn
 Disallow: /api/
 Disallow: /auth/
 
-Sitemap: https://klarlagt.no/sitemap.xml
+Sitemap: https://klarlagt.test/sitemap.xml
 `;
 
 describe('extractSitemapLocs', () => {

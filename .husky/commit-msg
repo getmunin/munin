@@ -1,0 +1,1 @@
+node scripts/check-pii-text.mjs "$1" "Commit message"

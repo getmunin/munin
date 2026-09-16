@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/scripts/claude-pii-hook.mjs\"",
+            "timeout": 10,
+            "statusMessage": "Checking for customer data"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -77,12 +77,12 @@ const skipReason = TEST_URL
 
     const [alice] = await db
       .insert(schema.endUsers)
-      .values({ orgId, externalId: 'eu-alice-wv', name: 'Alice', phone: '+14155551111' })
+      .values({ orgId, externalId: 'eu-alice-wv', name: 'Alice', phone: '+14155550101' })
       .returning();
 
     const [aliceContact] = await db
       .insert(schema.convContacts)
-      .values({ orgId, endUserId: alice!.id, name: 'Alice', phone: '+14155551111' })
+      .values({ orgId, endUserId: alice!.id, name: 'Alice', phone: '+14155550101' })
       .returning();
 
     const [aliceConv] = await db

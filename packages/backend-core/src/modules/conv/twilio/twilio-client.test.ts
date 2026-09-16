@@ -4,9 +4,9 @@ import { parseUrlEncoded, validateTwilioSignature } from './twilio-client.servic
 
 describe('parseUrlEncoded', () => {
   it('parses simple form-encoded body', () => {
-    const buf = Buffer.from('From=%2B14155551212&Body=hi+there&MessageSid=SM123');
+    const buf = Buffer.from('From=%2B14155550102&Body=hi+there&MessageSid=SM123');
     expect(parseUrlEncoded(buf)).toEqual({
-      From: '+14155551212',
+      From: '+14155550102',
       Body: 'hi there',
       MessageSid: 'SM123',
     });
@@ -26,10 +26,10 @@ describe('validateTwilioSignature', () => {
   const url = 'https://munin.example/v1/conversations/channels/cch_abc/webhook';
   const params = {
     AccountSid: 'AC1234567890',
-    From: '+14155551212',
+    From: '+14155550102',
     Body: 'hello world',
     MessageSid: 'SM00000000000000000000000000000001',
-    To: '+14155557777',
+    To: '+14155550113',
   };
 
   function sign(opts: { authToken: string; url: string; params: Record<string, string> }): string {

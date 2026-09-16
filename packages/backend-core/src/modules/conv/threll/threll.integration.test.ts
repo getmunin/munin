@@ -514,7 +514,7 @@ const skipReason = TEST_URL
 
   it('handles call.worker_request: pre-creates conversation + contact, returns instructions + metadata', async () => {
     const callId = 'call_threll_inbound';
-    const callerNumber = '+14155556060';
+    const callerNumber = '+14155550110';
     const res = await postEvent({
       type: 'call.worker_request',
       data: { callId, direction: 'inbound', customer: { number: callerNumber } },

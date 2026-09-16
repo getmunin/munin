@@ -285,7 +285,7 @@ const skipReason = TEST_URL
         orgId,
         name: 'Ring Me',
         email: 'ring@acme.com',
-        phone: '+14155559999',
+        phone: '+14155550115',
         consentLawfulBasis: 'consent',
         consentGivenAt: new Date(),
         consentSource: 'imported-test',
@@ -329,7 +329,7 @@ const skipReason = TEST_URL
       expect(proposal.draftSubject).toBeNull();
       expect(proposal.delivery?.channelType).toBe('voice');
       expect(proposal.delivery?.vendor).toBe('vapi');
-      expect(proposal.delivery?.destination).toBe('+14155559999');
+      expect(proposal.delivery?.destination).toBe('+14155550115');
       expect(proposal.delivery?.appendsCta).toBe(false);
       expect(proposal.delivery?.appendsUnsubscribe).toBe(false);
 
@@ -342,7 +342,7 @@ const skipReason = TEST_URL
         delivery?: { destination: string | null } | null;
       }>;
       expect(listedProposals.find((p) => p.id === proposal.id)?.delivery?.destination).toBe(
-        '+14155559999',
+        '+14155550115',
       );
 
       const approved = await c.callTool({

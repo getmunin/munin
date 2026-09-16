@@ -18,30 +18,30 @@ describe('rankByTokenCoverage', () => {
   it('puts products matching more query terms first', () => {
     const ranked = rankByTokenCoverage(
       [
-        product('Samsung Galaxy Watch Borrelåsreim'),
-        product('Xplora 4 Borrelåsreim Blå'),
-        product('Xplora X6Play Pakkedeal'),
+        product('Globex Watch Reim'),
+        product('Acme 4 Reim Blå'),
+        product('Acme X6Play Pakkedeal'),
       ],
-      ['borrelåsreim', 'xplora'],
+      ['reim', 'acme'],
     );
     expect(ranked.map((p) => p.title)).toEqual([
-      'Xplora 4 Borrelåsreim Blå',
-      'Samsung Galaxy Watch Borrelåsreim',
-      'Xplora X6Play Pakkedeal',
+      'Acme 4 Reim Blå',
+      'Globex Watch Reim',
+      'Acme X6Play Pakkedeal',
     ]);
   });
 
   it('is stable: equal coverage keeps the vendor order', () => {
     const ranked = rankByTokenCoverage(
-      [product('Xplora A'), product('Xplora B'), product('Xplora C')],
-      ['xplora'],
+      [product('Acme A'), product('Acme B'), product('Acme C')],
+      ['acme'],
     );
-    expect(ranked.map((p) => p.title)).toEqual(['Xplora A', 'Xplora B', 'Xplora C']);
+    expect(ranked.map((p) => p.title)).toEqual(['Acme A', 'Acme B', 'Acme C']);
   });
 
   it('matches case-insensitively', () => {
-    const ranked = rankByTokenCoverage([product('a'), product('LADEKABEL Xplora')], ['ladekabel']);
-    expect(ranked[0]!.title).toBe('LADEKABEL Xplora');
+    const ranked = rankByTokenCoverage([product('a'), product('LADEKABEL Acme')], ['ladekabel']);
+    expect(ranked[0]!.title).toBe('LADEKABEL Acme');
   });
 
   it('leaves the order untouched when nothing matches', () => {

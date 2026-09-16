@@ -33,7 +33,7 @@ Take the asymmetry seriously. A cold email is ignorable and a text is cheap; an 
 
 Good:
 
-`Open: "Hei, dette er Munin-assistenten som ringer på vegne av Kjell hos Munin. Du ba om en oppringing da du testet onboarding-flyten — passer det å snakke i to minutter?" If busy: offer to call back and end the call. Goal: book a 20-minute demo, propose Tuesday or Thursday morning. If asked whether this is a real person: say plainly it is an AI assistant. Don't discuss pricing — say Kjell will follow up by email.`
+`Open: "Hei, dette er Munin-assistenten som ringer på vegne av Ola hos Munin. Du ba om en oppringing da du testet onboarding-flyten — passer det å snakke i to minutter?" If busy: offer to call back and end the call. Goal: book a 20-minute demo, propose Tuesday or Thursday morning. If asked whether this is a real person: say plainly it is an AI assistant. Don't discuss pricing — say Ola will follow up by email.`
 
 Bad:
 

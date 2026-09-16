@@ -195,14 +195,14 @@ describe('MagentoAdapter', () => {
     );
     const adapter = new MagentoAdapter(fetch);
 
-    await adapter.searchProducts(ctx(), { query: 'borrelasreim xplora', limit: 10 });
+    await adapter.searchProducts(ctx(), { query: 'reim acme', limit: 10 });
 
     const url = new URL(urls[1]!);
     const g = (group: number, filter: number, part: string) =>
       url.searchParams.get(`searchCriteria[filter_groups][${group}][filters][${filter}][${part}]`);
-    expect(g(0, 0, 'value')).toBe('%borrelasreim%');
+    expect(g(0, 0, 'value')).toBe('%reim%');
     expect(g(0, 1, 'field')).toBe('sku');
-    expect(g(1, 0, 'value')).toBe('%xplora%');
+    expect(g(1, 0, 'value')).toBe('%acme%');
     expect(g(1, 1, 'field')).toBe('sku');
     expect(g(2, 0, 'field')).toBe('status');
     expect(g(3, 0, 'field')).toBe('visibility');
@@ -220,7 +220,7 @@ describe('MagentoAdapter', () => {
     const adapter = new MagentoAdapter(fetch);
 
     const products = await adapter.searchProducts(ctx(), {
-      query: 'borrelasreim jenter',
+      query: 'reim jenter',
       limit: 10,
     });
 
@@ -228,7 +228,7 @@ describe('MagentoAdapter', () => {
     const retry = new URL(urls[urls.length - 1]!);
     const g = (filter: number, part: string) =>
       retry.searchParams.get(`searchCriteria[filter_groups][0][filters][${filter}][${part}]`);
-    expect(g(0, 'value')).toBe('%borrelasreim%');
+    expect(g(0, 'value')).toBe('%reim%');
     expect(g(1, 'field')).toBe('sku');
     expect(g(2, 'value')).toBe('%jenter%');
     expect(g(3, 'field')).toBe('sku');

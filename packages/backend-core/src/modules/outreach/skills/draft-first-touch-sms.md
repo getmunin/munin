@@ -28,7 +28,7 @@ Same shape as `skill://outreach/draft-first-touch-email`, with three differences
 - **One ask.** There is no room for context-setting, a value proposition and a call to action. Pick the ask.
 - **Match the recipient's language.** A Norwegian contact gets Norwegian; don't send translated English.
 
-Good: `Hei Jane — Kjell fra Munin. Du ba om beskjed når vi lanserte selvbetjent onboarding. Den er live nå. Vil du ha en rask demo?`
+Good: `Hei Jane — Ola fra Munin. Du ba om beskjed når vi lanserte selvbetjent onboarding. Den er live nå. Vil du ha en rask demo?`
 
 Bad: `Hi Jane! 👋 **Great news** from the team at Munin — we've *just* shipped our new self-serve onboarding flow, which we think you'll love based on our last conversation. Check it out here: [Munin onboarding](https://…) and let us know what you think! Reply STOP to unsubscribe.` — emoji forces UCS-2, markdown arrives raw, and it hand-writes an opt-out line the system will append again.
 

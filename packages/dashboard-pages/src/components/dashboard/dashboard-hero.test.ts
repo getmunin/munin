@@ -3,7 +3,7 @@ import { firstName, greetingKey } from './dashboard-hero';
 
 describe('firstName', () => {
   it('takes the first token of a full name', () => {
-    expect(firstName('Kjell Rune Monsø')).toBe('Kjell');
+    expect(firstName('Ola Nordmann')).toBe('Ola');
   });
 
   it('returns null for a missing name so the hero keeps its unpersonalized headline', () => {
@@ -13,7 +13,7 @@ describe('firstName', () => {
   });
 
   it('refuses an email so the greeting never addresses someone by their address', () => {
-    expect(firstName('kjell@apps.no')).toBeNull();
+    expect(firstName('ola.nordmann@example.no')).toBeNull();
   });
 
   it('refuses an implausibly long first token rather than overflowing the headline', () => {

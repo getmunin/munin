@@ -698,7 +698,7 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     const conversationId = await seedConversation();
     const messageId = await seedMessage(
       conversationId,
-      "Sure, let's talk!\n\nKjell Rune Monsø\nCTO\nApps AS\n+47 414 25 762",
+      "Sure, let's talk!\n\nOla Nordmann\nCTO\nExample AS\n+47 12 34 56 78",
     );
     await enqueue('conversation.message.received', conversationId, {
       conversationId,
@@ -709,7 +709,7 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     await worker.tick();
 
     const reply = api.posted.at(-1)!;
-    expect(reply.text).toContain('+47 414 25 762');
+    expect(reply.text).toContain('+47 12 34 56 78');
 
     await db
       .update(schema.convMessages)

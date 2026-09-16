@@ -917,9 +917,9 @@
 
   The Overview hero greets you by name. The headline was a fixed line about waiting on
   your word regardless of who opened the page or when; it now reads "Good morning,
-  _Kjell_." — four buckets split at five, noon and six, first name in the same cobalt
+  _Ola_." — four buckets split at five, noon and six, first name in the same cobalt
   italic the old emphasis used, with the state left in the lede where it already lived.
-  The small hours get their own line ("Still up, _Kjell_?") rather than being folded
+  The small hours get their own line ("Still up, _Ola_?") rather than being folded
   into a morning that would otherwise start at midnight. `firstName` falls back to the
   unpersonalized headline rather than guessing: a blank name, an email in the name field
   (BetterAuth allows it), or a first token over 24 characters all keep the old line, so
@@ -2955,7 +2955,7 @@
 
   The flock (Settings → Agents) groups OAuth connections by client _and_ the org member who authorized them, but only the client name was shown — so two members who each connected, say, Claude produced two visually identical rows with no way to tell whose access a revoke would cut off.
 
-  `GET /v1/tokens` now joins the authorizing user and returns `user: { name, email }` per row. The Agents page shows that member inline after the client name ("Claude · Kjell Rune Monsø", with the email on hover and as the fallback when no name is set), replacing the "· N connections" count — which only reflected dynamic-client-registration reconnects and wasn't actionable, since a row already represents one member's access to one client and revoke cuts off that whole group.
+  `GET /v1/tokens` now joins the authorizing user and returns `user: { name, email }` per row. The Agents page shows that member inline after the client name ("Claude · Ola Nordmann", with the email on hover and as the fallback when no name is set), replacing the "· N connections" count — which only reflected dynamic-client-registration reconnects and wasn't actionable, since a row already represents one member's access to one client and revoke cuts off that whole group.
 
 - 6719043: Dashboard: replace the single "last conversation" widget with "Last open conversations" — the 20 most recently active open conversations, newest first, with closed/snoozed/spam filtered out.
 
@@ -2975,7 +2975,7 @@
 
   **The flock (Settings → Agents)** now lists only OAuth-authorized agents. Delegated end-user tokens are no longer mixed in — they're managed on the End-users page. Each row leads with the OAuth client's name (e.g. "Claude · 3 connections") and a small client icon/glyph (matching the consent screen) instead of a generic "OAuth refresh token" label, the Origin column is dropped (its info moved into the primary label), and the table uses a fixed layout so the scopes list wraps inside the Token column instead of squeezing the other columns. `GET /v1/tokens` returns only OAuth agents (with `iconUrl`) and no longer merges the `tokens` table.
 
-  **The End-users page** now shows a single identity line (name, else email, else phone, else "—") with an avatar of initials derived from the name ("Jens Pettersen" → "JP") or the email's first letter ("kjell@apps.no" → "K").
+  **The End-users page** now shows a single identity line (name, else email, else phone, else "—") with an avatar of initials derived from the name ("Jens Pettersen" → "JP") or the email's first letter ("ola.nordmann@example.no" → "K").
   - @getmunin/types@4.59.2
   - @getmunin/ui@4.59.2
 

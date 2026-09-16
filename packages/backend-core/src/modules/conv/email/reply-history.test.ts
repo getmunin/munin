@@ -22,7 +22,7 @@ const GMAIL_NB_REPLY = [
   '> Vennlig hilsen',
   '> Globex-teamet',
   '>',
-  '> On Wed, 26 Aug 2026 12:04:24 GMT, Kjell Rune Monsø <kjell@apps.no> wrote:',
+  '> On Wed, 26 Aug 2026 12:04:24 GMT, Ola Nordmann <ola.nordmann@example.no> wrote:',
   '>',
   '> Hei! Jeg fikk helt feil pris på boligen min, dette kan ikke stemme. Fiks!',
   '>',
@@ -30,11 +30,11 @@ const GMAIL_NB_REPLY = [
   '',
   '-- ',
   'Med vennlig hilsen',
-  'Kjell Rune Monsø',
+  'Ola Nordmann',
   '',
-  'Mobil: 414 25 762',
-  'Mail: kjell@apps.no',
-  'Web: www.apps.no',
+  'Mobil: 12 34 56 78',
+  'Mail: ola.nordmann@example.no',
+  'Web: www.example.no',
 ].join('\n');
 
 describe('stripQuotedReplyText', () => {
@@ -48,7 +48,7 @@ describe('stripQuotedReplyText', () => {
   it('keeps a signature that sits below the quoted block so the signature split still sees it', () => {
     const r = stripQuotedReplyText(GMAIL_NB_REPLY);
     expect(splitSignatureText(r).clean).toBe('Så du får ikke gjort noe med dette?');
-    expect(splitSignatureText(r).signature).toContain('Mobil: 414 25 762');
+    expect(splitSignatureText(r).signature).toContain('Mobil: 12 34 56 78');
   });
 
   it('cuts an English attribution line', () => {

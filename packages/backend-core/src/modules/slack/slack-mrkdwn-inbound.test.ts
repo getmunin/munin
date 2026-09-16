@@ -13,7 +13,7 @@ describe('unescapeSlackText', () => {
 
 describe('collectSlackMentionIds', () => {
   it('collects only the ids Slack sent without a label', () => {
-    expect(collectSlackMentionIds('<@U1> <@U2|kjell> <#C1> <#C2|general> <@U1>')).toEqual({
+    expect(collectSlackMentionIds('<@U1> <@U2|ola> <#C1> <#C2|general> <@U1>')).toEqual({
       users: ['U1'],
       channels: ['C1'],
     });
@@ -22,7 +22,7 @@ describe('collectSlackMentionIds', () => {
   it('collects every id shape the converter would substitute', () => {
     const id = 'U-odd.1';
     expect(collectSlackMentionIds(`<@${id}>`).users).toEqual([id]);
-    expect(mrkdwnToMarkdown(`<@${id}>`, { users: { [id]: 'Kjell' } })).toBe('@Kjell');
+    expect(mrkdwnToMarkdown(`<@${id}>`, { users: { [id]: 'Ola' } })).toBe('@Ola');
   });
 });
 
@@ -75,14 +75,14 @@ describe('mrkdwnToMarkdown', () => {
   });
 
   it('strips the scheme Slack adds to an address the operator just typed', () => {
-    expect(mrkdwnToMarkdown('<mailto:kjell@apps.no|kjell@apps.no>')).toBe('kjell@apps.no');
+    expect(mrkdwnToMarkdown('<mailto:ola.nordmann@example.no|ola.nordmann@example.no>')).toBe('ola.nordmann@example.no');
     expect(mrkdwnToMarkdown('<tel:+4712345678|+4712345678>')).toBe('+4712345678');
   });
 
   it('resolves a user mention from its label, then the resolver, then the bare id', () => {
-    expect(mrkdwnToMarkdown('<@U1|kjell> ping')).toBe('@kjell ping');
-    expect(mrkdwnToMarkdown('<@U1> ping', { users: { U1: 'Kjell Rune' } })).toBe(
-      '@Kjell Rune ping',
+    expect(mrkdwnToMarkdown('<@U1|ola> ping')).toBe('@ola ping');
+    expect(mrkdwnToMarkdown('<@U1> ping', { users: { U1: 'Ola Nordmann' } })).toBe(
+      '@Ola Nordmann ping',
     );
     expect(mrkdwnToMarkdown('<@U1> ping')).toBe('@U1 ping');
   });

@@ -158,7 +158,7 @@ const skipReason = TEST_URL
         items: [
           {
             productRef: '7172723310627',
-            title: 'Ladekabel Xplora 4 og Xplora X5 - Svart',
+            title: 'Ladekabel Acme 4 og Acme X5 - Svart',
             imageUrl: 'https://cdn.shopify.com/s/files/1/x.jpg',
             url: null,
             currency: 'NOK',

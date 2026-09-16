@@ -334,13 +334,13 @@ describe('dropRecordedTurns', () => {
 const APPLE_MAIL_NESTED = [
   'Hei! Dette er en test.',
   '',
-  'Kjell Rune Monsø',
+  'Ola Nordmann',
   '',
-  '> On 15 Sep 2026, at 09:37, Apps Support <hello@apps.no> wrote:',
+  '> On 15 Sep 2026, at 09:37, Example Support <support@example.no> wrote:',
   '> ',
   '> This is an automated test from Munin.',
   '> ',
-  '>> On 14 Sep 2026, at 11:20, Kjell Rune Monsø <kjell@apps.no> wrote:',
+  '>> On 14 Sep 2026, at 11:20, Ola Nordmann <ola.nordmann@example.no> wrote:',
   '>> ',
   '>> Can you confirm the address works?',
 ].join('\n');
@@ -350,11 +350,11 @@ describe('parseQuotedThread: attribution-line quoting', () => {
     const turns = parseQuotedThread(APPLE_MAIL_NESTED);
     expect(turns).toHaveLength(2);
     expect(turns[0]).toMatchObject({
-      from: 'Apps Support <hello@apps.no>',
+      from: 'Example Support <support@example.no>',
       body: 'This is an automated test from Munin.',
     });
     expect(turns[1]).toMatchObject({
-      from: 'Kjell Rune Monsø <kjell@apps.no>',
+      from: 'Ola Nordmann <ola.nordmann@example.no>',
       body: 'Can you confirm the address works?',
     });
   });
@@ -373,18 +373,18 @@ describe('parseQuotedThread: attribution-line quoting', () => {
 
   it('reads a Gmail-style attribution without angle brackets', () => {
     const turns = parseQuotedThread(
-      ['Thanks!', '', 'On Mon, Sep 15, 2026 at 9:37 AM hello@apps.no wrote:', '> the original'].join('\n'),
+      ['Thanks!', '', 'On Mon, Sep 15, 2026 at 9:37 AM support@example.no wrote:', '> the original'].join('\n'),
     );
     expect(turns).toHaveLength(1);
-    expect(turns[0]!.from).toBe('hello@apps.no');
+    expect(turns[0]!.from).toBe('support@example.no');
   });
 
   it('reads a Norwegian attribution line', () => {
     const turns = parseQuotedThread(
-      ['Takk!', '', 'Den 15. sep. 2026 kl. 09:37 skrev Apps Support <hello@apps.no>:', '> originalen'].join('\n'),
+      ['Takk!', '', 'Den 15. sep. 2026 kl. 09:37 skrev Example Support <support@example.no>:', '> originalen'].join('\n'),
     );
     expect(turns).toHaveLength(1);
-    expect(turns[0]).toMatchObject({ from: 'Apps Support <hello@apps.no>', body: 'originalen' });
+    expect(turns[0]).toMatchObject({ from: 'Example Support <support@example.no>', body: 'originalen' });
   });
 
   it('stays silent when the whole message is quoted, which is a forward not a reply', () => {

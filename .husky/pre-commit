@@ -1,2 +1,3 @@
 node scripts/check-added-comments.mjs
+node scripts/check-fixture-pii.mjs
 pnpm exec lint-staged

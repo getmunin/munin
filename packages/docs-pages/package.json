@@ -20,7 +20,8 @@
     "./docs.css": "./src/docs.css"
   },
   "files": [
-    "src"
+    "src",
+    "!**/*.test.*"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",

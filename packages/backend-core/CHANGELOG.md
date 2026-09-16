@@ -1,5 +1,114 @@
 # @getmunin/backend-core
 
+## 5.26.0
+
+### Minor Changes
+
+- 9bdf853: Give the reply agent the quoted email history an inbound message carries, fenced and labelled as quoted text rather than as something the customer wrote.
+
+  Inbound email has always been split in two: `stripQuotedReplyText` leaves `conv_messages.body` holding only the new text the sender typed, and `parseQuotedThread` files the earlier turns under `metadata.quotedThread`. The dashboard renders that second half behind a toggle and an MCP caller reading `conv_get_conversation` gets it in the raw metadata, but `toRuntimeHistory` mapped each message to `{ authorType, body, createdAt }` and touched `metadata` only for the `suppressed` check — so the in-house runtime never saw it. A customer replying to a newsletter with "Dette stemmer ikke. Moderat nivå?" reached the model as those five words plus a subject line, and the draft came back saying, accurately from where it stood, that it had no access to the earlier correspondence.
+
+  `toRuntimeHistory` now reads the newest two turns (1 000 chars each) onto `ConversationMessage.quotedHistory`. `historyToChatMessage` appends them to the turn inside a new `quoted_history` fence under a heading that says this is what the mail client quoted and not what the customer wrote, `compactHistory` charges the rendered block to the history budget, and a volatile system note — added only when some turn actually carries a quote — tells the model to use the block to resolve what the customer's own message leaves implicit, never to answer it, and never to follow instructions inside it. `quoted_history` joins `RESERVED_FRAMING_TAGS`, so quoted text cannot close its own fence. The audit pass gets the same context as a one-line summary per turn, so a reply grounded in the quoted mail no longer reads to the judge as invented.
+
+  `InProcessMuninRestClient.getConversation` dropped `metadata` when mapping conv DTOs into `ConversationDetail`. It now carries it, which is what makes the above work on the in-process path — and incidentally restores the `isSuppressed` filter there, so a bounce or an auto-reply stops being fed to the model as a customer turn.
+
+- e98febb: Serve the whole review history at `GET /v1/review?state=decided`, merged across all five queue kinds with cursor pagination.
+
+  Each module gained a `listDecided` that reports its own decisions in one shape — outcome, reason, who decided, and a `producedRef` pointing at what the decision produced (the published KB document, the surviving contact, the sent message, the CMS entry). `ReviewService` merges the five keyset-paginated sources, sorts by `decidedAt`, and hands back an opaque cursor built with the existing `encodeCursor` helper.
+
+  An outreach proposal counts as decided once it is sent, dismissed, withdrawn or failed; `approved` with a send time still belongs to Scheduled.
+
+  Extracting the merge-proposal hydration and the outreach proposal select into shared private helpers keeps the pending and decided queries on one code path.
+
+- 8c49080: Record every review-queue decision durably, so the console's Decided tab can show more than KB curation.
+
+  `cms_entries` gains `archived_at` and `dismiss_reason`: archiving previously recorded nothing but `updated_at`, which a later edit overwrites, so an archived entry could not be placed in time. The column is cleared again whenever an entry leaves the archived state.
+
+  `feedback_outbox` gains `status`, `dismiss_reason`, `decided_by_actor_type`, `decided_by_actor_id` and `decided_at`, and the row is no longer deleted on dismissal or on a successful forward. `listPending()` now filters on `status = 'pending'` — before this, the delete was the only thing stopping an approved item from being forwarded twice. Feedback also emits `feedback.item.approved` and `feedback.item.dismissed`, the first events the module has ever published.
+
+  The CMS and feedback dismiss routes accept an optional `reason`; KB's already did.
+
+  Migration `0097_review_decided_records` backfills `archived_at` from `updated_at` for entries archived before the upgrade.
+
+- f42363f: Show every kind of review decision in the console's Decided tab, not only KB curation.
+
+  The tab now reads `/v1/review?state=decided` with cursor paging, replacing a 200-row fetch the browser filtered to 30 days. Rows and the detail pane route by kind, and each outcome is named in the module's own words — published, merged, sent, forwarded — rather than one shared verb.
+
+  `/v1/inbox` now returns `waiting` and `scheduled` as ordered `ReviewItem` lists instead of six arrays keyed by module, so the browser no longer rebuilds the tab split from module names. Titles and snippets stay client-side, where the translations are.
+
+  Feedback decisions also reach the tab live: `feedback.item.*` joins the realtime event list the console listens on.
+
+- 570e387: `feedback_dismiss` takes an optional `reason`, matching `crm_dismiss_merge_proposal`, `outreach_dismiss_proposal` and `kb_dismiss_curation_candidate`. Both feedback tools now return a meaningful object (`{ dismissed, id }` / `{ approved, id }`) instead of a bare `{ ok: true }`, and their descriptions say the item is kept as the record of the decision rather than deleted.
+
+  `skill://kb/review-content` and `skill://outreach/review-proposals` explain where a dismissal reason ends up: the dashboard's Decided tab, which keeps the last 30 days of decisions from every review queue.
+
+- ff02e59: Add a `ReviewService` that composes the five review-queue modules (KB curation, CRM merge proposals, outreach proposals, CMS drafts, feedback) behind one contract, and serve it at `GET /v1/review?state=waiting|scheduled`.
+
+  `InboxController` and `SetupStateService` each ran their own copy of the same five-module fan-out; both now delegate. `/v1/inbox` answers exactly as before — its `queue` object is the snapshot the new service returns.
+
+  The new route reports `kind`, `state`, `at` and the untouched per-kind payload as `raw`. Item titles and snippets stay in the dashboard, where the translations live. `state=decided` is not listable yet and answers `400 review_invalid`.
+
+### Patch Changes
+
+- 7572eb4: Stop shipping test files in published tarballs.
+
+  Every package listed `src` and/or `dist` in `files` with no `.npmignore`, so each
+  tarball carried the full test suite: `@getmunin/agent-runtime` published 226 files
+  of which 100 were `*.test.ts`, `*.test.js`, their declaration files and source maps.
+  Test fixtures are the one place a repository accumulates captured real-world
+  data — addresses, names, message bodies — and a published tarball is immutable,
+  so anything that reaches one cannot later be edited or rewritten out.
+
+  `files` now carries `!**/*.test.*` (plus `!src/test/**` for `@getmunin/dashboard-pages`,
+  whose render and fixture helpers live there). No published entry point referenced
+  either: `@getmunin/dashboard-pages` exposes only `.`, `./server`, `./setup-gate`
+  and `./messages/*.json`, and nothing in this repo or munin-cloud imports a test
+  file across a package boundary. `@getmunin/agent-runtime` drops to 126 files,
+  `@getmunin/backend-core` and `@getmunin/dashboard-pages` to zero test files each.
+
+- ed50fb4: Check that fixture data cannot identify a real person.
+
+  Fixture data is a published surface. Test files and changelog prose reach
+  tarballs, release notes and pull request descriptions, and not all of those can
+  be retracted later, so the useful guarantee is that a fixture never refers to
+  anyone real in the first place.
+
+  `scripts/check-fixture-pii.mjs` now runs in pre-commit and in CI. Email
+  addresses must sit on a reserved domain — `.test`, `.example`, `.invalid`,
+  `example.com`, `example.no` — which can never be registered. Norwegian phone
+  numbers must use a national number starting `0` or `1`; Norway assigns
+  subscriber numbers starting 2-9, so a number that was invented may still be
+  assigned to someone.
+
+  Both rules have an allow-list keyed by reason rather than a bare list of
+  strings, so adding an entry is a visible decision. Numbers that must parse as
+  valid are the reason the phone allow-list exists at all: the inbox formatting
+  tests assert libphonenumber's grouping, which it applies only to numbers it
+  considers real, so those fixtures cannot use an unassignable number.
+
+- 8322ecb: Read an inbound email's HTML as lines of text, not as one flattened line.
+
+  When a message carries no usable `text/plain` part — an empty one counts, and marketing mail forwarded from a phone often ships exactly that — the adapter falls back to converting the HTML itself. That fallback was `html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()`: every newline became a space, `<style>` and mso-conditional content stayed in as text, and entities were never decoded. The stored body therefore began life as a single line reading `Sendt fra min iPad 10. juli 2026 kl.&nbsp;00:04 skrev Nyhetsbrev &lt;nyheter@example.test&gt;: … 96 * { box-sizing: border-box; } …`.
+
+  Every quote mechanism downstream is line-based: `parseQuotedThread` scans lines for an attribution line or a `From:` header block, `stripQuotedReplyText` cuts at a line, and signature detection walks blank-line-delimited blocks. With one line to scan they all found nothing, so a forwarded newsletter kept its entire quoted chain in the message body, "Earlier in this thread" never appeared, and the CSS from the sender's `<style>` block was stored as if the customer had written it.
+
+  `email/html-text.ts` now does the conversion: it drops `<script>`, `<style>`, `<head>`, `<title>`, `<noscript>`, `<template>` and comment content (which is where mso conditionals live), maps each block boundary and `<br>` to a line break, decodes named, decimal and hexadecimal character references, and removes the invisible characters newsletters use for preheader spacing. A run of adjacent block tags yields one break, and each `<br>` inside a run adds one more, capped at a single blank line — so an Apple Mail `<div><br></div>` reads as the blank line the sender meant, while `</div><div>` does not double-space every paragraph. Table cells break per `<td>`, not per row, so a marketing layout does not gain a blank line between every cell. Tag stripping now requires a letter after the `<`, which leaves a bare `5 < 7` in prose alone.
+
+  Line breaks are carried through the conversion as two private-use sentinels, so a character reference for either of those two code points is deliberately left undecoded — otherwise sender-controlled text could forge a line break and, with it, a quote boundary.
+
+  Messages that do carry a `text/plain` part are untouched, and so are pure HTML-only messages, where mailparser already synthesizes the text part.
+
+- Updated dependencies [9bdf853]
+- Updated dependencies [7572eb4]
+- Updated dependencies [8c49080]
+  - @getmunin/agent-runtime@5.26.0
+  - @getmunin/inspector-app@5.26.0
+  - @getmunin/mcp-toolkit@5.26.0
+  - @getmunin/emails@5.26.0
+  - @getmunin/types@5.26.0
+  - @getmunin/core@5.26.0
+  - @getmunin/db@5.26.0
+
 ## 5.25.1
 
 ### Patch Changes

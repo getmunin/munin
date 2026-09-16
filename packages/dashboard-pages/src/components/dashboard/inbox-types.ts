@@ -89,18 +89,57 @@ export type LiveSummary = ConversationSummary & {
   claim: ConversationDetail['claim'];
 };
 
+export type ReviewKind = 'kb' | 'crm' | 'outreach' | 'cms' | 'feedback';
+
+export interface CurationDecisionDto {
+  id: string;
+  sourceConversationId: string | null;
+  sourceMessageId: string | null;
+  candidateDocumentId: string;
+  title: string;
+  outcome: 'published' | 'dismissed';
+  reason: string | null;
+  publishedDocumentId: string | null;
+  decidedByActorType: string;
+  decidedByActorId: string;
+  decidedByName: string | null;
+  decidedAt: string;
+}
+
+export interface ReviewDecidedFields {
+  outcome: 'approved' | 'dismissed' | 'failed';
+  reason: string | null;
+  decidedBy: { actorType: 'user' | 'agent'; actorId: string; name: string | null };
+  producedRef: { type: string; id: string } | null;
+}
+
+type Wire<K extends ReviewKind, Raw, Extra = unknown> = {
+  kind: K;
+  state: 'waiting' | 'scheduled' | 'decided';
+  id: string;
+  at: string;
+  raw: Raw;
+} & Extra;
+
+export type ReviewWireItem =
+  | Wire<'kb', KbCandidateDto>
+  | Wire<'crm', CrmMergeProposalDto>
+  | Wire<'outreach', OutreachProposalDto>
+  | Wire<'cms', CmsDraftSummaryDto | CmsScheduledSummaryDto>
+  | Wire<'feedback', FeedbackOutboxDto>;
+
+export type ReviewDecidedWireItem =
+  | Wire<'kb', CurationDecisionDto, ReviewDecidedFields>
+  | Wire<'crm', CrmMergeProposalDto, ReviewDecidedFields>
+  | Wire<'outreach', OutreachProposalDto, ReviewDecidedFields>
+  | Wire<'cms', CmsDraftSummaryDto, ReviewDecidedFields>
+  | Wire<'feedback', FeedbackOutboxDto, ReviewDecidedFields>;
+
 export interface InboxQueueResponse {
   live: LiveSummary[];
   liveTotal: number;
-  queue: {
-    kb: KbCandidateDto[];
-    crm: CrmMergeProposalDto[];
-    outreach: OutreachProposalDto[];
-    outreachScheduled?: OutreachProposalDto[];
-    cms: CmsDraftSummaryDto[];
-    cmsScheduled?: CmsScheduledSummaryDto[];
-    feedback?: FeedbackOutboxDto[];
-  };
+  waiting: ReviewWireItem[];
+  scheduled: ReviewWireItem[];
 }
 
 export type QueueActionError =

@@ -24,6 +24,7 @@ import type {
   QueueActionError,
   InboxController,
   InboxQueueResponse,
+  ReviewWireItem,
   LiveSummary,
 } from './inbox-types';
 
@@ -33,64 +34,85 @@ function useQueueBuilder() {
   const tQueue = useTranslations('dashboard.overview.queue');
 
   return useCallback(
-    (q: InboxQueueResponse['queue']): QueueItem[] => {
-      const kb = q.kb.map<QueueItem>((k) => ({
-        kind: 'kb',
-        id: k.id,
-        title: k.title,
-        snippet: k.revisesDocumentId
-          ? tQueue('kbSnippetRevision', {
-              title: k.revisesDocumentTitle ?? k.title,
-            })
-          : tQueue('kbSnippetProposed', {
-              space: k.proposedTargetSpaceSlug ?? DEFAULT_CURATION_TARGET_SPACE,
-            }),
-        createdAt: k.updatedAt,
-        raw: k,
-      }));
-      const crm = q.crm.map<QueueItem>((c) => ({
-        kind: 'crm',
-        id: c.id,
-        title: `${contactLabel(c.contactA)} ↔ ${contactLabel(c.contactB)}`,
-        snippet: tQueue('crmSnippet', { confidence: c.confidence }),
-        createdAt: c.createdAt,
-        raw: c,
-      }));
-      const outreach = q.outreach.map<QueueItem>((o) => ({
-        kind: 'outreach',
-        id: o.id,
-        title: o.draftSubject ?? o.campaign?.name ?? tQueue('outreachDraftFallback'),
-        snippet:
-          o.delivery?.destination ??
-          o.contact?.email ??
-          o.campaign?.name ??
-          tQueue('outreachDraftFallback'),
-        createdAt: o.createdAt,
-        raw: o,
-      }));
-      const cms = (q.cms ?? []).map<QueueItem>((c) => ({
-        kind: 'cms',
-        id: c.id,
-        title: c.title ?? tQueue('cmsUntitled'),
-        snippet:
-          c.wordCount != null
-            ? tQueue('cmsSnippet', { collection: c.collectionName, wordCount: c.wordCount })
-            : tQueue('cmsSnippetNoBody', { collection: c.collectionName }),
-        createdAt: c.updatedAt,
-        raw: c,
-      }));
-      const feedback = (q.feedback ?? []).map<QueueItem>((f) => ({
-        kind: 'feedback',
-        id: f.id,
-        title: f.title,
-        snippet: feedbackSnippet(f, tQueue),
-        createdAt: f.createdAt,
-        raw: f,
-      }));
-      return [...kb, ...crm, ...outreach, ...cms, ...feedback].sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      );
-    },
+    (waiting: ReviewWireItem[]): QueueItem[] =>
+      waiting.flatMap<QueueItem>((item) => {
+        if (item.kind === 'kb') {
+          const k = item.raw;
+          return [
+            {
+              kind: 'kb',
+              id: item.id,
+              title: k.title,
+              snippet: k.revisesDocumentId
+                ? tQueue('kbSnippetRevision', { title: k.revisesDocumentTitle ?? k.title })
+                : tQueue('kbSnippetProposed', {
+                    space: k.proposedTargetSpaceSlug ?? DEFAULT_CURATION_TARGET_SPACE,
+                  }),
+              createdAt: item.at,
+              raw: k,
+            },
+          ];
+        }
+        if (item.kind === 'crm') {
+          const c = item.raw;
+          return [
+            {
+              kind: 'crm',
+              id: item.id,
+              title: `${contactLabel(c.contactA)} ↔ ${contactLabel(c.contactB)}`,
+              snippet: tQueue('crmSnippet', { confidence: c.confidence }),
+              createdAt: item.at,
+              raw: c,
+            },
+          ];
+        }
+        if (item.kind === 'outreach') {
+          const o = item.raw;
+          return [
+            {
+              kind: 'outreach',
+              id: item.id,
+              title: o.draftSubject ?? o.campaign?.name ?? tQueue('outreachDraftFallback'),
+              snippet:
+                o.delivery?.destination ??
+                o.contact?.email ??
+                o.campaign?.name ??
+                tQueue('outreachDraftFallback'),
+              createdAt: item.at,
+              raw: o,
+            },
+          ];
+        }
+        if (item.kind === 'cms') {
+          const c = item.raw;
+          return [
+            {
+              kind: 'cms',
+              id: item.id,
+              title: c.title ?? tQueue('cmsUntitled'),
+              snippet:
+                c.wordCount != null
+                  ? tQueue('cmsSnippet', {
+                      collection: c.collectionName,
+                      wordCount: c.wordCount,
+                    })
+                  : tQueue('cmsSnippetNoBody', { collection: c.collectionName }),
+              createdAt: item.at,
+              raw: c,
+            },
+          ];
+        }
+        return [
+          {
+            kind: 'feedback',
+            id: item.id,
+            title: item.raw.title,
+            snippet: feedbackSnippet(item.raw, tQueue),
+            createdAt: item.at,
+            raw: item.raw,
+          },
+        ];
+      }),
     [tQueue],
   );
 }
@@ -99,34 +121,37 @@ function useScheduledBuilder() {
   const tSched = useTranslations('dashboard.overview.scheduled');
 
   return useCallback(
-    (q: InboxQueueResponse['queue']): ScheduledItem[] => {
-      const outreach = (q.outreachScheduled ?? []).flatMap<ScheduledItem>((o) =>
-        o.scheduledSendAt
-          ? [
-              {
-                kind: 'outreach',
-                id: o.id,
-                title: o.draftSubject ?? o.campaign?.name ?? tSched('outreachUntitled'),
-                snippet:
-                  o.delivery?.destination ?? o.contact?.email ?? tSched('unknownDestination'),
-                at: o.scheduledSendAt,
-                raw: o,
-              },
-            ]
-          : [],
-      );
-      const cms = (q.cmsScheduled ?? []).map<ScheduledItem>((c) => ({
-        kind: 'cms',
-        id: c.id,
-        title: c.title ?? tSched('cmsUntitled'),
-        snippet: tSched('cmsDestination', { collection: c.collectionName }),
-        at: c.scheduledAt,
-        raw: c,
-      }));
-      return [...outreach, ...cms].sort(
-        (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
-      );
-    },
+    (scheduled: ReviewWireItem[]): ScheduledItem[] =>
+      scheduled.flatMap<ScheduledItem>((item) => {
+        if (item.kind === 'outreach') {
+          const o = item.raw;
+          return [
+            {
+              kind: 'outreach',
+              id: item.id,
+              title: o.draftSubject ?? o.campaign?.name ?? tSched('outreachUntitled'),
+              snippet:
+                o.delivery?.destination ?? o.contact?.email ?? tSched('unknownDestination'),
+              at: item.at,
+              raw: o,
+            },
+          ];
+        }
+        if (item.kind === 'cms') {
+          const c = item.raw;
+          return [
+            {
+              kind: 'cms',
+              id: item.id,
+              title: c.title ?? tSched('cmsUntitled'),
+              snippet: tSched('cmsDestination', { collection: c.collectionName }),
+              at: item.at,
+              raw: { ...c, scheduledAt: item.at },
+            },
+          ];
+        }
+        return [];
+      }),
     [tSched],
   );
 }
@@ -160,8 +185,8 @@ export function useInboxData(): InboxController {
       const res = await api<InboxQueueResponse>('/v1/inbox');
       setItems(res.live);
       setItemsTotal(res.liveTotal);
-      setQueue(buildQueue(res.queue));
-      setScheduled(buildScheduled(res.queue));
+      setQueue(buildQueue(res.waiting));
+      setScheduled(buildScheduled(res.scheduled));
       setLoadError(null);
       setHasLoadedOnce(true);
     } catch (err) {
@@ -283,7 +308,8 @@ export function useInboxData(): InboxController {
       event.type.startsWith('kb.') ||
       event.type.startsWith('crm.merge_proposal.') ||
       event.type.startsWith('outreach.proposal.') ||
-      event.type.startsWith('cms.entry.');
+      event.type.startsWith('cms.entry.') ||
+      event.type.startsWith('feedback.item.');
     if (matches) void loadInbox();
   });
 

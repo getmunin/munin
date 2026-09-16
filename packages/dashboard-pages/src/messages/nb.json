@@ -1184,7 +1184,7 @@
         "emptyScheduledTitle": "Ingenting planlagt.",
         "emptyScheduledBody": "Godkjenner du en utgående melding eller et CMS-utkast til et senere tidspunkt, venter det her. Du kan avlyse helt fram til det går.",
         "emptyDecidedTitle": "Ingenting avgjort ennå.",
-        "emptyDecidedBody": "Alt du publiserer eller avviser blir liggende her i {days} dager, med hvem som avgjorde og begrunnelsen de ga.",
+        "emptyDecidedBody": "Alt køen avgjør blir liggende her i {days} dager, med hvem som avgjorde og begrunnelsen de ga.",
         "codeKb": "KB",
         "codeCrm": "CRM",
         "codeOutreach": "OUT",
@@ -1202,15 +1202,18 @@
         "paneEmpty": "Ingenting i denne fanen venter på deg.",
         "paneEmptyBody": "Venter rommer alt som er blokkert av en avgjørelse fra deg. Planlagt rommer det du har godkjent til senere. Avgjort er loggen over de siste {days} dagene.",
         "backToList": "Tilbake",
-        "outcomePublished": "Publisert",
-        "outcomeDismissed": "Avvist",
+        "outcomeDismissed": {
+          "kb": "Forkastet",
+          "crm": "Holdt adskilt",
+          "outreach": "Forkastet",
+          "cms": "Forkastet",
+          "feedback": "Avvist"
+        },
         "decisionReason": "Begrunnelse",
         "decidedByAgent": "Agenten",
         "decidedByUnknown": "Ukjent",
         "publishedBodyLabel": "Publisert artikkel",
         "publishedBodyUnavailable": "Den publiserte artikkelen kunne ikke lastes. Den kan ha blitt slettet i mellomtiden.",
-        "dismissedBodyLabel": "Foreslått tekst",
-        "dismissedBodyGone": "Utkastet ble forkastet da forslaget ble avvist, så teksten er ikke lagret lenger.",
         "outreach": {
           "eyebrow": "Utgående",
           "channel_email": "E-post",
@@ -1292,6 +1295,43 @@
           "apply": "Slå sammen",
           "dismiss": "Avvis",
           "shortcutApply": "⌘↵ slå sammen · kan ikke angres"
+        },
+        "outcomeApproved": {
+          "kb": "Publisert",
+          "crm": "Slått sammen",
+          "outreach": "Sendt",
+          "cms": "Publisert",
+          "feedback": "Videresendt"
+        },
+        "outcomeFailed": "Sending feilet",
+        "decidedUntitled": "Uten tittel",
+        "decisionRecordLabel": "Hva skjedde",
+        "decidedSummary": {
+          "kb": {
+            "approved": "Forslaget ble publisert i kunnskapsbasen.",
+            "dismissed": "Forslaget ble forkastet, og teksten er ikke lenger lagret.",
+            "failed": "Avgjørelsen kunne ikke fullføres."
+          },
+          "crm": {
+            "approved": "Duplikatet ble slått sammen med kontakten som ble beholdt.",
+            "dismissed": "De to kontaktene ble holdt adskilt.",
+            "failed": "Sammenslåingen kunne ikke fullføres."
+          },
+          "outreach": {
+            "approved": "Meldingen ble sendt til kontakten.",
+            "dismissed": "Utkastet ble forkastet og aldri sendt.",
+            "failed": "Sendingen feilet, og meldingen nådde aldri kontakten."
+          },
+          "cms": {
+            "approved": "Oppføringen ble publisert.",
+            "dismissed": "Utkastet ble forkastet.",
+            "failed": "Publiseringen kunne ikke fullføres."
+          },
+          "feedback": {
+            "approved": "Saken ble videresendt til Munin-teamet.",
+            "dismissed": "Saken ble avvist, og ingenting ble sendt.",
+            "failed": "Videresendingen feilet, og ingenting nådde Munin-teamet."
+          }
         }
       },
       "automation": {

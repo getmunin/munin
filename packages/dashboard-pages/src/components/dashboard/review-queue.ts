@@ -1,5 +1,5 @@
 import type { SetupReviewQueue } from '../first-run/setup-snapshot';
-import { withinDecidedWindow } from './curation-decisions';
+import { withinDecidedWindow } from './decided-window';
 import type { QueueItem } from './queue-panes/types';
 
 export type KbQueueItem = QueueItem & { kind: 'kb' };

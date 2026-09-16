@@ -16,14 +16,11 @@ import { ReviewRow } from '../components/dashboard/review-row';
 import { ReviewKbPane } from '../components/dashboard/review-kb-pane';
 import { ReviewBlockingPane } from '../components/dashboard/review-blocking-pane';
 import { ReviewDecidedRow } from '../components/dashboard/review-decided-row';
+import { decidedTitle } from '../components/dashboard/review-decided-labels';
 import { ReviewDecidedPane } from '../components/dashboard/review-decided-pane';
 import { ReviewScheduledRow } from '../components/dashboard/review-scheduled-row';
 import { ReviewScheduledPane } from '../components/dashboard/review-scheduled-pane';
-import {
-  DECIDED_WINDOW_DAYS,
-  useCurationDecisions,
-  withinDecidedWindow,
-} from '../components/dashboard/curation-decisions';
+import { DECIDED_WINDOW_DAYS, useReviewDecided } from '../components/dashboard/review-decided';
 import { useProvideMobileBack } from '../shells/mobile-back';
 import { ConsoleSectionLabel } from '../components/console-section-label';
 import { ConsoleListEmpty } from '../components/console-empty';
@@ -31,7 +28,6 @@ import { ConsoleRowsSkeleton, ConsoleSplitSkeleton } from '../components/console
 import { ReviewFirstRun, useFirstRunGate } from '../components/first-run';
 
 const ROOT = '/dashboard/review';
-const FADE_FLOOR = 0.55;
 const SPLIT_BREAKPOINT = '(min-width: 768px)';
 const SPLIT_GRID = 'md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]';
 
@@ -42,7 +38,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
   const router = useRouter();
   const pathname = usePathname();
   const inbox = useInboxData();
-  const decisions = useCurationDecisions();
+  const decisions = useReviewDecided();
   const buildLoadFailedProps = useInboxLoadFailedProps();
   const { setActiveQueueItem, setActiveScheduledItem } = inbox;
 
@@ -66,13 +62,6 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
     },
     [router],
   );
-  const onListScroll = (e: React.UIEvent<HTMLElement>) => {
-    const el = e.currentTarget;
-    const max = el.scrollHeight - el.clientHeight;
-    const p = max > 0 ? Math.min(1, el.scrollTop / max) : 1;
-    el.style.setProperty('--qfade', String(FADE_FLOOR + (1 - FADE_FLOOR) * p));
-  };
-
   const goToList = useCallback(() => shallowGo(ROOT), [shallowGo]);
   const select = useCallback(
     (id: string, replace = false) => shallowGo(`${ROOT}/${id}`, replace),
@@ -83,10 +72,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
     () => partitionReviewQueue(inbox.queue),
     [inbox.queue],
   );
-  const recentDecisions = useMemo(
-    () => decisions.items.filter((d) => withinDecidedWindow(d.decidedAt)),
-    [decisions.items],
-  );
+  const recentDecisions = decisions.items;
 
   const scheduled = inbox.scheduled;
 
@@ -97,6 +83,10 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
     : undefined;
   const selectedScheduled = activeId ? scheduled.find((s) => s.id === activeId) : undefined;
   const selectedDecision = activeId ? recentDecisions.find((d) => d.id === activeId) : undefined;
+  const producedDocId =
+    selectedDecision?.producedRef?.type === 'kb_document'
+      ? selectedDecision.producedRef.id
+      : null;
 
   useEffect(() => {
     setActiveQueueItem(selectedBlocking ?? null);
@@ -171,7 +161,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
       selectedBlocking?.title ??
       selectedCandidate?.title ??
       selectedScheduled?.title ??
-      selectedDecision?.title;
+      (selectedDecision ? decidedTitle(selectedDecision, t) : undefined);
     return { label: t('backToList'), title, onBack: goToList };
   }, [
     routeSelectedId,
@@ -206,7 +196,6 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
   return (
     <div className={cn('grid h-full min-h-0 grid-cols-1', SPLIT_GRID)}>
       <section
-        onScroll={onListScroll}
         className={cn(
           'flex min-h-0 flex-col border-r border-ink max-md:overflow-y-auto dark:border-rule-on-dark',
           routeSelectedId ? 'max-md:hidden' : '',
@@ -253,8 +242,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
 
           <TabsPanel
             value="waiting"
-            onScroll={onListScroll}
-            className="mt-0 md:min-h-0 md:flex-1 md:overflow-y-auto"
+                className="mt-0 md:min-h-0 md:flex-1 md:overflow-y-auto"
           >
             <ul className="pb-6">
               {!listLoaded ? (
@@ -303,8 +291,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
 
           <TabsPanel
             value="scheduled"
-            onScroll={onListScroll}
-            className="mt-0 md:min-h-0 md:flex-1 md:overflow-y-auto"
+                className="mt-0 md:min-h-0 md:flex-1 md:overflow-y-auto"
           >
             <ul className="pb-6">
               {!listLoaded ? (
@@ -326,8 +313,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
 
           <TabsPanel
             value="decided"
-            onScroll={onListScroll}
-            className="mt-0 md:min-h-0 md:flex-1 md:overflow-y-auto"
+                className="mt-0 md:min-h-0 md:flex-1 md:overflow-y-auto"
           >
             <ul className="pb-6">
               {!listLoaded ? (
@@ -343,7 +329,6 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
                     key={item.id}
                     item={item}
                     active={item.id === activeId}
-                    faded
                     onSelect={() => select(item.id)}
                   />
                 ))
@@ -385,13 +370,10 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
           <ReviewDecidedPane
             item={selectedDecision}
             publishedDoc={
-              selectedDecision.publishedDocumentId
-                ? decisions.publishedDocs[selectedDecision.publishedDocumentId]
-                : undefined
+              producedDocId ? decisions.publishedDocs[producedDocId] : undefined
             }
             publishedDocFailed={
-              !!selectedDecision.publishedDocumentId &&
-              !!decisions.publishedDocErrors[selectedDecision.publishedDocumentId]
+              !!producedDocId && !!decisions.publishedDocErrors[producedDocId]
             }
             onLoadPublishedDoc={(id) => void decisions.loadPublishedDoc(id)}
           />

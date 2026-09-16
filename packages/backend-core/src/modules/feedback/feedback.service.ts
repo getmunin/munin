@@ -1,5 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
+import {
+  decidedBefore,
+  toDecidedActor,
+  type DecidedQuery,
+  type ReviewDecision,
+} from '../../common/review-decision.ts';
 import { schema } from '@getmunin/db';
 import { WebhookDispatcher, getCurrentContext } from '@getmunin/core';
 import {
@@ -105,6 +111,52 @@ export class FeedbackService {
       .where(eq(schema.feedbackOutbox.status, 'pending'))
       .orderBy(desc(schema.feedbackOutbox.createdAt));
     return rows.map(toDto);
+  }
+
+  async listDecided(input: DecidedQuery): Promise<ReviewDecision<FeedbackOutboxDto>[]> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ item: schema.feedbackOutbox, decidedByName: schema.users.name })
+      .from(schema.feedbackOutbox)
+      .leftJoin(
+        schema.users,
+        and(
+          eq(schema.feedbackOutbox.decidedByActorType, 'user'),
+          eq(schema.users.id, schema.feedbackOutbox.decidedByActorId),
+        ),
+      )
+      .where(
+        and(
+          inArray(schema.feedbackOutbox.status, ['approved', 'dismissed']),
+          isNotNull(schema.feedbackOutbox.decidedAt),
+          decidedBefore(
+            schema.feedbackOutbox.decidedAt,
+            schema.feedbackOutbox.id,
+            input.cursor,
+          ),
+        ),
+      )
+      .orderBy(desc(schema.feedbackOutbox.decidedAt), desc(schema.feedbackOutbox.id))
+      .limit(Math.min(input.limit ?? 50, 200));
+
+    return rows.flatMap(({ item, decidedByName }) => {
+      if (!item.decidedAt) return [];
+      return [
+        {
+          id: item.id,
+          decidedAt: item.decidedAt.toISOString(),
+          outcome: item.status === 'approved' ? ('approved' as const) : ('dismissed' as const),
+          reason: item.dismissReason,
+          decidedBy: toDecidedActor(
+            item.decidedByActorType,
+            item.decidedByActorId,
+            decidedByName,
+          ),
+          producedRef: null,
+          raw: toDto(item),
+        },
+      ];
+    });
   }
 
   async get(id: string): Promise<FeedbackOutboxDto> {

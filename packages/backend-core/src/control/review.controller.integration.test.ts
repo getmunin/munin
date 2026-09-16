@@ -21,6 +21,10 @@ interface ReviewItem {
   state: string;
   at: string;
   raw: Record<string, unknown>;
+  outcome?: string;
+  reason?: string | null;
+  decidedBy?: { actorType: string; actorId: string; name: string | null };
+  producedRef?: { type: string; id: string } | null;
 }
 
 interface ReviewResponse {
@@ -228,6 +232,100 @@ interface ReviewResponse {
       .returning();
     seeded['cmsScheduled'] = scheduledEntry!.id;
 
+    const [publishedDoc] = await db
+      .insert(schema.kbDocuments)
+      .values({
+        orgId,
+        spaceId: space!.id,
+        title: 'Shipping times',
+        body: 'Two to four days.',
+        contentHash: 'hash-published',
+        createdByType: 'user',
+        createdById: userId,
+        updatedByType: 'user',
+        updatedById: userId,
+      })
+      .returning();
+    seeded['kbPublishedDoc'] = publishedDoc!.id;
+    const [decision] = await db
+      .insert(schema.kbCurationDecisions)
+      .values({
+        orgId,
+        candidateDocumentId: 'kdoc_gone',
+        title: 'Shipping times',
+        outcome: 'published',
+        publishedDocumentId: publishedDoc!.id,
+        decidedByActorType: 'user',
+        decidedByActorId: userId,
+        decidedAt: new Date(Date.now() - 5 * HOUR),
+      })
+      .returning();
+    seeded['kbDecision'] = decision!.id;
+
+    const moreContacts = await db
+      .insert(schema.crmContacts)
+      .values([
+        { orgId, name: 'Grace H', email: `grace-${label}@example.com` },
+        { orgId, name: 'Grace Hopper', email: `grace.h-${label}@example.com` },
+      ])
+      .returning();
+    const [decidedMerge] = await db
+      .insert(schema.crmMergeProposals)
+      .values({
+        orgId,
+        contactAId: moreContacts[0]!.id,
+        contactBId: moreContacts[1]!.id,
+        confidence: 'medium',
+        recommendedKeeperId: moreContacts[0]!.id,
+        status: 'dismissed',
+        dismissReason: 'Different people',
+        proposedByActorType: 'agent',
+        proposedByActorId: 'agent:test',
+        decidedByActorType: 'user',
+        decidedByActorId: userId,
+        decidedAt: new Date(Date.now() - 6 * HOUR),
+      })
+      .returning();
+    seeded['crmDecided'] = decidedMerge!.id;
+
+    const [sentProposal] = await db
+      .insert(schema.outreachProposals)
+      .values({
+        orgId,
+        campaignId: campaign!.id,
+        contactId: moreContacts[0]!.id,
+        kind: 'initial',
+        draftBody: 'Already sent',
+        status: 'sent',
+        sentAt: new Date(Date.now() - 7 * HOUR),
+        proposedByActorType: 'agent',
+        proposedByActorId: 'agent:test',
+        decidedByActorType: 'user',
+        decidedByActorId: userId,
+        decidedAt: new Date(Date.now() - 7 * HOUR),
+      })
+      .returning();
+    seeded['outreachSent'] = sentProposal!.id;
+
+    const [archivedEntry] = await db
+      .insert(schema.cmsEntries)
+      .values({
+        orgId,
+        collectionId: collection!.id,
+        slug: `archived-${label}`,
+        locale: 'en',
+        status: 'archived',
+        archivedAt: new Date(Date.now() - 8 * HOUR),
+        dismissReason: 'Superseded by the launch post',
+        contentHash: 'hash-archived',
+        createdByType: 'agent',
+        createdById: 'agent:test',
+        updatedByType: 'agent',
+        updatedById: 'agent:test',
+      })
+      .returning();
+    seeded['cmsArchived'] = archivedEntry!.id;
+
     app = await createApp(AppModule, { logger: false });
     await app.listen(0, '127.0.0.1');
     const server = app.getHttpServer() as { address(): AddressInfo | string | null };
@@ -292,6 +390,73 @@ interface ReviewResponse {
     expect(waiting.items.map((i) => i.id)).not.toContain(seeded['outreachApprovedUnscheduled']);
   });
 
+  it('returns a decided item for every kind, newest first', async () => {
+    const body = await review('decided');
+    const byKind = new Map(body.items.map((i) => [i.kind, i]));
+    expect(byKind.get('kb')?.id).toBe(seeded['kbDecision']);
+    expect(byKind.get('crm')?.id).toBe(seeded['crmDecided']);
+    expect(byKind.get('outreach')?.id).toBe(seeded['outreachSent']);
+    expect(byKind.get('cms')?.id).toBe(seeded['cmsArchived']);
+    expect(body.items.every((i) => i.state === 'decided')).toBe(true);
+
+    const times = body.items.map((i) => new Date(i.at).getTime());
+    expect(times).toEqual([...times].sort((a, b) => b - a));
+  });
+
+  it('carries the outcome, reason, decider and what each decision produced', async () => {
+    const body = await review('decided');
+    const byKind = new Map(body.items.map((i) => [i.kind, i]));
+
+    const kb = byKind.get('kb');
+    expect(kb?.outcome).toBe('approved');
+    expect(kb?.producedRef).toEqual({ type: 'kb_document', id: seeded['kbPublishedDoc'] });
+    expect(kb?.decidedBy?.actorType).toBe('user');
+    expect(kb?.decidedBy?.name).toBe('Owner User');
+
+    const crm = byKind.get('crm');
+    expect(crm?.outcome).toBe('dismissed');
+    expect(crm?.reason).toBe('Different people');
+
+    const outreach = byKind.get('outreach');
+    expect(outreach?.outcome).toBe('approved');
+
+    const cms = byKind.get('cms');
+    expect(cms?.outcome).toBe('dismissed');
+    expect(cms?.reason).toBe('Superseded by the launch post');
+    expect(cms?.producedRef).toEqual({ type: 'cms_entry', id: seeded['cmsArchived'] });
+    expect(cms?.decidedBy?.actorType).toBe('agent');
+  });
+
+  it('never repeats an item across cursor pages', async () => {
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 10; page += 1) {
+      const query: string = cursor
+        ? `/v1/review?state=decided&limit=2&cursor=${encodeURIComponent(cursor)}`
+        : '/v1/review?state=decided&limit=2';
+      const res = await get(query);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as ReviewResponse;
+      expect(body.items.length).toBeLessThanOrEqual(2);
+      seen.push(...body.items.map((i) => i.id));
+      cursor = body.nextCursor;
+      if (!cursor) break;
+    }
+    expect(cursor).toBeNull();
+    expect(new Set(seen).size).toBe(seen.length);
+    const all = await review('decided');
+    expect(seen.sort()).toEqual(all.items.map((i) => i.id).sort());
+  });
+
+  it('leaves a waiting or scheduled item out of the decided feed', async () => {
+    const body = await review('decided');
+    const ids = body.items.map((i) => i.id);
+    expect(ids).not.toContain(seeded['kb']);
+    expect(ids).not.toContain(seeded['outreachScheduled']);
+    expect(ids).not.toContain(seeded['outreachApprovedUnscheduled']);
+    expect(ids).not.toContain(seeded['cms']);
+  });
+
   it('defaults to waiting and rejects a state it cannot list', async () => {
     const res = await get('/v1/review');
     expect(res.status).toBe(200);
@@ -299,7 +464,7 @@ interface ReviewResponse {
     expect(body.items.every((i) => i.state === 'waiting')).toBe(true);
     expect(body.nextCursor).toBeNull();
 
-    const bad = await get('/v1/review?state=decided');
+    const bad = await get('/v1/review?state=nonsense');
     expect(bad.status).toBe(400);
     expect(JSON.stringify(await bad.json())).toContain('review_invalid');
   });

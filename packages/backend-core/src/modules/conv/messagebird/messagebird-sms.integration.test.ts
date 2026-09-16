@@ -136,7 +136,7 @@ const skipReason = TEST_URL
     const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
     const params = {
       id: 'mb_inbound_0001',
-      originator: '14155551212',
+      originator: '14155550102',
       recipient: ORIGINATOR,
       body: 'Hi from MessageBird',
       createdDatetime: new Date().toISOString(),
@@ -164,7 +164,7 @@ const skipReason = TEST_URL
   it('rejects a tampered JWT', async () => {
     const params = {
       id: 'mb_inbound_bad',
-      originator: '14155551313',
+      originator: '14155550103',
       recipient: ORIGINATOR,
       body: 'tampered',
       createdDatetime: new Date().toISOString(),
@@ -187,7 +187,7 @@ const skipReason = TEST_URL
     const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
     const params = {
       id: 'mb_inbound_dedup',
-      originator: '14155552222',
+      originator: '14155550104',
       recipient: ORIGINATOR,
       body: 'first delivery',
       createdDatetime: new Date().toISOString(),
@@ -240,7 +240,7 @@ const skipReason = TEST_URL
     const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
     const params = {
       id: messageBirdId,
-      recipient: '14155553333',
+      recipient: '14155550106',
       status: 'delivery_failed',
       statusDatetime: new Date().toISOString(),
       statusReason: 'unknown subscriber',

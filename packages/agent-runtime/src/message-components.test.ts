@@ -15,7 +15,7 @@ const connection = { id: 'conn_1', name: 'Nordic Supply', vendor: 'shopify' };
 const product = {
   productRef: 'gid://shopify/Product/1',
   title: 'Fjell Shell 3L',
-  url: 'https://nordicsupply.no/products/fjell-shell',
+  url: 'https://nordicsupply.test/products/fjell-shell',
   imageUrl: 'https://cdn.shopify.com/fjell.jpg',
   currency: 'NOK',
   priceMin: '1890.00',
@@ -35,7 +35,7 @@ describe('deriveMessageComponents', () => {
           {
             productRef: 'gid://shopify/Product/1',
             title: 'Fjell Shell 3L',
-            url: 'https://nordicsupply.no/products/fjell-shell',
+            url: 'https://nordicsupply.test/products/fjell-shell',
             imageUrl: 'https://cdn.shopify.com/fjell.jpg',
             currency: 'NOK',
             priceMin: '1890.00',

@@ -120,7 +120,7 @@ const skipReason = TEST_URL
     const params = {
       AccountSid: ACCOUNT_SID,
       MessageSid: 'SM_inbound_0001',
-      From: '+14155551212',
+      From: '+14155550102',
       To: FROM_NUMBER,
       Body: 'Hi, account locked, help?',
       NumMedia: '0',
@@ -152,7 +152,7 @@ const skipReason = TEST_URL
     const params = {
       AccountSid: ACCOUNT_SID,
       MessageSid: 'SM_inbound_bad',
-      From: '+14155551313',
+      From: '+14155550103',
       To: FROM_NUMBER,
       Body: 'tampered',
     };
@@ -184,7 +184,7 @@ const skipReason = TEST_URL
     const params = {
       AccountSid: ACCOUNT_SID,
       MessageSid: 'SM_inbound_dedup',
-      From: '+14155552222',
+      From: '+14155550104',
       To: FROM_NUMBER,
       Body: 'first delivery',
       NumMedia: '0',
@@ -207,7 +207,7 @@ const skipReason = TEST_URL
 
   it('threads a second SMS from the same number into the same conversation', async () => {
     const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
-    const from = '+14155553333';
+    const from = '+14155550106';
     const base = { AccountSid: ACCOUNT_SID, From: from, To: FROM_NUMBER, NumMedia: '0' };
     await postWebhook({ ...base, MessageSid: 'SM_thread_1', Body: 'first question' }, url);
     await postWebhook({ ...base, MessageSid: 'SM_thread_2', Body: 'and another thing' }, url);
@@ -227,7 +227,7 @@ const skipReason = TEST_URL
 
   it('an SMS reading STOP suppresses the matching CRM contact', async () => {
     const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
-    const from = '+14155554444';
+    const from = '+14155550108';
     const [crmContact] = await db
       .insert(schema.crmContacts)
       .values({
@@ -271,7 +271,7 @@ const skipReason = TEST_URL
 
   it('an ordinary SMS that merely mentions stopping does not suppress the contact', async () => {
     const url = `https://munin.example/v1/conversations/channels/${channelId}/webhook`;
-    const from = '+14155555555';
+    const from = '+14155550109';
     const [crmContact] = await db
       .insert(schema.crmContacts)
       .values({
@@ -314,7 +314,7 @@ const skipReason = TEST_URL
       {
         AccountSid: ACCOUNT_SID,
         MessageSid: 'SM_draftonly_1',
-        From: '+14155556666',
+        From: '+14155550111',
         To: FROM_NUMBER,
         Body: 'is this thing on?',
         NumMedia: '0',

@@ -30,7 +30,7 @@ interface AgentUsageRow {
   let otherOrgId: string;
   let adminKey: string;
   let adminKeyId: string;
-  let kjellId: string;
+  let olaId: string;
   let espenId: string;
 
   beforeAll(async () => {
@@ -58,15 +58,15 @@ interface AgentUsageRow {
     otherOrgId = otherOrg!.id;
 
     const betterAuthId = () => randomUUID().replace(/-/g, '').slice(0, 32);
-    const [kjell] = await db
+    const [ola] = await db
       .insert(schema.users)
       .values({
         id: betterAuthId(),
-        email: `kjell-${randomUUID().slice(0, 8)}@test.example`,
-        name: 'Kjell',
+        email: `ola-${randomUUID().slice(0, 8)}@test.example`,
+        name: 'Ola',
       })
       .returning();
-    kjellId = kjell!.id;
+    olaId = ola!.id;
     const [espen] = await db
       .insert(schema.users)
       .values({
@@ -108,7 +108,7 @@ interface AgentUsageRow {
     if (app) await app.close();
     if (db) {
       await db.delete(schema.orgs).where(sql`id in (${orgId}, ${otherOrgId})`);
-      await db.delete(schema.users).where(sql`id in (${kjellId}, ${espenId})`);
+      await db.delete(schema.users).where(sql`id in (${olaId}, ${espenId})`);
       await db.delete(schema.oauthClient).where(sql`client_id in ('client_claude', 'client_code')`);
       void db.$client.end();
     }
@@ -145,28 +145,28 @@ interface AgentUsageRow {
 
   it('separates two OAuth connectors authorized by the same user', async () => {
     await db.delete(schema.auditLog).where(sql`org_id = ${orgId}`);
-    await seedToolCall({ actorType: 'user', actorId: kjellId, clientId: 'client_claude' });
-    await seedToolCall({ actorType: 'user', actorId: kjellId, clientId: 'client_claude' });
-    await seedToolCall({ actorType: 'user', actorId: kjellId, clientId: 'client_code' });
+    await seedToolCall({ actorType: 'user', actorId: olaId, clientId: 'client_claude' });
+    await seedToolCall({ actorType: 'user', actorId: olaId, clientId: 'client_claude' });
+    await seedToolCall({ actorType: 'user', actorId: olaId, clientId: 'client_code' });
 
     const agents = await byAgent();
     expect(agents.map((a) => [a.name, a.mcpCalls])).toEqual([
       ['Claude', 2],
       ['Claude Code', 1],
     ]);
-    expect(agents[0]!.description).toContain('Kjell');
+    expect(agents[0]!.description).toContain('Ola');
   });
 
   it('keeps the same connector separate per authorizing user', async () => {
     await db.delete(schema.auditLog).where(sql`org_id = ${orgId}`);
-    await seedToolCall({ actorType: 'user', actorId: kjellId, clientId: 'client_claude' });
+    await seedToolCall({ actorType: 'user', actorId: olaId, clientId: 'client_claude' });
     await seedToolCall({ actorType: 'user', actorId: espenId, clientId: 'client_claude' });
 
     const agents = await byAgent();
     expect(agents).toHaveLength(2);
     expect(agents.every((a) => a.name === 'Claude')).toBe(true);
     expect(new Set(agents.map((a) => a.description))).toEqual(
-      new Set(['Kjell', 'Espen']),
+      new Set(['Ola', 'Espen']),
     );
   });
 
@@ -182,11 +182,11 @@ interface AgentUsageRow {
 
   it('names a dashboard user caller by name rather than echoing the raw BetterAuth id', async () => {
     await db.delete(schema.auditLog).where(sql`org_id = ${orgId}`);
-    await seedToolCall({ actorType: 'user', actorId: kjellId, clientId: null });
+    await seedToolCall({ actorType: 'user', actorId: olaId, clientId: null });
 
     const agents = await byAgent();
     expect(agents).toEqual([
-      expect.objectContaining({ name: 'Kjell', description: 'user', mcpCalls: 1 }),
+      expect.objectContaining({ name: 'Ola', description: 'user', mcpCalls: 1 }),
     ]);
   });
 
@@ -203,19 +203,19 @@ interface AgentUsageRow {
     await db.delete(schema.auditLog).where(sql`org_id = ${orgId}`);
     await seedToolCall({
       actorType: 'user',
-      actorId: kjellId,
+      actorId: olaId,
       clientId: 'client_claude',
       durationMs: 100,
     });
     await seedToolCall({
       actorType: 'user',
-      actorId: kjellId,
+      actorId: olaId,
       clientId: 'client_claude',
       durationMs: 300,
     });
     await seedToolCall({
       actorType: 'user',
-      actorId: kjellId,
+      actorId: olaId,
       clientId: 'client_claude',
       durationMs: null,
     });
@@ -230,7 +230,7 @@ interface AgentUsageRow {
     await db.insert(schema.auditLog).values({
       orgId,
       actorType: 'user',
-      actorId: kjellId,
+      actorId: olaId,
       clientId: 'client_claude',
       tool: null,
       method: 'GET /v1/activity',

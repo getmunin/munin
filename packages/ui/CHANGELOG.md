@@ -356,9 +356,9 @@
 
   The Overview hero greets you by name. The headline was a fixed line about waiting on
   your word regardless of who opened the page or when; it now reads "Good morning,
-  _Kjell_." — four buckets split at five, noon and six, first name in the same cobalt
+  _Ola_." — four buckets split at five, noon and six, first name in the same cobalt
   italic the old emphasis used, with the state left in the lede where it already lived.
-  The small hours get their own line ("Still up, _Kjell_?") rather than being folded
+  The small hours get their own line ("Still up, _Ola_?") rather than being folded
   into a morning that would otherwise start at midnight. `firstName` falls back to the
   unpersonalized headline rather than guessing: a blank name, an email in the name field
   (BetterAuth allows it), or a first token over 24 characters all keep the old line, so

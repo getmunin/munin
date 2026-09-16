@@ -1116,9 +1116,9 @@ internal }`, and its own `toRuntimeHistory` did the same. `ConversationMessage.a
 
   The Overview hero greets you by name. The headline was a fixed line about waiting on
   your word regardless of who opened the page or when; it now reads "Good morning,
-  _Kjell_." — four buckets split at five, noon and six, first name in the same cobalt
+  _Ola_." — four buckets split at five, noon and six, first name in the same cobalt
   italic the old emphasis used, with the state left in the lede where it already lived.
-  The small hours get their own line ("Still up, _Kjell_?") rather than being folded
+  The small hours get their own line ("Still up, _Ola_?") rather than being folded
   into a morning that would otherwise start at midnight. `firstName` falls back to the
   unpersonalized headline rather than guessing: a blank name, an email in the name field
   (BetterAuth allows it), or a first token over 24 characters all keep the old line, so
@@ -3552,8 +3552,8 @@ invalid: offline_access`. claude.ai was unaffected because it registers without 
   `commerce_search_products` claimed "we don't have that" for products the store demonstrably sells. Three separate causes, all in the adapters.
 
   - **No relevance ordering at all.** The Shopify products query never set `sortKey`, so it defaulted to `ID` — creation order. With a `limit` of 10 against a store with many matches, the agent was shown ten arbitrary products and could never see the best one. Now `sortKey: RELEVANCE`.
-  - **Every term was required.** Shopify implies `AND` between terms, so `borrelåsreim jenter` demanded both words and matched nothing, because no product title contains "jenter". Magento was stricter still: it wrapped the _whole_ query in a single `LIKE '%…%'`, so word order mattered — `borrelåsreim Xplora` could not match "Xplora 4 Borrelåsreim Blå". Magento now filters one group per term (all terms must appear, in any order), and both adapters retry a multi-term search as OR when the all-terms pass finds nothing. Precise queries keep their precision; the second vendor call only happens on a miss.
-  - **OR results came back badly ordered, and re-ranking them starved.** Shopify's own `RELEVANCE` does not favour products matching more of the OR terms — for `borrelåsreim Xplora jenter` it ranked Samsung straps and screen protectors above the nine Xplora straps that matched two terms, placing them beyond position 25. So the broad pass now over-fetches a flat pool of 50 and re-ranks locally by how many query terms appear in the title, stable within equal coverage, before truncating to the caller's limit. The pool is deliberately not a multiple of `limit` — the depth needed is set by how badly the vendor orders OR results, not by how many results we intend to show, and a proportional pool left `limit: 3` and `limit: 5` still showing the wrong products first.
+  - **Every term was required.** Shopify implies `AND` between terms, so `reim jenter` demanded both words and matched nothing, because no product title contains "jenter". Magento was stricter still: it wrapped the _whole_ query in a single `LIKE '%…%'`, so word order mattered — `reim Acme` could not match "Acme 4 Reim Blå". Magento now filters one group per term (all terms must appear, in any order), and both adapters retry a multi-term search as OR when the all-terms pass finds nothing. Precise queries keep their precision; the second vendor call only happens on a miss.
+  - **OR results came back badly ordered, and re-ranking them starved.** Shopify's own `RELEVANCE` does not favour products matching more of the OR terms — for `reim Acme jenter` it ranked Samsung straps and screen protectors above the nine Acme straps that matched two terms, placing them beyond position 25. So the broad pass now over-fetches a flat pool of 50 and re-ranks locally by how many query terms appear in the title, stable within equal coverage, before truncating to the caller's limit. The pool is deliberately not a multiple of `limit` — the depth needed is set by how badly the vendor orders OR results, not by how many results we intend to show, and a proportional pool left `limit: 3` and `limit: 5` still showing the wrong products first.
 
   Shopify's search-syntax `OR` binds tighter than `AND`, so the fallback query is explicitly parenthesised as `status:active AND (…)`. Terms stay double-quoted, which also keeps a literal `OR` typed by a customer as a search term rather than a connective.
 
@@ -4172,7 +4172,7 @@ invalid: offline_access`. claude.ai was unaffected because it registers without 
 
   The flock (Settings → Agents) groups OAuth connections by client _and_ the org member who authorized them, but only the client name was shown — so two members who each connected, say, Claude produced two visually identical rows with no way to tell whose access a revoke would cut off.
 
-  `GET /v1/tokens` now joins the authorizing user and returns `user: { name, email }` per row. The Agents page shows that member inline after the client name ("Claude · Kjell Rune Monsø", with the email on hover and as the fallback when no name is set), replacing the "· N connections" count — which only reflected dynamic-client-registration reconnects and wasn't actionable, since a row already represents one member's access to one client and revoke cuts off that whole group.
+  `GET /v1/tokens` now joins the authorizing user and returns `user: { name, email }` per row. The Agents page shows that member inline after the client name ("Claude · Ola Nordmann", with the email on hover and as the fallback when no name is set), replacing the "· N connections" count — which only reflected dynamic-client-registration reconnects and wasn't actionable, since a row already represents one member's access to one client and revoke cuts off that whole group.
 
 - a393617: fix(outreach): correct fresh-email subject, unsubscribe domain, and link rendering
 
@@ -4210,7 +4210,7 @@ invalid: offline_access`. claude.ai was unaffected because it registers without 
 
   **The flock (Settings → Agents)** now lists only OAuth-authorized agents. Delegated end-user tokens are no longer mixed in — they're managed on the End-users page. Each row leads with the OAuth client's name (e.g. "Claude · 3 connections") and a small client icon/glyph (matching the consent screen) instead of a generic "OAuth refresh token" label, the Origin column is dropped (its info moved into the primary label), and the table uses a fixed layout so the scopes list wraps inside the Token column instead of squeezing the other columns. `GET /v1/tokens` returns only OAuth agents (with `iconUrl`) and no longer merges the `tokens` table.
 
-  **The End-users page** now shows a single identity line (name, else email, else phone, else "—") with an avatar of initials derived from the name ("Jens Pettersen" → "JP") or the email's first letter ("kjell@apps.no" → "K").
+  **The End-users page** now shows a single identity line (name, else email, else phone, else "—") with an avatar of initials derived from the name ("Jens Pettersen" → "JP") or the email's first letter ("ola.nordmann@example.no" → "K").
 
 - Updated dependencies [39443cb]
 - Updated dependencies [e5f7d98]

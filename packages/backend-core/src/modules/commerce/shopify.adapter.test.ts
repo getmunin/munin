@@ -223,14 +223,14 @@ describe('ShopifyAdapter', () => {
     const adapter = new ShopifyAdapter(fetch);
 
     const products = await adapter.searchProducts(ctx(), {
-      query: 'borrelasreim jenter',
+      query: 'reim jenter',
       limit: 10,
     });
 
     expect(requests).toHaveLength(2);
-    expect(requests[0]!.body.variables.q).toBe('status:active "borrelasreim" "jenter"');
+    expect(requests[0]!.body.variables.q).toBe('status:active "reim" "jenter"');
     expect(requests[1]!.body.variables.q).toBe(
-      'status:active AND ("borrelasreim" OR "jenter")',
+      'status:active AND ("reim" OR "jenter")',
     );
     expect(products).toHaveLength(1);
   });

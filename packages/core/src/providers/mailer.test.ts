@@ -10,9 +10,9 @@ vi.mock('nodemailer', () => ({
 describe('StubMailer', () => {
   it('captures sent messages in outbox', async () => {
     const m = new StubMailer('test@example.com');
-    await m.send({ to: 'kjell@example.com', subject: 'Hi', text: 'Hello' });
+    await m.send({ to: 'ola@example.com', subject: 'Hi', text: 'Hello' });
     expect(m.outbox).toHaveLength(1);
-    expect(m.outbox[0]!.to).toBe('kjell@example.com');
+    expect(m.outbox[0]!.to).toBe('ola@example.com');
     expect(m.outbox[0]!.subject).toBe('Hi');
     expect(m.outbox[0]!.text).toBe('Hello');
     expect(m.outbox[0]!.sentAt).toBeInstanceOf(Date);
@@ -47,7 +47,7 @@ describe('SmtpMailer', () => {
     });
 
     await m.send({
-      to: 'kjell@example.com',
+      to: 'ola@example.com',
       subject: 'Hi',
       text: 'Hello',
       headers: { 'X-Trace': 'abc' },
@@ -56,7 +56,7 @@ describe('SmtpMailer', () => {
     expect(sendMail).toHaveBeenCalledTimes(1);
     expect(sendMail.mock.calls[0]![0]).toMatchObject({
       from: 'Munin <hello@example.com>',
-      to: 'kjell@example.com',
+      to: 'ola@example.com',
       subject: 'Hi',
       text: 'Hello',
       headers: { 'X-Trace': 'abc' },

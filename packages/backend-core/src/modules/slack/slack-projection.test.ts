@@ -117,8 +117,8 @@ describe('avatarKey', () => {
   it('falls back to default for anonymous names or ones with no letters at all', () => {
     expect(avatarKey(null)).toBe('default');
     expect(avatarKey('')).toBe('default');
-    expect(avatarKey('+4741425762')).toBe('default');
-    expect(avatarKey('+47 414 25 762')).toBe('default');
+    expect(avatarKey('+4712345678')).toBe('default');
+    expect(avatarKey('+47 12 34 56 78')).toBe('default');
   });
 });
 
@@ -129,8 +129,8 @@ describe('speakerIdentity', () => {
   });
 
   it('routes a digit-led end_user name to the default avatar', () => {
-    expect(speakerIdentity('end_user', '+4741425762')).toEqual({
-      username: '+4741425762',
+    expect(speakerIdentity('end_user', '+4712345678')).toEqual({
+      username: '+4712345678',
       avatarKey: 'default',
     });
   });
@@ -344,7 +344,7 @@ describe('approval texts', () => {
   });
 
   it('renders an outreach draft with subject and the full quoted body', () => {
-    const body = ['Hi Ada,', '', 'We shipped the thing — want a walkthrough?', '', 'Kjell'].join(
+    const body = ['Hi Ada,', '', 'We shipped the thing — want a walkthrough?', '', 'Ola'].join(
       '\n',
     );
     const text = outreachProposalApprovalText({
@@ -436,11 +436,11 @@ describe('approvalBlocks', () => {
       'body',
       value,
       { approveLabel: 'Approve & send' },
-      { outcome: 'sent', decidedByName: 'Kjell' },
+      { outcome: 'sent', decidedByName: 'Ola' },
     );
     expect(blocks).toHaveLength(1);
     const section = blocks[0] as unknown as { text: { text: string } };
-    expect(section.text.text).toContain('*Approved — email sent* by *Kjell*');
+    expect(section.text.text).toContain('*Approved — email sent* by *Ola*');
   });
 
   it('covers every outcome line', () => {

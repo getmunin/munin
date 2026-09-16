@@ -891,7 +891,7 @@ describe('createConversationHandler', () => {
               {
                 id: 'msg_2',
                 authorType: 'user',
-                body: 'Jeg er Kjell, hva kan jeg hjelpe deg med?',
+                body: 'Jeg er Ola, hva kan jeg hjelpe deg med?',
                 createdAt: new Date().toISOString(),
                 internal: false,
               },
@@ -909,7 +909,7 @@ describe('createConversationHandler', () => {
       openMcp: () => Promise.resolve(buildMcp()),
       logger: silentLogger,
       scheduler: noDelayScheduler,
-      provider: sequenceProvider([assistantStop('Hei Kjell!')]),
+      provider: sequenceProvider([assistantStop('Hei Ola!')]),
     });
     handler.requestDraft({ conversationId: 'conv_1' });
     await handler.flush();

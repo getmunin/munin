@@ -1382,12 +1382,12 @@ const skipReason = TEST_URL
         orgId,
         externalId: `anon:${'sess-' + Math.abs(orgId.length * 7919)}`,
         email,
-        name: 'Kjell (widget session)',
+        name: 'Ola (widget session)',
       })
       .returning({ id: schema.endUsers.id });
 
     const visitorId = 'visitor-anon-adopt';
-    const externalId = 'axo-anon-1';
+    const externalId = 'demo-anon-1';
     const res = await postIdentify(minted.trackerKey, {
       visitorId,
       externalId,
@@ -1427,7 +1427,7 @@ const skipReason = TEST_URL
       .returning({ id: schema.endUsers.id });
 
     const visitorId = 'visitor-email-trait-1';
-    const externalId = 'axo-9001';
+    const externalId = 'demo-9001';
     const res = await postIdentify(minted.trackerKey, {
       visitorId,
       externalId,
@@ -1468,7 +1468,7 @@ const skipReason = TEST_URL
     const minted = await mintIdentityTracker('email-first tracker');
     const email = 'ola.nordmann@example.no';
     const visitorId = 'visitor-email-trait-2';
-    const externalId = 'axo-9002';
+    const externalId = 'demo-9002';
 
     const res = await postIdentify(minted.trackerKey, {
       visitorId,
@@ -1506,11 +1506,11 @@ const skipReason = TEST_URL
 
     const [rival] = await db
       .insert(schema.endUsers)
-      .values({ orgId, externalId: 'axo-owner-1', email })
+      .values({ orgId, externalId: 'demo-owner-1', email })
       .returning({ id: schema.endUsers.id });
 
     const visitorId = 'visitor-email-trait-3';
-    const externalId = 'axo-9003';
+    const externalId = 'demo-9003';
     const unsigned = await postIdentify(minted.trackerKey, {
       visitorId,
       externalId,

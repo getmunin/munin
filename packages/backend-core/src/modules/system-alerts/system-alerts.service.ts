@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { schema, makeId } from '@getmunin/db';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 
@@ -10,6 +10,7 @@ export const ALERT_SOURCES = [
   'curator',
   'delivery',
   'quota',
+  'social',
 ] as const;
 export type AlertSource = (typeof ALERT_SOURCES)[number];
 
@@ -20,6 +21,7 @@ export interface AlertDto {
   id: string;
   source: AlertSource;
   subjectId: string | null;
+  userId: string | null;
   severity: AlertSeverity;
   title: string;
   detail: string | null;
@@ -37,6 +39,7 @@ export interface AlertDto {
 export interface OpenAlertInput {
   source: AlertSource;
   subjectId?: string | null;
+  userId?: string | null;
   severity: AlertSeverity;
   title: string;
   detail?: string | null;
@@ -54,6 +57,7 @@ export interface OpenAlertResult {
 export interface ResolveAlertInput {
   source: AlertSource;
   subjectId?: string | null;
+  userId?: string | null;
 }
 
 export interface ResolveAlertResult {
@@ -82,6 +86,7 @@ export class AlertsService {
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
     const subjectId = input.subjectId ?? null;
+    const userId = input.userId ?? null;
     const detail = truncate(input.detail);
     const metadata = input.metadata ?? {};
 
@@ -96,6 +101,7 @@ export class AlertsService {
           subjectId === null
             ? isNull(schema.orgAlerts.subjectId)
             : eq(schema.orgAlerts.subjectId, subjectId),
+          sameUser(userId),
         ),
       )
       .limit(1);
@@ -129,6 +135,7 @@ export class AlertsService {
       orgId,
       source: input.source,
       subjectId,
+      userId,
       severity: input.severity,
       title: input.title,
       detail,
@@ -145,6 +152,7 @@ export class AlertsService {
         alertId: id,
         source: input.source,
         subjectId,
+        userId,
         severity: input.severity,
       },
     });
@@ -180,6 +188,7 @@ export class AlertsService {
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
     const subjectId = input.subjectId ?? null;
+    const userId = input.userId ?? null;
 
     const updated = await ctx.db
       .update(schema.orgAlerts)
@@ -192,6 +201,7 @@ export class AlertsService {
           subjectId === null
             ? isNull(schema.orgAlerts.subjectId)
             : eq(schema.orgAlerts.subjectId, subjectId),
+          sameUser(userId),
         ),
       )
       .returning({ id: schema.orgAlerts.id });
@@ -206,6 +216,7 @@ export class AlertsService {
         alertId: row.id,
         source: input.source,
         subjectId,
+        userId,
       },
     });
     return { alertId: row.id, resolved: true };
@@ -219,7 +230,13 @@ export class AlertsService {
     const updated = await ctx.db
       .update(schema.orgAlerts)
       .set({ acknowledgedAt: new Date(), acknowledgedBy: actorId, updatedAt: new Date() })
-      .where(and(eq(schema.orgAlerts.id, alertId), eq(schema.orgAlerts.orgId, orgId)))
+      .where(
+        and(
+          eq(schema.orgAlerts.id, alertId),
+          eq(schema.orgAlerts.orgId, orgId),
+          visibleTo(ctx.actor!.userId),
+        ),
+      )
       .returning();
 
     const row = updated[0];
@@ -241,7 +258,13 @@ export class AlertsService {
     const rows = await ctx.db
       .select()
       .from(schema.orgAlerts)
-      .where(eq(schema.orgAlerts.id, alertId))
+      .where(
+        and(
+          eq(schema.orgAlerts.id, alertId),
+          eq(schema.orgAlerts.orgId, ctx.actor!.orgId),
+          visibleTo(ctx.actor!.userId),
+        ),
+      )
       .limit(1);
     const row = rows[0];
     if (!row) throw new AlertNotFoundError(alertId);
@@ -253,7 +276,7 @@ export class AlertsService {
     const rows = await ctx.db
       .select()
       .from(schema.orgAlerts)
-      .where(isNull(schema.orgAlerts.resolvedAt))
+      .where(and(isNull(schema.orgAlerts.resolvedAt), visibleTo(ctx.actor!.userId)))
       .orderBy(desc(schema.orgAlerts.severity), desc(schema.orgAlerts.openedAt));
     return rows.map(toDto);
   }
@@ -266,10 +289,10 @@ export class AlertsService {
     const ctx = getCurrentContext();
     const limit = Math.min(opts?.limit ?? 50, 200);
     const includeResolved = opts?.includeResolved ?? false;
-    const conditions = [];
+    const conditions = [visibleTo(ctx.actor!.userId)];
     if (!includeResolved) conditions.push(isNull(schema.orgAlerts.resolvedAt));
     if (opts?.source) conditions.push(eq(schema.orgAlerts.source, opts.source));
-    const where = conditions.length === 0 ? undefined : conditions.length === 1 ? conditions[0] : and(...conditions);
+    const where = conditions.length === 1 ? conditions[0] : and(...conditions);
     const rows = await ctx.db
       .select()
       .from(schema.orgAlerts)
@@ -278,6 +301,15 @@ export class AlertsService {
       .limit(limit);
     return rows.map(toDto);
   }
+}
+
+function sameUser(userId: string | null) {
+  return sql`${schema.orgAlerts.userId} IS NOT DISTINCT FROM ${userId}`;
+}
+
+function visibleTo(viewerUserId: string | undefined) {
+  if (!viewerUserId) return isNull(schema.orgAlerts.userId);
+  return or(isNull(schema.orgAlerts.userId), eq(schema.orgAlerts.userId, viewerUserId))!;
 }
 
 function truncate(message: string | null | undefined): string | null {
@@ -290,6 +322,7 @@ function toDto(row: typeof schema.orgAlerts.$inferSelect): AlertDto {
     id: row.id,
     source: row.source as AlertSource,
     subjectId: row.subjectId,
+    userId: row.userId,
     severity: row.severity as AlertSeverity,
     title: row.title,
     detail: row.detail,

@@ -2147,6 +2147,7 @@ export const orgAlerts = pgTable(
       .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
     source: varchar('source', { length: 32 }).notNull(),
     subjectId: text('subject_id'),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
     severity: varchar('severity', { length: 16 }).notNull(),
     title: text('title').notNull(),
     detail: text('detail'),
@@ -2165,6 +2166,7 @@ export const orgAlerts = pgTable(
   (t) => ({
     orgOpenIdx: index('org_alerts_org_resolved_idx').on(t.orgId, t.resolvedAt),
     orgOpenedIdx: index('org_alerts_org_opened_idx').on(t.orgId, t.openedAt),
+    userOpenIdx: index('org_alerts_user_open_idx').on(t.orgId, t.userId, t.resolvedAt),
   }),
 );
 

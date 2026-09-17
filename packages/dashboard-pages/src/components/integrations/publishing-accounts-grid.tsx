@@ -306,6 +306,9 @@ function PlatformAppDialog({
           <DialogDescription>{t('appDialogLede', { platform: name })}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          <p className="border-l-[2px] border-rule-soft pl-3 text-xs text-muted-foreground dark:border-rule-on-dark">
+            {t('appDialogAuthorNote', { platform: name })}
+          </p>
           <div className="space-y-1.5">
             <Label className={dialogLabelClass} htmlFor="socialClientId">
               {t('clientId')}

@@ -26,8 +26,8 @@ export interface ActiveMembership {
 
 interface CacheEntry {
   userId: string | null;
-  promise: Promise<ActiveMembership | null>;
-  value: ActiveMembership | null | undefined;
+  promise: Promise<MembershipDto[]>;
+  rows: MembershipDto[] | undefined;
 }
 
 let cache: CacheEntry | null = null;
@@ -36,40 +36,45 @@ export function invalidateActiveMembershipCache(): void {
   cache = null;
 }
 
-function fetchActiveMembership(userId: string | null): Promise<ActiveMembership | null> {
+function fetchMemberships(userId: string | null): Promise<MembershipDto[]> {
   if (cache && cache.userId === userId) return cache.promise;
   const promise = api<MembershipDto[]>('/v1/me/memberships').then((rows) => {
-    const pinnedOrgId = getActiveOrgId();
-    const active =
-      (pinnedOrgId ? rows.find((m) => m.orgId === pinnedOrgId) : undefined) ??
-      rows.find((m) => m.isDefault) ??
-      rows[0] ??
-      null;
-    const membership: ActiveMembership | null =
-      active && isOrgRole(active.role)
-        ? {
-            orgId: active.orgId,
-            name: active.name,
-            slug: active.slug,
-            role: active.role,
-            isDefault: active.isDefault,
-          }
-        : null;
-    if (cache?.promise === promise) cache.value = membership;
-    return membership;
+    if (cache?.promise === promise) cache.rows = rows;
+    return rows;
   });
-  cache = { userId, promise, value: undefined };
+  cache = { userId, promise, rows: undefined };
   promise.catch(() => {
     if (cache?.promise === promise) cache = null;
   });
   return promise;
 }
 
+function toMembership(row: MembershipDto | undefined): ActiveMembership | null {
+  if (!row || !isOrgRole(row.role)) return null;
+  return {
+    orgId: row.orgId,
+    name: row.name,
+    slug: row.slug,
+    role: row.role,
+    isDefault: row.isDefault,
+  };
+}
+
+function selectPinned(rows: MembershipDto[]): ActiveMembership | null {
+  const pinnedOrgId = getActiveOrgId();
+  const pinned = pinnedOrgId ? rows.find((m) => m.orgId === pinnedOrgId) : undefined;
+  return toMembership(pinned ?? rows.find((m) => m.isDefault) ?? rows[0]);
+}
+
+function selectDefault(rows: MembershipDto[]): ActiveMembership | null {
+  return toMembership(rows.find((m) => m.isDefault) ?? rows[0]);
+}
+
 function isOrgRole(value: string): value is OrgRole {
   return value === 'owner' || value === 'admin' || value === 'member';
 }
 
-export function useActiveMembership(): {
+function useMembership(select: (rows: MembershipDto[]) => ActiveMembership | null): {
   membership: ActiveMembership | null;
   loading: boolean;
   error: string | null;
@@ -87,17 +92,17 @@ export function useActiveMembership(): {
   useEffect(() => {
     if (isPending) return;
     let cancelled = false;
-    if (cache?.userId === userId && cache.value !== undefined) {
-      setMembership(cache.value);
+    if (cache?.userId === userId && cache.rows !== undefined) {
+      setMembership(select(cache.rows));
       setLoading(false);
       return;
     }
     if (!seeded) setLoading(true);
     setError(null);
-    fetchActiveMembership(userId)
-      .then((m) => {
+    fetchMemberships(userId)
+      .then((rows) => {
         if (!cancelled) {
-          setMembership(m);
+          setMembership(select(rows));
           setLoading(false);
         }
       })
@@ -110,9 +115,25 @@ export function useActiveMembership(): {
     return () => {
       cancelled = true;
     };
-  }, [userId, isPending, seeded]);
+  }, [userId, isPending, seeded, select]);
 
   return { membership, loading, error };
+}
+
+export function useActiveMembership(): {
+  membership: ActiveMembership | null;
+  loading: boolean;
+  error: string | null;
+} {
+  return useMembership(selectPinned);
+}
+
+export function useDefaultMembership(): {
+  membership: ActiveMembership | null;
+  loading: boolean;
+  error: string | null;
+} {
+  return useMembership(selectDefault);
 }
 
 export function useActiveRole(): { role: OrgRole | null; loading: boolean; error: string | null } {

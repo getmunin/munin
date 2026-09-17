@@ -81,6 +81,10 @@ import {
   type QuotedTurn,
 } from './quoted-thread.ts';
 import { clampInboundBody, normalizeFlattenedWhitespace } from './inbound-body-limits.ts';
+import {
+  InboundRedactionService,
+  stampDetections,
+} from '../inbound-redaction.service.ts';
 import { htmlToText } from './html-text.ts';
 import type {
   ChannelAdapter,
@@ -194,6 +198,8 @@ export class EmailAdapter implements ChannelAdapter {
     @Inject(STORAGE) private readonly storage: AssetStorage,
     @Inject(AddressDeliverabilityService)
     private readonly deliverability: AddressDeliverabilityService,
+    @Inject(InboundRedactionService)
+    private readonly redaction: InboundRedactionService,
   ) {}
 
   setFetcher(f: ImapFetcher): void {
@@ -488,6 +494,24 @@ export class EmailAdapter implements ChannelAdapter {
         }
 
         const stored = await this.recordInboundAttachments(conversationId, prepared.stored);
+        const scrubbed = await this.redaction.apply(tx, orgId, {
+          body: cleanText || '(no body)',
+          bodyHtml: prepared.bodyHtml,
+          subject: parsed.subject || null,
+          metadata: buildInboundMetadata(parsed, {
+            regexSignatureText: detectedSignatureForMeta,
+            preStripBody: regexCutSignature ? quoteStrippedText : null,
+            origin: sender,
+            quotedThread,
+            suppressed,
+          }),
+        });
+        if (!resolution && scrubbed.fields.subject !== (parsed.subject || null)) {
+          await tx
+            .update(schema.convConversations)
+            .set({ subject: scrubbed.fields.subject })
+            .where(eq(schema.convConversations.id, conversationId));
+        }
         const [msg] = await tx
           .insert(schema.convMessages)
           .values({
@@ -495,17 +519,11 @@ export class EmailAdapter implements ChannelAdapter {
             conversationId,
             authorType: 'end_user',
             authorId: contact.id,
-            body: cleanText || '(no body)',
-            bodyHtml: prepared.bodyHtml,
+            body: scrubbed.fields.body,
+            bodyHtml: scrubbed.fields.bodyHtml ?? null,
             attachments: stored.projection,
             internal: false,
-            metadata: buildInboundMetadata(parsed, {
-              regexSignatureText: detectedSignatureForMeta,
-              preStripBody: regexCutSignature ? quoteStrippedText : null,
-              origin: sender,
-              quotedThread,
-              suppressed,
-            }),
+            metadata: stampDetections(scrubbed.fields.metadata ?? {}, scrubbed.detected),
           })
           .returning();
         if (stored.dtos.length > 0) {

@@ -14,6 +14,10 @@ import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from '../set-topic-job.ts';
 import { reopenClosedConversation } from '../conversation-reopen.ts';
 import { raiseAttentionWhenAgentIsOff } from '../unanswerable-handover.ts';
+import {
+  InboundRedactionService,
+  stampDetections,
+} from '../inbound-redaction.service.ts';
 import type { ChannelRow, InboundBatch } from './adapter.ts';
 
 @Injectable()
@@ -24,6 +28,7 @@ export class ChannelIngestService {
     @Inject(DB) private readonly db: Db,
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(CuratorJobsService) private readonly curatorJobs: CuratorJobsService,
+    @Inject(InboundRedactionService) private readonly redaction: InboundRedactionService,
   ) {}
 
   async ingest(channel: ChannelRow, batch: InboundBatch): Promise<{ ingested: number }> {
@@ -81,6 +86,11 @@ export class ChannelIngestService {
         if (msg.raw) metadata.raw = msg.raw;
         if (spamSender) metadata.suppressed = 'spam_sender';
 
+        const scrubbed = await this.redaction.apply(tx, orgId, {
+          body: msg.body,
+          bodyHtml: msg.bodyHtml ?? null,
+          metadata,
+        });
         const [stored] = await tx
           .insert(schema.convMessages)
           .values({
@@ -88,10 +98,10 @@ export class ChannelIngestService {
             conversationId: conversation.id,
             authorType: 'end_user',
             authorId: contact.id,
-            body: msg.body,
-            bodyHtml: msg.bodyHtml ?? null,
+            body: scrubbed.fields.body,
+            bodyHtml: scrubbed.fields.bodyHtml ?? null,
             internal: false,
-            metadata,
+            metadata: stampDetections(scrubbed.fields.metadata ?? {}, scrubbed.detected),
           })
           .returning();
 

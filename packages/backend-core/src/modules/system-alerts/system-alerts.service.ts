@@ -10,6 +10,7 @@ export const ALERT_SOURCES = [
   'curator',
   'delivery',
   'quota',
+  'data_protection',
 ] as const;
 export type AlertSource = (typeof ALERT_SOURCES)[number];
 

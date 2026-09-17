@@ -17,6 +17,10 @@ import { raiseAttentionWhenAgentIsOff } from '../unanswerable-handover.ts';
 import { ConvAttachmentsService } from '../attachments/conv-attachments.service.ts';
 import type { AttachmentDto } from '../attachments/conv-attachments.types.ts';
 import { WidgetChannelConfig } from './widget.types.ts';
+import {
+  InboundRedactionService,
+  stampDetections,
+} from '../inbound-redaction.service.ts';
 import type {
   WidgetCompleteAttachmentInputT,
   WidgetCompleteAttachmentResult,
@@ -50,6 +54,7 @@ export class WidgetIngestService {
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(CuratorJobsService) private readonly curatorJobs: CuratorJobsService,
     @Inject(ConvAttachmentsService) private readonly attachments: ConvAttachmentsService,
+    @Inject(InboundRedactionService) private readonly redaction: InboundRedactionService,
   ) {}
 
   async ingest(
@@ -741,6 +746,11 @@ export class WidgetIngestService {
 
       let insertedId: string | null = null;
       let dup = false;
+      const scrubbed = await this.redaction.apply(tx, orgId, {
+        body: msg.body,
+        bodyHtml: msg.bodyHtml ?? null,
+        metadata: meta,
+      });
       try {
         await tx.transaction(async (sp) => {
           const inserts = await sp
@@ -750,10 +760,10 @@ export class WidgetIngestService {
               conversationId: conv.id,
               authorType,
               authorId,
-              body: msg.body,
-              bodyHtml: msg.bodyHtml ?? null,
+              body: scrubbed.fields.body,
+              bodyHtml: scrubbed.fields.bodyHtml ?? null,
               internal: false,
-              metadata: meta,
+              metadata: stampDetections(scrubbed.fields.metadata ?? {}, scrubbed.detected),
               createdAt: msg.at ?? undefined,
             })
             .returning({ id: schema.convMessages.id });

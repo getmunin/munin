@@ -3573,6 +3573,58 @@
         ]
       }
     },
+    "/v1/conversations/redaction": {
+      "get": {
+        "operationId": "ConvRedactionController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvRedaction"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "ConvRedactionController_update",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutRedactionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvRedaction"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations": {
       "get": {
         "operationId": "ConversationsController_list",
@@ -9373,6 +9425,41 @@
         },
         "required": [
           "to"
+        ]
+      },
+      "PutRedactionBody": {
+        "type": "object",
+        "properties": {
+          "detectors": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "no_fnr",
+                "se_pnr",
+                "dk_cpr"
+              ]
+            }
+          },
+          "policy": {
+            "type": "string",
+            "enum": [
+              "off",
+              "mask",
+              "remove"
+            ]
+          },
+          "minConfidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium"
+            ]
+          }
+        },
+        "required": [
+          "detectors",
+          "policy"
         ]
       },
       "UpdateTopicBody": {

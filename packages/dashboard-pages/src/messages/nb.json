@@ -177,6 +177,7 @@
     "agents": "Agenter",
     "apiKeys": "API-nøkler",
     "channels": "Kanaler",
+    "privacy": "Personvern",
     "trackers": "Sporing",
     "endUsers": "Sluttbrukere",
     "usage": "Bruk",
@@ -209,7 +210,8 @@
       "alertReasonMultiple": "{title} (+{count} til)",
       "channelInboundFailing": "Henting av nye meldinger feiler på «{name}»",
       "channelOutboundFailing": "Svar kommer ikke ut på «{name}»",
-      "openChannelSettings": "Åpne kanalinnstillinger →"
+      "openChannelSettings": "Åpne kanalinnstillinger →",
+      "openPrivacySettings": "Åpne personverninnstillinger"
     },
     "loadFailed": {
       "eyebrow": "Tilkobling · feilet",
@@ -1598,6 +1600,52 @@
       "errors": {
         "save": "Kunne ikke lagre organisasjonen."
       }
+    },
+    "privacy": {
+      "eyebrow": "Personvern",
+      "title": "Person<em>opplysninger</em>",
+      "subtitle": "Bestem hva Munin tar vare på når kunder sender mer enn du ba om.",
+      "sectionTitle": "Fødselsnummer og tilsvarende",
+      "detectorsLabel": "Type nummer",
+      "detectorsHint": "Velg de kundene dine faktisk sender. Munin ser etter alle uansett og sier fra når et dukker opp — her velger du hvilke som skal fjernes.",
+      "detectors": {
+        "no_fnr": {
+          "name": "Norsk fødselsnummer",
+          "hint": "Elleve siffer med to kontrollsiffer. Gjenkjennes sikkert, også D-nummer og H-nummer."
+        },
+        "se_pnr": {
+          "name": "Svensk personnummer",
+          "hint": "Ti eller tolv siffer med Luhn-kontrollsiffer. Samordningsnummer er med."
+        },
+        "dk_cpr": {
+          "name": "Dansk CPR-nummer",
+          "hint": "Ti siffer. Danmark sluttet med kontrollsiffer i 2007, så bare formen med bindestrek gjenkjennes sikkert."
+        }
+      },
+      "policyLabel": "Hva som skal skje med et treff",
+      "policies": {
+        "off": "Lagre det uendret",
+        "mask": "Behold bare fødselsdatoen",
+        "remove": "Fjern det helt"
+      },
+      "policyHint": {
+        "off": "Ingenting skrives om. Du får fortsatt beskjed når slike nummer kommer inn.",
+        "mask": "Treffet blir stående som fødselsdato etterfulgt av stjerner — nok til å kjenne igjen personen i en sak, uten å oppbevare nummeret.",
+        "remove": "Treffet erstattes av en merknad om hva som ble fjernet. Sifrene beholdes ingen steder."
+      },
+      "confidenceLabel": "Hvor sikkert et treff må være",
+      "confidences": {
+        "high": "Bare tilnærmet sikre treff",
+        "medium": "Også løse treff"
+      },
+      "confidenceHint": {
+        "high": "Krever gyldig kontrollsiffer eller skilletegn. Ordrenummer og kontonummer røres ikke.",
+        "medium": "Fjerner også rene sifferrekker. Fanger mer, men tar av og til et referansenummer med på kjøpet."
+      },
+      "scopeNote": "Gjelder meldinger som kommer inn etter at du lagrer. Fjerning kan ikke angres, og tekst inne i vedlegg dekkes ikke.",
+      "errors": {
+        "save": "Klarte ikke å lagre personverninnstillingene."
+      }
     }
   },
   "agentSetup": {
@@ -2053,6 +2101,7 @@
     "conv_draft_pending": "En kladd venter allerede på gjennomgang.",
     "conv_draft_request_invalid": "Agenten kan ikke lage utkast her – samtalen er lukket, mangler en kunde å svare, eller agenten er slått av.",
     "conv_invalid": "Dette utkastet ligger ikke lenger til behandling i samtalen – det er allerede sendt, eller agenten har skrevet et nyere. Åpne samtalen på nytt for å se hvor den står.",
+    "conv_redaction_invalid": "Velg minst én type nummer, eller slå av fjerning.",
     "conv_test_self_addressed": "Den adressen tilhører kanalen selv. Send testen til en annen postkasse du har tilgang til.",
     "kb_curation_decided": "Denne er allerede behandlet – publisert eller forkastet – og blir ikke foreslått igjen. Oppdater køen.",
     "kb_version_conflict": "Noen endret teksten mens du hadde den åpen, så ingenting ble lagret. Åpne den på nytt for å se gjeldende versjon og ta stilling til den.",

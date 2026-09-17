@@ -188,6 +188,7 @@ import { InboundRedactionService } from './inbound-redaction.service.ts';
   exports: [
     OUTREACH_VOICE_CALLERS,
     ConvService,
+    InboundRedactionService,
     ConvAttachmentsService,
     InlineImageBackfillService,
     ConvAutomationService,

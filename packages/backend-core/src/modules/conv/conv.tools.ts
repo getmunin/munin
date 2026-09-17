@@ -11,6 +11,7 @@ import {
   SUPPRESSED_REASON_FILTERS,
 } from './conv.service.ts';
 import { ConvAutomationService } from './conv-automation.service.ts';
+import { InboundRedactionService } from './inbound-redaction.service.ts';
 import { CONV_ATTACHMENT_PER_MESSAGE_MAX } from './attachments/conv-attachments.constants.ts';
 import { ConvAttachmentsService } from './attachments/conv-attachments.service.ts';
 import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
@@ -20,6 +21,25 @@ const StatusSchema = z.enum(STATUSES);
 const AgentModeSchema = z.enum(AGENT_MODES);
 const HandoverSchema = z.enum(HANDOVER_FILTERS);
 const SuppressedReasonFilterSchema = z.enum(SUPPRESSED_REASON_FILTERS);
+
+const ConfigureRedactionInput = z.object({
+  detectors: z
+    .array(z.enum(['no_fnr', 'se_pnr', 'dk_cpr']))
+    .describe(
+      'Identifier types to redact: `no_fnr` (Norwegian fødselsnummer), `se_pnr` (Swedish personnummer), `dk_cpr` (Danish CPR). Empty list is only valid with policy `off`.',
+    ),
+  policy: z
+    .enum(['off', 'mask', 'remove'])
+    .describe(
+      '`off` stores inbound text unchanged. `mask` keeps the birth date and hides the rest. `remove` replaces the number with a marker naming what was removed.',
+    ),
+  minConfidence: z
+    .enum(['high', 'medium'])
+    .optional()
+    .describe(
+      'Match strength required before a number is redacted. `high` (default) requires a check digit or a separator. `medium` also catches bare digit runs, which raises false positives — relevant mainly for Danish CPR, which has had no verifiable check digit since 2007.',
+    ),
+});
 
 const ListConversationsInput = z.object({
   status: StatusSchema.optional(),
@@ -221,6 +241,7 @@ export class ConvAdminTools {
     @Inject(ConvService) private readonly conv: ConvService,
     @Inject(ConvAutomationService) private readonly automation: ConvAutomationService,
     @Inject(ConvAttachmentsService) private readonly attachments: ConvAttachmentsService,
+    @Inject(InboundRedactionService) private readonly redaction: InboundRedactionService,
   ) {}
 
   @McpTool({
@@ -540,5 +561,35 @@ export class ConvAdminTools {
   })
   importConv(args: z.infer<typeof ConvImportInput>) {
     return this.conv.importConv(args.records, args.idMap);
+  }
+
+  @McpTool({
+    name: 'conv_get_redaction_policy',
+    title: 'Conv: Get the inbound national-ID redaction policy',
+    description:
+      "Read this org's policy for national identity numbers arriving in conversations — which identifier types are redacted, whether matches are masked or removed, and the confidence floor. `availableDetectors` lists every type this server can recognise. Detection runs regardless of the policy, so a message can carry a `detectedNationalIds` summary even while the policy is `off`.",
+    audiences: ['admin'],
+    scopes: ['conv:read'],
+    input: EmptyInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getRedactionPolicy() {
+    return this.redaction.getPolicy();
+  }
+
+  @McpTool({
+    name: 'conv_configure_redaction',
+    title: 'Conv: Configure inbound national-ID redaction',
+    description:
+      "Set how inbound conversation text is treated when it contains a national identity number. Applies to messages ingested after the change — email, SMS, voice and widget alike — and rewrites every stored copy, including the HTML body, the conversation subject, and the quoted history and signature captured in message metadata. Existing messages are untouched. Redaction is irreversible: with `remove` the original digits are not retained anywhere.",
+    audiences: ['admin'],
+    scopes: ['conv:write'],
+    input: ConfigureRedactionInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  configureRedaction(args: z.infer<typeof ConfigureRedactionInput>) {
+    return this.redaction.configure(args);
   }
 }

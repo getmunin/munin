@@ -162,6 +162,27 @@ export interface FeedbackOutboxDto {
   forwardError: string | null;
 }
 
+export interface SocialDraftDto {
+  id: string;
+  platform: string;
+  setId: string;
+  variantLabel: string;
+  body: string;
+  linkUrl: string | null;
+  shareUrl: string | null;
+  sourceRef: Record<string, unknown>;
+  suggestedUserId: string | null;
+  status: string;
+  bodyChars: number;
+  maxBodyChars: number;
+  composerUrl: string;
+  externalPostId: string | null;
+  permalink: string | null;
+  decidedAt: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+}
+
 export interface CmsDraftSummaryDto {
   id: string;
   collectionId: string;
@@ -264,7 +285,8 @@ export type QueueItem =
   | { kind: 'crm'; id: string; title: string; snippet: string; createdAt: string; raw: CrmMergeProposalDto }
   | { kind: 'outreach'; id: string; title: string; snippet: string; createdAt: string; raw: OutreachProposalDto }
   | { kind: 'cms'; id: string; title: string; snippet: string; createdAt: string; raw: CmsDraftSummaryDto }
-  | { kind: 'feedback'; id: string; title: string; snippet: string; createdAt: string; raw: FeedbackOutboxDto };
+  | { kind: 'feedback'; id: string; title: string; snippet: string; createdAt: string; raw: FeedbackOutboxDto }
+  | { kind: 'social'; id: string; title: string; snippet: string; createdAt: string; raw: SocialDraftDto };
 
 export type ScheduledItem =
   | {
@@ -289,13 +311,15 @@ export type QueueCodeKey =
   | 'codeCrm'
   | 'codeOutreach'
   | 'codeFeedback'
-  | 'codeCms';
+  | 'codeCms'
+  | 'codeSocial';
 
 export function queueCodeKey(kind: QueueItem['kind']): QueueCodeKey {
   if (kind === 'outreach') return 'codeOutreach';
   if (kind === 'kb') return 'codeKb';
   if (kind === 'feedback') return 'codeFeedback';
   if (kind === 'cms') return 'codeCms';
+  if (kind === 'social') return 'codeSocial';
   return 'codeCrm';
 }
 

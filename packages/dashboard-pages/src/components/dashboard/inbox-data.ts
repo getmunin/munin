@@ -19,7 +19,7 @@ import type {
   QueueItem,
   ScheduledItem,
 } from './queue-panes/types';
-import { clearKey, contactLabel, feedbackSnippet } from './inbox-helpers';
+import { clearKey, contactLabel, feedbackSnippet, socialDraftTitle } from './inbox-helpers';
 import type {
   QueueActionError,
   InboxController,
@@ -99,6 +99,24 @@ function useQueueBuilder() {
                   : tQueue('cmsSnippetNoBody', { collection: c.collectionName }),
               createdAt: item.at,
               raw: c,
+            },
+          ];
+        }
+        if (item.kind === 'social') {
+          const d = item.raw;
+          return [
+            {
+              kind: 'social',
+              id: item.id,
+              title: socialDraftTitle(d.body, tQueue('socialUntitled')),
+              snippet: tQueue('socialSnippet', {
+                platform: d.platform,
+                label: d.variantLabel,
+                chars: d.bodyChars,
+                max: d.maxBodyChars,
+              }),
+              createdAt: item.at,
+              raw: d,
             },
           ];
         }
@@ -353,6 +371,8 @@ export function useInboxData(): InboxController {
           await api(`/v1/feedback/${item.id}/approve`, { method: 'POST' });
         } else if (item.kind === 'cms') {
           await api(`/v1/cms/drafts/${item.id}/approve`, { method: 'POST', body: '{}' });
+        } else if (item.kind === 'social') {
+          await api(`/v1/social/drafts/${item.id}/approve`, { method: 'POST', body: '{}' });
         } else {
           await api(`/v1/outreach/proposals/${item.id}/approve`, {
             method: 'POST',
@@ -393,6 +413,11 @@ export function useInboxData(): InboxController {
           await api(`/v1/outreach/proposals/${item.id}`, {
             method: 'PATCH',
             body: JSON.stringify({ draftBody: body }),
+          });
+        } else if (item.kind === 'social') {
+          await api(`/v1/social/drafts/${item.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ body }),
           });
         }
         await loadInbox();
@@ -481,6 +506,8 @@ export function useInboxData(): InboxController {
           await api(`/v1/feedback/${item.id}/dismiss`, { method: 'POST' });
         } else if (item.kind === 'cms') {
           await api(`/v1/cms/drafts/${item.id}/dismiss`, { method: 'POST', body: '{}' });
+        } else if (item.kind === 'social') {
+          await api(`/v1/social/drafts/${item.id}/dismiss`, { method: 'POST', body: '{}' });
         } else {
           await api(`/v1/outreach/proposals/${item.id}/dismiss`, {
             method: 'POST',

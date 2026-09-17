@@ -3,10 +3,11 @@ import { KbModule } from '../kb/kb.module.ts';
 import { CrmModule } from '../crm/crm.module.ts';
 import { OutreachModule } from '../outreach/outreach.module.ts';
 import { CmsModule } from '../cms/cms.module.ts';
+import { SocialModule } from '../social/social.module.ts';
 import { ReviewService } from './review.service.ts';
 
 @Module({
-  imports: [KbModule, CrmModule, OutreachModule, CmsModule],
+  imports: [KbModule, CrmModule, OutreachModule, CmsModule, SocialModule],
   providers: [ReviewService],
   exports: [ReviewService],
 })

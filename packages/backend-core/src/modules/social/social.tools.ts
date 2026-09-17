@@ -17,6 +17,11 @@ const ListDraftsInput = z.object({
 
 const IdInput = z.object({ id: z.string() });
 
+const DismissInput = z.object({
+  id: z.string(),
+  reason: z.string().max(500).nullable().optional(),
+});
+
 const CreateDraftInput = z.object({
   body: z.string().min(1),
   platform: PlatformField,
@@ -137,14 +142,14 @@ export class SocialTools {
     name: 'social_dismiss_post_draft',
     title: 'Social: Dismiss post draft',
     description:
-      'Close a draft nobody intends to publish. Dismissing one variant leaves the rest of its set alone.',
+      'Close a draft nobody intends to publish, optionally recording why. Dismissing one variant leaves the rest of its set alone.',
     audiences: ['admin'],
     scopes: ['social:write'],
-    input: IdInput,
+    input: DismissInput,
     destructiveHint: true,
   })
-  dismissDraft(args: z.infer<typeof IdInput>) {
-    return this.social.dismissDraft(args.id);
+  dismissDraft(args: z.infer<typeof DismissInput>) {
+    return this.social.dismissDraft(args.id, args.reason ?? null);
   }
 
   @McpTool({

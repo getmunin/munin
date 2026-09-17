@@ -11,6 +11,8 @@ import { UsageController } from './usage.controller.ts';
 import { WebhooksController } from './webhooks.controller.ts';
 import { CmsDeliveryController } from './cms-delivery.controller.ts';
 import { CmsDraftsController } from './cms-drafts.controller.ts';
+import { SocialDraftsController } from './social-drafts.controller.ts';
+import { SocialModule } from '../modules/social/social.module.ts';
 import { AnalyticsViewsController } from './analytics-views.controller.ts';
 import { AnalyticsTrackerController } from './analytics-tracker.controller.ts';
 import { AnalyticsTrackersController } from './analytics-trackers.controller.ts';
@@ -79,6 +81,7 @@ import { ReviewModule } from '../modules/review/review.module.ts';
     SlackModule,
     ConnectorsModule,
     ReviewModule,
+    SocialModule,
   ],
   controllers: [
     ApiKeysController,
@@ -92,6 +95,7 @@ import { ReviewModule } from '../modules/review/review.module.ts';
     UsageController,
     WebhooksController,
     CmsDraftsController,
+    SocialDraftsController,
     CmsTransferController,
     CmsDeliveryController,
     AnalyticsViewsController,

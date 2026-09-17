@@ -37,3 +37,14 @@ export function clearKey<T>(obj: Record<string, T>, key: string): Record<string,
   delete next[key];
   return next;
 }
+
+export const SOCIAL_TITLE_MAX = 72;
+
+export function socialDraftTitle(body: string, fallback: string): string {
+  const firstLine = body.split('\n').find((line) => line.trim() !== '')?.trim();
+  if (!firstLine) return fallback;
+  if (firstLine.length <= SOCIAL_TITLE_MAX) return firstLine;
+  const clipped = firstLine.slice(0, SOCIAL_TITLE_MAX);
+  const lastSpace = clipped.lastIndexOf(' ');
+  return `${(lastSpace > SOCIAL_TITLE_MAX / 2 ? clipped.slice(0, lastSpace) : clipped).trimEnd()}…`;
+}

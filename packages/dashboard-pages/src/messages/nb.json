@@ -281,7 +281,11 @@
         "actionFailed": {
           "approve": "Publiseringen feilet",
           "dismiss": "Avvisningen feilet"
-        }
+        },
+        "kindSocial": "SOSIALT",
+        "codeSocial": "SOS",
+        "socialUntitled": "Utkast uten tekst",
+        "socialSnippet": "{platform} · {label} · {chars}/{max} tegn"
       },
       "scheduled": {
         "outreachUntitled": "Utkast til utsending",
@@ -427,7 +431,18 @@
         },
         "quotedThreadToggle": "Tidligere i tråden ({count})",
         "quotedThreadNotice": "Gjenskapt fra sitert tekst i e-posten. Disse meldingene er ikke sendt gjennom Munin og inngår ikke i samtaleloggen.",
-        "quotedThreadUnknownSender": "Ukjent avsender"
+        "quotedThreadUnknownSender": "Ukjent avsender",
+        "metaSocial": "{platform} · {chars}/{max} tegn · {age}",
+        "socialBody": "Innlegg",
+        "socialLink": "Lenke å dele",
+        "socialCopyBody": "Kopier innlegg",
+        "socialCopyLink": "Kopier lenke",
+        "socialCopied": "Kopiert",
+        "socialLinkTagged": "Merket for denne varianten, så klikktallene senere viser hvilken vinkling som traff.",
+        "socialComposerHint": "Munin publiserer ikke for deg. Kopier teksten, legg den ut i ditt eget navn, og marker den som lagt ut her.",
+        "socialOpenComposer": "Åpne {platform} →",
+        "socialMarkPosted": "Marker som lagt ut",
+        "shortcutMarkPosted": "⌘↵ marker som lagt ut"
       },
       "relative": {
         "justNow": "akkurat nå",
@@ -1207,7 +1222,8 @@
           "crm": "Holdt adskilt",
           "outreach": "Forkastet",
           "cms": "Forkastet",
-          "feedback": "Avvist"
+          "feedback": "Avvist",
+          "social": "Forkastet"
         },
         "decisionReason": "Begrunnelse",
         "decidedByAgent": "Agenten",
@@ -1301,7 +1317,8 @@
           "crm": "Slått sammen",
           "outreach": "Sendt",
           "cms": "Publisert",
-          "feedback": "Videresendt"
+          "feedback": "Videresendt",
+          "social": "Lagt ut"
         },
         "outcomeFailed": "Sending feilet",
         "decidedUntitled": "Uten tittel",
@@ -1331,8 +1348,14 @@
             "approved": "Saken ble videresendt til Munin-teamet.",
             "dismissed": "Saken ble avvist, og ingenting ble sendt.",
             "failed": "Videresendingen feilet, og ingenting nådde Munin-teamet."
+          },
+          "social": {
+            "approved": "Utkastet ble lagt ut, og settet det hører til er avgjort.",
+            "dismissed": "Ingen publiserte denne varianten. Resten av settet er urørt.",
+            "failed": "Innlegget kunne ikke publiseres."
           }
-        }
+        },
+        "decidedSocialVariant": "Sosialt innlegg · {label}"
       },
       "automation": {
         "eyebrow": "Automatisering — per tema",

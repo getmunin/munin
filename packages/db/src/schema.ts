@@ -2224,6 +2224,7 @@ export const socialPostDrafts = pgTable(
     publishedAt: timestamp('published_at', { withTimezone: true }),
     externalPostId: text('external_post_id'),
     permalink: text('permalink'),
+    dismissReason: text('dismiss_reason'),
     lastError: text('last_error'),
     createdAt,
     updatedAt,

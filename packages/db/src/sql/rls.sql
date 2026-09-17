@@ -199,6 +199,14 @@ CREATE POLICY tenant_isolation ON feedback_outbox
 -- ───────────────────────── org_alerts ──────────────────────────────────────
 -- Org-scoped operational alerts. Admin-only (no end-user audience). Writers
 -- across modules call AlertsService which sets tenancy GUCs before insert.
+--
+-- `user_id` (nullable; NULL = org-scoped) narrows an alert to a single org
+-- member — used by integrations whose credentials are per-person, where only
+-- that member can act on the failure. RLS deliberately does NOT enforce that
+-- narrowing: the GUCs carry org and end-user identity, and an end user is a
+-- customer, not an org member, so there is no member identity to key a policy
+-- on. Per-member visibility is filtered in AlertsService against
+-- actor.userId. Tenant isolation below remains the boundary RLS defends.
 ALTER TABLE org_alerts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE org_alerts FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON org_alerts;

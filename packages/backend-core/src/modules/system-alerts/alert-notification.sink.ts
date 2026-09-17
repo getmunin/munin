@@ -16,6 +16,7 @@ export const NOTIFY_POLICY: Record<AlertSource, NotifyRule | null> = {
   delivery: { minSeverity: 'error' },
   quota: { minSeverity: 'warning' },
   social: { minSeverity: 'warning' },
+  data_protection: { minSeverity: 'warning' },
 };
 
 const SEVERITY_RANK: Record<AlertSeverity, number> = { warning: 1, error: 2 };

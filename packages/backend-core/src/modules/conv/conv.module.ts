@@ -73,6 +73,7 @@ import { WidgetEmailFallbackWorker } from './widget/widget-email-fallback.worker
 import { WidgetChannelAdminService } from './widget/widget-channel-admin.service.ts';
 import { WidgetAdminTools } from './widget/widget.tools.ts';
 import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
+import { InboundRedactionService } from './inbound-redaction.service.ts';
 
 @Module({
   imports: [
@@ -87,6 +88,7 @@ import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
   controllers: [WidgetController, ChannelWebhookController, EmailRelayController],
   providers: [
     ConvService,
+    InboundRedactionService,
     ConvAttachmentsService,
     AttachmentGcWorker,
     InlineImageBackfillService,

@@ -214,6 +214,17 @@ CREATE POLICY tenant_isolation ON org_alerts
   USING (app_bypass_rls() OR org_id = app_org_id())
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 
+-- ───────────────────────── social_post_drafts ──────────────────────────────
+-- Social post drafts awaiting a human decision. Admin-only: an end user has no
+-- business reading what the org is about to publish about itself, so delegated
+-- end-user sessions are excluded even when the org matches.
+ALTER TABLE social_post_drafts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE social_post_drafts FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON social_post_drafts;
+CREATE POLICY tenant_isolation ON social_post_drafts
+  USING (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''))
+  WITH CHECK (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''));
+
 -- ───────────────────────── alert_notifications ─────────────────────────────
 -- Queue of alert emails awaiting delivery. Org-scoped like the alerts it
 -- references. The drain worker connects with the service role (bypass_rls is

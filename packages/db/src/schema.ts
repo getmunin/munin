@@ -2200,6 +2200,41 @@ export const alertNotifications = pgTable(
   }),
 );
 
+export const socialPostDrafts = pgTable(
+  'social_post_drafts',
+  {
+    id: id('spd'),
+    orgId: text('org_id')
+      .notNull()
+      .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
+    platform: varchar('platform', { length: 16 }).notNull(),
+    setId: text('set_id').notNull(),
+    variantLabel: varchar('variant_label', { length: 32 }).notNull(),
+    body: text('body').notNull(),
+    linkUrl: text('link_url'),
+    linkUtm: jsonb('link_utm').$type<Record<string, string>>().notNull().default({}),
+    sourceRef: jsonb('source_ref').$type<Record<string, unknown>>().notNull().default({}),
+    suggestedUserId: text('suggested_user_id').references(() => users.id, { onDelete: 'set null' }),
+    status: varchar('status', { length: 24 }).notNull().default('pending'),
+    proposedByActorType: varchar('proposed_by_actor_type', { length: 16 }).notNull(),
+    proposedByActorId: text('proposed_by_actor_id').notNull(),
+    decidedByActorType: varchar('decided_by_actor_type', { length: 16 }),
+    decidedByActorId: text('decided_by_actor_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    externalPostId: text('external_post_id'),
+    permalink: text('permalink'),
+    lastError: text('last_error'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgSetIdx: index('social_post_drafts_org_set_idx').on(t.orgId, t.setId),
+    orgStatusIdx: index('social_post_drafts_org_status_idx').on(t.orgId, t.status, t.createdAt),
+    orgCreatedIdx: index('social_post_drafts_org_created_idx').on(t.orgId, t.createdAt),
+  }),
+);
+
 // ───────────────────────── Slack operator bridge ─────────────────────
 // Slack as an operator surface layered on existing conversations: each
 // conversation mirrors into one Slack thread; operators triage and (later
@@ -2604,6 +2639,7 @@ export const allTables = {
   feedbackOutbox,
   orgAlerts,
   alertNotifications,
+  socialPostDrafts,
   slackIntegrations,
   slackChannelRoutes,
   slackConversationLinks,

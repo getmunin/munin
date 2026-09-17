@@ -19,6 +19,7 @@ const MODULE_TITLE_PREFIX: Record<string, string> = {
   outreach: 'Outreach',
   seo: 'SEO',
   slack: 'Slack',
+  social: 'Social',
   system_alerts: 'System alerts',
   webhooks: 'Webhooks',
 };
@@ -46,6 +47,7 @@ const TITLE_WORDS_BY_VERB: Record<string, readonly string[]> = {
   list: ['list'],
   log: ['log'],
   lookup: ['look'],
+  mark: ['mark'],
   propose: ['propose'],
   publish: ['publish'],
   request: ['request'],

@@ -1,15 +1,19 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { eq, sql } from 'drizzle-orm';
-import { schema, type Db, type Tx } from '@getmunin/db';
-import {
-  decryptSecretSql,
-  encryptSecretSql,
-  setEncryptionKeySql,
-  signHmac,
-  verifyHmac,
-} from '@getmunin/core';
-import { DB } from '../../common/db/db.module.ts';
+import { eq } from 'drizzle-orm';
+import { schema, type Tx } from '@getmunin/db';
 import { authorizationServerUrl } from '../../oauth/oauth.constants.ts';
+import {
+  OutboundOAuthStore,
+  type RefreshOutcome,
+} from '../../common/outbound-oauth/grant-store.ts';
+import {
+  accessTokenIsFresh,
+  nextGrant,
+  readGrant,
+  type StoredOAuthGrant,
+} from '../../common/outbound-oauth/grant.ts';
+import { readSignedState, signSignedState } from '../../common/outbound-oauth/signed-state.ts';
+import { SingleFlight } from '../../common/outbound-oauth/single-flight.ts';
 import {
   ConnectorRegistry,
   OAuthGrantRevokedError,
@@ -18,19 +22,11 @@ import {
   type OAuthClientCredentials,
   type OAuthTokenSet,
 } from './connector.ts';
-import { ConnectorVendorError } from './http.ts';
 
 export const OAUTH_CONFIG_KEY = 'oauth';
 const AUTHORIZE_STATE_TTL_MS = 10 * 60 * 1000;
-const REFRESH_SKEW_MS = 60_000;
 
-export interface StoredOAuthGrant {
-  encryptedRefreshToken: string;
-  encryptedAccessToken: string | null;
-  accessTokenExpiresAt: string | null;
-  scopes: string[];
-  connectedAt: string;
-}
+export type { StoredOAuthGrant } from '../../common/outbound-oauth/grant.ts';
 
 interface AuthorizeState {
   connectionId: string;
@@ -55,51 +51,31 @@ function stateSecret(): string {
 }
 
 export function signAuthorizeState(state: AuthorizeState): string {
-  const payload = Buffer.from(JSON.stringify(state)).toString('base64url');
-  return `${payload}.${signHmac(payload, stateSecret())}`;
+  return signSignedState(state, stateSecret());
 }
 
 export function verifyAuthorizeState(raw: unknown): AuthorizeState | null {
-  if (typeof raw !== 'string' || raw.length === 0 || raw.length > 4096) return null;
-  const dot = raw.lastIndexOf('.');
-  if (dot <= 0) return null;
-  const payload = raw.slice(0, dot);
-  if (!verifyHmac(payload, stateSecret(), raw.slice(dot + 1))) return null;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-  } catch {
-    return null;
-  }
-  const state = parsed as Partial<AuthorizeState>;
-  if (typeof state.connectionId !== 'string' || typeof state.orgId !== 'string') return null;
-  if (typeof state.exp !== 'number' || state.exp < Date.now()) return null;
-  return { connectionId: state.connectionId, orgId: state.orgId, exp: state.exp };
+  const state = readSignedState(raw, stateSecret());
+  if (!state) return null;
+  const connectionId = state['connectionId'];
+  const orgId = state['orgId'];
+  const exp = state['exp'];
+  if (typeof connectionId !== 'string' || typeof orgId !== 'string') return null;
+  if (typeof exp !== 'number') return null;
+  return { connectionId, orgId, exp };
 }
 
 export function readStoredGrant(config: Record<string, unknown>): StoredOAuthGrant | null {
-  const raw = config[OAUTH_CONFIG_KEY];
-  if (!raw || typeof raw !== 'object') return null;
-  const grant = raw as Partial<StoredOAuthGrant>;
-  if (typeof grant.encryptedRefreshToken !== 'string') return null;
-  return {
-    encryptedRefreshToken: grant.encryptedRefreshToken,
-    encryptedAccessToken:
-      typeof grant.encryptedAccessToken === 'string' ? grant.encryptedAccessToken : null,
-    accessTokenExpiresAt:
-      typeof grant.accessTokenExpiresAt === 'string' ? grant.accessTokenExpiresAt : null,
-    scopes: Array.isArray(grant.scopes) ? grant.scopes.filter((s) => typeof s === 'string') : [],
-    connectedAt: typeof grant.connectedAt === 'string' ? grant.connectedAt : '',
-  };
+  return readGrant(config[OAUTH_CONFIG_KEY]);
 }
 
 @Injectable()
 export class ConnectorOAuthService {
-  private readonly inFlight = new Map<string, Promise<string>>();
+  private readonly inFlight = new SingleFlight<string>();
 
   constructor(
     @Inject(ConnectorRegistry) private readonly registry: ConnectorRegistry,
-    @Inject(DB) private readonly rootDb?: Db,
+    @Inject(OutboundOAuthStore) private readonly store: OutboundOAuthStore,
   ) {}
 
   isOAuthVendor(vendor: string): boolean {
@@ -166,13 +142,7 @@ export class ConnectorOAuthService {
   }
 
   accessTokenFor(row: ConnectionRow): () => Promise<string> {
-    return () => {
-      const pending = this.inFlight.get(row.id);
-      if (pending) return pending;
-      const task = this.resolveAccessToken(row).finally(() => this.inFlight.delete(row.id));
-      this.inFlight.set(row.id, task);
-      return task;
-    };
+    return () => this.inFlight.run(row.id, () => this.resolveAccessToken(row));
   }
 
   async revoke(row: ConnectionRow): Promise<void> {
@@ -183,7 +153,7 @@ export class ConnectorOAuthService {
       const grant = readStoredGrant(current.config);
       if (!grant) return;
       const client = await this.decryptClient(tx, current.config, oauth, adapter);
-      const refreshToken = await decryptOn(tx, grant.encryptedRefreshToken);
+      const refreshToken = await this.store.decrypt(tx, grant.encryptedRefreshToken);
       await oauth.revoke({ refreshToken, client }).catch(() => undefined);
       const rest = { ...current.config };
       delete rest[OAUTH_CONFIG_KEY];
@@ -200,14 +170,18 @@ export class ConnectorOAuthService {
   }
 
   private async resolveAccessToken(row: ConnectionRow): Promise<string> {
-    const outcome = await this.refreshUnderLock(row);
-    if ('revoked' in outcome) {
-      await this.markExpired(row, outcome.revoked);
-      throw new BadRequestException(
-        `connectors_expired: ${outcome.displayName} no longer accepts this connection's grant (${outcome.revoked}) — reconnect it with connectors_get_authorize_url`,
-      );
-    }
-    return outcome.token;
+    return this.store.resolveOrMarkRevoked({
+      attempt: () => this.refreshUnderLock(row),
+      onRevoked: (reason) => this.markExpired(row, reason),
+      revokedError: (reason) =>
+        new BadRequestException(
+          `connectors_expired: ${this.displayNameOf(row.vendor)} no longer accepts this connection's grant (${reason}) — reconnect it with connectors_get_authorize_url`,
+        ),
+    });
+  }
+
+  private displayNameOf(vendor: string): string {
+    return this.registry.get(vendor)?.displayName ?? vendor;
   }
 
   private async markExpired(row: ConnectionRow, reason: string): Promise<void> {
@@ -224,9 +198,7 @@ export class ConnectorOAuthService {
     });
   }
 
-  private async refreshUnderLock(
-    row: ConnectionRow,
-  ): Promise<{ token: string } | { revoked: string; displayName: string }> {
+  private async refreshUnderLock(row: ConnectionRow): Promise<RefreshOutcome<string>> {
     return this.withConnection(row.id, row.orgId, async (tx, current) => {
       const { adapter, oauth } = this.requireOAuthAdapter(current.vendor);
       const grant = readStoredGrant(current.config);
@@ -235,18 +207,16 @@ export class ConnectorOAuthService {
           `connectors_invalid: connection ${current.name} has not been authorized yet — open the link from connectors_get_authorize_url`,
         );
       }
-      if (grant.encryptedAccessToken && !isExpired(grant.accessTokenExpiresAt)) {
-        return { token: await decryptOn(tx, grant.encryptedAccessToken) };
+      if (grant.encryptedAccessToken && accessTokenIsFresh(grant)) {
+        return { token: await this.store.decrypt(tx, grant.encryptedAccessToken) };
       }
       const client = await this.decryptClient(tx, current.config, oauth, adapter);
-      const refreshToken = await decryptOn(tx, grant.encryptedRefreshToken);
+      const refreshToken = await this.store.decrypt(tx, grant.encryptedRefreshToken);
       let tokens: OAuthTokenSet;
       try {
         tokens = await oauth.refresh({ refreshToken, client });
       } catch (err) {
-        if (err instanceof OAuthGrantRevokedError) {
-          return { revoked: err.message, displayName: adapter.displayName };
-        }
+        if (err instanceof OAuthGrantRevokedError) return { revoked: err.message };
         throw err;
       }
       const next = await this.buildGrant(tx, tokens, oauth, grant);
@@ -268,21 +238,15 @@ export class ConnectorOAuthService {
     oauth: ConnectorOAuth,
     previous: StoredOAuthGrant | null,
   ): Promise<StoredOAuthGrant> {
-    const encryptedRefreshToken = tokens.refreshToken
-      ? await encryptOn(tx, tokens.refreshToken)
-      : previous?.encryptedRefreshToken;
-    if (!encryptedRefreshToken) {
-      throw new ConnectorVendorError('refresh token missing from the vendor response');
-    }
-    return {
-      encryptedRefreshToken,
-      encryptedAccessToken: await encryptOn(tx, tokens.accessToken),
-      accessTokenExpiresAt: tokens.expiresInSeconds
-        ? new Date(Date.now() + tokens.expiresInSeconds * 1000).toISOString()
+    return nextGrant({
+      encryptedAccessToken: await this.store.encrypt(tx, tokens.accessToken),
+      encryptedRefreshToken: tokens.refreshToken
+        ? await this.store.encrypt(tx, tokens.refreshToken)
         : null,
-      scopes: [...oauth.authorizationScopes],
-      connectedAt: previous?.connectedAt || new Date().toISOString(),
-    };
+      expiresInSeconds: tokens.expiresInSeconds,
+      scopes: oauth.authorizationScopes,
+      previous,
+    });
   }
 
   private requireOAuthAdapter(vendor: string): {
@@ -314,7 +278,7 @@ export class ConnectorOAuthService {
         `connectors_invalid: ${adapter.displayName} is missing its OAuth client credentials — enter them through the credential link first`,
       );
     }
-    return { clientId, clientSecret: await decryptOn(tx, encryptedSecret) };
+    return { clientId, clientSecret: await this.store.decrypt(tx, encryptedSecret) };
   }
 
   private async withConnection<T>(
@@ -322,10 +286,7 @@ export class ConnectorOAuthService {
     expectedOrgId: string,
     fn: (tx: Tx, row: ConnectionRow) => Promise<T>,
   ): Promise<T> {
-    const rootDb = this.rootDb;
-    if (!rootDb) throw new Error('root db not available');
-    return rootDb.transaction(async (tx) => {
-      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+    return this.store.inRootTransaction(async (tx) => {
       const rows = await tx
         .select()
         .from(schema.connectorConnections)
@@ -333,42 +294,10 @@ export class ConnectorOAuthService {
         .for('update')
         .limit(1);
       const row = rows[0];
-      if (!row) {
-        throw new NotFoundException(`connectors_not_found: connection ${connectionId} not found`);
-      }
-      if (row.orgId !== expectedOrgId) {
+      if (!row || row.orgId !== expectedOrgId) {
         throw new NotFoundException(`connectors_not_found: connection ${connectionId} not found`);
       }
       return fn(tx, row);
     });
   }
-}
-
-function isExpired(expiresAt: string | null): boolean {
-  if (!expiresAt) return true;
-  const ms = Date.parse(expiresAt);
-  if (!Number.isFinite(ms)) return true;
-  return ms - REFRESH_SKEW_MS <= Date.now();
-}
-
-async function encryptOn(tx: Tx, plaintext: string): Promise<string> {
-  await tx.execute(setEncryptionKeySql());
-  const rows = await tx.execute<{ ct: string } & Record<string, unknown>>(
-    sql`SELECT ${encryptSecretSql(plaintext)} AS ct`,
-  );
-  const ct = rows[0]?.ct;
-  if (!ct) throw new ConnectorVendorError('encryption failed');
-  return ct;
-}
-
-async function decryptOn(tx: Tx, ciphertext: string): Promise<string> {
-  await tx.execute(setEncryptionKeySql());
-  const rows = await tx.execute<{ pt: string } & Record<string, unknown>>(
-    sql`SELECT ${decryptSecretSql(ciphertext)} AS pt`,
-  );
-  const pt = rows[0]?.pt;
-  if (pt === undefined || pt === null) {
-    throw new ConnectorVendorError('stored credential could not be decrypted');
-  }
-  return pt;
 }

@@ -81,3 +81,24 @@ export const partnerClaim = {
     `Lenken utløper om 7 dager. Hvis du ikke kjenner igjen ${partnerName}, kan du se bort fra denne e-posten — arbeidsområdet forblir ukrevd.`,
   footerReason: 'Du mottar denne e-posten fordi en Munin-partner har klargjort en konto for deg.',
 };
+
+export const systemAlert = {
+  subject: (severity: 'warning' | 'error', title: string): string =>
+    severity === 'error' ? `Munin-varsel: ${title}` : `Munin trenger et blikk: ${title}`,
+  eyebrow: 'Driftsvarsel',
+  bodyOrg: (orgName: string) =>
+    `Munin har åpnet et varsel for ${orgName}. Det står åpent til problemet er borte, og du får denne e-posten fordi du eier organisasjonen.`,
+  bodyPersonal: (orgName: string) =>
+    `Munin har åpnet et varsel på kontoen din i ${orgName}. Ingen andre kan rydde opp i dette for deg — det henger på en tilkobling du har godkjent selv.`,
+  labelSeverity: 'Alvorlighet',
+  labelSource: 'Kilde',
+  labelDetail: 'Detaljer',
+  severityName: (severity: 'warning' | 'error'): string => (severity === 'error' ? 'Feil' : 'Advarsel'),
+  cta: 'Åpne i Munin',
+  resolveNote:
+    'Varselet lukker seg selv så snart Munin ser at problemet er borte. Du får ikke en ny e-post for det samme varselet, uansett hvor mange ganger det gjentar seg.',
+  footerReason: (personal: boolean): string =>
+    personal
+      ? 'Du får denne e-posten fordi varselet gjelder en tilkobling på din egen konto.'
+      : 'Du får denne e-posten fordi du er eier av denne Munin-organisasjonen.',
+};

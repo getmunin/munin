@@ -23,16 +23,12 @@ describe('deriveMcpAudience', () => {
     expect(deriveMcpAudience(actor('widget_agent', ['admin']))).toBe('self_service');
   });
 
-  it('admin_agent without admin in audiences → self_service', () => {
+  it('admin_agent without admin in audiences → self_service (a key minted self-service on purpose)', () => {
     expect(deriveMcpAudience(actor('admin_agent', ['self_service']))).toBe('self_service');
   });
 
   it('admin_agent with both audiences → admin', () => {
     expect(deriveMcpAudience(actor('admin_agent', ['admin', 'self_service']))).toBe('admin');
-  });
-
-  it('user with empty audiences → self_service', () => {
-    expect(deriveMcpAudience(actor('user', []))).toBe('self_service');
   });
 
   it('partner actor is not admin-eligible even with admin audience', () => {
@@ -41,5 +37,47 @@ describe('deriveMcpAudience', () => {
 
   it('system actor is not admin-eligible even with admin audience', () => {
     expect(deriveMcpAudience(actor('system', ['admin']))).toBe('self_service');
+  });
+});
+
+describe('a human whose role did not earn the admin audience is denied, never demoted', () => {
+  it('a member reaches empty audiences because gateOauthGrantsByRole stripped mcp:admin, and gets no MCP surface at all', () => {
+    expect(deriveMcpAudience(actor('user', []))).toBeNull();
+  });
+
+  it('the self_service surface is for end-user agents, so a user actor never lands on it', () => {
+    expect(deriveMcpAudience(actor('user', ['self_service']))).toBeNull();
+  });
+});
+
+describe('the MCP audience matrix is a closed list, because RLS narrows self_service by app.end_user_id and a user actor sets none', () => {
+  const EXPECTED: Array<[ActorType, Audience[], Audience | null]> = [
+    ['admin_agent', ['admin'], 'admin'],
+    ['admin_agent', ['self_service'], 'self_service'],
+    ['admin_agent', [], 'self_service'],
+    ['user', ['admin'], 'admin'],
+    ['user', ['self_service'], null],
+    ['user', [], null],
+    ['widget_agent', ['admin'], 'self_service'],
+    ['widget_agent', ['self_service'], 'self_service'],
+    ['widget_agent', [], 'self_service'],
+    ['end_user_agent', ['admin'], 'self_service'],
+    ['end_user_agent', ['self_service'], 'self_service'],
+    ['end_user_agent', [], 'self_service'],
+    ['partner', ['admin'], 'self_service'],
+    ['partner', ['self_service'], 'self_service'],
+    ['partner', [], 'self_service'],
+    ['system', ['admin'], 'self_service'],
+    ['system', ['self_service'], 'self_service'],
+    ['system', [], 'self_service'],
+  ];
+
+  it('widening the surface has to be a deliberate diff here', () => {
+    const actual = EXPECTED.map(([type, audiences]) => [
+      type,
+      audiences,
+      deriveMcpAudience(actor(type, audiences)),
+    ]);
+    expect(actual).toEqual(EXPECTED);
   });
 });

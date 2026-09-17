@@ -62,6 +62,8 @@ export const ALLOWED_HOSTS = {
   'api.gastroplanner.eu': 'bookings connector vendor endpoint',
   'api.vapi.ai': 'voice vendor endpoint',
   'api.slack.com': 'operator bridge vendor endpoint',
+  'www.linkedin.com': 'social distribution vendor OAuth endpoint',
+  'api.linkedin.com': 'social distribution vendor API endpoint',
   'developer.amazon.com': 'published crawler documentation, part of bot-UA detection',
   'ahrefs.com': 'published crawler documentation, part of bot-UA detection',
   'accounts.google.com': 'OAuth vendor endpoint',

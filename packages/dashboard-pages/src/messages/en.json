@@ -211,6 +211,7 @@
       "channelInboundFailing": "Inbound polling failing on \"{name}\"",
       "channelOutboundFailing": "Replies are not going out on \"{name}\"",
       "openChannelSettings": "Open channel settings →",
+      "openSocialSettings": "Reconnect account",
       "openPrivacySettings": "Open privacy settings"
     },
     "loadFailed": {
@@ -283,7 +284,12 @@
         "actionFailed": {
           "approve": "Publish failed",
           "dismiss": "Dismiss failed"
-        }
+        },
+        "kindSocial": "SOCIAL",
+        "codeSocial": "SOC",
+        "socialUntitled": "Untitled draft",
+        "socialSnippet": "{platform} · {label} · {chars}/{max} characters",
+        "shortcutPublish": "⌘↵ publish"
       },
       "scheduled": {
         "outreachUntitled": "Outreach draft",
@@ -429,7 +435,23 @@
         },
         "quotedThreadToggle": "Earlier in this thread ({count})",
         "quotedThreadNotice": "Reconstructed from the text quoted in this email. These turns were not delivered through Munin and are not part of the conversation record.",
-        "quotedThreadUnknownSender": "Unknown sender"
+        "quotedThreadUnknownSender": "Unknown sender",
+        "metaSocial": "{platform} · {chars}/{max} characters · {age}",
+        "socialBody": "Post",
+        "socialLink": "Link to share",
+        "socialCopyBody": "Copy post",
+        "socialCopyLink": "Copy link",
+        "socialCopied": "Copied",
+        "socialLinkTagged": "Tagged for this variant, so later click figures show which angle earned them.",
+        "socialComposerHint": "Munin cannot post to this platform for you. Copy the text, publish it under your own name, then mark it posted here.",
+        "socialOpenComposer": "Open {platform} →",
+        "socialMarkPosted": "Mark as posted",
+        "shortcutMarkPosted": "⌘↵ mark as posted",
+        "socialPublish": "Publish",
+        "socialPublishAs": "Publish as {name}",
+        "socialPublishHint": "Publishing sends this to {platform} straight away, under your name. Munin cannot take it back.",
+        "socialNeedsAccountHint": "Connect your {platform} account to publish from Munin. Until then, copy the text and publish it yourself.",
+        "socialConnectAccount": "Connect your account →"
       },
       "relative": {
         "justNow": "just now",
@@ -1192,6 +1214,7 @@
         "codeOutreach": "OUT",
         "codeCms": "CMS",
         "codeFeedback": "FBK",
+        "codeSocial": "SOC",
         "kindNew": "New article",
         "kindRevisionOf": "Revision — {title}",
         "sourceConversation": "source conversation",
@@ -1209,7 +1232,8 @@
           "crm": "Kept separate",
           "outreach": "Dismissed",
           "cms": "Discarded",
-          "feedback": "Dismissed"
+          "feedback": "Dismissed",
+          "social": "Dismissed"
         },
         "decisionReason": "Reason given",
         "decidedByAgent": "Agent",
@@ -1303,7 +1327,8 @@
           "crm": "Merged",
           "outreach": "Sent",
           "cms": "Published",
-          "feedback": "Forwarded"
+          "feedback": "Forwarded",
+          "social": "Posted"
         },
         "outcomeFailed": "Send failed",
         "decidedUntitled": "Untitled",
@@ -1333,8 +1358,14 @@
             "approved": "The item was forwarded to the Munin team.",
             "dismissed": "The item was dismissed and nothing was sent.",
             "failed": "Forwarding failed and nothing reached the Munin team."
+          },
+          "social": {
+            "approved": "The draft was posted, and the set it belongs to is settled.",
+            "dismissed": "Nobody published this variant. The rest of its set is untouched.",
+            "failed": "The post could not be published."
           }
-        }
+        },
+        "decidedSocialVariant": "Social post · {label}"
       },
       "automation": {
         "eyebrow": "Automation — per topic",
@@ -1765,6 +1796,60 @@
       "title": "Operator bridges",
       "subtitle": "Triage & reply from your team's chat tools"
     },
+    "publishing": {
+      "title": "Publishing accounts",
+      "subtitle": "Post to social under your own name",
+      "appMissingShort": "App not set up",
+      "notConnectedShort": "Not connected",
+      "statusLapsed": "Needs reconnecting",
+      "statusExpiringSoon": "Expires soon",
+      "othersConnected": "{count, plural, =1 {1 colleague connected} other {# colleagues connected}}",
+      "setUpApp": "Set up app",
+      "editApp": "Edit app",
+      "reauthorize": "Reauthorize",
+      "disconnect": "Disconnect",
+      "disconnectConfirm": "Disconnect your {platform} account? Posts already published stay on {platform}, but you will not be able to publish from Munin until you connect again.",
+      "connected": "Account connected.",
+      "denied": "You cancelled the connection.",
+      "failed": "The connection could not be completed.",
+      "failedWithReason": "The connection could not be completed: {reason}",
+      "eyebrowStepOne": "{platform} app · 1 of 2",
+      "eyebrowStepTwo": "{platform} app · 2 of 2",
+      "eyebrowApp": "{platform} app",
+      "eyebrowConnected": "{count, plural, =0 {nobody connected} =1 {live · 1 connected} other {live · # connected}}",
+      "setupTitle": "Set the app up in {platform}",
+      "setupLede": "Munin cannot publish through its own {platform} client, so this organisation needs one of its own. Three things to do over there — then come back with the credentials.",
+      "stepCreate": "Create an app in the <portal>developer portal</portal>",
+      "stepCreateNote": "{platform} asks you to attach it to a company page.",
+      "stepProducts": "Add both products — self-serve, on the Products tab",
+      "productShare": "Share on {platform}",
+      "productSharePurpose": "Permission to post",
+      "productSignIn": "Sign In with {platform} (OIDC)",
+      "productSignInPurpose": "Reads the account",
+      "stepProductsNote": "With only the first, authorising fails with <code>scope is not authorized</code>.",
+      "stepRedirect": "Add this redirect URL to the app",
+      "copy": "Copy",
+      "copied": "Copied",
+      "setupStaysOpen": "Munin keeps this open — nothing is lost while you are over there.",
+      "doneNext": "Done — next",
+      "backToCredentials": "Back to credentials",
+      "backToSteps": "← Setup steps",
+      "back": "Back",
+      "connect": "Connect",
+      "credentialsTitle": "Paste the credentials",
+      "credentialsLede": "Both are on the app's Auth tab. The secret is shown once, when the app is created.",
+      "editTitle": "{platform} app",
+      "editLede": "Change the credentials this organisation publishes through.",
+      "clientId": "Client ID",
+      "clientSecret": "Client secret",
+      "secretPlaceholder": "WPL_AP1…",
+      "secretStoredPlaceholder": "•••••••• (stored)",
+      "secretSavedOn": "Saved {date}",
+      "clientSecretHint": "Stored encrypted. Never shown again.",
+      "secretKeepHint": "Leave empty to keep the current one. Replacing it does not sign anyone out.",
+      "replacingApp": "Replacing the app itself? <steps>Setup steps and redirect URL</steps>",
+      "appDialogAuthorNote": "The app is shared; the posting is not. Everyone here connects their personal {platform} account through it, and a post goes out under that person's own name — never the company page."
+    },
     "dataConnectors": {
       "title": "Data connections",
       "subtitle": "Live against the vendor — nothing is stored in Munin"
@@ -1841,7 +1926,8 @@
         "booking": "Booking",
         "seo": "Search",
         "connection": "Connection",
-        "customTools": "Customer self-service"
+        "customTools": "Customer self-service",
+        "publishing": "Publishing"
       },
       "description": {
         "slack": "Triage the inbox and reply without leaving your workspace.",
@@ -1851,7 +1937,8 @@
         "bing": "See which searches show your site on Bing and Copilot — and push updated pages for recrawl.",
         "googleSearchConsole": "See the Google searches your pages are shown for, and whether a page is indexed.",
         "generic": "Read directly on behalf of a customer.",
-        "customMcp": "Your own system, answering your customers live. You choose exactly which tools they may reach."
+        "customMcp": "Your own system, answering your customers live. You choose exactly which tools they may reach.",
+        "linkedin": "Publish reviewed posts to LinkedIn from a person's own account."
       },
       "capability": {
         "slackMirror": "Mirror conversations into Slack threads.",
@@ -1866,7 +1953,9 @@
         "seoQueries": "See the searches your pages are shown for.",
         "seoPages": "See which pages earn the impressions.",
         "seoIndexStatus": "Check whether a page is indexed.",
-        "seoSubmit": "Submit updated pages for recrawl."
+        "seoSubmit": "Submit updated pages for recrawl.",
+        "socialPublish": "Publish posts",
+        "socialAuthor": "Post as a person"
       }
     },
     "field": {
@@ -2107,7 +2196,14 @@
     "kb_version_conflict": "Someone changed this text while you had it open, so nothing was saved. Reopen it to see the current version and decide on that.",
     "member_forbidden": "That's limited to owners and admins. Ask an owner if you need access.",
     "org_access_denied": "This tab was open in an organization you no longer have access to. Reloading with your current organization.",
-    "outreach_undeliverable": "Mail can't reach that address. Correct the contact's email, or clear the address once it works again."
+    "outreach_undeliverable": "Mail can't reach that address. Correct the contact's email, or clear the address once it works again.",
+    "social_account_taken": "That account is already connected by someone else in your organisation.",
+    "social_app_missing": "Set up your organisation's app before connecting an account.",
+    "social_client_secret_required": "Enter the client secret — there is none stored to keep.",
+    "social_conflict": "Someone already decided this draft.",
+    "social_no_account": "Connect your account on the Integrations page before publishing.",
+    "social_publish_failed": "The platform refused the post. The draft is marked failed with the reason.",
+    "social_reconnect_required": "Your connection has lapsed. Reconnect it on the Integrations page."
   },
   "footer": {
     "privacy": "Privacy",

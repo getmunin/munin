@@ -2147,6 +2147,7 @@ export const orgAlerts = pgTable(
       .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
     source: varchar('source', { length: 32 }).notNull(),
     subjectId: text('subject_id'),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
     severity: varchar('severity', { length: 16 }).notNull(),
     title: text('title').notNull(),
     detail: text('detail'),
@@ -2165,6 +2166,133 @@ export const orgAlerts = pgTable(
   (t) => ({
     orgOpenIdx: index('org_alerts_org_resolved_idx').on(t.orgId, t.resolvedAt),
     orgOpenedIdx: index('org_alerts_org_opened_idx').on(t.orgId, t.openedAt),
+    userOpenIdx: index('org_alerts_user_open_idx').on(t.orgId, t.userId, t.resolvedAt),
+  }),
+);
+
+export const alertNotifications = pgTable(
+  'alert_notifications',
+  {
+    id: id('alnf'),
+    orgId: text('org_id')
+      .notNull()
+      .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
+    alertId: text('alert_id')
+      .notNull()
+      .references(() => orgAlerts.id, { onDelete: 'cascade' }),
+    recipientUserId: text('recipient_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    attempt: integer('attempt').notNull().default(0),
+    error: text('error'),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt,
+  },
+  (t) => ({
+    recipientUq: uniqueIndex('alert_notifications_alert_recipient_uq').on(
+      t.alertId,
+      t.recipientUserId,
+    ),
+    pendingIdx: index('alert_notifications_pending_idx').on(t.nextAttemptAt),
+    orgIdx: index('alert_notifications_org_idx').on(t.orgId),
+  }),
+);
+
+export const socialPostDrafts = pgTable(
+  'social_post_drafts',
+  {
+    id: id('spd'),
+    orgId: text('org_id')
+      .notNull()
+      .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
+    platform: varchar('platform', { length: 16 }).notNull(),
+    setId: text('set_id').notNull(),
+    variantLabel: varchar('variant_label', { length: 32 }).notNull(),
+    body: text('body').notNull(),
+    linkUrl: text('link_url'),
+    linkUtm: jsonb('link_utm').$type<Record<string, string>>().notNull().default({}),
+    sourceRef: jsonb('source_ref').$type<Record<string, unknown>>().notNull().default({}),
+    suggestedUserId: text('suggested_user_id').references(() => users.id, { onDelete: 'set null' }),
+    status: varchar('status', { length: 24 }).notNull().default('pending'),
+    proposedByActorType: varchar('proposed_by_actor_type', { length: 16 }).notNull(),
+    proposedByActorId: text('proposed_by_actor_id').notNull(),
+    decidedByActorType: varchar('decided_by_actor_type', { length: 16 }),
+    decidedByActorId: text('decided_by_actor_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    externalPostId: text('external_post_id'),
+    permalink: text('permalink'),
+    dismissReason: text('dismiss_reason'),
+    lastError: text('last_error'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgSetIdx: index('social_post_drafts_org_set_idx').on(t.orgId, t.setId),
+    orgStatusIdx: index('social_post_drafts_org_status_idx').on(t.orgId, t.status, t.createdAt),
+    orgCreatedIdx: index('social_post_drafts_org_created_idx').on(t.orgId, t.createdAt),
+  }),
+);
+
+export const socialPlatformApps = pgTable(
+  'social_platform_apps',
+  {
+    id: id('spa'),
+    orgId: text('org_id')
+      .notNull()
+      .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
+    platform: varchar('platform', { length: 16 }).notNull(),
+    clientId: text('client_id').notNull(),
+    encryptedClientSecret: text('encrypted_client_secret').notNull(),
+    clientSecretSetAt: timestamp('client_secret_set_at', { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgPlatformUq: uniqueIndex('social_platform_apps_org_platform_uq').on(t.orgId, t.platform),
+  }),
+);
+
+export const socialAccounts = pgTable(
+  'social_accounts',
+  {
+    id: id('sac'),
+    orgId: text('org_id')
+      .notNull()
+      .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    platform: varchar('platform', { length: 16 }).notNull(),
+    authorKind: varchar('author_kind', { length: 16 }).notNull().default('member'),
+    externalAccountId: text('external_account_id').notNull(),
+    displayName: text('display_name'),
+    encryptedAccessToken: text('encrypted_access_token').notNull(),
+    accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }),
+    encryptedRefreshToken: text('encrypted_refresh_token'),
+    refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }),
+    scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
+    status: varchar('status', { length: 16 }).notNull().default('active'),
+    lastError: text('last_error'),
+    connectedAt: timestamp('connected_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgUserPlatformUq: uniqueIndex('social_accounts_org_user_platform_uq').on(
+      t.orgId,
+      t.userId,
+      t.platform,
+    ),
+    orgPlatformExternalUq: uniqueIndex('social_accounts_org_platform_external_uq').on(
+      t.orgId,
+      t.platform,
+      t.externalAccountId,
+    ),
+    orgStatusIdx: index('social_accounts_org_status_idx').on(t.orgId, t.platform, t.status),
+    expiryIdx: index('social_accounts_expiry_idx').on(t.status, t.accessTokenExpiresAt),
   }),
 );
 
@@ -2571,6 +2699,10 @@ export const allTables = {
   systemConfig,
   feedbackOutbox,
   orgAlerts,
+  alertNotifications,
+  socialPostDrafts,
+  socialPlatformApps,
+  socialAccounts,
   slackIntegrations,
   slackChannelRoutes,
   slackConversationLinks,

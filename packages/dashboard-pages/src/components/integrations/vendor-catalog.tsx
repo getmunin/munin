@@ -7,6 +7,7 @@ import {
   CustomMcpMark,
   BingMark,
   GoogleSearchConsoleMark,
+  LinkedInMark,
 } from './integration-vendor-logos';
 
 export interface VendorPresentation {
@@ -52,6 +53,12 @@ export const VENDOR_PRESENTATION: Record<string, VendorPresentation> = {
     descriptionKey: 'bing',
     capabilityKeys: ['seoQueries', 'seoIndexStatus', 'seoSubmit'],
     Mark: BingMark,
+  },
+  linkedin: {
+    categoryKey: 'publishing',
+    descriptionKey: 'linkedin',
+    capabilityKeys: ['socialPublish', 'socialAuthor'],
+    Mark: LinkedInMark,
   },
   google_search_console: {
     categoryKey: 'seo',

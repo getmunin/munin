@@ -1,6 +1,7 @@
 ---
 '@getmunin/backend-core': minor
 '@getmunin/dashboard-pages': minor
+'@getmunin/db': minor
 ---
 
 feat(social): publish a reviewed draft to LinkedIn from the reviewer's own account
@@ -48,3 +49,18 @@ the expiry alert's "Reconnect account" link led to a page with nothing on it.
 
 Adds `skill://social/publish-a-reviewed-post`, and corrects
 `skill://social/route-a-post-to-a-person`, which told agents that nothing here publishes.
+
+Adds `social_accounts.client_secret_set_at` (migration 0103) so the dashboard can
+say when an org's OAuth client secret was stored without overstating it —
+`updated_at` also moves when only the client id is edited. A secret is now kept
+when a save omits it, so editing the client id no longer demands re-pasting a
+secret LinkedIn shows only once.
+
+The authorization callback carries the platform's own `error_description` back to
+the dashboard. Without it every failure read as "the connection could not be
+completed", including the one a real setup hits first: an app with Share on
+LinkedIn but not Sign In with LinkedIn using OpenID Connect, where LinkedIn
+answers `Scope "openid" is not authorized for your application`. Setup is now two
+screens — the work done in LinkedIn's portal, then the credentials pasted back —
+and names both products, since the first grants posting and the second grants the
+identity every post is authored by.

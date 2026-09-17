@@ -1644,6 +1644,123 @@
         ]
       }
     },
+    "/v1/social/accounts": {
+      "get": {
+        "operationId": "SocialAccountsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SocialAccounts"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/social/accounts/apps": {
+      "get": {
+        "operationId": "SocialAccountsController_listApps",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SocialAccounts"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "SocialAccountsController_setApp",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SocialAccounts"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/social/accounts/authorize-url": {
+      "post": {
+        "operationId": "SocialAccountsController_authorizeUrl",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SocialAccounts"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/social/accounts/{id}": {
+      "delete": {
+        "operationId": "SocialAccountsController_disconnect",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SocialAccounts"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/cms/transfer/export": {
       "get": {
         "operationId": "CmsTransferController_export",
@@ -7722,6 +7839,21 @@
         },
         "tags": [
           "SlackAvatars"
+        ],
+        "security": []
+      }
+    },
+    "/v1/social/oauth/callback": {
+      "get": {
+        "operationId": "SocialOAuthController_callback",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SocialOAuth"
         ],
         "security": []
       }

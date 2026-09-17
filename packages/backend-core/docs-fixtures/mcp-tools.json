@@ -9559,6 +9559,25 @@
     }
   },
   {
+    "name": "social_list_connected_accounts",
+    "title": "Social: List connected accounts",
+    "description": "List the people in this organisation who have connected a social account Munin can post from, with the platform, the account name, and whether the connection still works. Read this before setting suggestedUserId on a draft so the post is routed to someone who can actually publish it.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "social:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "social_list_post_drafts",
     "title": "Social: List post drafts",
     "description": "List social post drafts for the org, newest first. Filter by platform, status, or the set id that groups the variants written for one article.",

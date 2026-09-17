@@ -209,7 +209,8 @@
       "alertReasonMultiple": "{title} (+{count} more)",
       "channelInboundFailing": "Inbound polling failing on \"{name}\"",
       "channelOutboundFailing": "Replies are not going out on \"{name}\"",
-      "openChannelSettings": "Open channel settings →"
+      "openChannelSettings": "Open channel settings →",
+      "openSocialSettings": "Reconnect account"
     },
     "loadFailed": {
       "eyebrow": "Connection · failed",

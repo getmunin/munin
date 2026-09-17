@@ -23,14 +23,22 @@ export function readGrant(value: unknown): StoredOAuthGrant | null {
   };
 }
 
+export interface ExpiringAccessToken {
+  encryptedAccessToken: string | null;
+  accessTokenExpiresAt: string | Date | null;
+}
+
 export function accessTokenIsFresh(
-  grant: StoredOAuthGrant,
+  grant: ExpiringAccessToken,
   skewMs: number = ACCESS_TOKEN_REFRESH_SKEW_MS,
   now: number = Date.now(),
 ): boolean {
   if (!grant.encryptedAccessToken) return false;
   if (!grant.accessTokenExpiresAt) return false;
-  const ms = Date.parse(grant.accessTokenExpiresAt);
+  const ms =
+    grant.accessTokenExpiresAt instanceof Date
+      ? grant.accessTokenExpiresAt.getTime()
+      : Date.parse(grant.accessTokenExpiresAt);
   if (!Number.isFinite(ms)) return false;
   return ms - skewMs > now;
 }

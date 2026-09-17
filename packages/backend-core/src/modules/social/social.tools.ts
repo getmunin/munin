@@ -3,10 +3,13 @@ import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { SOCIAL_DRAFT_STATUSES, SOCIAL_PLATFORMS } from './social-platform.ts';
 import { SocialService } from './social.service.ts';
+import { SocialAccountsService } from './social-accounts.service.ts';
 
 const PlatformField = z.enum(SOCIAL_PLATFORMS).optional();
 
 const ListPlatformsInput = z.object({});
+
+const ListAccountsInput = z.object({});
 
 const ListDraftsInput = z.object({
   platform: PlatformField,
@@ -50,7 +53,10 @@ const MarkPostedInput = z.object({
 
 @Injectable()
 export class SocialTools {
-  constructor(@Inject(SocialService) private readonly social: SocialService) {}
+  constructor(
+    @Inject(SocialService) private readonly social: SocialService,
+    @Inject(SocialAccountsService) private readonly accounts: SocialAccountsService,
+  ) {}
 
   @McpTool({
     name: 'social_list_platforms',
@@ -65,6 +71,21 @@ export class SocialTools {
   })
   listPlatforms() {
     return { platforms: this.social.listPlatforms() };
+  }
+
+  @McpTool({
+    name: 'social_list_connected_accounts',
+    title: 'Social: List connected accounts',
+    description:
+      'List the people in this organisation who have connected a social account Munin can post from, with the platform, the account name, and whether the connection still works. Read this before setting suggestedUserId on a draft so the post is routed to someone who can actually publish it.',
+    audiences: ['admin'],
+    scopes: ['social:read'],
+    input: ListAccountsInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  async listAccounts() {
+    return { accounts: await this.accounts.listAccounts() };
   }
 
   @McpTool({

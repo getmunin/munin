@@ -715,6 +715,13 @@
       "when": 1789631306290,
       "tag": "0101_social_dismiss_reason",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1789633496960,
+      "tag": "0102_social_accounts",
+      "breakpoints": true
     }
   ]
 }

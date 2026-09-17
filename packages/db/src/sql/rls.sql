@@ -225,6 +225,32 @@ CREATE POLICY tenant_isolation ON social_post_drafts
   USING (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''))
   WITH CHECK (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''));
 
+-- ───────────────────────── social_platform_apps ────────────────────────────
+-- The org's OAuth client for a social platform. Admin-only on both sides: the
+-- client secret is pgcrypto-encrypted, but an end-user session has no reason
+-- to see even the client id.
+ALTER TABLE social_platform_apps ENABLE ROW LEVEL SECURITY;
+ALTER TABLE social_platform_apps FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON social_platform_apps;
+CREATE POLICY tenant_isolation ON social_platform_apps
+  USING (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''))
+  WITH CHECK (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''));
+
+-- ───────────────────────── social_accounts ─────────────────────────────────
+-- A member's grant on a social platform. Org-scoped rather than user-scoped:
+-- colleagues need to see who in the org can post so a draft can be routed to
+-- them, and the review queue shows that list. The tokens are encrypted and the
+-- service never returns them in a DTO, so org-wide visibility of the row does
+-- not mean org-wide use of the grant — publishing checks the acting user.
+--
+-- The OAuth callback and the expiry sweep both run under app_bypass_rls on a
+-- service-role connection, so this policy governs the dashboard read paths.
+ALTER TABLE social_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE social_accounts FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON social_accounts;
+CREATE POLICY tenant_isolation ON social_accounts
+  USING (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''))
+  WITH CHECK (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''));
 -- ───────────────────────── alert_notifications ─────────────────────────────
 -- Queue of alert emails awaiting delivery. Org-scoped like the alerts it
 -- references. The drain worker connects with the service role (bypass_rls is

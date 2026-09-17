@@ -82,3 +82,24 @@ export const partnerClaim = {
     `This link expires in 7 days. If you don't recognize ${partnerName}, you can ignore this email — the workspace stays unclaimed.`,
   footerReason: "You're receiving this because a Munin partner provisioned an account for you.",
 };
+
+export const systemAlert = {
+  subject: (severity: 'warning' | 'error', title: string): string =>
+    severity === 'error' ? `Munin alert: ${title}` : `Munin needs attention: ${title}`,
+  eyebrow: 'Operational alert',
+  bodyOrg: (orgName: string) =>
+    `Munin has opened an alert for ${orgName}. It stays open until the underlying problem clears, and you are getting this because you own the organisation.`,
+  bodyPersonal: (orgName: string) =>
+    `Munin has opened an alert on your account in ${orgName}. Nobody else can clear this one for you — it is tied to a connection you authorised yourself.`,
+  labelSeverity: 'Severity',
+  labelSource: 'Source',
+  labelDetail: 'Detail',
+  severityName: (severity: 'warning' | 'error'): string => (severity === 'error' ? 'Error' : 'Warning'),
+  cta: 'Open in Munin',
+  resolveNote:
+    'The alert closes on its own once Munin sees the problem is gone. You will not get a second email for the same alert, however many times it repeats.',
+  footerReason: (personal: boolean): string =>
+    personal
+      ? 'You are receiving this because the alert concerns a connection on your own account.'
+      : 'You are receiving this because you are an owner of this Munin organisation.',
+};

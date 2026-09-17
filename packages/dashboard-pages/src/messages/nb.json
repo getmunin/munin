@@ -1634,8 +1634,8 @@
       "orgSectionMeta": "Synlig for alle"
     },
     "privacy": {
-      "eyebrow": "Personvern",
-      "title": "Person<em>opplysninger</em>",
+      "eyebrow": "Arbeidsområde · Personvern",
+      "title": "Hva Munin <em>beholder</em>",
       "subtitle": "Bestem hva Munin tar vare på når kunder sender mer enn du ba om.",
       "sectionTitle": "Fødselsnummer og tilsvarende",
       "detectorsHint": "Velg de kundene dine faktisk sender. Munin ser etter alle uansett og sier fra når et dukker opp — her velger du hvilke som skal fjernes.",

@@ -243,7 +243,7 @@ export function ProviderCard({
   }
 
   const body = (
-    <div className="space-y-4">
+    <div className="space-y-4 text-sm">
       {managedPreset ? (
         <>
           <button

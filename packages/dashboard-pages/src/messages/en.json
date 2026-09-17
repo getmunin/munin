@@ -1634,8 +1634,8 @@
       "orgSectionMeta": "Visible to everyone"
     },
     "privacy": {
-      "eyebrow": "Privacy",
-      "title": "Personal <em>data</em>",
+      "eyebrow": "Workspace · Privacy",
+      "title": "What Munin <em>keeps</em>",
       "subtitle": "Control what Munin keeps when customers send you more than you asked for.",
       "sectionTitle": "National identity numbers",
       "detectorsHint": "Pick the ones your customers actually send. Munin watches for all of them either way and tells you when one turns up — this chooses which get redacted.",

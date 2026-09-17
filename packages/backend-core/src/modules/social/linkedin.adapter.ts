@@ -4,6 +4,8 @@ import {
   type SocialAccountIdentity,
   type SocialOAuthAdapter,
   type SocialOAuthClient,
+  type SocialPublishRequest,
+  type SocialPublishResult,
   type SocialTokenSet,
 } from './social-oauth.ts';
 import type { SocialPlatform } from './social-platform.ts';
@@ -11,8 +13,32 @@ import type { SocialPlatform } from './social-platform.ts';
 const AUTHORIZE_ENDPOINT = 'https://www.linkedin.com/oauth/v2/authorization';
 const TOKEN_ENDPOINT = 'https://www.linkedin.com/oauth/v2/accessToken';
 const USERINFO_ENDPOINT = 'https://api.linkedin.com/v2/userinfo';
+const POSTS_ENDPOINT = 'https://api.linkedin.com/rest/posts';
+const DEFAULT_API_VERSION = '202509';
 
 export const LINKEDIN_SCOPES = ['openid', 'profile', 'w_member_social'] as const;
+
+const COMMENTARY_RESERVED = /[\\|{}@[\]()<>#*_~]/g;
+
+export function apiVersion(): string {
+  const configured = process.env.MUNIN_LINKEDIN_API_VERSION;
+  return configured && /^\d{6}$/.test(configured) ? configured : DEFAULT_API_VERSION;
+}
+
+export function escapeCommentary(text: string): string {
+  return text.replace(COMMENTARY_RESERVED, (char) => `\\${char}`);
+}
+
+export function composeCommentary(body: string, linkUrl: string | null): string {
+  const escaped = escapeCommentary(body);
+  if (!linkUrl || body.includes(linkUrl)) return escaped;
+  return `${escaped}\n\n${escapeCommentary(linkUrl)}`;
+}
+
+export function permalinkFor(externalPostId: string): string | null {
+  if (!/^urn:li:[a-zA-Z]+:\d+$/.test(externalPostId)) return null;
+  return `https://www.linkedin.com/feed/update/${externalPostId}/`;
+}
 
 interface TokenResponse {
   access_token?: unknown;
@@ -117,6 +143,40 @@ export class LinkedInAdapter implements SocialOAuthAdapter {
       externalAccountId: body.sub,
       displayName: typeof body.name === 'string' && body.name.length > 0 ? body.name : null,
     };
+  }
+
+  async publish(args: SocialPublishRequest): Promise<SocialPublishResult> {
+    const res = await fetch(POSTS_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${args.accessToken}`,
+        'content-type': 'application/json',
+        'linkedin-version': apiVersion(),
+        'x-restli-protocol-version': '2.0.0',
+      },
+      body: JSON.stringify({
+        author: `urn:li:person:${args.externalAccountId}`,
+        commentary: composeCommentary(args.body, args.linkUrl),
+        visibility: 'PUBLIC',
+        distribution: {
+          feedDistribution: 'MAIN_FEED',
+          targetEntities: [],
+          thirdPartyDistributionChannels: [],
+        },
+        lifecycleState: 'PUBLISHED',
+        isReshareDisabledByAuthor: false,
+      }),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      if (isRevokedTokenError(res.status, text)) throw new SocialGrantRevokedError(text.slice(0, 200));
+      throw new Error(`LinkedIn refused the post (${res.status}): ${text.slice(0, 200)}`);
+    }
+    const externalPostId = res.headers.get('x-restli-id');
+    if (!externalPostId) {
+      throw new Error('LinkedIn accepted the post but returned no post id');
+    }
+    return { externalPostId, permalink: permalinkFor(externalPostId) };
   }
 
   private async postToken(params: URLSearchParams): Promise<SocialTokenSet> {

@@ -175,6 +175,7 @@ export interface SocialDraftDto {
   status: string;
   bodyChars: number;
   maxBodyChars: number;
+  canPublish: boolean;
   composerUrl: string;
   externalPostId: string | null;
   permalink: string | null;

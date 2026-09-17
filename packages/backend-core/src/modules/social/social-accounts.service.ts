@@ -60,6 +60,7 @@ export interface SocialPlatformAppDto {
   platform: SocialPlatform;
   clientId: string;
   configured: boolean;
+  redirectUri: string;
 }
 
 interface AuthorizeState {
@@ -160,7 +161,12 @@ export class SocialAccountsService {
           encryptedClientSecret: encrypted,
         });
       }
-      return { platform: input.platform, clientId: input.clientId, configured: true };
+      return {
+        platform: input.platform,
+        clientId: input.clientId,
+        configured: true,
+        redirectUri: socialOAuthRedirectUri(),
+      };
     });
   }
 
@@ -174,10 +180,12 @@ export class SocialAccountsService {
       .from(schema.socialPlatformApps)
       .where(eq(schema.socialPlatformApps.orgId, ctx.actor!.orgId));
     const configured = new Map(rows.map((r) => [r.platform, r.clientId]));
+    const redirectUri = socialOAuthRedirectUri();
     return this.registry.platforms().map((platform) => ({
       platform,
       clientId: configured.get(platform) ?? '',
       configured: configured.has(platform),
+      redirectUri,
     }));
   }
 

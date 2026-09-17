@@ -19,6 +19,18 @@ export interface SocialAccountIdentity {
   displayName: string | null;
 }
 
+export interface SocialPublishRequest {
+  accessToken: string;
+  externalAccountId: string;
+  body: string;
+  linkUrl: string | null;
+}
+
+export interface SocialPublishResult {
+  externalPostId: string;
+  permalink: string | null;
+}
+
 export class SocialGrantRevokedError extends Error {}
 
 export interface SocialOAuthAdapter {
@@ -33,6 +45,7 @@ export interface SocialOAuthAdapter {
   }): Promise<SocialTokenSet>;
   refresh(args: { refreshToken: string; client: SocialOAuthClient }): Promise<SocialTokenSet>;
   identify(args: { accessToken: string }): Promise<SocialAccountIdentity>;
+  publish?(args: SocialPublishRequest): Promise<SocialPublishResult>;
 }
 
 @Injectable()

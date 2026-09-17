@@ -27,6 +27,7 @@ export interface SocialPlatformDescriptor {
   readonly limits: SocialPostLimits;
   readonly composerUrl: string;
   readonly utmSource: string;
+  readonly canPublish: boolean;
 }
 
 export const SOCIAL_PLATFORM_DESCRIPTORS: Record<SocialPlatform, SocialPlatformDescriptor> = {
@@ -42,6 +43,7 @@ export const SOCIAL_PLATFORM_DESCRIPTORS: Record<SocialPlatform, SocialPlatformD
     },
     composerUrl: 'https://www.linkedin.com/feed/?shareActive=true',
     utmSource: 'linkedin',
+    canPublish: true,
   },
 };
 

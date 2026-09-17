@@ -286,7 +286,8 @@
         "kindSocial": "SOSIALT",
         "codeSocial": "SOS",
         "socialUntitled": "Utkast uten tekst",
-        "socialSnippet": "{platform} · {label} · {chars}/{max} tegn"
+        "socialSnippet": "{platform} · {label} · {chars}/{max} tegn",
+        "shortcutPublish": "⌘↵ publiser"
       },
       "scheduled": {
         "outreachUntitled": "Utkast til utsending",
@@ -440,10 +441,15 @@
         "socialCopyLink": "Kopier lenke",
         "socialCopied": "Kopiert",
         "socialLinkTagged": "Merket for denne varianten, så klikktallene senere viser hvilken vinkling som traff.",
-        "socialComposerHint": "Munin publiserer ikke for deg. Kopier teksten, legg den ut i ditt eget navn, og marker den som lagt ut her.",
+        "socialComposerHint": "Munin kan ikke publisere på denne plattformen for deg. Kopier teksten, publiser den i ditt eget navn, og merk den som publisert her.",
         "socialOpenComposer": "Åpne {platform} →",
         "socialMarkPosted": "Marker som lagt ut",
-        "shortcutMarkPosted": "⌘↵ marker som lagt ut"
+        "shortcutMarkPosted": "⌘↵ marker som lagt ut",
+        "socialPublish": "Publiser",
+        "socialPublishAs": "Publiser som {name}",
+        "socialPublishHint": "Innlegget går rett ut på {platform}, i ditt navn. Munin kan ikke hente det tilbake.",
+        "socialNeedsAccountHint": "Koble til {platform}-kontoen din for å publisere fra Munin. Inntil videre kan du kopiere teksten og publisere selv.",
+        "socialConnectAccount": "Koble til kontoen din →"
       },
       "relative": {
         "justNow": "akkurat nå",
@@ -1741,6 +1747,29 @@
       "title": "Operatørbroer",
       "subtitle": "Håndter og svar fra medarbeidernes chatteverktøy"
     },
+    "publishing": {
+      "title": "Publiseringskontoer",
+      "subtitle": "Publiser i sosiale kanaler i ditt eget navn",
+      "appMissingShort": "Appen mangler",
+      "notConnectedShort": "Ikke koblet til",
+      "statusLapsed": "Må kobles til på nytt",
+      "statusExpiringSoon": "Utløper snart",
+      "othersConnected": "{count, plural, =1 {1 kollega tilkoblet} other {# kolleger tilkoblet}}",
+      "setUpApp": "Sett opp app",
+      "editApp": "Rediger app",
+      "reauthorize": "Forny tilgangen",
+      "disconnect": "Koble fra",
+      "disconnectConfirm": "Koble fra {platform}-kontoen din? Innlegg som alt er publisert blir liggende på {platform}, men du kan ikke publisere fra Munin før du kobler til igjen.",
+      "connected": "Kontoen er koblet til.",
+      "denied": "Du avbrøt tilkoblingen.",
+      "failed": "Tilkoblingen kunne ikke fullføres.",
+      "appDialogTitle": "{platform}-app",
+      "appDialogLede": "Munin publiserer gjennom organisasjonens egen {platform}-app. Opprett en i utviklerportalen til {platform}, legg til produktet «Share on {platform}», og lim inn nøklene her.",
+      "clientId": "Klient-ID",
+      "clientSecret": "Klienthemmelighet",
+      "clientSecretHint": "Lagres kryptert. Skriv den inn på nytt for å bytte ut den som er lagret.",
+      "redirectHint": "Legg denne adressen inn som redirect-URL i appen: {url}"
+    },
     "dataConnectors": {
       "title": "Datakoblinger",
       "subtitle": "Direkte mot leverandøren — ingenting lagres i Munin"
@@ -1817,7 +1846,8 @@
         "booking": "Booking",
         "seo": "Søk",
         "connection": "Kobling",
-        "customTools": "Selvbetjening"
+        "customTools": "Selvbetjening",
+        "publishing": "Publisering"
       },
       "description": {
         "slack": "Håndter innboksen og svar kundene rett fra Slack.",
@@ -1827,7 +1857,8 @@
         "bing": "Se hvilke søk som viser nettstedet ditt i Bing og Copilot — og send oppdaterte sider til ny indeksering.",
         "googleSearchConsole": "Se hvilke Google-søk sidene dine vises på, og om en side er indeksert.",
         "generic": "Leses direkte på vegne av en kunde.",
-        "customMcp": "Ditt eget system, som svarer kundene dine direkte. Du velger nøyaktig hvilke verktøy de får bruke."
+        "customMcp": "Ditt eget system, som svarer kundene dine direkte. Du velger nøyaktig hvilke verktøy de får bruke.",
+        "linkedin": "Publiser godkjente innlegg på LinkedIn fra en kollegas egen konto."
       },
       "capability": {
         "slackMirror": "Speil samtaler inn i Slack-tråder.",
@@ -1842,7 +1873,9 @@
         "seoQueries": "Se hvilke søk sidene dine vises på.",
         "seoPages": "Se hvilke sider som får visningene.",
         "seoIndexStatus": "Sjekk om en side er indeksert.",
-        "seoSubmit": "Send oppdaterte sider til ny indeksering."
+        "seoSubmit": "Send oppdaterte sider til ny indeksering.",
+        "socialPublish": "Publiser innlegg",
+        "socialAuthor": "Publiser i eget navn"
       }
     },
     "field": {
@@ -2082,7 +2115,13 @@
     "kb_version_conflict": "Noen endret teksten mens du hadde den åpen, så ingenting ble lagret. Åpne den på nytt for å se gjeldende versjon og ta stilling til den.",
     "member_forbidden": "Dette er forbeholdt eiere og administratorer. Spør en eier hvis du trenger tilgang.",
     "org_access_denied": "Denne fanen var åpen i en organisasjon du ikke lenger har tilgang til. Laster inn på nytt med organisasjonen du er i nå.",
-    "outreach_undeliverable": "E-post kommer ikke fram til den adressen. Rett opp e-postadressen til kontakten, eller nullstill adressen når den virker igjen."
+    "outreach_undeliverable": "E-post kommer ikke fram til den adressen. Rett opp e-postadressen til kontakten, eller nullstill adressen når den virker igjen.",
+    "social_account_taken": "Den kontoen er alt koblet til av en annen i organisasjonen.",
+    "social_app_missing": "Sett opp organisasjonens app før du kobler til en konto.",
+    "social_conflict": "Noen har alt tatt stilling til dette utkastet.",
+    "social_no_account": "Koble til kontoen din på Integrasjoner-siden før du publiserer.",
+    "social_publish_failed": "Plattformen avviste innlegget. Utkastet er merket som mislykket, med årsaken.",
+    "social_reconnect_required": "Tilgangen har utløpt. Koble til på nytt på Integrasjoner-siden."
   },
   "footer": {
     "privacy": "Personvern",

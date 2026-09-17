@@ -48,6 +48,7 @@ const TITLE_WORDS_BY_VERB: Record<string, readonly string[]> = {
   lookup: ['look'],
   propose: ['propose'],
   publish: ['publish'],
+  redact: ['redact'],
   request: ['request'],
   resolve: ['resolve'],
   restore: ['restore'],

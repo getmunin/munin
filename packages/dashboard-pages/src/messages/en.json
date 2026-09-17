@@ -1212,6 +1212,7 @@
         "codeOutreach": "OUT",
         "codeCms": "CMS",
         "codeFeedback": "FBK",
+        "codeSocial": "SOC",
         "kindNew": "New article",
         "kindRevisionOf": "Revision — {title}",
         "sourceConversation": "source conversation",

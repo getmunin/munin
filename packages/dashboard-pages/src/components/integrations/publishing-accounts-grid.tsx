@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import {
   Button,
   Dialog,
@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   Input,
   Label,
   SectionHead,
@@ -24,6 +25,7 @@ import { CardGridSkeleton } from '../skeleton';
 import { CardGrid, CardMenu, StatusLine } from '../card-kit';
 import { IntegrationCard } from './integration-card';
 import { dialogLabelClass } from '../../lib/dialog-style';
+import { useCopy } from '../../lib/use-copy';
 
 interface SocialAccountDto {
   id: string;
@@ -41,9 +43,14 @@ interface SocialPlatformAppDto {
   clientId: string;
   configured: boolean;
   redirectUri: string;
+  clientSecretSetAt: string | null;
 }
 
 const PLATFORM_NAMES: Record<string, string> = { linkedin: 'LinkedIn' };
+
+const PLATFORM_DEVELOPER_PORTALS: Record<string, string> = {
+  linkedin: 'https://www.linkedin.com/developers/apps',
+};
 
 export function PublishingAccountsSection() {
   const t = useTranslations('integrations.publishing');
@@ -83,11 +90,13 @@ export function PublishingAccountsSection() {
     const params = new URLSearchParams(window.location.search);
     const outcome = params.get('social');
     if (!outcome) return;
+    const reason = params.get('reason');
     if (outcome === 'connected') notify.success(t('connected'));
     else if (outcome === 'denied') notify.error(t('denied'));
-    else notify.error(t('failed'));
+    else notify.error(reason ? t('failedWithReason', { reason }) : t('failed'));
     params.delete('social');
     params.delete('platform');
+    params.delete('reason');
     const query = params.toString();
     window.history.replaceState(
       null,
@@ -194,20 +203,43 @@ export function PublishingAccountsSection() {
               description={tc('description.linkedin')}
               badge={others > 0 ? <ColleagueCount label={t('othersConnected', { count: others })} /> : undefined}
               menu={
-                mine ? (
+                app.configured ? (
                   <CardMenu label={tConn('moreMenu')} disabled={busy}>
-                    <DropdownMenuItem
-                      variant="destructive"
-                      disabled={busy}
-                      onClick={() => void disconnect(mine)}
-                    >
-                      {t('disconnect')}
+                    <DropdownMenuItem disabled={busy} onClick={() => setConfiguring(app)}>
+                      {t('editApp')}
                     </DropdownMenuItem>
+                    {mine && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          variant="destructive"
+                          disabled={busy}
+                          onClick={() => void disconnect(mine)}
+                        >
+                          {t('disconnect')}
+                        </DropdownMenuItem>
+                      </>
+                    )}
                   </CardMenu>
                 ) : undefined
               }
               footer={
-                <>
+                app.configured ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="whitespace-nowrap"
+                    onClick={() => connect(app.platform)}
+                    disabled={busy}
+                  >
+                    {mine && mine.status !== 'active'
+                      ? tConn('reconnect')
+                      : mine
+                        ? t('reauthorize')
+                        : tConn('connect')}
+                  </Button>
+                ) : (
                   <Button
                     type="button"
                     variant="outline"
@@ -215,25 +247,9 @@ export function PublishingAccountsSection() {
                     className="whitespace-nowrap"
                     onClick={() => setConfiguring(app)}
                   >
-                    {app.configured ? t('editApp') : t('setUpApp')}
+                    {t('setUpApp')}
                   </Button>
-                  {app.configured && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="whitespace-nowrap"
-                      onClick={() => connect(app.platform)}
-                      disabled={busy}
-                    >
-                      {mine && mine.status !== 'active'
-                        ? tConn('reconnect')
-                        : mine
-                          ? t('reauthorize')
-                          : tConn('connect')}
-                    </Button>
-                  )}
-                </>
+                )
               }
             />
           );
@@ -243,10 +259,17 @@ export function PublishingAccountsSection() {
       {configuring && (
         <PlatformAppDialog
           app={configuring}
+          connectedCount={
+            accounts.filter((a) => a.platform === configuring.platform).length
+          }
           onClose={() => setConfiguring(null)}
           onSaved={() => {
             setConfiguring(null);
             void refresh();
+          }}
+          onConnect={() => {
+            setConfiguring(null);
+            connect(configuring.platform);
           }}
         />
       )}
@@ -258,61 +281,234 @@ function ColleagueCount({ label }: { label: string }) {
   return <span className="text-[11px] text-ink-mute">{label}</span>;
 }
 
+function SetupStep({
+  index,
+  title,
+  children,
+}: {
+  index: string;
+  title: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex gap-4 border-t-[1px] border-rule-soft py-4 dark:border-rule-on-dark">
+      <span className="flex-none pt-[1px] font-serif text-lg italic leading-none text-cobalt dark:text-cobalt-soft">
+        {index}
+      </span>
+      <div className="min-w-0 flex-1 space-y-2">
+        <p className="text-sm font-medium text-ink dark:text-foreground">{title}</p>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ProductRow({ name, purpose }: { name: string; purpose: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 border-b-[1px] border-rule-soft px-3 py-2 last:border-b-0 dark:border-rule-on-dark">
+      <span className="text-[13px] text-ink dark:text-foreground">{name}</span>
+      <span className="flex-none font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+        {purpose}
+      </span>
+    </div>
+  );
+}
+
+function DialogEyebrow({ left, right }: { left: string; right?: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+      <span>{left}</span>
+      {right}
+    </div>
+  );
+}
+
+function FieldLabel({ htmlFor, children, aside }: { htmlFor: string; children: string; aside?: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <Label className={dialogLabelClass} htmlFor={htmlFor}>
+        {children}
+      </Label>
+      {aside && (
+        <span className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
+          {aside}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function PlatformAppDialog({
   app,
+  connectedCount,
   onClose,
   onSaved,
+  onConnect,
 }: {
   app: SocialPlatformAppDto;
+  connectedCount: number;
   onClose: () => void;
   onSaved: () => void;
+  onConnect: () => void;
 }) {
   const t = useTranslations('integrations.publishing');
   const tCommon = useTranslations('common');
+  const format = useFormatter();
   const translate = useTranslateError();
+  const [view, setView] = useState<'setup' | 'credentials'>(
+    app.configured ? 'credentials' : 'setup',
+  );
   const [clientId, setClientId] = useState(app.clientId);
   const [clientSecret, setClientSecret] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const redirectCopy = useCopy();
   const name = PLATFORM_NAMES[app.platform] ?? app.platform;
+  const portalUrl = PLATFORM_DEVELOPER_PORTALS[app.platform];
+  const editing = app.configured;
+  const savedOn = app.clientSecretSetAt
+    ? format.dateTime(new Date(app.clientSecretSetAt), { day: 'numeric', month: 'short' })
+    : null;
 
-  function save() {
+  async function persist(): Promise<boolean> {
     setBusy(true);
     setError(null);
-    void (async () => {
-      try {
-        await api('/v1/social/accounts/apps', {
-          method: 'POST',
-          body: JSON.stringify({
-            platform: app.platform,
-            clientId: clientId.trim(),
-            clientSecret: clientSecret.trim(),
-          }),
-        });
-        onSaved();
-      } catch (err) {
-        setError(translate(err));
-      } finally {
-        setBusy(false);
-      }
-    })();
+    try {
+      await api('/v1/social/accounts/apps', {
+        method: 'POST',
+        body: JSON.stringify({
+          platform: app.platform,
+          clientId: clientId.trim(),
+          ...(clientSecret.trim().length > 0 ? { clientSecret: clientSecret.trim() } : {}),
+        }),
+      });
+      return true;
+    } catch (err) {
+      setError(translate(err));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const canSubmit =
+    !busy && clientId.trim().length > 0 && (editing || clientSecret.trim().length > 0);
+
+  if (view === 'setup') {
+    return (
+      <Dialog open onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogEyebrow left={editing ? t('eyebrowApp', { platform: name }) : t('eyebrowStepOne', { platform: name })} />
+            <DialogTitle>{t('setupTitle', { platform: name })}</DialogTitle>
+            <DialogDescription>{t('setupLede', { platform: name })}</DialogDescription>
+          </DialogHeader>
+
+          <div>
+            <SetupStep
+              index="01"
+              title={t.rich('stepCreate', {
+                portal: (chunks) =>
+                  portalUrl ? (
+                    <a
+                      href={portalUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="text-cobalt underline underline-offset-2 dark:text-cobalt-soft"
+                    >
+                      {chunks}
+                    </a>
+                  ) : (
+                    chunks
+                  ),
+              })}
+            >
+              <p className="text-xs text-ink-mute">{t('stepCreateNote', { platform: name })}</p>
+            </SetupStep>
+
+            <SetupStep index="02" title={t('stepProducts')}>
+              <div className="border-[1px] border-rule-soft bg-paper-deep dark:border-rule-on-dark dark:bg-secondary">
+                <ProductRow
+                  name={t('productShare', { platform: name })}
+                  purpose={t('productSharePurpose')}
+                />
+                <ProductRow
+                  name={t('productSignIn', { platform: name })}
+                  purpose={t('productSignInPurpose')}
+                />
+              </div>
+              <p className="text-xs text-ink-mute">
+                {t.rich('stepProductsNote', {
+                  code: (chunks) => <code className="font-mono">{chunks}</code>,
+                })}
+              </p>
+            </SetupStep>
+
+            <SetupStep index="03" title={t('stepRedirect')}>
+              <div className="flex items-stretch border-[1px] border-rule-soft bg-paper-deep dark:border-rule-on-dark dark:bg-secondary">
+                <span className="min-w-0 flex-1 break-all px-3 py-2 font-mono text-xs text-ink dark:text-foreground">
+                  {app.redirectUri}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => redirectCopy.copy(app.redirectUri)}
+                  className="flex-none border-l-[1px] border-rule-soft px-3 font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:border-rule-on-dark dark:text-cobalt-soft"
+                >
+                  {redirectCopy.copied ? t('copied') : t('copy')}
+                </button>
+              </div>
+            </SetupStep>
+          </div>
+
+          <DialogFooter className="items-end justify-between gap-4 border-t-[1px] border-rule-soft pt-4 dark:border-rule-on-dark">
+            <p className="min-w-0 flex-1 text-left text-xs text-ink-mute">{t('setupStaysOpen')}</p>
+            <div className="flex flex-none gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>
+                {tCommon('cancel')}
+              </Button>
+              <Button type="button" onClick={() => setView('credentials')}>
+                {editing ? t('backToCredentials') : t('doneNext')}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
   }
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{t('appDialogTitle', { platform: name })}</DialogTitle>
-          <DialogDescription>{t('appDialogLede', { platform: name })}</DialogDescription>
+          <DialogEyebrow
+            left={editing ? t('eyebrowApp', { platform: name }) : t('eyebrowStepTwo', { platform: name })}
+            right={
+              editing ? (
+                <span className="text-cobalt dark:text-cobalt-soft">
+                  {t('eyebrowConnected', { count: connectedCount })}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setView('setup')}
+                  className="font-mono uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft"
+                >
+                  {t('backToSteps')}
+                </button>
+              )
+            }
+          />
+          <DialogTitle>
+            {editing ? t('editTitle', { platform: name }) : t('credentialsTitle')}
+          </DialogTitle>
+          <DialogDescription>
+            {editing ? t('editLede', { platform: name }) : t('credentialsLede')}
+          </DialogDescription>
         </DialogHeader>
+
         <div className="space-y-4">
-          <p className="border-l-[2px] border-rule-soft pl-3 text-xs text-muted-foreground dark:border-rule-on-dark">
-            {t('appDialogAuthorNote', { platform: name })}
-          </p>
           <div className="space-y-1.5">
-            <Label className={dialogLabelClass} htmlFor="socialClientId">
-              {t('clientId')}
-            </Label>
+            <FieldLabel htmlFor="socialClientId">{t('clientId')}</FieldLabel>
             <Input
               id="socialClientId"
               value={clientId}
@@ -321,33 +517,71 @@ function PlatformAppDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label className={dialogLabelClass} htmlFor="socialClientSecret">
+            <FieldLabel
+              htmlFor="socialClientSecret"
+              {...(editing && savedOn ? { aside: t('secretSavedOn', { date: savedOn }) } : {})}
+            >
               {t('clientSecret')}
-            </Label>
+            </FieldLabel>
             <Input
               id="socialClientSecret"
               type="password"
               value={clientSecret}
+              placeholder={editing ? t('secretStoredPlaceholder') : t('secretPlaceholder')}
               onChange={(e) => setClientSecret(e.target.value)}
               autoComplete="off"
             />
-            <p className="text-xs text-muted-foreground">{t('clientSecretHint')}</p>
+            <p className="text-xs text-ink-mute">
+              {editing ? t('secretKeepHint') : t('clientSecretHint')}
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            {t('redirectHint', { url: app.redirectUri })}
-          </p>
+
           {error && <p className="text-sm text-destructive">{error}</p>}
+
+          <div className="border-t-[1px] border-rule-soft pt-4 dark:border-rule-on-dark">
+            {editing ? (
+              <p className="text-xs text-ink-mute">
+                {t.rich('replacingApp', {
+                  steps: (chunks) => (
+                    <button
+                      type="button"
+                      onClick={() => setView('setup')}
+                      className="text-cobalt underline underline-offset-2 dark:text-cobalt-soft"
+                    >
+                      {chunks}
+                    </button>
+                  ),
+                })}
+              </p>
+            ) : (
+              <p className="text-xs text-ink-mute">
+                {t('appDialogAuthorNote', { platform: name })}
+              </p>
+            )}
+          </div>
         </div>
+
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
-            {tCommon('cancel')}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => (editing ? onClose() : setView('setup'))}
+            disabled={busy}
+          >
+            {editing ? tCommon('cancel') : t('back')}
           </Button>
           <Button
             type="button"
-            onClick={save}
-            disabled={busy || clientId.trim().length === 0 || clientSecret.trim().length === 0}
+            disabled={!canSubmit}
+            onClick={() => {
+              void persist().then((ok) => {
+                if (!ok) return;
+                if (editing) onSaved();
+                else onConnect();
+              });
+            }}
           >
-            {busy ? tCommon('saving') : tCommon('save')}
+            {busy ? tCommon('saving') : editing ? tCommon('save') : t('connect')}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -177,6 +177,7 @@
     "agents": "Agents",
     "apiKeys": "API keys",
     "channels": "Channels",
+    "privacy": "Privacy",
     "trackers": "Trackers",
     "endUsers": "End-users",
     "usage": "Usage",
@@ -210,7 +211,8 @@
       "channelInboundFailing": "Inbound polling failing on \"{name}\"",
       "channelOutboundFailing": "Replies are not going out on \"{name}\"",
       "openChannelSettings": "Open channel settings →",
-      "openSocialSettings": "Reconnect account"
+      "openSocialSettings": "Reconnect account",
+      "openPrivacySettings": "Open privacy settings"
     },
     "loadFailed": {
       "eyebrow": "Connection · failed",
@@ -1629,6 +1631,52 @@
       "errors": {
         "save": "Could not save organization."
       }
+    },
+    "privacy": {
+      "eyebrow": "Privacy",
+      "title": "Personal <em>data</em>",
+      "subtitle": "Control what Munin keeps when customers send you more than you asked for.",
+      "sectionTitle": "National identity numbers",
+      "detectorsLabel": "Identifier types",
+      "detectorsHint": "Pick the ones your customers actually send. Munin watches for all of them either way and tells you when one turns up — this chooses which get redacted.",
+      "detectors": {
+        "no_fnr": {
+          "name": "Norwegian fødselsnummer",
+          "hint": "Eleven digits with two check digits. Recognised reliably, including D-numbers and H-numbers."
+        },
+        "se_pnr": {
+          "name": "Swedish personnummer",
+          "hint": "Ten or twelve digits with a Luhn check digit. Samordningsnummer included."
+        },
+        "dk_cpr": {
+          "name": "Danish CPR-nummer",
+          "hint": "Ten digits. Denmark dropped its check digit in 2007, so only the hyphenated form is recognised reliably."
+        }
+      },
+      "policyLabel": "What to do with a match",
+      "policies": {
+        "off": "Store it unchanged",
+        "mask": "Keep the date of birth only",
+        "remove": "Remove it entirely"
+      },
+      "policyHint": {
+        "off": "Nothing is rewritten. You will still be told when these numbers arrive.",
+        "mask": "A match becomes the birth date followed by asterisks, enough to match a person to a case without keeping the number.",
+        "remove": "A match is replaced by a note naming what was removed. The digits are not kept anywhere."
+      },
+      "confidenceLabel": "How certain a match must be",
+      "confidences": {
+        "high": "Only near-certain matches",
+        "medium": "Also loose matches"
+      },
+      "confidenceHint": {
+        "high": "Requires a valid check digit or a separator. Order numbers and account numbers are left alone.",
+        "medium": "Also redacts bare digit runs. Catches more, and will sometimes take a reference number with it."
+      },
+      "scopeNote": "Applies to messages that arrive after you save. Redaction cannot be undone, and text inside attachments is not covered.",
+      "errors": {
+        "save": "Could not save the privacy settings."
+      }
     }
   },
   "agentSetup": {
@@ -2142,6 +2190,7 @@
     "conv_draft_pending": "A draft is already waiting for review.",
     "conv_draft_request_invalid": "The agent can't draft here — the conversation is closed, has no customer to reply to, or the agent is switched off.",
     "conv_invalid": "This draft is no longer the one waiting on this conversation — it was already sent, or the agent has written a newer one. Reopen the conversation to see where it stands.",
+    "conv_redaction_invalid": "Pick at least one identifier type, or turn redaction off.",
     "conv_test_self_addressed": "That address is the channel's own. Send the test to a different mailbox you can read.",
     "kb_curation_decided": "This one was already decided — published or dismissed — so it won't be proposed again. Refresh the queue.",
     "kb_version_conflict": "Someone changed this text while you had it open, so nothing was saved. Reopen it to see the current version and decide on that.",

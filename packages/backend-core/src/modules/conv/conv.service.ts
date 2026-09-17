@@ -6,6 +6,8 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { applyInboundRedaction } from './inbound-redaction.ts';
+import { readRedactionPolicy } from './redaction-policy.ts';
 import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, sameAfterNormalizing, WebhookDispatcher } from '@getmunin/core';
@@ -1819,15 +1821,25 @@ export class ConvService {
     }
 
     const existingMeta = row.metadata ?? {};
+    const redactionPolicy = await readRedactionPolicy(ctx.db, actor.orgId);
+    const scrubbed = applyInboundRedaction(
+      {
+        body: newBody,
+        metadata: {
+          preStripBody: originalBody,
+          ...(input.signatureText ? { signatureText: input.signatureText } : {}),
+        },
+      },
+      redactionPolicy,
+    );
     const patchedMeta: Record<string, unknown> = {
       ...existingMeta,
-      preStripBody: originalBody,
-      ...(input.signatureText ? { signatureText: input.signatureText } : {}),
+      ...scrubbed.fields.metadata,
     };
 
     await ctx.db
       .update(schema.convMessages)
-      .set({ body: newBody, metadata: patchedMeta })
+      .set({ body: scrubbed.fields.body, metadata: patchedMeta })
       .where(eq(schema.convMessages.id, input.messageId));
     await this.webhooks.emit({
       type: 'conversation.message.body_revised',

@@ -122,6 +122,7 @@ export { AgentsPage } from './pages/agents';
 export { ApiKeysPage } from './pages/api-keys';
 export { AuditLogPage } from './pages/audit-log';
 export { ChannelsPage } from './pages/channels';
+export { PrivacyPage } from './pages/privacy';
 export { IntegrationsPage } from './pages/integrations';
 export { CredentialEntryPage } from './pages/credential-entry';
 export { TrackersPage } from './pages/trackers';

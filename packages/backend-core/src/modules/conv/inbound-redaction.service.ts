@@ -1,5 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
-import type { Db, Tx } from '@getmunin/db';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { schema, type Db, type Tx } from '@getmunin/db';
+import { eq, sql } from 'drizzle-orm';
+import { getCurrentContext } from '@getmunin/core';
+import { NATIONAL_ID_DETECTORS, type NationalIdDetector } from '@getmunin/core';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import {
   applyInboundRedaction,
@@ -7,13 +10,58 @@ import {
   type InboundRedactionResult,
   type InboundTextFields,
 } from './inbound-redaction.ts';
-import { readRedactionPolicy } from './redaction-policy.ts';
+import { parseRedactionPolicy, readRedactionPolicy, REDACTION_SETTINGS_KEY } from './redaction-policy.ts';
+
+export interface RedactionPolicyDto {
+  detectors: NationalIdDetector[];
+  policy: 'off' | 'mask' | 'remove';
+  minConfidence: 'high' | 'medium';
+  availableDetectors: readonly NationalIdDetector[];
+}
 
 export const DETECTED_NATIONAL_IDS_KEY = 'detectedNationalIds';
 
 @Injectable()
 export class InboundRedactionService {
   constructor(@Inject(AlertsService) private readonly alerts: AlertsService) {}
+
+  async getPolicy(): Promise<RedactionPolicyDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const policy = await readRedactionPolicy(ctx.db, actor.orgId);
+    return toDto(policy);
+  }
+
+  async configure(input: {
+    detectors: NationalIdDetector[];
+    policy: 'off' | 'mask' | 'remove';
+    minConfidence?: 'high' | 'medium';
+  }): Promise<RedactionPolicyDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const detectors = [...new Set(input.detectors)];
+    if (input.policy !== 'off' && detectors.length === 0) {
+      throw new BadRequestException({
+        message:
+          'conv_redaction_invalid: pick at least one identifier type, or set the policy to off',
+        code: 'conv_redaction_invalid',
+      });
+    }
+    const value = {
+      detectors,
+      policy: input.policy,
+      minConfidence: input.minConfidence ?? 'high',
+    };
+    const [updated] = await ctx.db
+      .update(schema.orgs)
+      .set({
+        settings: sql`${schema.orgs.settings} || ${JSON.stringify({ [REDACTION_SETTINGS_KEY]: value })}::jsonb`,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.orgs.id, actor.orgId))
+      .returning({ settings: schema.orgs.settings });
+    return toDto(parseRedactionPolicy(updated?.settings ?? {}));
+  }
 
   async apply<T extends InboundTextFields>(
     db: Db | Tx,
@@ -63,3 +111,16 @@ const LABEL: Record<DetectedNationalId['detector'], string> = {
   se_pnr: 'Swedish personnummer',
   dk_cpr: 'Danish CPR numbers',
 };
+
+function toDto(policy: {
+  detectors: readonly NationalIdDetector[];
+  policy: 'off' | 'mask' | 'remove';
+  minConfidence: 'high' | 'medium';
+}): RedactionPolicyDto {
+  return {
+    detectors: [...policy.detectors],
+    policy: policy.policy,
+    minConfidence: policy.minConfidence,
+    availableDetectors: NATIONAL_ID_DETECTORS,
+  };
+}

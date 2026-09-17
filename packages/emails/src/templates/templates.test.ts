@@ -5,8 +5,11 @@ import {
   renderOrgInviteEmail,
   renderPartnerClaimEmail,
   renderResetPasswordEmail,
+  renderSystemAlertEmail,
   renderVerifyEmail,
 } from '../index.ts';
+import * as en from '../locales/en.ts';
+import * as nb from '../locales/nb.ts';
 
 const url = 'https://app.example/path?token=abc';
 
@@ -155,8 +158,95 @@ describe('plain-text bodies never contain raw HTML tags', () => {
           locale: 'en',
         }),
     ],
+    [
+      'system-alert',
+      () =>
+        renderSystemAlertEmail({
+          alertTitle: 'Inbound polling failed',
+          alertDetail: 'authentication rejected',
+          severity: 'error',
+          source: 'channel_inbound',
+          orgName: 'Acme',
+          personal: false,
+          ctaHref: url,
+          locale: 'en',
+        }),
+    ],
   ])('%s', async (_name, fn) => {
     const out = await fn();
     expect(out.text).not.toMatch(/<[a-z]+[\s>]/i);
+  });
+});
+
+describe('system-alert', () => {
+  const base = {
+    alertTitle: 'LinkedIn connection expired',
+    alertDetail: 'refresh token rejected',
+    severity: 'warning' as const,
+    source: 'social',
+    orgName: 'Acme',
+    ctaHref: url,
+  };
+
+  it('renders en + nb and carries the alert detail into both bodies', async () => {
+    const enOut = await renderSystemAlertEmail({ ...base, personal: true, locale: 'en' });
+    const nbOut = await renderSystemAlertEmail({ ...base, personal: true, locale: 'nb' });
+    assertCommon(enOut);
+    assertCommon(nbOut);
+    for (const out of [enOut, nbOut]) {
+      expect(out.html).toContain('LinkedIn connection expired');
+      expect(out.text).toContain('refresh token rejected');
+      expect(out.text).toContain(url);
+    }
+    expect(enOut.subject).not.toBe(nbOut.subject);
+  });
+
+  it('tells an owner and an affected member apart', async () => {
+    const personal = await renderSystemAlertEmail({ ...base, personal: true, locale: 'en' });
+    const org = await renderSystemAlertEmail({ ...base, personal: false, locale: 'en' });
+    expect(personal.text).not.toBe(org.text);
+    expect(org.text).toContain('own the organisation');
+    expect(personal.text).toContain('Nobody else can clear this one for you');
+  });
+
+  it('omits the button entirely when there is nowhere to send the reader', async () => {
+    const out = await renderSystemAlertEmail({
+      ...base,
+      personal: false,
+      ctaHref: null,
+      locale: 'en',
+    });
+    assertCommon(out);
+    expect(out.text).not.toContain('undefined');
+    expect(out.text).not.toContain('null');
+  });
+
+  it('drops the detail row rather than printing an empty one', async () => {
+    const out = await renderSystemAlertEmail({
+      ...base,
+      personal: false,
+      alertDetail: null,
+      locale: 'en',
+    });
+    expect(out.text).not.toContain('Detail:');
+  });
+});
+
+function arities(mod: object): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [templateKey, strings] of Object.entries(mod as Record<string, unknown>)) {
+    if (typeof strings !== 'object' || strings === null) continue;
+    for (const [stringKey, value] of Object.entries(strings as Record<string, unknown>)) {
+      if (typeof value === 'function') {
+        out[`${templateKey}.${stringKey}`] = (value as (...args: unknown[]) => unknown).length;
+      }
+    }
+  }
+  return out;
+}
+
+describe('locale parity', () => {
+  it('gives nb the same interpolation arity as en for every string', () => {
+    expect(arities(nb)).toEqual(arities(en));
   });
 });

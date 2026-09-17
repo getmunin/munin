@@ -8,9 +8,10 @@ import { ConnectorOAuthService } from './connector-oauth.service.ts';
 import { ConnectorOAuthController } from './connector-oauth.controller.ts';
 import { CredentialHandoffModule } from '../credential-handoff/credential-handoff.module.ts';
 import { CredentialTargetRegistry } from '../credential-handoff/credential-target.ts';
+import { OutboundOAuthModule } from '../../common/outbound-oauth/outbound-oauth.module.ts';
 
 @Module({
-  imports: [CredentialHandoffModule],
+  imports: [CredentialHandoffModule, OutboundOAuthModule],
   controllers: [ConnectorOAuthController],
   providers: [
     { provide: ConnectorRegistry, useFactory: () => new ConnectorRegistry() },

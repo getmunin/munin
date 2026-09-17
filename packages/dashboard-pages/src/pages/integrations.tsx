@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { Hero } from '@getmunin/ui';
 import { OperatorBridgesSection } from '../components/integrations/operator-bridges-grid';
 import { DataConnectionsSection } from '../components/integrations/connectors-grid';
+import { PublishingAccountsSection } from '../components/integrations/publishing-accounts-grid';
 
 export function IntegrationsPage() {
   const t = useTranslations('integrations');
@@ -16,6 +17,7 @@ export function IntegrationsPage() {
         lede={t('hero.lede')}
       />
       <OperatorBridgesSection />
+      <PublishingAccountsSection />
       <DataConnectionsSection />
     </div>
   );

@@ -5,6 +5,7 @@ import { CrmQueuePane } from './crm';
 import { FeedbackQueuePane } from './feedback';
 import { KbQueuePane } from './kb';
 import { OutreachQueuePane } from './outreach';
+import { SocialQueuePane } from './social';
 import type {
   CmsAssetExpanded,
   CmsDraftDetailDto,
@@ -80,6 +81,7 @@ export function QueueItemPane({
   onRetry,
   pending,
   onApprove,
+  onPublish,
   onDismiss,
   onSave,
   onSaveCmsDraft,
@@ -98,6 +100,7 @@ export function QueueItemPane({
   onRetry: () => void;
   pending: boolean;
   onApprove: (sendAt?: string | null) => void;
+  onPublish?: () => void;
   onDismiss: () => void;
   onSave: (body: string) => Promise<void>;
   onSaveCmsDraft: (data: Record<string, unknown>) => Promise<void>;
@@ -142,6 +145,17 @@ export function QueueItemPane({
           onApprove={onApprove}
           onDismiss={onDismiss}
           onSave={onSave}
+          onClose={onClose}
+        />
+      );
+    case 'social':
+      return (
+        <SocialQueuePane
+          item={item}
+          pending={pending}
+          onApprove={() => onApprove()}
+          onPublish={onPublish}
+          onDismiss={onDismiss}
           onClose={onClose}
         />
       );

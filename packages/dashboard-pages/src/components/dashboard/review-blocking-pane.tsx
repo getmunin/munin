@@ -27,6 +27,7 @@ export function ReviewBlockingPane({
     queueActionError,
     clearQueueActionError,
     approveQueue,
+    publishQueue,
     dismissQueue,
     saveQueue,
     saveCmsDraft,
@@ -75,6 +76,11 @@ export function ReviewBlockingPane({
         onRetry={() => reloadQueueDetail(item.id)}
         pending={pending}
         onApprove={(sendAt) => void approveQueue(item, sendAt).then(afterDecision)}
+        onPublish={
+          item.kind === 'social'
+            ? () => void publishQueue(item).then(afterDecision)
+            : undefined
+        }
         onDismiss={() => void dismissQueue(item).then(afterDecision)}
         onSave={(body) => saveQueue(item, body)}
         onSaveCmsDraft={(data) => saveCmsDraft(item, data)}

@@ -12,6 +12,7 @@ import {
   type CmsScheduledEntrySummary,
 } from '../cms/cms.service.ts';
 import { FeedbackService, type FeedbackOutboxDto } from '../feedback/feedback.service.ts';
+import { SocialService, type SocialDraftDto } from '../social/social.service.ts';
 import {
   type DecidedCursor,
   type ReviewDecisionActor,
@@ -21,7 +22,7 @@ import {
 
 export const REVIEW_DEFAULT_LIMIT = 50;
 
-export type ReviewKind = 'kb' | 'crm' | 'outreach' | 'cms' | 'feedback';
+export type ReviewKind = 'kb' | 'crm' | 'outreach' | 'cms' | 'feedback' | 'social';
 export type ReviewState = 'waiting' | 'scheduled' | 'decided';
 
 export interface ReviewDecidedFields {
@@ -44,7 +45,8 @@ export type ReviewItem =
   | Item<'crm', MergeProposalDto>
   | Item<'outreach', ProposalSummaryDto>
   | Item<'cms', CmsDraftEntrySummary>
-  | Item<'feedback', FeedbackOutboxDto>;
+  | Item<'feedback', FeedbackOutboxDto>
+  | Item<'social', SocialDraftDto>;
 
 export interface DecidedPage {
   items: ReviewItem[];
@@ -59,6 +61,7 @@ export interface ReviewSnapshot {
   cms: CmsDraftEntrySummary[];
   cmsScheduled: CmsScheduledEntrySummary[];
   feedback?: FeedbackOutboxDto[];
+  social: SocialDraftDto[];
 }
 
 function millis(iso: string): number {
@@ -73,19 +76,22 @@ export class ReviewService {
     private readonly crm: CrmService,
     private readonly outreach: OutreachService,
     private readonly cms: CmsService,
+    private readonly social: SocialService,
     @Optional() @Inject(FeedbackService) private readonly feedback: FeedbackService | null = null,
   ) {}
 
   async readSnapshot(limit: number = REVIEW_DEFAULT_LIMIT): Promise<ReviewSnapshot> {
-    const [kb, crm, outreach, outreachScheduled, cms, cmsScheduled, feedback] = await Promise.all([
-      this.kb.listCurationCandidates(limit),
-      this.crm.listMergeProposals({ status: 'pending', limit }),
-      this.outreach.listProposals({ status: 'pending', limit }),
-      this.outreach.listProposals({ status: 'approved', limit }),
-      this.cms.listDraftEntries(limit),
-      this.cms.listScheduledEntries(limit),
-      this.feedback ? this.feedback.listPending() : Promise.resolve(undefined),
-    ]);
+    const [kb, crm, outreach, outreachScheduled, cms, cmsScheduled, social, feedback] =
+      await Promise.all([
+        this.kb.listCurationCandidates(limit),
+        this.crm.listMergeProposals({ status: 'pending', limit }),
+        this.outreach.listProposals({ status: 'pending', limit }),
+        this.outreach.listProposals({ status: 'approved', limit }),
+        this.cms.listDraftEntries(limit),
+        this.cms.listScheduledEntries(limit),
+        this.social.listDrafts({ status: 'pending', limit }),
+        this.feedback ? this.feedback.listPending() : Promise.resolve(undefined),
+      ]);
 
     return {
       kb,
@@ -94,6 +100,7 @@ export class ReviewService {
       outreachScheduled,
       cms,
       cmsScheduled,
+      social,
       ...(feedback ? { feedback } : {}),
     };
   }
@@ -105,6 +112,7 @@ export class ReviewService {
       snapshot.outreach.length > 0 ||
       snapshot.cms.length > 0 ||
       snapshot.cmsScheduled.length > 0 ||
+      snapshot.social.length > 0 ||
       (snapshot.feedback?.length ?? 0) > 0 ||
       snapshot.outreachScheduled.some((proposal) => proposal.scheduledSendAt !== null)
     );
@@ -155,6 +163,13 @@ export class ReviewService {
         at: raw.createdAt,
         raw,
       })),
+      ...snapshot.social.map<ReviewItem>((raw) => ({
+        kind: 'social',
+        state: 'waiting',
+        id: raw.id,
+        at: raw.createdAt,
+        raw,
+      })),
     ];
     return items.sort((a, b) => millis(b.at) - millis(a.at));
   }
@@ -166,11 +181,12 @@ export class ReviewService {
     const limit = Math.min(Math.max(input.limit ?? REVIEW_DEFAULT_LIMIT, 1), 200);
     const query = { ...(input.cursor ? { cursor: input.cursor } : {}), limit: limit + 1 };
 
-    const [kb, crm, outreach, cms, feedback] = await Promise.all([
+    const [kb, crm, outreach, cms, social, feedback] = await Promise.all([
       this.kb.listDecided(query),
       this.crm.listDecided(query),
       this.outreach.listDecided(query),
       this.cms.listDecided(query),
+      this.social.listDecided(query),
       this.feedback ? this.feedback.listDecided(query) : Promise.resolve([]),
     ]);
 
@@ -179,6 +195,7 @@ export class ReviewService {
       ...crm.map((d) => decidedItem('crm', d)),
       ...outreach.map((d) => decidedItem('outreach', d)),
       ...cms.map((d) => decidedItem('cms', d)),
+      ...social.map((d) => decidedItem('social', d)),
       ...feedback.map((d) => decidedItem('feedback', d)),
     ].sort((a, b) => millis(b.at) - millis(a.at) || (a.id < b.id ? 1 : -1));
 

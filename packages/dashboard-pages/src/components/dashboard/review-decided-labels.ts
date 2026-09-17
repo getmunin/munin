@@ -15,6 +15,8 @@ export function decidedTitle(item: ReviewDecidedItem, t: Translate): string {
       return item.raw.title ?? t('decidedUntitled');
     case 'feedback':
       return item.raw.title;
+    case 'social':
+      return t('decidedSocialVariant', { label: item.raw.variantLabel });
   }
 }
 

@@ -199,10 +199,67 @@ CREATE POLICY tenant_isolation ON feedback_outbox
 -- ───────────────────────── org_alerts ──────────────────────────────────────
 -- Org-scoped operational alerts. Admin-only (no end-user audience). Writers
 -- across modules call AlertsService which sets tenancy GUCs before insert.
+--
+-- `user_id` (nullable; NULL = org-scoped) narrows an alert to a single org
+-- member — used by integrations whose credentials are per-person, where only
+-- that member can act on the failure. RLS deliberately does NOT enforce that
+-- narrowing: the GUCs carry org and end-user identity, and an end user is a
+-- customer, not an org member, so there is no member identity to key a policy
+-- on. Per-member visibility is filtered in AlertsService against
+-- actor.userId. Tenant isolation below remains the boundary RLS defends.
 ALTER TABLE org_alerts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE org_alerts FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON org_alerts;
 CREATE POLICY tenant_isolation ON org_alerts
+  USING (app_bypass_rls() OR org_id = app_org_id())
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
+-- ───────────────────────── social_post_drafts ──────────────────────────────
+-- Social post drafts awaiting a human decision. Admin-only: an end user has no
+-- business reading what the org is about to publish about itself, so delegated
+-- end-user sessions are excluded even when the org matches.
+ALTER TABLE social_post_drafts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE social_post_drafts FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON social_post_drafts;
+CREATE POLICY tenant_isolation ON social_post_drafts
+  USING (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''))
+  WITH CHECK (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''));
+
+-- ───────────────────────── social_platform_apps ────────────────────────────
+-- The org's OAuth client for a social platform. Admin-only on both sides: the
+-- client secret is pgcrypto-encrypted, but an end-user session has no reason
+-- to see even the client id.
+ALTER TABLE social_platform_apps ENABLE ROW LEVEL SECURITY;
+ALTER TABLE social_platform_apps FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON social_platform_apps;
+CREATE POLICY tenant_isolation ON social_platform_apps
+  USING (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''))
+  WITH CHECK (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''));
+
+-- ───────────────────────── social_accounts ─────────────────────────────────
+-- A member's grant on a social platform. Org-scoped rather than user-scoped:
+-- colleagues need to see who in the org can post so a draft can be routed to
+-- them, and the review queue shows that list. The tokens are encrypted and the
+-- service never returns them in a DTO, so org-wide visibility of the row does
+-- not mean org-wide use of the grant — publishing checks the acting user.
+--
+-- The OAuth callback and the expiry sweep both run under app_bypass_rls on a
+-- service-role connection, so this policy governs the dashboard read paths.
+ALTER TABLE social_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE social_accounts FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON social_accounts;
+CREATE POLICY tenant_isolation ON social_accounts
+  USING (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''))
+  WITH CHECK (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''));
+-- ───────────────────────── alert_notifications ─────────────────────────────
+-- Queue of alert emails awaiting delivery. Org-scoped like the alerts it
+-- references. The drain worker connects with the service role (bypass_rls is
+-- set at the pool level), so this policy governs the enqueue path inside the
+-- emitting request transaction rather than the worker's own reads.
+ALTER TABLE alert_notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE alert_notifications FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON alert_notifications;
+CREATE POLICY tenant_isolation ON alert_notifications
   USING (app_bypass_rls() OR org_id = app_org_id())
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 

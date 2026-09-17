@@ -24,6 +24,7 @@ import type {
   OutreachProposalDto,
   QueueItem,
   ScheduledItem,
+  SocialDraftDto,
 } from './queue-panes/types';
 
 export type { QueueItem, ScheduledItem };
@@ -89,7 +90,7 @@ export type LiveSummary = ConversationSummary & {
   claim: ConversationDetail['claim'];
 };
 
-export type ReviewKind = 'kb' | 'crm' | 'outreach' | 'cms' | 'feedback';
+export type ReviewKind = 'kb' | 'crm' | 'outreach' | 'cms' | 'feedback' | 'social';
 
 export interface CurationDecisionDto {
   id: string;
@@ -126,14 +127,16 @@ export type ReviewWireItem =
   | Wire<'crm', CrmMergeProposalDto>
   | Wire<'outreach', OutreachProposalDto>
   | Wire<'cms', CmsDraftSummaryDto | CmsScheduledSummaryDto>
-  | Wire<'feedback', FeedbackOutboxDto>;
+  | Wire<'feedback', FeedbackOutboxDto>
+  | Wire<'social', SocialDraftDto>;
 
 export type ReviewDecidedWireItem =
   | Wire<'kb', CurationDecisionDto, ReviewDecidedFields>
   | Wire<'crm', CrmMergeProposalDto, ReviewDecidedFields>
   | Wire<'outreach', OutreachProposalDto, ReviewDecidedFields>
   | Wire<'cms', CmsDraftSummaryDto, ReviewDecidedFields>
-  | Wire<'feedback', FeedbackOutboxDto, ReviewDecidedFields>;
+  | Wire<'feedback', FeedbackOutboxDto, ReviewDecidedFields>
+  | Wire<'social', SocialDraftDto, ReviewDecidedFields>;
 
 export interface InboxQueueResponse {
   live: LiveSummary[];
@@ -175,6 +178,7 @@ export interface InboxController {
   queueActionError: QueueActionError;
   clearQueueActionError: () => void;
   approveQueue: (item: QueueItem, sendAt?: string | null) => Promise<boolean>;
+  publishQueue: (item: QueueItem) => Promise<boolean>;
   scheduled: ScheduledItem[];
   cancelScheduledSend: (id: string, reason: string) => Promise<void>;
   cancelScheduledPublish: (id: string) => Promise<void>;

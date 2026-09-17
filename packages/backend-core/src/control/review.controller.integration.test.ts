@@ -326,6 +326,61 @@ interface ReviewResponse {
       .returning();
     seeded['cmsArchived'] = archivedEntry!.id;
 
+    const [socialPending] = await db
+      .insert(schema.socialPostDrafts)
+      .values({
+        orgId,
+        platform: 'linkedin',
+        setId: `spd_set_${label}`,
+        variantLabel: 'practitioner',
+        body: 'What this changes on a Tuesday morning.',
+        linkUrl: 'https://example.test/blog/spring',
+        sourceRef: { type: 'cms_entry', id: draft!.id },
+        proposedByActorType: 'agent',
+        proposedByActorId: 'agent:test',
+        createdAt: new Date(Date.now() - 30 * 60 * 1000),
+      })
+      .returning();
+    seeded['social'] = socialPending!.id;
+
+    const [socialDismissed] = await db
+      .insert(schema.socialPostDrafts)
+      .values({
+        orgId,
+        platform: 'linkedin',
+        setId: `spd_set_${label}`,
+        variantLabel: 'contrarian',
+        body: 'The advice everyone repeats is wrong.',
+        status: 'dismissed',
+        dismissReason: 'Too combative for this piece',
+        proposedByActorType: 'agent',
+        proposedByActorId: 'agent:test',
+        decidedByActorType: 'user',
+        decidedByActorId: userId,
+        decidedAt: new Date(Date.now() - 9 * HOUR),
+      })
+      .returning();
+    seeded['socialDecided'] = socialDismissed!.id;
+
+    const [socialFailed] = await db
+      .insert(schema.socialPostDrafts)
+      .values({
+        orgId,
+        platform: 'linkedin',
+        setId: `spd_set_fail_${label}`,
+        variantLabel: 'data',
+        body: 'Nine in ten tickets never needed a human.',
+        status: 'failed',
+        lastError: 'the platform rejected the post',
+        proposedByActorType: 'agent',
+        proposedByActorId: 'agent:test',
+        decidedByActorType: 'user',
+        decidedByActorId: userId,
+        decidedAt: new Date(Date.now() - 10 * HOUR),
+      })
+      .returning();
+    seeded['socialFailed'] = socialFailed!.id;
+
     app = await createApp(AppModule, { logger: false });
     await app.listen(0, '127.0.0.1');
     const server = app.getHttpServer() as { address(): AddressInfo | string | null };
@@ -361,6 +416,7 @@ interface ReviewResponse {
     expect(byKind.get('crm')).toBe(seeded['crm']);
     expect(byKind.get('outreach')).toBe(seeded['outreach']);
     expect(byKind.get('cms')).toBe(seeded['cms']);
+    expect(byKind.get('social')).toBe(seeded['social']);
     expect(body.items.every((i) => i.state === 'waiting')).toBe(true);
   });
 
@@ -397,6 +453,7 @@ interface ReviewResponse {
     expect(byKind.get('crm')?.id).toBe(seeded['crmDecided']);
     expect(byKind.get('outreach')?.id).toBe(seeded['outreachSent']);
     expect(byKind.get('cms')?.id).toBe(seeded['cmsArchived']);
+    expect(body.items.find((i) => i.kind === 'social')?.id).toBe(seeded['socialDecided']);
     expect(body.items.every((i) => i.state === 'decided')).toBe(true);
 
     const times = body.items.map((i) => new Date(i.at).getTime());
@@ -425,6 +482,26 @@ interface ReviewResponse {
     expect(cms?.reason).toBe('Superseded by the launch post');
     expect(cms?.producedRef).toEqual({ type: 'cms_entry', id: seeded['cmsArchived'] });
     expect(cms?.decidedBy?.actorType).toBe('agent');
+
+    const social = body.items.find((i) => i.id === seeded['socialDecided']);
+    expect(social?.outcome).toBe('dismissed');
+    expect(social?.reason).toBe('Too combative for this piece');
+    expect(social?.decidedBy?.name).toBe('Owner User');
+  });
+
+  it('reports a draft the platform rejected as failed, with the error as its reason', async () => {
+    const body = await review('decided');
+    const failed = body.items.find((i) => i.id === seeded['socialFailed']);
+    expect(failed?.kind).toBe('social');
+    expect(failed?.outcome).toBe('failed');
+    expect(failed?.reason).toBe('the platform rejected the post');
+  });
+
+  it('leaves a pending draft out of the decided feed and a decided one out of waiting', async () => {
+    const decided = await review('decided');
+    expect(decided.items.map((i) => i.id)).not.toContain(seeded['social']);
+    const waiting = await review('waiting');
+    expect(waiting.items.map((i) => i.id)).not.toContain(seeded['socialDecided']);
   });
 
   it('never repeats an item across cursor pages', async () => {

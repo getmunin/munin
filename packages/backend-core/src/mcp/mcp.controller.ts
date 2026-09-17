@@ -1,5 +1,6 @@
 import {
   Controller,
+  ForbiddenException,
   Post,
   Get,
   Delete,
@@ -15,6 +16,7 @@ import { toNodeHandler } from '@modelcontextprotocol/node';
 import { AuditLogger, getCurrentContext, readApiBaseUrl } from '@getmunin/core';
 import { createMcpServer } from '@getmunin/mcp-toolkit';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
+import { MEMBER_FORBIDDEN_CODE } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { McpRegistryService } from './mcp.registry.ts';
@@ -81,6 +83,11 @@ export class McpController {
     const actor = ctx.actor!;
 
     const audience = deriveMcpAudience(actor);
+    if (!audience) {
+      throw new ForbiddenException(
+        `${MEMBER_FORBIDDEN_CODE}: MCP access is restricted to owners and admins; ask an owner or admin to raise your role in this organization`,
+      );
+    }
 
     const server = createMcpServer({
       registry: this.registry,

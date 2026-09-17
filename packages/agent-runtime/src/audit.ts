@@ -2,6 +2,7 @@ import { defaultProvider } from './providers/default-provider.ts';
 import { summarizeQuotedHistory, type QuotedHistoryTurn } from './quoted-history.ts';
 import { fenceUntrusted } from './untrusted.ts';
 import type { AuthorType, ChatMessage, Provider, ProviderConfig } from './types.ts';
+import { redactNationalIdsForPrompt } from './redact-ids.ts';
 
 export type AuditAction =
   | { type: 'request_handover'; reason: string }
@@ -175,10 +176,10 @@ function buildUserPrompt(
   }
   lines.push(
     '[End-user question]',
-    truncate(question, 4000),
+    redactNationalIdsForPrompt(truncate(question, 4000)),
     '',
     '[Agent reply]',
-    truncate(reply, 4000),
+    redactNationalIdsForPrompt(truncate(reply, 4000)),
     '',
     '[Tools the agent already called this turn]',
     toolNames.length > 0 ? toolNames.join(', ') : '(none)',
@@ -193,7 +194,7 @@ function buildUserPrompt(
 }
 
 function threadLine(m: AuditThreadMessage): string {
-  const line = `${THREAD_ROLE[m.authorType]}: ${truncate(m.body, MAX_THREAD_MESSAGE_CHARS)}`;
+  const line = `${THREAD_ROLE[m.authorType]}: ${redactNationalIdsForPrompt(truncate(m.body, MAX_THREAD_MESSAGE_CHARS))}`;
   const quoted = summarizeQuotedHistory(m.quotedHistory ?? []);
   return quoted ? `${line}\n  ${quoted}` : line;
 }

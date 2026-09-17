@@ -12,6 +12,7 @@ import {
 } from './conv.service.ts';
 import { ConvAutomationService } from './conv-automation.service.ts';
 import { InboundRedactionService } from './inbound-redaction.service.ts';
+import { RedactBackfillService } from './redact-backfill.service.ts';
 import { CONV_ATTACHMENT_PER_MESSAGE_MAX } from './attachments/conv-attachments.constants.ts';
 import { ConvAttachmentsService } from './attachments/conv-attachments.service.ts';
 import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
@@ -21,6 +22,20 @@ const StatusSchema = z.enum(STATUSES);
 const AgentModeSchema = z.enum(AGENT_MODES);
 const HandoverSchema = z.enum(HANDOVER_FILTERS);
 const SuppressedReasonFilterSchema = z.enum(SUPPRESSED_REASON_FILTERS);
+
+const RedactExistingInput = z.object({
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(1000)
+    .optional()
+    .describe('Messages to scan in this batch (default 200, max 1000).'),
+  cursor: z
+    .string()
+    .optional()
+    .describe('`nextCursor` from the previous batch. Omit to start from the oldest message.'),
+});
 
 const ConfigureRedactionInput = z.object({
   detectors: z
@@ -242,6 +257,7 @@ export class ConvAdminTools {
     @Inject(ConvAutomationService) private readonly automation: ConvAutomationService,
     @Inject(ConvAttachmentsService) private readonly attachments: ConvAttachmentsService,
     @Inject(InboundRedactionService) private readonly redaction: InboundRedactionService,
+    @Inject(RedactBackfillService) private readonly redactBackfill: RedactBackfillService,
   ) {}
 
   @McpTool({
@@ -591,5 +607,20 @@ export class ConvAdminTools {
   })
   configureRedaction(args: z.infer<typeof ConfigureRedactionInput>) {
     return this.redaction.configure(args);
+  }
+
+  @McpTool({
+    name: 'conv_redact_existing_messages',
+    title: 'Conv: Redact national IDs in existing messages',
+    description:
+      "Apply the org's current redaction policy to messages that were stored before it was set. Scans one batch per call, oldest first, and returns `nextCursor` — keep calling with it until `done` is true. Only rewrites messages that actually contain a match, covering the same fields as live ingest, and emits `conversation.message.body_revised` so mirrored copies in Slack re-sync. Refuses when the policy is `off`. This rewrite cannot be undone, and copies already delivered elsewhere — sent replies, earlier Slack messages, past webhook deliveries — are beyond its reach.",
+    audiences: ['admin'],
+    scopes: ['conv:write'],
+    input: RedactExistingInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  redactExistingMessages(args: z.infer<typeof RedactExistingInput>) {
+    return this.redactBackfill.run(args);
   }
 }

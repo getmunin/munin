@@ -3892,6 +3892,108 @@
     }
   },
   {
+    "name": "conv_get_redaction_policy",
+    "title": "Conv: Get the inbound national-ID redaction policy",
+    "description": "Read this org's policy for national identity numbers arriving in conversations — which identifier types are redacted, whether matches are masked or removed, and the confidence floor. `availableDetectors` lists every type this server can recognise. Detection runs regardless of the policy, so a message can carry a `detectedNationalIds` summary even while the policy is `off`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_configure_redaction",
+    "title": "Conv: Configure inbound national-ID redaction",
+    "description": "Set how inbound conversation text is treated when it contains a national identity number. Applies to messages ingested after the change — email, SMS, voice and widget alike — and rewrites every stored copy, including the HTML body, the conversation subject, and the quoted history and signature captured in message metadata. Existing messages are untouched. Redaction is irreversible: with `remove` the original digits are not retained anywhere.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "detectors": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "no_fnr",
+              "se_pnr",
+              "dk_cpr"
+            ]
+          },
+          "description": "Identifier types to redact: `no_fnr` (Norwegian fødselsnummer), `se_pnr` (Swedish personnummer), `dk_cpr` (Danish CPR). Empty list is only valid with policy `off`."
+        },
+        "policy": {
+          "type": "string",
+          "enum": [
+            "off",
+            "mask",
+            "remove"
+          ],
+          "description": "`off` stores inbound text unchanged. `mask` keeps the birth date and hides the rest. `remove` replaces the number with a marker naming what was removed."
+        },
+        "minConfidence": {
+          "description": "Match strength required before a number is redacted. `high` (default) requires a check digit or a separator. `medium` also catches bare digit runs, which raises false positives — relevant mainly for Danish CPR, which has had no verifiable check digit since 2007.",
+          "type": "string",
+          "enum": [
+            "high",
+            "medium"
+          ]
+        }
+      },
+      "required": [
+        "detectors",
+        "policy"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_redact_existing_messages",
+    "title": "Conv: Redact national IDs in existing messages",
+    "description": "Apply the org's current redaction policy to messages that were stored before it was set. Scans one batch per call, oldest first, and returns `nextCursor` — keep calling with it until `done` is true. Only rewrites messages that actually contain a match, covering the same fields as live ingest, and emits `conversation.message.body_revised` so mirrored copies in Slack re-sync. Refuses when the policy is `off`. This rewrite cannot be undone, and copies already delivered elsewhere — sent replies, earlier Slack messages, past webhook deliveries — are beyond its reach.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "limit": {
+          "description": "Messages to scan in this batch (default 200, max 1000).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "cursor": {
+          "description": "`nextCursor` from the previous batch. Omit to start from the oldest message.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "conv_request_human",
     "title": "Conv: Request a human teammate to take over",
     "description": "Flag the current conversation as needing human attention. Use this when you can't answer the end-user's question on your own — pricing exceptions, account-specific issues you can't verify, anything sensitive. Pass the exact `conversationId` you were given in the system context. Sets a \"needs human attention\" flag on the conversation (pinning it to the top of the team's dashboard) and posts an internal note recording your `reason`. Pass `suggestedReply` ONLY when you actually have a substantive answer to propose — write it as the reply you would send the end-user to resolve their question, so a teammate can review, edit, and send it. It must NOT be the \"a teammate will follow up\" acknowledgement, and must NOT repeat the message you are sending the end-user this turn. If you are escalating precisely because you don't have an answer, OMIT `suggestedReply` entirely — an empty draft is far better than one that just parrots your deferral. A suggested reply is a proposal for the next outbound message: once any public message goes out on the conversation, it is retired and the team is no longer offered it. After calling this, do not keep generating replies on your own — let the user know a teammate will follow up, then stop. The flag clears once a teammate replies. The end-user does not see the system note or the suggested reply — only the team does.",
@@ -10015,7 +10117,8 @@
             "curator",
             "delivery",
             "quota",
-            "social"
+            "social",
+            "data_protection"
           ]
         },
         "subjectId": {

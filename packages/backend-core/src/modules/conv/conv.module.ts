@@ -74,6 +74,7 @@ import { WidgetChannelAdminService } from './widget/widget-channel-admin.service
 import { WidgetAdminTools } from './widget/widget.tools.ts';
 import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
 import { InboundRedactionService } from './inbound-redaction.service.ts';
+import { RedactBackfillService } from './redact-backfill.service.ts';
 
 @Module({
   imports: [
@@ -89,6 +90,7 @@ import { InboundRedactionService } from './inbound-redaction.service.ts';
   providers: [
     ConvService,
     InboundRedactionService,
+    RedactBackfillService,
     ConvAttachmentsService,
     AttachmentGcWorker,
     InlineImageBackfillService,
@@ -189,6 +191,7 @@ import { InboundRedactionService } from './inbound-redaction.service.ts';
     OUTREACH_VOICE_CALLERS,
     ConvService,
     InboundRedactionService,
+    RedactBackfillService,
     ConvAttachmentsService,
     InlineImageBackfillService,
     ConvAutomationService,

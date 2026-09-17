@@ -6,6 +6,9 @@ import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql, eq, and, desc } from 'drizzle-orm';
 import { AppModule } from '../../app.module.ts';
 import { EmailAdapter, parseMessage } from './email/email-adapter.ts';
+import { RedactBackfillService } from './redact-backfill.service.ts';
+import { ActorIdentity, withContext } from '@getmunin/core';
+import { randomUUID } from 'node:crypto';
 import { REDACTION_SETTINGS_KEY } from './redaction-policy.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
@@ -20,6 +23,7 @@ const NO_SYNTHETIC = '01819012365';
   let db: ReturnType<typeof createDb>;
   let orgId: string;
   let adapter: EmailAdapter;
+  let backfill: RedactBackfillService;
   let channel: typeof schema.convChannels.$inferSelect;
 
   beforeAll(async () => {
@@ -64,6 +68,7 @@ const NO_SYNTHETIC = '01819012365';
     app = await NestFactory.create(AppModule, { logger: false });
     await app.init();
     adapter = app.get(EmailAdapter);
+    backfill = app.get(RedactBackfillService);
   });
 
   afterAll(async () => {
@@ -83,6 +88,11 @@ const NO_SYNTHETIC = '01819012365';
 
   async function deliver(raw: string): Promise<void> {
     await adapter.ingest(channel, await parseMessage(raw));
+  }
+
+  function runBackfill(limit?: number) {
+    const actor = new ActorIdentity('system', 'redaction-backfill-test', orgId, ['*'], ['admin']);
+    return withContext({ db, actor, correlationId: randomUUID() }, () => backfill.run({ limit }));
   }
 
   async function newestMessage(): Promise<typeof schema.convMessages.$inferSelect> {
@@ -174,6 +184,45 @@ const NO_SYNTHETIC = '01819012365';
     expect(msg.metadata.detectedNationalIds).toEqual([
       { detector: 'dk_cpr', confidence: 'high', count: 1 },
     ]);
+  });
+
+  it('backfills messages stored before the policy was set', async () => {
+    await setPolicy(null);
+    await deliver(
+      rfc822({
+        from: 'Per Hansen <per@kunde.no>',
+        subject: 'Gammel sak',
+        messageId: 'redaction-backfill@kunde.no',
+        body: `Gammelt fnr: ${NO_SYNTHETIC}`,
+      }),
+    );
+    const before = await newestMessage();
+    expect(before.body).toContain(NO_SYNTHETIC);
+
+    await setPolicy({ detectors: ['no_fnr'], policy: 'remove', minConfidence: 'high' });
+    const result = await runBackfill();
+
+    expect(result.messagesRewritten).toBeGreaterThan(0);
+    expect(result.done).toBe(true);
+
+    const [after] = await db
+      .select()
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.id, before.id));
+    expect(after!.body).not.toContain(NO_SYNTHETIC);
+    expect(after!.body).toContain('[fødselsnummer fjernet]');
+  });
+
+  it('refuses to backfill while the policy is off', async () => {
+    await setPolicy(null);
+    await expect(runBackfill()).rejects.toThrow(/conv_redaction_disabled/);
+  });
+
+  it('leaves nothing behind on a second pass', async () => {
+    await setPolicy({ detectors: ['no_fnr'], policy: 'remove', minConfidence: 'high' });
+    await runBackfill();
+    const second = await runBackfill();
+    expect(second.messagesRewritten).toBe(0);
   });
 });
 

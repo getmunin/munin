@@ -1,0 +1,53 @@
+{
+  "spaces": [
+    { "id": "sp_help", "name": "Help centre", "slug": "help-centre", "description": "Public answers for customers" },
+    { "id": "sp_internal", "name": "Team handbook", "slug": "team-handbook", "description": "Internal notes for the support desk" }
+  ],
+  "documents": [
+    {
+      "id": "doc_delivery",
+      "spaceId": "sp_help",
+      "slug": "delivery-and-dispatch",
+      "title": "Delivery and dispatch",
+      "body": "Orders placed before 15:00 on a working day are dispatched the next working day. Once a parcel leaves the warehouse the delivery address can no longer be changed from our side.\n\nStandard delivery takes two to four working days. Express delivery arrives the next working day and is free on orders over 900.",
+      "audiences": ["admin", "self_service"],
+      "tags": ["delivery", "orders"]
+    },
+    {
+      "id": "doc_address",
+      "spaceId": "sp_help",
+      "slug": "change-a-delivery-address",
+      "title": "Change a delivery address",
+      "body": "A delivery address can be changed while the order is still being picked. Ask the customer for the order number, confirm the new address, and hand the change to the delivery team so they can update the carrier label.\n\nIf the parcel has already been handed to the carrier, the customer reroutes it in the carrier's own tracking page.",
+      "audiences": ["admin", "self_service"],
+      "tags": ["delivery", "orders"]
+    },
+    {
+      "id": "doc_returns",
+      "spaceId": "sp_help",
+      "slug": "returns-and-refunds",
+      "title": "Returns and refunds",
+      "body": "Unused items can be returned within 30 days of delivery. Refunds are issued to the original payment method within five working days of the parcel arriving back at the warehouse.",
+      "audiences": ["admin", "self_service"],
+      "tags": ["returns"]
+    },
+    {
+      "id": "doc_warranty",
+      "spaceId": "sp_help",
+      "slug": "appliance-warranty",
+      "title": "Appliance warranty",
+      "body": "Every appliance carries a five year warranty covering manufacturing faults. Wear parts such as blades and seals are covered for one year.",
+      "audiences": ["admin", "self_service"],
+      "tags": ["warranty", "appliances"]
+    },
+    {
+      "id": "doc_tone",
+      "spaceId": "sp_internal",
+      "slug": "how-we-answer",
+      "title": "How we answer",
+      "body": "Answer the question that was asked, in the customer's own language. Say what we will do and by when. Hand over to a person whenever money, an address, or a deadline changes.",
+      "audiences": ["admin"],
+      "tags": ["tone"]
+    }
+  ]
+}

@@ -1,0 +1,125 @@
+{
+  "pipelines": [
+    {
+      "id": "pipe_sales",
+      "name": "Wholesale",
+      "slug": "wholesale",
+      "stages": [
+        {
+          "id": "stage_new",
+          "name": "New",
+          "position": 0,
+          "winLoss": "open"
+        },
+        {
+          "id": "stage_quote",
+          "name": "Quote sent",
+          "position": 1,
+          "winLoss": "open"
+        },
+        {
+          "id": "stage_won",
+          "name": "Won",
+          "position": 2,
+          "winLoss": "won"
+        }
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "id": "seg_recent",
+      "name": "Recent buyers",
+      "description": "Bought in the last 90 days",
+      "filterDefinition": {
+        "tagsAny": [
+          "customer"
+        ]
+      }
+    }
+  ],
+  "companies": [
+    {
+      "id": "co_acme",
+      "name": "Acme Catering",
+      "domain": "acme.example.com",
+      "tags": [
+        "wholesale"
+      ],
+      "customFields": {}
+    },
+    {
+      "id": "co_globex",
+      "name": "Globex Hotels",
+      "domain": "globex.example.com",
+      "tags": [
+        "wholesale"
+      ],
+      "customFields": {}
+    }
+  ],
+  "contacts": [
+    {
+      "id": "ct_ola",
+      "companyId": "co_acme",
+      "name": "Ola Nordmann",
+      "email": "ola.nordmann@example.com",
+      "phone": "+4712345678",
+      "title": "Head chef",
+      "tags": [
+        "customer"
+      ],
+      "customFields": {}
+    },
+    {
+      "id": "ct_kari",
+      "companyId": "co_globex",
+      "name": "Kari Nordmann",
+      "email": "kari.nordmann@example.com",
+      "phone": "+4712345679",
+      "title": "Purchasing",
+      "tags": [
+        "customer"
+      ],
+      "customFields": {}
+    },
+    {
+      "id": "ct_jo",
+      "companyId": null,
+      "name": "Jo Hansen",
+      "email": "jo.hansen@example.com",
+      "phone": null,
+      "title": null,
+      "tags": [
+        "lead"
+      ],
+      "customFields": {}
+    }
+  ],
+  "deals": [
+    {
+      "id": "deal_1",
+      "name": "Acme Catering — spring refit",
+      "pipelineId": "pipe_sales",
+      "stageId": "stage_quote",
+      "amountCents": 4800000,
+      "currency": "NOK",
+      "primaryContactId": "ct_ola",
+      "companyId": "co_acme",
+      "expectedCloseAt": null
+    },
+    {
+      "id": "deal_2",
+      "name": "Globex Hotels — 40 rooms",
+      "pipelineId": "pipe_sales",
+      "stageId": "stage_new",
+      "amountCents": 12500000,
+      "currency": "NOK",
+      "primaryContactId": "ct_kari",
+      "companyId": "co_globex",
+      "expectedCloseAt": null
+    }
+  ],
+  "activities": [],
+  "relationships": []
+}

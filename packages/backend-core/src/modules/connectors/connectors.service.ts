@@ -26,6 +26,7 @@ import {
   type SelectableTool,
   type ToolCatalogAdapter,
 } from './connector.ts';
+import { SecretCipherError } from '../../common/outbound-oauth/grant-store.ts';
 import { ConnectorVendorError } from './http.ts';
 import { isSelfReportedIdentity } from './identity-provenance.ts';
 import { ConnectorOAuthService, OAUTH_CONFIG_KEY } from './connector-oauth.service.ts';
@@ -597,7 +598,7 @@ export class ConnectorsService {
       if (err instanceof SsrfBlockedError) {
         throw new BadRequestException(`connectors_invalid: vendor host blocked: ${err.message}`);
       }
-      if (err instanceof ConnectorVendorError) {
+      if (err instanceof ConnectorVendorError || err instanceof SecretCipherError) {
         throw new BadGatewayException(`connectors_vendor_error: ${err.message}`);
       }
       throw err;

@@ -22,6 +22,7 @@ import {
   verifyAuthorizeState,
 } from './connector-oauth.service.ts';
 import { ConnectorsService } from './connectors.service.ts';
+import { OutboundOAuthStore } from '../../common/outbound-oauth/grant-store.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -156,7 +157,7 @@ class StubOAuthAdapter implements ConnectorAdapter {
     const log: VendorLog = { exchanges: [], refreshes: [], revocations: [] };
     const adapter = buildAdapter(log, behavior);
     const registry = new ConnectorRegistry([adapter]);
-    const oauth = new ConnectorOAuthService(registry, appDb);
+    const oauth = new ConnectorOAuthService(registry, new OutboundOAuthStore(appDb));
     const connectors = new ConnectorsService(registry, undefined, appDb, oauth);
     return { log, adapter, oauth, connectors };
   }

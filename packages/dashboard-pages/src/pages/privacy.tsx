@@ -33,6 +33,7 @@ interface RedactionPolicyDto {
 
 const POLICIES: Policy[] = ['off', 'mask', 'remove'];
 const CONFIDENCES: Confidence[] = ['high', 'medium'];
+const FUZZY_DETECTORS: Detector[] = ['se_pnr', 'dk_cpr'];
 
 export function PrivacyPage() {
   const t = useTranslations('dashboard.privacy');
@@ -68,6 +69,8 @@ export function PrivacyPage() {
       minConfidence !== loaded.minConfidence ||
       detectors.length !== loaded.detectors.length ||
       detectors.some((d) => !loaded.detectors.includes(d)));
+
+  const confidenceApplies = detectors.some((d) => FUZZY_DETECTORS.includes(d));
 
   function toggle(detector: Detector) {
     setDetectors((current) =>
@@ -160,27 +163,31 @@ export function PrivacyPage() {
               <SettingsFieldNote>{t(`policyHint.${policy}`)}</SettingsFieldNote>
             </div>
 
-            <div className="space-y-2">
-              <SettingsLabel htmlFor="redaction-confidence">
-                {t('confidenceLabel')}
-              </SettingsLabel>
-              <NativeSelect
-                id="redaction-confidence"
-                value={minConfidence}
-                onChange={(e) => setMinConfidence(e.target.value as Confidence)}
-                disabled={saving}
-                wrapperClassName={SETTINGS_MEASURE_FIELD}
-              >
-                {CONFIDENCES.map((option) => (
-                  <option key={option} value={option}>
-                    {t(`confidences.${option}`)}
-                  </option>
-                ))}
-              </NativeSelect>
-              <SettingsFieldNote>
-                {t(`confidenceHint.${minConfidence}`)} {t('scopeNote')}
-              </SettingsFieldNote>
-            </div>
+            {confidenceApplies ? (
+              <div className="space-y-2">
+                <SettingsLabel htmlFor="redaction-confidence">
+                  {t('confidenceLabel')}
+                </SettingsLabel>
+                <NativeSelect
+                  id="redaction-confidence"
+                  value={minConfidence}
+                  onChange={(e) => setMinConfidence(e.target.value as Confidence)}
+                  disabled={saving}
+                  wrapperClassName={SETTINGS_MEASURE_FIELD}
+                >
+                  {CONFIDENCES.map((option) => (
+                    <option key={option} value={option}>
+                      {t(`confidences.${option}`)}
+                    </option>
+                  ))}
+                </NativeSelect>
+                <SettingsFieldNote>
+                  {t(`confidenceHint.${minConfidence}`)} {t('scopeNote')}
+                </SettingsFieldNote>
+              </div>
+            ) : (
+              <SettingsFieldNote>{t('scopeNote')}</SettingsFieldNote>
+            )}
 
             {error ? (
               <p className="text-sm text-destructive" role="alert">

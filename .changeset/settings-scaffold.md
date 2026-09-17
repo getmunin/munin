@@ -8,6 +8,6 @@ Every settings page now shares a measure and a section grammar: a 720px column, 
 
 Disabled Saves are a hairline outline rather than a grey fill — a grey fill reads as a live secondary button.
 
-The provider picker drops its cobalt tint, its glyph and its filled check: cobalt is the accent, not a selection fill, and the system has no icons. Selection is a 1.5px cobalt border plus a mono "in use".
+The confidence selector only appears when a detector that has loose forms is enabled — Swedish personnummer or Danish CPR. For a Norway-only setup every match carries two check digits, so the control had nothing to decide.
 
 The AI page loses its three job lists, leaving Persona / Provider / Models; its lede no longer promises the jobs. Privacy moves below Trackers in the settings rail. The now-unreachable job-list components and their message keys go with them.

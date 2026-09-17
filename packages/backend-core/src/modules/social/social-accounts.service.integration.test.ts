@@ -288,6 +288,49 @@ class FakeLinkedIn implements SocialOAuthAdapter {
     expect(open).toHaveLength(0);
   });
 
+  it('keeps the stored client secret when only the client id is edited', async () => {
+    await asOrg(ola, () =>
+      service.setPlatformApp({ platform: 'linkedin', clientId: 'client-id-2' }),
+    );
+
+    const [row] = await svcDb
+      .select()
+      .from(schema.socialPlatformApps)
+      .where(eq(schema.socialPlatformApps.orgId, orgId));
+    expect(row!.clientId).toBe('client-id-2');
+
+    const accountId = await connect(ola);
+    expect(accountId).toBeTruthy();
+  });
+
+  it('replaces the stored secret when a new one is given', async () => {
+    const [before] = await svcDb
+      .select()
+      .from(schema.socialPlatformApps)
+      .where(eq(schema.socialPlatformApps.orgId, orgId));
+
+    await asOrg(ola, () =>
+      service.setPlatformApp({
+        platform: 'linkedin',
+        clientId: 'client-id',
+        clientSecret: 'client-secret-2',
+      }),
+    );
+
+    const [after] = await svcDb
+      .select()
+      .from(schema.socialPlatformApps)
+      .where(eq(schema.socialPlatformApps.orgId, orgId));
+    expect(after!.encryptedClientSecret).not.toBe(before!.encryptedClientSecret);
+  });
+
+  it('refuses a first save with no secret, because there is none stored to keep', async () => {
+    await svcDb.delete(schema.socialPlatformApps).where(eq(schema.socialPlatformApps.orgId, orgId));
+    await expect(
+      asOrg(ola, () => service.setPlatformApp({ platform: 'linkedin', clientId: 'client-id' })),
+    ).rejects.toMatchObject({ response: { code: 'social_client_secret_required' } });
+  });
+
   it('refuses to mint an authorize url before the org has entered its OAuth client', async () => {
     await svcDb.delete(schema.socialPlatformApps).where(eq(schema.socialPlatformApps.orgId, orgId));
     await expect(asOrg(ola, () => service.authorizeUrl({ platform: 'linkedin' }))).rejects.toThrow(

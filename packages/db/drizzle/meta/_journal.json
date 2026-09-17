@@ -722,6 +722,13 @@
       "when": 1789633496960,
       "tag": "0102_social_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1789674786447,
+      "tag": "0103_social_client_secret_set_at",
+      "breakpoints": true
     }
   ]
 }

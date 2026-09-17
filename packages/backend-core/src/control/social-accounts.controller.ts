@@ -17,7 +17,7 @@ const PlatformBody = z.object({ platform: z.enum(SOCIAL_PLATFORMS) });
 const PlatformAppBody = z.object({
   platform: z.enum(SOCIAL_PLATFORMS),
   clientId: z.string().min(1).max(200),
-  clientSecret: z.string().min(1).max(500),
+  clientSecret: z.string().min(1).max(500).optional(),
 });
 
 @Controller('v1/social/accounts')

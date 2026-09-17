@@ -106,7 +106,7 @@ const skipReason = TEST_URL
     const jwt = new SignJWT({
       sub: claims.sub ?? userId,
       aud: claims.aud ?? `${baseUrl}/mcp`,
-      scope: claims.scope ?? 'mcp:tools kb:read',
+      scope: claims.scope ?? 'mcp:tools mcp:admin kb:read',
       azp: 'test-client',
       ...(claims.orgId ? { org_id: claims.orgId } : {}),
       iat,

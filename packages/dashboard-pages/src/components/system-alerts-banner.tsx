@@ -14,6 +14,7 @@ type AlertSource =
   | 'curator'
   | 'delivery'
   | 'quota'
+  | 'social'
   | 'data_protection';
 
 type AlertSeverity = 'warning' | 'error';
@@ -202,6 +203,8 @@ function ctaForSource(
     case 'channel_inbound':
     case 'channel_outbound':
       return { href: '/dashboard/settings/channels', label: t('openChannelSettings') };
+    case 'social':
+      return { href: '/dashboard/settings/integrations', label: t('openSocialSettings') };
     case 'data_protection':
       return { href: '/dashboard/settings/privacy', label: t('openPrivacySettings') };
     default:

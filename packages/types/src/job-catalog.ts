@@ -18,6 +18,7 @@ export const KNOWN_SKILL_URIS: ReadonlySet<string> = new Set([
   'skill://outreach/extract-outcome',
   'skill://conv/strip-email-signature',
   'skill://conv/set-topic-and-title',
+  'skill://social/draft-companion-posts',
 ]);
 
 export const WEB_SCRAPE_SITE_TASK_URI = 'task://web/scrape-website';
@@ -113,6 +114,10 @@ const TOOL_PREFIXES_BY_URI: ReadonlyMap<string, readonly string[]> = new Map([
   [
     'skill://conv/set-topic-and-title',
     ['conv_get_conversation', 'conv_list_topics', 'conv_create_topic', 'conv_set_topic', 'conv_set_subject'],
+  ],
+  [
+    'skill://social/draft-companion-posts',
+    ['cms_get_entry', 'social_list_platforms', 'social_propose_post_set'],
   ],
 ]);
 

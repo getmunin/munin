@@ -691,8 +691,50 @@
     {
       "idx": 98,
       "version": "7",
-      "when": 1789545769515,
-      "tag": "0098_org_alerts_data_protection_source",
+      "when": 1789626541486,
+      "tag": "0098_alerts_user_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1789627558994,
+      "tag": "0099_alert_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1789628588713,
+      "tag": "0100_social_post_drafts",
+      "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1789631306290,
+      "tag": "0101_social_dismiss_reason",
+      "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1789633496960,
+      "tag": "0102_social_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1789674786447,
+      "tag": "0103_social_client_secret_set_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1789682382941,
+      "tag": "0104_org_alerts_data_protection_source",
       "breakpoints": true
     }
   ]

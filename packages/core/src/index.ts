@@ -144,6 +144,17 @@ export { describeError } from './errors.ts';
 export { normalizeForCompare, sameAfterNormalizing } from './text.ts';
 
 export {
+  NATIONAL_ID_DETECTORS,
+  countNationalIds,
+  findNationalIds,
+  redactNationalIds,
+  type NationalIdConfidence,
+  type NationalIdDetector,
+  type NationalIdMatch,
+  type NationalIdPolicy,
+} from './national-id.ts';
+
+export {
   parseEnvBool,
   parseEnvCron,
   parseEnvDisableFlag,

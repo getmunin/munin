@@ -694,6 +694,13 @@
       "when": 1789626541486,
       "tag": "0098_alerts_user_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1789627558994,
+      "tag": "0099_alert_notifications",
+      "breakpoints": true
     }
   ]
 }

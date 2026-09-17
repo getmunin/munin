@@ -214,6 +214,18 @@ CREATE POLICY tenant_isolation ON org_alerts
   USING (app_bypass_rls() OR org_id = app_org_id())
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
 
+-- ───────────────────────── alert_notifications ─────────────────────────────
+-- Queue of alert emails awaiting delivery. Org-scoped like the alerts it
+-- references. The drain worker connects with the service role (bypass_rls is
+-- set at the pool level), so this policy governs the enqueue path inside the
+-- emitting request transaction rather than the worker's own reads.
+ALTER TABLE alert_notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE alert_notifications FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON alert_notifications;
+CREATE POLICY tenant_isolation ON alert_notifications
+  USING (app_bypass_rls() OR org_id = app_org_id())
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
 -- ───────────────────────── org_members ─────────────────────────────────────
 -- Membership rows. Tenant-scoped by `org_id`. Some legitimate code paths read
 -- across orgs:

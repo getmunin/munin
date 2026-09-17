@@ -29,3 +29,8 @@ export {
   renderPartnerClaimEmail,
   type PartnerClaimEmailInput,
 } from './templates/partner-claim.tsx';
+export {
+  renderSystemAlertEmail,
+  type SystemAlertEmailInput,
+  type SystemAlertEmailSeverity,
+} from './templates/system-alert.tsx';

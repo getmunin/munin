@@ -2170,6 +2170,36 @@ export const orgAlerts = pgTable(
   }),
 );
 
+export const alertNotifications = pgTable(
+  'alert_notifications',
+  {
+    id: id('alnf'),
+    orgId: text('org_id')
+      .notNull()
+      .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
+    alertId: text('alert_id')
+      .notNull()
+      .references(() => orgAlerts.id, { onDelete: 'cascade' }),
+    recipientUserId: text('recipient_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    attempt: integer('attempt').notNull().default(0),
+    error: text('error'),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt,
+  },
+  (t) => ({
+    recipientUq: uniqueIndex('alert_notifications_alert_recipient_uq').on(
+      t.alertId,
+      t.recipientUserId,
+    ),
+    pendingIdx: index('alert_notifications_pending_idx').on(t.nextAttemptAt),
+    orgIdx: index('alert_notifications_org_idx').on(t.orgId),
+  }),
+);
+
 // ───────────────────────── Slack operator bridge ─────────────────────
 // Slack as an operator surface layered on existing conversations: each
 // conversation mirrors into one Slack thread; operators triage and (later
@@ -2573,6 +2603,7 @@ export const allTables = {
   systemConfig,
   feedbackOutbox,
   orgAlerts,
+  alertNotifications,
   slackIntegrations,
   slackChannelRoutes,
   slackConversationLinks,

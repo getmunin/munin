@@ -1625,19 +1625,19 @@
       "subtitle": "Innstillinger som gjelder hele organisasjonen.",
       "orgSectionTitle": "Organisasjon",
       "orgNameLabel": "Organisasjonsnavn",
-      "orgNameHint": "Vises i toppmenyen og på delte sider. Inntil 128 tegn.",
+      "orgNameHint": "Vises i topplinjen og på delte sider. Inntil 128 tegn.",
       "orgNamePlaceholder": "Acme AS",
       "saved": "Lagret",
       "errors": {
         "save": "Kunne ikke lagre organisasjonen."
-      }
+      },
+      "orgSectionMeta": "Synlig for alle"
     },
     "privacy": {
       "eyebrow": "Personvern",
       "title": "Person<em>opplysninger</em>",
       "subtitle": "Bestem hva Munin tar vare på når kunder sender mer enn du ba om.",
       "sectionTitle": "Fødselsnummer og tilsvarende",
-      "detectorsLabel": "Type nummer",
       "detectorsHint": "Velg de kundene dine faktisk sender. Munin ser etter alle uansett og sier fra når et dukker opp — her velger du hvilke som skal fjernes.",
       "detectors": {
         "no_fnr": {
@@ -1676,7 +1676,8 @@
       "scopeNote": "Gjelder meldinger som kommer inn etter at du lagrer. Fjerning kan ikke angres, og tekst inne i vedlegg dekkes ikke.",
       "errors": {
         "save": "Klarte ikke å lagre personverninnstillingene."
-      }
+      },
+      "sectionMeta": "Fjerning · {count} av {total} typer"
     }
   },
   "agentSetup": {
@@ -1698,7 +1699,7 @@
     "settings": {
       "eyebrow": "Arbeidsområde · AI",
       "title": "Instruer <em>ravnen</em>.",
-      "lede": "Alt som tenker på dine vegne — personaen, modell-leverandøren, og hver jobb AI-en håndterer, fra chatsvar til utgående utkast."
+      "lede": "Alt som tenker på dine vegne — stemmen den snakker i, og modellene den tenker med."
     },
     "wizard": {
       "stepEyebrow": "Steg {step} av {total}",
@@ -1733,7 +1734,10 @@
         "anthropic": "Claude-modeller",
         "openai": "GPT-modeller",
         "custom": "OpenAI-kompatibel URL"
-      }
+      },
+      "inUse": "I bruk",
+      "configure": "Sett opp",
+      "ownKeyBlurb": "Du eier nøkkelen og databehandleravtalen."
     },
     "apiKey": {
       "title": "API-nøkkel",
@@ -2078,41 +2082,18 @@
     "list": {
       "persona": {
         "title": "Persona",
-        "blurb": "Brukes overalt der AI-en snakker eller skriver til kundene dine — chatsvar, utgående utkast, utgående svar."
+        "blurb": "Brukes overalt der AI-en snakker eller skriver til kundene dine — chatsvar, utgående utkast, utgående svar.",
+        "meta": "Møter kunden"
       },
       "models": {
         "title": "Modeller",
-        "blurb": "Modell-leverandør og påloggingsinformasjon. Brukes av alle jobbene under."
+        "blurb": "Munin kjører to modeller. Velg en rask og rimelig til chatsvar og opprydding, og en sterkere til arbeid som krever skjønn.",
+        "meta": "To roller"
       },
-      "conversational": {
-        "title": "Samtale",
-        "blurb": "Snakker direkte med kundene dine, i den konfigurerte personaen."
-      },
-      "background": {
-        "tierLabel": "{tier, select, smart {smart} fast {rask} other {{tier}}}",
-        "neverRan": "Aldri kjørt for denne organisasjonen ennå.",
-        "statuses": {
-          "pending": "venter",
-          "running": "kjører",
-          "done": "ferdig",
-          "failed": "feilet",
-          "dead": "død"
-        }
-      },
-      "aiDriven": {
-        "title": "AI-drevet",
-        "blurb": "Kjører i bakgrunnen. AI-en bestemmer selv hva som skal gjøres, med samme modell som chatassistenten.",
-        "empty": "Ingen AI-drevne ferdigheter konfigurert."
-      },
-      "tasks": {
-        "title": "Planlagte oppgaver",
-        "blurb": "Deterministiske bakgrunnsjobber. Kan kalle modellen for ett enkelt steg, men flyten er fast.",
-        "empty": "Ingen planlagte oppgaver konfigurert."
-      },
-      "chatAssistant": {
-        "title": "Chatassistent",
-        "description": "Svarer kundene i chat, e-post, og alle andre samtalekanaler.",
-        "tierLabel": "{tier, select, smart {smart} fast {rask} other {{tier}}}"
+      "provider": {
+        "title": "Leverandør",
+        "meta": "Endepunkt og nøkkel",
+        "blurb": "Et hvilket som helst OpenAI-kompatibelt endepunkt. Bruk din egen nøkkel, eller en driftet modell."
       }
     },
     "identity": {

@@ -7,13 +7,11 @@ import type { ProviderPreset } from '../components/agent-config/types';
 import { useAgentConfig } from '../components/agent-config/use-agent-config';
 import { ProviderCard } from '../components/agent-config/provider-card';
 import { ModelsCard } from '../components/agent-config/models-card';
-import { ChatAssistantCard } from '../components/assistants/chat-assistant-card';
-import { BackgroundSkillCard } from '../components/assistants/background-skill-card';
 import { IdentityCard } from '../components/assistants/identity-card';
 import { useAssistant } from '../components/assistants/use-assistant';
-import { useSkills } from '../components/assistants/use-skills';
 import { LoadFailed } from '../components/load-failed';
-import { CardSkeleton } from '../components/skeleton';
+import { Skeleton } from '../components/skeleton';
+import { SettingsColumn, SettingsSection } from '../components/settings/scaffold';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 
 interface AiSettingsPageProps {
@@ -43,22 +41,14 @@ export function AiSettingsPage({
     setModels,
   } = useAgentConfig();
   const { assistant, setAssistant } = useAssistant();
-  const { skills } = useSkills();
 
   const buildLoadFailedProps = useSettingsLoadFailedProps();
 
   if (configError && !configLoaded) {
     return (
-      <LoadFailed
-        {...buildLoadFailedProps('ai', configError, () => void retry(), retrying)}
-      />
+      <LoadFailed {...buildLoadFailedProps('ai', configError, () => void retry(), retrying)} />
     );
   }
-
-  const conversationalSkills = skills?.filter(isConversational) ?? [];
-  const remainingSkills = skills?.filter((s) => !isConversational(s)) ?? [];
-  const aiDrivenSkills = remainingSkills.filter((s) => s.kind === 'skill');
-  const scheduledTasks = remainingSkills.filter((s) => s.kind === 'task');
 
   const managedPreset = (extraPresets ?? []).find((p) => p.managed);
   const isManaged = !!managedPreset && config != null && !config.providerApiKeySet;
@@ -68,7 +58,7 @@ export function AiSettingsPage({
       : null;
 
   return (
-    <div className="max-w-3xl space-y-10">
+    <SettingsColumn>
       <Hero
         eyebrow={t('settings.eyebrow')}
         title={t.rich('settings.title', { em: (chunks) => <em>{chunks}</em> })}
@@ -77,108 +67,67 @@ export function AiSettingsPage({
 
       {slot}
 
-      <div className="space-y-10">
-        <section className="space-y-4">
-          <SectionHeader title={tList('persona.title')} blurb={tList('persona.blurb')} />
-          <div className="space-y-6">
-            {assistant ? (
-              <IdentityCard assistant={assistant} onSaved={setAssistant} />
-            ) : (
-              <CardSkeleton />
-            )}
-          </div>
-        </section>
+      <SettingsSection
+        title={tList('persona.title')}
+        meta={tList('persona.meta')}
+        help={tList('persona.blurb')}
+      >
+        {assistant ? (
+          <IdentityCard headless assistant={assistant} onSaved={setAssistant} />
+        ) : (
+          <SectionSkeleton />
+        )}
+      </SettingsSection>
 
-        <section className="space-y-4">
-          <SectionHeader title={tList('models.title')} blurb={tList('models.blurb')} />
-          <div className="space-y-6">
-            {config ? (
-              <>
-                <ProviderCard
-                  config={config}
-                  extraPresets={extraPresets}
-                  defaultPresetId={defaultPresetId}
-                  lede={providerLede}
-                  onSaved={(updated, result) => {
-                    setConfig(updated);
-                    setModels(result);
-                  }}
-                />
-                <ModelsCard
-                  config={config}
-                  models={managedModelsResult ?? models}
-                  managed={isManaged}
-                  onSaved={setConfig}
-                />
-              </>
-            ) : (
-              <>
-                <CardSkeleton />
-                <CardSkeleton />
-              </>
-            )}
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <SectionHeader
-            title={tList('conversational.title')}
-            blurb={tList('conversational.blurb')}
+      <SettingsSection
+        title={tList('provider.title')}
+        meta={tList('provider.meta')}
+        help={providerLede ?? tList('provider.blurb')}
+      >
+        {config ? (
+          <ProviderCard
+            headless
+            config={config}
+            extraPresets={extraPresets}
+            defaultPresetId={defaultPresetId}
+            lede={providerLede}
+            onSaved={(updated, result) => {
+              setConfig(updated);
+              setModels(result);
+            }}
           />
-          <div className="space-y-3">
-            <ChatAssistantCard />
-            {conversationalSkills.map((skill) => (
-              <BackgroundSkillCard key={skill.uri} skill={skill} />
-            ))}
-          </div>
-        </section>
+        ) : (
+          <SectionSkeleton />
+        )}
+      </SettingsSection>
 
-        <section className="space-y-4">
-          <SectionHeader title={tList('aiDriven.title')} blurb={tList('aiDriven.blurb')} />
-          <div className="space-y-3">
-            {skills === null ? (
-              <CardSkeleton />
-            ) : aiDrivenSkills.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{tList('aiDriven.empty')}</p>
-            ) : (
-              aiDrivenSkills.map((skill) => (
-                <BackgroundSkillCard key={skill.uri} skill={skill} />
-              ))
-            )}
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <SectionHeader title={tList('tasks.title')} blurb={tList('tasks.blurb')} />
-          <div className="space-y-3">
-            {skills === null ? (
-              <CardSkeleton />
-            ) : scheduledTasks.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{tList('tasks.empty')}</p>
-            ) : (
-              scheduledTasks.map((skill) => (
-                <BackgroundSkillCard key={skill.uri} skill={skill} />
-              ))
-            )}
-          </div>
-        </section>
-      </div>
-    </div>
+      <SettingsSection
+        title={tList('models.title')}
+        meta={tList('models.meta')}
+        help={tList('models.blurb')}
+      >
+        {config ? (
+          <ModelsCard
+            headless
+            config={config}
+            models={managedModelsResult ?? models}
+            managed={isManaged}
+            onSaved={setConfig}
+          />
+        ) : (
+          <SectionSkeleton />
+        )}
+      </SettingsSection>
+    </SettingsColumn>
   );
 }
 
-function SectionHeader({ title, blurb }: { title: string; blurb: string }) {
+function SectionSkeleton() {
   return (
-    <div>
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <p className="mt-1 text-sm text-muted-foreground">{blurb}</p>
+    <div className="space-y-3">
+      <Skeleton className="h-3 w-28" />
+      <Skeleton className="h-9 w-full max-w-[420px]" />
+      <Skeleton className="h-9 w-24" />
     </div>
-  );
-}
-
-function isConversational(skill: { uri: string }): boolean {
-  return (
-    skill.uri === 'skill://outreach/draft-reply-email' ||
-    skill.uri === 'skill://outreach/draft-first-touch-email'
   );
 }

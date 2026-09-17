@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, type ComponentType, type ReactNode, type SVGProps } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
-import { Check, ChevronDown, ChevronRight, Plug, Sparkles } from 'lucide-react';
 import {
   Button,
   Card,
@@ -11,11 +10,15 @@ import {
   CardHeader,
   CardTitle,
   Input,
-  Label,
 } from '@getmunin/ui';
 import { api } from '../../api';
 import { useTranslateError } from '../../i18n/translate-error';
-import { AnthropicIcon, OpenAiIcon, OpenRouterIcon } from './provider-icons';
+import {
+  PickerRow,
+  SaveButton,
+  SettingsLabel,
+  SETTINGS_MEASURE_FIELD,
+} from '../settings/scaffold';
 import {
   BARE_CARD,
   PROVIDER_PRESETS,
@@ -26,13 +29,6 @@ import {
   type UpsertBody,
 } from './types';
 
-const PROVIDER_ICONS: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
-  openrouter: OpenRouterIcon,
-  anthropic: AnthropicIcon,
-  openai: OpenAiIcon,
-  custom: Plug,
-};
-
 const BUILTIN_PRESET_IDS = new Set<string>(PROVIDER_PRESETS.map((p) => p.id));
 
 interface ProviderCardProps {
@@ -41,6 +37,7 @@ interface ProviderCardProps {
   defaultPresetId?: string;
   lede?: string;
   bare?: boolean;
+  headless?: boolean;
   saveLabel?: string;
   onBack?: () => void;
   onSaved?: (updated: AgentConfigDto, models: ListModelsResult) => void;
@@ -52,6 +49,7 @@ export function ProviderCard({
   defaultPresetId,
   lede,
   bare,
+  headless,
   saveLabel,
   onBack,
   onSaved,
@@ -156,32 +154,17 @@ export function ProviderCard({
 
   function presetGrid(items: ProviderPreset[]) {
     return (
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {items.map((p) => {
-          const Icon = PROVIDER_ICONS[p.id] ?? Plug;
-          const description = presetDescription(p);
-          return (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => selectPreset(p.id)}
-              className={
-                'flex items-center gap-3 rounded-input border-[1px] px-4 py-3 text-left transition-colors ' +
-                (preset === p.id
-                  ? 'border-cobalt bg-cobalt/5 ring-1 ring-inset ring-cobalt'
-                  : 'border-rule-soft hover:border-ink/30')
-              }
-            >
-              <Icon className="size-5 shrink-0" aria-hidden />
-              <span className="min-w-0">
-                <span className="block font-semibold text-ink dark:text-foreground">{p.name}</span>
-                {description && (
-                  <span className="block text-sm text-muted-foreground">{description}</span>
-                )}
-              </span>
-            </button>
-          );
-        })}
+      <div className="space-y-2">
+        {items.map((p) => (
+          <PickerRow
+            key={p.id}
+            title={p.name}
+            description={presetDescription(p)}
+            selected={preset === p.id}
+            value={preset === p.id ? t('provider.inUse') : undefined}
+            onClick={() => selectPreset(p.id)}
+          />
+        ))}
       </div>
     );
   }
@@ -189,9 +172,10 @@ export function ProviderCard({
   const credentialInputs = (
     <>
       <div className="space-y-1.5">
-        <Label htmlFor="providerBaseUrl">{t('provider.urlLabel')}</Label>
+        <SettingsLabel htmlFor="providerBaseUrl">{t('provider.urlLabel')}</SettingsLabel>
         <Input
           id="providerBaseUrl"
+          className={SETTINGS_MEASURE_FIELD}
           value={providerBaseUrl}
           onChange={(e) => {
             setProviderBaseUrl(e.target.value);
@@ -201,9 +185,10 @@ export function ProviderCard({
         />
       </div>
       <div className="space-y-1.5 pt-2">
-        <Label htmlFor="apiKey">{t('apiKey.label')}</Label>
+        <SettingsLabel htmlFor="apiKey">{t('apiKey.label')}</SettingsLabel>
         <Input
           id="apiKey"
+          className={SETTINGS_MEASURE_FIELD}
           type="password"
           value={apiKey}
           placeholder={
@@ -221,18 +206,75 @@ export function ProviderCard({
   function submitRow(onClick: () => void, disabled: boolean) {
     return (
       <div className="flex items-center gap-3">
-        <Button type="button" onClick={onClick} disabled={disabled}>
-          {testing ? t('connection.testing') : (saveLabel ?? tCommon('save'))}
-        </Button>
+        <SaveButton
+          dirty={!disabled}
+          saving={testing}
+          onClick={onClick}
+          label={saveLabel ?? tCommon('save')}
+          savingLabel={t('connection.testing')}
+        />
         {onBack && (
           <Button type="button" variant="ghost" onClick={onBack}>
             {tCommon('back')}
           </Button>
         )}
-        {message && <span className="text-sm text-muted-foreground">{message}</span>}
+        {message && <span className="text-sm text-ink-mute">{message}</span>}
       </div>
     );
   }
+
+  const body = (
+    <div className="space-y-4">
+      {managedPreset ? (
+        <>
+          <div className="space-y-2">
+            <PickerRow
+              title={managedPreset.name}
+              description={managedPreset.description}
+              selected={preset === managedPreset.id}
+              value={preset === managedPreset.id ? t('provider.inUse') : undefined}
+              onClick={() => {
+                selectPreset(managedPreset.id);
+                setShowByok(false);
+              }}
+            />
+            <PickerRow
+              title={t('provider.useOwnKey')}
+              description={t('provider.ownKeyBlurb')}
+              selected={showByok}
+              value={showByok ? t('provider.inUse') : t('provider.configure')}
+              onClick={() => setShowByok(true)}
+            />
+          </div>
+
+          {showByok && (
+            <div className="space-y-4">
+              {presetGrid(byokPresets)}
+              {!isManaged && credentialInputs}
+            </div>
+          )}
+
+          {submitRow(
+            isManaged && !showByok ? () => void saveManaged() : () => void saveAndTest(),
+            isManaged && !showByok ? testing : saveDisabled,
+          )}
+        </>
+      ) : (
+        <>
+          {presetGrid(byokPresets)}
+          {credentialInputs}
+          {submitRow(() => void saveAndTest(), saveDisabled)}
+        </>
+      )}
+      {error && (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+
+  if (headless) return body;
 
   return (
     <Card className={bare ? BARE_CARD : undefined}>
@@ -240,80 +282,7 @@ export function ProviderCard({
         <CardTitle>{t('provider.title')}</CardTitle>
         <CardDescription>{lede ?? t('provider.lede')}</CardDescription>
       </CardHeader>
-      <CardContent className={bare ? 'space-y-4 px-0' : 'space-y-4'}>
-        {managedPreset ? (
-          <>
-            <button
-              type="button"
-              onClick={() => selectPreset(managedPreset.id)}
-              className={
-                'flex w-full items-center gap-4 rounded-input border-[1px] px-4 py-3.5 text-left transition-colors ' +
-                (preset === managedPreset.id
-                  ? 'border-cobalt bg-cobalt/5 ring-1 ring-inset ring-cobalt'
-                  : 'border-rule-soft hover:border-ink/30')
-              }
-            >
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-input bg-cobalt/10 text-cobalt">
-                {managedPreset.icon ?? <Sparkles className="size-5" aria-hidden />}
-              </span>
-              <span className="flex-1">
-                <span className="flex items-center gap-2">
-                  <span className="font-semibold text-ink dark:text-foreground">
-                    {managedPreset.name}
-                  </span>
-                  {managedPreset.badge && (
-                    <span className="rounded bg-cobalt/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-eyebrow text-cobalt">
-                      {managedPreset.badge}
-                    </span>
-                  )}
-                </span>
-                {managedPreset.description && (
-                  <span className="mt-0.5 block text-sm text-muted-foreground">
-                    {managedPreset.description}
-                  </span>
-                )}
-              </span>
-              {preset === managedPreset.id && (
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-cobalt text-white">
-                  <Check className="size-3.5" aria-hidden />
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowByok((v) => !v)}
-              className="flex w-full items-center justify-center gap-2 rounded-input border border-dashed border-rule-soft px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:text-ink dark:hover:text-foreground"
-            >
-              {showByok ? (
-                <ChevronDown className="size-4 shrink-0" aria-hidden />
-              ) : (
-                <ChevronRight className="size-4 shrink-0" aria-hidden />
-              )}
-              <span>{showByok ? t('provider.hideAlternatives') : t('provider.useOwnKey')}</span>
-            </button>
-
-            {showByok && (
-              <>
-                {presetGrid(byokPresets)}
-                {!isManaged && credentialInputs}
-              </>
-            )}
-
-            {submitRow(
-              isManaged ? () => void saveManaged() : () => void saveAndTest(),
-              isManaged ? testing : saveDisabled,
-            )}
-          </>
-        ) : (
-          <>
-            {presetGrid(byokPresets)}
-            {credentialInputs}
-            {submitRow(() => void saveAndTest(), saveDisabled)}
-          </>
-        )}
-        {error && <p className="text-sm text-destructive">{error}</p>}
-      </CardContent>
+      <CardContent className={bare ? 'px-0' : undefined}>{body}</CardContent>
     </Card>
   );
 }

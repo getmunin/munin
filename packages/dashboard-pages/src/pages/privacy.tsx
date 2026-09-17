@@ -2,13 +2,21 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, Hero, SectionHead } from '@getmunin/ui';
+import { Hero } from '@getmunin/ui';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
-import { FormField } from '../components/form-field';
 import { LoadFailed } from '../components/load-failed';
 import { NativeSelect } from '../components/native-select';
 import { Skeleton } from '../components/skeleton';
+import {
+  CheckboxRow,
+  SaveButton,
+  SettingsColumn,
+  SettingsFieldNote,
+  SettingsLabel,
+  SettingsSection,
+  SETTINGS_MEASURE_FIELD,
+} from '../components/settings/scaffold';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 
@@ -96,16 +104,22 @@ export function PrivacyPage() {
   }
 
   return (
-    <div className="max-w-3xl space-y-10">
+    <SettingsColumn>
       <Hero
         eyebrow={t('eyebrow')}
         title={t.rich('title', { em: (chunks) => <em>{chunks}</em> })}
         lede={t('subtitle')}
       />
 
-      <section className="space-y-4">
-        <SectionHead title={t('sectionTitle')} divider={false} />
-
+      <SettingsSection
+        title={t('sectionTitle')}
+        meta={
+          loaded
+            ? t('sectionMeta', { count: detectors.length, total: loaded.availableDetectors.length })
+            : undefined
+        }
+        help={t('detectorsHint')}
+      >
         {loaded === null ? (
           <div role="status" aria-busy="true" className="space-y-4">
             <span className="sr-only">{tCommon('loading')}</span>
@@ -114,39 +128,28 @@ export function PrivacyPage() {
             <Skeleton className="h-9 w-24" />
           </div>
         ) : (
-          <form className="space-y-6" onSubmit={(e) => void submit(e)}>
-            <FormField label={t('detectorsLabel')} hint={t('detectorsHint')}>
-              <div className="space-y-1">
-                {loaded.availableDetectors.map((detector) => (
-                  <label
-                    key={detector}
-                    className="flex cursor-pointer items-start gap-3 border-b-[1px] border-rule-soft py-2.5 last:border-0 dark:border-rule-on-dark"
-                  >
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 size-4 shrink-0"
-                      checked={detectors.includes(detector)}
-                      onChange={() => toggle(detector)}
-                      disabled={saving}
-                    />
-                    <span className="flex flex-1 flex-col gap-1">
-                      <span className="text-ink dark:text-foreground">
-                        {t(`detectors.${detector}.name`)}
-                      </span>
-                      <span className="text-sm text-muted-foreground">
-                        {t(`detectors.${detector}.hint`)}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </FormField>
+          <form className="space-y-5" onSubmit={(e) => void submit(e)}>
+            <div>
+              {loaded.availableDetectors.map((detector) => (
+                <CheckboxRow
+                  key={detector}
+                  checked={detectors.includes(detector)}
+                  onChange={() => toggle(detector)}
+                  disabled={saving}
+                  title={t(`detectors.${detector}.name`)}
+                  description={t(`detectors.${detector}.hint`)}
+                />
+              ))}
+            </div>
 
-            <FormField label={t('policyLabel')} hint={t(`policyHint.${policy}`)} error={error}>
+            <div className="space-y-2">
+              <SettingsLabel htmlFor="redaction-policy">{t('policyLabel')}</SettingsLabel>
               <NativeSelect
+                id="redaction-policy"
                 value={policy}
                 onChange={(e) => setPolicy(e.target.value as Policy)}
                 disabled={saving}
+                wrapperClassName={SETTINGS_MEASURE_FIELD}
               >
                 {POLICIES.map((option) => (
                   <option key={option} value={option}>
@@ -154,13 +157,19 @@ export function PrivacyPage() {
                   </option>
                 ))}
               </NativeSelect>
-            </FormField>
+              <SettingsFieldNote>{t(`policyHint.${policy}`)}</SettingsFieldNote>
+            </div>
 
-            <FormField label={t('confidenceLabel')} hint={t(`confidenceHint.${minConfidence}`)}>
+            <div className="space-y-2">
+              <SettingsLabel htmlFor="redaction-confidence">
+                {t('confidenceLabel')}
+              </SettingsLabel>
               <NativeSelect
+                id="redaction-confidence"
                 value={minConfidence}
                 onChange={(e) => setMinConfidence(e.target.value as Confidence)}
                 disabled={saving}
+                wrapperClassName={SETTINGS_MEASURE_FIELD}
               >
                 {CONFIDENCES.map((option) => (
                   <option key={option} value={option}>
@@ -168,23 +177,34 @@ export function PrivacyPage() {
                   </option>
                 ))}
               </NativeSelect>
-            </FormField>
+              <SettingsFieldNote>
+                {t(`confidenceHint.${minConfidence}`)} {t('scopeNote')}
+              </SettingsFieldNote>
+            </div>
 
-            <p className="text-sm text-muted-foreground">{t('scopeNote')}</p>
+            {error ? (
+              <p className="text-sm text-destructive" role="alert">
+                {error}
+              </p>
+            ) : null}
 
             <div className="flex items-center gap-3">
-              <Button type="submit" disabled={!dirty || saving}>
-                {saving ? tCommon('saving') : tCommon('save')}
-              </Button>
+              <SaveButton
+                type="submit"
+                dirty={dirty}
+                saving={saving}
+                label={tCommon('save')}
+                savingLabel={tCommon('saving')}
+              />
               {savedAt && !dirty && !error ? (
-                <span key={savedAt} className="text-sm text-muted-foreground">
+                <span key={savedAt} className="text-sm text-ink-mute">
                   {tCommon('saved')}
                 </span>
               ) : null}
             </div>
           </form>
         )}
-      </section>
-    </div>
+      </SettingsSection>
+    </SettingsColumn>
   );
 }

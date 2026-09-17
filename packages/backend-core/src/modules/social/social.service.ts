@@ -1,7 +1,14 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
 import { makeId, schema } from '@getmunin/db';
 import { getCurrentContext } from '@getmunin/core';
+import {
+  decidedBefore,
+  toDecidedActor,
+  type DecidedQuery,
+  type ReviewDecision,
+  type ReviewDecisionOutcome,
+} from '../../common/review-decision.ts';
 import {
   SOCIAL_PLATFORM_DESCRIPTORS,
   applyUtm,
@@ -201,11 +208,63 @@ export class SocialService {
     return this.toDto(updated[0]!);
   }
 
-  async dismissDraft(id: string): Promise<{ dismissed: true; id: string }> {
+  async dismissDraft(id: string, reason?: string | null): Promise<{ dismissed: true; id: string }> {
     const row = await this.requireDraft(id);
     this.assertPending(row);
-    await this.decide(id, 'dismissed', {});
+    await this.decide(id, 'dismissed', { dismissReason: reason?.trim() || null });
     return { dismissed: true, id };
+  }
+
+  async listDecided(input: DecidedQuery): Promise<ReviewDecision<SocialDraftDto>[]> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ item: schema.socialPostDrafts, decidedByName: schema.users.name })
+      .from(schema.socialPostDrafts)
+      .leftJoin(
+        schema.users,
+        and(
+          eq(schema.socialPostDrafts.decidedByActorType, 'user'),
+          eq(schema.users.id, schema.socialPostDrafts.decidedByActorId),
+        ),
+      )
+      .where(
+        and(
+          eq(schema.socialPostDrafts.orgId, ctx.actor!.orgId),
+          inArray(schema.socialPostDrafts.status, [
+            'published',
+            'published_externally',
+            'dismissed',
+            'failed',
+          ]),
+          isNotNull(schema.socialPostDrafts.decidedAt),
+          decidedBefore(
+            schema.socialPostDrafts.decidedAt,
+            schema.socialPostDrafts.id,
+            input.cursor,
+          ),
+        ),
+      )
+      .orderBy(desc(schema.socialPostDrafts.decidedAt), desc(schema.socialPostDrafts.id))
+      .limit(Math.min(input.limit ?? DEFAULT_LIMIT, MAX_LIMIT));
+
+    return rows.flatMap(({ item, decidedByName }) => {
+      if (!item.decidedAt) return [];
+      return [
+        {
+          id: item.id,
+          decidedAt: item.decidedAt.toISOString(),
+          outcome: decidedOutcome(item.status as SocialDraftStatus),
+          reason: item.status === 'failed' ? item.lastError : item.dismissReason,
+          decidedBy: toDecidedActor(
+            item.decidedByActorType,
+            item.decidedByActorId,
+            decidedByName,
+          ),
+          producedRef: null,
+          raw: this.toDto(item),
+        },
+      ];
+    });
   }
 
   async markPosted(id: string, permalink?: string | null): Promise<SocialDraftDto> {
@@ -329,4 +388,10 @@ export class SocialService {
       createdAt: row.createdAt.toISOString(),
     };
   }
+}
+
+function decidedOutcome(status: SocialDraftStatus): ReviewDecisionOutcome {
+  if (status === 'dismissed') return 'dismissed';
+  if (status === 'failed') return 'failed';
+  return 'approved';
 }

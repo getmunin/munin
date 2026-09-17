@@ -281,7 +281,11 @@
         "actionFailed": {
           "approve": "Publish failed",
           "dismiss": "Dismiss failed"
-        }
+        },
+        "kindSocial": "SOCIAL",
+        "codeSocial": "SOC",
+        "socialUntitled": "Untitled draft",
+        "socialSnippet": "{platform} · {label} · {chars}/{max} characters"
       },
       "scheduled": {
         "outreachUntitled": "Outreach draft",
@@ -427,7 +431,18 @@
         },
         "quotedThreadToggle": "Earlier in this thread ({count})",
         "quotedThreadNotice": "Reconstructed from the text quoted in this email. These turns were not delivered through Munin and are not part of the conversation record.",
-        "quotedThreadUnknownSender": "Unknown sender"
+        "quotedThreadUnknownSender": "Unknown sender",
+        "metaSocial": "{platform} · {chars}/{max} characters · {age}",
+        "socialBody": "Post",
+        "socialLink": "Link to share",
+        "socialCopyBody": "Copy post",
+        "socialCopyLink": "Copy link",
+        "socialCopied": "Copied",
+        "socialLinkTagged": "Tagged for this variant, so later click figures show which angle earned them.",
+        "socialComposerHint": "Munin does not post for you. Copy the text, publish it under your own name, then mark it posted here.",
+        "socialOpenComposer": "Open {platform} →",
+        "socialMarkPosted": "Mark as posted",
+        "shortcutMarkPosted": "⌘↵ mark as posted"
       },
       "relative": {
         "justNow": "just now",
@@ -1207,7 +1222,8 @@
           "crm": "Kept separate",
           "outreach": "Dismissed",
           "cms": "Discarded",
-          "feedback": "Dismissed"
+          "feedback": "Dismissed",
+          "social": "Dismissed"
         },
         "decisionReason": "Reason given",
         "decidedByAgent": "Agent",
@@ -1301,7 +1317,8 @@
           "crm": "Merged",
           "outreach": "Sent",
           "cms": "Published",
-          "feedback": "Forwarded"
+          "feedback": "Forwarded",
+          "social": "Posted"
         },
         "outcomeFailed": "Send failed",
         "decidedUntitled": "Untitled",
@@ -1331,8 +1348,14 @@
             "approved": "The item was forwarded to the Munin team.",
             "dismissed": "The item was dismissed and nothing was sent.",
             "failed": "Forwarding failed and nothing reached the Munin team."
+          },
+          "social": {
+            "approved": "The draft was posted, and the set it belongs to is settled.",
+            "dismissed": "Nobody published this variant. The rest of its set is untouched.",
+            "failed": "The post could not be published."
           }
-        }
+        },
+        "decidedSocialVariant": "Social post · {label}"
       },
       "automation": {
         "eyebrow": "Automation — per topic",

@@ -5,6 +5,7 @@ import { CrmQueuePane } from './crm';
 import { FeedbackQueuePane } from './feedback';
 import { KbQueuePane } from './kb';
 import { OutreachQueuePane } from './outreach';
+import { SocialQueuePane } from './social';
 import type {
   CmsAssetExpanded,
   CmsDraftDetailDto,
@@ -142,6 +143,16 @@ export function QueueItemPane({
           onApprove={onApprove}
           onDismiss={onDismiss}
           onSave={onSave}
+          onClose={onClose}
+        />
+      );
+    case 'social':
+      return (
+        <SocialQueuePane
+          item={item}
+          pending={pending}
+          onApprove={() => onApprove()}
+          onDismiss={onDismiss}
           onClose={onClose}
         />
       );

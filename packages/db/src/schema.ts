@@ -2236,6 +2236,65 @@ export const socialPostDrafts = pgTable(
   }),
 );
 
+export const socialPlatformApps = pgTable(
+  'social_platform_apps',
+  {
+    id: id('spa'),
+    orgId: text('org_id')
+      .notNull()
+      .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
+    platform: varchar('platform', { length: 16 }).notNull(),
+    clientId: text('client_id').notNull(),
+    encryptedClientSecret: text('encrypted_client_secret').notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgPlatformUq: uniqueIndex('social_platform_apps_org_platform_uq').on(t.orgId, t.platform),
+  }),
+);
+
+export const socialAccounts = pgTable(
+  'social_accounts',
+  {
+    id: id('sac'),
+    orgId: text('org_id')
+      .notNull()
+      .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    platform: varchar('platform', { length: 16 }).notNull(),
+    authorKind: varchar('author_kind', { length: 16 }).notNull().default('member'),
+    externalAccountId: text('external_account_id').notNull(),
+    displayName: text('display_name'),
+    encryptedAccessToken: text('encrypted_access_token').notNull(),
+    accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }),
+    encryptedRefreshToken: text('encrypted_refresh_token'),
+    refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }),
+    scopes: jsonb('scopes').$type<string[]>().notNull().default([]),
+    status: varchar('status', { length: 16 }).notNull().default('active'),
+    lastError: text('last_error'),
+    connectedAt: timestamp('connected_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgUserPlatformUq: uniqueIndex('social_accounts_org_user_platform_uq').on(
+      t.orgId,
+      t.userId,
+      t.platform,
+    ),
+    orgPlatformExternalUq: uniqueIndex('social_accounts_org_platform_external_uq').on(
+      t.orgId,
+      t.platform,
+      t.externalAccountId,
+    ),
+    orgStatusIdx: index('social_accounts_org_status_idx').on(t.orgId, t.platform, t.status),
+    expiryIdx: index('social_accounts_expiry_idx').on(t.status, t.accessTokenExpiresAt),
+  }),
+);
+
 // ───────────────────────── Slack operator bridge ─────────────────────
 // Slack as an operator surface layered on existing conversations: each
 // conversation mirrors into one Slack thread; operators triage and (later
@@ -2641,6 +2700,8 @@ export const allTables = {
   orgAlerts,
   alertNotifications,
   socialPostDrafts,
+  socialPlatformApps,
+  socialAccounts,
   slackIntegrations,
   slackChannelRoutes,
   slackConversationLinks,

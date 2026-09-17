@@ -209,7 +209,8 @@
       "alertReasonMultiple": "{title} (+{count} til)",
       "channelInboundFailing": "Henting av nye meldinger feiler på «{name}»",
       "channelOutboundFailing": "Svar kommer ikke ut på «{name}»",
-      "openChannelSettings": "Åpne kanalinnstillinger →"
+      "openChannelSettings": "Åpne kanalinnstillinger →",
+      "openSocialSettings": "Koble til på nytt"
     },
     "loadFailed": {
       "eyebrow": "Tilkobling · feilet",

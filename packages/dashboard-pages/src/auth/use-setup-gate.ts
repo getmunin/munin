@@ -3,7 +3,8 @@
 import { useEffect } from 'react';
 import { useRouter } from '../i18n-navigation';
 import { authClient } from '../auth-client';
-import { useActiveMembership } from './use-active-role';
+import { getActiveOrgId, setActiveOrgId } from './active-org';
+import { invalidateActiveMembershipCache, useDefaultMembership } from './use-active-role';
 import { useAgentConfigStatus } from './use-agent-config-status';
 import { hasOauthAuthorizeParams } from './post-signin-redirect';
 
@@ -11,7 +12,7 @@ export function useSetupGate(): { ready: boolean } {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
   const { configured, loading: configLoading } = useAgentConfigStatus();
-  const { membership, loading: membershipLoading } = useActiveMembership();
+  const { membership, loading: membershipLoading } = useDefaultMembership();
 
   const orgNamed = membership ? membership.name.trim().length > 0 : null;
   const setupComplete = configured === true && orgNamed === true;
@@ -24,6 +25,10 @@ export function useSetupGate(): { ready: boolean } {
       return;
     }
     if (configLoading || membershipLoading) return;
+    if (setupIncomplete && membership && getActiveOrgId() !== membership.orgId) {
+      setActiveOrgId(membership.orgId);
+      invalidateActiveMembershipCache();
+    }
     if (setupComplete) {
       const params = new URLSearchParams(window.location.search);
       if (hasOauthAuthorizeParams(params)) {
@@ -32,7 +37,7 @@ export function useSetupGate(): { ready: boolean } {
         router.push('/dashboard');
       }
     }
-  }, [isPending, session, configLoading, membershipLoading, setupComplete, router]);
+  }, [isPending, session, configLoading, membershipLoading, setupComplete, setupIncomplete, membership, router]);
 
   const ready =
     !isPending &&

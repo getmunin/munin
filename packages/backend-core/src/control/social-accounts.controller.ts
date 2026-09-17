@@ -10,24 +10,33 @@ import {
   type SocialAccountDto,
   type SocialPlatformAppDto,
 } from '../modules/social/social-accounts.service.ts';
+import { SocialService, type SocialPublishTarget } from '../modules/social/social.service.ts';
 
 const PlatformBody = z.object({ platform: z.enum(SOCIAL_PLATFORMS) });
 
 const PlatformAppBody = z.object({
   platform: z.enum(SOCIAL_PLATFORMS),
   clientId: z.string().min(1).max(200),
-  clientSecret: z.string().min(1).max(500),
+  clientSecret: z.string().min(1).max(500).optional(),
 });
 
 @Controller('v1/social/accounts')
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class SocialAccountsController {
-  constructor(private readonly accounts: SocialAccountsService) {}
+  constructor(
+    private readonly accounts: SocialAccountsService,
+    private readonly social: SocialService,
+  ) {}
 
   @Get()
   list(): Promise<SocialAccountDto[]> {
     return this.accounts.listAccounts();
+  }
+
+  @Get('mine')
+  mine(): Promise<SocialPublishTarget | null> {
+    return this.social.publishTargetForViewer();
   }
 
   @Get('apps')

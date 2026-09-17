@@ -81,6 +81,7 @@ export function QueueItemPane({
   onRetry,
   pending,
   onApprove,
+  onPublish,
   onDismiss,
   onSave,
   onSaveCmsDraft,
@@ -99,6 +100,7 @@ export function QueueItemPane({
   onRetry: () => void;
   pending: boolean;
   onApprove: (sendAt?: string | null) => void;
+  onPublish?: () => void;
   onDismiss: () => void;
   onSave: (body: string) => Promise<void>;
   onSaveCmsDraft: (data: Record<string, unknown>) => Promise<void>;
@@ -152,6 +154,7 @@ export function QueueItemPane({
           item={item}
           pending={pending}
           onApprove={() => onApprove()}
+          onPublish={onPublish}
           onDismiss={onDismiss}
           onClose={onClose}
         />

@@ -11,6 +11,11 @@ import {
 import { randomUUID } from 'node:crypto';
 import { SocialCompanionSink, type JobEnqueuer } from './social-companion.sink.ts';
 import { SocialService } from './social.service.ts';
+import {
+  StubPublisherLookup,
+  StubTokenSource,
+  UnusedTransactionRunner,
+} from './social-test-doubles.ts';
 import { COMPANION_JOB_URI } from './companion-job.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
@@ -38,7 +43,11 @@ class RecordingEnqueuer implements JobEnqueuer {
 
   const enqueuer = new RecordingEnqueuer();
   const sink = new SocialCompanionSink(enqueuer);
-  const social = new SocialService();
+  const social = new SocialService(
+    new StubTokenSource(),
+    new StubPublisherLookup(),
+    new UnusedTransactionRunner(),
+  );
 
   async function asOrg<T>(orgId: string, fn: () => Promise<T>): Promise<T> {
     const actor = new ActorIdentity('system', 'cms-schedule-worker', orgId, ['*'], ['admin']);

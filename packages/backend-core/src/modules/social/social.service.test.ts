@@ -1,11 +1,17 @@
 import 'reflect-metadata';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { createDb, runMigrations, schema } from '@getmunin/db';
+import { createDb, runMigrations, schema, type Db, type Tx } from '@getmunin/db';
 import { eq, sql } from 'drizzle-orm';
 import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
 import { SocialService } from './social.service.ts';
 import { describePlatform } from './social-platform.ts';
+import {
+  StubPublisherLookup,
+  StubTokenSource,
+  UnusedTransactionRunner,
+} from './social-test-doubles.ts';
+import type { RootTransactionRunner } from './social.service.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -22,7 +28,11 @@ const PERMALINK = 'https://social.example.test/posts/7';
   let orgB: string;
   let member: string;
   let outsider: string;
-  const service = new SocialService();
+  const service = new SocialService(
+    new StubTokenSource(),
+    new StubPublisherLookup(),
+    new UnusedTransactionRunner(),
+  );
 
   async function inOrg<T>(orgId: string, fn: () => Promise<T>): Promise<T> {
     const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
@@ -71,6 +81,176 @@ const PERMALINK = 'https://social.example.test/posts/7';
   beforeEach(async () => {
     await svcDb.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     await svcDb.delete(schema.socialPostDrafts);
+  });
+
+  describe('publishDraft', () => {
+    class DbRootTransactionRunner implements RootTransactionRunner {
+      constructor(private readonly db: Db) {}
+      inRootTransaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+        return this.db.transaction(async (tx) => {
+          await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+          return fn(tx);
+        });
+      }
+    }
+
+    function buildService(publisher: StubPublisherLookup, token = new StubTokenSource()) {
+      return new SocialService(token, publisher, new DbRootTransactionRunner(svcDb));
+    }
+
+    async function asUser<T>(orgId: string, userId: string, fn: () => Promise<T>): Promise<T> {
+      const actor = new ActorIdentity(
+        'user',
+        userId,
+        orgId,
+        ['*'],
+        ['admin'],
+        undefined,
+        undefined,
+        undefined,
+        userId,
+      );
+      return await appDb.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.org_id', ${orgId}, true)`);
+        await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
+        const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
+        return await withContext(ctx, fn);
+      });
+    }
+
+    async function connectAccount(orgId: string, userId: string, status = 'active') {
+      await svcDb.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      await svcDb.insert(schema.socialAccounts).values({
+        orgId,
+        userId,
+        platform: 'linkedin',
+        externalAccountId: `ext-${randomUUID()}`,
+        displayName: 'Ola Nordmann',
+        encryptedAccessToken: 'ciphertext',
+        scopes: ['w_member_social'],
+        status,
+      });
+    }
+
+    async function readDraft(id: string) {
+      await svcDb.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const [row] = await svcDb
+        .select()
+        .from(schema.socialPostDrafts)
+        .where(eq(schema.socialPostDrafts.id, id));
+      return row!;
+    }
+
+    beforeEach(async () => {
+      await svcDb.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      await svcDb.delete(schema.socialAccounts);
+    });
+
+    it("publishes from the caller's own account and records the post id and permalink", async () => {
+      await connectAccount(orgA, member);
+      const publisher = new StubPublisherLookup({
+        result: { externalPostId: 'urn:li:share:9', permalink: 'https://example.test/p/9' },
+      });
+      const svc = buildService(publisher);
+
+      const draft = await inOrg(orgA, () =>
+        service.createDraft({ body: 'Worth sharing.', linkUrl: ARTICLE }),
+      );
+      const published = await asUser(orgA, member, () => svc.publishDraft(draft.id));
+
+      expect(published.status).toBe('published');
+      expect(published.externalPostId).toBe('urn:li:share:9');
+      expect(published.permalink).toBe('https://example.test/p/9');
+      expect(published.publishedAt).toBeTruthy();
+
+      expect(publisher.requests).toHaveLength(1);
+      expect(publisher.requests[0]!.body).toBe('Worth sharing.');
+      expect(publisher.requests[0]!.linkUrl).toContain('utm_source=linkedin');
+    });
+
+    it('refuses when the caller has connected no account, and leaves the draft pending', async () => {
+      const svc = buildService(new StubPublisherLookup());
+      const draft = await inOrg(orgA, () => service.createDraft({ body: 'Body' }));
+
+      await expect(asUser(orgA, member, () => svc.publishDraft(draft.id))).rejects.toMatchObject({
+        response: { code: 'social_no_account' },
+      });
+      expect((await readDraft(draft.id)).status).toBe('pending');
+    });
+
+    it('asks for a reconnection when the account has lapsed rather than attempting the post', async () => {
+      await connectAccount(orgA, member, 'expired');
+      const publisher = new StubPublisherLookup();
+      const svc = buildService(publisher);
+      const draft = await inOrg(orgA, () => service.createDraft({ body: 'Body' }));
+
+      await expect(asUser(orgA, member, () => svc.publishDraft(draft.id))).rejects.toMatchObject({
+        response: { code: 'social_reconnect_required' },
+      });
+      expect(publisher.requests).toHaveLength(0);
+      expect((await readDraft(draft.id)).status).toBe('pending');
+    });
+
+    it('refuses a service key outright, because a post needs a person to publish it', async () => {
+      await connectAccount(orgA, member);
+      const svc = buildService(new StubPublisherLookup());
+      const draft = await inOrg(orgA, () => service.createDraft({ body: 'Body' }));
+
+      await expect(inOrg(orgA, () => svc.publishDraft(draft.id))).rejects.toMatchObject({
+        response: { code: 'social_publish_needs_person' },
+      });
+    });
+
+    it('records the platform refusal on the draft, and that marker survives the error thrown', async () => {
+      await connectAccount(orgA, member);
+      const svc = buildService(
+        new StubPublisherLookup({ error: new Error('LinkedIn refused the post (422)') }),
+      );
+      const draft = await inOrg(orgA, () => service.createDraft({ body: 'Body' }));
+
+      await expect(asUser(orgA, member, () => svc.publishDraft(draft.id))).rejects.toMatchObject({
+        response: { code: 'social_publish_failed' },
+      });
+
+      const row = await readDraft(draft.id);
+      expect(row.status).toBe('failed');
+      expect(row.lastError).toContain('422');
+      expect(row.decidedAt).toBeTruthy();
+    });
+
+    it('refuses a draft somebody already decided', async () => {
+      await connectAccount(orgA, member);
+      const svc = buildService(new StubPublisherLookup());
+      const draft = await inOrg(orgA, () => service.createDraft({ body: 'Body' }));
+      await inOrg(orgA, () => service.dismissDraft(draft.id, 'not now'));
+
+      await expect(asUser(orgA, member, () => svc.publishDraft(draft.id))).rejects.toThrow(
+        /already dismissed/,
+      );
+    });
+
+    it('says plainly when the platform has no publishing route rather than pretending', async () => {
+      await connectAccount(orgA, member);
+      const svc = buildService(new StubPublisherLookup({ unsupported: true }));
+      const draft = await inOrg(orgA, () => service.createDraft({ body: 'Body' }));
+
+      await expect(asUser(orgA, member, () => svc.publishDraft(draft.id))).rejects.toMatchObject({
+        response: { code: 'social_publish_unsupported' },
+      });
+      expect((await readDraft(draft.id)).status).toBe('pending');
+    });
+
+    it("reports the viewer's own connected account, and nobody else's", async () => {
+      await connectAccount(orgA, member);
+      const svc = buildService(new StubPublisherLookup());
+
+      const mine = await asUser(orgA, member, () => svc.publishTargetForViewer());
+      expect(mine?.userId).toBe(member);
+      expect(mine?.displayName).toBe('Ola Nordmann');
+
+      const theirs = await asUser(orgA, outsider, () => svc.publishTargetForViewer());
+      expect(theirs).toBeNull();
+    });
   });
 
   it('stores a one-off share as a set of one', async () => {

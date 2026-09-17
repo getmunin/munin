@@ -7,9 +7,10 @@ audiences: [admin]
 # Route a post to someone who can publish it
 
 A social post draft is published by a person, from their own account. Munin holds a
-grant for each person who has connected one. A draft nobody can publish is a draft that
-sits in the review queue until it goes stale, so set `suggestedUserId` to someone who
-actually has a working connection.
+grant for each person who has connected one, and publishes through that grant when the
+person clicks publish on the draft. A draft nobody can publish is a draft that sits in
+the review queue until it goes stale, so set `suggestedUserId` to someone who actually
+has a working connection.
 
 ## Find out who can post
 
@@ -26,9 +27,12 @@ Only an `active` account can publish. Prefer one that is `active` and not `expir
 ## Setting the author on a draft
 
 Pass `suggestedUserId` to `social_propose_post_set` or `social_create_post_draft`. It is
-a suggestion, not an assignment: whoever reviews the draft can publish it themselves
-instead. Spread a set of variants across different people only if the operator asked for
-that — the usual case is one author for the whole set.
+a suggestion about who should review and publish, not an assignment, and it does not
+grant anyone anything: a post is always published from the connected account of the
+person who clicks publish. Routing a draft to someone who has no connection simply means
+whoever picks it up publishes it from their own account instead. Spread a set of
+variants across different people only if the operator asked for that — the usual case is
+one author for the whole set.
 
 ## When nobody can publish
 
@@ -52,8 +56,10 @@ as a misconfiguration.
 
 ## What not to do
 
-- Do not publish anything. No tool here posts to a platform; publishing is a person
-  clicking a button on a reviewed draft.
+- Do not publish a draft yourself as part of routing it. `social_publish_post_draft`
+  posts immediately and irreversibly from the account of whoever is calling, so it
+  belongs to the person reviewing the draft, not to the job that filed it. See
+  `skill://social/publish-a-reviewed-post`.
 - Do not ask a person for their LinkedIn password or an access token. The only way an
   account is connected is the authorize link in the dashboard.
 - Do not route a draft to someone because they wrote the underlying article. Being the

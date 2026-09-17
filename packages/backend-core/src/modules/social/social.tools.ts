@@ -174,6 +174,22 @@ export class SocialTools {
   }
 
   @McpTool({
+    name: 'social_publish_post_draft',
+    title: 'Social: Publish post draft',
+    description:
+      "Publish a pending draft to the platform from the calling person's own connected account, and record the resulting post id and permalink on the draft. The post goes out immediately and cannot be recalled through Munin. Fails when the caller has no connected account for that platform, when their connection has lapsed and needs reauthorizing, when the draft has already been decided, or when the platform refuses the post — in which case the draft is left marked failed with the reason. Use social_mark_draft_posted instead when the post was published by hand on the platform itself.",
+    audiences: ['admin'],
+    scopes: ['social:write'],
+    input: IdInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+    _meta: { ui: { visibility: ['app'] } },
+  })
+  publishDraft(args: z.infer<typeof IdInput>) {
+    return this.social.publishDraft(args.id);
+  }
+
+  @McpTool({
     name: 'social_mark_draft_posted',
     title: 'Social: Mark draft as posted',
     description:

@@ -60,6 +60,8 @@ export interface SocialPlatformAppDto {
   platform: SocialPlatform;
   clientId: string;
   configured: boolean;
+  redirectUri: string;
+  clientSecretSetAt: string | null;
 }
 
 interface AuthorizeState {
@@ -125,15 +127,17 @@ export class SocialAccountsService {
   async setPlatformApp(input: {
     platform: SocialPlatform;
     clientId: string;
-    clientSecret: string;
+    clientSecret?: string | undefined;
   }): Promise<SocialPlatformAppDto> {
-    this.requireAdapter(input.platform);
+    const adapter = this.requireAdapter(input.platform);
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
     return this.store.inRootTransaction(async (tx) => {
-      const encrypted = await this.store.encrypt(tx, input.clientSecret);
       const [existing] = await tx
-        .select({ id: schema.socialPlatformApps.id })
+        .select({
+          id: schema.socialPlatformApps.id,
+          clientSecretSetAt: schema.socialPlatformApps.clientSecretSetAt,
+        })
         .from(schema.socialPlatformApps)
         .where(
           and(
@@ -142,25 +146,50 @@ export class SocialAccountsService {
           ),
         )
         .limit(1);
+
+      const secret = input.clientSecret?.trim();
+      if (!existing && !secret) {
+        throw new BadRequestException({
+          message: `social_client_secret_required: enter the ${adapter.displayName} client secret — there is none stored to keep`,
+          code: 'social_client_secret_required',
+        });
+      }
+
+      const now = new Date();
+      let secretSetAt = existing?.clientSecretSetAt ?? null;
       if (existing) {
+        if (secret) secretSetAt = now;
         await tx
           .update(schema.socialPlatformApps)
           .set({
             clientId: input.clientId,
-            encryptedClientSecret: encrypted,
-            updatedAt: new Date(),
+            ...(secret
+              ? {
+                  encryptedClientSecret: await this.store.encrypt(tx, secret),
+                  clientSecretSetAt: now,
+                }
+              : {}),
+            updatedAt: now,
           })
           .where(eq(schema.socialPlatformApps.id, existing.id));
       } else {
+        secretSetAt = now;
         await tx.insert(schema.socialPlatformApps).values({
           id: makeId('spa'),
           orgId,
           platform: input.platform,
           clientId: input.clientId,
-          encryptedClientSecret: encrypted,
+          encryptedClientSecret: await this.store.encrypt(tx, secret!),
+          clientSecretSetAt: now,
         });
       }
-      return { platform: input.platform, clientId: input.clientId, configured: true };
+      return {
+        platform: input.platform,
+        clientId: input.clientId,
+        configured: true,
+        redirectUri: socialOAuthRedirectUri(),
+        clientSecretSetAt: secretSetAt ? secretSetAt.toISOString() : null,
+      };
     });
   }
 
@@ -170,15 +199,22 @@ export class SocialAccountsService {
       .select({
         platform: schema.socialPlatformApps.platform,
         clientId: schema.socialPlatformApps.clientId,
+        clientSecretSetAt: schema.socialPlatformApps.clientSecretSetAt,
       })
       .from(schema.socialPlatformApps)
       .where(eq(schema.socialPlatformApps.orgId, ctx.actor!.orgId));
-    const configured = new Map(rows.map((r) => [r.platform, r.clientId]));
-    return this.registry.platforms().map((platform) => ({
-      platform,
-      clientId: configured.get(platform) ?? '',
-      configured: configured.has(platform),
-    }));
+    const configured = new Map(rows.map((r) => [r.platform, r]));
+    const redirectUri = socialOAuthRedirectUri();
+    return this.registry.platforms().map((platform) => {
+      const row = configured.get(platform);
+      return {
+        platform,
+        clientId: row?.clientId ?? '',
+        configured: row !== undefined,
+        redirectUri,
+        clientSecretSetAt: row?.clientSecretSetAt?.toISOString() ?? null,
+      };
+    });
   }
 
   async authorizeUrl(input: { platform: SocialPlatform }): Promise<{

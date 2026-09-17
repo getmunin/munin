@@ -2246,6 +2246,7 @@ export const socialPlatformApps = pgTable(
     platform: varchar('platform', { length: 16 }).notNull(),
     clientId: text('client_id').notNull(),
     encryptedClientSecret: text('encrypted_client_secret').notNull(),
+    clientSecretSetAt: timestamp('client_secret_set_at', { withTimezone: true }),
     createdAt,
     updatedAt,
   },

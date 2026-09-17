@@ -284,9 +284,10 @@
           "dismiss": "Avvisningen feilet"
         },
         "kindSocial": "SOSIALT",
-        "codeSocial": "SOS",
+        "codeSocial": "SOME",
         "socialUntitled": "Utkast uten tekst",
-        "socialSnippet": "{platform} · {label} · {chars}/{max} tegn"
+        "socialSnippet": "{platform} · {label} · {chars}/{max} tegn",
+        "shortcutPublish": "⌘↵ publiser"
       },
       "scheduled": {
         "outreachUntitled": "Utkast til utsending",
@@ -440,10 +441,15 @@
         "socialCopyLink": "Kopier lenke",
         "socialCopied": "Kopiert",
         "socialLinkTagged": "Merket for denne varianten, så klikktallene senere viser hvilken vinkling som traff.",
-        "socialComposerHint": "Munin publiserer ikke for deg. Kopier teksten, legg den ut i ditt eget navn, og marker den som lagt ut her.",
+        "socialComposerHint": "Munin kan ikke publisere på denne plattformen for deg. Kopier teksten, publiser den i ditt eget navn, og merk den som publisert her.",
         "socialOpenComposer": "Åpne {platform} →",
         "socialMarkPosted": "Marker som lagt ut",
-        "shortcutMarkPosted": "⌘↵ marker som lagt ut"
+        "shortcutMarkPosted": "⌘↵ marker som lagt ut",
+        "socialPublish": "Publiser",
+        "socialPublishAs": "Publiser som {name}",
+        "socialPublishHint": "Innlegget går rett ut på {platform}, i ditt navn. Munin kan ikke hente det tilbake.",
+        "socialNeedsAccountHint": "Koble til {platform}-kontoen din for å publisere fra Munin. Inntil videre kan du kopiere teksten og publisere selv.",
+        "socialConnectAccount": "Koble til kontoen din →"
       },
       "relative": {
         "justNow": "akkurat nå",
@@ -1206,6 +1212,7 @@
         "codeOutreach": "OUT",
         "codeCms": "CMS",
         "codeFeedback": "FBK",
+        "codeSocial": "SOME",
         "kindNew": "Ny artikkel",
         "kindRevisionOf": "Revisjon — {title}",
         "sourceConversation": "samtalen bak",
@@ -1741,6 +1748,60 @@
       "title": "Operatørbroer",
       "subtitle": "Håndter og svar fra medarbeidernes chatteverktøy"
     },
+    "publishing": {
+      "title": "Publiseringskontoer",
+      "subtitle": "Publiser i sosiale kanaler i ditt eget navn",
+      "appMissingShort": "Appen mangler",
+      "notConnectedShort": "Ikke koblet til",
+      "statusLapsed": "Må kobles til på nytt",
+      "statusExpiringSoon": "Utløper snart",
+      "othersConnected": "{count, plural, =1 {1 kollega tilkoblet} other {# kolleger tilkoblet}}",
+      "setUpApp": "Sett opp app",
+      "editApp": "Rediger app",
+      "reauthorize": "Forny tilgangen",
+      "disconnect": "Koble fra",
+      "disconnectConfirm": "Koble fra {platform}-kontoen din? Innlegg som alt er publisert blir liggende på {platform}, men du kan ikke publisere fra Munin før du kobler til igjen.",
+      "connected": "Kontoen er koblet til.",
+      "denied": "Du avbrøt tilkoblingen.",
+      "failed": "Tilkoblingen kunne ikke fullføres.",
+      "failedWithReason": "Tilkoblingen kunne ikke fullføres: {reason}",
+      "eyebrowStepOne": "{platform}-app · 1 av 2",
+      "eyebrowStepTwo": "{platform}-app · 2 av 2",
+      "eyebrowApp": "{platform}-app",
+      "eyebrowConnected": "{count, plural, =0 {ingen tilkoblet} =1 {aktiv · 1 tilkoblet} other {aktiv · # tilkoblet}}",
+      "setupTitle": "Sett opp appen i {platform}",
+      "setupLede": "Munin kan ikke publisere gjennom sin egen {platform}-klient, så denne organisasjonen trenger sin egen. Tre ting å gjøre der borte — så kommer du tilbake med nøklene.",
+      "stepCreate": "Opprett en app i <portal>utviklerportalen</portal>",
+      "stepCreateNote": "{platform} ber deg knytte den til en bedriftsside.",
+      "stepProducts": "Legg til begge produktene — selvbetjent, under Products",
+      "productShare": "Share on {platform}",
+      "productSharePurpose": "Lar oss publisere",
+      "productSignIn": "Sign In with {platform} (OIDC)",
+      "productSignInPurpose": "Leser hvem kontoen er",
+      "stepProductsNote": "Med bare den første feiler tilkoblingen med <code>scope is not authorized</code>.",
+      "stepRedirect": "Legg denne redirect-URL-en inn i appen",
+      "copy": "Kopier",
+      "copied": "Kopiert",
+      "setupStaysOpen": "Munin lar dette stå åpent — ingenting går tapt mens du er der borte.",
+      "doneNext": "Ferdig — neste",
+      "backToCredentials": "Tilbake til nøklene",
+      "backToSteps": "← Oppsettet",
+      "back": "Tilbake",
+      "connect": "Koble til",
+      "credentialsTitle": "Lim inn nøklene",
+      "credentialsLede": "Begge finner du under Auth i appen. Hemmeligheten vises bare én gang, når appen opprettes.",
+      "editTitle": "{platform}-app",
+      "editLede": "Endre nøklene organisasjonen publiserer gjennom.",
+      "clientId": "Klient-ID",
+      "clientSecret": "Klienthemmelighet",
+      "secretPlaceholder": "WPL_AP1…",
+      "secretStoredPlaceholder": "•••••••• (lagret)",
+      "secretSavedOn": "Lagret {date}",
+      "clientSecretHint": "Lagres kryptert. Vises aldri igjen.",
+      "secretKeepHint": "La feltet stå tomt for å beholde den som er lagret. Å bytte den ut logger ingen ut.",
+      "replacingApp": "Skal du bytte ut selve appen? <steps>Oppsett og redirect-URL</steps>",
+      "appDialogAuthorNote": "Appen er felles, men publiseringen er personlig. Hver enkelt kobler til sin egen {platform}-konto gjennom den, og innlegg går ut i vedkommendes eget navn — aldri fra bedriftssiden."
+    },
     "dataConnectors": {
       "title": "Datakoblinger",
       "subtitle": "Direkte mot leverandøren — ingenting lagres i Munin"
@@ -1817,7 +1878,8 @@
         "booking": "Booking",
         "seo": "Søk",
         "connection": "Kobling",
-        "customTools": "Selvbetjening"
+        "customTools": "Selvbetjening",
+        "publishing": "Publisering"
       },
       "description": {
         "slack": "Håndter innboksen og svar kundene rett fra Slack.",
@@ -1827,7 +1889,8 @@
         "bing": "Se hvilke søk som viser nettstedet ditt i Bing og Copilot — og send oppdaterte sider til ny indeksering.",
         "googleSearchConsole": "Se hvilke Google-søk sidene dine vises på, og om en side er indeksert.",
         "generic": "Leses direkte på vegne av en kunde.",
-        "customMcp": "Ditt eget system, som svarer kundene dine direkte. Du velger nøyaktig hvilke verktøy de får bruke."
+        "customMcp": "Ditt eget system, som svarer kundene dine direkte. Du velger nøyaktig hvilke verktøy de får bruke.",
+        "linkedin": "Publiser godkjente innlegg på LinkedIn fra en kollegas egen konto."
       },
       "capability": {
         "slackMirror": "Speil samtaler inn i Slack-tråder.",
@@ -1842,7 +1905,9 @@
         "seoQueries": "Se hvilke søk sidene dine vises på.",
         "seoPages": "Se hvilke sider som får visningene.",
         "seoIndexStatus": "Sjekk om en side er indeksert.",
-        "seoSubmit": "Send oppdaterte sider til ny indeksering."
+        "seoSubmit": "Send oppdaterte sider til ny indeksering.",
+        "socialPublish": "Publiser innlegg",
+        "socialAuthor": "Publiser i eget navn"
       }
     },
     "field": {
@@ -2082,7 +2147,14 @@
     "kb_version_conflict": "Noen endret teksten mens du hadde den åpen, så ingenting ble lagret. Åpne den på nytt for å se gjeldende versjon og ta stilling til den.",
     "member_forbidden": "Dette er forbeholdt eiere og administratorer. Spør en eier hvis du trenger tilgang.",
     "org_access_denied": "Denne fanen var åpen i en organisasjon du ikke lenger har tilgang til. Laster inn på nytt med organisasjonen du er i nå.",
-    "outreach_undeliverable": "E-post kommer ikke fram til den adressen. Rett opp e-postadressen til kontakten, eller nullstill adressen når den virker igjen."
+    "outreach_undeliverable": "E-post kommer ikke fram til den adressen. Rett opp e-postadressen til kontakten, eller nullstill adressen når den virker igjen.",
+    "social_account_taken": "Den kontoen er alt koblet til av en annen i organisasjonen.",
+    "social_app_missing": "Sett opp organisasjonens app før du kobler til en konto.",
+    "social_client_secret_required": "Skriv inn klienthemmeligheten — det er ingen lagret å beholde.",
+    "social_conflict": "Noen har alt tatt stilling til dette utkastet.",
+    "social_no_account": "Koble til kontoen din på Integrasjoner-siden før du publiserer.",
+    "social_publish_failed": "Plattformen avviste innlegget. Utkastet er merket som mislykket, med årsaken.",
+    "social_reconnect_required": "Tilgangen har utløpt. Koble til på nytt på Integrasjoner-siden."
   },
   "footer": {
     "privacy": "Personvern",

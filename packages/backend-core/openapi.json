@@ -1562,6 +1562,37 @@
         ]
       }
     },
+    "/v1/social/drafts/{id}/publish": {
+      "post": {
+        "operationId": "SocialDraftsController_publish",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SocialDrafts"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/social/drafts/{id}/approve": {
       "post": {
         "operationId": "SocialDraftsController_approve",
@@ -1647,6 +1678,28 @@
     "/v1/social/accounts": {
       "get": {
         "operationId": "SocialAccountsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SocialAccounts"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/social/accounts/mine": {
+      "get": {
+        "operationId": "SocialAccountsController_mine",
         "parameters": [],
         "responses": {
           "200": {

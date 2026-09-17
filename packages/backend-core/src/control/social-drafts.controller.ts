@@ -44,6 +44,12 @@ export class SocialDraftsController {
     return this.social.reviseDraft(id, body.body);
   }
 
+  @Post(':id/publish')
+  @HttpCode(200)
+  publish(@Param('id') id: string): Promise<SocialDraftDto> {
+    return this.social.publishDraft(id);
+  }
+
   @Post(':id/approve')
   @HttpCode(200)
   approve(@Param('id') id: string, @Body() body: MarkPostedBody): Promise<SocialDraftDto> {

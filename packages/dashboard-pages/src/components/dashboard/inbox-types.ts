@@ -178,6 +178,7 @@ export interface InboxController {
   queueActionError: QueueActionError;
   clearQueueActionError: () => void;
   approveQueue: (item: QueueItem, sendAt?: string | null) => Promise<boolean>;
+  publishQueue: (item: QueueItem) => Promise<boolean>;
   scheduled: ScheduledItem[];
   cancelScheduledSend: (id: string, reason: string) => Promise<void>;
   cancelScheduledPublish: (id: string) => Promise<void>;

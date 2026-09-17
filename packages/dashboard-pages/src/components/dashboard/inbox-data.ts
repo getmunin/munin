@@ -400,6 +400,31 @@ export function useInboxData(): InboxController {
     [loadInbox, translateErr],
   );
 
+  const publishQueue = useCallback(
+    async (item: QueueItem) => {
+      if (item.kind !== 'social') return false;
+      setPending(true);
+      setQueueActionError(null);
+      try {
+        await api(`/v1/social/drafts/${item.id}/publish`, { method: 'POST', body: '{}' });
+        await loadInbox();
+        setActiveQueueItem(null);
+        return true;
+      } catch (err) {
+        setQueueActionError({
+          type: 'approve',
+          itemId: item.id,
+          message: translateErr(err),
+          code: getErrorCode(err),
+        });
+        return false;
+      } finally {
+        setPending(false);
+      }
+    },
+    [loadInbox, translateErr],
+  );
+
   const saveQueue = useCallback(
     async (item: QueueItem, body: string) => {
       setPending(true);
@@ -617,6 +642,7 @@ export function useInboxData(): InboxController {
     queueActionError,
     clearQueueActionError,
     approveQueue,
+    publishQueue,
     scheduled,
     cancelScheduledSend,
     cancelScheduledPublish,

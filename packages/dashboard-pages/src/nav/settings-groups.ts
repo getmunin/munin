@@ -40,6 +40,9 @@ export const OSS_SETTINGS_GROUPS: SettingsSubNavGroup[] = [
   },
 ];
 
+export const FIRST_SETTINGS_HREF =
+  OSS_SETTINGS_GROUPS[0]?.items[0]?.href ?? '/dashboard/settings/account';
+
 export function settingsGroupsForRole(
   groups: SettingsSubNavGroup[],
   isAdmin: boolean,

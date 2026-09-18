@@ -2,13 +2,20 @@
 
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, Hero, Input, SectionHead } from '@getmunin/ui';
+import { Hero, Input } from '@getmunin/ui';
 import { api } from '../api';
 import { invalidateActiveMembershipCache } from '../auth/use-active-role';
 import { useTranslateError } from '../i18n/translate-error';
-import { FormField } from '../components/form-field';
 import { LoadFailed } from '../components/load-failed';
 import { Skeleton } from '../components/skeleton';
+import {
+  SaveButton,
+  SettingsColumn,
+  SettingsFieldNote,
+  SettingsLabel,
+  SettingsSection,
+  SETTINGS_MEASURE_FIELD,
+} from '../components/settings/scaffold';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 
@@ -81,16 +88,14 @@ export function AccountPage({ extraSections }: AccountPageProps) {
   }
 
   return (
-    <div className="max-w-3xl space-y-10">
+    <SettingsColumn>
       <Hero
         eyebrow={t('eyebrow')}
         title={t.rich('title', { em: (chunks) => <em>{chunks}</em> })}
         lede={t('subtitle')}
       />
 
-      <section className="space-y-4">
-        <SectionHead title={t('orgSectionTitle')} divider={false} />
-
+      <SettingsSection title={t('orgSectionTitle')} meta={t('orgSectionMeta')}>
         {org === null ? (
           <div role="status" aria-busy="true" className="space-y-4">
             <span className="sr-only">{tCommon('loading')}</span>
@@ -101,33 +106,47 @@ export function AccountPage({ extraSections }: AccountPageProps) {
             <Skeleton className="h-9 w-24" />
           </div>
         ) : (
-          <form className="space-y-4" onSubmit={(e) => void submit(e)}>
-            <FormField label={t('orgNameLabel')} hint={t('orgNameHint')} error={error}>
+          <form className="space-y-5" onSubmit={(e) => void submit(e)}>
+            <div className="space-y-2">
+              <SettingsLabel htmlFor="org-name">{t('orgNameLabel')}</SettingsLabel>
               <Input
+                id="org-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={t('orgNamePlaceholder')}
                 maxLength={128}
                 disabled={saving}
                 aria-invalid={error ? true : undefined}
+                className={SETTINGS_MEASURE_FIELD}
               />
-            </FormField>
+              {error ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {error}
+                </p>
+              ) : (
+                <SettingsFieldNote>{t('orgNameHint')}</SettingsFieldNote>
+              )}
+            </div>
 
             <div className="flex items-center gap-3">
-              <Button type="submit" disabled={!dirty || saving}>
-                {saving ? tCommon('saving') : tCommon('save')}
-              </Button>
+              <SaveButton
+                type="submit"
+                dirty={dirty}
+                saving={saving}
+                label={tCommon('save')}
+                savingLabel={tCommon('saving')}
+              />
               {savedAt && !dirty && !error ? (
-                <span key={savedAt} className="text-sm text-muted-foreground">
+                <span key={savedAt} className="text-sm text-ink-mute">
                   {tCommon('saved')}
                 </span>
               ) : null}
             </div>
           </form>
         )}
-      </section>
+      </SettingsSection>
 
       {extraSections}
-    </div>
+    </SettingsColumn>
   );
 }

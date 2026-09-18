@@ -11,11 +11,11 @@ import {
   CardHeader,
   CardTitle,
   Input,
-  Label,
 } from '@getmunin/ui';
 import { api } from '../../api';
 import { useTranslateError } from '../../i18n/translate-error';
 import { AnthropicIcon, OpenAiIcon, OpenRouterIcon } from './provider-icons';
+import { SaveButton, SettingsLabel, SETTINGS_MEASURE_FIELD } from '../settings/scaffold';
 import {
   BARE_CARD,
   PROVIDER_PRESETS,
@@ -41,6 +41,7 @@ interface ProviderCardProps {
   defaultPresetId?: string;
   lede?: string;
   bare?: boolean;
+  headless?: boolean;
   saveLabel?: string;
   onBack?: () => void;
   onSaved?: (updated: AgentConfigDto, models: ListModelsResult) => void;
@@ -52,6 +53,7 @@ export function ProviderCard({
   defaultPresetId,
   lede,
   bare,
+  headless,
   saveLabel,
   onBack,
   onSaved,
@@ -189,9 +191,10 @@ export function ProviderCard({
   const credentialInputs = (
     <>
       <div className="space-y-1.5">
-        <Label htmlFor="providerBaseUrl">{t('provider.urlLabel')}</Label>
+        <SettingsLabel htmlFor="providerBaseUrl">{t('provider.urlLabel')}</SettingsLabel>
         <Input
           id="providerBaseUrl"
+          className={SETTINGS_MEASURE_FIELD}
           value={providerBaseUrl}
           onChange={(e) => {
             setProviderBaseUrl(e.target.value);
@@ -201,9 +204,10 @@ export function ProviderCard({
         />
       </div>
       <div className="space-y-1.5 pt-2">
-        <Label htmlFor="apiKey">{t('apiKey.label')}</Label>
+        <SettingsLabel htmlFor="apiKey">{t('apiKey.label')}</SettingsLabel>
         <Input
           id="apiKey"
+          className={SETTINGS_MEASURE_FIELD}
           type="password"
           value={apiKey}
           placeholder={
@@ -221,18 +225,105 @@ export function ProviderCard({
   function submitRow(onClick: () => void, disabled: boolean) {
     return (
       <div className="flex items-center gap-3">
-        <Button type="button" onClick={onClick} disabled={disabled}>
-          {testing ? t('connection.testing') : (saveLabel ?? tCommon('save'))}
-        </Button>
+        <SaveButton
+          dirty={!disabled}
+          saving={testing}
+          onClick={onClick}
+          label={saveLabel ?? tCommon('save')}
+          savingLabel={t('connection.testing')}
+        />
         {onBack && (
           <Button type="button" variant="ghost" onClick={onBack}>
             {tCommon('back')}
           </Button>
         )}
-        {message && <span className="text-sm text-muted-foreground">{message}</span>}
+        {message && <span className="text-sm text-ink-mute">{message}</span>}
       </div>
     );
   }
+
+  const body = (
+    <div className="space-y-4 text-sm">
+      {managedPreset ? (
+        <>
+          <button
+            type="button"
+            onClick={() => selectPreset(managedPreset.id)}
+            className={
+              'flex w-full items-center gap-4 rounded-input border-[1px] px-4 py-3.5 text-left transition-colors ' +
+              (preset === managedPreset.id
+                ? 'border-cobalt bg-cobalt/5 ring-1 ring-inset ring-cobalt'
+                : 'border-rule-soft hover:border-ink/30')
+            }
+          >
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-input bg-cobalt/10 text-cobalt">
+              {managedPreset.icon ?? <Sparkles className="size-5" aria-hidden />}
+            </span>
+            <span className="flex-1">
+              <span className="flex items-center gap-2">
+                <span className="font-semibold text-ink dark:text-foreground">
+                  {managedPreset.name}
+                </span>
+                {managedPreset.badge && (
+                  <span className="rounded bg-cobalt/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-eyebrow text-cobalt">
+                    {managedPreset.badge}
+                  </span>
+                )}
+              </span>
+              {managedPreset.description && (
+                <span className="mt-0.5 block text-sm text-muted-foreground">
+                  {managedPreset.description}
+                </span>
+              )}
+            </span>
+            {preset === managedPreset.id && (
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-cobalt text-white">
+                <Check className="size-3.5" aria-hidden />
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowByok((v) => !v)}
+            className="flex w-full items-center justify-center gap-2 rounded-input border border-dashed border-rule-soft px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:text-ink dark:hover:text-foreground"
+          >
+            {showByok ? (
+              <ChevronDown className="size-4 shrink-0" aria-hidden />
+            ) : (
+              <ChevronRight className="size-4 shrink-0" aria-hidden />
+            )}
+            <span>{showByok ? t('provider.hideAlternatives') : t('provider.useOwnKey')}</span>
+          </button>
+
+          {showByok && (
+            <>
+              {presetGrid(byokPresets)}
+              {!isManaged && credentialInputs}
+            </>
+          )}
+
+          {submitRow(
+            isManaged ? () => void saveManaged() : () => void saveAndTest(),
+            isManaged ? testing : saveDisabled,
+          )}
+        </>
+      ) : (
+        <>
+          {presetGrid(byokPresets)}
+          {credentialInputs}
+          {submitRow(() => void saveAndTest(), saveDisabled)}
+        </>
+      )}
+      {error && (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+
+  if (headless) return body;
 
   return (
     <Card className={bare ? BARE_CARD : undefined}>
@@ -240,80 +331,7 @@ export function ProviderCard({
         <CardTitle>{t('provider.title')}</CardTitle>
         <CardDescription>{lede ?? t('provider.lede')}</CardDescription>
       </CardHeader>
-      <CardContent className={bare ? 'space-y-4 px-0' : 'space-y-4'}>
-        {managedPreset ? (
-          <>
-            <button
-              type="button"
-              onClick={() => selectPreset(managedPreset.id)}
-              className={
-                'flex w-full items-center gap-4 rounded-input border-[1px] px-4 py-3.5 text-left transition-colors ' +
-                (preset === managedPreset.id
-                  ? 'border-cobalt bg-cobalt/5 ring-1 ring-inset ring-cobalt'
-                  : 'border-rule-soft hover:border-ink/30')
-              }
-            >
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-input bg-cobalt/10 text-cobalt">
-                {managedPreset.icon ?? <Sparkles className="size-5" aria-hidden />}
-              </span>
-              <span className="flex-1">
-                <span className="flex items-center gap-2">
-                  <span className="font-semibold text-ink dark:text-foreground">
-                    {managedPreset.name}
-                  </span>
-                  {managedPreset.badge && (
-                    <span className="rounded bg-cobalt/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-eyebrow text-cobalt">
-                      {managedPreset.badge}
-                    </span>
-                  )}
-                </span>
-                {managedPreset.description && (
-                  <span className="mt-0.5 block text-sm text-muted-foreground">
-                    {managedPreset.description}
-                  </span>
-                )}
-              </span>
-              {preset === managedPreset.id && (
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-cobalt text-white">
-                  <Check className="size-3.5" aria-hidden />
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowByok((v) => !v)}
-              className="flex w-full items-center justify-center gap-2 rounded-input border border-dashed border-rule-soft px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:text-ink dark:hover:text-foreground"
-            >
-              {showByok ? (
-                <ChevronDown className="size-4 shrink-0" aria-hidden />
-              ) : (
-                <ChevronRight className="size-4 shrink-0" aria-hidden />
-              )}
-              <span>{showByok ? t('provider.hideAlternatives') : t('provider.useOwnKey')}</span>
-            </button>
-
-            {showByok && (
-              <>
-                {presetGrid(byokPresets)}
-                {!isManaged && credentialInputs}
-              </>
-            )}
-
-            {submitRow(
-              isManaged ? () => void saveManaged() : () => void saveAndTest(),
-              isManaged ? testing : saveDisabled,
-            )}
-          </>
-        ) : (
-          <>
-            {presetGrid(byokPresets)}
-            {credentialInputs}
-            {submitRow(() => void saveAndTest(), saveDisabled)}
-          </>
-        )}
-        {error && <p className="text-sm text-destructive">{error}</p>}
-      </CardContent>
+      <CardContent className={bare ? 'px-0' : undefined}>{body}</CardContent>
     </Card>
   );
 }

@@ -1630,14 +1630,14 @@
       "saved": "Saved",
       "errors": {
         "save": "Could not save organization."
-      }
+      },
+      "orgSectionMeta": "Visible to everyone"
     },
     "privacy": {
-      "eyebrow": "Privacy",
-      "title": "Personal <em>data</em>",
+      "eyebrow": "Workspace · Privacy",
+      "title": "What Munin <em>keeps</em>",
       "subtitle": "Control what Munin keeps when customers send you more than you asked for.",
       "sectionTitle": "National identity numbers",
-      "detectorsLabel": "Identifier types",
       "detectorsHint": "Pick the ones your customers actually send. Munin watches for all of them either way and tells you when one turns up — this chooses which get redacted.",
       "detectors": {
         "no_fnr": {
@@ -1676,7 +1676,8 @@
       "scopeNote": "Applies to messages that arrive after you save. Redaction cannot be undone, and text inside attachments is not covered.",
       "errors": {
         "save": "Could not save the privacy settings."
-      }
+      },
+      "sectionMeta": "Redaction · {count} of {total} types"
     }
   },
   "agentSetup": {
@@ -1698,7 +1699,7 @@
     "settings": {
       "eyebrow": "Workspace · AI",
       "title": "Brief the <em>raven</em>.",
-      "lede": "Everything that thinks on your behalf — the persona, the model provider, and every job the AI handles, from chat replies to outreach drafts."
+      "lede": "Everything that thinks on your behalf — the persona it speaks in, and the models it thinks with."
     },
     "wizard": {
       "stepEyebrow": "Step {step} of {total}",
@@ -1733,7 +1734,10 @@
         "anthropic": "Claude models",
         "openai": "GPT models",
         "custom": "OpenAI-compatible URL"
-      }
+      },
+      "inUse": "In use",
+      "configure": "Configure",
+      "ownKeyBlurb": "You hold the key and the data-processing relationship."
     },
     "apiKey": {
       "title": "API key",
@@ -2078,41 +2082,18 @@
     "list": {
       "persona": {
         "title": "Persona",
-        "blurb": "Used wherever the AI speaks or writes to your customers — chat replies, outreach drafts, outreach replies."
+        "blurb": "Used wherever the AI speaks or writes to your customers — chat replies, outreach drafts, outreach replies.",
+        "meta": "Customer-facing"
       },
       "models": {
         "title": "Models",
-        "blurb": "Model provider and credentials. Used by every job below."
+        "blurb": "Munin runs two models. Pick a fast, cheap one for chat replies and quick cleanup; a stronger one for work that needs judgment.",
+        "meta": "Two roles"
       },
-      "conversational": {
-        "title": "Conversational",
-        "blurb": "Speaks to your customers directly, in the configured persona."
-      },
-      "background": {
-        "tierLabel": "{tier, select, smart {smart} fast {fast} other {{tier}}}",
-        "neverRan": "Never run for this org yet.",
-        "statuses": {
-          "pending": "pending",
-          "running": "running",
-          "done": "done",
-          "failed": "failed",
-          "dead": "dead"
-        }
-      },
-      "aiDriven": {
-        "title": "AI-driven",
-        "blurb": "Run silently. The AI decides what to do using the same model as the chat assistant.",
-        "empty": "No AI-driven skills configured."
-      },
-      "tasks": {
-        "title": "Scheduled tasks",
-        "blurb": "Deterministic background jobs. May call the model for a single step, but the flow is fixed.",
-        "empty": "No scheduled tasks configured."
-      },
-      "chatAssistant": {
-        "title": "Chat assistant",
-        "description": "Replies to customers across chat, email, and any other conversation channel.",
-        "tierLabel": "{tier, select, smart {smart} fast {fast} other {{tier}}}"
+      "provider": {
+        "title": "Provider",
+        "meta": "Endpoint & credentials",
+        "blurb": "Any OpenAI-compatible endpoint. Bring your own key, or use a hosted model."
       }
     },
     "identity": {

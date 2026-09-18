@@ -1,5 +1,493 @@
 # @getmunin/backend-core
 
+## 5.28.0
+
+### Minor Changes
+
+- bfc4369: Give CMS drafts an approval card in Slack.
+
+  A draft entry raises a card in the approvals channel with _Publish_ and _Dismiss_, alongside the CRM, outreach, KB and social ones. It carries the title, collection, locale, slug and word count — deliberately not the body. An entry is blocks, assets and locales; quoting a flattened version of it in Slack would misrepresent what you are approving, so the card says what the decision is about and the dashboard shows what you are publishing. The button is bound to the entry version it rendered, so an edited draft is refused with a version conflict.
+
+  CMS publishing was previously announce-only: the entry went live and Slack said so, with no way to make the decision from there.
+
+  One structural change this needed. `cms.entry.published` is now both a decision (resolve the card in the approvals channel) and news (announce in the content channel), and the sink could only classify an event as one or the other. It now enqueues one delivery per subject, and the worker dispatches on the delivery's subject type rather than the event type — so both happen, in their own channels, from one event. Re-publishing an already-live entry raises no approval delivery, matching the rule that already governs the announcement.
+
+  The announcement is suppressed when it would land in the same channel as the card it duplicates; the resolved card carries the live article link instead. With a `content` channel routed, both still post — the card resolves for the people who decided, the announcement reaches everyone else. A publish that never had a card (created straight to published, promoted by the scheduled-publish worker, or published outright by an agent) announces as it always did, which is why dropping the announcement entirely was not the right call.
+
+  The locales of one article thread under a parent listing the locales still pending, mirroring how the publish announcement already groups a translation group — one thread per article instead of four side-by-side headlines. An entry with no translations posts standalone. The three parent kinds (outreach campaign, social set, CMS translation group) now go through one ensure/refresh pair keyed on subject type rather than a chain of per-type branches at four call sites.
+
+- d948367: Detect national identity numbers on every inbound conversation message.
+
+  All three ingest paths — email, the generic channel webhook, and the widget — now run inbound text through the detectors before the first write. Detection is unconditional; redaction is not. Until an org configures a policy nothing is rewritten, and the only visible effect is a `detectedNationalIds` summary on the message (kinds and counts, never values) plus a `data_protection` alert pointing at the setting.
+
+  That ordering is deliberate. A destructive default that silently rewrites customer data on upgrade is not shippable, and a setting nobody finds helps nobody — so an org that receives these numbers is told so, and opts in on purpose.
+
+  Detection also runs for detectors an org has _not_ enabled, which is how a Norwegian tenant discovers it is receiving Danish CPR numbers too.
+
+  The redaction pass covers every persisted copy, not just the body: `bodyHtml`, the conversation subject, and the `preStripBody`, `signatureText`, `raw` and `quotedThread` entries in message metadata. Adds a `data_protection` alert source, which needs a check-constraint migration.
+
+- 68828d0: Add the controls for inbound national-ID redaction.
+
+  A new Privacy page under settings, `conv_get_redaction_policy` / `conv_configure_redaction` on MCP, and `GET/PUT /v1/conversations/redaction` behind it. An org picks which identifier types to act on, whether a match is masked down to its birth date or removed outright, and how certain a match must be before anything happens.
+
+  The policy gets its own route rather than riding `PATCH /v1/orgs/me`, which replaces the whole settings object and would let two unrelated settings edits clobber each other. The write merges a single namespaced key instead.
+
+  Also routes `stripMessageSignature` through the same filter. It is the second writer of `metadata.preStripBody`, so without this the signature curator could put an unredacted body back after ingest had cleaned it.
+
+- 9d68e6d: Make a throttled public route answer with a 429 a caller can recognise.
+
+  Every `PublicController(..., { throttle: true })` route — the CMS delivery API, the analytics beacons, the public catalogs — used to answer `{"statusCode":429,"message":"ThrottlerException: Too Many Requests"}`, with no `code` and no plain `Retry-After`: `@nestjs/throttler` suffixes its headers with the throttler name (`Retry-After-public-minute`), so a generic client finds nothing to back off on. The body now carries `code: 'rate_limited'` and `retryAfterSeconds`, the message names the limit and the window it applies to, and an unsuffixed `Retry-After` is set alongside the per-bucket headers.
+
+  This matters most for the delivery API, whose consumer is a build or a server renderer rather than a person. A frontend that folds every non-OK response into an empty list turns a rate limit into "the collection is empty", and the failure then gets attributed to the org id or an unreachable API — neither of which is wrong. `RATE_LIMITED_CODE` is exported from `@getmunin/types` so a consumer can branch on it without string-matching, and `RateLimitExceededError` (the per-org MCP limit) now uses the same constant.
+
+- cb89e7f: Add `conv_redact_existing_messages` to apply a redaction policy to history.
+
+  Configuring redaction only affects messages that arrive afterwards. This applies the same rules to what is already stored, one batch at a time, oldest first, driven by a cursor until `done`. It rewrites only messages that actually contain a match and emits `conversation.message.body_revised` so mirrored copies in Slack re-sync.
+
+  Deliberately a tool, not a migration. A deploy that silently rewrote every tenant's message history is not something you would want to discover afterwards, and the decision to destroy the originals belongs to the operator who has read what it cannot reach: attachments, replies already sent, and Slack messages already posted.
+
+- bfc4369: Lead a social draft with its angle, and drop the suggested author.
+
+  A set of variants is one post written several ways, so what a reviewer is choosing between is the _angle_. That already existed: `variantLabel` is specified as the angle the variant takes (`practitioner`, `contrarian`, `story`, `data`), and it becomes `utm_content` on the share link so later click figures say which angle earned the attention. It just wasn't visible anywhere a decision gets made — the dashboard showed it only in the decided feed, after the choice, and the Slack card buried it as a parenthetical serial number.
+
+  So the angle now leads: the Slack card headline is the angle rather than the platform, the set parent lists the angles in the thread (you know what the choice is before expanding it), and the dashboard's pending pane shows it in the meta line.
+
+  `suggestedUserId` is removed — column, tool inputs, DTO and card line. It named a person, conferred nothing, and was never read by the publish path, so the card naming it had to disclaim itself in the same breath ("suggested author: X · publishing posts it from your own account, not theirs"). A label that needs an immediate correction is the wrong label. Nothing replaces it: a draft carries no owner by design, because whose feed a post lands in is decided by who clicks publish, not by who filed it.
+
+  `skill://social/route-a-post-to-a-person` is deleted with it. Stripped of the routing half it was four facts, and the curator job that actually files social drafts could never run it anyway — `TOOL_PREFIXES_BY_URI` does not grant that job `social_list_connected_accounts`, the tool the skill opens by calling. The surviving facts moved next to the operations they affect: the lapsed-LinkedIn-grant explanation (`canRefresh: false` is correct for the self-serve product, not a misconfiguration) and the never-ask-for-a-token rule now sit beside `social_reconnect_required` in `publish-a-reviewed-post`; "file the drafts even when nobody can publish yet" sits in `draft-companion-posts`, where that call is made. `social_list_connected_accounts` stays — it still answers whether anybody can publish at all.
+
+- b313935: Draft companion social posts when a CMS entry is published.
+
+  A collection opts in with `socialDraftOnPublish: true` in its settings. The first
+  time an entry in it reaches `published`, an `EventSink` on `cms.entry.published`
+  queues one `skill://social/draft-companion-posts` pass, and a person finds a
+  labelled set of variants waiting. Opt-in is per collection because publishing is
+  not one kind of act: the same event fires for an article worth announcing and for
+  a team page nobody should post about.
+
+  Three conditions are checked in the sink rather than left to the drafting pass,
+  because each of them is a fact the database already knows and an LLM would have to
+  be told:
+
+  - **A republish is not a publish.** `previousStatus === 'published'` means somebody
+    fixed a typo, so it queues nothing. A promotion off the schedule
+    (`previousStatus === 'scheduled'`) does count, which is the whole point of
+    scheduling an article.
+  - **No `liveUrl` template, no job.** The published payload already carries a
+    validated http(s) `url` or `null`; a post with nothing to link to is not worth
+    drafting, and this is cheaper to notice before the model runs than after.
+  - **An entry that already has a set does not get a second one.** The dedupe key
+    only covers a job still pending, so a re-fired event after a successful pass
+    would otherwise hand the reviewer eight variants of one article.
+
+  Both lookups filter on `org_id` explicitly rather than leaning on RLS. The
+  scheduled-publish path runs under `app.bypass_rls=on`, so a sink that trusted RLS
+  would read whichever org's `articles` collection the planner reached first — and
+  `cms_collections` is unique on `(org_id, slug)`, which means a shared slug is the
+  normal case, not a rare one.
+
+  `skill://social/draft-companion-posts` is registered in `TOOL_PREFIXES_BY_URI`,
+  which is the real sandbox for a curator run: the skill executes against a
+  full-admin MCP client, and `toolPrefixesFor` returning `undefined` means _no_
+  restriction rather than none needed. The pass gets `cms_get_entry`,
+  `social_list_platforms` and `social_propose_post_set` — enough to read the article
+  and propose, and nothing that decides a draft. Dismissing, revising and marking one
+  posted stay with the human and the agent working on their behalf.
+
+  Cloud follow-up: `AgentRunnerService.toolPrefixesFor` in munin-cloud needs the same
+  entry, in a separate PR after this release, or companion passes there run unsandboxed.
+
+- bfc4369: Surface social post drafts in Slack for approval.
+
+  A pending draft now posts an approval card alongside the CRM, outreach and KB ones: platform, variant, suggested author, the body quoted inline, the tracked share link, and a character count against the platform limit. _Publish to LinkedIn_ posts it; _Dismiss_ discards it; the card resolves in place whichever surface decided it.
+
+  The card states on its face that publishing posts from the clicking teammate's own connected account, not the suggested author's. That is the one thing about this feature people get wrong, and Slack makes it easier to get wrong than the dashboard does — the suggested author's name is right there, and the button is not theirs. A teammate with no connected account gets an ephemeral pointing at Settings → Integrations, and the draft stays pending.
+
+  The social module had emitted no events at all, so there was nothing for the Slack sink to pick up. It now emits `social.post_draft.{proposed,revised,published,dismissed,failed}`.
+
+  Two details worth recording:
+
+  A publish result must survive the request that threw. The platform call and the status write happen in a root transaction, so a `failed` marker written inside the request transaction and then thrown out of would roll back with the error — the same trap as marking a connector connection `expired`. Both the published and failed events are therefore emitted from inside that root transaction, which is also what closes the Slack card on a refusal instead of leaving a live Publish button over a terminally failed draft.
+
+  A Slack card is a cached rendering, so `publishDraft` takes an optional fingerprint over the platform, body and link. Slack binds its button to the wording it rendered and a revised draft refuses rather than posting text nobody approved. The dashboard and the MCP tool read the draft live and pass nothing, so their behaviour is unchanged.
+
+  Variants of one set thread under a parent, the way outreach proposals thread under a campaign. A set is one post written several ways and you publish exactly one of them, so three loose cards each with a live Publish button is the wrong shape. A one-off share is a set of one and posts with no parent.
+
+  Publishing a variant now dismisses the rest of its set, in the same transaction, with `superseded: variant <label> was published instead` recorded as the reason; `social_mark_draft_posted` settles the set the same way. This is a behaviour change for the dashboard and MCP as much as for Slack: previously siblings stayed pending and two wordings of the same post could go out twice. A failed publish settles nothing — the set stays open for another attempt — and nothing crosses a set boundary. The skill said Munin did this before it actually did; now it does, and the sibling cards resolve as dismissed alongside the published one.
+
+- 011af1a: feat(social): connect a person's LinkedIn account so a reviewed draft has an author
+
+  Adds `social_accounts` — one grant per person per platform — and
+  `social_platform_apps`, the org's own OAuth client. A self-hoster cannot use
+  Munin's LinkedIn client, so client id and secret are per-org rows rather than
+  deployment environment variables, the same reasoning that put them on connector
+  connections.
+
+  The grant's refresh token is nullable, and that shapes the whole feature.
+  LinkedIn issues a renewable grant only to approved Marketing Developer Platform
+  partners; an organisation on the self-serve "Share on LinkedIn" product — the
+  product that grants `w_member_social`, and the one most orgs will be on — gets a
+  60-day access token and nothing to renew it with. So expiry is a normal event
+  here rather than a fault:
+
+  - A grant that carries a refresh token renews itself on use and nobody is told.
+  - A grant that does not lapses on schedule. An hourly sweep raises a warning a
+    week ahead and an error once it is out, and because the alert is scoped to the
+    person who owns the account rather than the org, it reaches the one individual
+    who can act on it and nobody else.
+
+  Marking a lapsed grant unusable commits in its own transaction, separate from
+  the error handed back to the caller — doing it inside the transaction you then
+  throw out of rolls the marker back and leaves the account reporting healthy
+  while failing every call.
+
+  Two people in the same organisation cannot attach the same LinkedIn profile: the
+  second attempt is refused with `social_account_taken` rather than silently
+  re-pointing the first person's row.
+
+  Nothing here publishes. The grant exists so that a draft already approved by a
+  person has somewhere to go.
+
+  Adds `social_list_connected_accounts` and `skill://social/route-a-post-to-a-person`
+  so an agent can set `suggestedUserId` to someone who can actually publish, and
+  says plainly what to do when nobody can.
+
+- 3c732fe: Add a `social` module: post drafts a person reviews before anything is published.
+
+  An article earns nothing sitting on the site, and the step between publishing
+  one and posting about it is manual, repetitive and usually skipped. This adds
+  the reviewable unit that step needs. Munin drafts; a person decides; nothing
+  leaves Munin on its own.
+
+  The unit is a post draft, not a companion to an article. That ordering matters:
+  the generic "store this text for social" tool and the three-or-four-variants
+  flow are the same table and the same review path, so a draft written in a chat
+  about nothing in particular behaves exactly like one written from a CMS entry.
+  Building it the other way round produces a CMS-shaped API that never
+  generalises. A one-off share is a set of one, which is why `set_id` is
+  `NOT NULL` and there is no parent table to keep in step.
+
+  `social` is deliberately **not** a `ConnectorDomain`. That union drives the
+  self-service scope maps and the voice self-service gate, and a tool that posts
+  under an employee's own name has no business being reachable from either. The
+  platform descriptors live in the module instead.
+
+  `SocialPlatformDescriptor` is separate from the publishing adapter that will
+  come later, so the drafting skill can read real limits before anything can
+  publish. The skill is instructed to call `social_list_platforms` and write to
+  the limit it returns rather than to a remembered one — a skill with 3000
+  characters baked in silently produces unusable drafts the day a shorter
+  platform is added, and that failure would surface as bad copy rather than an
+  error. LinkedIn does not charge a post for the characters its links cost, so
+  `measureBody` subtracts inline link length before comparing against the limit;
+  `linkCountsTowardBody` exists because that is not true everywhere.
+
+  Links are tagged per variant. The stored `linkUrl` stays clean and the tracked
+  URL is derived, so `utm_campaign` is the set and `utm_content` is the angle —
+  which means the existing `analytics_list_traffic_sources` already answers which
+  _angle_ earned the clicks, per person, without a new reporting path.
+
+  Enum-shaped columns are guarded by CHECK constraints in the migration rather
+  than in `schema.ts`, matching `org_alerts`. Drizzle cannot see those, so adding
+  a platform or a status in TypeScript means editing a migration too. That
+  asymmetry is a real cost and worth knowing about; the benefit is that the
+  database rejects a bad value instead of storing it.
+
+  End-user sessions are excluded from `social_post_drafts` in RLS even when the
+  org matches. What an organisation is about to say about itself is not something
+  its customers' delegated tokens should be able to read.
+
+- 5104064: feat(social): publish a reviewed draft to LinkedIn from the reviewer's own account
+
+  Closes the gap the grant work left open. `w_member_social` was already being
+  requested and the draft table already carried `external_post_id`, `permalink` and
+  `last_error`, but nothing ever called LinkedIn: `approve` recorded
+  `published_externally`, the statuses `published` and `failed` were unreachable, and
+  the review pane told people to copy the text and post it by hand.
+
+  `SocialOAuthAdapter` gains an optional `publish`, implemented for LinkedIn against
+  `/rest/posts`. Optional rather than required for the same reason `SeoAdapter.submitUrls`
+  is: a platform Munin can draft for but not post to is a real thing, and the service
+  says so with `social_publish_unsupported` instead of faking it.
+
+  **A post is published from the account of whoever clicks publish** — never from the
+  draft's `suggestedUserId`, which stays a routing hint about who should pick the draft
+  up and confers nothing. A service key has no person behind it and is refused outright
+  with `social_publish_needs_person`, so an unattended agent cannot post under someone's
+  name no matter what scopes it holds.
+
+  Two ordering decisions, both the same lesson the grant work learned about markers and
+  rollbacks:
+
+  - The draft is locked with `SELECT … FOR UPDATE` across the platform call, so two
+    reviewers clicking publish on the same draft cannot both post it.
+  - Both outcomes are written inside that root transaction, which commits before the
+    error is raised. A failure that marked the draft inside the request transaction and
+    then threw would roll its own marker back; a success written there would lose the
+    record of a post that is already public if anything later in the request failed.
+
+  LinkedIn's commentary format reserves `\|{}@[]()<>#*_~`, so bodies are escaped before
+  they are sent — including the tracked share URL, whose `utm_` parameters carry reserved
+  underscores. The link is appended to the commentary rather than sent as an article,
+  because an article needs a title Munin does not have.
+
+  Adds `social:read` and `social:write` to `SUPPORTED_SCOPES`, which the social tools have
+  declared since they were written but no OAuth client could actually be granted.
+
+  Dashboard: the review pane's primary action becomes Publish (as the connected account's
+  name) with mark-as-posted kept beside it for the manual route, and Settings →
+  Integrations gains a Publishing accounts section — the org's LinkedIn app, the connect
+  and reconnect flow, and the redirect URL to paste into the developer portal. Until now
+  the expiry alert's "Reconnect account" link led to a page with nothing on it.
+
+  Adds `skill://social/publish-a-reviewed-post`, and corrects
+  `skill://social/route-a-post-to-a-person`, which told agents that nothing here publishes.
+
+  Adds `social_accounts.client_secret_set_at` (migration 0103) so the dashboard can
+  say when an org's OAuth client secret was stored without overstating it —
+  `updated_at` also moves when only the client id is edited. A secret is now kept
+  when a save omits it, so editing the client id no longer demands re-pasting a
+  secret LinkedIn shows only once.
+
+  The authorization callback carries the platform's own `error_description` back to
+  the dashboard. Without it every failure read as "the connection could not be
+  completed", including the one a real setup hits first: an app with Share on
+  LinkedIn but not Sign In with LinkedIn using OpenID Connect, where LinkedIn
+  answers `Scope "openid" is not authorized for your application`. Setup is now two
+  screens — the work done in LinkedIn's portal, then the credentials pasted back —
+  and names both products, since the first grants posting and the second grants the
+  identity every post is authored by.
+
+- 9ef22f0: Social post drafts become the sixth review-queue kind.
+
+  Drafts already existed and a person already had to decide them — but the only way
+  to see one was to ask an agent. They now sit in Waiting beside curation candidates
+  and CMS drafts, and land in Decided with the other five once decided.
+
+  **Approving a social draft means "I posted this", not "Munin, post this."** There is
+  no publishing integration yet, so the pane is built around the workflow people
+  actually have: read the variant, copy the text, copy the tagged link, open the
+  platform, publish under your own name, then say so. The primary action is
+  therefore _Mark as posted_ rather than _Approve_, and the pane says outright that
+  Munin does not post for you. When publishing does arrive it adds a second action —
+  it does not change the meaning of this one.
+
+  The tracked share URL is what the Copy button hands over, not the clean stored
+  `linkUrl`. That is the whole point of tagging per variant: a reviewer who copies
+  the untagged link silently opts their post out of the per-angle click figures, and
+  the difference between the two URLs is not something you would notice by eye.
+
+  **`dismiss_reason` is new on `social_post_drafts`** (migration 0101). Every other
+  queue kind records why a reviewer passed, and the decided feed renders one column
+  across all six; without the column social would be the one kind permanently blank
+  there — not because nobody typed a reason, but because there was nowhere to put
+  one. `social_dismiss_post_draft` takes an optional `reason` to match.
+
+  A decided draft maps to an outcome rather than storing one: `dismissed` is
+  dismissed, `failed` is failed and reports `last_error` as its reason, and both
+  published states are approved. `published` and `published_externally` are a real
+  distinction — through Munin versus by hand — but not one a reviewer reading the
+  decided feed is asking about, so the feed collapses them and the DTO keeps them.
+
+  Backend and dashboard ship together deliberately. `inbox-data.ts` dispatches queue
+  kinds through a chain of `if` statements ending in a terminal `else`, both when
+  building rows and when approving, so an unrecognised kind does not fail loudly —
+  it renders as a feedback card and approves against
+  `/v1/outreach/proposals/:id/approve`. A backend-only release would have served a
+  kind the dashboard silently mishandles.
+
+  Adds `/v1/social/drafts/:id` (read, revise, approve, dismiss) to the control plane.
+
+### Patch Changes
+
+- a3881ba: Email the people who can act on an alert when one opens.
+
+  An alert that only appears in the dashboard is only seen by someone already
+  looking. Owners get mail for org-scoped faults; a member gets mail for a fault
+  on their own account, because nobody else can clear that one for them. The
+  two routes follow the same rule that governs visibility, so there is one
+  notion of who an alert belongs to rather than two.
+
+  `openAlert` runs inside the caller's request transaction, so sending from
+  there would be external I/O inside a transaction — exactly what the event-sink
+  rule forbids. An `EventSink` on `org_alert.opened` enqueues into a new
+  `alert_notifications` table and a drain worker sends, the same shape as
+  `slack_deliveries` and `webhook_deliveries`.
+
+  The enqueue is idempotent by construction rather than by care.
+  `org_alert.opened` is emitted only when a row is first inserted and never on an
+  occurrence bump, so a fault that repeats two hundred times enqueues once; the
+  unique key on `(alert_id, recipient_user_id)` is the backstop rather than the
+  mechanism. The worker also re-reads the alert at send time and closes the
+  notification silently if it has already resolved, so a fault that fixes itself
+  inside one poll interval sends nothing.
+
+  Because rows are only ever enqueued by the sink, a deploy does not mail anyone
+  about alerts that were already open when it shipped — the queue starts empty
+  and fills from the next alert onward.
+
+  Not every alert is worth an inbox. `NOTIFY_POLICY` is keyed per source: the
+  existing channel and provider sources notify on `error` only, `curator` never
+  notifies, and `social` notifies from `warning` because an expiring credential
+  needs a person before it becomes an outage. `MUNIN_ALERT_EMAILS_DISABLED`
+  switches the whole path off; a per-member preference can follow if anyone
+  wants one.
+
+  The alert's own `title` and `detail` are composed in English by whichever
+  service raised it, so only the email's chrome is localised. Translating the
+  body properly means replacing `title` with a key plus parameters across every
+  existing call site, which is unrelated work.
+
+  Two things in `@getmunin/emails` are worth knowing. `pickLocale` returns
+  `typeof en`, so `nb` is structurally checked against `en` and a missing or
+  mistyped string fails the build — but TypeScript accepts a function that takes
+  _fewer_ parameters than the one it is assigned to, so an `nb` string that
+  silently drops an interpolation argument typechecks and then renders without
+  the value. `locale parity` covers exactly that gap and nothing TypeScript
+  already handles.
+
+- 88588e0: Scope operational alerts to a single org member.
+
+  Every alert source so far has been an org-level fault — a provider outage, a
+  channel that stopped polling — where any owner can act. Integrations that
+  authorise per person are not like that: when one member's credential expires,
+  only that member can re-authorise it, and an alert addressed to the whole org
+  is noise nobody else can clear.
+
+  `org_alerts` gains a nullable `user_id`. NULL means org-scoped, which is what
+  every existing row is and what every current writer still produces, so the
+  column is additive and needs no backfill.
+
+  Two database objects enforce this table's shape and neither is visible to
+  `schema.ts`, so `drizzle-kit generate` could not have found them. The `source`
+  CHECK constraint from 0034 has to learn `social` — adding the value to the
+  `ALERT_SOURCES` union alone would have passed typecheck and failed at runtime.
+  More importantly, the partial unique index `org_alerts_open_uniq` is what
+  actually enforces one open alert per key, since `openAlert` does a
+  find-then-insert that is racy without it; its key had to gain `user_id` or two
+  members whose credentials expire under the same source and subject would
+  collide on insert and one member's alert would be lost.
+
+  Visibility is filtered in `AlertsService` against `actor.userId`, not in RLS.
+  The tenancy GUCs carry an org and an end-user id, and an end user is a
+  customer rather than an org member, so there is no member identity for a policy
+  to key on. Tenant isolation remains RLS's boundary; `get` and
+  `acknowledgeAlert` now also scope explicitly by org rather than leaning on the
+  policy alone.
+
+  An owner does not see another member's user-scoped alerts. They cannot act on
+  one, so surfacing it only adds a row they have no way to clear. That holds
+  while per-member integrations are peripheral; if a critical one lands, the
+  exception is one predicate here rather than a redesign.
+
+- efc2d61: Deny `/mcp` to org roles that never earned the admin audience, instead of quietly
+  demoting them to the end-user surface.
+
+  `gateOauthGrantsByRole` strips `mcp:admin` for any role that isn't `owner` or
+  `admin`, and audiences are derived from that scope alone — so a `member`
+  completing the OAuth flow arrived with `audiences: []`. `deriveMcpAudience` was a
+  ternary whose else-branch dropped them onto `self_service`, the surface built for
+  widget and voice end users. Nothing announced the demotion.
+
+  That mattered because the two gates disagreed about the same person. The control
+  plane confines a member to a closed list — the conversations inbox plus the
+  per-user session routes, pinned by `member-surface.test.ts` so widening it has to
+  be a deliberate diff. MCP handed the same member `kb_search` and `kb_get_document`,
+  and the KB row filter narrows to self-service documents only when
+  `app.end_user_id` is set (`kb.sql`). A member sets `app.org_id` and no end-user id,
+  so the narrowing never applied: they could read every document in the org,
+  `audiences: ['admin']` ones included, and the `agent-runtime` space holding the
+  support agent's system prompt. Read-only, never across orgs, but well outside the
+  surface the role was drawn to have.
+
+  The surface was also broken for that caller by construction — roughly ten of the
+  ~17 visible tools are `*_my_*` tools that bind to `actor.endUserId` and throw
+  `end-user identity required` on the first call. They were reached by accident of a
+  `? :`, not by design.
+
+  A `user` actor with no admin audience now gets a `member_forbidden` 403 — the same
+  code the control plane already returns — and `deriveMcpAudience` returns `null`
+  rather than an audience. Nothing legitimate loses access: delegated end-user tokens
+  carry an explicit `audiences: ['self_service']` and widget keys hardcode the same,
+  so a real end-user caller never has an empty array. Session cookies were never a
+  route here either — `AuthGuard` resolves them only for non-MCP paths, which is what
+  keeps `sessionCredential`'s unconditional `['admin']` stamp off this surface.
+
+  Two things deliberately left alone. `conv_request_human` on any org conversation
+  stays: members are granted the whole inbox on purpose, and flagging is strictly
+  less than the `POST :id/messages` they already have. And the
+  `app_end_user_id() = ''` idiom stays as-is across the RLS policies — the
+  conflation of "is an end user" with "is self-service audience" is wrong for `kb.sql`
+  but correct for `conv.sql`, where member-sees-all is the intent. Splitting them
+  wants a dedicated `app.audience` GUC, which belongs with a real member MCP surface
+  rather than with this fix.
+
+- cb89e7f: Document national ID redaction as a skill, so an agent can run the whole decision with an operator: read the current policy, pick detectors and a policy, then optionally clean up history. Carries the three limits worth saying out loud — attachments, copies already delivered, and outbound text staff write themselves.
+- c7c43da: Extract the outbound OAuth grant machinery out of the connectors trunk.
+
+  Munin plays two OAuth roles that share a name and nothing else. `src/oauth/` is
+  Munin _as_ an authorization server — MCP clients register there and get tokens.
+  The code moved here is the other direction: grants Munin _holds_ on someone
+  else's authorization server, which until now lived entirely inside
+  `connector-oauth.service.ts` and was reachable only through a connector.
+
+  `src/common/outbound-oauth/` now holds the parts that are about grants rather
+  than about connectors:
+
+  - **`grant.ts`** — the stored-grant shape, parsing, the freshness check with its
+    60-second skew, and the rule that a vendor rotating only its access token must
+    not cost you the refresh token you already hold.
+  - **`signed-state.ts`** — HMAC-signed state with the expiry check, over an
+    arbitrary payload rather than a hardcoded `{connectionId, orgId}`.
+  - **`single-flight.ts`** — one in-flight refresh per key.
+  - **`grant-store.ts`** — the pgcrypto encrypt/decrypt round trip, the root-db
+    transaction that sets `bypass_rls`, and `resolveOrMarkRevoked`.
+
+  `resolveOrMarkRevoked` exists to name an invariant that is invisible at the call
+  site and expensive to rediscover: **marking a grant expired has to commit in its
+  own transaction.** Doing it inside the transaction you then throw out of rolls
+  the marker back with the error, so the connection reports healthy and fails again
+  on the next call. That was already correct here; it was correct by arrangement,
+  not by construction, and the next caller had no way to know.
+
+  This is a pure refactor and the evidence is that
+  `connector-oauth.service.test.ts` — all fourteen cases, covering exchange,
+  refresh, rotation, racing callers, revocation and cross-org access — still
+  passes with **one line changed**, and that line is the constructor call. The
+  service now takes an `OutboundOAuthStore` where it took a `Db`.
+
+  The extracted pieces gained their own tests (31), which is most of the point:
+  the skew window, the refresh-token carry-forward and the revocation ordering
+  were previously reachable only through a Postgres-backed integration test that
+  had to stand up a connection row to assert one comparison.
+
+  One deliberate non-change: the shared cipher throws `SecretCipherError` rather
+  than the connectors' `ConnectorVendorError`, and `vendorCall` maps it to the same
+  `BadGatewayException` it produced before. A failure to decrypt our own column is
+  not really a vendor error and 502 is not really the right status, but fixing that
+  is a behaviour change and this PR is not the place to make one.
+
+- Updated dependencies [e847dcf]
+- Updated dependencies [a3881ba]
+- Updated dependencies [88588e0]
+- Updated dependencies [d948367]
+- Updated dependencies [533d563]
+- Updated dependencies [9d68e6d]
+- Updated dependencies [bfc4369]
+- Updated dependencies [b313935]
+- Updated dependencies [bfc4369]
+- Updated dependencies [011af1a]
+- Updated dependencies [3c732fe]
+- Updated dependencies [5104064]
+- Updated dependencies [9ef22f0]
+  - @getmunin/agent-runtime@5.28.0
+  - @getmunin/emails@5.28.0
+  - @getmunin/db@5.28.0
+  - @getmunin/core@5.28.0
+  - @getmunin/types@5.28.0
+  - @getmunin/inspector-app@5.28.0
+  - @getmunin/mcp-toolkit@5.28.0
+
 ## 5.27.0
 
 ### Minor Changes

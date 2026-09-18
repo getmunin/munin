@@ -1,17 +1,19 @@
 import 'reflect-metadata';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { createDb, runMigrations, schema, type Db, type Tx } from '@getmunin/db';
+import { createDb, runMigrations, schema } from '@getmunin/db';
 import { eq, sql } from 'drizzle-orm';
 import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
 import { SocialService } from './social.service.ts';
 import { describePlatform } from './social-platform.ts';
+import { socialDraftFingerprint } from './social-fingerprint.ts';
 import {
+  DbRootTransactionRunner,
+  StubEventEmitter,
   StubPublisherLookup,
   StubTokenSource,
   UnusedTransactionRunner,
 } from './social-test-doubles.ts';
-import type { RootTransactionRunner } from './social.service.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -28,10 +30,12 @@ const PERMALINK = 'https://social.example.test/posts/7';
   let orgB: string;
   let member: string;
   let outsider: string;
+  const emitter = new StubEventEmitter();
   const service = new SocialService(
     new StubTokenSource(),
     new StubPublisherLookup(),
     new UnusedTransactionRunner(),
+    emitter,
   );
 
   async function inOrg<T>(orgId: string, fn: () => Promise<T>): Promise<T> {
@@ -84,18 +88,12 @@ const PERMALINK = 'https://social.example.test/posts/7';
   });
 
   describe('publishDraft', () => {
-    class DbRootTransactionRunner implements RootTransactionRunner {
-      constructor(private readonly db: Db) {}
-      inRootTransaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
-        return this.db.transaction(async (tx) => {
-          await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
-          return fn(tx);
-        });
-      }
-    }
-
-    function buildService(publisher: StubPublisherLookup, token = new StubTokenSource()) {
-      return new SocialService(token, publisher, new DbRootTransactionRunner(svcDb));
+    function buildService(
+      publisher: StubPublisherLookup,
+      token = new StubTokenSource(),
+      events: StubEventEmitter = new StubEventEmitter(),
+    ) {
+      return new SocialService(token, publisher, new DbRootTransactionRunner(svcDb), events);
     }
 
     async function asUser<T>(orgId: string, userId: string, fn: () => Promise<T>): Promise<T> {
@@ -240,6 +238,135 @@ const PERMALINK = 'https://social.example.test/posts/7';
       expect((await readDraft(draft.id)).status).toBe('pending');
     });
 
+    it('announces the published post so bridges can resolve their own cards', async () => {
+      await connectAccount(orgA, member);
+      const events = new StubEventEmitter();
+      const svc = buildService(new StubPublisherLookup(), new StubTokenSource(), events);
+      const draft = await inOrg(orgA, () => service.createDraft({ body: 'Body' }));
+
+      await asUser(orgA, member, () => svc.publishDraft(draft.id));
+
+      expect(events.typesFor(draft.id)).toEqual(['social.post_draft.published']);
+      expect(events.emitted[0]!.payload).toMatchObject({
+        status: 'published',
+        publishedExternally: false,
+        platform: 'linkedin',
+      });
+    });
+
+    it('announces a platform refusal, from the transaction that recorded it', async () => {
+      await connectAccount(orgA, member);
+      const events = new StubEventEmitter();
+      const svc = buildService(
+        new StubPublisherLookup({ error: new Error('LinkedIn refused the post (422)') }),
+        new StubTokenSource(),
+        events,
+      );
+      const draft = await inOrg(orgA, () => service.createDraft({ body: 'Body' }));
+
+      await expect(asUser(orgA, member, () => svc.publishDraft(draft.id))).rejects.toMatchObject({
+        response: { code: 'social_publish_failed' },
+      });
+
+      expect(events.typesFor(draft.id)).toEqual(['social.post_draft.failed']);
+      expect(events.emitted[0]!.payload).toMatchObject({ status: 'failed' });
+      expect(String(events.emitted[0]!.payload.reason)).toContain('422');
+    });
+
+    it('refuses a fingerprint that no longer matches the body it was taken from', async () => {
+      await connectAccount(orgA, member);
+      const publisher = new StubPublisherLookup();
+      const svc = buildService(publisher);
+      const draft = await inOrg(orgA, () => service.createDraft({ body: 'First wording' }));
+      const stale = socialDraftFingerprint({
+        platform: draft.platform,
+        body: draft.body,
+        linkUrl: draft.linkUrl,
+      });
+      await inOrg(orgA, () => service.reviseDraft(draft.id, 'Second wording'));
+
+      await expect(
+        asUser(orgA, member, () => svc.publishDraft(draft.id, { fingerprint: stale })),
+      ).rejects.toMatchObject({ response: { code: 'social_stale' } });
+      expect(publisher.requests).toHaveLength(0);
+      expect((await readDraft(draft.id)).status).toBe('pending');
+    });
+
+    it('accepts a fingerprint taken from the current body', async () => {
+      await connectAccount(orgA, member);
+      const svc = buildService(new StubPublisherLookup());
+      const draft = await inOrg(orgA, () => service.createDraft({ body: 'Steady wording' }));
+
+      const published = await asUser(orgA, member, () =>
+        svc.publishDraft(draft.id, {
+          fingerprint: socialDraftFingerprint({
+            platform: draft.platform,
+            body: draft.body,
+            linkUrl: draft.linkUrl,
+          }),
+        }),
+      );
+      expect(published.status).toBe('published');
+    });
+
+    it('dismisses the rest of the set, because a set is one post written several ways', async () => {
+      await connectAccount(orgA, member);
+      const events = new StubEventEmitter();
+      const svc = buildService(new StubPublisherLookup(), new StubTokenSource(), events);
+      const drafts = await inOrg(orgA, () =>
+        service.proposeSet({
+          variants: [
+            { variantLabel: 'a', body: 'Take one' },
+            { variantLabel: 'b', body: 'Take two' },
+            { variantLabel: 'c', body: 'Take three' },
+          ],
+        }),
+      );
+
+      await asUser(orgA, member, () => svc.publishDraft(drafts[0]!.id));
+
+      const rest = await Promise.all(drafts.slice(1).map((d) => readDraft(d.id)));
+      expect(rest.map((r) => r.status)).toEqual(['dismissed', 'dismissed']);
+      expect(rest[0]!.dismissReason).toContain('variant a was published instead');
+      expect(rest[0]!.decidedAt).toBeTruthy();
+      expect(events.emitted.map((e) => e.type)).toEqual([
+        'social.post_draft.published',
+        'social.post_draft.dismissed',
+        'social.post_draft.dismissed',
+      ]);
+      expect(events.emitted[1]!.payload).toMatchObject({ supersededBy: drafts[0]!.id });
+    });
+
+    it('leaves the set alone when the platform refused the post', async () => {
+      await connectAccount(orgA, member);
+      const svc = buildService(new StubPublisherLookup({ error: new Error('refused (422)') }));
+      const drafts = await inOrg(orgA, () =>
+        service.proposeSet({
+          variants: [
+            { variantLabel: 'a', body: 'Take one' },
+            { variantLabel: 'b', body: 'Take two' },
+          ],
+        }),
+      );
+
+      await expect(
+        asUser(orgA, member, () => svc.publishDraft(drafts[0]!.id)),
+      ).rejects.toMatchObject({ response: { code: 'social_publish_failed' } });
+
+      expect((await readDraft(drafts[1]!.id)).status).toBe('pending');
+    });
+
+    it('does not reach across sets', async () => {
+      await connectAccount(orgA, member);
+      const svc = buildService(new StubPublisherLookup());
+      const mine = await inOrg(orgA, () => service.createDraft({ body: 'Mine' }));
+      const other = await inOrg(orgA, () => service.createDraft({ body: 'Someone else' }));
+
+      await asUser(orgA, member, () => svc.publishDraft(mine.id));
+
+      expect((await readDraft(other.id)).status).toBe('pending');
+    });
+
     it("reports the viewer's own connected account, and nobody else's", async () => {
       await connectAccount(orgA, member);
       const svc = buildService(new StubPublisherLookup());
@@ -327,12 +454,6 @@ const PERMALINK = 'https://social.example.test/posts/7';
     ).rejects.toThrow(/social_invalid.*http/);
   });
 
-  it('refuses to suggest a draft to someone outside the org', async () => {
-    await expect(
-      inOrg(orgA, () => service.createDraft({ body: 'ok', suggestedUserId: outsider })),
-    ).rejects.toThrow(/social_invalid.*not a member/);
-  });
-
   it('re-checks the limit when a draft is revised', async () => {
     const limit = describePlatform('linkedin').limits.maxBodyChars;
     const draft = await inOrg(orgA, () => service.createDraft({ body: 'short' }));
@@ -342,6 +463,26 @@ const PERMALINK = 'https://social.example.test/posts/7';
 
     const revised = await inOrg(orgA, () => service.reviseDraft(draft.id, 'a better line'));
     expect(revised.body).toBe('a better line');
+  });
+
+  it('settles the rest of the set when one variant is marked posted by hand', async () => {
+    const drafts = await inOrg(orgA, () =>
+      service.proposeSet({
+        variants: [
+          { variantLabel: 'a', body: 'Take one' },
+          { variantLabel: 'b', body: 'Take two' },
+        ],
+      }),
+    );
+
+    await inOrg(orgA, () => service.markPosted(drafts[0]!.id, 'https://example.test/p/2'));
+
+    const sibling = await inOrg(orgA, () => service.listDrafts({ setId: drafts[0]!.setId }));
+    expect(sibling.find((d) => d.id === drafts[1]!.id)!.status).toBe('dismissed');
+    expect(emitter.typesFor(drafts[1]!.id)).toEqual([
+      'social.post_draft.proposed',
+      'social.post_draft.dismissed',
+    ]);
   });
 
   it('dismisses one variant without touching the rest of its set', async () => {
@@ -377,6 +518,53 @@ const PERMALINK = 'https://social.example.test/posts/7';
     expect(posted.status).toBe('published_externally');
     expect(posted.permalink).toBe(PERMALINK);
     expect(posted.publishedAt).not.toBeNull();
+  });
+
+  it('announces every step of a draft life so a bridge can keep its card in step', async () => {
+    const draft = await inOrg(orgA, () => service.createDraft({ body: 'First wording' }));
+    await inOrg(orgA, () => service.reviseDraft(draft.id, 'Second wording'));
+    await inOrg(orgA, () => service.markPosted(draft.id, 'https://example.test/p/1'));
+
+    expect(emitter.typesFor(draft.id)).toEqual([
+      'social.post_draft.proposed',
+      'social.post_draft.revised',
+      'social.post_draft.published',
+    ]);
+    const posted = emitter.emitted.at(-1)!;
+    expect(posted.payload).toMatchObject({
+      status: 'published_externally',
+      publishedExternally: true,
+      permalink: 'https://example.test/p/1',
+    });
+  });
+
+  it('announces a dismissal with the reason given for it', async () => {
+    const draft = await inOrg(orgA, () => service.createDraft({ body: 'Body' }));
+    await inOrg(orgA, () => service.dismissDraft(draft.id, 'off message'));
+
+    expect(emitter.typesFor(draft.id)).toEqual([
+      'social.post_draft.proposed',
+      'social.post_draft.dismissed',
+    ]);
+    expect(emitter.emitted.at(-1)!.payload).toMatchObject({
+      status: 'dismissed',
+      reason: 'off message',
+    });
+  });
+
+  it('announces one proposal per variant in a set', async () => {
+    const drafts = await inOrg(orgA, () =>
+      service.proposeSet({
+        variants: [
+          { variantLabel: 'a', body: 'Take one' },
+          { variantLabel: 'b', body: 'Take two' },
+        ],
+      }),
+    );
+
+    for (const draft of drafts) {
+      expect(emitter.typesFor(draft.id)).toEqual(['social.post_draft.proposed']);
+    }
   });
 
   it('keeps one org out of another org drafts', async () => {

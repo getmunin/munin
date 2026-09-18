@@ -133,12 +133,14 @@ class FakeSlackApi extends SlackApiClient {
     await emit(payload);
 
     const rows = await deliveries();
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.conversationId).toBeNull();
-    expect(rows[0]!.subjectKey).toBe(`cms_entry:${payload.entryId as string}`);
+    expect(rows.map((r) => r.subjectKey).sort()).toEqual([
+      `cms_draft_entry:${payload.entryId as string}`,
+      `cms_entry:${payload.entryId as string}`,
+    ]);
+    expect(rows.every((r) => r.conversationId === null)).toBe(true);
 
     const result = await worker.tick();
-    expect(result.delivered).toBe(1);
+    expect(result.delivered).toBe(2);
     expect(api.posted).toHaveLength(1);
     expect(api.posted[0]!.channel).toBe('C_DEFAULT');
     expect(api.posted[0]!.threadTs).toBeUndefined();

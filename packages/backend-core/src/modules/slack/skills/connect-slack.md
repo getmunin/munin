@@ -116,6 +116,10 @@ Items waiting on a human decision post with approve/dismiss buttons, and the mes
 - **CRM merge proposals** — standalone messages: duplicate contacts with the recommended keeper and confidence. *Apply merge* / *Dismiss*.
 - **Outreach drafts** — grouped per campaign: one parent message with a live pending count, each draft a thread reply with campaign, recipient, subject, and the full draft body quoted inline (Slack collapses long bodies behind its own *Show more*). *Approve & send* (this sends the real email) / *Dismiss*. A draft too long for one Slack message is cut with a `(truncated)` marker pointing at the dashboard — read and edit it there. Draft edits refresh the reply. When every draft in the wave is decided the parent flips to an all-handled banner. Parents last one day (UTC): the first draft of a new day posts a fresh parent (the campaign-wide pending count moves with it), and a previous parent that still showed pending drafts is rewritten to a "continued in a newer thread" notice — its still-pending replies stay actionable.
 - **KB curation candidates** — standalone messages: drafted knowledge-base articles awaiting review. *Publish to \<space\>* when the draft proposes a target space, otherwise only *Dismiss* (deletes the draft) plus a dashboard link for picking a space.
+- **CMS drafts** — standalone messages: an entry waiting to go live, with its title, collection, locale, slug and word count. *Publish* (this makes it live) / *Dismiss* (archives it). The card carries no body: an entry is blocks, assets and locales, so Slack shows what the decision is about and the dashboard shows what you are publishing. Editing a draft rewrites the message and rebinds the button to the new version, so a card left open on an older version is refused with a version conflict rather than publishing something else. The locales of one article thread under a parent — ":page_facing_up: *Agentic support* — 3 locales awaiting review" with the locales still pending listed on it — the same grouping the publish announcement uses, for the same reason. The parent closes once every locale is decided. An entry with no translations posts as a single card with no parent. Publishing resolves the card in place, with the live article link on it. The separate content announcement is not repeated into the same channel — it posts only where the news would reach an audience the card did not, i.e. when a `content` channel is routed away from the card's channel.
+- **Social post drafts** — the platform, the variant label, the suggested author, the body quoted inline, the tracked share link, and a character count against the platform limit. *Publish to \<platform\>* / *Dismiss*. Publishing posts immediately and irreversibly **from the clicking teammate's own connected account** — never the suggested author's, which is why the card says so on its face. A teammate who has connected no account for that platform gets an ephemeral pointing at Settings → Integrations and the draft stays pending. Revising a draft rewrites the message and rebinds the button, so a card left open on an older wording refuses rather than posting text nobody approved. If the platform itself refuses the post the card closes with that outcome — the draft is terminally `failed` and a retry means a fresh draft.
+
+  A set of variants is one post written several ways, so its cards thread under a parent: ":memo: *LinkedIn post — 3 variants awaiting review*". Publishing one variant dismisses the rest of its set — you are choosing a wording, not queueing three posts — so the parent names the variant that went out, under whose name, and says the others were dismissed. The sibling cards resolve as dismissed at the same time. The parent closes once every variant is decided, and a one-off share is a set of one and posts as a single card with no parent.
 
 Routing: they land in the `approvals` channel when routed (`slack_set_routing` with `purpose: "approvals"`), otherwise fall back to the escalations channel, then the default channel:
 
@@ -125,15 +129,19 @@ Routing: they land in the `approvals` channel when routed (`slack_set_routing` w
 
 Buttons act as the clicking teammate — the same account-linking rule as replies applies, and any linked org member can decide (matching the dashboard). Once resolved, the buttons disappear and the message shows the outcome and who decided.
 
+For most kinds "acting as the teammate" is only attribution. For a social post draft it is the substance of the action: the post goes out under that person's name, from the grant Munin holds for them, so who clicks *Publish* decides whose feed it appears in.
+
 ## Content announcements
 
-Publishing a CMS entry posts a one-line announcement — ":rocket: *Published* — *\<title\>*", the collection and locale, and a link to the live article. Scheduled publishes announce when the worker promotes them; re-publishing an already-published entry does not announce again. No buttons — it is news, not a decision.
+A draft entry waiting for review raises an approval card (above); this section is about telling the wider team what went live. Publishing a CMS entry posts a one-line announcement — ":rocket: *Published* — *\<title\>*", the collection and locale, and a link to the live article. Scheduled publishes announce when the worker promotes them; re-publishing an already-published entry does not announce again. No buttons — it is news, not a decision.
 
 Routing: the `content` channel when routed, otherwise the default channel.
 
 ```json
 { "slackChannelId": "C0111...", "purpose": "content" }
 ```
+
+Route a `content` channel and the two messages have two audiences: the people who decide see the card resolve where they decided it, and everyone else sees the news where they read it. Leave it unrouted and the announcement would land on top of its own approval card, so it is suppressed — the resolved card carries the live link instead. A publish that never had a card still announces either way: an entry created straight to published, one promoted by the scheduled-publish worker, or one an agent published outright.
 
 The article link needs a live URL template on the collection (`settings.liveUrl`, e.g. `https://www.example.com/{locale}/blog/{slug}`) — without one the announcement still posts, just without a link. See `skill://cms/publish-entry`.
 

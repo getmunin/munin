@@ -4,7 +4,6 @@ import {
   StubEmbeddingProvider,
   WebhookDispatcher,
   withContext,
-  type AssetStorage,
   type RequestContext,
 } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
@@ -18,57 +17,18 @@ import {
 } from './cms.service.ts';
 import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
+import { StubAssetStorage } from './cms.test-stub.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
   ? null
   : 'Set TEST_DATABASE_URL to a Postgres URL to run CMS service tests.';
 
-class StubStorage implements AssetStorage {
-  readonly provider = 'local' as const;
-  readonly deletes: string[] = [];
-  readonly objects = new Map<string, number>();
-  presignedUpload(opts: { key: string; mime: string; sizeBytes: number }) {
-    return Promise.resolve({
-      uploadUrl: `https://upload.test/${opts.key}`,
-      uploadMethod: 'PUT' as const,
-      uploadFields: {},
-      publicUrl: `https://cdn.test/${opts.key}`,
-      expiresAt: new Date(Date.now() + 60_000),
-    });
-  }
-  delete(key: string): Promise<void> {
-    this.deletes.push(key);
-    this.objects.delete(key);
-    return Promise.resolve();
-  }
-  publicUrlFor(key: string): string {
-    return `https://cdn.test/${key}`;
-  }
-  readBytes(key: string): Promise<Buffer | null> {
-    return Promise.resolve(this.bytes.get(key) ?? null);
-  }
-  statBytes(key: string): Promise<number | null> {
-    return Promise.resolve(this.objects.get(key) ?? null);
-  }
-  setObject(key: string, sizeBytes: number): void {
-    this.objects.set(key, sizeBytes);
-  }
-  readonly bytes = new Map<string, Buffer>();
-  readonly directWrites: { key: string; size: number; mime?: string }[] = [];
-  writeDirect(key: string, body: Buffer, opts?: { mime?: string }): Promise<void> {
-    this.directWrites.push({ key, size: body.length, mime: opts?.mime });
-    this.objects.set(key, body.length);
-    this.bytes.set(key, body);
-    return Promise.resolve();
-  }
-}
-
 (skipReason ? describe.skip : describe)('CmsService', () => {
   let db: ReturnType<typeof createDb>;
   let appDb: ReturnType<typeof createDb>;
   let svc: CmsService;
-  let storage: StubStorage;
+  let storage: StubAssetStorage;
   let orgId: string;
   let actor: ActorIdentity;
 
@@ -90,7 +50,7 @@ class StubStorage implements AssetStorage {
         return new StubEmbeddingProvider();
       }
     })();
-    storage = new StubStorage();
+    storage = new StubAssetStorage();
     svc = new CmsService(new DefaultQuotasService(), new WebhookDispatcher(), storage, holder);
   });
 

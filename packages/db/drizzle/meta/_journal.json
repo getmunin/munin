@@ -736,6 +736,13 @@
       "when": 1789682382941,
       "tag": "0104_org_alerts_data_protection_source",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1789682442941,
+      "tag": "0105_drop_social_suggested_user",
+      "breakpoints": true
     }
   ]
 }

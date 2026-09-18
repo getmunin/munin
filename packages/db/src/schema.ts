@@ -2214,7 +2214,6 @@ export const socialPostDrafts = pgTable(
     linkUrl: text('link_url'),
     linkUtm: jsonb('link_utm').$type<Record<string, string>>().notNull().default({}),
     sourceRef: jsonb('source_ref').$type<Record<string, unknown>>().notNull().default({}),
-    suggestedUserId: text('suggested_user_id').references(() => users.id, { onDelete: 'set null' }),
     status: varchar('status', { length: 24 }).notNull().default('pending'),
     proposedByActorType: varchar('proposed_by_actor_type', { length: 16 }).notNull(),
     proposedByActorId: text('proposed_by_actor_id').notNull(),

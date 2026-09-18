@@ -171,7 +171,6 @@ export interface SocialDraftDto {
   linkUrl: string | null;
   shareUrl: string | null;
   sourceRef: Record<string, unknown>;
-  suggestedUserId: string | null;
   status: string;
   bodyChars: number;
   maxBodyChars: number;

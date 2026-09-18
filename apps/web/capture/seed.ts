@@ -15,15 +15,22 @@ export const DEMO = {
 };
 
 const WIDGET_ORIGIN = 'https://shop.acme.test';
+const OUTREACH_CHANNEL_KEY = 'ch_email';
 
 interface ImportResult {
   created: number;
   skipped: number;
+  idMap?: Record<string, string>;
+  warnings?: string[];
 }
 
 interface WidgetChannel {
   id: string;
   widgetKey: string;
+}
+
+interface EmailChannel {
+  id: string;
 }
 
 interface CreatedApiKey {
@@ -46,6 +53,18 @@ interface ProviderStub {
 interface Thread {
   visitor: { name: string; email: string };
   turns: { from: 'visitor' | 'agent'; body: string }[];
+}
+
+interface CurationCandidate {
+  sourceVisitorEmail: string;
+  subject: string;
+  draftBody: string;
+  proposedTargetSpaceSlug: string;
+}
+
+interface JsonRpcResponse {
+  error?: unknown;
+  result?: { isError?: boolean };
 }
 
 interface CallOptions {
@@ -146,6 +165,28 @@ async function widgetChannel(cookie: string): Promise<WidgetChannel> {
   return readJson<WidgetChannel>(res);
 }
 
+async function emailChannel(cookie: string): Promise<EmailChannel> {
+  const res = await call('/v1/conversations/channels/email', {
+    method: 'POST',
+    cookie,
+    body: {
+      name: 'Sales email',
+      config: {
+        addressing: { fromAddress: 'hei@acme.example.com', fromName: DEMO.orgName },
+        outbound: {
+          provider: 'smtp',
+          host: 'smtp.acme.example.com',
+          port: 587,
+          secure: false,
+          username: 'hei@acme.example.com',
+          password: 'capture-only-not-a-real-password',
+        },
+      },
+    },
+  });
+  return readJson<EmailChannel>(res);
+}
+
 async function adminKey(cookie: string): Promise<string> {
   const res = await call('/v1/api-keys', {
     method: 'POST',
@@ -155,10 +196,10 @@ async function adminKey(cookie: string): Promise<string> {
   return (await readJson<CreatedApiKey>(res)).key;
 }
 
-async function seedConversations(cookie: string): Promise<number> {
+async function seedConversations(cookie: string, key: string): Promise<Map<string, string>> {
   const threads = JSON.parse(readFileSync(join(fixtures, 'threads.json'), 'utf8')) as Thread[];
   const widget = await widgetChannel(cookie);
-  const key = await adminKey(cookie);
+  const byVisitor = new Map<string, string>();
 
   for (const [index, thread] of threads.entries()) {
     const sessionId = `capture-session-${index + 1}`;
@@ -192,9 +233,73 @@ async function seedConversations(cookie: string): Promise<number> {
       });
       if (!res.ok) throw new Error(`agent reply → ${res.status} ${await res.text()}`);
     }
+
+    if (conversationId) byVisitor.set(thread.visitor.email, conversationId);
   }
 
-  return threads.length;
+  return byVisitor;
+}
+
+async function callTool(key: string, name: string, args: unknown): Promise<void> {
+  const res = await fetch(`${DEMO.apiUrl}/mcp`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+      authorization: `Bearer ${key}`,
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name, arguments: args },
+    }),
+  });
+  const text = await res.text();
+  const frame = text
+    .split('\n')
+    .find((line) => line.startsWith('data: '))
+    ?.slice('data: '.length);
+  const payload = frame ? (JSON.parse(frame) as JsonRpcResponse) : null;
+  if (!res.ok || !payload || payload.error || payload.result?.isError) {
+    throw new Error(`${name} → ${res.status} ${text}`);
+  }
+}
+
+async function seedCuration(key: string, conversations: Map<string, string>): Promise<number> {
+  const candidates = JSON.parse(
+    readFileSync(join(fixtures, 'curation.json'), 'utf8'),
+  ) as CurationCandidate[];
+
+  for (const candidate of candidates) {
+    const sourceConversationId = conversations.get(candidate.sourceVisitorEmail);
+    if (!sourceConversationId) {
+      throw new Error(`no seeded conversation for ${candidate.sourceVisitorEmail}`);
+    }
+    await callTool(key, 'kb_propose_curation_candidate', {
+      subject: candidate.subject,
+      draftBody: candidate.draftBody,
+      proposedTargetSpaceSlug: candidate.proposedTargetSpaceSlug,
+      sourceConversationId,
+    });
+  }
+
+  return candidates.length;
+}
+
+async function seedOutreach(cookie: string, idMap: Record<string, string>): Promise<number> {
+  const records = JSON.parse(readFileSync(join(fixtures, 'outreach.json'), 'utf8')) as unknown;
+  const channel = await emailChannel(cookie);
+  const res = await call('/v1/outreach/import', {
+    method: 'POST',
+    cookie,
+    body: { records, idMap: { ...idMap, [OUTREACH_CHANNEL_KEY]: channel.id } },
+  });
+  const result = await readJson<ImportResult>(res);
+  for (const warning of result.warnings ?? []) {
+    if (warning.includes('skipped')) throw new Error(`outreach import: ${warning}`);
+  }
+  return result.created;
 }
 
 async function assertEmptyInbox(cookie: string): Promise<void> {
@@ -216,15 +321,24 @@ export async function seed(): Promise<void> {
   await call('/v1/orgs/me', { method: 'PATCH', cookie, body: { name: DEMO.orgName } });
   await configureProvider(cookie);
 
+  const idMap: Record<string, string> = {};
   for (const module of ['kb', 'crm']) {
     const records = JSON.parse(readFileSync(join(fixtures, `${module}.json`), 'utf8')) as unknown;
     const res = await call(`/v1/${module}/import`, { method: 'POST', cookie, body: { records } });
     const result = await readJson<ImportResult>(res);
+    Object.assign(idMap, result.idMap ?? {});
     console.log(`seeded ${module}: created ${result.created}, skipped ${result.skipped}`);
   }
 
-  const count = await seedConversations(cookie);
-  console.log(`seeded ${count} conversations through the widget channel`);
+  const key = await adminKey(cookie);
+  const conversations = await seedConversations(cookie, key);
+  console.log(`seeded ${conversations.size} conversations through the widget channel`);
+
+  const proposals = await seedOutreach(cookie, idMap);
+  console.log(`seeded ${proposals} outreach records awaiting review`);
+
+  const candidates = await seedCuration(key, conversations);
+  console.log(`seeded ${candidates} curation candidates awaiting review`);
 }
 
 if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {

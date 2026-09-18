@@ -13,6 +13,11 @@ const HIDE_DEV_CHROME = 'nextjs-portal, [data-nextjs-dev-tools-button] { display
 const SHOTS = [
   { name: 'dashboard', path: '/en/dashboard/conversations', open: 'Ola Nordmann' },
   { name: 'dashboard-overview', path: '/en/dashboard' },
+  {
+    name: 'review-queue',
+    path: '/en/dashboard/review',
+    open: "Your stand mixer's first service check",
+  },
 ];
 
 async function signIn(page: Page): Promise<void> {
@@ -33,7 +38,7 @@ test('console screenshots', async ({ page }) => {
     await page.waitForLoadState('networkidle');
 
     if (shot.open) {
-      await page.getByText(shot.open, { exact: true }).first().click();
+      await page.getByText(shot.open, { exact: true }).filter({ visible: true }).first().click();
       await page.waitForTimeout(900);
     }
 

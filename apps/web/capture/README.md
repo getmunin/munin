@@ -8,7 +8,7 @@ Two rigs, because the two surfaces need different things:
 | Asset | Rig | Needs a backend? |
 |---|---|---|
 | `widget-demo.webp` | `widget.capture.ts` | no — the widget bundle runs against mocked `/v1/widget/*` and a mocked realtime socket |
-| `dashboard.png`, `dashboard-overview.png` | `dashboard.capture.ts` | yes — a real backend, a scratch database, and a seeded org |
+| `dashboard.png`, `dashboard-overview.png`, `review-queue.png` | `dashboard.capture.ts` | yes — a real backend, a scratch database, and a seeded org |
 
 Everything a customer could be identified by is a placeholder: `Ola Nordmann`,
 `Acme Kitchen`, `example.com`, `shop.acme.test`. Keep it that way — these files end up
@@ -80,8 +80,14 @@ conversations; reset before re-seeding:
 
 ```sh
 docker exec -i docker-postgres-1 psql -U munin -d munin_capture \
-  -c "TRUNCATE conv_conversations, conv_messages, conv_channels, end_users CASCADE;"
+  -c "TRUNCATE conv_conversations, conv_messages, conv_channels, end_users CASCADE;" \
+  -c "DELETE FROM kb_documents WHERE space_id IN (SELECT id FROM kb_spaces WHERE slug = 'kb-curation-inbox');"
 ```
+
+The truncate cascades into the outreach campaign and its proposals — they hang off the
+email channel — so those come back with the next run. Curation candidates are ordinary
+KB documents in the `kb-curation-inbox` space and survive a truncate, which is why they
+need the second statement; without it the queue grows a duplicate candidate per run.
 
 Two settings above are load-bearing. `MUNIN_BUILTIN_AGENT=0` stops the in-process
 runner from answering the seeded conversations — with no real LLM provider it fails,
@@ -98,7 +104,17 @@ and agent replies through the control plane under an admin key. That last detail
 what stops every thread reading "Anonymous visitor" — imported conversations carry no
 end user, so they have nobody to name.
 
-Edit `fixtures/threads.json` to change the inbox, `fixtures/kb.json` and
+The review queue is filled last, and needs both halves of it to look like a real
+queue. Outreach comes from `/v1/outreach/import`, which takes the id map the CRM
+import handed back (the campaign's segment and the proposals' contacts are rows that
+import created) plus an email channel created just before it — a campaign refuses a
+widget channel, so the seed configures SMTP against a placeholder host that is never
+dialled. Curation candidates have no control-plane endpoint at all: the seed calls
+`kb_propose_curation_candidate` over `/mcp` with the same admin key, sourced from a
+seeded conversation so the pane can link back to it.
+
+Edit `fixtures/threads.json` to change the inbox, `fixtures/outreach.json` and
+`fixtures/curation.json` for the review queue, `fixtures/kb.json` and
 `fixtures/crm.json` for the rest.
 
 ## Known gaps
@@ -106,9 +122,11 @@ Edit `fixtures/threads.json` to change the inbox, `fixtures/kb.json` and
 - Every seeded conversation is a chat. Email threads would need the signed relay
   endpoint (`MUNIN_EMAIL_RELAY_SECRET` plus a channel with a forwarding address), so
   the inbox screenshot shows one channel badge where a real inbox shows four.
-- Review screenshots aren't captured: nothing is pending until the seed also creates
-  curation candidates, merge proposals and outreach proposals, so the page is all
-  empty states.
+- The review queue shows outreach proposals and one curation candidate. CRM merge
+  proposals, CMS drafts and the Scheduled and Decided tabs are still empty — a merge
+  proposal needs two contacts similar enough for `crm_propose_merge` to score them,
+  and a decided item needs something approved, which for outreach means actually
+  sending.
 - Drafts awaiting approval can't be seeded over HTTP. A draft is a message carrying
   `metadata.kind = "draft_reply"`, and neither the import nor the send endpoint takes
   metadata; only the runner writes them.

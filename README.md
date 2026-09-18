@@ -23,6 +23,11 @@ CRM, conversations, outreach, CMS, knowledge base, and analytics on one Postgres
 </p>
 
 <p align="center">
+  <img src=".github/assets/review-queue.png" alt="The Munin review queue — an outreach email drafted by an agent, waiting for a human to approve it" width="100%"><br>
+  <sub><b>The review queue</b> — outbound never sends itself. An agent drafts, files the evidence behind the draft, and waits; approving is the human's keystroke.</sub>
+</p>
+
+<p align="center">
   <img src=".github/assets/widget-demo.webp" alt="The Munin chat widget answering a customer from the knowledge base" width="420"><br>
   <sub><b>The embeddable chat widget</b> — answering a live customer from the knowledge base, ready to hand off to a human and be picked back up by the agent.</sub>
 </p>

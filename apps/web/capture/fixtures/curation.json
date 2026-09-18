@@ -1,0 +1,8 @@
+[
+  {
+    "sourceVisitorEmail": "kari.nordmann@example.com",
+    "subject": "Replacement parts for a damaged item",
+    "proposedTargetSpaceSlug": "help-centre",
+    "draftBody": "A single damaged part does not need the whole appliance returned. Ask for the order number and a photo of the damage, then send the part on its own — bowls, lids, seals and blades are all stocked separately.\n\nThe part ships on the next working day and the customer keeps the appliance. A full return is only needed when the fault is in the motor or the housing."
+  }
+]

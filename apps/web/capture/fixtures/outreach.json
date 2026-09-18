@@ -1,0 +1,59 @@
+{
+  "campaigns": [
+    {
+      "id": "camp_service",
+      "name": "Spring service check",
+      "brief": "Recent buyers of a large appliance. Offer the first annual service visit before the summer season starts, in their own language, and point at the warranty terms rather than restating them. One short paragraph, one ask, no discounting.",
+      "segmentId": "seg_recent",
+      "channelId": "ch_email",
+      "cadenceRules": {
+        "maxPerWeekPerContact": 1,
+        "quietHoursStart": "18:00",
+        "quietHoursEnd": "08:00",
+        "quietHoursTimezone": "Europe/Oslo"
+      },
+      "sequenceSteps": [
+        {
+          "waitDays": 6,
+          "brief": "No reply yet. One short nudge with the two remaining service windows, then stop."
+        }
+      ],
+      "extractionSchema": [],
+      "ctaUrl": null,
+      "autoDraftFirstTouch": false,
+      "autoDraftReplies": true,
+      "autoCurateEdits": false,
+      "unsubscribeRequired": true
+    }
+  ],
+  "proposals": [
+    {
+      "id": "prop_ola",
+      "campaignId": "camp_service",
+      "contactId": "ct_ola",
+      "kind": "initial",
+      "draftSubject": "Your stand mixer's first service check",
+      "draftBody": "Hei Ola,\n\nThe mixer you took in January is coming up on its first service interval, and we still have visits open in the last week of April — before the summer catering season makes a kitchen day expensive.\n\nA visit is an hour: seals, blades and the gearbox. Wear parts stay covered for the first year, so anything we replace on this visit is on us.\n\nWant me to hold the Tuesday morning slot?",
+      "evidence": {
+        "contactSignals": ["title=Head chef", "tag=customer", "company=Acme Catering"],
+        "reasoning": "Bought a stand mixer in January, so the first service interval falls inside the campaign window. Deal at quote stage — a service visit is a warm reason to be in the kitchen before it closes.",
+        "source": "kb://help-centre/appliance-warranty"
+      },
+      "status": "pending"
+    },
+    {
+      "id": "prop_kari",
+      "campaignId": "camp_service",
+      "contactId": "ct_kari",
+      "kind": "initial",
+      "draftSubject": "One service visit for all 40 rooms",
+      "draftBody": "Hei Kari,\n\nThe room appliances Globex took last autumn are due their first service, and doing all forty in one visit costs you one morning instead of forty call-outs.\n\nWe would come before the summer bookings start. Wear parts are still inside the first year, so the visit itself is the only line on the invoice.\n\nShall I put a date on hold?",
+      "evidence": {
+        "contactSignals": ["title=Purchasing", "tag=customer", "company=Globex Hotels"],
+        "reasoning": "Forty units bought together last autumn, so one batched visit is cheaper for them and for us than staggered call-outs.",
+        "source": "kb://help-centre/appliance-warranty"
+      },
+      "status": "pending"
+    }
+  ]
+}

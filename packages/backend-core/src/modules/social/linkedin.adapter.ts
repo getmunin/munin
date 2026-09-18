@@ -14,7 +14,7 @@ const AUTHORIZE_ENDPOINT = 'https://www.linkedin.com/oauth/v2/authorization';
 const TOKEN_ENDPOINT = 'https://www.linkedin.com/oauth/v2/accessToken';
 const USERINFO_ENDPOINT = 'https://api.linkedin.com/v2/userinfo';
 const POSTS_ENDPOINT = 'https://api.linkedin.com/rest/posts';
-const DEFAULT_API_VERSION = '202509';
+const DEFAULT_API_VERSION = '202609';
 
 export const LINKEDIN_SCOPES = ['openid', 'profile', 'w_member_social'] as const;
 

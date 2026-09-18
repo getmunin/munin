@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
   LinkedInAdapter,
+  apiVersion,
   composeCommentary,
   escapeCommentary,
   isRevokedTokenError,
@@ -120,6 +121,31 @@ describe('permalinkFor', () => {
   it('returns null for an id that is not a urn, rather than a link that 404s', () => {
     expect(permalinkFor('7123')).toBeNull();
     expect(permalinkFor('urn:li:share:abc')).toBeNull();
+  });
+});
+
+describe('apiVersion', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('pins a default inside the one-year window LinkedIn supports a version for', () => {
+    const pinned = apiVersion();
+    const year = Number(pinned.slice(0, 4));
+    const month = Number(pinned.slice(4, 6));
+    const now = new Date();
+    const monthsOld =
+      (now.getUTCFullYear() - year) * 12 + (now.getUTCMonth() + 1 - month);
+
+    expect(monthsOld).toBeGreaterThanOrEqual(0);
+    expect(monthsOld).toBeLessThanOrEqual(11);
+  });
+
+  it('ignores a configured version that is not YYYYMM, which LinkedIn answers with a bare 426', () => {
+    vi.stubEnv('MUNIN_LINKEDIN_API_VERSION', '20260901');
+    expect(apiVersion()).toMatch(/^\d{6}$/);
+    vi.stubEnv('MUNIN_LINKEDIN_API_VERSION', '202601');
+    expect(apiVersion()).toBe('202601');
   });
 });
 

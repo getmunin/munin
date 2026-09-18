@@ -4,6 +4,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { and, desc, eq, inArray, isNotNull, ne } from 'drizzle-orm';
@@ -115,6 +116,8 @@ const MAX_VARIANTS = 8;
 
 @Injectable()
 export class SocialService {
+  private readonly logger = new Logger(SocialService.name);
+
   constructor(
     @Inject(SocialAccountsService) private readonly accounts: SocialTokenSource,
     @Inject(SocialOAuthRegistry) private readonly registry: SocialPublisherLookup,
@@ -442,6 +445,7 @@ export class SocialService {
         return { published: updated! };
       } catch (err) {
         const reason = err instanceof Error ? err.message : 'the platform refused the post';
+        this.logger.warn(`publish refused platform=${locked.platform} draft=${id} reason=${reason}`);
         const [updated] = await tx
           .update(schema.socialPostDrafts)
           .set({ ...decided, status: 'failed', lastError: reason.slice(0, 500) })

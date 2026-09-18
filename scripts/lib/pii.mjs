@@ -64,6 +64,7 @@ export const ALLOWED_HOSTS = {
   'api.slack.com': 'operator bridge vendor endpoint',
   'www.linkedin.com': 'social distribution vendor OAuth endpoint',
   'api.linkedin.com': 'social distribution vendor API endpoint',
+  'learn.microsoft.com': 'published LinkedIn API documentation, part of version pinning',
   'developer.amazon.com': 'published crawler documentation, part of bot-UA detection',
   'ahrefs.com': 'published crawler documentation, part of bot-UA detection',
   'accounts.google.com': 'OAuth vendor endpoint',

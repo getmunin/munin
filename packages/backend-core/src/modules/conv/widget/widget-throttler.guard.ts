@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Request } from 'express';
 import type { ResolvedCredential } from '@getmunin/core';
+import { PublicThrottlerGuard } from '../../../common/rate-limit/public-throttler.guard.ts';
 
 @Injectable()
-export class WidgetThrottlerGuard extends ThrottlerGuard {
+export class WidgetThrottlerGuard extends PublicThrottlerGuard {
   protected override getTracker(req: Request): Promise<string> {
     const ip = req.ip ?? req.socket?.remoteAddress ?? 'unknown';
     const channelId = readField(req, 'channelId') ?? '-';

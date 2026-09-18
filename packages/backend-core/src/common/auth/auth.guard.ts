@@ -12,7 +12,6 @@ import {
   UseGuards,
   applyDecorators,
 } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
 import { ORG_ACCESS_DENIED_CODE, ORG_HEADER } from '@getmunin/types';
 import {
   CredentialResolver,
@@ -26,6 +25,7 @@ import {
 } from '@getmunin/core';
 import type { Db } from '@getmunin/db';
 import { DB } from '../db/db.module.ts';
+import { PublicThrottlerGuard } from '../rate-limit/public-throttler.guard.ts';
 import { Reflector } from '@nestjs/core';
 import { mcpResourceUrl, resourceMetadataUrl } from '../../oauth/oauth.constants.ts';
 import {
@@ -48,7 +48,7 @@ export interface PublicControllerOpts {
 
 export function PublicController(path: string, opts: PublicControllerOpts = {}): ClassDecorator {
   const decorators: ClassDecorator[] = [Controller(path), AllowAnonymous()];
-  if (opts.throttle) decorators.push(UseGuards(ThrottlerGuard));
+  if (opts.throttle) decorators.push(UseGuards(PublicThrottlerGuard));
   return applyDecorators(...decorators);
 }
 

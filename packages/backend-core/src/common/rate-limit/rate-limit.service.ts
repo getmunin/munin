@@ -2,16 +2,17 @@ import { Injectable } from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
+import { RATE_LIMITED_CODE } from '@getmunin/types';
 
 export class RateLimitExceededError extends Error {
-  readonly code = 'rate_limited';
+  readonly code = RATE_LIMITED_CODE;
   constructor(
     public readonly bucket: 'day',
     public readonly limit: number,
     public readonly retryAfterSeconds: number,
   ) {
     super(
-      `rate_limited: exceeded ${limit} MCP calls per ${bucket} for this org. Retry in ${retryAfterSeconds}s.`,
+      `${RATE_LIMITED_CODE}: exceeded ${limit} MCP calls per ${bucket} for this org. Retry in ${retryAfterSeconds}s.`,
     );
   }
 }

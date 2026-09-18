@@ -958,7 +958,13 @@
         "crm": "Kontakter",
         "cms": "Innhold",
         "outreach": "Utgående",
+        "social": "Sosiale medier",
         "analytics": "Analyse",
+        "commerce": "Handel",
+        "bookings": "Booking",
+        "seo": "Søkeytelse",
+        "connectors": "Koblinger",
+        "slack": "Slack",
         "webhooks": "Webhooks",
         "feedback": "Tilbakemelding",
         "system_alerts": "Systemvarsler"
@@ -984,9 +990,33 @@
           "readWrite": "Lag utkast til kampanjer og send til samtykkende kontakter. Samtykkesjekker er fortsatt aktive.",
           "read": "Les utgående kampanjer og forslag."
         },
+        "social": {
+          "readWrite": "Les utkast og publiser innlegg på kontoene dere har koblet til.",
+          "read": "Les tilkoblede kontoer og utkast til innlegg."
+        },
         "analytics": {
           "readWrite": "Les analyse og administrer sporingsnøkler.",
           "read": "Les analyse for innhold og søk."
+        },
+        "commerce": {
+          "readWrite": "Les og endre ordrer og produkter i nettbutikken dere har koblet til.",
+          "read": "Slå opp ordrer og produkter i nettbutikken dere har koblet til."
+        },
+        "bookings": {
+          "readWrite": "Sjekk ledige tider og opprett, endre eller avbestill i bookingsystemet deres.",
+          "read": "Les bookinger og ledige tider fra bookingsystemet deres."
+        },
+        "seo": {
+          "readWrite": "Les søkeytelse for de verifiserte nettstedene deres og send inn nettadresser for ny gjennomgang.",
+          "read": "Les søkeytelse for de verifiserte nettstedene deres."
+        },
+        "connectors": {
+          "readWrite": "Koble til og fra systemene Munin henter data fra, og lagre påloggingen deres.",
+          "read": "Les hvilke systemer som er koblet til, og om påloggingen fortsatt virker."
+        },
+        "slack": {
+          "readWrite": "Les Slack-koblingen og endre kanalruting og koblede brukere.",
+          "read": "Les Slack-koblingen, kanalene og koblede brukere."
         },
         "webhooks": {
           "readWrite": "Les, opprett og slett webhook-abonnementer og roter signeringshemmeligheter.",
@@ -1001,6 +1031,7 @@
           "read": "Les operasjonelle systemvarsler."
         }
       },
+      "undescribedScopes": "Tilganger denne skjermen ikke beskriver ennå: {scopes}.",
       "actions": {
         "read": "Lese",
         "write": "Skrive"

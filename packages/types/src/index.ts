@@ -129,3 +129,4 @@ export {
   type ActorKind,
 } from './actors.ts';
 export { diffLines, hasChanges, type DiffLine, type DiffOp } from './diff-lines.ts';
+export { SUPPORTED_SCOPES, type SupportedScope } from './oauth-scopes.ts';

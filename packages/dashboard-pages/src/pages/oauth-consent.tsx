@@ -8,6 +8,11 @@ import { authClient } from '../auth-client';
 import { authorizationExpiresAt } from '../auth/authorization-expiry';
 import { api, ApiError } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
+import {
+  countConsentScopes,
+  groupConsentScopes,
+  type ConsentScopeGroup,
+} from '../auth/consent-scopes';
 
 export interface OAuthClientInfo {
   client_id: string;
@@ -47,54 +52,6 @@ interface OAuthConsentResponse {
   redirect_uri?: string;
 }
 
-const HIDDEN_SCOPES = new Set([
-  'openid',
-  'profile',
-  'email',
-  'offline_access',
-  'mcp:tools',
-  'mcp:admin',
-  'mcp:self_service',
-]);
-
-const MODULE_ORDER = [
-  'kb',
-  'conv',
-  'crm',
-  'cms',
-  'outreach',
-  'analytics',
-  'webhooks',
-  'feedback',
-  'system_alerts',
-] as const;
-type ModuleKey = (typeof MODULE_ORDER)[number];
-
-interface ModuleScopes {
-  module: ModuleKey;
-  read: boolean;
-  write: boolean;
-}
-
-function groupScopes(scopes: string[]): ModuleScopes[] {
-  const known = new Set<string>(MODULE_ORDER);
-  const map = new Map<ModuleKey, ModuleScopes>();
-  for (const scope of scopes) {
-    if (HIDDEN_SCOPES.has(scope)) continue;
-    const [mod, action] = scope.split(':', 2);
-    if (!mod || !action || !known.has(mod)) continue;
-    const key = mod as ModuleKey;
-    let entry = map.get(key);
-    if (!entry) {
-      entry = { module: key, read: false, write: false };
-      map.set(key, entry);
-    }
-    if (action === 'read') entry.read = true;
-    if (action === 'write') entry.write = true;
-  }
-  return MODULE_ORDER.filter((m) => map.has(m)).map((m) => map.get(m)!);
-}
-
 type FlowState = 'new' | 'granted' | 'denied';
 type HeaderState = FlowState | 'blocked' | 'expired';
 
@@ -121,11 +78,8 @@ export function OAuthConsentPage({
     () => (scopeRaw ? scopeRaw.split(/\s+/).filter(Boolean) : []),
     [scopeRaw],
   );
-  const groupedScopes = useMemo(() => groupScopes(scopes), [scopes]);
-  const totalScopeCount = useMemo(
-    () => groupedScopes.reduce((n, g) => n + (g.read ? 1 : 0) + (g.write ? 1 : 0), 0),
-    [groupedScopes],
-  );
+  const groupedScopes = useMemo(() => groupConsentScopes(scopes), [scopes]);
+  const totalScopeCount = useMemo(() => countConsentScopes(groupedScopes), [groupedScopes]);
 
   const [flow, setFlow] = useState<FlowState>('new');
   const [busy, setBusy] = useState<'allow' | 'deny' | null>(null);
@@ -346,7 +300,7 @@ interface RequestPaneProps {
   displayName: string;
   userName: string;
   resourceInfo: OAuthResourceInfo | null;
-  groupedScopes: ModuleScopes[];
+  groupedScopes: ConsentScopeGroup[];
   totalScopeCount: number;
   busy: 'allow' | 'deny' | null;
   error: string | null;
@@ -498,17 +452,21 @@ function TrustTimeline({ clientName }: { clientName: string }) {
   );
 }
 
-function PermissionRow({ group }: { group: ModuleScopes }) {
+function PermissionRow({ group }: { group: ConsentScopeGroup }) {
   const t = useTranslations('dashboard.oauthConsent');
-  const descKey = group.write
+  const descriptionKey = group.write
     ? `moduleDescriptions.${group.module}.readWrite`
     : `moduleDescriptions.${group.module}.read`;
+  const title = group.described ? t(`modules.${group.module}`) : group.module;
+  const description = group.described
+    ? t(descriptionKey)
+    : t('undescribedScopes', { scopes: group.scopes.join(', ') });
   return (
     <li className="grid grid-cols-[1fr_auto] items-center gap-x-4 border-t-[1px] border-rule-soft py-3.5 first:border-t-0 dark:border-rule-on-dark">
       <div className="min-w-0">
-        <div className="text-[15px] font-semibold text-ink">{t(`modules.${group.module}`)}</div>
-        <div className="mt-1 text-[13px] leading-snug text-ink-soft">
-          {t(descKey)}
+        <div className="text-[15px] font-semibold text-ink [overflow-wrap:anywhere]">{title}</div>
+        <div className="mt-1 text-[13px] leading-snug text-ink-soft [overflow-wrap:anywhere]">
+          {description}
         </div>
       </div>
       <div className="inline-flex shrink-0 items-center gap-1.5">

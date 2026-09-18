@@ -1,44 +1,9 @@
-import { stripTrailingSlashes } from '@getmunin/types';
+import { stripTrailingSlashes, SUPPORTED_SCOPES, type SupportedScope } from '@getmunin/types';
+
+export { SUPPORTED_SCOPES, type SupportedScope };
 
 export const MCP_INTERNAL_PATH = '/mcp';
 export const MCP_RESOURCE_PATH = MCP_INTERNAL_PATH;
-
-export const SUPPORTED_SCOPES = [
-  'mcp:tools',
-  'mcp:admin',
-  'identity:read',
-  'kb:read',
-  'kb:write',
-  'conv:read',
-  'conv:write',
-  'crm:read',
-  'crm:write',
-  'cms:read',
-  'cms:write',
-  'outreach:read',
-  'outreach:write',
-  'connectors:read',
-  'connectors:write',
-  'commerce:read',
-  'bookings:read',
-  'bookings:write',
-  'seo:read',
-  'seo:write',
-  'analytics:read',
-  'analytics:write',
-  'webhooks:read',
-  'webhooks:write',
-  'feedback:read',
-  'feedback:write',
-  'system_alerts:read',
-  'system_alerts:write',
-  'slack:read',
-  'slack:write',
-  'social:read',
-  'social:write',
-] as const;
-
-export type SupportedScope = (typeof SUPPORTED_SCOPES)[number];
 
 export const STANDARD_OIDC_SCOPES = ['openid', 'profile', 'email', 'offline_access'] as const;
 

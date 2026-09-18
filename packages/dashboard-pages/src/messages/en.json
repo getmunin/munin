@@ -958,7 +958,13 @@
         "crm": "Contacts",
         "cms": "Content",
         "outreach": "Outreach",
+        "social": "Social",
         "analytics": "Analytics",
+        "commerce": "Commerce",
+        "bookings": "Bookings",
+        "seo": "Search performance",
+        "connectors": "Connections",
+        "slack": "Slack",
         "webhooks": "Webhooks",
         "feedback": "Feedback",
         "system_alerts": "System alerts"
@@ -984,9 +990,33 @@
           "readWrite": "Draft campaigns and send to consented contacts. Consent checks stay enforced.",
           "read": "Read outreach campaigns and proposals."
         },
+        "social": {
+          "readWrite": "Read social drafts and publish posts to your connected accounts.",
+          "read": "Read connected social accounts and post drafts."
+        },
         "analytics": {
           "readWrite": "Read analytics and manage tracker keys.",
           "read": "Read analytics for content and search engagement."
+        },
+        "commerce": {
+          "readWrite": "Read and change orders and products in the shop you have connected.",
+          "read": "Look up orders and products in the shop you have connected."
+        },
+        "bookings": {
+          "readWrite": "Check availability and make, change, or cancel bookings in your booking system.",
+          "read": "Read bookings and availability from your booking system."
+        },
+        "seo": {
+          "readWrite": "Read search-engine performance for your verified sites and submit URLs for recrawl.",
+          "read": "Read search-engine performance for your verified sites."
+        },
+        "connectors": {
+          "readWrite": "Connect and disconnect the systems Munin reads from, and store their credentials.",
+          "read": "Read which systems are connected and whether their credentials still work."
+        },
+        "slack": {
+          "readWrite": "Read the Slack connection and change channel routing and linked accounts.",
+          "read": "Read the Slack connection, its channels, and linked accounts."
         },
         "webhooks": {
           "readWrite": "Read, create, and delete webhook subscriptions and rotate their signing secrets.",
@@ -1001,6 +1031,7 @@
           "read": "Read operational system alerts."
         }
       },
+      "undescribedScopes": "Permissions this screen doesn't describe yet: {scopes}.",
       "actions": {
         "read": "Read",
         "write": "Write"

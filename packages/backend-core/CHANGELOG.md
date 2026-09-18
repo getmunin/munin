@@ -1,5 +1,50 @@
 # @getmunin/backend-core
 
+## 5.30.1
+
+### Patch Changes
+
+- 2633f68: Pin the LinkedIn API version to an active release.
+
+  `DEFAULT_API_VERSION` shipped as `202509` — September **2025**, a year before
+  the feature landed. LinkedIn supports a version for a minimum of one year and
+  `202509` is past that window (the oldest still-supported release is `202510`,
+  sunsetting 2026-10-15), so `POST /rest/posts` answered every publish with
+  `426 NONEXISTENT_VERSION: Requested version 20250901 is not active`. The 8-digit
+  number in that message is LinkedIn expanding our 6-digit header to the first of
+  the month, which is why the error does not obviously point at our constant.
+
+  Nothing published while this was live: the draft went to `failed` with the 426 in
+  `last_error`, the Slack card closed with "The platform refused the post", and the
+  reason never reached the logs — `publishDraft` throws `BadGatewayException`, an
+  `HttpException`, and there is no exception filter, so a 502 is not logged at all.
+
+  `apiVersion()` now pins `202609`, and `apiVersion` gained a test asserting the
+  pinned default is between 0 and 11 months old. That fails CI a month before
+  LinkedIn sunsets whatever is pinned, which is the only signal that arrives
+  before a customer's post is refused.
+
+- 2633f68: Log the platform's reason when a social publish is refused.
+
+  `publishDraft` stored the refusal in `social_post_drafts.last_error` and threw
+  `BadGatewayException`. That is an `HttpException` and `backend-core` registers no
+  exception filter, so Nest logged nothing at all — an operator watching the logs
+  saw a successful-looking request stream while every publish failed, and the only
+  way to the reason was a query against the drafts table.
+
+  `SocialService` now warns with the platform, the draft id and the reason before
+  the row is marked failed. A revoked grant already opens a system alert with a
+  reconnect CTA; a platform refusal opens nothing, which is why it needed a log
+  line of its own.
+
+- @getmunin/agent-runtime@5.30.1
+  - @getmunin/core@5.30.1
+  - @getmunin/db@5.30.1
+  - @getmunin/emails@5.30.1
+  - @getmunin/inspector-app@5.30.1
+  - @getmunin/mcp-toolkit@5.30.1
+  - @getmunin/types@5.30.1
+
 ## 5.30.0
 
 ### Patch Changes

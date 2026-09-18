@@ -1,5 +1,11 @@
 # @getmunin/ui
 
+## 5.30.1
+
+### Patch Changes
+
+- @getmunin/types@5.30.1
+
 ## 5.30.0
 
 ### Patch Changes

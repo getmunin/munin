@@ -1,5 +1,74 @@
 # @getmunin/types
 
+## 5.28.0
+
+### Minor Changes
+
+- 9d68e6d: Make a throttled public route answer with a 429 a caller can recognise.
+
+  Every `PublicController(..., { throttle: true })` route — the CMS delivery API, the analytics beacons, the public catalogs — used to answer `{"statusCode":429,"message":"ThrottlerException: Too Many Requests"}`, with no `code` and no plain `Retry-After`: `@nestjs/throttler` suffixes its headers with the throttler name (`Retry-After-public-minute`), so a generic client finds nothing to back off on. The body now carries `code: 'rate_limited'` and `retryAfterSeconds`, the message names the limit and the window it applies to, and an unsuffixed `Retry-After` is set alongside the per-bucket headers.
+
+  This matters most for the delivery API, whose consumer is a build or a server renderer rather than a person. A frontend that folds every non-OK response into an empty list turns a rate limit into "the collection is empty", and the failure then gets attributed to the org id or an unreachable API — neither of which is wrong. `RATE_LIMITED_CODE` is exported from `@getmunin/types` so a consumer can branch on it without string-matching, and `RateLimitExceededError` (the per-org MCP limit) now uses the same constant.
+
+- b313935: Draft companion social posts when a CMS entry is published.
+
+  A collection opts in with `socialDraftOnPublish: true` in its settings. The first
+  time an entry in it reaches `published`, an `EventSink` on `cms.entry.published`
+  queues one `skill://social/draft-companion-posts` pass, and a person finds a
+  labelled set of variants waiting. Opt-in is per collection because publishing is
+  not one kind of act: the same event fires for an article worth announcing and for
+  a team page nobody should post about.
+
+  Three conditions are checked in the sink rather than left to the drafting pass,
+  because each of them is a fact the database already knows and an LLM would have to
+  be told:
+
+  - **A republish is not a publish.** `previousStatus === 'published'` means somebody
+    fixed a typo, so it queues nothing. A promotion off the schedule
+    (`previousStatus === 'scheduled'`) does count, which is the whole point of
+    scheduling an article.
+  - **No `liveUrl` template, no job.** The published payload already carries a
+    validated http(s) `url` or `null`; a post with nothing to link to is not worth
+    drafting, and this is cheaper to notice before the model runs than after.
+  - **An entry that already has a set does not get a second one.** The dedupe key
+    only covers a job still pending, so a re-fired event after a successful pass
+    would otherwise hand the reviewer eight variants of one article.
+
+  Both lookups filter on `org_id` explicitly rather than leaning on RLS. The
+  scheduled-publish path runs under `app.bypass_rls=on`, so a sink that trusted RLS
+  would read whichever org's `articles` collection the planner reached first — and
+  `cms_collections` is unique on `(org_id, slug)`, which means a shared slug is the
+  normal case, not a rare one.
+
+  `skill://social/draft-companion-posts` is registered in `TOOL_PREFIXES_BY_URI`,
+  which is the real sandbox for a curator run: the skill executes against a
+  full-admin MCP client, and `toolPrefixesFor` returning `undefined` means _no_
+  restriction rather than none needed. The pass gets `cms_get_entry`,
+  `social_list_platforms` and `social_propose_post_set` — enough to read the article
+  and propose, and nothing that decides a draft. Dismissing, revising and marking one
+  posted stay with the human and the agent working on their behalf.
+
+  Cloud follow-up: `AgentRunnerService.toolPrefixesFor` in munin-cloud needs the same
+  entry, in a separate PR after this release, or companion passes there run unsandboxed.
+
+- bfc4369: Surface social post drafts in Slack for approval.
+
+  A pending draft now posts an approval card alongside the CRM, outreach and KB ones: platform, variant, suggested author, the body quoted inline, the tracked share link, and a character count against the platform limit. _Publish to LinkedIn_ posts it; _Dismiss_ discards it; the card resolves in place whichever surface decided it.
+
+  The card states on its face that publishing posts from the clicking teammate's own connected account, not the suggested author's. That is the one thing about this feature people get wrong, and Slack makes it easier to get wrong than the dashboard does — the suggested author's name is right there, and the button is not theirs. A teammate with no connected account gets an ephemeral pointing at Settings → Integrations, and the draft stays pending.
+
+  The social module had emitted no events at all, so there was nothing for the Slack sink to pick up. It now emits `social.post_draft.{proposed,revised,published,dismissed,failed}`.
+
+  Two details worth recording:
+
+  A publish result must survive the request that threw. The platform call and the status write happen in a root transaction, so a `failed` marker written inside the request transaction and then thrown out of would roll back with the error — the same trap as marking a connector connection `expired`. Both the published and failed events are therefore emitted from inside that root transaction, which is also what closes the Slack card on a refusal instead of leaving a live Publish button over a terminally failed draft.
+
+  A Slack card is a cached rendering, so `publishDraft` takes an optional fingerprint over the platform, body and link. Slack binds its button to the wording it rendered and a revised draft refuses rather than posting text nobody approved. The dashboard and the MCP tool read the draft live and pass nothing, so their behaviour is unchanged.
+
+  Variants of one set thread under a parent, the way outreach proposals thread under a campaign. A set is one post written several ways and you publish exactly one of them, so three loose cards each with a live Publish button is the wrong shape. A one-off share is a set of one and posts with no parent.
+
+  Publishing a variant now dismisses the rest of its set, in the same transaction, with `superseded: variant <label> was published instead` recorded as the reason; `social_mark_draft_posted` settles the set the same way. This is a behaviour change for the dashboard and MCP as much as for Slack: previously siblings stayed pending and two wordings of the same post could go out twice. A failed publish settles nothing — the set stays open for another attempt — and nothing crosses a set boundary. The skill said Munin did this before it actually did; now it does, and the sibling cards resolve as dismissed alongside the published one.
+
 ## 5.27.0
 
 ## 5.26.0

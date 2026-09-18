@@ -1,5 +1,187 @@
 # @getmunin/dashboard-pages
 
+## 5.28.0
+
+### Minor Changes
+
+- 68828d0: Add the controls for inbound national-ID redaction.
+
+  A new Privacy page under settings, `conv_get_redaction_policy` / `conv_configure_redaction` on MCP, and `GET/PUT /v1/conversations/redaction` behind it. An org picks which identifier types to act on, whether a match is masked down to its birth date or removed outright, and how certain a match must be before anything happens.
+
+  The policy gets its own route rather than riding `PATCH /v1/orgs/me`, which replaces the whole settings object and would let two unrelated settings edits clobber each other. The write merges a single namespaced key instead.
+
+  Also routes `stripMessageSignature` through the same filter. It is the second writer of `metadata.preStripBody`, so without this the signature curator could put an unredacted body back after ingest had cleaned it.
+
+- f40ef55: Rebuild Account, AI and Privacy on one settings scaffold.
+
+  Every settings page now shares a measure and a section grammar: a 720px column, a 420px field (a field's width should predict its content length), a serif section heading with mono meta right-aligned over a full-ink rule, hairline rows instead of nested cards, and one Save per section at its end.
+
+  Disabled Saves are a hairline outline rather than a grey fill — a grey fill reads as a live secondary button.
+
+  The confidence selector only appears when a detector that has loose forms is enabled — Swedish personnummer or Danish CPR. For a Norway-only setup every match carries two check digits, so the control had nothing to decide.
+
+  The AI page loses its three job lists, leaving Persona / Provider / Models; its lede no longer promises the jobs. Privacy moves below Trackers in the settings rail. The now-unreachable job-list components and their message keys go with them.
+
+- 5104064: feat(social): publish a reviewed draft to LinkedIn from the reviewer's own account
+
+  Closes the gap the grant work left open. `w_member_social` was already being
+  requested and the draft table already carried `external_post_id`, `permalink` and
+  `last_error`, but nothing ever called LinkedIn: `approve` recorded
+  `published_externally`, the statuses `published` and `failed` were unreachable, and
+  the review pane told people to copy the text and post it by hand.
+
+  `SocialOAuthAdapter` gains an optional `publish`, implemented for LinkedIn against
+  `/rest/posts`. Optional rather than required for the same reason `SeoAdapter.submitUrls`
+  is: a platform Munin can draft for but not post to is a real thing, and the service
+  says so with `social_publish_unsupported` instead of faking it.
+
+  **A post is published from the account of whoever clicks publish** — never from the
+  draft's `suggestedUserId`, which stays a routing hint about who should pick the draft
+  up and confers nothing. A service key has no person behind it and is refused outright
+  with `social_publish_needs_person`, so an unattended agent cannot post under someone's
+  name no matter what scopes it holds.
+
+  Two ordering decisions, both the same lesson the grant work learned about markers and
+  rollbacks:
+
+  - The draft is locked with `SELECT … FOR UPDATE` across the platform call, so two
+    reviewers clicking publish on the same draft cannot both post it.
+  - Both outcomes are written inside that root transaction, which commits before the
+    error is raised. A failure that marked the draft inside the request transaction and
+    then threw would roll its own marker back; a success written there would lose the
+    record of a post that is already public if anything later in the request failed.
+
+  LinkedIn's commentary format reserves `\|{}@[]()<>#*_~`, so bodies are escaped before
+  they are sent — including the tracked share URL, whose `utm_` parameters carry reserved
+  underscores. The link is appended to the commentary rather than sent as an article,
+  because an article needs a title Munin does not have.
+
+  Adds `social:read` and `social:write` to `SUPPORTED_SCOPES`, which the social tools have
+  declared since they were written but no OAuth client could actually be granted.
+
+  Dashboard: the review pane's primary action becomes Publish (as the connected account's
+  name) with mark-as-posted kept beside it for the manual route, and Settings →
+  Integrations gains a Publishing accounts section — the org's LinkedIn app, the connect
+  and reconnect flow, and the redirect URL to paste into the developer portal. Until now
+  the expiry alert's "Reconnect account" link led to a page with nothing on it.
+
+  Adds `skill://social/publish-a-reviewed-post`, and corrects
+  `skill://social/route-a-post-to-a-person`, which told agents that nothing here publishes.
+
+  Adds `social_accounts.client_secret_set_at` (migration 0103) so the dashboard can
+  say when an org's OAuth client secret was stored without overstating it —
+  `updated_at` also moves when only the client id is edited. A secret is now kept
+  when a save omits it, so editing the client id no longer demands re-pasting a
+  secret LinkedIn shows only once.
+
+  The authorization callback carries the platform's own `error_description` back to
+  the dashboard. Without it every failure read as "the connection could not be
+  completed", including the one a real setup hits first: an app with Share on
+  LinkedIn but not Sign In with LinkedIn using OpenID Connect, where LinkedIn
+  answers `Scope "openid" is not authorized for your application`. Setup is now two
+  screens — the work done in LinkedIn's portal, then the credentials pasted back —
+  and names both products, since the first grants posting and the second grants the
+  identity every post is authored by.
+
+- 9ef22f0: Social post drafts become the sixth review-queue kind.
+
+  Drafts already existed and a person already had to decide them — but the only way
+  to see one was to ask an agent. They now sit in Waiting beside curation candidates
+  and CMS drafts, and land in Decided with the other five once decided.
+
+  **Approving a social draft means "I posted this", not "Munin, post this."** There is
+  no publishing integration yet, so the pane is built around the workflow people
+  actually have: read the variant, copy the text, copy the tagged link, open the
+  platform, publish under your own name, then say so. The primary action is
+  therefore _Mark as posted_ rather than _Approve_, and the pane says outright that
+  Munin does not post for you. When publishing does arrive it adds a second action —
+  it does not change the meaning of this one.
+
+  The tracked share URL is what the Copy button hands over, not the clean stored
+  `linkUrl`. That is the whole point of tagging per variant: a reviewer who copies
+  the untagged link silently opts their post out of the per-angle click figures, and
+  the difference between the two URLs is not something you would notice by eye.
+
+  **`dismiss_reason` is new on `social_post_drafts`** (migration 0101). Every other
+  queue kind records why a reviewer passed, and the decided feed renders one column
+  across all six; without the column social would be the one kind permanently blank
+  there — not because nobody typed a reason, but because there was nowhere to put
+  one. `social_dismiss_post_draft` takes an optional `reason` to match.
+
+  A decided draft maps to an outcome rather than storing one: `dismissed` is
+  dismissed, `failed` is failed and reports `last_error` as its reason, and both
+  published states are approved. `published` and `published_externally` are a real
+  distinction — through Munin versus by hand — but not one a reviewer reading the
+  decided feed is asking about, so the feed collapses them and the DTO keeps them.
+
+  Backend and dashboard ship together deliberately. `inbox-data.ts` dispatches queue
+  kinds through a chain of `if` statements ending in a terminal `else`, both when
+  building rows and when approving, so an unrecognised kind does not fail loudly —
+  it renders as a feedback card and approves against
+  `/v1/outreach/proposals/:id/approve`. A backend-only release would have served a
+  kind the dashboard silently mishandles.
+
+  Adds `/v1/social/drafts/:id` (read, revise, approve, dismiss) to the control plane.
+
+### Patch Changes
+
+- 523c388: Open Settings on Account rather than Team.
+
+  `/dashboard/settings` redirected to Team, which is neither the first item in the rail nor the one most people want first. It now lands on Account, the top entry.
+
+  The target is derived from the first item of the first nav group rather than hardcoded, so it follows the rail if the order ever changes instead of quietly drifting out of step with it.
+
+- a38db8e: Stop the onboarding gate from deadlocking against a pinned org.
+
+  The setup middleware decides whether onboarding is needed from the account's **default** membership. The client decided the same question from the **pinned** org in `sessionStorage`, which the middleware cannot see. When the two pointed at different orgs the page wedged: the client concluded setup was done and pushed to `/dashboard`, the middleware concluded it was not and redirected back to `/setup`, forever, on a spinner. `sessionStorage` survives a reload, so the loop outlived any amount of refreshing.
+
+  The setup gate now resolves the org the way the server does, and while onboarding is outstanding it repoints the pin at the org being onboarded. That second half matters on its own: `/v1/orgs/me` is scoped by the pin, so a stale pin meant the wizard's "name your workspace" step renamed a _different_ org and left setup incomplete — re-entering the loop.
+
+  Multi-org tenancy is unaffected. The pin still governs every other surface; onboarding is simply about the default org, which is the one question where the two must agree.
+
+- 011af1a: feat(social): connect a person's LinkedIn account so a reviewed draft has an author
+
+  Adds `social_accounts` — one grant per person per platform — and
+  `social_platform_apps`, the org's own OAuth client. A self-hoster cannot use
+  Munin's LinkedIn client, so client id and secret are per-org rows rather than
+  deployment environment variables, the same reasoning that put them on connector
+  connections.
+
+  The grant's refresh token is nullable, and that shapes the whole feature.
+  LinkedIn issues a renewable grant only to approved Marketing Developer Platform
+  partners; an organisation on the self-serve "Share on LinkedIn" product — the
+  product that grants `w_member_social`, and the one most orgs will be on — gets a
+  60-day access token and nothing to renew it with. So expiry is a normal event
+  here rather than a fault:
+
+  - A grant that carries a refresh token renews itself on use and nobody is told.
+  - A grant that does not lapses on schedule. An hourly sweep raises a warning a
+    week ahead and an error once it is out, and because the alert is scoped to the
+    person who owns the account rather than the org, it reaches the one individual
+    who can act on it and nobody else.
+
+  Marking a lapsed grant unusable commits in its own transaction, separate from
+  the error handed back to the caller — doing it inside the transaction you then
+  throw out of rolls the marker back and leaves the account reporting healthy
+  while failing every call.
+
+  Two people in the same organisation cannot attach the same LinkedIn profile: the
+  second attempt is refused with `social_account_taken` rather than silently
+  re-pointing the first person's row.
+
+  Nothing here publishes. The grant exists so that a draft already approved by a
+  person has somewhere to go.
+
+  Adds `social_list_connected_accounts` and `skill://social/route-a-post-to-a-person`
+  so an agent can set `suggestedUserId` to someone who can actually publish, and
+  says plainly what to do when nobody can.
+
+- Updated dependencies [9d68e6d]
+- Updated dependencies [b313935]
+- Updated dependencies [bfc4369]
+  - @getmunin/types@5.28.0
+  - @getmunin/ui@5.28.0
+
 ## 5.27.0
 
 ### Minor Changes

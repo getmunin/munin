@@ -116,3 +116,17 @@ export function applyUtm(linkUrl: string, utm: UtmParams): string {
   url.searchParams.set('utm_content', utm.utm_content);
   return url.toString();
 }
+
+export function shareUrlFor(row: {
+  linkUrl: string | null;
+  linkUtm: Record<string, string>;
+}): string | null {
+  const utm = row.linkUtm;
+  if (!row.linkUrl || !utm.utm_source) return row.linkUrl;
+  return applyUtm(row.linkUrl, {
+    utm_source: utm.utm_source,
+    utm_medium: utm.utm_medium!,
+    utm_campaign: utm.utm_campaign!,
+    utm_content: utm.utm_content!,
+  });
+}

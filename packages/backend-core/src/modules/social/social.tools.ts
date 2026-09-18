@@ -30,7 +30,6 @@ const CreateDraftInput = z.object({
   platform: PlatformField,
   linkUrl: z.string().url().nullable().optional(),
   variantLabel: z.string().min(1).max(32).optional(),
-  suggestedUserId: z.string().nullable().optional(),
 });
 
 const ProposeSetInput = z.object({
@@ -41,7 +40,6 @@ const ProposeSetInput = z.object({
   platform: PlatformField,
   linkUrl: z.string().url().nullable().optional(),
   sourceRef: z.record(z.string(), z.unknown()).optional(),
-  suggestedUserId: z.string().nullable().optional(),
 });
 
 const ReviseInput = z.object({ id: z.string(), body: z.string().min(1) });
@@ -77,7 +75,7 @@ export class SocialTools {
     name: 'social_list_connected_accounts',
     title: 'Social: List connected accounts',
     description:
-      'List the people in this organisation who have connected a social account Munin can post from, with the platform, the account name, and whether the connection still works. Read this before setting suggestedUserId on a draft so the post is routed to someone who can actually publish it.',
+      'List the people in this organisation who have connected a social account Munin can post from, with the platform, the account name, and whether the connection still works. Use it to answer whether anybody can publish at all, and whose grant is about to lapse — a draft that cannot be published by anyone sits in the review queue until it goes stale.',
     audiences: ['admin'],
     scopes: ['social:read'],
     input: ListAccountsInput,

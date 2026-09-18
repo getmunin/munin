@@ -13,6 +13,7 @@ import {
 import { DB } from '../../common/db/db.module.ts';
 import { ConvService } from '../conv/conv.service.ts';
 import { ClaimedByOtherError, ConversationClaimsService } from '../conv/conv.claims.service.ts';
+import { CmsConflictError, CmsInvalidError, CmsService } from '../cms/cms.service.ts';
 import { CrmInvalidError, CrmService } from '../crm/crm.service.ts';
 import { KbConflictError, KbInvalidError, KbNotFoundError, KbService } from '../kb/kb.service.ts';
 import {
@@ -20,6 +21,7 @@ import {
   OutreachInvalidError,
   OutreachService,
 } from '../outreach/outreach.service.ts';
+import { SocialService } from '../social/social.service.ts';
 import { SlackApiClient } from './slack-api.client.ts';
 import { SlackUserMappingService } from './slack-user-mapping.service.ts';
 import { SlackService, decryptSecretValue } from './slack.service.ts';
@@ -37,6 +39,16 @@ import {
   routeConfirmedText,
   routeDismissedText,
 } from './slack-projection.ts';
+
+export interface CmsDraftDecider {
+  publishEntry(input: { id: string; ifVersion: number }): Promise<unknown>;
+  archiveEntry(input: { id: string; ifVersion: number }): Promise<unknown>;
+}
+
+export interface SocialDraftDecider {
+  publishDraft(id: string, opts?: { fingerprint?: string | null }): Promise<unknown>;
+  dismissDraft(id: string, reason?: string | null): Promise<unknown>;
+}
 
 const BlockActionsSchema = z.object({
   type: z.literal('block_actions'),
@@ -75,6 +87,8 @@ export class SlackInteractionsService {
     @Inject(CrmService) private readonly crm: CrmService,
     @Inject(OutreachService) private readonly outreach: OutreachService,
     @Inject(KbService) private readonly kb: KbService,
+    @Inject(SocialService) private readonly social: SocialDraftDecider,
+    @Inject(CmsService) private readonly cms: CmsDraftDecider,
   ) {}
 
   async processBlockActions(payload: Record<string, unknown>): Promise<void> {
@@ -272,6 +286,31 @@ export class SlackInteractionsService {
                 await this.outreach.dismissProposal({ id: subject.subjectId });
               }
               return;
+            case 'cms_draft_entry': {
+              const version = subject.fingerprint ? Number(subject.fingerprint) : NaN;
+              if (!Number.isInteger(version)) {
+                await ephemeral(
+                  ':no_entry: This card is out of date — open the entry in Munin and decide it there.',
+                );
+                return;
+              }
+              if (approve) {
+                await this.cms.publishEntry({ id: subject.subjectId, ifVersion: version });
+              } else {
+                await this.cms.archiveEntry({ id: subject.subjectId, ifVersion: version });
+              }
+              return;
+            }
+            case 'social_post_draft': {
+              if (approve) {
+                await this.social.publishDraft(subject.subjectId, {
+                  fingerprint: subject.fingerprint,
+                });
+              } else {
+                await this.social.dismissDraft(subject.subjectId);
+              }
+              return;
+            }
             case 'kb_curation_candidate': {
               if (approve) {
                 const candidate = await this.kb.getCurationCandidate(subject.subjectId);
@@ -299,6 +338,8 @@ export class SlackInteractionsService {
       });
     } catch (err) {
       if (
+        err instanceof CmsInvalidError ||
+        err instanceof CmsConflictError ||
         err instanceof CrmInvalidError ||
         err instanceof OutreachInvalidError ||
         err instanceof KbInvalidError ||

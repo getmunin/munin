@@ -6,9 +6,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
-import { makeId, schema, type Tx } from '@getmunin/db';
-import { getCurrentContext } from '@getmunin/core';
+import { and, desc, eq, inArray, isNotNull, ne } from 'drizzle-orm';
+import { makeId, schema, type Db, type Tx } from '@getmunin/db';
+import {
+  WebhookDispatcher,
+  getCurrentContext,
+  withContext,
+  type RequestContext,
+} from '@getmunin/core';
 import { OutboundOAuthStore } from '../../common/outbound-oauth/grant-store.ts';
 import { SocialAccountsService } from './social-accounts.service.ts';
 import { SocialOAuthRegistry, type SocialPublishRequest, type SocialPublishResult } from './social-oauth.ts';
@@ -19,12 +24,13 @@ import {
   type ReviewDecision,
   type ReviewDecisionOutcome,
 } from '../../common/review-decision.ts';
+import { socialDraftFingerprint } from './social-fingerprint.ts';
 import {
   SOCIAL_PLATFORM_DESCRIPTORS,
-  applyUtm,
   buildUtm,
   describePlatform,
   measureBody,
+  shareUrlFor,
   type SocialDraftStatus,
   type SocialPlatform,
   type SocialPlatformDescriptor,
@@ -50,6 +56,10 @@ export interface SocialPublisherLookup {
     | undefined;
 }
 
+export interface SocialEventEmitter {
+  emit(input: { type: string; payload: Record<string, unknown> }): Promise<string>;
+}
+
 export interface RootTransactionRunner {
   inRootTransaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T>;
 }
@@ -63,7 +73,6 @@ export interface SocialDraftDto {
   linkUrl: string | null;
   shareUrl: string | null;
   sourceRef: Record<string, unknown>;
-  suggestedUserId: string | null;
   status: SocialDraftStatus;
   bodyChars: number;
   maxBodyChars: number;
@@ -82,7 +91,6 @@ export interface CreateDraftInput {
   linkUrl?: string | null;
   variantLabel?: string;
   sourceRef?: Record<string, unknown>;
-  suggestedUserId?: string | null;
   setId?: string;
 }
 
@@ -90,7 +98,6 @@ export interface ProposeSetInput {
   platform?: SocialPlatform;
   linkUrl?: string | null;
   sourceRef?: Record<string, unknown>;
-  suggestedUserId?: string | null;
   variants: { variantLabel: string; body: string }[];
 }
 
@@ -112,6 +119,7 @@ export class SocialService {
     @Inject(SocialAccountsService) private readonly accounts: SocialTokenSource,
     @Inject(SocialOAuthRegistry) private readonly registry: SocialPublisherLookup,
     @Inject(OutboundOAuthStore) private readonly store: RootTransactionRunner,
+    @Inject(WebhookDispatcher) private readonly webhooks: SocialEventEmitter,
   ) {}
 
   listPlatforms(): SocialPlatformDescriptor[] {
@@ -123,7 +131,6 @@ export class SocialService {
     const setId = input.setId ?? makeId('spd');
     const rows = await this.insertVariants(platform, setId, input.linkUrl ?? null, {
       sourceRef: input.sourceRef ?? { type: 'adhoc' },
-      suggestedUserId: input.suggestedUserId ?? null,
       variants: [{ variantLabel: input.variantLabel ?? 'single', body: input.body }],
     });
     return rows[0]!;
@@ -148,7 +155,6 @@ export class SocialService {
     const platform = input.platform ?? DEFAULT_PLATFORM;
     return await this.insertVariants(platform, makeId('spd'), input.linkUrl ?? null, {
       sourceRef: input.sourceRef ?? { type: 'adhoc' },
-      suggestedUserId: input.suggestedUserId ?? null,
       variants: input.variants,
     });
   }
@@ -159,7 +165,6 @@ export class SocialService {
     linkUrl: string | null,
     rest: {
       sourceRef: Record<string, unknown>;
-      suggestedUserId: string | null;
       variants: { variantLabel: string; body: string }[];
     },
   ): Promise<SocialDraftDto[]> {
@@ -167,7 +172,6 @@ export class SocialService {
     const actor = ctx.actor!;
 
     if (linkUrl !== null) this.assertHttpUrl(linkUrl);
-    if (rest.suggestedUserId) await this.assertMember(rest.suggestedUserId);
 
     for (const variant of rest.variants) {
       if (!variant.body.trim()) {
@@ -199,12 +203,17 @@ export class SocialService {
       linkUrl,
       linkUtm: linkUrl ? { ...buildUtm(platform, setId, variant.variantLabel) } : {},
       sourceRef: rest.sourceRef,
-      suggestedUserId: rest.suggestedUserId,
       proposedByActorType: actor.type,
       proposedByActorId: actor.id,
     }));
 
     const inserted = await ctx.db.insert(schema.socialPostDrafts).values(values).returning();
+    for (const row of inserted) {
+      await this.webhooks.emit({
+        type: 'social.post_draft.proposed',
+        payload: this.eventPayload(row),
+      });
+    }
     return inserted.map((row) => this.toDto(row));
   }
 
@@ -246,13 +255,21 @@ export class SocialService {
       .set({ body, updatedAt: new Date() })
       .where(eq(schema.socialPostDrafts.id, id))
       .returning();
+    await this.webhooks.emit({
+      type: 'social.post_draft.revised',
+      payload: this.eventPayload(updated[0]!),
+    });
     return this.toDto(updated[0]!);
   }
 
   async dismissDraft(id: string, reason?: string | null): Promise<{ dismissed: true; id: string }> {
     const row = await this.requireDraft(id);
     this.assertPending(row);
-    await this.decide(id, 'dismissed', { dismissReason: reason?.trim() || null });
+    const updated = await this.decide(id, 'dismissed', { dismissReason: reason?.trim() || null });
+    await this.webhooks.emit({
+      type: 'social.post_draft.dismissed',
+      payload: { ...this.eventPayload(updated), reason: updated.dismissReason },
+    });
     return { dismissed: true, id };
   }
 
@@ -330,11 +347,15 @@ export class SocialService {
     return row ?? null;
   }
 
-  async publishDraft(id: string): Promise<SocialDraftDto> {
+  async publishDraft(
+    id: string,
+    opts: { fingerprint?: string | null } = {},
+  ): Promise<SocialDraftDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const row = await this.requireDraft(id);
     this.assertPending(row);
+    this.assertFingerprint(row, opts.fingerprint);
 
     const platform = row.platform as SocialPlatform;
     const publish = this.registry.get(platform)?.publish;
@@ -380,6 +401,12 @@ export class SocialService {
           `social_conflict: draft ${id} is already ${locked.status} and can no longer be changed`,
         );
       }
+      this.assertFingerprint(locked, opts.fingerprint);
+
+      const emit = (type: string, payload: Record<string, unknown>) => {
+        const inner: RequestContext = { db: tx, actor, correlationId: ctx.correlationId };
+        return withContext(inner, () => this.webhooks.emit({ type, payload }));
+      };
 
       const decided = {
         decidedByActorType: actor.type,
@@ -407,13 +434,23 @@ export class SocialService {
           })
           .where(eq(schema.socialPostDrafts.id, id))
           .returning();
+        await emit('social.post_draft.published', {
+          ...this.eventPayload(updated!),
+          publishedExternally: false,
+        });
+        await this.settleSiblings(tx, updated!, emit);
         return { published: updated! };
       } catch (err) {
         const reason = err instanceof Error ? err.message : 'the platform refused the post';
-        await tx
+        const [updated] = await tx
           .update(schema.socialPostDrafts)
           .set({ ...decided, status: 'failed', lastError: reason.slice(0, 500) })
-          .where(eq(schema.socialPostDrafts.id, id));
+          .where(eq(schema.socialPostDrafts.id, id))
+          .returning();
+        await emit('social.post_draft.failed', {
+          ...this.eventPayload(updated!),
+          reason: updated!.lastError,
+        });
         return { failed: reason };
       }
     });
@@ -471,6 +508,13 @@ export class SocialService {
       publishedAt: new Date(),
       permalink: permalink ?? null,
     });
+    await this.webhooks.emit({
+      type: 'social.post_draft.published',
+      payload: { ...this.eventPayload(updated), publishedExternally: true },
+    });
+    await this.settleSiblings(getCurrentContext().db, updated, (type, payload) =>
+      this.webhooks.emit({ type, payload }),
+    );
     return this.toDto(updated);
   }
 
@@ -510,6 +554,69 @@ export class SocialService {
     return row;
   }
 
+  private async settleSiblings(
+    db: Db | Tx,
+    published: typeof schema.socialPostDrafts.$inferSelect,
+    emit: (type: string, payload: Record<string, unknown>) => Promise<unknown>,
+  ): Promise<void> {
+    const now = new Date();
+    const siblings = await db
+      .update(schema.socialPostDrafts)
+      .set({
+        status: 'dismissed',
+        dismissReason: `superseded: variant ${published.variantLabel} was published instead`,
+        decidedByActorType: published.decidedByActorType,
+        decidedByActorId: published.decidedByActorId,
+        decidedAt: now,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(schema.socialPostDrafts.orgId, published.orgId),
+          eq(schema.socialPostDrafts.setId, published.setId),
+          eq(schema.socialPostDrafts.status, 'pending'),
+          ne(schema.socialPostDrafts.id, published.id),
+        ),
+      )
+      .returning();
+    for (const sibling of siblings) {
+      await emit('social.post_draft.dismissed', {
+        ...this.eventPayload(sibling),
+        reason: sibling.dismissReason,
+        supersededBy: published.id,
+      });
+    }
+  }
+
+  private assertFingerprint(
+    row: typeof schema.socialPostDrafts.$inferSelect,
+    fingerprint: string | null | undefined,
+  ): void {
+    if (!fingerprint) return;
+    if (socialDraftFingerprint(row) === fingerprint) return;
+    throw new ConflictException({
+      message: `social_stale: draft ${row.id} changed after it was proposed — re-read it and publish the text you meant to publish`,
+      code: 'social_stale',
+    });
+  }
+
+  private eventPayload(
+    row: typeof schema.socialPostDrafts.$inferSelect,
+  ): Record<string, unknown> {
+    return {
+      draftId: row.id,
+      platform: row.platform,
+      setId: row.setId,
+      variantLabel: row.variantLabel,
+      status: row.status,
+      linkUrl: row.linkUrl,
+      shareUrl: shareUrlFor(row),
+      permalink: row.permalink,
+      externalPostId: row.externalPostId,
+      fingerprint: socialDraftFingerprint(row),
+    };
+  }
+
   private assertPending(row: typeof schema.socialPostDrafts.$inferSelect): void {
     if (row.status !== 'pending') {
       throw new ConflictException(
@@ -530,39 +637,11 @@ export class SocialService {
     }
   }
 
-  private async assertMember(userId: string): Promise<void> {
-    const ctx = getCurrentContext();
-    const rows = await ctx.db
-      .select({ userId: schema.orgMembers.userId })
-      .from(schema.orgMembers)
-      .where(
-        and(
-          eq(schema.orgMembers.orgId, ctx.actor!.orgId),
-          inArray(schema.orgMembers.userId, [userId]),
-        ),
-      )
-      .limit(1);
-    if (rows.length === 0) {
-      throw new BadRequestException(
-        `social_invalid: ${userId} is not a member of this organisation`,
-      );
-    }
-  }
-
   private toDto(row: typeof schema.socialPostDrafts.$inferSelect): SocialDraftDto {
     const platform = row.platform as SocialPlatform;
     const descriptor = describePlatform(platform);
     const measured = measureBody(platform, row.body, row.linkUrl);
-    const utm = row.linkUtm;
-    const shareUrl =
-      row.linkUrl && utm.utm_source
-        ? applyUtm(row.linkUrl, {
-            utm_source: utm.utm_source,
-            utm_medium: utm.utm_medium!,
-            utm_campaign: utm.utm_campaign!,
-            utm_content: utm.utm_content!,
-          })
-        : row.linkUrl;
+    const shareUrl = shareUrlFor(row);
     return {
       id: row.id,
       platform,
@@ -572,7 +651,6 @@ export class SocialService {
       linkUrl: row.linkUrl,
       shareUrl,
       sourceRef: row.sourceRef,
-      suggestedUserId: row.suggestedUserId,
       status: row.status as SocialDraftStatus,
       bodyChars: measured.countedChars,
       maxBodyChars: measured.maxBodyChars,

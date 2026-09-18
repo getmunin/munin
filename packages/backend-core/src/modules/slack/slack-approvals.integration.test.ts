@@ -9,6 +9,7 @@ import { SlackEventSink } from './slack-event-sink.ts';
 import { encryptSecretValue } from './slack.service.ts';
 import { draftFingerprint } from '../outreach/proposal-fingerprint.ts';
 import { mergeFingerprint } from '../crm/merge-fingerprint.ts';
+import { socialDraftFingerprint } from '../social/social-fingerprint.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -105,6 +106,7 @@ function buttonValues(blocks: unknown[] | undefined): string[] {
   let channelId: string;
   let campaignId: string;
   let spaceId: string;
+  let collectionId: string;
   let actor: ActorIdentity;
   let dispatcher: WebhookDispatcher;
 
@@ -159,6 +161,19 @@ function buttonValues(blocks: unknown[] | undefined): string[] {
       })
       .returning();
     campaignId = campaign!.id;
+    const [collection] = await db
+      .insert(schema.cmsCollections)
+      .values({
+        orgId,
+        name: 'Blog',
+        slug: 'blog',
+        fields: [
+          { name: 'title', type: 'text', required: true },
+          { name: 'body', type: 'markdown' },
+        ],
+      })
+      .returning();
+    collectionId = collection!.id;
     const [space] = await db
       .insert(schema.kbSpaces)
       .values({ orgId, name: 'Curation inbox', slug: 'curation-inbox' })
@@ -181,6 +196,8 @@ function buttonValues(blocks: unknown[] | undefined): string[] {
     await db.execute(sql`DELETE FROM outreach_proposals WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM crm_contacts WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM kb_documents WHERE org_id = ${orgId}`);
+    await db.execute(sql`DELETE FROM social_post_drafts WHERE org_id = ${orgId}`);
+    await db.execute(sql`DELETE FROM cms_entries WHERE org_id = ${orgId}`);
     await db.execute(sql`DELETE FROM events WHERE org_id = ${orgId}`);
 
     const encryptedBotToken = await encryptSecretValue(db, 'xoxb-approvals-token');
@@ -732,6 +749,519 @@ function buttonValues(blocks: unknown[] | undefined): string[] {
     expect(buttonValues(api.posted[0]!.blocks)[0]).toBe(
       `kb_curation_candidate:${withTarget}#${doc!.version}`,
     );
+  });
+
+  async function seedSocialDraft(
+    overrides: Partial<typeof schema.socialPostDrafts.$inferInsert> = {},
+  ): Promise<string> {
+    const [draft] = await db
+      .insert(schema.socialPostDrafts)
+      .values({
+        orgId,
+        platform: 'linkedin',
+        setId: 'spd_set_approvals',
+        variantLabel: 'contrarian',
+        body: 'Agentic support, explained in three minutes.',
+        linkUrl: 'https://example.test/blog/agentic-support',
+        linkUtm: {
+          utm_source: 'linkedin',
+          utm_medium: 'social',
+          utm_campaign: 'spd_set_approvals',
+          utm_content: 'contrarian',
+        },
+        proposedByActorType: 'agent',
+        proposedByActorId: 'agt_approvals_test',
+        ...overrides,
+      })
+      .returning();
+    return draft!.id;
+  }
+
+  function socialPayload(draftId: string): Record<string, unknown> {
+    return { draftId, platform: 'linkedin', variantLabel: 'contrarian' };
+  }
+
+  it('posts a social draft with a publish button bound to the wording it rendered', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const draftId = await seedSocialDraft();
+
+    await emit('social.post_draft.proposed', socialPayload(draftId));
+    await worker.tick();
+
+    expect(api.posted).toHaveLength(1);
+    const posted = api.posted[0]!;
+    expect(posted.text).toContain('*contrarian* angle — LinkedIn post awaiting review');
+    expect(posted.text).toContain('Publishing posts it to your own LinkedIn account.');
+    expect(posted.text).toContain('utm_source=linkedin');
+    expect(buttonLabels(posted.blocks)).toEqual(['Publish to LinkedIn', 'Dismiss']);
+
+    const [row] = await db
+      .select()
+      .from(schema.socialPostDrafts)
+      .where(eq(schema.socialPostDrafts.id, draftId));
+    expect(buttonValues(posted.blocks)[0]).toBe(
+      `social_post_draft:${draftId}#${socialDraftFingerprint(row!)}`,
+    );
+
+    const link = await notificationLink('social_post_draft', draftId);
+    expect(link?.resolvedAt).toBeNull();
+  });
+
+  it('rebinds the publish button when the draft is revised, and posts nothing for a revision it never carried', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const draftId = await seedSocialDraft({ setId: 'spd_set_rebind' });
+    const unseenId = await seedSocialDraft({ setId: 'spd_set_unseen' });
+
+    await emit('social.post_draft.proposed', socialPayload(draftId));
+    await worker.tick();
+    const firstValue = buttonValues(api.posted[0]!.blocks)[0];
+
+    await db
+      .update(schema.socialPostDrafts)
+      .set({ body: 'Rewritten, tighter.' })
+      .where(eq(schema.socialPostDrafts.id, draftId));
+    await emit('social.post_draft.revised', socialPayload(draftId));
+    await emit('social.post_draft.revised', socialPayload(unseenId));
+    await worker.tick();
+
+    expect(api.posted).toHaveLength(1);
+    expect(api.updated).toHaveLength(1);
+    expect(api.updated[0]!.text).toContain('Rewritten, tighter.');
+    expect(buttonValues(api.updated[0]!.blocks)[0]).not.toBe(firstValue);
+  });
+
+  it('resolves the card as posted, naming the person it went out under', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const draftId = await seedSocialDraft();
+
+    await emit('social.post_draft.proposed', socialPayload(draftId));
+    await worker.tick();
+
+    await db
+      .update(schema.socialPostDrafts)
+      .set({
+        status: 'published',
+        decidedByActorType: 'user',
+        decidedByActorId: userId,
+        publishedAt: new Date(),
+        externalPostId: 'urn:li:share:77',
+      })
+      .where(eq(schema.socialPostDrafts.id, draftId));
+    await emit('social.post_draft.published', socialPayload(draftId));
+    await worker.tick();
+
+    expect(api.updated).toHaveLength(1);
+    expect(api.updated[0]!.text).toContain('*Posted* by *Dana Decider*');
+    expect(actionIds(api.updated[0]!.blocks)).toEqual([]);
+    expect((await notificationLink('social_post_draft', draftId))?.resolvedAt).toBeTruthy();
+  });
+
+  it('closes the card when the platform refused the post, rather than leaving a live button', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const draftId = await seedSocialDraft();
+
+    await emit('social.post_draft.proposed', socialPayload(draftId));
+    await worker.tick();
+
+    await db
+      .update(schema.socialPostDrafts)
+      .set({
+        status: 'failed',
+        decidedByActorType: 'user',
+        decidedByActorId: userId,
+        lastError: 'LinkedIn refused the post (422)',
+      })
+      .where(eq(schema.socialPostDrafts.id, draftId));
+    await emit('social.post_draft.failed', socialPayload(draftId));
+    await worker.tick();
+
+    expect(api.updated).toHaveLength(1);
+    expect(api.updated[0]!.text).toContain('The platform refused the post');
+    expect(actionIds(api.updated[0]!.blocks)).toEqual([]);
+  });
+
+  it('threads the variants of one set under a parent, and leaves a set of one standalone', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const a = await seedSocialDraft({ setId: 'spd_set_multi', variantLabel: 'practitioner' });
+    const b = await seedSocialDraft({ setId: 'spd_set_multi', variantLabel: 'data' });
+    const alone = await seedSocialDraft({ setId: 'spd_set_alone', variantLabel: 'single' });
+
+    await emit('social.post_draft.proposed', socialPayload(a));
+    await emit('social.post_draft.proposed', socialPayload(b));
+    await emit('social.post_draft.proposed', socialPayload(alone));
+    await worker.tick();
+
+    expect(api.posted).toHaveLength(4);
+    const parent = api.posted[0]!;
+    expect(parent.threadTs).toBeUndefined();
+    expect(parent.text).toContain('LinkedIn post — 2 angles awaiting review');
+    expect(parent.text).toContain('practitioner · data — publish one');
+    expect(api.posted[1]!.threadTs).toBe(parent.ts);
+    expect(api.posted[2]!.threadTs).toBe(parent.ts);
+    expect(api.posted[3]!.threadTs).toBeUndefined();
+    expect(api.posted[3]!.text).toContain('LinkedIn post awaiting review');
+  });
+
+  it('warns on the set parent if a sibling of the published variant is somehow still open', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const a = await seedSocialDraft({ setId: 'spd_set_multi', variantLabel: 'practitioner' });
+    const b = await seedSocialDraft({ setId: 'spd_set_multi', variantLabel: 'data' });
+
+    await emit('social.post_draft.proposed', socialPayload(a));
+    await emit('social.post_draft.proposed', socialPayload(b));
+    await worker.tick();
+    const parentTs = api.posted[0]!.ts;
+
+    await db
+      .update(schema.socialPostDrafts)
+      .set({
+        status: 'published',
+        decidedByActorType: 'user',
+        decidedByActorId: userId,
+        publishedAt: new Date(),
+      })
+      .where(eq(schema.socialPostDrafts.id, a));
+    await emit('social.post_draft.published', socialPayload(a));
+    await worker.tick();
+
+    const parentUpdate = api.updated.filter((u) => u.ts === parentTs).at(-1);
+    expect(parentUpdate!.text).toContain('published — variant practitioner');
+    expect(parentUpdate!.text).toContain('Dana Decider');
+    expect(parentUpdate!.text).toContain('1 other variant is still open');
+    expect(await notificationLink('social_post_set', 'spd_set_multi')).toBeTruthy();
+  });
+
+  it('closes the set parent once every variant has been decided', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const a = await seedSocialDraft({ setId: 'spd_set_multi', variantLabel: 'practitioner' });
+    const b = await seedSocialDraft({ setId: 'spd_set_multi', variantLabel: 'data' });
+
+    await emit('social.post_draft.proposed', socialPayload(a));
+    await emit('social.post_draft.proposed', socialPayload(b));
+    await worker.tick();
+    const parentTs = api.posted[0]!.ts;
+
+    for (const [id, status] of [
+      [a, 'published'],
+      [b, 'dismissed'],
+    ] as const) {
+      await db
+        .update(schema.socialPostDrafts)
+        .set({ status, decidedByActorType: 'user', decidedByActorId: userId })
+        .where(eq(schema.socialPostDrafts.id, id));
+      await emit(`social.post_draft.${status}`, socialPayload(id));
+    }
+    await worker.tick();
+
+    const parentUpdate = api.updated.filter((u) => u.ts === parentTs).at(-1);
+    expect(parentUpdate!.text).toContain('published — variant practitioner');
+    expect(parentUpdate!.text).toContain('The other 1 variant was dismissed');
+    expect((await notificationLink('social_post_set', 'spd_set_multi'))?.resolvedAt).toBeTruthy();
+  });
+
+  async function seedCmsDraft(
+    overrides: Partial<typeof schema.cmsEntries.$inferInsert> = {},
+  ): Promise<string> {
+    const [entry] = await db
+      .insert(schema.cmsEntries)
+      .values({
+        orgId,
+        collectionId,
+        slug: `agentic-support-${randomUUID().slice(0, 8)}`,
+        locale: 'en',
+        status: 'draft',
+        data: { title: 'Agentic support', body: 'Three minutes on why it works.' },
+        contentHash: 'hash',
+        createdByType: 'agent',
+        createdById: 'agt_approvals_test',
+        updatedByType: 'agent',
+        updatedById: 'agt_approvals_test',
+        ...overrides,
+      })
+      .returning();
+    return entry!.id;
+  }
+
+  it('posts a CMS draft with a publish button bound to the version it rendered', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const entryId = await seedCmsDraft();
+
+    await emit('cms.entry.created', {
+      entryId,
+      collectionSlug: 'blog',
+      slug: 'agentic-support',
+      locale: 'en',
+      status: 'draft',
+      version: 1,
+    });
+    await worker.tick();
+
+    expect(api.posted).toHaveLength(1);
+    const posted = api.posted[0]!;
+    expect(posted.channel).toBe('C_DEFAULT');
+    expect(posted.text).toContain('CMS draft awaiting review');
+    expect(posted.text).toContain('Agentic support');
+    expect(posted.text).toContain('Blog');
+    expect(buttonLabels(posted.blocks)).toEqual(['Publish', 'Dismiss']);
+    expect(buttonValues(posted.blocks)[0]).toBe(`cms_draft_entry:${entryId}#1`);
+  });
+
+  it('never raises a card for an entry created straight to published', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const entryId = await seedCmsDraft({ status: 'published' });
+
+    await emit('cms.entry.created', {
+      entryId,
+      collectionSlug: 'blog',
+      slug: 'agentic-support',
+      locale: 'en',
+      status: 'published',
+      version: 1,
+    });
+    await worker.tick();
+
+    expect(api.posted).toHaveLength(0);
+  });
+
+  it('says it once when the card and the announcement would land in the same channel', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const entryId = await seedCmsDraft();
+
+    await emit('cms.entry.created', {
+      entryId,
+      collectionSlug: 'blog',
+      slug: 'agentic-support',
+      locale: 'en',
+      status: 'draft',
+      version: 1,
+    });
+    await worker.tick();
+    expect(api.posted).toHaveLength(1);
+
+    await db
+      .update(schema.cmsEntries)
+      .set({ status: 'published', publishedAt: new Date(), version: 2 })
+      .where(eq(schema.cmsEntries.id, entryId));
+    await emit('cms.entry.published', {
+      entryId,
+      collectionSlug: 'blog',
+      slug: 'agentic-support',
+      locale: 'en',
+      title: 'Agentic support',
+      previousStatus: 'draft',
+      url: 'https://example.test/blog/agentic-support',
+    });
+    await worker.tick();
+
+    expect(api.posted).toHaveLength(1);
+    expect(api.updated).toHaveLength(1);
+    expect(api.updated[0]!.text).toContain(':rocket: *Published*');
+    expect(api.updated[0]!.text).toContain('Read it live');
+    expect(api.updated[0]!.text).not.toContain('read the entry in Munin first');
+  });
+
+  it('still announces a publish that never had a card', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const entryId = await seedCmsDraft({ status: 'published' });
+
+    await emit('cms.entry.published', {
+      entryId,
+      collectionSlug: 'blog',
+      slug: 'agentic-support',
+      locale: 'en',
+      title: 'Agentic support',
+      previousStatus: 'scheduled',
+      url: 'https://example.test/blog/agentic-support',
+    });
+    await worker.tick();
+
+    expect(api.posted).toHaveLength(1);
+    expect(api.posted[0]!.text).toContain('Read it live');
+  });
+
+  it('resolves the draft card in the approvals channel and announces in the content channel', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    await addRoute('content', 'C_CONTENT');
+    const entryId = await seedCmsDraft();
+
+    await emit('cms.entry.created', {
+      entryId,
+      collectionSlug: 'blog',
+      slug: 'agentic-support',
+      locale: 'en',
+      status: 'draft',
+      version: 1,
+    });
+    await worker.tick();
+    expect(api.posted).toHaveLength(1);
+
+    await db
+      .update(schema.cmsEntries)
+      .set({ status: 'published', publishedAt: new Date(), version: 2 })
+      .where(eq(schema.cmsEntries.id, entryId));
+    await emit('cms.entry.published', {
+      entryId,
+      collectionSlug: 'blog',
+      slug: 'agentic-support',
+      locale: 'en',
+      title: 'Agentic support',
+      previousStatus: 'draft',
+      url: 'https://example.test/blog/agentic-support',
+    });
+    await worker.tick();
+
+    const announcement = api.posted.find((m) => m.channel === 'C_CONTENT');
+    expect(announcement!.text).toContain(':rocket: *Published*');
+    expect(api.updated).toHaveLength(1);
+    expect(api.updated[0]!.channel).toBe('C_DEFAULT');
+    expect(api.updated[0]!.text).toContain(':rocket: *Published*');
+    expect(actionIds(api.updated[0]!.blocks)).toEqual([]);
+  });
+
+  it('closes the draft card when the entry is archived instead of published', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const entryId = await seedCmsDraft();
+
+    await emit('cms.entry.created', {
+      entryId,
+      collectionSlug: 'blog',
+      slug: 'agentic-support',
+      locale: 'en',
+      status: 'draft',
+      version: 1,
+    });
+    await worker.tick();
+
+    await db
+      .update(schema.cmsEntries)
+      .set({ status: 'archived', archivedAt: new Date(), version: 2 })
+      .where(eq(schema.cmsEntries.id, entryId));
+    await emit('cms.entry.archived', {
+      entryId,
+      collectionSlug: 'blog',
+      slug: 'agentic-support',
+      locale: 'en',
+      status: 'archived',
+      version: 2,
+    });
+    await worker.tick();
+
+    expect(api.updated).toHaveLength(1);
+    expect(api.updated[0]!.text).toContain('*Archived*');
+    expect(actionIds(api.updated[0]!.blocks)).toEqual([]);
+  });
+
+  it('rebinds the publish button to the new version when the draft is edited', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const entryId = await seedCmsDraft();
+    const unseenId = await seedCmsDraft();
+
+    await emit('cms.entry.created', {
+      entryId,
+      collectionSlug: 'blog',
+      slug: 'agentic-support',
+      locale: 'en',
+      status: 'draft',
+      version: 1,
+    });
+    await worker.tick();
+
+    await db
+      .update(schema.cmsEntries)
+      .set({ version: 2, data: { title: 'Agentic support, revised' } })
+      .where(eq(schema.cmsEntries.id, entryId));
+    await emit('cms.entry.updated', { entryId, collectionSlug: 'blog', status: 'draft', version: 2 });
+    await emit('cms.entry.updated', { entryId: unseenId, collectionSlug: 'blog', status: 'draft', version: 2 });
+    await worker.tick();
+
+    expect(api.posted).toHaveLength(1);
+    expect(api.updated).toHaveLength(1);
+    expect(api.updated[0]!.text).toContain('Agentic support, revised');
+    expect(buttonValues(api.updated[0]!.blocks)[0]).toBe(`cms_draft_entry:${entryId}#2`);
+  });
+
+  it('threads the locales of one article under a parent, and leaves a single-locale entry standalone', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const group = 'cmg_agentic_support';
+    const nb = await seedCmsDraft({ translationGroupId: group, locale: 'nb' });
+    const en = await seedCmsDraft({ translationGroupId: group, locale: 'en' });
+    const alone = await seedCmsDraft({ locale: 'en' });
+
+    for (const entryId of [nb, en, alone]) {
+      await emit('cms.entry.created', {
+        entryId,
+        collectionSlug: 'blog',
+        locale: 'en',
+        status: 'draft',
+        version: 1,
+      });
+    }
+    await worker.tick();
+
+    expect(api.posted).toHaveLength(4);
+    const parent = api.posted[0]!;
+    expect(parent.threadTs).toBeUndefined();
+    expect(parent.text).toContain('2 locales awaiting review');
+    expect(parent.text).toContain('nb · en pending');
+    expect(api.posted[1]!.threadTs).toBe(parent.ts);
+    expect(api.posted[2]!.threadTs).toBe(parent.ts);
+    expect(api.posted[3]!.threadTs).toBeUndefined();
+  });
+
+  it('closes the locale parent once every locale of the article is decided', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const group = 'cmg_agentic_support';
+    const nb = await seedCmsDraft({ translationGroupId: group, locale: 'nb' });
+    const en = await seedCmsDraft({ translationGroupId: group, locale: 'en' });
+
+    for (const entryId of [nb, en]) {
+      await emit('cms.entry.created', {
+        entryId,
+        collectionSlug: 'blog',
+        locale: 'en',
+        status: 'draft',
+        version: 1,
+      });
+    }
+    await worker.tick();
+    const parentTs = api.posted[0]!.ts;
+
+    await db
+      .update(schema.cmsEntries)
+      .set({ status: 'published', publishedAt: new Date() })
+      .where(eq(schema.cmsEntries.id, nb));
+    await emit('cms.entry.published', { entryId: nb, collectionSlug: 'blog', previousStatus: 'draft' });
+    await worker.tick();
+
+    const midway = api.updated.filter((u) => u.ts === parentTs).at(-1);
+    expect(midway!.text).toContain('en pending');
+
+    await db
+      .update(schema.cmsEntries)
+      .set({ status: 'archived', archivedAt: new Date() })
+      .where(eq(schema.cmsEntries.id, en));
+    await emit('cms.entry.archived', { entryId: en, collectionSlug: 'blog', status: 'archived' });
+    await worker.tick();
+
+    const parentUpdate = api.updated.filter((u) => u.ts === parentTs).at(-1);
+    expect(parentUpdate!.text).toContain('All 2 locales handled');
+    expect((await notificationLink('cms_draft_group', group))?.resolvedAt).toBeTruthy();
   });
 
   it('resolves a KB candidate from the event payload after the row is deleted', async () => {

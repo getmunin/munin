@@ -9663,7 +9663,7 @@
   {
     "name": "social_list_connected_accounts",
     "title": "Social: List connected accounts",
-    "description": "List the people in this organisation who have connected a social account Munin can post from, with the platform, the account name, and whether the connection still works. Read this before setting suggestedUserId on a draft so the post is routed to someone who can actually publish it.",
+    "description": "List the people in this organisation who have connected a social account Munin can post from, with the platform, the account name, and whether the connection still works. Use it to answer whether anybody can publish at all, and whose grant is about to lapse — a draft that cannot be published by anyone sits in the review queue until it goes stale.",
     "audiences": [
       "admin"
     ],
@@ -9790,12 +9790,6 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 32
-        },
-        "suggestedUserId": {
-          "type": [
-            "string",
-            "null"
-          ]
         }
       },
       "required": [
@@ -9867,12 +9861,6 @@
             "type": "string"
           },
           "additionalProperties": {}
-        },
-        "suggestedUserId": {
-          "type": [
-            "string",
-            "null"
-          ]
         }
       },
       "required": [

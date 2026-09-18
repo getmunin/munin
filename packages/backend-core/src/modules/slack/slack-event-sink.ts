@@ -30,27 +30,31 @@ export class SlackEventSink implements EventSink {
       .limit(1);
     if (!integration) return;
 
-    const subject = isApproval
-      ? approvalSubjectRef(event.type, event.payload)
-      : isAnnouncement
-        ? announcementSubjectRef(event.type, event.payload)
-        : null;
-    if ((isApproval || isAnnouncement) && !subject) return;
+    const subjects = [
+      isApproval ? approvalSubjectRef(event.type, event.payload) : null,
+      isAnnouncement ? announcementSubjectRef(event.type, event.payload) : null,
+    ].filter((subject): subject is { subjectType: string; subjectId: string } => subject !== null);
+    if ((isApproval || isAnnouncement) && subjects.length === 0) return;
     const conversationId =
       !isApproval && !isAnnouncement && typeof event.payload.conversationId === 'string'
         ? event.payload.conversationId
         : null;
     const order = await this.messageOrder(event);
-    await ctx.db.insert(schema.slackDeliveries).values({
-      orgId: event.orgId,
-      integrationId: integration.id,
-      eventId: event.eventId,
-      eventType: event.type,
-      conversationId,
-      subjectKey: subject ? `${subject.subjectType}:${subject.subjectId}` : null,
-      nextAttemptAt: new Date(),
-      ...(order ? { orderAt: order.orderAt, orderSeq: order.orderSeq } : {}),
-    });
+    const subjectKeys = subjects.length
+      ? subjects.map((subject) => `${subject.subjectType}:${subject.subjectId}`)
+      : [null];
+    await ctx.db.insert(schema.slackDeliveries).values(
+      subjectKeys.map((subjectKey) => ({
+        orgId: event.orgId,
+        integrationId: integration.id,
+        eventId: event.eventId,
+        eventType: event.type,
+        conversationId,
+        subjectKey,
+        nextAttemptAt: new Date(),
+        ...(order ? { orderAt: order.orderAt, orderSeq: order.orderSeq } : {}),
+      })),
+    );
   }
 
   private async messageOrder(

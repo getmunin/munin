@@ -15,6 +15,15 @@ import { OutreachService } from '../outreach/outreach.service.ts';
 import { VapiClientService } from '../conv/vapi/vapi-client.service.ts';
 import { VapiOutreachCaller } from '../conv/vapi/vapi-outreach-caller.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
+import { CmsService } from '../cms/cms.service.ts';
+import { StubAssetStorage } from '../cms/cms.test-stub.ts';
+import { SocialService } from '../social/social.service.ts';
+import { socialDraftFingerprint } from '../social/social-fingerprint.ts';
+import {
+  DbRootTransactionRunner,
+  StubPublisherLookup,
+  StubTokenSource,
+} from '../social/social-test-doubles.ts';
 import { SlackApiClient } from './slack-api.client.ts';
 import { SlackEventSink } from './slack-event-sink.ts';
 import { SlackInteractionsService } from './slack-interactions.service.ts';
@@ -72,6 +81,7 @@ class FakeSlackApi extends SlackApiClient {
   let conversationId: string;
   let integrationId: string;
   let api: FakeSlackApi;
+  let publisher: StubPublisherLookup;
   let interactions: SlackInteractionsService;
   let displayIdSeq = 0;
 
@@ -175,6 +185,21 @@ class FakeSlackApi extends SlackApiClient {
       }
     })();
     const kb = new KbService(embeddingHolder, new DefaultQuotasService(), dispatcher);
+    publisher = new StubPublisherLookup({
+      result: { externalPostId: 'urn:li:share:77', permalink: 'https://example.test/p/77' },
+    });
+    const cms = new CmsService(
+      new DefaultQuotasService(),
+      dispatcher,
+      new StubAssetStorage(),
+      embeddingHolder,
+    );
+    const social = new SocialService(
+      new StubTokenSource(),
+      publisher,
+      new DbRootTransactionRunner(db),
+      dispatcher,
+    );
     interactions = new SlackInteractionsService(
       db,
       api,
@@ -185,6 +210,8 @@ class FakeSlackApi extends SlackApiClient {
       crm,
       outreach,
       kb,
+      social,
+      cms,
     );
   });
 
@@ -427,6 +454,10 @@ class FakeSlackApi extends SlackApiClient {
       await db.execute(sql`DELETE FROM crm_contacts WHERE org_id = ${orgId}`);
       await db.execute(sql`DELETE FROM kb_documents WHERE org_id = ${orgId}`);
       await db.execute(sql`DELETE FROM kb_spaces WHERE org_id = ${orgId}`);
+      await db.execute(sql`DELETE FROM social_post_drafts WHERE org_id = ${orgId}`);
+      await db.execute(sql`DELETE FROM social_accounts WHERE org_id = ${orgId}`);
+      await db.execute(sql`DELETE FROM cms_entries WHERE org_id = ${orgId}`);
+      await db.execute(sql`DELETE FROM cms_collections WHERE org_id = ${orgId}`);
     });
 
     async function linkSubject(subjectType: string, subjectId: string) {
@@ -801,6 +832,199 @@ class FakeSlackApi extends SlackApiClient {
         .where(eq(schema.crmMergeProposals.id, proposalId));
       expect(proposal!.status).toBe('pending');
       expect(api.ephemerals).toHaveLength(0);
+    });
+
+    async function connectLinkedIn(userId: string, status = 'active') {
+      await db.insert(schema.socialAccounts).values({
+        orgId,
+        userId,
+        platform: 'linkedin',
+        externalAccountId: `urn:li:person:${userId}`,
+        displayName: 'Ola Nordmann',
+        encryptedAccessToken: 'ciphertext',
+        status,
+      });
+    }
+
+    async function seedSocialDraft(body = 'Worth sharing.'): Promise<string> {
+      const [draft] = await db
+        .insert(schema.socialPostDrafts)
+        .values({
+          orgId,
+          platform: 'linkedin',
+          setId: 'spd_set_actions',
+          variantLabel: 'single',
+          body,
+          proposedByActorType: 'agent',
+          proposedByActorId: 'agt_actions_test',
+        })
+        .returning();
+      return draft!.id;
+    }
+
+    async function readSocialDraft(draftId: string) {
+      const [row] = await db
+        .select()
+        .from(schema.socialPostDrafts)
+        .where(eq(schema.socialPostDrafts.id, draftId));
+      return row!;
+    }
+
+    it("publish button posts the draft from the clicker's own connected account", async () => {
+      await connectLinkedIn(memberUserId);
+      const draftId = await seedSocialDraft();
+      await linkSubject('social_post_draft', draftId);
+
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_approve', `social_post_draft:${draftId}`),
+      );
+
+      expect(api.ephemerals).toHaveLength(0);
+      const draft = await readSocialDraft(draftId);
+      expect(draft.status).toBe('published');
+      expect(draft.externalPostId).toBe('urn:li:share:77');
+      expect(draft.decidedByActorId).toBe(memberUserId);
+      expect(publisher.requests[0]!.externalAccountId).toBe(`urn:li:person:${memberUserId}`);
+    });
+
+    it('tells a clicker with no connected account to connect one, leaving the draft pending', async () => {
+      const draftId = await seedSocialDraft();
+      await linkSubject('social_post_draft', draftId);
+
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_approve', `social_post_draft:${draftId}`),
+      );
+
+      expect(api.ephemerals).toHaveLength(1);
+      expect(api.ephemerals[0]!.text).toContain('Settings → Integrations');
+      expect(publisher.requests).toHaveLength(0);
+      expect((await readSocialDraft(draftId)).status).toBe('pending');
+    });
+
+    it('refuses a publish button bound to wording the draft no longer carries', async () => {
+      await connectLinkedIn(memberUserId);
+      const draftId = await seedSocialDraft('First wording');
+      await linkSubject('social_post_draft', draftId);
+      const stale = socialDraftFingerprint({
+        platform: 'linkedin',
+        body: 'Some older wording',
+        linkUrl: null,
+      });
+
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_approve', `social_post_draft:${draftId}#${stale}`),
+      );
+
+      expect(api.ephemerals).toHaveLength(1);
+      expect(api.ephemerals[0]!.text).toContain('social_stale');
+      expect(publisher.requests).toHaveLength(0);
+      expect((await readSocialDraft(draftId)).status).toBe('pending');
+    });
+
+    it('dismiss button dismisses a social draft', async () => {
+      const draftId = await seedSocialDraft();
+      await linkSubject('social_post_draft', draftId);
+
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_dismiss', `social_post_draft:${draftId}`),
+      );
+
+      expect(api.ephemerals).toHaveLength(0);
+      expect((await readSocialDraft(draftId)).status).toBe('dismissed');
+    });
+
+    async function seedCmsDraft(): Promise<{ entryId: string; version: number }> {
+      const [collection] = await db
+        .insert(schema.cmsCollections)
+        .values({
+          orgId,
+          name: 'Blog',
+          slug: 'blog',
+          fields: [{ name: 'title', type: 'text', required: true }],
+        })
+        .returning();
+      const [entry] = await db
+        .insert(schema.cmsEntries)
+        .values({
+          orgId,
+          collectionId: collection!.id,
+          slug: 'agentic-support',
+          locale: 'en',
+          status: 'draft',
+          data: { title: 'Agentic support' },
+          contentHash: 'hash',
+          createdByType: 'agent',
+          createdById: 'agt_actions_test',
+          updatedByType: 'agent',
+          updatedById: 'agt_actions_test',
+        })
+        .returning();
+      return { entryId: entry!.id, version: entry!.version };
+    }
+
+    async function readEntry(entryId: string) {
+      const [row] = await db
+        .select()
+        .from(schema.cmsEntries)
+        .where(eq(schema.cmsEntries.id, entryId));
+      return row!;
+    }
+
+    it('publish button publishes a CMS draft as the mapped member', async () => {
+      const { entryId, version } = await seedCmsDraft();
+      await linkSubject('cms_draft_entry', entryId);
+
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_approve', `cms_draft_entry:${entryId}#${version}`),
+      );
+
+      expect(api.ephemerals).toHaveLength(0);
+      const entry = await readEntry(entryId);
+      expect(entry.status).toBe('published');
+      expect(entry.publishedAt).toBeTruthy();
+      expect(entry.updatedById).toBe(memberUserId);
+    });
+
+    it('dismiss button archives a CMS draft', async () => {
+      const { entryId, version } = await seedCmsDraft();
+      await linkSubject('cms_draft_entry', entryId);
+
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_dismiss', `cms_draft_entry:${entryId}#${version}`),
+      );
+
+      expect(api.ephemerals).toHaveLength(0);
+      expect((await readEntry(entryId)).status).toBe('archived');
+    });
+
+    it('refuses a publish button whose version no longer matches the entry', async () => {
+      const { entryId, version } = await seedCmsDraft();
+      await linkSubject('cms_draft_entry', entryId);
+      await db
+        .update(schema.cmsEntries)
+        .set({ version: version + 1 })
+        .where(eq(schema.cmsEntries.id, entryId));
+
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_approve', `cms_draft_entry:${entryId}#${version}`),
+      );
+
+      expect(api.ephemerals).toHaveLength(1);
+      expect(api.ephemerals[0]!.text).toContain('cms_version_conflict');
+      expect((await readEntry(entryId)).status).toBe('draft');
+    });
+
+    it('refuses a CMS button that carries no version at all', async () => {
+      const { entryId } = await seedCmsDraft();
+      await linkSubject('cms_draft_entry', entryId);
+
+      await interactions.processBlockActions(
+        approvalPayload('munin_approval_approve', `cms_draft_entry:${entryId}`),
+      );
+
+      expect(api.ephemerals).toHaveLength(1);
+      expect(api.ephemerals[0]!.text).toContain('out of date');
+      expect((await readEntry(entryId)).status).toBe('draft');
     });
 
     it('ignores malformed approval values', async () => {

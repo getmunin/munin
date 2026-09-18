@@ -316,6 +316,8 @@ const APPROVAL_SUBJECT_TYPES = [
   'crm_merge_proposal',
   'outreach_proposal',
   'kb_curation_candidate',
+  'social_post_draft',
+  'cms_draft_entry',
 ] as const;
 
 export type ApprovalSubjectType = (typeof APPROVAL_SUBJECT_TYPES)[number];
@@ -465,7 +467,140 @@ export function cmsEntryPublishedText(snap: CmsEntryPublishedSnapshot): string {
   return lines.join('\n');
 }
 
-export type ApprovalOutcome = 'applied' | 'sent' | 'published' | 'dismissed' | 'withdrawn';
+export interface SocialDraftApprovalSnapshot {
+  platformName: string;
+  variantLabel: string | null;
+  body: string;
+  shareUrl: string | null;
+  bodyChars: number;
+  maxBodyChars: number;
+  dashboardUrl: string;
+}
+
+function isAngle(label: string | null): label is string {
+  return !!label && label !== 'single';
+}
+
+export function socialDraftApprovalText(snap: SocialDraftApprovalSnapshot): string {
+  const platform = escapeSlackText(snap.platformName);
+  const header = [
+    isAngle(snap.variantLabel)
+      ? `:memo: *${escapeSlackText(snap.variantLabel)}* angle — ${platform} post awaiting review`
+      : `:memo: *${platform} post awaiting review*`,
+    `_Publishing posts it to your own ${platform} account._`,
+  ];
+  const footer = [
+    `_${snap.bodyChars} of ${snap.maxBodyChars} characters_`,
+    `<${snap.dashboardUrl}|Review in Munin>`,
+  ];
+  if (snap.shareUrl) footer.unshift(`*Link:* ${snap.shareUrl}`);
+  const overhead = [...header, ...footer].reduce((total, line) => total + line.length + 1, 0);
+  const body = quotedBodyLines(
+    markdownToMrkdwn(snap.body),
+    Math.max(TRUNCATION_MARKER.length, MAX_BODY_CHARS - overhead),
+  );
+  return [...header, ...body, ...footer].join('\n');
+}
+
+export interface CmsDraftApprovalSnapshot {
+  title: string;
+  collectionName: string;
+  locale: string | null;
+  slug: string;
+  wordCount: number | null;
+  pending: boolean;
+  liveUrl: string | null;
+  dashboardUrl: string;
+}
+
+export function cmsDraftApprovalText(snap: CmsDraftApprovalSnapshot): string {
+  const meta = [
+    snap.collectionName,
+    snap.locale,
+    snap.slug,
+    snap.wordCount === null ? null : `${snap.wordCount} words`,
+  ].filter((v): v is string => !!v);
+  const headline = snap.pending
+    ? `:page_facing_up: *CMS draft awaiting review* — *${escapeSlackText(snap.title)}*`
+    : `:page_facing_up: *${escapeSlackText(snap.title)}*`;
+  const lines = [headline, `_${escapeSlackText(meta.join(' · '))}_`];
+  if (snap.pending) lines.push('_Publishing makes it live — read the entry in Munin first._');
+  if (snap.liveUrl) lines.push(`<${snap.liveUrl}|Read it live>`);
+  lines.push(`<${snap.dashboardUrl}|Review in Munin>`);
+  return lines.join('\n');
+}
+
+export interface CmsGroupParentSnapshot {
+  title: string;
+  localeCount: number;
+  pendingLocales: string[];
+  dashboardUrl: string;
+}
+
+export function cmsGroupParentText(snap: CmsGroupParentSnapshot): string {
+  const title = escapeSlackText(snap.title);
+  if (snap.pendingLocales.length === 0) {
+    return `:white_check_mark: *All ${snap.localeCount} locales handled — ${title}*`;
+  }
+  return [
+    `:page_facing_up: *${title}* — ${snap.localeCount} locales awaiting review`,
+    `${escapeSlackText(snap.pendingLocales.join(' · '))} pending · <${snap.dashboardUrl}|Review in Munin>`,
+  ].join('\n');
+}
+
+export interface SocialSetParentSnapshot {
+  platformName: string;
+  variantCount: number;
+  pendingCount: number;
+  angles: string[];
+  postedVariantLabel: string | null;
+  postedByName: string | null;
+  dashboardUrl: string;
+}
+
+export function socialSetParentText(snap: SocialSetParentSnapshot): string {
+  const platform = escapeSlackText(snap.platformName);
+  const review = `<${snap.dashboardUrl}|Review in Munin>`;
+  const angles = snap.angles.filter(isAngle);
+  if (snap.postedVariantLabel) {
+    const by = snap.postedByName ? ` by *${escapeSlackText(snap.postedByName)}*` : '';
+    const head = `:white_check_mark: *${platform} post published — variant ${escapeSlackText(snap.postedVariantLabel)}*${by}`;
+    if (snap.pendingCount === 0) {
+      const rest = snap.variantCount - 1;
+      const noun = rest === 1 ? 'variant was' : 'variants were';
+      return `${head}\n_The other ${rest} ${noun} dismissed._`;
+    }
+    const others = snap.pendingCount === 1 ? 'variant is' : 'variants are';
+    return [
+      head,
+      `:warning: ${snap.pendingCount} other ${others} still open — dismiss what you are not using, or it can go out twice · ${review}`,
+    ].join('\n');
+  }
+  if (snap.pendingCount === 0) {
+    return `:white_check_mark: *All variants handled — ${platform} post*`;
+  }
+  return [
+    angles.length === snap.variantCount
+      ? `:memo: *${platform} post — ${snap.variantCount} angles awaiting review*`
+      : `:memo: *${platform} post — ${snap.variantCount} variants awaiting review*`,
+    angles.length > 0
+      ? `${escapeSlackText(angles.join(' · '))} — publish one, dismiss the rest · ${review}`
+      : `Publish one, dismiss the rest · ${snap.pendingCount} pending · ${review}`,
+  ].join('\n');
+}
+
+export type ApprovalOutcome =
+  | 'applied'
+  | 'sent'
+  | 'published'
+  | 'posted'
+  | 'posted_externally'
+  | 'publish_failed'
+  | 'entry_published'
+  | 'archived'
+  | 'scheduled'
+  | 'dismissed'
+  | 'withdrawn';
 
 export function approvalResolvedLine(
   outcome: ApprovalOutcome,
@@ -479,6 +614,20 @@ export function approvalResolvedLine(
       return `:white_check_mark: *Approved — email sent*${by}`;
     case 'published':
       return `:white_check_mark: *Published to the knowledge base*${by}`;
+    case 'posted':
+      return `:white_check_mark: *Posted*${by}`;
+    case 'posted_externally':
+      return `:white_check_mark: *Marked as posted*${by}`;
+    case 'entry_published':
+      return `:rocket: *Published*${by}`;
+    case 'archived':
+      return `:card_file_box: *Archived*${by}`;
+    case 'scheduled':
+      return `:alarm_clock: *Scheduled to publish*${by}`;
+    case 'publish_failed':
+      return decidedByName
+        ? `:warning: *The platform refused the post* — attempted by *${escapeSlackText(decidedByName)}*`
+        : ':warning: *The platform refused the post*';
     case 'dismissed':
       return `:no_entry_sign: *Dismissed*${by}`;
     case 'withdrawn':

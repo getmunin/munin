@@ -2565,7 +2565,7 @@ function readStringField(data: unknown, field: string): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
-function countWordsInBody(data: unknown): number | null {
+export function countWordsInBody(data: unknown): number | null {
   const body = readStringField(data, 'body');
   if (body == null) return null;
   const matches = body.match(/\S+/g);

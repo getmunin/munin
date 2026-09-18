@@ -35,6 +35,14 @@ To read the article itself, use `cms_get_entry` or `kb_get_document`.
 4. Pass the article's canonical URL as `linkUrl`, without any tracking parameters. Munin tags it per variant, so the click figures later tell you which angle worked. Adding your own parameters defeats that.
 5. Call `social_propose_post_set` once with all the variants.
 
+## When nobody can publish yet
+
+`social_list_connected_accounts` answers whether anyone in the organisation has a working
+connection. File the drafts either way — they are useful the moment somebody connects —
+and say in your summary that the posts are waiting on a connection, which an operator
+makes from Settings → Integrations. A draft nobody can publish is not a reason to write
+nothing; it is a reason to say what is missing.
+
 ## What makes these different from each other
 
 Four rewordings of one sentence is not four variants — it is one variant stored four times, and it makes the reviewer's choice arbitrary. The angles must disagree about what the article is *for*. If you cannot find three genuinely different entry points, propose two, and say so.

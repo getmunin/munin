@@ -437,6 +437,7 @@
         "quotedThreadNotice": "Reconstructed from the text quoted in this email. These turns were not delivered through Munin and are not part of the conversation record.",
         "quotedThreadUnknownSender": "Unknown sender",
         "metaSocial": "{platform} · {chars}/{max} characters · {age}",
+        "metaSocialAngle": "{platform} · {angle} angle · {chars}/{max} characters · {age}",
         "socialBody": "Post",
         "socialLink": "Link to share",
         "socialCopyBody": "Copy post",

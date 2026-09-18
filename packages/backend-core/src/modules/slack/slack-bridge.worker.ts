@@ -1,5 +1,5 @@
 import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { and, eq, isNull, lt, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, lt, lte, sql } from 'drizzle-orm';
 import { schema, type Db } from '@getmunin/db';
 import { describeError, parseEnvDisableFlag, parseEnvInt, readApiBaseUrl } from '@getmunin/core';
 import { DB } from '../../common/db/db.module.ts';
@@ -12,7 +12,9 @@ import {
   approvalBlocks,
   approvalResolvedLine,
   assignedText,
+  cmsDraftApprovalText,
   cmsEntryPublishedText,
+  cmsGroupParentText,
   encodeApprovalValue,
   escalationAlertText,
   handoverRequestedText,
@@ -27,6 +29,8 @@ import {
   parentStateLine,
   parseMessageAttachments,
   releasedText,
+  socialDraftApprovalText,
+  socialSetParentText,
   speakerIdentity,
   statusChangedText,
   takenOverText,
@@ -40,13 +44,22 @@ import {
   type SlackBlock,
 } from './slack-projection.ts';
 import {
-  SLACK_ANNOUNCEMENT_EVENT_TYPES,
-  SLACK_APPROVAL_EVENT_TYPES,
+  SLACK_ANNOUNCEMENT_SUBJECT_TYPES,
   approvalSubjectRef,
   readWebBaseUrl,
+  subjectTypeOf,
 } from './slack.constants.ts';
 import { draftFingerprint } from '../outreach/proposal-fingerprint.ts';
 import { mergeFingerprint } from '../crm/merge-fingerprint.ts';
+import { socialDraftFingerprint } from '../social/social-fingerprint.ts';
+import { countWordsInBody, deriveEntryTitle } from '../cms/cms.service.ts';
+import type { FieldDef } from '../cms/cms.fields.ts';
+import {
+  describePlatform,
+  isSocialPlatform,
+  measureBody,
+  shareUrlFor,
+} from '../social/social-platform.ts';
 
 const POLL_INTERVAL_MS = parseEnvInt({ name: 'MUNIN_SLACK_POLL_MS', default: 5000 });
 const MAX_ATTEMPTS = 5;
@@ -205,11 +218,11 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     token: string;
   }): Promise<void> {
     const { row, payload, routes, token } = input;
-    if (SLACK_APPROVAL_EVENT_TYPES.includes(row.eventType)) {
-      return await this.handleNotification(input);
-    }
-    if (SLACK_ANNOUNCEMENT_EVENT_TYPES.includes(row.eventType)) {
-      return await this.handleAnnouncement(input);
+    const subjectType = subjectTypeOf(row.subjectKey);
+    if (subjectType) {
+      return SLACK_ANNOUNCEMENT_SUBJECT_TYPES.includes(subjectType)
+        ? await this.handleAnnouncement(input)
+        : await this.handleNotification(input);
     }
     if (!row.conversationId) return;
 
@@ -406,6 +419,11 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
 
     const str = (v: unknown): string | null =>
       typeof v === 'string' && v.length > 0 ? v : null;
+
+    const entryId = str(payload.entryId);
+    if (entryId && (await this.cardAlreadySays(integration.id, entryId, route.slackChannelId))) {
+      return;
+    }
     const text = cmsEntryPublishedText({
       title: str(payload.title) ?? str(payload.slug) ?? 'an entry',
       collectionSlug: str(payload.collectionSlug),
@@ -526,9 +544,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         .update(schema.slackNotificationLinks)
         .set({ resolvedAt: new Date() })
         .where(eq(schema.slackNotificationLinks.id, link.id));
-      if (subject.subjectType === 'outreach_proposal') {
-        await this.refreshOutreachParent(integration, subject.subjectId, token);
-      }
+      await this.refreshParent(integration, subject, token);
       return;
     }
 
@@ -546,22 +562,20 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
           .update(schema.slackNotificationLinks)
           .set({ resolvedAt: new Date() })
           .where(eq(schema.slackNotificationLinks.id, link.id));
-        if (subject.subjectType === 'outreach_proposal') {
-          await this.refreshOutreachParent(integration, subject.subjectId, token);
-        }
+        await this.refreshParent(integration, subject, token);
       }
       return;
     }
     if (row.eventType === 'outreach.proposal.updated') return;
+    if (row.eventType === 'social.post_draft.revised') return;
+    if (row.eventType === 'cms.entry.updated') return;
 
     let threadTs: string | undefined;
     let channel = route.slackChannelId;
-    if (subject.subjectType === 'outreach_proposal') {
-      const parent = await this.ensureOutreachParent(integration, route, subject.subjectId, token);
-      if (parent) {
-        threadTs = parent.slackTs;
-        channel = parent.slackChannelId;
-      }
+    const parent = await this.ensureParent(integration, route, subject, token);
+    if (parent) {
+      threadTs = parent.slackTs;
+      channel = parent.slackChannelId;
     }
 
     let posted;
@@ -591,8 +605,41 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         resolvedAt: rendering.resolved ? new Date() : null,
       })
       .onConflictDoNothing();
-    if (subject.subjectType === 'outreach_proposal') {
-      await this.refreshOutreachParent(integration, subject.subjectId, token);
+    await this.refreshParent(integration, subject, token);
+  }
+
+  private async ensureParent(
+    integration: IntegrationRow,
+    route: RouteRow,
+    subject: { subjectType: string; subjectId: string },
+    token: string,
+  ): Promise<{ slackTs: string; slackChannelId: string } | null> {
+    switch (subject.subjectType) {
+      case 'outreach_proposal':
+        return await this.ensureOutreachParent(integration, route, subject.subjectId, token);
+      case 'social_post_draft':
+        return await this.ensureSocialSetParent(integration, route, subject.subjectId, token);
+      case 'cms_draft_entry':
+        return await this.ensureCmsGroupParent(integration, route, subject.subjectId, token);
+      default:
+        return null;
+    }
+  }
+
+  private async refreshParent(
+    integration: IntegrationRow,
+    subject: { subjectType: string; subjectId: string },
+    token: string,
+  ): Promise<void> {
+    switch (subject.subjectType) {
+      case 'outreach_proposal':
+        return await this.refreshOutreachParent(integration, subject.subjectId, token);
+      case 'social_post_draft':
+        return await this.refreshSocialSetParent(integration, subject.subjectId, token);
+      case 'cms_draft_entry':
+        return await this.refreshCmsGroupParent(integration, subject.subjectId, token);
+      default:
+        return;
     }
   }
 
@@ -743,6 +790,274 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private async cardAlreadySays(
+    integrationId: string,
+    entryId: string,
+    announcementChannelId: string,
+  ): Promise<boolean> {
+    const [link] = await this.db
+      .select({ slackChannelId: schema.slackNotificationLinks.slackChannelId })
+      .from(schema.slackNotificationLinks)
+      .where(
+        and(
+          eq(schema.slackNotificationLinks.integrationId, integrationId),
+          eq(schema.slackNotificationLinks.subjectType, 'cms_draft_entry'),
+          eq(schema.slackNotificationLinks.subjectId, entryId),
+        ),
+      )
+      .limit(1);
+    return link?.slackChannelId === announcementChannelId;
+  }
+
+  private async cmsGroupContext(entryId: string): Promise<{
+    groupId: string;
+    title: string;
+    localeCount: number;
+    pendingLocales: string[];
+  } | null> {
+    const [entry] = await this.db
+      .select({ translationGroupId: schema.cmsEntries.translationGroupId })
+      .from(schema.cmsEntries)
+      .where(eq(schema.cmsEntries.id, entryId))
+      .limit(1);
+    if (!entry) return null;
+    const siblings = await this.db
+      .select({ entry: schema.cmsEntries, collection: schema.cmsCollections })
+      .from(schema.cmsEntries)
+      .innerJoin(
+        schema.cmsCollections,
+        eq(schema.cmsCollections.id, schema.cmsEntries.collectionId),
+      )
+      .where(eq(schema.cmsEntries.translationGroupId, entry.translationGroupId))
+      .orderBy(asc(schema.cmsEntries.createdAt));
+    if (siblings.length < 2) return null;
+    const first = siblings[0]!;
+    const derived = deriveEntryTitle(first.collection.fields as FieldDef[], first.entry.data ?? {});
+    return {
+      groupId: entry.translationGroupId,
+      title: derived.title ?? first.entry.slug,
+      localeCount: siblings.length,
+      pendingLocales: siblings
+        .filter((row) => row.entry.status === 'draft')
+        .map((row) => row.entry.locale),
+    };
+  }
+
+  private async cmsGroupParentLink(
+    integrationId: string,
+    groupId: string,
+  ): Promise<typeof schema.slackNotificationLinks.$inferSelect | null> {
+    const [link] = await this.db
+      .select()
+      .from(schema.slackNotificationLinks)
+      .where(
+        and(
+          eq(schema.slackNotificationLinks.integrationId, integrationId),
+          eq(schema.slackNotificationLinks.subjectType, 'cms_draft_group'),
+          eq(schema.slackNotificationLinks.subjectId, groupId),
+        ),
+      )
+      .limit(1);
+    return link ?? null;
+  }
+
+  private async ensureCmsGroupParent(
+    integration: IntegrationRow,
+    route: RouteRow,
+    entryId: string,
+    token: string,
+  ): Promise<{ slackTs: string; slackChannelId: string } | null> {
+    const context = await this.cmsGroupContext(entryId);
+    if (!context) return null;
+    const link = await this.cmsGroupParentLink(integration.id, context.groupId);
+    if (link && link.slackChannelId === route.slackChannelId) {
+      return { slackTs: link.slackTs, slackChannelId: link.slackChannelId };
+    }
+
+    let posted;
+    try {
+      posted = await this.api.postMessage({
+        token,
+        channel: route.slackChannelId,
+        text: cmsGroupParentText({ ...context, dashboardUrl: `${readWebBaseUrl()}/dashboard` }),
+      });
+    } catch (err) {
+      if (err instanceof SlackApiError && err.apiError === 'not_in_channel') {
+        throw new TerminalDeliveryError('bot_not_in_channel');
+      }
+      throw err;
+    }
+    await this.db
+      .insert(schema.slackNotificationLinks)
+      .values({
+        orgId: integration.orgId,
+        integrationId: integration.id,
+        subjectType: 'cms_draft_group',
+        subjectId: context.groupId,
+        slackChannelId: posted.channel,
+        slackTs: posted.ts,
+      })
+      .onConflictDoUpdate({
+        target: [
+          schema.slackNotificationLinks.integrationId,
+          schema.slackNotificationLinks.subjectType,
+          schema.slackNotificationLinks.subjectId,
+        ],
+        set: { slackChannelId: posted.channel, slackTs: posted.ts, resolvedAt: null },
+      });
+    return { slackTs: posted.ts, slackChannelId: posted.channel };
+  }
+
+  private async refreshCmsGroupParent(
+    integration: IntegrationRow,
+    entryId: string,
+    token: string,
+  ): Promise<void> {
+    const context = await this.cmsGroupContext(entryId);
+    if (!context) return;
+    const link = await this.cmsGroupParentLink(integration.id, context.groupId);
+    if (!link) return;
+    await this.api.updateMessage({
+      token,
+      channel: link.slackChannelId,
+      ts: link.slackTs,
+      text: cmsGroupParentText({ ...context, dashboardUrl: `${readWebBaseUrl()}/dashboard` }),
+    });
+    if (context.pendingLocales.length === 0 && !link.resolvedAt) {
+      await this.db
+        .update(schema.slackNotificationLinks)
+        .set({ resolvedAt: new Date() })
+        .where(eq(schema.slackNotificationLinks.id, link.id));
+    }
+  }
+
+  private async socialSetContext(draftId: string): Promise<{
+    setId: string;
+    platformName: string;
+    variantCount: number;
+    pendingCount: number;
+    angles: string[];
+    postedVariantLabel: string | null;
+    postedByName: string | null;
+  } | null> {
+    const [draft] = await this.db
+      .select({ setId: schema.socialPostDrafts.setId, platform: schema.socialPostDrafts.platform })
+      .from(schema.socialPostDrafts)
+      .where(eq(schema.socialPostDrafts.id, draftId))
+      .limit(1);
+    if (!draft) return null;
+    const siblings = await this.db
+      .select()
+      .from(schema.socialPostDrafts)
+      .where(eq(schema.socialPostDrafts.setId, draft.setId))
+      .orderBy(asc(schema.socialPostDrafts.createdAt));
+    if (siblings.length < 2) return null;
+    const posted = siblings.find(
+      (row) => row.status === 'published' || row.status === 'published_externally',
+    );
+    return {
+      setId: draft.setId,
+      platformName: isSocialPlatform(draft.platform)
+        ? describePlatform(draft.platform).displayName
+        : 'Social',
+      variantCount: siblings.length,
+      pendingCount: siblings.filter((row) => row.status === 'pending').length,
+      angles: siblings.map((row) => row.variantLabel),
+      postedVariantLabel: posted?.variantLabel ?? null,
+      postedByName: posted
+        ? await this.decidedByName(posted.decidedByActorType, posted.decidedByActorId)
+        : null,
+    };
+  }
+
+  private async socialSetParentLink(
+    integrationId: string,
+    setId: string,
+  ): Promise<typeof schema.slackNotificationLinks.$inferSelect | null> {
+    const [link] = await this.db
+      .select()
+      .from(schema.slackNotificationLinks)
+      .where(
+        and(
+          eq(schema.slackNotificationLinks.integrationId, integrationId),
+          eq(schema.slackNotificationLinks.subjectType, 'social_post_set'),
+          eq(schema.slackNotificationLinks.subjectId, setId),
+        ),
+      )
+      .limit(1);
+    return link ?? null;
+  }
+
+  private async ensureSocialSetParent(
+    integration: IntegrationRow,
+    route: RouteRow,
+    draftId: string,
+    token: string,
+  ): Promise<{ slackTs: string; slackChannelId: string } | null> {
+    const context = await this.socialSetContext(draftId);
+    if (!context) return null;
+    const link = await this.socialSetParentLink(integration.id, context.setId);
+    if (link && link.slackChannelId === route.slackChannelId) {
+      return { slackTs: link.slackTs, slackChannelId: link.slackChannelId };
+    }
+
+    let posted;
+    try {
+      posted = await this.api.postMessage({
+        token,
+        channel: route.slackChannelId,
+        text: socialSetParentText({ ...context, dashboardUrl: `${readWebBaseUrl()}/dashboard` }),
+      });
+    } catch (err) {
+      if (err instanceof SlackApiError && err.apiError === 'not_in_channel') {
+        throw new TerminalDeliveryError('bot_not_in_channel');
+      }
+      throw err;
+    }
+    await this.db
+      .insert(schema.slackNotificationLinks)
+      .values({
+        orgId: integration.orgId,
+        integrationId: integration.id,
+        subjectType: 'social_post_set',
+        subjectId: context.setId,
+        slackChannelId: posted.channel,
+        slackTs: posted.ts,
+      })
+      .onConflictDoUpdate({
+        target: [
+          schema.slackNotificationLinks.integrationId,
+          schema.slackNotificationLinks.subjectType,
+          schema.slackNotificationLinks.subjectId,
+        ],
+        set: { slackChannelId: posted.channel, slackTs: posted.ts, resolvedAt: null },
+      });
+    return { slackTs: posted.ts, slackChannelId: posted.channel };
+  }
+
+  private async refreshSocialSetParent(
+    integration: IntegrationRow,
+    draftId: string,
+    token: string,
+  ): Promise<void> {
+    const context = await this.socialSetContext(draftId);
+    if (!context) return;
+    const link = await this.socialSetParentLink(integration.id, context.setId);
+    if (!link) return;
+    await this.api.updateMessage({
+      token,
+      channel: link.slackChannelId,
+      ts: link.slackTs,
+      text: socialSetParentText({ ...context, dashboardUrl: `${readWebBaseUrl()}/dashboard` }),
+    });
+    if (context.pendingCount === 0 && !link.resolvedAt) {
+      await this.db
+        .update(schema.slackNotificationLinks)
+        .set({ resolvedAt: new Date() })
+        .where(eq(schema.slackNotificationLinks.id, link.id));
+    }
+  }
+
   private async renderApproval(
     subject: { subjectType: string; subjectId: string },
     payload: Record<string, unknown>,
@@ -831,6 +1146,98 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
             decidedByName: await this.decidedByName(
               proposal?.decidedByActorType ?? null,
               proposal?.decidedByActorId ?? null,
+            ),
+          }
+        : null;
+    } else if (subject.subjectType === 'cms_draft_entry') {
+      const [row] = await this.db
+        .select({ entry: schema.cmsEntries, collection: schema.cmsCollections })
+        .from(schema.cmsEntries)
+        .innerJoin(
+          schema.cmsCollections,
+          eq(schema.cmsCollections.id, schema.cmsEntries.collectionId),
+        )
+        .where(eq(schema.cmsEntries.id, subject.subjectId))
+        .limit(1);
+      if (!row && !outcome) throw new TerminalDeliveryError('subject_missing');
+      const data = row?.entry.data ?? {};
+      const derived = row
+        ? deriveEntryTitle(row.collection.fields as FieldDef[], data)
+        : { title: null, fieldName: null };
+      text = cmsDraftApprovalText({
+        title: derived.title ?? row?.entry.slug ?? str(payload.slug) ?? 'an entry',
+        collectionName: row?.collection.name ?? str(payload.collectionSlug) ?? 'a collection',
+        locale: row?.entry.locale ?? str(payload.locale),
+        slug: row?.entry.slug ?? str(payload.slug) ?? '',
+        wordCount: countWordsInBody(data),
+        pending: row?.entry.status === 'draft',
+        liveUrl: str(payload.url),
+        dashboardUrl,
+      });
+      fingerprint = row ? String(row.entry.version) : null;
+      approveLabel = row?.entry.status === 'draft' ? 'Publish' : null;
+      const derivedOutcome: ApprovalOutcome | null =
+        row?.entry.status === 'published'
+          ? 'entry_published'
+          : row?.entry.status === 'archived'
+            ? 'archived'
+            : row?.entry.status === 'scheduled'
+              ? 'scheduled'
+              : row
+                ? null
+                : outcome;
+      resolution = derivedOutcome
+        ? {
+            outcome: derivedOutcome,
+            decidedByName: row?.entry.updatedByType === 'user' && row.entry.updatedById
+              ? await this.userName(row.entry.updatedById)
+              : actorId
+                ? await this.userName(actorId)
+                : null,
+          }
+        : null;
+    } else if (subject.subjectType === 'social_post_draft') {
+      const [draft] = await this.db
+        .select()
+        .from(schema.socialPostDrafts)
+        .where(eq(schema.socialPostDrafts.id, subject.subjectId))
+        .limit(1);
+      if (!draft && !outcome) throw new TerminalDeliveryError('subject_missing');
+      const rawPlatform = draft?.platform ?? str(payload.platform) ?? '';
+      const descriptor = isSocialPlatform(rawPlatform) ? describePlatform(rawPlatform) : null;
+      const measured = descriptor
+        ? measureBody(descriptor.platform, draft?.body ?? '', draft?.linkUrl ?? null)
+        : null;
+      text = socialDraftApprovalText({
+        platformName: descriptor?.displayName ?? 'Social',
+        variantLabel: draft?.variantLabel ?? str(payload.variantLabel),
+        body: draft?.body ?? '',
+        shareUrl: draft ? shareUrlFor(draft) : null,
+        bodyChars: measured?.countedChars ?? 0,
+        maxBodyChars: measured?.maxBodyChars ?? 0,
+        dashboardUrl,
+      });
+      fingerprint = draft ? socialDraftFingerprint(draft) : null;
+      approveLabel =
+        descriptor?.canPublish && draft?.status === 'pending'
+          ? `Publish to ${descriptor.displayName}`
+          : null;
+      const derived: ApprovalOutcome | null =
+        draft?.status === 'published'
+          ? 'posted'
+          : draft?.status === 'published_externally'
+            ? 'posted_externally'
+            : draft?.status === 'dismissed'
+              ? 'dismissed'
+              : draft?.status === 'failed'
+                ? 'publish_failed'
+                : outcome;
+      resolution = derived
+        ? {
+            outcome: derived,
+            decidedByName: await this.decidedByName(
+              draft?.decidedByActorType ?? null,
+              draft?.decidedByActorId ?? null,
             ),
           }
         : null;
@@ -1154,9 +1561,22 @@ function approvalOutcomeFor(eventType: string): ApprovalOutcome | null {
       return 'sent';
     case 'kb.curation_candidate.published':
       return 'published';
+    case 'social.post_draft.published':
+      return 'posted';
+    case 'social.post_draft.failed':
+      return 'publish_failed';
+    case 'cms.entry.published':
+      return 'entry_published';
+    case 'cms.entry.scheduled':
+      return 'scheduled';
+    case 'cms.entry.archived':
+      return 'archived';
+    case 'cms.entry.deleted':
+      return 'dismissed';
     case 'crm.merge_proposal.dismissed':
     case 'outreach.proposal.dismissed':
     case 'kb.curation_candidate.dismissed':
+    case 'social.post_draft.dismissed':
       return 'dismissed';
     case 'outreach.proposal.withdrawn':
       return 'withdrawn';

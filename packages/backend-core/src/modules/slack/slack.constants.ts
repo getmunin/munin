@@ -27,9 +27,28 @@ export const SLACK_APPROVAL_EVENT_TYPES: readonly string[] = [
   'kb.curation_candidate.proposed',
   'kb.curation_candidate.published',
   'kb.curation_candidate.dismissed',
+  'social.post_draft.proposed',
+  'social.post_draft.revised',
+  'social.post_draft.published',
+  'social.post_draft.dismissed',
+  'social.post_draft.failed',
+  'cms.entry.created',
+  'cms.entry.updated',
+  'cms.entry.published',
+  'cms.entry.scheduled',
+  'cms.entry.archived',
+  'cms.entry.deleted',
 ];
 
 export const SLACK_ANNOUNCEMENT_EVENT_TYPES: readonly string[] = ['cms.entry.published'];
+
+export const SLACK_ANNOUNCEMENT_SUBJECT_TYPES: readonly string[] = ['cms_entry'];
+
+export function subjectTypeOf(subjectKey: string | null): string | null {
+  if (!subjectKey) return null;
+  const sep = subjectKey.indexOf(':');
+  return sep > 0 ? subjectKey.slice(0, sep) : null;
+}
 
 export function announcementSubjectRef(
   eventType: string,
@@ -58,6 +77,16 @@ export function approvalSubjectRef(
   if (eventType.startsWith('kb.curation_candidate.')) {
     const id = str(payload.candidateDocumentId);
     return id ? { subjectType: 'kb_curation_candidate', subjectId: id } : null;
+  }
+  if (eventType.startsWith('social.post_draft.')) {
+    const id = str(payload.draftId);
+    return id ? { subjectType: 'social_post_draft', subjectId: id } : null;
+  }
+  if (eventType.startsWith('cms.entry.')) {
+    if (eventType === 'cms.entry.created' && payload.status !== 'draft') return null;
+    if (eventType === 'cms.entry.published' && payload.previousStatus === 'published') return null;
+    const id = str(payload.entryId);
+    return id ? { subjectType: 'cms_draft_entry', subjectId: id } : null;
   }
   return null;
 }

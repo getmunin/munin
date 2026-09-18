@@ -14,6 +14,7 @@ import { SocialService } from './social.service.ts';
 import {
   StubPublisherLookup,
   StubTokenSource,
+  StubEventEmitter,
   UnusedTransactionRunner,
 } from './social-test-doubles.ts';
 import { COMPANION_JOB_URI } from './companion-job.ts';
@@ -47,6 +48,7 @@ class RecordingEnqueuer implements JobEnqueuer {
     new StubTokenSource(),
     new StubPublisherLookup(),
     new UnusedTransactionRunner(),
+    new StubEventEmitter(),
   );
 
   async function asOrg<T>(orgId: string, fn: () => Promise<T>): Promise<T> {

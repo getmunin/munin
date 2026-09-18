@@ -53,12 +53,22 @@ export function SocialQueuePane({
         kind="social"
         pillLabel={tQueue('kindSocial')}
         title={item.title}
-        meta={t('metaSocial', {
-          platform: draft.platform,
-          chars: draft.bodyChars,
-          max: draft.maxBodyChars,
-          age: age(item.createdAt),
-        })}
+        meta={
+          draft.variantLabel && draft.variantLabel !== 'single'
+            ? t('metaSocialAngle', {
+                platform: draft.platform,
+                angle: draft.variantLabel,
+                chars: draft.bodyChars,
+                max: draft.maxBodyChars,
+                age: age(item.createdAt),
+              })
+            : t('metaSocial', {
+                platform: draft.platform,
+                chars: draft.bodyChars,
+                max: draft.maxBodyChars,
+                age: age(item.createdAt),
+              })
+        }
         onClose={onClose}
         closeLabel={t('close')}
       />

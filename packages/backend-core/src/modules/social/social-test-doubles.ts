@@ -1,6 +1,8 @@
-import type { Tx } from '@getmunin/db';
+import { sql } from 'drizzle-orm';
+import type { Db, Tx } from '@getmunin/db';
 import type {
   RootTransactionRunner,
+  SocialEventEmitter,
   SocialPublisherLookup,
   SocialTokenSource,
 } from './social.service.ts';
@@ -58,5 +60,31 @@ export class PassthroughTransactionRunner implements RootTransactionRunner {
 export class UnusedTransactionRunner implements RootTransactionRunner {
   inRootTransaction<T>(): Promise<T> {
     throw new Error('no root transaction was expected in this test');
+  }
+}
+
+export class DbRootTransactionRunner implements RootTransactionRunner {
+  constructor(private readonly db: Db) {}
+
+  inRootTransaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      return fn(tx);
+    });
+  }
+}
+
+export class StubEventEmitter implements SocialEventEmitter {
+  emitted: { type: string; payload: Record<string, unknown> }[] = [];
+  private counter = 0;
+
+  emit(input: { type: string; payload: Record<string, unknown> }): Promise<string> {
+    this.emitted.push(input);
+    this.counter += 1;
+    return Promise.resolve(`evt_stub_${this.counter}`);
+  }
+
+  typesFor(draftId: string): string[] {
+    return this.emitted.filter((e) => e.payload.draftId === draftId).map((e) => e.type);
   }
 }

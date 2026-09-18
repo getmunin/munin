@@ -14,6 +14,12 @@ Every CMS entry has a `status` (`draft | published | scheduled | archived`) and 
 3. Decide: publish now (`cms_publish_entry`) or later (`cms_schedule_publish`).
 4. If something's wrong post-publish: `cms_unpublish_entry` (back to draft) or `cms_restore_version` (roll forward to a historical version).
 
+## Who publishes, and from where
+
+Publishing is a human decision. A draft entry sits in the dashboard review queue, and — where the organisation has connected Slack — it also raises an approval card in the approvals channel with *Publish* and *Dismiss* buttons (`skill://slack/connect-slack`). Both act through this same tool path, with the same `ifVersion` check, so a draft edited after the card was posted is refused rather than published from a stale reading of it.
+
+That is the reason not to publish a draft on your own initiative: an entry going live is the operator's call, not an obvious next step after writing one. File the draft and let it be decided.
+
 ## Step 1 — read the draft
 
 ```jsonc
@@ -187,7 +193,7 @@ Restore is itself a write — it creates a *new* version (10) carrying the data 
 
 - `skill://cms/revise-entry` — editing an existing entry in place with `textReplacements`.
 - `skill://cms/preview-entry` — the draft-side sibling of `settings.liveUrl`.
-- `skill://slack/connect-slack` — routing the channel publish announcements land in.
+- `skill://slack/connect-slack` — the approval card for a draft, and routing for the channels the card and the publish announcement land in.
 - `skill://cms/localize-entry` — managing per-locale entries.
 - `skill://cms/upload-asset-and-embed` — how to embed assets in entry data.
 - `skill://cms/migrate-content` — moving entries between collections.

@@ -30,6 +30,19 @@ export {
 export { authClient } from './auth-client';
 export { PageShell, nativeFieldClass } from './components/page-shell';
 export {
+  SettingsColumn,
+  SettingsSection,
+  SettingsLabel,
+  SettingsFieldNote,
+  SaveButton,
+  HairlineRow,
+  PickerRow,
+  CheckboxRow,
+  SETTINGS_MEASURE,
+  SETTINGS_MEASURE_WIDE,
+  SETTINGS_MEASURE_FIELD,
+} from './components/settings/scaffold';
+export {
   Skeleton,
   TableSkeleton,
   CardSkeleton,

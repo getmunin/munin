@@ -1,5 +1,7 @@
 # @getmunin/emails
 
+## 5.29.0
+
 ## 5.28.0
 
 ### Patch Changes

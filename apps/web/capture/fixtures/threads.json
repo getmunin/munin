@@ -1,0 +1,94 @@
+[
+  {
+    "visitor": {
+      "name": "Ola Nordmann",
+      "email": "ola.nordmann@example.com"
+    },
+    "turns": [
+      {
+        "from": "visitor",
+        "body": "Hi! I ordered a stand mixer last week. Can I still change the delivery address?"
+      },
+      {
+        "from": "agent",
+        "body": "Yes, as long as the parcel has not left our warehouse. Orders ship the next working day, so tell me your order number and I will check where it is."
+      },
+      {
+        "from": "visitor",
+        "body": "Order 10492. The new address is Nygata 3, Lillevik."
+      }
+    ]
+  },
+  {
+    "visitor": {
+      "name": "Kari Nordmann",
+      "email": "kari.nordmann@example.com"
+    },
+    "turns": [
+      {
+        "from": "visitor",
+        "body": "The mixer arrived today but the bowl has a dent in the rim. Can I get a replacement bowl rather than sending the whole thing back?"
+      }
+    ]
+  },
+  {
+    "visitor": {
+      "name": "Jo Hansen",
+      "email": "jo.hansen@example.com"
+    },
+    "turns": [
+      {
+        "from": "visitor",
+        "body": "Could you resend the invoice for order 10488? Our finance team never received it."
+      },
+      {
+        "from": "agent",
+        "body": "The invoice for order 10488 is on its way to this address again. Let me know if it still does not arrive."
+      }
+    ]
+  },
+  {
+    "visitor": {
+      "name": "Ingrid Berg",
+      "email": "ingrid.berg@example.com"
+    },
+    "turns": [
+      {
+        "from": "visitor",
+        "body": "Does the knife block fit in a standard kitchen drawer?"
+      },
+      {
+        "from": "agent",
+        "body": "The block is 34 cm tall, so it sits on the worktop rather than in a drawer. There is a separate drawer insert that holds the same six knives."
+      }
+    ]
+  },
+  {
+    "visitor": {
+      "name": "Per Dahl",
+      "email": "per.dahl@example.com"
+    },
+    "turns": [
+      {
+        "from": "visitor",
+        "body": "We are refitting 40 hotel rooms and need pricing on kettles and toasters in that volume."
+      }
+    ]
+  },
+  {
+    "visitor": {
+      "name": "Mette Lie",
+      "email": "mette.lie@example.com"
+    },
+    "turns": [
+      {
+        "from": "visitor",
+        "body": "Is the enamel on the cast iron pan covered by the warranty?"
+      },
+      {
+        "from": "agent",
+        "body": "Manufacturing faults in the enamel are covered for five years. Chips that come from everyday use count as wear and are covered for the first year."
+      }
+    ]
+  }
+]

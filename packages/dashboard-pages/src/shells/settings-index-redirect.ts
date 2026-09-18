@@ -1,4 +1,5 @@
 import { redirect } from '../i18n-navigation';
+import { FIRST_SETTINGS_HREF } from '../nav/settings-groups';
 
 export interface CreateSettingsIndexRedirectOptions {
   defaultLocale: string;
@@ -7,7 +8,7 @@ export interface CreateSettingsIndexRedirectOptions {
 
 export function createSettingsIndexRedirect({
   defaultLocale,
-  target = '/dashboard/settings/team',
+  target = FIRST_SETTINGS_HREF,
 }: CreateSettingsIndexRedirectOptions) {
   return async function SettingsIndexPage({
     params,

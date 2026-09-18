@@ -1,5 +1,11 @@
 # @getmunin/db
 
+## 5.29.0
+
+### Patch Changes
+
+- @getmunin/types@5.29.0
+
 ## 5.28.0
 
 ### Minor Changes

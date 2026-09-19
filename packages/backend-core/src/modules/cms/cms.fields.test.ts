@@ -397,6 +397,84 @@ describe('inline ref:// tokens', () => {
     const out = rewriteInlineAssets(proseFields, { body: 'ref://ent_1' }, new Map());
     expect(out.body).toBe('ref://ent_1');
   });
+
+  it('a text field carries inline refs only when it opts in with inlineRefs', () => {
+    const data = { lead: 'see [pricing](ref://ent_1)' };
+    expect(collectInlineReferenceIds([{ name: 'lead', type: 'text' }], data)).toEqual([]);
+    expect(
+      collectInlineReferenceIds([{ name: 'lead', type: 'text', inlineRefs: true }], data),
+    ).toEqual(['ent_1']);
+  });
+
+  it('an opted-in array field carries inline refs in each string item', () => {
+    const footnotes: FieldDef[] = [
+      {
+        name: 'footnotes',
+        type: 'array',
+        inlineRefs: true,
+        options: { items: { name: 'item', type: 'text' } },
+      },
+    ];
+    const data = { footnotes: ['a ref://ent_1', 'b ref://ent_2'] };
+    expect(collectInlineReferenceIds(footnotes, data).sort()).toEqual(['ent_1', 'ent_2']);
+    expect(Object.keys(buildReferenceSidecar(footnotes, data, entryMap))).toEqual(['ent_1']);
+  });
+
+  it('validateEntryData rejects a ref:// token in a field that would silently drop it', () => {
+    const strayText = validateEntryData([{ name: 'lead', type: 'text' }], {
+      lead: 'x ref://ent_1',
+    });
+    expect(strayText).toHaveLength(1);
+    expect(strayText[0]?.field).toBe('lead');
+    expect(strayText[0]?.message).toContain('inlineRefs: true');
+
+    const strayJson = validateEntryData([{ name: 'meta', type: 'json' }], {
+      meta: { a: 'ref://ent_1' },
+    });
+    expect(strayJson).toHaveLength(1);
+    expect(strayJson[0]?.field).toBe('meta');
+    expect(strayJson[0]?.message).toContain('ref://');
+    expect(
+      validateEntryData([{ name: 'lead', type: 'text', inlineRefs: true }], {
+        lead: 'x ref://ent_1',
+      }),
+    ).toEqual([]);
+    expect(validateEntryData(proseFields, { body: 'x ref://ent_1' })).toEqual([]);
+  });
+
+  it('a stray ref:// inside a markdown block prop is not blamed on the blocks field', () => {
+    expect(
+      validateEntryData(blockFields, {
+        body: [{ type: 'callout', props: { text: 'x ref://ent_1' } }],
+      }),
+    ).toEqual([]);
+  });
+
+  it('buildReferenceSidecar prefers the locale sibling and falls back to the entry itself', () => {
+    const nb: ExpandedEntry = {
+      id: 'ent_1_nb',
+      slug: 'priser',
+      collection: 'pages',
+      locale: 'nb',
+      data: { title: 'Priser' },
+    };
+    const lookup = {
+      get: (id: string) => entryMap.get(id),
+      inLocale: (id: string, locale: string) =>
+        id === 'ent_1' && locale === 'nb' ? nb : undefined,
+    };
+    const data = { body: '[a](ref://ent_1)' };
+    expect(buildReferenceSidecar(proseFields, data, lookup, 'nb').ent_1).toMatchObject({
+      id: 'ent_1_nb',
+      slug: 'priser',
+      locale: 'nb',
+    });
+    expect(buildReferenceSidecar(proseFields, data, lookup, 'de').ent_1).toMatchObject({
+      id: 'ent_1',
+      slug: 'pricing',
+    });
+    expect(buildReferenceSidecar(proseFields, data, lookup).ent_1).toMatchObject({ id: 'ent_1' });
+  });
 });
 
 describe('json misuse lint', () => {

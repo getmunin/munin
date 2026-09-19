@@ -14,6 +14,12 @@ const FieldSchema: z.ZodType<FieldDef> = z.lazy(() =>
     type: z.enum(FIELD_TYPES),
     required: z.boolean().optional(),
     localized: z.boolean().optional(),
+    inlineRefs: z
+      .boolean()
+      .optional()
+      .describe(
+        'Read inline ref:// tokens from this field even though it is not markdown/rich_text. Only valid on text, rich_text, markdown, or an array of those. Without it a ref:// token in a text field is never resolved and is rejected on save.',
+      ),
     description: z.string().max(500).optional(),
     default: z.unknown().optional(),
     options: z
@@ -62,7 +68,9 @@ const DeleteCollectionInput = z.object({ idOrSlug: z.string() });
 const IncludeInput = z
   .array(z.enum(['references']))
   .optional()
-  .describe('Set to ["references"] to expand reference fields into the referenced entries.');
+  .describe(
+    'Set to ["references"] to expand reference fields into the referenced entries, and to resolve inline ref:// tokens into a `refs` sidecar. A token resolves to the entry in this entry\'s own locale, falling back to the entry the id names.',
+  );
 
 const ListEntriesInput = z.object({
   collection: z.string().optional(),

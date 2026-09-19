@@ -155,7 +155,7 @@ export class CmsDeliveryController {
       const expanded = applyAssetExpansion(fields, p.data, assets);
       const assetSidecar = buildInlineAssetSidecar(fields, expanded, assets);
       let data = rewriteInlineAssets(fields, expanded, assets);
-      const refSidecar = entryMap ? buildReferenceSidecar(fields, data, entryMap) : {};
+      const refSidecar = entryMap ? buildReferenceSidecar(fields, data, entryMap, p.locale) : {};
       if (entryMap) data = applyReferenceExpansion(fields, data, entryMap);
       const locales = localeMap.get(translationGroupId) ?? [];
       return {
@@ -327,7 +327,7 @@ export class CmsDeliveryController {
     let refSidecar: Record<string, unknown> = {};
     if (includeReferences(include)) {
       const entryMap = await this.fetchReferencedEntries(orgId, fields, [data], opts);
-      refSidecar = buildReferenceSidecar(fields, data, entryMap);
+      refSidecar = buildReferenceSidecar(fields, data, entryMap, row.locale);
       data = applyReferenceExpansion(fields, data, entryMap);
     }
     const locales = await this.fetchLocaleAlternates(orgId, row);

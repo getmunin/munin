@@ -1420,6 +1420,135 @@ const skipReason = TEST_URL
     expect(noIncJson._refs).toBeUndefined();
   }, 30_000);
 
+  it('delivery: a ref:// to any sibling resolves to the entry in the delivered locale', async () => {
+    let enTargetId = '';
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'cms_create_collection',
+        arguments: {
+          name: 'Guides',
+          slug: 'guides',
+          localized: true,
+          fields: [
+            { name: 'title', type: 'text', required: true },
+            { name: 'slug', type: 'text', required: true },
+            { name: 'body', type: 'markdown' },
+            { name: 'lead', type: 'text', inlineRefs: true },
+          ],
+        },
+      });
+      const enTarget = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'guides',
+            slug: 'pricing',
+            locale: 'en',
+            data: { title: 'Pricing', slug: 'pricing' },
+            status: 'published',
+          },
+        }),
+      );
+      enTargetId = enTarget.id;
+      await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'guides',
+          slug: 'priser',
+          locale: 'nb',
+          translationOf: enTarget.id,
+          data: { title: 'Priser', slug: 'priser' },
+          status: 'published',
+        },
+      });
+      const enSource = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'guides',
+            slug: 'intro',
+            locale: 'en',
+            data: {
+              title: 'Intro',
+              slug: 'intro',
+              body: `see [pricing](ref://${enTarget.id})`,
+              lead: `start at [pricing](ref://${enTarget.id})`,
+            },
+            status: 'published',
+          },
+        }),
+      );
+      await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'guides',
+          slug: 'introduksjon',
+          locale: 'nb',
+          translationOf: enSource.id,
+          data: {
+            title: 'Introduksjon',
+            slug: 'introduksjon',
+            body: `se [priser](ref://${enTarget.id})`,
+            lead: `start med [priser](ref://${enTarget.id})`,
+          },
+          status: 'published',
+        },
+      });
+    });
+
+    type Delivered = {
+      _refs?: Record<string, { id: string; slug: string; locale: string }>;
+    };
+    const nb = (await (
+      await fetchUntil(
+        `${baseUrl}/v1/cms/${orgId}/guides/introduksjon?locale=nb&include=references`,
+        (r) => r.status === 200,
+      )
+    ).json()) as Delivered;
+    expect(nb._refs?.[enTargetId]).toMatchObject({ slug: 'priser', locale: 'nb' });
+    expect(nb._refs?.[enTargetId]?.id).not.toBe(enTargetId);
+
+    const en = (await (
+      await fetch(`${baseUrl}/v1/cms/${orgId}/guides/intro?locale=en&include=references`)
+    ).json()) as Delivered;
+    expect(en._refs?.[enTargetId]).toMatchObject({ id: enTargetId, slug: 'pricing', locale: 'en' });
+  }, 30_000);
+
+  it('a ref:// token is rejected where it would be silently dropped', async () => {
+    await withClient(adminKey, async (c) => {
+      const stray = (await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'guides',
+          slug: 'stray-ref',
+          locale: 'en',
+          data: { title: 'see ref://cme_nope', slug: 'stray-ref' },
+          status: 'draft',
+        },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(stray.isError).toBe(true);
+      expect(stray.content?.[0]?.text).toContain('inlineRefs');
+
+      const badField = (await c.callTool({
+        name: 'cms_update_collection',
+        arguments: {
+          idOrSlug: 'guides',
+          patch: {
+            fields: [
+              { name: 'title', type: 'text', required: true },
+              { name: 'slug', type: 'text', required: true },
+              { name: 'body', type: 'markdown' },
+              { name: 'lead', type: 'text', inlineRefs: true },
+              { name: 'count', type: 'number', inlineRefs: true },
+            ],
+          },
+        },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(badField.isError).toBe(true);
+      expect(badField.content?.[0]?.text).toContain('inlineRefs');
+    });
+  }, 30_000);
+
   it('cms_search_entries with include:["references"] expands reference fields and inline ref:// tokens', async () => {
     let targetId = '';
     await withClient(adminKey, async (c) => {

@@ -1261,6 +1261,10 @@
             "localized": {
               "type": "boolean"
             },
+            "inlineRefs": {
+              "description": "Read inline ref:// tokens from this field even though it is not markdown/rich_text. Only valid on text, rich_text, markdown, or an array of those. Without it a ref:// token in a text field is never resolved and is rejected on save.",
+              "type": "boolean"
+            },
             "description": {
               "type": "string",
               "maxLength": 500
@@ -1419,6 +1423,10 @@
               "type": "boolean"
             },
             "localized": {
+              "type": "boolean"
+            },
+            "inlineRefs": {
+              "description": "Read inline ref:// tokens from this field even though it is not markdown/rich_text. Only valid on text, rich_text, markdown, or an array of those. Without it a ref:// token in a text field is never resolved and is rejected on save.",
               "type": "boolean"
             },
             "description": {
@@ -1587,7 +1595,7 @@
           "type": "string"
         },
         "include": {
-          "description": "Set to [\"references\"] to expand reference fields into the referenced entries.",
+          "description": "Set to [\"references\"] to expand reference fields into the referenced entries, and to resolve inline ref:// tokens into a `refs` sidecar. A token resolves to the entry in this entry's own locale, falling back to the entry the id names.",
           "type": "array",
           "items": {
             "type": "string",
@@ -2598,7 +2606,7 @@
           "maximum": 50
         },
         "include": {
-          "description": "Set to [\"references\"] to expand reference fields into the referenced entries.",
+          "description": "Set to [\"references\"] to expand reference fields into the referenced entries, and to resolve inline ref:// tokens into a `refs` sidecar. A token resolves to the entry in this entry's own locale, falling back to the entry the id names.",
           "type": "array",
           "items": {
             "type": "string",
@@ -2913,6 +2921,10 @@
               "type": "boolean"
             },
             "localized": {
+              "type": "boolean"
+            },
+            "inlineRefs": {
+              "description": "Read inline ref:// tokens from this field even though it is not markdown/rich_text. Only valid on text, rich_text, markdown, or an array of those. Without it a ref:// token in a text field is never resolved and is rejected on save.",
               "type": "boolean"
             },
             "description": {

@@ -1009,6 +1009,7 @@ export class CmsService {
     blockEdits?: EntryBlockEdit[];
     slug?: string;
     locale?: string;
+    include?: string[];
   }): Promise<EntryDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -1113,6 +1114,7 @@ export class CmsService {
       actor.orgId,
       [dto],
       new Map([[dto.id, collection.fields]]),
+      { expandReferences: wantsReferences(input.include) },
     );
     return dto;
   }

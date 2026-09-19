@@ -327,6 +327,8 @@
         "cmsCoverUploading": "Uploading…",
         "cmsCoverReplace": "Replace cover image",
         "cmsCoverAspect": "16:9",
+        "cmsRefMissing": "missing",
+        "cmsRefLocaleFallback": "falls back to {locale}",
         "cmsApprove": "Approve",
         "cmsSchedule": "Schedule",
         "cmsViewPreview": "Preview",

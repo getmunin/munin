@@ -1549,6 +1549,84 @@ const skipReason = TEST_URL
     });
   }, 30_000);
 
+  it('the drafts route carries a locale-resolved _refs sidecar on read and on patch', async () => {
+    let enTargetId = '';
+    let nbDraftId = '';
+    await withClient(adminKey, async (c) => {
+      await c.callTool({
+        name: 'cms_create_collection',
+        arguments: {
+          name: 'Handbook',
+          slug: 'handbook',
+          localized: true,
+          fields: [
+            { name: 'title', type: 'text', required: true },
+            { name: 'slug', type: 'text', required: true },
+            { name: 'body', type: 'markdown' },
+          ],
+        },
+      });
+      const enTarget = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'handbook',
+            slug: 'leave-policy',
+            locale: 'en',
+            data: { title: 'Leave policy', slug: 'leave-policy' },
+            status: 'published',
+          },
+        }),
+      );
+      enTargetId = enTarget.id;
+      await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'handbook',
+          slug: 'permisjon',
+          locale: 'nb',
+          translationOf: enTarget.id,
+          data: { title: 'Permisjonsreglement', slug: 'permisjon' },
+          status: 'published',
+        },
+      });
+      const draft = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'cms_create_entry',
+          arguments: {
+            collection: 'handbook',
+            slug: 'onboarding-nb',
+            locale: 'nb',
+            data: {
+              title: 'Onboarding',
+              slug: 'onboarding-nb',
+              body: `se [reglene](ref://${enTargetId})`,
+            },
+            status: 'draft',
+          },
+        }),
+      );
+      nbDraftId = draft.id;
+    });
+
+    type DraftBody = { refs?: Record<string, { id: string; slug: string; locale: string }> };
+    const read = await fetch(`${baseUrl}/v1/cms/drafts/${nbDraftId}`, {
+      headers: { Authorization: `Bearer ${adminKey}` },
+    });
+    expect(read.status).toBe(200);
+    const readBody = (await read.json()) as DraftBody;
+    expect(readBody.refs?.[enTargetId]).toMatchObject({ slug: 'permisjon', locale: 'nb' });
+
+    const patched = await fetch(`${baseUrl}/v1/cms/drafts/${nbDraftId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${adminKey}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ data: { title: 'Onboarding, revidert' } }),
+    });
+    expect(patched.status).toBe(200);
+    const patchedBody = (await patched.json()) as DraftBody;
+    expect(patchedBody.refs?.[enTargetId]).toMatchObject({ slug: 'permisjon', locale: 'nb' });
+  }, 30_000);
+
   it('cms_search_entries with include:["references"] expands reference fields and inline ref:// tokens', async () => {
     let targetId = '';
     await withClient(adminKey, async (c) => {

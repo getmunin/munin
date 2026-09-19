@@ -154,6 +154,39 @@ Two things you *can* do to make it useful:
 
 Re-publishing an entry that is already `published` (a no-op status transition) does not announce again — only a real draft/scheduled → published move does.
 
+## Publishing can also draft the social posts
+
+Off by default, and per collection. Set `socialDraftOnPublish: true` in the collection's
+settings — same read-merge-write as `liveUrl` above, in the same call if you like — and the
+first time an entry there reaches `published`, Munin queues a drafting pass that writes
+three or four companion posts and leaves them in the review queue for a person to pick
+from. Nothing is posted; the drafts just appear alongside the other things waiting to be
+decided.
+
+```jsonc
+{
+  "name": "cms_update_collection",
+  "arguments": {
+    "idOrSlug": "blog",
+    "patch": {
+      "settings": {
+        "liveUrl": "https://www.example.com/{locale}/blog/{slug}",
+        "socialDraftOnPublish": true
+      }
+    }
+  }
+}
+```
+
+It needs the `liveUrl` template — a post with nothing to link to is not worth drafting —
+and it runs once per entry per platform: a scheduled entry promoted by the worker counts,
+an already-published entry edited and republished does not. An organisation with both
+LinkedIn and a Facebook Page connected gets one set for each, since the two are written
+differently. Turn it on for collections holding articles; leave it off for team pages and
+product records, which is why the default is off.
+
+`skill://social/draft-companion-posts` is what the pass follows.
+
 Publishing several locales of the same article does not fill the channel with near-identical headlines: the first locale posts to the channel and the rest of its translation group thread under it the same UTC day. Nothing to pass — the grouping follows `translationGroupId`, which `cms_create_entry`'s `translationOf` and `cms_link_translation` already set.
 
 ## Step 4 — rollback paths
@@ -197,3 +230,4 @@ Restore is itself a write — it creates a *new* version (10) carrying the data 
 - `skill://cms/localize-entry` — managing per-locale entries.
 - `skill://cms/upload-asset-and-embed` — how to embed assets in entry data.
 - `skill://cms/migrate-content` — moving entries between collections.
+- `skill://social/draft-companion-posts` — the companion posts `settings.socialDraftOnPublish` queues.

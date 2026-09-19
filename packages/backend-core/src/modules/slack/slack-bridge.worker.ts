@@ -60,6 +60,7 @@ import {
   describePlatform,
   isSocialPlatform,
   measureBody,
+  postsAsPage,
   shareUrlFor,
 } from '../social/social-platform.ts';
 
@@ -1213,7 +1214,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         : null;
       text = socialDraftApprovalText({
         platformName: descriptor?.displayName ?? 'Social',
-        postsAsPage: descriptor ? !descriptor.authorKinds.includes('member') : false,
+        postsAsPage: descriptor ? postsAsPage(descriptor.platform) : false,
         variantLabel: draft?.variantLabel ?? str(payload.variantLabel),
         body: draft?.body ?? '',
         shareUrl: draft ? shareUrlFor(draft) : null,

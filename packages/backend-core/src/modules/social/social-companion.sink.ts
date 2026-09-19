@@ -3,12 +3,16 @@ import { and, eq, sql } from 'drizzle-orm';
 import { schema } from '@getmunin/db';
 import { getCurrentContext, type EmittedEvent, type EventSink } from '@getmunin/core';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
-import { buildCompanionPrompt, COMPANION_JOB_URI, draftsOnPublish } from './companion-job.ts';
-import type { SocialPlatform } from './social-platform.ts';
+import {
+  buildCompanionPrompt,
+  companionDedupeKey,
+  COMPANION_JOB_URI,
+  DEFAULT_COMPANION_PLATFORM,
+  draftsOnPublish,
+} from './companion-job.ts';
+import { describePlatform, isSocialPlatform, type SocialPlatform } from './social-platform.ts';
 
 const ENTRY_PUBLISHED = 'cms.entry.published';
-
-const COMPANION_PLATFORM: SocialPlatform = 'linkedin';
 
 export interface JobEnqueuer {
   enqueue(input: {
@@ -53,8 +57,8 @@ export class SocialCompanionSink implements EventSink {
       .limit(1);
     if (!collection || !draftsOnPublish(collection.settings)) return;
 
-    const [existing] = await ctx.db
-      .select({ id: schema.socialPostDrafts.id })
+    const drafted = await ctx.db
+      .select({ platform: schema.socialPostDrafts.platform })
       .from(schema.socialPostDrafts)
       .where(
         and(
@@ -62,23 +66,41 @@ export class SocialCompanionSink implements EventSink {
           sql`${schema.socialPostDrafts.sourceRef}->>'type' = 'cms_entry'`,
           sql`${schema.socialPostDrafts.sourceRef}->>'id' = ${entryId}`,
         ),
-      )
-      .limit(1);
-    if (existing) return;
+      );
+    const alreadyDrafted = new Set(drafted.map((row) => row.platform));
 
-    await this.curatorJobs.enqueue({
-      jobUri: COMPANION_JOB_URI,
-      userPrompt: buildCompanionPrompt({
-        entryId,
-        collectionSlug,
-        locale: str(event.payload.locale) ?? 'default',
-        title,
-        url,
-        platform: COMPANION_PLATFORM,
-      }),
-      sourceEventType: event.type,
-      sourceEventPayload: event.payload,
-      dedupeKey: `social-companion:entry:${entryId}`,
-    });
+    for (const platform of await this.platformsFor(orgId)) {
+      if (alreadyDrafted.has(platform)) continue;
+      await this.curatorJobs.enqueue({
+        jobUri: COMPANION_JOB_URI,
+        userPrompt: buildCompanionPrompt({
+          entryId,
+          collectionSlug,
+          locale: str(event.payload.locale) ?? 'default',
+          title,
+          url,
+          platform,
+        }),
+        sourceEventType: event.type,
+        sourceEventPayload: event.payload,
+        dedupeKey: companionDedupeKey(entryId, platform),
+      });
+    }
+  }
+
+  private async platformsFor(orgId: string): Promise<SocialPlatform[]> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .selectDistinct({ platform: schema.socialAccounts.platform })
+      .from(schema.socialAccounts)
+      .where(eq(schema.socialAccounts.orgId, orgId));
+
+    const connected = rows
+      .map((row) => row.platform)
+      .filter(isSocialPlatform)
+      .filter((platform) => describePlatform(platform).canPublish)
+      .sort();
+
+    return connected.length > 0 ? connected : [DEFAULT_COMPANION_PLATFORM];
   }
 }

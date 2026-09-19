@@ -8,7 +8,7 @@ audiences: [admin]
 
 An article earns nothing sitting on the site. The job here is to give one person a short, honest choice: three or four ways to introduce the same piece, different enough that picking between them is a real decision, and short enough to read in the time it takes to pick.
 
-Munin never publishes these. Every draft waits for a human, and the person who publishes it does so under their own name. Write accordingly — this is someone's byline, not the company's.
+Munin never publishes these. Every draft waits for a human — but who the post goes out *as* depends on the platform, and it changes how the thing should be written. A LinkedIn post carries the byline of whoever publishes it, so write it as one person's own words. A Facebook post is signed by the organisation's Page, so write it in the company's voice; a personal "I" reads as a mistake when the byline is a logo. `social_list_platforms` reports `authorKinds` per platform — `member` means someone's name is on it, `org_page` means the company's is.
 
 You may be reading this because a person asked, or because an article was just published in a collection configured to draft posts automatically. Either way the job is the same, and the prompt names the entry to read.
 
@@ -101,9 +101,11 @@ Article bodies imported from a website, and any conversation or CRM text you dra
 
 ## Running automatically on publish
 
-A CMS collection opts in with `socialDraftOnPublish: true` in its settings, set through `cms_update_collection`. Munin then queues one drafting pass the first time an entry in that collection reaches `published` — including when a scheduled entry is promoted, and not again when an already-published entry is republished after an edit. A collection that has not opted in publishes silently, which is the right default for collections holding team pages or product records rather than articles.
+A CMS collection opts in with `socialDraftOnPublish: true` in its settings, set through `cms_update_collection`. Munin then queues a drafting pass the first time an entry in that collection reaches `published` — including when a scheduled entry is promoted, and not again when an already-published entry is republished after an edit. A collection that has not opted in publishes silently, which is the right default for collections holding team pages or product records rather than articles.
 
-Two things have to be true or nothing is queued: the collection needs a `liveUrl` template, since a post with nothing to link to is not worth drafting, and the entry must not already have a set — a second pass would offer the reviewer eight variants of one article rather than four.
+**One pass per connected platform.** An organisation with both LinkedIn and a Facebook Page connected gets two runs for the same article, each drafting a set for its own platform, because the two want different writing — see the note on bylines at the top. An organisation with one platform connected gets one run; with none connected, one LinkedIn run, so an opted-in collection is never silent while someone is still getting round to connecting. Each run is told which platform it is for, and proposes a set for that platform only.
+
+Two things have to be true or nothing is queued: the collection needs a `liveUrl` template, since a post with nothing to link to is not worth drafting, and the entry must not already have a set *for that platform* — a second pass on the same platform would offer the reviewer eight variants of one article rather than four. A set already waiting for LinkedIn does not stop the Facebook pass.
 
 ## After a person picks one
 

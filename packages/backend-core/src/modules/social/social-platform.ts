@@ -4,6 +4,12 @@ export type SocialPlatform = (typeof SOCIAL_PLATFORMS)[number];
 export const SOCIAL_AUTHOR_KINDS = ['member', 'org_page'] as const;
 export type SocialAuthorKind = (typeof SOCIAL_AUTHOR_KINDS)[number];
 
+export const SOCIAL_LINK_PLACEMENTS = ['body', 'comment'] as const;
+export type SocialLinkPlacement = (typeof SOCIAL_LINK_PLACEMENTS)[number];
+
+export const SOCIAL_MEDIA_KINDS = ['image', 'video'] as const;
+export type SocialMediaKind = (typeof SOCIAL_MEDIA_KINDS)[number];
+
 export const SOCIAL_DRAFT_STATUSES = [
   'pending',
   'published',
@@ -20,11 +26,21 @@ export interface SocialPostLimits {
   linkCountsTowardBody: boolean;
 }
 
+export interface SocialMediaLimits {
+  kinds: readonly SocialMediaKind[];
+  maxImageBytes: number;
+  maxVideoBytes: number;
+  imageContentTypes: readonly string[];
+  videoContentTypes: readonly string[];
+}
+
 export interface SocialPlatformDescriptor {
   readonly platform: SocialPlatform;
   readonly displayName: string;
   readonly authorKinds: readonly SocialAuthorKind[];
   readonly limits: SocialPostLimits;
+  readonly media: SocialMediaLimits;
+  readonly linkPlacements: readonly SocialLinkPlacement[];
   readonly composerUrl: string;
   readonly utmSource: string;
   readonly canPublish: boolean;
@@ -41,6 +57,14 @@ export const SOCIAL_PLATFORM_DESCRIPTORS: Record<SocialPlatform, SocialPlatformD
       maxImages: 1,
       linkCountsTowardBody: false,
     },
+    media: {
+      kinds: ['image', 'video'],
+      maxImageBytes: 10 * 1024 * 1024,
+      maxVideoBytes: 200 * 1024 * 1024,
+      imageContentTypes: ['image/jpeg', 'image/png', 'image/gif'],
+      videoContentTypes: ['video/mp4'],
+    },
+    linkPlacements: ['body', 'comment'],
     composerUrl: 'https://www.linkedin.com/feed/?shareActive=true',
     utmSource: 'linkedin',
     canPublish: true,

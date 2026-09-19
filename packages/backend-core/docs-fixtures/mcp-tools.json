@@ -2533,7 +2533,7 @@
   {
     "name": "cms_list_asset_usage",
     "title": "CMS: List asset usage",
-    "description": "List entries that use the given asset — as a typed asset field, as an inline reference inside a markdown/rich_text body, or inside a block. Useful before deleting an asset — an asset that is still in use cannot be deleted.",
+    "description": "List everything that uses the given asset: CMS entries under `entries` — as a typed asset field, as an inline reference inside a markdown/rich_text body, or inside a block — and anything outside the CMS under `elsewhere`, such as a social post draft waiting to be published. Useful before deleting an asset, since an asset that is still in use anywhere cannot be deleted.",
     "audiences": [
       "admin"
     ],
@@ -9752,7 +9752,7 @@
   {
     "name": "social_create_post_draft",
     "title": "Social: Create post draft",
-    "description": "Store a single social post draft for a person to review and publish. Use this to hand over any piece of text meant for social, whether or not it relates to a published article.",
+    "description": "Store a single social post draft for a person to review and publish. Use this to hand over any piece of text meant for social, whether or not it relates to a published article. An image or video can be attached with mediaUrl, and the link can be placed in the first comment instead of the body.",
     "audiences": [
       "admin"
     ],
@@ -9790,6 +9790,63 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 32
+        },
+        "linkPlacement": {
+          "description": "Where the link goes. \"body\" appends it to the post text. \"comment\" leaves it out of the post and publishes it as the first comment instead.",
+          "type": "string",
+          "enum": [
+            "body",
+            "comment"
+          ]
+        },
+        "linkCommentText": {
+          "description": "Wording for the link comment. The link is appended when the text omits it.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mediaUrl": {
+          "description": "Public https URL of an image or video to attach. Fetched at publish time and uploaded to the platform. When omitted, the image advertised by the linked page is used.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uri"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mediaKind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "image",
+                "video"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mediaAltText": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -9861,6 +9918,63 @@
             "type": "string"
           },
           "additionalProperties": {}
+        },
+        "linkPlacement": {
+          "description": "Where the link goes. \"body\" appends it to the post text. \"comment\" leaves it out of the post and publishes it as the first comment instead.",
+          "type": "string",
+          "enum": [
+            "body",
+            "comment"
+          ]
+        },
+        "linkCommentText": {
+          "description": "Wording for the link comment. The link is appended when the text omits it.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mediaUrl": {
+          "description": "Public https URL of an image or video to attach. Fetched at publish time and uploaded to the platform. When omitted, the image advertised by the linked page is used.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uri"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mediaKind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "image",
+                "video"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mediaAltText": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -9896,6 +10010,114 @@
       "required": [
         "id",
         "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "social_set_post_draft_media",
+    "title": "Social: Set post draft media",
+    "description": "Attach an image or video to a draft that has not been decided yet, or clear the one it carries by passing a null mediaUrl. The file is fetched from the URL when the draft is published, not now, so the URL has to stay reachable until then. A draft with no media of its own falls back to the image the linked page advertises.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "social:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "mediaUrl": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uri"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mediaKind": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "image",
+                "video"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mediaAltText": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "mediaUrl"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "social_set_post_draft_link_placement",
+    "title": "Social: Set post draft link placement",
+    "description": "Move the link of a draft that has not been decided yet between the post body and the first comment. Posting the link as a comment keeps it out of the body, which is how many people publish links on LinkedIn; the post is published either way, and a comment the platform refuses is recorded on the draft rather than failing the post.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "social:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "linkPlacement": {
+          "type": "string",
+          "enum": [
+            "body",
+            "comment"
+          ]
+        },
+        "linkCommentText": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "linkPlacement"
       ],
       "additionalProperties": false
     }

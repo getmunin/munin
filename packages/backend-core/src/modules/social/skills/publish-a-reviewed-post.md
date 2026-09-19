@@ -77,10 +77,35 @@ caller that passes a fingerprint sees this (Slack's publish button does), and it
 the wording on the card is not the wording in the draft. Re-read the draft and publish
 the text you actually mean to publish.
 
+**`social_media_failed`** — the picture or video the draft names could not be fetched or
+uploaded, so nothing was posted and the draft is still pending. The message says which URL
+and why: gone, too large, a type the platform does not take, a host that does not resolve.
+Fix the media with `social_set_post_draft_media` — or clear it, and the post goes out with
+whatever the linked page advertises — then publish again. Munin refuses here on purpose: a
+draft written around a picture is not the same post without it.
+
+An image Munin found on the linked page by itself is treated differently. If that one
+cannot be fetched, the post goes out as text rather than failing, because nobody asked for
+that particular picture.
+
 **`social_publish_failed`** — the platform itself refused the post. The draft is now
 marked `failed` with the reason on it, and it is *not* pending any more, so a retry means
 filing a fresh draft rather than calling publish again. Report the reason verbatim: it is
 the platform's, not Munin's.
+
+## The link comment
+
+A draft with `linkPlacement: comment` is published in two steps: the post, then a comment
+carrying the link. The post is what matters, so a refused comment does not fail the
+publish — the draft is recorded as published and `commentError` on it says what the
+platform answered. Read it back with `social_get_post_draft` after publishing such a
+draft, and if a comment was refused, tell the operator plainly: the post is live, the link
+is not under it, and somebody can add the comment by hand.
+
+On LinkedIn this is the one call that depends on which product the organisation's app
+carries. Munin uses the route that the self-serve "Share on LinkedIn" product allows;
+an app restricted differently may answer `ACCESS_DENIED` here while posting perfectly
+well. That is a property of the app, not of the draft, so do not retry it.
 
 ## When the post was published by hand
 

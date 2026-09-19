@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button, Pill, cn } from '@getmunin/ui';
+import { MoreActionsSheet, MoreActionsTrigger } from '../pane-more-actions';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { QueueItem } from './types';
@@ -314,6 +315,9 @@ export function PaneFooter({
   shortcut?: string;
   bordered?: boolean;
 }) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const hasSecondary = secondary.length > 0;
+
   return (
     <div
       className={cn(
@@ -321,10 +325,22 @@ export function PaneFooter({
         bordered && 'border-t-[1px] border-rule-soft dark:border-rule-on-dark',
       )}
     >
-      <div className="flex items-center gap-2">
-        <Button variant="accent" size="sm" onClick={primary.onClick} disabled={primary.disabled}>
+      <div className="flex flex-1 items-center gap-2 md:flex-none">
+        <Button
+          variant="accent"
+          size="sm"
+          onClick={primary.onClick}
+          disabled={primary.disabled}
+          className="max-md:h-11 max-md:flex-1"
+        >
           {primary.label}
         </Button>
+        {hasSecondary && (
+          <MoreActionsTrigger
+            disabled={secondary.every((b) => b.disabled)}
+            onOpen={() => setMoreOpen(true)}
+          />
+        )}
         {secondary.map((b, i) => (
           <Button
             key={i}
@@ -332,15 +348,27 @@ export function PaneFooter({
             size="sm"
             onClick={b.onClick}
             disabled={b.disabled}
+            className="max-md:hidden"
           >
             {b.label}
           </Button>
         ))}
       </div>
       {shortcut && (
-        <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
+        <span className="hidden font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label md:inline">
           {shortcut}
         </span>
+      )}
+      {hasSecondary && (
+        <MoreActionsSheet
+          open={moreOpen}
+          onOpenChange={setMoreOpen}
+          actions={secondary.map((b) => ({
+            label: b.label,
+            disabled: b.disabled,
+            run: b.onClick,
+          }))}
+        />
       )}
     </div>
   );

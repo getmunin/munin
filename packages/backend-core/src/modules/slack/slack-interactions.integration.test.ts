@@ -15,6 +15,7 @@ import { OutreachService } from '../outreach/outreach.service.ts';
 import { VapiClientService } from '../conv/vapi/vapi-client.service.ts';
 import { VapiOutreachCaller } from '../conv/vapi/vapi-outreach-caller.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
+import { AssetUsageRegistry } from '../../common/asset-usage/asset-usage.registry.ts';
 import { CmsService } from '../cms/cms.service.ts';
 import { StubAssetStorage } from '../cms/cms.test-stub.ts';
 import { SocialService } from '../social/social.service.ts';
@@ -23,6 +24,7 @@ import {
   DbRootTransactionRunner,
   StubPublisherLookup,
   StubTokenSource,
+  StubMediaReader,
 } from '../social/social-test-doubles.ts';
 import { SlackApiClient } from './slack-api.client.ts';
 import { SlackEventSink } from './slack-event-sink.ts';
@@ -186,19 +188,26 @@ class FakeSlackApi extends SlackApiClient {
     })();
     const kb = new KbService(embeddingHolder, new DefaultQuotasService(), dispatcher);
     publisher = new StubPublisherLookup({
-      result: { externalPostId: 'urn:li:share:77', permalink: 'https://example.test/p/77' },
+      result: {
+          externalPostId: 'urn:li:share:77',
+          permalink: 'https://example.test/p/77',
+          commentExternalId: null,
+          commentError: null,
+        },
     });
     const cms = new CmsService(
       new DefaultQuotasService(),
       dispatcher,
       new StubAssetStorage(),
       embeddingHolder,
+      new AssetUsageRegistry(),
     );
     const social = new SocialService(
       new StubTokenSource(),
       publisher,
       new DbRootTransactionRunner(db),
       dispatcher,
+      new StubMediaReader(),
     );
     interactions = new SlackInteractionsService(
       db,

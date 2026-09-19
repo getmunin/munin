@@ -288,8 +288,7 @@
         "kindSocial": "SOCIAL",
         "codeSocial": "SOC",
         "socialUntitled": "Untitled draft",
-        "socialSnippet": "{platform} · {label} · {chars}/{max} characters",
-        "shortcutPublish": "⌘↵ publish"
+        "socialSnippet": "{platform} · {label} · {chars}/{max} characters"
       },
       "scheduled": {
         "outreachUntitled": "Outreach draft",
@@ -443,11 +442,17 @@
         "socialCopyBody": "Copy post",
         "socialCopyLink": "Copy link",
         "socialCopied": "Copied",
+        "socialMedia": "Attached",
+        "socialMediaVideoUnsupported": "Your browser cannot play this video.",
+        "socialMediaFromLink": "No file attached. The picture the linked page advertises is used when the post goes out.",
+        "socialLinkInComment": "Posted as the first comment, not in the post itself.",
+        "socialLinkComment": "First comment",
         "socialLinkTagged": "Tagged for this variant, so later click figures show which angle earned them.",
         "socialComposerHint": "Munin cannot post to this platform for you. Copy the text, publish it under your own name, then mark it posted here.",
         "socialOpenComposer": "Open {platform} →",
         "socialMarkPosted": "Mark as posted",
         "shortcutMarkPosted": "⌘↵ mark as posted",
+        "shortcutPublish": "⌘↵ publish",
         "socialPublish": "Publish",
         "socialPublishAs": "Publish as {name}",
         "socialPublishHint": "Publishing sends this to {platform} straight away, under your name. Munin cannot take it back.",

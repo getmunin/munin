@@ -288,8 +288,7 @@
         "kindSocial": "SOSIALT",
         "codeSocial": "SOME",
         "socialUntitled": "Utkast uten tekst",
-        "socialSnippet": "{platform} · {label} · {chars}/{max} tegn",
-        "shortcutPublish": "⌘↵ publiser"
+        "socialSnippet": "{platform} · {label} · {chars}/{max} tegn"
       },
       "scheduled": {
         "outreachUntitled": "Utkast til utsending",
@@ -443,11 +442,17 @@
         "socialCopyBody": "Kopier innlegg",
         "socialCopyLink": "Kopier lenke",
         "socialCopied": "Kopiert",
+        "socialMedia": "Vedlagt",
+        "socialMediaVideoUnsupported": "Nettleseren din kan ikke spille av denne videoen.",
+        "socialMediaFromLink": "Ingen fil er lagt ved. Bildet siden viser fram brukes når innlegget går ut.",
+        "socialLinkInComment": "Legges ut som første kommentar, ikke i selve innlegget.",
+        "socialLinkComment": "Første kommentar",
         "socialLinkTagged": "Merket for denne varianten, så klikktallene senere viser hvilken vinkling som traff.",
         "socialComposerHint": "Munin kan ikke publisere på denne plattformen for deg. Kopier teksten, publiser den i ditt eget navn, og merk den som publisert her.",
         "socialOpenComposer": "Åpne {platform} →",
         "socialMarkPosted": "Marker som lagt ut",
         "shortcutMarkPosted": "⌘↵ marker som lagt ut",
+        "shortcutPublish": "⌘↵ publiser",
         "socialPublish": "Publiser",
         "socialPublishAs": "Publiser som {name}",
         "socialPublishHint": "Innlegget går rett ut på {platform}, i ditt navn. Munin kan ikke hente det tilbake.",

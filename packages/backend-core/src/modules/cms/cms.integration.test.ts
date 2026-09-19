@@ -1151,12 +1151,14 @@ const skipReason = TEST_URL
         }),
       );
 
-      const usage = parseToolResult<Array<{ fromEntryId: string; kind: string }>>(
-        await c.callTool({ name: 'cms_list_asset_usage', arguments: { assetId } }),
-      );
-      expect(usage).toEqual([
+      const usage = parseToolResult<{
+        entries: Array<{ fromEntryId: string; kind: string }>;
+        elsewhere: Array<{ kind: string; id: string }>;
+      }>(await c.callTool({ name: 'cms_list_asset_usage', arguments: { assetId } }));
+      expect(usage.entries).toEqual([
         expect.objectContaining({ fromEntryId: entry.id, kind: 'inline' }),
       ]);
+      expect(usage.elsewhere).toEqual([]);
 
       const blocked = (await c.callTool({
         name: 'cms_delete_asset',
@@ -1250,11 +1252,11 @@ const skipReason = TEST_URL
         }),
       );
 
-      const usage = parseToolResult<Array<{ fromEntryId: string; kind: string }>>(
-        await c.callTool({ name: 'cms_list_asset_usage', arguments: { assetId } }),
-      );
-      expect(usage.length).toBeGreaterThanOrEqual(1);
-      expect(usage.every((u) => u.fromEntryId === entry.id)).toBe(true);
+      const usage = parseToolResult<{
+        entries: Array<{ fromEntryId: string; kind: string }>;
+      }>(await c.callTool({ name: 'cms_list_asset_usage', arguments: { assetId } }));
+      expect(usage.entries.length).toBeGreaterThanOrEqual(1);
+      expect(usage.entries.every((u) => u.fromEntryId === entry.id)).toBe(true);
 
       const blocked = (await c.callTool({
         name: 'cms_delete_asset',
@@ -1772,10 +1774,10 @@ const skipReason = TEST_URL
         }),
       );
 
-      const usageBefore = parseToolResult<Array<unknown>>(
+      const usageBefore = parseToolResult<{ entries: Array<unknown> }>(
         await c.callTool({ name: 'cms_list_asset_usage', arguments: { assetId } }),
       );
-      expect(usageBefore).toHaveLength(0);
+      expect(usageBefore.entries).toHaveLength(0);
 
       const edited = parseToolResult<{
         version: number;
@@ -1804,12 +1806,14 @@ const skipReason = TEST_URL
       expect(edited.data.body.map((b) => b.key)).toEqual(['plate', 'one']);
       expect((edited.data.body[0]!.props.image as { id: string }).id).toBe(assetId);
 
-      const usageAfter = parseToolResult<Array<{ fromEntryId: string; fieldName: string }>>(
+      const usageAfter = parseToolResult<{
+        entries: Array<{ fromEntryId: string; fieldName: string }>;
+      }>(
         await c.callTool({ name: 'cms_list_asset_usage', arguments: { assetId } }),
       );
-      expect(usageAfter).toHaveLength(1);
-      expect(usageAfter[0]!.fromEntryId).toBe(created.id);
-      expect(usageAfter[0]!.fieldName).toBe('body');
+      expect(usageAfter.entries).toHaveLength(1);
+      expect(usageAfter.entries[0]!.fromEntryId).toBe(created.id);
+      expect(usageAfter.entries[0]!.fieldName).toBe('body');
 
       const blocked = (await c.callTool({
         name: 'cms_delete_asset',

@@ -6,8 +6,12 @@ import { useCopy } from '../../../lib/use-copy';
 import { useRelative } from '../../../lib/use-relative';
 import { useSocialPublishTarget } from '../../../lib/use-publish-target';
 import { PaneFooter, PaneHeader, useCmdEnter } from './shared';
-import { socialPublishAvailability } from './social-actions';
+import { shortPublishName, socialPublishAvailability } from './social-actions';
 import type { SocialDraftDto } from './types';
+
+function guessMediaKind(url: string): 'image' | 'video' {
+  return /\.(mp4|mov|m4v|webm)(\?|#|$)/i.test(url) ? 'video' : 'image';
+}
 
 export function SocialQueuePane({
   item,
@@ -32,6 +36,8 @@ export function SocialQueuePane({
 
   const draft = item.raw;
   const shareUrl = draft.shareUrl ?? draft.linkUrl;
+  const linkInComment = draft.linkPlacement === 'comment';
+  const mediaKind = draft.mediaKind ?? (draft.mediaUrl ? guessMediaKind(draft.mediaUrl) : null);
   const target = useSocialPublishTarget(draft.canPublish);
   const availability = socialPublishAvailability(draft, target);
   const canPublishNow = availability.state === 'ready' && onPublish !== undefined;
@@ -42,10 +48,11 @@ export function SocialQueuePane({
     else if (availability.state === 'unsupported') onApprove();
   });
 
-  const publishLabel =
-    availability.state === 'ready' && availability.authorName
-      ? t('socialPublishAs', { name: availability.authorName })
-      : t('socialPublish');
+  const authorName =
+    availability.state === 'ready' ? shortPublishName(availability.authorName) : null;
+  const publishLabel = authorName
+    ? t('socialPublishAs', { name: authorName })
+    : t('socialPublish');
 
   return (
     <>
@@ -88,6 +95,32 @@ export function SocialQueuePane({
           </div>
         </section>
 
+        {draft.mediaUrl && (
+          <section className="space-y-2">
+            <p className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
+              {t('socialMedia')}
+            </p>
+            <div className="border-[1px] border-ink bg-paper p-2 dark:border-rule-on-dark dark:bg-card">
+              {mediaKind === 'video' ? (
+                <video controls preload="metadata" className="max-h-80 w-full" src={draft.mediaUrl}>
+                  {t('socialMediaVideoUnsupported')}
+                </video>
+              ) : (
+                <img
+                  src={draft.mediaUrl}
+                  alt={draft.mediaAltText ?? ''}
+                  className="max-h-80 w-full object-contain"
+                />
+              )}
+            </div>
+            {draft.mediaAltText && <p className="text-xs text-ink-mute">{draft.mediaAltText}</p>}
+          </section>
+        )}
+
+        {!draft.mediaUrl && shareUrl && (
+          <p className="text-xs text-ink-mute">{t('socialMediaFromLink')}</p>
+        )}
+
         {shareUrl && (
           <section className="space-y-2">
             <div className="flex items-center justify-between gap-3">
@@ -100,6 +133,18 @@ export function SocialQueuePane({
             </div>
             <p className="break-all font-mono text-xs text-ink-mute">{shareUrl}</p>
             <p className="text-xs text-ink-mute">{t('socialLinkTagged')}</p>
+            {linkInComment && <p className="text-xs text-ink-mute">{t('socialLinkInComment')}</p>}
+          </section>
+        )}
+
+        {linkInComment && draft.linkCommentText && (
+          <section className="space-y-2">
+            <p className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
+              {t('socialLinkComment')}
+            </p>
+            <div className="border-[1px] border-ink bg-paper px-4 py-3 text-sm leading-relaxed dark:border-rule-on-dark dark:bg-card dark:text-foreground">
+              <p className="whitespace-pre-wrap">{draft.linkCommentText}</p>
+            </div>
           </section>
         )}
 

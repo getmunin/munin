@@ -17,12 +17,21 @@ import {
 } from './cms.service.ts';
 import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
+import { AssetUsageRegistry } from '../../common/asset-usage/asset-usage.registry.ts';
 import { StubAssetStorage } from './cms.test-stub.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
   ? null
   : 'Set TEST_DATABASE_URL to a Postgres URL to run CMS service tests.';
+
+function holderFor(): EmbeddingProviderHolder {
+  return new (class extends EmbeddingProviderHolder {
+    override get() {
+      return new StubEmbeddingProvider();
+    }
+  })();
+}
 
 (skipReason ? describe.skip : describe)('CmsService', () => {
   let db: ReturnType<typeof createDb>;
@@ -45,13 +54,15 @@ const skipReason = TEST_URL
     orgId = org!.id;
     actor = new ActorIdentity('admin_agent', 'agt_cms_test', orgId, ['*'], ['admin']);
 
-    const holder = new (class extends EmbeddingProviderHolder {
-      override get() {
-        return new StubEmbeddingProvider();
-      }
-    })();
+    const holder = holderFor();
     storage = new StubAssetStorage();
-    svc = new CmsService(new DefaultQuotasService(), new WebhookDispatcher(), storage, holder);
+    svc = new CmsService(
+      new DefaultQuotasService(),
+      new WebhookDispatcher(),
+      storage,
+      holder,
+      new AssetUsageRegistry(),
+    );
   });
 
   afterAll(async () => {
@@ -1339,6 +1350,38 @@ const skipReason = TEST_URL
 
       expect(storage.deletes).toContain(handle.storageKey);
       for (const key of variantKeys) expect(storage.deletes).toContain(key);
+    });
+
+    it('deleteAsset refuses an asset something outside the CMS is still using', async () => {
+      const registry = new AssetUsageRegistry();
+      const guarded = new CmsService(
+        new DefaultQuotasService(),
+        new WebhookDispatcher(),
+        storage,
+        holderFor(),
+        registry,
+      );
+      const handle = await run(() =>
+        guarded.requestAssetUpload({ name: 'card.png', mime: 'image/png', sizeBytes: 1024 }),
+      );
+      registry.register({
+        usageFor: () =>
+          Promise.resolve([
+            {
+              kind: 'social_draft',
+              id: 'spd_1',
+              description: 'pending linkedin post draft spd_1',
+            },
+          ]),
+      });
+
+      await expect(run(() => guarded.deleteAsset({ id: handle.id }))).rejects.toThrow(
+        /used by 1 item outside the CMS \(pending linkedin post draft spd_1\)/,
+      );
+      expect(storage.deletes).not.toContain(handle.storageKey);
+
+      const usage = await run(() => guarded.listExternalAssetUsage(handle.id));
+      expect(usage).toHaveLength(1);
     });
 
     it('deleteAsset returns 404 for unknown id', async () => {

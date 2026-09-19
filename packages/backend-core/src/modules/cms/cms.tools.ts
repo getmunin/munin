@@ -786,15 +786,18 @@ export class CmsAdminTools {
     name: 'cms_list_asset_usage',
     title: 'CMS: List asset usage',
     description:
-      'List entries that use the given asset — as a typed asset field, as an inline reference inside a markdown/rich_text body, or inside a block. Useful before deleting an asset — an asset that is still in use cannot be deleted.',
+      'List everything that uses the given asset: CMS entries under `entries` — as a typed asset field, as an inline reference inside a markdown/rich_text body, or inside a block — and anything outside the CMS under `elsewhere`, such as a social post draft waiting to be published. Useful before deleting an asset, since an asset that is still in use anywhere cannot be deleted.',
     audiences: ['admin'],
     scopes: ['cms:read'],
     input: ListAssetUsageInput,
     readOnlyHint: true,
     destructiveHint: false,
   })
-  listAssetUsage(args: z.infer<typeof ListAssetUsageInput>) {
-    return this.cms.listAssetUsage(args.assetId);
+  async listAssetUsage(args: z.infer<typeof ListAssetUsageInput>) {
+    return {
+      entries: await this.cms.listAssetUsage(args.assetId),
+      elsewhere: await this.cms.listExternalAssetUsage(args.assetId),
+    };
   }
 
   @McpTool({

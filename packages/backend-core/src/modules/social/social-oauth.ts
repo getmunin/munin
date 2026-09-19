@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import type { SocialPlatform } from './social-platform.ts';
+import type {
+  SocialLinkPlacement,
+  SocialMediaKind,
+  SocialPlatform,
+} from './social-platform.ts';
 
 export interface SocialOAuthClient {
   clientId: string;
@@ -19,16 +23,34 @@ export interface SocialAccountIdentity {
   displayName: string | null;
 }
 
+export interface SocialMediaUpload {
+  kind: SocialMediaKind;
+  bytes: Buffer;
+  contentType: string;
+  altText: string | null;
+}
+
+export interface SocialMediaRef {
+  kind: SocialMediaKind;
+  id: string;
+  altText: string | null;
+}
+
 export interface SocialPublishRequest {
   accessToken: string;
   externalAccountId: string;
   body: string;
   linkUrl: string | null;
+  linkPlacement: SocialLinkPlacement;
+  linkCommentText: string | null;
+  media: SocialMediaRef | null;
 }
 
 export interface SocialPublishResult {
   externalPostId: string;
   permalink: string | null;
+  commentExternalId: string | null;
+  commentError: string | null;
 }
 
 export class SocialGrantRevokedError extends Error {}
@@ -46,6 +68,11 @@ export interface SocialOAuthAdapter {
   refresh(args: { refreshToken: string; client: SocialOAuthClient }): Promise<SocialTokenSet>;
   identify(args: { accessToken: string }): Promise<SocialAccountIdentity>;
   publish?(args: SocialPublishRequest): Promise<SocialPublishResult>;
+  uploadMedia?(args: {
+    accessToken: string;
+    externalAccountId: string;
+    media: SocialMediaUpload;
+  }): Promise<SocialMediaRef>;
 }
 
 @Injectable()

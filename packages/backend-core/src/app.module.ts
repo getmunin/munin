@@ -20,6 +20,7 @@ import { QuotasModule } from './common/quotas/quotas.module.ts';
 import { ErrorReporterModule } from './common/error-reporter/error-reporter.module.ts';
 import { MailModule } from './common/mail/mail.module.ts';
 import { WebhookModule } from './common/webhooks/webhook.module.ts';
+import { AssetUsageModule } from './common/asset-usage/asset-usage.module.ts';
 import { StorageModule } from './common/storage/storage.module.ts';
 import { RealtimeModule } from './realtime/realtime.module.ts';
 import { OAuthModule } from './oauth/oauth.module.ts';
@@ -38,6 +39,7 @@ export const BACKEND_FEATURE_MODULES = [
   MailModule,
   StorageModule,
   WebhookModule,
+  AssetUsageModule,
   RateLimitModule,
   PublicThrottleModule,
   QuotasModule,

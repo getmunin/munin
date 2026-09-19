@@ -17,7 +17,13 @@ import {
 } from '@getmunin/core';
 import { OutboundOAuthStore } from '../../common/outbound-oauth/grant-store.ts';
 import { SocialAccountsService } from './social-accounts.service.ts';
-import { SocialOAuthRegistry, type SocialPublishRequest, type SocialPublishResult } from './social-oauth.ts';
+import {
+  SocialOAuthRegistry,
+  type SocialMediaRef,
+  type SocialMediaUpload,
+  type SocialPublishRequest,
+  type SocialPublishResult,
+} from './social-oauth.ts';
 import {
   decidedBefore,
   toDecidedActor,
@@ -32,10 +38,19 @@ import {
   describePlatform,
   measureBody,
   shareUrlFor,
+  SOCIAL_LINK_PLACEMENTS,
+  SOCIAL_MEDIA_KINDS,
   type SocialDraftStatus,
+  type SocialLinkPlacement,
+  type SocialMediaKind,
   type SocialPlatform,
   type SocialPlatformDescriptor,
 } from './social-platform.ts';
+import {
+  SocialMediaFetcher,
+  type FetchedMedia,
+  type SocialMediaReader,
+} from './social-media.ts';
 
 export interface SocialPublishTarget {
   userId: string;
@@ -53,7 +68,14 @@ export interface SocialTokenSource {
 
 export interface SocialPublisherLookup {
   get(platform: SocialPlatform):
-    | { publish?: (args: SocialPublishRequest) => Promise<SocialPublishResult> }
+    | {
+        publish?: (args: SocialPublishRequest) => Promise<SocialPublishResult>;
+        uploadMedia?: (args: {
+          accessToken: string;
+          externalAccountId: string;
+          media: SocialMediaUpload;
+        }) => Promise<SocialMediaRef>;
+      }
     | undefined;
 }
 
@@ -73,6 +95,11 @@ export interface SocialDraftDto {
   body: string;
   linkUrl: string | null;
   shareUrl: string | null;
+  linkPlacement: SocialLinkPlacement;
+  linkCommentText: string | null;
+  mediaUrl: string | null;
+  mediaKind: SocialMediaKind | null;
+  mediaAltText: string | null;
   sourceRef: Record<string, unknown>;
   status: SocialDraftStatus;
   bodyChars: number;
@@ -81,12 +108,22 @@ export interface SocialDraftDto {
   composerUrl: string;
   externalPostId: string | null;
   permalink: string | null;
+  commentExternalId: string | null;
+  commentError: string | null;
   decidedAt: string | null;
   publishedAt: string | null;
   createdAt: string;
 }
 
-export interface CreateDraftInput {
+export interface DraftPresentationInput {
+  linkPlacement?: SocialLinkPlacement;
+  linkCommentText?: string | null;
+  mediaUrl?: string | null;
+  mediaKind?: SocialMediaKind | null;
+  mediaAltText?: string | null;
+}
+
+export interface CreateDraftInput extends DraftPresentationInput {
   platform?: SocialPlatform;
   body: string;
   linkUrl?: string | null;
@@ -95,7 +132,7 @@ export interface CreateDraftInput {
   setId?: string;
 }
 
-export interface ProposeSetInput {
+export interface ProposeSetInput extends DraftPresentationInput {
   platform?: SocialPlatform;
   linkUrl?: string | null;
   sourceRef?: Record<string, unknown>;
@@ -107,6 +144,18 @@ export interface ListDraftsInput {
   status?: SocialDraftStatus;
   setId?: string;
   limit?: number;
+}
+
+interface ResolvedPresentation {
+  linkPlacement: SocialLinkPlacement;
+  linkCommentText: string | null;
+  mediaUrl: string | null;
+  mediaKind: SocialMediaKind | null;
+  mediaAltText: string | null;
+}
+
+export function bodyLink(linkUrl: string | null, linkPlacement: string): string | null {
+  return linkPlacement === 'comment' ? null : linkUrl;
 }
 
 const DEFAULT_PLATFORM: SocialPlatform = 'linkedin';
@@ -123,6 +172,7 @@ export class SocialService {
     @Inject(SocialOAuthRegistry) private readonly registry: SocialPublisherLookup,
     @Inject(OutboundOAuthStore) private readonly store: RootTransactionRunner,
     @Inject(WebhookDispatcher) private readonly webhooks: SocialEventEmitter,
+    @Inject(SocialMediaFetcher) private readonly media: SocialMediaReader,
   ) {}
 
   listPlatforms(): SocialPlatformDescriptor[] {
@@ -134,6 +184,7 @@ export class SocialService {
     const setId = input.setId ?? makeId('spd');
     const rows = await this.insertVariants(platform, setId, input.linkUrl ?? null, {
       sourceRef: input.sourceRef ?? { type: 'adhoc' },
+      presentation: this.readPresentation(platform, input, input.linkUrl ?? null),
       variants: [{ variantLabel: input.variantLabel ?? 'single', body: input.body }],
     });
     return rows[0]!;
@@ -158,6 +209,7 @@ export class SocialService {
     const platform = input.platform ?? DEFAULT_PLATFORM;
     return await this.insertVariants(platform, makeId('spd'), input.linkUrl ?? null, {
       sourceRef: input.sourceRef ?? { type: 'adhoc' },
+      presentation: this.readPresentation(platform, input, input.linkUrl ?? null),
       variants: input.variants,
     });
   }
@@ -168,6 +220,7 @@ export class SocialService {
     linkUrl: string | null,
     rest: {
       sourceRef: Record<string, unknown>;
+      presentation: ResolvedPresentation;
       variants: { variantLabel: string; body: string }[];
     },
   ): Promise<SocialDraftDto[]> {
@@ -183,7 +236,7 @@ export class SocialService {
       if (!variant.variantLabel.trim()) {
         throw new BadRequestException('social_invalid: variant label cannot be empty');
       }
-      const measured = measureBody(platform, variant.body, linkUrl);
+      const measured = measureBody(platform, variant.body, bodyLink(linkUrl, rest.presentation.linkPlacement));
       if (measured.overBy > 0) {
         throw new BadRequestException(
           `social_invalid: ${variant.variantLabel} is ${measured.overBy} characters over the ${describePlatform(platform).displayName} limit of ${measured.maxBodyChars}`,
@@ -205,6 +258,11 @@ export class SocialService {
       body: variant.body,
       linkUrl,
       linkUtm: linkUrl ? { ...buildUtm(platform, setId, variant.variantLabel) } : {},
+      linkPlacement: rest.presentation.linkPlacement,
+      linkCommentText: rest.presentation.linkCommentText,
+      mediaUrl: rest.presentation.mediaUrl,
+      mediaKind: rest.presentation.mediaKind,
+      mediaAltText: rest.presentation.mediaAltText,
       sourceRef: rest.sourceRef,
       proposedByActorType: actor.type,
       proposedByActorId: actor.id,
@@ -247,7 +305,7 @@ export class SocialService {
       throw new BadRequestException('social_invalid: draft body cannot be empty');
     }
     const platform = row.platform as SocialPlatform;
-    const measured = measureBody(platform, body, row.linkUrl);
+    const measured = measureBody(platform, body, bodyLink(row.linkUrl, row.linkPlacement));
     if (measured.overBy > 0) {
       throw new BadRequestException(
         `social_invalid: revision is ${measured.overBy} characters over the ${describePlatform(platform).displayName} limit of ${measured.maxBodyChars}`,
@@ -385,6 +443,25 @@ export class SocialService {
       platform,
     });
     const linkUrl = this.toDto(row).shareUrl;
+    const uploadMedia = this.registry.get(platform)?.uploadMedia;
+    let media: SocialMediaRef | null = null;
+    if (uploadMedia) {
+      try {
+        media = await this.resolveMedia(row, platform, (upload) =>
+          uploadMedia({
+            accessToken,
+            externalAccountId: account.externalAccountId,
+            media: upload,
+          }),
+        );
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : 'the media could not be attached';
+        throw new BadRequestException({
+          message: `social_media_failed: ${reason}`,
+          code: 'social_media_failed',
+        });
+      }
+    }
 
     const outcome = await this.store.inRootTransaction(async (tx) => {
       const [locked] = await tx
@@ -424,6 +501,9 @@ export class SocialService {
           externalAccountId: account.externalAccountId,
           body: locked.body,
           linkUrl,
+          linkPlacement: locked.linkPlacement as SocialLinkPlacement,
+          linkCommentText: locked.linkCommentText,
+          media,
         });
         const [updated] = await tx
           .update(schema.socialPostDrafts)
@@ -433,6 +513,8 @@ export class SocialService {
             publishedAt: new Date(),
             externalPostId: result.externalPostId,
             permalink: result.permalink,
+            commentExternalId: result.commentExternalId,
+            commentError: result.commentError ? result.commentError.slice(0, 500) : null,
             lastError: null,
           })
           .where(eq(schema.socialPostDrafts.id, id))
@@ -440,6 +522,8 @@ export class SocialService {
         await emit('social.post_draft.published', {
           ...this.eventPayload(updated!),
           publishedExternally: false,
+          commentExternalId: updated!.commentExternalId,
+          commentError: updated!.commentError,
         });
         await this.settleSiblings(tx, updated!, emit);
         return { published: updated! };
@@ -466,6 +550,189 @@ export class SocialService {
       });
     }
     return this.toDto(outcome.published);
+  }
+
+  private readPresentation(
+    platform: SocialPlatform,
+    input: DraftPresentationInput,
+    linkUrl: string | null,
+  ): ResolvedPresentation {
+    const descriptor = describePlatform(platform);
+    const linkPlacement = input.linkPlacement ?? 'body';
+    if (!SOCIAL_LINK_PLACEMENTS.includes(linkPlacement)) {
+      throw new BadRequestException(
+        `social_invalid: ${linkPlacement} is not a link placement — use ${SOCIAL_LINK_PLACEMENTS.join(' or ')}`,
+      );
+    }
+    if (!descriptor.linkPlacements.includes(linkPlacement)) {
+      throw new BadRequestException(
+        `social_invalid: ${descriptor.displayName} cannot place a link in a ${linkPlacement}`,
+      );
+    }
+    if (linkPlacement === 'comment' && !linkUrl) {
+      throw new BadRequestException(
+        'social_invalid: linkPlacement comment needs a linkUrl to put in the comment',
+      );
+    }
+    const linkCommentText = input.linkCommentText?.trim() || null;
+    if (linkCommentText && linkPlacement !== 'comment') {
+      throw new BadRequestException(
+        'social_invalid: linkCommentText only applies when linkPlacement is comment',
+      );
+    }
+    const mediaUrl = input.mediaUrl?.trim() || null;
+    const mediaKind = input.mediaKind ?? null;
+    const mediaAltText = input.mediaAltText?.trim() || null;
+    if (mediaUrl) this.assertHttpUrl(mediaUrl);
+    if (mediaKind) {
+      if (!SOCIAL_MEDIA_KINDS.includes(mediaKind)) {
+        throw new BadRequestException(
+          `social_invalid: ${mediaKind} is not a media kind — use ${SOCIAL_MEDIA_KINDS.join(' or ')}`,
+        );
+      }
+      if (!descriptor.media.kinds.includes(mediaKind)) {
+        throw new BadRequestException(
+          `social_invalid: ${descriptor.displayName} does not take a ${mediaKind}`,
+        );
+      }
+    }
+    if (!mediaUrl && (mediaKind || mediaAltText)) {
+      throw new BadRequestException(
+        'social_invalid: mediaKind and mediaAltText need a mediaUrl to describe',
+      );
+    }
+    return { linkPlacement, linkCommentText, mediaUrl, mediaKind, mediaAltText };
+  }
+
+  async setDraftMedia(
+    id: string,
+    input: { mediaUrl: string | null; mediaKind?: SocialMediaKind | null; mediaAltText?: string | null },
+  ): Promise<SocialDraftDto> {
+    const ctx = getCurrentContext();
+    const row = await this.requireDraft(id);
+    this.assertPending(row);
+    const platform = row.platform as SocialPlatform;
+    const presentation = this.readPresentation(
+      platform,
+      {
+        linkPlacement: row.linkPlacement as SocialLinkPlacement,
+        linkCommentText: row.linkCommentText,
+        mediaUrl: input.mediaUrl,
+        mediaKind: input.mediaKind ?? null,
+        mediaAltText: input.mediaAltText ?? null,
+      },
+      row.linkUrl,
+    );
+    const [updated] = await ctx.db
+      .update(schema.socialPostDrafts)
+      .set({
+        mediaUrl: presentation.mediaUrl,
+        mediaKind: presentation.mediaKind,
+        mediaAltText: presentation.mediaAltText,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.socialPostDrafts.id, id))
+      .returning();
+    await this.webhooks.emit({
+      type: 'social.post_draft.revised',
+      payload: this.eventPayload(updated!),
+    });
+    return this.toDto(updated!);
+  }
+
+  async setDraftLinkPlacement(
+    id: string,
+    input: { linkPlacement: SocialLinkPlacement; linkCommentText?: string | null },
+  ): Promise<SocialDraftDto> {
+    const ctx = getCurrentContext();
+    const row = await this.requireDraft(id);
+    this.assertPending(row);
+    const platform = row.platform as SocialPlatform;
+    const presentation = this.readPresentation(
+      platform,
+      {
+        linkPlacement: input.linkPlacement,
+        linkCommentText: input.linkCommentText ?? null,
+        mediaUrl: row.mediaUrl,
+        mediaKind: row.mediaKind as SocialMediaKind | null,
+        mediaAltText: row.mediaAltText,
+      },
+      row.linkUrl,
+    );
+    const measured = measureBody(
+      platform,
+      row.body,
+      bodyLink(row.linkUrl, presentation.linkPlacement),
+    );
+    if (measured.overBy > 0) {
+      throw new BadRequestException(
+        `social_invalid: moving the link into the body puts the draft ${measured.overBy} characters over the ${describePlatform(platform).displayName} limit of ${measured.maxBodyChars}`,
+      );
+    }
+    const [updated] = await ctx.db
+      .update(schema.socialPostDrafts)
+      .set({
+        linkPlacement: presentation.linkPlacement,
+        linkCommentText: presentation.linkCommentText,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.socialPostDrafts.id, id))
+      .returning();
+    await this.webhooks.emit({
+      type: 'social.post_draft.revised',
+      payload: this.eventPayload(updated!),
+    });
+    return this.toDto(updated!);
+  }
+
+  private async resolveMedia(
+    row: typeof schema.socialPostDrafts.$inferSelect,
+    platform: SocialPlatform,
+    upload: (media: SocialMediaUpload) => Promise<SocialMediaRef>,
+  ): Promise<SocialMediaRef | null> {
+    const descriptor = describePlatform(platform);
+    const attach = (fetched: FetchedMedia) =>
+      upload({
+        kind: fetched.kind,
+        bytes: fetched.bytes,
+        contentType: fetched.contentType,
+        altText: row.mediaAltText,
+      });
+
+    if (row.mediaUrl) {
+      return await attach(
+        await this.media.fetchMedia(row.mediaUrl, {
+          expectedKind: row.mediaKind as SocialMediaKind | null,
+          limits: descriptor.media,
+        }),
+      );
+    }
+
+    const scraped = await this.scrapeLinkImage(row.linkUrl, descriptor.media);
+    if (!scraped) return null;
+    try {
+      return await attach(scraped);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : 'the upload was refused';
+      this.logger.warn(`link preview image not attached draft=${row.id} reason=${reason}`);
+      return null;
+    }
+  }
+
+  private async scrapeLinkImage(
+    linkUrl: string | null,
+    limits: SocialPlatformDescriptor['media'],
+  ): Promise<FetchedMedia | null> {
+    if (!linkUrl) return null;
+    try {
+      const preview = await this.media.fetchOpenGraph(linkUrl);
+      if (!preview.imageUrl) return null;
+      return await this.media.fetchMedia(preview.imageUrl, { expectedKind: 'image', limits });
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : 'the page could not be read';
+      this.logger.debug(`link preview image unavailable link=${linkUrl} reason=${reason}`);
+      return null;
+    }
   }
 
   private async requirePublishableAccount(
@@ -615,6 +882,8 @@ export class SocialService {
       status: row.status,
       linkUrl: row.linkUrl,
       shareUrl: shareUrlFor(row),
+      linkPlacement: row.linkPlacement,
+      mediaKind: row.mediaKind,
       permalink: row.permalink,
       externalPostId: row.externalPostId,
       fingerprint: socialDraftFingerprint(row),
@@ -644,7 +913,7 @@ export class SocialService {
   private toDto(row: typeof schema.socialPostDrafts.$inferSelect): SocialDraftDto {
     const platform = row.platform as SocialPlatform;
     const descriptor = describePlatform(platform);
-    const measured = measureBody(platform, row.body, row.linkUrl);
+    const measured = measureBody(platform, row.body, bodyLink(row.linkUrl, row.linkPlacement));
     const shareUrl = shareUrlFor(row);
     return {
       id: row.id,
@@ -654,6 +923,11 @@ export class SocialService {
       body: row.body,
       linkUrl: row.linkUrl,
       shareUrl,
+      linkPlacement: row.linkPlacement as SocialLinkPlacement,
+      linkCommentText: row.linkCommentText,
+      mediaUrl: row.mediaUrl,
+      mediaKind: row.mediaKind as SocialMediaKind | null,
+      mediaAltText: row.mediaAltText,
       sourceRef: row.sourceRef,
       status: row.status as SocialDraftStatus,
       bodyChars: measured.countedChars,
@@ -662,6 +936,8 @@ export class SocialService {
       composerUrl: descriptor.composerUrl,
       externalPostId: row.externalPostId,
       permalink: row.permalink,
+      commentExternalId: row.commentExternalId,
+      commentError: row.commentError,
       decidedAt: row.decidedAt ? row.decidedAt.toISOString() : null,
       publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
       createdAt: row.createdAt.toISOString(),

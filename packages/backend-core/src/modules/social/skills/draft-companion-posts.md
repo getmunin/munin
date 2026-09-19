@@ -19,6 +19,8 @@ You may be reading this because a person asked, or because an article was just p
 - `social_create_post_draft` — store a single draft, for text that is not a set of angles on an article.
 - `social_list_post_drafts` / `social_get_post_draft` — read back what is already waiting.
 - `social_revise_post_draft` — replace the body of a draft nobody has decided on yet.
+- `social_set_post_draft_media` — attach an image or video to a draft, or clear the one it carries.
+- `social_set_post_draft_link_placement` — move the link between the post body and the first comment.
 - `social_dismiss_post_draft` — close one nobody will publish.
 
 To read the article itself, use `cms_get_entry` or `kb_get_document`.
@@ -34,6 +36,40 @@ To read the article itself, use `cms_get_entry` or `kb_get_document`.
    - `data` — the single number that carries the piece.
 4. Pass the article's canonical URL as `linkUrl`, without any tracking parameters. Munin tags it per variant, so the click figures later tell you which angle worked. Adding your own parameters defeats that.
 5. Call `social_propose_post_set` once with all the variants.
+
+## The picture
+
+A post with no picture is text on a feed, and on LinkedIn nothing fetches one for you: its
+API refuses to read the linked page, so a bare URL in the body renders as plain text with
+no card at all. Munin closes that gap at publish time by reading the page the draft links
+to and attaching the image it advertises — which means a draft that names a `linkUrl` and
+nothing else still goes out with a picture, provided the page carries an `og:image`.
+
+Pass `mediaUrl` when you want a specific file instead: an https URL to an image or a video,
+which Munin fetches when the draft is published and uploads to the platform. It is fetched
+*then*, not now, so the URL has to still be reachable at publish time — a signed URL that
+expires in an hour is a draft that fails to publish tomorrow. `social_list_platforms`
+reports the accepted types and size ceilings under `media`; a file the platform does not
+take is refused when the draft is published, not when it is filed.
+
+Give an image `mediaAltText`. It is what a screen reader announces, and a post that omits
+it is one a portion of the audience cannot read.
+
+For a file that exists only on somebody's machine, and for what happens to an asset
+uploaded purely for a post, read `skill://social/attach-media-to-a-post`.
+
+## Where the link goes
+
+`linkPlacement` decides. The default, `body`, appends the link to the post text, which is
+how a link has always gone out and what every existing draft still does. `comment` keeps
+the link out of the post and publishes it as the first comment instead — the common play on
+LinkedIn, where an outbound link in the body is widely held to cost reach. Set
+`linkCommentText` to say something in that comment ("Full write-up:"); the link is appended
+when the wording omits it, so the comment is never a bare URL by accident unless you want
+one.
+
+A link in a comment does not count against the post's character budget, which is worth
+knowing when a draft is close to the limit.
 
 ## When nobody can publish yet
 

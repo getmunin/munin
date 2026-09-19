@@ -170,6 +170,11 @@ export interface SocialDraftDto {
   body: string;
   linkUrl: string | null;
   shareUrl: string | null;
+  linkPlacement: string;
+  linkCommentText: string | null;
+  mediaUrl: string | null;
+  mediaKind: string | null;
+  mediaAltText: string | null;
   sourceRef: Record<string, unknown>;
   status: string;
   bodyChars: number;

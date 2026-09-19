@@ -161,6 +161,12 @@ export {
   type QuotaResource,
 } from './common/quotas/quotas.service.ts';
 export { WebhookModule } from './common/webhooks/webhook.module.ts';
+export { AssetUsageModule } from './common/asset-usage/asset-usage.module.ts';
+export {
+  AssetUsageRegistry,
+  type AssetUsageProvider,
+  type AssetUsageRef,
+} from './common/asset-usage/asset-usage.registry.ts';
 export { OAuthModule } from './oauth/oauth.module.ts';
 export {
   MCP_RESOURCE_PATH,

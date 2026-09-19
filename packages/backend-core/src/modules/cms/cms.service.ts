@@ -22,6 +22,14 @@ import {
 } from '@getmunin/core';
 import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.service.ts';
 import {
+  AssetUsageRegistry,
+  type AssetUsageRef,
+} from '../../common/asset-usage/asset-usage.registry.ts';
+
+export interface AssetUsageLookup {
+  usageFor(args: { assetId: string; publicUrl: string }): Promise<AssetUsageRef[]>;
+}
+import {
   toDecidedActor,
   type DecidedQuery,
   type ReviewDecision,
@@ -303,6 +311,7 @@ export class CmsService {
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(STORAGE) private readonly storage: AssetStorage,
     @Inject(EmbeddingProviderHolder) private readonly embeddings: EmbeddingProviderHolder,
+    @Inject(AssetUsageRegistry) private readonly assetUsage: AssetUsageLookup,
   ) {}
 
   async listCollections(): Promise<CollectionDto[]> {
@@ -1545,6 +1554,21 @@ export class CmsService {
       );
     }
 
+    const elsewhere = await this.assetUsage.usageFor({
+      assetId: input.id,
+      publicUrl: rows[0].publicUrl,
+    });
+    if (elsewhere.length > 0) {
+      const preview = elsewhere
+        .slice(0, 10)
+        .map((use) => use.description)
+        .join(', ');
+      const suffix = elsewhere.length > 10 ? `, +${elsewhere.length - 10} more` : '';
+      throw new ConflictException(
+        `cms_conflict: asset ${input.id} is used by ${elsewhere.length} item${elsewhere.length === 1 ? '' : 's'} outside the CMS (${preview}${suffix})`,
+      );
+    }
+
     for (const key of [rows[0].storageKey, ...rows[0].variants.map((v) => v.storageKey)]) {
       if (!key) continue;
       await this.storage.delete(key).catch((err: unknown) => {
@@ -1568,6 +1592,17 @@ export class CmsService {
       .from(schema.cmsAssetReferences)
       .where(eq(schema.cmsAssetReferences.assetId, assetId))
       .orderBy(desc(schema.cmsAssetReferences.createdAt));
+  }
+
+  async listExternalAssetUsage(assetId: string): Promise<AssetUsageRef[]> {
+    const ctx = getCurrentContext();
+    const [row] = await ctx.db
+      .select({ publicUrl: schema.cmsAssets.publicUrl })
+      .from(schema.cmsAssets)
+      .where(eq(schema.cmsAssets.id, assetId))
+      .limit(1);
+    if (!row) throw new NotFoundException(`cms_not_found: asset ${assetId}`);
+    return await this.assetUsage.usageFor({ assetId, publicUrl: row.publicUrl });
   }
 
   async listLocales(): Promise<LocaleDto[]> {

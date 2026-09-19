@@ -1,7 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
-import { SOCIAL_DRAFT_STATUSES, SOCIAL_PLATFORMS } from './social-platform.ts';
+import {
+  SOCIAL_DRAFT_STATUSES,
+  SOCIAL_LINK_PLACEMENTS,
+  SOCIAL_MEDIA_KINDS,
+  SOCIAL_PLATFORMS,
+} from './social-platform.ts';
 import { SocialService } from './social.service.ts';
 import { SocialAccountsService } from './social-accounts.service.ts';
 
@@ -20,6 +25,44 @@ const ListDraftsInput = z.object({
 
 const IdInput = z.object({ id: z.string() });
 
+const PresentationFields = {
+  linkPlacement: z
+    .enum(SOCIAL_LINK_PLACEMENTS)
+    .optional()
+    .describe(
+      'Where the link goes. "body" appends it to the post text. "comment" leaves it out of the post and publishes it as the first comment instead.',
+    ),
+  linkCommentText: z
+    .string()
+    .max(1000)
+    .nullable()
+    .optional()
+    .describe('Wording for the link comment. The link is appended when the text omits it.'),
+  mediaUrl: z
+    .string()
+    .url()
+    .nullable()
+    .optional()
+    .describe(
+      'Public https URL of an image or video to attach. Fetched at publish time and uploaded to the platform. When omitted, the image advertised by the linked page is used.',
+    ),
+  mediaKind: z.enum(SOCIAL_MEDIA_KINDS).nullable().optional(),
+  mediaAltText: z.string().max(4000).nullable().optional(),
+};
+
+const SetMediaInput = z.object({
+  id: z.string(),
+  mediaUrl: z.string().url().nullable(),
+  mediaKind: z.enum(SOCIAL_MEDIA_KINDS).nullable().optional(),
+  mediaAltText: z.string().max(4000).nullable().optional(),
+});
+
+const SetLinkPlacementInput = z.object({
+  id: z.string(),
+  linkPlacement: z.enum(SOCIAL_LINK_PLACEMENTS),
+  linkCommentText: z.string().max(1000).nullable().optional(),
+});
+
 const DismissInput = z.object({
   id: z.string(),
   reason: z.string().max(500).nullable().optional(),
@@ -30,6 +73,7 @@ const CreateDraftInput = z.object({
   platform: PlatformField,
   linkUrl: z.string().url().nullable().optional(),
   variantLabel: z.string().min(1).max(32).optional(),
+  ...PresentationFields,
 });
 
 const ProposeSetInput = z.object({
@@ -40,6 +84,7 @@ const ProposeSetInput = z.object({
   platform: PlatformField,
   linkUrl: z.string().url().nullable().optional(),
   sourceRef: z.record(z.string(), z.unknown()).optional(),
+  ...PresentationFields,
 });
 
 const ReviseInput = z.object({ id: z.string(), body: z.string().min(1) });
@@ -119,7 +164,7 @@ export class SocialTools {
     name: 'social_create_post_draft',
     title: 'Social: Create post draft',
     description:
-      'Store a single social post draft for a person to review and publish. Use this to hand over any piece of text meant for social, whether or not it relates to a published article.',
+      'Store a single social post draft for a person to review and publish. Use this to hand over any piece of text meant for social, whether or not it relates to a published article. An image or video can be attached with mediaUrl, and the link can be placed in the first comment instead of the body.',
     audiences: ['admin'],
     scopes: ['social:write'],
     input: CreateDraftInput,
@@ -155,6 +200,41 @@ export class SocialTools {
   })
   reviseDraft(args: z.infer<typeof ReviseInput>) {
     return this.social.reviseDraft(args.id, args.body);
+  }
+
+  @McpTool({
+    name: 'social_set_post_draft_media',
+    title: 'Social: Set post draft media',
+    description:
+      'Attach an image or video to a draft that has not been decided yet, or clear the one it carries by passing a null mediaUrl. The file is fetched from the URL when the draft is published, not now, so the URL has to stay reachable until then. A draft with no media of its own falls back to the image the linked page advertises.',
+    audiences: ['admin'],
+    scopes: ['social:write'],
+    input: SetMediaInput,
+    destructiveHint: true,
+  })
+  setDraftMedia(args: z.infer<typeof SetMediaInput>) {
+    return this.social.setDraftMedia(args.id, {
+      mediaUrl: args.mediaUrl,
+      mediaKind: args.mediaKind ?? null,
+      mediaAltText: args.mediaAltText ?? null,
+    });
+  }
+
+  @McpTool({
+    name: 'social_set_post_draft_link_placement',
+    title: 'Social: Set post draft link placement',
+    description:
+      'Move the link of a draft that has not been decided yet between the post body and the first comment. Posting the link as a comment keeps it out of the body, which is how many people publish links on LinkedIn; the post is published either way, and a comment the platform refuses is recorded on the draft rather than failing the post.',
+    audiences: ['admin'],
+    scopes: ['social:write'],
+    input: SetLinkPlacementInput,
+    destructiveHint: true,
+  })
+  setDraftLinkPlacement(args: z.infer<typeof SetLinkPlacementInput>) {
+    return this.social.setDraftLinkPlacement(args.id, {
+      linkPlacement: args.linkPlacement,
+      linkCommentText: args.linkCommentText ?? null,
+    });
   }
 
   @McpTool({

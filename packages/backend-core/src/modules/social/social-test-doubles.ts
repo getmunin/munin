@@ -6,8 +6,18 @@ import type {
   SocialPublisherLookup,
   SocialTokenSource,
 } from './social.service.ts';
-import type { SocialPublishRequest, SocialPublishResult } from './social-oauth.ts';
+import type {
+  SocialMediaRef,
+  SocialMediaUpload,
+  SocialPublishRequest,
+  SocialPublishResult,
+} from './social-oauth.ts';
 import type { SocialPlatform } from './social-platform.ts';
+import type {
+  FetchedMedia,
+  OpenGraphSummary,
+  SocialMediaReader,
+} from './social-media.ts';
 
 export class StubTokenSource implements SocialTokenSource {
   calls: { userId: string; orgId: string; platform: SocialPlatform }[] = [];
@@ -26,13 +36,22 @@ export class StubTokenSource implements SocialTokenSource {
 
 export class StubPublisherLookup implements SocialPublisherLookup {
   requests: SocialPublishRequest[] = [];
+  uploads: SocialMediaUpload[] = [];
 
   constructor(
     private readonly outcome:
       | { result: SocialPublishResult }
       | { error: Error }
       | { unsupported: true } = {
-      result: { externalPostId: 'urn:li:share:1', permalink: null },
+      result: {
+        externalPostId: 'urn:li:share:1',
+        permalink: null,
+        commentExternalId: null,
+        commentError: null,
+      },
+    },
+    private readonly uploadOutcome: { ref: SocialMediaRef } | { error: Error } = {
+      ref: { kind: 'image', id: 'urn:li:image:1', altText: null },
     },
   ) {}
 
@@ -45,7 +64,51 @@ export class StubPublisherLookup implements SocialPublisherLookup {
         if ('error' in outcome) return Promise.reject(outcome.error);
         return Promise.resolve(outcome.result);
       },
+      uploadMedia: (args: {
+        accessToken: string;
+        externalAccountId: string;
+        media: SocialMediaUpload;
+      }): Promise<SocialMediaRef> => {
+        this.uploads.push(args.media);
+        const upload = this.uploadOutcome;
+        if ('error' in upload) return Promise.reject(upload.error);
+        return Promise.resolve({ ...upload.ref, kind: args.media.kind, altText: args.media.altText });
+      },
     };
+  }
+}
+
+export class StubMediaReader implements SocialMediaReader {
+  pages: string[] = [];
+  media: string[] = [];
+
+  constructor(
+    private readonly outcome: {
+      preview?: OpenGraphSummary | Error;
+      media?: FetchedMedia | Error;
+    } = {},
+  ) {}
+
+  fetchOpenGraph(pageUrl: string): Promise<OpenGraphSummary> {
+    this.pages.push(pageUrl);
+    const preview = this.outcome.preview ?? { title: null, description: null, imageUrl: null };
+    if (preview instanceof Error) return Promise.reject(preview);
+    return Promise.resolve(preview);
+  }
+
+  fetchMedia(mediaUrl: string): Promise<FetchedMedia> {
+    this.media.push(mediaUrl);
+    const media = this.outcome.media;
+    if (media instanceof Error) return Promise.reject(media);
+    if (!media) {
+      return Promise.resolve({
+        kind: 'image',
+        contentType: 'image/png',
+        bytes: Buffer.from('png-bytes'),
+        sourceUrl: mediaUrl,
+      });
+    }
+    return Promise.resolve(media);
   }
 }
 

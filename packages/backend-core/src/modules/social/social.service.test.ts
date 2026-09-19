@@ -1,5 +1,7 @@
 import 'reflect-metadata';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { SocialMediaError } from './social-media.ts';
+import { SocialAssetUsageProvider } from './social-asset-usage.provider.ts';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { eq, sql } from 'drizzle-orm';
 import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
@@ -13,6 +15,7 @@ import {
   StubPublisherLookup,
   StubTokenSource,
   UnusedTransactionRunner,
+  StubMediaReader,
 } from './social-test-doubles.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
@@ -36,6 +39,7 @@ const PERMALINK = 'https://social.example.test/posts/7';
     new StubPublisherLookup(),
     new UnusedTransactionRunner(),
     emitter,
+    new StubMediaReader(),
   );
 
   async function inOrg<T>(orgId: string, fn: () => Promise<T>): Promise<T> {
@@ -93,7 +97,13 @@ const PERMALINK = 'https://social.example.test/posts/7';
       token = new StubTokenSource(),
       events: StubEventEmitter = new StubEventEmitter(),
     ) {
-      return new SocialService(token, publisher, new DbRootTransactionRunner(svcDb), events);
+      return new SocialService(
+        token,
+        publisher,
+        new DbRootTransactionRunner(svcDb),
+        events,
+        new StubMediaReader(),
+      );
     }
 
     async function asUser<T>(orgId: string, userId: string, fn: () => Promise<T>): Promise<T> {
@@ -147,7 +157,12 @@ const PERMALINK = 'https://social.example.test/posts/7';
     it("publishes from the caller's own account and records the post id and permalink", async () => {
       await connectAccount(orgA, member);
       const publisher = new StubPublisherLookup({
-        result: { externalPostId: 'urn:li:share:9', permalink: 'https://example.test/p/9' },
+        result: {
+          externalPostId: 'urn:li:share:9',
+          permalink: 'https://example.test/p/9',
+          commentExternalId: null,
+          commentError: null,
+        },
       });
       const svc = buildService(publisher);
 
@@ -573,6 +588,285 @@ const PERMALINK = 'https://social.example.test/posts/7';
       /social_not_found/,
     );
     expect(await inOrg(orgB, () => service.listDrafts())).toHaveLength(0);
+  });
+
+  describe('media and link placement', () => {
+    function buildService(publisher: StubPublisherLookup, media: StubMediaReader) {
+      return new SocialService(
+        new StubTokenSource(),
+        publisher,
+        new DbRootTransactionRunner(svcDb),
+        new StubEventEmitter(),
+        media,
+      );
+    }
+
+    async function readStoredDraft(id: string) {
+      await svcDb.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const [row] = await svcDb
+        .select()
+        .from(schema.socialPostDrafts)
+        .where(eq(schema.socialPostDrafts.id, id));
+      return row!;
+    }
+
+    async function asMember<T>(
+      fn: (svc: SocialService) => Promise<T>,
+      publisher: StubPublisherLookup,
+      media: StubMediaReader = new StubMediaReader(),
+    ) {
+      await svcDb.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      await svcDb.delete(schema.socialAccounts);
+      await svcDb.insert(schema.socialAccounts).values({
+        orgId: orgA,
+        userId: member,
+        platform: 'linkedin',
+        externalAccountId: 'ext-media',
+        displayName: 'Ola Nordmann',
+        encryptedAccessToken: 'ciphertext',
+        scopes: ['w_member_social'],
+        status: 'active',
+      });
+      const actor = new ActorIdentity(
+        'user',
+        member,
+        orgA,
+        ['*'],
+        ['admin'],
+        undefined,
+        undefined,
+        undefined,
+        member,
+      );
+      return await appDb.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.org_id', ${orgA}, true)`);
+        await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
+        const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
+        return await withContext(ctx, () => fn(buildService(publisher, media)));
+      });
+    }
+
+    it('stores the media and placement a draft was proposed with', async () => {
+      const draft = await inOrg(orgA, () =>
+        service.createDraft({
+          body: 'Worth sharing.',
+          linkUrl: ARTICLE,
+          linkPlacement: 'comment',
+          linkCommentText: 'Full write-up:',
+          mediaUrl: 'https://example.test/card.png',
+          mediaKind: 'image',
+          mediaAltText: 'A chart',
+        }),
+      );
+      expect(draft.linkPlacement).toBe('comment');
+      expect(draft.linkCommentText).toBe('Full write-up:');
+      expect(draft.mediaUrl).toBe('https://example.test/card.png');
+      expect(draft.mediaKind).toBe('image');
+      expect(draft.mediaAltText).toBe('A chart');
+    });
+
+    it('refuses a comment placement with no link to put in the comment', async () => {
+      await expect(
+        inOrg(orgA, () => service.createDraft({ body: 'Body', linkPlacement: 'comment' })),
+      ).rejects.toThrow(/needs a linkUrl/);
+    });
+
+    it('refuses comment wording on a draft whose link stays in the body', async () => {
+      await expect(
+        inOrg(orgA, () =>
+          service.createDraft({ body: 'Body', linkUrl: ARTICLE, linkCommentText: 'Here:' }),
+        ),
+      ).rejects.toThrow(/only applies when linkPlacement is comment/);
+    });
+
+    it('refuses alt text with no media to describe', async () => {
+      await expect(
+        inOrg(orgA, () => service.createDraft({ body: 'Body', mediaAltText: 'A chart' })),
+      ).rejects.toThrow(/need a mediaUrl/);
+    });
+
+    it('leaves a link out of the body count when it is going in a comment', async () => {
+      const long = 'x'.repeat(2990);
+      const inBody = inOrg(orgA, () =>
+        service.createDraft({ body: long, linkUrl: ARTICLE, variantLabel: 'body' }),
+      );
+      await expect(inBody).resolves.toBeTruthy();
+      const draft = await inOrg(orgA, () =>
+        service.createDraft({
+          body: long,
+          linkUrl: ARTICLE,
+          linkPlacement: 'comment',
+          variantLabel: 'comment',
+        }),
+      );
+      expect(draft.bodyChars).toBe(long.length);
+    });
+
+    it('attaches the media a draft carries and passes its placement through to the platform', async () => {
+      const publisher = new StubPublisherLookup();
+      const draft = await inOrg(orgA, () =>
+        service.createDraft({
+          body: 'Worth sharing.',
+          linkUrl: ARTICLE,
+          linkPlacement: 'comment',
+          mediaUrl: 'https://example.test/card.png',
+          mediaKind: 'image',
+          mediaAltText: 'A chart',
+        }),
+      );
+
+      const media = new StubMediaReader();
+      await asMember((svc) => svc.publishDraft(draft.id), publisher, media);
+
+      expect(media.media).toEqual(['https://example.test/card.png']);
+      expect(publisher.uploads).toHaveLength(1);
+      expect(publisher.uploads[0]!.kind).toBe('image');
+      expect(publisher.uploads[0]!.altText).toBe('A chart');
+      expect(publisher.requests[0]!.linkPlacement).toBe('comment');
+      expect(publisher.requests[0]!.media).toMatchObject({ kind: 'image', id: 'urn:li:image:1' });
+    });
+
+    it('fails the publish when media the draft names cannot be fetched, rather than posting without it', async () => {
+      const publisher = new StubPublisherLookup();
+      const draft = await inOrg(orgA, () =>
+        service.createDraft({
+          body: 'Worth sharing.',
+          mediaUrl: 'https://example.test/card.png',
+        }),
+      );
+
+      const media = new StubMediaReader({
+        media: new SocialMediaError('https://example.test/card.png answered 404'),
+      });
+      await expect(
+        asMember((svc) => svc.publishDraft(draft.id), publisher, media),
+      ).rejects.toMatchObject({ response: { code: 'social_media_failed' } });
+      expect(publisher.requests).toHaveLength(0);
+      const stored = await readStoredDraft(draft.id);
+      expect(stored.status).toBe('pending');
+    });
+
+    it('publishes without a picture when the linked page advertises none', async () => {
+      const publisher = new StubPublisherLookup();
+      const draft = await inOrg(orgA, () =>
+        service.createDraft({ body: 'Worth sharing.', linkUrl: ARTICLE }),
+      );
+
+      const media = new StubMediaReader({
+        preview: { title: 'No card', description: null, imageUrl: null },
+      });
+      await asMember((svc) => svc.publishDraft(draft.id), publisher, media);
+
+      expect(media.pages).toHaveLength(1);
+      expect(publisher.uploads).toHaveLength(0);
+      expect(publisher.requests[0]!.media).toBeNull();
+      expect((await readStoredDraft(draft.id)).status).toBe('published');
+    });
+
+    it('records a refused comment on the published draft instead of failing the post', async () => {
+      const publisher = new StubPublisherLookup({
+        result: {
+          externalPostId: 'urn:li:share:9',
+          permalink: 'https://example.test/p/9',
+          commentExternalId: null,
+          commentError: 'LinkedIn refused the comment (403): ACCESS_DENIED',
+        },
+      });
+      const draft = await inOrg(orgA, () =>
+        service.createDraft({ body: 'Body', linkUrl: ARTICLE, linkPlacement: 'comment' }),
+      );
+
+      const published = await asMember((svc) => svc.publishDraft(draft.id), publisher);
+
+      expect(published.status).toBe('published');
+      expect(published.commentError).toMatch(/403/);
+      expect(published.commentExternalId).toBeNull();
+      expect((await readStoredDraft(draft.id)).commentError).toMatch(/403/);
+    });
+
+    it('moves the link between body and comment on a pending draft', async () => {
+      const draft = await inOrg(orgA, () =>
+        service.createDraft({ body: 'Body', linkUrl: ARTICLE }),
+      );
+      const moved = await inOrg(orgA, () =>
+        service.setDraftLinkPlacement(draft.id, {
+          linkPlacement: 'comment',
+          linkCommentText: 'Here:',
+        }),
+      );
+      expect(moved.linkPlacement).toBe('comment');
+      expect(moved.linkCommentText).toBe('Here:');
+      expect(socialDraftFingerprint(await readStoredDraft(draft.id))).not.toBe(
+        socialDraftFingerprint({ platform: 'linkedin', body: draft.body, linkUrl: draft.linkUrl }),
+      );
+    });
+
+    it('sets and clears the media on a pending draft', async () => {
+      const draft = await inOrg(orgA, () => service.createDraft({ body: 'Body' }));
+      const withMedia = await inOrg(orgA, () =>
+        service.setDraftMedia(draft.id, {
+          mediaUrl: 'https://example.test/clip.mp4',
+          mediaKind: 'video',
+          mediaAltText: null,
+        }),
+      );
+      expect(withMedia.mediaUrl).toBe('https://example.test/clip.mp4');
+      expect(withMedia.mediaKind).toBe('video');
+
+      const cleared = await inOrg(orgA, () =>
+        service.setDraftMedia(draft.id, { mediaUrl: null }),
+      );
+      expect(cleared.mediaUrl).toBeNull();
+      expect(cleared.mediaKind).toBeNull();
+    });
+
+    it('reports a pending draft as a user of the asset it points at, so the CMS will not delete it', async () => {
+      const provider = new SocialAssetUsageProvider();
+      const url = 'https://cdn.example.test/assets/card.png';
+      const draft = await inOrg(orgA, () =>
+        service.createDraft({ body: 'Body', mediaUrl: url }),
+      );
+
+      const inUse = await inOrg(orgA, () =>
+        provider.usageFor({ assetId: 'cma_1', publicUrl: url }),
+      );
+      expect(inUse).toEqual([
+        { kind: 'social_draft', id: draft.id, description: `pending linkedin post draft ${draft.id}` },
+      ]);
+
+      const otherAsset = await inOrg(orgA, () =>
+        provider.usageFor({ assetId: 'cma_2', publicUrl: 'https://cdn.example.test/other.png' }),
+      );
+      expect(otherAsset).toEqual([]);
+
+      const fromAnotherOrg = await inOrg(orgB, () =>
+        provider.usageFor({ assetId: 'cma_1', publicUrl: url }),
+      );
+      expect(fromAnotherOrg).toEqual([]);
+    });
+
+    it('stops holding an asset once the draft is decided, so cleanup is free to remove it', async () => {
+      const provider = new SocialAssetUsageProvider();
+      const url = 'https://cdn.example.test/assets/spent.png';
+      const draft = await inOrg(orgA, () =>
+        service.createDraft({ body: 'Body', mediaUrl: url }),
+      );
+      await inOrg(orgA, () => service.dismissDraft(draft.id, 'not using it'));
+
+      expect(await inOrg(orgA, () => provider.usageFor({ assetId: 'cma_1', publicUrl: url }))).toEqual(
+        [],
+      );
+    });
+
+    it('refuses to change media on a draft that has already been decided', async () => {
+      const draft = await inOrg(orgA, () => service.createDraft({ body: 'Body' }));
+      await inOrg(orgA, () => service.dismissDraft(draft.id, 'no'));
+      await expect(
+        inOrg(orgA, () =>
+          service.setDraftMedia(draft.id, { mediaUrl: 'https://example.test/a.png' }),
+        ),
+      ).rejects.toThrow(/already dismissed/);
+    });
   });
 
   it('reports a missing draft as not found', async () => {

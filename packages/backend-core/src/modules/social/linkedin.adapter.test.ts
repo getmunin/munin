@@ -2,13 +2,17 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
   LinkedInAdapter,
   apiVersion,
+  composeCommentText,
   composeCommentary,
   escapeCommentary,
   isRevokedTokenError,
   permalinkFor,
+  commentRouteExhausted,
+  readCommentId,
   readTokenResponse,
+  readUploadInstructions,
 } from './linkedin.adapter.ts';
-import { SocialGrantRevokedError } from './social-oauth.ts';
+import { SocialGrantRevokedError, type SocialPublishRequest } from './social-oauth.ts';
 
 describe('readTokenResponse', () => {
   it('reads an access token with no refresh token, which is what a self-serve app gets', () => {
@@ -163,18 +167,26 @@ describe('LinkedInAdapter.publish', () => {
   const ok = () =>
     new Response('{}', { status: 201, headers: { 'x-restli-id': 'urn:li:share:7123' } });
 
+  const request = (over: Partial<SocialPublishRequest> = {}): SocialPublishRequest => ({
+    accessToken: 'at',
+    externalAccountId: 'member-1',
+    body: 'Hello',
+    linkUrl: null,
+    linkPlacement: 'body',
+    linkCommentText: null,
+    media: null,
+    ...over,
+  });
+
   it('posts as the member urn and returns the post id with its permalink', async () => {
     const fetchMock = stubFetch(ok());
-    const result = await new LinkedInAdapter().publish({
-      accessToken: 'at',
-      externalAccountId: 'member-1',
-      body: 'Hello',
-      linkUrl: null,
-    });
+    const result = await new LinkedInAdapter().publish(request());
 
     expect(result).toEqual({
       externalPostId: 'urn:li:share:7123',
       permalink: 'https://www.linkedin.com/feed/update/urn:li:share:7123/',
+      commentExternalId: null,
+      commentError: null,
     });
 
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
@@ -193,36 +205,274 @@ describe('LinkedInAdapter.publish', () => {
   it('reports a lapsed grant as revocation so the member is asked to reconnect', async () => {
     stubFetch(new Response('{"error":"invalid_grant"}', { status: 401 }));
     await expect(
-      new LinkedInAdapter().publish({
-        accessToken: 'at',
-        externalAccountId: 'member-1',
-        body: 'Hello',
-        linkUrl: null,
-      }),
+      new LinkedInAdapter().publish(request()),
     ).rejects.toBeInstanceOf(SocialGrantRevokedError);
   });
 
   it('carries the platform reason out on a refusal, rather than a bare status', async () => {
     stubFetch(new Response('{"message":"commentary too long"}', { status: 422 }));
     await expect(
-      new LinkedInAdapter().publish({
-        accessToken: 'at',
-        externalAccountId: 'member-1',
-        body: 'Hello',
-        linkUrl: null,
-      }),
+      new LinkedInAdapter().publish(request()),
     ).rejects.toThrow(/422.*commentary too long/);
   });
 
   it('refuses a 201 with no post id, which would otherwise be stored as published with nothing to show', async () => {
     stubFetch(new Response('{}', { status: 201 }));
     await expect(
-      new LinkedInAdapter().publish({
-        accessToken: 'at',
-        externalAccountId: 'member-1',
-        body: 'Hello',
-        linkUrl: null,
-      }),
+      new LinkedInAdapter().publish(request()),
     ).rejects.toThrow(/no post id/);
+  });
+});
+
+describe('composeCommentText', () => {
+  it('falls back to the bare link when no wording was written for the comment', () => {
+    expect(composeCommentText('https://example.com/a', null)).toBe('https://example.com/a');
+    expect(composeCommentText('https://example.com/a', '   ')).toBe('https://example.com/a');
+  });
+
+  it('appends the link to the wording, and does not repeat one the wording already carries', () => {
+    expect(composeCommentText('https://example.com/a', 'Full write-up:')).toBe(
+      'Full write-up:\n\nhttps://example.com/a',
+    );
+    expect(composeCommentText('https://example.com/a', 'Here: https://example.com/a')).toBe(
+      'Here: https://example.com/a',
+    );
+  });
+});
+
+describe('readCommentId', () => {
+  it('prefers the id in the body and falls back to the header', () => {
+    expect(readCommentId({ id: '7506' }, null)).toBe('7506');
+    expect(readCommentId(null, '7507')).toBe('7507');
+    expect(readCommentId({}, '')).toBeNull();
+  });
+});
+
+describe('readUploadInstructions', () => {
+  it('rejects a response with no parts rather than finalizing an empty upload', () => {
+    expect(() => readUploadInstructions({ uploadInstructions: [] })).toThrow(/no video upload/);
+  });
+
+  it('rejects a malformed part rather than PUTting bytes at undefined', () => {
+    expect(() =>
+      readUploadInstructions({ uploadInstructions: [{ firstByte: 0, lastByte: 10 }] }),
+    ).toThrow(/malformed/);
+  });
+});
+
+describe('LinkedInAdapter media and comments', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function routeFetch(handler: (url: string, init: RequestInit) => Response) {
+    const calls: { url: string; init: RequestInit }[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: unknown, init: RequestInit) => {
+        const href = String(url);
+        calls.push({ url: href, init });
+        return Promise.resolve(handler(href, init));
+      }),
+    );
+    return calls;
+  }
+
+  it('uploads an image and hands the post its urn with the alt text', async () => {
+    const calls = routeFetch((url) => {
+      if (url.startsWith('https://api.linkedin.com/rest/images')) {
+        return new Response(
+          JSON.stringify({ value: { image: 'urn:li:image:42', uploadUrl: 'https://upload/1' } }),
+          { status: 200 },
+        );
+      }
+      return new Response('', { status: 201 });
+    });
+
+    const ref = await new LinkedInAdapter().uploadMedia({
+      accessToken: 'at',
+      externalAccountId: 'member-1',
+      media: {
+        kind: 'image',
+        bytes: Buffer.from('png-bytes'),
+        contentType: 'image/png',
+        altText: 'A chart',
+      },
+    });
+
+    expect(ref).toEqual({ kind: 'image', id: 'urn:li:image:42', altText: 'A chart' });
+    expect(calls[0]!.url).toBe('https://api.linkedin.com/rest/images?action=initializeUpload');
+    expect(JSON.parse(calls[0]!.init.body as string)).toEqual({
+      initializeUploadRequest: { owner: 'urn:li:person:member-1' },
+    });
+    expect(calls[1]!.url).toBe('https://upload/1');
+    expect(calls[1]!.init.method).toBe('PUT');
+  });
+
+  it('uploads a video part by part and finalizes with the ETags in order', async () => {
+    const bytes = Buffer.alloc(10, 7);
+    const calls = routeFetch((url) => {
+      if (url.includes('action=initializeUpload')) {
+        return new Response(
+          JSON.stringify({
+            value: {
+              video: 'urn:li:video:9',
+              uploadToken: 'tok',
+              uploadInstructions: [
+                { firstByte: 0, lastByte: 4, uploadUrl: 'https://upload/part-0' },
+                { firstByte: 5, lastByte: 99, uploadUrl: 'https://upload/part-1' },
+              ],
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.startsWith('https://upload/part-')) {
+        return new Response('', {
+          status: 200,
+          headers: { etag: `"etag-${url.slice(-1)}"` },
+        });
+      }
+      return new Response('{}', { status: 200 });
+    });
+
+    const ref = await new LinkedInAdapter().uploadMedia({
+      accessToken: 'at',
+      externalAccountId: 'member-1',
+      media: { kind: 'video', bytes, contentType: 'video/mp4', altText: null },
+    });
+
+    expect(ref.id).toBe('urn:li:video:9');
+    const parts = calls.filter((call) => call.url.startsWith('https://upload/part-'));
+    expect((parts[0]!.init.body as Uint8Array).length).toBe(5);
+    expect((parts[1]!.init.body as Uint8Array).length).toBe(5);
+    const finalize = calls.at(-1)!;
+    expect(finalize.url).toBe('https://api.linkedin.com/rest/videos?action=finalizeUpload');
+    expect(JSON.parse(finalize.init.body as string)).toEqual({
+      finalizeUploadRequest: {
+        video: 'urn:li:video:9',
+        uploadToken: 'tok',
+        uploadedPartIds: ['etag-0', 'etag-1'],
+      },
+    });
+  });
+
+  it('keeps the link out of the body and posts it as the first comment', async () => {
+    const calls = routeFetch((url) => {
+      if (url === 'https://api.linkedin.com/rest/posts') {
+        return new Response('{}', { status: 201, headers: { 'x-restli-id': 'urn:li:share:7' } });
+      }
+      return new Response(JSON.stringify({ id: '7506' }), { status: 201 });
+    });
+
+    const result = await new LinkedInAdapter().publish({
+      accessToken: 'at',
+      externalAccountId: 'member-1',
+      body: 'Hello',
+      linkUrl: 'https://example.com/a',
+      linkPlacement: 'comment',
+      linkCommentText: 'Full write-up:',
+      media: { kind: 'image', id: 'urn:li:image:42', altText: 'A chart' },
+    });
+
+    expect(result.commentExternalId).toBe('7506');
+    expect(result.commentError).toBeNull();
+    const post = JSON.parse(calls[0]!.init.body as string) as Record<string, unknown>;
+    expect(post.commentary).toBe('Hello');
+    expect(post.content).toEqual({ media: { id: 'urn:li:image:42', altText: 'A chart' } });
+    expect(calls[1]!.url).toBe(
+      'https://api.linkedin.com/rest/socialActions/urn%3Ali%3Ashare%3A7/comments',
+    );
+    expect(JSON.parse(calls[1]!.init.body as string)).toEqual({
+      actor: 'urn:li:person:member-1',
+      object: 'urn:li:share:7',
+      message: { text: 'Full write-up:\n\nhttps://example.com/a' },
+    });
+  });
+
+  it('falls back to the unversioned route when the versioned one is gated behind a product', async () => {
+    const calls = routeFetch((url) => {
+      if (url === 'https://api.linkedin.com/rest/posts') {
+        return new Response('{}', { status: 201, headers: { 'x-restli-id': 'urn:li:share:7' } });
+      }
+      if (url.startsWith('https://api.linkedin.com/rest/socialActions')) {
+        return new Response('{"code":"ACCESS_DENIED"}', { status: 403 });
+      }
+      return new Response(JSON.stringify({ id: '7506' }), { status: 201 });
+    });
+
+    const result = await new LinkedInAdapter().publish({
+      accessToken: 'at',
+      externalAccountId: 'member-1',
+      body: 'Hello',
+      linkUrl: 'https://example.com/a',
+      linkPlacement: 'comment',
+      linkCommentText: null,
+      media: null,
+    });
+
+    expect(result.commentExternalId).toBe('7506');
+    expect(result.commentError).toBeNull();
+    expect(calls.map((call) => call.url)).toEqual([
+      'https://api.linkedin.com/rest/posts',
+      'https://api.linkedin.com/rest/socialActions/urn%3Ali%3Ashare%3A7/comments',
+      'https://api.linkedin.com/v2/socialActions/urn%3Ali%3Ashare%3A7/comments',
+    ]);
+    expect(calls[2]!.init.headers as Record<string, string>).not.toHaveProperty('linkedin-version');
+  });
+
+  it('does not retry the unversioned route for a refusal that is not a product gate', async () => {
+    const calls = routeFetch((url) => {
+      if (url === 'https://api.linkedin.com/rest/posts') {
+        return new Response('{}', { status: 201, headers: { 'x-restli-id': 'urn:li:share:7' } });
+      }
+      return new Response('{"message":"comment create throttled"}', { status: 429 });
+    });
+
+    const result = await new LinkedInAdapter().publish({
+      accessToken: 'at',
+      externalAccountId: 'member-1',
+      body: 'Hello',
+      linkUrl: 'https://example.com/a',
+      linkPlacement: 'comment',
+      linkCommentText: null,
+      media: null,
+    });
+
+    expect(result.commentError).toMatch(/429.*throttled/);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('keeps the published post when both comment routes are refused, and reports why', async () => {
+    routeFetch((url) => {
+      if (url === 'https://api.linkedin.com/rest/posts') {
+        return new Response('{}', { status: 201, headers: { 'x-restli-id': 'urn:li:share:7' } });
+      }
+      return new Response('{"code":"ACCESS_DENIED"}', { status: 403 });
+    });
+
+    const result = await new LinkedInAdapter().publish({
+      accessToken: 'at',
+      externalAccountId: 'member-1',
+      body: 'Hello',
+      linkUrl: 'https://example.com/a',
+      linkPlacement: 'comment',
+      linkCommentText: null,
+      media: null,
+    });
+
+    expect(result.externalPostId).toBe('urn:li:share:7');
+    expect(result.commentExternalId).toBeNull();
+    expect(result.commentError).toMatch(/403 versioned, 403 legacy/);
+  });
+});
+
+describe('commentRouteExhausted', () => {
+  it('treats only a product gate as worth a second route', () => {
+    expect(commentRouteExhausted(403)).toBe(false);
+    expect(commentRouteExhausted(404)).toBe(false);
+    expect(commentRouteExhausted(426)).toBe(false);
+    expect(commentRouteExhausted(429)).toBe(true);
+    expect(commentRouteExhausted(422)).toBe(true);
   });
 });

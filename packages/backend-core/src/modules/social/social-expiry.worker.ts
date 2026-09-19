@@ -89,6 +89,7 @@ export class SocialExpiryWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   private async sweep(now: number): Promise<SocialExpiryTickResult> {
+    await this.accounts.purgeExpiredPendingGrants(new Date(now));
     const due = await this.dueAccounts(now);
     let warned = 0;
     let expired = 0;

@@ -42,11 +42,16 @@ export class SocialOAuthController {
       return;
     }
     try {
-      const { platform } = await this.accounts.completeAuthorization({
+      const { platform, pendingId } = await this.accounts.completeAuthorization({
         code: q.code,
         state: q.state,
       });
-      res.redirect(`${target}?social=connected&platform=${encodeURIComponent(platform)}`);
+      const params = `platform=${encodeURIComponent(platform)}`;
+      res.redirect(
+        pendingId
+          ? `${target}?social=choose_target&${params}&pending=${encodeURIComponent(pendingId)}`
+          : `${target}?social=connected&${params}`,
+      );
     } catch (err) {
       res.redirect(`${target}?social=error${reasonParam(err instanceof Error ? err.message : undefined)}`);
     }

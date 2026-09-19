@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, lt } from 'drizzle-orm';
 import { makeId, schema, type Tx } from '@getmunin/db';
 import {
   ActorIdentity,
@@ -27,6 +27,7 @@ import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import {
   SocialGrantRevokedError,
   SocialOAuthRegistry,
+  type SocialAuthorTarget,
   type SocialOAuthAdapter,
   type SocialOAuthClient,
   type SocialTokenSet,
@@ -34,6 +35,7 @@ import {
 import { isSocialPlatform, type SocialAuthorKind, type SocialPlatform } from './social-platform.ts';
 
 const AUTHORIZE_STATE_TTL_MS = 10 * 60 * 1000;
+export const PENDING_GRANT_TTL_MS = 15 * 60 * 1000;
 export const EXPIRY_WARNING_MS = 7 * 24 * 60 * 60 * 1000;
 export const SOCIAL_ALERT_SOURCE = 'social' as const;
 
@@ -54,6 +56,18 @@ export interface SocialAccountDto {
   expiresSoon: boolean;
   lastError: string | null;
   connectedAt: string;
+}
+
+export interface SocialAuthorTargetDto {
+  externalAccountId: string;
+  displayName: string | null;
+}
+
+export interface SocialPendingGrantDto {
+  pendingId: string;
+  platform: SocialPlatform;
+  expiresAt: string;
+  targets: SocialAuthorTargetDto[];
 }
 
 export interface SocialPlatformAppDto {
@@ -245,7 +259,8 @@ export class SocialAccountsService {
   async completeAuthorization(args: { code: string; state: string }): Promise<{
     orgId: string;
     platform: SocialPlatform;
-    accountId: string;
+    accountId: string | null;
+    pendingId: string | null;
   }> {
     const state = verifySocialState(args.state);
     if (!state) throw new BadRequestException('social_invalid_state');
@@ -266,18 +281,197 @@ export class SocialAccountsService {
           }`,
         );
       }
+
+      if (adapter.listTargets) {
+        const pendingId = await this.parkGrant(tx, {
+          orgId: state.orgId,
+          userId: state.userId,
+          platform: state.platform,
+          tokens,
+        });
+        return { orgId: state.orgId, platform: state.platform, accountId: null, pendingId };
+      }
+
+      if (!adapter.identify) {
+        throw new BadRequestException(
+          `social_invalid: the ${adapter.displayName} adapter resolves neither an author nor a list to choose from`,
+        );
+      }
       const identity = await adapter.identify({ accessToken: tokens.accessToken });
       const accountId = await this.upsertAccount(tx, {
         orgId: state.orgId,
         userId: state.userId,
         platform: state.platform,
         identity,
+        accessToken: tokens.accessToken,
         tokens,
         adapter,
       });
       await this.clearAlert(state.orgId, state.userId, state.platform);
-      return { orgId: state.orgId, platform: state.platform, accountId };
+      return { orgId: state.orgId, platform: state.platform, accountId, pendingId: null };
     });
+  }
+
+  async listPendingTargets(pendingId: string): Promise<SocialPendingGrantDto> {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor!.orgId;
+    const userId = this.requireUserId(ctx.actor!.userId);
+    const parked = await this.store.inRootTransaction((tx) =>
+      this.readPendingGrant(tx, { pendingId, orgId, userId }),
+    );
+    const targets = await this.fetchTargets(parked.adapter, parked.ownerToken);
+    return {
+      pendingId,
+      platform: parked.platform,
+      expiresAt: parked.expiresAt.toISOString(),
+      targets: targets.map((target) => ({
+        externalAccountId: target.externalAccountId,
+        displayName: target.displayName,
+      })),
+    };
+  }
+
+  async selectTarget(input: {
+    pendingId: string;
+    externalAccountId: string;
+  }): Promise<SocialAccountDto> {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor!.orgId;
+    const userId = this.requireUserId(ctx.actor!.userId);
+    const parked = await this.store.inRootTransaction((tx) =>
+      this.readPendingGrant(tx, { pendingId: input.pendingId, orgId, userId }),
+    );
+    const targets = await this.fetchTargets(parked.adapter, parked.ownerToken);
+    const chosen = targets.find((t) => t.externalAccountId === input.externalAccountId);
+    if (!chosen) {
+      throw new BadRequestException({
+        message: `social_target_unavailable: that ${parked.adapter.displayName} page is no longer one this person can post to — choose again`,
+        code: 'social_target_unavailable',
+      });
+    }
+
+    const row = await this.store.inRootTransaction(async (tx) => {
+      const accountId = await this.upsertAccount(tx, {
+        orgId,
+        userId,
+        platform: parked.platform,
+        identity: { externalAccountId: chosen.externalAccountId, displayName: chosen.displayName },
+        accessToken: chosen.accessToken,
+        tokens: { accessToken: chosen.accessToken },
+        adapter: parked.adapter,
+      });
+      await tx
+        .delete(schema.socialPendingGrants)
+        .where(eq(schema.socialPendingGrants.id, input.pendingId));
+      const [written] = await tx
+        .select()
+        .from(schema.socialAccounts)
+        .where(eq(schema.socialAccounts.id, accountId))
+        .limit(1);
+      return written!;
+    });
+    await this.clearAlert(orgId, userId, parked.platform);
+    return toAccountDto(row);
+  }
+
+  async purgeExpiredPendingGrants(now: Date = new Date()): Promise<number> {
+    const deleted = await this.store.inRootTransaction((tx) =>
+      tx
+        .delete(schema.socialPendingGrants)
+        .where(lt(schema.socialPendingGrants.expiresAt, now))
+        .returning({ id: schema.socialPendingGrants.id }),
+    );
+    return deleted.length;
+  }
+
+  private async parkGrant(
+    tx: Tx,
+    input: {
+      orgId: string;
+      userId: string;
+      platform: SocialPlatform;
+      tokens: SocialTokenSet;
+    },
+  ): Promise<string> {
+    await tx
+      .delete(schema.socialPendingGrants)
+      .where(
+        and(
+          eq(schema.socialPendingGrants.orgId, input.orgId),
+          eq(schema.socialPendingGrants.userId, input.userId),
+          eq(schema.socialPendingGrants.platform, input.platform),
+        ),
+      );
+    const id = makeId('spg');
+    await tx.insert(schema.socialPendingGrants).values({
+      id,
+      orgId: input.orgId,
+      userId: input.userId,
+      platform: input.platform,
+      encryptedOwnerToken: await this.store.encrypt(tx, input.tokens.accessToken),
+      ownerTokenExpiresAt: expiryFrom(input.tokens.expiresInSeconds),
+      expiresAt: new Date(Date.now() + PENDING_GRANT_TTL_MS),
+    });
+    return id;
+  }
+
+  private async readPendingGrant(
+    tx: Tx,
+    args: { pendingId: string; orgId: string; userId: string },
+  ): Promise<{
+    platform: SocialPlatform;
+    adapter: SocialOAuthAdapter;
+    ownerToken: string;
+    expiresAt: Date;
+  }> {
+    const [row] = await tx
+      .select()
+      .from(schema.socialPendingGrants)
+      .where(
+        and(
+          eq(schema.socialPendingGrants.id, args.pendingId),
+          eq(schema.socialPendingGrants.orgId, args.orgId),
+          eq(schema.socialPendingGrants.userId, args.userId),
+        ),
+      )
+      .limit(1);
+    if (!row || row.expiresAt.getTime() <= Date.now()) {
+      throw new BadRequestException({
+        message:
+          'social_authorization_expired: this authorization is no longer open — start connecting again',
+        code: 'social_authorization_expired',
+      });
+    }
+    const platform = row.platform as SocialPlatform;
+    return {
+      platform,
+      adapter: this.requireAdapter(platform),
+      ownerToken: await this.store.decrypt(tx, row.encryptedOwnerToken),
+      expiresAt: row.expiresAt,
+    };
+  }
+
+  private async fetchTargets(
+    adapter: SocialOAuthAdapter,
+    ownerToken: string,
+  ): Promise<SocialAuthorTarget[]> {
+    const targets = await adapter.listTargets!({ accessToken: ownerToken });
+    if (targets.length === 0) {
+      throw new BadRequestException({
+        message: `social_no_targets: this ${adapter.displayName} account administers no page Munin may post to — grant the app access to a page and connect again`,
+        code: 'social_no_targets',
+      });
+    }
+    return targets;
+  }
+
+  private requireUserId(userId: string | null | undefined): string {
+    if (!userId) {
+      throw new BadRequestException(
+        'social_invalid: a social account is connected by a signed-in person, not by a service key',
+      );
+    }
+    return userId;
   }
 
   async listAccounts(): Promise<SocialAccountDto[]> {
@@ -346,6 +540,9 @@ export class SocialAccountsService {
       }
       if (row.status !== 'active') {
         return { revoked: row.lastError ?? `the connection is ${row.status}` };
+      }
+      if (adapter.accessTokenNeverExpires && row.accessTokenExpiresAt === null) {
+        return { token: await this.store.decrypt(tx, row.encryptedAccessToken) };
       }
       if (accessTokenIsFresh(row)) {
         return { token: await this.store.decrypt(tx, row.encryptedAccessToken) };
@@ -461,10 +658,12 @@ export class SocialAccountsService {
       userId: string;
       platform: SocialPlatform;
       identity: { externalAccountId: string; displayName: string | null };
+      accessToken: string;
       tokens: SocialTokenSet;
       adapter: SocialOAuthAdapter;
     },
   ): Promise<string> {
+    const authorKind = input.adapter.authorKind ?? 'member';
     const [existing] = await tx
       .select({ id: schema.socialAccounts.id })
       .from(schema.socialAccounts)
@@ -477,32 +676,37 @@ export class SocialAccountsService {
       )
       .limit(1);
 
-    const [claimed] = await tx
-      .select({ id: schema.socialAccounts.id, userId: schema.socialAccounts.userId })
-      .from(schema.socialAccounts)
-      .where(
-        and(
-          eq(schema.socialAccounts.orgId, input.orgId),
-          eq(schema.socialAccounts.platform, input.platform),
-          eq(schema.socialAccounts.externalAccountId, input.identity.externalAccountId),
-        ),
-      )
-      .limit(1);
-    if (claimed && claimed.userId !== input.userId) {
-      throw new BadRequestException({
-        message: `social_account_taken: that ${input.adapter.displayName} account is already connected by someone else in this organisation`,
-        code: 'social_account_taken',
-      });
+    if (authorKind === 'member') {
+      const [claimed] = await tx
+        .select({ id: schema.socialAccounts.id, userId: schema.socialAccounts.userId })
+        .from(schema.socialAccounts)
+        .where(
+          and(
+            eq(schema.socialAccounts.orgId, input.orgId),
+            eq(schema.socialAccounts.platform, input.platform),
+            eq(schema.socialAccounts.externalAccountId, input.identity.externalAccountId),
+          ),
+        )
+        .limit(1);
+      if (claimed && claimed.userId !== input.userId) {
+        throw new BadRequestException({
+          message: `social_account_taken: that ${input.adapter.displayName} account is already connected by someone else in this organisation`,
+          code: 'social_account_taken',
+        });
+      }
     }
 
     const values = {
       orgId: input.orgId,
       userId: input.userId,
       platform: input.platform,
+      authorKind,
       externalAccountId: input.identity.externalAccountId,
       displayName: input.identity.displayName,
-      encryptedAccessToken: await this.store.encrypt(tx, input.tokens.accessToken),
-      accessTokenExpiresAt: expiryFrom(input.tokens.expiresInSeconds),
+      encryptedAccessToken: await this.store.encrypt(tx, input.accessToken),
+      accessTokenExpiresAt: input.adapter.accessTokenNeverExpires
+        ? null
+        : expiryFrom(input.tokens.expiresInSeconds),
       encryptedRefreshToken: input.tokens.refreshToken
         ? await this.store.encrypt(tx, input.tokens.refreshToken)
         : null,

@@ -1783,6 +1783,68 @@
         ]
       }
     },
+    "/v1/social/accounts/pending/{id}": {
+      "get": {
+        "operationId": "SocialAccountsController_pendingTargets",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SocialAccounts"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/social/accounts/pending/{id}/select": {
+      "post": {
+        "operationId": "SocialAccountsController_selectTarget",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SocialAccounts"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/social/accounts/{id}": {
       "delete": {
         "operationId": "SocialAccountsController_disconnect",

@@ -1,5 +1,12 @@
 # @getmunin/ui
 
+## 5.31.0
+
+### Patch Changes
+
+- Updated dependencies [4bab452]
+  - @getmunin/types@5.31.0
+
 ## 5.30.1
 
 ### Patch Changes

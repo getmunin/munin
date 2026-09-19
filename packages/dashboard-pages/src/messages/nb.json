@@ -288,8 +288,7 @@
         "kindSocial": "SOSIALT",
         "codeSocial": "SOME",
         "socialUntitled": "Utkast uten tekst",
-        "socialSnippet": "{platform} · {label} · {chars}/{max} tegn",
-        "shortcutPublish": "⌘↵ publiser"
+        "socialSnippet": "{platform} · {label} · {chars}/{max} tegn"
       },
       "scheduled": {
         "outreachUntitled": "Utkast til utsending",
@@ -453,6 +452,7 @@
         "socialOpenComposer": "Åpne {platform} →",
         "socialMarkPosted": "Marker som lagt ut",
         "shortcutMarkPosted": "⌘↵ marker som lagt ut",
+        "shortcutPublish": "⌘↵ publiser",
         "socialPublish": "Publiser",
         "socialPublishAs": "Publiser som {name}",
         "socialPublishHint": "Innlegget går rett ut på {platform}, i ditt navn. Munin kan ikke hente det tilbake.",

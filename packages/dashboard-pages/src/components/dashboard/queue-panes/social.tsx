@@ -6,7 +6,7 @@ import { useCopy } from '../../../lib/use-copy';
 import { useRelative } from '../../../lib/use-relative';
 import { useSocialPublishTarget } from '../../../lib/use-publish-target';
 import { PaneFooter, PaneHeader, useCmdEnter } from './shared';
-import { socialPublishAvailability } from './social-actions';
+import { shortPublishName, socialPublishAvailability } from './social-actions';
 import type { SocialDraftDto } from './types';
 
 function guessMediaKind(url: string): 'image' | 'video' {
@@ -48,10 +48,11 @@ export function SocialQueuePane({
     else if (availability.state === 'unsupported') onApprove();
   });
 
-  const publishLabel =
-    availability.state === 'ready' && availability.authorName
-      ? t('socialPublishAs', { name: availability.authorName })
-      : t('socialPublish');
+  const authorName =
+    availability.state === 'ready' ? shortPublishName(availability.authorName) : null;
+  const publishLabel = authorName
+    ? t('socialPublishAs', { name: authorName })
+    : t('socialPublish');
 
   return (
     <>

@@ -288,8 +288,7 @@
         "kindSocial": "SOCIAL",
         "codeSocial": "SOC",
         "socialUntitled": "Untitled draft",
-        "socialSnippet": "{platform} · {label} · {chars}/{max} characters",
-        "shortcutPublish": "⌘↵ publish"
+        "socialSnippet": "{platform} · {label} · {chars}/{max} characters"
       },
       "scheduled": {
         "outreachUntitled": "Outreach draft",
@@ -453,6 +452,7 @@
         "socialOpenComposer": "Open {platform} →",
         "socialMarkPosted": "Mark as posted",
         "shortcutMarkPosted": "⌘↵ mark as posted",
+        "shortcutPublish": "⌘↵ publish",
         "socialPublish": "Publish",
         "socialPublishAs": "Publish as {name}",
         "socialPublishHint": "Publishing sends this to {platform} straight away, under your name. Munin cannot take it back.",

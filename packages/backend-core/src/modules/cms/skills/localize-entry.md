@@ -97,6 +97,8 @@ Slug uniqueness is `(collection, slug, locale)` and translation-group uniqueness
 
 Translations live in `data` — the field schema is per-collection, so make sure every locale supplies the required fields.
 
+Inline `ref://<entryId>` tokens are the one thing you **don't** have to rewrite. A token is resolved against the locale being delivered, so the id you copied out of the English body resolves to the Norwegian sibling when the Norwegian entry is served. Copy the sentence verbatim; see `skill://cms/author-with-blocks` for the `_refs` shape.
+
 ## Step 6 — publish per locale
 
 Use `skill://cms/publish-entry` for each entry. There is **no atomic "publish all locales" tool** — publish each one individually. If the order matters (e.g. you don't want the English version live while the Norwegian one is still missing), publish the secondary locales first and the canonical one last.
@@ -116,6 +118,8 @@ Use `skill://cms/publish-entry` for each entry. There is **no atomic "publish al
 Both endpoints emit `_locales` whenever the group has at least one published variant, so an entry with no siblings gets a one-element array naming itself. Treat that as "no alternates": a single-element `_locales` turned into `hreflang` tags produces a self-referential `x-default`, which is a worse signal than emitting nothing. Check for a second locale before you generate the tags.
 
 There is **no server-side locale fallback**: a slug/locale pair with no published row is a `404`, not the default-locale version. That's deliberate — silently serving English under a Norwegian URL is worse than a miss. If you want a fallback, fetch the canonical locale and use its `_locales` to redirect.
+
+Inline references are the exception, and a narrow one. Under `?include=references`, a `ref://<entryId>` in the body resolves to the *delivered entry's* locale — the id names a translation group, so a body translated by copy-paste links a Norwegian reader to the Norwegian target. When the group has nothing published in that locale the token falls back to the entry the id names, so an in-body link never dies just because one target is untranslated. Every `_refs` value carries its own `id`, `slug` and `locale`, so a renderer that cares can tell a fallback apart from a match.
 
 ## Switching the org's default locale
 

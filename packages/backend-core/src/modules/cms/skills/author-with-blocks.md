@@ -137,11 +137,16 @@ When one call carries both `blockEdits` and `textReplacements` for the same fiel
 
 To link or embed another entry from within prose (a `markdown`/`rich_text` field or block prop), write a `ref://<entryId>` token — e.g. `see [our pricing](ref://ent_pricing)`. Unlike `asset://` (which is rewritten to a URL on read), a `ref://` token is **left in place**, because the server doesn't know your site's routing. Instead, under `?include=references` the response carries a `_refs` map keyed by entry id → `{ id, slug, collection, locale, data }`; your renderer detects `ref://<id>`, looks it up in `_refs`, and builds its own link (`/blog/<slug>`) or embed. Tokens whose target isn't published (or doesn't exist) simply have no `_refs` entry.
 
+**A token is resolved in the locale being delivered.** The id you write names a translation group, not one language: when the entry is served in `nb`, `ref://<any-sibling-id>` resolves to that group's `nb` entry, falling back to the entry the id actually names when the group has nothing in that locale. So a translated body can keep the token verbatim — `_refs[<the id you wrote>]` carries the sibling's own `id`, `slug` and `locale`, and the link goes to the reader's language. Don't hunt down a per-locale id when translating; copy the sentence as it stands.
+
+**Only prose fields read the token.** `markdown` and `rich_text` fields always do. A `text` field — or an `array` of `text` — reads it only when its field definition sets `inlineRefs: true`, which is how you mark a field your frontend renders as markdown even though it isn't typed that way (a lead paragraph, footnotes, definitions). Set it when you define the collection; a `ref://` token in a field that reads none is rejected on write rather than dropped silently, and `inlineRefs` on a field that can't hold prose (a `number`, `json`, `blocks`) is rejected when the collection is saved.
+
 ## What NOT to do
 
 - **Don't nest blocks.** A block type's fields cannot include another `blocks` field.
 - **Don't put renderable content in `json`.** Assets, references, and `asset://` tokens in `json` are invisible to expansion and the delete guard; the server rejects the obvious cases. Use `blocks` (or a typed `asset`/`reference` field) instead.
 - **Don't reference an asset before it is uploaded.** Inline tokens in block prose are validated on write.
+- **Don't write `ref://` into a field that doesn't read it.** Set `inlineRefs: true` on that field, or make it `markdown`. The write fails either way, so it is never a silent dead link.
 
 ## Related
 

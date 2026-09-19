@@ -37,6 +37,7 @@ export interface FieldDef {
   type: FieldType;
   required?: boolean;
   localized?: boolean;
+  inlineRefs?: boolean;
   description?: string;
   default?: unknown;
   options?: {
@@ -51,9 +52,12 @@ const SEARCH_TEXT_FIELD_TYPES = new Set<FieldType>(['text', 'rich_text', 'markdo
 
 const INLINE_PROSE_FIELD_TYPES = new Set<FieldType>(['rich_text', 'markdown']);
 
+const INLINE_REF_OPT_IN_TYPES = new Set<FieldType>(['text', 'rich_text', 'markdown']);
+
 const ASSET_URI_PATTERN = /asset:\/\/([A-Za-z0-9_]+)/g;
 const ASSET_URI_TEST = /asset:\/\/[A-Za-z0-9_]+/;
 const REF_URI_PATTERN = /ref:\/\/([A-Za-z0-9_]+)/g;
+const REF_URI_TEST = /ref:\/\/[A-Za-z0-9_]+/;
 
 function inlineAssetIdsIn(value: unknown): string[] {
   if (typeof value !== 'string') return [];
@@ -61,8 +65,34 @@ function inlineAssetIdsIn(value: unknown): string[] {
 }
 
 function inlineRefIdsIn(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(inlineRefIdsIn);
   if (typeof value !== 'string') return [];
   return [...value.matchAll(REF_URI_PATTERN)].map((m) => m[1]!);
+}
+
+export function canCarryInlineRefs(field: FieldDef): boolean {
+  const type = field.type === 'array' ? field.options?.items?.type : field.type;
+  return type !== undefined && INLINE_REF_OPT_IN_TYPES.has(type);
+}
+
+function carriesInlineRefs(field: FieldDef): boolean {
+  if (INLINE_PROSE_FIELD_TYPES.has(field.type)) return true;
+  return field.inlineRefs === true && canCarryInlineRefs(field);
+}
+
+function containsRefUri(value: unknown): boolean {
+  if (typeof value === 'string') return REF_URI_TEST.test(value);
+  if (Array.isArray(value)) return value.some(containsRefUri);
+  if (value && typeof value === 'object') return Object.values(value).some(containsRefUri);
+  return false;
+}
+
+function strayRefUriError(field: FieldDef, value: unknown): string | null {
+  if (field.type === 'blocks' || carriesInlineRefs(field)) return null;
+  if (!containsRefUri(value)) return null;
+  return canCarryInlineRefs(field)
+    ? 'contains a ref:// token but the field does not opt in — set inlineRefs: true on the field, or make it markdown/rich_text'
+    : 'contains a ref:// token, which is only resolved in markdown, rich_text, or inlineRefs fields';
 }
 
 export interface BlockInstance {
@@ -180,6 +210,11 @@ export function validateEntryData(
     const value = data[field.name];
     if (isFieldEmpty(value)) {
       if (field.required) errors.push({ field: field.name, message: 'required' });
+      continue;
+    }
+    const strayRef = strayRefUriError(field, value);
+    if (strayRef) {
+      errors.push({ field: field.name, message: strayRef });
       continue;
     }
     const err = validateValue(field, value);
@@ -342,6 +377,11 @@ export interface ExpandedEntry {
   data: Record<string, unknown>;
 }
 
+export interface EntryLookup {
+  get(id: string): ExpandedEntry | undefined;
+  inLocale?(id: string, locale: string): ExpandedEntry | undefined;
+}
+
 export function collectReferenceIds(
   fields: FieldDef[],
   data: Record<string, unknown>,
@@ -357,7 +397,7 @@ export function collectInlineReferenceIds(
   for (const field of fields) {
     const value = data[field.name];
     if (value === undefined || value === null) continue;
-    if (INLINE_PROSE_FIELD_TYPES.has(field.type)) {
+    if (carriesInlineRefs(field)) {
       out.push(...inlineRefIdsIn(value));
     } else if (field.type === 'blocks') {
       forEachBlock(field, value, (bf, props) => {
@@ -371,20 +411,22 @@ export function collectInlineReferenceIds(
 export function buildReferenceSidecar(
   fields: FieldDef[],
   data: Record<string, unknown>,
-  entries: Map<string, ExpandedEntry>,
+  entries: EntryLookup,
+  locale?: string,
 ): Record<string, ExpandedEntry> {
   const out: Record<string, ExpandedEntry> = {};
   for (const field of fields) {
     const value = data[field.name];
     if (value === undefined || value === null) continue;
-    if (INLINE_PROSE_FIELD_TYPES.has(field.type)) {
+    if (carriesInlineRefs(field)) {
       for (const id of inlineRefIdsIn(value)) {
-        const entry = entries.get(id);
+        const entry =
+          (locale ? entries.inLocale?.(id, locale) : undefined) ?? entries.get(id);
         if (entry) out[id] = entry;
       }
     } else if (field.type === 'blocks') {
       forEachBlock(field, value, (bf, props) => {
-        Object.assign(out, buildReferenceSidecar(bf, props, entries));
+        Object.assign(out, buildReferenceSidecar(bf, props, entries, locale));
       });
     }
   }
@@ -394,7 +436,7 @@ export function buildReferenceSidecar(
 export function applyReferenceExpansion(
   fields: FieldDef[],
   data: Record<string, unknown>,
-  entries: Map<string, ExpandedEntry>,
+  entries: EntryLookup,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = { ...data };
   for (const field of fields) {

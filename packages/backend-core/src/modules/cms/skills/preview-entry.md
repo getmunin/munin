@@ -118,6 +118,7 @@ Notes:
 - The fetch stays **server-side** — the delivery API has no CORS headers by design (`skill://playbooks/frontend-integration`). Draft mode's own bypass cookie does not carry the Munin token, hence the extra cookie.
 - `sameSite: 'none'` on that cookie is not optional if the preview is ever opened in the Review pane — see Step 4.
 - Preview responses include `status`; render a visible "draft" banner when it isn't `published`.
+- Under a preview token, `?include=references` resolves inline `ref://` tokens against **unpublished** entries too, so a draft that links to another draft previews as the author meant it. The live route only ever resolves published targets — a link that works in preview can still be missing once the entry goes live if its target is still a draft.
 - An expired or tampered token returns **403** (never a silent fallback to the published version); a slug mismatch returns **404**. Surface these rather than swallowing them — they mean "mint a new link".
 
 ## Step 4 — let the Review pane embed it

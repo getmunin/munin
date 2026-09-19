@@ -189,6 +189,28 @@ Returns plain JSON: `{ collection, items: [...] }` for the list, a flat entry ob
 
 A localized site routes on the slug of the locale it is serving: each locale variant has its own slug, and the single-entry endpoint matches on slug **and** locale, so a pair with no published entry is a `404` rather than the default-language version. The single-entry response carries `_locales: [{ locale, slug }, …]` — every published variant of that entry — which is what you build `hreflang` tags and a language switcher from.
 
+### Rendering the prose
+
+A `markdown` or `rich_text` field can carry two kinds of inline token, and they behave differently on read — the difference is the one thing to get right here.
+
+- **`asset://<id>` is already resolved.** The server rewrites it to the asset's public URL before the response leaves, and attaches an `_assets` map keyed by asset id when you want `altText`, `mime` or `sizeBytes`. Render the markdown as-is and images work.
+- **`ref://<entryId>` is left in place, deliberately** — it's a link to another entry, and the server does not know your routing. Ask for `?include=references` and the response carries a `_refs` map keyed by the id *as written in the text* → `{ id, slug, collection, locale, data }`. Your renderer detects `ref://<id>`, looks it up, and builds its own href (`/blog/<slug>`).
+
+```ts
+const entry = await fetchEntry(slug, { include: 'references' });
+const href = (id: string) => {
+  const ref = entry._refs?.[id];
+  return ref ? `/${ref.collection}/${ref.slug}` : null; // null → render the label as plain text
+};
+```
+
+**If you skip this, nothing breaks loudly.** A `ref://cme_…` renders as literal text or as a dead link, the page still returns 200, and no build step complains. Handle it on the first render pass, not after someone reports it.
+
+Two properties worth relying on:
+
+- **A ref resolves in the locale you asked for.** The id names a translation group, so `ref://<any-sibling-id>` in an `nb` entry hands you the `nb` target. When that group has nothing in this locale you get the referenced entry itself instead — compare `_refs[id].locale` with the entry's `locale` if you want to mark a cross-language link.
+- **An id with no `_refs` entry means the target isn't published** (or is gone). Render the link text without an anchor rather than emitting an `href` you can't build.
+
 `{{ORG_ID}}` above is your tenant's `org_…` id, already substituted from your authenticated session — no need to ask for it. Store it in env too — `MUNIN_ORG_ID` / `NEXT_PUBLIC_MUNIN_ORG_ID` / `VITE_MUNIN_ORG_ID` per the framework convention above.
 
 ### Option A — server-side fetch (recommended)
@@ -249,13 +271,14 @@ If any of the three fails, the most likely cause is in this table:
 | `Access to fetch ... has been blocked by CORS policy` on `/v1/cms/...` | You're calling the CMS delivery API from the browser. Move the fetch server-side per step 3. |
 | 404 on `{{API_URL}}/embed/widget.js` or `{{API_URL}}/embed/tracker.js` | Old path. Both bundles are served from the root: `/widget.js` and `/tracker.js`. |
 | 404 on `/v1/cms/{orgId}/{slug}` | The collection slug or org id is wrong. `cms_list_collections` returns the canonical slugs. |
+| `ref://cme_…` shows up as text in a rendered article | The body carries an inline entry reference and you either didn't pass `?include=references` or aren't reading `_refs`. See "Rendering the prose" in step 3. |
 
 ## What NOT to do
 
 - **Don't guess `API_URL` or hardcode it in source.** It's been substituted into this playbook and stated in the server instructions — use that value and write it into the frontend's env (`NEXT_PUBLIC_API_URL` / `VITE_API_URL` / etc.). Every deployment has its own host — never assume one, and never copy a host out of another project.
 - **Don't put the widget key or tracker key in a `.env` as a server-only secret.** Both are designed to be visible in browser source. The origin allowlist is what protects them.
 - **Don't ship to production with an empty `originAllowlist` / `allowedOrigins`.** With `MUNIN_WIDGET_REQUIRE_ALLOWLIST` / `MUNIN_TRACKER_REQUIRE_ALLOWLIST` unset (the default), empty means open-to-any-origin. Production deployments should both set the env var to `1` *and* configure the actual origins.
-- **Don't skip the smoke test.** All three integrations have silent-failure modes (widget renders but ingest 403s; tracker loads but `allowedOrigins` blocks events; CMS fetch returns build-time data). Verify each in a real browser before reporting done.
+- **Don't skip the smoke test.** All three integrations have silent-failure modes (widget renders but ingest 403s; tracker loads but `allowedOrigins` blocks events; CMS fetch returns build-time data; an inline `ref://` renders as a dead link). Verify each in a real browser before reporting done.
 - **Don't mix this playbook with the embedded chat widget for end-user agents** (`skill://conv/setup-chat-widget` step 4, "browser-direct integration"). That's a different threat model: this playbook is browser-embed; that one is agent-pushed transcripts.
 
 ## Related
@@ -265,3 +288,4 @@ If any of the three fails, the most likely cause is in this table:
 - `skill://analytics/track-cms-views` — per-entry view tracking when serving CMS content yourself.
 - `skill://cms/publish-entry` — authoring side.
 - `skill://cms/migrate-content` — bulk content seeding.
+- `skill://cms/author-with-blocks` — how `ref://` and `asset://` get into a body in the first place.

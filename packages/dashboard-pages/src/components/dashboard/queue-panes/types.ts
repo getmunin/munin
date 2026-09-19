@@ -255,6 +255,7 @@ export interface CmsFieldDef {
   type: CmsFieldType;
   required?: boolean;
   localized?: boolean;
+  inlineRefs?: boolean;
   description?: string;
   default?: unknown;
   options?: {
@@ -271,6 +272,14 @@ export interface CmsBlockInstance {
   props: Record<string, unknown>;
 }
 
+export interface CmsRefExpanded {
+  id: string;
+  slug: string;
+  collection: string;
+  locale: string;
+  data: Record<string, unknown>;
+}
+
 export interface CmsDraftDetailDto {
   id: string;
   collectionId: string;
@@ -281,6 +290,7 @@ export interface CmsDraftDetailDto {
   version: number;
   data: Record<string, unknown>;
   assets?: Record<string, CmsAssetExpanded>;
+  refs?: Record<string, CmsRefExpanded>;
   fields: CmsFieldDef[];
   updatedAt: string;
 }

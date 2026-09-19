@@ -44,6 +44,7 @@ import {
   type CmsDraftSummaryDto,
   type CmsPreviewLink,
   type CmsFieldDef,
+  type CmsRefExpanded,
 } from './types';
 
 type EditableData = Record<string, unknown>;
@@ -371,6 +372,8 @@ export function CmsQueuePane({
                       hideInReadMode={field.name === item.raw.titleFieldName}
                       onChange={(v) => setField(field.name, v)}
                       onUploadAsset={onUploadAsset}
+                      refs={detail?.refs}
+                      entryLocale={detail?.locale}
                     />
                   ))}
                 </div>
@@ -598,6 +601,8 @@ function FieldSection({
   hideInReadMode,
   onChange,
   onUploadAsset,
+  refs,
+  entryLocale,
 }: {
   field: CmsFieldDef;
   value: unknown;
@@ -607,6 +612,8 @@ function FieldSection({
   hideInReadMode: boolean;
   onChange: (next: unknown) => void;
   onUploadAsset: (file: File) => Promise<CmsAssetExpanded>;
+  refs: Record<string, CmsRefExpanded> | undefined;
+  entryLocale: string | undefined;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   if (!editing && (hideInReadMode || isEmpty(value))) return null;
@@ -638,7 +645,13 @@ function FieldSection({
           replaceLabel={t('cmsCoverReplace')}
         />
       ) : (
-        <FieldViewer field={field} value={value} aspectLabel={t('cmsCoverAspect')} />
+        <FieldViewer
+          field={field}
+          value={value}
+          aspectLabel={t('cmsCoverAspect')}
+          refs={refs}
+          entryLocale={entryLocale}
+        />
       )}
       {error && (
         <p className="text-sm text-destructive" role="alert">
@@ -856,17 +869,23 @@ function FieldViewer({
   field,
   value,
   aspectLabel,
+  refs,
+  entryLocale,
 }: {
   field: CmsFieldDef;
   value: unknown;
   aspectLabel: string;
+  refs: Record<string, CmsRefExpanded> | undefined;
+  entryLocale: string | undefined;
 }) {
   switch (field.type) {
     case 'markdown':
     case 'rich_text':
       return (
         <ValueBox>
-          <Markdown>{asString(value)}</Markdown>
+          <Markdown refs={refs} locale={entryLocale}>
+            {asString(value)}
+          </Markdown>
         </ValueBox>
       );
     case 'asset': {
@@ -875,13 +894,29 @@ function FieldViewer({
       return <AssetFigure asset={asset} aspectLabel={aspectLabel} />;
     }
     case 'blocks':
-      return <BlocksViewer field={field} value={value} aspectLabel={aspectLabel} />;
+      return (
+        <BlocksViewer
+          field={field}
+          value={value}
+          aspectLabel={aspectLabel}
+          refs={refs}
+          entryLocale={entryLocale}
+        />
+      );
     case 'multi_select': {
       const items = Array.isArray(value) ? (value as unknown[]) : [];
       return <ValueBox>{items.map(scalarText).filter(Boolean).join(', ') || '—'}</ValueBox>;
     }
     case 'array':
-      return <ArrayViewer field={field} value={value} aspectLabel={aspectLabel} />;
+      return (
+        <ArrayViewer
+          field={field}
+          value={value}
+          aspectLabel={aspectLabel}
+          refs={refs}
+          entryLocale={entryLocale}
+        />
+      );
     case 'boolean':
       return <ValueBox>{value === true ? 'true' : 'false'}</ValueBox>;
     case 'date':
@@ -889,6 +924,16 @@ function FieldViewer({
     case 'datetime':
       return <ValueBox>{formatDateValue(value, true) || '—'}</ValueBox>;
     case 'text':
+      if (field.inlineRefs) {
+        return (
+          <ValueBox>
+            <Markdown refs={refs} locale={entryLocale}>
+              {asString(value)}
+            </Markdown>
+          </ValueBox>
+        );
+      }
+      return <ValueBox>{asString(value) || '—'}</ValueBox>;
     case 'select':
     case 'integer':
     case 'number':
@@ -956,10 +1001,14 @@ function BlocksViewer({
   field,
   value,
   aspectLabel,
+  refs,
+  entryLocale,
 }: {
   field: CmsFieldDef;
   value: unknown;
   aspectLabel: string;
+  refs: Record<string, CmsRefExpanded> | undefined;
+  entryLocale: string | undefined;
 }) {
   const blocks: unknown[] = Array.isArray(value) ? (value as unknown[]) : [];
   if (blocks.length === 0) return null;
@@ -987,7 +1036,13 @@ function BlocksViewer({
               visible.map((pf) => (
                 <BlockProp key={pf.name}>
                   <BlockPropLabel>{humanizeFieldName(pf.name)}</BlockPropLabel>
-                  <FieldViewer field={pf} value={block.props[pf.name]} aspectLabel={aspectLabel} />
+                  <FieldViewer
+                    field={pf}
+                    value={block.props[pf.name]}
+                    aspectLabel={aspectLabel}
+                    refs={refs}
+                    entryLocale={entryLocale}
+                  />
                 </BlockProp>
               ))
             )}
@@ -1002,10 +1057,14 @@ function ArrayViewer({
   field,
   value,
   aspectLabel,
+  refs,
+  entryLocale,
 }: {
   field: CmsFieldDef;
   value: unknown;
   aspectLabel: string;
+  refs: Record<string, CmsRefExpanded> | undefined;
+  entryLocale: string | undefined;
 }) {
   const items: unknown[] = Array.isArray(value) ? (value as unknown[]) : [];
   if (items.length === 0) return null;
@@ -1014,7 +1073,14 @@ function ArrayViewer({
     return (
       <div className="space-y-2">
         {items.map((it, index) => (
-          <FieldViewer key={index} field={itemDef} value={it} aspectLabel={aspectLabel} />
+          <FieldViewer
+            key={index}
+            field={itemDef}
+            value={it}
+            aspectLabel={aspectLabel}
+            refs={refs}
+            entryLocale={entryLocale}
+          />
         ))}
       </div>
     );
@@ -1023,7 +1089,15 @@ function ArrayViewer({
     <ValueBox>
       <ul className="list-disc space-y-1 pl-5">
         {items.map((it, index) => (
-          <li key={index}>{scalarText(it) || '—'}</li>
+          <li key={index}>
+            {field.inlineRefs && typeof it === 'string' ? (
+              <Markdown refs={refs} locale={entryLocale}>
+                {it}
+              </Markdown>
+            ) : (
+              scalarText(it) || '—'
+            )}
+          </li>
         ))}
       </ul>
     </ValueBox>

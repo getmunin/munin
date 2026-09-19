@@ -1710,6 +1710,12 @@
         "save": "Klarte ikke å lagre personverninnstillingene."
       },
       "sectionMeta": "Fjerning · {count} av {total} typer"
+    },
+    "outsideOrg": {
+      "eyebrow": "Arbeidsområde · ingen tilgang",
+      "title": "Dette hører til et annet arbeidsområde.",
+      "lede": "Lenken du fulgte peker til et Munin-arbeidsområde kontoen din ikke er medlem av. Be en eier der om en invitasjon, eller åpne det du selv hører til.",
+      "switchBack": "Åpne {org}"
     }
   },
   "agentSetup": {

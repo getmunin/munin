@@ -1,4 +1,5 @@
-import { redirect } from '../i18n-navigation';
+import { orgDashboardPath } from '@getmunin/types';
+import { redirect } from '../navigation-routing';
 import { FIRST_SETTINGS_HREF } from '../nav/settings-groups';
 
 export interface CreateSettingsIndexRedirectOptions {
@@ -13,9 +14,12 @@ export function createSettingsIndexRedirect({
   return async function SettingsIndexPage({
     params,
   }: {
-    params: Promise<{ locale: string }>;
+    params: Promise<{ locale: string; orgId?: string }>;
   }) {
-    const { locale } = await params;
-    redirect({ href: target, locale: locale || defaultLocale });
+    const { locale, orgId } = await params;
+    redirect({
+      href: orgId ? orgDashboardPath(target, orgId) : target,
+      locale: locale || defaultLocale,
+    });
   };
 }

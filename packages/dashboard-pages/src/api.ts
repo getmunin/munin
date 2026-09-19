@@ -1,5 +1,6 @@
 import { ORG_ACCESS_DENIED_CODE, ORG_HEADER } from '@getmunin/types';
 import { clearActiveOrgId, getActiveOrgId, setActiveOrgId } from './auth/active-org';
+import { readRouteOrgId } from './org-route';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -40,16 +41,17 @@ export class ApiError extends Error {
 
 export interface ApiOptions extends RequestInit {
   anonymous?: boolean;
+  crossOrg?: boolean;
 }
 
 export async function api<T>(path: string, init: ApiOptions = {}): Promise<T> {
-  const { anonymous, ...rest } = init;
+  const { anonymous, crossOrg, ...rest } = init;
   const method = (rest.method ?? 'GET').toUpperCase();
-  const requestedOrgId = anonymous ? null : getActiveOrgId();
+  const requestedOrgId = anonymous || crossOrg ? null : getActiveOrgId();
   let res: Response;
   try {
     res = await sendRequest(path, rest, anonymous, requestedOrgId);
-    if (requestedOrgId && (await isOrgAccessDenied(res))) {
+    if (requestedOrgId && !readRouteOrgId() && (await isOrgAccessDenied(res))) {
       clearActiveOrgId();
       res = await sendRequest(path, rest, anonymous, null);
     }
@@ -67,7 +69,7 @@ export async function api<T>(path: string, init: ApiOptions = {}): Promise<T> {
       code: 'NETWORK_ERROR',
     });
   }
-  if (!anonymous) reconcileServingOrg(res, getActiveOrgId());
+  if (!anonymous && !crossOrg) reconcileServingOrg(res, getActiveOrgId());
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');

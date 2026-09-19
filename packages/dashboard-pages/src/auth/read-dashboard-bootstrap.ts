@@ -11,23 +11,29 @@ interface OrgMembershipDto extends MembershipDto {
   slug: string;
 }
 
-function read<T>(path: string, cookie: string): Promise<T | null> {
-  return fetchJsonWithCookie<T>(path, cookie, { label: 'dashboard-bootstrap' });
+function read<T>(path: string, cookie: string, orgId: string | null): Promise<T | null> {
+  return fetchJsonWithCookie<T>(path, cookie, { label: 'dashboard-bootstrap', orgId });
 }
 
-export async function readDashboardBootstrap(): Promise<DashboardBootstrap | null> {
+export async function readDashboardBootstrap(
+  orgId: string | null = null,
+): Promise<DashboardBootstrap | null> {
   const cookieStore = await cookies();
   const cookie = cookieStore.toString();
   if (!cookie) return null;
 
   const [memberships, config, setup] = await Promise.all([
-    read<OrgMembershipDto[]>('/v1/me/memberships', cookie),
-    read<AgentConfigStatusDto>('/v1/agent-config', cookie),
-    read<SetupStateDto>('/v1/overview/setup', cookie),
+    read<OrgMembershipDto[]>('/v1/me/memberships', cookie, null),
+    read<AgentConfigStatusDto>('/v1/agent-config', cookie, orgId),
+    read<SetupStateDto>('/v1/overview/setup', cookie, orgId),
   ]);
   if (!memberships || !config || !setup) return null;
 
-  const active = memberships.length === 1 ? memberships[0] : null;
+  const active = orgId
+    ? (memberships.find((m) => m.orgId === orgId) ?? null)
+    : memberships.length === 1
+      ? memberships[0]
+      : null;
   if (!active || !isOrgRole(active.role)) return null;
   if (isSetupIncomplete(config, memberships)) return null;
 

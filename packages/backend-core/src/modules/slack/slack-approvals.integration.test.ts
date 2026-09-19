@@ -10,6 +10,7 @@ import { encryptSecretValue } from './slack.service.ts';
 import { draftFingerprint } from '../outreach/proposal-fingerprint.ts';
 import { mergeFingerprint } from '../crm/merge-fingerprint.ts';
 import { socialDraftFingerprint } from '../social/social-fingerprint.ts';
+import { registerOrgScopedDashboard } from '../../common/web-url.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -384,6 +385,33 @@ function buttonValues(blocks: unknown[] | undefined): string[] {
     const link = await notificationLink('crm_merge_proposal', proposalId);
     expect(link?.slackTs).toBe(posted.ts);
     expect(link?.resolvedAt).toBeNull();
+  });
+
+  it('links the card at the proposal, not the dashboard root', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const proposalId = await seedMergeProposal();
+
+    await emit('crm.merge_proposal.proposed', mergePayload(proposalId));
+    await worker.tick();
+
+    expect(api.posted[0]!.text).toContain(`/dashboard/review/${proposalId}`);
+  });
+
+  it('names the org in the link where routes are org-scoped', async () => {
+    registerOrgScopedDashboard(true);
+    try {
+      const api = new FakeSlackApi();
+      const worker = new SlackBridgeWorker(db, api);
+      const proposalId = await seedMergeProposal();
+
+      await emit('crm.merge_proposal.proposed', mergePayload(proposalId));
+      await worker.tick();
+
+      expect(api.posted[0]!.text).toContain(`/o/${orgId}/dashboard/review/${proposalId}`);
+    } finally {
+      registerOrgScopedDashboard(false);
+    }
   });
 
   it('routes to the approvals channel, falling back to escalations before default', async () => {

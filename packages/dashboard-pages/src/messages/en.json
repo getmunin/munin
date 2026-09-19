@@ -1710,6 +1710,12 @@
         "save": "Could not save the privacy settings."
       },
       "sectionMeta": "Redaction · {count} of {total} types"
+    },
+    "outsideOrg": {
+      "eyebrow": "Workspace · no access",
+      "title": "This belongs to another workspace.",
+      "lede": "The link you followed points at a Munin workspace your account is not a member of. Ask an owner there to invite you, or open the one you do belong to.",
+      "switchBack": "Open {org}"
     }
   },
   "agentSetup": {

@@ -10,6 +10,7 @@ import {
 
 const LOCALES = ['en', 'nb'] as const;
 const ROOT: SetupGateOptions = { locales: LOCALES };
+const ORG_SCOPED: SetupGateOptions = { locales: LOCALES, orgScopedRoutes: true };
 const SUBTREE: SetupGateOptions = {
   locales: LOCALES,
   scope: 'subtree',
@@ -156,10 +157,50 @@ describe('withSetupGate', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('never calls the API on an ungated path', async () => {
+  it('leaves a single-org deployment flat, never inventing an org segment', async () => {
+    stubApi({ providerConfigured: true }, [
+      { orgId: 'org_0123456789abcdefghijkl', name: 'Acme', role: 'owner', isDefault: true },
+    ]);
+    const handle = withSetupGate(() => NextResponse.next(), ROOT);
+    const res = await handle(request('/en/dashboard/review/spd_1', SESSION));
+    expect(res.headers.get('location')).toBeNull();
+  });
+
+  it('never calls the API outside the dashboard tree', async () => {
     stubApi({ providerConfigured: false }, []);
     const handle = withSetupGate(() => NextResponse.next(), ROOT);
-    await handle(request('/en/dashboard/settings', SESSION));
+    await handle(request('/en/docs/skills', SESSION));
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('leaves an already org-scoped subtree path untouched', async () => {
+    stubApi({ providerConfigured: false }, []);
+    const handle = withSetupGate(() => NextResponse.next(), ROOT);
+    const res = await handle(
+      request('/en/o/org_0123456789abcdefghijkl/dashboard/settings', SESSION),
+    );
+    expect(res.headers.get('location')).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('redirects a legacy deep link onto the default org, keeping the rest of the path', async () => {
+    stubApi({ providerConfigured: true }, [
+      { orgId: 'org_0123456789abcdefghijkl', name: 'Acme', role: 'owner', isDefault: true },
+    ]);
+    const handle = withSetupGate(() => NextResponse.next(), ORG_SCOPED);
+    const res = await handle(request('/en/dashboard/review/spd_1', SESSION));
+    expect(res.headers.get('location')).toContain(
+      '/en/o/org_0123456789abcdefghijkl/dashboard/review/spd_1',
+    );
+  });
+
+  it('sends a signed-out legacy deep link to login with the destination kept', async () => {
+    stubApi({ providerConfigured: true }, []);
+    const handle = withSetupGate(() => NextResponse.next(), ORG_SCOPED);
+    const res = await handle(request('/en/dashboard/review/spd_1'));
+    const location = res.headers.get('location');
+    expect(location).toContain('/en/login');
+    expect(location).toContain(encodeURIComponent('/dashboard/review/spd_1'));
     expect(fetch).not.toHaveBeenCalled();
   });
 

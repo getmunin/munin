@@ -1,11 +1,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { stripTrailingSlashes } from '@getmunin/types';
-
-const ORG_ID_PATTERN = /^org_[0-9a-z]{22}$/;
+import { isOrgId, ORG_SCOPE_SEGMENT, stripTrailingSlashes } from '@getmunin/types';
 
 export const MCP_BASE_PATH = '/mcp';
 
-export const ORG_SCOPE_SEGMENT = '/o/';
+export { isOrgId, ORG_SCOPE_SEGMENT };
 
 export const ORG_SCOPED_MCP_PREFIX = `${MCP_BASE_PATH}${ORG_SCOPE_SEGMENT}`;
 
@@ -24,10 +22,6 @@ export interface McpOrgScopeInput {
 export interface OrgScopedResourcePath {
   basePath: string;
   orgId: string;
-}
-
-export function isOrgId(value: string): boolean {
-  return ORG_ID_PATTERN.test(value);
 }
 
 export function orgScopedPath(basePath: string, orgId: string): string | null {

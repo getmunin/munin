@@ -7,6 +7,9 @@ import { SystemAlertsBanner } from '../components/system-alerts-banner';
 import { SetupStateProvider } from '../components/first-run';
 import { ConfirmDialogProvider } from '../components/confirm-dialog';
 import { usePathname } from '../i18n-navigation';
+import { useActiveMembership } from '../auth/use-active-role';
+import { useRouteOrgId } from '../org-route';
+import { OutsideOrg } from '../components/outside-org';
 import { BrandHead } from './brand-head';
 import { ConsoleShell } from './console-shell';
 
@@ -64,8 +67,14 @@ function ConsoleDashboardShell({
 }: DashboardShellProps) {
   const pathname = usePathname();
   const { ready, signedIn } = useDashboardGate();
+  const routeOrgId = useRouteOrgId();
+  const { outsideOrg } = useActiveMembership();
 
   const inSettings = pathname.startsWith('/dashboard/settings');
+
+  if (signedIn && outsideOrg && routeOrgId) {
+    return <OutsideOrg orgId={routeOrgId} />;
+  }
 
   const content = (
     <SetupStateProvider enabled={signedIn}>

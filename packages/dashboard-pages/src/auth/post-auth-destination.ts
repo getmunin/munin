@@ -9,7 +9,7 @@ export async function resolvePostAuthDestination(fallback: string): Promise<stri
   try {
     const [config, memberships] = await Promise.all([
       api<AgentConfigStatusDto>('/v1/agent-config'),
-      api<MembershipDto[]>('/v1/me/memberships'),
+      api<MembershipDto[]>('/v1/me/memberships', { crossOrg: true }),
     ]);
     return isSetupIncomplete(config, memberships) ? '/setup' : fallback;
   } catch {

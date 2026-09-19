@@ -6,7 +6,7 @@ import { Button, cn } from '@getmunin/ui';
 import { authClient } from '../auth-client';
 import { LoadFailed } from '../components/load-failed';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
-import { usePathname, useRouter } from '../i18n-navigation';
+import { useOrgHref, usePathname, useRouter } from '../i18n-navigation';
 import {
   DEFAULT_QUEUE_FILTERS,
   partitionQueue,
@@ -37,6 +37,7 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
   const tCommon = useTranslations('common');
   const router = useRouter();
   const pathname = usePathname();
+  const toHref = useOrgHref();
   const onQueueRoute = /^\/dashboard\/conversations\/?$/.test(pathname);
   const routeSelectedId =
     pathname.match(/^\/dashboard\/conversations\/([^/]+)/)?.[1] ??
@@ -80,14 +81,14 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
   const shallowGo = useCallback(
     (path: string) => {
       const { pathname: full } = window.location;
-      const cut = full.indexOf('/dashboard/conversations');
+      const cut = full.indexOf(toHref('/dashboard/conversations'));
       if (cut < 0) {
         router.push(path);
         return;
       }
-      window.history.pushState(null, '', full.slice(0, cut) + path);
+      window.history.pushState(null, '', full.slice(0, cut) + toHref(path));
     },
-    [router],
+    [router, toHref],
   );
   const goToQueue = useCallback(
     () => shallowGo('/dashboard/conversations'),

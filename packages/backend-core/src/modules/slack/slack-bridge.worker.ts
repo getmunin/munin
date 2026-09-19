@@ -46,7 +46,9 @@ import {
 import {
   SLACK_ANNOUNCEMENT_SUBJECT_TYPES,
   approvalSubjectRef,
-  readWebBaseUrl,
+  conversationUrl,
+  reviewListUrl,
+  reviewUrl,
   subjectTypeOf,
 } from './slack.constants.ts';
 import { draftFingerprint } from '../outreach/proposal-fingerprint.ts';
@@ -532,7 +534,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     const outcome = approvalOutcomeFor(row.eventType);
     if (outcome) {
       if (!link || link.resolvedAt) return;
-      const rendering = await this.renderApproval(subject, payload, actorId, outcome);
+      const rendering = await this.renderApproval(integration.orgId, subject, payload, actorId, outcome);
       await this.api.updateMessage({
         token,
         channel: link.slackChannelId,
@@ -548,7 +550,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    const rendering = await this.renderApproval(subject, payload, actorId, null);
+    const rendering = await this.renderApproval(integration.orgId, subject, payload, actorId, null);
     if (link) {
       await this.api.updateMessage({
         token,
@@ -714,7 +716,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     const text = outreachCampaignParentText(
       context.campaignName,
       context.pendingCount,
-      `${readWebBaseUrl()}/dashboard`,
+      reviewListUrl(integration.orgId),
     );
     let posted;
     try {
@@ -779,7 +781,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       text: outreachCampaignParentText(
         context.campaignName,
         context.pendingCount,
-        `${readWebBaseUrl()}/dashboard`,
+        reviewListUrl(integration.orgId),
       ),
     });
     if (context.pendingCount === 0 && !link.resolvedAt) {
@@ -879,7 +881,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       posted = await this.api.postMessage({
         token,
         channel: route.slackChannelId,
-        text: cmsGroupParentText({ ...context, dashboardUrl: `${readWebBaseUrl()}/dashboard` }),
+        text: cmsGroupParentText({ ...context, dashboardUrl: reviewListUrl(integration.orgId) }),
       });
     } catch (err) {
       if (err instanceof SlackApiError && err.apiError === 'not_in_channel') {
@@ -921,7 +923,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       token,
       channel: link.slackChannelId,
       ts: link.slackTs,
-      text: cmsGroupParentText({ ...context, dashboardUrl: `${readWebBaseUrl()}/dashboard` }),
+      text: cmsGroupParentText({ ...context, dashboardUrl: reviewListUrl(integration.orgId) }),
     });
     if (context.pendingLocales.length === 0 && !link.resolvedAt) {
       await this.db
@@ -1006,7 +1008,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       posted = await this.api.postMessage({
         token,
         channel: route.slackChannelId,
-        text: socialSetParentText({ ...context, dashboardUrl: `${readWebBaseUrl()}/dashboard` }),
+        text: socialSetParentText({ ...context, dashboardUrl: reviewListUrl(integration.orgId) }),
       });
     } catch (err) {
       if (err instanceof SlackApiError && err.apiError === 'not_in_channel') {
@@ -1048,7 +1050,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       token,
       channel: link.slackChannelId,
       ts: link.slackTs,
-      text: socialSetParentText({ ...context, dashboardUrl: `${readWebBaseUrl()}/dashboard` }),
+      text: socialSetParentText({ ...context, dashboardUrl: reviewListUrl(integration.orgId) }),
     });
     if (context.pendingCount === 0 && !link.resolvedAt) {
       await this.db
@@ -1059,12 +1061,13 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   private async renderApproval(
+    orgId: string,
     subject: { subjectType: string; subjectId: string },
     payload: Record<string, unknown>,
     actorId: string | null,
     outcome: ApprovalOutcome | null,
   ): Promise<{ text: string; blocks: SlackBlock[]; resolved: boolean }> {
-    const dashboardUrl = `${readWebBaseUrl()}/dashboard`;
+    const dashboardUrl = reviewUrl(orgId, subject.subjectId);
     const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 
     let text: string;
@@ -1463,7 +1466,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       contactName: contact?.name ?? endUser?.name ?? null,
       contactEmail: contact?.email ?? endUser?.email ?? null,
       contactPhone: phone ? formatPhoneNumber(phone) : null,
-      dashboardUrl: `${readWebBaseUrl()}/dashboard`,
+      dashboardUrl: conversationUrl(conversation.orgId, conversation.id),
     };
     return { conversation, snapshot };
   }

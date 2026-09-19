@@ -245,6 +245,31 @@ class RecordingMailer implements Mailer {
     expect(mailer.sent).toHaveLength(1);
   });
 
+  it('sends the cta as an absolute url, not the stored relative path', async () => {
+    const previous = process.env.MUNIN_WEB_URL;
+    process.env.MUNIN_WEB_URL = 'https://app.example.com';
+    try {
+      await asActor(plainMember, async () => {
+        await service.openAlert({
+          source: 'social',
+          subjectId: 'linkedin-cta',
+          userId: plainMember,
+          severity: 'warning',
+          title: 'Reconnect LinkedIn',
+          ctaHref: '/dashboard/settings/integrations',
+        });
+      });
+
+      await worker.tick();
+      const sent = mailer.sent.at(-1)!;
+      expect(sent.text).toContain('https://app.example.com/dashboard/settings/integrations');
+      expect(sent.text).not.toContain('"/dashboard/settings/integrations"');
+    } finally {
+      if (previous === undefined) delete process.env.MUNIN_WEB_URL;
+      else process.env.MUNIN_WEB_URL = previous;
+    }
+  });
+
   it('skips an alert that resolved before the worker reached it', async () => {
     await asActor(ownerOne, async () => {
       await service.openAlert({

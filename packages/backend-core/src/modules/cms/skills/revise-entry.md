@@ -100,6 +100,18 @@ To delete, make `newText` an empty string. To insert an image between two paragr
 
 Both kinds of edit can ride on one call. Block edits run first, so a text replacement in the same call sees the blocks you just inserted. That also means an `oldText` matching both an old block and a newly inserted one becomes ambiguous — quote enough context to stay unique.
 
+### Retargeting an inline entry link
+
+An inline `ref://<entryId>` is ordinary text, so you repoint one with a replacement like any other edit:
+
+```jsonc
+{ "field": "body", "oldText": "ref://<oldEntryId>", "newText": "ref://<newEntryId>" }
+```
+
+You rarely need to. The id names a translation group, so a token already resolves to the target in the locale being delivered — retarget only when the link should point at *different content*, never to "fix" the language.
+
+Introducing a token into a field that doesn't read inline refs is rejected on write (`cms_invalid: … contains a ref:// token`). Prose fields (`markdown`, `rich_text`) always read them; a `text` or `array`-of-`text` field needs `inlineRefs: true` in the collection schema (`skill://cms/design-collection`). The failure is loud on purpose — the old behaviour was a link that silently vanished at render time.
+
 ### When a whole-field rewrite is the right call
 
 If most of a field is changing — a rewritten introduction, a translated body, a restructured argument — send the new value in `data` instead. `textReplacements` earns its keep when the edit is small relative to the field; a replacement whose `oldText` is 90% of the body saves nothing. The same goes for a blocks field being rebuilt from scratch: past a handful of `blockEdits`, send the array.

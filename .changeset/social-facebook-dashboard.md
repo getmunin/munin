@@ -24,3 +24,11 @@ ceilings are 3,000 against 63,206, and that Facebook takes images only. One corr
 emphasis for agents: a lapsed LinkedIn grant is routine and expected, while a refused
 Facebook Page token is not — that token does not expire, so a refusal means the access was
 withdrawn.
+
+Commenting as a Page turns out to need `pages_manage_engagement`, which posting does not,
+so a link destined for the first comment came back `(#200) You do not have sufficient
+permissions` while the post itself went out. The scope is now requested and named in the
+setup steps; existing Facebook connections have to be reauthorized to pick it up.
+
+Action errors also moved: every review pane now renders them in its own footer beside the
+buttons, where four of the seven already did.

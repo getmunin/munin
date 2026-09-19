@@ -45,3 +45,11 @@ before anyone but a person holding a role on the app can use it. And the scopes 
 a Facebook account are the ones the app requested rather than the ones granted, since the
 Page listing does not report them; a permission declined in the dialog shows up as a
 refusal at publish time.
+
+Two fixes the first live publish turned up, both of which affected LinkedIn too.
+`publishDraft` called `publish` and `uploadMedia` detached from their adapter, so `this` was
+undefined and publishing threw on the first method it reached — true since publishing
+shipped, and hidden by a test double that returned arrow functions. And the publish target
+was resolved with no platform filter, so a draft could be labelled with the reviewer's
+identity on a different platform, or offer Publish to someone whose only connection was
+elsewhere.

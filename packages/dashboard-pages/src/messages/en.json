@@ -1713,7 +1713,7 @@
     },
     "outsideOrg": {
       "eyebrow": "Workspace · no access",
-      "title": "This belongs to another workspace.",
+      "title": "This belongs to <em>another workspace</em>.",
       "lede": "The link you followed points at a Munin workspace your account is not a member of. Ask an owner there to invite you, or open the one you do belong to.",
       "switchBack": "Open {org}"
     }
@@ -2441,5 +2441,11 @@
       "title": "Terms of Use — Munin",
       "description": "Terms governing use of getmunin.com and the Munin open-source project."
     }
+  },
+  "notFound": {
+    "eyebrow": "404 · not found",
+    "title": "Munin doesn't <em>remember</em> this page.",
+    "lede": "The link may be old, or the page may have moved. Nothing is lost — everything Munin does remember is still where you left it.",
+    "home": "Back to the front page"
   }
 }

@@ -12,8 +12,8 @@ vi.mock('../auth/use-active-role', () => ({
 }));
 
 vi.mock('../i18n-navigation', () => ({
-  Link: ({ href, children }: { href: string; children?: React.ReactNode }) => (
-    <a href={href}>{children}</a>
+  Link: ({ href, ...rest }: { href: string } & React.ComponentProps<'a'>) => (
+    <a href={href} {...rest} />
   ),
 }));
 
@@ -26,7 +26,9 @@ beforeEach(() => {
 describe('OutsideOrg', () => {
   it('resolves every message key against the real bundle', () => {
     renderWithProviders(<OutsideOrg orgId={OTHER} />);
-    expect(screen.getByText('This belongs to another workspace.')).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
+      'This belongs to another workspace.',
+    );
     expect(screen.getByText(/not a member of/)).toBeTruthy();
   });
 
@@ -37,7 +39,7 @@ describe('OutsideOrg', () => {
 
   it('offers a way back into an org the viewer does belong to', () => {
     renderWithProviders(<OutsideOrg orgId={OTHER} />);
-    const link = screen.getByRole('link', { name: 'Open Acme' });
+    const link = screen.getByRole('button', { name: 'Open Acme' });
     expect(link.getAttribute('href')).toBe('/o/org_0123456789abcdefghijkl/dashboard');
   });
 });

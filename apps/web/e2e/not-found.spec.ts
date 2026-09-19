@@ -26,4 +26,21 @@ test.describe('OSS not-found status codes', () => {
     const res = await request.get('/en/definitely-not-a-route', { timeout: REQUEST_TIMEOUT });
     expect(res.status()).toBe(404);
   });
+
+  test('an unrouted path renders the Munin 404, not the Next default', async ({ page }) => {
+    test.setTimeout(REQUEST_TIMEOUT * 2);
+    const res = await page.goto('/en/definitely-not-a-route');
+    expect(res?.status()).toBe(404);
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('remember');
+    const home = page.getByRole('button', { name: /front page/i });
+    await expect(home).toBeVisible();
+    await expect(home).toHaveAttribute('href', '/en');
+  });
+
+  test('the 404 speaks the locale of the request', async ({ page }) => {
+    test.setTimeout(REQUEST_TIMEOUT * 2);
+    const res = await page.goto('/nb/finnes-ikke');
+    expect(res?.status()).toBe(404);
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('husker');
+  });
 });

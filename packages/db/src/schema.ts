@@ -2292,13 +2292,37 @@ export const socialAccounts = pgTable(
       t.userId,
       t.platform,
     ),
-    orgPlatformExternalUq: uniqueIndex('social_accounts_org_platform_external_uq').on(
-      t.orgId,
-      t.platform,
-      t.externalAccountId,
-    ),
+    orgPlatformExternalUq: uniqueIndex('social_accounts_org_platform_external_uq')
+      .on(t.orgId, t.platform, t.externalAccountId)
+      .where(sql`author_kind = 'member'`),
     orgStatusIdx: index('social_accounts_org_status_idx').on(t.orgId, t.platform, t.status),
     expiryIdx: index('social_accounts_expiry_idx').on(t.status, t.accessTokenExpiresAt),
+  }),
+);
+
+export const socialPendingGrants = pgTable(
+  'social_pending_grants',
+  {
+    id: id('spg'),
+    orgId: text('org_id')
+      .notNull()
+      .references((): AnyPgColumn => orgs.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    platform: varchar('platform', { length: 16 }).notNull(),
+    encryptedOwnerToken: text('encrypted_owner_token').notNull(),
+    ownerTokenExpiresAt: timestamp('owner_token_expires_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt,
+  },
+  (t) => ({
+    orgUserPlatformUq: uniqueIndex('social_pending_grants_org_user_platform_uq').on(
+      t.orgId,
+      t.userId,
+      t.platform,
+    ),
+    expiresIdx: index('social_pending_grants_expires_idx').on(t.expiresAt),
   }),
 );
 

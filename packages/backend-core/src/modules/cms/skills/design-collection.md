@@ -70,6 +70,18 @@ Reach for `json` only when you'd otherwise be cramming structured data into a `t
 
 `rich_text` vs `markdown`: pick `markdown` if a human is comfortable writing markdown OR you need to round-trip the source (e.g. imported from a markdown file). Pick `rich_text` if non-technical authors will use the editor and the output goes into a renderer you control. Don't mix both in the same collection unless you really mean to.
 
+### Prose in a `text` field: `inlineRefs`
+
+Inline tokens are read from `markdown` and `rich_text` fields only — a `text` field is treated as a label, not prose. When your frontend actually renders a `text` field as markdown (a lead paragraph, footnotes, a list of definitions), say so with `inlineRefs: true` and `ref://` tokens in it are resolved into `_refs` like any other prose field:
+
+```jsonc
+{ "name": "lead", "type": "text", "inlineRefs": true }
+```
+
+It is valid on `text`, `rich_text`, `markdown`, and an `array` of those (the flag goes on the array field, and applies to each string item); anything else is rejected when the collection is saved. Without it a `ref://` token in that field is rejected on write, so the choice is explicit rather than a link that quietly disappears at render time.
+
+The flag covers `ref://` only — `asset://` is still rewritten in `markdown` and `rich_text` fields alone. A field that needs to embed images is prose by nature: type it `markdown` outright rather than reaching for the flag.
+
 ### Field options shape
 
 ```jsonc

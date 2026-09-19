@@ -220,7 +220,7 @@ export class CmsSearchService {
       for (const hit of fused) {
         const fields = fieldsByEntryId.get(hit.entryId);
         if (!fields) continue;
-        const refSidecar = buildReferenceSidecar(fields, hit.data, entryMap);
+        const refSidecar = buildReferenceSidecar(fields, hit.data, entryMap, hit.locale);
         hit.data = applyReferenceExpansion(fields, hit.data, entryMap);
         if (Object.keys(refSidecar).length > 0) hit.refs = refSidecar;
       }

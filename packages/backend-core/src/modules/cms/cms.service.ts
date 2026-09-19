@@ -49,6 +49,7 @@ import {
   buildInlineAssetSidecar,
   buildReferenceSidecar,
   buildSearchText,
+  canCarryInlineRefs,
   collectAssetIds,
   collectInlineReferenceIds,
   collectReferenceIds,
@@ -753,7 +754,7 @@ export class CmsService {
       const assetSidecar = buildInlineAssetSidecar(fields, dto.data, assets);
       dto.data = rewriteInlineAssets(fields, dto.data, assets);
       if (entryMap) {
-        const refSidecar = buildReferenceSidecar(fields, dto.data, entryMap);
+        const refSidecar = buildReferenceSidecar(fields, dto.data, entryMap, dto.locale);
         dto.data = applyReferenceExpansion(fields, dto.data, entryMap);
         if (Object.keys(refSidecar).length > 0) dto.refs = refSidecar;
       }
@@ -2491,6 +2492,11 @@ function validateFieldsShape(fields: FieldDef[], allowBlocks = true): void {
     }
     if (f.type === 'array' && !f.options?.items) {
       throw new CmsInvalidError(`array field ${f.name}: options.items is required`);
+    }
+    if (f.inlineRefs && !canCarryInlineRefs(f)) {
+      throw new CmsInvalidError(
+        `field ${f.name}: inlineRefs is only supported on text, rich_text, markdown, or an array of those`,
+      );
     }
     if ((f.type === 'select' || f.type === 'multi_select') && !f.options?.choices?.length) {
       throw new CmsInvalidError(`${f.type} field ${f.name}: options.choices is required`);

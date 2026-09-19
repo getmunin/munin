@@ -3,7 +3,6 @@
 import { QueueItemPane } from './queue-panes';
 import type { QueueItem } from './queue-panes/types';
 import type { InboxController } from './inbox-types';
-import { QueueActionErrorBanner } from './queue-action-error';
 import { ReviewOutreachPane } from './review-outreach-pane';
 import { ReviewCrmPane } from './review-crm-pane';
 
@@ -65,10 +64,6 @@ export function ReviewBlockingPane({
 
   return (
     <section className="flex min-h-0 flex-col overflow-hidden bg-paper dark:bg-background">
-      <QueueActionErrorBanner
-        error={queueActionError?.itemId === item.id ? queueActionError : null}
-        onDismiss={clearQueueActionError}
-      />
       <QueueItemPane
         item={item}
         cmsDetail={item.kind === 'cms' ? cmsDetails[item.id] : undefined}
@@ -90,6 +85,8 @@ export function ReviewBlockingPane({
         onRetryPreview={
           item.kind === 'cms' ? () => void reloadCmsPreviewLink(item.id) : undefined
         }
+        actionError={queueActionError}
+        onClearActionError={clearQueueActionError}
         hideHeaderOnMobile
       />
     </section>

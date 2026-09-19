@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { useRelative } from '../../../lib/use-relative';
+import type { QueueActionError } from '../inbox-types';
 import { PaneFooter, PaneHeader, useCmdEnter } from './shared';
 import type { FeedbackOutboxDto } from './types';
 
@@ -11,12 +12,16 @@ export function FeedbackQueuePane({
   onApprove,
   onDismiss,
   onClose,
+  actionError,
+  onClearActionError,
 }: {
   item: { id: string; title: string; createdAt: string; raw: FeedbackOutboxDto };
   pending: boolean;
   onApprove: () => void;
   onDismiss: () => void;
   onClose?: () => void;
+  actionError?: QueueActionError;
+  onClearActionError?: () => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const tQueue = useTranslations('dashboard.overview.queue');
@@ -69,6 +74,8 @@ export function FeedbackQueuePane({
       </div>
 
       <PaneFooter
+          error={actionError?.itemId === item.id ? actionError : null}
+          onClearError={onClearActionError}
         primary={{ label: t('approve'), onClick: onApprove, disabled: pending }}
         secondary={[{ label: t('dismiss'), onClick: onDismiss, disabled: pending }]}
         shortcut={t('shortcutApprove')}

@@ -78,7 +78,7 @@ export function PublishingAccountsSection() {
   const [apps, setApps] = useState<SocialPlatformAppDto[] | null>(null);
   const [accounts, setAccounts] = useState<SocialAccountDto[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busyPlatform, setBusyPlatform] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState<SocialPlatformAppDto | null>(null);
   const [choosing, setChoosing] = useState<{ pendingId: string; platform: string } | null>(null);
 
@@ -124,7 +124,7 @@ export function PublishingAccountsSection() {
   }, [t]);
 
   function connect(platform: string) {
-    setBusy(true);
+    setBusyPlatform(platform);
     void (async () => {
       try {
         const res = await api<{ url: string }>('/v1/social/accounts/authorize-url', {
@@ -134,7 +134,7 @@ export function PublishingAccountsSection() {
         window.location.assign(res.url);
       } catch (err) {
         notify.error(translate(err));
-        setBusy(false);
+        setBusyPlatform(null);
       }
     })();
   }
@@ -150,14 +150,14 @@ export function PublishingAccountsSection() {
       destructive: true,
     });
     if (!ok) return;
-    setBusy(true);
+    setBusyPlatform(account.platform);
     try {
       await api(`/v1/social/accounts/${account.id}`, { method: 'DELETE' });
       await refresh();
     } catch (err) {
       notify.error(translate(err));
     } finally {
-      setBusy(false);
+      setBusyPlatform(null);
     }
   }
 
@@ -199,6 +199,7 @@ export function PublishingAccountsSection() {
           const others = accounts.filter(
             (a) => a.platform === app.platform && a.userId !== viewerId,
           ).length;
+          const busy = busyPlatform === app.platform;
           return (
             <IntegrationCard
               key={app.platform}
@@ -557,7 +558,11 @@ function PlatformAppDialog({
                   ),
               })}
             >
-              <p className="text-xs text-ink-mute">{platformCopy('stepCreateNote')}</p>
+              <p className="text-xs text-ink-mute">
+                {t.rich(`platform.${app.platform}.stepCreateNote`, {
+                  em: (chunks) => <em className="not-italic text-ink dark:text-foreground">{chunks}</em>,
+                })}
+              </p>
             </SetupStep>
 
             <SetupStep index="02" title={platformCopy('stepProducts')}>
@@ -630,13 +635,13 @@ function PlatformAppDialog({
             {editing ? t('editTitle', { platform: name }) : t('credentialsTitle')}
           </DialogTitle>
           <DialogDescription>
-            {editing ? t('editLede', { platform: name }) : t('credentialsLede')}
+            {editing ? t('editLede', { platform: name }) : platformCopy('credentialsLede')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <FieldLabel htmlFor="socialClientId">{t('clientId')}</FieldLabel>
+            <FieldLabel htmlFor="socialClientId">{platformCopy('clientId')}</FieldLabel>
             <Input
               id="socialClientId"
               value={clientId}
@@ -649,7 +654,7 @@ function PlatformAppDialog({
               htmlFor="socialClientSecret"
               {...(editing && savedOn ? { aside: t('secretSavedOn', { date: savedOn }) } : {})}
             >
-              {t('clientSecret')}
+              {platformCopy('clientSecret')}
             </FieldLabel>
             <Input
               id="socialClientSecret"

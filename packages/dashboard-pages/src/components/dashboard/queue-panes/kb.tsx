@@ -12,6 +12,7 @@ import {
   Markdown,
   useCmdEnter,
 } from './shared';
+import type { QueueActionError } from '../inbox-types';
 import type { KbCandidateDto } from './types';
 
 export function KbQueuePane({
@@ -25,6 +26,8 @@ export function KbQueuePane({
   onDismiss,
   onSave,
   onClose,
+  actionError,
+  onClearActionError,
 }: {
   item: { id: string; title: string; createdAt: string; raw: KbCandidateDto };
   body: string | undefined;
@@ -36,6 +39,8 @@ export function KbQueuePane({
   onDismiss: () => void;
   onSave: (body: string) => Promise<void>;
   onClose?: () => void;
+  actionError?: QueueActionError;
+  onClearActionError?: () => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const tQueue = useTranslations('dashboard.overview.queue');
@@ -148,6 +153,8 @@ export function KbQueuePane({
 
       {editing ? (
         <PaneFooter
+          error={actionError?.itemId === item.id ? actionError : null}
+          onClearError={onClearActionError}
           primary={{
             label: t('save'),
             onClick: () => void saveEdit(),
@@ -162,6 +169,8 @@ export function KbQueuePane({
             {isRevision ? t('kbRevisionPublishNote') : t('kbDismissPermanent')}
           </p>
           <PaneFooter
+          error={actionError?.itemId === item.id ? actionError : null}
+          onClearError={onClearActionError}
             primary={{
               label: isRevision ? t('kbRevisionApprove') : t('approve'),
               onClick: onApprove,

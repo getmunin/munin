@@ -7,8 +7,9 @@ audiences: [admin]
 # Publish a reviewed post
 
 `social_publish_post_draft` posts a pending draft to the platform and records the post id
-and permalink on it. The post goes out immediately, under a real person's name, and
-Munin cannot recall it. Treat the call as the irreversible step it is.
+and permalink on it. The post goes out immediately — under a real person's name on
+LinkedIn, as the organisation's own Page on Facebook — and Munin cannot recall it. Treat
+the call as the irreversible step it is.
 
 ## Publishing one variant dismisses the rest
 
@@ -26,6 +27,13 @@ The caller's. Not the author of the article the draft was written about, and not
 the draft was meant for. Munin holds one grant per person per platform, and publishing
 uses the grant belonging to whoever is calling — which is why a service key cannot
 publish at all and gets `social_publish_needs_person`.
+
+What the post is signed with depends on the platform, and
+`social_list_connected_accounts` says which: `authorKind: member` is a person's own
+profile, `authorKind: org_page` is a company Page. On Facebook the grant is still the
+caller's, but the post appears as the Page rather than as them — so several colleagues
+may each connect the same Page, and whichever of them publishes, the post reads the same.
+Say "as the Acme page" rather than "under your name" when that is what will happen.
 
 A draft carries no owner, by design. It used to carry a suggested author, which conferred
 nothing and misled everyone who read it: the name on the draft was never the name the post
@@ -48,7 +56,15 @@ Check `social_get_post_draft` first when you did not just read it:
 - `status` must be `pending`. Anything else means it was already decided.
 - `canPublish` tells you whether Munin can post to that platform at all.
 - `bodyChars` against `maxBodyChars` — a draft revised since it was filed may no longer
-  fit.
+  fit. The ceilings are far apart: 3,000 characters on LinkedIn, 63,206 on Facebook, and
+  a link costs characters on Facebook where it costs none on LinkedIn.
+
+One difference worth knowing before you attach a picture: a Facebook post carries either
+a photo or a link preview card, never both. A draft with media and `linkPlacement: body`
+still publishes, but the link lands as plain text in the message with no card under it.
+When the link is the point of the post, `linkPlacement: comment` keeps the card out of
+the way and the link reachable. Facebook takes images only for now; LinkedIn takes video
+as well.
 
 ## The four refusals, and what each one means
 
@@ -68,6 +84,13 @@ nothing to renew it with. Those accounts lapse on a schedule and the person reco
 from Settings → Integrations. Never report it as a misconfiguration, and never ask
 anyone for a password or an access token — the authorize link in the dashboard is the
 only way an account is connected.
+
+A Facebook Page connection is the opposite case and should be read as a real signal. Its
+token does not expire, so `accessTokenExpiresAt` is null and nothing lapses on a
+schedule: if Facebook refuses it, the access was actually withdrawn — the person lost
+their role on the Page, the Page was unpublished, or the app's permissions were revoked.
+Reconnecting is still the fix, but say that something changed on the Facebook side rather
+than that a grant timed out.
 
 **`social_conflict`** — somebody decided the draft first. Re-read it and report what
 actually happened to it; do not file a replacement draft to work around it.
@@ -101,6 +124,9 @@ publish — the draft is recorded as published and `commentError` on it says wha
 platform answered. Read it back with `social_get_post_draft` after publishing such a
 draft, and if a comment was refused, tell the operator plainly: the post is live, the link
 is not under it, and somebody can add the comment by hand.
+
+On Facebook the comment is posted as the Page, so it reads as the organisation
+following up on its own post rather than as a person commenting.
 
 On LinkedIn this is the one call that depends on which product the organisation's app
 carries. Munin uses the route that the self-serve "Share on LinkedIn" product allows;

@@ -25,7 +25,9 @@ describes.
 - `social_set_post_draft_media` — attach or clear the media on a draft nobody has decided on.
 - `social_create_post_draft` / `social_propose_post_set` — take the same `mediaUrl`,
   `mediaKind` and `mediaAltText` when the file is known as the draft is filed.
-- `social_list_platforms` — the accepted types and size ceilings, under `media`.
+- `social_list_platforms` — the accepted types and size ceilings, under `media`. They
+  differ per platform: LinkedIn takes an image or a video, Facebook takes an image only
+  and caps it lower. Read `media.kinds` before promising a video.
 - `cms_request_asset_upload` + `cms_complete_asset_upload` — put a local file somewhere it
   has a URL.
 - `cms_upload_asset_from_base64` — the same thing for something small you already hold.

@@ -1869,13 +1869,6 @@
       "setupTitle": "Sett opp appen i {platform}",
       "setupLede": "Munin kan ikke publisere gjennom sin egen {platform}-klient, så denne organisasjonen trenger sin egen. Tre ting å gjøre der borte — så kommer du tilbake med nøklene.",
       "stepCreate": "Opprett en app i <portal>utviklerportalen</portal>",
-      "stepCreateNote": "{platform} ber deg knytte den til en bedriftsside.",
-      "stepProducts": "Legg til begge produktene — selvbetjent, under Products",
-      "productShare": "Share on {platform}",
-      "productSharePurpose": "Lar oss publisere",
-      "productSignIn": "Sign In with {platform} (OIDC)",
-      "productSignInPurpose": "Leser hvem kontoen er",
-      "stepProductsNote": "Med bare den første feiler tilkoblingen med <code>scope is not authorized</code>.",
       "stepRedirect": "Legg denne redirect-URL-en inn i appen",
       "copy": "Kopier",
       "copied": "Kopiert",
@@ -1891,13 +1884,40 @@
       "editLede": "Endre nøklene organisasjonen publiserer gjennom.",
       "clientId": "Klient-ID",
       "clientSecret": "Klienthemmelighet",
-      "secretPlaceholder": "WPL_AP1…",
       "secretStoredPlaceholder": "•••••••• (lagret)",
       "secretSavedOn": "Lagret {date}",
       "clientSecretHint": "Lagres kryptert. Vises aldri igjen.",
       "secretKeepHint": "La feltet stå tomt for å beholde den som er lagret. Å bytte den ut logger ingen ut.",
       "replacingApp": "Skal du bytte ut selve appen? <steps>Oppsett og redirect-URL</steps>",
-      "appDialogAuthorNote": "Appen er felles, men publiseringen er personlig. Hver enkelt kobler til sin egen {platform}-konto gjennom den, og innlegg går ut i vedkommendes eget navn — aldri fra bedriftssiden."
+      "chooseTargetTitle": "Velg side",
+      "chooseTargetLede": "Munin publiserer som siden du velger her. Koble til på nytt for å bytte til en annen.",
+      "chooseTargetConfirm": "Koble til denne siden",
+      "chooseTargetConnected": "Siden er koblet til.",
+      "chooseTargetLoading": "Henter sidene dine…",
+      "platform": {
+        "linkedin": {
+          "stepCreateNote": "LinkedIn ber deg knytte appen til en bedriftsside.",
+          "productOne": "Share on LinkedIn",
+          "productOnePurpose": "Lov til å publisere",
+          "productTwo": "Sign In with LinkedIn (OIDC)",
+          "productTwoPurpose": "Leser kontoen",
+          "productsNote": "Med bare den første feiler autoriseringen med <code>scope is not authorized</code>.",
+          "secretPlaceholder": "WPL_AP1…",
+          "stepProducts": "Legg til begge produktene — selvbetjent, under Products",
+          "appDialogAuthorNote": "Appen er felles; publiseringen er det ikke. Alle her kobler til sin egen LinkedIn-konto gjennom den, og innlegget går ut i personens eget navn — aldri bedriftssiden."
+        },
+        "facebook": {
+          "stepCreateNote": "Velg apptypen Business — det er den som kan publisere på en side.",
+          "productOne": "Facebook Login for Business",
+          "productOnePurpose": "Autoriserer appen",
+          "productTwo": "pages_manage_posts, pages_show_list, pages_read_engagement",
+          "productTwoPurpose": "Lov til å publisere",
+          "productsNote": "Før Meta har godkjent appen, er det bare folk med en rolle på den som kan koble til. Legg til kollegene som testere, eller send appen til godkjenning med bedriftsverifisering.",
+          "secretPlaceholder": "a1b2c3d4…",
+          "stepProducts": "Legg til produktet, og be om disse tillatelsene",
+          "appDialogAuthorNote": "Både appen og siden er felles. Alle her autoriserer med sin egen Facebook-konto og velger hvilken side de publiserer som — innlegget går ut som siden, ikke i noens navn."
+        }
+      }
     },
     "dataConnectors": {
       "title": "Datakoblinger",
@@ -1987,7 +2007,8 @@
         "googleSearchConsole": "Se hvilke Google-søk sidene dine vises på, og om en side er indeksert.",
         "generic": "Leses direkte på vegne av en kunde.",
         "customMcp": "Ditt eget system, som svarer kundene dine direkte. Du velger nøyaktig hvilke verktøy de får bruke.",
-        "linkedin": "Publiser godkjente innlegg på LinkedIn fra en kollegas egen konto."
+        "linkedin": "Publiser godkjente innlegg på LinkedIn fra en kollegas egen konto.",
+        "facebook": "Publiser godkjente innlegg på en Facebook-side organisasjonen driver."
       },
       "capability": {
         "slackMirror": "Speil samtaler inn i Slack-tråder.",
@@ -2004,7 +2025,8 @@
         "seoIndexStatus": "Sjekk om en side er indeksert.",
         "seoSubmit": "Send oppdaterte sider til ny indeksering.",
         "socialPublish": "Publiser innlegg",
-        "socialAuthor": "Publiser i eget navn"
+        "socialAuthor": "Publiser i eget navn",
+        "socialPage": "Publiser som side"
       }
     },
     "field": {
@@ -2229,7 +2251,10 @@
     "social_conflict": "Noen har alt tatt stilling til dette utkastet.",
     "social_no_account": "Koble til kontoen din på Integrasjoner-siden før du publiserer.",
     "social_publish_failed": "Plattformen avviste innlegget. Utkastet er merket som mislykket, med årsaken.",
-    "social_reconnect_required": "Tilgangen har utløpt. Koble til på nytt på Integrasjoner-siden."
+    "social_reconnect_required": "Tilgangen har utløpt. Koble til på nytt på Integrasjoner-siden.",
+    "social_target_unavailable": "Den siden kan du ikke lenger publisere på. Velg en annen, eller koble til på nytt.",
+    "social_authorization_expired": "Denne autoriseringen er ikke åpen lenger. Start tilkoblingen på nytt.",
+    "social_no_targets": "Denne kontoen administrerer ingen side Munin kan publisere på. Gi appen tilgang til en side og koble til på nytt."
   },
   "footer": {
     "privacy": "Personvern",

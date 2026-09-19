@@ -8,6 +8,7 @@ import {
   BingMark,
   GoogleSearchConsoleMark,
   LinkedInMark,
+  FacebookMark,
 } from './integration-vendor-logos';
 
 export interface VendorPresentation {
@@ -59,6 +60,12 @@ export const VENDOR_PRESENTATION: Record<string, VendorPresentation> = {
     descriptionKey: 'linkedin',
     capabilityKeys: ['socialPublish', 'socialAuthor'],
     Mark: LinkedInMark,
+  },
+  facebook: {
+    categoryKey: 'publishing',
+    descriptionKey: 'facebook',
+    capabilityKeys: ['socialPublish', 'socialPage'],
+    Mark: FacebookMark,
   },
   google_search_console: {
     categoryKey: 'seo',

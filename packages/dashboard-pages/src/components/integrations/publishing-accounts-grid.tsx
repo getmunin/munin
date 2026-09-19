@@ -38,6 +38,18 @@ interface SocialAccountDto {
   accessTokenExpiresAt: string | null;
 }
 
+interface SocialAuthorTargetDto {
+  externalAccountId: string;
+  displayName: string | null;
+}
+
+interface SocialPendingGrantDto {
+  pendingId: string;
+  platform: string;
+  expiresAt: string;
+  targets: SocialAuthorTargetDto[];
+}
+
 interface SocialPlatformAppDto {
   platform: string;
   clientId: string;
@@ -46,10 +58,11 @@ interface SocialPlatformAppDto {
   clientSecretSetAt: string | null;
 }
 
-const PLATFORM_NAMES: Record<string, string> = { linkedin: 'LinkedIn' };
+const PLATFORM_NAMES: Record<string, string> = { linkedin: 'LinkedIn', facebook: 'Facebook' };
 
 const PLATFORM_DEVELOPER_PORTALS: Record<string, string> = {
   linkedin: 'https://www.linkedin.com/developers/apps',
+  facebook: 'https://developers.facebook.com/apps',
 };
 
 export function PublishingAccountsSection() {
@@ -67,6 +80,7 @@ export function PublishingAccountsSection() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [configuring, setConfiguring] = useState<SocialPlatformAppDto | null>(null);
+  const [choosing, setChoosing] = useState<{ pendingId: string; platform: string } | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -91,11 +105,15 @@ export function PublishingAccountsSection() {
     const outcome = params.get('social');
     if (!outcome) return;
     const reason = params.get('reason');
-    if (outcome === 'connected') notify.success(t('connected'));
+    const pending = params.get('pending');
+    if (outcome === 'choose_target' && pending) {
+      setChoosing({ pendingId: pending, platform: params.get('platform') ?? '' });
+    } else if (outcome === 'connected') notify.success(t('connected'));
     else if (outcome === 'denied') notify.error(t('denied'));
     else notify.error(reason ? t('failedWithReason', { reason }) : t('failed'));
     params.delete('social');
     params.delete('platform');
+    params.delete('pending');
     params.delete('reason');
     const query = params.toString();
     window.history.replaceState(
@@ -200,7 +218,7 @@ export function PublishingAccountsSection() {
                   <StatusLine tone="active" label={tConn('statusActive')} />
                 )
               }
-              description={tc('description.linkedin')}
+              description={tc(`description.${app.platform}`)}
               badge={others > 0 ? <ColleagueCount label={t('othersConnected', { count: others })} /> : undefined}
               menu={
                 app.configured ? (
@@ -256,6 +274,19 @@ export function PublishingAccountsSection() {
         })}
       </CardGrid>
 
+      {choosing && (
+        <ChooseTargetDialog
+          pendingId={choosing.pendingId}
+          platform={choosing.platform}
+          onClose={() => setChoosing(null)}
+          onConnected={() => {
+            setChoosing(null);
+            notify.success(t('chooseTargetConnected'));
+            void refresh();
+          }}
+        />
+      )}
+
       {configuring && (
         <PlatformAppDialog
           app={configuring}
@@ -274,6 +305,108 @@ export function PublishingAccountsSection() {
         />
       )}
     </section>
+  );
+}
+
+function ChooseTargetDialog({
+  pendingId,
+  platform,
+  onClose,
+  onConnected,
+}: {
+  pendingId: string;
+  platform: string;
+  onClose: () => void;
+  onConnected: () => void;
+}) {
+  const t = useTranslations('integrations.publishing');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [targets, setTargets] = useState<SocialAuthorTargetDto[] | null>(null);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const name = PLATFORM_NAMES[platform] ?? platform;
+
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const grant = await api<SocialPendingGrantDto>(`/v1/social/accounts/pending/${pendingId}`);
+        if (!live) return;
+        setTargets(grant.targets);
+        setChosen(grant.targets[0]?.externalAccountId ?? null);
+      } catch (err) {
+        if (live) setError(translate(err));
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [pendingId, translate]);
+
+  async function submit() {
+    if (!chosen) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/v1/social/accounts/pending/${pendingId}/select`, {
+        method: 'POST',
+        body: JSON.stringify({ externalAccountId: chosen }),
+      });
+      onConnected();
+    } catch (err) {
+      setError(translate(err));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+        <DialogHeader>
+          <DialogEyebrow left={t('eyebrowApp', { platform: name })} />
+          <DialogTitle>{t('chooseTargetTitle')}</DialogTitle>
+          <DialogDescription>{t('chooseTargetLede')}</DialogDescription>
+        </DialogHeader>
+
+        {!targets && !error && <p className="text-sm text-ink-mute">{t('chooseTargetLoading')}</p>}
+
+        {targets && (
+          <div className="border-[1px] border-rule-soft dark:border-rule-on-dark">
+            {targets.map((target) => (
+              <label
+                key={target.externalAccountId}
+                className="flex cursor-pointer items-center gap-3 border-b-[1px] border-rule-soft px-3 py-2 last:border-b-0 dark:border-rule-on-dark"
+              >
+                <input
+                  type="radio"
+                  name="socialTarget"
+                  value={target.externalAccountId}
+                  checked={chosen === target.externalAccountId}
+                  onChange={() => setChosen(target.externalAccountId)}
+                  disabled={busy}
+                />
+                <span className="min-w-0 flex-1 truncate text-[13px] text-ink dark:text-foreground">
+                  {target.displayName ?? target.externalAccountId}
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
+
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
+        <DialogFooter className="gap-2">
+          <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
+            {tCommon('cancel')}
+          </Button>
+          <Button type="button" onClick={() => void submit()} disabled={busy || !chosen}>
+            {t('chooseTargetConfirm')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -364,6 +497,7 @@ function PlatformAppDialog({
   const [error, setError] = useState<string | null>(null);
   const redirectCopy = useCopy();
   const name = PLATFORM_NAMES[app.platform] ?? app.platform;
+  const platformCopy = (key: string) => t(`platform.${app.platform}.${key}`);
   const portalUrl = PLATFORM_DEVELOPER_PORTALS[app.platform];
   const editing = app.configured;
   const savedOn = app.clientSecretSetAt
@@ -423,22 +557,16 @@ function PlatformAppDialog({
                   ),
               })}
             >
-              <p className="text-xs text-ink-mute">{t('stepCreateNote', { platform: name })}</p>
+              <p className="text-xs text-ink-mute">{platformCopy('stepCreateNote')}</p>
             </SetupStep>
 
-            <SetupStep index="02" title={t('stepProducts')}>
+            <SetupStep index="02" title={platformCopy('stepProducts')}>
               <div className="border-[1px] border-rule-soft bg-paper-deep dark:border-rule-on-dark dark:bg-secondary">
-                <ProductRow
-                  name={t('productShare', { platform: name })}
-                  purpose={t('productSharePurpose')}
-                />
-                <ProductRow
-                  name={t('productSignIn', { platform: name })}
-                  purpose={t('productSignInPurpose')}
-                />
+                <ProductRow name={platformCopy('productOne')} purpose={platformCopy('productOnePurpose')} />
+                <ProductRow name={platformCopy('productTwo')} purpose={platformCopy('productTwoPurpose')} />
               </div>
               <p className="text-xs text-ink-mute">
-                {t.rich('stepProductsNote', {
+                {t.rich(`platform.${app.platform}.productsNote`, {
                   code: (chunks) => <code className="font-mono">{chunks}</code>,
                 })}
               </p>
@@ -527,7 +655,7 @@ function PlatformAppDialog({
               id="socialClientSecret"
               type="password"
               value={clientSecret}
-              placeholder={editing ? t('secretStoredPlaceholder') : t('secretPlaceholder')}
+              placeholder={editing ? t('secretStoredPlaceholder') : platformCopy('secretPlaceholder')}
               onChange={(e) => setClientSecret(e.target.value)}
               autoComplete="off"
             />
@@ -555,7 +683,7 @@ function PlatformAppDialog({
               </p>
             ) : (
               <p className="text-xs text-ink-mute">
-                {t('appDialogAuthorNote', { platform: name })}
+                {platformCopy('appDialogAuthorNote')}
               </p>
             )}
           </div>

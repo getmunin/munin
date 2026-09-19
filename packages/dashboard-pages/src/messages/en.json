@@ -1869,13 +1869,6 @@
       "setupTitle": "Set the app up in {platform}",
       "setupLede": "Munin cannot publish through its own {platform} client, so this organisation needs one of its own. Three things to do over there — then come back with the credentials.",
       "stepCreate": "Create an app in the <portal>developer portal</portal>",
-      "stepCreateNote": "{platform} asks you to attach it to a company page.",
-      "stepProducts": "Add both products — self-serve, on the Products tab",
-      "productShare": "Share on {platform}",
-      "productSharePurpose": "Permission to post",
-      "productSignIn": "Sign In with {platform} (OIDC)",
-      "productSignInPurpose": "Reads the account",
-      "stepProductsNote": "With only the first, authorising fails with <code>scope is not authorized</code>.",
       "stepRedirect": "Add this redirect URL to the app",
       "copy": "Copy",
       "copied": "Copied",
@@ -1891,13 +1884,40 @@
       "editLede": "Change the credentials this organisation publishes through.",
       "clientId": "Client ID",
       "clientSecret": "Client secret",
-      "secretPlaceholder": "WPL_AP1…",
       "secretStoredPlaceholder": "•••••••• (stored)",
       "secretSavedOn": "Saved {date}",
       "clientSecretHint": "Stored encrypted. Never shown again.",
       "secretKeepHint": "Leave empty to keep the current one. Replacing it does not sign anyone out.",
       "replacingApp": "Replacing the app itself? <steps>Setup steps and redirect URL</steps>",
-      "appDialogAuthorNote": "The app is shared; the posting is not. Everyone here connects their personal {platform} account through it, and a post goes out under that person's own name — never the company page."
+      "chooseTargetTitle": "Choose a Page",
+      "chooseTargetLede": "Munin posts as the Page you pick here. Connect again to move to another one.",
+      "chooseTargetConfirm": "Connect this Page",
+      "chooseTargetConnected": "Page connected.",
+      "chooseTargetLoading": "Reading your Pages…",
+      "platform": {
+        "linkedin": {
+          "stepCreateNote": "LinkedIn asks you to attach it to a company page.",
+          "productOne": "Share on LinkedIn",
+          "productOnePurpose": "Permission to post",
+          "productTwo": "Sign In with LinkedIn (OIDC)",
+          "productTwoPurpose": "Reads the account",
+          "productsNote": "With only the first, authorising fails with <code>scope is not authorized</code>.",
+          "secretPlaceholder": "WPL_AP1…",
+          "stepProducts": "Add both products — self-serve, on the Products tab",
+          "appDialogAuthorNote": "The app is shared; the posting is not. Everyone here connects their personal LinkedIn account through it, and a post goes out under that person's own name — never the company page."
+        },
+        "facebook": {
+          "stepCreateNote": "Pick the Business app type — it is the one that can post to a Page.",
+          "productOne": "Facebook Login for Business",
+          "productOnePurpose": "Authorises the app",
+          "productTwo": "pages_manage_posts, pages_show_list, pages_read_engagement",
+          "productTwoPurpose": "Permission to post",
+          "productsNote": "Until Meta has reviewed the app, only people with a role on it can connect. Add colleagues as testers, or submit for App Review with business verification.",
+          "secretPlaceholder": "a1b2c3d4…",
+          "stepProducts": "Add the product, then request these permissions",
+          "appDialogAuthorNote": "The app is shared, and so is the Page. Everyone here authorises with their own Facebook account and picks a Page to post as — the post goes out as the Page, not under anyone's name."
+        }
+      }
     },
     "dataConnectors": {
       "title": "Data connections",
@@ -1987,7 +2007,8 @@
         "googleSearchConsole": "See the Google searches your pages are shown for, and whether a page is indexed.",
         "generic": "Read directly on behalf of a customer.",
         "customMcp": "Your own system, answering your customers live. You choose exactly which tools they may reach.",
-        "linkedin": "Publish reviewed posts to LinkedIn from a person's own account."
+        "linkedin": "Publish reviewed posts to LinkedIn from a person's own account.",
+        "facebook": "Publish reviewed posts to a Facebook Page the organisation runs."
       },
       "capability": {
         "slackMirror": "Mirror conversations into Slack threads.",
@@ -2004,7 +2025,8 @@
         "seoIndexStatus": "Check whether a page is indexed.",
         "seoSubmit": "Submit updated pages for recrawl.",
         "socialPublish": "Publish posts",
-        "socialAuthor": "Post as a person"
+        "socialAuthor": "Post as a person",
+        "socialPage": "Post as a Page"
       }
     },
     "field": {
@@ -2229,7 +2251,10 @@
     "social_conflict": "Someone already decided this draft.",
     "social_no_account": "Connect your account on the Integrations page before publishing.",
     "social_publish_failed": "The platform refused the post. The draft is marked failed with the reason.",
-    "social_reconnect_required": "Your connection has lapsed. Reconnect it on the Integrations page."
+    "social_reconnect_required": "Your connection has lapsed. Reconnect it on the Integrations page.",
+    "social_target_unavailable": "That Page is no longer one you can post to. Choose another, or connect again.",
+    "social_authorization_expired": "This authorisation is no longer open. Start connecting again.",
+    "social_no_targets": "This account administers no Page Munin may post to. Give the app access to a Page and connect again."
   },
   "footer": {
     "privacy": "Privacy",

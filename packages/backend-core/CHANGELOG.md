@@ -1,5 +1,35 @@
 # @getmunin/backend-core
 
+## 5.32.0
+
+### Minor Changes
+
+- 2b7d025: CMS: inline `ref://` tokens resolve in the locale being delivered, and a non-prose field must opt in to carry one.
+
+  **Locale resolution.** A `ref://<entryId>` token named one exact row, so a translator could not copy a body verbatim — the same sentence needed a different opaque id per locale, and a `cms_import` of an English body into `nb` sent readers to the English page with nothing to signal it. The id now names a _translation group_: under `include: ["references"]` (or `?include=references`), a token resolves to that group's entry in the delivered entry's own locale, falling back to the entry the id actually names when the group has nothing published there. One `ref://<any-sibling-id>` therefore works in every language, and each `_refs` value still carries its own `id`, `slug` and `locale` so a renderer can tell a sibling from a fallback. Applies to the delivery API, `cms_get_entry` / `cms_list_entries`, and `cms_search_entries`. Reference _fields_ are unchanged — they still expand to the exact id stored.
+
+  **`inlineRefs` opt-in.** Only `markdown` and `rich_text` fields were scanned for inline tokens, so a `ref://` in a `text` field that the frontend happens to render as markdown (a lead paragraph, footnotes, definitions) produced no `_refs` entry at all: the link vanished, the text stayed, and nothing errored — not typecheck, not CI. A field definition can now set `inlineRefs: true` on `text`, `rich_text`, `markdown`, or an `array` of those to declare that its strings are prose; `inlineRefs` on anything else is rejected when the collection is saved. And the silent case is now loud at the only point where it is safe to be loud: a `ref://` token written into a field that reads none fails validation on write (`cms_invalid: … set inlineRefs: true on the field, or make it markdown/rich_text`) instead of being delivered as a dead link. The flag covers `ref://` only — `asset://` is still rewritten in `markdown` and `rich_text` fields alone.
+
+- 2e3c303: Dashboard: the CMS review pane resolves inline `ref://` tokens instead of showing an opaque id.
+
+  `GET /v1/cms/drafts/:id` never asked for references, so the pane rendered `[pricing](ref://cme_…)` as an anchor with an unresolvable href — a reviewer could not tell what a link pointed at, or (now that a token resolves per locale) which entry a reader would actually land on. The read and the patch response both carry a `refs` sidecar, and a token renders as a chip naming the target's title, its collection, and the state that matters: **falls back to `<locale>`** when the group has nothing in the entry being reviewed, **missing** when the id resolves to nothing at all. The editor still shows the raw token — that is the thing you edit.
+
+  Bare `ref://<id>` tokens outside a markdown link are covered too, via a remark pass that splits them out of text nodes; because it only rewrites `text` nodes it cannot reach inside a code block. react-markdown's URL sanitizer blanks any scheme outside its safe list, so `ref://` needs an explicit `urlTransform` to survive as far as the link renderer — without it the token renders as a plain anchor with an empty href, which looks like nothing is wrong. `text` and `array`-of-`text` fields that opt in with `inlineRefs: true` render through the same markdown path, so the footnote and lead-paragraph fields the flag exists for show their links rather than their ids.
+
+  Skill coverage for the inline-reference surface is completed at the same time: `playbooks/frontend-integration` now documents how to consume a `ref://` token (`?include=references`, the `_refs` map, locale resolution, and the fact that skipping it fails silently), `cms/revise-entry` covers retargeting one and the write-time rejection, `cms/upload-asset-and-embed` contrasts it with `asset://`, and `cms/preview-entry` notes that a preview token resolves references against unpublished targets while the live route does not.
+
+  `CmsService.updateEntry` takes an optional `include` so the patch response can carry the same sidecar as the read; the `cms_update_entry` tool surface is unchanged.
+
+### Patch Changes
+
+- @getmunin/inspector-app@5.32.0
+  - @getmunin/agent-runtime@5.32.0
+  - @getmunin/core@5.32.0
+  - @getmunin/db@5.32.0
+  - @getmunin/emails@5.32.0
+  - @getmunin/mcp-toolkit@5.32.0
+  - @getmunin/types@5.32.0
+
 ## 5.31.0
 
 ### Minor Changes

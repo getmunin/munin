@@ -1,5 +1,7 @@
 # @getmunin/analytics-tracker
 
+## 5.32.0
+
 ## 5.31.0
 
 ## 5.30.1

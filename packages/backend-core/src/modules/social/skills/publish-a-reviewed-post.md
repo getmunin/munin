@@ -126,7 +126,12 @@ draft, and if a comment was refused, tell the operator plainly: the post is live
 is not under it, and somebody can add the comment by hand.
 
 On Facebook the comment is posted as the Page, so it reads as the organisation
-following up on its own post rather than as a person commenting.
+following up on its own post rather than as a person commenting. Commenting is a separate
+permission from posting there: a grant without `pages_manage_engagement` publishes the post
+and then has the comment refused with `(#200) You do not have sufficient permissions`. That
+is a property of the connection, not of the draft — the person reconnects the Page from
+Settings → Integrations to pick the permission up, and the post that already went out keeps
+its link only in `commentError`. Do not retry the publish; the draft is already published.
 
 On LinkedIn this is the one call that depends on which product the organisation's app
 carries. Munin uses the route that the self-serve "Share on LinkedIn" product allows;

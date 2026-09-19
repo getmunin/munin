@@ -40,6 +40,7 @@ import {
   shareUrlFor,
   SOCIAL_LINK_PLACEMENTS,
   SOCIAL_MEDIA_KINDS,
+  type SocialAuthorKind,
   type SocialDraftStatus,
   type SocialLinkPlacement,
   type SocialMediaKind,
@@ -54,6 +55,8 @@ import {
 
 export interface SocialPublishTarget {
   userId: string;
+  platform: SocialPlatform;
+  authorKind: SocialAuthorKind;
   externalAccountId: string;
   displayName: string | null;
 }
@@ -402,13 +405,15 @@ export class SocialService {
     });
   }
 
-  async publishTargetForViewer(): Promise<SocialPublishTarget | null> {
+  async publishTargetsForViewer(): Promise<SocialPublishTarget[]> {
     const ctx = getCurrentContext();
     const userId = ctx.actor!.userId;
-    if (!userId) return null;
-    const [row] = await ctx.db
+    if (!userId) return [];
+    const rows = await ctx.db
       .select({
         userId: schema.socialAccounts.userId,
+        platform: schema.socialAccounts.platform,
+        authorKind: schema.socialAccounts.authorKind,
         externalAccountId: schema.socialAccounts.externalAccountId,
         displayName: schema.socialAccounts.displayName,
       })
@@ -419,9 +424,12 @@ export class SocialService {
           eq(schema.socialAccounts.userId, userId),
           eq(schema.socialAccounts.status, 'active'),
         ),
-      )
-      .limit(1);
-    return row ?? null;
+      );
+    return rows.map((row) => ({
+      ...row,
+      platform: row.platform as SocialPlatform,
+      authorKind: row.authorKind as SocialAuthorKind,
+    }));
   }
 
   async publishDraft(
@@ -435,7 +443,8 @@ export class SocialService {
     this.assertFingerprint(row, opts.fingerprint);
 
     const platform = row.platform as SocialPlatform;
-    const publish = this.registry.get(platform)?.publish;
+    const adapter = this.registry.get(platform);
+    const publish = adapter?.publish?.bind(adapter);
     if (!publish) {
       throw new BadRequestException({
         message: `social_publish_unsupported: Munin cannot post to ${describePlatform(platform).displayName} on your behalf — publish it yourself and mark the draft posted`,
@@ -459,7 +468,7 @@ export class SocialService {
       platform,
     });
     const linkUrl = this.toDto(row).shareUrl;
-    const uploadMedia = this.registry.get(platform)?.uploadMedia;
+    const uploadMedia = adapter?.uploadMedia?.bind(adapter);
     let media: SocialMediaRef | null = null;
     if (uploadMedia) {
       try {

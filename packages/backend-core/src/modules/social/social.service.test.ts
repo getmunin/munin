@@ -126,14 +126,20 @@ const PERMALINK = 'https://social.example.test/posts/7';
       });
     }
 
-    async function connectAccount(orgId: string, userId: string, status = 'active') {
+    async function connectAccount(
+      orgId: string,
+      userId: string,
+      status = 'active',
+      extra: { platform?: string; authorKind?: string; displayName?: string } = {},
+    ) {
       await svcDb.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
       await svcDb.insert(schema.socialAccounts).values({
         orgId,
         userId,
-        platform: 'linkedin',
+        platform: extra.platform ?? 'linkedin',
+        authorKind: extra.authorKind ?? 'member',
         externalAccountId: `ext-${randomUUID()}`,
-        displayName: 'Ola Nordmann',
+        displayName: extra.displayName ?? 'Ola Nordmann',
         encryptedAccessToken: 'ciphertext',
         scopes: ['w_member_social'],
         status,
@@ -382,16 +388,34 @@ const PERMALINK = 'https://social.example.test/posts/7';
       expect((await readDraft(other.id)).status).toBe('pending');
     });
 
-    it("reports the viewer's own connected account, and nobody else's", async () => {
+    it("reports the viewer's own connected accounts, and nobody else's", async () => {
       await connectAccount(orgA, member);
       const svc = buildService(new StubPublisherLookup());
 
-      const mine = await asUser(orgA, member, () => svc.publishTargetForViewer());
-      expect(mine?.userId).toBe(member);
-      expect(mine?.displayName).toBe('Ola Nordmann');
+      const mine = await asUser(orgA, member, () => svc.publishTargetsForViewer());
+      expect(mine).toHaveLength(1);
+      expect(mine[0]!.userId).toBe(member);
+      expect(mine[0]!.displayName).toBe('Ola Nordmann');
 
-      const theirs = await asUser(orgA, outsider, () => svc.publishTargetForViewer());
-      expect(theirs).toBeNull();
+      const theirs = await asUser(orgA, outsider, () => svc.publishTargetsForViewer());
+      expect(theirs).toEqual([]);
+    });
+
+    it('reports each platform separately, so a page draft is never signed with a profile name', async () => {
+      await connectAccount(orgA, member);
+      await connectAccount(orgA, member, 'active', {
+        platform: 'facebook',
+        authorKind: 'org_page',
+        displayName: 'Acme',
+      });
+      const svc = buildService(new StubPublisherLookup());
+
+      const mine = await asUser(orgA, member, () => svc.publishTargetsForViewer());
+      const byPlatform = Object.fromEntries(mine.map((t) => [t.platform, t]));
+      expect(byPlatform['linkedin']!.authorKind).toBe('member');
+      expect(byPlatform['linkedin']!.displayName).toBe('Ola Nordmann');
+      expect(byPlatform['facebook']!.authorKind).toBe('org_page');
+      expect(byPlatform['facebook']!.displayName).toBe('Acme');
     });
   });
 

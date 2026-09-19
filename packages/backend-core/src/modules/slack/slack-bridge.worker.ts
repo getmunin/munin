@@ -1213,6 +1213,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         : null;
       text = socialDraftApprovalText({
         platformName: descriptor?.displayName ?? 'Social',
+        postsAsPage: descriptor ? !descriptor.authorKinds.includes('member') : false,
         variantLabel: draft?.variantLabel ?? str(payload.variantLabel),
         body: draft?.body ?? '',
         shareUrl: draft ? shareUrlFor(draft) : null,

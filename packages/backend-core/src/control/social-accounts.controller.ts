@@ -38,8 +38,8 @@ export class SocialAccountsController {
   }
 
   @Get('mine')
-  mine(): Promise<SocialPublishTarget | null> {
-    return this.social.publishTargetForViewer();
+  mine(): Promise<SocialPublishTarget[]> {
+    return this.social.publishTargetsForViewer();
   }
 
   @Get('apps')

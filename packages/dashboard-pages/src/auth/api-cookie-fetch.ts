@@ -1,3 +1,5 @@
+import { ORG_HEADER } from '@getmunin/types';
+
 const DEFAULT_TIMEOUT_MS = 1500;
 
 export function resolveApiUrl(apiUrl?: string): string {
@@ -10,12 +12,12 @@ export function resolveApiUrl(apiUrl?: string): string {
 export async function fetchJsonWithCookie<T>(
   path: string,
   cookie: string,
-  options: { apiUrl?: string; timeoutMs?: number; label?: string } = {},
+  options: { apiUrl?: string; timeoutMs?: number; label?: string; orgId?: string | null } = {},
 ): Promise<T | null> {
   const url = `${resolveApiUrl(options.apiUrl)}${path}`;
   try {
     const res = await fetch(url, {
-      headers: { cookie },
+      headers: options.orgId ? { cookie, [ORG_HEADER]: options.orgId } : { cookie },
       cache: 'no-store',
       signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
     });

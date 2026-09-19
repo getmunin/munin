@@ -6,6 +6,7 @@ import { renderSystemAlertEmail } from '@getmunin/emails';
 import { DB } from '../../common/db/db.module.ts';
 import { MAILER } from '../../common/mail/mail.module.ts';
 import { withSchedulerLock } from '../../common/scheduler-lock/index.ts';
+import { absoluteWebUrl } from '../../common/web-url.ts';
 import { alertEmailsDisabled } from './alert-notification.sink.ts';
 import type { AlertSeverity } from './system-alerts.service.ts';
 
@@ -158,7 +159,7 @@ export class AlertNotificationWorker implements OnModuleInit, OnModuleDestroy {
       source: alert.source,
       orgName: orgs[0]?.name ?? 'your organisation',
       personal: alert.userId !== null,
-      ctaHref: alert.ctaHref,
+      ctaHref: alert.ctaHref ? absoluteWebUrl(alert.ctaHref, row.orgId) : null,
     });
   }
 

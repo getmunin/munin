@@ -116,7 +116,17 @@ export {
   type LlmProviderPreset,
 } from './llm-providers.ts';
 export { stripTrailingSlashes } from './url.ts';
-export { ORG_ACCESS_DENIED_CODE, ORG_HEADER } from './org-scope.ts';
+export {
+  DASHBOARD_BASE_PATH,
+  isOrgId,
+  ORG_ACCESS_DENIED_CODE,
+  ORG_HEADER,
+  ORG_SCOPE_SEGMENT,
+  orgDashboardPath,
+  parseOrgDashboardPath,
+  stripOrgDashboardPath,
+  type OrgScopedDashboardPath,
+} from './org-scope.ts';
 export { RATE_LIMITED_CODE, type RateLimitedBody } from './rate-limit.ts';
 export {
   actorKindFromId,

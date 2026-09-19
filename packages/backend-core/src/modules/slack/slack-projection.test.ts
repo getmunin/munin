@@ -33,7 +33,7 @@ const conv: ConversationSnapshot = {
   contactName: 'Ada Lovelace',
   contactEmail: 'ada@example.com',
   contactPhone: null,
-  dashboardUrl: 'https://app.example.com/dashboard',
+  dashboardUrl: 'https://app.example.com/o/org_0123456789abcdefghijkl/dashboard/conversations/cnv_7',
 };
 
 describe('escapeSlackText', () => {
@@ -49,7 +49,7 @@ describe('threadParentText', () => {
     expect(text).not.toContain('New conversation');
     expect(text).toContain('Ada Lovelace');
     expect(text).toContain('ada@example.com');
-    expect(text).toContain('<https://app.example.com/dashboard|Open in Munin>');
+    expect(text).toContain('<https://app.example.com/o/org_0123456789abcdefghijkl/dashboard/conversations/cnv_7|Open in Munin>');
   });
 
   it('falls back to a generic headline and omits contact when absent', () => {
@@ -335,12 +335,12 @@ describe('approval texts', () => {
       contactBLabel: 'A. Lovelace <ada.l@example.com>',
       keeperLabel: 'Ada <ada@example.com>',
       confidence: 'high',
-      dashboardUrl: 'https://app.example.com/dashboard',
+      dashboardUrl: 'https://app.example.com/o/org_0123456789abcdefghijkl/dashboard/review/kbc_1',
     });
     expect(text).toContain('*Duplicate contacts — merge proposed*');
     expect(text).toContain('Ada &lt;ada@example.com&gt;');
     expect(text).toContain('high confidence');
-    expect(text).toContain('<https://app.example.com/dashboard|Review in Munin>');
+    expect(text).toContain('<https://app.example.com/o/org_0123456789abcdefghijkl/dashboard/review/kbc_1|Review in Munin>');
   });
 
   it('renders an outreach draft with subject and the full quoted body', () => {
@@ -353,12 +353,12 @@ describe('approval texts', () => {
       contactLabel: 'Ada Lovelace',
       draftSubject: 'Hello there',
       draftBody: body,
-      dashboardUrl: 'https://app.example.com/dashboard',
+      dashboardUrl: 'https://app.example.com/o/org_0123456789abcdefghijkl/dashboard/review/kbc_1',
     });
     expect(text).toContain('*Outreach draft awaiting approval* — initial for *Spring launch*');
     expect(text).toContain('*Subject:* Hello there');
     for (const line of body.split('\n')) expect(text).toContain(`> ${line}`);
-    expect(text).toContain('<https://app.example.com/dashboard|Review in Munin>');
+    expect(text).toContain('<https://app.example.com/o/org_0123456789abcdefghijkl/dashboard/review/kbc_1|Review in Munin>');
     expect(text).not.toContain('truncated');
   });
 
@@ -369,11 +369,11 @@ describe('approval texts', () => {
       contactLabel: 'Ada Lovelace',
       draftSubject: null,
       draftBody: Array.from({ length: 400 }, (_, i) => `line ${i} ${'y'.repeat(40)}`).join('\n'),
-      dashboardUrl: 'https://app.example.com/dashboard',
+      dashboardUrl: 'https://app.example.com/o/org_0123456789abcdefghijkl/dashboard/review/kbc_1',
     });
     expect(text).toContain('truncated — open the full draft in Munin');
     expect(text.length).toBeLessThanOrEqual(3000);
-    expect(text.endsWith('<https://app.example.com/dashboard|Review in Munin>')).toBe(true);
+    expect(text.endsWith('<https://app.example.com/o/org_0123456789abcdefghijkl/dashboard/review/kbc_1|Review in Munin>')).toBe(true);
   });
 
   it('escapes the outreach body without splitting an entity at the truncation point', () => {
@@ -383,7 +383,7 @@ describe('approval texts', () => {
       contactLabel: 'Ada',
       draftSubject: null,
       draftBody: `${'z'.repeat(2900)}${'<&>'.repeat(50)}`,
-      dashboardUrl: 'https://app.example.com/dashboard',
+      dashboardUrl: 'https://app.example.com/o/org_0123456789abcdefghijkl/dashboard/review/kbc_1',
     });
     expect(text.length).toBeLessThanOrEqual(3000);
     expect(text).not.toMatch(/&[a-z]*(\n|$)/);
@@ -394,7 +394,7 @@ describe('approval texts', () => {
       title: 'Weekend hours',
       proposedTargetSpaceSlug: 'support-faq',
       sourceConversationId: 'ccv_1',
-      dashboardUrl: 'https://app.example.com/dashboard',
+      dashboardUrl: 'https://app.example.com/o/org_0123456789abcdefghijkl/dashboard/review/kbc_1',
     });
     expect(withTarget).toContain('*KB draft awaiting review* — *Weekend hours*');
     expect(withTarget).toContain('*Proposed space:* support-faq');
@@ -404,7 +404,7 @@ describe('approval texts', () => {
       title: 'Weekend hours',
       proposedTargetSpaceSlug: null,
       sourceConversationId: null,
-      dashboardUrl: 'https://app.example.com/dashboard',
+      dashboardUrl: 'https://app.example.com/o/org_0123456789abcdefghijkl/dashboard/review/kbc_1',
     });
     expect(withoutTarget).toContain('No target space proposed');
     expect(withoutTarget).not.toContain('resolved conversation');
@@ -453,10 +453,10 @@ describe('approvalBlocks', () => {
 
 describe('outreachCampaignParentText', () => {
   it('shows the pending count with a dashboard link', () => {
-    const text = outreachCampaignParentText('Spring <launch>', 3, 'https://app.example.com/dashboard');
+    const text = outreachCampaignParentText('Spring <launch>', 3, 'https://app.example.com/o/org_0123456789abcdefghijkl/dashboard/review');
     expect(text).toContain('*Outreach drafts awaiting approval — Spring &lt;launch&gt;*');
     expect(text).toContain('3 drafts pending');
-    expect(text).toContain('<https://app.example.com/dashboard|Review all in Munin>');
+    expect(text).toContain('<https://app.example.com/o/org_0123456789abcdefghijkl/dashboard/review|Review all in Munin>');
   });
 
   it('uses the singular noun for one pending draft', () => {

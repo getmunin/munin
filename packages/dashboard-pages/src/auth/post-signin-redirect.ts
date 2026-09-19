@@ -1,5 +1,10 @@
 import { stripTrailingSlashes } from '@getmunin/types';
 
+export function signInHrefFor(destination: string | null): string {
+  if (!destination || destination === '/dashboard') return '/login';
+  return `/login?redirect=${encodeURIComponent(destination)}`;
+}
+
 export function safeRedirect(raw: string | null, fallback = '/dashboard'): string {
   if (raw && raw.startsWith('/') && !raw.startsWith('//')) return raw;
   return fallback;

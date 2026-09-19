@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { authClient } from '../auth-client';
 import { getActiveOrgId } from './active-org';
+import { readRouteOrgId, useRouteOrgId } from '../org-route';
 import { useDashboardBootstrap } from './dashboard-bootstrap';
 
 export type OrgRole = 'owner' | 'admin' | 'member';
@@ -38,7 +39,7 @@ export function invalidateActiveMembershipCache(): void {
 
 function fetchMemberships(userId: string | null): Promise<MembershipDto[]> {
   if (cache && cache.userId === userId) return cache.promise;
-  const promise = api<MembershipDto[]>('/v1/me/memberships').then((rows) => {
+  const promise = api<MembershipDto[]>('/v1/me/memberships', { crossOrg: true }).then((rows) => {
     if (cache?.promise === promise) cache.rows = rows;
     return rows;
   });
@@ -63,6 +64,7 @@ function toMembership(row: MembershipDto | undefined): ActiveMembership | null {
 function selectPinned(rows: MembershipDto[]): ActiveMembership | null {
   const pinnedOrgId = getActiveOrgId();
   const pinned = pinnedOrgId ? rows.find((m) => m.orgId === pinnedOrgId) : undefined;
+  if (!pinned && readRouteOrgId()) return null;
   return toMembership(pinned ?? rows.find((m) => m.isDefault) ?? rows[0]);
 }
 
@@ -124,8 +126,14 @@ export function useActiveMembership(): {
   membership: ActiveMembership | null;
   loading: boolean;
   error: string | null;
+  outsideOrg: boolean;
 } {
-  return useMembership(selectPinned);
+  const routeOrgId = useRouteOrgId();
+  const result = useMembership(selectPinned);
+  return {
+    ...result,
+    outsideOrg: !!routeOrgId && !result.loading && !result.error && result.membership === null,
+  };
 }
 
 export function useDefaultMembership(): {

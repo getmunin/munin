@@ -1710,6 +1710,12 @@
         "save": "Klarte ikke å lagre personverninnstillingene."
       },
       "sectionMeta": "Fjerning · {count} av {total} typer"
+    },
+    "outsideOrg": {
+      "eyebrow": "Arbeidsområde · ingen tilgang",
+      "title": "Dette hører til et <em>annet arbeidsområde</em>.",
+      "lede": "Lenken du fulgte peker til et Munin-arbeidsområde kontoen din ikke er medlem av. Be en eier der om en invitasjon, eller åpne det du selv hører til.",
+      "switchBack": "Åpne {org}"
     }
   },
   "agentSetup": {
@@ -2435,5 +2441,11 @@
       "title": "Bruksvilkår — Munin",
       "description": "Vilkår for bruk av getmunin.com og Munin-prosjektet."
     }
+  },
+  "notFound": {
+    "eyebrow": "404 · ikke funnet",
+    "title": "Munin <em>husker</em> ikke denne siden.",
+    "lede": "Lenken kan være gammel, eller siden kan ha flyttet. Ingenting er borte — alt Munin faktisk husker ligger der du forlot det.",
+    "home": "Tilbake til forsiden"
   }
 }

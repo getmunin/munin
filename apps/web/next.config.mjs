@@ -7,6 +7,9 @@ const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
+  experimental: {
+    globalNotFound: true,
+  },
   allowedDevOrigins: [
     '*.trycloudflare.com',
     '*.ngrok-free.app',

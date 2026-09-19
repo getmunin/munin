@@ -99,3 +99,35 @@ describe('api org scoping', () => {
     expect(orgOf(fetchMock.mock.calls[0]!)).toBeUndefined();
   });
 });
+
+describe('api cross-org requests', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_API_URL = 'https://api.example.com';
+    installSessionStorage();
+    clearActiveOrgId();
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('omits the org header so "which orgs am I in" survives an org that denies us', async () => {
+    setActiveOrgId('org_denied');
+    fetchMock.mockResolvedValue(jsonResponse([{ orgId: 'org_a' }]));
+    await api('/v1/me/memberships', { crossOrg: true });
+    expect(orgOf(fetchMock.mock.calls[0]!)).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not let a cross-org response repin the tab', async () => {
+    setActiveOrgId('org_a');
+    fetchMock.mockResolvedValue(jsonResponse([], { orgHeader: 'org_b' }));
+    await api('/v1/me/memberships', { crossOrg: true });
+    expect(getActiveOrgId()).toBe('org_a');
+  });
+});
+

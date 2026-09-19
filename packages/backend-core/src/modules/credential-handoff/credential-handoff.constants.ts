@@ -1,8 +1,6 @@
-import { stripTrailingSlashes } from '@getmunin/types';
+import { readWebBaseUrl } from '../../common/web-url.ts';
 
-export function readWebBaseUrl(): string {
-  return stripTrailingSlashes(process.env.MUNIN_WEB_URL ?? 'http://localhost:3000');
-}
+export { readWebBaseUrl };
 
 export function credentialLinkUrl(token: string): string {
   return `${readWebBaseUrl()}/connect/credentials?token=${encodeURIComponent(token)}`;

@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { cn, Tabs, TabsList, TabsPanel, TabsTrigger } from '@getmunin/ui';
 import { LoadFailed } from '../components/load-failed';
 import { useInboxLoadFailedProps } from '../lib/use-load-failed-props';
-import { usePathname, useRouter } from '../i18n-navigation';
+import { useOrgHref, usePathname, useRouter } from '../i18n-navigation';
 import { useInboxData } from '../components/dashboard/inbox-data';
 import { ScheduledCancelDialog } from '../components/dashboard/scheduled-cancel-dialog';
 import {
@@ -40,6 +40,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
   const inbox = useInboxData();
   const decisions = useReviewDecided();
   const buildLoadFailedProps = useInboxLoadFailedProps();
+  const toHref = useOrgHref();
   const { setActiveQueueItem, setActiveScheduledItem } = inbox;
 
   const isDesktop = useIsDesktopSplit();
@@ -51,16 +52,16 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
   const shallowGo = useCallback(
     (path: string, replace = false) => {
       const { pathname: full } = window.location;
-      const cut = full.indexOf(ROOT);
+      const cut = full.indexOf(toHref(ROOT));
       if (cut < 0) {
         router.push(path);
         return;
       }
-      const url = full.slice(0, cut) + path;
+      const url = full.slice(0, cut) + toHref(path);
       if (replace) window.history.replaceState(null, '', url);
       else window.history.pushState(null, '', url);
     },
-    [router],
+    [router, toHref],
   );
   const goToList = useCallback(() => shallowGo(ROOT), [shallowGo]);
   const select = useCallback(

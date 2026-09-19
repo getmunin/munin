@@ -1,5 +1,7 @@
 'use client';
 
+import { readRouteOrgId } from '../org-route';
+
 const STORAGE_KEY = 'munin.active-org';
 
 function store(): Storage | null {
@@ -22,6 +24,8 @@ function write(apply: (storage: Storage) => void): void {
 }
 
 export function getActiveOrgId(): string | null {
+  const fromRoute = readRouteOrgId();
+  if (fromRoute) return fromRoute;
   const storage = store();
   if (!storage) return null;
   try {

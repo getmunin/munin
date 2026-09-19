@@ -100,6 +100,10 @@ export {
 } from './components/auth-shell';
 export { useTranslateError, translateError, getErrorCode } from './i18n/translate-error';
 export { clearActiveOrgId, getActiveOrgId, setActiveOrgId } from './auth/active-org';
+export { OrgRouteProvider, readRouteOrgId, useRouteOrgId } from './org-route';
+export { OutsideOrg } from './components/outside-org';
+export { NotFoundPage } from './components/not-found-page';
+export { orgHref, useOrgHref, useScopedPathname } from './i18n-navigation';
 export {
   useActiveRole,
   useActiveMembership,

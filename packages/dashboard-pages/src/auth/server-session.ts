@@ -1,7 +1,7 @@
 import 'server-only';
 import { cookies } from 'next/headers';
 import { redirect as externalRedirect } from 'next/navigation';
-import { redirect } from '../i18n-navigation';
+import { redirect } from '../navigation-routing';
 import { fetchJsonWithCookie, resolveApiUrl } from './api-cookie-fetch';
 import { oauthResumeFromSearchParams, safeRedirect } from './post-signin-redirect';
 

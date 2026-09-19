@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect } from 'react';
-import { usePathname, useRouter } from '../i18n-navigation';
+import { stripOrgDashboardPath } from '@getmunin/types';
+import { useRouter, useScopedPathname } from '../i18n-navigation';
 import { authClient } from '../auth-client';
 import { useDashboardBootstrap } from './dashboard-bootstrap';
 import { isOwnerOrAdmin, useActiveMembership, type OrgRole } from './use-active-role';
 import { useAgentConfigStatus } from './use-agent-config-status';
+import { signInHrefFor } from './post-signin-redirect';
 
 const EXEMPT_PREFIXES = ['/dashboard/account', '/dashboard/oauth/consent'];
 
@@ -15,7 +17,8 @@ export function useDashboardGate(): {
   role: OrgRole | null;
 } {
   const router = useRouter();
-  const pathname = usePathname();
+  const scopedPathname = useScopedPathname();
+  const pathname = stripOrgDashboardPath(scopedPathname);
   const bootstrap = useDashboardBootstrap();
   const { data: session, isPending } = authClient.useSession();
   const { membership, loading: membershipLoading } = useActiveMembership();
@@ -33,7 +36,8 @@ export function useDashboardGate(): {
   useEffect(() => {
     if (isPending) return;
     if (!session) {
-      router.push('/login');
+      const search = typeof window !== 'undefined' ? window.location.search : '';
+      router.push(signInHrefFor(`${scopedPathname}${search}`));
       return;
     }
     if (exempt || !accountLoaded) return;
@@ -41,7 +45,7 @@ export function useDashboardGate(): {
       const search = typeof window !== 'undefined' ? window.location.search : '';
       router.push(search ? `/setup${search}` : '/setup');
     }
-  }, [isPending, session, exempt, accountLoaded, mustFinishSetup, router]);
+  }, [isPending, session, exempt, accountLoaded, mustFinishSetup, router, scopedPathname]);
 
   const ready = signedIn && (exempt || (accountLoaded && !mustFinishSetup));
 

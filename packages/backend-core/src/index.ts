@@ -87,6 +87,12 @@ export { AuditInterceptor } from './common/audit/audit.interceptor.ts';
 export { DB, DbModule } from './common/db/db.module.ts';
 export { MAILER, MailModule } from './common/mail/mail.module.ts';
 export { STORAGE } from './common/storage/storage.token.ts';
+export {
+  dashboardIsOrgScoped,
+  dashboardUrl,
+  readWebBaseUrl,
+  registerOrgScopedDashboard,
+} from './common/web-url.ts';
 export { StorageModule } from './common/storage/storage.module.ts';
 
 export { McpModule } from './mcp/mcp.module.ts';

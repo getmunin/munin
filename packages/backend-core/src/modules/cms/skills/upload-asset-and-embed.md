@@ -150,6 +150,8 @@ Swapping one image for another is the same call with the old image line as `oldT
 
 The asset must already be uploaded (`uploaded: true`) — an inline reference to an unknown or unconfirmed asset is rejected when you create/update the entry. On read, the delivery API and `cms_get_entry`/`cms_search_entries` rewrite each `asset://<assetId>` to the asset's `publicUrl` and attach an `_assets` map keyed by asset id so you can also read `altText`, `mime`, and `sizeBytes`.
 
+`ref://<entryId>` — a link to another entry — sits in the same prose but works the opposite way: it is **not** rewritten, because the server doesn't know your site's routing. It surfaces in a `_refs` sidecar for the frontend to resolve. See `skill://cms/author-with-blocks`.
+
 (Use `skill://cms/publish-entry` for the full update + publish dance.)
 
 ## Auditing unused assets

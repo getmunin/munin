@@ -105,7 +105,7 @@ export class CmsDraftsController {
 
   @Get(':id')
   async get(@Param('id') id: string): Promise<CmsDraftDetailDto> {
-    const entry = await translate(() => this.cms.getEntry(id));
+    const entry = await translate(() => this.cms.getEntry(id, ['references']));
     return this.attachFields(entry);
   }
 
@@ -122,6 +122,7 @@ export class CmsDraftsController {
         blockEdits: input.blockEdits,
         slug: input.slug,
         locale: input.locale,
+        include: ['references'],
       });
     });
     return this.attachFields(entry);

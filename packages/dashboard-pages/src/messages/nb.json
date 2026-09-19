@@ -327,6 +327,8 @@
         "cmsCoverUploading": "Laster opp…",
         "cmsCoverReplace": "Bytt forsidebilde",
         "cmsCoverAspect": "16:9",
+        "cmsRefMissing": "mangler",
+        "cmsRefLocaleFallback": "faller tilbake til {locale}",
         "cmsApprove": "Godkjenn",
         "cmsSchedule": "Planlegg",
         "cmsViewPreview": "Forhåndsvisning",

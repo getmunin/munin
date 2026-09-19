@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link2, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button, Pill, cn } from '@getmunin/ui';
 import { MoreActionsSheet, MoreActionsTrigger } from '../pane-more-actions';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { QueueItem } from './types';
+import { describeRef, refIdFromHref, refUrlTransform, remarkRefTokens } from './cms-refs';
+import type { CmsRefExpanded, QueueItem } from './types';
 
 
 export const MD_COMPONENTS: Components = {
@@ -52,12 +54,101 @@ export const MD_COMPONENTS: Components = {
   ),
 };
 
-export function Markdown({ children }: { children: string }) {
+const REF_PLUGINS = [remarkGfm, remarkRefTokens];
+
+export function Markdown({
+  children,
+  refs,
+  locale,
+}: {
+  children: string;
+  refs?: Record<string, CmsRefExpanded>;
+  locale?: string;
+}) {
+  const components = useMemo<Components>(() => {
+    if (!refs) return MD_COMPONENTS;
+    return {
+      ...MD_COMPONENTS,
+      a: ({ href, children: label }) => {
+        const id = refIdFromHref(href);
+        if (id === null) {
+          return (
+            <a
+              href={href}
+              className="text-cobalt underline-offset-2 hover:underline dark:text-cobalt-soft"
+            >
+              {label}
+            </a>
+          );
+        }
+        return <EntryRefChip id={id} refs={refs} locale={locale} label={label} />;
+      },
+    };
+  }, [refs, locale]);
+  if (!refs) {
+    return (
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+        {children}
+      </ReactMarkdown>
+    );
+  }
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>
+    <ReactMarkdown
+      remarkPlugins={REF_PLUGINS}
+      components={components}
+      urlTransform={refUrlTransform}
+    >
       {children}
     </ReactMarkdown>
   );
+}
+
+function EntryRefChip({
+  id,
+  refs,
+  locale,
+  label,
+}: {
+  id: string;
+  refs: Record<string, CmsRefExpanded>;
+  locale: string | undefined;
+  label: React.ReactNode;
+}) {
+  const t = useTranslations('dashboard.overview.drawer');
+  const ref = describeRef(id, refs, locale);
+  const linkText = ref.resolved && isTokenText(label, id) ? ref.label : label;
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 border-[1px] px-1 py-px align-baseline',
+        ref.resolved
+          ? 'border-rule-soft bg-paper-deep text-ink dark:border-rule-on-dark dark:bg-secondary dark:text-foreground'
+          : 'border-destructive/40 bg-destructive/10 text-destructive',
+      )}
+      title={ref.resolved ? `${ref.collection}/${ref.id}` : id}
+    >
+      <Link2 className="size-3 shrink-0" aria-hidden />
+      <span>{linkText}</span>
+      <span
+        className={cn(
+          'font-mono text-[10px] uppercase tracking-eyebrow',
+          ref.resolved && !ref.localeFallback
+            ? 'text-ink-mute dark:text-foreground/60'
+            : 'text-destructive',
+        )}
+      >
+        {!ref.resolved
+          ? t('cmsRefMissing')
+          : ref.localeFallback
+            ? t('cmsRefLocaleFallback', { locale: ref.locale ?? '' })
+            : ref.collection}
+      </span>
+    </span>
+  );
+}
+
+function isTokenText(label: React.ReactNode, id: string): boolean {
+  return label === `ref://${id}`;
 }
 
 export function useCmdEnter(handler: () => void) {

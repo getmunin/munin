@@ -71,6 +71,16 @@ one.
 A link in a comment does not count against the post's character budget, which is worth
 knowing when a draft is close to the limit.
 
+**Write the body as though the link is not in it, because it is not.** Do not paste the url
+into the text as well — that publishes it twice and gives up the only thing the placement
+buys you, and Munin refuses the draft rather than let it happen. What the body *should* do
+is tell the reader where the link went: "Link in the first comment", or the same thing in
+the language the post is written in. A post that ends mid-thought because the url it was
+leading up to is somewhere else reads as a mistake.
+
+Both halves are checked when the draft is filed and again when it is revised, so a rewrite
+that quietly reintroduces the url comes back as `social_invalid` rather than going out.
+
 ## When nobody can publish yet
 
 `social_list_connected_accounts` answers whether anyone in the organisation has a working

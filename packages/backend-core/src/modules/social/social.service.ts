@@ -158,6 +158,15 @@ export function bodyLink(linkUrl: string | null, linkPlacement: string): string 
   return linkPlacement === 'comment' ? null : linkUrl;
 }
 
+export function linkAlreadyInBody(
+  body: string,
+  linkUrl: string | null,
+  linkPlacement: string,
+): boolean {
+  if (linkPlacement !== 'comment' || !linkUrl) return false;
+  return body.includes(linkUrl);
+}
+
 const DEFAULT_PLATFORM: SocialPlatform = 'linkedin';
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -236,6 +245,12 @@ export class SocialService {
       if (!variant.variantLabel.trim()) {
         throw new BadRequestException('social_invalid: variant label cannot be empty');
       }
+      this.assertLinkNotInBody(
+        variant.variantLabel,
+        variant.body,
+        linkUrl,
+        rest.presentation.linkPlacement,
+      );
       const measured = measureBody(platform, variant.body, bodyLink(linkUrl, rest.presentation.linkPlacement));
       if (measured.overBy > 0) {
         throw new BadRequestException(
@@ -305,6 +320,7 @@ export class SocialService {
       throw new BadRequestException('social_invalid: draft body cannot be empty');
     }
     const platform = row.platform as SocialPlatform;
+    this.assertLinkNotInBody('the revision', body, row.linkUrl, row.linkPlacement);
     const measured = measureBody(platform, body, bodyLink(row.linkUrl, row.linkPlacement));
     if (measured.overBy > 0) {
       throw new BadRequestException(
@@ -659,6 +675,7 @@ export class SocialService {
       },
       row.linkUrl,
     );
+    this.assertLinkNotInBody('the draft', row.body, row.linkUrl, presentation.linkPlacement);
     const measured = measureBody(
       platform,
       row.body,
@@ -896,6 +913,18 @@ export class SocialService {
         `social_conflict: draft ${row.id} is already ${row.status} and can no longer be changed`,
       );
     }
+  }
+
+  private assertLinkNotInBody(
+    label: string,
+    body: string,
+    linkUrl: string | null,
+    linkPlacement: string,
+  ): void {
+    if (!linkAlreadyInBody(body, linkUrl, linkPlacement)) return;
+    throw new BadRequestException(
+      `social_invalid: ${label} already carries the link in its text, so posting it as a comment as well would publish it twice — take the url out of the body or use linkPlacement body`,
+    );
   }
 
   private assertHttpUrl(value: string): void {

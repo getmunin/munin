@@ -702,6 +702,61 @@ const PERMALINK = 'https://social.example.test/posts/7';
       expect(draft.bodyChars).toBe(long.length);
     });
 
+    it('refuses a comment placement when the body already carries the same link', async () => {
+      await expect(
+        inOrg(orgA, () =>
+          service.createDraft({
+            body: `Worth reading: ${ARTICLE}`,
+            linkUrl: ARTICLE,
+            linkPlacement: 'comment',
+          }),
+        ),
+      ).rejects.toThrow(/would publish it twice/);
+    });
+
+    it('refuses to move a link into a comment when the body already spells it out', async () => {
+      await svcDb.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const [seeded] = await svcDb
+        .insert(schema.socialPostDrafts)
+        .values({
+          orgId: orgA,
+          platform: 'linkedin',
+          setId: 'set_legacy',
+          variantLabel: 'single',
+          body: `Worth reading: ${ARTICLE}`,
+          linkUrl: ARTICLE,
+          proposedByActorType: 'user',
+          proposedByActorId: member,
+        })
+        .returning();
+
+      await expect(
+        inOrg(orgA, () =>
+          service.setDraftLinkPlacement(seeded!.id, { linkPlacement: 'comment' }),
+        ),
+      ).rejects.toThrow(/would publish it twice/);
+    });
+
+    it('rejects a body that carries the link inline at the moment it is filed', async () => {
+      await expect(
+        inOrg(orgA, () =>
+          service.createDraft({ body: `Worth reading: ${ARTICLE}`, linkUrl: ARTICLE }),
+        ),
+      ).rejects.toThrow(/carries 2 links/);
+    });
+
+    it('refuses a revision that pastes the link back into a comment-placed draft', async () => {
+      const draft = await inOrg(orgA, () =>
+        service.createDraft({ body: 'Worth reading.', linkUrl: ARTICLE, linkPlacement: 'comment' }),
+      );
+      await expect(
+        inOrg(orgA, () => service.reviseDraft(draft.id, `Worth reading: ${ARTICLE}`)),
+      ).rejects.toThrow(/would publish it twice/);
+      await expect(
+        inOrg(orgA, () => service.reviseDraft(draft.id, 'Worth reading. Link in the comments.')),
+      ).resolves.toBeTruthy();
+    });
+
     it('attaches the media a draft carries and passes its placement through to the platform', async () => {
       const publisher = new StubPublisherLookup();
       const draft = await inOrg(orgA, () =>

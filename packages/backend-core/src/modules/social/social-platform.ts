@@ -101,6 +101,10 @@ export function describePlatform(platform: SocialPlatform): SocialPlatformDescri
   return SOCIAL_PLATFORM_DESCRIPTORS[platform];
 }
 
+export function postsAsPage(platform: SocialPlatform): boolean {
+  return !describePlatform(platform).authorKinds.includes('member');
+}
+
 export interface SocialBodyMeasurement {
   bodyChars: number;
   countedChars: number;

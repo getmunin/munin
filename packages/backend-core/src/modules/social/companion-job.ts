@@ -1,11 +1,17 @@
-import type { SocialPlatform } from './social-platform.ts';
+import { describePlatform, postsAsPage, type SocialPlatform } from './social-platform.ts';
 
 export const COMPANION_JOB_URI = 'skill://social/draft-companion-posts';
 
 export const AUTO_DRAFT_SETTING_KEY = 'socialDraftOnPublish';
 
+export const DEFAULT_COMPANION_PLATFORM: SocialPlatform = 'linkedin';
+
 export function draftsOnPublish(settings: Record<string, unknown>): boolean {
   return settings[AUTO_DRAFT_SETTING_KEY] === true;
+}
+
+export function companionDedupeKey(entryId: string, platform: SocialPlatform): string {
+  return `social-companion:entry:${entryId}:${platform}`;
 }
 
 export interface CompanionPromptInput {
@@ -15,6 +21,16 @@ export interface CompanionPromptInput {
   title: string;
   url: string;
   platform: SocialPlatform;
+}
+
+function bylineLine(platform: SocialPlatform): string {
+  const name = describePlatform(platform).displayName;
+  return postsAsPage(platform)
+    ? `Nothing you store here is published: a person reads the set and picks one, and it goes out ` +
+        `signed by the organisation's ${name} page rather than by them. Write in the company's ` +
+        `voice — a personal "I" reads as a mistake when the byline is a logo.`
+    : `Nothing you store here is published: a person reads the set and picks one, and it goes out ` +
+        `under their own name on ${name}. Write it as someone's own words, not the company's.`;
 }
 
 export function buildCompanionPrompt(input: CompanionPromptInput): string {
@@ -33,6 +49,8 @@ export function buildCompanionPrompt(input: CompanionPromptInput): string {
     `- variants: one per angle, each with its own variantLabel\n\n` +
     `Pass linkUrl exactly as given, with no tracking parameters of your own — Munin tags it per ` +
     `variant, and a parameter you add defeats the per-angle click figures. ` +
-    `Nothing you store here is published: a person reads the set and picks one, under their own name.`
+    `This article may be drafted for more than one platform, each in its own run; propose a set for ` +
+    `${input.platform} and leave the others alone. ` +
+    bylineLine(input.platform)
   );
 }

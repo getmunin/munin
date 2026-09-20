@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { KNOWN_SKILL_URIS, toolPrefixesFor } from '@getmunin/types';
 import {
   buildCompanionPrompt,
+  companionDedupeKey,
   COMPANION_JOB_URI,
   draftsOnPublish,
 } from './companion-job.ts';
@@ -64,5 +65,35 @@ describe('buildCompanionPrompt', () => {
 
   it('carries the source reference the review queue groups on', () => {
     expect(buildCompanionPrompt(input)).toContain('"type": "cms_entry", "id": "cme_1"');
+  });
+
+  it("tells a LinkedIn run the post carries the publisher's own byline", () => {
+    const prompt = buildCompanionPrompt(input);
+    expect(prompt).toContain('under their own name');
+    expect(prompt).not.toContain("company's voice");
+  });
+
+  it('tells a Facebook run the post is signed by the page, not the person', () => {
+    const prompt = buildCompanionPrompt({ ...input, platform: 'facebook' });
+    expect(prompt).toContain('Facebook page');
+    expect(prompt).not.toContain('under their own name');
+  });
+
+  it('confines a run to its own platform, so two runs do not each propose both', () => {
+    const prompt = buildCompanionPrompt({ ...input, platform: 'facebook' });
+    expect(prompt).toContain('platform: facebook');
+    expect(prompt).toContain('leave the others alone');
+  });
+});
+
+describe('companionDedupeKey', () => {
+  it('separates the platforms, or the second one is swallowed as a duplicate', () => {
+    expect(companionDedupeKey('cme_1', 'linkedin')).not.toBe(
+      companionDedupeKey('cme_1', 'facebook'),
+    );
+  });
+
+  it('still collapses a repeat of the same entry on the same platform', () => {
+    expect(companionDedupeKey('cme_1', 'linkedin')).toBe(companionDedupeKey('cme_1', 'linkedin'));
   });
 });

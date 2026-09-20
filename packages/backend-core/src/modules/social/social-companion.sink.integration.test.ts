@@ -18,7 +18,7 @@ import {
   UnusedTransactionRunner,
   StubMediaReader,
 } from './social-test-doubles.ts';
-import { COMPANION_JOB_URI } from './companion-job.ts';
+import { companionDedupeKey, COMPANION_JOB_URI } from './companion-job.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -34,6 +34,10 @@ class RecordingEnqueuer implements JobEnqueuer {
     this.jobs.push(input);
     return Promise.resolve({});
   }
+
+  get dedupeKeys(): (string | undefined)[] {
+    return this.jobs.map((job) => job.dedupeKey).sort();
+  }
 }
 
 (skipReason ? describe.skip : describe)('SocialCompanionSink', () => {
@@ -42,6 +46,7 @@ class RecordingEnqueuer implements JobEnqueuer {
   let orgB: string;
   let optedIn: string;
   let optedOut: string;
+  let userA: string;
 
   const enqueuer = new RecordingEnqueuer();
   const sink = new SocialCompanionSink(enqueuer);
@@ -112,26 +117,85 @@ class RecordingEnqueuer implements JobEnqueuer {
       .returning();
     optedIn = collections[0]!.id;
     optedOut = collections[1]!.id;
+
+    const [user] = await svcDb
+      .insert(schema.users)
+      .values({ email: `companion-${randomUUID()}@example.test`, name: 'Ola Nordmann' })
+      .returning();
+    userA = user!.id;
   });
+
+  async function connect(platform: string): Promise<void> {
+    await svcDb.insert(schema.socialAccounts).values({
+      orgId: orgA,
+      userId: userA,
+      platform,
+      authorKind: platform === 'facebook' ? 'org_page' : 'member',
+      externalAccountId: `ext_${platform}`,
+      encryptedAccessToken: 'ciphertext',
+    });
+  }
 
   afterAll(async () => {
     if (!svcDb) return;
     await svcDb.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     await svcDb.delete(schema.orgs).where(sql`id IN (${orgA}, ${orgB})`);
+    await svcDb.delete(schema.users).where(sql`id = ${userA}`);
   });
 
   beforeEach(async () => {
     enqueuer.jobs.length = 0;
     await svcDb.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     await svcDb.delete(schema.socialPostDrafts);
+    await svcDb.delete(schema.socialAccounts);
   });
 
   it('enqueues a drafting pass when the collection opted in', async () => {
     await asOrg(orgA, () => sink.onEvent(published()));
     expect(enqueuer.jobs).toHaveLength(1);
     expect(enqueuer.jobs[0]!.jobUri).toBe(COMPANION_JOB_URI);
-    expect(enqueuer.jobs[0]!.dedupeKey).toBe('social-companion:entry:cme_test_1');
+    expect(enqueuer.jobs[0]!.dedupeKey).toBe(companionDedupeKey('cme_test_1', 'linkedin'));
     expect(enqueuer.jobs[0]!.userPrompt).toContain(ARTICLE_URL);
+  });
+
+  it('drafts for LinkedIn when nothing is connected, rather than nothing at all', async () => {
+    await asOrg(orgA, () => sink.onEvent(published()));
+    expect(enqueuer.jobs).toHaveLength(1);
+    expect(enqueuer.jobs[0]!.userPrompt).toContain('platform: linkedin');
+  });
+
+  it('drafts only for the platform the org actually connected', async () => {
+    await connect('facebook');
+    await asOrg(orgA, () => sink.onEvent(published()));
+    expect(enqueuer.jobs).toHaveLength(1);
+    expect(enqueuer.jobs[0]!.userPrompt).toContain('platform: facebook');
+  });
+
+  it('drafts one set per connected platform, each its own run', async () => {
+    await connect('linkedin');
+    await connect('facebook');
+    await asOrg(orgA, () => sink.onEvent(published()));
+    expect(enqueuer.jobs).toHaveLength(2);
+    expect(enqueuer.dedupeKeys).toEqual(
+      [
+        companionDedupeKey('cme_test_1', 'facebook'),
+        companionDedupeKey('cme_test_1', 'linkedin'),
+      ].sort(),
+    );
+  });
+
+  it('ignores a connection another org holds', async () => {
+    await svcDb.insert(schema.socialAccounts).values({
+      orgId: orgB,
+      userId: userA,
+      platform: 'facebook',
+      authorKind: 'org_page',
+      externalAccountId: 'ext_globex',
+      encryptedAccessToken: 'ciphertext',
+    });
+    await asOrg(orgA, () => sink.onEvent(published()));
+    expect(enqueuer.jobs).toHaveLength(1);
+    expect(enqueuer.jobs[0]!.userPrompt).toContain('platform: linkedin');
   });
 
   it('stays quiet for a collection that never opted in', async () => {
@@ -165,6 +229,22 @@ class RecordingEnqueuer implements JobEnqueuer {
     );
     await asOrg(orgA, () => sink.onEvent(published()));
     expect(enqueuer.jobs).toHaveLength(0);
+  });
+
+  it('still drafts the platform an entry is missing when another already has a set', async () => {
+    await connect('linkedin');
+    await connect('facebook');
+    await asOrg(orgA, () =>
+      social.proposeSet({
+        platform: 'linkedin',
+        linkUrl: ARTICLE_URL,
+        sourceRef: { type: 'cms_entry', id: 'cme_test_1' },
+        variants: [{ variantLabel: 'practitioner', body: 'Already drafted.' }],
+      }),
+    );
+    await asOrg(orgA, () => sink.onEvent(published()));
+    expect(enqueuer.jobs).toHaveLength(1);
+    expect(enqueuer.jobs[0]!.dedupeKey).toBe(companionDedupeKey('cme_test_1', 'facebook'));
   });
 
   it('ignores a set another org holds for the same entry id', async () => {

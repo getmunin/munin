@@ -251,6 +251,23 @@ DROP POLICY IF EXISTS tenant_isolation ON social_accounts;
 CREATE POLICY tenant_isolation ON social_accounts
   USING (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''))
   WITH CHECK (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''));
+
+-- ───────────────────────── social_pending_grants ───────────────────────────
+-- An authorization that has landed but has not yet been bound to a Page. Holds
+-- the encrypted owner token only, for the minutes between the OAuth callback
+-- and the person picking which Page to post as.
+--
+-- Scoped org-wide like social_accounts because there is no user-id GUC to
+-- narrow it with; the service filters by user_id on every read, and a row is
+-- useless to a colleague anyway -- the token is never returned in a DTO, and
+-- selecting a Page writes an account row owned by the person who authorized.
+-- End-user sessions are excluded outright.
+ALTER TABLE social_pending_grants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE social_pending_grants FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON social_pending_grants;
+CREATE POLICY tenant_isolation ON social_pending_grants
+  USING (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''))
+  WITH CHECK (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''));
 -- ───────────────────────── alert_notifications ─────────────────────────────
 -- Queue of alert emails awaiting delivery. Org-scoped like the alerts it
 -- references. The drain worker connects with the service role (bypass_rls is

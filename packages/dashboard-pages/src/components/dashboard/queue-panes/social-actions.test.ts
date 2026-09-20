@@ -1,33 +1,70 @@
 import { describe, expect, it } from 'vitest';
-import { shortPublishName, socialPublishAvailability } from './social-actions';
+import {
+  shortPublishName,
+  socialPublishAvailability,
+  type SocialPublishTarget,
+} from './social-actions';
 
-const publishable = { canPublish: true };
-const target = { userId: 'usr_1', externalAccountId: 'ext_1', displayName: 'Ola Nordmann' };
+const draft = { canPublish: true, platform: 'linkedin' };
+
+const member: SocialPublishTarget = {
+  userId: 'usr_1',
+  platform: 'linkedin',
+  authorKind: 'member',
+  externalAccountId: 'ext_1',
+  displayName: 'Ola Nordmann',
+};
+
+const page: SocialPublishTarget = {
+  userId: 'usr_1',
+  platform: 'facebook',
+  authorKind: 'org_page',
+  externalAccountId: 'ext_2',
+  displayName: 'Acme',
+};
 
 describe('socialPublishAvailability', () => {
   it('offers publishing when the viewer has an account on a platform Munin can post to', () => {
-    expect(socialPublishAvailability(publishable, target)).toEqual({
+    expect(socialPublishAvailability(draft, [member])).toEqual({
       state: 'ready',
       authorName: 'Ola Nordmann',
+      authorKind: 'member',
     });
+  });
+
+  it('picks the account belonging to the draft’s own platform', () => {
+    expect(socialPublishAvailability({ canPublish: true, platform: 'facebook' }, [member, page])).toEqual({
+      state: 'ready',
+      authorName: 'Acme',
+      authorKind: 'org_page',
+    });
+  });
+
+  it('asks for an account when the viewer has connected a different platform only', () => {
+    expect(
+      socialPublishAvailability({ canPublish: true, platform: 'facebook' }, [member]).state,
+    ).toBe('needsAccount');
   });
 
   it('is ready even when the connected account has no display name', () => {
-    expect(socialPublishAvailability(publishable, { ...target, displayName: null })).toEqual({
+    expect(socialPublishAvailability(draft, [{ ...member, displayName: null }])).toEqual({
       state: 'ready',
       authorName: null,
+      authorKind: 'member',
     });
   });
 
-  it('separates a viewer with no account from one whose account has not loaded yet', () => {
-    expect(socialPublishAvailability(publishable, null).state).toBe('needsAccount');
-    expect(socialPublishAvailability(publishable, undefined).state).toBe('loading');
+  it('separates a viewer with no account from one whose accounts have not loaded yet', () => {
+    expect(socialPublishAvailability(draft, []).state).toBe('needsAccount');
+    expect(socialPublishAvailability(draft, null).state).toBe('needsAccount');
+    expect(socialPublishAvailability(draft, undefined).state).toBe('loading');
   });
 
   it('never offers publishing for a platform Munin cannot post to, account or not', () => {
-    expect(socialPublishAvailability({ canPublish: false }, target).state).toBe('unsupported');
-    expect(socialPublishAvailability({ canPublish: false }, null).state).toBe('unsupported');
-    expect(socialPublishAvailability({ canPublish: false }, undefined).state).toBe('unsupported');
+    const cannot = { canPublish: false, platform: 'linkedin' };
+    expect(socialPublishAvailability(cannot, [member]).state).toBe('unsupported');
+    expect(socialPublishAvailability(cannot, []).state).toBe('unsupported');
+    expect(socialPublishAvailability(cannot, undefined).state).toBe('unsupported');
   });
 });
 
@@ -37,9 +74,14 @@ describe('shortPublishName', () => {
     expect(shortPublishName('Acme')).toBe('Acme');
   });
 
-  it('falls back to the first name when the full name would overflow the button', () => {
+  it('falls back to the first name when a person’s full name would overflow', () => {
     expect(shortPublishName('Kari Nordmann-Berg')).toBe('Kari');
     expect(shortPublishName('Globex Corporation')).toBe('Globex');
+  });
+
+  it('truncates a page name instead of clipping it to its first word', () => {
+    expect(shortPublishName('Globex Corporation', 'org_page')).toBe('Globex Corp…');
+    expect(shortPublishName('Acme Nordic', 'org_page')).toBe('Acme Nordic');
   });
 
   it('truncates a first name that overflows on its own', () => {

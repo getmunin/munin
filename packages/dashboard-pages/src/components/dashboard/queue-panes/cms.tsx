@@ -31,6 +31,8 @@ import {
 } from './shared';
 import { NativeSelect } from '../../native-select';
 import { MoreActionsSheet, MoreActionsTrigger } from '../pane-more-actions';
+import { QueueActionErrorBanner } from '../queue-action-error';
+import type { QueueActionError } from '../inbox-types';
 import { computePatch, defaultForField, seedBlock } from './cms-blocks';
 import {
   asBlock,
@@ -67,6 +69,8 @@ export function CmsQueuePane({
   onRetryPreview,
   hideHeaderOnMobile,
   onClose,
+  actionError,
+  onClearActionError,
 }: {
   item: { id: string; title: string; createdAt: string; raw: CmsDraftSummaryDto };
   detail: CmsDraftDetailDto | undefined;
@@ -85,8 +89,11 @@ export function CmsQueuePane({
   onRetryPreview?: () => void;
   hideHeaderOnMobile?: boolean;
   onClose?: () => void;
+  actionError?: QueueActionError;
+  onClearActionError?: () => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
+  const paneError = actionError?.itemId === item.id ? actionError : null;
   const tQueue = useTranslations('dashboard.overview.queue');
   const tCommon = useTranslations('common');
   const age = useRelative();
@@ -425,7 +432,17 @@ export function CmsQueuePane({
           </span>
         </div>
       ) : loadFailed ? null : (
-        <div className="border-t-[1px] border-rule-soft dark:border-rule-on-dark">
+        <div
+          className={
+            paneError ? undefined : 'border-t-[1px] border-rule-soft dark:border-rule-on-dark'
+          }
+        >
+          {paneError && (
+            <QueueActionErrorBanner
+              error={paneError}
+              onDismiss={onClearActionError ?? (() => {})}
+            />
+          )}
           <Dialog
             open={schedulerOpen}
             onOpenChange={(o) => {

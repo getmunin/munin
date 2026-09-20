@@ -9,6 +9,8 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { describeRef, refIdFromHref, refUrlTransform, remarkRefTokens } from './cms-refs';
 import type { CmsRefExpanded, QueueItem } from './types';
+import { QueueActionErrorBanner } from '../queue-action-error';
+import type { QueueActionError } from '../inbox-types';
 
 
 export const MD_COMPONENTS: Components = {
@@ -400,20 +402,28 @@ export function PaneFooter({
   secondary,
   shortcut,
   bordered = true,
+  error,
+  onClearError,
 }: {
   primary: { label: string; onClick: () => void; disabled?: boolean };
   secondary: Array<{ label: string; onClick: () => void; disabled?: boolean }>;
   shortcut?: string;
   bordered?: boolean;
+  error?: QueueActionError;
+  onClearError?: () => void;
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const hasSecondary = secondary.length > 0;
 
   return (
+    <>
+      {error && (
+        <QueueActionErrorBanner error={error} onDismiss={onClearError ?? (() => {})} />
+      )}
     <div
       className={cn(
         'flex items-center justify-between gap-2 px-5 py-3 md:px-7',
-        bordered && 'border-t-[1px] border-rule-soft dark:border-rule-on-dark',
+        bordered && !error && 'border-t-[1px] border-rule-soft dark:border-rule-on-dark',
       )}
     >
       <div className="flex flex-1 items-center gap-2 md:flex-none">
@@ -462,5 +472,6 @@ export function PaneFooter({
         />
       )}
     </div>
+    </>
   );
 }

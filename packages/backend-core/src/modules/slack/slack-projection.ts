@@ -469,6 +469,7 @@ export function cmsEntryPublishedText(snap: CmsEntryPublishedSnapshot): string {
 
 export interface SocialDraftApprovalSnapshot {
   platformName: string;
+  postsAsPage?: boolean;
   variantLabel: string | null;
   body: string;
   shareUrl: string | null;
@@ -487,7 +488,9 @@ export function socialDraftApprovalText(snap: SocialDraftApprovalSnapshot): stri
     isAngle(snap.variantLabel)
       ? `:memo: *${escapeSlackText(snap.variantLabel)}* angle — ${platform} post awaiting review`
       : `:memo: *${platform} post awaiting review*`,
-    `_Publishing posts it to your own ${platform} account._`,
+    snap.postsAsPage
+      ? `_Publishing posts it as your organisation's ${platform} page, not under your name._`
+      : `_Publishing posts it to your own ${platform} account._`,
   ];
   const footer = [
     `_${snap.bodyChars} of ${snap.maxBodyChars} characters_`,

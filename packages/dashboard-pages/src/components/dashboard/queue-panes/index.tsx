@@ -6,6 +6,7 @@ import { FeedbackQueuePane } from './feedback';
 import { KbQueuePane } from './kb';
 import { OutreachQueuePane } from './outreach';
 import { SocialQueuePane } from './social';
+import type { QueueActionError } from '../inbox-types';
 import type {
   CmsAssetExpanded,
   CmsDraftDetailDto,
@@ -91,6 +92,8 @@ export function QueueItemPane({
   onRetryPreview,
   hideHeaderOnMobile,
   onClose,
+  actionError,
+  onClearActionError,
 }: {
   item: QueueItem;
   kbBody?: string;
@@ -110,11 +113,15 @@ export function QueueItemPane({
   onRetryPreview?: () => void;
   hideHeaderOnMobile?: boolean;
   onClose?: () => void;
+  actionError?: QueueActionError;
+  onClearActionError?: () => void;
 }) {
   switch (item.kind) {
     case 'kb':
       return (
         <KbQueuePane
+          actionError={actionError}
+          onClearActionError={onClearActionError}
           item={item}
           body={kbBody}
           revisedBody={kbRevisedBody}
@@ -157,11 +164,15 @@ export function QueueItemPane({
           onPublish={onPublish}
           onDismiss={onDismiss}
           onClose={onClose}
+          actionError={actionError}
+          onClearActionError={onClearActionError}
         />
       );
     case 'feedback':
       return (
         <FeedbackQueuePane
+          actionError={actionError}
+          onClearActionError={onClearActionError}
           item={item}
           pending={pending}
           onApprove={() => onApprove()}
@@ -172,6 +183,8 @@ export function QueueItemPane({
     case 'cms':
       return (
         <CmsQueuePane
+          actionError={actionError}
+          onClearActionError={onClearActionError}
           item={item}
           detail={cmsDetail}
           loadError={loadError}

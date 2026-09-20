@@ -4,8 +4,9 @@ import { useTranslations } from 'next-intl';
 import { Button } from '@getmunin/ui';
 import { useCopy } from '../../../lib/use-copy';
 import { useRelative } from '../../../lib/use-relative';
-import { useSocialPublishTarget } from '../../../lib/use-publish-target';
+import { useSocialPublishTargets } from '../../../lib/use-publish-target';
 import { PaneFooter, PaneHeader, useCmdEnter } from './shared';
+import type { QueueActionError } from '../inbox-types';
 import { shortPublishName, socialPublishAvailability } from './social-actions';
 import type { SocialDraftDto } from './types';
 
@@ -20,6 +21,8 @@ export function SocialQueuePane({
   onPublish,
   onDismiss,
   onClose,
+  actionError,
+  onClearActionError,
 }: {
   item: { id: string; title: string; createdAt: string; raw: SocialDraftDto };
   pending: boolean;
@@ -27,6 +30,8 @@ export function SocialQueuePane({
   onPublish?: () => void;
   onDismiss: () => void;
   onClose?: () => void;
+  actionError?: QueueActionError;
+  onClearActionError?: () => void;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const tQueue = useTranslations('dashboard.overview.queue');
@@ -38,8 +43,8 @@ export function SocialQueuePane({
   const shareUrl = draft.shareUrl ?? draft.linkUrl;
   const linkInComment = draft.linkPlacement === 'comment';
   const mediaKind = draft.mediaKind ?? (draft.mediaUrl ? guessMediaKind(draft.mediaUrl) : null);
-  const target = useSocialPublishTarget(draft.canPublish);
-  const availability = socialPublishAvailability(draft, target);
+  const targets = useSocialPublishTargets(draft.canPublish);
+  const availability = socialPublishAvailability(draft, targets);
   const canPublishNow = availability.state === 'ready' && onPublish !== undefined;
 
   useCmdEnter(() => {
@@ -49,7 +54,11 @@ export function SocialQueuePane({
   });
 
   const authorName =
-    availability.state === 'ready' ? shortPublishName(availability.authorName) : null;
+    availability.state === 'ready'
+      ? shortPublishName(availability.authorName, availability.authorKind)
+      : null;
+  const asPage = availability.state === 'ready' && availability.authorKind === 'org_page';
+  const paneError = actionError?.itemId === item.id ? actionError : null;
   const publishLabel = authorName
     ? t('socialPublishAs', { name: authorName })
     : t('socialPublish');
@@ -151,7 +160,12 @@ export function SocialQueuePane({
         <section className="space-y-2">
           <p className="text-xs text-ink-mute">
             {availability.state === 'ready'
-              ? t('socialPublishHint', { platform: draft.platform })
+              ? asPage
+                ? t('socialPublishHintPage', {
+                    platform: draft.platform,
+                    name: availability.authorName ?? draft.platform,
+                  })
+                : t('socialPublishHint', { platform: draft.platform })
               : availability.state === 'needsAccount'
                 ? t('socialNeedsAccountHint', { platform: draft.platform })
                 : t('socialComposerHint')}
@@ -182,6 +196,8 @@ export function SocialQueuePane({
           primary={{ label: t('socialMarkPosted'), onClick: onApprove, disabled: pending }}
           secondary={[{ label: t('dismiss'), onClick: onDismiss, disabled: pending }]}
           shortcut={t('shortcutMarkPosted')}
+          error={paneError}
+          onClearError={onClearActionError}
         />
       ) : (
         <PaneFooter
@@ -195,6 +211,8 @@ export function SocialQueuePane({
             { label: t('dismiss'), onClick: onDismiss, disabled: pending },
           ]}
           shortcut={canPublishNow ? t('shortcutPublish') : undefined}
+          error={paneError}
+          onClearError={onClearActionError}
         />
       )}
     </>

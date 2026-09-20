@@ -34,6 +34,32 @@ export class StubTokenSource implements SocialTokenSource {
   }
 }
 
+class StubPublisher {
+  constructor(
+    private readonly lookup: StubPublisherLookup,
+    private readonly outcome: { result: SocialPublishResult } | { error: Error },
+    private readonly uploadOutcome: { ref: SocialMediaRef } | { error: Error },
+  ) {}
+
+  publish(args: SocialPublishRequest): Promise<SocialPublishResult> {
+    this.lookup.requests.push(args);
+    const outcome = this.outcome;
+    if ('error' in outcome) return Promise.reject(outcome.error);
+    return Promise.resolve(outcome.result);
+  }
+
+  uploadMedia(args: {
+    accessToken: string;
+    externalAccountId: string;
+    media: SocialMediaUpload;
+  }): Promise<SocialMediaRef> {
+    this.lookup.uploads.push(args.media);
+    const upload = this.uploadOutcome;
+    if ('error' in upload) return Promise.reject(upload.error);
+    return Promise.resolve({ ...upload.ref, kind: args.media.kind, altText: args.media.altText });
+  }
+}
+
 export class StubPublisherLookup implements SocialPublisherLookup {
   requests: SocialPublishRequest[] = [];
   uploads: SocialMediaUpload[] = [];
@@ -58,23 +84,7 @@ export class StubPublisherLookup implements SocialPublisherLookup {
   get(_platform: SocialPlatform) {
     const outcome = this.outcome;
     if ('unsupported' in outcome) return {};
-    return {
-      publish: (args: SocialPublishRequest): Promise<SocialPublishResult> => {
-        this.requests.push(args);
-        if ('error' in outcome) return Promise.reject(outcome.error);
-        return Promise.resolve(outcome.result);
-      },
-      uploadMedia: (args: {
-        accessToken: string;
-        externalAccountId: string;
-        media: SocialMediaUpload;
-      }): Promise<SocialMediaRef> => {
-        this.uploads.push(args.media);
-        const upload = this.uploadOutcome;
-        if ('error' in upload) return Promise.reject(upload.error);
-        return Promise.resolve({ ...upload.ref, kind: args.media.kind, altText: args.media.altText });
-      },
-    };
+    return new StubPublisher(this, outcome, this.uploadOutcome);
   }
 }
 

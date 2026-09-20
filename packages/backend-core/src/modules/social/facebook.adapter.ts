@@ -21,6 +21,7 @@ const PUBLISH_TASK = 'CREATE_CONTENT';
 export const FACEBOOK_SCOPES = [
   'pages_show_list',
   'pages_manage_posts',
+  'pages_manage_engagement',
   'pages_read_engagement',
 ] as const;
 

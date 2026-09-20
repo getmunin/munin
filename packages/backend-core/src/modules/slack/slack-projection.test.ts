@@ -4,6 +4,7 @@ import {
   approvalBlocks,
   approvalResolvedLine,
   authorLabel,
+  socialDraftApprovalText,
   avatarKey,
   cmsEntryPublishedText,
   encodeApprovalValue,
@@ -508,5 +509,31 @@ describe('cmsEntryPublishedText', () => {
       url: null,
     });
     expect(text.split('\n')).toHaveLength(1);
+  });
+});
+
+describe('socialDraftApprovalText', () => {
+  const snap = {
+    platformName: 'LinkedIn',
+    variantLabel: null,
+    body: 'A thought worth sharing.',
+    shareUrl: null,
+    bodyChars: 24,
+    maxBodyChars: 3000,
+    dashboardUrl: 'https://munin.example.test/dashboard/review',
+  };
+
+  it('tells the approver the post goes out under their own name', () => {
+    expect(socialDraftApprovalText(snap)).toContain('your own LinkedIn account');
+  });
+
+  it('says a page post is not signed by the person clicking approve', () => {
+    const text = socialDraftApprovalText({
+      ...snap,
+      platformName: 'Facebook',
+      postsAsPage: true,
+    });
+    expect(text).toContain("organisation's Facebook page");
+    expect(text).not.toContain('your own Facebook account');
   });
 });

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type {
+  SocialAuthorKind,
   SocialLinkPlacement,
   SocialMediaKind,
   SocialPlatform,
@@ -21,6 +22,10 @@ export interface SocialTokenSet {
 export interface SocialAccountIdentity {
   externalAccountId: string;
   displayName: string | null;
+}
+
+export interface SocialAuthorTarget extends SocialAccountIdentity {
+  accessToken: string;
 }
 
 export interface SocialMediaUpload {
@@ -59,6 +64,8 @@ export interface SocialOAuthAdapter {
   readonly platform: SocialPlatform;
   readonly displayName: string;
   readonly authorizationScopes: readonly string[];
+  readonly authorKind?: SocialAuthorKind;
+  readonly accessTokenNeverExpires?: boolean;
   authorizeUrl(args: { state: string; redirectUri: string; clientId: string }): string;
   exchangeCode(args: {
     code: string;
@@ -66,7 +73,8 @@ export interface SocialOAuthAdapter {
     client: SocialOAuthClient;
   }): Promise<SocialTokenSet>;
   refresh(args: { refreshToken: string; client: SocialOAuthClient }): Promise<SocialTokenSet>;
-  identify(args: { accessToken: string }): Promise<SocialAccountIdentity>;
+  identify?(args: { accessToken: string }): Promise<SocialAccountIdentity>;
+  listTargets?(args: { accessToken: string }): Promise<SocialAuthorTarget[]>;
   publish?(args: SocialPublishRequest): Promise<SocialPublishResult>;
   uploadMedia?(args: {
     accessToken: string;

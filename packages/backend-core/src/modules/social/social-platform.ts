@@ -1,4 +1,4 @@
-export const SOCIAL_PLATFORMS = ['linkedin'] as const;
+export const SOCIAL_PLATFORMS = ['linkedin', 'facebook'] as const;
 export type SocialPlatform = (typeof SOCIAL_PLATFORMS)[number];
 
 export const SOCIAL_AUTHOR_KINDS = ['member', 'org_page'] as const;
@@ -67,6 +67,28 @@ export const SOCIAL_PLATFORM_DESCRIPTORS: Record<SocialPlatform, SocialPlatformD
     linkPlacements: ['body', 'comment'],
     composerUrl: 'https://www.linkedin.com/feed/?shareActive=true',
     utmSource: 'linkedin',
+    canPublish: true,
+  },
+  facebook: {
+    platform: 'facebook',
+    displayName: 'Facebook',
+    authorKinds: ['org_page'],
+    limits: {
+      maxBodyChars: 63206,
+      maxLinks: 1,
+      maxImages: 1,
+      linkCountsTowardBody: true,
+    },
+    media: {
+      kinds: ['image'],
+      maxImageBytes: 4 * 1024 * 1024,
+      maxVideoBytes: 0,
+      imageContentTypes: ['image/jpeg', 'image/png', 'image/gif'],
+      videoContentTypes: [],
+    },
+    linkPlacements: ['body', 'comment'],
+    composerUrl: 'https://business.facebook.com/latest/composer',
+    utmSource: 'facebook',
     canPublish: true,
   },
 };

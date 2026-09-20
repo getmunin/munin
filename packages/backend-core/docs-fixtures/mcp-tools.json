@@ -9710,7 +9710,8 @@
         "platform": {
           "type": "string",
           "enum": [
-            "linkedin"
+            "linkedin",
+            "facebook"
           ]
         },
         "status": {
@@ -9784,7 +9785,8 @@
         "platform": {
           "type": "string",
           "enum": [
-            "linkedin"
+            "linkedin",
+            "facebook"
           ]
         },
         "linkUrl": {
@@ -9910,7 +9912,8 @@
         "platform": {
           "type": "string",
           "enum": [
-            "linkedin"
+            "linkedin",
+            "facebook"
           ]
         },
         "linkUrl": {

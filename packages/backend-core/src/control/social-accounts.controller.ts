@@ -8,11 +8,14 @@ import { SOCIAL_PLATFORMS } from '../modules/social/social-platform.ts';
 import {
   SocialAccountsService,
   type SocialAccountDto,
+  type SocialPendingGrantDto,
   type SocialPlatformAppDto,
 } from '../modules/social/social-accounts.service.ts';
 import { SocialService, type SocialPublishTarget } from '../modules/social/social.service.ts';
 
 const PlatformBody = z.object({ platform: z.enum(SOCIAL_PLATFORMS) });
+
+const SelectTargetBody = z.object({ externalAccountId: z.string().min(1).max(200) });
 
 const PlatformAppBody = z.object({
   platform: z.enum(SOCIAL_PLATFORMS),
@@ -52,6 +55,19 @@ export class SocialAccountsController {
   @Post('authorize-url')
   authorizeUrl(@Body() body: unknown): Promise<{ url: string; expiresAt: string }> {
     return this.accounts.authorizeUrl(PlatformBody.parse(body));
+  }
+
+  @Get('pending/:id')
+  pendingTargets(@Param('id') id: string): Promise<SocialPendingGrantDto> {
+    return this.accounts.listPendingTargets(id);
+  }
+
+  @Post('pending/:id/select')
+  selectTarget(@Param('id') id: string, @Body() body: unknown): Promise<SocialAccountDto> {
+    return this.accounts.selectTarget({
+      pendingId: id,
+      externalAccountId: SelectTargetBody.parse(body).externalAccountId,
+    });
   }
 
   @Delete(':id')

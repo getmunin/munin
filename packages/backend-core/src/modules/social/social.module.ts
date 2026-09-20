@@ -10,6 +10,7 @@ import { SocialOAuthRegistry } from './social-oauth.ts';
 import { SocialOAuthController } from './social-oauth.controller.ts';
 import { SocialExpiryWorker } from './social-expiry.worker.ts';
 import { LinkedInAdapter } from './linkedin.adapter.ts';
+import { FacebookAdapter } from './facebook.adapter.ts';
 import { SocialMediaFetcher } from './social-media.ts';
 import { SocialAssetUsageProvider } from './social-asset-usage.provider.ts';
 import { AssetUsageRegistry } from '../../common/asset-usage/asset-usage.registry.ts';
@@ -25,6 +26,7 @@ import { AssetUsageRegistry } from '../../common/asset-usage/asset-usage.registr
     SocialOAuthRegistry,
     SocialExpiryWorker,
     LinkedInAdapter,
+    FacebookAdapter,
     SocialMediaFetcher,
     SocialAssetUsageProvider,
   ],
@@ -36,6 +38,7 @@ export class SocialModule implements OnModuleInit {
     @Inject(SocialCompanionSink) private readonly sink: SocialCompanionSink,
     @Inject(SocialOAuthRegistry) private readonly registry: SocialOAuthRegistry,
     @Inject(LinkedInAdapter) private readonly linkedin: LinkedInAdapter,
+    @Inject(FacebookAdapter) private readonly facebook: FacebookAdapter,
     @Inject(AssetUsageRegistry) private readonly assetUsage: AssetUsageRegistry,
     @Inject(SocialAssetUsageProvider) private readonly assetUsageProvider: SocialAssetUsageProvider,
   ) {}
@@ -43,6 +46,7 @@ export class SocialModule implements OnModuleInit {
   onModuleInit(): void {
     this.dispatcher.registerSink(this.sink);
     this.registry.register(this.linkedin);
+    this.registry.register(this.facebook);
     this.assetUsage.register(this.assetUsageProvider);
   }
 }

@@ -1,5 +1,134 @@
 # @getmunin/backend-core
 
+## 5.33.0
+
+### Minor Changes
+
+- bb4fa0d: A published article drafts companion posts for every platform the org connected, not just LinkedIn.
+
+  `social-companion.sink.ts` hardcoded `linkedin`, so an organisation that connected a
+  Facebook Page and opted a collection into `socialDraftOnPublish` got LinkedIn drafts and
+  nothing for Facebook. It now reads the platforms the org holds a connection for and queues
+  one drafting pass each — separate runs rather than one run proposing both, because the two
+  platforms want different writing and a failed pass should not take the other down with it.
+
+  Making that safe took the dedupe apart. Both guards were keyed on the entry alone: the
+  "already drafted" query matched any set carrying `sourceRef {type: cms_entry, id}`, and the
+  curator `dedupeKey` was `social-companion:entry:<id>`. Either one would have let the first
+  platform through and refused the second. The query now collects the platforms already
+  drafted for and skips those; the key carries the platform. A LinkedIn set already waiting
+  no longer stops the Facebook pass, and a repeat of the same entry on the same platform is
+  still swallowed.
+
+  An organisation with no connection at all still gets one LinkedIn pass. Drafts are useful
+  the moment somebody connects, and an opted-in collection that silently drafts nothing while
+  an operator is still getting round to Settings → Integrations is worse than a set waiting
+  in the queue.
+
+  Who a post goes out _as_ now reaches the drafting agent. The prompt and
+  `skill://social/draft-companion-posts` both told it the publisher's own name would be on
+  the post — true on LinkedIn, wrong for a Page, and the fourth place in the codebase to
+  carry that assumption. The prompt is built per platform, and the predicate behind it is now
+  one function, `postsAsPage`, which the Slack approval card uses too rather than spelling
+  out `authorKinds.includes('member')` a second time.
+
+  `skill://cms/publish-entry` documents the opt-in, which was only ever described from the
+  social side — the setting is turned on with `cms_update_collection`, so the operator who
+  needs to know about it was reading the wrong skill.
+
+- 3c570fe: Facebook joins LinkedIn as a social platform, posting as a company Page.
+
+  A Facebook authorization does not resolve to an author. LinkedIn hands back a token that is
+  already a person, so the callback writes the account row on the spot; Facebook hands back a
+  long-lived user token that is only a key to the list of Pages that person administers.
+  Which Page to post as is a human decision, so the callback parks the encrypted owner token
+  and the dashboard asks. `SocialOAuthAdapter` grew `listTargets` for adapters that need the
+  question asked, `identify` became optional for the same reason, and the callback redirects
+  to `?social=choose_target&pending=…` when a choice is outstanding. The Page list is read
+  live both when the choices are offered and when one is taken, so a Page the person lost
+  access to in between is refused (`social_target_unavailable`) rather than stored as a token
+  that will not work. Only Pages carrying the `CREATE_CONTENT` task are offered — the rest
+  could never publish. `GET /v1/social/accounts/pending/:id` and
+  `POST /v1/social/accounts/pending/:id/select` drive it; an authorization left open expires
+  after fifteen minutes and the expiry sweep purges it.
+
+  A Page access token derived from a long-lived user token does not expire, which the account
+  schema did not allow for: `accessTokenIsFresh` reads a null expiry as stale, so the token
+  would have been sent down the refresh path, found nothing to refresh with, and reported the
+  connection revoked on the first publish. Storing the 60-day user token as the refresh token
+  instead would have been worse in the other direction — the expiry sweep marks a row expired
+  on `refresh_token_expires_at`, so a working Page connection would go dark on day 60 and
+  raise a reconnect alert. So a Facebook row stores neither expiry nor refresh token, the
+  adapter declares `accessTokenNeverExpires`, and the token resolver returns it as is.
+  Recovery from a Page token the vendor invalidates is to reconnect, which is what those
+  cases require anyway.
+
+  Facebook's content model differs from LinkedIn's in ways the post has to respect. A photo
+  post carries no link preview, so a draft with both media and `linkPlacement: 'body'` gets
+  the URL in the message text and one with no media gets it as the `link` parameter, which is
+  what renders the preview card. Link-in-first-comment works as it does on LinkedIn. Images
+  only for now — video is a separate resumable upload — and the body limit is 63,206
+  characters.
+
+  `MUNIN_FACEBOOK_API_VERSION` overrides the pinned Graph version, the way
+  `MUNIN_LINKEDIN_API_VERSION` does, so a version rotation needs no release.
+
+  Two notes for operators. Each organisation enters its own Meta app client id and secret, as
+  with LinkedIn — and `pages_manage_posts` needs Meta App Review with Business Verification
+  before anyone but a person holding a role on the app can use it. And the scopes recorded on
+  a Facebook account are the ones the app requested rather than the ones granted, since the
+  Page listing does not report them; a permission declined in the dialog shows up as a
+  refusal at publish time.
+
+  Two fixes the first live publish turned up, both of which affected LinkedIn too.
+  `publishDraft` called `publish` and `uploadMedia` detached from their adapter, so `this` was
+  undefined and publishing threw on the first method it reached — true since publishing
+  shipped, and hidden by a test double that returned arrow functions. And the publish target
+  was resolved with no platform filter, so a draft could be labelled with the reviewer's
+  identity on a different platform, or offer Publish to someone whose only connection was
+  elsewhere.
+
+- 96529f3: Connect a Facebook Page from the dashboard, and pick which Page it posts as.
+
+  Facebook appears on the Integrations page beside LinkedIn. Authorising comes back to a
+  picker listing the Pages that account administers — only the ones the person may actually
+  publish to — and the Page is bound when one is chosen. Connecting again is how you move to
+  another Page.
+
+  The setup dialog's steps were written for LinkedIn's console and are now per-platform: the
+  products to add, the note under them, the secret's placeholder, and the line about whose
+  name a post goes out under, which is the opposite answer on the two platforms. Facebook's
+  copy says the thing worth knowing before anyone gets far: until Meta reviews the app, only
+  people holding a role on it can connect.
+
+  `skill://social/publish-a-reviewed-post` and `skill://social/attach-media-to-a-post` cover
+  the differences an agent will hit — that a Facebook post is signed by the Page rather than
+  the caller (`authorKind: org_page`), that a photo post and a link preview card are mutually
+  exclusive so `linkPlacement: comment` is usually the better answer there, that the body
+  ceilings are 3,000 against 63,206, and that Facebook takes images only. One correction of
+  emphasis for agents: a lapsed LinkedIn grant is routine and expected, while a refused
+  Facebook Page token is not — that token does not expire, so a refusal means the access was
+  withdrawn.
+
+  Commenting as a Page turns out to need `pages_manage_engagement`, which posting does not,
+  so a link destined for the first comment came back `(#200) You do not have sufficient
+permissions` while the post itself went out. The scope is now requested and named in the
+  setup steps; existing Facebook connections have to be reauthorized to pick it up.
+
+  Action errors also moved: every review pane now renders them in its own footer beside the
+  buttons, where four of the seven already did.
+
+### Patch Changes
+
+- Updated dependencies [d8a22c3]
+  - @getmunin/db@5.33.0
+  - @getmunin/inspector-app@5.33.0
+  - @getmunin/core@5.33.0
+  - @getmunin/agent-runtime@5.33.0
+  - @getmunin/mcp-toolkit@5.33.0
+  - @getmunin/emails@5.33.0
+  - @getmunin/types@5.33.0
+
 ## 5.32.0
 
 ### Minor Changes

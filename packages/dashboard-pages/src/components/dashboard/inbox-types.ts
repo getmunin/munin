@@ -151,6 +151,7 @@ export type QueueActionError =
       itemId: string;
       message: string;
       code: string | null;
+      attempt: number;
     }
   | null;
 

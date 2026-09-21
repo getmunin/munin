@@ -46,6 +46,14 @@ function restoreDraftButton(): HTMLElement | null {
   return screen.queryByRole('button', { name: 'Restore draft' });
 }
 
+function failureBlocks(): HTMLElement[] {
+  return screen.queryAllByRole('alert');
+}
+
+function retrySendButtons(): HTMLElement[] {
+  return screen.queryAllByRole('button', { name: 'Retry send' });
+}
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -86,6 +94,36 @@ describe('ConversationPane composer', () => {
     expect(replyBox().value).toBe(DRAFT_B);
     expect(screen.queryByText('edited by you')).toBeNull();
     expect(restoreDraftButton()).toBeNull();
+  });
+
+  it('a send failure stays on its own conversation when you switch away and back', () => {
+    const controller = stubController({
+      actionError: {
+        type: 'send',
+        conversationId: 'conv_a',
+        message: 'conv_send_failed: the relay refused it',
+        code: 'conv_send_failed',
+        attempt: 2,
+      },
+    });
+    const { rerender } = renderWithProviders(
+      pane('conv_a', makeDetail('conv_a'), controller),
+    );
+
+    expect(failureBlocks().length).toBeGreaterThan(0);
+    for (const block of failureBlocks()) {
+      expect(block.textContent).toContain('conv_send_failed: the relay refused it (2)');
+    }
+    expect(retrySendButtons().length).toBeGreaterThan(0);
+
+    rerender(pane('conv_b', detailWithDraft('conv_b', DRAFT_B), controller));
+
+    expect(failureBlocks()).toHaveLength(0);
+    expect(retrySendButtons()).toHaveLength(0);
+
+    rerender(pane('conv_a', makeDetail('conv_a'), controller));
+
+    expect(failureBlocks().length).toBeGreaterThan(0);
   });
 
   it('a streamed draft is not dirty mid-stream', () => {

@@ -337,7 +337,7 @@
         "cmsPreviewLoading": "Loading the preview…",
         "cmsPreviewTitle": "Draft preview",
         "cmsPreviewFailedEyebrow": "Preview did not load",
-        "cmsPreviewFailedBody": "The site did not answer, or it refuses to be embedded. The fields below are the same content.",
+        "cmsPreviewFailedBody": "The site did not answer, or it will not display in a frame. You will find the content in the fields below.",
         "cmsPreviewBlockedEyebrow": "Preview cannot be embedded",
         "cmsPreviewBlockedCsp": "{host} sends a Content-Security-Policy with frame-ancestors {value}, so the browser refuses to render it inside {embedder}. Add that origin to frame-ancestors on the preview route, or open the preview on the site. The fields below are the same content.",
         "cmsPreviewBlockedXfo": "{host} sends X-Frame-Options: {value}, which forbids embedding anywhere — the header has no allowlist. Drop it on the preview route and use Content-Security-Policy frame-ancestors instead, or open the preview on the site. The fields below are the same content.",

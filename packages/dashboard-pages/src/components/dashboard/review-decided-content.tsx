@@ -16,6 +16,7 @@ import type {
   OutreachProposalDto,
   SocialDraftDto,
 } from './queue-panes/types';
+import { MetaArrow } from './meta-arrow';
 import type {
   PublishedDocument,
   ReviewDecidedController,
@@ -282,9 +283,10 @@ function SocialContent({ draft }: { draft: SocialDraftDto }) {
           href={draft.permalink}
           target="_blank"
           rel="noreferrer noopener"
-          className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt underline underline-offset-[3px] dark:text-cobalt-soft"
+          className="inline-flex items-center gap-1 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt underline underline-offset-[3px] dark:text-cobalt-soft"
         >
-          {t('socialPermalink', { platform: draft.platform })} <span aria-hidden>→</span>
+          {t('socialPermalink', { platform: draft.platform })}
+              <MetaArrow />
         </a>
       ) : null}
     </>

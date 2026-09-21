@@ -34,6 +34,7 @@ import { MoreActionsSheet, MoreActionsTrigger } from '../pane-more-actions';
 import { QueueActionErrorBanner } from '../queue-action-error';
 import type { QueueActionError } from '../inbox-types';
 import { computePatch, defaultForField, seedBlock } from './cms-blocks';
+import { MetaArrow } from '../meta-arrow';
 import {
   asBlock,
   blockTypeDef,
@@ -276,9 +277,10 @@ export function CmsQueuePane({
                     href={previewUrl ?? undefined}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className="ml-auto py-3 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt hover:underline dark:text-cobalt-soft"
+                    className="ml-auto inline-flex items-center gap-1 py-3 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt hover:underline dark:text-cobalt-soft"
                   >
-                    {t('cmsOpenPreview')} <span aria-hidden>↗</span>
+                    {t('cmsOpenPreview')}
+              <MetaArrow glyph="↗" />
                   </a>
                 </div>
               ) : null}
@@ -349,9 +351,10 @@ export function CmsQueuePane({
                       <button
                         type="button"
                         onClick={retryPreview}
-                        className="shrink-0 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt hover:underline dark:text-cobalt-soft"
+                        className="inline-flex shrink-0 items-center gap-1 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt hover:underline dark:text-cobalt-soft"
                       >
-                        {tCommon('retry')} <span aria-hidden>⟳</span>
+                        {tCommon('retry')}
+              <MetaArrow glyph="⟳" />
                       </button>
                     </div>
                   ) : null}

@@ -16,6 +16,7 @@ import { readMergeEvidence } from './merge-evidence';
 import type { QueueActionError } from './inbox-types';
 import { QueueActionErrorBanner } from './queue-action-error';
 import { MoreActionsSheet, MoreActionsTrigger } from './pane-more-actions';
+import { MetaArrow } from './meta-arrow';
 
 export type CrmQueueItem = {
   id: string;
@@ -142,9 +143,10 @@ export function ReviewCrmPane({
               type="button"
               onClick={() => setCompareAll((open) => !open)}
               aria-expanded={compareAll}
-              className="shrink-0 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt underline-offset-[3px] hover:underline dark:text-cobalt-soft"
+              className="inline-flex shrink-0 items-center gap-1 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt underline-offset-[3px] hover:underline dark:text-cobalt-soft"
             >
-              {compareAll ? t('compareHide') : t('compareAll')} <span aria-hidden>→</span>
+              {compareAll ? t('compareHide') : t('compareAll')}
+              <MetaArrow />
             </button>
           </div>
 

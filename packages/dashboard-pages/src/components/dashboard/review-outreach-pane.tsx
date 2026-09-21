@@ -10,6 +10,7 @@ import { readOutreachEvidence, type OutreachProposalDto } from './queue-panes/ty
 import type { QueueActionError } from './inbox-types';
 import { QueueActionErrorBanner } from './queue-action-error';
 import { MoreActionsSheet, MoreActionsTrigger } from './pane-more-actions';
+import { MetaArrow } from './meta-arrow';
 
 export type OutreachQueueItem = {
   id: string;
@@ -217,9 +218,10 @@ export function ReviewOutreachPane({
               <button
                 type="button"
                 onClick={revealDiff}
-                className="shrink-0 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt underline-offset-[3px] hover:underline dark:text-cobalt-soft"
+                className="inline-flex shrink-0 items-center gap-1 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt underline-offset-[3px] hover:underline dark:text-cobalt-soft"
               >
-                {t('seeDiff')} <span aria-hidden>→</span>
+                {t('seeDiff')}
+              <MetaArrow />
               </button>
             ) : null}
           </div>

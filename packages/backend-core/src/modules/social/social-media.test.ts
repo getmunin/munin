@@ -1,5 +1,13 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { SocialMediaError, extractOpenGraph, fetchMedia, mediaKindFor } from './social-media.ts';
+import sharp from 'sharp';
+import {
+  SocialMediaError,
+  extractOpenGraph,
+  fetchMedia,
+  mediaKindFor,
+  transcodeImage,
+  transcodesToImage,
+} from './social-media.ts';
 
 const LIMITS = {
   maxImageBytes: 1024,
@@ -7,6 +15,17 @@ const LIMITS = {
   imageContentTypes: ['image/jpeg', 'image/png'],
   videoContentTypes: ['video/mp4'],
 };
+
+const BIG_LIMITS = { ...LIMITS, maxImageBytes: 5 * 1024 * 1024 };
+
+function solidImage(format: 'webp' | 'avif' | 'png', alpha: number): Promise<Buffer> {
+  const canvas = sharp({
+    create: { width: 48, height: 32, channels: 4, background: { r: 10, g: 80, b: 160, alpha } },
+  });
+  if (format === 'webp') return canvas.webp().toBuffer();
+  if (format === 'avif') return canvas.avif().toBuffer();
+  return canvas.png().toBuffer();
+}
 
 describe('extractOpenGraph', () => {
   it('reads the card a page advertises and resolves a relative image against the page', () => {
@@ -67,6 +86,61 @@ describe('mediaKindFor', () => {
   });
 });
 
+describe('transcodesToImage', () => {
+  it('claims a decodable type the platform will not take, and leaves every other type alone', () => {
+    expect(transcodesToImage('image/webp', LIMITS)).toBe(true);
+    expect(transcodesToImage('IMAGE/AVIF; charset=binary', LIMITS)).toBe(true);
+    expect(transcodesToImage('image/png', LIMITS)).toBe(false);
+    expect(transcodesToImage('image/svg+xml', LIMITS)).toBe(false);
+    expect(transcodesToImage('video/mp4', LIMITS)).toBe(false);
+  });
+
+  it('leaves a type alone when the platform already accepts it', () => {
+    expect(transcodesToImage('image/webp', { imageContentTypes: ['image/webp'] })).toBe(false);
+  });
+
+  it('declines when the platform takes neither jpeg nor png to convert into', () => {
+    expect(transcodesToImage('image/webp', { imageContentTypes: ['image/gif'] })).toBe(false);
+  });
+});
+
+describe('transcodeImage', () => {
+  it('converts an opaque source to jpeg', async () => {
+    const converted = await transcodeImage(await solidImage('webp', 1), {
+      sourceType: 'image/webp',
+      imageContentTypes: LIMITS.imageContentTypes,
+    });
+    expect(converted.contentType).toBe('image/jpeg');
+    expect((await sharp(converted.bytes).metadata()).format).toBe('jpeg');
+  });
+
+  it('keeps a transparent source lossless as png rather than flattening it into jpeg', async () => {
+    const converted = await transcodeImage(await solidImage('webp', 0.4), {
+      sourceType: 'image/webp',
+      imageContentTypes: LIMITS.imageContentTypes,
+    });
+    expect(converted.contentType).toBe('image/png');
+    expect((await sharp(converted.bytes).metadata()).hasAlpha).toBe(true);
+  });
+
+  it('falls back to png when the platform does not take jpeg', async () => {
+    const converted = await transcodeImage(await solidImage('webp', 1), {
+      sourceType: 'image/webp',
+      imageContentTypes: ['image/png'],
+    });
+    expect(converted.contentType).toBe('image/png');
+  });
+
+  it('reports a source it cannot decode instead of uploading garbage', async () => {
+    await expect(
+      transcodeImage(Buffer.from('not an image at all'), {
+        sourceType: 'image/webp',
+        imageContentTypes: LIMITS.imageContentTypes,
+      }),
+    ).rejects.toBeInstanceOf(SocialMediaError);
+  });
+});
+
 describe('fetchMedia', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -92,6 +166,38 @@ describe('fetchMedia', () => {
     await expect(fetchMedia('https://example.com/a.pdf', { limits: LIMITS })).rejects.toBeInstanceOf(
       SocialMediaError,
     );
+  });
+
+  it('converts a webp card image the platform would otherwise reject, rather than dropping it', async () => {
+    stub(body(await solidImage('webp', 1), { 'content-type': 'image/webp' }));
+    const media = await fetchMedia('https://example.com/card.webp', { limits: BIG_LIMITS });
+    expect(media.kind).toBe('image');
+    expect(media.contentType).toBe('image/jpeg');
+    expect(BIG_LIMITS.imageContentTypes).toContain(media.contentType);
+  });
+
+  it('converts avif too, and an opaque alpha channel still goes to jpeg, not an oversized png', async () => {
+    const source = await solidImage('avif', 1);
+    expect((await sharp(source).metadata()).hasAlpha).toBe(true);
+    stub(body(source, { 'content-type': 'image/avif' }));
+    const media = await fetchMedia('https://example.com/card.avif', { limits: BIG_LIMITS });
+    expect(media.contentType).toBe('image/jpeg');
+  });
+
+  it('counts a converted image as the image the draft expected', async () => {
+    stub(body(await solidImage('webp', 1), { 'content-type': 'image/webp' }));
+    const media = await fetchMedia('https://example.com/card.webp', {
+      expectedKind: 'image',
+      limits: BIG_LIMITS,
+    });
+    expect(media.kind).toBe('image');
+  });
+
+  it('refuses a converted image that came out over the cap instead of letting the platform reject it', async () => {
+    stub(body(await solidImage('webp', 1), { 'content-type': 'image/webp' }));
+    await expect(
+      fetchMedia('https://example.com/card.webp', { limits: { ...LIMITS, maxImageBytes: 200 } }),
+    ).rejects.toThrow(/over the/);
   });
 
   it('refuses a file that is not the kind the draft declared', async () => {

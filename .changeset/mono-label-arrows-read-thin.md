@@ -11,3 +11,7 @@ draws them as inline SVG on a 24 viewBox at 12px with a 2.25 stroke, centered
 by flexbox, so weight and alignment are ours rather than the fallback font's
 (compare-all, see-diff, open-preview, retry, the social permalink, the product
 link and the decided notice's disclosure).
+
+The merge headlines draw their arrow too. Instrument Serif carries no arrow at
+all, so `A ⟷ B` in the CRM pane was set in Apple Symbols and `A ↔ B` in the
+decided pane in Times New Roman — a second typeface inside a 29px serif line.

@@ -96,9 +96,7 @@ export function ReviewCrmPane({
           </div>
           <h2 className="font-serif text-[26px] font-normal leading-[1.15] tracking-tight text-ink max-md:hidden md:text-[29px] dark:text-foreground">
             {label(keeper)}
-            <span aria-hidden className="px-2 text-ink-mute">
-              ⟷
-            </span>
+            <MetaArrow glyph="↔" className="mx-2 inline size-[0.5em] align-middle text-ink-mute" />
             {label(duplicate)}
           </h2>
           <p className="max-w-[64ch] text-[14px] leading-relaxed text-ink-soft dark:text-foreground/80">

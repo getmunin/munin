@@ -184,7 +184,7 @@ export function AuditLogPage() {
         ) : items.length === 0 ? (
           <EmptyCallout title={t('emptyTitle')} body={t('emptyBody')} />
         ) : (
-          <div className="-mx-6 overflow-x-auto px-6 md:mx-0 md:px-0">
+          <div className="-mx-5 overflow-x-auto px-5 md:mx-0 md:px-0">
           <table className="w-full">
             <thead>
               <tr className="border-b-[1px] border-rule-soft dark:border-rule-on-dark text-left">

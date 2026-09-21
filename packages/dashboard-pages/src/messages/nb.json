@@ -1275,7 +1275,6 @@
           "feedback": "Avvist",
           "social": "Forkastet"
         },
-        "decisionReason": "Begrunnelse",
         "decidedByAgent": "Agenten",
         "decidedByUnknown": "Ukjent",
         "publishedBodyLabel": "Publisert artikkel",
@@ -1375,34 +1374,34 @@
         "decisionRecordLabel": "Hva skjedde",
         "decidedSummary": {
           "kb": {
-            "approved": "Forslaget ble publisert i kunnskapsbasen.",
-            "dismissed": "Forslaget ble forkastet, og teksten er ikke lenger lagret.",
-            "failed": "Avgjørelsen kunne ikke fullføres."
+            "approved": "Forslaget ble publisert i <em>kunnskapsbasen</em>.",
+            "dismissed": "Forslaget ble forkastet, og teksten er <em>ikke lenger lagret</em>.",
+            "failed": "Avgjørelsen <em>kunne ikke fullføres</em>."
           },
           "crm": {
-            "approved": "Duplikatet ble slått sammen med kontakten som ble beholdt.",
-            "dismissed": "De to kontaktene ble holdt adskilt.",
-            "failed": "Sammenslåingen kunne ikke fullføres."
+            "approved": "Duplikatet ble slått sammen med <em>kontakten som ble beholdt</em>.",
+            "dismissed": "De to kontaktene ble <em>holdt adskilt</em>.",
+            "failed": "Sammenslåingen <em>kunne ikke fullføres</em>."
           },
           "outreach": {
-            "approved": "Meldingen ble sendt til kontakten.",
-            "dismissed": "Utkastet ble forkastet og aldri sendt.",
-            "failed": "Sendingen feilet, og meldingen nådde aldri kontakten."
+            "approved": "Meldingen ble <em>sendt til kontakten</em>.",
+            "dismissed": "Utkastet ble forkastet og <em>aldri sendt</em>.",
+            "failed": "Sendingen feilet, og meldingen nådde <em>aldri kontakten</em>."
           },
           "cms": {
-            "approved": "Oppføringen ble publisert.",
-            "dismissed": "Utkastet ble forkastet.",
-            "failed": "Publiseringen kunne ikke fullføres."
+            "approved": "Oppføringen ble <em>publisert</em>.",
+            "dismissed": "Utkastet ble <em>forkastet</em>.",
+            "failed": "Publiseringen <em>kunne ikke fullføres</em>."
           },
           "feedback": {
-            "approved": "Saken ble videresendt til Munin-teamet.",
-            "dismissed": "Saken ble avvist, og ingenting ble sendt.",
-            "failed": "Videresendingen feilet, og ingenting nådde Munin-teamet."
+            "approved": "Saken ble videresendt til <em>Munin-teamet</em>.",
+            "dismissed": "Saken ble avvist, og <em>ingenting ble sendt</em>.",
+            "failed": "Videresendingen feilet, og <em>ingenting nådde Munin-teamet</em>."
           },
           "social": {
-            "approved": "Utkastet ble lagt ut, og settet det hører til er avgjort.",
-            "dismissed": "Ingen publiserte denne varianten. Resten av settet er urørt.",
-            "failed": "Innlegget kunne ikke publiseres."
+            "approved": "Utkastet ble lagt ut, og settet det hører til er <em>avgjort</em>.",
+            "dismissed": "Ingen publiserte denne varianten. <em>Resten av settet er urørt.</em>",
+            "failed": "Innlegget <em>kunne ikke publiseres</em>."
           }
         },
         "decidedSocialVariant": "Sosialt innlegg · {label}",

@@ -3,7 +3,8 @@
 import { useTranslations } from 'next-intl';
 import { Link } from '../../i18n-navigation';
 import { useRelative } from '../../lib/use-relative';
-import { DecidedSection, ReviewDecidedContent } from './review-decided-content';
+import { splitDecisionReason } from './decision-reason';
+import { ReviewDecidedContent } from './review-decided-content';
 import type { ReviewDecidedController, ReviewDecidedItem } from './review-decided';
 import {
   decidedConversationId,
@@ -11,17 +12,46 @@ import {
   decidedTitle,
 } from './review-decided-labels';
 
-function Prose({ children, muted }: { children: React.ReactNode; muted?: boolean }) {
+function DecisionRecord({ item }: { item: ReviewDecidedItem }) {
+  const t = useTranslations('dashboard.console.review');
+  const reason = splitDecisionReason(item.reason);
+  const stamp = new Date(item.at).toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+
   return (
-    <p
-      className={
-        muted
-          ? 'max-w-[62ch] text-[14.5px] leading-relaxed text-ink-soft dark:text-foreground/70'
-          : 'max-w-[62ch] text-[14.5px] leading-relaxed text-ink dark:text-foreground'
-      }
-    >
-      {children}
-    </p>
+    <div className="border-t-[3px] border-cobalt bg-cobalt/[0.055] px-5 py-5 md:px-6 md:py-6 dark:bg-cobalt/10">
+      <div className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label dark:text-foreground/70">
+        {t('decisionRecordLabel')}
+      </div>
+      <p className="mt-2.5 max-w-[46ch] font-serif text-[21px] font-normal leading-[1.32] text-ink md:text-[23px] dark:text-foreground">
+        {t.rich(`decidedSummary.${item.kind}.${item.outcome}`, {
+          em: (chunks) => <em className="italic text-cobalt dark:text-cobalt-soft">{chunks}</em>,
+        })}
+      </p>
+      {reason ? (
+        <div className="mt-4 flex flex-col items-start gap-2 bg-ink/[0.045] px-4 py-3.5 dark:bg-ink/50">
+          {reason.code ? (
+            <span className="border border-ink/20 px-2 py-1 font-mono text-[11px] leading-none text-ink-soft dark:border-rule-on-dark dark:text-foreground/80">
+              {reason.code}
+            </span>
+          ) : null}
+          <p
+            className={
+              reason.code
+                ? 'whitespace-pre-wrap break-words font-mono text-[12.5px] leading-[1.6] text-ink-soft dark:text-foreground/80'
+                : 'max-w-[62ch] whitespace-pre-wrap break-words text-[14px] leading-[1.6] text-ink-soft dark:text-foreground/80'
+            }
+          >
+            {reason.message}
+          </p>
+        </div>
+      ) : null}
+      <div className="mt-4 font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute dark:text-foreground/60">
+        {stamp}
+      </div>
+    </div>
   );
 }
 
@@ -73,17 +103,9 @@ export function ReviewDecidedPane({
           </div>
         </div>
 
-        <div className="flex flex-col gap-5 border-t border-rule-soft pt-5 dark:border-rule-on-dark">
-          {item.reason ? (
-            <DecidedSection label={t('decisionReason')}>
-              <Prose>{item.reason}</Prose>
-            </DecidedSection>
-          ) : null}
+        <DecisionRecord item={item} />
 
-          <DecidedSection label={t('decisionRecordLabel')}>
-            <Prose muted>{t(`decidedSummary.${item.kind}.${item.outcome}`)}</Prose>
-          </DecidedSection>
-
+        <div className="flex flex-col gap-5">
           <ReviewDecidedContent item={item} controller={controller} />
         </div>
       </div>

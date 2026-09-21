@@ -12,7 +12,8 @@ fields through the same viewer the queue pane uses in read mode.
 The decision itself now leads the pane as one notice, built from the same
 banner the queue panes already use for a warning — a 2px accent bar, a tinted
 wash, a mono eyebrow and the sentence under it — in cobalt, or in the alert
-palette when the send or publish failed. The outcome sentence carries its
-consequence in an italic (every decidedSummary string now marks that clause
-with <em>), a reason thrown by a service shows its `<module>_<code>` prefix as
-its own mono token, and the decision's timestamp sits at the right edge.
+palette when the send or publish failed. A decision that carries a reason turns
+the whole notice into a disclosure: an arrow sits under the timestamp at the
+right edge, the tint lifts on hover, and clicking anywhere on the notice opens
+the labelled reason underneath, with any `<module>_<code>` prefix a service
+threw shown as its own mono token.

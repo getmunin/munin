@@ -1372,36 +1372,37 @@
         "outcomeFailed": "Send failed",
         "decidedUntitled": "Untitled",
         "decisionRecordLabel": "What happened",
+        "decisionReason": "Reason given",
         "decidedSummary": {
           "kb": {
-            "approved": "The candidate was published to the <em>knowledge base</em>.",
-            "dismissed": "The candidate was dismissed, so its text is <em>no longer stored</em>.",
-            "failed": "The decision <em>could not be completed</em>."
+            "approved": "The candidate was published to the knowledge base.",
+            "dismissed": "The candidate was dismissed, so its text is no longer stored.",
+            "failed": "The decision could not be completed."
           },
           "crm": {
-            "approved": "The duplicate was merged into <em>the contact that was kept</em>.",
-            "dismissed": "The two contacts were <em>kept separate</em>.",
-            "failed": "The merge <em>could not be completed</em>."
+            "approved": "The duplicate was merged into the contact that was kept.",
+            "dismissed": "The two contacts were kept separate.",
+            "failed": "The merge could not be completed."
           },
           "outreach": {
-            "approved": "The message was <em>sent to the contact</em>.",
-            "dismissed": "The draft was dismissed and <em>never sent</em>.",
-            "failed": "Sending failed, and the message <em>never reached the contact</em>."
+            "approved": "The message was sent to the contact.",
+            "dismissed": "The draft was dismissed and never sent.",
+            "failed": "Sending failed, and the message never reached the contact."
           },
           "cms": {
-            "approved": "The entry was <em>published</em>.",
-            "dismissed": "The draft was <em>discarded</em>.",
-            "failed": "Publishing <em>could not be completed</em>."
+            "approved": "The entry was published.",
+            "dismissed": "The draft was discarded.",
+            "failed": "Publishing could not be completed."
           },
           "feedback": {
-            "approved": "The item was forwarded to <em>the Munin team</em>.",
-            "dismissed": "The item was dismissed, and <em>nothing was sent</em>.",
-            "failed": "Forwarding failed, and <em>nothing reached the Munin team</em>."
+            "approved": "The item was forwarded to the Munin team.",
+            "dismissed": "The item was dismissed, and nothing was sent.",
+            "failed": "Forwarding failed, and nothing reached the Munin team."
           },
           "social": {
-            "approved": "The draft was posted, and the set it belongs to is <em>settled</em>.",
-            "dismissed": "Nobody published this variant. <em>The rest of its set is untouched.</em>",
-            "failed": "The post <em>could not be published</em>."
+            "approved": "The draft was posted, and the set it belongs to is settled.",
+            "dismissed": "Nobody published this variant. The rest of its set is untouched.",
+            "failed": "The post could not be published."
           }
         },
         "decidedSocialVariant": "Social post · {label}",

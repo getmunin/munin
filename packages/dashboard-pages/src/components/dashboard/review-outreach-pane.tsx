@@ -11,6 +11,7 @@ import type { QueueActionError } from './inbox-types';
 import { QueueActionErrorBanner } from './queue-action-error';
 import { MoreActionsSheet, MoreActionsTrigger } from './pane-more-actions';
 import { MetaArrow } from './meta-arrow';
+import { PaneNotice } from './pane-notice';
 
 export type OutreachQueueItem = {
   id: string;
@@ -183,48 +184,36 @@ export function ReviewOutreachPane({
           ) : null}
         </header>
 
-        {destination ? null : (
-          <span className="border-l-2 border-alert-bad-border py-1 pl-3 text-[13px] leading-relaxed text-alert-bad-ink">
-            {t(isEmail ? 'noEmail' : 'noPhone')}
-          </span>
-        )}
+        {destination ? null : <PaneNotice>{t(isEmail ? 'noEmail' : 'noPhone')}</PaneNotice>}
 
         {deliverability ? (
-          <div className="flex flex-col gap-1 border-l-2 border-alert-bad-border bg-alert-bad px-3 py-2">
-            <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-alert-bad-ink">
-              {t(undeliverable ? 'undeliverableHeading' : 'softFailingHeading')}
-            </span>
-            <span className="text-[13px] leading-relaxed text-ink dark:text-foreground">
-              {t(undeliverable ? 'undeliverableDetail' : 'softFailingDetail', {
-                since: stamp(new Date(deliverability.stateChangedAt)),
-              })}
-            </span>
-          </div>
+          <PaneNotice eyebrow={t(undeliverable ? 'undeliverableHeading' : 'softFailingHeading')}>
+            {t(undeliverable ? 'undeliverableDetail' : 'softFailingDetail', {
+              since: stamp(new Date(deliverability.stateChangedAt)),
+            })}
+          </PaneNotice>
         ) : null}
 
         {proposal.revisedAfterReviewAt ? (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-l-2 border-alert-bad-border bg-alert-bad px-3 py-2">
-            <span className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-alert-bad-ink">
-                {t('revisedAfterReview')}
-              </span>
-              <span className="text-[13px] leading-relaxed text-ink dark:text-foreground">
-                {proposal.lastRevisionReason
-                  ? t('revisedReason', { reason: proposal.lastRevisionReason })
-                  : t('revisedNoReason')}
-              </span>
-            </span>
-            {editCount > 0 ? (
-              <button
-                type="button"
-                onClick={revealDiff}
-                className="inline-flex shrink-0 items-center gap-1 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt underline-offset-[3px] hover:underline dark:text-cobalt-soft"
-              >
-                {t('seeDiff')}
-              <MetaArrow />
-              </button>
-            ) : null}
-          </div>
+          <PaneNotice
+            eyebrow={t('revisedAfterReview')}
+            action={
+              editCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={revealDiff}
+                  className="inline-flex items-center gap-1 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt underline-offset-[3px] hover:underline dark:text-cobalt-soft"
+                >
+                  {t('seeDiff')}
+                  <MetaArrow />
+                </button>
+              ) : null
+            }
+          >
+            {proposal.lastRevisionReason
+              ? t('revisedReason', { reason: proposal.lastRevisionReason })
+              : t('revisedNoReason')}
+          </PaneNotice>
         ) : null}
 
         <div className="border border-ink dark:border-rule-on-dark">

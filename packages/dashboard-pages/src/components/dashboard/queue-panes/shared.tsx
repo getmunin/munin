@@ -153,6 +153,45 @@ function isTokenText(label: React.ReactNode, id: string): boolean {
   return label === `ref://${id}`;
 }
 
+export function ViewTabRow({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex shrink-0 items-center gap-5 border-b-[1px] border-rule-soft px-5 md:px-7 dark:border-rule-on-dark">
+      {children}
+    </div>
+  );
+}
+
+export function ViewTab({
+  active,
+  warn,
+  onSelect,
+  children,
+}: {
+  active: boolean;
+  warn?: boolean;
+  onSelect: () => void;
+  children: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-current={active ? 'true' : undefined}
+      className={cn(
+        '-mb-px flex items-center gap-1.5 border-b-2 py-3 font-mono text-[10px] font-medium uppercase tracking-eyebrow transition-colors duration-fast',
+        active
+          ? 'border-cobalt text-ink dark:border-cobalt-soft dark:text-foreground'
+          : 'border-transparent text-ink-mute hover:text-ink dark:hover:text-foreground',
+      )}
+    >
+      {warn ? (
+        <span aria-hidden className="size-[6px] rounded-full bg-alert-bad-border" />
+      ) : null}
+      {children}
+    </button>
+  );
+}
+
 export function useCmdEnter(handler: () => void) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

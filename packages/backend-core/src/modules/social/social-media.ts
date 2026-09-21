@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import sharp from 'sharp';
 import type { SocialMediaKind } from './social-platform.ts';
 
 export interface FetchedMedia {
@@ -196,6 +197,51 @@ export function mediaKindFor(
   return null;
 }
 
+export const TRANSCODABLE_IMAGE_TYPES = ['image/webp', 'image/avif', 'image/tiff'] as const;
+
+const JPEG_QUALITY = 88;
+
+export function transcodesToImage(
+  contentType: string,
+  limits: { imageContentTypes: readonly string[] },
+): boolean {
+  const normalized = contentType.split(';')[0]!.trim().toLowerCase();
+  if (!TRANSCODABLE_IMAGE_TYPES.some((type) => type === normalized)) return false;
+  if (limits.imageContentTypes.includes(normalized)) return false;
+  return (
+    limits.imageContentTypes.includes('image/jpeg') ||
+    limits.imageContentTypes.includes('image/png')
+  );
+}
+
+export async function transcodeImage(
+  bytes: Buffer,
+  args: { sourceType: string; imageContentTypes: readonly string[] },
+): Promise<{ bytes: Buffer; contentType: string }> {
+  const stats = await sharp(bytes)
+    .stats()
+    .catch((err: unknown) => {
+      throw new SocialMediaError(
+        `the ${args.sourceType} could not be decoded: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
+  const takesJpeg = args.imageContentTypes.includes('image/jpeg');
+  const takesPng = args.imageContentTypes.includes('image/png');
+  const toPng = takesPng && (!stats.isOpaque || !takesJpeg);
+  const encoded = await (toPng
+    ? sharp(bytes).png({ compressionLevel: 9 }).toBuffer()
+    : sharp(bytes)
+        .flatten({ background: '#ffffff' })
+        .jpeg({ quality: JPEG_QUALITY, mozjpeg: true })
+        .toBuffer()
+  ).catch((err: unknown) => {
+    throw new SocialMediaError(
+      `the ${args.sourceType} could not be converted: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  });
+  return { bytes: encoded, contentType: toPng ? 'image/png' : 'image/jpeg' };
+}
+
 export async function fetchMedia(
   mediaUrl: string,
   args: {
@@ -213,7 +259,8 @@ export async function fetchMedia(
     throw new SocialMediaError(`${mediaUrl} answered ${res.status}`);
   }
   const contentType = (res.headers.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase();
-  const kind = mediaKindFor(contentType, args.limits);
+  const needsTranscode = transcodesToImage(contentType, args.limits);
+  const kind = needsTranscode ? 'image' : mediaKindFor(contentType, args.limits);
   if (!kind) {
     const accepted = [...args.limits.imageContentTypes, ...args.limits.videoContentTypes].join(', ');
     throw new SocialMediaError(
@@ -230,7 +277,19 @@ export async function fetchMedia(
   if (bytes.length === 0) {
     throw new SocialMediaError(`${mediaUrl} returned an empty body`);
   }
-  return { kind, contentType, bytes, sourceUrl: res.url || mediaUrl };
+  const sourceUrl = res.url || mediaUrl;
+  if (!needsTranscode) return { kind, contentType, bytes, sourceUrl };
+
+  const converted = await transcodeImage(bytes, {
+    sourceType: contentType,
+    imageContentTypes: args.limits.imageContentTypes,
+  });
+  if (converted.bytes.length > maxBytes) {
+    throw new SocialMediaError(
+      `${mediaUrl} is ${contentType}, and converting it to ${converted.contentType} came out over the ${Math.round(maxBytes / 1024 / 1024)}MB limit`,
+    );
+  }
+  return { kind, contentType: converted.contentType, bytes: converted.bytes, sourceUrl };
 }
 
 export interface MediaFetchLimits {

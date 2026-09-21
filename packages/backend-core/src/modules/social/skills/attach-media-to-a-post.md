@@ -16,6 +16,11 @@ linked page, takes the image it advertises to the world (`og:image`), and upload
 the post. A draft carrying nothing but `body` and `linkUrl` goes out illustrated. You do
 not have to do anything for this, and there is nothing to attach.
 
+This one is best-effort, and that is the difference from an attached file: if the page
+advertises no image, or the image cannot be fetched, the post still goes out — bare. An
+attached `mediaUrl` that fails refuses the publish instead. So when the picture is the
+point, attach it rather than trusting the page to carry one.
+
 **Attach a file when you want a *particular* one** — a chart that makes the point, a clip
 of the thing working, an image someone made for this post. That is what the rest of this
 describes.
@@ -28,6 +33,12 @@ describes.
 - `social_list_platforms` — the accepted types and size ceilings, under `media`. They
   differ per platform: LinkedIn takes an image or a video, Facebook takes an image only
   and caps it lower. Read `media.kinds` before promising a video.
+
+  `media.imageContentTypes` is what arrives at the platform, not what you may point at. A
+  webp, avif or tiff is converted on the way out — to png if it is genuinely transparent,
+  otherwise to jpeg — so a modern site whose `og:image` is a webp illustrates its posts
+  like any other. The size ceiling applies to the converted file, and a conversion that
+  lands over it is refused rather than sent.
 - `cms_request_asset_upload` + `cms_complete_asset_upload` — put a local file somewhere it
   has a URL.
 - `cms_upload_asset_from_base64` — the same thing for something small you already hold.

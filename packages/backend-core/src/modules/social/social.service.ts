@@ -756,7 +756,7 @@ export class SocialService {
       return await this.media.fetchMedia(preview.imageUrl, { expectedKind: 'image', limits });
     } catch (err) {
       const reason = err instanceof Error ? err.message : 'the page could not be read';
-      this.logger.debug(`link preview image unavailable link=${linkUrl} reason=${reason}`);
+      this.logger.warn(`link preview image unavailable link=${linkUrl} reason=${reason}`);
       return null;
     }
   }

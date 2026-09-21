@@ -1,64 +1,90 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { PageSpinner } from '@getmunin/ui';
+import { cn } from '@getmunin/ui';
 import { Link } from '../../i18n-navigation';
 import { useRelative } from '../../lib/use-relative';
-import { Markdown } from './queue-panes/shared';
-import type { PublishedDocument, ReviewDecidedItem } from './review-decided';
+import { splitDecisionReason } from './decision-reason';
+import { MetaArrow } from './meta-arrow';
+import { ReviewDecidedContent } from './review-decided-content';
+import type { ReviewDecidedController, ReviewDecidedItem } from './review-decided';
 import {
   decidedConversationId,
+  decidedMergePair,
   decidedOutcomeLabel,
   decidedTitle,
 } from './review-decided-labels';
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-2.5">
-      <div className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">{label}</div>
-      {children}
-    </div>
-  );
-}
+function DecisionRecord({ item }: { item: ReviewDecidedItem }) {
+  const t = useTranslations('dashboard.console.review');
+  const reason = splitDecisionReason(item.reason);
+  const bad = item.outcome === 'failed';
+  const label = bad ? 'text-alert-bad-ink' : 'text-ink-label dark:text-foreground/70';
+  const stamp = new Date(item.at).toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
 
-function Prose({ children, muted }: { children: React.ReactNode; muted?: boolean }) {
   return (
-    <p
-      className={
-        muted
-          ? 'max-w-[62ch] text-[14.5px] leading-relaxed text-ink-soft dark:text-foreground/70'
-          : 'max-w-[62ch] text-[14.5px] leading-relaxed text-ink dark:text-foreground'
-      }
+    <div
+      className={cn(
+        'border-t-[3px] px-5 py-5 md:px-6 md:py-6',
+        bad
+          ? 'border-alert-bad-border bg-alert-bad'
+          : 'border-cobalt bg-cobalt/[0.055] dark:bg-cobalt/10',
+      )}
     >
-      {children}
-    </p>
+      <p className="max-w-[56ch] text-[16px] leading-[1.55] text-ink dark:text-foreground">
+        {t(`decidedSummary.${item.kind}.${item.outcome}`)}
+      </p>
+      {reason ? (
+        <div className="mt-4 flex flex-col items-start gap-2 bg-ink/[0.05] px-4 py-3.5 dark:bg-ink/50">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span
+              className={cn('font-mono text-[10px] font-medium uppercase tracking-eyebrow', label)}
+            >
+              {t('decisionReason')}
+            </span>
+            {reason.code ? (
+              <code
+                className={cn(
+                  'border px-2 py-1 font-mono text-[11.5px] leading-none',
+                  bad
+                    ? 'border-alert-bad-border/60 text-alert-bad-ink'
+                    : 'border-ink/20 text-ink-soft dark:border-rule-on-dark dark:text-foreground/80',
+                )}
+              >
+                {reason.code}
+              </code>
+            ) : null}
+          </div>
+          <p
+            className={
+              reason.code
+                ? 'whitespace-pre-wrap break-words font-mono text-[12.5px] leading-[1.6] text-ink-soft dark:text-foreground/80'
+                : 'max-w-[62ch] whitespace-pre-wrap break-words text-[14px] leading-[1.6] text-ink-soft dark:text-foreground/80'
+            }
+          >
+            {reason.message}
+          </p>
+        </div>
+      ) : null}
+      <div className="mt-4 font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
+        {stamp}
+      </div>
+    </div>
   );
 }
 
 export function ReviewDecidedPane({
   item,
-  publishedDoc,
-  publishedDocFailed,
-  onLoadPublishedDoc,
+  controller,
 }: {
   item: ReviewDecidedItem | undefined;
-  publishedDoc: PublishedDocument | undefined;
-  publishedDocFailed: boolean;
-  onLoadPublishedDoc: (id: string) => void;
+  controller: ReviewDecidedController;
 }) {
   const t = useTranslations('dashboard.console.review');
   const age = useRelative();
-
-  const publishedId =
-    item?.kind === 'kb' && item.producedRef?.type === 'kb_document'
-      ? item.producedRef.id
-      : null;
-  useEffect(() => {
-    if (!publishedId) return;
-    if (publishedDoc || publishedDocFailed) return;
-    onLoadPublishedDoc(publishedId);
-  }, [publishedId, publishedDoc, publishedDocFailed, onLoadPublishedDoc]);
 
   if (!item) {
     return <section className="hidden min-h-0 flex-col bg-paper-deep md:flex dark:bg-secondary" />;
@@ -69,16 +95,35 @@ export function ReviewDecidedPane({
       ? (item.decidedBy.name ?? t('decidedByUnknown'))
       : t('decidedByAgent');
   const conversationId = decidedConversationId(item);
+  const mergePair = decidedMergePair(item);
 
   return (
     <section className="flex min-h-0 flex-col overflow-y-auto bg-paper dark:bg-background">
       <div className="flex flex-1 flex-col gap-5 px-5 pb-8 pt-6 md:px-7">
         <div className="flex flex-col gap-2.5">
-          <div className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt dark:text-cobalt-soft">
+          <div
+            className={cn(
+              'font-mono text-[10px] font-medium uppercase tracking-eyebrow',
+              item.outcome === 'failed'
+                ? 'text-alert-bad-ink'
+                : 'text-cobalt dark:text-cobalt-soft',
+            )}
+          >
             {decidedOutcomeLabel(item, t)}
           </div>
           <h2 className="max-w-[42ch] font-serif text-[26px] font-normal leading-[1.2] text-ink md:text-[30px] dark:text-foreground">
-            {decidedTitle(item, t)}
+            {mergePair ? (
+              <>
+                {mergePair[0]}
+                <MetaArrow
+                  glyph="↔"
+                  className="mx-2 inline size-[0.5em] align-middle text-ink-mute"
+                />
+                {mergePair[1]}
+              </>
+            ) : (
+              decidedTitle(item, t)
+            )}
           </h2>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
             <span>{decidedBy}</span>
@@ -98,32 +143,10 @@ export function ReviewDecidedPane({
           </div>
         </div>
 
-        <div className="flex flex-col gap-5 border-t border-rule-soft pt-5 dark:border-rule-on-dark">
-          {item.reason ? (
-            <Section label={t('decisionReason')}>
-              <Prose>{item.reason}</Prose>
-            </Section>
-          ) : null}
+        <DecisionRecord item={item} />
 
-          {publishedId ? (
-            publishedDocFailed ? (
-              <Section label={t('publishedBodyLabel')}>
-                <Prose muted>{t('publishedBodyUnavailable')}</Prose>
-              </Section>
-            ) : publishedDoc ? (
-              <Section label={t('publishedBodyLabel')}>
-                <div className="max-w-[62ch] text-[15px] leading-[1.65] text-ink dark:text-foreground">
-                  <Markdown>{publishedDoc.body}</Markdown>
-                </div>
-              </Section>
-            ) : (
-              <PageSpinner />
-            )
-          ) : (
-            <Section label={t('decisionRecordLabel')}>
-              <Prose muted>{t(`decidedSummary.${item.kind}.${item.outcome}`)}</Prose>
-            </Section>
-          )}
+        <div className="flex flex-col gap-5">
+          <ReviewDecidedContent item={item} controller={controller} />
         </div>
       </div>
     </section>

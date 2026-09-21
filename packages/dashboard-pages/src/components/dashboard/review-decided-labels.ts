@@ -20,6 +20,11 @@ export function decidedTitle(item: ReviewDecidedItem, t: Translate): string {
   }
 }
 
+export function decidedMergePair(item: ReviewDecidedItem): [string, string] | null {
+  if (item.kind !== 'crm') return null;
+  return [contactLabel(item.raw.contactA), contactLabel(item.raw.contactB)];
+}
+
 export function decidedOutcomeLabel(item: ReviewDecidedItem, t: Translate): string {
   if (item.outcome === 'failed') return t('outcomeFailed');
   const key = item.outcome === 'approved' ? 'outcomeApproved' : 'outcomeDismissed';

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   shortPublishName,
+  socialMediaKind,
   socialPublishAvailability,
   type SocialPublishTarget,
 } from './social-actions';
@@ -95,5 +96,29 @@ describe('shortPublishName', () => {
   it('has no name to show when the account never reported one', () => {
     expect(shortPublishName(null)).toBeNull();
     expect(shortPublishName('   ')).toBeNull();
+  });
+});
+
+describe('socialMediaKind', () => {
+  it('trusts the stored kind over the file extension', () => {
+    expect(socialMediaKind({ mediaKind: 'video', mediaUrl: 'https://cdn.example/a.png' })).toBe(
+      'video',
+    );
+  });
+
+  it('reads a video extension when the kind is missing', () => {
+    expect(socialMediaKind({ mediaKind: null, mediaUrl: 'https://cdn.example/clip.mp4?v=2' })).toBe(
+      'video',
+    );
+  });
+
+  it('falls back to image for anything else', () => {
+    expect(socialMediaKind({ mediaKind: null, mediaUrl: 'https://cdn.example/photo.jpg' })).toBe(
+      'image',
+    );
+  });
+
+  it('reports nothing when there is no media', () => {
+    expect(socialMediaKind({ mediaKind: null, mediaUrl: null })).toBeNull();
   });
 });

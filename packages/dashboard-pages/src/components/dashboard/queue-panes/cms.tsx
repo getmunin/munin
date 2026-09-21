@@ -34,6 +34,8 @@ import { MoreActionsSheet, MoreActionsTrigger } from '../pane-more-actions';
 import { QueueActionErrorBanner } from '../queue-action-error';
 import type { QueueActionError } from '../inbox-types';
 import { computePatch, defaultForField, seedBlock } from './cms-blocks';
+import { MetaArrow } from '../meta-arrow';
+import { PaneNotice } from '../pane-notice';
 import {
   asBlock,
   blockTypeDef,
@@ -276,9 +278,10 @@ export function CmsQueuePane({
                     href={previewUrl ?? undefined}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className="ml-auto py-3 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt hover:underline dark:text-cobalt-soft"
+                    className="ml-auto inline-flex items-center gap-1 py-3 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt hover:underline dark:text-cobalt-soft"
                   >
-                    {t('cmsOpenPreview')} <span aria-hidden>↗</span>
+                    {t('cmsOpenPreview')}
+              <MetaArrow glyph="↗" />
                   </a>
                 </div>
               ) : null}
@@ -319,41 +322,34 @@ export function CmsQueuePane({
               ) : (
                 <div className="space-y-6 px-5 py-5 md:px-7">
                   {blockedEmbed && !editing ? (
-                    <div className="flex flex-col gap-1 border-l-2 border-alert-bad-border bg-alert-bad px-3 py-2">
-                      <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-alert-bad-ink">
-                        {t('cmsPreviewBlockedEyebrow')}
-                      </span>
-                      <span className="text-[13px] leading-relaxed text-ink dark:text-foreground">
-                        {blockedEmbed.reason === 'x_frame_options'
-                          ? t('cmsPreviewBlockedXfo', {
-                              host: blockedEmbed.previewHost,
-                              value: blockedEmbed.detail ?? '',
-                            })
-                          : t('cmsPreviewBlockedCsp', {
-                              host: blockedEmbed.previewHost,
-                              value: blockedEmbed.detail ?? '',
-                              embedder: blockedEmbed.embedderOrigin,
-                            })}
-                      </span>
-                    </div>
+                    <PaneNotice eyebrow={t('cmsPreviewBlockedEyebrow')}>
+                      {blockedEmbed.reason === 'x_frame_options'
+                        ? t('cmsPreviewBlockedXfo', {
+                            host: blockedEmbed.previewHost,
+                            value: blockedEmbed.detail ?? '',
+                          })
+                        : t('cmsPreviewBlockedCsp', {
+                            host: blockedEmbed.previewHost,
+                            value: blockedEmbed.detail ?? '',
+                            embedder: blockedEmbed.embedderOrigin,
+                          })}
+                    </PaneNotice>
                   ) : previewState === 'failed' && !editing ? (
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-l-2 border-alert-bad-border bg-alert-bad px-3 py-2">
-                      <span className="flex min-w-0 flex-1 flex-col gap-1">
-                        <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-alert-bad-ink">
-                          {t('cmsPreviewFailedEyebrow')}
-                        </span>
-                        <span className="text-[13px] leading-relaxed text-ink dark:text-foreground">
-                          {t('cmsPreviewFailedBody')}
-                        </span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={retryPreview}
-                        className="shrink-0 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt hover:underline dark:text-cobalt-soft"
-                      >
-                        {tCommon('retry')} <span aria-hidden>⟳</span>
-                      </button>
-                    </div>
+                    <PaneNotice
+                      eyebrow={t('cmsPreviewFailedEyebrow')}
+                      action={
+                        <button
+                          type="button"
+                          onClick={retryPreview}
+                          className="inline-flex items-center gap-1 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt hover:underline dark:text-cobalt-soft"
+                        >
+                          {tCommon('retry')}
+                          <MetaArrow glyph="⟳" />
+                        </button>
+                      }
+                    >
+                      {t('cmsPreviewFailedBody')}
+                    </PaneNotice>
                   ) : null}
                   {readOnly && scheduledPublishAt && (
                     <ScheduledNotice
@@ -882,7 +878,7 @@ function FieldEditor({
   }
 }
 
-function FieldViewer({
+export function FieldViewer({
   field,
   value,
   aspectLabel,
@@ -1588,7 +1584,7 @@ function asAsset(value: unknown): CmsAssetExpanded | null {
   return readAssetField({ v: value }, 'v');
 }
 
-function isEmpty(value: unknown): boolean {
+export function isEmpty(value: unknown): boolean {
   if (value == null) return true;
   if (typeof value === 'string') return value.length === 0;
   if (Array.isArray(value)) return value.length === 0;

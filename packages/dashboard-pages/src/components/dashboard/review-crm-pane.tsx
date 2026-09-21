@@ -16,6 +16,7 @@ import { readMergeEvidence } from './merge-evidence';
 import type { QueueActionError } from './inbox-types';
 import { QueueActionErrorBanner } from './queue-action-error';
 import { MoreActionsSheet, MoreActionsTrigger } from './pane-more-actions';
+import { MetaArrow } from './meta-arrow';
 
 export type CrmQueueItem = {
   id: string;
@@ -95,9 +96,7 @@ export function ReviewCrmPane({
           </div>
           <h2 className="font-serif text-[26px] font-normal leading-[1.15] tracking-tight text-ink max-md:hidden md:text-[29px] dark:text-foreground">
             {label(keeper)}
-            <span aria-hidden className="px-2 text-ink-mute">
-              ⟷
-            </span>
+            <MetaArrow glyph="↔" className="mx-2 inline size-[0.5em] align-middle text-ink-mute" />
             {label(duplicate)}
           </h2>
           <p className="max-w-[64ch] text-[14px] leading-relaxed text-ink-soft dark:text-foreground/80">
@@ -142,9 +141,10 @@ export function ReviewCrmPane({
               type="button"
               onClick={() => setCompareAll((open) => !open)}
               aria-expanded={compareAll}
-              className="shrink-0 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt underline-offset-[3px] hover:underline dark:text-cobalt-soft"
+              className="inline-flex shrink-0 items-center gap-1 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-cobalt underline-offset-[3px] hover:underline dark:text-cobalt-soft"
             >
-              {compareAll ? t('compareHide') : t('compareAll')} <span aria-hidden>→</span>
+              {compareAll ? t('compareHide') : t('compareAll')}
+              <MetaArrow />
             </button>
           </div>
 

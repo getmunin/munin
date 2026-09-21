@@ -250,7 +250,7 @@
         "conversationsRecent": "Nylige · åpne",
         "conversationsEmpty": "Ingen åpne samtaler. Nye dukker opp her så snart noen tar kontakt.",
         "reviewLabel": "Venter på deg",
-        "reviewNoteSome": "Ingenting går ut uten ditt ja.",
+        "reviewNoteSome": "Ingenting skjer før du sier ja.",
         "reviewNoteNone": "Ingenting venter på en avgjørelse.",
         "reviewOpen": "Åpne til vurdering →",
         "waiting": "Venter",
@@ -337,7 +337,7 @@
         "cmsPreviewLoading": "Laster forhåndsvisningen …",
         "cmsPreviewTitle": "Forhåndsvisning av utkast",
         "cmsPreviewFailedEyebrow": "Forhåndsvisningen lastet ikke",
-        "cmsPreviewFailedBody": "Nettstedet svarte ikke, eller nekter å bli bygget inn. Feltene under er samme innhold.",
+        "cmsPreviewFailedBody": "Nettstedet svarer ikke, eller lar seg ikke vise i en ramme. Du finner innholdet i feltene under.",
         "cmsPreviewBlockedEyebrow": "Forhåndsvisningen kan ikke bygges inn",
         "cmsPreviewBlockedCsp": "{host} sender en Content-Security-Policy med frame-ancestors {value}, så nettleseren nekter å vise den inne i {embedder}. Legg til det opphavet i frame-ancestors på forhåndsvisningsruten, eller åpne forhåndsvisningen på nettstedet. Feltene under er det samme innholdet.",
         "cmsPreviewBlockedXfo": "{host} sender X-Frame-Options: {value}, som forbyr innbygging overalt — headeren har ingen tillatelsesliste. Fjern den på forhåndsvisningsruten og bruk Content-Security-Policy frame-ancestors i stedet, eller åpne forhåndsvisningen på nettstedet. Feltene under er det samme innholdet.",
@@ -1233,8 +1233,8 @@
     },
     "console": {
       "review": {
-        "eyebrow": "Gjennomgang — det som venter på deg",
-        "title": "Ingenting går ut uten <em>ditt ja.</em>",
+        "eyebrow": "Gjennomgang",
+        "title": "Ingenting skjer før <em>du sier ja.</em>",
         "lede": "Utkast, sammenslåinger og utgående meldinger samler seg her og venter på en avgjørelse. Kunnskapsforslag ligger under — verdt å gjøre, aldri hastverk.",
         "tabWaiting": "Venter",
         "tabScheduled": "Planlagt",
@@ -1275,7 +1275,6 @@
           "feedback": "Avvist",
           "social": "Forkastet"
         },
-        "decisionReason": "Begrunnelse",
         "decidedByAgent": "Agenten",
         "decidedByUnknown": "Ukjent",
         "publishedBodyLabel": "Publisert artikkel",
@@ -1372,7 +1371,7 @@
         },
         "outcomeFailed": "Sending feilet",
         "decidedUntitled": "Uten tittel",
-        "decisionRecordLabel": "Hva skjedde",
+        "decisionReason": "Begrunnelse",
         "decidedSummary": {
           "kb": {
             "approved": "Forslaget ble publisert i kunnskapsbasen.",
@@ -1405,10 +1404,29 @@
             "failed": "Innlegget kunne ikke publiseres."
           }
         },
-        "decidedSocialVariant": "Sosialt innlegg · {label}"
+        "decidedSocialVariant": "Sosialt innlegg · {label}",
+        "decidedContent": {
+          "socialLabel": "Innlegget",
+          "socialMeta": "{platform} · {chars} tegn",
+          "socialVideoUnsupported": "Nettleseren din kan ikke spille av denne videoen.",
+          "socialLinkLabel": "Lenke",
+          "socialLinkInComment": "Lenken gikk i den første kommentaren, ikke i selve innlegget.",
+          "socialLinkCommentLabel": "Første kommentar",
+          "socialPermalink": "Åpne det på {platform}",
+          "outreachLabel": "Det som gikk ut",
+          "feedbackLabel": "Det som ble skrevet",
+          "cmsLabel": "Oppføringen",
+          "cmsMeta": "{collection} · {locale}",
+          "cmsUnavailable": "Oppføringen kunne ikke lastes. Den kan ha blitt slettet siden.",
+          "crmLabel": "De to oppføringene",
+          "crmKept": "Beholdt",
+          "crmArchived": "Arkivert",
+          "crmProposedKeeper": "Foreslått beholdt",
+          "crmProposedDuplicate": "Foreslått duplikat"
+        }
       },
       "automation": {
-        "eyebrow": "Automatisering — per tema",
+        "eyebrow": "Automatisering",
         "title": "Godkjenn til <em>du slipper.</em>",
         "lede": "Hvert tema starter til gjennomgang. Når tallene holder, slår du på automatisk utsending — og køen blir stillere. Det er poenget.",
         "autoRateCaption": "av svarene sendt automatisk · 7 dager",
@@ -1614,7 +1632,7 @@
         "testDelete": "Slett og avslutt"
       },
       "automation": {
-        "eyebrow": "Automatisering — per tema",
+        "eyebrow": "Automatisering",
         "title": "Ingenting å <em>automatisere</em> ennå.",
         "lede": "Temaer blir oppdaget, ikke satt opp. De dukker opp når samtaler kommer inn og blir klassifisert — det finnes ingen regel å sette for et spørsmål ingen har stilt.",
         "chainChannelTitle": "En kanal er åpen",

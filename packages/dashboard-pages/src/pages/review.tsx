@@ -84,10 +84,6 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
     : undefined;
   const selectedScheduled = activeId ? scheduled.find((s) => s.id === activeId) : undefined;
   const selectedDecision = activeId ? recentDecisions.find((d) => d.id === activeId) : undefined;
-  const producedDocId =
-    selectedDecision?.producedRef?.type === 'kb_document'
-      ? selectedDecision.producedRef.id
-      : null;
 
   useEffect(() => {
     setActiveQueueItem(selectedBlocking ?? null);
@@ -368,16 +364,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
         ) : selectedScheduled ? (
           <ReviewScheduledPane item={selectedScheduled} controller={inbox} />
         ) : selectedDecision ? (
-          <ReviewDecidedPane
-            item={selectedDecision}
-            publishedDoc={
-              producedDocId ? decisions.publishedDocs[producedDocId] : undefined
-            }
-            publishedDocFailed={
-              !!producedDocId && !!decisions.publishedDocErrors[producedDocId]
-            }
-            onLoadPublishedDoc={(id) => void decisions.loadPublishedDoc(id)}
-          />
+          <ReviewDecidedPane item={selectedDecision} controller={decisions} />
         ) : (
           <ReviewKbPane
             item={selectedCandidate}

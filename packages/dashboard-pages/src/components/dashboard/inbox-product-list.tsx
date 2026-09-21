@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { formatPriceRange } from '@getmunin/types/message-format';
 import { parseMessageComponents, type ProductListComponent, type ProductListItem } from '@getmunin/types';
 import { cn } from '@getmunin/ui';
+import { MetaArrow } from './meta-arrow';
 
 export function MessageComponents({ metadata }: { metadata: Record<string, unknown> }) {
   const components = parseMessageComponents(metadata.components);
@@ -67,9 +68,10 @@ function ProductCard({ item, viewLabel }: { item: ProductListItem; viewLabel: st
           href={item.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="self-start font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label underline underline-offset-2 hover:text-ink"
+          className="inline-flex items-center gap-1 self-start font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label underline underline-offset-2 hover:text-ink"
         >
-          {viewLabel} ↗
+          {viewLabel}
+              <MetaArrow glyph="↗" />
         </a>
       )}
     </div>

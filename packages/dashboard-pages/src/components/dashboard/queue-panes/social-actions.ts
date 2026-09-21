@@ -37,3 +37,12 @@ export function shortPublishName(
   if (first.length <= MAX_INLINE_AUTHOR_CHARS) return first;
   return `${first.slice(0, MAX_INLINE_AUTHOR_CHARS - 1)}…`;
 }
+
+export function socialMediaKind(draft: {
+  mediaKind: string | null;
+  mediaUrl: string | null;
+}): 'image' | 'video' | null {
+  if (draft.mediaKind === 'image' || draft.mediaKind === 'video') return draft.mediaKind;
+  if (!draft.mediaUrl) return null;
+  return /\.(mp4|mov|m4v|webm)(\?|#|$)/i.test(draft.mediaUrl) ? 'video' : 'image';
+}

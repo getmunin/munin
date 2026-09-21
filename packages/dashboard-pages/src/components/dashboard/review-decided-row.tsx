@@ -34,8 +34,17 @@ export function ReviewDecidedRow({
       meta={
         <>
           <span
-            className={cn(item.outcome === 'approved' && 'text-ink dark:text-foreground')}
+            className={cn(
+              item.outcome === 'approved' && 'text-ink dark:text-foreground',
+              item.outcome === 'failed' && 'text-alert-bad-ink',
+            )}
           >
+            {item.outcome === 'failed' ? (
+              <span
+                aria-hidden
+                className="mr-1.5 inline-block size-[6px] rounded-full bg-alert-bad-border align-[0.05em]"
+              />
+            ) : null}
             {decidedOutcomeLabel(item, t)}
           </span>
           {` · ${decidedBy}`}

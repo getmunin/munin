@@ -1233,7 +1233,7 @@
     },
     "console": {
       "review": {
-        "eyebrow": "Gjennomgang — det som venter på deg",
+        "eyebrow": "Gjennomgang",
         "title": "Ingenting skjer før <em>du sier ja.</em>",
         "lede": "Utkast, sammenslåinger og utgående meldinger samler seg her og venter på en avgjørelse. Kunnskapsforslag ligger under — verdt å gjøre, aldri hastverk.",
         "tabWaiting": "Venter",
@@ -1426,7 +1426,7 @@
         }
       },
       "automation": {
-        "eyebrow": "Automatisering — per tema",
+        "eyebrow": "Automatisering",
         "title": "Godkjenn til <em>du slipper.</em>",
         "lede": "Hvert tema starter til gjennomgang. Når tallene holder, slår du på automatisk utsending — og køen blir stillere. Det er poenget.",
         "autoRateCaption": "av svarene sendt automatisk · 7 dager",
@@ -1632,7 +1632,7 @@
         "testDelete": "Slett og avslutt"
       },
       "automation": {
-        "eyebrow": "Automatisering — per tema",
+        "eyebrow": "Automatisering",
         "title": "Ingenting å <em>automatisere</em> ennå.",
         "lede": "Temaer blir oppdaget, ikke satt opp. De dukker opp når samtaler kommer inn og blir klassifisert — det finnes ingen regel å sette for et spørsmål ingen har stilt.",
         "chainChannelTitle": "En kanal er åpen",

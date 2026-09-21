@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../../api';
 import { useRealtime, type SubscriptionChannel } from '../../realtime';
 import type { ReviewDecidedWireItem } from './inbox-types';
+import type { CmsDraftDetailDto } from './queue-panes/types';
 
 export const DECIDED_PAGE_SIZE = 50;
 
@@ -32,6 +33,9 @@ export interface ReviewDecidedController {
   publishedDocs: Record<string, PublishedDocument>;
   publishedDocErrors: Record<string, ApiError>;
   loadPublishedDoc: (id: string) => Promise<void>;
+  cmsEntries: Record<string, CmsDraftDetailDto>;
+  cmsEntryErrors: Record<string, ApiError>;
+  loadCmsEntry: (id: string) => Promise<void>;
 }
 
 interface DecidedPage {
@@ -48,6 +52,8 @@ export function useReviewDecided(): ReviewDecidedController {
   const [loadingMore, setLoadingMore] = useState(false);
   const [publishedDocs, setPublishedDocs] = useState<Record<string, PublishedDocument>>({});
   const [publishedDocErrors, setPublishedDocErrors] = useState<Record<string, ApiError>>({});
+  const [cmsEntries, setCmsEntries] = useState<Record<string, CmsDraftDetailDto>>({});
+  const [cmsEntryErrors, setCmsEntryErrors] = useState<Record<string, ApiError>>({});
 
   const fetchPage = useCallback(async (after: string | null): Promise<DecidedPage> => {
     const query = new URLSearchParams({ state: 'decided', limit: String(DECIDED_PAGE_SIZE) });
@@ -108,6 +114,21 @@ export function useReviewDecided(): ReviewDecidedController {
     }
   }, []);
 
+  const loadCmsEntry = useCallback(async (id: string) => {
+    setCmsEntryErrors((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    try {
+      const entry = await api<CmsDraftDetailDto>(`/v1/cms/drafts/${id}`);
+      setCmsEntries((prev) => ({ ...prev, [id]: entry }));
+    } catch (err) {
+      if (err instanceof ApiError) setCmsEntryErrors((prev) => ({ ...prev, [id]: err }));
+    }
+  }, []);
+
   const subscriptions = useMemo<SubscriptionChannel[]>(() => [{ channel: 'org' }], []);
   useRealtime(subscriptions, (event) => {
     const decided =
@@ -142,5 +163,8 @@ export function useReviewDecided(): ReviewDecidedController {
     publishedDocs,
     publishedDocErrors,
     loadPublishedDoc,
+    cmsEntries,
+    cmsEntryErrors,
+    loadCmsEntry,
   };
 }

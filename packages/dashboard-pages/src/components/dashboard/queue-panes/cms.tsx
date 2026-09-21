@@ -882,7 +882,7 @@ function FieldEditor({
   }
 }
 
-function FieldViewer({
+export function FieldViewer({
   field,
   value,
   aspectLabel,
@@ -1588,7 +1588,7 @@ function asAsset(value: unknown): CmsAssetExpanded | null {
   return readAssetField({ v: value }, 'v');
 }
 
-function isEmpty(value: unknown): boolean {
+export function isEmpty(value: unknown): boolean {
   if (value == null) return true;
   if (typeof value === 'string') return value.length === 0;
   if (Array.isArray(value)) return value.length === 0;

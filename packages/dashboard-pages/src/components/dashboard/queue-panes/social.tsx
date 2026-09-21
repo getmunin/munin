@@ -7,12 +7,8 @@ import { useRelative } from '../../../lib/use-relative';
 import { useSocialPublishTargets } from '../../../lib/use-publish-target';
 import { PaneFooter, PaneHeader, useCmdEnter } from './shared';
 import type { QueueActionError } from '../inbox-types';
-import { shortPublishName, socialPublishAvailability } from './social-actions';
+import { shortPublishName, socialMediaKind, socialPublishAvailability } from './social-actions';
 import type { SocialDraftDto } from './types';
-
-function guessMediaKind(url: string): 'image' | 'video' {
-  return /\.(mp4|mov|m4v|webm)(\?|#|$)/i.test(url) ? 'video' : 'image';
-}
 
 export function SocialQueuePane({
   item,
@@ -42,7 +38,7 @@ export function SocialQueuePane({
   const draft = item.raw;
   const shareUrl = draft.shareUrl ?? draft.linkUrl;
   const linkInComment = draft.linkPlacement === 'comment';
-  const mediaKind = draft.mediaKind ?? (draft.mediaUrl ? guessMediaKind(draft.mediaUrl) : null);
+  const mediaKind = socialMediaKind(draft);
   const targets = useSocialPublishTargets(draft.canPublish);
   const availability = socialPublishAvailability(draft, targets);
   const canPublishNow = availability.state === 'ready' && onPublish !== undefined;

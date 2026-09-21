@@ -1405,7 +1405,26 @@
             "failed": "The post could not be published."
           }
         },
-        "decidedSocialVariant": "Social post · {label}"
+        "decidedSocialVariant": "Social post · {label}",
+        "decidedContent": {
+          "socialLabel": "The post",
+          "socialMeta": "{platform} · {chars} characters",
+          "socialVideoUnsupported": "Your browser cannot play this video.",
+          "socialLinkLabel": "Link",
+          "socialLinkInComment": "The link went in the first comment, not the post itself.",
+          "socialLinkCommentLabel": "First comment",
+          "socialPermalink": "Open it on {platform}",
+          "outreachLabel": "What went out",
+          "feedbackLabel": "What was written",
+          "cmsLabel": "The entry",
+          "cmsMeta": "{collection} · {locale}",
+          "cmsUnavailable": "The entry could not be loaded. It may have been deleted since.",
+          "crmLabel": "The two records",
+          "crmKept": "Kept",
+          "crmArchived": "Archived",
+          "crmProposedKeeper": "Proposed keeper",
+          "crmProposedDuplicate": "Proposed duplicate"
+        }
       },
       "automation": {
         "eyebrow": "Automation — per topic",

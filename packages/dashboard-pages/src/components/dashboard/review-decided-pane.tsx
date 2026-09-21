@@ -1,26 +1,15 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { PageSpinner } from '@getmunin/ui';
 import { Link } from '../../i18n-navigation';
 import { useRelative } from '../../lib/use-relative';
-import { Markdown } from './queue-panes/shared';
-import type { PublishedDocument, ReviewDecidedItem } from './review-decided';
+import { DecidedSection, ReviewDecidedContent } from './review-decided-content';
+import type { ReviewDecidedController, ReviewDecidedItem } from './review-decided';
 import {
   decidedConversationId,
   decidedOutcomeLabel,
   decidedTitle,
 } from './review-decided-labels';
-
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-2.5">
-      <div className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">{label}</div>
-      {children}
-    </div>
-  );
-}
 
 function Prose({ children, muted }: { children: React.ReactNode; muted?: boolean }) {
   return (
@@ -38,27 +27,13 @@ function Prose({ children, muted }: { children: React.ReactNode; muted?: boolean
 
 export function ReviewDecidedPane({
   item,
-  publishedDoc,
-  publishedDocFailed,
-  onLoadPublishedDoc,
+  controller,
 }: {
   item: ReviewDecidedItem | undefined;
-  publishedDoc: PublishedDocument | undefined;
-  publishedDocFailed: boolean;
-  onLoadPublishedDoc: (id: string) => void;
+  controller: ReviewDecidedController;
 }) {
   const t = useTranslations('dashboard.console.review');
   const age = useRelative();
-
-  const publishedId =
-    item?.kind === 'kb' && item.producedRef?.type === 'kb_document'
-      ? item.producedRef.id
-      : null;
-  useEffect(() => {
-    if (!publishedId) return;
-    if (publishedDoc || publishedDocFailed) return;
-    onLoadPublishedDoc(publishedId);
-  }, [publishedId, publishedDoc, publishedDocFailed, onLoadPublishedDoc]);
 
   if (!item) {
     return <section className="hidden min-h-0 flex-col bg-paper-deep md:flex dark:bg-secondary" />;
@@ -100,30 +75,16 @@ export function ReviewDecidedPane({
 
         <div className="flex flex-col gap-5 border-t border-rule-soft pt-5 dark:border-rule-on-dark">
           {item.reason ? (
-            <Section label={t('decisionReason')}>
+            <DecidedSection label={t('decisionReason')}>
               <Prose>{item.reason}</Prose>
-            </Section>
+            </DecidedSection>
           ) : null}
 
-          {publishedId ? (
-            publishedDocFailed ? (
-              <Section label={t('publishedBodyLabel')}>
-                <Prose muted>{t('publishedBodyUnavailable')}</Prose>
-              </Section>
-            ) : publishedDoc ? (
-              <Section label={t('publishedBodyLabel')}>
-                <div className="max-w-[62ch] text-[15px] leading-[1.65] text-ink dark:text-foreground">
-                  <Markdown>{publishedDoc.body}</Markdown>
-                </div>
-              </Section>
-            ) : (
-              <PageSpinner />
-            )
-          ) : (
-            <Section label={t('decisionRecordLabel')}>
-              <Prose muted>{t(`decidedSummary.${item.kind}.${item.outcome}`)}</Prose>
-            </Section>
-          )}
+          <DecidedSection label={t('decisionRecordLabel')}>
+            <Prose muted>{t(`decidedSummary.${item.kind}.${item.outcome}`)}</Prose>
+          </DecidedSection>
+
+          <ReviewDecidedContent item={item} controller={controller} />
         </div>
       </div>
     </section>

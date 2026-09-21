@@ -250,7 +250,7 @@
         "conversationsRecent": "Nylige · åpne",
         "conversationsEmpty": "Ingen åpne samtaler. Nye dukker opp her så snart noen tar kontakt.",
         "reviewLabel": "Venter på deg",
-        "reviewNoteSome": "Ingenting går ut uten ditt ja.",
+        "reviewNoteSome": "Ingenting skjer før du sier ja.",
         "reviewNoteNone": "Ingenting venter på en avgjørelse.",
         "reviewOpen": "Åpne til vurdering →",
         "waiting": "Venter",
@@ -1234,7 +1234,7 @@
     "console": {
       "review": {
         "eyebrow": "Gjennomgang — det som venter på deg",
-        "title": "Ingenting går ut uten <em>ditt ja.</em>",
+        "title": "Ingenting skjer før <em>du sier ja.</em>",
         "lede": "Utkast, sammenslåinger og utgående meldinger samler seg her og venter på en avgjørelse. Kunnskapsforslag ligger under — verdt å gjøre, aldri hastverk.",
         "tabWaiting": "Venter",
         "tabScheduled": "Planlagt",
@@ -1405,7 +1405,26 @@
             "failed": "Innlegget kunne ikke publiseres."
           }
         },
-        "decidedSocialVariant": "Sosialt innlegg · {label}"
+        "decidedSocialVariant": "Sosialt innlegg · {label}",
+        "decidedContent": {
+          "socialLabel": "Innlegget",
+          "socialMeta": "{platform} · {chars} tegn",
+          "socialVideoUnsupported": "Nettleseren din kan ikke spille av denne videoen.",
+          "socialLinkLabel": "Lenke",
+          "socialLinkInComment": "Lenken gikk i den første kommentaren, ikke i selve innlegget.",
+          "socialLinkCommentLabel": "Første kommentar",
+          "socialPermalink": "Åpne det på {platform}",
+          "outreachLabel": "Det som gikk ut",
+          "feedbackLabel": "Det som ble skrevet",
+          "cmsLabel": "Oppføringen",
+          "cmsMeta": "{collection} · {locale}",
+          "cmsUnavailable": "Oppføringen kunne ikke lastes. Den kan ha blitt slettet siden.",
+          "crmLabel": "De to oppføringene",
+          "crmKept": "Beholdt",
+          "crmArchived": "Arkivert",
+          "crmProposedKeeper": "Foreslått beholdt",
+          "crmProposedDuplicate": "Foreslått duplikat"
+        }
       },
       "automation": {
         "eyebrow": "Automatisering — per tema",

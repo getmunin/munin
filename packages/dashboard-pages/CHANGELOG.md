@@ -1,5 +1,68 @@
 # @getmunin/dashboard-pages
 
+## 5.34.0
+
+### Minor Changes
+
+- eecea61: Review → Decided now shows what was actually decided, read-only. The pane used to
+  carry a one-line decision record for everything but a published KB article; it now
+  renders the artifact itself: the social post with its media, link and first comment
+  (plus a permalink once it is live), the outreach message in its envelope, the
+  feedback text, the two CRM records with the keeper marked, and the CMS entry's
+  fields through the same viewer the queue pane uses in read mode.
+
+  The decision itself now leads the pane as one record: a cobalt rule over a pale
+  cobalt ground with the outcome stated in plain sans — or the alert palette
+  throughout, the pane's own eyebrow included, when the send or publish failed.
+  The record carries no label of its own; the eyebrow above the title already
+  names the outcome, and a second one over a self-describing sentence was noise.
+  A reason sits on its own panel below, always under the same label; where the
+  service threw a `<module>_<code>:` prefix, that code is lifted out beside the
+  label as its own token and the message is set in mono. The decision's timestamp
+  closes the card.
+
+  A failed decision is visible before you open it: its row in the Decided list
+  carries a red dot and sets its outcome in the alert ink, so a send that gave
+  up does not read like an ordinary dismissal while scanning.
+
+### Patch Changes
+
+- eecea61: The trailing glyph on a mono label link no longer reads as a hairline, and no
+  longer floats above the words it follows. JetBrains Mono ships none of `→`, `↗`
+  or `⟳`, so each one was silently falling back to Menlo at a weight and baseline
+  of its own — which is why they looked thin next to 10px tracked-out uppercase,
+  and why no single vertical-align could seat all three. A shared `MetaArrow` now
+  draws them as inline SVG on a 24 viewBox at 12px with a 2.25 stroke, centered
+  by flexbox, so weight and alignment are ours rather than the fallback font's
+  (compare-all, see-diff, open-preview, retry, the social permalink, the product
+  link and the decided notice's disclosure).
+
+  The merge headlines draw their arrow too. Instrument Serif carries no arrow at
+  all, so `A ⟷ B` in the CRM pane was set in Apple Symbols and `A ↔ B` in the
+  decided pane in Times New Roman — a second typeface inside a 29px serif line.
+
+- eecea61: Norwegian console eyebrows lose their trailing clause: Review reads "Gjennomgang"
+  and Automation reads "Automatisering", instead of restating in the eyebrow what
+  the headline underneath already says.
+- eecea61: The CMS preview failure says what happened in both languages: a site does not
+  refuse to be embedded, it will not display in a frame, and "the fields below
+  are the same content" was never a sentence. English and Norwegian both rewritten
+  ("Nettstedet svarer ikke, eller lar seg ikke vise i en ramme. Du finner
+  innholdet i feltene under.").
+- eecea61: The review panes had four ways of saying the same thing: a filled left-rule
+  notice with a mono eyebrow (outreach deliverability and revised-after-review,
+  the CMS preview blocked and failed states), a bare left-rule one-liner with no
+  fill (outreach's missing destination), and a pane-wide row that reached for the
+  `destructive` token rather than the alert family — two alerts in one console
+  that were not even the same red. They now share one `PaneNotice`: tone, an
+  optional eyebrow, an optional trailing action, and the fill following from
+  whether it has either, so the distinction between a headed notice and a lone
+  sentence is a prop instead of five copies of the same class list. The action
+  banner keeps its own shape — it is a pane-level report of a failed click, not
+  an inline caveat — but wears `alert-bad-ink` like everything else.
+- @getmunin/types@5.34.0
+  - @getmunin/ui@5.34.0
+
 ## 5.33.0
 
 ### Minor Changes

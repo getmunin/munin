@@ -1,5 +1,44 @@
 # @getmunin/backend-core
 
+## 5.34.0
+
+### Patch Changes
+
+- b3103d8: Social: convert a webp, avif or tiff picture on the way out instead of dropping it.
+
+  A LinkedIn post published from a draft with no `mediaUrl` takes its picture from the
+  linked page's `og:image`. Every platform descriptor accepts only jpeg, png and gif, so a
+  site whose card image is a webp — which is most sites built in the last few years, and
+  every page whose image came from the Munin CMS, since CMS renditions are webp — hit
+  `fetchMedia`'s content-type guard, threw, and was swallowed by the best-effort scrape
+  path. The post went out as a wall of text and nothing said so.
+
+  `fetchMedia` now converts a decodable source the platform will not take: png when the
+  image is genuinely transparent, jpeg otherwise, checked with sharp's opacity stats rather
+  than the presence of an alpha channel — avif keeps an opaque alpha channel, and trusting
+  `hasAlpha` would turn every avif photo into a needlessly large png. The size ceiling is
+  enforced against the converted file, and a conversion that lands over it is refused rather
+  than sent for the platform to reject. An explicitly attached `mediaUrl` gets the same
+  treatment, so pointing a draft at a webp asset now works too.
+
+  The swallowed scrape failure also logs at warn rather than debug, so the next picture that
+  cannot be attached leaves a trace.
+
+- f94f4e2: Slack: move a CMS locale card into its article's thread when the parent arrives late
+
+  A translation group is a group of one until its second locale exists, and locales are written one `cms_create_entry` call at a time. So the bridge posted the first locale's card while `cmsGroupContext` still saw a single sibling, found no parent to thread under, and left it standing in the channel — the parent appeared underneath it seconds later and collected only the remaining locales. A four-locale article showed one stray headline plus a parent claiming four locales over three replies.
+
+  Slack has no API for moving a message into a thread, so the card is reposted under the parent and the original deleted. Whether a card is threaded is now stored (`slack_notification_links.slack_thread_ts`) rather than inferred: rehoming runs on every parent lookup and skips cards already in the thread, which makes it idempotent and safe to retry after a failed delivery. The backfill marks existing cards created after their parent — the ones that were threaded all along — so only genuinely stranded cards are moved.
+
+- Updated dependencies [f94f4e2]
+  - @getmunin/db@5.34.0
+  - @getmunin/inspector-app@5.34.0
+  - @getmunin/core@5.34.0
+  - @getmunin/agent-runtime@5.34.0
+  - @getmunin/mcp-toolkit@5.34.0
+  - @getmunin/emails@5.34.0
+  - @getmunin/types@5.34.0
+
 ## 5.33.0
 
 ### Minor Changes

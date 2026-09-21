@@ -28,6 +28,7 @@ interface PostedMessage {
 class FakeSlackApi extends SlackApiClient {
   posted: PostedMessage[] = [];
   updated: { channel: string; ts: string; text: string; blocks?: unknown[] }[] = [];
+  deleted: { channel: string; ts: string }[] = [];
   failNextPosts = 0;
   private counter = 0;
 
@@ -67,6 +68,11 @@ class FakeSlackApi extends SlackApiClient {
       text: input.text,
       blocks: input.blocks,
     });
+    return Promise.resolve();
+  }
+
+  override deleteMessage(input: { token: string; channel: string; ts: string }): Promise<void> {
+    this.deleted.push({ channel: input.channel, ts: input.ts });
     return Promise.resolve();
   }
 }
@@ -1249,6 +1255,76 @@ function buttonValues(blocks: unknown[] | undefined): string[] {
     expect(api.posted[1]!.threadTs).toBe(parent.ts);
     expect(api.posted[2]!.threadTs).toBe(parent.ts);
     expect(api.posted[3]!.threadTs).toBeUndefined();
+  });
+
+  it('moves a locale card that already posted alone into the thread once a sibling arrives', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const group = 'cmg_agentic_support';
+    const nb = await seedCmsDraft({ translationGroupId: group, locale: 'nb' });
+
+    await emit('cms.entry.created', {
+      entryId: nb,
+      collectionSlug: 'blog',
+      locale: 'nb',
+      status: 'draft',
+      version: 1,
+    });
+    await worker.tick();
+
+    expect(api.posted).toHaveLength(1);
+    const stranded = api.posted[0]!;
+    expect(stranded.threadTs).toBeUndefined();
+
+    const en = await seedCmsDraft({ translationGroupId: group, locale: 'en' });
+    await emit('cms.entry.created', {
+      entryId: en,
+      collectionSlug: 'blog',
+      locale: 'en',
+      status: 'draft',
+      version: 1,
+    });
+    await worker.tick();
+
+    const parent = api.posted[1]!;
+    expect(parent.threadTs).toBeUndefined();
+    expect(parent.text).toContain('2 locales awaiting review');
+    expect(api.posted.slice(2).map((p) => p.threadTs)).toEqual([parent.ts, parent.ts]);
+    expect(api.deleted).toEqual([{ channel: stranded.channel, ts: stranded.ts }]);
+
+    const [moved] = await db
+      .select()
+      .from(schema.slackNotificationLinks)
+      .where(
+        and(
+          eq(schema.slackNotificationLinks.subjectType, 'cms_draft_entry'),
+          eq(schema.slackNotificationLinks.subjectId, nb),
+        ),
+      );
+    expect(moved!.slackTs).toBe(api.posted[2]!.ts);
+    expect(moved!.slackThreadTs).toBe(parent.ts);
+  });
+
+  it('leaves an already-threaded locale card alone when a third locale arrives', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const group = 'cmg_agentic_support';
+    const nb = await seedCmsDraft({ translationGroupId: group, locale: 'nb' });
+    const en = await seedCmsDraft({ translationGroupId: group, locale: 'en' });
+
+    for (const entryId of [nb, en]) {
+      await emit('cms.entry.created', { entryId, collectionSlug: 'blog', status: 'draft', version: 1 });
+    }
+    await worker.tick();
+    expect(api.deleted).toEqual([]);
+
+    const da = await seedCmsDraft({ translationGroupId: group, locale: 'da' });
+    await emit('cms.entry.created', { entryId: da, collectionSlug: 'blog', status: 'draft', version: 1 });
+    await worker.tick();
+
+    expect(api.deleted).toEqual([]);
+    expect(api.posted).toHaveLength(4);
+    expect(api.posted[3]!.threadTs).toBe(api.posted[0]!.ts);
   });
 
   it('closes the locale parent once every locale of the article is decided', async () => {

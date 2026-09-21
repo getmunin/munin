@@ -1,5 +1,5 @@
 import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { and, asc, eq, isNull, lt, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, lt, lte, sql } from 'drizzle-orm';
 import { schema, type Db } from '@getmunin/db';
 import { describeError, parseEnvDisableFlag, parseEnvInt, readApiBaseUrl } from '@getmunin/core';
 import { DB } from '../../common/db/db.module.ts';
@@ -605,6 +605,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         subjectId: subject.subjectId,
         slackChannelId: posted.channel,
         slackTs: posted.ts,
+        slackThreadTs: threadTs ?? null,
         resolvedAt: rendering.resolved ? new Date() : null,
       })
       .onConflictDoNothing();
@@ -874,6 +875,13 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     if (!context) return null;
     const link = await this.cmsGroupParentLink(integration.id, context.groupId);
     if (link && link.slackChannelId === route.slackChannelId) {
+      await this.rehomeCmsGroupCards({
+        integration,
+        groupId: context.groupId,
+        channel: link.slackChannelId,
+        threadTs: link.slackTs,
+        token,
+      });
       return { slackTs: link.slackTs, slackChannelId: link.slackChannelId };
     }
 
@@ -908,7 +916,65 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         ],
         set: { slackChannelId: posted.channel, slackTs: posted.ts, resolvedAt: null },
       });
+    await this.rehomeCmsGroupCards({
+      integration,
+      groupId: context.groupId,
+      channel: posted.channel,
+      threadTs: posted.ts,
+      token,
+    });
     return { slackTs: posted.ts, slackChannelId: posted.channel };
+  }
+
+  private async rehomeCmsGroupCards(input: {
+    integration: IntegrationRow;
+    groupId: string;
+    channel: string;
+    threadTs: string;
+    token: string;
+  }): Promise<void> {
+    const { integration, groupId, channel, threadTs, token } = input;
+    const siblings = await this.db
+      .select({ id: schema.cmsEntries.id })
+      .from(schema.cmsEntries)
+      .where(eq(schema.cmsEntries.translationGroupId, groupId));
+    if (siblings.length === 0) return;
+
+    const stranded = await this.db
+      .select()
+      .from(schema.slackNotificationLinks)
+      .where(
+        and(
+          eq(schema.slackNotificationLinks.integrationId, integration.id),
+          eq(schema.slackNotificationLinks.subjectType, 'cms_draft_entry'),
+          inArray(
+            schema.slackNotificationLinks.subjectId,
+            siblings.map((row) => row.id),
+          ),
+          eq(schema.slackNotificationLinks.slackChannelId, channel),
+          isNull(schema.slackNotificationLinks.slackThreadTs),
+        ),
+      )
+      .orderBy(asc(schema.slackNotificationLinks.createdAt));
+
+    for (const card of stranded) {
+      const subject = { subjectType: 'cms_draft_entry', subjectId: card.subjectId };
+      const rendering = await this.renderApproval(integration.orgId, subject, {}, null, null);
+      const posted = await this.api.postMessage({
+        token,
+        channel,
+        threadTs,
+        text: rendering.text,
+        blocks: rendering.blocks,
+      });
+      await this.db
+        .update(schema.slackNotificationLinks)
+        .set({ slackChannelId: posted.channel, slackTs: posted.ts, slackThreadTs: threadTs })
+        .where(eq(schema.slackNotificationLinks.id, card.id));
+      await this.api
+        .deleteMessage({ token, channel: card.slackChannelId, ts: card.slackTs })
+        .catch(() => undefined);
+    }
   }
 
   private async refreshCmsGroupParent(

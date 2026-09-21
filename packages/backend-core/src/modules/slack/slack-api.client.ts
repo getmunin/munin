@@ -81,6 +81,13 @@ export class SlackApiClient {
     });
   }
 
+  async deleteMessage(input: { token: string; channel: string; ts: string }): Promise<void> {
+    await this.call('chat.delete', input.token, {
+      channel: input.channel,
+      ts: input.ts,
+    });
+  }
+
   async postEphemeral(input: {
     token: string;
     channel: string;

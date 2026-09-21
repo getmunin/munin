@@ -2579,6 +2579,7 @@ export const slackNotificationLinks = pgTable(
     subjectId: text('subject_id').notNull(),
     slackChannelId: text('slack_channel_id').notNull(),
     slackTs: text('slack_ts').notNull(),
+    slackThreadTs: text('slack_thread_ts'),
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),
     createdAt,
   },

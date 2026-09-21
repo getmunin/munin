@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { cn } from '@getmunin/ui';
 import { Link } from '../../i18n-navigation';
 import { useRelative } from '../../lib/use-relative';
 import { splitDecisionReason } from './decision-reason';
@@ -15,42 +16,61 @@ import {
 function DecisionRecord({ item }: { item: ReviewDecidedItem }) {
   const t = useTranslations('dashboard.console.review');
   const reason = splitDecisionReason(item.reason);
+  const bad = item.outcome === 'failed';
   const stamp = new Date(item.at).toLocaleString(undefined, {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
 
   return (
-    <div className="border-t-[3px] border-cobalt bg-cobalt/[0.055] px-5 py-5 md:px-6 md:py-6 dark:bg-cobalt/10">
-      <div className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label dark:text-foreground/70">
-        {t('decisionRecordLabel')}
-      </div>
-      <p className="mt-2.5 max-w-[46ch] font-serif text-[21px] font-normal leading-[1.32] text-ink md:text-[23px] dark:text-foreground">
-        {t.rich(`decidedSummary.${item.kind}.${item.outcome}`, {
-          em: (chunks) => <em className="italic text-cobalt dark:text-cobalt-soft">{chunks}</em>,
-        })}
-      </p>
-      {reason ? (
-        <div className="mt-4 flex flex-col items-start gap-2 bg-ink/[0.045] px-4 py-3.5 dark:bg-ink/50">
-          {reason.code ? (
-            <span className="border border-ink/20 px-2 py-1 font-mono text-[11px] leading-none text-ink-soft dark:border-rule-on-dark dark:text-foreground/80">
-              {reason.code}
-            </span>
-          ) : null}
-          <p
-            className={
-              reason.code
-                ? 'whitespace-pre-wrap break-words font-mono text-[12.5px] leading-[1.6] text-ink-soft dark:text-foreground/80'
-                : 'max-w-[62ch] whitespace-pre-wrap break-words text-[14px] leading-[1.6] text-ink-soft dark:text-foreground/80'
-            }
-          >
-            {reason.message}
-          </p>
-        </div>
-      ) : null}
-      <div className="mt-4 font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute dark:text-foreground/60">
+    <div
+      className={cn(
+        'flex flex-wrap items-start gap-x-4 gap-y-1 border-l-2 px-3 py-2',
+        bad ? 'border-alert-bad-border bg-alert-bad' : 'border-cobalt bg-cobalt/[0.06] dark:bg-cobalt/10',
+      )}
+    >
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span
+          className={cn(
+            'font-mono text-[10px] font-medium uppercase tracking-eyebrow',
+            bad ? 'text-alert-bad-ink' : 'text-cobalt dark:text-cobalt-soft',
+          )}
+        >
+          {t('decisionRecordLabel')}
+        </span>
+        <span className="text-[13px] leading-relaxed text-ink dark:text-foreground">
+          {t.rich(`decidedSummary.${item.kind}.${item.outcome}`, {
+            em: (chunks) => (
+              <em
+                className={cn(
+                  'italic',
+                  bad ? 'text-alert-bad-ink' : 'text-cobalt dark:text-cobalt-soft',
+                )}
+              >
+                {chunks}
+              </em>
+            ),
+          })}
+        </span>
+        {reason ? (
+          <span className="flex flex-wrap items-baseline gap-x-2 text-[13px] leading-relaxed text-ink-soft dark:text-foreground/80">
+            {reason.code ? (
+              <code
+                className={cn(
+                  'font-mono text-[11.5px]',
+                  bad ? 'text-alert-bad-ink' : 'text-ink-mute dark:text-foreground/60',
+                )}
+              >
+                {reason.code}
+              </code>
+            ) : null}
+            <span className="min-w-0 whitespace-pre-wrap break-words">{reason.message}</span>
+          </span>
+        ) : null}
+      </span>
+      <span className="shrink-0 font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
         {stamp}
-      </div>
+      </span>
     </div>
   );
 }

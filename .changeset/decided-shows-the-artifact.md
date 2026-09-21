@@ -9,7 +9,10 @@ renders the artifact itself: the social post with its media, link and first comm
 feedback text, the two CRM records with the keeper marked, and the CMS entry's
 fields through the same viewer the queue pane uses in read mode.
 
-The decision itself now leads the pane as one record card instead of two thin
-prose blocks: the outcome sentence is set in serif with its consequence carried
-in a cobalt italic, the reason sits under it with any `<module>_<code>` prefix
-lifted into its own chip, and the decision's timestamp closes the card.
+The decision itself now leads the pane as one notice, built from the same
+banner the queue panes already use for a warning — a 2px accent bar, a tinted
+wash, a mono eyebrow and the sentence under it — in cobalt, or in the alert
+palette when the send or publish failed. The outcome sentence carries its
+consequence in an italic (every decidedSummary string now marks that clause
+with <em>), a reason thrown by a service shows its `<module>_<code>` prefix as
+its own mono token, and the decision's timestamp sits at the right edge.

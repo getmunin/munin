@@ -9,11 +9,16 @@ renders the artifact itself: the social post with its media, link and first comm
 feedback text, the two CRM records with the keeper marked, and the CMS entry's
 fields through the same viewer the queue pane uses in read mode.
 
-The decision itself now leads the pane as one notice, built from the same
-banner the queue panes already use for a warning — a 2px accent bar, a tinted
-wash, a mono eyebrow and the sentence under it — in cobalt, or in the alert
-palette when the send or publish failed. A decision that carries a reason turns
-the whole notice into a disclosure: an arrow sits under the timestamp at the
-right edge, the tint lifts on hover, and clicking anywhere on the notice opens
-the labelled reason underneath, with any `<module>_<code>` prefix a service
-threw shown as its own mono token.
+The decision itself now leads the pane as one record: a cobalt rule over a pale
+cobalt ground with the outcome stated in plain sans — or the alert palette
+throughout, the pane's own eyebrow included, when the send or publish failed.
+The record carries no label of its own; the eyebrow above the title already
+names the outcome, and a second one over a self-describing sentence was noise.
+A reason sits on its own panel below, always under the same label; where the
+service threw a `<module>_<code>:` prefix, that code is lifted out beside the
+label as its own token and the message is set in mono. The decision's timestamp
+closes the card.
+
+A failed decision is visible before you open it: its row in the Decided list
+carries a red dot and sets its outcome in the alert ink, so a send that gave
+up does not read like an ordinary dismissal while scanning.

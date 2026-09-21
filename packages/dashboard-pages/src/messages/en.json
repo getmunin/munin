@@ -1371,7 +1371,6 @@
         },
         "outcomeFailed": "Send failed",
         "decidedUntitled": "Untitled",
-        "decisionRecordLabel": "What happened",
         "decisionReason": "Reason given",
         "decidedSummary": {
           "kb": {

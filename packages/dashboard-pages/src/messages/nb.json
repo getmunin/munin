@@ -337,7 +337,7 @@
         "cmsPreviewLoading": "Laster forhåndsvisningen …",
         "cmsPreviewTitle": "Forhåndsvisning av utkast",
         "cmsPreviewFailedEyebrow": "Forhåndsvisningen lastet ikke",
-        "cmsPreviewFailedBody": "Nettstedet svarte ikke, eller tillater ikke innbygging. Innholdet står i feltene under.",
+        "cmsPreviewFailedBody": "Nettstedet svarte ikke, eller nekter å bli bygget inn. Feltene under er samme innhold.",
         "cmsPreviewBlockedEyebrow": "Forhåndsvisningen kan ikke bygges inn",
         "cmsPreviewBlockedCsp": "{host} sender en Content-Security-Policy med frame-ancestors {value}, så nettleseren nekter å vise den inne i {embedder}. Legg til det opphavet i frame-ancestors på forhåndsvisningsruten, eller åpne forhåndsvisningen på nettstedet. Feltene under er det samme innholdet.",
         "cmsPreviewBlockedXfo": "{host} sender X-Frame-Options: {value}, som forbyr innbygging overalt — headeren har ingen tillatelsesliste. Fjern den på forhåndsvisningsruten og bruk Content-Security-Policy frame-ancestors i stedet, eller åpne forhåndsvisningen på nettstedet. Feltene under er det samme innholdet.",
@@ -1371,7 +1371,6 @@
         },
         "outcomeFailed": "Sending feilet",
         "decidedUntitled": "Uten tittel",
-        "decisionRecordLabel": "Hva skjedde",
         "decisionReason": "Begrunnelse",
         "decidedSummary": {
           "kb": {

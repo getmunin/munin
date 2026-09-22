@@ -143,6 +143,7 @@ export type QueueActionError = {
   conversationId: string;
   message: string;
   code: string | null;
+  attempt: number;
 } | null;
 
 export const FINISHED_MIN_ITEMS = 25;
@@ -511,18 +512,20 @@ export function useConversationQueue(
       fn: () => Promise<void>,
     ): Promise<boolean> => {
       setPendingAction(type);
-      setActionError(null);
       try {
         await fn();
+        setActionError(null);
         await Promise.all([loadQueue(), loadDetail(id)]);
         return true;
       } catch (err) {
-        setActionError({
+        setActionError((prev) => ({
           type,
           conversationId: id,
           message: translateErr(err),
           code: getErrorCode(err),
-        });
+          attempt:
+            prev && prev.type === type && prev.conversationId === id ? prev.attempt + 1 : 1,
+        }));
         return false;
       } finally {
         setPendingAction(null);
@@ -672,7 +675,16 @@ export function useConversationQueue(
   const clearActionError = useCallback(() => setActionError(null), []);
 
   const reportAttachmentError = useCallback((conversationId: string, message: string) => {
-    setActionError({ type: 'attach', conversationId, message, code: null });
+    setActionError((prev) => ({
+      type: 'attach',
+      conversationId,
+      message,
+      code: null,
+      attempt:
+        prev && prev.type === 'attach' && prev.conversationId === conversationId
+          ? prev.attempt + 1
+          : 1,
+    }));
   }, []);
 
   return {

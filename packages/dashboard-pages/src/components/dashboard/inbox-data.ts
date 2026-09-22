@@ -346,7 +346,6 @@ export function useInboxData(): InboxController {
   const approveQueue = useCallback(
     async (item: QueueItem, sendAt?: string | null) => {
       setPending(true);
-      setQueueActionError(null);
       try {
         if (item.kind === 'kb' && item.raw.revisesDocumentId) {
           await api(`/v1/kb/curation/candidates/${item.id}/publish-revision`, {
@@ -382,16 +381,21 @@ export function useInboxData(): InboxController {
             }),
           });
         }
+        setQueueActionError(null);
         await loadInbox();
         setActiveQueueItem(null);
         return true;
       } catch (err) {
-        setQueueActionError({
+        setQueueActionError((prev) => ({
           type: 'approve',
           itemId: item.id,
           message: translateErr(err),
           code: getErrorCode(err),
-        });
+          attempt:
+            prev && prev.type === 'approve' && prev.itemId === item.id
+              ? prev.attempt + 1
+              : 1,
+        }));
         return false;
       } finally {
         setPending(false);
@@ -404,19 +408,23 @@ export function useInboxData(): InboxController {
     async (item: QueueItem) => {
       if (item.kind !== 'social') return false;
       setPending(true);
-      setQueueActionError(null);
       try {
         await api(`/v1/social/drafts/${item.id}/publish`, { method: 'POST', body: '{}' });
+        setQueueActionError(null);
         await loadInbox();
         setActiveQueueItem(null);
         return true;
       } catch (err) {
-        setQueueActionError({
+        setQueueActionError((prev) => ({
           type: 'approve',
           itemId: item.id,
           message: translateErr(err),
           code: getErrorCode(err),
-        });
+          attempt:
+            prev && prev.type === 'approve' && prev.itemId === item.id
+              ? prev.attempt + 1
+              : 1,
+        }));
         return false;
       } finally {
         setPending(false);
@@ -518,7 +526,6 @@ export function useInboxData(): InboxController {
   const dismissQueue = useCallback(
     async (item: QueueItem) => {
       setPending(true);
-      setQueueActionError(null);
       try {
         if (item.kind === 'kb') {
           await api(`/v1/kb/curation/candidates/${item.id}/dismiss`, { method: 'POST' });
@@ -539,16 +546,21 @@ export function useInboxData(): InboxController {
             body: JSON.stringify({}),
           });
         }
+        setQueueActionError(null);
         await loadInbox();
         setActiveQueueItem(null);
         return true;
       } catch (err) {
-        setQueueActionError({
+        setQueueActionError((prev) => ({
           type: 'dismiss',
           itemId: item.id,
           message: translateErr(err),
           code: getErrorCode(err),
-        });
+          attempt:
+            prev && prev.type === 'dismiss' && prev.itemId === item.id
+              ? prev.attempt + 1
+              : 1,
+        }));
         return false;
       } finally {
         setPending(false);

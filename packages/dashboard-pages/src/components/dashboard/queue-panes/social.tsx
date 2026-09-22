@@ -55,9 +55,11 @@ export function SocialQueuePane({
       : null;
   const asPage = availability.state === 'ready' && availability.authorKind === 'org_page';
   const paneError = actionError?.itemId === item.id ? actionError : null;
-  const publishLabel = authorName
-    ? t('socialPublishAs', { name: authorName })
-    : t('socialPublish');
+  const publishLabel = paneError
+    ? t('socialRetryPublish')
+    : authorName
+      ? t('socialPublishAs', { name: authorName })
+      : t('socialPublish');
 
   return (
     <>

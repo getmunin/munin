@@ -46,6 +46,7 @@ export const WidgetIngestInput = z.object({
   sessionId: z.string().min(1).max(200),
   visitorId: z.string().min(1).max(200).optional(),
   verifiedExternalId: z.string().min(1).max(200).optional(),
+  verifiedEmail: z.string().email().max(320).optional(),
   userHash: z
     .string()
     .regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest')
@@ -78,6 +79,7 @@ export const WidgetVoiceStartInput = z.object({
   conversationId: z.string().min(1),
   sessionId: z.string().min(1).max(200),
   verifiedExternalId: z.string().min(1).max(200).optional(),
+  verifiedEmail: z.string().email().max(320).optional(),
   userHash: z
     .string()
     .regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest')
@@ -91,6 +93,7 @@ export const WidgetVoiceAvailableQuery = z.object({
   conversationId: z.string().min(1),
   sessionId: z.string().min(1).max(200),
   verifiedExternalId: z.string().min(1).max(200).optional(),
+  verifiedEmail: z.string().email().max(320).optional(),
   userHash: z
     .string()
     .regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest')
@@ -109,6 +112,7 @@ export const WidgetVoiceEventInput = z.object({
   conversationId: z.string().min(1),
   sessionId: z.string().min(1).max(200),
   verifiedExternalId: z.string().min(1).max(200).optional(),
+  verifiedEmail: z.string().email().max(320).optional(),
   userHash: z
     .string()
     .regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest')
@@ -157,6 +161,7 @@ export const WidgetListMessagesQuery = z.object({
     .optional()
     .transform((s) => (s ? new Date(s) : undefined)),
   verifiedExternalId: z.string().min(1).max(200).optional(),
+  verifiedEmail: z.string().email().max(320).optional(),
   userHash: z
     .string()
     .regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest')
@@ -222,6 +227,7 @@ export const WidgetListConversationsQuery = z.object({
         : [],
     ),
   verifiedExternalId: z.string().min(1).max(200).optional(),
+  verifiedEmail: z.string().email().max(320).optional(),
   userHash: z
     .string()
     .regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest')
@@ -251,6 +257,7 @@ export const WidgetSetVisitorInput = z.object({
   email: z.string().email().max(200).optional(),
   name: z.string().min(1).max(120).optional(),
   verifiedExternalId: z.string().min(1).max(200).optional(),
+  verifiedEmail: z.string().email().max(320).optional(),
   userHash: z
     .string()
     .regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest')
@@ -264,6 +271,7 @@ export const WidgetIdentifyInput = z.object({
   sessionId: z.string().min(1).max(200),
   visitorId: z.string().min(1).max(200).optional(),
   verifiedExternalId: z.string().min(1).max(200),
+  verifiedEmail: z.string().email().max(320).optional(),
   userHash: z.string().regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest'),
 });
 
@@ -285,6 +293,7 @@ export const WidgetStartConversationInput = z.object({
   sessionId: z.string().min(1).max(200),
   visitorId: z.string().min(1).max(200).optional(),
   verifiedExternalId: z.string().min(1).max(200).optional(),
+  verifiedEmail: z.string().email().max(320).optional(),
   userHash: z
     .string()
     .regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest')
@@ -313,6 +322,7 @@ export const WidgetRequestAttachmentInput = z.object({
   conversationId: z.string().min(1),
   sessionId: z.string().min(1).max(200),
   verifiedExternalId: z.string().min(1).max(200).optional(),
+  verifiedEmail: z.string().email().max(320).optional(),
   userHash: z
     .string()
     .regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest')
@@ -340,6 +350,7 @@ export const WidgetCompleteAttachmentInput = z.object({
   conversationId: z.string().min(1),
   sessionId: z.string().min(1).max(200),
   verifiedExternalId: z.string().min(1).max(200).optional(),
+  verifiedEmail: z.string().email().max(320).optional(),
   userHash: z
     .string()
     .regex(/^[0-9a-f]{64}$/i, 'userHash must be a 64-char hex sha256 digest')

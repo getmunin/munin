@@ -7,7 +7,17 @@ import {
 } from '@nestjs/common';
 import { schema, type Tx } from '@getmunin/db';
 import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm';
-import { WebhookDispatcher, getCurrentContext, parseEnvBool, verifyHmac } from '@getmunin/core';
+import {
+  WebhookDispatcher,
+  getCurrentContext,
+  parseEnvBool,
+  verifyHmac,
+  widgetIdentityHashPayload,
+} from '@getmunin/core';
+import {
+  ORG_ATTESTED_EMAIL_SOURCE,
+  provenSenderMetadata,
+} from '../../connectors/identity-provenance.ts';
 import { parseMessageComponents, type MessageComponent } from '@getmunin/types';
 import { linkVisitorToEndUser } from '../../analytics/visitor-identity.ts';
 import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
@@ -45,7 +55,7 @@ import type {
 const LIST_MESSAGES_LIMIT = 100;
 
 export type IdentityResolution =
-  | { mode: 'verified'; externalId: string }
+  | { mode: 'verified'; externalId: string; email?: string }
   | { mode: 'anonymous' };
 
 @Injectable()
@@ -126,6 +136,7 @@ export class WidgetIngestService {
       sessionId: string;
       verifiedExternalId?: string;
       userHash?: string;
+      verifiedEmail?: string;
     },
     requestContext: { origin?: string },
   ): Promise<void> {
@@ -135,6 +146,7 @@ export class WidgetIngestService {
     const identity = verifyIdentity(channelConfig, {
       verifiedExternalId: input.verifiedExternalId,
       userHash: input.userHash,
+      verifiedEmail: input.verifiedEmail,
     });
 
     const rows = await tx
@@ -184,6 +196,7 @@ export class WidgetIngestService {
     const identity = verifyIdentity(channelConfig, {
       verifiedExternalId: query.verifiedExternalId,
       userHash: query.userHash,
+      verifiedEmail: query.verifiedEmail,
     });
 
     const conv = await tx
@@ -329,6 +342,7 @@ export class WidgetIngestService {
     const identity = verifyIdentity(channelConfig, {
       verifiedExternalId: query.verifiedExternalId,
       userHash: query.userHash,
+      verifiedEmail: query.verifiedEmail,
     });
 
     let convRows: Array<{
@@ -434,6 +448,7 @@ export class WidgetIngestService {
     const identity = verifyIdentity(channelConfig, {
       verifiedExternalId: input.verifiedExternalId,
       userHash: input.userHash,
+      verifiedEmail: input.verifiedEmail,
     });
 
     const conv = await tx
@@ -523,6 +538,7 @@ export class WidgetIngestService {
     const identity = verifyIdentity(channelConfig, {
       verifiedExternalId: input.verifiedExternalId,
       userHash: input.userHash,
+      verifiedEmail: input.verifiedEmail,
     });
     if (identity.mode === 'verified') {
       await this.claimAnonymousIdentityInTx(tx, orgId, input.sessionId, input.visitorId, identity);
@@ -703,11 +719,16 @@ export class WidgetIngestService {
     const identity = verifyIdentity(channelConfig, {
       verifiedExternalId: input.verifiedExternalId,
       userHash: input.userHash,
+      verifiedEmail: input.verifiedEmail,
     });
     if (identity.mode === 'verified') {
       await this.claimAnonymousIdentityInTx(tx, orgId, input.sessionId, input.visitorId, identity);
     }
     const endUser = await this.findOrCreateEndUser(tx, orgId, input, identity);
+    const signedEmail =
+      identity.mode === 'verified' && identity.email
+        ? await this.bindSignedEmail(tx, orgId, endUser.id, identity.email)
+        : null;
     const contact = await this.findOrCreateContact(tx, orgId, input, identity, endUser.id);
 
     const conv = await this.findOrCreateConversation(
@@ -763,7 +784,10 @@ export class WidgetIngestService {
               body: scrubbed.fields.body,
               bodyHtml: scrubbed.fields.bodyHtml ?? null,
               internal: false,
-              metadata: stampDetections(scrubbed.fields.metadata ?? {}, scrubbed.detected),
+              metadata: {
+                ...stampDetections(scrubbed.fields.metadata ?? {}, scrubbed.detected),
+                ...(signedEmail ? provenSenderMetadata('pass', signedEmail) : {}),
+              },
               createdAt: msg.at ?? undefined,
             })
             .returning({ id: schema.convMessages.id });
@@ -1104,6 +1128,7 @@ export class WidgetIngestService {
       visitorId?: string;
       verifiedExternalId: string;
       userHash: string;
+      verifiedEmail?: string;
     },
     requestContext: { origin?: string } = {},
   ): Promise<{ endUserId: string; contactId: string | null }> {
@@ -1117,6 +1142,7 @@ export class WidgetIngestService {
     const identity = verifyIdentity(channelConfig, {
       verifiedExternalId: input.verifiedExternalId,
       userHash: input.userHash,
+      verifiedEmail: input.verifiedEmail,
     });
     if (identity.mode !== 'verified') {
       throw new ForbiddenException('identity_required');
@@ -1230,6 +1256,36 @@ export class WidgetIngestService {
     }
 
     return { endUserId: verifiedEndUserId, contactId: sessionContact.id };
+  }
+
+  private async bindSignedEmail(
+    tx: Tx,
+    orgId: string,
+    endUserId: string,
+    email: string,
+  ): Promise<string | null> {
+    const [row] = await tx
+      .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
+      .from(schema.endUsers)
+      .where(eq(schema.endUsers.id, endUserId))
+      .limit(1);
+    if (!row) return null;
+    const current = row.email?.trim().toLowerCase() ?? null;
+    const typedByVisitor =
+      (row.metadata as { emailSource?: unknown } | null)?.emailSource === 'visitor';
+    if (current && current !== email && !typedByVisitor) return null;
+    if (current !== email && (await emailBelongsToAnotherEndUser(tx, orgId, email, endUserId))) {
+      return null;
+    }
+    await tx
+      .update(schema.endUsers)
+      .set({
+        email,
+        metadata: sql`COALESCE(${schema.endUsers.metadata}, '{}'::jsonb) || ${JSON.stringify({ emailSource: ORG_ATTESTED_EMAIL_SOURCE })}::jsonb`,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.endUsers.id, endUserId));
+    return email;
   }
 
   private async findOrCreateVerifiedEndUser(
@@ -1417,12 +1473,12 @@ export async function assertContactIdentityOwnership(
 
 export function verifyIdentity(
   channelConfig: { identityVerificationSecret?: string; requireVerifiedIdentity: boolean },
-  input: { verifiedExternalId?: string; userHash?: string },
+  input: { verifiedExternalId?: string; userHash?: string; verifiedEmail?: string },
 ): IdentityResolution {
   const hasExt = !!input.verifiedExternalId;
   const hasHash = !!input.userHash;
 
-  if (hasExt !== hasHash) {
+  if (hasExt !== hasHash || (!!input.verifiedEmail && !hasExt)) {
     throw new ForbiddenException('identity_partial');
   }
 
@@ -1430,13 +1486,19 @@ export function verifyIdentity(
     if (!channelConfig.identityVerificationSecret) {
       throw new ForbiddenException('identity_verification_failed');
     }
+    const email = input.verifiedEmail?.trim().toLowerCase();
+    const payload = email
+      ? widgetIdentityHashPayload({ externalId: input.verifiedExternalId!, email })
+      : input.verifiedExternalId!;
     const ok = verifyHmac(
-      input.verifiedExternalId!,
+      payload,
       channelConfig.identityVerificationSecret,
       input.userHash!.toLowerCase(),
     );
     if (!ok) throw new ForbiddenException('identity_verification_failed');
-    return { mode: 'verified', externalId: input.verifiedExternalId! };
+    return email
+      ? { mode: 'verified', externalId: input.verifiedExternalId!, email }
+      : { mode: 'verified', externalId: input.verifiedExternalId! };
   }
 
   if (channelConfig.requireVerifiedIdentity) {

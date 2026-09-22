@@ -29,6 +29,12 @@ export function identityHashPayload(parts: {
     .join('');
 }
 
+export function widgetIdentityHashPayload(parts: { externalId: string; email: string }): string {
+  return ['mn.widget-identity.v1', parts.externalId, parts.email]
+    .map((field) => `${Buffer.byteLength(field, 'utf8')}:${field}`)
+    .join('');
+}
+
 export function legacyIdentityHashPayload(externalId: string, visitorId: string): string {
   return `${externalId}:${visitorId}`;
 }

@@ -118,6 +118,25 @@ describe('realtime: connection lifecycle', () => {
     client.close();
   });
 
+  it('appends the signed email to the identity query params', () => {
+    const client = createRealtimeClient({
+      host: 'https://munin.example',
+      widgetKey: 'mn_widget_abc',
+      channelId: 'cnv_chan',
+      sessionId: 'sess_1',
+      getIdentity: () => ({
+        externalId: 'user_42',
+        userHash: 'a'.repeat(64),
+        email: 'ola@example.test',
+      }),
+      webSocketCtor: MockWS,
+    });
+    client.connect();
+    const ws = MockWebSocket.instances.at(-1)!;
+    expect(new URL(ws.url).searchParams.get('verifiedEmail')).toBe('ola@example.test');
+    client.close();
+  });
+
   it('routes incoming event messages to onEvent listeners', () => {
     const client = createRealtimeClient({
       host: 'https://munin.example',

@@ -154,7 +154,7 @@ In practice that is the same trust level every support desk operates at when a h
 - Fine over email/SMS: order status, delivery ETA, booking times — the postcard test.
 - **Not** fine over email/SMS without your own step-up: anything whose disclosure to the wrong person causes real harm, and any action that costs money. Route those to a human, or have your own system verify with a one-time link or code first.
 - Booking changes through the self-service tools are allowed over email and voice by design, since a table or appointment is low-harm; Munin refuses them only when the message explicitly failed DMARC.
-- Want a strong identity on the widget? Use the identity-verification secret or a delegated token — those are the only paths Munin treats as authenticated.
+- Want a strong identity on the widget? Use the identity-verification secret or a delegated token — those are the only paths Munin treats as authenticated. Sign the email into the widget hash too (`skill://conv/setup-chat-widget`, *Signing the email too*) so a signed-in widget user's email counts as theirs rather than as typed by the visitor.
 
 A connected custom MCP server is told which of these it is dealing with on every call; see `skill://connectors/connect-custom-mcp-server`.
 

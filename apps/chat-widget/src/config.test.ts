@@ -106,6 +106,34 @@ describe('parseConfig', () => {
     expect(r2.ok).toBe(false);
   });
 
+  it('reads a signed email from data-verified-email', () => {
+    const el = makeScript({
+      'data-munin-host': 'https://h.example',
+      'data-widget-key': 'mn_widget_x',
+      'data-channel-id': 'c',
+      'data-external-id': 'user_42',
+      'data-user-hash': 'a'.repeat(64),
+      'data-verified-email': 'ola@example.test',
+    });
+    const result = parseConfig(el);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.config.verifiedEmail).toBe('ola@example.test');
+  });
+
+  it('rejects a signed email without the identity it was signed with', () => {
+    const el = makeScript({
+      'data-munin-host': 'https://h.example',
+      'data-widget-key': 'mn_widget_x',
+      'data-channel-id': 'c',
+      'data-verified-email': 'ola@example.test',
+    });
+    const result = parseConfig(el);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.some((e) => e.attr === 'data-verified-email')).toBe(true);
+  });
+
   it('rejects a userHash that is not 64 hex chars', () => {
     const el = makeScript({
       'data-munin-host': 'https://h.example',

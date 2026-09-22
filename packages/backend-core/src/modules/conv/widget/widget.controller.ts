@@ -54,6 +54,7 @@ const WIDGET_SESSION_HEADER_MAP: Record<string, string> = {
   'x-munin-session-ids': 'sessionIds',
   'x-munin-verified-external-id': 'verifiedExternalId',
   'x-munin-user-hash': 'userHash',
+  'x-munin-verified-email': 'verifiedEmail',
 };
 
 const WIDGET_SESSION_FIELDS = new Set(Object.values(WIDGET_SESSION_HEADER_MAP));

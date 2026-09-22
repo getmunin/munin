@@ -236,7 +236,8 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       url.searchParams.get('verifiedExternalId') ??
       undefined;
     const userHash = url.searchParams.get('userHash') ?? undefined;
-    const identity = verifyIdentity(config, { verifiedExternalId, userHash });
+    const verifiedEmail = url.searchParams.get('verifiedEmail') ?? undefined;
+    const identity = verifyIdentity(config, { verifiedExternalId, userHash, verifiedEmail });
 
     return {
       channelId: row.channelId,

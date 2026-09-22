@@ -81,6 +81,65 @@ describe('api: postMessage', () => {
     expect(body.userHash).toBe('a'.repeat(64));
   });
 
+  it('sends the signed email alongside the identity when the embed provides one', async () => {
+    const { fetchImpl, calls } = mockFetch(() => ({
+      status: 201,
+      body: { conversationId: 'cnv', displayId: 1, contactId: 'ctc', inserted: 1, skipped: 0 },
+    }));
+    const client = createApiClient({
+      host: 'https://munin.example',
+      widgetKey: 'mn_widget_abc',
+      channelId: 'cnv_chan',
+      sessionId: 'sess_1',
+      getIdentity: () => ({
+        externalId: 'user_42',
+        userHash: 'a'.repeat(64),
+        email: 'ola@example.test',
+      }),
+      fetchImpl,
+    });
+    await client.postMessage('hi');
+    await client.backfillSince(undefined);
+    const body = JSON.parse(calls[0]!.init.body as string) as Record<string, unknown>;
+    expect(body.verifiedEmail).toBe('ola@example.test');
+    expect(headerOf(calls[1]!, 'x-munin-verified-email')).toBe('ola@example.test');
+  });
+
+  it('omits the signed email when the identity carries none', async () => {
+    const { fetchImpl, calls } = mockFetch(() => ({
+      status: 201,
+      body: { conversationId: 'cnv', displayId: 1, contactId: 'ctc', inserted: 1, skipped: 0 },
+    }));
+    const client = createApiClient({
+      host: 'https://munin.example',
+      widgetKey: 'mn_widget_abc',
+      channelId: 'cnv_chan',
+      sessionId: 'sess_1',
+      getIdentity: () => ({ externalId: 'user_42', userHash: 'a'.repeat(64) }),
+      fetchImpl,
+    });
+    await client.postMessage('hi');
+    const body = JSON.parse(calls[0]!.init.body as string) as Record<string, unknown>;
+    expect(body).not.toHaveProperty('verifiedEmail');
+  });
+
+  it('passes the signed email through identify', async () => {
+    const { fetchImpl, calls } = mockFetch(() => ({
+      status: 200,
+      body: { endUserId: 'eu_1', contactId: null },
+    }));
+    const client = createApiClient({
+      host: 'https://munin.example',
+      widgetKey: 'mn_widget_abc',
+      channelId: 'cnv_chan',
+      sessionId: 'sess_1',
+      fetchImpl,
+    });
+    await client.identify('user_42', 'a'.repeat(64), 'ola@example.test');
+    const body = JSON.parse(calls[0]!.init.body as string) as Record<string, unknown>;
+    expect(body.verifiedEmail).toBe('ola@example.test');
+  });
+
   it('threads visitor metadata into the request body', async () => {
     const { fetchImpl, calls } = mockFetch(() => ({
       status: 201,

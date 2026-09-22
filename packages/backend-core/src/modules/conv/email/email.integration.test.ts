@@ -406,7 +406,7 @@ class StubImapFetcher implements ImapFetcher {
     expect(newcomer).toHaveLength(1);
   }, 30_000);
 
-  async function senderAuthOf(inboundMessageId: string): Promise<unknown> {
+  async function metadataOf(inboundMessageId: string): Promise<Record<string, unknown>> {
     const [row] = await db
       .select({ metadata: schema.convMessages.metadata })
       .from(schema.convMessages)
@@ -416,7 +416,11 @@ class StubImapFetcher implements ImapFetcher {
           sql`${schema.convMessages.metadata}->>'inboundMessageId' = ${inboundMessageId}`,
         ),
       );
-    return (row?.metadata as { senderAuth?: unknown } | undefined)?.senderAuth;
+    return row?.metadata ?? {};
+  }
+
+  async function senderAuthOf(inboundMessageId: string): Promise<unknown> {
+    return (await metadataOf(inboundMessageId)).senderAuth;
   }
 
   it('records the DMARC verdict on each inbound message rather than on the sender', async () => {
@@ -440,7 +444,11 @@ class StubImapFetcher implements ImapFetcher {
 
     await inboundWorker.tick();
 
-    expect(await senderAuthOf('inbound-proven@proven.test')).toBe('pass');
+    expect(await metadataOf('inbound-proven@proven.test')).toMatchObject({
+      senderAuth: 'pass',
+      provenEmail: 'ola@proven.test',
+    });
+    expect(await metadataOf('inbound-unproven@unproven.test')).not.toHaveProperty('provenEmail');
     expect(await senderAuthOf('inbound-unproven@unproven.test')).toBe('unknown');
     const [endUser] = await db
       .select({ metadata: schema.endUsers.metadata })

@@ -3,6 +3,7 @@
 '@getmunin/core': minor
 '@getmunin/agent-runtime': minor
 '@getmunin/agent-host': minor
+'@getmunin/sdk': minor
 ---
 
 Require a proven email address before a self-service booking write, and start reading the
@@ -33,7 +34,8 @@ anywhere in it: the receiving MTA copies attacker-chosen values into the same he
 DMARC authenticated the forwarder and not the address recovered from the body.
 
 **Where the proof lives.** The verdict is recorded on the inbound message
-(`conv_messages.metadata.senderAuth`), not on the `end_users` row. A per-person stamp was the
+(`conv_messages.metadata.senderAuth`, with the proven address in `provenEmail` on a pass), not
+on the `end_users` row. A per-person stamp was the
 wrong unit: the gate would read whatever the most recent message from that address had said,
 so a genuine message landing between a forgery and the agent's tool call lent its proof to the
 forger's conversation, and every other channel bound to the same row — a caller whose number
@@ -41,14 +43,26 @@ matches the contact, for one — borrowed it too. It also overwrote a widget vis
 `emailSource: 'visitor'` marker, which turned a typed-in address into a readable one the moment
 mail arrived for it.
 
-`ConnectorsService.requireProvenEndUserEmail()` backs the three write paths. It passes only
-when the caller is acting inside a specific conversation that belongs to it and arrived on the
-email channel, and every message in that conversation's latest customer turn passed DMARC and
-was sent from the address the booking is filed under. Anything else refuses with
-`connectors_unproven` before any vendor call: another conversation's proof, one unverified
-message in the current turn, SMS, voice, the chat widget (identity verification signs the
-user's id, not the email they typed), and a session not tied to a conversation, such as a
-delegated token. `requireEndUserEmail()` is untouched, so every read behaves exactly as before.
+`ConnectorsService.requireProvenEndUserEmail()` backs the three write paths and accepts two
+kinds of proof, both bound to the session making the request rather than to the person:
+
+- **An email conversation.** The caller acts inside a specific conversation that belongs to it
+  and arrived on the email channel, and every message in that conversation's latest customer
+  turn passed DMARC with a `provenEmail` equal to the address the booking is filed under.
+- **A delegated token the organization attested.** `POST /v1/tokens/delegated` now records the
+  request's `email` on the token as `metadata.attestedEmail` and returns it as `attestedEmail`.
+  The minting backend already holds an admin key — which can cancel any booking through the
+  admin tools — so trusting the address it vouches for adds no capability. The attestation has
+  to agree with the record: a different email already on the end user is `delegated_email_mismatch`
+  (400), and an email held by another end user is `delegated_email_conflict` (409) instead of the
+  unique-index 500 it used to be. A mint naming only `email` now reuses the end user holding that
+  address. A token minted without `email` can still read but not write, because the row's email
+  may have come from somewhere the backend never checked.
+
+Anything else refuses with `connectors_unproven` before any vendor call: another conversation's
+proof, one unverified message in the current turn, SMS, voice, and the chat widget (identity
+verification signs the user's id, not the email they typed). `requireEndUserEmail()` is
+untouched, so every read behaves exactly as before.
 
 To know which conversation it is acting in, the end-user agent's actor now carries it:
 `ActorIdentity` gains an optional trailing `conversationId`, `buildEndUserAgentActor` and

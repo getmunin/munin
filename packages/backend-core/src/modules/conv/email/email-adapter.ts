@@ -53,7 +53,7 @@ import type {
 } from '../attachments/conv-attachments.types.ts';
 import type { ForwardOrigin } from './forwarded-sender.ts';
 import { inboundSenderAuth } from './authentication-results.ts';
-import { SENDER_AUTH_METADATA_KEY } from '../../connectors/identity-provenance.ts';
+import { provenSenderMetadata } from '../../connectors/identity-provenance.ts';
 import { reopenClosedConversation } from '../conversation-reopen.ts';
 import { raiseAttentionWhenAgentIsOff } from '../unanswerable-handover.ts';
 import {
@@ -528,7 +528,7 @@ export class EmailAdapter implements ChannelAdapter {
             internal: false,
             metadata: {
               ...stampDetections(scrubbed.fields.metadata ?? {}, scrubbed.detected),
-              [SENDER_AUTH_METADATA_KEY]: emailAuth,
+              ...provenSenderMetadata(emailAuth, sender.senderAddress),
             },
           })
           .returning();

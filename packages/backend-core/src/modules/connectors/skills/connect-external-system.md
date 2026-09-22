@@ -137,9 +137,19 @@ Two rules follow:
 - **Only mint delegated tokens with emails your system has actually authenticated** (login session, verified email link). If you mint tokens from unauthenticated visitor input, you are asserting an identity you haven't checked, and that visitor's agent can read that email's order and booking history.
 - End-user records without an email can't look up anything — the tools refuse rather than guess.
 
+### Passing `email` when you mint is what unlocks booking writes
+
+Reads work with any delegated token whose end user carries an email. The self-service booking writes (`bookings_create_my_booking`, `bookings_update_my_booking`, `bookings_cancel_my_booking`) additionally need the token itself to vouch for the address: pass `email` in the mint request and Munin records it on the token as attested (`attestedEmail` in the response). A token minted with only `endUserId` or `externalId` can read but gets `connectors_unproven` on a write, even if the end user already has an email — that email may have come from somewhere your backend never checked.
+
+The attestation has to agree with the record:
+
+- If the end user already carries a different email, the mint fails with `delegated_email_mismatch` (400).
+- If the end user has no email and another end user in the org already holds this one, the mint fails with `delegated_email_conflict` (409); mint for that end user instead.
+- A mint that names only `email` reuses the end user already holding that address.
+
 ### Inbound email and SMS are not authenticated identity
 
-The self-service tools refuse an address a visitor merely typed into the chat widget. They do **not** refuse an address that arrived as an email `From:` header or an SMS sender number — and those are spoofable. Anyone can send mail claiming to be `jane@example.com`; sender and caller ID are forgeable too. Munin parses the receiving server's `Authentication-Results` header on inbound mail and records a DMARC verdict on each message, but only the self-service booking writes (`bookings_create_my_booking`, `bookings_update_my_booking`, `bookings_cancel_my_booking`) require it; reads still treat a DMARC-failing message as coming from the address in its `From` line. DMARC proves the sending *domain*, not the mailbox, so anyone who can legitimately send from the same domain passes it.
+The self-service tools refuse an address a visitor merely typed into the chat widget. They do **not** refuse an address that arrived as an email `From:` header or an SMS sender number — and those are spoofable. Anyone can send mail claiming to be `jane@example.com`; sender and caller ID are forgeable too. Munin parses the receiving server's `Authentication-Results` header on inbound mail and records a DMARC verdict on each message, but only the self-service booking writes require it; reads still treat a DMARC-failing message as coming from the address in its `From` line. DMARC proves the sending *domain*, not the mailbox, so anyone who can legitimately send from the same domain passes it.
 
 In practice that is the same trust level every support desk operates at when a human reads an inbound email and looks up the order — order status is low-harm, and the alternative (challenge every customer) makes the product useless. Know the trade-off rather than assume the tools verified something:
 

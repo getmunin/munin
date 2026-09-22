@@ -8,11 +8,24 @@ export interface EndUserProvenanceMetadata {
 const CHANNEL_ASSERTED_KINDS = new Set(['email', 'sms', 'voice']);
 
 export const SENDER_AUTH_METADATA_KEY = 'senderAuth';
+export const PROVEN_EMAIL_METADATA_KEY = 'provenEmail';
+export const ORG_ATTESTED_EMAIL_SOURCE = 'org-attested';
 
 export interface ConversationTurnMessage {
   authorType: string;
-  authorEmail: string | null;
   metadata: unknown;
+}
+
+export function provenSenderMetadata(
+  verdict: string,
+  senderAddress: string,
+): Record<string, string> {
+  return verdict === 'pass'
+    ? {
+        [SENDER_AUTH_METADATA_KEY]: verdict,
+        [PROVEN_EMAIL_METADATA_KEY]: senderAddress.trim().toLowerCase(),
+      }
+    : { [SENDER_AUTH_METADATA_KEY]: verdict };
 }
 
 export function latestEndUserTurn<T extends { authorType: string }>(
@@ -26,6 +39,13 @@ export function latestEndUserTurn<T extends { authorType: string }>(
   return turn;
 }
 
+export const ATTESTED_EMAIL_METADATA_KEY = 'attestedEmail';
+
+export function isAttestedEmail(tokenMetadata: unknown, email: string): boolean {
+  const attested = (tokenMetadata as Record<string, unknown> | null)?.[ATTESTED_EMAIL_METADATA_KEY];
+  return typeof attested === 'string' && attested.trim().toLowerCase() === email.trim().toLowerCase();
+}
+
 export function isProvenEmailTurn(
   newestFirst: readonly ConversationTurnMessage[],
   email: string,
@@ -35,9 +55,11 @@ export function isProvenEmailTurn(
   const expected = email.trim().toLowerCase();
   return turn.every((message) => {
     const meta = message.metadata as Record<string, unknown> | null;
+    const proven = meta?.[PROVEN_EMAIL_METADATA_KEY];
     return (
       meta?.[SENDER_AUTH_METADATA_KEY] === 'pass' &&
-      message.authorEmail?.trim().toLowerCase() === expected
+      typeof proven === 'string' &&
+      proven.trim().toLowerCase() === expected
     );
   });
 }

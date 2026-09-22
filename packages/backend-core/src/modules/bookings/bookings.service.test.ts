@@ -34,7 +34,7 @@ const skipReason = TEST_URL
   let displayId = 0;
 
   type SeedMessage =
-    | { author: 'end_user'; contactId: string; senderAuth?: string }
+    | { author: 'end_user'; contactId: string; senderAuth?: string; provenEmail?: string }
     | { author: 'agent' };
 
   async function seedConversation(args: {
@@ -62,11 +62,39 @@ const skipReason = TEST_URL
         authorType: m.author,
         authorId: m.author === 'end_user' ? m.contactId : 'agt_test',
         body: 'hello',
-        metadata: m.author === 'end_user' && m.senderAuth ? { senderAuth: m.senderAuth } : {},
+        metadata:
+          m.author === 'end_user' && m.senderAuth
+            ? { senderAuth: m.senderAuth, ...(m.provenEmail ? { provenEmail: m.provenEmail } : {}) }
+            : {},
         createdAt: new Date(base + i * 1000),
       });
     }
     return conv!.id;
+  }
+
+  async function mintToken(endUserId: string, metadata: Record<string, unknown>, revoked = false) {
+    const [token] = await db
+      .insert(schema.tokens)
+      .values({
+        orgId,
+        type: 'delegated_end_user',
+        tokenHash: randomUUID(),
+        scopes: ['bookings:read', 'bookings:write'],
+        audiences: ['self_service'],
+        endUserId,
+        metadata,
+        revokedAt: revoked ? new Date() : null,
+      })
+      .returning();
+    return new ActorIdentity(
+      'end_user_agent',
+      token!.id,
+      orgId,
+      ['bookings:read', 'bookings:write'],
+      ['self_service'],
+      endUserId,
+      token!.id,
+    );
   }
 
   function writerFor(endUserId: string, conversationId?: string): ActorIdentity {
@@ -179,7 +207,7 @@ const skipReason = TEST_URL
       channelId: emailChannelId,
       endUserId: janeEndUserId,
       contactId: janeContactId,
-      messages: [{ author: 'end_user', contactId: janeContactId, senderAuth: 'pass' }],
+      messages: [{ author: 'end_user', contactId: janeContactId, senderAuth: 'pass', provenEmail: 'jane@example.com' }],
     });
     const olaForgedConversationId = await seedConversation({
       channelId: emailChannelId,
@@ -397,7 +425,7 @@ const skipReason = TEST_URL
       endUserId: janeEndUserId,
       contactId: janeContactId,
       messages: [
-        { author: 'end_user', contactId: janeContactId, senderAuth: 'pass' },
+        { author: 'end_user', contactId: janeContactId, senderAuth: 'pass', provenEmail: 'jane@example.com' },
         { author: 'end_user', contactId: janeContactId, senderAuth: 'unknown' },
       ],
     });
@@ -418,7 +446,7 @@ const skipReason = TEST_URL
       endUserId: janeEndUserId,
       contactId: janeContactId,
       messages: [
-        { author: 'end_user', contactId: janeContactId, senderAuth: 'pass' },
+        { author: 'end_user', contactId: janeContactId, senderAuth: 'pass', provenEmail: 'jane@example.com' },
         { author: 'agent' },
         { author: 'end_user', contactId: janeContactId, senderAuth: 'fail' },
       ],
@@ -460,7 +488,7 @@ const skipReason = TEST_URL
       channelId: chatChannelId,
       endUserId: janeEndUserId,
       contactId: janeContactId,
-      messages: [{ author: 'end_user', contactId: janeContactId, senderAuth: 'pass' }],
+      messages: [{ author: 'end_user', contactId: janeContactId, senderAuth: 'pass', provenEmail: 'jane@example.com' }],
     });
 
     await expect(
@@ -468,6 +496,91 @@ const skipReason = TEST_URL
         () => bookings.cancelMyBooking({ bookingRef: '512' }),
         writerFor(janeEndUserId, chatConversationId),
       ),
+    ).rejects.toThrow(/connectors_unproven/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses a pass whose proven address is not the booking address', async () => {
+    await createConnection();
+    const otherAddressId = await seedConversation({
+      channelId: emailChannelId,
+      endUserId: janeEndUserId,
+      contactId: janeContactId,
+      messages: [
+        { author: 'end_user', contactId: janeContactId, senderAuth: 'pass', provenEmail: 'kari@example.test' },
+      ],
+    });
+
+    await expect(
+      run(
+        () => bookings.cancelMyBooking({ bookingRef: '512' }),
+        writerFor(janeEndUserId, otherAddressId),
+      ),
+    ).rejects.toThrow(/connectors_unproven/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('cancels through a delegated token the organization minted for the booking address', async () => {
+    await createConnection();
+    respond = (url) =>
+      url.includes('/cancel') ? { status: 204, body: undefined } : { body: [gastroplannerBooking] };
+    const actor = await mintToken(janeEndUserId, { attestedEmail: 'jane@example.com' });
+
+    const result = await run(() => bookings.cancelMyBooking({ bookingRef: '512' }), actor);
+
+    expect(result.cancelled).toBe(true);
+  });
+
+  it('refuses a delegated token minted without an attested email', async () => {
+    await createConnection();
+    const actor = await mintToken(janeEndUserId, {});
+
+    await expect(
+      run(() => bookings.cancelMyBooking({ bookingRef: '512' }), actor),
+    ).rejects.toThrow(/connectors_unproven/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses a delegated token attested for a different address than the end user carries', async () => {
+    await createConnection();
+    const actor = await mintToken(janeEndUserId, { attestedEmail: 'kari@example.test' });
+
+    await expect(
+      run(() => bookings.cancelMyBooking({ bookingRef: '512' }), actor),
+    ).rejects.toThrow(/connectors_unproven/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses a revoked delegated token', async () => {
+    await createConnection();
+    const actor = await mintToken(janeEndUserId, { attestedEmail: 'jane@example.com' }, true);
+
+    await expect(
+      run(() => bookings.cancelMyBooking({ bookingRef: '512' }), actor),
+    ).rejects.toThrow(/connectors_unproven/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('prefers the conversation over the token when the actor carries both', async () => {
+    await createConnection();
+    const token = await mintToken(olaEndUserId, { attestedEmail: 'ola@example.test' });
+    const actor = new ActorIdentity(
+      'end_user_agent',
+      token.id,
+      orgId,
+      ['bookings:read', 'bookings:write'],
+      ['self_service'],
+      olaEndUserId,
+      token.tokenId,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      assertedEndUserActor.conversationId,
+    );
+
+    await expect(
+      run(() => bookings.cancelMyBooking({ bookingRef: '512' }), actor),
     ).rejects.toThrow(/connectors_unproven/);
     expect(calls).toHaveLength(0);
   });

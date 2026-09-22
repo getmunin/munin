@@ -1,22 +1,45 @@
 import { describe, expect, it } from 'vitest';
 import {
   identityProvenance,
+  isAttestedEmail,
   isProvenEmailTurn,
   isSelfReportedIdentity,
   latestEndUserTurn,
+  provenSenderMetadata,
 } from './identity-provenance.ts';
 
 const verified = (email = 'ola@example.test') => ({
   authorType: 'end_user',
-  authorEmail: email,
-  metadata: { senderAuth: 'pass' },
+  metadata: provenSenderMetadata('pass', email),
 });
 const unverified = (email = 'ola@example.test') => ({
   authorType: 'end_user',
-  authorEmail: email,
-  metadata: { senderAuth: 'fail' },
+  metadata: provenSenderMetadata('fail', email),
 });
-const agentReply = { authorType: 'agent', authorEmail: null, metadata: {} };
+const agentReply = { authorType: 'agent', metadata: {} };
+
+describe('provenSenderMetadata', () => {
+  it('records the proven address only alongside a pass', () => {
+    expect(provenSenderMetadata('pass', ' Ola@Example.test ')).toEqual({
+      senderAuth: 'pass',
+      provenEmail: 'ola@example.test',
+    });
+    expect(provenSenderMetadata('fail', 'ola@example.test')).toEqual({ senderAuth: 'fail' });
+    expect(provenSenderMetadata('unknown', 'ola@example.test')).toEqual({ senderAuth: 'unknown' });
+  });
+});
+
+describe('isAttestedEmail', () => {
+  it('accepts the address the organization attested when minting the token', () => {
+    expect(isAttestedEmail({ attestedEmail: 'ola@example.test' }, 'OLA@example.test')).toBe(true);
+  });
+
+  it('rejects a token minted without an email or for a different one', () => {
+    expect(isAttestedEmail({}, 'ola@example.test')).toBe(false);
+    expect(isAttestedEmail(null, 'ola@example.test')).toBe(false);
+    expect(isAttestedEmail({ attestedEmail: 'kari@example.test' }, 'ola@example.test')).toBe(false);
+  });
+});
 
 describe('latestEndUserTurn', () => {
   it('collects the newest contiguous run of customer messages', () => {
@@ -55,15 +78,18 @@ describe('isProvenEmailTurn', () => {
   });
 
   it('rejects messages that predate the verdict or carry none', () => {
+    expect(isProvenEmailTurn([{ authorType: 'end_user', metadata: {} }], 'ola@example.test')).toBe(
+      false,
+    );
     expect(
-      isProvenEmailTurn(
-        [{ authorType: 'end_user', authorEmail: 'ola@example.test', metadata: {} }],
-        'ola@example.test',
-      ),
+      isProvenEmailTurn([{ authorType: 'end_user', metadata: null }], 'ola@example.test'),
     ).toBe(false);
+  });
+
+  it('rejects a pass that names no proven address', () => {
     expect(
       isProvenEmailTurn(
-        [{ authorType: 'end_user', authorEmail: 'ola@example.test', metadata: null }],
+        [{ authorType: 'end_user', metadata: { senderAuth: 'pass' } }],
         'ola@example.test',
       ),
     ).toBe(false);

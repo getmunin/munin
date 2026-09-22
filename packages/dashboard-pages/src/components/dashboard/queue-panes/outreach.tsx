@@ -321,7 +321,7 @@ export function OutreachQueuePane({
             onClick: () => void saveEdit(),
             disabled: pending || !editedBody.trim(),
           }}
-          secondary={[{ label: t('cancel'), onClick: cancelEdit }]}
+          secondary={[{ label: t('cancel'), onClick: cancelEdit, variant: 'ghost' }]}
           shortcut={t('shortcutSave')}
         />
       ) : (
@@ -349,7 +349,7 @@ export function OutreachQueuePane({
               onClick: openScheduler,
               disabled: pending,
             },
-            { label: t('dismiss'), onClick: onDismiss, disabled: pending },
+            { label: t('dismiss'), onClick: onDismiss, disabled: pending, variant: 'ghost' },
           ]}
           shortcut={t('shortcutApprove')}
         />

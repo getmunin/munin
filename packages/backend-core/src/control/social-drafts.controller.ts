@@ -15,9 +15,17 @@ import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
+import { SOCIAL_LINK_PLACEMENTS } from '../modules/social/social-platform.ts';
 import { SocialService, type SocialDraftDto } from '../modules/social/social.service.ts';
 
 class ReviseBody extends createZodDto(z.object({ body: z.string().min(1) })) {}
+
+class LinkPlacementBody extends createZodDto(
+  z.object({
+    linkPlacement: z.enum(SOCIAL_LINK_PLACEMENTS),
+    linkCommentText: z.string().max(1000).nullable().optional(),
+  }),
+) {}
 
 class MarkPostedBody extends createZodDto(
   z.object({ permalink: z.string().url().nullable().optional() }),
@@ -42,6 +50,18 @@ export class SocialDraftsController {
   @HttpCode(200)
   revise(@Param('id') id: string, @Body() body: ReviseBody): Promise<SocialDraftDto> {
     return this.social.reviseDraft(id, body.body);
+  }
+
+  @Patch(':id/link-placement')
+  @HttpCode(200)
+  setLinkPlacement(
+    @Param('id') id: string,
+    @Body() body: LinkPlacementBody,
+  ): Promise<SocialDraftDto> {
+    return this.social.setDraftLinkPlacement(id, {
+      linkPlacement: body.linkPlacement,
+      linkCommentText: body.linkCommentText ?? null,
+    });
   }
 
   @Post(':id/publish')

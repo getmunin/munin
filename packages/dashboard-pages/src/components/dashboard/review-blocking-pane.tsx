@@ -29,6 +29,7 @@ export function ReviewBlockingPane({
     publishQueue,
     dismissQueue,
     saveQueue,
+    saveSocialDraft,
     saveCmsDraft,
     uploadCmsAsset,
     scheduleQueue,
@@ -78,6 +79,7 @@ export function ReviewBlockingPane({
         }
         onDismiss={() => void dismissQueue(item).then(afterDecision)}
         onSave={(body) => saveQueue(item, body)}
+        onSaveSocialDraft={(edit) => saveSocialDraft(item, edit)}
         onSaveCmsDraft={(data) => saveCmsDraft(item, data)}
         onUploadCmsAsset={(file) => uploadCmsAsset(item, file)}
         onSchedule={(scheduledAt) => scheduleQueue(item, scheduledAt)}

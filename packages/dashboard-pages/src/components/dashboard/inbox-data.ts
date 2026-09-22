@@ -18,6 +18,7 @@ import type {
   OutreachProposalDetailDto,
   QueueItem,
   ScheduledItem,
+  SocialDraftEdit,
 } from './queue-panes/types';
 import { clearKey, contactLabel, feedbackSnippet, socialDraftTitle } from './inbox-helpers';
 import type {
@@ -447,10 +448,38 @@ export function useInboxData(): InboxController {
             method: 'PATCH',
             body: JSON.stringify({ draftBody: body }),
           });
-        } else if (item.kind === 'social') {
+        }
+        await loadInbox();
+      } catch (err) {
+        notify.error(translateErr(err));
+        throw err;
+      } finally {
+        setPending(false);
+      }
+    },
+    [loadInbox, translateErr],
+  );
+
+  const saveSocialDraft = useCallback(
+    async (item: QueueItem, edit: SocialDraftEdit) => {
+      if (item.kind !== 'social') {
+        throw new Error(`saveSocialDraft called for non-social item: ${item.kind}`);
+      }
+      setPending(true);
+      try {
+        if (edit.body !== undefined) {
           await api(`/v1/social/drafts/${item.id}`, {
             method: 'PATCH',
-            body: JSON.stringify({ body }),
+            body: JSON.stringify({ body: edit.body }),
+          });
+        }
+        if (edit.linkCommentText !== undefined) {
+          await api(`/v1/social/drafts/${item.id}/link-placement`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              linkPlacement: item.raw.linkPlacement,
+              linkCommentText: edit.linkCommentText,
+            }),
           });
         }
         await loadInbox();
@@ -659,6 +688,7 @@ export function useInboxData(): InboxController {
     cancelScheduledSend,
     cancelScheduledPublish,
     saveQueue,
+    saveSocialDraft,
     saveCmsDraft,
     uploadCmsAsset,
     dismissQueue,

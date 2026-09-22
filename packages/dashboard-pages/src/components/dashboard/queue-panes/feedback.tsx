@@ -76,8 +76,10 @@ export function FeedbackQueuePane({
       <PaneFooter
           error={actionError?.itemId === item.id ? actionError : null}
           onClearError={onClearActionError}
-        primary={{ label: t('approve'), onClick: onApprove, disabled: pending }}
-        secondary={[{ label: t('dismiss'), onClick: onDismiss, disabled: pending }]}
+        primary={{ label: t('approve'), onClick: onApprove, disabled: pending, arrow: true }}
+        secondary={[
+          { label: t('dismiss'), onClick: onDismiss, disabled: pending, variant: 'ghost' },
+        ]}
         shortcut={t('shortcutApprove')}
       />
     </>

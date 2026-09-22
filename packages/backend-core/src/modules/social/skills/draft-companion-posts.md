@@ -18,7 +18,7 @@ You may be reading this because a person asked, or because an article was just p
 - `social_propose_post_set` — store the variants as one reviewable set.
 - `social_create_post_draft` — store a single draft, for text that is not a set of angles on an article.
 - `social_list_post_drafts` / `social_get_post_draft` — read back what is already waiting.
-- `social_revise_post_draft` — replace the body of a draft nobody has decided on yet.
+- `social_update_post_draft` — replace the body of a draft nobody has decided on yet.
 - `social_set_post_draft_media` — attach an image or video to a draft, or clear the one it carries.
 - `social_set_post_draft_link_placement` — move the link between the post body and the first comment.
 - `social_dismiss_post_draft` — close one nobody will publish.

@@ -8,7 +8,7 @@ audiences: [admin]
 
 Same pass as `skill://outreach/draft-first-touch-email`, for a campaign running on a voice channel. What you write is not a message that gets delivered — it is the **opening and talking points an AI voice agent speaks** when the call connects. Everything after the first few seconds is a live conversation you don't control.
 
-**You cannot place the call.** `outreach_approve_proposal` refuses every caller that is not a signed-in dashboard user: agents, admin API keys, the Slack button. That is the safety floor for outbound calling and there is no argument, tool or credential that gets around it. Draft, file the proposal, tell the operator it is waiting in the dashboard inbox, and stop. `outreach_revise_proposal`, `outreach_withdraw_proposal` and `outreach_dismiss_proposal` all work — none of them dial.
+**You cannot place the call.** `outreach_approve_proposal` refuses every caller that is not a signed-in dashboard user: agents, admin API keys, the Slack button. That is the safety floor for outbound calling and there is no argument, tool or credential that gets around it. Draft, file the proposal, tell the operator it is waiting in the dashboard inbox, and stop. `outreach_update_proposal`, `outreach_withdraw_proposal` and `outreach_dismiss_proposal` all work — none of them dial.
 
 Take the asymmetry seriously. A cold email is ignorable and a text is cheap; an unsolicited AI phone call interrupts someone, cannot be un-rung, and in most of Europe is the most heavily regulated thing Munin can do. Draft fewer, better calls than you would emails.
 

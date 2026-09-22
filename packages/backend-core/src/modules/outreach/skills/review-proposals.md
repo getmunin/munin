@@ -8,7 +8,7 @@ audiences: [admin]
 
 Every outbound message in Munin ships through a human-approved gate: curators file drafts as **pending proposals** (`skill://outreach/draft-first-touch-email`, `skill://outreach/draft-first-touch-sms`, `skill://outreach/draft-first-touch-call`, `skill://outreach/draft-reply-email`, `skill://outreach/draft-followup-email`), and nothing leaves the org until an operator — or an admin agent acting on their explicit instruction — decides each one. This skill is that decision pass.
 
-**Calls and text messages are approved in the dashboard, never here.** A proposal whose campaign runs on a voice or SMS channel can only be approved by a signed-in person in the Munin dashboard. `outreach_approve_proposal` refuses every other caller — an agent, an admin API key, the Slack button — with `outreach_invalid: … approved by a signed-in person in the Munin dashboard`. That is the safety floor for outbound calling, not a configuration you can route around: don't retry, don't look for another tool, and don't ask for a credential that would work. Present the draft, say it is waiting for someone to place the call from the dashboard inbox, and stop. You can still `outreach_revise_proposal`, `outreach_withdraw_proposal`, and `outreach_dismiss_proposal` on these — none of them send anything.
+**Calls and text messages are approved in the dashboard, never here.** A proposal whose campaign runs on a voice or SMS channel can only be approved by a signed-in person in the Munin dashboard. `outreach_approve_proposal` refuses every other caller — an agent, an admin API key, the Slack button — with `outreach_invalid: … approved by a signed-in person in the Munin dashboard`. That is the safety floor for outbound calling, not a configuration you can route around: don't retry, don't look for another tool, and don't ask for a credential that would work. Present the draft, say it is waiting for someone to place the call from the dashboard inbox, and stop. You can still `outreach_update_proposal`, `outreach_withdraw_proposal`, and `outreach_dismiss_proposal` on these — none of them send anything.
 
 **Approving is the send decision.** `outreach_approve_proposal` is not a status flip: for an `initial` proposal it creates the outbound conversation and sends the first email through the campaign's channel (appending the CTA link and unsubscribe footer per campaign settings); for a `reply` or `followup` it sends the draft verbatim on the existing conversation. It happens the moment you approve — unless a future send time applies, in which case the proposal parks at `status: "approved"` and a worker delivers it at that time (see **Scheduling a send** below). Once a message is out there is no undo. Never approve in bulk without reading each draft.
 
@@ -23,7 +23,7 @@ Every outbound message in Munin ships through a human-approved gate: curators fi
 | `outreach_approve_proposal` | operator | Send it — now, or at a named time. Email only — voice and SMS are dashboard-only. |
 | `outreach_dismiss_proposal` | operator | *Rejected.* A judgement about this draft; on a `followup` it also stops the sequence. |
 | `outreach_cancel_scheduled_send` | operator | *Not at that time after all.* Pulls an approved send back to `pending`; nothing was sent. |
-| `outreach_revise_proposal` | agent | Same proposal, better text. Recipient and campaign are fixed. |
+| `outreach_update_proposal` | agent | Same proposal, better text. Recipient and campaign are fixed. |
 | `outreach_withdraw_proposal` | agent | *Never mind* — the draft should not have been filed. Neutral. |
 
 Approving is not only a send. If the campaign declares an `extractionSchema`, whatever the prospect says back — the transcript of a call, or each reply to an email or text — is read by `skill://outreach/extract-outcome` and filed as CRM fields on that contact, without a second review step. That is where a campaign's qualifying questions end up as something you can segment and report on, so if the fields stay empty across a campaign, the problem is usually the drafts not asking rather than the extraction not working.
@@ -55,7 +55,7 @@ Quiet hours and blackout dates behave differently from the other checks: on a vo
 
 ## Revising a pending draft
 
-`outreach_revise_proposal({ "id": "...", "reason": "...", "draftBody": "..." })` rewrites the draft in place. The proposal id, the contact, and the campaign do not change — a different recipient is a different proposal, so file a new one instead. `draftSubject` and `proposedSendAt` can be revised the same way, and `reason` is required.
+`outreach_update_proposal({ "id": "...", "reason": "...", "draftBody": "..." })` rewrites the draft in place. The proposal id, the contact, and the campaign do not change — a different recipient is a different proposal, so file a new one instead. `draftSubject` and `proposedSendAt` can be revised the same way, and `reason` is required.
 
 The revision is recorded, not silent. Each call bumps `revisionCount` and stamps `lastRevisedAt`, `lastRevisionReason`, and the revising actor. If somebody else had already opened the draft for review before your change, `revisedAfterReviewAt` is stamped too and the review surfaces flag it — the operator who read Monday's text gets told, in the panel and in the dashboard drawer, that Wednesday's text is not what they read.
 
@@ -69,7 +69,7 @@ That flag is the point. **Never revise a draft an operator is mid-review on and 
 
 Withdrawal is deliberately neutral. It does **not** suppress the contact, does **not** touch their consent, and does **not** stop a campaign sequence — a withdrawn `followup` leaves that step eligible again, unlike a dismissed one. If the contact genuinely should never be contacted again, that is a suppression decision: `crm_set_contact_consent` / the do-not-contact flag, not a withdrawal.
 
-Because withdrawal clears the pending slot for that (campaign, contact, kind), you can withdraw a bad draft and file a corrected one. Prefer `outreach_revise_proposal` when the recipient is right and only the text is wrong — withdraw-and-refile loses the review history.
+Because withdrawal clears the pending slot for that (campaign, contact, kind), you can withdraw a bad draft and file a corrected one. Prefer `outreach_update_proposal` when the recipient is right and only the text is wrong — withdraw-and-refile loses the review history.
 
 ## In an MCP App host (Claude, Claude Desktop, …)
 

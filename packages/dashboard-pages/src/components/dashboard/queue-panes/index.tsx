@@ -13,6 +13,7 @@ import type {
   CmsPreviewLink,
   QueueItem,
   ScheduledItem,
+  SocialDraftEdit,
 } from './types';
 
 const noop = () => {};
@@ -85,6 +86,7 @@ export function QueueItemPane({
   onPublish,
   onDismiss,
   onSave,
+  onSaveSocialDraft,
   onSaveCmsDraft,
   onUploadCmsAsset,
   onSchedule,
@@ -106,6 +108,7 @@ export function QueueItemPane({
   onPublish?: () => void;
   onDismiss: () => void;
   onSave: (body: string) => Promise<void>;
+  onSaveSocialDraft: (edit: SocialDraftEdit) => Promise<void>;
   onSaveCmsDraft: (data: Record<string, unknown>) => Promise<void>;
   onUploadCmsAsset: (file: File) => Promise<CmsAssetExpanded>;
   onSchedule: (scheduledAt: string) => Promise<void>;
@@ -163,6 +166,7 @@ export function QueueItemPane({
           onApprove={() => onApprove()}
           onPublish={onPublish}
           onDismiss={onDismiss}
+          onSave={onSaveSocialDraft}
           onClose={onClose}
           actionError={actionError}
           onClearActionError={onClearActionError}

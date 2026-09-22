@@ -159,7 +159,7 @@ const skipReason = TEST_URL
           'outreach_propose_followup',
           'outreach_propose_first_touch',
           'outreach_propose_reply',
-          'outreach_revise_proposal',
+          'outreach_update_proposal',
           'outreach_update_campaign',
           'outreach_withdraw_proposal',
         ].sort(),
@@ -376,7 +376,7 @@ const skipReason = TEST_URL
       const proposalId = (firstJson(proposed) as { id: string }).id;
 
       const revised = await c.callTool({
-        name: 'outreach_revise_proposal',
+        name: 'outreach_update_proposal',
         arguments: { id: proposalId, reason: 'tightened the CTA', draftBody: 'Rewritten body.' },
       });
       expect(revised.isError).toBeFalsy();
@@ -408,7 +408,7 @@ const skipReason = TEST_URL
       expect(afterWithdraw.withdrawReason).toBe('duplicate of an earlier draft');
 
       const reviseDecided = await c.callTool({
-        name: 'outreach_revise_proposal',
+        name: 'outreach_update_proposal',
         arguments: { id: proposalId, reason: 'too late', draftBody: 'nope' },
       });
       expect(reviseDecided.isError).toBe(true);

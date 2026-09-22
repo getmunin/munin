@@ -188,6 +188,11 @@ export interface SocialDraftDto {
   createdAt: string;
 }
 
+export interface SocialDraftEdit {
+  body?: string;
+  linkCommentText?: string | null;
+}
+
 export interface CmsDraftSummaryDto {
   id: string;
   collectionId: string;

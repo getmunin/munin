@@ -1562,6 +1562,47 @@
         ]
       }
     },
+    "/v1/social/drafts/{id}/link-placement": {
+      "patch": {
+        "operationId": "SocialDraftsController_setLinkPlacement",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkPlacementBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SocialDrafts"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/social/drafts/{id}/publish": {
       "post": {
         "operationId": "SocialDraftsController_publish",
@@ -8852,6 +8893,35 @@
         },
         "required": [
           "body"
+        ]
+      },
+      "LinkPlacementBody": {
+        "type": "object",
+        "properties": {
+          "linkPlacement": {
+            "type": "string",
+            "enum": [
+              "body",
+              "comment"
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "linkCommentText": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          }
+        },
+        "required": [
+          "linkPlacement"
         ]
       },
       "MarkPostedBody": {

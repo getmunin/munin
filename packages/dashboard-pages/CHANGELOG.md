@@ -1,5 +1,117 @@
 # @getmunin/dashboard-pages
 
+## 5.35.0
+
+### Minor Changes
+
+- c351bfa: Edit a social draft from the review pane, the way a CMS draft is edited.
+
+  The Fields tab was read-only: the post text arrived from the agent and the only way to
+  change a word was to ask the agent for a revision. It now has the CMS pane's edit
+  affordance — an "Edit" action in the footer that turns the post into a textarea and the
+  footer into Save/Cancel, with ⌘↵ to save and esc to cancel.
+
+  Two fields are editable, because two are all the draft lets anyone change: the post body,
+  and — when the link is placed in the first comment — the comment text, which is offered
+  even on a draft that has none yet. The share link and the attachment stay read-only: the
+  link carries per-variant UTM tagging assigned when the draft was filed, and an attachment
+  is a file, not a string to retype.
+
+  The comment text needed a control-plane route of its own. `PATCH /v1/social/drafts/:id`
+  revises the body; the new `PATCH /v1/social/drafts/:id/link-placement` is a thin wrapper
+  over `setDraftLinkPlacement`, the same service method `social_set_post_draft_link_placement`
+  calls, so the two surfaces stay in step. A save sends only the fields that actually changed.
+
+  The character count beside the post is computed locally while typing, using the rule the
+  server measures by — LinkedIn shortens links so they cost nothing, Facebook counts every
+  character — so the count in the header and the over-limit warning agree with the error the
+  API would return, and Save stays disabled until the body fits. The Preview tab renders the
+  unsaved text, so flipping between the two tabs while editing shows the post as it is being
+  written.
+
+  The field labels above each box are now bottom-aligned with their copy button rather than
+  centred on it, so "Post" and "Link to share" sit the same distance above their box as
+  "Attached" does above a box with no button at all.
+
+  `PaneFooter` also stops inventing its own footer grammar, and adopts the CMS pane's.
+
+  It rendered its buttons at `size="sm"` (28px) on a `py-3` row while every hand-rolled pane
+  footer — CMS, and the review page's CRM, outreach and KB panes — uses the default 36px
+  button on a `py-4` row, so the social and feedback panes sat visibly shorter than their
+  neighbours. `ScheduledFooter` had the same pair and follows along.
+
+  Its secondary buttons were also styled by position — the first solid, the rest outlined —
+  which made "Edit" the loudest thing in a footer whose accent button is the actual decision.
+  Each action now names its own variant, defaulting to `outline`, and every dismiss and
+  cancel asks for `ghost`: accent for the decision, outline for the other real actions, ghost
+  for the way out, exactly as `cms.tsx` writes it by hand.
+
+  The primary button takes an `arrow` flag, which the feedback and social panes set. Their
+  review-page neighbours (CRM's "Apply merge →", outreach's "Approve & send →", KB's
+  "Publish →", CMS's "Approve →") all carry the arrow that marks the action moving the item
+  forward; those two were the only decision buttons without one.
+
+  One alignment bug in the preview goes with it: the author block hung off the top of the
+  avatar rather than centring on it, because the header row is `items-start` and the
+  name-plus-timestamp pair is shorter than the picture beside it. It showed worst on
+  LinkedIn, whose 48px avatar left the 38px text block sitting 5px high. Both cards now
+  centre that column against the avatar, and the row stays `items-start` so each network's
+  overflow control keeps its place at the top.
+
+- c351bfa: Show a social draft as the post it will become, not just as text.
+
+  The social review pane now opens on a "Preview" tab — the CMS pane's own wording — that
+  renders the draft the way LinkedIn and Facebook lay a post out: the posting account with its initials,
+  the body folded behind the network's own "see more" (LinkedIn folds far earlier than
+  Facebook), the attached picture or — when the post carries only a link — the placeholder
+  card whose picture and title the linked page supplies at publish time, the network's
+  action row, and the first comment when the link is placed there. The old text view moves
+  to a second "Fields" tab — CMS's wording again — where the share link is now a read-only
+  input, so it lines up with the post and comment boxes above it.
+
+  The connect-your-account nudge and the two footer links come out with it: the pane already
+  says what will happen in its footer button, and Settings → Integrations is where an account
+  gets connected.
+
+  The tabs are the CMS pane's own, lifted out of `cms.tsx` into `shared.tsx` and reused
+  verbatim — the same underline row the CMS draft preview has used all along.
+
+  Two details the preview is careful about. It places the link the way each adapter does
+  rather than the way the draft stores it: LinkedIn's `composeCommentary` always appends the
+  URL to the commentary, so the preview shows it in the text and lets the unfurl card stand in
+  for it; Facebook's `composeMessage` appends it only when a picture rides along, so a bare
+  link post shows the card and no URL in the text. And the preview paints itself in fixed
+  platform colours under `munin-light-locked` — a preview that flips to the dashboard's dark
+  theme stops being a preview of anything.
+
+- 6f9468c: Send and publish failures render as one block in the composer and every review pane.
+
+  The conversation composer and the review panes had grown two near-identical error banners that then drifted apart — same markup, same dot, same Close link, differing only in colour token and whether a long message truncated. Both now render a single failure block: a 2px rule and tinted ground, monospace at 11px, the code-prefixed message with an attempt count, and a 16px dismiss in the corner. It sits inside the action container, sharing the bordered region with the buttons, rather than floating above it as a sibling with its own rule. The primary button relabels to "Retry send" / "Retry publish" in place.
+
+  A repeat failure replaces the block and bumps its counter instead of stacking. Two fixes were needed to make that work:
+
+  - Every setter cleared the error _before_ the attempt, so the previous state was already gone when the catch ran and the counter reset to (1) forever. Clearing now happens once the call has actually succeeded.
+  - The composer bound the banner to the controller's error unconditionally, while all five review panes scope theirs by id. A failed send therefore showed its banner — code and count included — on every other conversation you opened. Now scoped to the conversation on screen, so it stays put and survives switching away and back.
+
+  The block is in-session state: it does not survive a reload, and dismissing clears the same state a reload would.
+
+### Patch Changes
+
+- 610a9e8: Norwegian says "godkjenning" where it used to say "gjennomgang", and console eyebrows drop their trailing clause.
+
+  "Gjennomgang" named an activity — going through material — where the Review page names a queue of pending decisions, and the rest of that surface already spoke of godkjenning: the buttons say "Godkjenn", the empty state said "ingenting å godkjenne", the metric is "godkjenningsrate". One subline managed both words for the same thing in a single sentence. The queue and gate senses now read "godkjenning"; the six places where gjennomgang means the act of someone reading a draft keep it, as do the unrelated SEO recrawl and KB curation-pass strings.
+
+  Eyebrows lose their descriptive tails in both locales: "Review — what's waiting on you", "Automation — per topic" and "Review — nothing waiting" are now just "Review" and "Automation".
+
+- 93b3f0d: Settings pages sit on the same insets as the console.
+
+  The settings shell padded its own content area independently of the console pages: 24/48px horizontal against the console's 20/32px. Both shells use a 280px sidebar, so content began at 312px on Automation and 328px on Settings — a 16px jump every time you crossed between them. The shell now matches Automation exactly at both breakpoints.
+
+  Four settings pages bleed their horizontally-scrolling tables to the shell edge on mobile with a negative margin mirroring the shell's old padding; those move with it, so the bleed stays exact and the page does not gain a horizontal scrollbar.
+
+- @getmunin/types@5.35.0
+  - @getmunin/ui@5.35.0
+
 ## 5.34.0
 
 ### Minor Changes

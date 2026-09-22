@@ -68,3 +68,11 @@ export function splitUrls(text: string): Array<{ text: string; url: boolean }> {
   if (cursor < text.length) parts.push({ text: text.slice(cursor), url: false });
   return parts;
 }
+
+const LINK_COUNTS_TOWARD_BODY: Record<string, boolean> = { linkedin: false, facebook: true };
+
+export function countBodyChars(platform: string, body: string): number {
+  if (LINK_COUNTS_TOWARD_BODY[platform] ?? true) return body.length;
+  const inline = body.match(URL_PATTERN) ?? [];
+  return body.length - inline.reduce((total, link) => total + link.length, 0);
+}

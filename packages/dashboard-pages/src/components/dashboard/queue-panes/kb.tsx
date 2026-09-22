@@ -160,7 +160,7 @@ export function KbQueuePane({
             onClick: () => void saveEdit(),
             disabled: pending || !editedBody.trim(),
           }}
-          secondary={[{ label: t('cancel'), onClick: cancelEdit }]}
+          secondary={[{ label: t('cancel'), onClick: cancelEdit, variant: 'ghost' }]}
           shortcut={t('shortcutSave')}
         />
       ) : loadFailed ? null : (
@@ -178,7 +178,7 @@ export function KbQueuePane({
             }}
             secondary={[
               { label: t('edit'), onClick: () => setEditing(true), disabled: blocked },
-              { label: t('dismiss'), onClick: onDismiss, disabled: blocked },
+              { label: t('dismiss'), onClick: onDismiss, disabled: blocked, variant: 'ghost' },
             ]}
             shortcut={t('shortcutApprove')}
           />

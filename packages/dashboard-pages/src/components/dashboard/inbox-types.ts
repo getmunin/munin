@@ -25,6 +25,7 @@ import type {
   QueueItem,
   ScheduledItem,
   SocialDraftDto,
+  SocialDraftEdit,
 } from './queue-panes/types';
 
 export type { QueueItem, ScheduledItem };
@@ -183,6 +184,7 @@ export interface InboxController {
   cancelScheduledSend: (id: string, reason: string) => Promise<void>;
   cancelScheduledPublish: (id: string) => Promise<void>;
   saveQueue: (item: QueueItem, body: string) => Promise<void>;
+  saveSocialDraft: (item: QueueItem, edit: SocialDraftEdit) => Promise<void>;
   saveCmsDraft: (item: QueueItem, data: Record<string, unknown>) => Promise<void>;
   uploadCmsAsset: (item: QueueItem, file: File) => Promise<CmsAssetExpanded>;
   dismissQueue: (item: QueueItem) => Promise<boolean>;

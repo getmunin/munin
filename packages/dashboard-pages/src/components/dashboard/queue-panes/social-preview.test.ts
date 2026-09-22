@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   composePreviewBody,
+  countBodyChars,
   composePreviewComment,
   foldPreviewBody,
   linkHost,
@@ -149,5 +150,23 @@ describe('splitUrls', () => {
       'https://example.test/a',
       'https://example.test/b',
     ]);
+  });
+});
+
+describe('countBodyChars', () => {
+  it('counts every character on a platform where links count', () => {
+    expect(countBodyChars('facebook', 'see https://example.test/a')).toBe(26);
+  });
+
+  it('leaves link characters out on LinkedIn, which shortens them', () => {
+    expect(countBodyChars('linkedin', 'see https://example.test/a')).toBe(4);
+  });
+
+  it('counts every link in the body, not just the first', () => {
+    expect(countBodyChars('linkedin', 'https://example.test/a https://example.test/b')).toBe(1);
+  });
+
+  it('counts plainly for a platform it has no rule for', () => {
+    expect(countBodyChars('mastodon', 'https://example.test/a')).toBe(22);
   });
 });

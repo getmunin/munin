@@ -109,7 +109,7 @@ function LinkedInPost({
             round={authorKind !== 'org_page'}
             className="bg-[#0F1419] text-white"
           />
-          <div className="min-w-0 flex-1 pt-0.5">
+          <div className="min-w-0 flex-1 self-center">
             <p className="truncate text-[14px] font-semibold leading-[20px] text-black/90">
               {name}
             </p>
@@ -206,7 +206,7 @@ function FacebookPost({
       <article className="mx-auto w-full max-w-[500px] overflow-hidden rounded-[8px] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.2)]">
         <div className="flex items-start gap-2 px-4 pt-3">
           <Avatar name={name} size={40} round className="bg-[#0F1419] text-white" />
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 self-center">
             <p className="truncate text-[15px] font-semibold leading-[20px] text-[#080809]">
               {name}
             </p>

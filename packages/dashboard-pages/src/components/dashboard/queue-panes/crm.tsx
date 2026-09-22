@@ -64,7 +64,9 @@ export function CrmQueuePane({
 
       <PaneFooter
         primary={{ label: t('approve'), onClick: onApprove, disabled: pending }}
-        secondary={[{ label: t('dismiss'), onClick: onDismiss, disabled: pending }]}
+        secondary={[
+          { label: t('dismiss'), onClick: onDismiss, disabled: pending, variant: 'ghost' },
+        ]}
         shortcut={t('shortcutApprove')}
       />
     </>

@@ -418,8 +418,8 @@ export function ScheduledFooter({
   note: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 border-t-[1px] border-rule-soft px-5 py-3 md:px-7 dark:border-rule-on-dark">
-      <Button variant="outline" size="sm" onClick={onCancel} disabled={disabled}>
+    <div className="flex items-center justify-between gap-2 border-t-[1px] border-rule-soft px-5 py-4 md:px-7 dark:border-rule-on-dark">
+      <Button variant="outline" onClick={onCancel} disabled={disabled}>
         {cancelLabel}
       </Button>
       <span className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">
@@ -436,6 +436,13 @@ export function toDateTimeLocalValue(date: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+export interface PaneFooterAction {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  variant?: 'outline' | 'ghost';
+}
+
 export function PaneFooter({
   primary,
   secondary,
@@ -444,8 +451,8 @@ export function PaneFooter({
   error,
   onClearError,
 }: {
-  primary: { label: string; onClick: () => void; disabled?: boolean };
-  secondary: Array<{ label: string; onClick: () => void; disabled?: boolean }>;
+  primary: { label: string; onClick: () => void; disabled?: boolean; arrow?: boolean };
+  secondary: PaneFooterAction[];
   shortcut?: string;
   bordered?: boolean;
   error?: QueueActionError;
@@ -461,19 +468,19 @@ export function PaneFooter({
       )}
     <div
       className={cn(
-        'flex items-center justify-between gap-2 px-5 py-3 md:px-7',
+        'flex items-center justify-between gap-2 px-5 py-4 md:px-7',
         bordered && !error && 'border-t-[1px] border-rule-soft dark:border-rule-on-dark',
       )}
     >
       <div className="flex flex-1 items-center gap-2 md:flex-none">
         <Button
           variant="accent"
-          size="sm"
           onClick={primary.onClick}
           disabled={primary.disabled}
           className="max-md:h-11 max-md:flex-1"
         >
           {primary.label}
+          {primary.arrow ? <span aria-hidden>→</span> : null}
         </Button>
         {hasSecondary && (
           <MoreActionsTrigger
@@ -484,8 +491,7 @@ export function PaneFooter({
         {secondary.map((b, i) => (
           <Button
             key={i}
-            variant={i === 0 ? 'default' : 'outline'}
-            size="sm"
+            variant={b.variant ?? 'outline'}
             onClick={b.onClick}
             disabled={b.disabled}
             className="max-md:hidden"

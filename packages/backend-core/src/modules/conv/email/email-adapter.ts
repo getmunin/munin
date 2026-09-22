@@ -52,6 +52,7 @@ import type {
   StoredAttachmentBytes,
 } from '../attachments/conv-attachments.types.ts';
 import type { ForwardOrigin } from './forwarded-sender.ts';
+import { inboundSenderAuth } from './authentication-results.ts';
 import { reopenClosedConversation } from '../conversation-reopen.ts';
 import { raiseAttentionWhenAgentIsOff } from '../unanswerable-handover.ts';
 import {
@@ -407,11 +408,13 @@ export class EmailAdapter implements ChannelAdapter {
           if (ownSend[0]) return;
         }
         const resolution = await resolveInbound(tx, orgId, parsed, replyDomain);
+        const emailAuth = inboundSenderAuth(parsed, sender);
         const contact = await this.emailService.findOrCreateContactByEmail(
           tx,
           orgId,
           sender.senderAddress,
           sender.senderName ?? undefined,
+          emailAuth,
         );
         const normalizedText = normalizeFlattenedWhitespace(parsed.bodyText);
         const quoteContext: QuoteContext = {

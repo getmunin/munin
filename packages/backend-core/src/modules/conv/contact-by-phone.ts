@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { schema, type Db, type Tx } from '@getmunin/db';
+import { CALLER_ID_IDENTITY_SOURCE } from '../connectors/identity-provenance.ts';
 
 export async function findOrCreateContactByPhone(
   tx: Db | Tx,
@@ -32,7 +33,7 @@ export async function findOrCreateContactByPhone(
           externalId,
           phone,
           name: name ?? null,
-          metadata: { source },
+          metadata: { source, identitySource: CALLER_ID_IDENTITY_SOURCE },
         })
         .returning();
       endUserId = createdEu?.id ?? null;

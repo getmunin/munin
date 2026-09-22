@@ -28,7 +28,7 @@ import {
 } from './connector.ts';
 import { SecretCipherError } from '../../common/outbound-oauth/grant-store.ts';
 import { ConnectorVendorError } from './http.ts';
-import { isSelfReportedIdentity } from './identity-provenance.ts';
+import { isProvenEmailOwnership, isSelfReportedIdentity } from './identity-provenance.ts';
 import { ConnectorOAuthService, OAUTH_CONFIG_KEY } from './connector-oauth.service.ts';
 import { DB } from '../../common/db/db.module.ts';
 import { CredentialHandoffService, type CredentialLink } from '../credential-handoff/credential-handoff.service.ts';
@@ -577,6 +577,22 @@ export class ConnectorsService {
     if (isSelfReportedIdentity(rows[0]?.metadata)) {
       throw new BadRequestException(
         'connectors_unverified: this email was self-reported in chat and is not verified, so personal lookups are not allowed; ask the customer to write in from their email address or use a signed-in session',
+      );
+    }
+    return email;
+  }
+
+  async requireProvenEndUserEmail(): Promise<string> {
+    const email = await this.requireEndUserEmail();
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ metadata: schema.endUsers.metadata })
+      .from(schema.endUsers)
+      .where(eq(schema.endUsers.id, ctx.actor!.endUserId!))
+      .limit(1);
+    if (!isProvenEmailOwnership(rows[0]?.metadata)) {
+      throw new BadRequestException(
+        'connectors_unproven: this request changes a booking, which requires proof that the customer owns the email address it is filed under. The current identity was asserted by the channel (a From header or caller id) and not verified, so it cannot be used to change bookings; hand over to a human, or ask the customer to act from a signed-in session.',
       );
     }
     return email;

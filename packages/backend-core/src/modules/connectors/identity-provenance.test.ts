@@ -1,5 +1,45 @@
 import { describe, expect, it } from 'vitest';
-import { identityProvenance, isSelfReportedIdentity } from './identity-provenance.ts';
+import {
+  CALLER_ID_IDENTITY_SOURCE,
+  SMTP_UNVERIFIED_EMAIL_SOURCE,
+  SMTP_VERIFIED_EMAIL_SOURCE,
+  identityProvenance,
+  isProvenEmailOwnership,
+  isSelfReportedIdentity,
+} from './identity-provenance.ts';
+
+describe('isProvenEmailOwnership', () => {
+  it('accepts only an address proven by a passing DMARC check on inbound mail', () => {
+    expect(isProvenEmailOwnership({ emailSource: SMTP_VERIFIED_EMAIL_SOURCE })).toBe(true);
+  });
+
+  it('rejects an unauthenticated From header, which is the spoofable case', () => {
+    expect(isProvenEmailOwnership({ emailSource: SMTP_UNVERIFIED_EMAIL_SOURCE })).toBe(false);
+  });
+
+  it('rejects a record that predates stamping rather than grandfathering it in', () => {
+    expect(isProvenEmailOwnership({ source: 'email-inbound' })).toBe(false);
+    expect(isProvenEmailOwnership({})).toBe(false);
+    expect(isProvenEmailOwnership(null)).toBe(false);
+    expect(isProvenEmailOwnership(undefined)).toBe(false);
+  });
+
+  it('rejects caller id, so linking a phone identity to an email can never grant booking writes', () => {
+    expect(
+      isProvenEmailOwnership({
+        identitySource: CALLER_ID_IDENTITY_SOURCE,
+        source: 'threll-webhook',
+      }),
+    ).toBe(false);
+  });
+
+  it('keeps self-reported ahead of a verified stamp, so a typed address cannot claim proof', () => {
+    expect(
+      isProvenEmailOwnership({ anonymous: true, emailSource: SMTP_VERIFIED_EMAIL_SOURCE }),
+    ).toBe(false);
+    expect(isProvenEmailOwnership({ emailSource: 'visitor' })).toBe(false);
+  });
+});
 
 describe('isSelfReportedIdentity', () => {
   it('flags anonymous widget sessions and visitor-typed emails', () => {

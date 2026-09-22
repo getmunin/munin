@@ -131,7 +131,11 @@ export {
   type ExternalMcpEndpoint,
 } from './modules/connectors/external-mcp.ts';
 export {
+  CALLER_ID_IDENTITY_SOURCE,
+  SMTP_UNVERIFIED_EMAIL_SOURCE,
+  SMTP_VERIFIED_EMAIL_SOURCE,
   identityProvenance,
+  isProvenEmailOwnership,
   isSelfReportedIdentity,
   type IdentityProvenance,
 } from './modules/connectors/identity-provenance.ts';

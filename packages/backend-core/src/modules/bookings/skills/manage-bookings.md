@@ -23,6 +23,14 @@ Every self-service call is fixed to the calling end-user's own identity — you 
 
 If the session has no email identity, these return an error — tell the guest you can't manage bookings in this session and offer a human handover (`conv_request_human`).
 
+### Writes need a proven email, reads don't
+
+Reading a guest's own bookings works on any session that carries an email. Creating, changing or cancelling one needs the session to have *proved* the guest owns that address.
+
+Only two things count as proof today: an inbound email whose DMARC check passed and aligned with its `From:` domain, and a signed-in widget session. A bare `From:` header and a caller id are assertions anyone can forge, so a session resting on either gets `connectors_unproven` from the three write tools while the read tools keep working.
+
+When you hit `connectors_unproven`, don't retry and don't work around it by calling an admin tool. Tell the guest you can look up the booking but can't change it from this channel, and offer a human handover (`conv_request_human`). A guest writing in from a mail provider that publishes DMARC, or signed in on the website, will not hit this.
+
 ## Admin (support agent working a conversation)
 
 - `bookings_list_guest_bookings` / `bookings_lookup_booking` — look up by a guest's `email` (use the verified email of the contact whose conversation you're handling).

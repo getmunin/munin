@@ -9,6 +9,7 @@ import { ConnectorRegistry } from '../connectors/connector.ts';
 import type { ConnectorFetch } from '../connectors/http.ts';
 import { GastroplannerAdapter } from './gastroplanner.adapter.ts';
 import { BookingsService } from './bookings.service.ts';
+import { SMTP_VERIFIED_EMAIL_SOURCE } from '../connectors/identity-provenance.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -23,6 +24,7 @@ const skipReason = TEST_URL
   let orgId: string;
   let adminActor: ActorIdentity;
   let endUserActor: ActorIdentity;
+  let assertedEndUserActor: ActorIdentity;
   let noEmailEndUserId: string;
 
   const calls: string[] = [];
@@ -64,13 +66,27 @@ const skipReason = TEST_URL
     orgId = org!.id;
     const [eu] = await db
       .insert(schema.endUsers)
-      .values({ orgId, email: 'jane@example.com', name: 'Jane' })
+      .values({
+        orgId,
+        email: 'jane@example.com',
+        name: 'Jane',
+        metadata: { source: 'email-inbound', emailSource: SMTP_VERIFIED_EMAIL_SOURCE },
+      })
       .returning();
     const [euNoEmail] = await db
       .insert(schema.endUsers)
       .values({ orgId, externalId: 'anon-1' })
       .returning();
     noEmailEndUserId = euNoEmail!.id;
+    const [euAsserted] = await db
+      .insert(schema.endUsers)
+      .values({
+        orgId,
+        externalId: 'email:ola@example.test',
+        email: 'ola@example.test',
+        metadata: { source: 'email-inbound' },
+      })
+      .returning();
 
     adminActor = new ActorIdentity('admin_agent', 'agt_bookings_test', orgId, ['*'], ['admin']);
     endUserActor = new ActorIdentity(
@@ -80,6 +96,14 @@ const skipReason = TEST_URL
       ['bookings:read'],
       ['self_service'],
       eu!.id,
+    );
+    assertedEndUserActor = new ActorIdentity(
+      'end_user_agent',
+      'tok_bookings_asserted',
+      orgId,
+      ['bookings:read', 'bookings:write'],
+      ['self_service'],
+      euAsserted!.id,
     );
 
     connectors = new ConnectorsService(new ConnectorRegistry([new GastroplannerAdapter(stubFetch)]));
@@ -195,7 +219,10 @@ const skipReason = TEST_URL
     respond = (url) =>
       url.includes('/cancel') ? { status: 204, body: undefined } : { body: [gastroplannerBooking] };
 
-    const result = await run(() => bookings.cancelMyBooking({ bookingRef: '512' }), endUserActor);
+    const result = await run(
+      () => bookings.cancelMyBooking({ bookingRef: '512' }),
+      endUserActor,
+    );
 
     expect(result.cancelled).toBe(true);
     expect(calls.some((u) => u.includes('/booking/v1/bookings/512/cancel'))).toBe(true);
@@ -212,5 +239,53 @@ const skipReason = TEST_URL
       run(() => bookings.cancelMyBooking({ bookingRef: '512' }), endUserActor),
     ).rejects.toThrow(NotFoundException);
     expect(calls.some((u) => u.includes('/cancel'))).toBe(false);
+  });
+
+  it('still allows reads on a channel-asserted identity, whose reply can only reach the real mailbox', async () => {
+    await createConnection();
+    respond = () => ({
+      body: [
+        {
+          ...gastroplannerBooking,
+          customer: { id: 9, first_name: 'Ola', last_name: 'Nordmann', email: 'ola@example.test' },
+        },
+      ],
+    });
+
+    const result = await run(() => bookings.getMyBookings({ limit: 5 }), assertedEndUserActor);
+
+    expect(result.bookings).toHaveLength(1);
+  });
+
+  it('refuses to cancel on a channel-asserted identity and never reaches the vendor', async () => {
+    await createConnection();
+    respond = (url) =>
+      url.includes('/cancel') ? { status: 204, body: undefined } : { body: [gastroplannerBooking] };
+
+    await expect(
+      run(() => bookings.cancelMyBooking({ bookingRef: '512' }), assertedEndUserActor),
+    ).rejects.toThrow(/connectors_unproven/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses to modify on a channel-asserted identity and never reaches the vendor', async () => {
+    await createConnection();
+
+    await expect(
+      run(() => bookings.updateMyBooking({ bookingRef: '512', partySize: 2 }), assertedEndUserActor),
+    ).rejects.toThrow(/connectors_unproven/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses to create on a channel-asserted identity and never reaches the vendor', async () => {
+    await createConnection();
+
+    await expect(
+      run(
+        () => bookings.createMyBooking({ date: '2026-07-10', time: '19:00', partySize: 4 }),
+        assertedEndUserActor,
+      ),
+    ).rejects.toThrow(/connectors_unproven/);
+    expect(calls).toHaveLength(0);
   });
 });

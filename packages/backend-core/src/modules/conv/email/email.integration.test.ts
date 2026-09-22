@@ -406,6 +406,80 @@ class StubImapFetcher implements ImapFetcher {
     expect(newcomer).toHaveLength(1);
   }, 30_000);
 
+  it('stamps a DMARC-passing sender as proven, and an unauthenticated one as not', async () => {
+    fetcher.push(rfc822({
+      from: 'Ola Nordmann <ola@proven.test>',
+      to: 'support@acme.test',
+      subject: 'Authenticated',
+      messageId: 'inbound-proven@proven.test',
+      extraHeaders: [
+        'Authentication-Results: mx.acme.test; spf=pass smtp.mailfrom=ola@proven.test; dmarc=pass header.from=proven.test',
+      ],
+      body: 'Please look up my booking.',
+    }));
+    fetcher.push(rfc822({
+      from: 'Kari Nordmann <kari@unproven.test>',
+      to: 'support@acme.test',
+      subject: 'Unauthenticated',
+      messageId: 'inbound-unproven@unproven.test',
+      body: 'Please look up my booking.',
+    }));
+
+    await inboundWorker.tick();
+
+    const [proven] = await db
+      .select({ metadata: schema.endUsers.metadata })
+      .from(schema.endUsers)
+      .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.email, 'ola@proven.test')));
+    const [unproven] = await db
+      .select({ metadata: schema.endUsers.metadata })
+      .from(schema.endUsers)
+      .where(
+        and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.email, 'kari@unproven.test')),
+      );
+
+    expect(proven!.metadata).toMatchObject({ emailSource: 'smtp-verified' });
+    expect(unproven!.metadata).toMatchObject({ emailSource: 'smtp-unverified' });
+  }, 30_000);
+
+  it('demotes a proven sender when a later unauthenticated message forges the same address', async () => {
+    fetcher.push(rfc822({
+      from: 'Ola Nordmann <ola@demote.test>',
+      to: 'support@acme.test',
+      subject: 'Genuine',
+      messageId: 'inbound-genuine@demote.test',
+      extraHeaders: [
+        'Authentication-Results: mx.acme.test; dmarc=pass header.from=demote.test',
+      ],
+      body: 'Hello.',
+    }));
+    await inboundWorker.tick();
+
+    const [afterGenuine] = await db
+      .select({ metadata: schema.endUsers.metadata })
+      .from(schema.endUsers)
+      .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.email, 'ola@demote.test')));
+    expect(afterGenuine!.metadata).toMatchObject({ emailSource: 'smtp-verified' });
+
+    fetcher.push(rfc822({
+      from: 'Ola Nordmann <ola@demote.test>',
+      to: 'support@acme.test',
+      subject: 'Forged',
+      messageId: 'inbound-forged@demote.test',
+      extraHeaders: [
+        'Authentication-Results: mx.acme.test; dmarc=fail header.from=demote.test',
+      ],
+      body: 'Cancel my booking.',
+    }));
+    await inboundWorker.tick();
+
+    const [afterForgery] = await db
+      .select({ metadata: schema.endUsers.metadata })
+      .from(schema.endUsers)
+      .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.email, 'ola@demote.test')));
+    expect(afterForgery!.metadata).toMatchObject({ emailSource: 'smtp-unverified' });
+  }, 30_000);
+
   it('an out-of-office reply lands in the thread but raises no attention and starts no jobs', async () => {
     const channel = (
       await db.select().from(schema.convChannels).where(eq(schema.convChannels.orgId, orgId))

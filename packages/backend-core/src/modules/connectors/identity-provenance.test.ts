@@ -1,43 +1,77 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CALLER_ID_IDENTITY_SOURCE,
-  SMTP_UNVERIFIED_EMAIL_SOURCE,
-  SMTP_VERIFIED_EMAIL_SOURCE,
   identityProvenance,
-  isProvenEmailOwnership,
+  isProvenEmailTurn,
   isSelfReportedIdentity,
+  latestEndUserTurn,
 } from './identity-provenance.ts';
 
-describe('isProvenEmailOwnership', () => {
-  it('accepts only an address proven by a passing DMARC check on inbound mail', () => {
-    expect(isProvenEmailOwnership({ emailSource: SMTP_VERIFIED_EMAIL_SOURCE })).toBe(true);
+const verified = (email = 'ola@example.test') => ({
+  authorType: 'end_user',
+  authorEmail: email,
+  metadata: { senderAuth: 'pass' },
+});
+const unverified = (email = 'ola@example.test') => ({
+  authorType: 'end_user',
+  authorEmail: email,
+  metadata: { senderAuth: 'fail' },
+});
+const agentReply = { authorType: 'agent', authorEmail: null, metadata: {} };
+
+describe('latestEndUserTurn', () => {
+  it('collects the newest contiguous run of customer messages', () => {
+    const a = verified();
+    const b = unverified();
+    expect(latestEndUserTurn([a, b, agentReply, verified()])).toEqual([a, b]);
   });
 
-  it('rejects an unauthenticated From header, which is the spoofable case', () => {
-    expect(isProvenEmailOwnership({ emailSource: SMTP_UNVERIFIED_EMAIL_SOURCE })).toBe(false);
+  it('reaches past a reply the agent already sent to the run it answered', () => {
+    const a = verified();
+    expect(latestEndUserTurn([agentReply, a, agentReply, unverified()])).toEqual([a]);
   });
 
-  it('rejects a record that predates stamping rather than grandfathering it in', () => {
-    expect(isProvenEmailOwnership({ source: 'email-inbound' })).toBe(false);
-    expect(isProvenEmailOwnership({})).toBe(false);
-    expect(isProvenEmailOwnership(null)).toBe(false);
-    expect(isProvenEmailOwnership(undefined)).toBe(false);
+  it('is empty when the customer has not written', () => {
+    expect(latestEndUserTurn([agentReply])).toEqual([]);
+    expect(latestEndUserTurn([])).toEqual([]);
+  });
+});
+
+describe('isProvenEmailTurn', () => {
+  it('accepts a turn whose every message passed DMARC for the booking address', () => {
+    expect(isProvenEmailTurn([verified(), verified(), agentReply], 'OLA@example.test')).toBe(true);
   });
 
-  it('rejects caller id, so linking a phone identity to an email can never grant booking writes', () => {
+  it('rejects a forgery that lands in the same turn as a genuine message', () => {
+    expect(isProvenEmailTurn([verified(), unverified(), agentReply], 'ola@example.test')).toBe(false);
+    expect(isProvenEmailTurn([unverified(), verified()], 'ola@example.test')).toBe(false);
+  });
+
+  it('ignores a verified message from an earlier turn once a forgery is the latest', () => {
+    expect(isProvenEmailTurn([unverified(), agentReply, verified()], 'ola@example.test')).toBe(false);
+  });
+
+  it('rejects a verified message from a different sender than the booking address', () => {
+    expect(isProvenEmailTurn([verified('kari@example.test')], 'ola@example.test')).toBe(false);
+  });
+
+  it('rejects messages that predate the verdict or carry none', () => {
     expect(
-      isProvenEmailOwnership({
-        identitySource: CALLER_ID_IDENTITY_SOURCE,
-        source: 'threll-webhook',
-      }),
+      isProvenEmailTurn(
+        [{ authorType: 'end_user', authorEmail: 'ola@example.test', metadata: {} }],
+        'ola@example.test',
+      ),
+    ).toBe(false);
+    expect(
+      isProvenEmailTurn(
+        [{ authorType: 'end_user', authorEmail: 'ola@example.test', metadata: null }],
+        'ola@example.test',
+      ),
     ).toBe(false);
   });
 
-  it('keeps self-reported ahead of a verified stamp, so a typed address cannot claim proof', () => {
-    expect(
-      isProvenEmailOwnership({ anonymous: true, emailSource: SMTP_VERIFIED_EMAIL_SOURCE }),
-    ).toBe(false);
-    expect(isProvenEmailOwnership({ emailSource: 'visitor' })).toBe(false);
+  it('rejects when there is no customer turn at all', () => {
+    expect(isProvenEmailTurn([agentReply], 'ola@example.test')).toBe(false);
+    expect(isProvenEmailTurn([], 'ola@example.test')).toBe(false);
   });
 });
 

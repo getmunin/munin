@@ -27,9 +27,11 @@ If the session has no email identity, these return an error — tell the guest y
 
 Reading a guest's own bookings works on any session that carries an email. Creating, changing or cancelling one needs the session to have *proved* the guest owns that address.
 
-Only two things count as proof today: an inbound email whose DMARC check passed and aligned with its `From:` domain, and a signed-in widget session. A bare `From:` header and a caller id are assertions anyone can forge, so a session resting on either gets `connectors_unproven` from the three write tools while the read tools keep working.
+Only one thing counts as proof today: you are answering an **email** conversation, and every message in the guest's latest turn passed DMARC aligned with its `From:` domain and came from the address the booking is filed under. The proof belongs to the conversation you are in, not to the guest — a verified message in some other conversation proves nothing here, and a single unverified message in the current turn is enough to refuse.
 
-When you hit `connectors_unproven`, don't retry and don't work around it by calling an admin tool. Tell the guest you can look up the booking but can't change it from this channel, and offer a human handover (`conv_request_human`). A guest writing in from a mail provider that publishes DMARC, or signed in on the website, will not hit this.
+Everything else gets `connectors_unproven` from the three write tools while the read tools keep working: a `From:` header without a passing DMARC result, a forwarded message, SMS, voice (caller id is forgeable), the chat widget, including an identity-verified session — the widget signs the user's id, not the email they typed — and any session that isn't tied to a conversation, such as one opened with a delegated token.
+
+When you hit `connectors_unproven`, don't retry and don't work around it by calling an admin tool. Tell the guest you can look up the booking but can't change it from this channel, and offer a human handover (`conv_request_human`).
 
 ## Admin (support agent working a conversation)
 

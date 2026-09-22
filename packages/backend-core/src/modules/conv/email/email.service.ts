@@ -24,7 +24,6 @@ import {
   type SendLimits,
 } from '@getmunin/types';
 import { findOrCreateEndUserByEmail } from '../end-user-by-email.ts';
-import type { EmailAuthVerdict } from './authentication-results.ts';
 import { parseStoredConfig, tryParseStoredConfig } from '../channels/stored-config.ts';
 
 export { EmailChannelConfigInput };
@@ -531,7 +530,6 @@ export class EmailService {
     orgId: string,
     email: string,
     name?: string,
-    emailAuth?: EmailAuthVerdict,
   ): Promise<typeof schema.convContacts.$inferSelect> {
     const lower = email.trim().toLowerCase();
     const cleanName = name?.trim() || null;
@@ -541,7 +539,6 @@ export class EmailService {
       lower,
       cleanName,
       'email-inbound',
-      emailAuth,
     );
 
     const existing = await tx

@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { schema, type Db, type Tx } from '@getmunin/db';
 import {
@@ -28,7 +28,7 @@ import {
 } from './connector.ts';
 import { SecretCipherError } from '../../common/outbound-oauth/grant-store.ts';
 import { ConnectorVendorError } from './http.ts';
-import { isProvenEmailOwnership, isSelfReportedIdentity } from './identity-provenance.ts';
+import { isProvenEmailTurn, isSelfReportedIdentity } from './identity-provenance.ts';
 import { ConnectorOAuthService, OAUTH_CONFIG_KEY } from './connector-oauth.service.ts';
 import { DB } from '../../common/db/db.module.ts';
 import { CredentialHandoffService, type CredentialLink } from '../credential-handoff/credential-handoff.service.ts';
@@ -38,6 +38,8 @@ import type {
 } from '../credential-handoff/credential-target.ts';
 
 export type ConnectionRow = typeof schema.connectorConnections.$inferSelect;
+
+const PROVEN_TURN_LOOKBACK = 50;
 
 export type CredentialState = 'active' | 'pending' | 'expired' | 'revoked';
 
@@ -585,14 +587,48 @@ export class ConnectorsService {
   async requireProvenEndUserEmail(): Promise<string> {
     const email = await this.requireEndUserEmail();
     const ctx = getCurrentContext();
-    const rows = await ctx.db
-      .select({ metadata: schema.endUsers.metadata })
-      .from(schema.endUsers)
-      .where(eq(schema.endUsers.id, ctx.actor!.endUserId!))
-      .limit(1);
-    if (!isProvenEmailOwnership(rows[0]?.metadata)) {
+    const actor = ctx.actor!;
+    const conversationId = actor.conversationId;
+    const conversation = conversationId
+      ? await ctx.db
+          .select({ id: schema.convConversations.id })
+          .from(schema.convConversations)
+          .innerJoin(
+            schema.convChannels,
+            eq(schema.convChannels.id, schema.convConversations.channelId),
+          )
+          .where(
+            and(
+              eq(schema.convConversations.id, conversationId),
+              eq(schema.convConversations.orgId, actor.orgId),
+              eq(schema.convConversations.endUserId, actor.endUserId!),
+              eq(schema.convChannels.type, 'email'),
+            ),
+          )
+          .limit(1)
+      : [];
+    const messages = conversation[0]
+      ? await ctx.db
+          .select({
+            authorType: schema.convMessages.authorType,
+            authorEmail: schema.convContacts.email,
+            metadata: schema.convMessages.metadata,
+          })
+          .from(schema.convMessages)
+          .leftJoin(schema.convContacts, eq(schema.convContacts.id, schema.convMessages.authorId))
+          .where(
+            and(
+              eq(schema.convMessages.conversationId, conversation[0].id),
+              eq(schema.convMessages.internal, false),
+              ne(schema.convMessages.authorType, 'system'),
+            ),
+          )
+          .orderBy(desc(schema.convMessages.createdAt), desc(schema.convMessages.ingestedAt))
+          .limit(PROVEN_TURN_LOOKBACK)
+      : [];
+    if (!isProvenEmailTurn(messages, email)) {
       throw new BadRequestException(
-        'connectors_unproven: this request changes a booking, which requires proof that the customer owns the email address it is filed under. The current identity was asserted by the channel (a From header or caller id) and not verified, so it cannot be used to change bookings; hand over to a human, or ask the customer to act from a signed-in session.',
+        'connectors_unproven: this request changes a booking, which requires proof that the customer owns the email address it is filed under. Only an email conversation whose latest customer messages all passed DMARC for that address counts as proof; this identity was asserted by the channel (a From header, caller id, or chat) and not verified, so it cannot be used to change bookings. Hand over to a human.',
       );
     }
     return email;

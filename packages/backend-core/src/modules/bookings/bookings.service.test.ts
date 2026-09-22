@@ -9,7 +9,6 @@ import { ConnectorRegistry } from '../connectors/connector.ts';
 import type { ConnectorFetch } from '../connectors/http.ts';
 import { GastroplannerAdapter } from './gastroplanner.adapter.ts';
 import { BookingsService } from './bookings.service.ts';
-import { SMTP_VERIFIED_EMAIL_SOURCE } from '../connectors/identity-provenance.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -26,6 +25,66 @@ const skipReason = TEST_URL
   let endUserActor: ActorIdentity;
   let assertedEndUserActor: ActorIdentity;
   let noEmailEndUserId: string;
+  let janeEndUserId: string;
+  let janeContactId: string;
+  let olaEndUserId: string;
+  let olaContactId: string;
+  let emailChannelId: string;
+  let chatChannelId: string;
+  let displayId = 0;
+
+  type SeedMessage =
+    | { author: 'end_user'; contactId: string; senderAuth?: string }
+    | { author: 'agent' };
+
+  async function seedConversation(args: {
+    channelId: string;
+    endUserId: string;
+    contactId: string;
+    messages: SeedMessage[];
+  }): Promise<string> {
+    displayId += 1;
+    const [conv] = await db
+      .insert(schema.convConversations)
+      .values({
+        orgId,
+        displayId,
+        channelId: args.channelId,
+        contactId: args.contactId,
+        endUserId: args.endUserId,
+      })
+      .returning();
+    const base = Date.now() - 60_000;
+    for (const [i, m] of args.messages.entries()) {
+      await db.insert(schema.convMessages).values({
+        orgId,
+        conversationId: conv!.id,
+        authorType: m.author,
+        authorId: m.author === 'end_user' ? m.contactId : 'agt_test',
+        body: 'hello',
+        metadata: m.author === 'end_user' && m.senderAuth ? { senderAuth: m.senderAuth } : {},
+        createdAt: new Date(base + i * 1000),
+      });
+    }
+    return conv!.id;
+  }
+
+  function writerFor(endUserId: string, conversationId?: string): ActorIdentity {
+    return new ActorIdentity(
+      'end_user_agent',
+      'tok_bookings_writer',
+      orgId,
+      ['bookings:read', 'bookings:write'],
+      ['self_service'],
+      endUserId,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      conversationId,
+    );
+  }
 
   const calls: string[] = [];
   let respond: (url: string) => { status?: number; body: unknown } = () => ({ body: [] });
@@ -70,9 +129,10 @@ const skipReason = TEST_URL
         orgId,
         email: 'jane@example.com',
         name: 'Jane',
-        metadata: { source: 'email-inbound', emailSource: SMTP_VERIFIED_EMAIL_SOURCE },
+        metadata: { source: 'email-inbound' },
       })
       .returning();
+    janeEndUserId = eu!.id;
     const [euNoEmail] = await db
       .insert(schema.endUsers)
       .values({ orgId, externalId: 'anon-1' })
@@ -87,24 +147,50 @@ const skipReason = TEST_URL
         metadata: { source: 'email-inbound' },
       })
       .returning();
+    olaEndUserId = euAsserted!.id;
+
+    const [emailChannel] = await db
+      .insert(schema.convChannels)
+      .values({ orgId, type: 'email', vendor: 'imap', name: 'support-email', config: {} })
+      .returning();
+    emailChannelId = emailChannel!.id;
+    const [chatChannel] = await db
+      .insert(schema.convChannels)
+      .values({
+        orgId,
+        type: 'chat',
+        vendor: 'munin',
+        name: 'support-chat',
+        config: { provider: 'widget', originAllowlist: [] },
+      })
+      .returning();
+    chatChannelId = chatChannel!.id;
+    const [janeContact] = await db
+      .insert(schema.convContacts)
+      .values({ orgId, email: 'jane@example.com', endUserId: janeEndUserId })
+      .returning();
+    janeContactId = janeContact!.id;
+    const [olaContact] = await db
+      .insert(schema.convContacts)
+      .values({ orgId, email: 'ola@example.test', endUserId: olaEndUserId })
+      .returning();
+    olaContactId = olaContact!.id;
+    const janeVerifiedConversationId = await seedConversation({
+      channelId: emailChannelId,
+      endUserId: janeEndUserId,
+      contactId: janeContactId,
+      messages: [{ author: 'end_user', contactId: janeContactId, senderAuth: 'pass' }],
+    });
+    const olaForgedConversationId = await seedConversation({
+      channelId: emailChannelId,
+      endUserId: olaEndUserId,
+      contactId: olaContactId,
+      messages: [{ author: 'end_user', contactId: olaContactId, senderAuth: 'fail' }],
+    });
 
     adminActor = new ActorIdentity('admin_agent', 'agt_bookings_test', orgId, ['*'], ['admin']);
-    endUserActor = new ActorIdentity(
-      'end_user_agent',
-      'tok_bookings_test',
-      orgId,
-      ['bookings:read'],
-      ['self_service'],
-      eu!.id,
-    );
-    assertedEndUserActor = new ActorIdentity(
-      'end_user_agent',
-      'tok_bookings_asserted',
-      orgId,
-      ['bookings:read', 'bookings:write'],
-      ['self_service'],
-      euAsserted!.id,
-    );
+    endUserActor = writerFor(janeEndUserId, janeVerifiedConversationId);
+    assertedEndUserActor = writerFor(olaEndUserId, olaForgedConversationId);
 
     connectors = new ConnectorsService(new ConnectorRegistry([new GastroplannerAdapter(stubFetch)]));
     bookings = new BookingsService(connectors);
@@ -219,10 +305,7 @@ const skipReason = TEST_URL
     respond = (url) =>
       url.includes('/cancel') ? { status: 204, body: undefined } : { body: [gastroplannerBooking] };
 
-    const result = await run(
-      () => bookings.cancelMyBooking({ bookingRef: '512' }),
-      endUserActor,
-    );
+    const result = await run(() => bookings.cancelMyBooking({ bookingRef: '512' }), endUserActor);
 
     expect(result.cancelled).toBe(true);
     expect(calls.some((u) => u.includes('/booking/v1/bookings/512/cancel'))).toBe(true);
@@ -288,4 +371,105 @@ const skipReason = TEST_URL
     ).rejects.toThrow(/connectors_unproven/);
     expect(calls).toHaveLength(0);
   });
+
+  it("refuses a forged conversation even while the same address has a verified one elsewhere", async () => {
+    await createConnection();
+    const forgedConversationId = await seedConversation({
+      channelId: emailChannelId,
+      endUserId: janeEndUserId,
+      contactId: janeContactId,
+      messages: [{ author: 'end_user', contactId: janeContactId, senderAuth: 'fail' }],
+    });
+
+    await expect(
+      run(
+        () => bookings.cancelMyBooking({ bookingRef: '512' }),
+        writerFor(janeEndUserId, forgedConversationId),
+      ),
+    ).rejects.toThrow(/connectors_unproven/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses when a forgery joins a verified message in the turn being answered', async () => {
+    await createConnection();
+    const mixedConversationId = await seedConversation({
+      channelId: emailChannelId,
+      endUserId: janeEndUserId,
+      contactId: janeContactId,
+      messages: [
+        { author: 'end_user', contactId: janeContactId, senderAuth: 'pass' },
+        { author: 'end_user', contactId: janeContactId, senderAuth: 'unknown' },
+      ],
+    });
+
+    await expect(
+      run(
+        () => bookings.cancelMyBooking({ bookingRef: '512' }),
+        writerFor(janeEndUserId, mixedConversationId),
+      ),
+    ).rejects.toThrow(/connectors_unproven/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses once a forgery follows an answered, verified turn', async () => {
+    await createConnection();
+    const laterForgeryId = await seedConversation({
+      channelId: emailChannelId,
+      endUserId: janeEndUserId,
+      contactId: janeContactId,
+      messages: [
+        { author: 'end_user', contactId: janeContactId, senderAuth: 'pass' },
+        { author: 'agent' },
+        { author: 'end_user', contactId: janeContactId, senderAuth: 'fail' },
+      ],
+    });
+
+    await expect(
+      run(
+        () => bookings.cancelMyBooking({ bookingRef: '512' }),
+        writerFor(janeEndUserId, laterForgeryId),
+      ),
+    ).rejects.toThrow(/connectors_unproven/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses a caller that is not acting inside a conversation', async () => {
+    await createConnection();
+
+    await expect(
+      run(() => bookings.cancelMyBooking({ bookingRef: '512' }), writerFor(janeEndUserId)),
+    ).rejects.toThrow(/connectors_unproven/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("refuses to borrow another end user's verified conversation", async () => {
+    await createConnection();
+
+    await expect(
+      run(
+        () => bookings.cancelMyBooking({ bookingRef: '512' }),
+        writerFor(olaEndUserId, endUserActor.conversationId),
+      ),
+    ).rejects.toThrow(/connectors_unproven/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('refuses a verdict stamped on a message outside the email channel', async () => {
+    await createConnection();
+    const chatConversationId = await seedConversation({
+      channelId: chatChannelId,
+      endUserId: janeEndUserId,
+      contactId: janeContactId,
+      messages: [{ author: 'end_user', contactId: janeContactId, senderAuth: 'pass' }],
+    });
+
+    await expect(
+      run(
+        () => bookings.cancelMyBooking({ bookingRef: '512' }),
+        writerFor(janeEndUserId, chatConversationId),
+      ),
+    ).rejects.toThrow(/connectors_unproven/);
+    expect(calls).toHaveLength(0);
+  });
 });
+

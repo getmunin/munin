@@ -1,5 +1,8 @@
 ---
 '@getmunin/backend-core': minor
+'@getmunin/core': minor
+'@getmunin/agent-runtime': minor
+'@getmunin/agent-host': minor
 ---
 
 Require a proven email address before a self-service booking write, and start reading the
@@ -18,30 +21,48 @@ attacker. A write needs no reply — the damage is already at the vendor — whi
 gate lands on `bookings_create_my_booking`, `bookings_update_my_booking` and
 `bookings_cancel_my_booking`, and why the read tools are deliberately unchanged.
 
-`ConnectorsService.requireProvenEndUserEmail()` backs the three write paths and refuses with
-`connectors_unproven` unless the record carries proof of ownership. `requireEndUserEmail()`
-is untouched, so every read behaves exactly as before.
+**The verdict.** `Authentication-Results` was parsed at ingest and written into message
+metadata, and nothing ever read it. `evaluateInboundEmailAuth` now reads the topmost header —
+each hop prepends its own, so the first is the receiving MTA's — and returns `pass` only for a
+single `dmarc=pass` result whose own `header.from` aligns with the `From:` domain. The header is
+parsed by its RFC 8601 structure (results split on `;` outside quoted strings and comments,
+method and result read only from the head of each result), not by searching for `dmarc=`
+anywhere in it: the receiving MTA copies attacker-chosen values into the same header, and
+`dmarc=pass@attacker.test` is a legal envelope sender. A header carrying two `dmarc` results is
+`fail`, since one of them was injected. A forwarded sender never inherits the verdict, because
+DMARC authenticated the forwarder and not the address recovered from the body.
 
-Proof now has a source. `Authentication-Results` and `ARC-Authentication-Results` were
-parsed at ingest and written into message metadata, and nothing ever read them.
-`evaluateInboundEmailAuth` reads the **topmost** header only — each hop prepends its own, so
-the first one is the receiving MTA's and a sender-forged copy sits below it — and returns
-`pass` only for `dmarc=pass` whose `header.from` aligns with the `From:` domain. Anything
-else is `fail` or `unknown`, and only `pass` stamps `emailSource: 'smtp-verified'`. The
-stamp is rewritten on every inbound message rather than only at creation, so a later spoof
-cannot ride on an earlier genuine message's proof.
+**Where the proof lives.** The verdict is recorded on the inbound message
+(`conv_messages.metadata.senderAuth`), not on the `end_users` row. A per-person stamp was the
+wrong unit: the gate would read whatever the most recent message from that address had said,
+so a genuine message landing between a forgery and the agent's tool call lent its proof to the
+forger's conversation, and every other channel bound to the same row — a caller whose number
+matches the contact, for one — borrowed it too. It also overwrote a widget visitor's
+`emailSource: 'visitor'` marker, which turned a typed-in address into a readable one the moment
+mail arrived for it.
 
-Three things deliberately do not count as proof. A forwarded sender never inherits the
-verdict, because DMARC authenticated the forwarder and not the address recovered from the
-body. A caller-id identity is stamped `identitySource: 'caller-id'` so that attaching an
-email to a phone record later cannot silently grant booking writes. And a record written
-before this change carries no stamp and is treated as unproven rather than grandfathered in.
+`ConnectorsService.requireProvenEndUserEmail()` backs the three write paths. It passes only
+when the caller is acting inside a specific conversation that belongs to it and arrived on the
+email channel, and every message in that conversation's latest customer turn passed DMARC and
+was sent from the address the booking is filed under. Anything else refuses with
+`connectors_unproven` before any vendor call: another conversation's proof, one unverified
+message in the current turn, SMS, voice, the chat widget (identity verification signs the
+user's id, not the email they typed), and a session not tied to a conversation, such as a
+delegated token. `requireEndUserEmail()` is untouched, so every read behaves exactly as before.
 
-Operators on a mail path that strips or never adds `Authentication-Results` will find
-self-service booking writes refused; the fix is to keep the receiving MTA's header, not to
-widen the gate. `skill://bookings/manage-bookings` tells the agent to offer a human handover
-on `connectors_unproven` instead of retrying or reaching for an admin tool.
+To know which conversation it is acting in, the end-user agent's actor now carries it:
+`ActorIdentity` gains an optional trailing `conversationId`, `buildEndUserAgentActor` and
+`openEndUserAgentMcpClient` accept one, and the conversation handler passes it to `openMcp`
+alongside `endUserId` and `channelType`.
 
-This closes the write half only. A spoofed `From:` still reads order and booking history,
-held in check by reply addressing alone, and widening cross-channel context would widen that
-exposure — so identity confidence and a disclosure gate remain to be designed.
+Messages ingested before this change carry no verdict and are unproven rather than grandfathered
+in. Operators on a mail path that strips `Authentication-Results` will find self-service booking
+writes refused; the fix is to keep the receiving MTA's header, not to widen the gate.
+`skill://bookings/manage-bookings` tells the agent to offer a human handover on
+`connectors_unproven` instead of retrying or reaching for an admin tool.
+
+Two limits remain. The topmost header is trusted without checking its authserv-id, so a mail
+path whose receiving server adds no `Authentication-Results` of its own leaves a sender-written
+one on top. And DMARC proves the sending domain, not the mailbox: anyone who can legitimately
+send from the same domain passes. A spoofed `From:` also still reads order and booking history,
+held in check by reply addressing alone.

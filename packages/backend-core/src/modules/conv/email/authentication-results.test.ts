@@ -3,6 +3,7 @@ import {
   emailDomain,
   evaluateInboundEmailAuth,
   inboundSenderAuth,
+  parseAuthenticationResults,
   stripAuthResultComments,
 } from './authentication-results.ts';
 
@@ -182,4 +183,109 @@ describe('evaluateInboundEmailAuth', () => {
       }),
     ).toBe('fail');
   });
+
+  it('ignores dmarc=pass planted in the envelope sender local part', () => {
+    expect(
+      evaluateInboundEmailAuth({
+        authenticationResults: [
+          'mx.test; spf=pass (domain of dmarc=pass@attacker.test designates 192.0.2.1 as permitted sender) smtp.mailfrom=dmarc=pass@attacker.test; dkim=none; dmarc=fail (p=NONE sp=NONE dis=NONE) header.from=example.com',
+        ],
+        fromAddress: 'ola@example.com',
+      }),
+    ).toBe('fail');
+  });
+
+  it('ignores dmarc=pass planted in the HELO name', () => {
+    expect(
+      evaluateInboundEmailAuth({
+        authenticationResults: ['mx.test; spf=none smtp.helo=dmarc=pass; dmarc=fail header.from=example.com'],
+        fromAddress: 'ola@example.com',
+      }),
+    ).toBe('fail');
+  });
+
+  it('does not split a result on a semicolon inside a quoted envelope sender', () => {
+    expect(
+      evaluateInboundEmailAuth({
+        authenticationResults: [
+          'mx.test; spf=pass smtp.mailfrom="x;dmarc=pass header.from=example.com"@attacker.test; dmarc=fail header.from=example.com',
+        ],
+        fromAddress: 'ola@example.com',
+      }),
+    ).toBe('fail');
+  });
+
+  it('is unknown when the only dmarc text sits in another method property and no dmarc result exists', () => {
+    expect(
+      evaluateInboundEmailAuth({
+        authenticationResults: [
+          'mx.test; spf=pass smtp.mailfrom=dmarc=pass@attacker.test; dkim=pass header.d=example.com',
+        ],
+        fromAddress: 'ola@example.com',
+      }),
+    ).toBe('unknown');
+  });
+
+  it('reads header.from from the dmarc result only, never from another method', () => {
+    expect(
+      evaluateInboundEmailAuth({
+        authenticationResults: ['mx.test; dkim=pass header.from=example.com; dmarc=pass'],
+        fromAddress: 'ola@example.com',
+      }),
+    ).toBe('unknown');
+  });
+
+  it('fails when the header carries more than one dmarc result, since one of them was injected', () => {
+    expect(
+      evaluateInboundEmailAuth({
+        authenticationResults: [
+          'mx.test; dmarc=pass header.from=example.com; dmarc=fail header.from=example.com',
+        ],
+        fromAddress: 'ola@example.com',
+      }),
+    ).toBe('fail');
+  });
+
+  it('passes the Microsoft 365 header shape', () => {
+    expect(
+      evaluateInboundEmailAuth({
+        authenticationResults: [
+          'spf=pass (sender IP is 192.0.2.1) smtp.mailfrom=example.com; dkim=pass (signature was verified) header.d=example.com;dmarc=pass action=none header.from=example.com;compauth=pass reason=100',
+        ],
+        fromAddress: 'ola@example.com',
+      }),
+    ).toBe('pass');
+  });
 });
+
+describe('parseAuthenticationResults', () => {
+  it('splits results by method and keeps each property with its own result', () => {
+    expect(
+      parseAuthenticationResults(
+        'mx.test 1; spf=pass smtp.mailfrom=a@example.com; dmarc=pass (p=NONE) header.from=example.com',
+      ),
+    ).toEqual({
+      authservId: 'mx.test',
+      results: [
+        { method: 'spf', result: 'pass', props: { 'smtp.mailfrom': 'a@example.com' } },
+        { method: 'dmarc', result: 'pass', props: { 'header.from': 'example.com' } },
+      ],
+    });
+  });
+
+  it('keeps parentheses inside a quoted value as data rather than a comment', () => {
+    expect(
+      parseAuthenticationResults('mx.test; spf=pass smtp.mailfrom="a(b)"@example.com')?.results[0]
+        ?.props['smtp.mailfrom'],
+    ).toBe('"a(b)"@example.com');
+  });
+
+  it('returns no results for a no-result header', () => {
+    expect(parseAuthenticationResults('mx.test; none')).toEqual({ authservId: 'mx.test', results: [] });
+  });
+
+  it('returns null for an empty header', () => {
+    expect(parseAuthenticationResults('   ')).toBeNull();
+  });
+});
+

@@ -139,7 +139,7 @@ Two rules follow:
 
 ### Inbound email and SMS are not authenticated identity
 
-The self-service tools refuse an address a visitor merely typed into the chat widget. They do **not** refuse an address that arrived as an email `From:` header or an SMS sender number — and those are spoofable. Anyone can send mail claiming to be `jane@example.com`; sender and caller ID are forgeable too. Munin records `Authentication-Results` (SPF/DKIM/DMARC) on inbound mail but does not yet gate identity on it, so a DMARC-failing message is still treated as coming from the address in its `From` line.
+The self-service tools refuse an address a visitor merely typed into the chat widget. They do **not** refuse an address that arrived as an email `From:` header or an SMS sender number — and those are spoofable. Anyone can send mail claiming to be `jane@example.com`; sender and caller ID are forgeable too. Munin parses the receiving server's `Authentication-Results` header on inbound mail and records a DMARC verdict on each message, but only the self-service booking writes (`bookings_create_my_booking`, `bookings_update_my_booking`, `bookings_cancel_my_booking`) require it; reads still treat a DMARC-failing message as coming from the address in its `From` line. DMARC proves the sending *domain*, not the mailbox, so anyone who can legitimately send from the same domain passes it.
 
 In practice that is the same trust level every support desk operates at when a human reads an inbound email and looks up the order — order status is low-harm, and the alternative (challenge every customer) makes the product useless. Know the trade-off rather than assume the tools verified something:
 

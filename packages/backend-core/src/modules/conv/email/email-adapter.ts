@@ -53,6 +53,7 @@ import type {
 } from '../attachments/conv-attachments.types.ts';
 import type { ForwardOrigin } from './forwarded-sender.ts';
 import { inboundSenderAuth } from './authentication-results.ts';
+import { SENDER_AUTH_METADATA_KEY } from '../../connectors/identity-provenance.ts';
 import { reopenClosedConversation } from '../conversation-reopen.ts';
 import { raiseAttentionWhenAgentIsOff } from '../unanswerable-handover.ts';
 import {
@@ -414,7 +415,6 @@ export class EmailAdapter implements ChannelAdapter {
           orgId,
           sender.senderAddress,
           sender.senderName ?? undefined,
-          emailAuth,
         );
         const normalizedText = normalizeFlattenedWhitespace(parsed.bodyText);
         const quoteContext: QuoteContext = {
@@ -526,7 +526,10 @@ export class EmailAdapter implements ChannelAdapter {
             bodyHtml: scrubbed.fields.bodyHtml ?? null,
             attachments: stored.projection,
             internal: false,
-            metadata: stampDetections(scrubbed.fields.metadata ?? {}, scrubbed.detected),
+            metadata: {
+              ...stampDetections(scrubbed.fields.metadata ?? {}, scrubbed.detected),
+              [SENDER_AUTH_METADATA_KEY]: emailAuth,
+            },
           })
           .returning();
         if (stored.dtos.length > 0) {

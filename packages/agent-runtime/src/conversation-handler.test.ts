@@ -1784,7 +1784,11 @@ describe('createConversationHandler', () => {
 
     expect(mintSpy).not.toHaveBeenCalled();
     expect(openMcpSpy).toHaveBeenCalledTimes(3);
-    expect(openMcpSpy.mock.calls[0]?.[0]).toEqual({ endUserId: 'eu_1', channelType: null });
+    expect(openMcpSpy.mock.calls[0]?.[0]).toEqual({
+      endUserId: 'eu_1',
+      conversationId: 'conv_1',
+      channelType: null,
+    });
   });
 
   it('passes the conversation channel to openMcp so identity provenance reflects how the turn arrived', async () => {
@@ -1816,7 +1820,11 @@ describe('createConversationHandler', () => {
     handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
     await handler.flush();
 
-    expect(openMcpSpy.mock.calls[0]?.[0]).toEqual({ endUserId: 'eu_1', channelType: 'email' });
+    expect(openMcpSpy.mock.calls[0]?.[0]).toEqual({
+      endUserId: 'eu_1',
+      conversationId: 'conv_1',
+      channelType: 'email',
+    });
   });
 
   it('aborts the in-flight debounce when a new triggering event arrives for the same conversation', async () => {

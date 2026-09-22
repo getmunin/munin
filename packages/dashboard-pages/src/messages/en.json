@@ -1234,7 +1234,7 @@
     },
     "console": {
       "review": {
-        "eyebrow": "Review — what's waiting on you",
+        "eyebrow": "Review",
         "title": "Nothing ships without <em>your nod.</em>",
         "lede": "Drafts, merges and outbound messages queue up here for a decision. Knowledge proposals sit below them — worth doing, never urgent.",
         "tabWaiting": "Waiting",
@@ -1427,7 +1427,7 @@
         }
       },
       "automation": {
-        "eyebrow": "Automation — per topic",
+        "eyebrow": "Automation",
         "title": "Approve it until <em>you don't have to.</em>",
         "lede": "Every topic starts in review. When the numbers hold, flip it to auto — and the queue gets quieter. That is the point.",
         "autoRateCaption": "of replies auto-sent · 7 days",
@@ -1634,7 +1634,7 @@
         "testDelete": "Delete and finish"
       },
       "automation": {
-        "eyebrow": "Automation — per topic",
+        "eyebrow": "Automation",
         "title": "Nothing to <em>automate</em> yet.",
         "lede": "Topics are discovered, not configured. They appear once conversations arrive and get classified — there is no policy to set for a question nobody has asked.",
         "chainChannelTitle": "A channel is open",
@@ -1648,7 +1648,7 @@
         "note": "Everything is manual review until you say otherwise. That is the default, and it never changes on its own."
       },
       "review": {
-        "eyebrow": "Review — nothing waiting",
+        "eyebrow": "Review",
         "titleEmptyBase": "An empty <em>memory</em>.",
         "ledeEmptyBase": "The knowledge base has nothing in it. Agents write to it over MCP — <code>kb_create_document</code> — and from there it grows on its own: every conversation the base can't answer turns into a proposal on this page.",
         "noteEmptyBase": "No import wizard. Point an agent at the endpoint and let it write.",

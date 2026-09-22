@@ -187,7 +187,7 @@
     "skills": "Ferdigheter",
     "partner": "Partner",
     "automation": "Automatisering",
-    "review": "Gjennomgang",
+    "review": "Godkjenning",
     "openMenu": "Åpne meny",
     "openUserMenu": "Åpne brukermeny",
     "integrations": "Integrasjoner"
@@ -296,12 +296,12 @@
         "cmsUntitled": "Uten tittel",
         "cmsDestination": "publiseres i {collection}",
         "cancelTitle": "Avlys denne utsendingen",
-        "cancelDescription": "Ingenting sendes. Utkastet går tilbake til gjennomgang, og å sende det senere krever ny godkjenning.",
+        "cancelDescription": "Ingenting sendes. Utkastet går tilbake i køen, og å sende det senere krever ny godkjenning.",
         "cancelReasonLabel": "Begrunnelse",
         "cancelConfirm": "Avlys utsending",
         "cancelDismiss": "La den stå planlagt",
         "cancelCmsTitle": "Avlys denne publiseringen",
-        "cancelCmsDescription": "Ingenting går live. Oppføringen går tilbake til gjennomgang som utkast, og å publisere den senere krever ny godkjenning.",
+        "cancelCmsDescription": "Ingenting går live. Oppføringen går tilbake i køen som utkast, og å publisere den senere krever ny godkjenning.",
         "cancelCmsConfirm": "Avlys publisering"
       },
       "drawer": {
@@ -459,6 +459,7 @@
         "shortcutPublish": "⌘↵ publiser",
         "socialPublish": "Publiser",
         "socialPublishAs": "Publiser som {name}",
+        "socialRetryPublish": "Prøv publisering igjen",
         "socialPublishHint": "Innlegget går rett ut på {platform}, i ditt navn. Munin kan ikke hente det tilbake.",
         "socialPublishHintPage": "Publisering sender dette til {platform} med én gang, som siden {name} — ikke i ditt navn. Munin kan ikke hente det tilbake.",
         "socialViewPreview": "Forhåndsvisning",
@@ -1250,7 +1251,7 @@
     },
     "console": {
       "review": {
-        "eyebrow": "Gjennomgang",
+        "eyebrow": "Til godkjenning",
         "title": "Ingenting skjer før <em>du sier ja.</em>",
         "lede": "Utkast, sammenslåinger og utgående meldinger samler seg her og venter på en avgjørelse. Kunnskapsforslag ligger under — verdt å gjøre, aldri hastverk.",
         "tabWaiting": "Venter",
@@ -1445,7 +1446,7 @@
       "automation": {
         "eyebrow": "Automatisering",
         "title": "Godkjenn til <em>du slipper.</em>",
-        "lede": "Hvert tema starter til gjennomgang. Når tallene holder, slår du på automatisk utsending — og køen blir stillere. Det er poenget.",
+        "lede": "Hvert tema starter til godkjenning. Når tallene holder, slår du på automatisk utsending — og køen blir stillere. Det er poenget.",
         "autoRateCaption": "av svarene sendt automatisk · 7 dager",
         "colTopic": "Tema",
         "colVolume": "Volum / vindu",
@@ -1528,6 +1529,7 @@
         "replyPlaceholder": "Skriv svaret til {name} …",
         "approveSend": "Godkjenn og send",
         "sendReply": "Send svar",
+        "retrySend": "Prøv sending igjen",
         "rejectDraft": "Avvis kladden",
         "reviewDraft": "Se over kladden",
         "draftPreviewLabel": "Kladd fra agenten",
@@ -1631,7 +1633,7 @@
         "endpointCalls": "{count, plural, one {# verktøykall så langt} other {# verktøykall så langt}}",
         "endpointIdle": "ingen agent har kalt det ennå",
         "waitLabel": "Mens du venter",
-        "waitBody": "Hvert tema starter til manuell gjennomgang. Ingenting sendes automatisk — verken i dag eller senere — før du slår det på selv under Automatisering, og du kan ikke slå på noe før det finnes tall å se på.",
+        "waitBody": "Hvert tema starter til manuell godkjenning. Ingenting sendes automatisk — verken i dag eller senere — før du slår det på selv under Automatisering, og du kan ikke slå på noe før det finnes tall å se på.",
         "noteListening": "Ingenting å gå gjennom før noe kommer inn."
       },
       "conversations": {
@@ -1660,10 +1662,10 @@
         "chainTopicsTitle": "Temaer havner her med volum og godkjenningsrate",
         "chainTopicsNote": "Da, og først da, slår du på automatisk utsending.",
         "startWithChannel": "Start med en kanal",
-        "note": "Alt går til manuell gjennomgang til du sier noe annet. Det er utgangspunktet, og det endrer seg aldri av seg selv."
+        "note": "Alt går til manuell godkjenning til du sier noe annet. Det er utgangspunktet, og det endrer seg aldri av seg selv."
       },
       "review": {
-        "eyebrow": "Gjennomgang — ingenting venter",
+        "eyebrow": "Godkjenning",
         "titleEmptyBase": "Et tomt <em>minne</em>.",
         "ledeEmptyBase": "Kunnskapsbasen er tom. Agenter skriver til den over MCP — <code>kb_create_document</code> — og derfra vokser den av seg selv: hver samtale basen ikke kan svare på blir et forslag på denne siden.",
         "noteEmptyBase": "Ingen importveiviser. Pek en agent mot endepunktet og la den skrive.",
@@ -2274,7 +2276,7 @@
     "conv_channel_config_invalid": "Kanalen har ufullstendige innstillinger og kan ikke brukes ennå. Åpne innstillingene, fyll ut det som mangler og lagre for å reparere den.",
     "conv_delivery_channel_inactive": "Kanalen denne meldingen skal ut på er slått av, så en ny sending ville feilet også. Slå kanalen på igjen i innstillingene, og prøv på nytt.",
     "conv_delivery_not_retryable": "Denne meldingen venter ikke lenger på å sendes på nytt — den gikk ut, eller Munin prøver allerede igjen. Last samtalen på nytt for å se hvor den står.",
-    "conv_draft_pending": "En kladd venter allerede på gjennomgang.",
+    "conv_draft_pending": "En kladd venter allerede på godkjenning.",
     "conv_draft_request_invalid": "Agenten kan ikke lage utkast her – samtalen er lukket, mangler en kunde å svare, eller agenten er slått av.",
     "conv_invalid": "Dette utkastet ligger ikke lenger til behandling i samtalen – det er allerede sendt, eller agenten har skrevet et nyere. Åpne samtalen på nytt for å se hvor den står.",
     "conv_redaction_invalid": "Velg minst én type nummer, eller slå av fjerning.",
@@ -2333,7 +2335,7 @@
       "eyebrow": "Venter på godkjenning",
       "title": "Utgående forslag",
       "sublineEmpty": "Ingenting venter — køen er tom.",
-      "sublinePending": "{count} venter på gjennomgang — godkjenning leverer det.",
+      "sublinePending": "{count} venter på godkjenning — å godkjenne leverer det.",
       "refresh": "Oppdater",
       "refreshing": "Oppdaterer…",
       "noSubject": "(uten emne)",
@@ -2386,7 +2388,7 @@
       "eyebrow": "Mulige duplikater",
       "title": "Kontaktflettinger",
       "sublineEmpty": "Ingenting venter — køen er tom.",
-      "sublinePending": "{count} venter på gjennomgang — å flette slår sammen kontaktene.",
+      "sublinePending": "{count} venter på godkjenning — å flette slår sammen kontaktene.",
       "refresh": "Oppdater",
       "refreshing": "Oppdaterer…",
       "unnamedContact": "(uten navn)",
@@ -2426,7 +2428,7 @@
       "eyebrow": "Innkurv for artikkelutkast",
       "title": "Kunnskapskandidater",
       "sublineEmpty": "Ingenting venter — innkurven er tom.",
-      "sublinePending": "{count} utkast venter på gjennomgang — publisering gjør dem synlige.",
+      "sublinePending": "{count} utkast venter på godkjenning — publisering gjør dem synlige.",
       "refresh": "Oppdater",
       "refreshing": "Oppdaterer…",
       "proposedTarget": "foreslått område: {space}",

@@ -26,6 +26,7 @@ import { customerIdentity } from './inbox-helpers';
 import { formatPhoneNumber } from '../../lib/format-phone';
 import { LoadFailed } from '../load-failed';
 import { TestConversationBanner } from './test-conversation-banner';
+import { FailureBlockRegion, failureSummary } from './failure-block';
 import { usePaneLoadFailedProps } from '../../lib/use-load-failed-props';
 import {
   messageDraftKind,
@@ -316,7 +317,8 @@ export function ConversationPane({
   const agentCanDraft = !!detail.endUserId && item?.agentMode !== 'off';
   const draftInFlight = !!draft || drafting;
   const canAskDraft = canReply && endUserSpokeLast && agentCanDraft && !draftInFlight;
-  const err = controller.actionError;
+  const err =
+    controller.actionError?.conversationId === detail.id ? controller.actionError : null;
 
   const rejectAndClear = () => {
     void controller.rejectDraft(detail.id).then(() => {
@@ -527,22 +529,11 @@ export function ConversationPane({
   );
 
   const errBanner = err ? (
-    <div
-      role="alert"
-      className="flex items-center gap-3 border-b border-rule-soft px-5 py-2.5 text-[13px] font-medium text-destructive md:px-7 dark:border-rule-on-dark"
-    >
-      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-current" />
-      <span className="min-w-0 flex-1 truncate">
-        {t(`actionFailed.${err.type}`)} · {err.message}
-      </span>
-      <button
-        type="button"
-        onClick={controller.clearActionError}
-        className="shrink-0 underline underline-offset-[3px]"
-      >
-        {tCommon('close')}
-      </button>
-    </div>
+    <FailureBlockRegion
+      summary={failureSummary(err.code, err.message)}
+      attempt={err.attempt}
+      onDismiss={controller.clearActionError}
+    />
   ) : null;
 
   return (
@@ -806,7 +797,11 @@ export function ConversationPane({
                     pending={controller.pendingAction === 'send'}
                     className="max-md:h-11 max-md:min-w-0 max-md:flex-1"
                   >
-                    {suggestionId && !dirty ? t('approveSend') : t('sendReply')}
+                    {err
+                      ? t('retrySend')
+                      : suggestionId && !dirty
+                        ? t('approveSend')
+                        : t('sendReply')}
                   </Button>
                   <Button
                     variant="outline"

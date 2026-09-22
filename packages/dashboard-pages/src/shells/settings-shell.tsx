@@ -111,7 +111,7 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
           <div className="min-h-0 flex-1 overflow-y-auto py-2">{navTree}</div>
         </aside>
 
-        <div className="min-h-0 min-w-0 flex-1 space-y-10 overflow-y-auto bg-paper px-6 py-8 md:px-12 md:py-10 dark:bg-background">
+        <div className="min-h-0 min-w-0 flex-1 space-y-10 overflow-y-auto bg-paper px-5 pb-10 pt-8 md:px-8 dark:bg-background">
           {children}
         </div>
       </div>

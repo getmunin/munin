@@ -137,9 +137,11 @@ export function SocialQueuePane({
     (availability.state === 'ready' ? availability.authorName : null) ?? membership?.name ?? null;
   const previewAuthorKind = availability.state === 'ready' ? availability.authorKind : null;
   const paneError = actionError?.itemId === item.id ? actionError : null;
-  const publishLabel = authorName
-    ? t('socialPublishAs', { name: authorName })
-    : t('socialPublish');
+  const publishLabel = paneError
+    ? t('socialRetryPublish')
+    : authorName
+      ? t('socialPublishAs', { name: authorName })
+      : t('socialPublish');
   const editAction = { label: t('edit'), onClick: startEdit, disabled: pending };
 
   return (

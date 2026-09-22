@@ -462,16 +462,12 @@ export function PaneFooter({
   const hasSecondary = secondary.length > 0;
 
   return (
-    <>
-      {error && (
-        <QueueActionErrorBanner error={error} onDismiss={onClearError ?? (() => {})} />
-      )}
-    <div
-      className={cn(
-        'flex items-center justify-between gap-2 px-5 py-4 md:px-7',
-        bordered && !error && 'border-t-[1px] border-rule-soft dark:border-rule-on-dark',
-      )}
-    >
+    <div className={cn(bordered && 'border-t-[1px] border-rule-soft dark:border-rule-on-dark')}>
+      <QueueActionErrorBanner
+        error={error ?? null}
+        onDismiss={onClearError ?? (() => {})}
+      />
+    <div className="flex items-center justify-between gap-2 px-5 py-3 md:px-7">
       <div className="flex flex-1 items-center gap-2 md:flex-none">
         <Button
           variant="accent"
@@ -517,6 +513,6 @@ export function PaneFooter({
         />
       )}
     </div>
-    </>
+    </div>
   );
 }

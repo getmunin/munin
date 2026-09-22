@@ -8,7 +8,7 @@ audiences: [admin]
 
 Same shape as `skill://outreach/draft-first-touch-email`, with three differences that matter enough to be their own skill: a text is far shorter, it costs money per segment, and **you cannot send one**.
 
-**Approving a text is a dashboard-only action.** `outreach_approve_proposal` refuses any caller that is not a signed-in dashboard user — agents, admin API keys, the Slack button. Draft, file the proposal, tell the operator it is waiting in the dashboard inbox, and stop. Don't retry, don't look for another tool, and don't ask for a credential that would work. `outreach_revise_proposal`, `outreach_withdraw_proposal` and `outreach_dismiss_proposal` all still work on these — none of them send anything.
+**Approving a text is a dashboard-only action.** `outreach_approve_proposal` refuses any caller that is not a signed-in dashboard user — agents, admin API keys, the Slack button. Draft, file the proposal, tell the operator it is waiting in the dashboard inbox, and stop. Don't retry, don't look for another tool, and don't ask for a credential that would work. `outreach_update_proposal`, `outreach_withdraw_proposal` and `outreach_dismiss_proposal` all still work on these — none of them send anything.
 
 ## The pass
 

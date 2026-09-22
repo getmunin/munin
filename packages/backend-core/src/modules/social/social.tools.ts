@@ -189,8 +189,8 @@ export class SocialTools {
   }
 
   @McpTool({
-    name: 'social_revise_post_draft',
-    title: 'Social: Revise post draft',
+    name: 'social_update_post_draft',
+    title: 'Social: Update post draft',
     description:
       'Replace the body of a draft that has not been decided yet. The platform character limit is re-checked against the new text.',
     audiences: ['admin'],

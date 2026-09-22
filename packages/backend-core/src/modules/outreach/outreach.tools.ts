@@ -477,8 +477,8 @@ export class OutreachAdminTools {
   }
 
   @McpTool({
-    name: 'outreach_revise_proposal',
-    title: 'Outreach: Revise proposal',
+    name: 'outreach_update_proposal',
+    title: 'Outreach: Update proposal',
     description:
       'Rewrite the draft on one pending outreach proposal in place, keeping the same proposal id, campaign, and contact — those three cannot be changed here; a different recipient or campaign is a different proposal. Pass any of `draftSubject`, `draftBody`, `proposedSendAt` plus a required `reason`. The revision is recorded on the proposal: `revisionCount`, `lastRevisedAt`, `lastRevisionReason`, and the revising actor, plus `revisedAfterReviewAt` when someone else had already opened the draft for review before the change. `proposedSendAt` is the send time an operator inherits when they approve without naming one of their own. Fails if the proposal is not pending — an approved send waiting on its schedule has to be called off with `outreach_cancel_scheduled_send` before its draft can change. Returns the revised proposal.',
     audiences: ['admin'],

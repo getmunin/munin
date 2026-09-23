@@ -15,9 +15,36 @@ export function previewLink(draft: SocialPreviewDraft): string | null {
   return draft.shareUrl ?? draft.linkUrl;
 }
 
-export function composePreviewBody(draft: SocialPreviewDraft): string {
+export interface SocialLinkPreview {
+  linkUrl: string | null;
+  readable: boolean;
+  title: string | null;
+  imageUrl: string | null;
+}
+
+export type PreviewPicture =
+  | { kind: 'attached' }
+  | { kind: 'pending' }
+  | { kind: 'page'; imageUrl: string }
+  | { kind: 'none'; readable: boolean };
+
+export function previewPicture(
+  draft: SocialPreviewDraft,
+  linkPreview: SocialLinkPreview | null | undefined,
+): PreviewPicture {
+  if (draft.mediaUrl) return { kind: 'attached' };
+  if (!draft.linkUrl) return { kind: 'none', readable: true };
+  if (linkPreview === undefined) return { kind: 'pending' };
+  if (linkPreview?.imageUrl) return { kind: 'page', imageUrl: linkPreview.imageUrl };
+  return { kind: 'none', readable: linkPreview?.readable ?? false };
+}
+
+export function composePreviewBody(
+  draft: SocialPreviewDraft,
+  carriesPicture: boolean = draft.mediaUrl !== null,
+): string {
   if (draft.linkPlacement === 'comment') return draft.body;
-  if (draft.platform === 'facebook' && !draft.mediaUrl) return draft.body;
+  if (draft.platform === 'facebook' && !carriesPicture) return draft.body;
   const link = previewLink(draft);
   if (!link || draft.body.includes(link)) return draft.body;
   return `${draft.body}\n\n${link}`;

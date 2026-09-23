@@ -474,11 +474,13 @@
         "socialPreviewSend": "Send",
         "socialPreviewShare": "Del",
         "socialPreviewCardImage": "Bildet siden deler selv",
-        "socialPreviewCardTitle": "Tittelen siden har selv",
         "socialPreviewAuthorUnknown": "Kontoen din",
         "socialPreviewNoteMedia": "Filen som er lagt ved er selve innlegget, så lenken får ikke noe eget kort.",
-        "socialPreviewNoteLink": "Bilde og tittel hentes fra siden det lenkes til når innlegget går ut — Facebook viser dem som et kort, LinkedIn som innleggets eget bilde.",
-        "socialPreviewNoteLayout": "Et riss av oppsettet — nettverket bestemmer den endelige luften, og bretter lange innlegg bak «se mer»."
+        "socialPreviewReadingPage": "Leser siden det lenkes til …",
+        "socialPreviewNotePageImage": "Ingen fil er lagt ved, så bildet siden det lenkes til deler, går ut som innleggets eget.",
+        "socialPreviewNoteNoPageImage": "Siden det lenkes til deler ikke noe bilde, så innlegget går ut uten.",
+        "socialPreviewNoteFacebookCard": "Siden det lenkes til deler ikke noe bilde, så Facebook lager sitt eget kort fra lenken.",
+        "socialPreviewNoteUnreadable": "Siden det lenkes til kunne ikke leses akkurat nå. Munin prøver igjen når innlegget går ut, og legger det ut uten bilde hvis det fortsatt ikke går."
       },
       "relative": {
         "justNow": "akkurat nå",

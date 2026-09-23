@@ -50,6 +50,7 @@ import {
 import {
   SocialMediaFetcher,
   type FetchedMedia,
+  type OpenGraphSummary,
   type SocialMediaReader,
 } from './social-media.ts';
 
@@ -118,6 +119,13 @@ export interface SocialDraftDto {
   createdAt: string;
 }
 
+export interface SocialLinkPreviewDto {
+  linkUrl: string | null;
+  readable: boolean;
+  title: string | null;
+  imageUrl: string | null;
+}
+
 export interface DraftPresentationInput {
   linkPlacement?: SocialLinkPlacement;
   linkCommentText?: string | null;
@@ -174,10 +182,17 @@ const DEFAULT_PLATFORM: SocialPlatform = 'linkedin';
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 const MAX_VARIANTS = 8;
+const LINK_PREVIEW_TTL_MS = 10 * 60_000;
+const LINK_PREVIEW_FAILURE_TTL_MS = 60_000;
+const LINK_PREVIEW_CACHE_SIZE = 500;
 
 @Injectable()
 export class SocialService {
   private readonly logger = new Logger(SocialService.name);
+  private readonly linkPreviews = new Map<
+    string,
+    { expiresAt: number; summary: OpenGraphSummary | null }
+  >();
 
   constructor(
     @Inject(SocialAccountsService) private readonly accounts: SocialTokenSource,
@@ -313,6 +328,45 @@ export class SocialService {
 
   async getDraft(id: string): Promise<SocialDraftDto> {
     return this.toDto(await this.requireDraft(id));
+  }
+
+  async getDraftLinkPreview(id: string): Promise<SocialLinkPreviewDto> {
+    const { linkUrl } = await this.requireDraft(id);
+    if (!linkUrl) return { linkUrl: null, readable: false, title: null, imageUrl: null };
+    const summary = await this.readLinkPreview(linkUrl);
+    return {
+      linkUrl,
+      readable: summary !== null,
+      title: summary?.title ?? null,
+      imageUrl: summary?.imageUrl ?? null,
+    };
+  }
+
+  private async readLinkPreview(linkUrl: string): Promise<OpenGraphSummary | null> {
+    const now = Date.now();
+    const cached = this.linkPreviews.get(linkUrl);
+    if (cached && cached.expiresAt > now) return cached.summary;
+
+    let summary: OpenGraphSummary | null;
+    try {
+      summary = await this.media.fetchOpenGraph(linkUrl);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : 'the page could not be read';
+      this.logger.warn(`link preview unavailable link=${linkUrl} reason=${reason}`);
+      summary = null;
+    }
+
+    this.linkPreviews.delete(linkUrl);
+    this.linkPreviews.set(linkUrl, {
+      expiresAt: now + (summary ? LINK_PREVIEW_TTL_MS : LINK_PREVIEW_FAILURE_TTL_MS),
+      summary,
+    });
+    while (this.linkPreviews.size > LINK_PREVIEW_CACHE_SIZE) {
+      const oldest = this.linkPreviews.keys().next().value;
+      if (oldest === undefined) break;
+      this.linkPreviews.delete(oldest);
+    }
+    return summary;
   }
 
   async reviseDraft(id: string, body: string): Promise<SocialDraftDto> {

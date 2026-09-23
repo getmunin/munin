@@ -14,6 +14,7 @@ import {
 import { useTranslations } from 'next-intl';
 import { cn } from '@getmunin/ui';
 import { initialsOf } from '../../../lib/initials';
+import { useSocialLinkPreview } from '../../../lib/use-social-link-preview';
 import { socialMediaKind } from './social-actions';
 import {
   composePreviewBody,
@@ -21,7 +22,9 @@ import {
   foldPreviewBody,
   linkHost,
   previewLink,
+  previewPicture,
   splitUrls,
+  type PreviewPicture,
 } from './social-preview';
 import type { SocialDraftDto } from './types';
 
@@ -39,13 +42,18 @@ export function SocialPostPreview({
 
   useEffect(() => setExpanded(false), [draft.id]);
 
+  const linkPreview = useSocialLinkPreview(draft.id, !draft.mediaUrl && draft.linkUrl !== null);
+  const picture = previewPicture(draft, linkPreview);
   const facebook = draft.platform === 'facebook';
-  const body = composePreviewBody(draft);
+  const body = composePreviewBody(draft, picture.kind !== 'none');
   const fold = foldPreviewBody(draft.platform, body);
   const comment = composePreviewComment(draft);
   const link = previewLink(draft);
   const host = link ? linkHost(link) : null;
-  const showCard = !draft.mediaUrl && draft.linkPlacement !== 'comment' && host !== null;
+  const card =
+    facebook && picture.kind === 'none' && draft.linkPlacement !== 'comment' && host !== null
+      ? { host, title: linkPreview?.title ?? null }
+      : null;
   const name = authorName?.trim() || t('socialPreviewAuthorUnknown');
   const post = {
     draft,
@@ -56,8 +64,23 @@ export function SocialPostPreview({
     comment,
     expanded,
     onExpand: () => setExpanded(true),
-    host: showCard ? host : null,
+    picture,
+    card,
   };
+  const note =
+    picture.kind === 'attached'
+      ? link && draft.linkPlacement !== 'comment'
+        ? t('socialPreviewNoteMedia')
+        : null
+      : picture.kind === 'page'
+        ? t('socialPreviewNotePageImage')
+        : picture.kind === 'none' && draft.linkUrl
+          ? !picture.readable
+            ? t('socialPreviewNoteUnreadable')
+            : card
+              ? t('socialPreviewNoteFacebookCard')
+              : t('socialPreviewNoteNoPageImage')
+          : null;
 
   return (
     <section className="space-y-2">
@@ -65,12 +88,7 @@ export function SocialPostPreview({
         {facebook ? <FacebookPost {...post} /> : <LinkedInPost {...post} />}
       </div>
 
-      {draft.mediaUrl && link && draft.linkPlacement !== 'comment' ? (
-        <p className="text-xs text-ink-mute">{t('socialPreviewNoteMedia')}</p>
-      ) : showCard ? (
-        <p className="text-xs text-ink-mute">{t('socialPreviewNoteLink')}</p>
-      ) : null}
-      <p className="text-xs text-ink-mute">{t('socialPreviewNoteLayout')}</p>
+      {note ? <p className="text-xs text-ink-mute">{note}</p> : null}
     </section>
   );
 }
@@ -84,7 +102,8 @@ interface PostProps {
   comment: string | null;
   expanded: boolean;
   onExpand: () => void;
-  host: string | null;
+  picture: PreviewPicture;
+  card: { host: string; title: string | null } | null;
 }
 
 function LinkedInPost({
@@ -96,7 +115,7 @@ function LinkedInPost({
   comment,
   expanded,
   onExpand,
-  host,
+  picture,
 }: PostProps) {
   const t = useTranslations('dashboard.overview.drawer');
   return (
@@ -132,19 +151,12 @@ function LinkedInPost({
           seeMoreClassName="text-black/60 hover:text-[#0a66c2] hover:underline"
         />
 
-        <Media draft={draft} className="bg-[#EDEBE8]" />
-
-        {host ? (
-          <div className="border-t-[1px] border-black/10">
-            <CardImage label={t('socialPreviewCardImage')} className="bg-[#E4E1DB] text-black/45" />
-            <div className="bg-[#F3F2EF] px-3 py-2">
-              <p className="text-[14px] font-semibold leading-[20px] text-black/90">
-                {t('socialPreviewCardTitle')}
-              </p>
-              <p className="truncate text-[12px] leading-[16px] text-black/60">{host}</p>
-            </div>
-          </div>
-        ) : null}
+        <Picture
+          draft={draft}
+          picture={picture}
+          className="bg-[#EDEBE8]"
+          placeholderClassName="bg-[#E4E1DB] text-black/45"
+        />
 
         <div className="mx-4 mt-1 border-t-[1px] border-black/10" />
         <div className="flex items-center px-2 py-1">
@@ -198,7 +210,8 @@ function FacebookPost({
   comment,
   expanded,
   onExpand,
-  host,
+  picture,
+  card,
 }: PostProps) {
   const t = useTranslations('dashboard.overview.drawer');
   return (
@@ -230,22 +243,23 @@ function FacebookPost({
           seeMoreClassName="text-[#65676B] hover:underline"
         />
 
-        <Media draft={draft} className="bg-[#F0F2F5]" />
+        <Picture
+          draft={draft}
+          picture={picture}
+          className="bg-[#F0F2F5]"
+          placeholderClassName="bg-[#E4E6EB] text-[#65676B]"
+        />
 
-        {host ? (
-          <div className="border-y-[1px] border-[#CED0D4]">
-            <CardImage
-              label={t('socialPreviewCardImage')}
-              className="bg-[#E4E6EB] text-[#65676B]"
-            />
-            <div className="bg-[#F2F3F5] px-3 py-2">
-              <p className="truncate text-[12px] uppercase leading-[16px] tracking-[0.02em] text-[#65676B]">
-                {host}
-              </p>
+        {card ? (
+          <div className="border-y-[1px] border-[#CED0D4] bg-[#F2F3F5] px-3 py-2">
+            <p className="truncate text-[12px] uppercase leading-[16px] tracking-[0.02em] text-[#65676B]">
+              {card.host}
+            </p>
+            {card.title ? (
               <p className="text-[17px] font-semibold leading-[20px] text-[#050505]">
-                {t('socialPreviewCardTitle')}
+                {card.title}
               </p>
-            </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -316,7 +330,7 @@ function PostBody({
       <Linkified text={shown} className={linkClassName} />
       {fold.folded && !expanded ? (
         <>
-          {' …'}
+          {'… '}
           <button type="button" onClick={onExpand} className={seeMoreClassName}>
             {seeMore}
           </button>
@@ -358,6 +372,41 @@ function Media({ draft, className }: { draft: SocialDraftDto; className: string 
           className="max-h-[520px] w-full object-contain"
         />
       )}
+    </div>
+  );
+}
+
+function Picture({
+  draft,
+  picture,
+  className,
+  placeholderClassName,
+}: {
+  draft: SocialDraftDto;
+  picture: PreviewPicture;
+  className: string;
+  placeholderClassName: string;
+}) {
+  const t = useTranslations('dashboard.overview.drawer');
+  const [broken, setBroken] = useState<string | null>(null);
+  if (picture.kind === 'attached') return <Media draft={draft} className={className} />;
+  if (picture.kind === 'pending') {
+    return <CardImage label={t('socialPreviewReadingPage')} className={placeholderClassName} />;
+  }
+  if (picture.kind !== 'page') return null;
+  if (broken === picture.imageUrl) {
+    return <CardImage label={t('socialPreviewCardImage')} className={placeholderClassName} />;
+  }
+  const imageUrl = picture.imageUrl;
+  return (
+    <div className={className}>
+      <img
+        src={imageUrl}
+        alt=""
+        referrerPolicy="no-referrer"
+        onError={() => setBroken(imageUrl)}
+        className="max-h-[520px] w-full object-contain"
+      />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { PageSpinner } from '@getmunin/ui';
+import { Input, PageSpinner } from '@getmunin/ui';
 import { contactLabel } from './inbox-helpers';
 import { Markdown } from './queue-panes/shared';
 import { FieldViewer, isEmpty } from './queue-panes/cms';
@@ -259,9 +259,13 @@ function SocialContent({ draft }: { draft: SocialDraftDto }) {
 
       {shareUrl ? (
         <DecidedSection label={t('socialLinkLabel')}>
-          <p className="break-all font-mono text-[12.5px] text-ink-soft dark:text-foreground/70">
-            {shareUrl}
-          </p>
+          <Input
+            readOnly
+            value={shareUrl}
+            aria-label={t('socialLinkLabel')}
+            onFocus={(e) => e.currentTarget.select()}
+            className="h-auto border-ink bg-bone px-4 py-3 font-mono text-xs dark:border-rule-on-dark dark:bg-secondary"
+          />
           {linkInComment ? (
             <p className="text-[13px] text-ink-mute">{t('socialLinkInComment')}</p>
           ) : null}

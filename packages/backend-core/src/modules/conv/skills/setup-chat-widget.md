@@ -57,7 +57,7 @@ The same bundle accepts a visitor profile, which lands on the contact row the fi
 | `data-munin-visitor-meta` | Flat JSON object of string / number / boolean values, max 4 KB, e.g. `'{"plan":"pro","accountId":"acc_42"}'`. Lands on `conv_contacts.metadata`. Nested values are dropped with a warning. |
 | `data-munin-meta-<key>` | Shorthand for a single metadata entry; the key is camelized (`data-munin-meta-account-id` → `accountId`). Merged with `data-munin-visitor-meta`, which wins on a key collision. |
 
-**Send a name whenever you have one.** Identity verification (§4) binds a session to an `externalId` and nothing else — it carries no name and no email — so a verified visitor with no `data-munin-visitor-name` still has an unnamed contact row. Every surface that displays a customer falls back through name → email → phone, so without a name the dashboard, the Slack mirror and outreach all show a raw email address, or a generic placeholder when there is no email either.
+**Send a name whenever you have one.** Identity verification (§4) binds a session to an `externalId` and, if you sign one, an email — never a name — so a verified visitor with no `data-munin-visitor-name` still has an unnamed contact row. Every surface that displays a customer falls back through name → email → phone, so without a name the dashboard, the Slack mirror and outreach all show a raw email address, or a generic placeholder when there is no email either.
 
 These are unrelated to `data-external-id` / `data-user-hash`: the visitor attributes are unverified page-supplied claims, useful for display, while identity verification is what actually authenticates the session. Sending both is the normal case for a signed-in user.
 
@@ -195,13 +195,47 @@ The widget hash covers `externalId` **only** — no visitor binding. That's a de
 
 `data-external-id` and `data-user-hash` are all-or-nothing: sending one without the other is rejected (`identity_partial`). Render them only for signed-in users; omit both for anonymous visitors. (On browser-direct calls, the same values are passed as the `verifiedExternalId` + `userHash` params.)
 
+### Signing the email too
+
+`data-munin-visitor-email` is a claim the page makes, so Munin treats it as self-reported: the agent may show it but won't use it to look up the customer's orders or bookings. If your backend knows the signed-in user's email, sign it into the hash instead and the email becomes as trustworthy as the `externalId`. That is what lets the agent look up the customer's orders and bookings, and book, change or cancel on their behalf, from the widget.
+
+The signed payload is length-prefixed so no value can be shifted across a field boundary: each of `['mn.widget-identity.v1', externalId, email]` is written as its UTF-8 byte length, a colon, then the value, and the three are concatenated. Lowercase and trim the email before signing.
+
+```ts
+import { createHmac } from 'node:crypto';
+
+function userHashWithEmail(externalId: string, email: string, secret: string): string {
+  const payload = ['mn.widget-identity.v1', externalId, email.trim().toLowerCase()]
+    .map((field) => `${Buffer.byteLength(field, 'utf8')}:${field}`)
+    .join('');
+  return createHmac('sha256', secret).update(payload).digest('hex');
+}
+```
+
+Render it with `data-verified-email` next to the pair, or pass it to `window.mn.widget.identify(externalId, userHash, { email })`:
+
+```html
+<script async
+  src="https://munin.example/widget.js"
+  data-widget-key="mn_widget_…"
+  data-channel-id="cch_…"
+  data-external-id="user_42"
+  data-verified-email="ola@example.test"
+  data-user-hash="<hex hmac over the payload above>">
+</script>
+```
+
+The email and the hash travel together: a hash computed over the `externalId` alone does not verify once an email is attached, and a hash signed for one email does not verify with another (`identity_verification_failed`). `data-verified-email` without the pair is rejected as `identity_partial`. On browser-direct calls the field is `verifiedEmail`, or the `x-munin-verified-email` header on GETs.
+
+Munin binds the signed email to the signed-in user's end-user record, replacing an email the visitor had typed. It leaves the record alone when another end user already holds that address, so that session gets no email until you merge the two in the dashboard. A leaked hash lets someone act as that user until you rotate the secret, and with a signed email that includes reading their orders and changing their bookings, so keep the hash out of logs and caches like any session credential.
+
 Set `requireVerifiedIdentity: true` on the channel (`conv_create_widget_channel` / `conv_update_widget_channel`) to reject unverified sessions outright; the default (`false`) allows anonymous ingest alongside verified ones.
 
 Because the widget and the analytics tracker share the same `localStorage` visitor id (`mn.vid`), identifying a visitor to the widget also stitches their prior anonymous analytics history — no separate `window.mn.analytics.identify` call needed for that visitor.
 
 ### The same pair authorizes the realtime socket
 
-The identity is verified twice: once on every HTTP call, and once on the WebSocket handshake that streams agent replies (`wss://<api-host>/v1/realtime`). The socket takes them as query params — `externalId` (or `verifiedExternalId`, both accepted) plus `userHash` — against the same channel secret and the same `externalId`-only HMAC. The bundled widget does this for you; you only need the names when you drive `/v1/realtime` yourself.
+The identity is verified twice: once on every HTTP call, and once on the WebSocket handshake that streams agent replies (`wss://<api-host>/v1/realtime`). The socket takes them as query params — `externalId` (or `verifiedExternalId`, both accepted), `userHash`, and `verifiedEmail` when you sign one — against the same channel secret and the same payload as the HTTP calls. The bundled widget does this for you; you only need the names when you drive `/v1/realtime` yourself.
 
 Every rejection is answered on the handshake as `403` with the reason in both an `X-Munin-Error` header and a `{"code":"…"}` body: `identity_partial` (one of the two params missing), `identity_verification_failed` (hash does not match this channel's secret), `identity_required` (`requireVerifiedIdentity` channel, no identity offered), `origin_required` / `origin_not_allowed`. A `401` means the widget key itself was not accepted, before identity was ever considered. Browsers cannot read a failed handshake's status, so reach for `curl -i` or a Node client when diagnosing one.
 

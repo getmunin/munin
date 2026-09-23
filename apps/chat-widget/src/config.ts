@@ -34,6 +34,7 @@ export interface WidgetConfig {
   channelId: string;
   externalId?: string;
   userHash?: string;
+  verifiedEmail?: string;
   themeColor: string;
   launcherColor?: string;
   launcherIconColor?: string;
@@ -87,6 +88,13 @@ export function parseConfig(scriptEl: HTMLElement): ParseResult {
       message: 'both data-external-id and data-user-hash must be set together',
     });
   }
+  const verifiedEmail = scriptEl.getAttribute('data-verified-email') ?? undefined;
+  if (verifiedEmail && !externalId) {
+    errors.push({
+      attr: 'data-verified-email',
+      message: 'requires data-external-id and data-user-hash, signed over the email',
+    });
+  }
   if (userHash && !HEX64.test(userHash)) {
     errors.push({
       attr: 'data-user-hash',
@@ -130,6 +138,7 @@ export function parseConfig(scriptEl: HTMLElement): ParseResult {
       channelId: channelId!,
       externalId,
       userHash,
+      verifiedEmail,
       themeColor,
       launcherColor,
       launcherIconColor,

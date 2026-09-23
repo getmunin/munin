@@ -131,7 +131,7 @@ describe('widget identity carry-over', () => {
     h.listeners.state!('connected');
 
     await vi.waitFor(() => expect(h.identify).toHaveBeenCalledTimes(1));
-    expect(h.identify).toHaveBeenCalledWith('user_42', HASH);
+    expect(h.identify).toHaveBeenCalledWith('user_42', HASH, undefined);
 
     await vi.waitFor(() => expect(h.listConversations).toHaveBeenCalled());
     expect(h.identify.mock.invocationCallOrder[0]!).toBeLessThan(
@@ -166,7 +166,7 @@ interface MnWidgetApi {
   close: () => void;
   toggle: () => void;
   isOpen: () => boolean;
-  identify: (externalId: string, userHash: string) => Promise<void>;
+  identify: (externalId: string, userHash: string, options?: { email?: string }) => Promise<void>;
   ready: boolean;
 }
 
@@ -213,8 +213,17 @@ describe('window.mn.widget', () => {
     start({ ...baseConfig });
     await getMnWidget().identify('user_42', HASH);
 
-    await vi.waitFor(() => expect(h.identify).toHaveBeenCalledWith('user_42', HASH));
+    await vi.waitFor(() => expect(h.identify).toHaveBeenCalledWith('user_42', HASH, undefined));
     expect((window as Window & { mn?: { identify?: unknown } }).mn?.identify).toBeUndefined();
+  });
+
+  it('passes a signed email given to identify', async () => {
+    start({ ...baseConfig });
+    await getMnWidget().identify('user_42', HASH, { email: 'ola@example.test' });
+
+    await vi.waitFor(() =>
+      expect(h.identify).toHaveBeenCalledWith('user_42', HASH, 'ola@example.test'),
+    );
   });
 
   it('announces readiness so a caller can gate on the namespace existing', () => {

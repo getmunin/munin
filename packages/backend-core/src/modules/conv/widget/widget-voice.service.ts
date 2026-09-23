@@ -324,6 +324,7 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
     const identity = verifyIdentity(widgetConfig, {
       verifiedExternalId: input.verifiedExternalId,
       userHash: input.userHash,
+      verifiedEmail: input.verifiedEmail,
     });
 
     const convRows = await tx
@@ -417,6 +418,7 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
       const identity = verifyIdentity(widgetConfig, {
         verifiedExternalId: input.verifiedExternalId,
         userHash: input.userHash,
+        verifiedEmail: input.verifiedEmail,
       });
 
       const [conv] = await tx

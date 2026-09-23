@@ -4,6 +4,7 @@ import { sql } from 'drizzle-orm';
 import {
   hashSecret,
   identityHashPayload,
+  widgetIdentityHashPayload,
   randomToken,
   signHmac,
   verifyHmac,
@@ -163,3 +164,19 @@ const skipPgcrypto = TEST_URL ? null : 'Set TEST_DATABASE_URL to run pgcrypto te
     }
   });
 });
+
+describe('widgetIdentityHashPayload', () => {
+  it('cannot be shifted between the external id and the email', () => {
+    expect(widgetIdentityHashPayload({ externalId: 'a:b', email: 'c@example.test' })).not.toBe(
+      widgetIdentityHashPayload({ externalId: 'a', email: 'b:c@example.test' }),
+    );
+  });
+  it('never equals the tracker payload or the bare external id', () => {
+    const widget = widgetIdentityHashPayload({ externalId: 'a', email: 'x@example.test' });
+    expect(widget).not.toBe(
+      identityHashPayload({ externalId: 'a', visitorId: '', email: 'x@example.test' }),
+    );
+    expect(widget).not.toBe('a');
+  });
+});
+

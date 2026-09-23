@@ -124,6 +124,7 @@ export function createRealtimeClient(deps: RealtimeClientDeps): RealtimeClient {
     const u = new URL(base);
     u.searchParams.set('externalId', identity.externalId);
     u.searchParams.set('userHash', identity.userHash);
+    if (identity.email) u.searchParams.set('verifiedEmail', identity.email);
     return { url: u.toString(), withIdentity: true };
   }
 

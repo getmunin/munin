@@ -9,6 +9,7 @@ import {
 import {
   createApiClient,
   WidgetApiError,
+  type ApiIdentity,
   type ConversationEnvelope,
   type ConversationSummary,
   type ListedMessage,
@@ -42,11 +43,15 @@ function bootstrap(): void {
 export function start(config: WidgetConfig): void {
   let sessionId = getSessionId(config.channelId, config.cookieDomain);
   const visitorId = getVisitorId(config.channelId, config.cookieDomain);
-  let identity: { externalId: string; userHash: string } | undefined =
+  let identity: ApiIdentity | undefined =
     config.externalId && config.userHash
-      ? { externalId: config.externalId, userHash: config.userHash }
+      ? {
+          externalId: config.externalId,
+          userHash: config.userHash,
+          ...(config.verifiedEmail ? { email: config.verifiedEmail } : {}),
+        }
       : undefined;
-  const getIdentity = (): { externalId: string; userHash: string } | undefined => identity;
+  const getIdentity = (): ApiIdentity | undefined => identity;
   let identityClaimed = false;
   const api = createApiClient({
     host: config.host,
@@ -66,14 +71,19 @@ export function start(config: WidgetConfig): void {
     getIdentity,
   });
 
-  async function identifyVisitor(externalId: string, userHash: string): Promise<void> {
+  async function identifyVisitor(
+    externalId: string,
+    userHash: string,
+    options?: { email?: string },
+  ): Promise<void> {
     if (!externalId || !userHash) {
       console.warn('[munin-widget] identify requires externalId and userHash');
       return;
     }
+    const email = options?.email || undefined;
     try {
-      await api.identify(externalId, userHash);
-      identity = { externalId, userHash };
+      await api.identify(externalId, userHash, email);
+      identity = { externalId, userHash, ...(email ? { email } : {}) };
       identityClaimed = true;
       realtime.reconnect();
     } catch (err) {
@@ -85,7 +95,7 @@ export function start(config: WidgetConfig): void {
     if (identityClaimed || !identity) return;
     identityClaimed = true;
     try {
-      await api.identify(identity.externalId, identity.userHash);
+      await api.identify(identity.externalId, identity.userHash, identity.email);
     } catch (err) {
       console.warn('[munin-widget] identify on boot failed:', err);
     }
@@ -98,7 +108,11 @@ export function start(config: WidgetConfig): void {
         close: () => void;
         toggle: () => void;
         isOpen: () => boolean;
-        identify: (externalId: string, userHash: string) => Promise<void>;
+        identify: (
+          externalId: string,
+          userHash: string,
+          options?: { email?: string },
+        ) => Promise<void>;
         ready: boolean;
       };
     };

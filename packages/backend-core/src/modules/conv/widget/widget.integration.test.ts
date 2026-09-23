@@ -6,9 +6,15 @@ import { mkdtempSync, writeFileSync, rmSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import { buildApiKey, hashSecret, keyPrefix, signHmac } from '@getmunin/core';
+import {
+  buildApiKey,
+  hashSecret,
+  keyPrefix,
+  signHmac,
+  widgetIdentityHashPayload,
+} from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
-import { sql, eq, and } from 'drizzle-orm';
+import { sql, eq, and, desc } from 'drizzle-orm';
 import { AppModule } from '../../../app.module.ts';
 import { createApp } from '../../../bootstrap-app.ts';
 
@@ -151,6 +157,7 @@ const skipReason = TEST_URL
         sessionIds: 'x-munin-session-ids',
         verifiedExternalId: 'x-munin-verified-external-id',
         userHash: 'x-munin-user-hash',
+        verifiedEmail: 'x-munin-verified-email',
       };
       for (const [param, header] of Object.entries(sessionHeaderMap)) {
         const value = url.searchParams.get(param);
@@ -997,6 +1004,159 @@ const skipReason = TEST_URL
         and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, 'user_collide_b')),
       );
     expect(second?.email).toBeNull();
+  });
+
+  describe('signed email on the widget identity', () => {
+    let signed: { id: string; widgetKey: string; identityVerificationSecret: string };
+
+    beforeAll(async () => {
+      signed = await withClient(adminKey, async (c) =>
+        parseToolResult<{ id: string; widgetKey: string; identityVerificationSecret: string }>(
+          await c.callTool({
+            name: 'conv_create_widget_channel',
+            arguments: { name: 'storefront-signed-email', originAllowlist: ['https://customer.example'] },
+          }),
+        ),
+      );
+    });
+
+    async function latestEndUserMessageMetadata(externalId: string) {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const [row] = await db
+        .select({ metadata: schema.convMessages.metadata })
+        .from(schema.convMessages)
+        .innerJoin(
+          schema.convConversations,
+          eq(schema.convConversations.id, schema.convMessages.conversationId),
+        )
+        .innerJoin(schema.endUsers, eq(schema.endUsers.id, schema.convConversations.endUserId))
+        .where(
+          and(
+            eq(schema.endUsers.orgId, orgId),
+            eq(schema.endUsers.externalId, externalId),
+            eq(schema.convMessages.authorType, 'end_user'),
+          ),
+        )
+        .orderBy(desc(schema.convMessages.createdAt))
+        .limit(1);
+      return row?.metadata ?? {};
+    }
+
+    function signedEmailHash(externalId: string, email: string) {
+      return signHmac(widgetIdentityHashPayload({ externalId, email }), signed.identityVerificationSecret);
+    }
+
+    it('stamps a message proven when the identity hash signs the email, and binds it to the end user', async () => {
+      const externalId = 'user_signed_email_1';
+      const res = await call('POST', '/v1/widget/messages', signed.widgetKey, {
+        channelId: signed.id,
+        sessionId: 'vis_signed_email_1',
+        verifiedExternalId: externalId,
+        verifiedEmail: 'Kari.Signed@example.test',
+        userHash: signedEmailHash(externalId, 'kari.signed@example.test'),
+        messages: [{ role: 'end_user', body: 'cancel my table please' }],
+      });
+      expect(res.status).toBe(201);
+
+      expect(await latestEndUserMessageMetadata(externalId)).toMatchObject({
+        senderAuth: 'pass',
+        provenEmail: 'kari.signed@example.test',
+      });
+      const [endUser] = await db
+        .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
+        .from(schema.endUsers)
+        .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, externalId)));
+      expect(endUser?.email).toBe('kari.signed@example.test');
+      expect(endUser?.metadata).toMatchObject({ emailSource: 'org-attested' });
+    });
+
+    it('replaces a visitor-typed email with the signed one', async () => {
+      const externalId = 'user_signed_email_2';
+      await call('POST', '/v1/widget/messages', signed.widgetKey, {
+        channelId: signed.id,
+        sessionId: 'vis_signed_email_2',
+        verifiedExternalId: externalId,
+        userHash: signHmac(externalId, signed.identityVerificationSecret),
+        visitor: { email: 'typed.first@example.test' },
+        messages: [{ role: 'end_user', body: 'hi' }],
+      });
+      await call('POST', '/v1/widget/messages', signed.widgetKey, {
+        channelId: signed.id,
+        sessionId: 'vis_signed_email_2',
+        verifiedExternalId: externalId,
+        verifiedEmail: 'signed.later@example.test',
+        userHash: signedEmailHash(externalId, 'signed.later@example.test'),
+        messages: [{ role: 'end_user', body: 'now signed' }],
+      });
+
+      const [endUser] = await db
+        .select({ email: schema.endUsers.email })
+        .from(schema.endUsers)
+        .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, externalId)));
+      expect(endUser?.email).toBe('signed.later@example.test');
+      expect(await latestEndUserMessageMetadata(externalId)).toMatchObject({
+        provenEmail: 'signed.later@example.test',
+      });
+    });
+
+    it('does not stamp a message whose identity hash signs only the external id', async () => {
+      const externalId = 'user_unsigned_email_3';
+      await call('POST', '/v1/widget/messages', signed.widgetKey, {
+        channelId: signed.id,
+        sessionId: 'vis_unsigned_email_3',
+        verifiedExternalId: externalId,
+        userHash: signHmac(externalId, signed.identityVerificationSecret),
+        visitor: { email: 'typed@example.test' },
+        messages: [{ role: 'end_user', body: 'hi' }],
+      });
+
+      const meta = await latestEndUserMessageMetadata(externalId);
+      expect(meta).not.toHaveProperty('senderAuth');
+      expect(meta).not.toHaveProperty('provenEmail');
+    });
+
+    it('rejects an email appended to a hash that signed only the external id', async () => {
+      const externalId = 'user_appended_email_4';
+      const res = await call('POST', '/v1/widget/messages', signed.widgetKey, {
+        channelId: signed.id,
+        sessionId: 'vis_appended_email_4',
+        verifiedExternalId: externalId,
+        verifiedEmail: 'someone.else@example.test',
+        userHash: signHmac(externalId, signed.identityVerificationSecret),
+        messages: [{ role: 'end_user', body: 'cancel their booking' }],
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects a signed email that does not match the one in the hash', async () => {
+      const externalId = 'user_swapped_email_5';
+      const res = await call('POST', '/v1/widget/messages', signed.widgetKey, {
+        channelId: signed.id,
+        sessionId: 'vis_swapped_email_5',
+        verifiedExternalId: externalId,
+        verifiedEmail: 'someone.else@example.test',
+        userHash: signedEmailHash(externalId, 'mine@example.test'),
+        messages: [{ role: 'end_user', body: 'cancel their booking' }],
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it('does not stamp a signed email that another end user already holds', async () => {
+      const taken = 'signed.taken@example.test';
+      await db.insert(schema.endUsers).values({ orgId, externalId: `email:${taken}`, email: taken });
+      const externalId = 'user_signed_taken_6';
+      const res = await call('POST', '/v1/widget/messages', signed.widgetKey, {
+        channelId: signed.id,
+        sessionId: 'vis_signed_taken_6',
+        verifiedExternalId: externalId,
+        verifiedEmail: taken,
+        userHash: signedEmailHash(externalId, taken),
+        messages: [{ role: 'end_user', body: 'hi' }],
+      });
+      expect(res.status).toBe(201);
+
+      expect(await latestEndUserMessageMetadata(externalId)).not.toHaveProperty('provenEmail');
+    });
   });
 
   it('identify backfills name and email onto the claimed contact from the verified identity', async () => {

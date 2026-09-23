@@ -59,6 +59,7 @@ export {
   signHmac,
   verifyHmac,
   identityHashPayload,
+  widgetIdentityHashPayload,
   legacyIdentityHashPayload,
   timingSafeEqual,
   readEncryptionKey,

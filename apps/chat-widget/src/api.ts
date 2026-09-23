@@ -5,6 +5,7 @@ import type { PresignedUploadTarget } from './upload.ts';
 export interface ApiIdentity {
   externalId: string;
   userHash: string;
+  email?: string;
 }
 
 export interface ApiClientDeps {
@@ -141,7 +142,11 @@ export interface ApiClient {
   voiceAvailable(conversationId: string): Promise<VoiceAvailabilityResult>;
   voiceStart(conversationId: string): Promise<VoiceStartResult>;
   voiceEvent(input: VoiceEventInput): Promise<void>;
-  identify(externalId: string, userHash: string): Promise<{ endUserId: string; contactId: string | null }>;
+  identify(
+    externalId: string,
+    userHash: string,
+    email?: string,
+  ): Promise<{ endUserId: string; contactId: string | null }>;
   setSessionId(sessionId: string): void;
 }
 
@@ -172,6 +177,7 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
     if (identity) {
       headers['x-munin-verified-external-id'] = identity.externalId;
       headers['x-munin-user-hash'] = identity.userHash;
+      if (identity.email) headers['x-munin-verified-email'] = identity.email;
     }
     return headers;
   }
@@ -189,6 +195,7 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
     if (identity) {
       payload.verifiedExternalId = identity.externalId;
       payload.userHash = identity.userHash;
+      if (identity.email) payload.verifiedEmail = identity.email;
     }
     if (deps.visitor) payload.visitor = deps.visitor;
     return payload;
@@ -222,6 +229,7 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
       if (identity) {
         payload.verifiedExternalId = identity.externalId;
         payload.userHash = identity.userHash;
+        if (identity.email) payload.verifiedEmail = identity.email;
       }
       const res = await fetchImpl(`${base}/attachments`, {
         method: 'POST',
@@ -242,6 +250,7 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
       if (identity) {
         payload.verifiedExternalId = identity.externalId;
         payload.userHash = identity.userHash;
+        if (identity.email) payload.verifiedEmail = identity.email;
       }
       const res = await fetchImpl(
         `${base}/attachments/${encodeURIComponent(attachmentId)}/complete`,
@@ -289,6 +298,7 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
       if (identity) {
         payload.verifiedExternalId = identity.externalId;
         payload.userHash = identity.userHash;
+        if (identity.email) payload.verifiedEmail = identity.email;
       }
       if (deps.visitor) payload.visitor = deps.visitor;
       if (deps.locale) payload.locale = deps.locale;
@@ -312,6 +322,7 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
       if (identity) {
         payload.verifiedExternalId = identity.externalId;
         payload.userHash = identity.userHash;
+        if (identity.email) payload.verifiedEmail = identity.email;
       }
       const res = await fetchImpl(visitorUrl, {
         method: 'PATCH',
@@ -343,6 +354,7 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
       if (identity) {
         payload.verifiedExternalId = identity.externalId;
         payload.userHash = identity.userHash;
+        if (identity.email) payload.verifiedEmail = identity.email;
       }
       const res = await fetchImpl(`${base}/voice/start`, {
         method: 'POST',
@@ -353,13 +365,14 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
       return (await res.json()) as VoiceStartResult;
     },
 
-    async identify(externalId, userHash) {
+    async identify(externalId, userHash, email) {
       const payload: Record<string, unknown> = {
         channelId: deps.channelId,
         sessionId,
         verifiedExternalId: externalId,
         userHash,
       };
+      if (email) payload.verifiedEmail = email;
       if (deps.visitorId) payload.visitorId = deps.visitorId;
       const res = await fetchImpl(`${base}/identify`, {
         method: 'POST',
@@ -381,6 +394,7 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
       if (identity) {
         payload.verifiedExternalId = identity.externalId;
         payload.userHash = identity.userHash;
+        if (identity.email) payload.verifiedEmail = identity.email;
       }
       if (typeof durationSeconds === 'number') payload.durationSeconds = durationSeconds;
       const res = await fetchImpl(`${base}/voice/event`, {

@@ -1,5 +1,7 @@
 ---
 '@getmunin/chat-widget': patch
+'@getmunin/backend-core': patch
+'@getmunin/docs-pages': patch
 ---
 
 Keep the unread badge distinct from a custom launcher, and give mid-tone theme colours white text on filled buttons.
@@ -20,3 +22,7 @@ and the send arrow keep the configured colour unchanged.
 
 The welcome CTA arrow now uses `--munin-theme-edge` rather than the raw theme colour, so a pale theme
 still gets an arrow at 3:1 against the panel.
+
+The chat-widget guide and the `setup-chat-widget` skill describe both colours accordingly, and no
+longer claim the theme colour paints links and visitor bubbles, which it hasn't since the WCAG
+palette pass.

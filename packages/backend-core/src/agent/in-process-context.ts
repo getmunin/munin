@@ -26,6 +26,7 @@ export interface OpenEndUserAgentMcpClientOptions {
   db: Db;
   orgId: string;
   endUserId: string;
+  conversationId?: string;
   registry: McpToolRegistry;
   skills?: SkillRegistry;
   audit?: AuditLogger;
@@ -54,6 +55,7 @@ export function openEndUserAgentMcpClient(opts: OpenEndUserAgentMcpClientOptions
   const actor = buildEndUserAgentActor({
     orgId: opts.orgId,
     endUserId: opts.endUserId,
+    conversationId: opts.conversationId,
     scopes: opts.scopes,
     audiences: opts.audiences,
   });

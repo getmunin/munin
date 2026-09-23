@@ -23,6 +23,12 @@ Every self-service call is fixed to the calling end-user's own identity — you 
 
 If the session has no email identity, these return an error — tell the guest you can't manage bookings in this session and offer a human handover (`conv_request_human`).
 
+### Writes are refused when the message looks forged
+
+Creating, changing or cancelling a booking works on any session that carries the guest's email, the same sessions that can read. The one exception: when you're answering an **email** and a message in the guest's latest turn explicitly failed its DMARC check for the address it claims to come from, the three write tools return `connectors_sender_auth_failed`. That result means the receiving mail server saw the `From:` domain's own policy reject the sender, which is how a forged `From:` header shows up. It can also be a misconfigured mail relay, so don't accuse the guest of anything.
+
+When you hit `connectors_sender_auth_failed`, don't retry and don't work around it by calling an admin tool. Tell the guest you can't change the booking from this message and offer a human handover (`conv_request_human`). Reads keep working, and their replies go to the real owner of the address.
+
 ## Admin (support agent working a conversation)
 
 - `bookings_list_guest_bookings` / `bookings_lookup_booking` — look up by a guest's `email` (use the verified email of the contact whose conversation you're handling).

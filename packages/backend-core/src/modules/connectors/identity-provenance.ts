@@ -7,9 +7,49 @@ export interface EndUserProvenanceMetadata {
 
 const CHANNEL_ASSERTED_KINDS = new Set(['email', 'sms', 'voice']);
 
+export const SENDER_AUTH_METADATA_KEY = 'senderAuth';
+export const PROVEN_EMAIL_METADATA_KEY = 'provenEmail';
+export const ORG_ATTESTED_EMAIL_SOURCE = 'org-attested';
+export const ATTESTED_EMAIL_METADATA_KEY = 'attestedEmail';
+
+export interface ConversationTurnMessage {
+  authorType: string;
+  metadata: unknown;
+}
+
+export function provenSenderMetadata(
+  verdict: string,
+  senderAddress: string,
+): Record<string, string> {
+  return verdict === 'pass'
+    ? {
+        [SENDER_AUTH_METADATA_KEY]: verdict,
+        [PROVEN_EMAIL_METADATA_KEY]: senderAddress.trim().toLowerCase(),
+      }
+    : { [SENDER_AUTH_METADATA_KEY]: verdict };
+}
+
 export function isSelfReportedIdentity(metadata: unknown): boolean {
   const meta = metadata as EndUserProvenanceMetadata | null;
   return meta?.anonymous === true || meta?.emailSource === 'visitor';
+}
+
+export function latestEndUserTurn<T extends { authorType: string }>(
+  newestFirst: readonly T[],
+): T[] {
+  const turn: T[] = [];
+  for (const message of newestFirst) {
+    if (message.authorType === 'end_user') turn.push(message);
+    else if (turn.length > 0) break;
+  }
+  return turn;
+}
+
+export function hasFailedSenderAuth(newestFirst: readonly ConversationTurnMessage[]): boolean {
+  return latestEndUserTurn(newestFirst).some(
+    (message) =>
+      (message.metadata as Record<string, unknown> | null)?.[SENDER_AUTH_METADATA_KEY] === 'fail',
+  );
 }
 
 export function identityProvenance(args: {

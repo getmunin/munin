@@ -518,11 +518,12 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       config: handlerConfig,
       rest,
       prompts,
-      openMcp: async ({ endUserId, channelType }) => {
+      openMcp: async ({ endUserId, conversationId, channelType }) => {
         const inner = openEndUserAgentMcpClient({
           db: this.db,
           orgId,
           endUserId,
+          conversationId,
           registry: this.mcpRegistry,
           skills: this.mcpSkills,
           scopes: await this.endUserAgentScopes(id, orgId),

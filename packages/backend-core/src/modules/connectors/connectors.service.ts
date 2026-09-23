@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { schema, type Db, type Tx } from '@getmunin/db';
 import {
@@ -14,6 +14,7 @@ import {
   getCurrentContext,
   setEncryptionKeySql,
   SsrfBlockedError,
+  type ActorIdentity,
 } from '@getmunin/core';
 import {
   ConnectorRegistry,
@@ -28,7 +29,7 @@ import {
 } from './connector.ts';
 import { SecretCipherError } from '../../common/outbound-oauth/grant-store.ts';
 import { ConnectorVendorError } from './http.ts';
-import { isSelfReportedIdentity } from './identity-provenance.ts';
+import { hasFailedSenderAuth, isSelfReportedIdentity } from './identity-provenance.ts';
 import { ConnectorOAuthService, OAUTH_CONFIG_KEY } from './connector-oauth.service.ts';
 import { DB } from '../../common/db/db.module.ts';
 import { CredentialHandoffService, type CredentialLink } from '../credential-handoff/credential-handoff.service.ts';
@@ -38,6 +39,8 @@ import type {
 } from '../credential-handoff/credential-target.ts';
 
 export type ConnectionRow = typeof schema.connectorConnections.$inferSelect;
+
+const LATEST_TURN_LOOKBACK = 50;
 
 export type CredentialState = 'active' | 'pending' | 'expired' | 'revoked';
 
@@ -580,6 +583,43 @@ export class ConnectorsService {
       );
     }
     return email;
+  }
+
+  async requireEndUserEmailForWrite(): Promise<string> {
+    const email = await this.requireEndUserEmail();
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    if (actor.conversationId && (await this.latestTurnFailedSenderAuth(ctx.db, actor))) {
+      throw new BadRequestException(
+        'connectors_sender_auth_failed: the latest customer message in this conversation failed its DMARC check for the address it claims to come from, so it may be forged and cannot be used to change a booking. Hand over to a human.',
+      );
+    }
+    return email;
+  }
+
+  private async latestTurnFailedSenderAuth(db: Db | Tx, actor: ActorIdentity): Promise<boolean> {
+    const messages = await db
+      .select({
+        authorType: schema.convMessages.authorType,
+        metadata: schema.convMessages.metadata,
+      })
+      .from(schema.convMessages)
+      .innerJoin(
+        schema.convConversations,
+        eq(schema.convConversations.id, schema.convMessages.conversationId),
+      )
+      .where(
+        and(
+          eq(schema.convMessages.conversationId, actor.conversationId!),
+          eq(schema.convConversations.orgId, actor.orgId),
+          eq(schema.convConversations.endUserId, actor.endUserId!),
+          eq(schema.convMessages.internal, false),
+          ne(schema.convMessages.authorType, 'system'),
+        ),
+      )
+      .orderBy(desc(schema.convMessages.createdAt), desc(schema.convMessages.ingestedAt))
+      .limit(LATEST_TURN_LOOKBACK);
+    return hasFailedSenderAuth(messages);
   }
 
   connectionContext(row: ConnectionRow): ConnectorConnectionContext {

@@ -52,6 +52,8 @@ import type {
   StoredAttachmentBytes,
 } from '../attachments/conv-attachments.types.ts';
 import type { ForwardOrigin } from './forwarded-sender.ts';
+import { inboundSenderAuth } from './authentication-results.ts';
+import { provenSenderMetadata } from '../../connectors/identity-provenance.ts';
 import { reopenClosedConversation } from '../conversation-reopen.ts';
 import { raiseAttentionWhenAgentIsOff } from '../unanswerable-handover.ts';
 import {
@@ -407,6 +409,7 @@ export class EmailAdapter implements ChannelAdapter {
           if (ownSend[0]) return;
         }
         const resolution = await resolveInbound(tx, orgId, parsed, replyDomain);
+        const emailAuth = inboundSenderAuth(parsed, sender);
         const contact = await this.emailService.findOrCreateContactByEmail(
           tx,
           orgId,
@@ -523,7 +526,10 @@ export class EmailAdapter implements ChannelAdapter {
             bodyHtml: scrubbed.fields.bodyHtml ?? null,
             attachments: stored.projection,
             internal: false,
-            metadata: stampDetections(scrubbed.fields.metadata ?? {}, scrubbed.detected),
+            metadata: {
+              ...stampDetections(scrubbed.fields.metadata ?? {}, scrubbed.detected),
+              ...provenSenderMetadata(emailAuth, sender.senderAddress),
+            },
           })
           .returning();
         if (stored.dtos.length > 0) {

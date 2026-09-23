@@ -16,6 +16,7 @@ export interface EndUserAgentActorInput {
   endUserId: string;
   scopes?: readonly string[];
   audiences?: readonly Audience[];
+  conversationId?: string;
 }
 
 export function buildEndUserAgentActor(input: EndUserAgentActorInput): ActorIdentity {
@@ -28,5 +29,11 @@ export function buildEndUserAgentActor(input: EndUserAgentActorInput): ActorIden
     scopes,
     audiences,
     input.endUserId,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    input.conversationId,
   );
 }

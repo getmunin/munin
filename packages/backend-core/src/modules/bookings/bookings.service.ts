@@ -195,14 +195,14 @@ export class BookingsService {
     note?: string;
     connectionId?: string;
   }): Promise<{ connection: ConnectionSummary; bookingRef: string; booking: BookingDetail | null }> {
-    const email = await this.connectors.requireEndUserEmail();
+    const email = await this.connectors.requireEndUserEmailForWrite();
     return this.createBooking({ ...args, email });
   }
 
   async updateMyBooking(
     args: { bookingRef: string; connectionId?: string } & BookingUpdateInput,
   ): Promise<{ connection: ConnectionSummary; updated: true; bookingRef: string }> {
-    const email = await this.connectors.requireEndUserEmail();
+    const email = await this.connectors.requireEndUserEmailForWrite();
     return this.updateBooking({ ...args, email });
   }
 
@@ -210,7 +210,7 @@ export class BookingsService {
     bookingRef: string;
     connectionId?: string;
   }): Promise<{ connection: ConnectionSummary; cancelled: true; bookingRef: string }> {
-    const email = await this.connectors.requireEndUserEmail();
+    const email = await this.connectors.requireEndUserEmailForWrite();
     return this.cancelBooking({ ...args, email });
   }
 

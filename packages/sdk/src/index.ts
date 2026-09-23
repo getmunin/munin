@@ -37,6 +37,7 @@ export interface MintEndUserTokenResult {
   expiresAt: string;
   scopes: string[];
   audiences: string[];
+  attestedEmail: string | null;
 }
 
 export interface LookupEndUserInput {

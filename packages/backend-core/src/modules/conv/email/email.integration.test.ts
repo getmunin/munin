@@ -406,6 +406,111 @@ class StubImapFetcher implements ImapFetcher {
     expect(newcomer).toHaveLength(1);
   }, 30_000);
 
+  async function metadataOf(inboundMessageId: string): Promise<Record<string, unknown>> {
+    const [row] = await db
+      .select({ metadata: schema.convMessages.metadata })
+      .from(schema.convMessages)
+      .where(
+        and(
+          eq(schema.convMessages.orgId, orgId),
+          sql`${schema.convMessages.metadata}->>'inboundMessageId' = ${inboundMessageId}`,
+        ),
+      );
+    return row?.metadata ?? {};
+  }
+
+  async function senderAuthOf(inboundMessageId: string): Promise<unknown> {
+    return (await metadataOf(inboundMessageId)).senderAuth;
+  }
+
+  it('records the DMARC verdict on each inbound message rather than on the sender', async () => {
+    fetcher.push(rfc822({
+      from: 'Ola Nordmann <ola@proven.test>',
+      to: 'support@acme.test',
+      subject: 'Authenticated',
+      messageId: 'inbound-proven@proven.test',
+      extraHeaders: [
+        'Authentication-Results: mx.acme.test; spf=pass smtp.mailfrom=ola@proven.test; dmarc=pass header.from=proven.test',
+      ],
+      body: 'Please look up my booking.',
+    }));
+    fetcher.push(rfc822({
+      from: 'Kari Nordmann <kari@unproven.test>',
+      to: 'support@acme.test',
+      subject: 'Unauthenticated',
+      messageId: 'inbound-unproven@unproven.test',
+      body: 'Please look up my booking.',
+    }));
+
+    await inboundWorker.tick();
+
+    expect(await metadataOf('inbound-proven@proven.test')).toMatchObject({
+      senderAuth: 'pass',
+      provenEmail: 'ola@proven.test',
+    });
+    expect(await metadataOf('inbound-unproven@unproven.test')).not.toHaveProperty('provenEmail');
+    expect(await senderAuthOf('inbound-unproven@unproven.test')).toBe('unknown');
+    const [endUser] = await db
+      .select({ metadata: schema.endUsers.metadata })
+      .from(schema.endUsers)
+      .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.email, 'ola@proven.test')));
+    expect(endUser!.metadata).not.toHaveProperty('emailSource');
+  }, 30_000);
+
+  it('keeps a genuine message verified when a later forgery of the same address fails', async () => {
+    fetcher.push(rfc822({
+      from: 'Ola Nordmann <ola@demote.test>',
+      to: 'support@acme.test',
+      subject: 'Genuine',
+      messageId: 'inbound-genuine@demote.test',
+      extraHeaders: ['Authentication-Results: mx.acme.test; dmarc=pass header.from=demote.test'],
+      body: 'Hello.',
+    }));
+    fetcher.push(rfc822({
+      from: 'Ola Nordmann <ola@demote.test>',
+      to: 'support@acme.test',
+      subject: 'Forged',
+      messageId: 'inbound-forged@demote.test',
+      extraHeaders: [
+        'Authentication-Results: mx.acme.test; spf=pass smtp.mailfrom=dmarc=pass@attacker.test; dmarc=fail header.from=demote.test',
+      ],
+      body: 'Cancel my booking.',
+    }));
+
+    await inboundWorker.tick();
+
+    expect(await senderAuthOf('inbound-genuine@demote.test')).toBe('pass');
+    expect(await senderAuthOf('inbound-forged@demote.test')).toBe('fail');
+  }, 30_000);
+
+  it("leaves a widget visitor's self-reported marker alone when mail arrives for that address", async () => {
+    const [visitor] = await db
+      .insert(schema.endUsers)
+      .values({
+        orgId,
+        externalId: 'site-user-42',
+        email: 'kari@visitor.test',
+        metadata: { emailSource: 'visitor' },
+      })
+      .returning();
+    fetcher.push(rfc822({
+      from: 'Kari Nordmann <kari@visitor.test>',
+      to: 'support@acme.test',
+      subject: 'Forged',
+      messageId: 'inbound-visitor@visitor.test',
+      extraHeaders: ['Authentication-Results: mx.acme.test; dmarc=pass header.from=visitor.test'],
+      body: 'Hello.',
+    }));
+
+    await inboundWorker.tick();
+
+    const [after] = await db
+      .select({ metadata: schema.endUsers.metadata })
+      .from(schema.endUsers)
+      .where(eq(schema.endUsers.id, visitor!.id));
+    expect(after!.metadata).toMatchObject({ emailSource: 'visitor' });
+  }, 30_000);
+
   it('an out-of-office reply lands in the thread but raises no attention and starts no jobs', async () => {
     const channel = (
       await db.select().from(schema.convChannels).where(eq(schema.convChannels.orgId, orgId))

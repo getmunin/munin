@@ -647,6 +647,81 @@ interface OrgFixture {
       expect(body.scopes).toEqual(['kb:read']);
       expect(body.audiences).toEqual(['self_service']);
     });
+
+    async function mintDelegated(body: Record<string, unknown>) {
+      return fetch(`${baseUrl}/v1/tokens/delegated`, {
+        method: 'POST',
+        headers: authHeaders(orgA.adminKey),
+        body: JSON.stringify({ ttlSeconds: 600, scopes: ['bookings:write'], ...body }),
+      });
+    }
+
+    async function tokenMetadata(tokenId: string) {
+      const [row] = await db
+        .select({ metadata: schema.tokens.metadata })
+        .from(schema.tokens)
+        .where(eq(schema.tokens.id, tokenId));
+      return row!.metadata;
+    }
+
+    it('records the minted email as attested on the token and binds it to a new end user', async () => {
+      const email = `attest-${Date.now()}@example.test`;
+      const res = await mintDelegated({ externalId: `attest-${Date.now()}`, email: email.toUpperCase() });
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { tokenId: string; endUserId: string; attestedEmail: string };
+      expect(body.attestedEmail).toBe(email);
+      expect(await tokenMetadata(body.tokenId)).toEqual({ attestedEmail: email });
+      const [endUser] = await db
+        .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
+        .from(schema.endUsers)
+        .where(eq(schema.endUsers.id, body.endUserId));
+      expect(endUser!.email).toBe(email);
+      expect(endUser!.metadata).toMatchObject({ emailSource: 'org-attested' });
+    });
+
+    it('attests nothing when the mint carries no email', async () => {
+      const res = await mintDelegated({ endUserId: orgA.endUserId });
+      const body = (await res.json()) as { tokenId: string; attestedEmail: string | null };
+      expect(body.attestedEmail).toBeNull();
+      expect(await tokenMetadata(body.tokenId)).toEqual({});
+    });
+
+    it('reuses the end user already holding an email when the mint names only that email', async () => {
+      const email = `reuse-${Date.now()}@example.test`;
+      const [existing] = await db
+        .insert(schema.endUsers)
+        .values({ orgId: orgA.id, externalId: `email:${email}`, email })
+        .returning();
+
+      const res = await mintDelegated({ email });
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { endUserId: string };
+      expect(body.endUserId).toBe(existing!.id);
+    });
+
+    it('400 when the end user already carries a different email', async () => {
+      const [existing] = await db
+        .insert(schema.endUsers)
+        .values({
+          orgId: orgA.id,
+          externalId: `mismatch-${Date.now()}`,
+          email: `on-record-${Date.now()}@example.test`,
+        })
+        .returning();
+
+      const res = await mintDelegated({ endUserId: existing!.id, email: 'kari@example.test' });
+      expect(res.status).toBe(400);
+      expect(await res.text()).toContain('delegated_email_mismatch');
+    });
+
+    it('409 when another end user already holds the attested email', async () => {
+      const email = `held-${Date.now()}@example.test`;
+      await db.insert(schema.endUsers).values({ orgId: orgA.id, externalId: `holder-${Date.now()}`, email });
+
+      const res = await mintDelegated({ externalId: `claimant-${Date.now()}`, email });
+      expect(res.status).toBe(409);
+      expect(await res.text()).toContain('delegated_email_conflict');
+    });
   });
 
 

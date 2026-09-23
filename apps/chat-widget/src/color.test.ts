@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { contrastFloor, readableOn, INK, PAPER } from './color.ts';
+import { contrastFloor, readableOn, themeFill, INK, PAPER } from './color.ts';
 
 describe('readableOn', () => {
   it('returns paper on dark backgrounds', () => {
@@ -81,5 +81,29 @@ describe('contrastFloor', () => {
   it('leaves an unparseable colour alone', () => {
     expect(contrastFloor('rebeccapurple', '#FBFAF7')).toBe('rebeccapurple');
     expect(contrastFloor('#F59E0B', 'not-a-color')).toBe('#F59E0B');
+  });
+});
+
+describe('themeFill', () => {
+  it('leaves a fill that already carries paper text untouched', () => {
+    expect(themeFill('#0059DE')).toBe('#0059DE');
+  });
+
+  it('darkens a mid-tone just enough for paper text to reach AA', () => {
+    expect(themeFill('#4577F6')).toBe('#3F6CE0');
+    expect(themeFill('#8B5CF6')).toBe('#8356E7');
+    expect(ratio(themeFill('#4577F6'), PAPER)).toBeGreaterThanOrEqual(4.5);
+    expect(readableOn(themeFill('#4577F6'))).toBe(PAPER);
+  });
+
+  it('keeps a light brand colour as-is so it stays on ink text instead of being dragged dark', () => {
+    for (const c of ['#FFE066', '#10B981', '#FF5A5F', '#F59E0B']) {
+      expect(themeFill(c)).toBe(c);
+      expect(readableOn(themeFill(c))).toBe(INK);
+    }
+  });
+
+  it('leaves an unparseable colour alone', () => {
+    expect(themeFill('rebeccapurple')).toBe('rebeccapurple');
   });
 });

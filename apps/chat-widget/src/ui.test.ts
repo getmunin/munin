@@ -794,6 +794,42 @@ describe('ui: launcher colors', () => {
     expect(root().style.getPropertyValue('--munin-launcher-fg')).toBe('#FFE066');
   });
 
+  it('leaves the unread badge on the theme color over the default launcher', () => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    expect(root().style.getPropertyValue('--munin-badge')).toBe('');
+    expect(root().style.getPropertyValue('--munin-badge-fg')).toBe('');
+  });
+
+  it('inverts the unread badge against a custom launcher so it never blends into a launcher that shares the theme color', () => {
+    controller = mount(
+      { ...baseConfig, themeColor: '#4577F6', launcherColor: '#4577F6' },
+      strings,
+      { onSend: () => {}, onTypingIntent: () => {} },
+    );
+    expect(root().style.getPropertyValue('--munin-badge')).toBe('#0F1419');
+    expect(root().style.getPropertyValue('--munin-badge-fg')).toBe('#4577F6');
+  });
+
+  it('floors the badge count to text contrast when an explicit icon color sits close to the launcher', () => {
+    controller = mount(
+      { ...baseConfig, launcherColor: '#6E2BD9', launcherIconColor: '#8F6AE8' },
+      strings,
+      { onSend: () => {}, onTypingIntent: () => {} },
+    );
+    expect(root().style.getPropertyValue('--munin-badge')).toBe('#8F6AE8');
+    expect(root().style.getPropertyValue('--munin-badge-fg')).toBe('#210D41');
+  });
+
+  it('nudges a mid-tone theme darker on filled surfaces so their text flips to paper', () => {
+    controller = mount({ ...baseConfig, themeColor: '#4577F6' }, strings, {
+      onSend: () => {},
+      onTypingIntent: () => {},
+    });
+    expect(root().style.getPropertyValue('--munin-theme')).toBe('#4577F6');
+    expect(root().style.getPropertyValue('--munin-theme-fill')).toBe('#3F6CE0');
+    expect(root().style.getPropertyValue('--munin-theme-fg')).toBe('#FBFAF7');
+  });
+
   it('recolors only the icon when just an icon color is given', () => {
     controller = mount({ ...baseConfig, launcherIconColor: '#FFE066' }, strings, {
       onSend: () => {},

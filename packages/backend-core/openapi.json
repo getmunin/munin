@@ -1562,6 +1562,37 @@
         ]
       }
     },
+    "/v1/social/drafts/{id}/link-preview": {
+      "get": {
+        "operationId": "SocialDraftsController_linkPreview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SocialDrafts"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/social/drafts/{id}/link-placement": {
       "patch": {
         "operationId": "SocialDraftsController_setLinkPlacement",

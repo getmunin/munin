@@ -5,6 +5,7 @@ const BLACK = '#000000';
 const WHITE = '#FFFFFF';
 const AA_TEXT = 4.5;
 const STEPS = 200;
+const FILL_SHIFT = 0.12;
 
 type Rgb = [number, number, number];
 
@@ -30,6 +31,19 @@ export function contrastFloor(color: string, on: string, target = 3): string {
     if (contrastRatio(bg, relativeLuminance(moved)) >= target) return toHex(moved);
   }
   return toward === 0 ? BLACK : WHITE;
+}
+
+export function themeFill(color: string): string {
+  const rgb = parseHex(color);
+  if (rgb === null) return color;
+  const paper = luminance(PAPER)!;
+  if (contrastRatio(relativeLuminance(rgb), paper) >= AA_TEXT) return color;
+  const maxStep = Math.round(STEPS * FILL_SHIFT);
+  for (let step = 1; step <= maxStep; step += 1) {
+    const moved = rgb.map((c) => Math.round(c - c * (step / STEPS))) as Rgb;
+    if (contrastRatio(relativeLuminance(moved), paper) >= AA_TEXT) return toHex(moved);
+  }
+  return color;
 }
 
 function luminance(hex: string): number | null {

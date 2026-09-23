@@ -158,8 +158,8 @@ button {
   padding: 0 4px;
   box-sizing: border-box;
   border-radius: 999px;
-  background: var(--munin-theme);
-  color: var(--munin-theme-fg);
+  background: var(--munin-badge, var(--munin-theme-fill, var(--munin-theme)));
+  color: var(--munin-badge-fg, var(--munin-theme-fg));
   font-family: var(--munin-mono);
   font-size: 11px;
   font-weight: 600;
@@ -167,7 +167,7 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--munin-bone);
+  border: 1px solid var(--munin-bone);
   pointer-events: none;
 }
 
@@ -359,7 +359,7 @@ button {
 .cta-arrow {
   font-family: var(--munin-serif);
   font-size: 22px;
-  color: var(--munin-theme);
+  color: var(--munin-theme-edge);
 }
 
 .section-head {
@@ -664,9 +664,9 @@ button {
   outline-offset: -2px;
 }
 .card-form button {
-  background: var(--munin-theme);
+  background: var(--munin-theme-fill, var(--munin-theme));
   color: var(--munin-theme-fg);
-  border: 1px solid var(--munin-theme);
+  border: 1px solid var(--munin-theme-fill, var(--munin-theme));
   border-radius: var(--munin-r-control);
   padding: 8px 14px;
   font-family: var(--munin-mono);

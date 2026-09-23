@@ -8,7 +8,7 @@ import type { WidgetConfig } from './config.ts';
 import { WIDGET_END_USER_BODY_MAX_CHARS } from './config.ts';
 import { buildWidgetCss } from './styles.ts';
 import { registerBundledFonts } from './fonts.ts';
-import { contrastFloor, readableOn } from './color.ts';
+import { contrastFloor, readableOn, themeFill } from './color.ts';
 import { format, pickLocale } from './strings/index.ts';
 import type { Strings } from './strings/index.ts';
 import { renderMarkdownInto } from './markdown.ts';
@@ -112,15 +112,17 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   root.setAttribute('data-size', config.size);
   root.setAttribute('data-corners', config.corners);
   root.style.setProperty('--munin-theme', config.themeColor);
-  root.style.setProperty('--munin-theme-fg', readableOn(config.themeColor));
+  const fill = themeFill(config.themeColor);
+  root.style.setProperty('--munin-theme-fill', fill);
+  root.style.setProperty('--munin-theme-fg', readableOn(fill));
   host.style.setProperty('--munin-theme-edge-light', contrastFloor(config.themeColor, '#FBFAF7'));
   host.style.setProperty('--munin-theme-edge-dark', contrastFloor(config.themeColor, '#101418'));
   if (config.launcherColor) {
+    const launcherFg = config.launcherIconColor ?? readableOn(config.launcherColor);
     root.style.setProperty('--munin-launcher', config.launcherColor);
-    root.style.setProperty(
-      '--munin-launcher-fg',
-      config.launcherIconColor ?? readableOn(config.launcherColor),
-    );
+    root.style.setProperty('--munin-launcher-fg', launcherFg);
+    root.style.setProperty('--munin-badge', launcherFg);
+    root.style.setProperty('--munin-badge-fg', contrastFloor(config.launcherColor, launcherFg, 4.5));
   } else if (config.launcherIconColor) {
     root.style.setProperty('--munin-launcher-fg', config.launcherIconColor);
   }

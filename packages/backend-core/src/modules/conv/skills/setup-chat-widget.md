@@ -31,8 +31,8 @@ If the customer uses Munin's own `widget.js` bundle rather than their own chat U
 | Attribute | Values | Effect |
 |---|---|---|
 | `data-munin-fonts` | `bundled` (default), `inherit` | `bundled` ships subset Instrument Serif + JetBrains Mono (~60 KB) and matches the dashboard typography. `inherit` downloads no fonts and renders every string in whatever `font-family` the page applies to `<body>`, so the panel blends into the site's type stack. Sizes, weights and italics are unchanged either way. |
-| `data-munin-theme-color` | hex, e.g. `#0059DE` | Accent for the unread badge, send button, links and visitor bubbles. Text on top of it flips between ink and paper for contrast. |
-| `data-munin-launcher-color` | hex | Fill of the round launcher bubble. Defaults to the near-black ink of the panel header, so a brand-colored bubble is an explicit opt-in; the glyph inside follows for contrast. |
+| `data-munin-theme-color` | hex, e.g. `#0059DE` | Accent for the send button, focus rings, the email-save button, and the unread badge while the launcher keeps its default color. Text on top of it flips between ink and paper for contrast; on filled surfaces a mid-tone that could only carry ink text is darkened by at most 12% so it carries paper text. |
+| `data-munin-launcher-color` | hex | Fill of the round launcher bubble. Defaults to the near-black ink of the panel header, so a brand-colored bubble is an explicit opt-in; the glyph inside follows for contrast. Once set, the unread badge inverts the bubble's colors (glyph color as fill, bubble color as the count), so it stays visible when the bubble matches the theme color. |
 | `data-munin-launcher-icon-color` | hex | Color of the chat glyph in the launcher, overriding the automatic contrast pick. |
 | `data-munin-header-color` | hex | Fill of the panel's top bar (org name + close button). Defaults to the same near-black chrome as the launcher; the text/icon color picks whichever of ink/paper contrasts better. |
 | `data-munin-position` | `bottom-right` (default), `bottom-left` | Launcher corner. |

@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
-import { and, asc, eq, isNull, lt, lte } from 'drizzle-orm';
+import { and, asc, eq, isNull, lt, lte, sql } from 'drizzle-orm';
 import { parseEnvDisableFlag, parseEnvInt, type Mailer } from '@getmunin/core';
 import { renderSystemAlertEmail } from '@getmunin/emails';
 import { DB } from '../../common/db/db.module.ts';
@@ -97,7 +97,7 @@ export class AlertNotificationWorker implements OnModuleInit, OnModuleDestroy {
         and(
           isNull(schema.alertNotifications.deliveredAt),
           lt(schema.alertNotifications.attempt, MAX_NOTIFY_ATTEMPTS),
-          lte(schema.alertNotifications.nextAttemptAt, new Date()),
+          lte(schema.alertNotifications.nextAttemptAt, sql`now()`),
         ),
       )
       .orderBy(asc(schema.alertNotifications.nextAttemptAt))
@@ -173,8 +173,10 @@ export class AlertNotificationWorker implements OnModuleInit, OnModuleDestroy {
       .set({
         attempt: nextAttempt,
         error,
-        deliveredAt: final ? new Date() : null,
-        nextAttemptAt: final ? new Date() : new Date(Date.now() + backoff + jitter),
+        deliveredAt: final ? sql`now()` : null,
+        nextAttemptAt: final
+          ? sql`now()`
+          : sql`now() + ${backoff + jitter} * interval '1 millisecond'`,
       })
       .where(eq(schema.alertNotifications.id, row.id));
   }

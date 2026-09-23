@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { eq, sql } from 'drizzle-orm';
 import {
@@ -245,6 +245,53 @@ class RecordingMailer implements Mailer {
     expect(mailer.sent).toHaveLength(1);
   });
 
+  it('delivers a fresh notification even when the app clock runs behind the database', async () => {
+    await asActor(plainMember, async () => {
+      await service.openAlert({
+        source: 'social',
+        subjectId: 'linkedin-skew',
+        userId: plainMember,
+        severity: 'warning',
+        title: 'LinkedIn connection expired',
+      });
+    });
+
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(Date.now() - 5 * 60_000);
+      expect(await worker.tick()).toEqual({ sent: 1, failed: 0 });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(mailer.sent).toHaveLength(1);
+  });
+
+  it('schedules a retry from the database clock, not the app clock', async () => {
+    await asActor(plainMember, async () => {
+      await service.openAlert({
+        source: 'social',
+        subjectId: 'linkedin-retry-clock',
+        userId: plainMember,
+        severity: 'warning',
+        title: 'LinkedIn connection expired',
+      });
+    });
+    mailer.failWith = new Error('smtp refused');
+
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(Date.now() - 60 * 60_000);
+      expect(await worker.tick()).toEqual({ sent: 0, failed: 1 });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const [row] = await svcDb.execute<{ ahead: boolean }>(
+      sql`SELECT next_attempt_at > now() AS ahead FROM alert_notifications WHERE org_id = ${orgId}`,
+    );
+    expect(row!.ahead).toBe(true);
+  });
+
   it('sends the cta as an absolute url, not the stored relative path', async () => {
     const previous = process.env.MUNIN_WEB_URL;
     process.env.MUNIN_WEB_URL = 'https://app.example.com';
@@ -309,7 +356,7 @@ class RecordingMailer implements Mailer {
         expect(row!.deliveredAt).toBeNull();
         await svcDb
           .update(schema.alertNotifications)
-          .set({ nextAttemptAt: new Date(Date.now() - 1000) })
+          .set({ nextAttemptAt: sql`now() - interval '1 second'` })
           .where(eq(schema.alertNotifications.id, row!.id));
       }
     }

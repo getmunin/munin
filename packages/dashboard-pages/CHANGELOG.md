@@ -1,5 +1,12 @@
 # @getmunin/dashboard-pages
 
+## 5.36.0
+
+### Patch Changes
+
+- @getmunin/types@5.36.0
+  - @getmunin/ui@5.36.0
+
 ## 5.35.0
 
 ### Minor Changes

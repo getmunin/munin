@@ -130,6 +130,44 @@ describe('evaluateInboundEmailAuth', () => {
     ).toBe('unknown');
   });
 
+  it('is unknown, not a failure, when the From domain publishes no DMARC record', () => {
+    expect(
+      evaluateInboundEmailAuth({
+        authenticationResults: [
+          'mx.test; spf=pass smtp.mailfrom=ola@example.com; dmarc=none header.from=example.com',
+        ],
+        fromAddress: 'ola@example.com',
+      }),
+    ).toBe('unknown');
+  });
+
+  it('is unknown when the DMARC lookup hit a temporary error', () => {
+    expect(
+      evaluateInboundEmailAuth({
+        authenticationResults: ['mx.test; dmarc=temperror header.from=example.com'],
+        fromAddress: 'ola@example.com',
+      }),
+    ).toBe('unknown');
+  });
+
+  it('is unknown when the DMARC record could not be parsed', () => {
+    expect(
+      evaluateInboundEmailAuth({
+        authenticationResults: ['mx.test; dmarc=permerror header.from=example.com'],
+        fromAddress: 'ola@example.com',
+      }),
+    ).toBe('unknown');
+  });
+
+  it('still fails an explicit dmarc=fail', () => {
+    expect(
+      evaluateInboundEmailAuth({
+        authenticationResults: ['mx.test; dmarc=fail (p=NONE) header.from=example.com'],
+        fromAddress: 'ola@example.com',
+      }),
+    ).toBe('fail');
+  });
+
   it('is unknown when the header carries no dmarc method', () => {
     expect(
       evaluateInboundEmailAuth({

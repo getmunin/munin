@@ -134,7 +134,8 @@ export function evaluateInboundEmailAuth(args: {
   if (dmarc.length === 0) return 'unknown';
   if (dmarc.length > 1) return 'fail';
   const only = dmarc[0]!;
-  if (only.result !== 'pass') return 'fail';
+  if (only.result === 'fail') return 'fail';
+  if (only.result !== 'pass') return 'unknown';
 
   const fromDomain = emailDomain(args.fromAddress);
   if (!fromDomain) return 'fail';

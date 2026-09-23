@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  hasFailedSenderAuth,
   identityProvenance,
-  isAttestedEmail,
-  isProvenEmailTurn,
   isSelfReportedIdentity,
   latestEndUserTurn,
   provenSenderMetadata,
@@ -29,18 +28,6 @@ describe('provenSenderMetadata', () => {
   });
 });
 
-describe('isAttestedEmail', () => {
-  it('accepts the address the organization attested when minting the token', () => {
-    expect(isAttestedEmail({ attestedEmail: 'ola@example.test' }, 'OLA@example.test')).toBe(true);
-  });
-
-  it('rejects a token minted without an email or for a different one', () => {
-    expect(isAttestedEmail({}, 'ola@example.test')).toBe(false);
-    expect(isAttestedEmail(null, 'ola@example.test')).toBe(false);
-    expect(isAttestedEmail({ attestedEmail: 'kari@example.test' }, 'ola@example.test')).toBe(false);
-  });
-});
-
 describe('latestEndUserTurn', () => {
   it('collects the newest contiguous run of customer messages', () => {
     const a = verified();
@@ -59,45 +46,28 @@ describe('latestEndUserTurn', () => {
   });
 });
 
-describe('isProvenEmailTurn', () => {
-  it('accepts a turn whose every message passed DMARC for the booking address', () => {
-    expect(isProvenEmailTurn([verified(), verified(), agentReply], 'OLA@example.test')).toBe(true);
+describe('hasFailedSenderAuth', () => {
+  it('flags a turn containing a message that failed DMARC', () => {
+    expect(hasFailedSenderAuth([unverified(), agentReply])).toBe(true);
+    expect(hasFailedSenderAuth([verified(), unverified(), agentReply])).toBe(true);
   });
 
-  it('rejects a forgery that lands in the same turn as a genuine message', () => {
-    expect(isProvenEmailTurn([verified(), unverified(), agentReply], 'ola@example.test')).toBe(false);
-    expect(isProvenEmailTurn([unverified(), verified()], 'ola@example.test')).toBe(false);
-  });
-
-  it('ignores a verified message from an earlier turn once a forgery is the latest', () => {
-    expect(isProvenEmailTurn([unverified(), agentReply, verified()], 'ola@example.test')).toBe(false);
-  });
-
-  it('rejects a verified message from a different sender than the booking address', () => {
-    expect(isProvenEmailTurn([verified('kari@example.test')], 'ola@example.test')).toBe(false);
-  });
-
-  it('rejects messages that predate the verdict or carry none', () => {
-    expect(isProvenEmailTurn([{ authorType: 'end_user', metadata: {} }], 'ola@example.test')).toBe(
-      false,
-    );
+  it('does not flag a passing turn or one with no verdict at all', () => {
+    expect(hasFailedSenderAuth([verified(), agentReply])).toBe(false);
+    expect(hasFailedSenderAuth([{ authorType: 'end_user', metadata: {} }])).toBe(false);
+    expect(hasFailedSenderAuth([{ authorType: 'end_user', metadata: null }])).toBe(false);
     expect(
-      isProvenEmailTurn([{ authorType: 'end_user', metadata: null }], 'ola@example.test'),
+      hasFailedSenderAuth([{ authorType: 'end_user', metadata: { senderAuth: 'unknown' } }]),
     ).toBe(false);
   });
 
-  it('rejects a pass that names no proven address', () => {
-    expect(
-      isProvenEmailTurn(
-        [{ authorType: 'end_user', metadata: { senderAuth: 'pass' } }],
-        'ola@example.test',
-      ),
-    ).toBe(false);
+  it('looks only at the latest turn, so an answered failure does not block a later genuine message', () => {
+    expect(hasFailedSenderAuth([verified(), agentReply, unverified()])).toBe(false);
   });
 
-  it('rejects when there is no customer turn at all', () => {
-    expect(isProvenEmailTurn([agentReply], 'ola@example.test')).toBe(false);
-    expect(isProvenEmailTurn([], 'ola@example.test')).toBe(false);
+  it('does not flag a conversation where the customer has not written', () => {
+    expect(hasFailedSenderAuth([agentReply])).toBe(false);
+    expect(hasFailedSenderAuth([])).toBe(false);
   });
 });
 

@@ -10,6 +10,7 @@ const CHANNEL_ASSERTED_KINDS = new Set(['email', 'sms', 'voice']);
 export const SENDER_AUTH_METADATA_KEY = 'senderAuth';
 export const PROVEN_EMAIL_METADATA_KEY = 'provenEmail';
 export const ORG_ATTESTED_EMAIL_SOURCE = 'org-attested';
+export const ATTESTED_EMAIL_METADATA_KEY = 'attestedEmail';
 
 export interface ConversationTurnMessage {
   authorType: string;
@@ -28,6 +29,11 @@ export function provenSenderMetadata(
     : { [SENDER_AUTH_METADATA_KEY]: verdict };
 }
 
+export function isSelfReportedIdentity(metadata: unknown): boolean {
+  const meta = metadata as EndUserProvenanceMetadata | null;
+  return meta?.anonymous === true || meta?.emailSource === 'visitor';
+}
+
 export function latestEndUserTurn<T extends { authorType: string }>(
   newestFirst: readonly T[],
 ): T[] {
@@ -39,34 +45,11 @@ export function latestEndUserTurn<T extends { authorType: string }>(
   return turn;
 }
 
-export const ATTESTED_EMAIL_METADATA_KEY = 'attestedEmail';
-
-export function isAttestedEmail(tokenMetadata: unknown, email: string): boolean {
-  const attested = (tokenMetadata as Record<string, unknown> | null)?.[ATTESTED_EMAIL_METADATA_KEY];
-  return typeof attested === 'string' && attested.trim().toLowerCase() === email.trim().toLowerCase();
-}
-
-export function isProvenEmailTurn(
-  newestFirst: readonly ConversationTurnMessage[],
-  email: string,
-): boolean {
-  const turn = latestEndUserTurn(newestFirst);
-  if (turn.length === 0) return false;
-  const expected = email.trim().toLowerCase();
-  return turn.every((message) => {
-    const meta = message.metadata as Record<string, unknown> | null;
-    const proven = meta?.[PROVEN_EMAIL_METADATA_KEY];
-    return (
-      meta?.[SENDER_AUTH_METADATA_KEY] === 'pass' &&
-      typeof proven === 'string' &&
-      proven.trim().toLowerCase() === expected
-    );
-  });
-}
-
-export function isSelfReportedIdentity(metadata: unknown): boolean {
-  const meta = metadata as EndUserProvenanceMetadata | null;
-  return meta?.anonymous === true || meta?.emailSource === 'visitor';
+export function hasFailedSenderAuth(newestFirst: readonly ConversationTurnMessage[]): boolean {
+  return latestEndUserTurn(newestFirst).some(
+    (message) =>
+      (message.metadata as Record<string, unknown> | null)?.[SENDER_AUTH_METADATA_KEY] === 'fail',
+  );
 }
 
 export function identityProvenance(args: {

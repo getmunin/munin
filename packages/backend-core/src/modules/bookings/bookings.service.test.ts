@@ -30,7 +30,7 @@ const skipReason = TEST_URL
   let olaEndUserId: string;
   let olaContactId: string;
   let emailChannelId: string;
-  let chatChannelId: string;
+  let voiceChannelId: string;
   let displayId = 0;
 
   type SeedMessage =
@@ -72,7 +72,7 @@ const skipReason = TEST_URL
     return conv!.id;
   }
 
-  async function mintToken(endUserId: string, metadata: Record<string, unknown>, revoked = false) {
+  async function mintToken(endUserId: string, metadata: Record<string, unknown>) {
     const [token] = await db
       .insert(schema.tokens)
       .values({
@@ -83,7 +83,6 @@ const skipReason = TEST_URL
         audiences: ['self_service'],
         endUserId,
         metadata,
-        revokedAt: revoked ? new Date() : null,
       })
       .returning();
     return new ActorIdentity(
@@ -182,17 +181,11 @@ const skipReason = TEST_URL
       .values({ orgId, type: 'email', vendor: 'imap', name: 'support-email', config: {} })
       .returning();
     emailChannelId = emailChannel!.id;
-    const [chatChannel] = await db
+    const [voiceChannel] = await db
       .insert(schema.convChannels)
-      .values({
-        orgId,
-        type: 'chat',
-        vendor: 'munin',
-        name: 'support-chat',
-        config: { provider: 'widget', originAllowlist: [] },
-      })
+      .values({ orgId, type: 'voice', vendor: 'vapi', name: 'support-voice', config: {} })
       .returning();
-    chatChannelId = chatChannel!.id;
+    voiceChannelId = voiceChannel!.id;
     const [janeContact] = await db
       .insert(schema.convContacts)
       .values({ orgId, email: 'jane@example.com', endUserId: janeEndUserId })
@@ -368,27 +361,29 @@ const skipReason = TEST_URL
     expect(result.bookings).toHaveLength(1);
   });
 
-  it('refuses to cancel on a channel-asserted identity and never reaches the vendor', async () => {
+  const cancelResponds = (url: string) =>
+    url.includes('/cancel') ? { status: 204, body: undefined } : { body: [gastroplannerBooking] };
+
+  it('refuses to cancel when the latest message failed DMARC, and never reaches the vendor', async () => {
     await createConnection();
-    respond = (url) =>
-      url.includes('/cancel') ? { status: 204, body: undefined } : { body: [gastroplannerBooking] };
+    respond = cancelResponds;
 
     await expect(
       run(() => bookings.cancelMyBooking({ bookingRef: '512' }), assertedEndUserActor),
-    ).rejects.toThrow(/connectors_unproven/);
+    ).rejects.toThrow(/connectors_sender_auth_failed/);
     expect(calls).toHaveLength(0);
   });
 
-  it('refuses to modify on a channel-asserted identity and never reaches the vendor', async () => {
+  it('refuses to modify when the latest message failed DMARC, and never reaches the vendor', async () => {
     await createConnection();
 
     await expect(
       run(() => bookings.updateMyBooking({ bookingRef: '512', partySize: 2 }), assertedEndUserActor),
-    ).rejects.toThrow(/connectors_unproven/);
+    ).rejects.toThrow(/connectors_sender_auth_failed/);
     expect(calls).toHaveLength(0);
   });
 
-  it('refuses to create on a channel-asserted identity and never reaches the vendor', async () => {
+  it('refuses to create when the latest message failed DMARC, and never reaches the vendor', async () => {
     await createConnection();
 
     await expect(
@@ -396,29 +391,11 @@ const skipReason = TEST_URL
         () => bookings.createMyBooking({ date: '2026-07-10', time: '19:00', partySize: 4 }),
         assertedEndUserActor,
       ),
-    ).rejects.toThrow(/connectors_unproven/);
+    ).rejects.toThrow(/connectors_sender_auth_failed/);
     expect(calls).toHaveLength(0);
   });
 
-  it("refuses a forged conversation even while the same address has a verified one elsewhere", async () => {
-    await createConnection();
-    const forgedConversationId = await seedConversation({
-      channelId: emailChannelId,
-      endUserId: janeEndUserId,
-      contactId: janeContactId,
-      messages: [{ author: 'end_user', contactId: janeContactId, senderAuth: 'fail' }],
-    });
-
-    await expect(
-      run(
-        () => bookings.cancelMyBooking({ bookingRef: '512' }),
-        writerFor(janeEndUserId, forgedConversationId),
-      ),
-    ).rejects.toThrow(/connectors_unproven/);
-    expect(calls).toHaveLength(0);
-  });
-
-  it('refuses when a forgery joins a verified message in the turn being answered', async () => {
+  it('refuses when a failing message joins a passing one in the turn being answered', async () => {
     await createConnection();
     const mixedConversationId = await seedConversation({
       channelId: emailChannelId,
@@ -426,7 +403,7 @@ const skipReason = TEST_URL
       contactId: janeContactId,
       messages: [
         { author: 'end_user', contactId: janeContactId, senderAuth: 'pass', provenEmail: 'jane@example.com' },
-        { author: 'end_user', contactId: janeContactId, senderAuth: 'unknown' },
+        { author: 'end_user', contactId: janeContactId, senderAuth: 'fail' },
       ],
     });
 
@@ -435,154 +412,75 @@ const skipReason = TEST_URL
         () => bookings.cancelMyBooking({ bookingRef: '512' }),
         writerFor(janeEndUserId, mixedConversationId),
       ),
-    ).rejects.toThrow(/connectors_unproven/);
+    ).rejects.toThrow(/connectors_sender_auth_failed/);
     expect(calls).toHaveLength(0);
   });
 
-  it('refuses once a forgery follows an answered, verified turn', async () => {
+  it('cancels on email that carries no DMARC verdict, since nothing says it is forged', async () => {
     await createConnection();
-    const laterForgeryId = await seedConversation({
+    respond = cancelResponds;
+    const unknownConversationId = await seedConversation({
+      channelId: emailChannelId,
+      endUserId: janeEndUserId,
+      contactId: janeContactId,
+      messages: [{ author: 'end_user', contactId: janeContactId, senderAuth: 'unknown' }],
+    });
+
+    const result = await run(
+      () => bookings.cancelMyBooking({ bookingRef: '512' }),
+      writerFor(janeEndUserId, unknownConversationId),
+    );
+
+    expect(result.cancelled).toBe(true);
+  });
+
+  it('cancels once a genuine message follows an answered failure', async () => {
+    await createConnection();
+    respond = cancelResponds;
+    const recoveredConversationId = await seedConversation({
       channelId: emailChannelId,
       endUserId: janeEndUserId,
       contactId: janeContactId,
       messages: [
-        { author: 'end_user', contactId: janeContactId, senderAuth: 'pass', provenEmail: 'jane@example.com' },
-        { author: 'agent' },
         { author: 'end_user', contactId: janeContactId, senderAuth: 'fail' },
+        { author: 'agent' },
+        { author: 'end_user', contactId: janeContactId, senderAuth: 'pass', provenEmail: 'jane@example.com' },
       ],
     });
 
-    await expect(
-      run(
-        () => bookings.cancelMyBooking({ bookingRef: '512' }),
-        writerFor(janeEndUserId, laterForgeryId),
-      ),
-    ).rejects.toThrow(/connectors_unproven/);
-    expect(calls).toHaveLength(0);
+    const result = await run(
+      () => bookings.cancelMyBooking({ bookingRef: '512' }),
+      writerFor(janeEndUserId, recoveredConversationId),
+    );
+
+    expect(result.cancelled).toBe(true);
   });
 
-  it('refuses a caller that is not acting inside a conversation', async () => {
+  it('cancels in a voice conversation, where caller id offers nothing to check', async () => {
     await createConnection();
-
-    await expect(
-      run(() => bookings.cancelMyBooking({ bookingRef: '512' }), writerFor(janeEndUserId)),
-    ).rejects.toThrow(/connectors_unproven/);
-    expect(calls).toHaveLength(0);
-  });
-
-  it("refuses to borrow another end user's verified conversation", async () => {
-    await createConnection();
-
-    await expect(
-      run(
-        () => bookings.cancelMyBooking({ bookingRef: '512' }),
-        writerFor(olaEndUserId, endUserActor.conversationId),
-      ),
-    ).rejects.toThrow(/connectors_unproven/);
-    expect(calls).toHaveLength(0);
-  });
-
-  it('refuses a verdict stamped on a message outside the email channel', async () => {
-    await createConnection();
-    const chatConversationId = await seedConversation({
-      channelId: chatChannelId,
+    respond = cancelResponds;
+    const voiceConversationId = await seedConversation({
+      channelId: voiceChannelId,
       endUserId: janeEndUserId,
       contactId: janeContactId,
-      messages: [{ author: 'end_user', contactId: janeContactId, senderAuth: 'pass', provenEmail: 'jane@example.com' }],
+      messages: [{ author: 'end_user', contactId: janeContactId }],
     });
 
-    await expect(
-      run(
-        () => bookings.cancelMyBooking({ bookingRef: '512' }),
-        writerFor(janeEndUserId, chatConversationId),
-      ),
-    ).rejects.toThrow(/connectors_unproven/);
-    expect(calls).toHaveLength(0);
+    const result = await run(
+      () => bookings.cancelMyBooking({ bookingRef: '512' }),
+      writerFor(janeEndUserId, voiceConversationId),
+    );
+
+    expect(result.cancelled).toBe(true);
   });
 
-  it('refuses a pass whose proven address is not the booking address', async () => {
+  it('cancels for a caller that is not acting inside a conversation, such as a delegated token', async () => {
     await createConnection();
-    const otherAddressId = await seedConversation({
-      channelId: emailChannelId,
-      endUserId: janeEndUserId,
-      contactId: janeContactId,
-      messages: [
-        { author: 'end_user', contactId: janeContactId, senderAuth: 'pass', provenEmail: 'kari@example.test' },
-      ],
-    });
-
-    await expect(
-      run(
-        () => bookings.cancelMyBooking({ bookingRef: '512' }),
-        writerFor(janeEndUserId, otherAddressId),
-      ),
-    ).rejects.toThrow(/connectors_unproven/);
-    expect(calls).toHaveLength(0);
-  });
-
-  it('cancels through a delegated token the organization minted for the booking address', async () => {
-    await createConnection();
-    respond = (url) =>
-      url.includes('/cancel') ? { status: 204, body: undefined } : { body: [gastroplannerBooking] };
-    const actor = await mintToken(janeEndUserId, { attestedEmail: 'jane@example.com' });
+    respond = cancelResponds;
+    const actor = await mintToken(janeEndUserId, {});
 
     const result = await run(() => bookings.cancelMyBooking({ bookingRef: '512' }), actor);
 
     expect(result.cancelled).toBe(true);
   });
-
-  it('refuses a delegated token minted without an attested email', async () => {
-    await createConnection();
-    const actor = await mintToken(janeEndUserId, {});
-
-    await expect(
-      run(() => bookings.cancelMyBooking({ bookingRef: '512' }), actor),
-    ).rejects.toThrow(/connectors_unproven/);
-    expect(calls).toHaveLength(0);
-  });
-
-  it('refuses a delegated token attested for a different address than the end user carries', async () => {
-    await createConnection();
-    const actor = await mintToken(janeEndUserId, { attestedEmail: 'kari@example.test' });
-
-    await expect(
-      run(() => bookings.cancelMyBooking({ bookingRef: '512' }), actor),
-    ).rejects.toThrow(/connectors_unproven/);
-    expect(calls).toHaveLength(0);
-  });
-
-  it('refuses a revoked delegated token', async () => {
-    await createConnection();
-    const actor = await mintToken(janeEndUserId, { attestedEmail: 'jane@example.com' }, true);
-
-    await expect(
-      run(() => bookings.cancelMyBooking({ bookingRef: '512' }), actor),
-    ).rejects.toThrow(/connectors_unproven/);
-    expect(calls).toHaveLength(0);
-  });
-
-  it('prefers the conversation over the token when the actor carries both', async () => {
-    await createConnection();
-    const token = await mintToken(olaEndUserId, { attestedEmail: 'ola@example.test' });
-    const actor = new ActorIdentity(
-      'end_user_agent',
-      token.id,
-      orgId,
-      ['bookings:read', 'bookings:write'],
-      ['self_service'],
-      olaEndUserId,
-      token.tokenId,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      assertedEndUserActor.conversationId,
-    );
-
-    await expect(
-      run(() => bookings.cancelMyBooking({ bookingRef: '512' }), actor),
-    ).rejects.toThrow(/connectors_unproven/);
-    expect(calls).toHaveLength(0);
-  });
 });
-

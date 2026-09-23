@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { schema, type Db, type Tx } from '@getmunin/db';
 import {
@@ -29,7 +29,7 @@ import {
 } from './connector.ts';
 import { SecretCipherError } from '../../common/outbound-oauth/grant-store.ts';
 import { ConnectorVendorError } from './http.ts';
-import { isAttestedEmail, isProvenEmailTurn, isSelfReportedIdentity } from './identity-provenance.ts';
+import { hasFailedSenderAuth, isSelfReportedIdentity } from './identity-provenance.ts';
 import { ConnectorOAuthService, OAUTH_CONFIG_KEY } from './connector-oauth.service.ts';
 import { DB } from '../../common/db/db.module.ts';
 import { CredentialHandoffService, type CredentialLink } from '../credential-handoff/credential-handoff.service.ts';
@@ -40,7 +40,7 @@ import type {
 
 export type ConnectionRow = typeof schema.connectorConnections.$inferSelect;
 
-const PROVEN_TURN_LOOKBACK = 50;
+const LATEST_TURN_LOOKBACK = 50;
 
 export type CredentialState = 'active' | 'pending' | 'expired' | 'revoked';
 
@@ -585,79 +585,41 @@ export class ConnectorsService {
     return email;
   }
 
-  async requireProvenEndUserEmail(): Promise<string> {
+  async requireEndUserEmailForWrite(): Promise<string> {
     const email = await this.requireEndUserEmail();
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    const proven = actor.conversationId
-      ? await this.conversationProvesEmail(ctx.db, actor, actor.conversationId, email)
-      : await this.tokenAttestsEmail(ctx.db, actor, email);
-    if (!proven) {
+    if (actor.conversationId && (await this.latestTurnFailedSenderAuth(ctx.db, actor))) {
       throw new BadRequestException(
-        'connectors_unproven: this request changes a booking, which requires proof that the customer owns the email address it is filed under. Proof is either an email conversation whose latest customer messages all passed DMARC for that address, or a delegated token the organization minted for that address; this identity was asserted by the channel (a From header, caller id, or chat) and not verified, so it cannot be used to change bookings. Hand over to a human.',
+        'connectors_sender_auth_failed: the latest customer message in this conversation failed its DMARC check for the address it claims to come from, so it may be forged and cannot be used to change a booking. Hand over to a human.',
       );
     }
     return email;
   }
 
-  private async conversationProvesEmail(
-    db: Db | Tx,
-    actor: ActorIdentity,
-    conversationId: string,
-    email: string,
-  ): Promise<boolean> {
-    const conversation = await db
-      .select({ id: schema.convConversations.id })
-      .from(schema.convConversations)
-      .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.convConversations.channelId))
-      .where(
-        and(
-          eq(schema.convConversations.id, conversationId),
-          eq(schema.convConversations.orgId, actor.orgId),
-          eq(schema.convConversations.endUserId, actor.endUserId!),
-          eq(schema.convChannels.type, 'email'),
-        ),
-      )
-      .limit(1);
-    if (!conversation[0]) return false;
+  private async latestTurnFailedSenderAuth(db: Db | Tx, actor: ActorIdentity): Promise<boolean> {
     const messages = await db
       .select({
         authorType: schema.convMessages.authorType,
         metadata: schema.convMessages.metadata,
       })
       .from(schema.convMessages)
+      .innerJoin(
+        schema.convConversations,
+        eq(schema.convConversations.id, schema.convMessages.conversationId),
+      )
       .where(
         and(
-          eq(schema.convMessages.conversationId, conversation[0].id),
+          eq(schema.convMessages.conversationId, actor.conversationId!),
+          eq(schema.convConversations.orgId, actor.orgId),
+          eq(schema.convConversations.endUserId, actor.endUserId!),
           eq(schema.convMessages.internal, false),
           ne(schema.convMessages.authorType, 'system'),
         ),
       )
       .orderBy(desc(schema.convMessages.createdAt), desc(schema.convMessages.ingestedAt))
-      .limit(PROVEN_TURN_LOOKBACK);
-    return isProvenEmailTurn(messages, email);
-  }
-
-  private async tokenAttestsEmail(
-    db: Db | Tx,
-    actor: ActorIdentity,
-    email: string,
-  ): Promise<boolean> {
-    if (!actor.tokenId) return false;
-    const rows = await db
-      .select({ metadata: schema.tokens.metadata })
-      .from(schema.tokens)
-      .where(
-        and(
-          eq(schema.tokens.id, actor.tokenId),
-          eq(schema.tokens.orgId, actor.orgId),
-          eq(schema.tokens.endUserId, actor.endUserId!),
-          eq(schema.tokens.type, 'delegated_end_user'),
-          isNull(schema.tokens.revokedAt),
-        ),
-      )
-      .limit(1);
-    return isAttestedEmail(rows[0]?.metadata, email);
+      .limit(LATEST_TURN_LOOKBACK);
+    return hasFailedSenderAuth(messages);
   }
 
   connectionContext(row: ConnectionRow): ConnectorConnectionContext {

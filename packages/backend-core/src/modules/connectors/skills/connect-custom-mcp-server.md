@@ -208,7 +208,7 @@ The pattern to copy: authenticate the bearer token, verify the identity assertio
 | Inbound SMS | `channel_asserted` — the sender number, unauthenticated |
 | Voice call | `channel_asserted` — caller ID, unauthenticated |
 
-Munin parses `Authentication-Results` on inbound mail into a per-message DMARC verdict, and uses it to gate its own self-service booking writes, but the verdict is **not** reflected in `email_provenance`: a DMARC-failing message and a passing one both arrive as `channel_asserted`. Treat `channel_asserted` on email as "someone typed this address into a From line."
+Munin parses `Authentication-Results` on inbound mail into a per-message DMARC verdict, and uses an explicit failure to refuse its own self-service booking writes, but the verdict is **not** reflected in `email_provenance`: a DMARC-failing message and a passing one both arrive as `channel_asserted`. Treat `channel_asserted` on email as "someone typed this address into a From line."
 
 If the org wants a strong identity on the widget, the route is the identity-verification secret or a delegated token — see `skill://connectors/connect-external-system` for that chain.
 

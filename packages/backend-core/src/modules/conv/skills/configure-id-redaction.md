@@ -17,9 +17,11 @@ Use this when an operator asks you to hide, scrub, or stop storing national iden
 
 ## What detection does on its own
 
-Munin looks for all three identifier types on every inbound message regardless of the policy, and records what it found on the message as `detectedNationalIds` — kinds and counts, never the digits. The first time one turns up in an org it also opens a `data_protection` alert.
+Munin looks for all three identifier types on every inbound message regardless of the policy, and records what it found on the message as `detectedNationalIds` — kinds and counts, never the digits.
 
-So an org that has never configured anything still learns that it is receiving these numbers. That is deliberate: nothing is rewritten until someone chooses to, because rewriting a customer's message is irreversible.
+While the org has never saved a policy (`configured: false` from `conv_get_redaction_policy`), the first match also opens a `data_protection` alert and emails the owners once. That is the org being asked to decide: nothing is rewritten until someone chooses to, because rewriting a customer's message is irreversible.
+
+Saving any policy — `off` included — is that decision. It resolves the alert, and no new one opens afterwards, whether matches are redacted or kept. An org with a legal basis to hold the numbers should save `off` explicitly rather than leave the policy unset.
 
 This also means detection reports types the org has **not** enabled. A Norwegian tenant seeing `dk_cpr` in `detectedNationalIds` is being told something useful — offer to add that detector.
 
@@ -30,7 +32,7 @@ This also means detection reports types the org has **not** enabled. A Norwegian
 {}
 ```
 
-Returns the enabled `detectors`, the `policy`, the confidence floor, and `availableDetectors`.
+Returns the enabled `detectors`, the `policy`, the confidence floor, `configured` (whether a policy has ever been saved), and `availableDetectors`.
 
 ## Step 2 — choose a policy with the operator
 

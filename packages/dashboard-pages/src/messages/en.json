@@ -178,6 +178,7 @@
     "apiKeys": "API keys",
     "channels": "Channels",
     "privacy": "Privacy",
+    "needsAttention": "Needs attention",
     "trackers": "Trackers",
     "endUsers": "End-users",
     "usage": "Usage",
@@ -1715,7 +1716,7 @@
       "title": "What Munin <em>keeps</em>",
       "subtitle": "Control what Munin keeps when customers send you more than you asked for.",
       "sectionTitle": "National identity numbers",
-      "detectorsHint": "Pick the ones your customers actually send. Munin watches for all of them either way and tells you when one turns up — this chooses which get redacted.",
+      "detectorsHint": "Pick the ones your customers actually send. Munin detects all of them either way — this chooses which get redacted.",
       "detectors": {
         "no_fnr": {
           "name": "Norwegian fødselsnummer",
@@ -1731,13 +1732,14 @@
         }
       },
       "policyLabel": "What to do with a match",
+      "policyPickHint": "Pick one. There is no default.",
       "policies": {
         "off": "Store it unchanged",
         "mask": "Keep the date of birth only",
         "remove": "Remove it entirely"
       },
       "policyHint": {
-        "off": "Nothing is rewritten. You will still be told when these numbers arrive.",
+        "off": "Nothing is rewritten. Choose this if you have a reason to keep the numbers, and Munin stops asking about them.",
         "mask": "A match becomes the birth date followed by asterisks, enough to match a person to a case without keeping the number.",
         "remove": "A match is replaced by a note naming what was removed. The digits are not kept anywhere."
       },
@@ -1751,6 +1753,8 @@
         "medium": "Also redacts bare digit runs. Catches more, and will sometimes take a reference number with it."
       },
       "scopeNote": "Applies to messages that arrive after you save. Redaction cannot be undone, and text inside attachments is not covered.",
+      "unconfiguredNote": "No choice saved yet. Until you save — even to keep the numbers unchanged — Munin alerts the owners the first time one arrives.",
+      "choosePolicyFirst": "Choose what to do first.",
       "errors": {
         "save": "Could not save the privacy settings."
       },

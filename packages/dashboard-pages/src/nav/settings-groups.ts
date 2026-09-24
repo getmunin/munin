@@ -3,6 +3,7 @@ import { extendNavGroups } from './extend-groups';
 export interface SettingsSubNavItem {
   href: string;
   labelKey: string;
+  alertSource?: string;
 }
 
 export interface SettingsSubNavGroup {
@@ -20,7 +21,7 @@ export const OSS_SETTINGS_GROUPS: SettingsSubNavGroup[] = [
       { href: '/dashboard/settings/channels', labelKey: 'channels' },
       { href: '/dashboard/settings/integrations', labelKey: 'integrations' },
       { href: '/dashboard/settings/trackers', labelKey: 'trackers' },
-      { href: '/dashboard/settings/privacy', labelKey: 'privacy' },
+      { href: '/dashboard/settings/privacy', labelKey: 'privacy', alertSource: 'data_protection' },
     ],
   },
   {

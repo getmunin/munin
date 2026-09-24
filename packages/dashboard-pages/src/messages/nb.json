@@ -178,6 +178,7 @@
     "apiKeys": "API-nøkler",
     "channels": "Kanaler",
     "privacy": "Personvern",
+    "needsAttention": "Trenger oppmerksomhet",
     "trackers": "Sporing",
     "endUsers": "Sluttbrukere",
     "usage": "Bruk",
@@ -1715,7 +1716,7 @@
       "title": "Hva Munin <em>beholder</em>",
       "subtitle": "Bestem hva Munin tar vare på når kunder sender mer enn du ba om.",
       "sectionTitle": "Fødselsnummer og tilsvarende",
-      "detectorsHint": "Velg de kundene dine faktisk sender. Munin ser etter alle uansett og sier fra når et dukker opp — her velger du hvilke som skal fjernes.",
+      "detectorsHint": "Velg de kundene dine faktisk sender. Munin kjenner igjen alle uansett — her velger du hvilke som skal fjernes.",
       "detectors": {
         "no_fnr": {
           "name": "Norsk fødselsnummer",
@@ -1731,13 +1732,14 @@
         }
       },
       "policyLabel": "Hva som skal skje med et treff",
+      "policyPickHint": "Velg ett. Ingenting er forhåndsvalgt.",
       "policies": {
         "off": "Lagre det uendret",
         "mask": "Behold bare fødselsdatoen",
         "remove": "Fjern det helt"
       },
       "policyHint": {
-        "off": "Ingenting skrives om. Du får fortsatt beskjed når slike nummer kommer inn.",
+        "off": "Ingenting skrives om. Velg dette hvis dere har grunn til å beholde numrene, så slutter Munin å spørre om dem.",
         "mask": "Treffet blir stående som fødselsdato etterfulgt av stjerner — nok til å kjenne igjen personen i en sak, uten å oppbevare nummeret.",
         "remove": "Treffet erstattes av en merknad om hva som ble fjernet. Sifrene beholdes ingen steder."
       },
@@ -1751,6 +1753,8 @@
         "medium": "Fjerner også rene sifferrekker. Fanger mer, men tar av og til et referansenummer med på kjøpet."
       },
       "scopeNote": "Gjelder meldinger som kommer inn etter at du lagrer. Fjerning kan ikke angres, og tekst inne i vedlegg dekkes ikke.",
+      "unconfiguredNote": "Ingenting er valgt ennå. Til du lagrer — også for å beholde numrene uendret — varsler Munin eierne første gang et nummer kommer inn.",
+      "choosePolicyFirst": "Velg hva som skal skje først.",
       "errors": {
         "save": "Klarte ikke å lagre personverninnstillingene."
       },

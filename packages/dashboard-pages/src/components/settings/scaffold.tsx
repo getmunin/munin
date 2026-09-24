@@ -219,3 +219,38 @@ export function CheckboxRow({
     </label>
   );
 }
+
+export function RadioRow({
+  name,
+  checked,
+  onChange,
+  disabled,
+  title,
+  description,
+}: {
+  name: string;
+  checked: boolean;
+  onChange: () => void;
+  disabled?: boolean;
+  title: ReactNode;
+  description?: ReactNode;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3 border-b-[1px] border-rule-soft py-2.5 last:border-0 dark:border-rule-on-dark">
+      <input
+        type="radio"
+        name={name}
+        className="mt-0.5 size-3.5 shrink-0 accent-ink"
+        checked={checked}
+        onChange={onChange}
+        disabled={disabled}
+      />
+      <span className="flex flex-1 flex-col gap-1">
+        <span className="text-[13.5px] text-ink dark:text-foreground">{title}</span>
+        {description ? (
+          <span className="text-[11.5px] leading-[1.4] text-ink-mute">{description}</span>
+        ) : null}
+      </span>
+    </label>
+  );
+}

@@ -7,6 +7,7 @@ import { PageSpinner, Sheet, SheetContent, SheetTitle, cn } from '@getmunin/ui';
 import { isOwnerOrAdmin, useActiveRole } from '../auth/use-active-role';
 import { Link, usePathname, useRouter } from '../i18n-navigation';
 import { settingsGroupsForRole, type SettingsSubNavGroup } from '../nav/settings-groups';
+import { useOpenAlertSources } from '../lib/use-open-alert-sources';
 
 export interface SettingsShellProps {
   groups: SettingsSubNavGroup[];
@@ -24,6 +25,7 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
 
   const isAdmin = isOwnerOrAdmin(role);
   const visibleGroups = settingsGroupsForRole(groups, isAdmin);
+  const openAlertSources = useOpenAlertSources(!loading && isAdmin);
 
   useEffect(() => {
     if (loading || isAdmin) return;
@@ -61,19 +63,29 @@ export function SettingsShell({ groups, children }: SettingsShellProps) {
           <ul className="space-y-px">
             {group.items.map((item) => {
               const active = pathname.startsWith(item.href);
+              const needsAttention = !!item.alertSource && openAlertSources.has(item.alertSource);
               return (
                 <li key={item.href}>
                   <Link
                     href={item.href}
                     aria-current={active ? 'page' : undefined}
                     className={cn(
-                      'flex items-center border-l-[3px] py-2 pl-[17px] pr-5 text-[14.5px] transition-colors duration-fast ease-munin',
+                      'flex items-center justify-between gap-2 border-l-[3px] py-2 pl-[17px] pr-5 text-[14.5px] transition-colors duration-fast ease-munin',
                       active
                         ? 'border-cobalt bg-paper text-ink dark:border-cobalt-soft dark:bg-card dark:text-foreground'
                         : 'border-transparent text-ink-soft hover:text-ink dark:text-foreground/70 dark:hover:text-foreground',
                     )}
                   >
                     {tNav(item.labelKey)}
+                    {needsAttention ? (
+                      <span className="flex items-center">
+                        <span
+                          aria-hidden
+                          className="size-[7px] rounded-full bg-amber-500 dark:bg-amber-400"
+                        />
+                        <span className="sr-only">{tNav('needsAttention')}</span>
+                      </span>
+                    ) : null}
                   </Link>
                 </li>
               );

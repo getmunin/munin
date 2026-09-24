@@ -10,6 +10,7 @@ import { NativeSelect } from '../components/native-select';
 import { Skeleton } from '../components/skeleton';
 import {
   CheckboxRow,
+  RadioRow,
   SaveButton,
   SettingsColumn,
   SettingsFieldNote,
@@ -32,7 +33,7 @@ interface RedactionPolicyDto {
   availableDetectors: Detector[];
 }
 
-const POLICIES: Policy[] = ['off', 'mask', 'remove'];
+const POLICIES: Policy[] = ['remove', 'mask', 'off'];
 const CONFIDENCES: Confidence[] = ['high', 'medium'];
 const FUZZY_DETECTORS: Detector[] = ['se_pnr', 'dk_cpr'];
 
@@ -43,7 +44,7 @@ export function PrivacyPage() {
 
   const [loaded, setLoaded] = useState<RedactionPolicyDto | null>(null);
   const [detectors, setDetectors] = useState<Detector[]>([]);
-  const [policy, setPolicy] = useState<Policy>('off');
+  const [policy, setPolicy] = useState<Policy | null>(null);
   const [minConfidence, setMinConfidence] = useState<Confidence>('high');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +54,7 @@ export function PrivacyPage() {
     const data = await api<RedactionPolicyDto>('/v1/conversations/redaction');
     setLoaded(data);
     setDetectors(data.detectors);
-    setPolicy(data.policy);
+    setPolicy(data.configured ? data.policy : null);
     setMinConfidence(data.minConfidence);
   }, []);
 
@@ -66,6 +67,7 @@ export function PrivacyPage() {
 
   const dirty =
     !!loaded &&
+    policy !== null &&
     (!loaded.configured ||
       policy !== loaded.policy ||
       minConfidence !== loaded.minConfidence ||
@@ -82,7 +84,7 @@ export function PrivacyPage() {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!dirty || saving) return;
+    if (!dirty || saving || policy === null) return;
     setSaving(true);
     setError(null);
     try {
@@ -147,23 +149,25 @@ export function PrivacyPage() {
               ))}
             </div>
 
-            <div className="space-y-2">
-              <SettingsLabel htmlFor="redaction-policy">{t('policyLabel')}</SettingsLabel>
-              <NativeSelect
-                id="redaction-policy"
-                value={policy}
-                onChange={(e) => setPolicy(e.target.value as Policy)}
-                disabled={saving}
-                wrapperClassName={SETTINGS_MEASURE_FIELD}
-              >
+            <fieldset className="space-y-2">
+              <legend className="text-[12.5px] font-semibold text-ink dark:text-foreground">
+                {t('policyLabel')}
+              </legend>
+              {loaded.configured ? null : <SettingsFieldNote>{t('policyPickHint')}</SettingsFieldNote>}
+              <div>
                 {POLICIES.map((option) => (
-                  <option key={option} value={option}>
-                    {t(`policies.${option}`)}
-                  </option>
+                  <RadioRow
+                    key={option}
+                    name="redaction-policy"
+                    checked={policy === option}
+                    onChange={() => setPolicy(option)}
+                    disabled={saving}
+                    title={t(`policies.${option}`)}
+                    description={t(`policyHint.${option}`)}
+                  />
                 ))}
-              </NativeSelect>
-              <SettingsFieldNote>{t(`policyHint.${policy}`)}</SettingsFieldNote>
-            </div>
+              </div>
+            </fieldset>
 
             {confidenceApplies ? (
               <div className="space-y-2">
@@ -191,6 +195,16 @@ export function PrivacyPage() {
               <SettingsFieldNote>{t('scopeNote')}</SettingsFieldNote>
             )}
 
+            {loaded.configured ? null : (
+              <p className="flex max-w-[520px] items-start gap-2.5 text-[12.5px] leading-[1.45] text-ink dark:text-foreground">
+                <span
+                  aria-hidden
+                  className="mt-[5px] size-[7px] shrink-0 rounded-full bg-amber-500 dark:bg-amber-400"
+                />
+                {t('unconfiguredNote')}
+              </p>
+            )}
+
             {error ? (
               <p className="text-sm text-destructive" role="alert">
                 {error}
@@ -205,6 +219,9 @@ export function PrivacyPage() {
                 label={tCommon('save')}
                 savingLabel={tCommon('saving')}
               />
+              {policy === null ? (
+                <span className="text-sm text-ink-mute">{t('choosePolicyFirst')}</span>
+              ) : null}
               {savedAt && !dirty && !error ? (
                 <span key={savedAt} className="text-sm text-ink-mute">
                   {tCommon('saved')}

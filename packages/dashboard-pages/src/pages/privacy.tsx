@@ -28,6 +28,7 @@ interface RedactionPolicyDto {
   detectors: Detector[];
   policy: Policy;
   minConfidence: Confidence;
+  configured: boolean;
   availableDetectors: Detector[];
 }
 
@@ -65,7 +66,8 @@ export function PrivacyPage() {
 
   const dirty =
     !!loaded &&
-    (policy !== loaded.policy ||
+    (!loaded.configured ||
+      policy !== loaded.policy ||
       minConfidence !== loaded.minConfidence ||
       detectors.length !== loaded.detectors.length ||
       detectors.some((d) => !loaded.detectors.includes(d)));

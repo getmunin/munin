@@ -3906,7 +3906,7 @@
   {
     "name": "conv_get_redaction_policy",
     "title": "Conv: Get the inbound national-ID redaction policy",
-    "description": "Read this org's policy for national identity numbers arriving in conversations — which identifier types are redacted, whether matches are masked or removed, and the confidence floor. `availableDetectors` lists every type this server can recognise. Detection runs regardless of the policy, so a message can carry a `detectedNationalIds` summary even while the policy is `off`.",
+    "description": "Read this org's policy for national identity numbers arriving in conversations — which identifier types are redacted, whether matches are masked or removed, and the confidence floor. `availableDetectors` lists every type this server can recognise. Detection runs regardless of the policy, so a message can carry a `detectedNationalIds` summary even while the policy is `off`. `configured` is false until a policy has been saved — `off` included — and only an unconfigured org raises a `data_protection` alert when a number arrives.",
     "audiences": [
       "admin"
     ],

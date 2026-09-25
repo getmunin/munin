@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   GoneException,
   Inject,
   Injectable,
@@ -190,14 +191,36 @@ export class InvitationsService {
     }
 
     const userRows = await this.serviceDb
-      .select({ id: schema.users.id })
+      .select({ id: schema.users.id, email: schema.users.email })
       .from(schema.users)
       .where(eq(schema.users.id, input.userId))
       .limit(1);
-    if (!userRows[0]) throw new NotFoundException('Signed-in user not found.');
+    const user = userRows[0];
+    if (!user) throw new NotFoundException('Signed-in user not found.');
+    if (user.email.trim().toLowerCase() !== invitation.email.trim().toLowerCase()) {
+      throw new ForbiddenException({
+        message: `invitation_email_mismatch: this invitation was sent to ${invitation.email}; sign in with that address to accept it.`,
+        code: 'invitation_email_mismatch',
+      });
+    }
 
     await this.serviceDb.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      const claimed = await tx
+        .update(schema.orgInvitations)
+        .set({ acceptedAt: new Date(), acceptedByUserId: input.userId })
+        .where(
+          and(
+            eq(schema.orgInvitations.id, invitation.id),
+            isNull(schema.orgInvitations.acceptedAt),
+            isNull(schema.orgInvitations.revokedAt),
+            sql`${schema.orgInvitations.expiresAt} > now()`,
+          ),
+        )
+        .returning({ id: schema.orgInvitations.id });
+      if (claimed.length === 0) {
+        throw new ConflictException('This invitation has already been accepted.');
+      }
       await tx
         .insert(schema.orgMembers)
         .values({
@@ -205,11 +228,15 @@ export class InvitationsService {
           userId: input.userId,
           role: invitation.role,
         })
-        .onConflictDoNothing();
+        .onConflictDoUpdate({
+          target: [schema.orgMembers.orgId, schema.orgMembers.userId],
+          set: { role: invitation.role },
+          setWhere: eq(schema.orgMembers.role, 'member'),
+        });
       await tx
-        .update(schema.orgInvitations)
-        .set({ acceptedAt: new Date(), acceptedByUserId: input.userId })
-        .where(eq(schema.orgInvitations.id, invitation.id));
+        .update(schema.users)
+        .set({ emailVerified: true })
+        .where(eq(schema.users.id, input.userId));
     });
     return { orgId: invitation.orgId, role: invitation.role };
   }

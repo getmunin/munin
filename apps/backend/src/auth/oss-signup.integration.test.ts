@@ -6,6 +6,7 @@ import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { hashSecret, randomToken } from '@getmunin/core';
 import { createApp } from '@getmunin/backend-core';
+import { createEmailVerificationToken } from 'better-auth/api';
 import { AppModule } from '../app.module.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
@@ -44,6 +45,7 @@ const skipReason = TEST_URL
     await db.delete(schema.orgMembers);
     await db.delete(schema.users);
     await db.delete(schema.orgs);
+    await db.delete(schema.authRateLimit);
 
     app = await createApp(AppModule, { logger: false });
     await app.listen(0, '127.0.0.1');
@@ -66,7 +68,9 @@ const skipReason = TEST_URL
     }
   });
 
-  async function attemptSignup(email: string): Promise<{ status: number; userId?: string }> {
+  async function attemptSignup(
+    email: string,
+  ): Promise<{ status: number; userId?: string; cookie?: string }> {
     const res = await fetch(`${baseUrl}/auth/sign-up/email`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -74,7 +78,42 @@ const skipReason = TEST_URL
     });
     if (res.status >= 400) return { status: res.status };
     const body = (await res.json()) as { user: { id: string } };
-    return { status: res.status, userId: body.user.id };
+    const cookie = res.headers
+      .getSetCookie()
+      .map((c) => c.split(';')[0])
+      .join('; ');
+    return { status: res.status, userId: body.user.id, cookie };
+  }
+
+  async function membershipsOf(userId: string): Promise<Array<{ role: string; orgId: string }>> {
+    return db
+      .select({ role: schema.orgMembers.role, orgId: schema.orgMembers.orgId })
+      .from(schema.orgMembers)
+      .where(sql`user_id = ${userId}`);
+  }
+
+  async function createInvitation(email: string, role: string): Promise<string> {
+    const [orgRow] = await db.select({ id: schema.orgs.id }).from(schema.orgs).limit(1);
+    expect(orgRow).toBeTruthy();
+    const token = randomToken(24);
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+    await db.insert(schema.orgInvitations).values({
+      orgId: orgRow!.id,
+      email,
+      role,
+      tokenHash: hashSecret(token),
+      invitedByUserId: null,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+    return token;
+  }
+
+  async function acceptInvitation(token: string, cookie: string): Promise<Response> {
+    return fetch(`${baseUrl}/v1/invitations/accept`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ token }),
+    });
   }
 
   it('first user signs up and becomes owner of the singleton "munin" org', async () => {
@@ -104,41 +143,67 @@ const skipReason = TEST_URL
     expect(status).toBeGreaterThanOrEqual(400);
   });
 
-  it('subsequent signup with allowlisted domain joins the singleton org as member', async () => {
+
+  it('allowlisted-domain signup gets no membership until the email is verified', async () => {
     const email = `colleague-${Date.now()}@allowed.example`;
     const { status, userId } = await attemptSignup(email);
     expect(status).toBeLessThan(400);
     userIdsToCleanup.push(userId!);
+    expect(await membershipsOf(userId!)).toHaveLength(0);
 
-    const memberships = await db
-      .select({ role: schema.orgMembers.role, orgId: schema.orgMembers.orgId })
-      .from(schema.orgMembers)
-      .where(sql`user_id = ${userId!}`);
+    const token = await createEmailVerificationToken(process.env.MUNIN_AUTH_SECRET!, email);
+    const verify = await fetch(`${baseUrl}/auth/verify-email?token=${encodeURIComponent(token)}`);
+    expect(verify.status).toBeLessThan(400);
+
+    const memberships = await membershipsOf(userId!);
     expect(memberships).toHaveLength(1);
     expect(memberships[0]!.role).toBe('member');
   });
 
-  it('signup with a valid pending invitation succeeds even outside the allowlist', async () => {
+  it('invited signup joins only by accepting the token, with the invited role, and marks the email verified', async () => {
     const email = `invitee-${Date.now()}@elsewhere.example`;
-    const [orgRow] = await db
-      .select({ id: schema.orgs.id })
-      .from(schema.orgs)
-      .limit(1);
-    expect(orgRow).toBeTruthy();
+    const token = await createInvitation(email, 'admin');
 
-    const token = randomToken(24);
-    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
-    await db.insert(schema.orgInvitations).values({
-      orgId: orgRow!.id,
-      email,
-      role: 'member',
-      tokenHash: hashSecret(token),
-      invitedByUserId: null,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    });
-
-    const { status, userId } = await attemptSignup(email);
+    const { status, userId, cookie } = await attemptSignup(email);
     expect(status).toBeLessThan(400);
     userIdsToCleanup.push(userId!);
+    expect(await membershipsOf(userId!)).toHaveLength(0);
+
+    const accept = await acceptInvitation(token, cookie!);
+    expect(accept.status).toBe(200);
+
+    const memberships = await membershipsOf(userId!);
+    expect(memberships).toHaveLength(1);
+    expect(memberships[0]!.role).toBe('admin');
+
+    const [user] = await db
+      .select({ emailVerified: schema.users.emailVerified })
+      .from(schema.users)
+      .where(sql`id = ${userId!}`);
+    expect(user!.emailVerified).toBe(true);
+
+    const again = await acceptInvitation(token, cookie!);
+    expect(again.status).toBe(409);
+  });
+
+  it('an invitation cannot be accepted by a user signed in with a different email', async () => {
+    const invitedEmail = `invited-${Date.now()}@elsewhere.example`;
+    const token = await createInvitation(invitedEmail, 'owner');
+
+    const other = await attemptSignup(`bystander-${Date.now()}@allowed.example`);
+    expect(other.status).toBeLessThan(400);
+    userIdsToCleanup.push(other.userId!);
+
+    const accept = await acceptInvitation(token, other.cookie!);
+    expect(accept.status).toBe(403);
+    const body = (await accept.json()) as { code?: string };
+    expect(body.code).toBe('invitation_email_mismatch');
+    expect(await membershipsOf(other.userId!)).toHaveLength(0);
+
+    const [row] = await db
+      .select({ acceptedAt: schema.orgInvitations.acceptedAt })
+      .from(schema.orgInvitations)
+      .where(sql`token_hash = ${hashSecret(token)}`);
+    expect(row!.acceptedAt).toBeNull();
   });
 });

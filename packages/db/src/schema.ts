@@ -1174,6 +1174,52 @@ export const convInboundState = pgTable('conv_inbound_state', {
   updatedAt,
 });
 
+export const piiMessageAnnotations = pgTable(
+  'pii_message_annotations',
+  {
+    messageId: text('message_id')
+      .primaryKey()
+      .references(() => convMessages.id, { onDelete: 'cascade' }),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    nerVersion: integer('ner_version'),
+    nerDetector: text('ner_detector'),
+    annotatedAt: timestamp('annotated_at', { withTimezone: true }),
+    leaseHolder: text('lease_holder'),
+    leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgVersionIdx: index('pii_message_annotations_org_version_idx').on(t.orgId, t.nerVersion),
+  }),
+);
+
+export const piiSpans = pgTable(
+  'pii_spans',
+  {
+    id: id('pis'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    messageId: text('message_id')
+      .notNull()
+      .references(() => convMessages.id, { onDelete: 'cascade' }),
+    startOffset: integer('start_offset').notNull(),
+    endOffset: integer('end_offset').notNull(),
+    kind: varchar('kind', { length: 16 }).notNull(),
+    surface: text('surface').notNull(),
+    source: varchar('source', { length: 32 }).notNull(),
+    detectorVersion: integer('detector_version').notNull(),
+    createdAt,
+  },
+  (t) => ({
+    orgKindIdx: index('pii_spans_org_kind_idx').on(t.orgId, t.kind),
+    messageIdx: index('pii_spans_message_idx').on(t.messageId),
+  }),
+);
+
 // ───────────────────────── CRM (M4) ───────────────────────────────────
 // Modern CRM: relationships as a graph, AI-native fields as first-class
 // columns (so agents don't pollute description/notes), compliance fields
@@ -2704,6 +2750,8 @@ export const allTables = {
   convMessageReads,
   convWidgetEmailFallbacks,
   convInboundState,
+  piiMessageAnnotations,
+  piiSpans,
   crmCompanies,
   crmContacts,
   crmPipelines,

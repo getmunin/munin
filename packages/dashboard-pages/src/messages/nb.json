@@ -2306,6 +2306,7 @@
     "agent_config_invalid_model": "KI-leverandøren tilbyr ikke denne modellen lenger. Last siden på nytt for å oppdatere listen, velg en modell og lagre igjen.",
     "claim_held_by_other": "En kollega har allerede denne samtalen.",
     "cms_asset_too_large": "Filen er for stor til å lastes opp. Maksstørrelsen er 50 MB.",
+    "cms_asset_type_not_allowed": "Denne filtypen kan ikke lastes opp. Bruk et PNG-, JPEG-, GIF-, WebP- eller AVIF-bilde – SVG støttes ikke.",
     "cms_asset_upload_failed": "Opplastingen ble ikke fullført. Sjekk tilkoblingen og prøv igjen.",
     "cms_version_conflict": "Oppføringen ble endret et annet sted mens du redigerte. Last den inn på nytt og prøv igjen.",
     "conv_attachment_conflict": "Bildet kan ikke legges ved denne meldingen.",

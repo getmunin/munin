@@ -75,7 +75,7 @@ cannot do this step, and the honest answer to the operator is to ask them to upl
 through the dashboard and hand you the URL — not to quietly file the draft without a
 picture.
 
-SVG is rejected by the CMS, and LinkedIn does not take it either.
+The CMS only takes raster images, video, audio and PDF — SVG is refused with `cms_asset_type_not_allowed`, and LinkedIn does not take it either.
 
 Then attach the asset's public URL with `social_set_post_draft_media`. The review queue
 renders it — an image inline, a video with a player — so the person approving the post sees

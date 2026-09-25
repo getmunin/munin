@@ -240,6 +240,17 @@ interface ToolResult {
     expect(piiMeta(complete)).toMatchObject({ coverage: 'complete', layers: ['deterministic', 'directory', 'ner'] });
   });
 
+  it('accepts a token back as input and resolves it to the real value', async () => {
+    const conversation = body(await call(pseudonymizedKey, 'conv_get_conversation', { id: conversationId }));
+    const email = /contact-[a-z2-7]{8}@pseudonym\.invalid/.exec(conversation)?.[0];
+    expect(email).toBeDefined();
+    const found = await call(pseudonymizedKey, 'crm_lookup_contact', { email });
+    expect(found.isError).toBeFalsy();
+    expect(body(found)).toContain(contactId);
+    expect(body(found)).toContain(email);
+    expect(body(found)).not.toContain('kari@example.no');
+  });
+
   it('pseudonymizes an OAuth connector unless consent granted raw access', async () => {
     const connector = body(await call(connectorToken, 'conv_get_conversation', { id: conversationId }));
     expect(connector).not.toContain('Kari');

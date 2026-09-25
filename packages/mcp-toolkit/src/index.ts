@@ -8,6 +8,7 @@ export {
   type OpenInProcessMcpClientOptions,
 } from './in-process-client.ts';
 export {
+  INPUT_UNRESOLVED_MESSAGE,
   RESULT_WITHHELD_MESSAGE,
   type CaptureExceptionContext,
   type CaptureExceptionFn,

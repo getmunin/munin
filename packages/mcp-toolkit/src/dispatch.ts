@@ -30,6 +30,7 @@ export interface FilteredToolResult {
 
 export interface ToolDataFilter {
   refuse(tool: { name: string; rawDataOnly: boolean }): string | null;
+  input(toolName: string, args: Record<string, unknown>): Promise<Record<string, unknown>>;
   output(toolName: string, value: unknown): Promise<FilteredToolResult>;
   error(message: string): Promise<string>;
 }
@@ -166,7 +167,27 @@ export async function callTool(
     return errorResult(refusal);
   }
 
-  const parseResult = tool.meta.input.safeParse(args ?? {});
+  let input: Record<string, unknown> = args ?? {};
+  if (ctx.dataFilter) {
+    try {
+      input = await ctx.dataFilter.input(tool.meta.name, input);
+    } catch (err) {
+      await ctx.audit.record({
+        tool: tool.meta.name,
+        args: redactedRawArgs,
+        result: 'error',
+        error: 'input_filter_failed',
+      });
+      safeReportException(ctx.captureException, err, {
+        tool: tool.meta.name,
+        actor: { type: ctx.actor.type, id: ctx.actor.id, orgId: ctx.actor.orgId },
+        args: redactedRawArgs,
+      });
+      return errorResult(INPUT_UNRESOLVED_MESSAGE);
+    }
+  }
+
+  const parseResult = tool.meta.input.safeParse(input);
   if (!parseResult.success) {
     await ctx.audit.record({
       tool: tool.meta.name,
@@ -177,7 +198,9 @@ export async function callTool(
     return errorResult(`Invalid input: ${parseResult.error.message}`);
   }
 
-  const redactedArgs = safeRedact(tool.meta.input, parseResult.data);
+  const redactedArgs = ctx.dataFilter
+    ? redactedRawArgs
+    : safeRedact(tool.meta.input, parseResult.data);
 
   if (ctx.rateLimit) {
     try {
@@ -264,6 +287,9 @@ export async function callTool(
   if (filtered.notice) content.push({ type: 'text' as const, text: filtered.notice });
   return filtered.meta ? { content, _meta: filtered.meta } : { content };
 }
+
+export const INPUT_UNRESOLVED_MESSAGE =
+  'Tool not run: the pseudonyms in its input could not be resolved. Try again, or ask an operator to check the server logs.';
 
 export const RESULT_WITHHELD_MESSAGE =
   'Result withheld: the personal data in it could not be pseudonymized. Try again, or ask an operator to check the server logs.';

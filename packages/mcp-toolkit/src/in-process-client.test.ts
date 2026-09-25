@@ -12,6 +12,7 @@ import {
   type CaptureExceptionFn,
   type DispatchContext,
   type ToolDataFilter,
+  INPUT_UNRESOLVED_MESSAGE,
   RESULT_WITHHELD_MESSAGE,
 } from './dispatch.ts';
 
@@ -564,6 +565,12 @@ describe('dataFilter', () => {
   function filterWith(overrides: Partial<ToolDataFilter> = {}): ToolDataFilter {
     return {
       refuse: () => null,
+      input: (_tool, args) =>
+        Promise.resolve(
+          Object.fromEntries(
+            Object.entries(args).map(([k, v]) => [k, typeof v === 'string' ? v.replace('[Contact abcdefgh]', 'Kari') : v]),
+          ),
+        ),
       output: (_tool, value) =>
         Promise.resolve({
           value: typeof value === 'string' ? value.replace('Kari', '[NAME]') : value,
@@ -661,6 +668,43 @@ describe('dataFilter', () => {
     );
     const allowed = await runInCtx(adminActor(), () => client(refusing).callTool('echo', { msg: 'x' }));
     expect(allowed.isError).toBeUndefined();
+  });
+
+  it('resolves pseudonyms in the input before validation, and audits what the caller sent', async () => {
+    fakeAudit.record.mockClear();
+    const seen: unknown[] = [];
+    const registry = registryWithExport();
+    registry.register(
+      {
+        name: 'capture',
+        description: 'records its input',
+        audiences: ['admin'],
+        scopes: [],
+        input: z.object({ to: z.string() }),
+      },
+      (args) => {
+        seen.push(args);
+        return 'sent';
+      },
+    );
+    const c = openInProcessMcpClient({
+      registry,
+      actor: adminActor(),
+      audience: 'admin',
+      audit: fakeAudit,
+      dataFilter: filterWith(),
+    });
+    await runInCtx(adminActor(), () => c.callTool('capture', { to: 'Hei [Contact abcdefgh]' }));
+    expect(seen).toEqual([{ to: 'Hei Kari' }]);
+    expect(fakeAudit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ tool: 'capture', result: 'ok', args: { to: 'Hei [Contact abcdefgh]' } }),
+    );
+  });
+
+  it('does not run the tool when its input cannot be resolved', async () => {
+    const failing = filterWith({ input: () => Promise.reject(new Error('lexicon unavailable')) });
+    const out = await runInCtx(adminActor(), () => client(failing).callTool('echo', { msg: 'x' }));
+    expect(out).toEqual({ isError: true, content: [{ type: 'text', text: INPUT_UNRESOLVED_MESSAGE }] });
   });
 
   it('leaves results untouched when no filter is configured', async () => {

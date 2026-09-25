@@ -67,6 +67,8 @@ import { ConnectorsController } from './connectors.controller.ts';
 import { ConnectorsModule } from '../modules/connectors/connectors.module.ts';
 import { ReviewController } from './review.controller.ts';
 import { ReviewModule } from '../modules/review/review.module.ts';
+import { PiiController } from './pii.controller.ts';
+import { PiiDataModule } from '../modules/pii/pii-data.module.ts';
 
 @Module({
   imports: [
@@ -84,6 +86,7 @@ import { ReviewModule } from '../modules/review/review.module.ts';
     ConnectorsModule,
     ReviewModule,
     SocialModule,
+    PiiDataModule,
   ],
   controllers: [
     ApiKeysController,
@@ -114,6 +117,7 @@ import { ReviewModule } from '../modules/review/review.module.ts';
     ConnectorJwksController,
     ConvChannelsController,
     ConvRedactionController,
+    PiiController,
     ConversationsController,
     ActivityController,
     EndUserConversationsController,

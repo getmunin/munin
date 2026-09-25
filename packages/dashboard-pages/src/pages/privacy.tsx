@@ -18,6 +18,7 @@ import {
   SETTINGS_MEASURE_FIELD,
 } from '../components/settings/scaffold';
 import { useLoadGate } from '../lib/use-load-gate';
+import { PseudonymizationSection } from '../components/privacy/pseudonymization-section';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 
 type Detector = 'no_fnr' | 'se_pnr' | 'dk_cpr';
@@ -212,6 +213,8 @@ export function PrivacyPage() {
           </form>
         )}
       </SettingsSection>
+
+      <PseudonymizationSection />
     </SettingsColumn>
   );
 }

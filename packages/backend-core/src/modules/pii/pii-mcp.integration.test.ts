@@ -10,6 +10,8 @@ import { createDb, runMigrations, schema } from '@getmunin/db';
 import { eq, sql } from 'drizzle-orm';
 import { createApp } from '../../bootstrap-app.ts';
 import { AppModule } from '../../app.module.ts';
+import { PiiCoverageMonitor, PII_BACKLOG_ALERT_SUBJECT } from './pii-coverage.monitor.ts';
+import { PII_SETTINGS_KEY } from './pii-org-policy.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -43,6 +45,7 @@ interface ToolResult {
     process.env.MUNIN_EMBEDDING_PROVIDER = 'stub';
     process.env.MUNIN_MAIL_PROVIDER = 'stub';
     process.env.MUNIN_WEBHOOK_WORKER_DISABLED = '1';
+    process.env.MUNIN_PII_BACKLOG_ALERT_HOURS = '87600';
 
     await runMigrations(TEST_URL!);
     process.env.DATABASE_URL = TEST_URL!.replace(
@@ -257,6 +260,65 @@ interface ToolResult {
     expect(connector).toMatch(/\[Contact [a-z2-7]{8}\]/);
     const raw = body(await call(rawConnectorToken, 'conv_get_conversation', { id: conversationId }));
     expect(raw).toContain('Kari Nordmann');
+  });
+
+  it('pseudonymizes even a raw credential once the org requires it, and stops as soon as it is lifted', async () => {
+    const put = async (externalRaw: 'allow' | 'forbid') =>
+      fetch(`${baseUrl}/v1/pii`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${rawKey}` },
+        body: JSON.stringify({ externalRaw }),
+      });
+    const forbidden = await put('forbid');
+    expect(forbidden.status).toBe(200);
+    expect(((await forbidden.json()) as { externalRaw: string }).externalRaw).toBe('forbid');
+    const [org] = await db.select({ settings: schema.orgs.settings }).from(schema.orgs).where(eq(schema.orgs.id, orgId));
+    expect(org?.settings[PII_SETTINGS_KEY]).toEqual({ externalRaw: 'forbid' });
+
+    const floored = body(await call(rawKey, 'conv_get_conversation', { id: conversationId }));
+    expect(floored).not.toContain('Kari');
+    expect((await call(rawConnectorToken, 'conv_export', {})).isError).toBe(true);
+
+    await put('allow');
+    expect(body(await call(rawKey, 'conv_get_conversation', { id: conversationId }))).toContain('Kari Nordmann');
+  });
+
+  it('reports status and coverage, and resolves a token for an operator with raw access', async () => {
+    const status = await fetch(`${baseUrl}/v1/pii`, { headers: { authorization: `Bearer ${rawKey}` } });
+    expect(status.status).toBe(200);
+    const dto = (await status.json()) as { externalRaw: string; coverage: { messages: number } };
+    expect(dto.externalRaw).toBe('allow');
+    expect(dto.coverage.messages).toBe(1);
+
+    const conversation = body(await call(pseudonymizedKey, 'conv_get_conversation', { id: conversationId }));
+    const token = /\[Contact ([a-z2-7]{8})\]/.exec(conversation)?.[1];
+    const lookup = await fetch(`${baseUrl}/v1/pii/tokens/${token}`, { headers: { authorization: `Bearer ${rawKey}` } });
+    expect(lookup.status).toBe(200);
+    expect(await lookup.json()).toMatchObject({ token, name: 'Kari Nordmann', email: 'kari@example.no' });
+
+    const missing = await fetch(`${baseUrl}/v1/pii/tokens/aaaaaaaa`, { headers: { authorization: `Bearer ${rawKey}` } });
+    expect(missing.status).toBe(404);
+  });
+
+  it('raises an alert while name detection is behind and resolves it once caught up', async () => {
+    process.env.MUNIN_PII_NER_ENABLED = '1';
+    const monitor = app.get(PiiCoverageMonitor);
+    const old = new Date(Date.now() - 20 * 365 * 24 * 3_600_000);
+    const [stale] = await db
+      .insert(schema.convMessages)
+      .values({ orgId, conversationId, authorType: 'end_user', authorId: 'x', body: 'Gammel melding', createdAt: old })
+      .returning();
+    await monitor.tick();
+    const openAlerts = () =>
+      db
+        .select()
+        .from(schema.orgAlerts)
+        .where(sql`org_id = ${orgId} AND subject_id = ${PII_BACKLOG_ALERT_SUBJECT} AND resolved_at IS NULL`);
+    expect(await openAlerts()).toHaveLength(1);
+    await db.insert(schema.piiMessageAnnotations).values({ messageId: stale!.id, orgId, nerVersion: 100 });
+    await monitor.tick();
+    expect(await openAlerts()).toHaveLength(0);
+    await db.delete(schema.convMessages).where(eq(schema.convMessages.id, stale!.id));
   });
 
   it('refuses a bulk export on a pseudonymized connection and serves it on a raw one', async () => {

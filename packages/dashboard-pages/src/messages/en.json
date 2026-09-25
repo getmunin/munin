@@ -1078,7 +1078,8 @@
         "pseudonymizedBody": "<client></client> sees customers' names, email addresses, phone numbers and ID numbers replaced by stable tokens. It can still count, compare and follow the same person across results — it just can't tell who they are.",
         "shareRaw": "Share personal data as stored",
         "shareRawHint": "Only if <client></client> needs real names and contact details, for example to write to customers itself.",
-        "rawWarning": "<client></client> will see customers' names, contact details and ID numbers exactly as Munin stores them."
+        "rawWarning": "<client></client> will see customers' names, contact details and ID numbers exactly as Munin stores them.",
+        "requiredByOrg": "Your organization requires pseudonymized personal data for every connection, so <client></client> will see stable tokens whatever it asks for."
       },
       "authorize": "Authorize access",
       "authorizing": "Authorizing…",
@@ -1768,7 +1769,48 @@
       "errors": {
         "save": "Could not save the privacy settings."
       },
-      "sectionMeta": "Redaction · {count} of {total} types"
+      "sectionMeta": "Redaction · {count} of {total} types",
+      "pseudonymization": {
+        "sectionTitle": "Personal data in MCP results",
+        "sectionMeta": {
+          "allow": "Chosen per connection",
+          "forbid": "Always pseudonymized"
+        },
+        "help": "AI clients you connect over MCP — claude.ai, Claude Code, your own agents — see customers' names, contact details and ID numbers replaced by stable tokens. Your own support agent always works with real data, because it has to write to customers.",
+        "floorLabel": "Raw personal data",
+        "floors": {
+          "allow": "Each connection chooses when it is authorized",
+          "forbid": "Never — always pseudonymize"
+        },
+        "floorHint": {
+          "allow": "Connections are pseudonymized unless the person authorizing one ticks “Share personal data as stored”. API keys minted with raw access keep it.",
+          "forbid": "Every external connection and API key gets pseudonymized data, whatever it was granted. Takes effect on the next tool call."
+        },
+        "layersLabel": "What gets replaced",
+        "layers": {
+          "deterministic": "National ID numbers, emails, phone numbers, bank and card numbers",
+          "directory": "Names of your contacts and end users",
+          "ner": "Names of everyone else, found by name detection"
+        },
+        "layerOn": "On",
+        "layerOff": "Off",
+        "nerOff": "Not running on this installation, so a third party mentioned by name in a message is not masked.",
+        "nerCoverage": "{annotated} of {messages} messages checked",
+        "nerLastRun": "last update {when}",
+        "lookupLabel": "Look up a token",
+        "lookupPlaceholder": "[Contact abcd2345]",
+        "lookupSubmit": "Look up",
+        "lookupHint": "Paste a token from an AI client's answer to see who it stands for. Only owners and admins can look tokens up.",
+        "lookupName": "Name",
+        "lookupEmail": "Email",
+        "lookupPhone": "Phone",
+        "lookupRecords": "Records",
+        "errors": {
+          "load": "Could not load the pseudonymization settings.",
+          "save": "Could not save the setting.",
+          "lookup": "Could not look up that token."
+        }
+      }
     },
     "outsideOrg": {
       "eyebrow": "Workspace · no access",
@@ -2300,6 +2342,7 @@
     "member_forbidden": "That's limited to owners and admins. Ask an owner if you need access.",
     "org_access_denied": "This tab was open in an organization you no longer have access to. Reloading with your current organization.",
     "outreach_undeliverable": "Mail can't reach that address. Correct the contact's email, or clear the address once it works again.",
+    "pii_token_not_found": "No contact in this organization has that token.",
     "social_account_taken": "That account is already connected by someone else in your organisation.",
     "social_app_missing": "Set up your organisation's app before connecting an account.",
     "social_client_secret_required": "Enter the secret — there is none stored to keep.",

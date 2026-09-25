@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   emptyPiiStats,
+  getCurrentContext,
   pseudonymizeText,
   pseudonymizeValue,
   resolvePseudonyms,
@@ -12,7 +13,8 @@ import type { FilteredToolResult, ToolDataFilter } from '@getmunin/mcp-toolkit';
 import { PiiAnnotationsService } from './pii-annotations.service.ts';
 import { PiiLexiconService } from './pii-lexicon.service.ts';
 import { isPiiNerEnabled } from './pii-config.ts';
-import { decidePiiMode } from './pii-policy.ts';
+import { DEFAULT_PII_ORG_FLOOR, decidePiiMode } from './pii-policy.ts';
+import { readPiiOrgFloor } from './pii-org-policy.ts';
 
 export type PiiCoverage = 'complete' | 'pending';
 
@@ -37,9 +39,12 @@ export class PiiResultFilterService {
     private readonly annotations: PiiAnnotationsService,
   ) {}
 
-  filterFor(actor: ActorIdentity, audience: Audience): Promise<ToolDataFilter | undefined> {
-    if (decidePiiMode(actor, audience).mode === 'raw') return Promise.resolve(undefined);
-    return Promise.resolve(this.pseudonymizingFilter());
+  async filterFor(actor: ActorIdentity, audience: Audience): Promise<ToolDataFilter | undefined> {
+    const floor = actor.orgId
+      ? await readPiiOrgFloor(getCurrentContext().db, actor.orgId)
+      : DEFAULT_PII_ORG_FLOOR;
+    if (decidePiiMode(actor, audience, floor).mode === 'raw') return undefined;
+    return this.pseudonymizingFilter();
   }
 
   pseudonymizingFilter(): ToolDataFilter {

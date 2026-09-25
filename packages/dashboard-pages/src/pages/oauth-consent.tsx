@@ -85,6 +85,7 @@ export function OAuthConsentPage({
   const totalScopeCount = useMemo(() => countConsentScopes(groupedScopes), [groupedScopes]);
   const rawRequested = useMemo(() => requestsRawPersonalData(scopes), [scopes]);
   const [shareRaw, setShareRaw] = useState(false);
+  const [orgRequiresPseudonymization, setOrgRequiresPseudonymization] = useState(false);
 
   const [flow, setFlow] = useState<FlowState>('new');
   const [busy, setBusy] = useState<'allow' | 'deny' | null>(null);
@@ -98,6 +99,19 @@ export function OAuthConsentPage({
     const id = window.setTimeout(() => setExpired(true), Math.max(expiresAtMs - Date.now(), 0));
     return () => window.clearTimeout(id);
   }, [expiresAtMs, expired]);
+
+  useEffect(() => {
+    if (!session || !rawRequested) return;
+    let cancelled = false;
+    api<{ externalRaw: 'allow' | 'forbid' }>('/v1/pii')
+      .then((status) => {
+        if (!cancelled) setOrgRequiresPseudonymization(status.externalRaw === 'forbid');
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [session, rawRequested]);
 
   useEffect(() => {
     if (!isPending && !session) {
@@ -127,7 +141,9 @@ export function OAuthConsentPage({
     setBusy(accept ? 'allow' : 'deny');
     setError(null);
     try {
-      const scope = accept ? consentScopeOverride(scopes, shareRaw) : undefined;
+      const scope = accept
+        ? consentScopeOverride(scopes, shareRaw && !orgRequiresPseudonymization)
+        : undefined;
       const resp = await api<OAuthConsentResponse>('/auth/oauth2/consent', {
         method: 'POST',
         body: JSON.stringify({ accept, oauth_query: oauthQuery, ...(scope !== undefined ? { scope } : {}) }),
@@ -182,6 +198,7 @@ export function OAuthConsentPage({
               rawRequested={rawRequested}
               shareRaw={shareRaw}
               onShareRawChange={setShareRaw}
+              orgRequiresPseudonymization={orgRequiresPseudonymization}
               busy={busy}
               error={error}
               onSubmit={(accept) => void submit(accept)}
@@ -314,6 +331,7 @@ interface RequestPaneProps {
   rawRequested: boolean;
   shareRaw: boolean;
   onShareRawChange: (next: boolean) => void;
+  orgRequiresPseudonymization: boolean;
   busy: 'allow' | 'deny' | null;
   error: string | null;
   onSubmit: (accept: boolean) => void;
@@ -331,6 +349,7 @@ function RequestPane({
   rawRequested,
   shareRaw,
   onShareRawChange,
+  orgRequiresPseudonymization,
   busy,
   error,
   onSubmit,
@@ -382,6 +401,7 @@ function RequestPane({
           rawRequested={rawRequested}
           shareRaw={shareRaw}
           onShareRawChange={onShareRawChange}
+          orgRequiresPseudonymization={orgRequiresPseudonymization}
           disabled={busy !== null}
         />
       )}

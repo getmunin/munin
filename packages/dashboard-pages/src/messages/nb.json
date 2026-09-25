@@ -1078,7 +1078,8 @@
         "pseudonymizedBody": "<client></client> ser kundenes navn, e-postadresser, telefonnumre og fødselsnumre byttet ut med faste koder. Den kan fortsatt telle, sammenligne og følge samme person på tvers av resultater – men ikke se hvem det er.",
         "shareRaw": "Del personopplysninger i klartekst",
         "shareRawHint": "Bare hvis <client></client> trenger ekte navn og kontaktinfo, for eksempel for å skrive til kunder selv.",
-        "rawWarning": "<client></client> får se kundenes navn, kontaktopplysninger og fødselsnumre akkurat slik Munin har dem lagret."
+        "rawWarning": "<client></client> får se kundenes navn, kontaktopplysninger og fødselsnumre akkurat slik Munin har dem lagret.",
+        "requiredByOrg": "Organisasjonen din krever pseudonymiserte personopplysninger for alle tilkoblinger, så <client></client> ser faste koder uansett hva den ber om."
       },
       "authorize": "Gi tilgang",
       "authorizing": "Gir tilgang …",
@@ -1768,7 +1769,48 @@
       "errors": {
         "save": "Klarte ikke å lagre personverninnstillingene."
       },
-      "sectionMeta": "Fjerning · {count} av {total} typer"
+      "sectionMeta": "Fjerning · {count} av {total} typer",
+      "pseudonymization": {
+        "sectionTitle": "Personopplysninger i MCP-svar",
+        "sectionMeta": {
+          "allow": "Velges per tilkobling",
+          "forbid": "Alltid pseudonymisert"
+        },
+        "help": "AI-klienter du kobler til over MCP – claude.ai, Claude Code, egne agenter – ser kundenes navn, kontaktinfo og fødselsnumre byttet ut med faste koder. Din egen kundeserviceagent jobber alltid med ekte data, fordi den må kunne skrive til kundene.",
+        "floorLabel": "Personopplysninger i klartekst",
+        "floors": {
+          "allow": "Hver tilkobling velger når den godkjennes",
+          "forbid": "Aldri – alltid pseudonymiser"
+        },
+        "floorHint": {
+          "allow": "Tilkoblinger pseudonymiseres med mindre den som godkjenner krysser av for «Del personopplysninger i klartekst». API-nøkler laget med klartekst beholder det.",
+          "forbid": "Alle eksterne tilkoblinger og API-nøkler får pseudonymiserte data, uansett hva de har fått tilgang til. Gjelder fra neste verktøykall."
+        },
+        "layersLabel": "Hva som byttes ut",
+        "layers": {
+          "deterministic": "Fødselsnumre, e-postadresser, telefonnumre, konto- og kortnumre",
+          "directory": "Navn på kontaktene og sluttbrukerne dine",
+          "ner": "Navn på alle andre, funnet av navnegjenkjenning"
+        },
+        "layerOn": "På",
+        "layerOff": "Av",
+        "nerOff": "Kjører ikke på denne installasjonen, så tredjeparter som nevnes ved navn i en melding blir ikke skjult.",
+        "nerCoverage": "{annotated} av {messages} meldinger sjekket",
+        "nerLastRun": "sist oppdatert {when}",
+        "lookupLabel": "Slå opp en kode",
+        "lookupPlaceholder": "[Contact abcd2345]",
+        "lookupSubmit": "Slå opp",
+        "lookupHint": "Lim inn en kode fra et svar fra en AI-klient for å se hvem den står for. Bare eiere og administratorer kan slå opp koder.",
+        "lookupName": "Navn",
+        "lookupEmail": "E-post",
+        "lookupPhone": "Telefon",
+        "lookupRecords": "Oppføringer",
+        "errors": {
+          "load": "Kunne ikke hente innstillingene for pseudonymisering.",
+          "save": "Kunne ikke lagre innstillingen.",
+          "lookup": "Kunne ikke slå opp koden."
+        }
+      }
     },
     "outsideOrg": {
       "eyebrow": "Arbeidsområde · ingen tilgang",
@@ -2300,6 +2342,7 @@
     "member_forbidden": "Dette er forbeholdt eiere og administratorer. Spør en eier hvis du trenger tilgang.",
     "org_access_denied": "Denne fanen var åpen i en organisasjon du ikke lenger har tilgang til. Laster inn på nytt med organisasjonen du er i nå.",
     "outreach_undeliverable": "E-post kommer ikke fram til den adressen. Rett opp e-postadressen til kontakten, eller nullstill adressen når den virker igjen.",
+    "pii_token_not_found": "Ingen kontakt i denne organisasjonen har den koden.",
     "social_account_taken": "Den kontoen er alt koblet til av en annen i organisasjonen.",
     "social_app_missing": "Sett opp organisasjonens app før du kobler til en konto.",
     "social_client_secret_required": "Skriv inn hemmeligheten — det er ingen lagret å beholde.",

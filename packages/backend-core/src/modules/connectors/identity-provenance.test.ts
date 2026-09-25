@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  hasFailedSenderAuth,
   identityProvenance,
   isSelfReportedIdentity,
   latestEndUserTurn,
+  latestTurnSenderAuthBlock,
   provenSenderMetadata,
 } from './identity-provenance.ts';
 
@@ -46,28 +46,40 @@ describe('latestEndUserTurn', () => {
   });
 });
 
-describe('hasFailedSenderAuth', () => {
+describe('latestTurnSenderAuthBlock', () => {
+  const forwarded = { authorType: 'end_user', metadata: provenSenderMetadata('forwarded', 'ola@example.test') };
+
   it('flags a turn containing a message that failed DMARC', () => {
-    expect(hasFailedSenderAuth([unverified(), agentReply])).toBe(true);
-    expect(hasFailedSenderAuth([verified(), unverified(), agentReply])).toBe(true);
+    expect(latestTurnSenderAuthBlock([unverified(), agentReply])).toBe('fail');
+    expect(latestTurnSenderAuthBlock([verified(), unverified(), agentReply])).toBe('fail');
+  });
+
+  it('flags a turn whose sender came from forwarded text rather than the envelope', () => {
+    expect(latestTurnSenderAuthBlock([forwarded, agentReply])).toBe('forwarded');
+    expect(latestTurnSenderAuthBlock([verified(), forwarded])).toBe('forwarded');
+  });
+
+  it('reports the failure over the forward when a turn carries both', () => {
+    expect(latestTurnSenderAuthBlock([forwarded, unverified()])).toBe('fail');
   });
 
   it('does not flag a passing turn or one with no verdict at all', () => {
-    expect(hasFailedSenderAuth([verified(), agentReply])).toBe(false);
-    expect(hasFailedSenderAuth([{ authorType: 'end_user', metadata: {} }])).toBe(false);
-    expect(hasFailedSenderAuth([{ authorType: 'end_user', metadata: null }])).toBe(false);
+    expect(latestTurnSenderAuthBlock([verified(), agentReply])).toBeNull();
+    expect(latestTurnSenderAuthBlock([{ authorType: 'end_user', metadata: {} }])).toBeNull();
+    expect(latestTurnSenderAuthBlock([{ authorType: 'end_user', metadata: null }])).toBeNull();
     expect(
-      hasFailedSenderAuth([{ authorType: 'end_user', metadata: { senderAuth: 'unknown' } }]),
-    ).toBe(false);
+      latestTurnSenderAuthBlock([{ authorType: 'end_user', metadata: { senderAuth: 'unknown' } }]),
+    ).toBeNull();
   });
 
   it('looks only at the latest turn, so an answered failure does not block a later genuine message', () => {
-    expect(hasFailedSenderAuth([verified(), agentReply, unverified()])).toBe(false);
+    expect(latestTurnSenderAuthBlock([verified(), agentReply, unverified()])).toBeNull();
+    expect(latestTurnSenderAuthBlock([verified(), agentReply, forwarded])).toBeNull();
   });
 
   it('does not flag a conversation where the customer has not written', () => {
-    expect(hasFailedSenderAuth([agentReply])).toBe(false);
-    expect(hasFailedSenderAuth([])).toBe(false);
+    expect(latestTurnSenderAuthBlock([agentReply])).toBeNull();
+    expect(latestTurnSenderAuthBlock([])).toBeNull();
   });
 });
 

@@ -1,5 +1,6 @@
 import createNextIntlPlugin from 'next-intl/plugin';
 import { withSentryConfig } from '@sentry/nextjs/config';
+import { securityHeaderRoutes } from './security-headers.mjs';
 
 const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
 
@@ -15,6 +16,7 @@ const nextConfig = {
     '*.ngrok-free.app',
     ...(process.env.DEV_ALLOWED_ORIGINS?.split(',').filter(Boolean) ?? []),
   ],
+  headers: securityHeaderRoutes,
   transpilePackages: ['@getmunin/dashboard-pages', '@getmunin/sdk', '@getmunin/types', '@getmunin/ui'],
   turbopack: {
     resolveExtensions: ['.mdx', '.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],

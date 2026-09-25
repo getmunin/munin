@@ -3,8 +3,10 @@ import type { Request, Response, NextFunction } from 'express';
 import {
   corsMiddleware,
   hostAllowlistMiddleware,
+  isEmbeddableResourcePath,
   isPublicCorsPath,
   publicUrlRewriteMiddleware,
+  securityHeadersMiddleware,
 } from './bootstrap-app.ts';
 
 function run(mw: ReturnType<typeof hostAllowlistMiddleware>, hostHeader: string | undefined) {
@@ -205,4 +207,76 @@ describe('publicUrlRewriteMiddleware', () => {
     expect(runMw('api.getmunin.com', '/v1/kb/spaces').url).toBe('/v1/kb/spaces');
   });
 
+});
+
+describe('securityHeadersMiddleware', () => {
+  function headersFor(path: string, opts: { hsts: boolean } = { hsts: false }) {
+    const headers = new Map<string, string>();
+    const next = vi.fn();
+    securityHeadersMiddleware(opts)(
+      { path },
+      { setHeader: (name: string, value: string) => headers.set(name.toLowerCase(), value) },
+      next,
+    );
+    expect(next).toHaveBeenCalledOnce();
+    return headers;
+  }
+
+  it('locks API responses against content sniffing, referrer leaks, rendering and framing', () => {
+    const headers = headersFor('/v1/orgs/me');
+    expect(headers.get('x-content-type-options')).toBe('nosniff');
+    expect(headers.get('referrer-policy')).toBe('no-referrer');
+    expect(headers.get('x-frame-options')).toBe('DENY');
+    expect(headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'");
+  });
+
+  it('applies the API document policy to the OAuth client icon proxy so a fetched SVG cannot run script', () => {
+    expect(headersFor('/v1/oauth/clients/abc/icon').get('content-security-policy')).toBe(
+      "default-src 'none'; frame-ancestors 'none'",
+    );
+  });
+
+  it('applies the API document policy to /mcp and the well-known discovery documents', () => {
+    for (const path of ['/mcp', '/mcp/o/org_1', '/.well-known/oauth-authorization-server']) {
+      expect(headersFor(path).get('x-frame-options'), path).toBe('DENY');
+    }
+  });
+
+  it('lets the auth error page keep its inline styles while still blocking script and framing', () => {
+    expect(headersFor('/auth/error').get('content-security-policy')).toBe(
+      "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+    );
+  });
+
+  it('never adds CSP or X-Frame-Options to resources customer sites embed or open directly', () => {
+    for (const path of [
+      '/widget.js',
+      '/widget/widget.0123456789ab.js',
+      '/tracker.js',
+      '/tracker/tracker.0123456789ab.js',
+      '/static/assets/cms/org_1/brochure.pdf',
+      '/v1/c/a/token123',
+      '/favicon.ico',
+      '/icon.png',
+      '/apple-icon.png',
+    ]) {
+      const headers = headersFor(path);
+      expect(headers.has('content-security-policy'), path).toBe(false);
+      expect(headers.has('x-frame-options'), path).toBe(false);
+      expect(headers.get('x-content-type-options'), path).toBe('nosniff');
+    }
+  });
+
+  it('does not treat lookalike paths as embeddable', () => {
+    expect(isEmbeddableResourcePath('/widgetx')).toBe(false);
+    expect(isEmbeddableResourcePath('/static/assetsx/a.png')).toBe(false);
+    expect(isEmbeddableResourcePath('/v1/c/o/token.gif')).toBe(false);
+    expect(isEmbeddableResourcePath('/toString')).toBe(false);
+  });
+
+  it('sends Strict-Transport-Security only when the public API URL is https', () => {
+    expect(headersFor('/v1/orgs/me', { hsts: false }).has('strict-transport-security')).toBe(false);
+    expect(headersFor('/v1/orgs/me', { hsts: true }).get('strict-transport-security')).toBe('max-age=31536000');
+    expect(headersFor('/widget.js', { hsts: true }).get('strict-transport-security')).toBe('max-age=31536000');
+  });
 });

@@ -206,6 +206,32 @@ const skipReason = TEST_URL
     expect(Number(thumb.headers.get('content-length'))).toBeLessThan(body.length);
   });
 
+  it('createApp hardens API responses but leaves served attachments embeddable', async () => {
+    const api = await fetch(`${baseUrl}/v1/orgs/me`);
+    expect(api.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'");
+    expect(api.headers.get('x-frame-options')).toBe('DENY');
+    expect(api.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(api.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(api.headers.get('x-powered-by')).toBeNull();
+
+    const body = await pngBytes(300);
+    const dto = await asAdmin(orgA, async () => {
+      const handle = await service.requestUpload({
+        conversationId: convA,
+        name: 'embed.png',
+        mime: 'image/png',
+        sizeBytes: body.length,
+      });
+      await uploadThroughPresignedUrl(handle.uploadUrl, body);
+      return service.completeUpload({ id: handle.id });
+    });
+    const served = await fetch(dto.url!.replace(/^https?:\/\/[^/]+/, baseUrl));
+    expect(served.status).toBe(200);
+    expect(served.headers.get('x-frame-options')).toBeNull();
+    expect(served.headers.get('content-security-policy')).toBeNull();
+    expect(served.headers.get('x-content-type-options')).toBe('nosniff');
+  });
+
   it('rejects a completeUpload whose object size does not match what was declared', async () => {
     const body = await pngBytes(600);
     await asAdmin(orgA, async () => {

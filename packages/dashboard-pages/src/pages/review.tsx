@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { cn, Tabs, TabsList, TabsPanel, TabsTrigger } from '@getmunin/ui';
 import { LoadFailed } from '../components/load-failed';
@@ -56,13 +56,42 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
   const onListRoute = pathname === ROOT || pathname === `${ROOT}/`;
   const urlSelectedId =
     pathname.match(/^\/dashboard\/review\/([^/]+)\/?$/)?.[1] ?? (onListRoute ? null : selectedId);
-  const [handoff, setHandoff] = useState<{ from: string; to: string | null } | null>(null);
-  const routeSelectedId =
-    handoff && urlSelectedId === handoff.from ? handoff.to : urlSelectedId;
+
+  const { blocking, improvements } = useMemo(
+    () => partitionReviewQueue(inbox.queue),
+    [inbox.queue],
+  );
+  const recentDecisions = decisions.items;
+
+  const scheduled = inbox.scheduled;
+
+  const idsByTab: Record<ReviewTab, string[]> = useMemo(
+    () => ({
+      waiting: [...blocking.map((b) => b.id), ...improvements.map((c) => c.id)],
+      scheduled: scheduled.map((s) => s.id),
+      decided: recentDecisions.map((d) => d.id),
+    }),
+    [blocking, improvements, scheduled, recentDecisions],
+  );
+
+  const [handoff, setHandoff] = useState<{
+    from: string;
+    to: string | null;
+    settled: boolean;
+  } | null>(null);
+  const inFlightRef = useRef<string | null>(null);
+  const handingOff =
+    handoff !== null &&
+    urlSelectedId === handoff.from &&
+    (handoff.settled || !idsByTab.waiting.includes(handoff.from));
+  const routeSelectedId = handingOff ? handoff.to : urlSelectedId;
   const [notice, setNotice] = useState<ReviewDecisionNoticeValue | null>(null);
 
   useEffect(() => {
-    if (handoff && urlSelectedId !== handoff.from) setHandoff(null);
+    if (handoff && urlSelectedId !== handoff.from) {
+      inFlightRef.current = null;
+      setHandoff(null);
+    }
   }, [handoff, urlSelectedId]);
 
   useEffect(() => {
@@ -95,14 +124,6 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
     [shallowGo],
   );
 
-  const { blocking, improvements } = useMemo(
-    () => partitionReviewQueue(inbox.queue),
-    [inbox.queue],
-  );
-  const recentDecisions = decisions.items;
-
-  const scheduled = inbox.scheduled;
-
   const activeId = routeSelectedId;
   const selectedBlocking = activeId ? blocking.find((b) => b.id === activeId) : undefined;
   const selectedCandidate = activeId
@@ -129,15 +150,6 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
     firstRun: (setup) =>
       resolveReviewFirstRun(setup.reviewQueue, { loaded: listLoaded, empty: nothingToReview }),
   });
-  const idsByTab: Record<ReviewTab, string[]> = useMemo(
-    () => ({
-      waiting: [...blocking.map((b) => b.id), ...improvements.map((c) => c.id)],
-      scheduled: scheduled.map((s) => s.id),
-      decided: recentDecisions.map((d) => d.id),
-    }),
-    [blocking, improvements, scheduled, recentDecisions],
-  );
-
   const owningTab = useMemo(() => {
     if (!routeSelectedId) return null;
     const found = (['waiting', 'scheduled', 'decided'] as const).find((key) =>
@@ -212,22 +224,37 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
     return <ReviewFirstRun setup={gate.setup} decidedCount={decisions.items.length} />;
   }
 
-  const waitingIdsAtDecision = idsByTab.waiting;
-  const afterDecision =
-    (decided: QueueItem) => (ok: boolean, outcome: ReviewDecisionOutcome) => {
-      if (!ok) return;
-      void decisions.reload();
-      const next = nextAfterDecision(waitingIdsAtDecision, decided.id);
-      setHandoff({ from: decided.id, to: next });
-      setNotice({
-        id: decided.id,
-        kind: decided.kind,
-        title: decided.title,
-        outcome,
-        shownOn: next,
-      });
-      if (next) select(next, true);
-      else shallowGo(ROOT, true);
+  const decide =
+    (decided: QueueItem) =>
+    (outcome: ReviewDecisionOutcome, run: () => Promise<boolean>): Promise<boolean> => {
+      const next = nextAfterDecision(idsByTab.waiting, decided.id);
+      const abandon = () => {
+        if (inFlightRef.current !== decided.id) return;
+        inFlightRef.current = null;
+        setHandoff(null);
+      };
+      inFlightRef.current = decided.id;
+      setHandoff({ from: decided.id, to: next, settled: false });
+      const result = run();
+      void result.then((ok) => {
+        if (inFlightRef.current !== decided.id) return;
+        if (!ok) {
+          abandon();
+          return;
+        }
+        void decisions.reload();
+        setHandoff({ from: decided.id, to: next, settled: true });
+        setNotice({
+          id: decided.id,
+          kind: decided.kind,
+          title: decided.title,
+          outcome,
+          shownOn: next,
+        });
+        if (next) select(next, true);
+        else shallowGo(ROOT, true);
+      }, abandon);
+      return result;
     };
   const viewDecided = (id: string) => select(id);
 
@@ -407,7 +434,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
           <ReviewBlockingPane
             item={selectedBlocking}
             controller={inbox}
-            afterDecision={afterDecision(selectedBlocking)}
+            decide={decide(selectedBlocking)}
           />
         ) : selectedScheduled ? (
           <ReviewScheduledPane item={selectedScheduled} controller={inbox} />
@@ -421,14 +448,16 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
             onClearActionError={inbox.clearQueueActionError}
             onPublish={() => {
               if (selectedCandidate) {
-                const settle = afterDecision(selectedCandidate);
-                void inbox.approveQueue(selectedCandidate).then((ok) => settle(ok, 'approved'));
+                void decide(selectedCandidate)('approved', () =>
+                  inbox.approveQueue(selectedCandidate),
+                );
               }
             }}
             onDismiss={() => {
               if (selectedCandidate) {
-                const settle = afterDecision(selectedCandidate);
-                void inbox.dismissQueue(selectedCandidate).then((ok) => settle(ok, 'dismissed'));
+                void decide(selectedCandidate)('dismissed', () =>
+                  inbox.dismissQueue(selectedCandidate),
+                );
               }
             }}
           />

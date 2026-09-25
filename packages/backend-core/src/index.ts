@@ -31,6 +31,9 @@ export {
 } from './modules/feedback/feedback.service.ts';
 
 export { SystemAlertsModule } from './modules/system-alerts/system-alerts.module.ts';
+export { PiiModule } from './modules/pii/pii.module.ts';
+export { PiiAnnotationsService } from './modules/pii/pii-annotations.service.ts';
+export { isPiiNerEnabled } from './modules/pii/pii-config.ts';
 export {
   AlertsService,
   AlertNotFoundError,

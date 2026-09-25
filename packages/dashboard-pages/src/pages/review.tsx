@@ -9,9 +9,16 @@ import { useOrgHref, usePathname, useRouter } from '../i18n-navigation';
 import { useInboxData } from '../components/dashboard/inbox-data';
 import { ScheduledCancelDialog } from '../components/dashboard/scheduled-cancel-dialog';
 import {
+  nextAfterDecision,
   partitionReviewQueue,
   resolveReviewFirstRun,
+  type ReviewDecisionOutcome,
 } from '../components/dashboard/review-queue';
+import {
+  ReviewDecisionNotice,
+  type ReviewDecisionNoticeValue,
+} from '../components/dashboard/review-decision-notice';
+import type { QueueItem } from '../components/dashboard/queue-panes/types';
 import { ReviewRow } from '../components/dashboard/review-row';
 import { ReviewKbPane } from '../components/dashboard/review-kb-pane';
 import { ReviewBlockingPane } from '../components/dashboard/review-blocking-pane';
@@ -30,6 +37,7 @@ import { ReviewFirstRun, useFirstRunGate } from '../components/first-run';
 const ROOT = '/dashboard/review';
 const SPLIT_BREAKPOINT = '(min-width: 768px)';
 const SPLIT_GRID = 'md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]';
+const NOTICE_MS = 6000;
 
 type ReviewTab = 'waiting' | 'scheduled' | 'decided';
 
@@ -46,8 +54,26 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
   const isDesktop = useIsDesktopSplit();
 
   const onListRoute = pathname === ROOT || pathname === `${ROOT}/`;
-  const routeSelectedId =
+  const urlSelectedId =
     pathname.match(/^\/dashboard\/review\/([^/]+)\/?$/)?.[1] ?? (onListRoute ? null : selectedId);
+  const [handoff, setHandoff] = useState<{ from: string; to: string | null } | null>(null);
+  const routeSelectedId =
+    handoff && urlSelectedId === handoff.from ? handoff.to : urlSelectedId;
+  const [notice, setNotice] = useState<ReviewDecisionNoticeValue | null>(null);
+
+  useEffect(() => {
+    if (handoff && urlSelectedId !== handoff.from) setHandoff(null);
+  }, [handoff, urlSelectedId]);
+
+  useEffect(() => {
+    if (notice && routeSelectedId !== notice.shownOn) setNotice(null);
+  }, [notice, routeSelectedId]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), NOTICE_MS);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   const shallowGo = useCallback(
     (path: string, replace = false) => {
@@ -186,9 +212,24 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
     return <ReviewFirstRun setup={gate.setup} decidedCount={decisions.items.length} />;
   }
 
-  const afterDecision = (ok: boolean) => {
-    if (ok) void decisions.reload();
-  };
+  const waitingIdsAtDecision = idsByTab.waiting;
+  const afterDecision =
+    (decided: QueueItem) => (ok: boolean, outcome: ReviewDecisionOutcome) => {
+      if (!ok) return;
+      void decisions.reload();
+      const next = nextAfterDecision(waitingIdsAtDecision, decided.id);
+      setHandoff({ from: decided.id, to: next });
+      setNotice({
+        id: decided.id,
+        kind: decided.kind,
+        title: decided.title,
+        outcome,
+        shownOn: next,
+      });
+      if (next) select(next, true);
+      else shallowGo(ROOT, true);
+    };
+  const viewDecided = (id: string) => select(id);
 
   return (
     <div className={cn('grid h-full min-h-0 grid-cols-1', SPLIT_GRID)}>
@@ -213,6 +254,12 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
             {t('lede')}
           </p>
         </header>
+
+        <ReviewDecisionNotice
+          notice={routeSelectedId ? null : notice}
+          onView={viewDecided}
+          className="shrink-0 md:hidden"
+        />
 
         <Tabs
           value={tab}
@@ -337,10 +384,11 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
 
       <div
         className={cn(
-          'min-h-0 min-w-0 grid-cols-[minmax(0,1fr)]',
+          'min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)]',
           routeSelectedId ? 'grid' : 'hidden md:grid',
         )}
       >
+        <ReviewDecisionNotice notice={notice} onView={viewDecided} />
         {!activeId ? (
           <section className="hidden min-h-0 flex-col bg-paper-deep md:flex dark:bg-secondary">
             {activeIds.length > 0 ? (
@@ -359,7 +407,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
           <ReviewBlockingPane
             item={selectedBlocking}
             controller={inbox}
-            afterDecision={afterDecision}
+            afterDecision={afterDecision(selectedBlocking)}
           />
         ) : selectedScheduled ? (
           <ReviewScheduledPane item={selectedScheduled} controller={inbox} />
@@ -373,12 +421,14 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
             onClearActionError={inbox.clearQueueActionError}
             onPublish={() => {
               if (selectedCandidate) {
-                void inbox.approveQueue(selectedCandidate).then(afterDecision);
+                const settle = afterDecision(selectedCandidate);
+                void inbox.approveQueue(selectedCandidate).then((ok) => settle(ok, 'approved'));
               }
             }}
             onDismiss={() => {
               if (selectedCandidate) {
-                void inbox.dismissQueue(selectedCandidate).then(afterDecision);
+                const settle = afterDecision(selectedCandidate);
+                void inbox.dismissQueue(selectedCandidate).then((ok) => settle(ok, 'dismissed'));
               }
             }}
           />

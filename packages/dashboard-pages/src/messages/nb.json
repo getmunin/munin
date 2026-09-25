@@ -1257,6 +1257,8 @@
         "tabWaiting": "Venter",
         "tabScheduled": "Planlagt",
         "tabDecided": "Avgjort",
+        "noticeScheduled": "Planlagt",
+        "noticeView": "Vis",
         "sectionBlocking": "Krever svar · {count}",
         "sectionBlockingNote": "Eldste først",
         "sectionImprovements": "Forbedringer · {count}",

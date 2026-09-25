@@ -1257,6 +1257,8 @@
         "tabWaiting": "Waiting",
         "tabScheduled": "Scheduled",
         "tabDecided": "Decided",
+        "noticeScheduled": "Scheduled",
+        "noticeView": "View",
         "sectionBlocking": "Blocking · {count}",
         "sectionBlockingNote": "Oldest first",
         "sectionImprovements": "Improvements · {count}",

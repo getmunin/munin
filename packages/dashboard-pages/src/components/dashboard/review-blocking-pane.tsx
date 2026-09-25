@@ -5,6 +5,7 @@ import type { QueueItem } from './queue-panes/types';
 import type { InboxController } from './inbox-types';
 import { ReviewOutreachPane } from './review-outreach-pane';
 import { ReviewCrmPane } from './review-crm-pane';
+import type { ReviewDecisionOutcome } from './review-queue';
 
 export function ReviewBlockingPane({
   item,
@@ -13,7 +14,7 @@ export function ReviewBlockingPane({
 }: {
   item: QueueItem;
   controller: InboxController;
-  afterDecision?: (ok: boolean) => void;
+  afterDecision?: (ok: boolean, outcome: ReviewDecisionOutcome) => void;
 }) {
   const {
     pending,
@@ -34,6 +35,9 @@ export function ReviewBlockingPane({
     uploadCmsAsset,
     scheduleQueue,
   } = controller;
+  const settle = (outcome: ReviewDecisionOutcome) => (ok: boolean) => afterDecision?.(ok, outcome);
+  const approvedOrScheduled = (sendAt?: string | null) =>
+    settle(sendAt ? 'scheduled' : 'approved');
 
   if (item.kind === 'crm') {
     return (
@@ -42,8 +46,8 @@ export function ReviewBlockingPane({
         pending={pending}
         actionError={queueActionError}
         onClearActionError={clearQueueActionError}
-        onApprove={() => void approveQueue(item).then(afterDecision)}
-        onDismiss={() => void dismissQueue(item).then(afterDecision)}
+        onApprove={() => void approveQueue(item).then(settle('approved'))}
+        onDismiss={() => void dismissQueue(item).then(settle('dismissed'))}
       />
     );
   }
@@ -56,8 +60,8 @@ export function ReviewBlockingPane({
         pending={pending}
         actionError={queueActionError}
         onClearActionError={clearQueueActionError}
-        onApprove={(sendAt) => void approveQueue(item, sendAt).then(afterDecision)}
-        onDismiss={() => void dismissQueue(item).then(afterDecision)}
+        onApprove={(sendAt) => void approveQueue(item, sendAt).then(approvedOrScheduled(sendAt))}
+        onDismiss={() => void dismissQueue(item).then(settle('dismissed'))}
         onSave={(body) => saveQueue(item, body)}
       />
     );
@@ -71,18 +75,20 @@ export function ReviewBlockingPane({
         loadError={queueDetailErrors[item.id]}
         onRetry={() => reloadQueueDetail(item.id)}
         pending={pending}
-        onApprove={(sendAt) => void approveQueue(item, sendAt).then(afterDecision)}
+        onApprove={(sendAt) => void approveQueue(item, sendAt).then(approvedOrScheduled(sendAt))}
         onPublish={
           item.kind === 'social'
-            ? () => void publishQueue(item).then(afterDecision)
+            ? () => void publishQueue(item).then(settle('approved'))
             : undefined
         }
-        onDismiss={() => void dismissQueue(item).then(afterDecision)}
+        onDismiss={() => void dismissQueue(item).then(settle('dismissed'))}
         onSave={(body) => saveQueue(item, body)}
         onSaveSocialDraft={(edit) => saveSocialDraft(item, edit)}
         onSaveCmsDraft={(data) => saveCmsDraft(item, data)}
         onUploadCmsAsset={(file) => uploadCmsAsset(item, file)}
-        onSchedule={(scheduledAt) => scheduleQueue(item, scheduledAt)}
+        onSchedule={(scheduledAt) =>
+          scheduleQueue(item, scheduledAt).then(() => settle('scheduled')(true))
+        }
         previewLink={item.kind === 'cms' ? cmsPreviewLinks[item.id] : undefined}
         onRetryPreview={
           item.kind === 'cms' ? () => void reloadCmsPreviewLink(item.id) : undefined

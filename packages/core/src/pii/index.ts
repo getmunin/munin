@@ -20,3 +20,14 @@ export {
   type PiiIdentityRefKind,
   type PiiLexicon,
 } from './lexicon.ts';
+export { detectPii, type DetectPiiOptions, type PiiDetection, type PiiDetectionKind } from './detectors.ts';
+export {
+  PII_MASKS,
+  emptyPiiStats,
+  pseudonymizeText,
+  pseudonymizeValue,
+  resolvePseudonyms,
+  type PiiMaskKind,
+  type PiiStats,
+  type ResolvedPseudonyms,
+} from './pseudonymize.ts';

@@ -12,6 +12,8 @@ import {
   VOICE_SYSTEM_PROMPT_SLUG,
   WebhookDispatcher,
   createPromptCache,
+  signVoiceCallToken,
+  verifyVoiceCallToken,
   withContext,
   type RequestContext,
 } from '@getmunin/core';
@@ -246,7 +248,16 @@ export class VapiAdapter implements ChannelAdapter {
       const body = JSON.stringify({
         assistant: inlineAssistant,
         assistantOverrides: {
-          metadata: { conversationId, endUserId },
+          metadata: {
+            conversationId,
+            endUserId,
+            callToken: signVoiceCallToken({
+              orgId: channel.orgId,
+              channelId: channel.id,
+              conversationId,
+              endUserId,
+            }),
+          },
         },
       });
 
@@ -333,25 +344,23 @@ export class VapiAdapter implements ChannelAdapter {
       return { status: 200, contentType: 'application/json; charset=utf-8', body: '{"results":[]}' };
     }
 
-    const meta = readCallMetadata(msg);
-    const conversationId = typeof meta.conversationId === 'string' ? meta.conversationId : null;
-
+    const binding = this.readVerifiedCallBinding(channel, msg);
     let endUserId: string | null = null;
-    if (conversationId) {
+    if (binding?.endUserId) {
       const rows = await this.db
         .select({ endUserId: schema.convConversations.endUserId })
         .from(schema.convConversations)
         .where(
           and(
             eq(schema.convConversations.orgId, channel.orgId),
-            eq(schema.convConversations.id, conversationId),
+            eq(schema.convConversations.id, binding.conversationId),
           ),
         )
         .limit(1);
-      endUserId = rows[0]?.endUserId ?? null;
+      if (rows[0]?.endUserId === binding.endUserId) endUserId = binding.endUserId;
     }
     if (!endUserId) {
-      const message = 'voice channel has no associated end-user — tools unavailable';
+      const message = 'voice call has no verified end-user — tools unavailable';
       return jsonResponse({
         results: toolCalls.map((c) => ({
           toolCallId: c.id ?? randomUUID(),
@@ -434,15 +443,15 @@ export class VapiAdapter implements ChannelAdapter {
     channel: ChannelRow,
     msg: VapiServerMessage,
   ): Promise<typeof schema.convConversations.$inferSelect> {
-    const meta = readCallMetadata(msg);
-    if (typeof meta.conversationId === 'string') {
+    const binding = this.readVerifiedCallBinding(channel, msg);
+    if (binding) {
       const rows = await tx
         .select()
         .from(schema.convConversations)
         .where(
           and(
             eq(schema.convConversations.orgId, channel.orgId),
-            eq(schema.convConversations.id, meta.conversationId),
+            eq(schema.convConversations.id, binding.conversationId),
           ),
         )
         .limit(1);
@@ -465,6 +474,34 @@ export class VapiAdapter implements ChannelAdapter {
     const callId = msg.call?.id;
     if (!callId) throw new Error('vapi_event_missing_call_id_or_conversation_id');
     return this.findOrCreateConversation(tx, channel, callId, msg.call?.customer);
+  }
+
+  private readVerifiedCallBinding(
+    channel: ChannelRow,
+    msg: VapiServerMessage,
+  ): { conversationId: string; endUserId: string | null } | null {
+    const meta = readCallMetadata(msg);
+    const conversationId = typeof meta.conversationId === 'string' ? meta.conversationId : null;
+    if (!conversationId) return null;
+    const token = typeof meta.callToken === 'string' ? meta.callToken : '';
+    try {
+      const payload = verifyVoiceCallToken(token);
+      if (
+        payload.orgId !== channel.orgId ||
+        payload.channelId !== channel.id ||
+        payload.conversationId !== conversationId
+      ) {
+        throw new Error('voice_call_token_mismatch');
+      }
+      return { conversationId, endUserId: payload.endUserId };
+    } catch (err) {
+      this.logger.warn(
+        `vapi call metadata ignored callId=${msg.call?.id ?? '?'}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return null;
+    }
   }
 
   private async loadSeenVoiceTurns(

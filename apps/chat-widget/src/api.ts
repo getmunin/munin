@@ -106,9 +106,8 @@ export type VoiceStartResult =
         vendor: 'vapi';
         publicKey: string;
         assistantId: string;
-        metadata: { conversationId: string; endUserId: string };
-        assistant?: Record<string, unknown>;
-        assistantOverrides?: Record<string, unknown>;
+        metadata: { conversationId: string; endUserId: string; callToken: string };
+        assistantOverrides: Record<string, unknown>;
       };
     };
 

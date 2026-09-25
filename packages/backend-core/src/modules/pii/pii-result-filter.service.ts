@@ -101,6 +101,6 @@ function rawOnlyRefusal(toolName: string): string {
   return (
     `${toolName} exports this org's records in bulk for moving them to another server, ` +
     'and is not available on a connection that pseudonymizes personal data: the export would carry ' +
-    'placeholder tokens into whatever imports it. Use a connection with raw access for migrations.'
+    'placeholder tokens into whatever imports it. Migrations need a connection granted the pii:raw scope.'
   );
 }

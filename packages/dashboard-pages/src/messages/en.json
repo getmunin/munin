@@ -941,11 +941,16 @@
       "mintModalTitle": "Mint API key",
       "mintModalSub": "Plaintext shown once · cannot be retrieved later",
       "nameHint": "For your reference only — not sent to the API.",
+      "pseudonymizeLabel": "Pseudonymize personal data",
+      "pseudonymizeHint": "MCP results for this key replace customers' names, email addresses, phone numbers and ID numbers with stable tokens — the right choice for an AI client doing analysis. Untick it for an integration that needs real contact details.",
       "mintModalSubmit": "Mint key",
       "tableName": "Name",
       "tablePrefix": "Prefix",
       "tableCreated": "Created",
       "tableLastUsed": "Last used",
+      "tablePersonalData": "Personal data",
+      "personalDataRaw": "Raw",
+      "personalDataPseudonymized": "Pseudonymized",
       "revealTitle": "Key minted",
       "revealSub": "Copy now — this is the only time you'll see it",
       "revealWarning": "Heads up. Munin stores only a hash of this key. Once you close this dialog, the plaintext is gone forever — copy it to your secret manager now.",
@@ -1065,6 +1070,15 @@
       "reassurance": {
         "lead": "Scoped, not god mode.",
         "body": "<client></client> acts as <user></user> — it inherits your role and can't exceed it. It can't manage the team, billing, or API keys, or delete the org. Access lasts 90 days, auto-refreshed while in use, and you can revoke it anytime from <settings>Settings → Agents</settings>."
+      },
+      "personalData": {
+        "label": "Personal data",
+        "badgePseudonymized": "Pseudonymized",
+        "badgeRaw": "Raw",
+        "pseudonymizedBody": "<client></client> sees customers' names, email addresses, phone numbers and ID numbers replaced by stable tokens. It can still count, compare and follow the same person across results — it just can't tell who they are.",
+        "shareRaw": "Share personal data as stored",
+        "shareRawHint": "Only if <client></client> needs real names and contact details, for example to write to customers itself.",
+        "rawWarning": "<client></client> will see customers' names, contact details and ID numbers exactly as Munin stores them."
       },
       "authorize": "Authorize access",
       "authorizing": "Authorizing…",

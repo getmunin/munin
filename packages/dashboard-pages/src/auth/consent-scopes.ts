@@ -1,9 +1,12 @@
+import { PII_RAW_SCOPE } from '@getmunin/types';
+
 export const CONSENT_HIDDEN_SCOPES: ReadonlySet<string> = new Set([
   'openid',
   'profile',
   'email',
   'offline_access',
   'identity:read',
+  PII_RAW_SCOPE,
 ]);
 
 export const CONSENT_HIDDEN_SCOPE_PREFIXES: readonly string[] = ['mcp:'];
@@ -72,4 +75,16 @@ export function groupConsentScopes(scopes: readonly string[]): ConsentScopeGroup
 
 export function countConsentScopes(groups: readonly ConsentScopeGroup[]): number {
   return groups.reduce((total, group) => total + group.scopes.length, 0);
+}
+
+export function requestsRawPersonalData(scopes: readonly string[]): boolean {
+  return scopes.includes(PII_RAW_SCOPE);
+}
+
+export function consentScopeOverride(
+  requested: readonly string[],
+  shareRawPersonalData: boolean,
+): string | undefined {
+  if (!requestsRawPersonalData(requested) || shareRawPersonalData) return undefined;
+  return requested.filter((scope) => scope !== PII_RAW_SCOPE).join(' ');
 }

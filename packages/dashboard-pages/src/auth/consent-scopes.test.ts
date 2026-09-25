@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { SUPPORTED_SCOPES } from '@getmunin/types';
+import { PII_RAW_SCOPE, SUPPORTED_SCOPES } from '@getmunin/types';
 import en from '../messages/en.json';
 import nb from '../messages/nb.json';
 import {
   CONSENT_MODULE_ORDER,
+  consentScopeOverride,
   countConsentScopes,
   groupConsentScopes,
   isHiddenConsentScope,
+  requestsRawPersonalData,
 } from './consent-scopes';
 
 const LOCALES = { en, nb } as const;
@@ -65,5 +67,24 @@ describe('consent scope grouping', () => {
       expect(consent.moduleDescriptions[module]?.readWrite).toBeTruthy();
     }
     expect(consent.undescribedScopes).toContain('{scopes}');
+  });
+});
+
+describe('raw personal data scope', () => {
+  it('never renders as a module card, so it cannot pass for an ordinary read grant', () => {
+    const groups = groupConsentScopes(['conv:read', PII_RAW_SCOPE]);
+    expect(groups.map((g) => g.module)).toEqual(['conv']);
+    expect(groups.flatMap((g) => g.scopes)).not.toContain(PII_RAW_SCOPE);
+  });
+
+  it('narrows the grant to everything but raw access unless the box is ticked', () => {
+    const requested = ['openid', 'conv:read', PII_RAW_SCOPE, 'crm:read'];
+    expect(consentScopeOverride(requested, false)).toBe('openid conv:read crm:read');
+    expect(consentScopeOverride(requested, true)).toBeUndefined();
+  });
+
+  it('leaves the grant alone when raw access was never requested', () => {
+    expect(requestsRawPersonalData(['conv:read'])).toBe(false);
+    expect(consentScopeOverride(['conv:read'], false)).toBeUndefined();
   });
 });

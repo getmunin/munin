@@ -11,6 +11,7 @@ import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 import { notify } from '../lib/notify';
 import { CopyField } from '../components/copy-field';
+import { keySeesRawPersonalData, scopesForNewKey } from '../lib/api-key-scopes';
 import {
   dialogButtonClass,
   dialogFooterClass,
@@ -117,6 +118,7 @@ export function ApiKeysPage() {
               { grow: 2, bar: 'w-1/2' },
               { grow: 2, bar: 'w-3/4' },
               { grow: 2, bar: 'w-3/4' },
+              { grow: 2, bar: 'w-1/2' },
               { grow: 1, bar: 'w-10', right: true },
             ]}
           />
@@ -131,6 +133,7 @@ export function ApiKeysPage() {
                 <Th className="hidden md:table-cell">{t('tablePrefix')}</Th>
                 <Th className="hidden md:table-cell">{t('tableCreated')}</Th>
                 <Th>{t('tableLastUsed')}</Th>
+                <Th className="hidden md:table-cell">{t('tablePersonalData')}</Th>
                 <Th className="text-right" />
               </tr>
             </thead>
@@ -156,6 +159,9 @@ export function ApiKeysPage() {
                           year: 'numeric',
                         })
                       : '—'}
+                  </td>
+                  <td className="hidden md:table-cell py-4 pr-4">
+                    <PersonalDataBadge raw={keySeesRawPersonalData(k.scopes)} />
                   </td>
                   <td className="py-4 text-right">
                     <Button
@@ -186,6 +192,22 @@ export function ApiKeysPage() {
   );
 }
 
+function PersonalDataBadge({ raw }: { raw: boolean }) {
+  const t = useTranslations('dashboard.apiKeys');
+  return (
+    <span
+      className={cn(
+        'whitespace-nowrap rounded-full border-[1px] px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.1em]',
+        raw
+          ? 'border-amber-500 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300'
+          : 'border-rule-soft text-ink-soft',
+      )}
+    >
+      {raw ? t('personalDataRaw') : t('personalDataPseudonymized')}
+    </span>
+  );
+}
+
 function Th({ children, className }: { children?: ReactNode; className?: string }) {
   return (
     <th
@@ -212,6 +234,7 @@ function MintKeyDialog({
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
   const [name, setName] = useState('');
+  const [pseudonymize, setPseudonymize] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedApiKey | null>(null);
@@ -219,6 +242,7 @@ function MintKeyDialog({
   useEffect(() => {
     if (open) {
       setName('');
+      setPseudonymize(true);
       setCreated(null);
       setError(null);
       setCreating(false);
@@ -233,7 +257,7 @@ function MintKeyDialog({
     try {
       const result = await api<CreatedApiKey>('/v1/api-keys', {
         method: 'POST',
-        body: JSON.stringify({ name: name.trim(), scopes: ['*'] }),
+        body: JSON.stringify({ name: name.trim(), scopes: scopesForNewKey(pseudonymize) }),
       });
       setCreated(result);
       onMinted();
@@ -290,6 +314,19 @@ function MintKeyDialog({
                 />
                 <p className={dialogHintClass}>{t('nameHint')}</p>
               </div>
+
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  className="mt-1 size-3.5 shrink-0 accent-ink"
+                  checked={pseudonymize}
+                  onChange={(e) => setPseudonymize(e.target.checked)}
+                />
+                <span className="flex flex-col gap-1">
+                  <span className={dialogLabelClass}>{t('pseudonymizeLabel')}</span>
+                  <span className={dialogHintClass}>{t('pseudonymizeHint')}</span>
+                </span>
+              </label>
 
               {error && (
                 <p className={cn(dialogHintClass, 'text-destructive')} role="alert">

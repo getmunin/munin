@@ -2,8 +2,10 @@ import 'reflect-metadata';
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
+import { createHash, randomBytes } from 'node:crypto';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
+import { PII_RAW_SCOPE } from '@getmunin/types';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { eq, sql } from 'drizzle-orm';
 import { createApp } from '../../bootstrap-app.ts';
@@ -32,6 +34,8 @@ interface ToolResult {
   let contactId: string;
   const rawKey = buildApiKey('admin');
   const pseudonymizedKey = buildApiKey('admin');
+  const connectorToken = randomBytes(24).toString('base64url');
+  const rawConnectorToken = randomBytes(24).toString('base64url');
 
   beforeAll(async () => {
     process.env.MUNIN_AUTH_SECRET ??= 'test-secret-do-not-use-in-prod';
@@ -68,6 +72,38 @@ interface ToolResult {
         scopes: ['conv:read', 'crm:read'],
       },
     ]);
+    const [user] = await db
+      .insert(schema.users)
+      .values({ email: `owner-${orgId}@example.com`, name: 'Org Owner' })
+      .returning();
+    await db.insert(schema.orgMembers).values({ orgId, userId: user!.id, role: 'owner', isDefault: true });
+    const clientId = `client_${orgId}`;
+    await db.insert(schema.oauthClient).values({
+      clientId,
+      name: 'Claude',
+      redirectUris: ['https://claude.ai/api/mcp/auth_callback'],
+    });
+    const expiresAt = new Date(Date.now() + 3_600_000);
+    const hashed = (token: string) => createHash('sha256').update(token).digest('base64url');
+    await db.insert(schema.oauthAccessToken).values([
+      {
+        token: hashed(connectorToken),
+        clientId,
+        userId: user!.id,
+        referenceId: orgId,
+        expiresAt,
+        scopes: ['mcp:admin', 'conv:read', 'crm:read'],
+      },
+      {
+        token: hashed(rawConnectorToken),
+        clientId,
+        userId: user!.id,
+        referenceId: orgId,
+        expiresAt,
+        scopes: ['mcp:admin', 'conv:read', 'crm:read', PII_RAW_SCOPE],
+      },
+    ]);
+
     const [contact] = await db
       .insert(schema.crmContacts)
       .values({ orgId, name: 'Kari Nordmann', email: 'kari@example.no', phone: '+4712345678' })
@@ -114,6 +150,8 @@ interface ToolResult {
     if (db && orgId) {
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
       await db.delete(schema.orgs).where(eq(schema.orgs.id, orgId));
+      await db.delete(schema.oauthClient).where(eq(schema.oauthClient.clientId, `client_${orgId}`));
+      await db.delete(schema.users).where(eq(schema.users.email, `owner-${orgId}@example.com`));
     }
   });
 
@@ -200,6 +238,14 @@ interface ToolResult {
     await db.insert(schema.piiMessageAnnotations).values({ messageId, orgId, nerVersion: 100 });
     const complete = await call(pseudonymizedKey, 'conv_get_conversation', { id: conversationId });
     expect(piiMeta(complete)).toMatchObject({ coverage: 'complete', layers: ['deterministic', 'directory', 'ner'] });
+  });
+
+  it('pseudonymizes an OAuth connector unless consent granted raw access', async () => {
+    const connector = body(await call(connectorToken, 'conv_get_conversation', { id: conversationId }));
+    expect(connector).not.toContain('Kari');
+    expect(connector).toMatch(/\[Contact [a-z2-7]{8}\]/);
+    const raw = body(await call(rawConnectorToken, 'conv_get_conversation', { id: conversationId }));
+    expect(raw).toContain('Kari Nordmann');
   });
 
   it('refuses a bulk export on a pseudonymized connection and serves it on a raw one', async () => {

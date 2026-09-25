@@ -171,6 +171,10 @@ function selectedTab(): string | null {
     ?.textContent ?? null;
 }
 
+function paneWrapperClass(text: string): string {
+  return screen.getByText(text).closest('section')?.parentElement?.className ?? '';
+}
+
 async function advance(ms: number) {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms);
@@ -247,7 +251,7 @@ describe('ReviewPage decisions', () => {
 
     expect(harness.state.path).toBe('/dashboard/review/b');
     expect(screen.getByText('waiting pane b')).toBeTruthy();
-    expect(screen.queryAllByText('Published')).toHaveLength(0);
+    expect(screen.queryAllByText('Approved · Published')).toHaveLength(0);
   });
 
   it('confirms the decision above the next item until it times out', async () => {
@@ -256,11 +260,9 @@ describe('ReviewPage decisions', () => {
     await advance(10);
 
     expect(screen.getAllByText('Entry b').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Published').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Approved · Published').length).toBeGreaterThan(0);
 
-    act(() => {
-      vi.advanceTimersByTime(6000);
-    });
+    for (const bar of document.querySelectorAll('.animate-notice-timer')) fireEvent.animationEnd(bar);
 
     expect(screen.queryAllByText('Entry b')).toHaveLength(0);
   });
@@ -276,6 +278,29 @@ describe('ReviewPage decisions', () => {
     expect(screen.getByText('waiting pane b')).toBeTruthy();
   });
 
+  it('animates the next pane in the direction the list moved, and only on hand-off', async () => {
+    renderWithProviders(<ReviewPage />);
+    expect(paneWrapperClass('waiting pane b')).not.toMatch(/animate-arrive/);
+
+    fireEvent.click(screen.getByRole('button', { name: 'publish b' }));
+    await advance(10);
+    expect(paneWrapperClass('waiting pane c')).toMatch(/animate-arrive-down/);
+
+    fireEvent.click(screen.getByRole('button', { name: 'row a' }));
+    await advance(10);
+    expect(paneWrapperClass('waiting pane a')).not.toMatch(/animate-arrive/);
+  });
+
+  it('animates upward when the decided item was last in the list', async () => {
+    harness.state.path = '/dashboard/review/c';
+    renderWithProviders(<ReviewPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'publish c' }));
+    await advance(10);
+
+    expect(paneWrapperClass('waiting pane b')).toMatch(/animate-arrive-up/);
+  });
+
   it('shows the resolved item when someone else decides the one being viewed', () => {
     renderWithProviders(<ReviewPage />);
 
@@ -285,6 +310,6 @@ describe('ReviewPage decisions', () => {
 
     expect(selectedTab()).toContain('Decided');
     expect(screen.getByText('decided pane b')).toBeTruthy();
-    expect(screen.queryAllByText('Published')).toHaveLength(0);
+    expect(screen.queryAllByText('Approved · Published')).toHaveLength(0);
   });
 });

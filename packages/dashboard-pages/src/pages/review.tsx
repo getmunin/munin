@@ -37,7 +37,6 @@ import { ReviewFirstRun, useFirstRunGate } from '../components/first-run';
 const ROOT = '/dashboard/review';
 const SPLIT_BREAKPOINT = '(min-width: 768px)';
 const SPLIT_GRID = 'md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]';
-const NOTICE_MS = 6000;
 
 type ReviewTab = 'waiting' | 'scheduled' | 'decided';
 
@@ -86,6 +85,17 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
     (handoff.settled || !idsByTab.waiting.includes(handoff.from));
   const routeSelectedId = handingOff ? handoff.to : urlSelectedId;
   const [notice, setNotice] = useState<ReviewDecisionNoticeValue | null>(null);
+  const [arrival, setArrival] = useState<{
+    id: string;
+    from: string;
+    direction: 'down' | 'up';
+  } | null>(null);
+
+  useEffect(() => {
+    if (arrival && routeSelectedId !== arrival.id && routeSelectedId !== arrival.from) {
+      setArrival(null);
+    }
+  }, [arrival, routeSelectedId]);
 
   useEffect(() => {
     if (handoff && urlSelectedId !== handoff.from) {
@@ -98,11 +108,6 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
     if (notice && routeSelectedId !== notice.shownOn) setNotice(null);
   }, [notice, routeSelectedId]);
 
-  useEffect(() => {
-    if (!notice) return;
-    const timer = window.setTimeout(() => setNotice(null), NOTICE_MS);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
 
   const shallowGo = useCallback(
     (path: string, replace = false) => {
@@ -232,9 +237,22 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
         if (inFlightRef.current !== decided.id) return;
         inFlightRef.current = null;
         setHandoff(null);
+        setArrival(null);
       };
       inFlightRef.current = decided.id;
       setHandoff({ from: decided.id, to: next, settled: false });
+      setArrival(
+        next
+          ? {
+              id: next,
+              from: decided.id,
+              direction:
+                idsByTab.waiting.indexOf(next) > idsByTab.waiting.indexOf(decided.id)
+                  ? 'down'
+                  : 'up',
+            }
+          : null,
+      );
       const result = run();
       void result.then((ok) => {
         if (inFlightRef.current !== decided.id) return;
@@ -249,6 +267,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
           kind: decided.kind,
           title: decided.title,
           outcome,
+          platform: decided.kind === 'social' ? decided.raw.platform : null,
           shownOn: next,
         });
         if (next) select(next, true);
@@ -257,6 +276,8 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
       return result;
     };
   const viewDecided = (id: string) => select(id);
+  const expireNotice = () => setNotice(null);
+  const arrived = arrival !== null && activeId === arrival.id;
 
   return (
     <div className={cn('grid h-full min-h-0 grid-cols-1', SPLIT_GRID)}>
@@ -285,6 +306,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
         <ReviewDecisionNotice
           notice={routeSelectedId ? null : notice}
           onView={viewDecided}
+          onExpire={expireNotice}
           className="shrink-0 md:hidden"
         />
 
@@ -415,7 +437,15 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
           routeSelectedId ? 'grid' : 'hidden md:grid',
         )}
       >
-        <ReviewDecisionNotice notice={notice} onView={viewDecided} />
+        <ReviewDecisionNotice notice={notice} onView={viewDecided} onExpire={expireNotice} />
+        <div
+          key={arrived ? `arrived:${arrival.from}` : 'pane'}
+          className={cn(
+            'grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)]',
+            arrived &&
+              (arrival.direction === 'down' ? 'animate-arrive-down' : 'animate-arrive-up'),
+          )}
+        >
         {!activeId ? (
           <section className="hidden min-h-0 flex-col bg-paper-deep md:flex dark:bg-secondary">
             {activeIds.length > 0 ? (
@@ -462,6 +492,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
             }}
           />
         )}
+        </div>
       </div>
 
       <ScheduledCancelDialog controller={inbox} />

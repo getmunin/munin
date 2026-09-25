@@ -343,6 +343,7 @@ export class OutreachAdminTools {
     input: EmptyInput,
     readOnlyHint: true,
     destructiveHint: false,
+    rawDataOnly: true,
   })
   exportOutreach() {
     return this.outreach.exportOutreach();

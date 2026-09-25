@@ -343,6 +343,7 @@ export class KbAdminTools {
     input: EmptyInput,
     readOnlyHint: true,
     destructiveHint: false,
+    rawDataOnly: true,
   })
   exportKb() {
     return this.kb.exportKb();

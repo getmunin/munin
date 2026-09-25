@@ -833,6 +833,7 @@ export class CmsAdminTools {
     input: EmptyInput,
     readOnlyHint: true,
     destructiveHint: false,
+    rawDataOnly: true,
   })
   exportCms() {
     return this.cms.exportCms();

@@ -559,6 +559,7 @@ export class ConvAdminTools {
     input: EmptyInput,
     readOnlyHint: true,
     destructiveHint: false,
+    rawDataOnly: true,
   })
   exportConv() {
     return this.conv.exportConv();

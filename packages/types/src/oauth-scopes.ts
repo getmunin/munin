@@ -34,3 +34,5 @@ export const SUPPORTED_SCOPES = [
 ] as const;
 
 export type SupportedScope = (typeof SUPPORTED_SCOPES)[number];
+
+export const PII_RAW_SCOPE = 'pii:raw';

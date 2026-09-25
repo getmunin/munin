@@ -5,9 +5,10 @@ import { McpRegistryService } from './mcp.registry.ts';
 import { McpSkillRegistryService } from './mcp.skill-registry.service.ts';
 import { McpBurstGuard } from './mcp-burst.guard.ts';
 import { PingMcpTool } from './ping.tool.ts';
+import { PiiDataModule } from '../modules/pii/pii-data.module.ts';
 
 @Module({
-  imports: [DiscoveryModule],
+  imports: [DiscoveryModule, PiiDataModule],
   controllers: [McpController],
   providers: [McpRegistryService, McpSkillRegistryService, McpBurstGuard, PingMcpTool],
   exports: [McpRegistryService, McpSkillRegistryService],

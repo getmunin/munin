@@ -8,8 +8,11 @@ export {
   type OpenInProcessMcpClientOptions,
 } from './in-process-client.ts';
 export {
+  RESULT_WITHHELD_MESSAGE,
   type CaptureExceptionContext,
   type CaptureExceptionFn,
+  type FilteredToolResult,
+  type ToolDataFilter,
   type ResourceContent,
   type ResourceListing,
   type ToolCallResult,

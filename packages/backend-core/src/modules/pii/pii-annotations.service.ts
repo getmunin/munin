@@ -4,6 +4,7 @@ import { and, eq, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import { schema, type Db, type Tx } from '@getmunin/db';
 import { ActorIdentity, getCurrentContext, withContext, type RequestContext } from '@getmunin/core';
 import { DB } from '../../common/db/db.module.ts';
+import { resultRows } from './rows.ts';
 
 export const PII_WORKER_ACTOR_ID = 'pii-annotation-worker';
 export const PII_MAX_CLAIM_TEXT = 100_000;
@@ -157,7 +158,7 @@ export class PiiAnnotationsService {
       WHERE a.message_id = picked.message_id AND m.id = a.message_id
       RETURNING a.message_id, m.body
     `);
-    return toRows<{ message_id: string; body: string }>(leased).map((row) => ({
+    return resultRows<{ message_id: string; body: string }>(leased).map((row) => ({
       messageId: row.message_id,
       text: row.body.slice(0, PII_MAX_CLAIM_TEXT),
     }));
@@ -240,7 +241,7 @@ export class PiiAnnotationsService {
 
   private async orgIdsInRandomOrder(): Promise<string[]> {
     const rows = await this.db.execute(sql`SELECT id FROM orgs ORDER BY random()`);
-    return toRows<{ id: string }>(rows).map((r) => r.id);
+    return resultRows<{ id: string }>(rows).map((r) => r.id);
   }
 
   private async inOrg<T>(orgId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
@@ -273,10 +274,3 @@ export function locateSpan(
   }
   return best === -1 ? null : { start: best, end: best + text.length };
 }
-
-function toRows<T>(result: unknown): T[] {
-  if (Array.isArray(result)) return result as T[];
-  const rows = (result as { rows?: unknown[] }).rows;
-  return Array.isArray(rows) ? (rows as T[]) : [];
-}
-

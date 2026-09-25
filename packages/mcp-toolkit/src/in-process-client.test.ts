@@ -11,6 +11,8 @@ import {
   type CaptureExceptionContext,
   type CaptureExceptionFn,
   type DispatchContext,
+  type ToolDataFilter,
+  RESULT_WITHHELD_MESSAGE,
 } from './dispatch.ts';
 
 const fakeAudit = { record: vi.fn(() => Promise.resolve()) };
@@ -555,5 +557,120 @@ describe('ui:// MCP App resources (SEP-1865)', () => {
     expect(() => readResource(ctx(selfActor, 'self_service'), 'ui://inspector/hello')).toThrow(
       /not available/,
     );
+  });
+});
+
+describe('dataFilter', () => {
+  function filterWith(overrides: Partial<ToolDataFilter> = {}): ToolDataFilter {
+    return {
+      refuse: () => null,
+      output: (_tool, value) =>
+        Promise.resolve({
+          value: typeof value === 'string' ? value.replace('Kari', '[NAME]') : value,
+          notice: 'pseudonymized',
+          meta: { 'munin/pii': { coverage: 'complete' } },
+        }),
+      error: (message) => Promise.resolve(message.replace('Kari', '[NAME]')),
+      ...overrides,
+    };
+  }
+
+  function registryWithExport(): McpToolRegistry {
+    const r = buildRegistry();
+    r.register(
+      {
+        name: 'mod_export',
+        description: 'bulk export',
+        audiences: ['admin'],
+        scopes: [],
+        input: z.object({}),
+        rawDataOnly: true,
+      },
+      () => 'everything',
+    );
+    r.register(
+      {
+        name: 'named_boom',
+        description: 'throws with a name in the message',
+        audiences: ['admin'],
+        scopes: [],
+        input: z.object({}),
+      },
+      () => {
+        throw new Error('no order for Kari');
+      },
+    );
+    return r;
+  }
+
+  function client(dataFilter: ToolDataFilter, captureException?: CaptureExceptionFn) {
+    return openInProcessMcpClient({
+      registry: registryWithExport(),
+      actor: adminActor(),
+      audience: 'admin',
+      audit: fakeAudit,
+      dataFilter,
+      captureException,
+    });
+  }
+
+  it('runs the result through the filter and appends its notice and meta', async () => {
+    const out = await runInCtx(adminActor(), () => client(filterWith()).callTool('echo', { msg: 'Hei Kari' }));
+    expect(out.content).toEqual([
+      { type: 'text', text: 'Hei [NAME]' },
+      { type: 'text', text: 'pseudonymized' },
+    ]);
+    expect(out._meta).toEqual({ 'munin/pii': { coverage: 'complete' } });
+  });
+
+  it('withholds the whole result when the filter fails, never falling back to raw', async () => {
+    fakeAudit.record.mockClear();
+    const capture = vi.fn<CaptureExceptionFn>();
+    const failing = filterWith({ output: () => Promise.reject(new Error('lexicon unavailable')) });
+    const out = await runInCtx(adminActor(), () => client(failing, capture).callTool('echo', { msg: 'Hei Kari' }));
+    expect(out.isError).toBe(true);
+    expect(out.content).toEqual([{ type: 'text', text: RESULT_WITHHELD_MESSAGE }]);
+    expect(JSON.stringify(out)).not.toContain('Kari');
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(fakeAudit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ tool: 'echo', result: 'error', error: 'result_filter_failed' }),
+    );
+  });
+
+  it('filters thrown error messages too', async () => {
+    const out = await runInCtx(adminActor(), () => client(filterWith()).callTool('named_boom', {}));
+    expect(out.isError).toBe(true);
+    expect(out.content[0]?.text).toBe('no order for [NAME]');
+  });
+
+  it('withholds an error message the filter cannot process', async () => {
+    const failing = filterWith({ error: () => Promise.reject(new Error('nope')) });
+    const out = await runInCtx(adminActor(), () => client(failing).callTool('named_boom', {}));
+    expect(out.content[0]?.text).not.toContain('Kari');
+  });
+
+  it('refuses a raw-data-only tool before running it when the filter says so', async () => {
+    fakeAudit.record.mockClear();
+    const refusing = filterWith({
+      refuse: (tool) => (tool.rawDataOnly ? `${tool.name} needs raw access` : null),
+    });
+    const out = await runInCtx(adminActor(), () => client(refusing).callTool('mod_export', {}));
+    expect(out).toEqual({ isError: true, content: [{ type: 'text', text: 'mod_export needs raw access' }] });
+    expect(fakeAudit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ tool: 'mod_export', result: 'denied', error: 'raw_data_only' }),
+    );
+    const allowed = await runInCtx(adminActor(), () => client(refusing).callTool('echo', { msg: 'x' }));
+    expect(allowed.isError).toBeUndefined();
+  });
+
+  it('leaves results untouched when no filter is configured', async () => {
+    const plain = openInProcessMcpClient({
+      registry: registryWithExport(),
+      actor: adminActor(),
+      audience: 'admin',
+      audit: fakeAudit,
+    });
+    const out = await runInCtx(adminActor(), () => plain.callTool('mod_export', {}));
+    expect(out).toEqual({ content: [{ type: 'text', text: 'everything' }] });
   });
 });

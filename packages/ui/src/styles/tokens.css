@@ -194,3 +194,31 @@
   100% { transform: translateX(300%); }
 }
 .animate-import-indeterminate { animation: munin-import-indeterminate 1.4s ease-in-out infinite; }
+
+/* Review hand-off: the next item's pane rises (or drops, when the queue
+   moved up) into place, and the decision notice slides down above it. The
+   motion only says which way the list moved, so reduced-motion users get
+   the instant switch. The notice's countdown bar is what dismisses it (on
+   animationend, paused while hovered), so it stays outside that guard. */
+@keyframes munin-arrive-down {
+  from { opacity: 0; transform: translateY(var(--munin-arrive-distance, 24px)); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes munin-arrive-up {
+  from { opacity: 0; transform: translateY(calc(-1 * var(--munin-arrive-distance, 24px))); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes munin-notice-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes munin-notice-timer {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+.animate-notice-timer { animation: munin-notice-timer var(--munin-notice-ms, 6s) linear forwards; }
+@media (prefers-reduced-motion: no-preference) {
+  .animate-arrive-down { animation: munin-arrive-down var(--munin-dur-slow) var(--munin-ease) backwards; }
+  .animate-arrive-up   { animation: munin-arrive-up var(--munin-dur-slow) var(--munin-ease) backwards; }
+  .animate-notice-in   { animation: munin-notice-in var(--munin-dur-base) var(--munin-ease) backwards; }
+}

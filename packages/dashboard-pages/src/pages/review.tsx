@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { cn, Tabs, TabsList, TabsPanel, TabsTrigger } from '@getmunin/ui';
 import { LoadFailed } from '../components/load-failed';
@@ -9,9 +9,16 @@ import { useOrgHref, usePathname, useRouter } from '../i18n-navigation';
 import { useInboxData } from '../components/dashboard/inbox-data';
 import { ScheduledCancelDialog } from '../components/dashboard/scheduled-cancel-dialog';
 import {
+  nextAfterDecision,
   partitionReviewQueue,
   resolveReviewFirstRun,
+  type ReviewDecisionOutcome,
 } from '../components/dashboard/review-queue';
+import {
+  ReviewDecisionNotice,
+  type ReviewDecisionNoticeValue,
+} from '../components/dashboard/review-decision-notice';
+import type { QueueItem } from '../components/dashboard/queue-panes/types';
 import { ReviewRow } from '../components/dashboard/review-row';
 import { ReviewKbPane } from '../components/dashboard/review-kb-pane';
 import { ReviewBlockingPane } from '../components/dashboard/review-blocking-pane';
@@ -46,8 +53,61 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
   const isDesktop = useIsDesktopSplit();
 
   const onListRoute = pathname === ROOT || pathname === `${ROOT}/`;
-  const routeSelectedId =
+  const urlSelectedId =
     pathname.match(/^\/dashboard\/review\/([^/]+)\/?$/)?.[1] ?? (onListRoute ? null : selectedId);
+
+  const { blocking, improvements } = useMemo(
+    () => partitionReviewQueue(inbox.queue),
+    [inbox.queue],
+  );
+  const recentDecisions = decisions.items;
+
+  const scheduled = inbox.scheduled;
+
+  const idsByTab: Record<ReviewTab, string[]> = useMemo(
+    () => ({
+      waiting: [...blocking.map((b) => b.id), ...improvements.map((c) => c.id)],
+      scheduled: scheduled.map((s) => s.id),
+      decided: recentDecisions.map((d) => d.id),
+    }),
+    [blocking, improvements, scheduled, recentDecisions],
+  );
+
+  const [handoff, setHandoff] = useState<{
+    from: string;
+    to: string | null;
+    settled: boolean;
+  } | null>(null);
+  const inFlightRef = useRef<string | null>(null);
+  const handingOff =
+    handoff !== null &&
+    urlSelectedId === handoff.from &&
+    (handoff.settled || !idsByTab.waiting.includes(handoff.from));
+  const routeSelectedId = handingOff ? handoff.to : urlSelectedId;
+  const [notice, setNotice] = useState<ReviewDecisionNoticeValue | null>(null);
+  const [arrival, setArrival] = useState<{
+    id: string;
+    from: string;
+    direction: 'down' | 'up';
+  } | null>(null);
+
+  useEffect(() => {
+    if (arrival && routeSelectedId !== arrival.id && routeSelectedId !== arrival.from) {
+      setArrival(null);
+    }
+  }, [arrival, routeSelectedId]);
+
+  useEffect(() => {
+    if (handoff && urlSelectedId !== handoff.from) {
+      inFlightRef.current = null;
+      setHandoff(null);
+    }
+  }, [handoff, urlSelectedId]);
+
+  useEffect(() => {
+    if (notice && routeSelectedId !== notice.shownOn) setNotice(null);
+  }, [notice, routeSelectedId]);
+
 
   const shallowGo = useCallback(
     (path: string, replace = false) => {
@@ -68,14 +128,6 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
     (id: string, replace = false) => shallowGo(`${ROOT}/${id}`, replace),
     [shallowGo],
   );
-
-  const { blocking, improvements } = useMemo(
-    () => partitionReviewQueue(inbox.queue),
-    [inbox.queue],
-  );
-  const recentDecisions = decisions.items;
-
-  const scheduled = inbox.scheduled;
 
   const activeId = routeSelectedId;
   const selectedBlocking = activeId ? blocking.find((b) => b.id === activeId) : undefined;
@@ -103,15 +155,6 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
     firstRun: (setup) =>
       resolveReviewFirstRun(setup.reviewQueue, { loaded: listLoaded, empty: nothingToReview }),
   });
-  const idsByTab: Record<ReviewTab, string[]> = useMemo(
-    () => ({
-      waiting: [...blocking.map((b) => b.id), ...improvements.map((c) => c.id)],
-      scheduled: scheduled.map((s) => s.id),
-      decided: recentDecisions.map((d) => d.id),
-    }),
-    [blocking, improvements, scheduled, recentDecisions],
-  );
-
   const owningTab = useMemo(() => {
     if (!routeSelectedId) return null;
     const found = (['waiting', 'scheduled', 'decided'] as const).find((key) =>
@@ -186,9 +229,55 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
     return <ReviewFirstRun setup={gate.setup} decidedCount={decisions.items.length} />;
   }
 
-  const afterDecision = (ok: boolean) => {
-    if (ok) void decisions.reload();
-  };
+  const decide =
+    (decided: QueueItem) =>
+    (outcome: ReviewDecisionOutcome, run: () => Promise<boolean>): Promise<boolean> => {
+      const next = nextAfterDecision(idsByTab.waiting, decided.id);
+      const abandon = () => {
+        if (inFlightRef.current !== decided.id) return;
+        inFlightRef.current = null;
+        setHandoff(null);
+        setArrival(null);
+      };
+      inFlightRef.current = decided.id;
+      setHandoff({ from: decided.id, to: next, settled: false });
+      setArrival(
+        next
+          ? {
+              id: next,
+              from: decided.id,
+              direction:
+                idsByTab.waiting.indexOf(next) > idsByTab.waiting.indexOf(decided.id)
+                  ? 'down'
+                  : 'up',
+            }
+          : null,
+      );
+      const result = run();
+      void result.then((ok) => {
+        if (inFlightRef.current !== decided.id) return;
+        if (!ok) {
+          abandon();
+          return;
+        }
+        void decisions.reload();
+        setHandoff({ from: decided.id, to: next, settled: true });
+        setNotice({
+          id: decided.id,
+          kind: decided.kind,
+          title: decided.title,
+          outcome,
+          platform: decided.kind === 'social' ? decided.raw.platform : null,
+          shownOn: next,
+        });
+        if (next) select(next, true);
+        else shallowGo(ROOT, true);
+      }, abandon);
+      return result;
+    };
+  const viewDecided = (id: string) => select(id);
+  const expireNotice = () => setNotice(null);
+  const arrived = arrival !== null && activeId === arrival.id;
 
   return (
     <div className={cn('grid h-full min-h-0 grid-cols-1', SPLIT_GRID)}>
@@ -213,6 +302,13 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
             {t('lede')}
           </p>
         </header>
+
+        <ReviewDecisionNotice
+          notice={routeSelectedId ? null : notice}
+          onView={viewDecided}
+          onExpire={expireNotice}
+          className="shrink-0 md:hidden"
+        />
 
         <Tabs
           value={tab}
@@ -337,10 +433,19 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
 
       <div
         className={cn(
-          'min-h-0 min-w-0 grid-cols-[minmax(0,1fr)]',
+          'min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)]',
           routeSelectedId ? 'grid' : 'hidden md:grid',
         )}
       >
+        <ReviewDecisionNotice notice={notice} onView={viewDecided} onExpire={expireNotice} />
+        <div
+          key={arrived ? `arrived:${arrival.from}` : 'pane'}
+          className={cn(
+            'grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)]',
+            arrived &&
+              (arrival.direction === 'down' ? 'animate-arrive-down' : 'animate-arrive-up'),
+          )}
+        >
         {!activeId ? (
           <section className="hidden min-h-0 flex-col bg-paper-deep md:flex dark:bg-secondary">
             {activeIds.length > 0 ? (
@@ -359,7 +464,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
           <ReviewBlockingPane
             item={selectedBlocking}
             controller={inbox}
-            afterDecision={afterDecision}
+            decide={decide(selectedBlocking)}
           />
         ) : selectedScheduled ? (
           <ReviewScheduledPane item={selectedScheduled} controller={inbox} />
@@ -373,16 +478,21 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
             onClearActionError={inbox.clearQueueActionError}
             onPublish={() => {
               if (selectedCandidate) {
-                void inbox.approveQueue(selectedCandidate).then(afterDecision);
+                void decide(selectedCandidate)('approved', () =>
+                  inbox.approveQueue(selectedCandidate),
+                );
               }
             }}
             onDismiss={() => {
               if (selectedCandidate) {
-                void inbox.dismissQueue(selectedCandidate).then(afterDecision);
+                void decide(selectedCandidate)('dismissed', () =>
+                  inbox.dismissQueue(selectedCandidate),
+                );
               }
             }}
           />
         )}
+        </div>
       </div>
 
       <ScheduledCancelDialog controller={inbox} />

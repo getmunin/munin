@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { partitionReviewQueue, resolveReviewFirstRun } from './review-queue';
+import { nextAfterDecision, partitionReviewQueue, resolveReviewFirstRun } from './review-queue';
 import type { QueueItem } from './queue-panes/types';
 
 function item(kind: QueueItem['kind'], id: string, createdAt: string): QueueItem {
@@ -92,5 +92,23 @@ describe('resolveReviewFirstRun', () => {
     const setupQueue = { hasPendingItems: false, lastDecisionAt: null };
     expect(resolveReviewFirstRun(setupQueue, { loaded: true, empty: false }, now)).toBe(false);
     expect(resolveReviewFirstRun(setupQueue, { loaded: true, empty: true }, now)).toBe(true);
+  });
+});
+
+describe('nextAfterDecision', () => {
+  it('opens the item that was below the decided one', () => {
+    expect(nextAfterDecision(['a', 'b', 'c'], 'b')).toBe('c');
+  });
+
+  it('falls back to the item above when the decided one was last', () => {
+    expect(nextAfterDecision(['a', 'b', 'c'], 'c')).toBe('b');
+  });
+
+  it('returns null when the decided item was the only one waiting', () => {
+    expect(nextAfterDecision(['a'], 'a')).toBeNull();
+  });
+
+  it('returns null when the decided item is not in the list it was decided from', () => {
+    expect(nextAfterDecision(['a', 'b'], 'z')).toBeNull();
   });
 });

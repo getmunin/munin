@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server';
 import { hasLocale } from 'next-intl';
-import { Toaster } from 'sonner';
+import { Toaster } from '@getmunin/ui';
 import { routing } from '../../i18n/routing';
 
 export const dynamic = 'force-dynamic';

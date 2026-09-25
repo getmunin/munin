@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server';
 import { hasLocale } from 'next-intl';
-import { Toaster } from 'sonner';
+import { Toaster } from '@getmunin/ui';
 import { routing } from '../../i18n/routing';
 
 export const dynamic = 'force-dynamic';
@@ -42,7 +42,7 @@ export default async function LocaleLayout({
       <body className="flex min-h-dvh flex-col">
         <NextIntlClientProvider locale={locale} messages={messages}>
           <div className="flex-1">{children}</div>
-          <Toaster position="bottom-center" />
+          <Toaster position="bottom-right" />
         </NextIntlClientProvider>
       </body>
     </html>

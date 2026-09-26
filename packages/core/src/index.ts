@@ -156,6 +156,29 @@ export {
 } from './national-id.ts';
 
 export {
+  PSEUDONYM_EMAIL_DOMAIN,
+  PSEUDONYM_TOKEN_LENGTH,
+  buildPiiLexicon,
+  emailKey,
+  findPseudonymReferences,
+  formatContactEmail,
+  formatContactName,
+  formatContactPhone,
+  isPersonNameCandidate,
+  nameWords,
+  normalizeName,
+  phoneKey,
+  pseudonymToken,
+  type BuildPiiLexiconInput,
+  type PiiIdentity,
+  type PiiIdentityRecord,
+  type PiiIdentityRefKind,
+  type PiiLexicon,
+  type PseudonymReference,
+  type PseudonymReferenceKind,
+} from './pii/index.ts';
+
+export {
   parseEnvBool,
   parseEnvCron,
   parseEnvDisableFlag,

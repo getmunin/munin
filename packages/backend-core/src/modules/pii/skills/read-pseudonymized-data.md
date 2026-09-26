@@ -19,7 +19,7 @@ Use this when a tool result contains `[Contact …]` tokens, `…@pseudonym.inva
 
 Munin hands your MCP client the org's data, and most of it was written by the org's customers. An operator who wants you to find patterns across thousands of messages rarely needs you to know who wrote them. So external connections get personal data replaced before the result leaves the server, while the org's own support agent — which has to write "Hei Kari" — keeps the real text.
 
-Whether a connection sees raw data is the operator's decision, made when the connection is authorized. You cannot change it from a tool call.
+Whether a connection sees raw data is the operator's decision, made when the connection is authorized: the OAuth consent screen has a "Share personal data as stored" box, unticked by default, and an API key is minted either pseudonymized or raw. Raw access is the `pii:raw` scope. You cannot change it from a tool call — if a task genuinely needs real names or contact details, tell the operator it needs a connection with raw access.
 
 ## What replaces what
 

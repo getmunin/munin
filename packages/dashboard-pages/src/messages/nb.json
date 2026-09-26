@@ -941,11 +941,16 @@
       "mintModalTitle": "Lag API-nøkkel",
       "mintModalSub": "Klartekst vises én gang · kan ikke hentes igjen senere",
       "nameHint": "Bare til din egen referanse — sendes ikke til API-et.",
+      "pseudonymizeLabel": "Pseudonymiser personopplysninger",
+      "pseudonymizeHint": "MCP-svar til denne nøkkelen bytter ut kundenes navn, e-postadresser, telefonnumre og fødselsnumre med faste koder – riktig valg for en AI-klient som skal analysere. Fjern haken for en integrasjon som trenger ekte kontaktinfo.",
       "mintModalSubmit": "Lag nøkkel",
       "tableName": "Navn",
       "tablePrefix": "Prefiks",
       "tableCreated": "Opprettet",
       "tableLastUsed": "Sist brukt",
+      "tablePersonalData": "Personopplysninger",
+      "personalDataRaw": "Klartekst",
+      "personalDataPseudonymized": "Pseudonymisert",
       "revealTitle": "Nøkkel laget",
       "revealSub": "Kopier nå — dette er eneste gang du ser den",
       "revealWarning": "Pass på. Munin lagrer kun en hash av denne nøkkelen. Når du lukker dialogen, er klarteksten borte for godt — kopier den til passordhåndtereren din nå.",
@@ -1065,6 +1070,15 @@
       "reassurance": {
         "lead": "Avgrenset, ikke total tilgang.",
         "body": "<client></client> opptrer som <user></user> — den arver din rolle og kan ikke gjøre mer enn deg. Den kan ikke administrere medarbeidere, fakturering eller API-nøkler, og kan heller ikke slette organisasjonen. Tilgangen varer i 90 dager og fornyes automatisk så lenge den brukes. Du kan trekke tilbake tilgangen når som helst fra <settings>Innstillinger → Agenter</settings>."
+      },
+      "personalData": {
+        "label": "Personopplysninger",
+        "badgePseudonymized": "Pseudonymisert",
+        "badgeRaw": "Klartekst",
+        "pseudonymizedBody": "<client></client> ser kundenes navn, e-postadresser, telefonnumre og fødselsnumre byttet ut med faste koder. Den kan fortsatt telle, sammenligne og følge samme person på tvers av resultater – men ikke se hvem det er.",
+        "shareRaw": "Del personopplysninger i klartekst",
+        "shareRawHint": "Bare hvis <client></client> trenger ekte navn og kontaktinfo, for eksempel for å skrive til kunder selv.",
+        "rawWarning": "<client></client> får se kundenes navn, kontaktopplysninger og fødselsnumre akkurat slik Munin har dem lagret."
       },
       "authorize": "Gi tilgang",
       "authorizing": "Gir tilgang …",

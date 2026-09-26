@@ -9,10 +9,13 @@ import { authorizationExpiresAt } from '../auth/authorization-expiry';
 import { api, ApiError } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
 import {
+  consentScopeOverride,
   countConsentScopes,
   groupConsentScopes,
+  requestsRawPersonalData,
   type ConsentScopeGroup,
 } from '../auth/consent-scopes';
+import { PersonalDataPanel } from '../components/consent/personal-data-panel';
 
 export interface OAuthClientInfo {
   client_id: string;
@@ -80,6 +83,8 @@ export function OAuthConsentPage({
   );
   const groupedScopes = useMemo(() => groupConsentScopes(scopes), [scopes]);
   const totalScopeCount = useMemo(() => countConsentScopes(groupedScopes), [groupedScopes]);
+  const rawRequested = useMemo(() => requestsRawPersonalData(scopes), [scopes]);
+  const [shareRaw, setShareRaw] = useState(false);
 
   const [flow, setFlow] = useState<FlowState>('new');
   const [busy, setBusy] = useState<'allow' | 'deny' | null>(null);
@@ -122,9 +127,10 @@ export function OAuthConsentPage({
     setBusy(accept ? 'allow' : 'deny');
     setError(null);
     try {
+      const scope = accept ? consentScopeOverride(scopes, shareRaw) : undefined;
       const resp = await api<OAuthConsentResponse>('/auth/oauth2/consent', {
         method: 'POST',
-        body: JSON.stringify({ accept, oauth_query: oauthQuery }),
+        body: JSON.stringify({ accept, oauth_query: oauthQuery, ...(scope !== undefined ? { scope } : {}) }),
       });
       const target = resp?.url ?? resp?.redirect_uri;
       setFlow(accept ? 'granted' : 'denied');
@@ -173,6 +179,9 @@ export function OAuthConsentPage({
               resourceInfo={resourceInfo}
               groupedScopes={groupedScopes}
               totalScopeCount={totalScopeCount}
+              rawRequested={rawRequested}
+              shareRaw={shareRaw}
+              onShareRawChange={setShareRaw}
               busy={busy}
               error={error}
               onSubmit={(accept) => void submit(accept)}
@@ -302,6 +311,9 @@ interface RequestPaneProps {
   resourceInfo: OAuthResourceInfo | null;
   groupedScopes: ConsentScopeGroup[];
   totalScopeCount: number;
+  rawRequested: boolean;
+  shareRaw: boolean;
+  onShareRawChange: (next: boolean) => void;
   busy: 'allow' | 'deny' | null;
   error: string | null;
   onSubmit: (accept: boolean) => void;
@@ -316,6 +328,9 @@ function RequestPane({
   resourceInfo,
   groupedScopes,
   totalScopeCount,
+  rawRequested,
+  shareRaw,
+  onShareRawChange,
   busy,
   error,
   onSubmit,
@@ -360,6 +375,16 @@ function RequestPane({
           </ul>
         )}
       </div>
+
+      {!permissions && (
+        <PersonalDataPanel
+          clientName={displayName}
+          rawRequested={rawRequested}
+          shareRaw={shareRaw}
+          onShareRawChange={onShareRawChange}
+          disabled={busy !== null}
+        />
+      )}
 
       <ReassuranceBlock displayName={displayName} userName={userName} />
 

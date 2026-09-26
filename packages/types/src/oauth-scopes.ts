@@ -31,8 +31,9 @@ export const SUPPORTED_SCOPES = [
   'slack:write',
   'social:read',
   'social:write',
+  'pii:raw',
 ] as const;
 
 export type SupportedScope = (typeof SUPPORTED_SCOPES)[number];
 
-export const PII_RAW_SCOPE = 'pii:raw';
+export const PII_RAW_SCOPE = 'pii:raw' satisfies SupportedScope;

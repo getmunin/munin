@@ -7,6 +7,11 @@
 #
 # Brings up: Postgres + pgvector, Munin backend, Munin web.
 #
+# Optional: the NER worker that finds third-party names for MCP
+# pseudonymization. Off unless you ask for it — set MUNIN_PII_NER_ENABLED and
+# MUNIN_PII_WORKER_SECRET in .env, then `docker compose --profile pii up`.
+# MUNIN_PII_TIER=full switches from the small spaCy model to spaCy + GLiNER.
+#
 # The placeholder secrets in .env.example are auto-generated on first boot
 # and persisted in the munin-data volume — fine for local/single-host
 # self-hosting. For shared or production deployments, set strong
@@ -65,6 +70,24 @@ services:
     ports:
       - "${WEB_PORT:-3000}:3000"
 
+  pii-annotator:
+    profiles: [pii]
+    build:
+      context: workers/pii-annotator
+      target: ${MUNIN_PII_TIER:-lite}
+    image: ghcr.io/getmunin/pii-annotator:${MUNIN_PII_TIER:-lite}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      MUNIN_API_URL: http://backend:3001
+      MUNIN_PII_WORKER_SECRET: ${MUNIN_PII_WORKER_SECRET:-}
+      PII_LOOP_INTERVAL_SECONDS: ${PII_LOOP_INTERVAL_SECONDS:-300}
+    command: ["--loop"]
+    volumes:
+      - munin-pii-models:/models
+
 volumes:
   munin-pg:
   munin-data:
+  munin-pii-models:

@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "munin-pii-annotator"
+version = "0.1.0"
+description = "Out-of-process NER worker that finds person names in Munin conversation messages."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+lite = ["spacy>=3.8,<3.9"]
+full = ["spacy>=3.8,<3.9", "gliner2[local]==2.0.0", "peft>=0.10,<1"]
+test = ["pytest>=8,<9"]
+
+[project.scripts]
+pii-annotator = "pii_annotator.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

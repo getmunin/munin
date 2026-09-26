@@ -188,6 +188,7 @@ function isValidNoFnr(digits: string): boolean {
 }
 
 function isValidSePnr(digits: string): boolean {
+  if (digits.length !== 10) return false;
   const day = Number(digits.slice(4, 6));
   const month = Number(digits.slice(2, 4));
   if (!isValidDate(day > 60 ? day - 60 : day, month)) return false;

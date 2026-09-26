@@ -116,7 +116,7 @@ interface GraphCall {
         headers: { 'content-type': 'audio/ogg' },
       });
     }
-    if (!url.startsWith(GRAPH)) return realFetch(input, init);
+    if (!url.startsWith(`${GRAPH}/`)) return realFetch(input, init);
     const parsed = new URL(url);
     const path = parsed.pathname.replace(/^\/v\d+\.\d+/, '');
     const method = init?.method ?? 'GET';

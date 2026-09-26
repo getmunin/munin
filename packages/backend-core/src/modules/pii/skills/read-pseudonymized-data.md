@@ -19,7 +19,7 @@ Use this when a tool result contains `[Contact …]` tokens, `…@pseudonym.inva
 
 Munin hands your MCP client the org's data, and most of it was written by the org's customers. An operator who wants you to find patterns across thousands of messages rarely needs you to know who wrote them. So external connections get personal data replaced before the result leaves the server, while the org's own support agent — which has to write "Hei Kari" — keeps the real text.
 
-Whether a connection sees raw data is the operator's decision, made when the connection is authorized: the OAuth consent screen has a "Share personal data as stored" box, unticked by default, and an API key is minted either pseudonymized or raw. Raw access is the `pii:raw` scope. You cannot change it from a tool call — if a task genuinely needs real names or contact details, tell the operator it needs a connection with raw access.
+Whether a connection sees raw data is the operator's decision, made when the connection is authorized: the OAuth consent screen has a "Share personal data as stored" box, unticked by default, and an API key is minted either pseudonymized or raw. Raw access is the `pii:raw` scope, and an org can require pseudonymization for every connection regardless of what it was granted. You cannot change it from a tool call — if a task genuinely needs real names or contact details, tell the operator it needs a connection with raw access.
 
 ## What replaces what
 
@@ -64,5 +64,5 @@ What comes back is pseudonymized again. Masks such as `[NAME]` or `[EMAIL]` cann
 
 - **Count and compare by token.** "`[Contact abcd2345]` wrote four times about the same late delivery" is a finding you can make and the operator can act on.
 - **Follow a person across modules.** A token from a conversation is the same token in `crm_get_contact` and in order results, and you can pass it to either.
-- **Hand the token back to a human.** Someone with raw access — the dashboard shows real data — can act on it. Do not try to work out who is behind a token from the surrounding text, and do not ask the operator to paste the raw data into the conversation.
+- **Hand the token back to a human.** An owner or admin can look a token up under Settings → Privacy, and the dashboard shows real data throughout. Do not try to work out who is behind a token from the surrounding text, and do not ask the operator to paste the raw data into the conversation.
 - **Keep masks as masks.** Don't guess the name behind a `[NAME]` and don't fill it in.

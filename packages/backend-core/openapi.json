@@ -4050,6 +4050,89 @@
         ]
       }
     },
+    "/v1/pii": {
+      "get": {
+        "operationId": "PiiController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Pii"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "PiiController_update",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutPiiPolicyBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Pii"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/pii/tokens/{token}": {
+      "get": {
+        "operationId": "PiiController_lookup",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Pii"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations": {
       "get": {
         "operationId": "ConversationsController_list",
@@ -10027,6 +10110,21 @@
         "required": [
           "detectors",
           "policy"
+        ]
+      },
+      "PutPiiPolicyBody": {
+        "type": "object",
+        "properties": {
+          "externalRaw": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "forbid"
+            ]
+          }
+        },
+        "required": [
+          "externalRaw"
         ]
       },
       "UpdateTopicBody": {

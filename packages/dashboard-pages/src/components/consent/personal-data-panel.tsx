@@ -8,6 +8,7 @@ export interface PersonalDataPanelProps {
   shareRaw: boolean;
   onShareRawChange: (next: boolean) => void;
   disabled?: boolean;
+  orgRequiresPseudonymization?: boolean;
 }
 
 export function PersonalDataPanel({
@@ -16,10 +17,12 @@ export function PersonalDataPanel({
   shareRaw,
   onShareRawChange,
   disabled,
+  orgRequiresPseudonymization = false,
 }: PersonalDataPanelProps) {
   const t = useTranslations('dashboard.oauthConsent.personalData');
   const client = () => <b className="font-semibold text-ink">{clientName}</b>;
-  const raw = rawRequested && shareRaw;
+  const canChoose = rawRequested && !orgRequiresPseudonymization;
+  const raw = canChoose && shareRaw;
   return (
     <div className="px-7 pb-2" data-personal-data={raw ? 'raw' : 'pseudonymized'}>
       <div className="border-t-[1px] border-rule-soft py-4 dark:border-rule-on-dark">
@@ -40,7 +43,12 @@ export function PersonalDataPanel({
         <p className="mt-2 text-[13px] leading-snug text-ink-soft [overflow-wrap:anywhere]">
           {t.rich('pseudonymizedBody', { client })}
         </p>
-        {rawRequested && (
+        {orgRequiresPseudonymization && (
+          <p className="mt-2 text-[12.5px] leading-snug text-ink-mute [overflow-wrap:anywhere]">
+            {t.rich('requiredByOrg', { client })}
+          </p>
+        )}
+        {canChoose && (
           <label className="mt-3 flex cursor-pointer items-start gap-3">
             <input
               type="checkbox"

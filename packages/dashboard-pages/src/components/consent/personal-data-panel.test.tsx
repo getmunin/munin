@@ -45,6 +45,21 @@ describe('PersonalDataPanel', () => {
     expect(screen.getByRole('note').textContent).toContain('Claude');
   });
 
+  it('states the org requirement instead of offering a choice the org has already made', () => {
+    const { container } = renderWithProviders(
+      <PersonalDataPanel
+        clientName="Claude"
+        rawRequested
+        shareRaw
+        onShareRawChange={() => {}}
+        orgRequiresPseudonymization
+      />,
+    );
+    expect(panel(container).dataset.personalData).toBe('pseudonymized');
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(container.textContent).toContain('requires pseudonymized personal data');
+  });
+
   it('reports the choice to its owner', () => {
     const onChange = vi.fn();
     renderWithProviders(

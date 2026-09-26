@@ -50,9 +50,19 @@ Names the org already holds, and every email, phone number, national ID and bank
 
 When you report findings from `pending` results, say so. Do not quote free text from them as if it were fully anonymized.
 
+## Passing tokens back
+
+Tokens are accepted anywhere a tool takes a name, email address or phone number. The server swaps in the real value before the tool runs, so:
+
+- `crm_lookup_contact` with `email: "contact-abcd2345@pseudonym.invalid"` finds the contact.
+- `commerce_list_customer_orders` or `bookings_list_guest_bookings` with that address looks up the person's orders or bookings.
+- A reply drafted as "Hei [Contact abcd2345], …" reaches the customer with their real name.
+
+What comes back is pseudonymized again. Masks such as `[NAME]` or `[EMAIL]` cannot be passed back: they stand for nothing the server can resolve.
+
 ## Working with it
 
 - **Count and compare by token.** "`[Contact abcd2345]` wrote four times about the same late delivery" is a finding you can make and the operator can act on.
-- **Follow a person across modules.** A token from a conversation is the same token in `crm_get_contact` and in order results.
+- **Follow a person across modules.** A token from a conversation is the same token in `crm_get_contact` and in order results, and you can pass it to either.
 - **Hand the token back to a human.** Someone with raw access — the dashboard shows real data — can act on it. Do not try to work out who is behind a token from the surrounding text, and do not ask the operator to paste the raw data into the conversation.
 - **Keep masks as masks.** Don't guess the name behind a `[NAME]` and don't fill it in.

@@ -3,6 +3,7 @@ import {
   emptyPiiStats,
   pseudonymizeText,
   pseudonymizeValue,
+  resolvePseudonyms,
   type ActorIdentity,
   type Audience,
   type PiiStats,
@@ -44,6 +45,7 @@ export class PiiResultFilterService {
   pseudonymizingFilter(): ToolDataFilter {
     return {
       refuse: (tool) => (tool.rawDataOnly ? rawOnlyRefusal(tool.name) : null),
+      input: (_tool, args) => this.resolve(args),
       output: (_tool, value) => this.pseudonymize(value),
       error: async (message) => pseudonymizeText(message, await this.lexicons.forCurrentOrg()),
     };
@@ -65,12 +67,21 @@ export class PiiResultFilterService {
     return { value: out, notice: describeResult(meta), meta: { [PII_META_KEY]: meta } };
   }
 
+  async resolve(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const { value } = resolvePseudonyms(args, await this.lexicons.forCurrentOrg());
+    return isRecord(value) ? value : args;
+  }
+
   private async coverageOf(value: unknown): Promise<PiiCoverage> {
     const ids = collectMessageIds(value);
     if (ids.length === 0) return 'complete';
     const { total, annotated } = await this.annotations.coverage(ids);
     return annotated >= total ? 'complete' : 'pending';
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export function collectMessageIds(value: unknown, out: string[] = []): string[] {
@@ -91,7 +102,8 @@ export function describeResult(meta: PiiResultMeta): string {
       : '';
   return (
     `Personal data in this result is pseudonymized (coverage: ${meta.coverage}).` +
-    ' [Contact …] tokens and contact-…@pseudonym.invalid addresses stand for one person each, consistently across results;' +
+    ' [Contact …] tokens and contact-…@pseudonym.invalid addresses stand for one person each, consistently across results,' +
+    ' and can be passed back as tool input, where the server swaps in the real value;' +
     ' [NAME], [EMAIL], [PHONE] and the other bracketed masks hide data that is not linked to a known contact.' +
     pending
   );

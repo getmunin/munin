@@ -33,6 +33,7 @@ import { BookingsModule } from './modules/bookings/bookings.module.ts';
 import { SeoModule } from './modules/seo/seo.module.ts';
 import { SocialModule } from './modules/social/social.module.ts';
 import { IdentityModule } from './modules/identity/identity.module.ts';
+import { PiiModule } from './modules/pii/pii.module.ts';
 
 export const BACKEND_FEATURE_MODULES = [
   DbModule,
@@ -61,6 +62,7 @@ export const BACKEND_FEATURE_MODULES = [
   BookingsModule,
   SeoModule,
   SocialModule,
+  PiiModule,
   AuditModule,
 ];
 

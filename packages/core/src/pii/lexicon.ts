@@ -42,9 +42,18 @@ const REF_PREFERENCE: readonly PiiIdentityRefKind[] = ['crm_contact', 'conv_cont
 export function emailKey(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const email = raw.trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+  if (!isEmailShaped(email)) return null;
   if (email.endsWith(`@${PSEUDONYM_EMAIL_DOMAIN}`)) return null;
   return email;
+}
+
+function isEmailShaped(email: string): boolean {
+  if (email.length > 320 || /\s/.test(email)) return false;
+  const at = email.indexOf('@');
+  if (at <= 0 || at !== email.lastIndexOf('@')) return false;
+  const domain = email.slice(at + 1);
+  const dot = domain.lastIndexOf('.');
+  return dot > 0 && dot < domain.length - 1;
 }
 
 export function phoneKey(raw: string | null | undefined): string | null {

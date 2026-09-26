@@ -203,7 +203,7 @@ describe('SeoResearchService', () => {
 
     expect(result.rows).toEqual([]);
     expect(result.noData).toBe(true);
-    expect(result.reason).toMatch(/DataForSEO has no data for this query in norway \(norwegian\)/);
+    expect(result.reason).toMatch(/DataForSEO has no data for this query in Norway \(norwegian\)/);
   });
 
   it('translates insufficient balance into a 402 with a machine-readable prefix', async () => {
@@ -260,8 +260,54 @@ describe('SeoResearchService', () => {
     );
 
     expect(err).toBeInstanceOf(BadRequestException);
-    expect(err.message).toMatch(/^seo_invalid_market: DataForSEO does not offer english data for norway/);
+    expect(err.message).toBe(
+      'seo_invalid_market: DataForSEO offers Norway on this tool only in norwegian, not english',
+    );
     expect(calls).toHaveLength(0);
+  });
+
+  it('names a country with no Labs data rather than billing a doomed request', async () => {
+    const { research, calls } = setup(() => ({ body: fixture('keyword-ideas') }));
+
+    const err = await rejection(research.keywordIdeas({ location: 'iceland', seeds: ['ai'], limit: 5 }));
+
+    expect(err.message).toBe('seo_invalid_market: DataForSEO has no data for Iceland on this tool');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('still serves search volume and SERPs in a country Labs does not cover', async () => {
+    const { research, calls } = setup(() => ({ body: fixture('serp-organic') }));
+
+    await research.serpSnapshot({ location: 'iceland', keyword: 'gisting', limit: 10 });
+
+    expect(calls[0]!.body![0]).toMatchObject({ location_code: 2352, language_code: 'is' });
+  });
+
+  it('defaults a multilingual country to its main language and accepts the others', async () => {
+    const { research, calls } = setup(() => ({ body: fixture('keyword-ideas') }));
+
+    const dutch = await research.keywordIdeas({ location: 'belgium', seeds: ['fiets'], limit: 5 });
+    await research.keywordIdeas({ location: 'belgium', language: 'french', seeds: ['vélo'], limit: 5 });
+
+    expect(dutch.market).toEqual({ location: 'belgium', language: 'dutch' });
+    expect(calls.map((c) => [c.body![0]!.location_code, c.body![0]!.language_code])).toEqual([
+      [2056, 'nl'],
+      [2056, 'fr'],
+    ]);
+  });
+
+  it('covers North America with Labs data for the United States in Spanish', async () => {
+    const { research, calls } = setup(() => ({ body: fixture('domain-intersection') }));
+
+    await research.keywordGap({
+      location: 'united_states',
+      language: 'spanish',
+      domain: 'example.com',
+      competitors: ['competitor.example'],
+      limit: 10,
+    });
+
+    expect(calls[0]!.body![0]).toMatchObject({ location_code: 2840, language_code: 'es' });
   });
 
   it('defaults the language to the market’s own', async () => {

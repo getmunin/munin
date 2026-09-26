@@ -1,7 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { DataForSeoAdapter } from './dataforseo.adapter.ts';
-import { DATAFORSEO_MARKETS } from './dataforseo.markets.ts';
+import {
+  DATAFORSEO_LABS_LANGUAGES,
+  DATAFORSEO_LANGUAGE_CODES,
+  DATAFORSEO_LOCATION_CODES,
+} from './dataforseo.market-codes.ts';
+import { SEO_MARKETS, SEO_MARKET_INFO, defaultLanguage } from './seo-markets.ts';
 import { estimateDataForSeoCostUsd } from './dataforseo.pricing.ts';
 import { SeoResearchVendorError } from './seo-adapter.ts';
 import { ConnectorVendorError, type ConnectorFetch } from '../connectors/http.ts';
@@ -388,30 +393,87 @@ describe('DataForSeoAdapter', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('knows which market and language pairs each endpoint family serves', () => {
+  it('reports which languages each endpoint family serves in a market', () => {
     const adapter = new DataForSeoAdapter();
-    expect(adapter.supportsMarket('keyword_ideas', 'norway', 'norwegian')).toBe(true);
-    expect(adapter.supportsMarket('keyword_ideas', 'norway', 'english')).toBe(false);
-    expect(adapter.supportsMarket('serp_snapshot', 'norway', 'english')).toBe(true);
-    expect(adapter.supportsMarket('keyword_volume', 'sweden', 'swedish')).toBe(true);
-    expect(adapter.supportsMarket('keyword_volume', 'uk', 'norwegian')).toBe(false);
+    expect(adapter.supportedLanguages('keyword_ideas', 'norway')).toEqual(['norwegian']);
+    expect(adapter.supportedLanguages('serp_snapshot', 'norway')).toEqual(['norwegian', 'english']);
+    expect(adapter.supportedLanguages('keyword_volume', 'belgium')).toEqual(['dutch', 'french', 'german']);
+    expect(adapter.supportedLanguages('keyword_ideas', 'iceland')).toEqual([]);
+    expect(adapter.supportedLanguages('serp_snapshot', 'iceland')).toEqual(['icelandic', 'english']);
+    expect(adapter.supportedLanguages('keyword_ideas', 'united_states')).toEqual(['english', 'spanish']);
   });
 });
 
+function readCsv(name: string): Array<Record<string, string>> {
+  const [header, ...lines] = readFileSync(
+    new URL(`./__fixtures__/dataforseo/locations/${name}.csv`, import.meta.url),
+    'utf8',
+  )
+    .trim()
+    .split('\n');
+  const keys = header!.split(',');
+  return lines.map((line) => {
+    const values = line.split(',');
+    return Object.fromEntries(keys.map((k, i) => [k, values[i] ?? '']));
+  });
+}
+
 describe('DataForSEO market table', () => {
-  it('uses the location codes DataForSEO publishes for all four markets in every API', () => {
-    for (const api of ['labs', 'google_ads', 'serp'] as const) {
-      expect(
-        Object.fromEntries(
-          Object.entries(DATAFORSEO_MARKETS[api]).map(([m, c]) => [m, c.locationCode]),
-        ),
-      ).toEqual({ norway: 2578, sweden: 2752, denmark: 2208, uk: 2826 });
+  const serpCountries = readCsv('serp_google_countries');
+  const adsCountries = readCsv('google_ads_countries');
+  const labsRows = readCsv('labs_locations_and_languages');
+  const serpLanguages = new Set(readCsv('serp_google_languages').map((r) => r.language_code));
+
+  it('covers Europe and North America, including the Nordics and the three largest North American markets', () => {
+    const byRegion = (region: string) =>
+      SEO_MARKETS.filter((m) => SEO_MARKET_INFO[m].region === region);
+    expect(byRegion('europe')).toEqual(
+      expect.arrayContaining(['norway', 'sweden', 'denmark', 'finland', 'iceland', 'germany', 'united_kingdom']),
+    );
+    expect(byRegion('north_america')).toEqual(
+      expect.arrayContaining(['united_states', 'canada', 'mexico']),
+    );
+  });
+
+  it('uses the location code DataForSEO publishes for each country in both SERP and Google Ads', () => {
+    for (const market of SEO_MARKETS) {
+      const iso = SEO_MARKET_INFO[market].countryCode;
+      const expected = String(DATAFORSEO_LOCATION_CODES[market]);
+      expect(serpCountries.find((r) => r.country_iso_code === iso)?.location_code, market).toBe(expected);
+      expect(adsCountries.find((r) => r.country_iso_code === iso)?.location_code, market).toBe(expected);
+    }
+  });
+
+  it('offers exactly the Labs languages DataForSEO lists for each country', () => {
+    for (const market of SEO_MARKETS) {
+      const iso = SEO_MARKET_INFO[market].countryCode;
+      const published = labsRows
+        .filter((r) => r.country_iso_code === iso)
+        .map((r) => `${r.location_code}:${r.language_code}`)
+        .sort();
+      const ours = (DATAFORSEO_LABS_LANGUAGES[market] ?? [])
+        .map((l) => `${DATAFORSEO_LOCATION_CODES[market]}:${DATAFORSEO_LANGUAGE_CODES[l].labs}`)
+        .sort();
+      expect(ours, market).toEqual(published);
+    }
+  });
+
+  it('uses only language codes the SERP API accepts', () => {
+    for (const [language, codes] of Object.entries(DATAFORSEO_LANGUAGE_CODES)) {
+      expect(serpLanguages.has(codes.serp), language).toBe(true);
     }
   });
 
   it('uses Bokmål for Labs and the plain Norwegian code for SERP', () => {
-    expect(DATAFORSEO_MARKETS.labs.norway.languages).toEqual({ norwegian: 'nb' });
-    expect(DATAFORSEO_MARKETS.serp.norway.languages.norwegian).toBe('no');
+    expect(DATAFORSEO_LANGUAGE_CODES.norwegian).toEqual({ serp: 'no', labs: 'nb' });
+  });
+
+  it('defaults every market to a language its Labs data or native list offers first', () => {
+    expect(defaultLanguage('norway')).toBe('norwegian');
+    expect(defaultLanguage('belgium')).toBe('dutch');
+    expect(defaultLanguage('switzerland')).toBe('german');
+    expect(defaultLanguage('canada')).toBe('english');
+    expect(defaultLanguage('mexico')).toBe('spanish');
   });
 });
 

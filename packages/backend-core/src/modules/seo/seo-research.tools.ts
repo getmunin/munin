@@ -2,16 +2,21 @@ import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { SeoResearchService } from './seo-research.service.ts';
+import { SEO_LANGUAGES, SEO_MARKETS } from './seo-markets.ts';
 
 const Location = z
-  .enum(['norway', 'sweden', 'denmark', 'uk'])
+  .enum(SEO_MARKETS)
   .default('norway')
-  .describe('Market to research. Defaults to norway.');
+  .describe(
+    'Country to research, as its English name in snake_case (e.g. norway, germany, united_kingdom, united_states). Covers Europe and North America. Defaults to norway.',
+  );
 
 const Language = z
-  .enum(['norwegian', 'swedish', 'danish', 'english'])
+  .enum(SEO_LANGUAGES)
   .optional()
-  .describe('Search language. Defaults to the market’s own language.');
+  .describe(
+    'Search language. Defaults to the country’s main language; multilingual countries such as belgium, switzerland or canada accept each of their languages.',
+  );
 
 const MaxCostUsd = z
   .number()

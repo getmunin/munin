@@ -1,12 +1,16 @@
 import { parseArgs } from 'node:util';
 import type { ConnectionRow } from '../src/modules/connectors/connectors.service.ts';
 import { DataForSeoAdapter } from '../src/modules/seo/dataforseo.adapter.ts';
-import { DATAFORSEO_MARKETS } from '../src/modules/seo/dataforseo.markets.ts';
+import {
+  DATAFORSEO_LABS_LANGUAGES,
+  DATAFORSEO_LANGUAGE_CODES,
+  DATAFORSEO_LOCATION_CODES,
+} from '../src/modules/seo/dataforseo.market-codes.ts';
 import {
   SeoResearchService,
   type ResearchConnectorAccess,
 } from '../src/modules/seo/seo-research.service.ts';
-import type { SeoMarket } from '../src/modules/seo/seo-adapter.ts';
+import { SEO_MARKETS } from '../src/modules/seo/seo-markets.ts';
 
 const usage = `Live DataForSEO smoke test. Spends real money on the account whose credentials you pass.
 
@@ -56,32 +60,57 @@ const access: ResearchConnectorAccess = {
   vendorCall: (fn) => fn(),
 };
 const research = new SeoResearchService(access);
-const location = values.location as SeoMarket;
+const location = SEO_MARKETS.find((m) => m === values.location) ?? unknownLocation();
+
+function unknownLocation(): never {
+  console.error(`unknown --location ${values.location}; expected one of: ${SEO_MARKETS.join(', ')}`);
+  process.exit(1);
+}
 const limit = Number(values.limit);
 const maxCostUsd = Number(values['max-cost']);
 
 async function verifyMarkets(): Promise<void> {
   const authorization = `Basic ${Buffer.from(`${login}:${password}`).toString('base64')}`;
-  const sources = {
-    labs: 'dataforseo_labs/locations_and_languages',
-    google_ads: 'keywords_data/google_ads/locations',
-    serp: 'serp/google/locations',
-  } as const;
-  for (const [api, path] of Object.entries(sources) as Array<[keyof typeof sources, string]>) {
+  const get = async <T>(path: string): Promise<T[]> => {
     const res = await fetch(`https://api.dataforseo.com/v3/${path}`, { headers: { authorization } });
-    const body = (await res.json()) as {
-      tasks?: Array<{ result?: Array<{ location_code: number; available_languages?: Array<{ language_code: string }> }> }>;
-    };
-    const locations = body.tasks?.[0]?.result ?? [];
-    for (const [market, codes] of Object.entries(DATAFORSEO_MARKETS[api])) {
-      const found = locations.find((l) => l.location_code === codes.locationCode);
-      const offered = new Set((found?.available_languages ?? []).map((l) => l.language_code));
-      const langs = Object.entries(codes.languages).map(([name, code]) =>
-        `${name}=${code}${found && found.available_languages && !offered.has(code) ? ' (NOT OFFERED)' : ''}`,
-      );
-      console.log(`${api.padEnd(10)} ${market.padEnd(8)} ${found ? 'ok  ' : 'MISSING'} ${langs.join(', ')}`);
+    const body = (await res.json()) as { tasks?: Array<{ result?: T[] | null }> };
+    return body.tasks?.[0]?.result ?? [];
+  };
+  const labs = await get<{
+    location_code: number;
+    available_languages?: Array<{ language_code: string }>;
+  }>('dataforseo_labs/locations_and_languages');
+  const serp = new Set(
+    (await get<{ location_code: number }>('serp/google/locations')).map((l) => l.location_code),
+  );
+  const ads = new Set(
+    (await get<{ location_code: number }>('keywords_data/google_ads/locations')).map(
+      (l) => l.location_code,
+    ),
+  );
+  let problems = 0;
+  for (const market of SEO_MARKETS) {
+    const code = DATAFORSEO_LOCATION_CODES[market];
+    const offered = new Set(
+      (labs.find((l) => l.location_code === code)?.available_languages ?? []).map(
+        (l) => l.language_code,
+      ),
+    );
+    const expected = (DATAFORSEO_LABS_LANGUAGES[market] ?? []).map(
+      (l) => DATAFORSEO_LANGUAGE_CODES[l].labs,
+    );
+    const issues = [
+      serp.has(code) ? null : 'missing from SERP',
+      ads.has(code) ? null : 'missing from Google Ads',
+      ...expected.filter((c) => c && !offered.has(c)).map((c) => `Labs lacks ${c}`),
+      ...[...offered].filter((c) => !expected.includes(c)).map((c) => `Labs also offers ${c}`),
+    ].filter(Boolean);
+    if (issues.length > 0) {
+      problems += 1;
+      console.log(`${market} (${code}): ${issues.join('; ')}`);
     }
   }
+  console.log(`markets checked: ${SEO_MARKETS.length}, with differences: ${problems}`);
 }
 
 async function main(): Promise<void> {

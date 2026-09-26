@@ -30,13 +30,7 @@ import {
   type SeoResearchPage,
   type SeoSerpRow,
 } from './seo-adapter.ts';
-
-export const DEFAULT_LANGUAGE_BY_MARKET: Record<SeoMarket, SeoLanguage> = {
-  norway: 'norwegian',
-  sweden: 'swedish',
-  denmark: 'danish',
-  uk: 'english',
-};
+import { SEO_MARKET_INFO, defaultLanguage } from './seo-markets.ts';
 
 const MODE: SeoResearchMode = 'live';
 
@@ -257,12 +251,16 @@ export class SeoResearchService {
   }
 
   private async resolve(operation: SeoResearchOperation, args: MarketInput): Promise<Resolved> {
-    const language = args.language ?? DEFAULT_LANGUAGE_BY_MARKET[args.location];
     const scope = await this.connectors.resolveScope('seo', args.connectionId, SEO_RESEARCH);
     const adapter = scope.adapter as SeoResearchAdapter;
-    if (!adapter.supportsMarket(operation, args.location, language)) {
+    const offered = adapter.supportedLanguages(operation, args.location);
+    const language = args.language ?? pickDefaultLanguage(args.location, offered);
+    if (!offered.includes(language)) {
+      const label = SEO_MARKET_INFO[args.location].label;
       throw new BadRequestException(
-        `seo_invalid_market: ${adapter.displayName} does not offer ${language} data for ${args.location} on this tool`,
+        offered.length === 0
+          ? `seo_invalid_market: ${adapter.displayName} has no data for ${label} on this tool`
+          : `seo_invalid_market: ${adapter.displayName} offers ${label} on this tool only in ${offered.join(', ')}, not ${language}`,
       );
     }
     return { scope, adapter, market: { market: args.location, language, mode: MODE } };
@@ -302,6 +300,11 @@ export class SeoResearchService {
       }
     });
   }
+}
+
+function pickDefaultLanguage(market: SeoMarket, offered: readonly SeoLanguage[]): SeoLanguage {
+  const preferred = defaultLanguage(market);
+  return offered.includes(preferred) ? preferred : (offered[0] ?? preferred);
 }
 
 function gate(
@@ -348,7 +351,7 @@ function translate(adapter: SeoResearchAdapter, err: SeoResearchVendorError): Ht
 }
 
 function noDataReason(adapter: SeoResearchAdapter, market: SeoMarketArgs): string {
-  return `${adapter.displayName} has no data for this query in ${market.market} (${market.language}); this is an empty result, not an error`;
+  return `${adapter.displayName} has no data for this query in ${SEO_MARKET_INFO[market.market].label} (${market.language}); this is an empty result, not an error`;
 }
 
 function mergeGapRow(

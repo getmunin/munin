@@ -4,6 +4,7 @@ import type {
   ConnectorConnectionContext,
 } from '../connectors/connector.ts';
 import { ConnectorVendorError } from '../connectors/http.ts';
+import type { SeoLanguage, SeoMarket } from './seo-markets.ts';
 
 export type SeoRole = 'console' | 'research';
 
@@ -99,9 +100,7 @@ export const SEO_CONSOLE: ConnectorCapabilityFilter = {
   accept: isSeoConsoleAdapter,
 };
 
-export type SeoMarket = 'norway' | 'sweden' | 'denmark' | 'uk';
-
-export type SeoLanguage = 'norwegian' | 'swedish' | 'danish' | 'english';
+export type { SeoLanguage, SeoMarket } from './seo-markets.ts';
 
 export type SeoResearchMode = 'live';
 
@@ -174,7 +173,7 @@ export interface SeoResearchAdapter extends ConnectorAdapter {
   readonly domain: 'seo';
   readonly seoRole: 'research';
 
-  supportsMarket(operation: SeoResearchOperation, market: SeoMarket, language: SeoLanguage): boolean;
+  supportedLanguages(operation: SeoResearchOperation, market: SeoMarket): readonly SeoLanguage[];
 
   estimateCostUsd(
     operation: SeoResearchOperation,

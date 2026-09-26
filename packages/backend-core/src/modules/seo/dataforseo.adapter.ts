@@ -24,7 +24,8 @@ import {
   type SeoResearchPage,
   type SeoSerpRow,
 } from './seo-adapter.ts';
-import { marketCodes } from './dataforseo.markets.ts';
+import { dataForSeoLanguages, marketCodes } from './dataforseo.markets.ts';
+import { marketLanguages } from './seo-markets.ts';
 import { estimateDataForSeoCostUsd } from './dataforseo.pricing.ts';
 
 const API_BASE_URL = 'https://api.dataforseo.com/v3';
@@ -187,13 +188,9 @@ export class DataForSeoAdapter implements SeoResearchAdapter {
     };
   }
 
-  supportsMarket(
-    operation: SeoResearchOperation,
-    market: SeoMarket,
-    language: SeoLanguage,
-  ): boolean {
-    if (operation === 'balance') return true;
-    return marketCodes(operation, market, language) !== null;
+  supportedLanguages(operation: SeoResearchOperation, market: SeoMarket): readonly SeoLanguage[] {
+    if (operation === 'balance') return marketLanguages(market);
+    return dataForSeoLanguages(operation, market);
   }
 
   estimateCostUsd(

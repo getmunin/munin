@@ -22,7 +22,18 @@ See `skill://connectors/connect-external-system` for the general flow.
 
 ## Tools
 
-All of these take `location` (`norway`, `sweden`, `denmark`, `uk`; default `norway`) and optional `language` (defaults to the market's own). Pass `connectionId` only when the org has several research connections.
+All of these take `location` and optional `language`, and `connectionId` only when the org has several research connections.
+
+- **`location`** is a country in Europe or North America, written as its English name in snake_case: `norway`, `germany`, `united_kingdom`, `united_states`, `canada`, `mexico`, `bosnia_and_herzegovina`. The default is `norway`.
+- **`language`** defaults to the country's main language. Multilingual countries accept each of theirs: `belgium` (Dutch, French, German), `switzerland` (German, French, Italian), `canada` (English, French), `united_states` (English, Spanish), `ukraine` (Ukrainian, Russian).
+
+Coverage is not the same on every tool:
+
+- **`seo_get_keyword_volume` and `seo_get_serp_snapshot` cover every listed country.** The SERP snapshot also accepts `english` anywhere.
+- **The DataForSEO Labs tools cover 47 of the 77 countries.** Those are `seo_list_keyword_ideas`, `seo_list_ranked_keywords` and `seo_list_keyword_gaps`, and each country gets only the languages DataForSEO has indexed there. Examples: Norway in Norwegian only, Finland in Finnish only, Greece in Greek or English.
+- **Some countries have no Labs data at all.** They include Iceland, Luxembourg, Georgia, Montenegro, Andorra, Liechtenstein and most of the Caribbean.
+- **An unsupported combination is refused up front with `seo_invalid_market`, and nothing is billed.** The message names the languages that *are* offered, so retry with one of them, or fall back to keyword volume plus SERP snapshots for that country.
+- **Some countries are missing entirely.** DataForSEO has no location at all for Russia, Belarus, Kosovo, the Faroe Islands, Gibraltar, Puerto Rico or Cuba, so these aren't offered.
 
 - `seo_get_provider_balance` — balance, total deposited and today's spend. Free. Call it before a large request.
 - `seo_get_keyword_volume` — monthly volume, CPC and competition for up to 1,000 known keywords, plus 12 months of history. One flat per-request price, however many keywords you pass. That makes it the cheap way to size a list you already have.
@@ -40,7 +51,7 @@ All of these take `location` (`norway`, `sweden`, `denmark`, `uk`; default `norw
 
 ## Read the numbers correctly
 
-- `volume` is Google's average monthly searches. A `null` means DataForSEO has no figure, not zero searches. Low-volume markets like Norway show many nulls on long-tail phrases.
+- `volume` is Google's average monthly searches. A `null` means DataForSEO has no figure, not zero searches. Small markets such as Norway, Iceland or the Baltics show many nulls on long-tail phrases.
 - `cpc` is in USD, and `competition` is advertiser competition from 0 to 1. Neither measures how hard it is to rank organically. For that use `difficulty` from `seo_list_keyword_ideas`.
 - `truncated: true` means more rows existed than `limit` allowed. `noData: true` comes with a `reason` and means DataForSEO answered and had nothing — a real empty answer, not a failure. Errors (bad credentials, balance too low, rate limit) always come back as errors, never as an empty list.
 
@@ -58,7 +69,7 @@ All of these take `location` (`norway`, `sweden`, `denmark`, `uk`; default `norw
 
 - It has no history. Each call is a snapshot, and nothing is stored, so rank tracking over time is not available.
 - It sees Google only. Bing volumes are not covered.
-- Market coverage is the four markets above. A market or language DataForSEO doesn't cover for a given tool is refused up front, before anything is billed.
+- Coverage is Europe and North America. A country or language DataForSEO doesn't cover for a given tool is refused up front, before anything is billed.
 
 ## Related
 

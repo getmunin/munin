@@ -1,8 +1,16 @@
-import type { SeoLanguage, SeoMarket, SeoResearchOperation } from './seo-adapter.ts';
+import type { SeoResearchOperation } from './seo-adapter.ts';
+import { marketLanguages, type SeoLanguage, type SeoMarket } from './seo-markets.ts';
+import {
+  DATAFORSEO_LABS_LANGUAGES,
+  DATAFORSEO_LANGUAGE_CODES,
+  DATAFORSEO_LOCATION_CODES,
+} from './dataforseo.market-codes.ts';
 
 export type DataForSeoApi = 'labs' | 'google_ads' | 'serp';
 
-export const API_BY_OPERATION: Record<Exclude<SeoResearchOperation, 'balance'>, DataForSeoApi> = {
+export type DataForSeoMarketOperation = Exclude<SeoResearchOperation, 'balance'>;
+
+export const API_BY_OPERATION: Record<DataForSeoMarketOperation, DataForSeoApi> = {
   keyword_volume: 'google_ads',
   keyword_ideas: 'labs',
   ranked_keywords: 'labs',
@@ -10,38 +18,35 @@ export const API_BY_OPERATION: Record<Exclude<SeoResearchOperation, 'balance'>, 
   serp_snapshot: 'serp',
 };
 
-export interface DataForSeoMarketCodes {
-  locationCode: number;
-  languages: Partial<Record<SeoLanguage, string | null>>;
+export function dataForSeoLanguages(
+  operation: DataForSeoMarketOperation,
+  market: SeoMarket,
+): readonly SeoLanguage[] {
+  const native = marketLanguages(market);
+  switch (API_BY_OPERATION[operation]) {
+    case 'labs':
+      return DATAFORSEO_LABS_LANGUAGES[market] ?? [];
+    case 'google_ads':
+      return native;
+    case 'serp':
+      return native.includes('english') ? native : [...native, 'english'];
+  }
 }
 
-export const DATAFORSEO_MARKETS: Record<DataForSeoApi, Record<SeoMarket, DataForSeoMarketCodes>> = {
-  labs: {
-    norway: { locationCode: 2578, languages: { norwegian: 'nb' } },
-    sweden: { locationCode: 2752, languages: { swedish: 'sv' } },
-    denmark: { locationCode: 2208, languages: { danish: 'da' } },
-    uk: { locationCode: 2826, languages: { english: 'en' } },
-  },
-  google_ads: {
-    norway: { locationCode: 2578, languages: { norwegian: null } },
-    sweden: { locationCode: 2752, languages: { swedish: null } },
-    denmark: { locationCode: 2208, languages: { danish: null } },
-    uk: { locationCode: 2826, languages: { english: null } },
-  },
-  serp: {
-    norway: { locationCode: 2578, languages: { norwegian: 'no', english: 'en' } },
-    sweden: { locationCode: 2752, languages: { swedish: 'sv', english: 'en' } },
-    denmark: { locationCode: 2208, languages: { danish: 'da', english: 'en' } },
-    uk: { locationCode: 2826, languages: { english: 'en' } },
-  },
-};
-
 export function marketCodes(
-  operation: Exclude<SeoResearchOperation, 'balance'>,
+  operation: DataForSeoMarketOperation,
   market: SeoMarket,
   language: SeoLanguage,
 ): { locationCode: number; languageCode: string | null } | null {
-  const entry = DATAFORSEO_MARKETS[API_BY_OPERATION[operation]][market];
-  const languageCode = entry.languages[language];
-  return languageCode === undefined ? null : { locationCode: entry.locationCode, languageCode };
+  if (!dataForSeoLanguages(operation, market).includes(language)) return null;
+  const locationCode = DATAFORSEO_LOCATION_CODES[market];
+  const codes = DATAFORSEO_LANGUAGE_CODES[language];
+  switch (API_BY_OPERATION[operation]) {
+    case 'labs':
+      return codes.labs ? { locationCode, languageCode: codes.labs } : null;
+    case 'google_ads':
+      return { locationCode, languageCode: null };
+    case 'serp':
+      return { locationCode, languageCode: codes.serp };
+  }
 }

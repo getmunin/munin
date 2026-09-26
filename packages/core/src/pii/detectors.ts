@@ -14,7 +14,11 @@ export interface DetectPiiOptions {
   isKnownPhone?: (raw: string) => boolean;
 }
 
-const EMAIL_PATTERN = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*\.\p{L}{2,}/gu;
+const EMAIL_LOCAL_CHAR = /[\p{L}\p{N}._%+-]/u;
+const EMAIL_DOMAIN_CHAR = /[\p{L}\p{N}.-]/u;
+const EMAIL_TLD = /^\p{L}{2,}$/u;
+const MAX_EMAIL_LOCAL = 64;
+const MAX_EMAIL_DOMAIN = 255;
 const DIGIT_RUN_PATTERN = /(?<![\p{L}\p{N}_+])\+?\d[\d \t().-]{5,24}\d(?![\p{L}\p{N}_])/gu;
 const IBAN_PATTERN = /(?<![\p{L}\p{N}])[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){2,7}(?: ?[A-Z0-9]{1,3})?(?![\p{L}\p{N}])/gu;
 
@@ -41,10 +45,9 @@ export function detectPii(text: string, options: DetectPiiOptions = {}): PiiDete
     });
   }
 
-  for (const match of text.matchAll(EMAIL_PATTERN)) {
-    const value = match[0];
-    if (value.toLowerCase().endsWith(`@${PSEUDONYM_EMAIL_DOMAIN}`)) continue;
-    found.push({ kind: 'email', start: match.index, end: match.index + value.length, value });
+  for (const email of findEmails(text)) {
+    if (email.value.toLowerCase().endsWith(`@${PSEUDONYM_EMAIL_DOMAIN}`)) continue;
+    found.push({ kind: 'email', ...email });
   }
 
   for (const match of text.matchAll(IBAN_PATTERN)) {
@@ -64,6 +67,44 @@ export function detectPii(text: string, options: DetectPiiOptions = {}): PiiDete
   }
 
   return resolveOverlaps(found);
+}
+
+function findEmails(text: string): Array<{ start: number; end: number; value: string }> {
+  const out: Array<{ start: number; end: number; value: string }> = [];
+  let consumed = 0;
+  let at = text.indexOf('@');
+  while (at !== -1) {
+    const next = text.indexOf('@', at + 1);
+    if (at < consumed) {
+      at = next;
+      continue;
+    }
+    let start = at;
+    while (start > consumed && at - start < MAX_EMAIL_LOCAL && EMAIL_LOCAL_CHAR.test(text[start - 1]!)) {
+      start -= 1;
+    }
+    while (start < at && text[start] === '.') start += 1;
+    let end = at + 1;
+    while (end < text.length && end - at <= MAX_EMAIL_DOMAIN && EMAIL_DOMAIN_CHAR.test(text[end]!)) {
+      end += 1;
+    }
+    while (end > at + 1 && (text[end - 1] === '.' || text[end - 1] === '-')) end -= 1;
+    const domain = text.slice(at + 1, end);
+    const dot = domain.lastIndexOf('.');
+    const valid =
+      start < at &&
+      dot > 0 &&
+      domain[0] !== '.' &&
+      domain[0] !== '-' &&
+      !domain.includes('..') &&
+      EMAIL_TLD.test(domain.slice(dot + 1));
+    if (valid) {
+      out.push({ start, end, value: text.slice(start, end) });
+      consumed = end;
+    }
+    at = next;
+  }
+  return out;
 }
 
 function classifyDigitRun(raw: string, options: DetectPiiOptions): PiiDetectionKind | null {

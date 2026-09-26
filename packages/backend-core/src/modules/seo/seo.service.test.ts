@@ -17,6 +17,10 @@ const userData = JSON.parse(
   readFileSync(new URL('./__fixtures__/dataforseo/user-data.json', import.meta.url), 'utf8'),
 ) as unknown;
 
+function isDataForSeo(url: string): boolean {
+  return new URL(url).hostname === 'api.dataforseo.com';
+}
+
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
   ? null
@@ -266,7 +270,7 @@ interface StubCall {
 
     it('collects credentials through the link and reports the balance as the test result', async () => {
       respond = (call) =>
-        call.url.includes('api.dataforseo.com') ? { body: userData } : { body: { d: [] } };
+        isDataForSeo(call.url) ? { body: userData } : { body: { d: [] } };
 
       const { created, applied } = await connectDataForSeo();
 
@@ -283,7 +287,7 @@ interface StubCall {
 
     it('keeps console tools and research tools each resolving their own connection', async () => {
       respond = (call) =>
-        call.url.includes('api.dataforseo.com')
+        isDataForSeo(call.url)
           ? { body: userData }
           : call.url.includes('GetUserSites')
             ? { body: { d: [site('https://example.com')] } }

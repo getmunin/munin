@@ -21,6 +21,17 @@ export function decodeHtmlEntities(text: string): string {
   });
 }
 
+function textOutsideTags(fragment: string): string {
+  let text = '';
+  let inTag = false;
+  for (const ch of fragment) {
+    if (ch === '<') inTag = true;
+    else if (ch === '>') inTag = false;
+    else if (!inTag) text += ch;
+  }
+  return text;
+}
+
 function attribute(tag: string, name: string): string | null {
   const match = new RegExp(`\\s${name}\\s*=\\s*("([^"]*)"|'([^']*)')`, 'i').exec(tag);
   if (!match) return null;
@@ -32,7 +43,7 @@ export function teamsHtmlToMarkdown(input: string, options: { dropMentions?: str
 
   const dropped = new Set((options.dropMentions ?? []).map((m) => m.trim().toLowerCase()));
   const html = input.replace(/<at\b[^>]*>([\s\S]*?)<\/at>/gi, (_whole, inner: string) => {
-    const name = decodeHtmlEntities(inner.replace(/<[^>]*>/g, ''))
+    const name = decodeHtmlEntities(textOutsideTags(inner))
       .replace(/[<>]/g, '')
       .trim();
     return dropped.has(name.toLowerCase()) ? '' : `@${name}`;

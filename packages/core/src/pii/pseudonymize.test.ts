@@ -51,6 +51,21 @@ describe('detectPii', () => {
     expect(detectPii('cvm_0123456789abcdefghijkl')).toEqual([]);
   });
 
+  it('finds emails in running text with the surrounding punctuation left out', () => {
+    expect(detectPii('skriv til kari@example.no. eller (ola.n@example.com)').map((d) => d.value)).toEqual([
+      'kari@example.no',
+      'ola.n@example.com',
+    ]);
+    expect(detectPii('no tld a@b, nor @example.no, nor a@.example.no')).toEqual([]);
+  });
+
+  it('stays linear on input built to make a backtracking email pattern explode', () => {
+    const hostile = `${'%'.repeat(100_000)}@${'a-'.repeat(50_000)}`;
+    const started = Date.now();
+    detectPii(hostile);
+    expect(Date.now() - started).toBeLessThan(500);
+  });
+
   it('treats any digit run matching a known phone as a phone', () => {
     const found = detectPii('call 12345678', { isKnownPhone: (raw) => raw === '12345678' });
     expect(found.map((d) => d.kind)).toEqual(['phone']);

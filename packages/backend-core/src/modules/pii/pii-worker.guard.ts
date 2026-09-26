@@ -35,6 +35,8 @@ export class PiiWorkerGuard implements CanActivate {
 function readBearer(header: string | string[] | undefined): string | null {
   const value = Array.isArray(header) ? header[0] : header;
   if (!value) return null;
-  const match = /^Bearer\s+(.+)$/i.exec(value.trim());
-  return match ? match[1]!.trim() : null;
+  const trimmed = value.trim();
+  if (!trimmed.toLowerCase().startsWith('bearer ')) return null;
+  const token = trimmed.slice('bearer '.length).trim();
+  return token.length > 0 ? token : null;
 }

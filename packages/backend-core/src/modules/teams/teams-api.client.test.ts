@@ -28,6 +28,10 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } });
 }
 
+function isTokenEndpoint(url: string): boolean {
+  return new URL(url).hostname === 'login.microsoftonline.com';
+}
+
 function tokenFor(url: string): Response {
   const authority = /login\.microsoftonline\.com\/([^/]+)\//.exec(url)?.[1] ?? 'unknown';
   return json({ access_token: `token-${authority}`, expires_in: 3600 });
@@ -40,7 +44,7 @@ afterEach(() => {
 describe('TeamsApiClient', () => {
   it('posts a new channel thread with the tenant-scoped token and returns the root activity id', async () => {
     const calls = stubFetch((url) => {
-      if (url.includes('login.microsoftonline.com')) return tokenFor(url);
+      if (isTokenEndpoint(url)) return tokenFor(url);
       return json({ id: '19:c@thread.tacv2;messageid=1700', activityId: '1700' });
     });
     const posted = await new TeamsApiClient().createChannelThread({
@@ -60,7 +64,7 @@ describe('TeamsApiClient', () => {
 
   it('falls back to the multi-tenant token authority when the Bot Connector rejects the tenant token', async () => {
     const calls = stubFetch((url, call) => {
-      if (url.includes('login.microsoftonline.com')) return tokenFor(url);
+      if (isTokenEndpoint(url)) return tokenFor(url);
       if (call.authorization === `Bearer token-${creds.tenantId}`) return json({}, 401);
       return json({ id: '1800' });
     });
@@ -72,7 +76,7 @@ describe('TeamsApiClient', () => {
       activity: { type: 'message', text: 'hi' },
     });
     expect(sent).toEqual({ activityId: '1800' });
-    expect(calls.some((c) => c.url.includes('/botframework.com/oauth2/v2.0/token'))).toBe(true);
+    expect(calls.some((c) => isTokenEndpoint(c.url) && new URL(c.url).pathname === '/botframework.com/oauth2/v2.0/token')).toBe(true);
 
     calls.length = 0;
     await client.sendToConversation({
@@ -86,7 +90,7 @@ describe('TeamsApiClient', () => {
 
   it('surfaces the Bot Connector error code and marks blocked bots terminal', async () => {
     stubFetch((url) => {
-      if (url.includes('login.microsoftonline.com')) return tokenFor(url);
+      if (isTokenEndpoint(url)) return tokenFor(url);
       return json({ error: { code: 'MessageWritesBlocked', message: 'blocked' } }, 403);
     });
     const err = await new TeamsApiClient()
@@ -99,7 +103,7 @@ describe('TeamsApiClient', () => {
 
   it('reports a 429 with its Retry-After delay and does not treat it as terminal', async () => {
     stubFetch((url) => {
-      if (url.includes('login.microsoftonline.com')) return tokenFor(url);
+      if (isTokenEndpoint(url)) return tokenFor(url);
       return json({}, 429, { 'retry-after': '7' });
     });
     const err = await new TeamsApiClient()
@@ -119,7 +123,7 @@ describe('TeamsApiClient', () => {
         activity: { type: 'message' },
       }),
     ).rejects.toMatchObject({ code: 'service_url_not_allowed' });
-    expect(calls.filter((c) => c.url.startsWith('https://attacker.test'))).toHaveLength(0);
+    expect(calls.filter((c) => new URL(c.url).hostname === 'attacker.test')).toHaveLength(0);
   });
 
   it('keeps the first sentence of the Entra error description for operators', async () => {
@@ -150,7 +154,7 @@ describe('TeamsApiClient', () => {
 
   it('reads the member email and UPN used for account matching', async () => {
     stubFetch((url) => {
-      if (url.includes('login.microsoftonline.com')) return tokenFor(url);
+      if (isTokenEndpoint(url)) return tokenFor(url);
       expect(url).toBe(`${SERVICE_URL}v3/conversations/${encodeURIComponent('19:c@thread.tacv2')}/members/29%3Aop`);
       return json({ id: '29:op', aadObjectId: 'obj-1', name: 'Kari Nordmann', email: 'kari@example.no', userPrincipalName: 'kari@example.no' });
     });

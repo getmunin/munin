@@ -16,7 +16,21 @@ const MAX_BODY_CHARS = 20_000;
 const ADAPTIVE_CARD_TYPE = 'application/vnd.microsoft.card.adaptive';
 
 export function escapeTeamsHtml(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function linkHref(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? escapeTeamsHtml(parsed.href) : null;
+  } catch {
+    return null;
+  }
 }
 
 function escapeCardText(text: string): string {
@@ -50,7 +64,8 @@ export function messageHtml(msg: MessageSnapshot): string {
   const body = msg.noSpeech ? '<i>No speech transcribed</i>' : htmlBody(msg.body);
   const attachments = (msg.attachments ?? []).map((a) => {
     const name = escapeTeamsHtml(a.name ?? 'attachment');
-    return a.url ? `📎 <a href="${escapeTeamsHtml(a.url)}">${name}</a>` : `📎 ${name}`;
+    const href = a.url ? linkHref(a.url) : null;
+    return href ? `📎 <a href="${href}">${name}</a>` : `📎 ${name}`;
   });
   const lines = [msg.internal ? `🔒 <i>Internal note</i> — ${label}` : label, body, ...attachments];
   return lines.join('<br>');
@@ -180,7 +195,8 @@ export function escalationAlertHtml(conv: ConversationSnapshot, reason: string |
   if (reason) lines.push(`<b>Reason:</b> ${escapeTeamsHtml(reason)}`);
   const contact = contactValue(conv);
   if (contact) lines.push(`<b>From:</b> ${escapeTeamsHtml(contact)}`);
-  lines.push(`<a href="${escapeTeamsHtml(conv.dashboardUrl)}">Open in Munin</a>`);
+  const href = linkHref(conv.dashboardUrl);
+  if (href) lines.push(`<a href="${href}">Open in Munin</a>`);
   return lines.join('<br>');
 }
 

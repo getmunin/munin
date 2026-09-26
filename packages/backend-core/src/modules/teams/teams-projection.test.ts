@@ -113,6 +113,31 @@ describe('messageHtml', () => {
     expect(html).toContain('📎 <a href="https://files.example.com/r.pdf">receipt.pdf</a>');
   });
 
+  it('escapes quotes so an attachment url cannot break out of its href', () => {
+    const html = messageHtml({
+      authorKind: 'end_user',
+      authorName: 'Ola "O\'Neil" Nordmann',
+      internal: false,
+      body: 'see attached',
+      attachments: [{ name: 'a.pdf', url: 'https://files.example.com/a.pdf?x="onmouseover="alert(1)' }],
+    });
+    expect(html).toContain('<b>Ola &quot;O&#39;Neil&quot; Nordmann</b>');
+    expect(html).toContain('href="https://files.example.com/a.pdf?x=%22onmouseover=%22alert(1)"');
+    expect(html).not.toContain('"onmouseover');
+  });
+
+  it('lists a non-http attachment by name without linking it', () => {
+    const html = messageHtml({
+      authorKind: 'end_user',
+      authorName: 'Ola Nordmann',
+      internal: false,
+      body: 'see attached',
+      attachments: [{ name: 'evil', url: 'javascript:alert(1)' }],
+    });
+    expect(html).toContain('📎 evil');
+    expect(html).not.toContain('javascript:');
+  });
+
   it('truncates very long bodies', () => {
     const html = messageHtml({
       authorKind: 'agent',

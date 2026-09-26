@@ -13,6 +13,11 @@ describe('teamsHtmlToMarkdown', () => {
     );
   });
 
+  it('never lets a mention name smuggle angle brackets through nested tags', () => {
+    expect(teamsHtmlToMarkdown('<at><scr<b>ipt>Kari</at> hi')).not.toMatch(/[<>]/);
+    expect(teamsHtmlToMarkdown('<at>&lt;script&gt;Kari</at> hi')).toBe('@scriptKari hi');
+  });
+
   it('converts inline formatting to markdown', () => {
     expect(teamsHtmlToMarkdown('<p><strong>Bold</strong>, <em>soft</em> and <s>gone</s></p>')).toBe(
       '**Bold**, _soft_ and ~~gone~~',

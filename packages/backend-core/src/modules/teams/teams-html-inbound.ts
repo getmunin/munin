@@ -32,7 +32,9 @@ export function teamsHtmlToMarkdown(input: string, options: { dropMentions?: str
 
   const dropped = new Set((options.dropMentions ?? []).map((m) => m.trim().toLowerCase()));
   const html = input.replace(/<at\b[^>]*>([\s\S]*?)<\/at>/gi, (_whole, inner: string) => {
-    const name = decodeHtmlEntities(inner.replace(/<[^>]*>/g, '')).trim();
+    const name = decodeHtmlEntities(inner.replace(/<[^>]*>/g, ''))
+      .replace(/[<>]/g, '')
+      .trim();
     return dropped.has(name.toLowerCase()) ? '' : `@${name}`;
   });
 

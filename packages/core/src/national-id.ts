@@ -187,7 +187,10 @@ function isValidNoFnr(digits: string): boolean {
   return mod11(d, NO_K1_WEIGHTS) === d[9] && mod11(d, NO_K2_WEIGHTS) === d[10];
 }
 
+const SE_PNR_LENGTH = 10;
+
 function isValidSePnr(digits: string): boolean {
+  if (digits.length !== SE_PNR_LENGTH) return false;
   const day = Number(digits.slice(4, 6));
   const month = Number(digits.slice(2, 4));
   if (!isValidDate(day > 60 ? day - 60 : day, month)) return false;
@@ -213,7 +216,7 @@ function mod11(digits: number[], weights: number[]): number | null {
 
 function luhn(digits: string): boolean {
   let sum = 0;
-  for (let i = 0; i < digits.length; i++) {
+  for (let i = 0; i < SE_PNR_LENGTH; i++) {
     let value = digits.charCodeAt(i) - 48;
     if (i % 2 === 0) {
       value *= 2;

@@ -11,11 +11,13 @@ import { schema } from '@getmunin/db';
 import type { AgentMode } from '@getmunin/types';
 import {
   CHANNEL_ADMIN_PROVIDERS,
+  MESSAGING_ADMIN_KINDS,
   PENDING_SETUP_KEY,
   readPendingSetup,
   type ChannelAdminDto,
   type ChannelAdminProvider,
   type ChannelOptionsDto,
+  type ChannelSendTestInput,
 } from './channel-admin.ts';
 
 @Injectable()
@@ -54,7 +56,7 @@ export class ChannelAdminService {
   ): Promise<ChannelAdminDto> {
     const provider = this.requireVendor(input.vendor);
     if (opts?.rejectSecrets) this.assertNoSecrets(provider, input.config);
-    if (input.defaultAgentMode && provider.kind !== 'sms') {
+    if (input.defaultAgentMode && !MESSAGING_ADMIN_KINDS.includes(provider.kind)) {
       throw new BadRequestException(
         `defaultAgentMode does not apply to ${provider.kind} channels — an inbound call is run by the vendor's assistant, not by the Munin agent`,
       );
@@ -194,10 +196,15 @@ export class ChannelAdminService {
     return provider.call(input);
   }
 
-  async sendTest(input: { channelId: string; to: string; body?: string }): Promise<unknown> {
+  async sendTest(input: ChannelSendTestInput): Promise<unknown> {
     const provider = await this.providerForChannel(input.channelId);
     if (!provider.sendTest) {
       throw new BadRequestException(`channel vendor '${provider.vendor}' does not support test sends`);
+    }
+    if (input.templateName && provider.kind !== 'whatsapp') {
+      throw new BadRequestException(
+        `conv_invalid: templateName applies to WhatsApp channels only; channel ${input.channelId} is ${provider.kind}`,
+      );
     }
     return provider.sendTest(input);
   }

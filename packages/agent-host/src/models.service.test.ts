@@ -7,6 +7,7 @@ const baseRow: AgentConfigRow = {
   id: 'singleton',
   fastModel: 'anthropic/claude-haiku-4.5',
   smartModel: null,
+  transcriptionModel: null,
   providerBaseUrl: 'https://provider.example/v1',
   providerApiKeySet: true,
   maxHistoryChars: 32_000,

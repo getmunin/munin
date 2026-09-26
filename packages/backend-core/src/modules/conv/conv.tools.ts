@@ -129,11 +129,11 @@ const SearchInput = z.object({
   limit: z.number().int().positive().max(100).optional(),
 });
 
-const EmailOpenStatsInput = z.object({
+const OpenStatsInput = z.object({
   channelId: z
     .string()
     .optional()
-    .describe('Restrict to one email channel. Omit to cover every email channel in the org.'),
+    .describe('Restrict to one email or WhatsApp channel. Omit to cover every email and WhatsApp channel in the org.'),
   sinceDays: z
     .number()
     .int()
@@ -323,7 +323,7 @@ export class ConvAdminTools {
     name: 'conv_send_message',
     title: 'Conv: Send message in conversation',
     description:
-      'Append a message to a conversation. Pass `internal: true` to leave a staff-only note (drafts, side comments) — end-user agents never see internal messages. `attachmentIds` attaches images already stored on this conversation, listed as `attachments` on each message from conv_get_conversation; it cannot upload new files, and an id belonging to another conversation or already on another message is rejected.',
+      'Append a message to a conversation. Pass `internal: true` to leave a staff-only note (drafts, side comments) — end-user agents never see internal messages. `attachmentIds` attaches images already stored on this conversation, listed as `attachments` on each message from conv_get_conversation; it cannot upload new files, and an id belonging to another conversation or already on another message is rejected. On a WhatsApp conversation a public message is accepted only while the 24-hour customer-service window is open (`whatsappWindow` on conv_get_conversation); outside it the call fails with conv_whatsapp_window_closed and only an approved template can be sent.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: SendMessageInput,
@@ -416,18 +416,18 @@ export class ConvAdminTools {
   }
 
   @McpTool({
-    name: 'conv_get_email_open_stats',
-    title: 'Conv: Read email open stats',
+    name: 'conv_get_open_stats',
+    title: 'Conv: Read message open stats',
     description:
-      'Aggregate email open tracking per email channel over a recent window (default 30 days, max 365). Returns for each channel the number of messages delivered in the window, how many of those were opened at least once, the total open count, and the resulting open rate, plus org-wide totals. `trackOpens` reports whether the channel currently embeds the tracking pixel — a channel with tracking off records no opens, so its rate reads 0 rather than "nobody opened these". Open tracking is best-effort in general: only messages with an HTML part carry a pixel, clients that block remote images never report an open, and privacy proxies such as Apple Mail Privacy Protection pre-fetch images and inflate the count.',
+      'Aggregate open tracking per email and WhatsApp channel over a recent window (default 30 days, max 365). Returns for each channel its `channelType`, the number of messages delivered in the window, how many of those were opened (email) or read (WhatsApp) at least once, the total open count, and the resulting open rate, plus org-wide totals. `trackOpens` reports whether the channel records opens — an email channel with tracking off records none, so its rate reads 0 rather than "nobody opened these"; WhatsApp channels always report read receipts. Both are best-effort: email opens need an HTML part and remote images, privacy proxies such as Apple Mail Privacy Protection inflate the count, and a WhatsApp user who has turned read receipts off never reports a read.',
     audiences: ['admin'],
     scopes: ['conv:read'],
-    input: EmailOpenStatsInput,
+    input: OpenStatsInput,
     readOnlyHint: true,
     destructiveHint: false,
   })
-  getEmailOpenStats(args: z.infer<typeof EmailOpenStatsInput>) {
-    return this.conv.getEmailOpenStats(args);
+  getOpenStats(args: z.infer<typeof OpenStatsInput>) {
+    return this.conv.getOpenStats(args);
   }
 
   @McpTool({

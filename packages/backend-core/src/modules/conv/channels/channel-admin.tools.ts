@@ -12,14 +12,14 @@ const ConfigureInput = z.object({
     .string()
     .min(1)
     .max(40)
-    .describe('Channel vendor, e.g. "vapi", "threll", "twilio", "messagebird". Call conv_list_voice_sms_vendors for the full list and each vendor’s config fields.'),
+    .describe('Channel vendor, e.g. "vapi", "threll", "twilio", "messagebird", "meta" (WhatsApp). Call conv_list_voice_sms_vendors for the full list and each vendor’s config fields.'),
   channelId: z
     .string()
     .optional()
     .describe('Pass an existing channel id to update; omit to create a new channel.'),
   name: z.string().min(1).max(120).optional().describe('Channel display name. Required on create.'),
   defaultAgentMode: AgentModeSchema.optional().describe(
-    "How the agent handles inbound messages on this channel: 'auto' replies directly, 'draft_only' files a draft for a human, 'off' does neither. SMS channels only — an inbound call is run by the vendor's assistant. Set 'draft_only' on an outreach-only number so replies are never auto-sent.",
+    "How the agent handles inbound messages on this channel: 'auto' replies directly, 'draft_only' files a draft for a human, 'off' does neither. SMS and WhatsApp channels only — an inbound call is run by the vendor's assistant. Set 'draft_only' on an outreach-only number so replies are never auto-sent.",
   ),
   config: sensitive(
     z
@@ -36,6 +36,20 @@ const SendTestInput = z.object({
   channelId: z.string(),
   to: z.string().min(2).max(64),
   body: z.string().min(1).max(1600).optional(),
+  templateName: z
+    .string()
+    .min(1)
+    .max(512)
+    .optional()
+    .describe(
+      'WhatsApp only: send this approved template (no placeholders) instead of free text, e.g. "hello_world". Needed when the recipient has not messaged the number in the last 24 hours.',
+    ),
+  templateLanguage: z
+    .string()
+    .min(2)
+    .max(16)
+    .optional()
+    .describe('WhatsApp only: language code of `templateName`, e.g. "en_US". Defaults to en_US.'),
 });
 
 const EmptyInput = z.object({});
@@ -55,9 +69,9 @@ export class ChannelAdminTools {
 
   @McpTool({
     name: 'conv_list_voice_sms_vendors',
-    title: 'Conv: List voice/SMS channel vendors',
+    title: 'Conv: List voice/SMS/WhatsApp channel vendors',
     description:
-      'List the voice/SMS channel vendors you can configure, with each vendor’s `kind`, capabilities (call/sendTest), and config fields (name, required, secret, description). Use this to discover what to pass to conv_configure_voice_sms_channel.',
+      'List the voice, SMS and WhatsApp channel vendors you can configure, with each vendor’s `kind` (voice, sms, whatsapp), capabilities (call/sendTest), and config fields (name, required, secret, description). Use this to discover what to pass to conv_configure_voice_sms_channel.',
     audiences: ['admin'],
     scopes: ['conv:read'],
     input: EmptyInput,
@@ -85,9 +99,9 @@ export class ChannelAdminTools {
 
   @McpTool({
     name: 'conv_configure_voice_sms_channel',
-    title: 'Conv: Configure a voice/SMS channel',
+    title: 'Conv: Configure a voice/SMS/WhatsApp channel',
     description:
-      'Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_voice_sms_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified. Pass `channelId` to update; omit to create. `defaultAgentMode` applies to SMS channels only.',
+      'Create or update a voice, SMS or WhatsApp channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_voice_sms_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified (for WhatsApp, saving also registers Munin’s webhook on the phone number). Pass `channelId` to update; omit to create. `defaultAgentMode` applies to SMS and WhatsApp channels only.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: ConfigureInput,
@@ -114,9 +128,9 @@ export class ChannelAdminTools {
 
   @McpTool({
     name: 'conv_test_voice_sms_channel',
-    title: 'Conv: Test a voice/SMS channel’s stored credentials',
+    title: 'Conv: Test a voice/SMS/WhatsApp channel’s stored credentials',
     description:
-      'Verify a voice or SMS channel’s stored credentials with its vendor (no message sent). The result shape is vendor-specific. Email channels are tested with conv_test_email_channel instead.',
+      'Verify a voice, SMS or WhatsApp channel’s stored credentials with its vendor (no message sent). The result shape is vendor-specific; for WhatsApp it includes the phone number’s display number, verified name and quality rating. Email channels are tested with conv_test_email_channel instead.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: TestInput,
@@ -129,9 +143,9 @@ export class ChannelAdminTools {
 
   @McpTool({
     name: 'conv_send_sms_channel_test',
-    title: 'Conv: Send a real test SMS on a channel',
+    title: 'Conv: Send a real test SMS or WhatsApp message on a channel',
     description:
-      'Send a real test SMS through an SMS channel (Twilio, MessageBird), addressed to `to`. Useful for end-to-end deliverability checks. Voice channels have no test send — their credentials are checked with conv_test_voice_sms_channel, and a test call is placed by a human from the dashboard. Email channels use conv_send_email_channel_test.',
+      'Send a real test message through an SMS channel (Twilio, MessageBird) or a WhatsApp channel, addressed to `to`. Useful for end-to-end deliverability checks. On WhatsApp, free text only reaches a number that has messaged the channel in the last 24 hours; pass `templateName` to send an approved template without placeholders instead. Voice channels have no test send — their credentials are checked with conv_test_voice_sms_channel, and a test call is placed by a human from the dashboard. Email channels use conv_send_email_channel_test.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: SendTestInput,
@@ -139,6 +153,6 @@ export class ChannelAdminTools {
     destructiveHint: true,
   })
   sendTest(args: z.infer<typeof SendTestInput>): Promise<unknown> {
-    return this.svc.sendTest({ channelId: args.channelId, to: args.to, body: args.body });
+    return this.svc.sendTest(args);
   }
 }

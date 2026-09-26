@@ -5,6 +5,7 @@ export interface AgentConfigDto {
   id: string;
   fastModel: string;
   smartModel: string | null;
+  transcriptionModel?: string | null;
   providerBaseUrl: string;
   providerApiKeySet: boolean;
   maxHistoryChars: number;
@@ -31,11 +32,22 @@ export interface ListModelsResult {
   models: ModelEntry[];
 }
 
+export interface TranscriptionModelEntry {
+  id: string;
+  label?: string | null;
+}
+
+export interface ListTranscriptionModelsResult {
+  supported: boolean;
+  models: TranscriptionModelEntry[];
+}
+
 export interface UpsertBody {
   providerBaseUrl?: string;
   providerApiKey?: string | null;
   fastModel?: string;
   smartModel?: string | null;
+  transcriptionModel?: string | null;
 }
 
 export interface ProviderPreset {

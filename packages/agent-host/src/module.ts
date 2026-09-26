@@ -30,6 +30,7 @@ import {
   ALERT_RECORDER,
   DEFAULT_PROVIDER_AVAILABLE,
   DEFAULT_PROVIDER_MODELS,
+  DEFAULT_TRANSCRIPTION_MODELS,
 } from './injection-tokens.ts';
 import type { AgentConfigRepository } from './config.repository.ts';
 
@@ -40,6 +41,7 @@ export interface AgentHostModuleOptions {
   runnerOptions?: AgentHostRunnerOptions;
   defaultProviderAvailable?: boolean;
   defaultProviderModels?: readonly ProviderModelOffering[];
+  defaultTranscriptionModels?: readonly ProviderModelOffering[];
 }
 
 export interface AgentHostModuleAsyncOptions extends Pick<ModuleMetadata, 'imports'> {
@@ -48,6 +50,7 @@ export interface AgentHostModuleAsyncOptions extends Pick<ModuleMetadata, 'impor
   useFactory: (...args: never[]) => AgentHostRunnerOptions | Promise<AgentHostRunnerOptions>;
   defaultProviderAvailable?: boolean;
   defaultProviderModels?: readonly ProviderModelOffering[];
+  defaultTranscriptionModels?: readonly ProviderModelOffering[];
 }
 
 @Module({})
@@ -58,6 +61,7 @@ export class AgentHostModule {
       runnerOptionsProvider: { provide: RUNNER_OPTIONS, useValue: options.runnerOptions ?? {} },
       defaultProviderAvailable: options.defaultProviderAvailable ?? false,
       defaultProviderModels: options.defaultProviderModels,
+      defaultTranscriptionModels: options.defaultTranscriptionModels,
     });
   }
 
@@ -72,6 +76,7 @@ export class AgentHostModule {
       extraImports: options.imports ?? [],
       defaultProviderAvailable: options.defaultProviderAvailable ?? false,
       defaultProviderModels: options.defaultProviderModels,
+      defaultTranscriptionModels: options.defaultTranscriptionModels,
     });
   }
 }
@@ -82,6 +87,7 @@ function buildModule(args: {
   extraImports?: NonNullable<ModuleMetadata['imports']>;
   defaultProviderAvailable?: boolean;
   defaultProviderModels?: readonly ProviderModelOffering[];
+  defaultTranscriptionModels?: readonly ProviderModelOffering[];
 }): DynamicModule {
   const {
     configRepository,
@@ -89,6 +95,7 @@ function buildModule(args: {
     extraImports = [],
     defaultProviderAvailable = false,
     defaultProviderModels,
+    defaultTranscriptionModels,
   } = args;
   return {
     module: AgentHostModule,
@@ -100,6 +107,10 @@ function buildModule(args: {
       {
         provide: DEFAULT_PROVIDER_MODELS,
         useValue: normalizeProviderOfferings(defaultProviderModels),
+      },
+      {
+        provide: DEFAULT_TRANSCRIPTION_MODELS,
+        useValue: normalizeProviderOfferings(defaultTranscriptionModels),
       },
       runnerOptionsProvider,
       { provide: ALERT_RECORDER, useExisting: AlertsService },

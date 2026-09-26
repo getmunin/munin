@@ -39,6 +39,7 @@ import {
   VapiCallInitiateBody,
   ConfigureThrellBody,
   ThrellCallInitiateBody,
+  ChannelSendTestBody,
 } from '@getmunin/types';
 import { dialogButtonClass, dialogFooterClass, dialogHintClass, dialogLabelClass } from '../lib/dialog-style';
 import {
@@ -64,11 +65,17 @@ import { CardGrid, CardMenu, SettingsCard, StatusLine } from '../components/card
 import { CopyField } from '../components/copy-field';
 import { CopyableSecret } from '../components/copyable-secret';
 import { formatPhoneNumber } from '../lib/format-phone';
-import { MessageBirdLogo, ThrellLogo, TwilioLogo, VapiLogo } from './channel-vendor-logos';
+import {
+  MessageBirdLogo,
+  ThrellLogo,
+  TwilioLogo,
+  VapiLogo,
+  WhatsAppLogo,
+} from './channel-vendor-logos';
 
 interface ChannelDto {
   id: string;
-  type: 'email' | 'voice' | 'chat' | 'sms';
+  type: 'email' | 'voice' | 'chat' | 'sms' | 'whatsapp';
   vendor: string;
   name: string;
   active: boolean;
@@ -87,8 +94,9 @@ interface ChannelVendorFieldDto {
 
 interface ChannelVendorDto {
   vendor: string;
-  kind: 'sms' | 'voice';
+  kind: 'sms' | 'voice' | 'whatsapp';
   displayName: string;
+  capabilities?: { call: boolean; sendTest: boolean };
   configFields: ChannelVendorFieldDto[];
 }
 
@@ -168,6 +176,38 @@ interface ThrellChannelDto extends ChannelDto {
   };
 }
 
+interface WhatsAppChannelDto extends ChannelDto {
+  type: 'whatsapp';
+  vendor: 'meta';
+  config: {
+    wabaId?: string;
+    phoneNumberId?: string;
+    graphApiVersion?: string;
+    displayPhoneNumber?: string | null;
+    verifiedName?: string | null;
+    accessToken?: string;
+    appSecret?: string;
+  };
+}
+
+const WHATSAPP_VENDOR = 'meta';
+
+const WHATSAPP_OPTIONAL_FIELDS: ReadonlySet<string> = new Set(['graphApiVersion']);
+
+const WHATSAPP_FALLBACK_FIELDS: ChannelVendorFieldDto[] = [
+  { name: 'wabaId', required: false, secret: false },
+  { name: 'phoneNumberId', required: false, secret: false },
+  { name: 'graphApiVersion', required: false, secret: false },
+  { name: 'accessToken', required: false, secret: true },
+  { name: 'appSecret', required: false, secret: true },
+];
+
+const GRAPH_API_VERSION = /^v\d{1,3}\.\d{1,2}$/;
+
+function whatsappDisplayNumber(raw: string): string {
+  return formatPhoneNumber(/^\d+$/.test(raw) ? `+${raw}` : raw);
+}
+
 interface ChannelOptionItem {
   value: string;
   label: string;
@@ -242,6 +282,12 @@ export function ChannelsPage() {
   const [placeVapiCallFor, setPlaceVapiCallFor] = useState<VapiChannelDto | null>(null);
   const [editThrell, setEditThrell] = useState<ThrellChannelDto | null>(null);
   const [placeThrellCallFor, setPlaceThrellCallFor] = useState<ThrellChannelDto | null>(null);
+  const [addWhatsAppOpen, setAddWhatsAppOpen] = useState(false);
+  const [editWhatsApp, setEditWhatsApp] = useState<WhatsAppChannelDto | null>(null);
+  const [testWhatsAppFor, setTestWhatsAppFor] = useState<WhatsAppChannelDto | null>(null);
+  const [sendWhatsAppTestFor, setSendWhatsAppTestFor] = useState<WhatsAppChannelDto | null>(
+    null,
+  );
   const [rotated, setRotated] = useState<CreatedWidget | null>(null);
   const [rotatedIdentity, setRotatedIdentity] = useState<RotatedIdentity | null>(null);
   const [embedFor, setEmbedFor] = useState<ChannelDto | null>(null);
@@ -276,6 +322,9 @@ export function ChannelsPage() {
       vendors.find((v) => v.vendor === vendor)?.configFields.filter((f) => f.secret) ?? [],
     [vendors],
   );
+
+  const whatsappFields =
+    vendors.find((v) => v.vendor === WHATSAPP_VENDOR)?.configFields ?? WHATSAPP_FALLBACK_FIELDS;
 
   const { loadError, hasLoadedOnce, retrying, tryLoad, retry } = useLoadGate(load);
   const buildLoadFailedProps = useSettingsLoadFailedProps();
@@ -548,6 +597,34 @@ export function ChannelsPage() {
         />
       )}
 
+      {(addWhatsAppOpen || editWhatsApp) && (
+        <WhatsAppChannelDialog
+          editChannel={editWhatsApp}
+          fields={whatsappFields}
+          onClose={() => {
+            setAddWhatsAppOpen(false);
+            setEditWhatsApp(null);
+          }}
+          onSaved={() => {
+            void tryLoad();
+          }}
+        />
+      )}
+
+      {testWhatsAppFor && (
+        <TestWhatsAppDialog
+          channel={testWhatsAppFor}
+          onClose={() => setTestWhatsAppFor(null)}
+        />
+      )}
+
+      {sendWhatsAppTestFor && (
+        <SendTestWhatsAppDialog
+          channel={sendWhatsAppTestFor}
+          onClose={() => setSendWhatsAppTestFor(null)}
+        />
+      )}
+
       <section className="space-y-4">
         <SectionHead
           title={
@@ -578,6 +655,10 @@ export function ChannelsPage() {
                 <DropdownMenuItem onClick={() => setAddSmsOpen(true)}>
                   <MessageCircle className="size-4" />
                   {t('addSms')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setAddWhatsAppOpen(true)}>
+                  <WhatsAppLogo className="size-4" />
+                  {t('addWhatsApp')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setAddVoiceOpen(true)}>
                   <Phone className="size-4" />
@@ -629,9 +710,14 @@ export function ChannelsPage() {
                     setEditVapi(c as VapiChannelDto);
                   } else if (c.type === 'voice' && c.vendor === 'threll') {
                     setEditThrell(c as ThrellChannelDto);
+                  } else if (c.type === 'whatsapp') {
+                    setEditWhatsApp(c as WhatsAppChannelDto);
                   } else if (c.type === 'email') {
                     setEditEmail(c as EmailChannelDto);
                   }
+                }}
+                onTestConnection={() => {
+                  if (c.type === 'whatsapp') setTestWhatsAppFor(c as WhatsAppChannelDto);
                 }}
                 onSendTest={() => {
                   if (c.type === 'sms' && c.vendor === 'twilio') {
@@ -642,6 +728,8 @@ export function ChannelsPage() {
                     setPlaceVapiCallFor(c as VapiChannelDto);
                   } else if (c.type === 'voice' && c.vendor === 'threll') {
                     setPlaceThrellCallFor(c as ThrellChannelDto);
+                  } else if (c.type === 'whatsapp') {
+                    setSendWhatsAppTestFor(c as WhatsAppChannelDto);
                   } else if (c.type === 'email') {
                     setSendTestFor(c as EmailChannelDto);
                   }
@@ -668,6 +756,7 @@ function ChannelRow({
   onEnterCredentials,
   onEdit,
   onSendTest,
+  onTestConnection,
 }: {
   channel: ChannelDto;
   alert: ChannelAlertDto | null;
@@ -680,10 +769,13 @@ function ChannelRow({
   onEnterCredentials: () => void;
   onEdit: () => void;
   onSendTest: () => void;
+  onTestConnection: () => void;
 }) {
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
   const isChat = channel.type === 'chat';
+  const isWhatsApp = channel.type === 'whatsapp';
+  const whatsappConfig = isWhatsApp ? (channel.config as WhatsAppChannelDto['config']) : null;
   const isTwilioSms = channel.type === 'sms' && channel.vendor === 'twilio';
   const isMessageBirdSms = channel.type === 'sms' && channel.vendor === 'messagebird';
   const isVapiVoice = channel.type === 'voice' && channel.vendor === 'vapi';
@@ -702,7 +794,12 @@ function ChannelRow({
   const awaitingCredentials = channel.needsCredentials === true;
   const canEdit =
     !awaitingCredentials &&
-    (channel.type === 'email' || isTwilioSms || isMessageBirdSms || isVapiVoice || isThrellVoice);
+    (channel.type === 'email' ||
+      isTwilioSms ||
+      isMessageBirdSms ||
+      isVapiVoice ||
+      isThrellVoice ||
+      isWhatsApp);
 
   const kind = isChat
     ? t('typeChat')
@@ -710,7 +807,9 @@ function ChannelRow({
       ? t('typeEmail')
       : channel.type === 'sms'
         ? t('kindSms')
-        : t('kindVoice');
+        : isWhatsApp
+          ? t('kindWhatsApp')
+          : t('kindVoice');
 
   const qualifier = isChat
     ? origins.length === 0
@@ -720,7 +819,9 @@ function ChannelRow({
       ? (smsConfig?.fromNumber ? formatPhoneNumber(smsConfig.fromNumber) : undefined)
       : isMessageBirdSms
         ? (mbSmsConfig?.originator ? formatPhoneNumber(mbSmsConfig.originator) : undefined)
-        : undefined;
+        : isWhatsApp && whatsappConfig?.displayPhoneNumber
+          ? whatsappDisplayNumber(whatsappConfig.displayPhoneNumber)
+          : undefined;
 
   const relayAddress =
     emailConfig?.inbound?.provider === 'relay' ? emailConfig.inbound.address : null;
@@ -743,7 +844,11 @@ function ChannelRow({
         ? t('descriptions.pendingCredentials')
         : channel.type === 'sms'
           ? t('descriptions.sms')
-          : t('descriptions.voice');
+          : isWhatsApp
+            ? whatsappConfig?.verifiedName
+              ? t('descriptions.whatsappNamed', { name: whatsappConfig.verifiedName })
+              : t('descriptions.whatsapp')
+            : t('descriptions.voice');
 
   const knownVendor: ChannelVendor | null = isTwilioSms
     ? 'twilio'
@@ -753,7 +858,9 @@ function ChannelRow({
         ? 'vapi'
         : isThrellVoice
           ? 'threll'
-          : null;
+          : isWhatsApp
+            ? 'meta'
+            : null;
 
   const vendorLabel = isChat
     ? undefined
@@ -851,6 +958,15 @@ function ChannelRow({
               <DropdownMenuSeparator />
             </>
           )}
+          {!awaitingCredentials && isWhatsApp && (
+            <>
+              <DropdownMenuItem onClick={onTestConnection}>
+                {t('whatsapp.testConnection')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onSendTest}>{t('whatsapp.sendTest')}</DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
           {!awaitingCredentials && isThrellVoice && (
             <>
               <DropdownMenuItem onClick={onSendTest}>
@@ -905,7 +1021,7 @@ function AlertFooter({
   );
 }
 
-type ChannelVendor = 'twilio' | 'messagebird' | 'vapi' | 'threll';
+type ChannelVendor = 'twilio' | 'messagebird' | 'vapi' | 'threll' | 'meta';
 
 function VendorLogo({
   vendor,
@@ -921,9 +1037,11 @@ function VendorLogo({
         ? MessageBirdLogo
         : vendor === 'threll'
           ? ThrellLogo
-          : VapiLogo;
+          : vendor === 'meta'
+            ? WhatsAppLogo
+            : VapiLogo;
   const colorClass =
-    vendor === 'twilio'
+    vendor === 'twilio' || vendor === 'meta'
       ? ''
       : 'text-ink dark:text-foreground';
   return <Logo className={cn('shrink-0', colorClass, className)} />;
@@ -1836,6 +1954,7 @@ const VENDOR_COPY_NAMESPACE: Record<string, string> = {
   messagebird: 'messageBirdSms',
   vapi: 'vapi',
   threll: 'threll',
+  meta: 'whatsapp',
 };
 
 function EnterVendorCredentialsDialog({
@@ -4251,6 +4370,443 @@ function PlaceThrellCallDialog({
               {placing
                 ? t('threll.placeCallDialog.placing')
                 : t('threll.placeCallDialog.submit')}
+              <span aria-hidden className="ml-1 font-mono">↵</span>
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function WhatsAppChannelDialog({
+  editChannel,
+  fields,
+  onClose,
+  onSaved,
+}: {
+  editChannel: WhatsAppChannelDto | null;
+  fields: ChannelVendorFieldDto[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const isEdit = editChannel !== null;
+  const [name, setName] = useState(editChannel?.name ?? '');
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    const config = (editChannel?.config ?? {}) as Record<string, unknown>;
+    for (const f of fields) {
+      const current = config[f.name];
+      if (!f.secret && typeof current === 'string') initial[f.name] = current;
+    }
+    return initial;
+  });
+  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const copy = (key: string, fallback?: string): string | undefined =>
+    t.has(`whatsapp.${key}`) ? t(`whatsapp.${key}`) : fallback;
+  const labelFor = (field: ChannelVendorFieldDto): string =>
+    copy(`${field.name}Label`) ?? field.name;
+  const hintFor = (field: ChannelVendorFieldDto): string | undefined =>
+    field.secret
+      ? copy(`${field.name}${isEdit ? 'HintEdit' : 'HintCreate'}`, field.description)
+      : copy(`${field.name}Hint`, field.description);
+
+  async function submit() {
+    const errors: Record<string, string> = {};
+    const config: Record<string, string> = {};
+    for (const f of fields) {
+      const value = values[f.name]?.trim() ?? '';
+      if (value) config[f.name] = value;
+      else if (!isEdit && !WHATSAPP_OPTIONAL_FIELDS.has(f.name)) errors[f.name] = t('errors.required');
+    }
+    if (config.graphApiVersion && !GRAPH_API_VERSION.test(config.graphApiVersion)) {
+      errors.graphApiVersion = t('whatsapp.graphApiVersionInvalid');
+    }
+    if (!isEdit && !name.trim()) errors.name = t('errors.required');
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+    setSaving(true);
+    setSubmitError(null);
+    try {
+      await api('/v1/conversations/channels', {
+        method: 'POST',
+        body: JSON.stringify({
+          vendor: WHATSAPP_VENDOR,
+          ...(editChannel ? { channelId: editChannel.id } : {}),
+          ...(name.trim() ? { name: name.trim() } : {}),
+          config,
+        }),
+      });
+      onSaved();
+      onClose();
+    } catch (err) {
+      setSubmitError(
+        toFormError(
+          err,
+          translate(err) || t(isEdit ? 'errors.updateWhatsApp' : 'errors.createWhatsApp'),
+        ),
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <WhatsAppLogo className="size-5" />
+            {t(isEdit ? 'whatsapp.editTitle' : 'whatsapp.createTitle')}
+          </DialogTitle>
+          <DialogDescription>
+            {t(isEdit ? 'whatsapp.editDescription' : 'whatsapp.createDescription')}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <FormField label={t('nameLabel')} hint={t('whatsapp.nameHint')} error={fieldErrors.name}>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. whatsapp-support"
+              maxLength={120}
+              required={!isEdit}
+              autoFocus
+            />
+          </FormField>
+          {fields.map((f) => (
+            <FormField
+              key={f.name}
+              label={
+                WHATSAPP_OPTIONAL_FIELDS.has(f.name)
+                  ? t('whatsapp.optionalLabel', { label: labelFor(f) })
+                  : labelFor(f)
+              }
+              hint={hintFor(f)}
+              error={fieldErrors[f.name]}
+            >
+              <Input
+                type={f.secret ? 'password' : 'text'}
+                autoComplete="off"
+                value={values[f.name] ?? ''}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setValues((v) => ({ ...v, [f.name]: next }));
+                }}
+                placeholder={
+                  f.secret
+                    ? isEdit
+                      ? '••••'
+                      : undefined
+                    : f.name === 'graphApiVersion'
+                      ? 'v23.0'
+                      : undefined
+                }
+              />
+            </FormField>
+          ))}
+          {submitError && <FormError detail={submitError} />}
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={onClose}
+              disabled={saving}
+            >
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={saving}
+              pending={saving}
+            >
+              {saving
+                ? isEdit
+                  ? tCommon('saving')
+                  : t('whatsapp.verifying')
+                : isEdit
+                  ? tCommon('saveChanges')
+                  : t('whatsapp.create')}
+              <span aria-hidden className="ml-1 font-mono">↵</span>
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type WhatsAppTestResult =
+  | {
+      ok: true;
+      phoneNumberId: string;
+      displayPhoneNumber: string | null;
+      verifiedName: string | null;
+      qualityRating: string | null;
+    }
+  | { ok: false; error: string };
+
+function TestWhatsAppDialog({
+  channel,
+  onClose,
+}: {
+  channel: WhatsAppChannelDto;
+  onClose: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [result, setResult] = useState<WhatsAppTestResult | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    setResult(null);
+    void api<WhatsAppTestResult>(`/v1/conversations/channels/${channel.id}/test`, {
+      method: 'POST',
+      body: '{}',
+    })
+      .then((res) => {
+        if (active) setResult(res);
+      })
+      .catch((err: unknown) => {
+        if (active) setResult({ ok: false, error: translate(err) || t('errors.testWhatsApp') });
+      });
+    return () => {
+      active = false;
+    };
+  }, [channel.id, attempt, translate, t]);
+
+  const unknown = t('whatsapp.testDialog.unknown');
+  const rows = result?.ok
+    ? [
+        {
+          label: t('whatsapp.testDialog.displayPhoneNumber'),
+          value: result.displayPhoneNumber ? whatsappDisplayNumber(result.displayPhoneNumber) : unknown,
+        },
+        { label: t('whatsapp.testDialog.verifiedName'), value: result.verifiedName ?? unknown },
+        {
+          label: t('whatsapp.testDialog.qualityRating'),
+          value: result.qualityRating ?? unknown,
+        },
+        { label: t('whatsapp.phoneNumberIdLabel'), value: result.phoneNumberId },
+      ]
+    : [];
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('whatsapp.testDialog.title')}</DialogTitle>
+          <DialogDescription>
+            {t('whatsapp.testDialog.description', { name: channel.name })}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="mt-4 flex flex-col gap-3" aria-live="polite">
+          {result === null ? (
+            <p className="text-sm text-ink-mute">{t('whatsapp.testDialog.running')}</p>
+          ) : result.ok ? (
+            <>
+              <StatusLine tone="active" label={t('whatsapp.testDialog.ok')} />
+              <dl className="grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)] gap-x-4 gap-y-2 text-[13px]">
+                {rows.map((row) => (
+                  <div key={row.label} className="contents">
+                    <dt className="text-ink-mute">{row.label}</dt>
+                    <dd className="break-all font-mono text-ink dark:text-foreground">{row.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </>
+          ) : (
+            <>
+              <StatusLine tone="error" label={t('whatsapp.testDialog.failed')} />
+              <p className="break-words font-mono text-[12px] text-destructive">{result.error}</p>
+            </>
+          )}
+        </div>
+        <DialogFooter className={dialogFooterClass}>
+          <Button
+            type="button"
+            variant="outline"
+            className={dialogButtonClass}
+            onClick={() => setAttempt((n) => n + 1)}
+            disabled={result === null}
+          >
+            <RefreshCw className="size-4" />
+            {t('whatsapp.testDialog.rerun')}
+          </Button>
+          <Button type="button" variant="accent" className={dialogButtonClass} onClick={onClose}>
+            {tCommon('done')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SendTestWhatsAppDialog({
+  channel,
+  onClose,
+}: {
+  channel: WhatsAppChannelDto;
+  onClose: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [to, setTo] = useState('');
+  const [body, setBody] = useState('');
+  const [templateName, setTemplateName] = useState('');
+  const [templateLanguage, setTemplateLanguage] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const usingTemplate = templateName.trim().length > 0;
+
+  async function submit() {
+    const trimmed = to.trim();
+    if (!trimmed) return;
+    const payload: Record<string, unknown> = { to: trimmed };
+    if (usingTemplate) {
+      payload.templateName = templateName.trim();
+      if (templateLanguage.trim()) payload.templateLanguage = templateLanguage.trim();
+    } else if (body.trim()) {
+      payload.body = body.trim();
+    }
+    const parsed = ChannelSendTestBody.safeParse(payload);
+    if (!parsed.success) {
+      setError(zodIssuesToErrorMessage(parsed.error.issues, t));
+      return;
+    }
+    setSending(true);
+    setError(null);
+    try {
+      const res = await api<{ delivered: boolean; wamid: string; kind: 'text' | 'template' }>(
+        `/v1/conversations/channels/${channel.id}/send-test`,
+        { method: 'POST', body: JSON.stringify(parsed.data) },
+      );
+      notify.success(
+        t(
+          res.kind === 'template'
+            ? 'whatsapp.sendTestDialog.successTemplate'
+            : 'whatsapp.sendTestDialog.successText',
+          { to: trimmed },
+        ),
+      );
+      onClose();
+    } catch (err) {
+      setError(translate(err) || t('errors.sendTestWhatsApp'));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{t('whatsapp.sendTestDialog.title')}</DialogTitle>
+          <DialogDescription>
+            {t('whatsapp.sendTestDialog.description', { name: channel.name })}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <p className="border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-[12.5px] leading-snug text-ink dark:bg-amber-500/10 dark:text-foreground">
+            {t('whatsapp.sendTestDialog.windowNotice')}
+          </p>
+          <FormField
+            label={t('whatsapp.sendTestDialog.toLabel')}
+            hint={t('whatsapp.sendTestDialog.toHint')}
+            error={error ?? undefined}
+          >
+            <Input
+              value={to}
+              onChange={(e) => {
+                setTo(e.target.value);
+                if (error) setError(null);
+              }}
+              required
+              autoFocus
+              placeholder="+4712345678"
+              aria-invalid={error ? true : undefined}
+            />
+          </FormField>
+          <FormField
+            label={t('whatsapp.sendTestDialog.templateNameLabel')}
+            hint={t('whatsapp.sendTestDialog.templateNameHint')}
+          >
+            <Input
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              maxLength={512}
+              placeholder="hello_world"
+              autoComplete="off"
+            />
+          </FormField>
+          {usingTemplate ? (
+            <FormField
+              label={t('whatsapp.sendTestDialog.templateLanguageLabel')}
+              hint={t('whatsapp.sendTestDialog.templateLanguageHint')}
+            >
+              <Input
+                value={templateLanguage}
+                onChange={(e) => setTemplateLanguage(e.target.value)}
+                maxLength={16}
+                placeholder="en_US"
+                autoComplete="off"
+              />
+            </FormField>
+          ) : (
+            <FormField
+              label={t('whatsapp.sendTestDialog.bodyLabel')}
+              hint={t('whatsapp.sendTestDialog.bodyHint')}
+            >
+              <Input
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                maxLength={1600}
+                placeholder={t('whatsapp.sendTestDialog.bodyPlaceholder')}
+              />
+            </FormField>
+          )}
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={onClose}
+              disabled={sending}
+            >
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={sending || !to.trim()}
+              pending={sending}
+            >
+              {sending ? t('whatsapp.sendTestDialog.sending') : t('whatsapp.sendTestDialog.submit')}
               <span aria-hidden className="ml-1 font-mono">↵</span>
             </Button>
           </DialogFooter>

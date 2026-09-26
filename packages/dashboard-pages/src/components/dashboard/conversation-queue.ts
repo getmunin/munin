@@ -61,7 +61,7 @@ export const QUEUE_ORIGIN_FILTERS = [
 ] as const;
 export type QueueOriginFilter = (typeof QUEUE_ORIGIN_FILTERS)[number];
 
-export const QUEUE_CHANNEL_FILTERS = ['any', 'email', 'chat', 'sms', 'voice'] as const;
+export const QUEUE_CHANNEL_FILTERS = ['any', 'email', 'chat', 'sms', 'whatsapp', 'voice'] as const;
 export type QueueChannelFilter = (typeof QUEUE_CHANNEL_FILTERS)[number];
 
 export const QUEUE_SINCE_FILTERS = ['any', '1d', '7d', '30d'] as const;

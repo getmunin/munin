@@ -21,6 +21,7 @@ import {
   type EnqueueCuratorJobInput,
   type FailCuratorJobInput,
   type MuninRestClient,
+  type RecordTranscriptionInput,
   type UpdateCuratorJobProgressInput,
   toRuntimeHistory,
 } from '@getmunin/agent-runtime';
@@ -184,6 +185,16 @@ function buildClient(opts: BuildOptions): MuninRestClient {
           authorType: 'agent',
           authorId: opts.actor.id,
         });
+      });
+    },
+
+    async recordTranscription(
+      conversationId: string,
+      messageId: string,
+      input: RecordTranscriptionInput,
+    ): Promise<void> {
+      await audited('runner:recordTranscription', async () => {
+        await opts.conv.recordVoiceNoteTranscription({ conversationId, messageId, ...input });
       });
     },
 

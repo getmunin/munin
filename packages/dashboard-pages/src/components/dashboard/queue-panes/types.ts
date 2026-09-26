@@ -100,6 +100,7 @@ export interface OutreachProposalDto {
   firstViewedAt?: string | null;
   proposedSendAt?: string | null;
   scheduledSendAt?: string | null;
+  whatsappTemplate?: Record<string, unknown> | null;
   createdAt: string;
 }
 

@@ -7,6 +7,7 @@ import { cn } from '@getmunin/ui';
 import { MessageComponents } from './inbox-product-list';
 import { MessageAttachments } from './inbox-attachments';
 import { messageRole, participantColor, type MessageRole } from './inbox-identity';
+import { readReceipt, readWhatsAppMessageMeta } from './whatsapp';
 import type { MessageAttachment, MessageDto } from './inbox-types';
 
 const DELIVERY_ERROR_MAX_CHARS = 160;
@@ -113,6 +114,7 @@ export function MessageBubble({
   viewerUserId = null,
   hue,
   endUserLabel = null,
+  channelType = null,
   onDeleteAttachment,
   onRetryDelivery,
   retryingDelivery = false,
@@ -122,6 +124,7 @@ export function MessageBubble({
   viewerUserId?: string | null;
   hue?: number;
   endUserLabel?: string | null;
+  channelType?: string | null;
   onDeleteAttachment?: (attachment: MessageAttachment) => void;
   onRetryDelivery?: (message: MessageDto) => void;
   retryingDelivery?: boolean;
@@ -131,6 +134,8 @@ export function MessageBubble({
   const isOutbound = message.authorType === 'user' || message.authorType === 'agent';
   const noSpeech = message.metadata.voiceNoSpeech === true;
   const quoted = readQuotedTurns(message.metadata);
+  const whatsapp = readWhatsAppMessageMeta(message.metadata);
+  const receipt = readReceipt(message, channelType);
 
   if (role === 'system') {
     return (
@@ -216,11 +221,48 @@ export function MessageBubble({
       >
         {noSpeech ? (
           <p className="italic opacity-60">{t('noSpeech')}</p>
+        ) : whatsapp.voiceNote?.status === 'pending' ? (
+          <p className="italic opacity-60">{t('voiceNote.transcribing')}</p>
+        ) : whatsapp.voiceNote?.status === 'failed' ? (
+          <div className="flex flex-col gap-0.5">
+            <p className="italic opacity-60">{t('voiceNote.failed')}</p>
+            {whatsapp.voiceNote.error ? (
+              <p className="text-[11.5px] opacity-60 [overflow-wrap:anywhere]">
+                {truncateDeliveryError(whatsapp.voiceNote.error)}
+              </p>
+            ) : null}
+          </div>
+        ) : whatsapp.voiceNote?.status === 'done' ? (
+          <>
+            <p className="mb-1 font-mono text-[10px] font-medium uppercase tracking-meta opacity-60">
+              {t('voiceNote.transcriptLabel')}
+            </p>
+            <MessageMarkdown body={message.body} />
+          </>
         ) : (
           <MessageMarkdown body={message.body} />
         )}
       </div>
+      {whatsapp.reaction ? (
+        <span
+          role="img"
+          aria-label={t('reaction', { emoji: whatsapp.reaction })}
+          title={t('reaction', { emoji: whatsapp.reaction })}
+          className="-mt-2.5 rounded-full border border-rule-soft bg-paper px-1.5 text-[13px] leading-5 dark:border-rule-on-dark dark:bg-card"
+        >
+          {whatsapp.reaction}
+        </span>
+      ) : null}
       <MessageAttachments attachments={message.attachments} onDelete={onDeleteAttachment} />
+      {isOutbound && whatsapp.template ? (
+        <div className="font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
+          {t('templateBadge', {
+            template: whatsapp.template.language
+              ? `${whatsapp.template.name} · ${whatsapp.template.language}`
+              : whatsapp.template.name,
+          })}
+        </div>
+      ) : null}
       {quoted.length > 0 ? <QuotedThread turns={quoted} /> : null}
       {isOutbound && <MessageComponents metadata={message.metadata} />}
       {isOutbound && failure ? (
@@ -250,9 +292,9 @@ export function MessageBubble({
           ) : null}
         </div>
       ) : null}
-      {isOutbound && !failure && message.seenAt && (
+      {isOutbound && !failure && receipt && (
         <div className="font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
-          {t('seenAt', { time: formatSeenAt(message.seenAt) })}
+          {t(receipt.kind === 'read' ? 'readAt' : 'seenAt', { time: formatSeenAt(receipt.at) })}
         </div>
       )}
     </div>

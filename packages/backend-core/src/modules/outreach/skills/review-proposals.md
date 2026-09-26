@@ -1,14 +1,14 @@
 ---
 title: Outreach: Review pending proposals
-description: Operator review pass over drafted outreach proposals — approve each pending draft (sending it now or scheduling it for a named time), dismiss it, or call off a scheduled send, plus the two agent-side corrections, revise and withdraw. Voice and SMS proposals are approved only in the Munin dashboard. In MCP App hosts this renders the interactive Munin Inspector panel.
+description: Operator review pass over drafted outreach proposals — approve each pending draft (sending it now or scheduling it for a named time), dismiss it, or call off a scheduled send, plus the two agent-side corrections, revise and withdraw. Voice, SMS and WhatsApp proposals are approved only in the Munin dashboard. In MCP App hosts this renders the interactive Munin Inspector panel.
 audiences: [admin]
 ---
 
 # Review pending outreach proposals
 
-Every outbound message in Munin ships through a human-approved gate: curators file drafts as **pending proposals** (`skill://outreach/draft-first-touch-email`, `skill://outreach/draft-first-touch-sms`, `skill://outreach/draft-first-touch-call`, `skill://outreach/draft-reply-email`, `skill://outreach/draft-followup-email`), and nothing leaves the org until an operator — or an admin agent acting on their explicit instruction — decides each one. This skill is that decision pass.
+Every outbound message in Munin ships through a human-approved gate: curators file drafts as **pending proposals** (`skill://outreach/draft-first-touch-email`, `skill://outreach/draft-first-touch-sms`, `skill://outreach/draft-first-touch-whatsapp`, `skill://outreach/draft-first-touch-call`, `skill://outreach/draft-reply-email`, `skill://outreach/draft-followup-email`), and nothing leaves the org until an operator — or an admin agent acting on their explicit instruction — decides each one. This skill is that decision pass.
 
-**Calls and text messages are approved in the dashboard, never here.** A proposal whose campaign runs on a voice or SMS channel can only be approved by a signed-in person in the Munin dashboard. `outreach_approve_proposal` refuses every other caller — an agent, an admin API key, the Slack button — with `outreach_invalid: … approved by a signed-in person in the Munin dashboard`. That is the safety floor for outbound calling, not a configuration you can route around: don't retry, don't look for another tool, and don't ask for a credential that would work. Present the draft, say it is waiting for someone to place the call from the dashboard inbox, and stop. You can still `outreach_update_proposal`, `outreach_withdraw_proposal`, and `outreach_dismiss_proposal` on these — none of them send anything.
+**Calls, text messages and WhatsApp messages are approved in the dashboard, never here.** A proposal whose campaign runs on a voice, SMS or WhatsApp channel can only be approved by a signed-in person in the Munin dashboard. `outreach_approve_proposal` refuses every other caller — an agent, an admin API key, the Slack button — with `outreach_invalid: … approved by a signed-in person in the Munin dashboard`. That is the safety floor for outbound calling, not a configuration you can route around: don't retry, don't look for another tool, and don't ask for a credential that would work. Present the draft, say it is waiting for someone to place the call from the dashboard inbox, and stop. You can still `outreach_update_proposal`, `outreach_withdraw_proposal`, and `outreach_dismiss_proposal` on these — none of them send anything.
 
 **Approving is the send decision.** `outreach_approve_proposal` is not a status flip: for an `initial` proposal it creates the outbound conversation and sends the first email through the campaign's channel (appending the CTA link and unsubscribe footer per campaign settings); for a `reply` or `followup` it sends the draft verbatim on the existing conversation. It happens the moment you approve — unless a future send time applies, in which case the proposal parks at `status: "approved"` and a worker delivers it at that time (see **Scheduling a send** below). Once a message is out there is no undo. Never approve in bulk without reading each draft.
 
@@ -20,7 +20,7 @@ Every outbound message in Munin ships through a human-approved gate: curators fi
 
 | Tool | Who it's for | What it means |
 |---|---|---|
-| `outreach_approve_proposal` | operator | Send it — now, or at a named time. Email only — voice and SMS are dashboard-only. |
+| `outreach_approve_proposal` | operator | Send it — now, or at a named time. Email only — voice, SMS and WhatsApp are dashboard-only. |
 | `outreach_dismiss_proposal` | operator | *Rejected.* A judgement about this draft; on a `followup` it also stops the sequence. |
 | `outreach_cancel_scheduled_send` | operator | *Not at that time after all.* Pulls an approved send back to `pending`; nothing was sent. |
 | `outreach_update_proposal` | agent | Same proposal, better text. Recipient and campaign are fixed. |

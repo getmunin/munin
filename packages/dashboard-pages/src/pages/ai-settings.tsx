@@ -37,6 +37,7 @@ export function AiSettingsPage({
     retrying,
     retry,
     models,
+    transcriptionModels,
     setConfig,
     setModels,
   } = useAgentConfig();
@@ -111,6 +112,7 @@ export function AiSettingsPage({
             headless
             config={config}
             models={managedModelsResult ?? models}
+            transcriptionModels={transcriptionModels}
             managed={isManaged}
             onSaved={setConfig}
           />

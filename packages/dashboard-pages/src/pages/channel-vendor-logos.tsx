@@ -96,3 +96,26 @@ export function VapiLogo(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function WhatsAppLogo(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      aria-hidden
+      {...props}
+    >
+      <path
+        d="M3.4 20.6l1.3-4.3A8.6 8.6 0 1 1 7.9 19.4z"
+        stroke="#25D366"
+        strokeWidth="1.9"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9.1 7.5c.2-.4.5-.4.7-.4h.5c.2 0 .4 0 .6.5l.7 1.7c.1.2 0 .4-.1.6l-.5.6c-.1.1-.2.3 0 .5.6 1 1.4 1.8 2.4 2.4.2.1.4.1.5 0l.6-.7c.2-.2.4-.2.6-.1l1.7.8c.2.1.4.2.4.4 0 .3 0 1.1-.5 1.6-.5.5-1.4.8-2.2.6-1.4-.4-2.7-1.2-3.8-2.3-1.1-1.1-1.9-2.4-2.3-3.8-.2-.8.1-1.6.7-2.4z"
+        fill="#25D366"
+      />
+    </svg>
+  );
+}

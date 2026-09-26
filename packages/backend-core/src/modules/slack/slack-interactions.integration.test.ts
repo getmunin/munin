@@ -180,6 +180,10 @@ class FakeSlackApi extends SlackApiClient {
       [new VapiOutreachCaller(new VapiClientService(db))],
       db,
       new CuratorJobsService(dispatcher),
+      {
+        prepareTemplate: () => Promise.reject(new Error('whatsapp templates not stubbed')),
+        sendTemplate: () => Promise.reject(new Error('whatsapp templates not stubbed')),
+      },
     );
     const embeddingHolder = new (class extends EmbeddingProviderHolder {
       override get() {

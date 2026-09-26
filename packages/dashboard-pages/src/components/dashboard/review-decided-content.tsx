@@ -317,7 +317,9 @@ function OutreachContent({ proposal }: { proposal: OutreachProposalDto }) {
               ? tOutreach('callsFrom')
               : channelType === 'sms'
                 ? tOutreach('textsFrom')
-                : tOutreach('from')}
+                : channelType === 'whatsapp'
+                  ? tOutreach('messagesFrom')
+                  : tOutreach('from')}
           </EnvelopeLabel>
           <span className="text-[12.5px] text-ink dark:text-foreground">{sender}</span>
           <EnvelopeLabel>{tOutreach('to')}</EnvelopeLabel>

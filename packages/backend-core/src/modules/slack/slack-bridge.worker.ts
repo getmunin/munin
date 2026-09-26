@@ -250,6 +250,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       case 'conversation.message.sent':
         return await this.mirrorMessage({ row, payload, context, link, token });
       case 'conversation.message.body_revised':
+      case 'conversation.message.transcribed':
         return await this.reviseMirroredMessage({ payload, context, token });
       case 'conversation.handover_requested': {
         const reason = typeof payload.reason === 'string' ? payload.reason : null;

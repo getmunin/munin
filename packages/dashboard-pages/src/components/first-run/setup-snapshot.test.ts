@@ -84,6 +84,12 @@ describe('toSetupSnapshot', () => {
           }),
           channel({ id: 'b', type: 'chat', config: { originAllowlist: ['globex.test'] } }),
           channel({ id: 'c', type: 'sms', config: { fromNumber: '+4740000000' } }),
+          channel({
+            id: 'e',
+            type: 'whatsapp',
+            vendor: 'meta',
+            config: { displayPhoneNumber: '+47 12 34 56 78', verifiedName: 'Acme' },
+          }),
           channel({ id: 'd', type: 'voice', name: 'Main line', config: {} }),
         ],
       }),
@@ -92,20 +98,38 @@ describe('toSetupSnapshot', () => {
       'support@globex.test',
       'globex.test',
       '+4740000000',
+      '+47 12 34 56 78',
       'Main line',
     ]);
   });
 
-  it('orders channels email → chat → sms → voice regardless of how they were named', () => {
+  it('orders channels email → chat → sms → whatsapp → voice regardless of how they were named', () => {
     const snapshot = toSetupSnapshot(
       dto({
         channels: [
           channel({ id: 'a', type: 'voice', name: 'Aardvark line' }),
+          channel({ id: 'd', type: 'whatsapp', vendor: 'meta', name: 'Bison number' }),
           channel({ id: 'b', type: 'chat', name: 'Zebra widget' }),
           channel({ id: 'c', type: 'email', name: 'Middle inbox' }),
         ],
       }),
     );
-    expect(snapshot.liveChannels.map((c) => c.type)).toEqual(['email', 'chat', 'voice']);
+    expect(snapshot.liveChannels.map((c) => c.type)).toEqual([
+      'email',
+      'chat',
+      'whatsapp',
+      'voice',
+    ]);
+  });
+
+  it('labels a WhatsApp channel by its verified name when Meta has not reported a number yet', () => {
+    const snapshot = toSetupSnapshot(
+      dto({
+        channels: [
+          channel({ id: 'a', type: 'whatsapp', vendor: 'meta', config: { verifiedName: 'Acme' } }),
+        ],
+      }),
+    );
+    expect(snapshot.liveChannels.map((c) => c.label)).toEqual(['Acme']);
   });
 });

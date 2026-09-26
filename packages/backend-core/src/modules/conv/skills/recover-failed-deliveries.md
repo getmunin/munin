@@ -1,14 +1,14 @@
 ---
 title: Recover a failed message delivery
-description: Find outgoing email or SMS that never reached the recipient, read why the send failed, fix the cause, and re-queue the delivery with conv_retry_delivery.
+description: Find outgoing email, SMS or WhatsApp messages that never reached the recipient, read why the send failed, fix the cause, and re-queue the delivery with conv_retry_delivery.
 audiences: [admin]
 ---
 
 # Recover a failed message delivery
 
 Use this when an operator says a customer never got a reply, or when a
-`conversation.message.delivery_failed` webhook fires. It covers email and SMS —
-the two channel types Munin delivers out of band.
+`conversation.message.delivery_failed` webhook fires. It covers email, SMS and
+WhatsApp — the channel types Munin delivers out of band.
 
 ## How outbound delivery works
 
@@ -110,6 +110,17 @@ says just burns another five attempts. The common shapes:
 - **Rate limit** — note that a send *deferred* by the channel's own send limits
   stays `queued` and carries its reason in `deliveryError`. That is not a
   failure and needs nothing from you.
+- **`whatsapp_window_closed`** — the WhatsApp message was queued inside the
+  24-hour customer-service window but reached Meta after it closed (a draft
+  approved late, a slow retry). Meta rejects it, and the delivery goes straight
+  to `dead` rather than burning retries. **Retrying cannot work** — the window is
+  still closed. Send an approved template instead
+  (`skill://conv/send-whatsapp-template`); once the customer replies, free text
+  works again.
+- **Other `whatsapp_meta_<code>` errors** — Meta's own error code and text. An
+  expired or revoked access token shows up as an authentication error: re-issue
+  it with `conv_request_channel_credentials`. A recipient who has blocked the
+  number or isn't on WhatsApp can't be reached on this channel at all.
 
 ## Step 3 — re-queue it
 

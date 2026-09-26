@@ -55,6 +55,7 @@ async function readOrMaterialize(id: string): Promise<AgentConfigRow> {
       id: agentConfig.id,
       fastModel: agentConfig.fastModel,
       smartModel: agentConfig.smartModel,
+      transcriptionModel: agentConfig.transcriptionModel,
       providerBaseUrl: agentConfig.providerBaseUrl,
       providerKeySet: sql<boolean>`(${agentConfig.providerApiKeyCt} IS NOT NULL)`,
       maxHistoryChars: agentConfig.maxHistoryChars,
@@ -72,6 +73,7 @@ async function readOrMaterialize(id: string): Promise<AgentConfigRow> {
       id: row.id,
       fastModel: row.fastModel,
       smartModel: row.smartModel,
+      transcriptionModel: row.transcriptionModel,
       providerBaseUrl: row.providerBaseUrl,
       providerApiKeySet: row.providerKeySet,
       maxHistoryChars: row.maxHistoryChars,
@@ -94,6 +96,7 @@ async function readOrMaterialize(id: string): Promise<AgentConfigRow> {
     id: created.id,
     fastModel: created.fastModel,
     smartModel: created.smartModel,
+    transcriptionModel: created.transcriptionModel,
     providerBaseUrl: created.providerBaseUrl,
     providerApiKeySet: false,
     maxHistoryChars: created.maxHistoryChars,
@@ -109,6 +112,9 @@ async function applyPatch(id: string, patch: AgentConfigPatch): Promise<void> {
   const setClauses: Record<string, unknown> = {};
   if (patch.fastModel !== undefined) setClauses['fastModel'] = patch.fastModel;
   if (patch.smartModel !== undefined) setClauses['smartModel'] = patch.smartModel;
+  if (patch.transcriptionModel !== undefined) {
+    setClauses['transcriptionModel'] = patch.transcriptionModel;
+  }
   if (patch.providerBaseUrl !== undefined) setClauses['providerBaseUrl'] = patch.providerBaseUrl;
   if (patch.maxHistoryChars !== undefined) setClauses['maxHistoryChars'] = patch.maxHistoryChars;
   if (patch.maxToolIterations !== undefined) setClauses['maxToolIterations'] = patch.maxToolIterations;

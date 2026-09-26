@@ -139,7 +139,10 @@ function dispatchEvent(event: EventRow, handlers: RealtimeBusHandlers): void {
   const payload = event.payload ?? {};
   const type = event.type;
 
-  if (type === 'conversation.message.received' && handlers.onMessageReceived) {
+  if (
+    (type === 'conversation.message.received' || type === 'conversation.message.transcribed') &&
+    handlers.onMessageReceived
+  ) {
     const conversationId = payload['conversationId'];
     const messageId = payload['messageId'];
     const authorType = payload['authorType'];

@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { schema, type Db, type Tx } from '@getmunin/db';
+import { makeId, schema, type Db, type Tx } from '@getmunin/db';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import {
@@ -18,7 +18,25 @@ import {
   InboundRedactionService,
   stampDetections,
 } from '../inbound-redaction.service.ts';
-import type { ChannelRow, InboundBatch } from './adapter.ts';
+import { TRANSCRIBE_VOICE_NOTE_TASK_URI } from '@getmunin/types';
+import { ConvAttachmentsService } from '../attachments/conv-attachments.service.ts';
+import type { AttachmentDto, StoredAttachmentBytes } from '../attachments/conv-attachments.types.ts';
+import type { ChannelRow, InboundBatch, InboundMedia } from './adapter.ts';
+
+const PHONE_CHANNEL_TYPES: readonly string[] = ['sms', 'whatsapp'];
+
+type InboundMessage = InboundBatch['messages'][number];
+
+interface FetchedMedia {
+  name: string;
+  body: Buffer;
+  mime: string;
+}
+
+interface StoredMedia {
+  name: string;
+  bytes: StoredAttachmentBytes;
+}
 
 @Injectable()
 export class ChannelIngestService {
@@ -29,6 +47,7 @@ export class ChannelIngestService {
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(CuratorJobsService) private readonly curatorJobs: CuratorJobsService,
     @Inject(InboundRedactionService) private readonly redaction: InboundRedactionService,
+    @Inject(ConvAttachmentsService) private readonly attachments: ConvAttachmentsService,
   ) {}
 
   async ingest(channel: ChannelRow, batch: InboundBatch): Promise<{ ingested: number }> {
@@ -46,8 +65,9 @@ export class ChannelIngestService {
     return { ingested };
   }
 
-  private async ingestOne(channel: ChannelRow, msg: InboundBatch['messages'][number]): Promise<boolean> {
+  private async ingestOne(channel: ChannelRow, msg: InboundMessage): Promise<boolean> {
     const orgId = channel.orgId;
+    const fetched = await this.fetchMedia(channel, msg);
     const actor = new ActorIdentity(
       'system',
       `channel-webhook-${channel.type}`,
@@ -75,16 +95,26 @@ export class ChannelIngestService {
         const contact = await findOrCreateContact(tx, orgId, msg.fromIdentity);
         const spamSender = contact.spamMarkedAt !== null;
 
+        const existing = await findThreadableConversation(tx, orgId, channel.id, contact.id);
+        const conversationId = existing?.id ?? makeId('ccv');
+        const storedMedia = await this.storeMedia(channel, conversationId, fetched);
         const conversation =
-          (await findThreadableConversation(tx, orgId, channel.id, contact.id)) ??
-          (await createConversation(tx, orgId, channel, contact, msg.receivedAt, spamSender));
+          existing ??
+          (await createConversation(tx, orgId, channel, contact, msg.receivedAt, spamSender, conversationId));
 
         const metadata: Record<string, unknown> = {
+          ...(msg.metadata ?? {}),
           providerMessageId: msg.providerMessageId,
         };
         if (msg.inReplyTo) metadata.inReplyTo = msg.inReplyTo;
         if (msg.raw) metadata.raw = msg.raw;
         if (spamSender) metadata.suppressed = 'spam_sender';
+        const voiceNote = metadata.voiceNote === true;
+        if (voiceNote) {
+          metadata.transcription = storedMedia.some((m) => m.bytes.mime.startsWith('audio/'))
+            ? { status: 'pending' }
+            : { status: 'failed', error: 'audio could not be stored' };
+        }
 
         const scrubbed = await this.redaction.apply(tx, orgId, {
           body: msg.body,
@@ -104,6 +134,14 @@ export class ChannelIngestService {
             metadata: stampDetections(scrubbed.fields.metadata ?? {}, scrubbed.detected),
           })
           .returning();
+
+        const recorded = await this.recordMedia(conversation.id, stored!.id, storedMedia);
+        if (recorded.length > 0) {
+          await tx
+            .update(schema.convMessages)
+            .set({ attachments: this.attachments.projectForMessage(recorded) })
+            .where(eq(schema.convMessages.id, stored!.id));
+        }
 
         await tx
           .update(schema.convConversations)
@@ -135,11 +173,29 @@ export class ChannelIngestService {
             ...(spamSender ? { autoReply: true, suppressed: 'spam_sender' } : {}),
           },
         });
-        if (channel.type === 'sms' && isOptOutKeyword(msg.body)) {
-          await suppressContactByPhone(tx, orgId, contact.phone, channel.id);
+        if (
+          PHONE_CHANNEL_TYPES.includes(channel.type) &&
+          (isOptOutKeyword(msg.body) || msg.metadata?.optOutButton === true)
+        ) {
+          await suppressContactByPhone(tx, orgId, contact.phone, channel.id, channel.type);
         }
 
         if (spamSender) return true;
+
+        if (voiceNote) {
+          const transcription = metadata.transcription as { status: string };
+          if (transcription.status === 'pending') {
+            await this.curatorJobs.enqueue({
+              jobUri: TRANSCRIBE_VOICE_NOTE_TASK_URI,
+              userPrompt: `Transcribe the voice note on message ${stored!.id} in conversation ${conversation.id}.`,
+              sourceEventType: 'conversation.message.received',
+              sourceEventPayload: { conversationId: conversation.id, messageId: stored!.id },
+              dedupeKey: `transcribe-voice-note:msg:${stored!.id}`,
+            });
+          } else {
+            await raiseAttention(tx, conversation.id);
+          }
+        }
 
         await this.curatorJobs.enqueue(
           buildSetTopicAndTitleJob({ conversationId: conversation.id, channelType: channel.type }),
@@ -148,6 +204,86 @@ export class ChannelIngestService {
       });
     });
   }
+
+  private async fetchMedia(channel: ChannelRow, msg: InboundMessage): Promise<FetchedMedia[]> {
+    const out: FetchedMedia[] = [];
+    for (const media of msg.media ?? []) {
+      const fetched = await fetchOne(media).catch((err: unknown) => {
+        this.logger.warn(
+          `inbound media fetch failed channel=${channel.id} providerMessageId=${msg.providerMessageId}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return null;
+      });
+      if (fetched) out.push(fetched);
+    }
+    return out;
+  }
+
+  private async storeMedia(
+    channel: ChannelRow,
+    conversationId: string,
+    media: readonly FetchedMedia[],
+  ): Promise<StoredMedia[]> {
+    const out: StoredMedia[] = [];
+    for (const item of media) {
+      try {
+        const bytes = await this.attachments.storeBytes({
+          conversationId,
+          name: item.name,
+          mime: item.mime,
+          body: item.body,
+          allowAudio: true,
+        });
+        out.push({ name: item.name, bytes });
+      } catch (err) {
+        this.logger.warn(
+          `inbound media dropped channel=${channel.id} name=${item.name} mime=${item.mime}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+    return out;
+  }
+
+  private async recordMedia(
+    conversationId: string,
+    messageId: string,
+    stored: readonly StoredMedia[],
+  ): Promise<AttachmentDto[]> {
+    const out: AttachmentDto[] = [];
+    for (const item of stored) {
+      out.push(
+        await this.attachments.recordStoredBytes({
+          stored: item.bytes,
+          conversationId,
+          messageId,
+          name: item.name,
+        }),
+      );
+    }
+    return out;
+  }
+}
+
+async function fetchOne(media: InboundMedia): Promise<FetchedMedia> {
+  const { body, mime } = await media.fetch();
+  return { name: media.name, body, mime };
+}
+
+async function raiseAttention(tx: Db | Tx, conversationId: string): Promise<void> {
+  await tx
+    .update(schema.convConversations)
+    .set({
+      needsHumanAttention: true,
+      needsHumanAttentionAt: new Date(),
+      handoverResolvedAt: null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.convConversations.id, conversationId),
+        eq(schema.convConversations.needsHumanAttention, false),
+      ),
+    );
 }
 
 const OPT_OUT_KEYWORDS = new Set([
@@ -175,6 +311,7 @@ async function suppressContactByPhone(
   orgId: string,
   phone: string | null,
   channelId: string,
+  channelType: string,
 ): Promise<void> {
   if (!phone) return;
   const rows = await tx
@@ -193,11 +330,11 @@ async function suppressContactByPhone(
     orgId,
     type: 'note',
     subject: 'Unsubscribed',
-    body: 'Replied with an opt-out keyword over SMS',
+    body: channelType === 'whatsapp' ? 'Opted out over WhatsApp' : 'Replied with an opt-out keyword over SMS',
     contactId: contact.id,
     actorType: 'system',
-    actorId: 'sms-opt-out',
-    metadata: { optOut: { channelId, via: 'sms_keyword' } },
+    actorId: `${channelType}-opt-out`,
+    metadata: { optOut: { channelId, via: `${channelType}_keyword` } },
   });
 }
 
@@ -236,6 +373,7 @@ async function createConversation(
   contact: typeof schema.convContacts.$inferSelect,
   receivedAt: Date,
   spamSender: boolean,
+  id: string,
 ): Promise<typeof schema.convConversations.$inferSelect> {
   const next = await tx.execute<{ next: number } & Record<string, unknown>>(
     sql`SELECT conv_next_display_id(${orgId}) AS next`,
@@ -243,6 +381,7 @@ async function createConversation(
   const [conversation] = await tx
     .insert(schema.convConversations)
     .values({
+      id,
       orgId,
       displayId: next[0]!.next,
       channelId: channel.id,

@@ -29,6 +29,15 @@ export function MessageAttachments({
               <ImageOff aria-hidden className="size-3.5 shrink-0" />
               <span className="max-w-[14rem] truncate">{t('removed', { name: a.name })}</span>
             </div>
+          ) : a.mime.startsWith('audio/') ? (
+            <audio
+              key={a.id}
+              controls
+              preload="none"
+              src={a.url}
+              aria-label={t('audio', { name: a.name })}
+              className="h-10 w-72 max-w-full"
+            />
           ) : (
             <div key={a.id} className="group relative">
               <button

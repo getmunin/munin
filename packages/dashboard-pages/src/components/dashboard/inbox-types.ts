@@ -65,13 +65,22 @@ export interface MessageDto {
   metadata: Record<string, unknown>;
   createdAt: string;
   seenAt?: string | null;
+  firstOpenedAt?: string | null;
   deliveryStatus?: DeliveryStatus | null;
   deliveryError?: string | null;
   deliveryAttempts?: number | null;
   deliveryNextAttemptAt?: string | null;
 }
 
+export interface WhatsAppWindowDto {
+  open: boolean;
+  closesAt: string | null;
+  lastInboundAt: string | null;
+}
+
 export interface ConversationDetail extends ConversationSummary {
+  channelType?: string;
+  whatsappWindow?: WhatsAppWindowDto;
   messages: MessageDto[];
   claim: { holderType: 'user'; holderId: string; expiresAt: string } | null;
   contactEmail: string | null;

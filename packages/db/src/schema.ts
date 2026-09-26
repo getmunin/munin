@@ -2042,6 +2042,7 @@ export const outreachProposals = pgTable(
     draftSubject: text('draft_subject'),
     draftBody: text('draft_body').notNull(),
     originalDraftBody: text('original_draft_body'),
+    whatsappTemplate: jsonb('whatsapp_template').$type<Record<string, unknown>>(),
     evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull().default({}),
     proposedSendAt: timestamp('proposed_send_at', { withTimezone: true }),
     scheduledSendAt: timestamp('scheduled_send_at', { withTimezone: true }),

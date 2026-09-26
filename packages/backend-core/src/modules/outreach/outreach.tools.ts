@@ -143,14 +143,28 @@ const ProposeInitialInput = z.object({
     .max(300)
     .optional()
     .describe(
-      'Required for email campaigns; omit for SMS and voice campaigns, which have no subject.',
+      'Required for email campaigns; omit for SMS, WhatsApp and voice campaigns, which have no subject.',
     ),
   draftBody: z
     .string()
     .min(1)
     .max(20_000)
+    .optional()
     .describe(
-      'For email campaigns: the email body. For SMS campaigns: the text message, capped at 480 characters, plain text — no markdown, and no opt-out line, which Munin appends. For voice campaigns: the opening line / talking-points the AI agent should use when the call connects.',
+      'Required for email, SMS and voice campaigns; omit for WhatsApp, whose text comes from the template. For email campaigns: the email body. For SMS campaigns: the text message, capped at 480 characters, plain text — no markdown, and no opt-out line, which Munin appends. For voice campaigns: the opening line / talking-points the AI agent should use when the call connects.',
+    ),
+  whatsappTemplate: z
+    .object({
+      templateName: z.string().min(1).max(512),
+      language: z.string().min(2).max(16),
+      variables: z.record(z.string().regex(/^[A-Za-z0-9_]{1,64}$/), z.string().min(1).max(1024)).optional(),
+      headerVariables: z
+        .record(z.string().regex(/^[A-Za-z0-9_]{1,64}$/), z.string().min(1).max(1024))
+        .optional(),
+    })
+    .optional()
+    .describe(
+      'Required for WhatsApp campaigns, rejected for the others: the approved template to send and its placeholder values, keyed as listed by conv_list_whatsapp_templates. The rendered text becomes the draft the operator reviews.',
     ),
   evidence: z.record(z.string(), z.unknown()).optional(),
   proposedSendAt: z
@@ -520,7 +534,7 @@ export class OutreachAdminTools {
     name: 'outreach_propose_first_touch',
     title: 'Outreach: Propose first touch',
     description:
-      'File one first-touch outreach draft per (campaign, contact) for human approval — an email body, an SMS body, or the script for an outbound call, depending on the channel the campaign sends on. Idempotent: re-proposing the same (campaign, contact, kind=initial) throws when a pending draft already exists, or when the contact already has a sent or approved first-touch in this campaign (they were already reached) — call `outreach_list_proposals` first to dedupe. Suppression and consent are re-checked at approve-time too; this tool refuses up-front if the contact is already suppressed.',
+      'File one first-touch outreach draft per (campaign, contact) for human approval — an email body, an SMS body, an approved WhatsApp template with its values, or the script for an outbound call, depending on the channel the campaign sends on. Idempotent: re-proposing the same (campaign, contact, kind=initial) throws when a pending draft already exists, or when the contact already has a sent or approved first-touch in this campaign (they were already reached) — call `outreach_list_proposals` first to dedupe. Suppression and consent are re-checked at approve-time too; this tool refuses up-front if the contact is already suppressed.',
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: ProposeInitialInput,

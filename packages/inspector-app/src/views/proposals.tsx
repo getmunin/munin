@@ -21,7 +21,7 @@ type EvidenceState = {
 
 const DISPLAY_PAGE = 25;
 const REFRESH_LIMIT = 100;
-const DASHBOARD_ONLY_CHANNELS = ['voice', 'sms'];
+const DASHBOARD_ONLY_CHANNELS = ['voice', 'sms', 'whatsapp'];
 
 export function ProposalsView({ app, initial }: { app: McpApp; initial: Proposal[] }) {
   const { t } = useI18n();
@@ -338,7 +338,9 @@ function deliveryNotice(proposal: Proposal, t: Translator) {
         {t(
           delivery.channelType === 'voice'
             ? 'proposals.dashboardOnlyCall'
-            : 'proposals.dashboardOnlySms',
+            : delivery.channelType === 'whatsapp'
+              ? 'proposals.dashboardOnlyWhatsApp'
+              : 'proposals.dashboardOnlySms',
           { destination: delivery.destination },
         )}
       </p>

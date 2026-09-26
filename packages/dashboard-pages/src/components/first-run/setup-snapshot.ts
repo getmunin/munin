@@ -1,6 +1,6 @@
 export type SetupStage = 'unconfigured' | 'listening' | 'active';
 
-export type SetupChannelType = 'email' | 'chat' | 'sms' | 'voice';
+export type SetupChannelType = 'email' | 'chat' | 'sms' | 'whatsapp' | 'voice';
 
 export interface SetupChannelDto {
   id: string;
@@ -49,7 +49,7 @@ export interface SetupSnapshot {
   reviewQueue: SetupReviewQueue | null;
 }
 
-const CHANNEL_ORDER: SetupChannelType[] = ['email', 'chat', 'sms', 'voice'];
+const CHANNEL_ORDER: SetupChannelType[] = ['email', 'chat', 'sms', 'whatsapp', 'voice'];
 
 const UNKNOWN: SetupSnapshot = {
   known: false,
@@ -113,6 +113,8 @@ function channelLabel(channel: SetupChannelDto): string {
     originAllowlist?: string[];
     fromNumber?: string | null;
     originator?: string;
+    displayPhoneNumber?: string;
+    verifiedName?: string;
   };
   switch (channel.type) {
     case 'email':
@@ -121,6 +123,8 @@ function channelLabel(channel: SetupChannelDto): string {
       return config.originAllowlist?.[0] ?? channel.name;
     case 'sms':
       return config.fromNumber ?? config.originator ?? channel.name;
+    case 'whatsapp':
+      return config.displayPhoneNumber ?? config.verifiedName ?? channel.name;
     default:
       return channel.name;
   }

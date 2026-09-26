@@ -240,7 +240,7 @@ interface ConversationDetail {
   async function stats(args: Record<string, unknown> = {}): Promise<OpenStats> {
     return withClient(adminKey, async (c) =>
       parseToolResult<OpenStats>(
-        await c.callTool({ name: 'conv_get_email_open_stats', arguments: args }),
+        await c.callTool({ name: 'conv_get_open_stats', arguments: args }),
       ),
     );
   }
@@ -287,9 +287,9 @@ interface ConversationDetail {
     expect(result.channels[0]!.channelId).toBe(trackedChannelId);
   });
 
-  it('rejects a non-email channel id without a 500', async () => {
+  it('rejects a channel type that records no opens without a 500', async () => {
     const result = await withClient(adminKey, async (c) =>
-      c.callTool({ name: 'conv_get_email_open_stats', arguments: { channelId: chatChannelId } }),
+      c.callTool({ name: 'conv_get_open_stats', arguments: { channelId: chatChannelId } }),
     );
     expect(result.isError).toBe(true);
     expect(JSON.stringify(result.content)).toContain('conv_invalid');
@@ -297,7 +297,7 @@ interface ConversationDetail {
 
   it('rejects an unknown channel id without a 500', async () => {
     const result = await withClient(adminKey, async (c) =>
-      c.callTool({ name: 'conv_get_email_open_stats', arguments: { channelId: 'chn_missing' } }),
+      c.callTool({ name: 'conv_get_open_stats', arguments: { channelId: 'chn_missing' } }),
     );
     expect(result.isError).toBe(true);
     expect(JSON.stringify(result.content)).toContain('conv_not_found');

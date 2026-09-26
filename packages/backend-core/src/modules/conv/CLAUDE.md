@@ -15,7 +15,7 @@ interface ChannelAdapter {
 
 type InboundMode =
   | { mode: 'poll';    intervalMs: number; tick(channel): Promise<PollTickResult> }
-  | { mode: 'webhook'; verify(req, channel): Promise<InboundBatch> }
+  | { mode: 'webhook'; verify(req, channel): Promise<InboundBatch>; challenge?(req, channelId): WebhookResponse | null }
   | { mode: 'push' };                     // adapter exposes its own controller
 ```
 
@@ -24,14 +24,17 @@ Adapters are Nest providers registered via the multi-injection token `CHANNEL_AD
 ## Choose the right inbound mode
 
 - **`poll`** — provider doesn't push to us; we fetch on a timer. Email IMAP is the canonical example. Per-channel cursor lives in `conv_inbound_state.cursor` (jsonb, adapter-defined shape).
-- **`webhook`** — provider POSTs to `/v1/conversations/channels/:channelId/webhook`. Adapter's `verify` checks the signature (Twilio HMAC, Telnyx Ed25519, …) and returns parsed messages. Best for SMS, voice transcripts, Slack events.
+- **`webhook`** — provider POSTs to `/v1/conversations/channels/:channelId/webhook`. Adapter's `verify` checks the signature (Twilio HMAC, Meta `X-Hub-Signature-256`, Telnyx Ed25519, …) and returns parsed messages. Best for SMS, WhatsApp, voice transcripts, Slack events.
+  - A provider that verifies the callback URL with a GET handshake (Meta's `hub.challenge`) implements the optional `challenge(req, channelId)`. The controller's GET route calls it for the channel's adapter, or — when the channel row isn't visible, e.g. the vendor verifies the URL while the create transaction that inserted it is still open — for every adapter that has one. So `challenge` must decide from the request and the channel id alone (WhatsApp derives its verify token as an HMAC of the channel id with `MUNIN_KEY_PEPPER`) and never read the channel's stored config.
+  - `verify` can also apply out-of-band updates itself — delivery statuses, read receipts, reactions — and return only the new messages. Read receipts go on `conv_message_deliveries.first_opened_at` / `last_opened_at` / `open_count` and emit `conversation.message.opened`, the same fields email opens use.
+  - Inbound messages may carry `media: InboundMedia[]` (`{ name, fetch() }`) and extra `metadata`. `ChannelIngestService` fetches media outside the transaction, stores the bytes with `ConvAttachmentsService.storeBytes` **before** allocating a new conversation's display id (see `attachments/CLAUDE.md` for why), and records them on the message once it exists. Channel ingest accepts audio as well as images; client uploads stay images-only.
 - **`push`** — caller is an authenticated agent that hits a public endpoint with a per-channel API key. Chat widget uses this. Adapter exposes its own `@Controller` (the runtime doesn't drive it); `inbound: { mode: 'push' }` just declares the mode.
 
 ## Author a new adapter — checklist
 
 Mostly mechanical once you've picked an inbound mode.
 
-1. **Pick the kind.** Add to the `ChannelKind` union if new (`'email' | 'chat' | 'sms' | 'voice'` today). The string also goes into `conv_channels.type` for the channel rows.
+1. **Pick the kind.** Add to the `ChannelKind` union if new (`'email' | 'chat' | 'sms' | 'voice' | 'whatsapp'` today). The string also goes into `conv_channels.type` for the channel rows.
 2. **Channel config schema.** A Zod schema for the user-supplied config (provider, hostnames, allowlists, etc.). Encrypted secrets (SMTP passwords, OAuth tokens) go through pgcrypto via `@getmunin/core`'s `encryptSecretSql` / `decryptSecretSql`. See `email/email.service.ts` for the pattern.
 3. **Implement `send(ctx)`.** Build the provider-shaped payload from `ctx.message`, send it, return `{ providerMessageId }`. The generic `OutboundDeliveryWorker` handles attempts, backoff, terminal `dead`, and the `conversation.message.delivered` / `conversation.message.delivery_failed` webhooks. Throw on transport failures; the worker counts and retries.
 4. **Implement inbound:**
@@ -78,3 +81,4 @@ So: **upsert under `configure` only when create and update are the same write.**
 
 - `packages/backend-core/src/modules/conv/email/email-adapter.ts` — reference implementation for `poll` + outbound SMTP.
 - `packages/backend-core/src/modules/conv/widget/` — reference implementation for `push`.
+- `packages/backend-core/src/modules/conv/whatsapp/` — reference implementation for `webhook` with a GET challenge, signed JSON payloads, status/read/reaction updates, inbound media, and a channel-specific send rule (the 24-hour customer-service window, enforced in `ConvService.sendMessage` before anything is queued).

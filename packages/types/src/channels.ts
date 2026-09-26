@@ -242,6 +242,8 @@ export type ChannelVoiceCallBodyT = z.infer<typeof ChannelVoiceCallBody>;
 export const ChannelSendTestBody = z.object({
   to: z.string().min(2).max(64),
   body: z.string().min(1).max(1600).optional(),
+  templateName: z.string().min(1).max(512).optional(),
+  templateLanguage: z.string().min(2).max(16).optional(),
 });
 
 export type ChannelSendTestBodyT = z.infer<typeof ChannelSendTestBody>;

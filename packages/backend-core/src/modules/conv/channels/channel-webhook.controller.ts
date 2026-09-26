@@ -1,4 +1,5 @@
 import {
+  Get,
   HttpException,
   HttpStatus,
   Inject,
@@ -83,6 +84,42 @@ export class ChannelWebhookController {
       return;
     }
     res.status(204).send();
+  }
+
+  @Get(':channelId/webhook')
+  async challenge(
+    @Param('channelId') channelId: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    const incoming: IncomingWebhookRequest = {
+      headers: req.headers,
+      rawBody: Buffer.alloc(0),
+      query: req.query as Record<string, string | string[] | undefined>,
+    };
+    const channel = await this.loadUnarchivedChannel(channelId);
+    const candidates = channel
+      ? [this.registry.get(channel.type, channel.vendor)]
+      : this.registry.challengeAdapters();
+    for (const adapter of candidates) {
+      if (adapter?.inbound?.mode !== 'webhook' || !adapter.inbound.challenge) continue;
+      const response = adapter.inbound.challenge(incoming, channelId);
+      if (!response) continue;
+      res.status(response.status);
+      if (response.contentType) res.setHeader('content-type', response.contentType);
+      res.send(response.body ?? '');
+      return;
+    }
+    throw new HttpException('webhook verification failed', HttpStatus.FORBIDDEN);
+  }
+
+  private async loadUnarchivedChannel(channelId: string): Promise<ChannelRow | null> {
+    const rows = await this.db
+      .select()
+      .from(schema.convChannels)
+      .where(and(eq(schema.convChannels.id, channelId), isNull(schema.convChannels.archivedAt)))
+      .limit(1);
+    return rows[0] ?? null;
   }
 
   private async loadChannel(channelId: string): Promise<ChannelRow | null> {

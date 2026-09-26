@@ -5,7 +5,7 @@ export interface EndUserProvenanceMetadata {
   emailSource?: string;
 }
 
-const CHANNEL_ASSERTED_KINDS = new Set(['email', 'sms', 'voice']);
+const CHANNEL_ASSERTED_KINDS = new Set(['email', 'sms', 'voice', 'whatsapp']);
 
 export const SENDER_AUTH_METADATA_KEY = 'senderAuth';
 export const PROVEN_EMAIL_METADATA_KEY = 'provenEmail';

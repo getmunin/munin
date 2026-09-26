@@ -87,6 +87,7 @@ function buildRest(overrides: Partial<MuninRestClient> = {}): MuninRestClient {
     listConversationsAwaitingReply: vi.fn(() => Promise.resolve([])),
     postAgentMessage: vi.fn(() => Promise.resolve()),
     postInternalNote: vi.fn(() => Promise.resolve()),
+    recordTranscription: vi.fn(() => Promise.resolve()),
     mintDelegatedToken: vi.fn(() =>
       Promise.resolve({
         accessToken: 'mn_eu_test',
@@ -190,6 +191,62 @@ describe('createConversationHandler', () => {
     await handler.flush();
      
     expect(rest.getConversation).not.toHaveBeenCalled();
+  });
+
+  it('holds the reply while the newest turn is a voice note awaiting transcription', async () => {
+    const voiceNote = (status: string) =>
+      buildConversation({
+        channelType: 'whatsapp',
+        messages: [
+          {
+            id: 'msg_voice',
+            authorType: 'end_user',
+            body: '[Voice message]',
+            createdAt: new Date().toISOString(),
+            internal: false,
+            metadata: { voiceNote: true, transcription: { status } },
+          },
+        ],
+      });
+    for (const status of ['pending', 'failed']) {
+      const rest = buildRest({ getConversation: vi.fn(() => Promise.resolve(voiceNote(status))) });
+      const handler = createConversationHandler({
+        config: baseConfig,
+        rest,
+        prompts: buildPrompts(),
+        openMcp: () => Promise.resolve(buildMcp()),
+        logger: silentLogger,
+        scheduler: noDelayScheduler,
+      });
+      handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+      await handler.flush();
+      expect(rest.tryAcquireConversation).not.toHaveBeenCalled();
+      expect(rest.postAgentMessage).not.toHaveBeenCalled();
+    }
+  });
+
+  it('does not answer a WhatsApp conversation whose customer-service window has closed', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            channelType: 'whatsapp',
+            whatsappWindow: { open: false, closesAt: '2026-09-24T10:00:00.000Z', lastInboundAt: '2026-09-23T10:00:00.000Z' },
+          }),
+        ),
+      ),
+    });
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(rest.tryAcquireConversation).not.toHaveBeenCalled();
   });
 
   it('skips when conversation is closed', async () => {

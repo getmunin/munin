@@ -2,47 +2,23 @@ import { escapeSlackText, markdownToMrkdwn } from './slack-mrkdwn.ts';
 
 export { escapeSlackText, markdownToMrkdwn };
 
-export type AuthorKind = 'user' | 'agent' | 'end_user' | 'system';
+import {
+  parseMessageAttachments,
+  type AuthorKind,
+  type ConversationSnapshot,
+  type MessageAttachment,
+  type MessageSnapshot,
+  type ParentState,
+} from '../operator-bridge/bridge-snapshot.ts';
 
-export interface ConversationSnapshot {
-  displayId: number;
-  subject: string | null;
-  channelType: string;
-  channelName: string | null;
-  contactName: string | null;
-  contactEmail: string | null;
-  contactPhone: string | null;
-  dashboardUrl: string;
-}
-
-export interface MessageAttachment {
-  name: string | null;
-  url: string | null;
-}
-
-export interface MessageSnapshot {
-  authorKind: AuthorKind;
-  authorName: string | null;
-  internal: boolean;
-  body: string;
-  noSpeech?: boolean;
-  attachments?: MessageAttachment[];
-}
-
-export function parseMessageAttachments(raw: unknown[]): MessageAttachment[] {
-  return raw.flatMap((entry) => {
-    if (typeof entry !== 'object' || entry === null) return [];
-    const record = entry as Record<string, unknown>;
-    const url = typeof record.url === 'string' ? record.url : null;
-    const name =
-      typeof record.name === 'string'
-        ? record.name
-        : typeof record.filename === 'string'
-          ? record.filename
-          : null;
-    return url || name ? [{ name, url }] : [];
-  });
-}
+export {
+  parseMessageAttachments,
+  type AuthorKind,
+  type ConversationSnapshot,
+  type MessageAttachment,
+  type MessageSnapshot,
+  type ParentState,
+};
 
 const MAX_BODY_CHARS = 2900;
 
@@ -201,13 +177,6 @@ export function escalationAlertText(
   if (contact) lines.push(contact);
   lines.push(`<${conv.dashboardUrl}|Open in Munin>`);
   return lines.join('\n');
-}
-
-export interface ParentState {
-  status: string;
-  needsHumanAttention: boolean;
-  claimedBy: string | null;
-  assignedTo: string | null;
 }
 
 export interface SlackBlock {

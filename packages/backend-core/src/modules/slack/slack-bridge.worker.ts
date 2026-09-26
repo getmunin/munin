@@ -3,8 +3,11 @@ import { and, asc, eq, inArray, isNull, lt, lte, sql } from 'drizzle-orm';
 import { schema, type Db } from '@getmunin/db';
 import { describeError, parseEnvDisableFlag, parseEnvInt, readApiBaseUrl } from '@getmunin/core';
 import { DB } from '../../common/db/db.module.ts';
-import { formatPhoneNumber } from '../../common/format-phone.ts';
 import { withSchedulerLock } from '../../common/scheduler-lock/index.ts';
+import {
+  BridgeConversationReader,
+  type BridgeConversationContext,
+} from '../operator-bridge/bridge-conversation-reader.ts';
 import { SlackApiClient, SlackApiError } from './slack-api.client.ts';
 import { slackAvatarFilename } from './slack-avatars.controller.ts';
 import { decryptSecretValue } from './slack.service.ts';
@@ -39,14 +42,12 @@ import {
   type ApprovalOutcome,
   type ApprovalResolution,
   type AuthorKind,
-  type ConversationSnapshot,
   type ParentState,
   type SlackBlock,
 } from './slack-projection.ts';
 import {
   SLACK_ANNOUNCEMENT_SUBJECT_TYPES,
   approvalSubjectRef,
-  conversationUrl,
   reviewListUrl,
   reviewUrl,
   subjectTypeOf,
@@ -97,10 +98,14 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
   private disabled =
     parseEnvDisableFlag('MUNIN_SLACK_WORKER_DISABLED') || process.env.NODE_ENV === 'test';
 
+  private readonly reader: BridgeConversationReader;
+
   constructor(
     @Inject(DB) private readonly db: Db,
     @Inject(SlackApiClient) private readonly api: SlackApiClient,
-  ) {}
+  ) {
+    this.reader = new BridgeConversationReader(db);
+  }
 
   onModuleInit(): void {
     if (this.disabled) return;
@@ -1452,32 +1457,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   private async loadParentState(context: ConversationContext): Promise<ParentState> {
-    const conversation = context.conversation;
-    const [claim] = await this.db
-      .select({ userId: schema.claims.userId })
-      .from(schema.claims)
-      .where(
-        and(
-          eq(schema.claims.entityType, 'conversation'),
-          eq(schema.claims.entityId, conversation.id),
-          sql`${schema.claims.expiresAt} > now()`,
-        ),
-      )
-      .orderBy(sql`${schema.claims.expiresAt} DESC`)
-      .limit(1);
-    let claimedBy: string | null = null;
-    if (claim?.userId) claimedBy = (await this.userName(claim.userId)) ?? 'a teammate';
-
-    const assignedTo = conversation.assigneeUserId
-      ? await this.userName(conversation.assigneeUserId)
-      : null;
-
-    return {
-      status: conversation.status,
-      needsHumanAttention: conversation.needsHumanAttention,
-      claimedBy,
-      assignedTo,
-    };
+    return await this.reader.loadParentState(context);
   }
 
   private async postThreadReply(token: string, link: LinkRow, text: string): Promise<void> {
@@ -1490,53 +1470,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   private async loadConversation(conversationId: string): Promise<ConversationContext | null> {
-    const [conversation] = await this.db
-      .select()
-      .from(schema.convConversations)
-      .where(eq(schema.convConversations.id, conversationId))
-      .limit(1);
-    if (!conversation) return null;
-
-    const [channel] = await this.db
-      .select({ type: schema.convChannels.type, name: schema.convChannels.name })
-      .from(schema.convChannels)
-      .where(eq(schema.convChannels.id, conversation.channelId))
-      .limit(1);
-    const contact = conversation.contactId
-      ? (
-          await this.db
-            .select()
-            .from(schema.convContacts)
-            .where(eq(schema.convContacts.id, conversation.contactId))
-            .limit(1)
-        )[0]
-      : undefined;
-    const endUser = conversation.endUserId
-      ? (
-          await this.db
-            .select({
-              name: schema.endUsers.name,
-              email: schema.endUsers.email,
-              phone: schema.endUsers.phone,
-            })
-            .from(schema.endUsers)
-            .where(eq(schema.endUsers.id, conversation.endUserId))
-            .limit(1)
-        )[0]
-      : undefined;
-
-    const phone = contact?.phone ?? endUser?.phone ?? null;
-    const snapshot: ConversationSnapshot = {
-      displayId: conversation.displayId,
-      subject: conversation.subject,
-      channelType: channel?.type ?? 'unknown',
-      channelName: channel?.name ?? null,
-      contactName: contact?.name ?? endUser?.name ?? null,
-      contactEmail: contact?.email ?? endUser?.email ?? null,
-      contactPhone: phone ? formatPhoneNumber(phone) : null,
-      dashboardUrl: conversationUrl(conversation.orgId, conversation.id),
-    };
-    return { conversation, snapshot };
+    return await this.reader.loadConversation(conversationId);
   }
 
   private async authorName(
@@ -1544,20 +1478,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     authorId: string,
     context: ConversationContext,
   ): Promise<string | null> {
-    if (kind === 'user') return await this.userName(authorId);
-    if (kind === 'end_user') {
-      const { contactName, contactEmail, contactPhone } = context.snapshot;
-      return contactName ?? contactEmail ?? contactPhone ?? null;
-    }
-    if (kind === 'agent') {
-      const [assistant] = await this.db
-        .select({ name: schema.assistants.name })
-        .from(schema.assistants)
-        .where(eq(schema.assistants.orgId, context.conversation.orgId))
-        .limit(1);
-      return assistant?.name ?? null;
-    }
-    return null;
+    return await this.reader.authorName(kind, authorId, context);
   }
 
   private async documentTitle(documentId: string): Promise<string> {
@@ -1570,21 +1491,11 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   private async userName(userId: string): Promise<string | null> {
-    const [user] = await this.db
-      .select({ name: schema.users.name, email: schema.users.email })
-      .from(schema.users)
-      .where(eq(schema.users.id, userId))
-      .limit(1);
-    return user?.name ?? user?.email ?? null;
+    return await this.reader.userName(userId);
   }
 
   private async holderName(payload: Record<string, unknown>): Promise<string> {
-    const holderType = typeof payload.holderType === 'string' ? payload.holderType : null;
-    const holderId = typeof payload.holderId === 'string' ? payload.holderId : null;
-    if (holderType === 'user' && holderId) {
-      return (await this.userName(holderId)) ?? 'a teammate';
-    }
-    return 'a teammate';
+    return await this.reader.holderName(payload);
   }
 
   private async finish(row: DeliveryRow, error: string | null): Promise<void> {
@@ -1619,10 +1530,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
   }
 }
 
-interface ConversationContext {
-  conversation: typeof schema.convConversations.$inferSelect;
-  snapshot: ConversationSnapshot;
-}
+type ConversationContext = BridgeConversationContext;
 
 function approvalOutcomeFor(eventType: string): ApprovalOutcome | null {
   switch (eventType) {

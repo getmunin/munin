@@ -21,6 +21,7 @@ export const CONSENT_MODULE_ORDER = [
   'seo',
   'connectors',
   'slack',
+  'teams',
   'webhooks',
   'feedback',
   'system_alerts',

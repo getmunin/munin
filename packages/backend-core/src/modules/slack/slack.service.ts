@@ -7,16 +7,9 @@ import {
 } from '@nestjs/common';
 import { and, eq, gt, isNotNull, isNull, sql } from 'drizzle-orm';
 import { schema, type Db, type Tx } from '@getmunin/db';
-import {
-  decryptSecretSql,
-  encryptSecretSql,
-  getCurrentContext,
-  randomToken,
-  setEncryptionKeySql,
-  signHmac,
-  verifyHmac,
-} from '@getmunin/core';
+import { getCurrentContext, randomToken, signHmac, verifyHmac } from '@getmunin/core';
 import { DB } from '../../common/db/db.module.ts';
+import { decryptBridgeSecret, encryptBridgeSecret } from '../operator-bridge/bridge-secrets.ts';
 import { authorizationServerUrl } from '../../oauth/oauth.constants.ts';
 import { SlackApiClient, SlackApiError } from './slack-api.client.ts';
 import { testMessageText } from './slack-projection.ts';
@@ -88,27 +81,11 @@ export function slackOAuthRedirectUri(): string {
 }
 
 export async function encryptSecretValue(db: Db | Tx, plaintext: string): Promise<string> {
-  return await db.transaction(async (tx) => {
-    await tx.execute(setEncryptionKeySql());
-    const rows = await tx.execute<{ ct: string } & Record<string, unknown>>(
-      sql`SELECT ${encryptSecretSql(plaintext)} AS ct`,
-    );
-    const ct = rows[0]?.ct;
-    if (!ct) throw new ConflictException('slack_encryption_failed');
-    return ct;
-  });
+  return await encryptBridgeSecret(db, plaintext, 'slack_encryption_failed');
 }
 
 export async function decryptSecretValue(db: Db | Tx, ciphertext: string): Promise<string> {
-  return await db.transaction(async (tx) => {
-    await tx.execute(setEncryptionKeySql());
-    const rows = await tx.execute<{ pt: string } & Record<string, unknown>>(
-      sql`SELECT ${decryptSecretSql(ciphertext)} AS pt`,
-    );
-    const pt = rows[0]?.pt;
-    if (pt === undefined || pt === null) throw new ConflictException('slack_decryption_failed');
-    return pt;
-  });
+  return await decryptBridgeSecret(db, ciphertext, 'slack_decryption_failed');
 }
 
 function signInstallState(state: InstallState, secret: string): string {

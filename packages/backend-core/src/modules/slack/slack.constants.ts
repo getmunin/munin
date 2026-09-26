@@ -1,19 +1,11 @@
 import type { ApprovalSubjectType } from './slack-projection.ts';
 import { dashboardUrl, readWebBaseUrl } from '../../common/web-url.ts';
+import {
+  MIRRORED_CONVERSATION_EVENT_TYPES,
+  conversationUrl,
+} from '../operator-bridge/bridge-events.ts';
 
-export const SLACK_MIRRORED_EVENT_TYPES: readonly string[] = [
-  'conversation.created',
-  'conversation.subject_changed',
-  'conversation.message.received',
-  'conversation.message.sent',
-  'conversation.message.body_revised',
-  'conversation.status_changed',
-  'conversation.assigned',
-  'conversation.released',
-  'conversation.taken_over',
-  'conversation.handover_requested',
-  'conversation.handover_resolved',
-];
+export const SLACK_MIRRORED_EVENT_TYPES: readonly string[] = MIRRORED_CONVERSATION_EVENT_TYPES;
 
 export const SLACK_APPROVAL_EVENT_TYPES: readonly string[] = [
   'crm.merge_proposal.proposed',
@@ -116,11 +108,7 @@ export function readSlackSigningSecret(): string | null {
   return process.env.SLACK_SIGNING_SECRET || null;
 }
 
-export { dashboardUrl, readWebBaseUrl };
-
-export function conversationUrl(orgId: string, conversationId: string): string {
-  return dashboardUrl(orgId, `/conversations/${encodeURIComponent(conversationId)}`);
-}
+export { conversationUrl, dashboardUrl, readWebBaseUrl };
 
 export function reviewUrl(orgId: string, subjectId: string): string {
   return dashboardUrl(orgId, `/review/${encodeURIComponent(subjectId)}`);

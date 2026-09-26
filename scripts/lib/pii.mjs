@@ -44,6 +44,8 @@ export const ALLOWED_DOMAINS = {
   'imone.lt': 'i18n locale sample for "company"',
   'uznemums.lv': 'i18n locale sample for "company"',
   'yritys.fi': 'i18n locale sample for "company"',
+  'thread.tacv': 'Microsoft Teams channel-id namespace (19:…@thread.tacv2; the scanner stops at the digit), not a mailbox',
+  'thread.skype': 'Microsoft Teams legacy channel-id namespace (19:…@thread.skype), not a mailbox',
 };
 
 export const ALLOWED_HOSTS = {
@@ -62,6 +64,19 @@ export const ALLOWED_HOSTS = {
   'api.gastroplanner.eu': 'bookings connector vendor endpoint',
   'api.vapi.ai': 'voice vendor endpoint',
   'api.slack.com': 'operator bridge vendor endpoint',
+  'smba.trafficmanager.net': 'Teams operator bridge vendor endpoint (Bot Connector, public cloud)',
+  '.smba.trafficmanager.net': 'Teams operator bridge vendor endpoint (Bot Connector, regional)',
+  'smba.infra.gcc.teams.microsoft.com': 'Teams operator bridge vendor endpoint (Bot Connector, GCC)',
+  'smba.infra.gov.teams.microsoft.us': 'Teams operator bridge vendor endpoint (Bot Connector, GCC High)',
+  'smba.infra.dod.teams.microsoft.us': 'Teams operator bridge vendor endpoint (Bot Connector, DoD)',
+  'api.botframework.com': 'Teams operator bridge vendor token issuer',
+  'login.botframework.com': 'Teams operator bridge vendor signing-key endpoint',
+  'login.microsoftonline.com': 'Teams operator bridge vendor token endpoint (Entra ID)',
+  'sts.windows.net': 'Entra ID token issuer, used as a wrong-issuer case in Teams auth tests',
+  'dev.teams.microsoft.com': 'Teams Developer Portal, linked from the connect-teams skill',
+  'entra.microsoft.com': 'Microsoft Entra admin center, linked from the Teams connect dialog for the tenant ID',
+  'developer.microsoft.com': 'Teams app manifest JSON schema URI',
+  'adaptivecards.io': 'Adaptive Card JSON schema URI, not a fetched host',
   'www.linkedin.com': 'social distribution vendor OAuth endpoint',
   'api.linkedin.com': 'social distribution vendor API endpoint',
   'www.facebook.com': 'social distribution vendor OAuth dialog and post permalink host',

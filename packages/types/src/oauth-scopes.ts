@@ -29,6 +29,8 @@ export const SUPPORTED_SCOPES = [
   'system_alerts:write',
   'slack:read',
   'slack:write',
+  'teams:read',
+  'teams:write',
   'social:read',
   'social:write',
 ] as const;

@@ -2593,6 +2593,206 @@ export const slackNotificationLinks = pgTable(
   }),
 );
 
+export const teamsIntegrations = pgTable(
+  'teams_integrations',
+  {
+    id: id('tms'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    appId: text('app_id').notNull(),
+    botTenantId: text('bot_tenant_id').notNull(),
+    encryptedAppSecret: text('encrypted_app_secret'),
+    installedByUserId: text('installed_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    active: boolean('active').notNull().default(true),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgUq: uniqueIndex('teams_integrations_org_uq').on(t.orgId),
+    appUq: uniqueIndex('teams_integrations_app_uq').on(t.appId),
+  }),
+);
+
+export const teamsInstalledTeams = pgTable(
+  'teams_installed_teams',
+  {
+    id: id('tmt'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => teamsIntegrations.id, { onDelete: 'cascade' }),
+    teamId: text('team_id').notNull(),
+    teamName: text('team_name'),
+    tenantId: text('tenant_id').notNull(),
+    serviceUrl: text('service_url').notNull(),
+    installed: boolean('installed').notNull().default(true),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    teamUq: uniqueIndex('teams_installed_teams_team_uq').on(t.integrationId, t.teamId),
+    orgIdx: index('teams_installed_teams_org_idx').on(t.orgId),
+  }),
+);
+
+export const teamsChannelRoutes = pgTable(
+  'teams_channel_routes',
+  {
+    id: id('tmr'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => teamsIntegrations.id, { onDelete: 'cascade' }),
+    installedTeamId: text('installed_team_id')
+      .notNull()
+      .references(() => teamsInstalledTeams.id, { onDelete: 'cascade' }),
+    teamsChannelId: text('teams_channel_id').notNull(),
+    teamsChannelName: text('teams_channel_name'),
+    purpose: varchar('purpose', { length: 16 }).notNull().default('default'),
+    convChannelId: text('conv_channel_id').references(() => convChannels.id, {
+      onDelete: 'cascade',
+    }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    channelUq: uniqueIndex('teams_channel_routes_channel_uq').on(
+      t.integrationId,
+      t.teamsChannelId,
+    ),
+    purposeUq: uniqueIndex('teams_channel_routes_purpose_uq')
+      .on(t.integrationId, t.purpose)
+      .where(sql`conv_channel_id IS NULL`),
+    convChannelUq: uniqueIndex('teams_channel_routes_conv_channel_uq')
+      .on(t.integrationId, t.convChannelId)
+      .where(sql`conv_channel_id IS NOT NULL`),
+    orgIdx: index('teams_channel_routes_org_idx').on(t.orgId),
+  }),
+);
+
+export const teamsConversationLinks = pgTable(
+  'teams_conversation_links',
+  {
+    id: id('tcl'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => teamsIntegrations.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => convConversations.id, { onDelete: 'cascade' }),
+    teamsChannelId: text('teams_channel_id').notNull(),
+    rootActivityId: text('root_activity_id').notNull(),
+    serviceUrl: text('service_url').notNull(),
+    createdAt,
+  },
+  (t) => ({
+    conversationUq: uniqueIndex('teams_conversation_links_conversation_uq').on(t.conversationId),
+    threadUq: uniqueIndex('teams_conversation_links_thread_uq').on(
+      t.teamsChannelId,
+      t.rootActivityId,
+    ),
+    orgIdx: index('teams_conversation_links_org_idx').on(t.orgId),
+  }),
+);
+
+export const teamsMessageLinks = pgTable(
+  'teams_message_links',
+  {
+    id: id('tml'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => convConversations.id, { onDelete: 'cascade' }),
+    messageId: text('message_id')
+      .notNull()
+      .references(() => convMessages.id, { onDelete: 'cascade' }),
+    teamsChannelId: text('teams_channel_id').notNull(),
+    activityId: text('activity_id').notNull(),
+    origin: varchar('origin', { length: 16 }).notNull(),
+    createdAt,
+  },
+  (t) => ({
+    messageUq: uniqueIndex('teams_message_links_message_uq').on(t.messageId),
+    activityUq: uniqueIndex('teams_message_links_activity_uq').on(
+      t.teamsChannelId,
+      t.activityId,
+    ),
+    orgIdx: index('teams_message_links_org_idx').on(t.orgId),
+  }),
+);
+
+export const teamsUserLinks = pgTable(
+  'teams_user_links',
+  {
+    id: id('tul'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => teamsIntegrations.id, { onDelete: 'cascade' }),
+    aadObjectId: text('aad_object_id').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    aadUserUq: uniqueIndex('teams_user_links_aad_user_uq').on(t.integrationId, t.aadObjectId),
+    orgIdx: index('teams_user_links_org_idx').on(t.orgId),
+  }),
+);
+
+export const teamsDeliveries = pgTable(
+  'teams_deliveries',
+  {
+    id: id('tmd'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => teamsIntegrations.id, { onDelete: 'cascade' }),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    eventType: text('event_type').notNull(),
+    conversationId: text('conversation_id').references(() => convConversations.id, {
+      onDelete: 'cascade',
+    }),
+    attempt: integer('attempt').notNull().default(0),
+    error: text('error'),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+    orderAt: timestamp('order_at', { withTimezone: true }).notNull().defaultNow(),
+    orderSeq: integer('order_seq').notNull().default(-1),
+    createdAt,
+  },
+  (t) => ({
+    pendingIdx: index('teams_deliveries_pending_idx').on(t.nextAttemptAt),
+    convIdx: index('teams_deliveries_conv_idx').on(
+      t.conversationId,
+      t.orderAt,
+      t.orderSeq,
+      t.createdAt,
+    ),
+    orgIdx: index('teams_deliveries_org_idx').on(t.orgId),
+  }),
+);
+
 // Connector connections: per-org credentials for third-party systems,
 // one row per connected vendor account. `domain` names the product surface
 // the connector feeds (commerce → orders, bookings → reservations); it is
@@ -2740,6 +2940,13 @@ export const allTables = {
   slackMessageLinks,
   slackUserLinks,
   slackDeliveries,
+  teamsIntegrations,
+  teamsInstalledTeams,
+  teamsChannelRoutes,
+  teamsConversationLinks,
+  teamsMessageLinks,
+  teamsUserLinks,
+  teamsDeliveries,
   connectorConnections,
   connectorSigningKeys,
 };

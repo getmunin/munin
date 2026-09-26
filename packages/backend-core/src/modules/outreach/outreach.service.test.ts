@@ -93,6 +93,10 @@ const skipReason = TEST_URL
       [vapiCaller, threllCaller],
       db,
       curatorJobs,
+      {
+        prepareTemplate: () => Promise.reject(new Error('whatsapp templates not stubbed')),
+        sendTemplate: () => Promise.reject(new Error('whatsapp templates not stubbed')),
+      },
     );
   });
 

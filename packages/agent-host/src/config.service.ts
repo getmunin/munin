@@ -7,6 +7,7 @@ import {
   DEFAULT_PROVIDER_AVAILABLE,
   DEFAULT_PROVIDER_MODELS,
 } from './injection-tokens.ts';
+import type { ListModelsResult } from './models.service.ts';
 import type {
   AgentConfigPatch,
   AgentConfigRepository,
@@ -20,6 +21,7 @@ export interface AgentConfigDto {
   id: string;
   fastModel: string;
   smartModel: string | null;
+  transcriptionModel: string | null;
   providerBaseUrl: string;
   providerApiKeySet: boolean;
   providerConfigured: boolean;
@@ -74,9 +76,17 @@ export class AgentConfigService {
       credentialsValidated = true;
     }
 
-    const patch = await this.resolveModels({
+    const modelPatch = await this.resolveModels({
       id,
       input,
+      before,
+      baseUrl,
+      apiKey,
+      credentialsTouched,
+    });
+    const patch = await this.resolveTranscriptionModel({
+      id,
+      patch: modelPatch,
       before,
       baseUrl,
       apiKey,
@@ -85,7 +95,9 @@ export class AgentConfigService {
 
     const modelChanged =
       (patch.fastModel !== undefined && patch.fastModel !== before.fastModel) ||
-      (patch.smartModel !== undefined && patch.smartModel !== before.smartModel);
+      (patch.smartModel !== undefined && patch.smartModel !== before.smartModel) ||
+      (patch.transcriptionModel !== undefined &&
+        patch.transcriptionModel !== before.transcriptionModel);
 
     const after = await this.repo.update(id, patch);
 
@@ -153,6 +165,43 @@ export class AgentConfigService {
     return patch;
   }
 
+  private async resolveTranscriptionModel(args: {
+    id: string;
+    patch: AgentConfigPatch;
+    before: AgentConfigRow;
+    baseUrl: string;
+    apiKey: string | null;
+    credentialsTouched: boolean;
+  }): Promise<AgentConfigPatch> {
+    const { id, patch, before, baseUrl, apiKey, credentialsTouched } = args;
+    const touched = patch.transcriptionModel !== undefined;
+    if (!touched && !(credentialsTouched && before.transcriptionModel)) return patch;
+
+    const listing: ListModelsResult | null = apiKey
+      ? await this.models
+          .listTranscriptionModelsForProvider(id, baseUrl, apiKey)
+          .catch((err: unknown) => {
+            this.log.warn(`transcription model list for ${baseUrl} failed: ${describe(err)}`);
+            return null;
+          })
+      : this.models.builtInTranscriptionModels();
+    const offered = listing?.supported ? new Set(listing.models.map((m) => m.id)) : null;
+
+    if (touched) {
+      if (patch.transcriptionModel != null && offered && !offered.has(patch.transcriptionModel)) {
+        throw invalidModel(patch.transcriptionModel, apiKey ? baseUrl : BUILT_IN_PROVIDER);
+      }
+      return patch;
+    }
+    if (offered && before.transcriptionModel && !offered.has(before.transcriptionModel)) {
+      this.log.log(
+        `${id}: transcriptionModel ${before.transcriptionModel} is not offered by ${baseUrl} — cleared`,
+      );
+      return { ...patch, transcriptionModel: null };
+    }
+    return patch;
+  }
+
   private builtInModels(): Set<string> | null {
     if (this.defaultProviderModels.length === 0) return null;
     return new Set(
@@ -196,6 +245,7 @@ function toDto(row: AgentConfigRow, defaultProviderAvailable: boolean): AgentCon
     id: row.id,
     fastModel: row.fastModel,
     smartModel: row.smartModel,
+    transcriptionModel: row.transcriptionModel,
     providerBaseUrl: row.providerBaseUrl,
     providerApiKeySet: row.providerApiKeySet,
     providerConfigured: row.providerApiKeySet || defaultProviderAvailable,

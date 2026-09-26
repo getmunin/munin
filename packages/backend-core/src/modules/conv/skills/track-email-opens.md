@@ -1,13 +1,20 @@
 ---
-title: 'Conv: Track email opens'
-description: Turn on open tracking for an email channel, then read per-message and per-channel open numbers — and report them with the caveats that pixel tracking carries.
+title: 'Conv: Track email opens and WhatsApp reads'
+description: Turn on open tracking for an email channel, read per-message and per-channel open numbers for email and WhatsApp read receipts — and report them with the caveats each signal carries.
 audiences: [admin]
 ---
 
-# Track email opens
+# Track email opens and WhatsApp reads
 
-Munin can record when a recipient opens an email it sent. Use this when an operator
-asks "did they read it?" about one message, or wants open rates across a channel.
+Munin can record when a recipient opens an email it sent, and when a WhatsApp
+recipient reads a message. Use this when an operator asks "did they read it?" about
+one message, or wants open rates across a channel.
+
+**WhatsApp needs no setup.** Meta reports a read receipt for every outbound WhatsApp
+message, and Munin stamps it on the same delivery fields email uses: `firstOpenedAt`
+and `lastOpenedAt` are the moment it was read, `openCount` is `1`, and the first read
+emits the same `conversation.message.opened` webhook. The rest of this skill's email
+setup does not apply to WhatsApp; the reporting sections do.
 
 ## How it works
 
@@ -54,8 +61,8 @@ matters when reporting:
 
 | Fields | Meaning |
 |---|---|
-| `openCount: null` | No delivery row — the message never went out over email (an inbound message, an internal note, or a widget/SMS message). Opens don't apply. |
-| `openCount: 0`, `firstOpenedAt: null` | Sent over email, no open recorded. Either genuinely unopened, or opened in a client that blocks images. |
+| `openCount: null` | No delivery row — the message never went out over email or WhatsApp (an inbound message, an internal note, or a widget/SMS message). Opens don't apply. |
+| `openCount: 0`, `firstOpenedAt: null` | Sent over email or WhatsApp, no open recorded. Either genuinely unopened, opened in a mail client that blocks images, or read by a WhatsApp user who has read receipts turned off. |
 | `openCount: 3` | Recorded three image loads, the first at `firstOpenedAt`. |
 
 Note that `seenAt` on the same message is a **different** signal: it is the chat
@@ -63,10 +70,11 @@ widget's read receipt, set when the recipient scrolls the message into view in t
 widget panel, and reported separately as `conversation.message.read`. Email opens and
 widget reads never both apply to one message.
 
-**Across a channel.** `conv_get_email_open_stats` aggregates deliveries in a window:
+**Across a channel.** `conv_get_open_stats` aggregates deliveries in a window, for
+every email and WhatsApp channel:
 
 ```jsonc
-{ "name": "conv_get_email_open_stats", "arguments": { "sinceDays": 30 } }
+{ "name": "conv_get_open_stats", "arguments": { "sinceDays": 30 } }
 ```
 
 ```jsonc
@@ -77,6 +85,7 @@ widget reads never both apply to one message.
     {
       "channelId": "chn_…",
       "channelName": "Support",
+      "channelType": "email",
       "trackOpens": true,
       "sent": 412,
       "opened": 233,
@@ -93,7 +102,10 @@ widget reads never both apply to one message.
 - `opened` counts deliveries opened **at least once**; `totalOpens` counts every
   load, so it runs higher when people reopen a thread.
 - `openRate` is `opened / sent`, or `null` when nothing was sent.
-- Pass `channelId` to scope to one channel. A non-email channel id is rejected.
+- Pass `channelId` to scope to one channel. A channel that is neither email nor
+  WhatsApp is rejected.
+- WhatsApp channels always report `trackOpens: true`, and their `totalOpens` equals
+  `opened` — a read is recorded once.
 
 ## Report it honestly
 
@@ -105,6 +117,8 @@ when you present a number rather than quoting it as fact:
 - **Over-counts.** Apple Mail Privacy Protection pre-fetches every image the moment
   mail arrives, so those recipients register an open whether or not a human looked.
   Some corporate gateways do the same.
+- **WhatsApp under-counts too.** A user who has turned off read receipts never
+  reports a read, however carefully they read. WhatsApp never over-counts.
 - **`trackOpens: false` reads as a 0% rate**, because no pixel was ever embedded.
   Always check the flag in the response before calling a channel's rate low — the
   stats tool returns it for exactly this reason.

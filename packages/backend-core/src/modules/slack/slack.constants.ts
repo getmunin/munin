@@ -7,6 +7,7 @@ export const SLACK_MIRRORED_EVENT_TYPES: readonly string[] = [
   'conversation.message.received',
   'conversation.message.sent',
   'conversation.message.body_revised',
+  'conversation.message.transcribed',
   'conversation.status_changed',
   'conversation.assigned',
   'conversation.released',

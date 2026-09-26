@@ -4760,6 +4760,127 @@
         ]
       }
     },
+    "/v1/conversations/{id}/whatsapp-templates": {
+      "get": {
+        "operationId": "ConversationsController_listWhatsAppTemplates",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conversations/{id}/whatsapp-template": {
+      "post": {
+        "operationId": "ConversationsController_sendWhatsAppTemplate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendWhatsAppTemplateBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conversations/{id}/messages/{messageId}/transcription": {
+      "post": {
+        "operationId": "ConversationsController_recordTranscription",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "messageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordTranscriptionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/{id}/runner-release": {
       "post": {
         "operationId": "ConversationsController_runnerRelease",
@@ -7912,6 +8033,28 @@
           "ChannelWebhook"
         ],
         "security": []
+      },
+      "get": {
+        "operationId": "ChannelWebhookController_challenge",
+        "parameters": [
+          {
+            "name": "channelId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ChannelWebhook"
+        ],
+        "security": []
       }
     },
     "/v1/conversations/email/relay": {
@@ -9396,6 +9539,16 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 1600
+          },
+          "templateName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "templateLanguage": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 16
           }
         },
         "required": [
@@ -10282,6 +10435,82 @@
           "holder"
         ]
       },
+      "SendWhatsAppTemplateBody": {
+        "type": "object",
+        "properties": {
+          "templateName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "language": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 16,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "variables": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_]{1,64}$"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            },
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-self-required": false
+          },
+          "headerVariables": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_]{1,64}$"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            },
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-self-required": false
+          }
+        },
+        "required": [
+          "templateName",
+          "language"
+        ]
+      },
+      "RecordTranscriptionBody": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "done",
+              "failed"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 50000
+          },
+          "error": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "model": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
       "RunnerReleaseBody": {
         "type": "object",
         "properties": {
@@ -10444,7 +10673,8 @@
               "email",
               "voice",
               "chat",
-              "sms"
+              "sms",
+              "whatsapp"
             ]
           }
         },
@@ -11602,7 +11832,8 @@
                         "email",
                         "voice",
                         "chat",
-                        "sms"
+                        "sms",
+                        "whatsapp"
                       ]
                     },
                     "vendor": {

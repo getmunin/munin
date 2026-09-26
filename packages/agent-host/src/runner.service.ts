@@ -38,6 +38,7 @@ import {
   defaultProvider,
   openHttpMcpClient,
   runSkillPass,
+  isImageAttachment,
   parseAttachments,
   type ConversationAttachment,
   type ExternalToolSource,
@@ -55,6 +56,7 @@ import {
   jobKindOf,
   tierFor,
   toolPrefixesFor,
+  TRANSCRIBE_VOICE_NOTE_TASK_URI,
   WEB_SCRAPE_SITE_TASK_URI,
   type WebImportProgress,
 } from '@getmunin/types';
@@ -64,6 +66,7 @@ import { AgentModelsService } from './models.service.ts';
 import { runWithServiceContext } from './service-context.ts';
 import { ReplicaLockManager } from './replica-lock.ts';
 import { runWebImportJob } from './web-import.handler.ts';
+import { runTranscribeVoiceNoteJob } from './transcribe-voice-note.handler.ts';
 import { AgentHealthService } from './agent-health.service.ts';
 import { createMeteringProvider } from './usage-metering.ts';
 import { createDrainScheduler, type DrainScheduler } from './drain-scheduler.ts';
@@ -78,12 +81,26 @@ interface TaskHandlerContext {
   provider?: Provider;
   logger: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
   onProgress?: (p: WebImportProgress) => void;
+  rest: MuninRestClient;
+  transcriptionModel: string | null;
 }
 
 type TaskHandler = (ctx: TaskHandlerContext) => Promise<SkillPassResult>;
 
 const TASK_HANDLERS: ReadonlyMap<string, TaskHandler> = new Map([
   [WEB_SCRAPE_SITE_TASK_URI, (ctx: TaskHandlerContext) => runWebImportJob(ctx)],
+  [
+    TRANSCRIBE_VOICE_NOTE_TASK_URI,
+    (ctx: TaskHandlerContext) =>
+      runTranscribeVoiceNoteJob({
+        job: ctx.job,
+        rest: ctx.rest,
+        providerBaseUrl: ctx.providerBaseUrl,
+        providerApiKey: ctx.providerApiKey,
+        transcriptionModel: ctx.transcriptionModel,
+        logger: ctx.logger,
+      }),
+  ],
 ]);
 
 const RECONCILE_INTERVAL_MS = 30_000;
@@ -124,6 +141,7 @@ export interface ResolvedProviderAuth {
   apiKey: string;
   baseUrl?: string;
   models?: readonly string[];
+  transcriptionModels?: readonly string[];
   managed: boolean;
 }
 
@@ -150,9 +168,24 @@ async function conversationAttachmentsFor(
   const out: ConversationAttachment[] = [];
   for (const message of detail.messages) {
     if (message.internal) continue;
-    out.push(...parseAttachments(message.attachments).filter((a) => a.url !== null));
+    out.push(
+      ...parseAttachments(message.attachments).filter((a) => a.url !== null && isImageAttachment(a)),
+    );
   }
   return out.length > 0 ? out : undefined;
+}
+
+export function resolveTranscriptionModel(
+  auth: Pick<ResolvedProviderAuth, 'managed' | 'transcriptionModels'>,
+  config: { transcriptionModel: string | null },
+  builtIn: readonly string[],
+): string | null {
+  const offered = auth.transcriptionModels ?? (auth.managed ? builtIn : []);
+  if (offered.length === 0) return config.transcriptionModel;
+  if (config.transcriptionModel && offered.includes(config.transcriptionModel)) {
+    return config.transcriptionModel;
+  }
+  return auth.managed ? offered[0]! : null;
 }
 
 export function resolveModelTiers(
@@ -472,6 +505,11 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
       providerApiKey,
       fastModel,
       smartModel,
+      transcriptionModel: resolveTranscriptionModel(
+        auth,
+        config,
+        this.models.builtInTranscriptionModels().models.map((m) => m.id),
+      ),
       provider,
       managed,
     });
@@ -636,6 +674,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     providerApiKey: string;
     fastModel: string;
     smartModel: string;
+    transcriptionModel: string | null;
     provider?: Provider;
     managed: boolean;
   }): CuratorWorker {
@@ -685,6 +724,8 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
           provider: opts.provider,
           logger: log,
           onProgress: makeProgressWriter(job.id, opts.rest),
+          rest: opts.rest,
+          transcriptionModel: opts.transcriptionModel,
         };
         const kind = jobKindOf(job.jobUri);
         if (kind === 'task') {

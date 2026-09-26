@@ -8,6 +8,7 @@ export const agentConfig = pgTable('agent_config', {
   id: text('id').primaryKey(),
   fastModel: text('fast_model').notNull(),
   smartModel: text('smart_model'),
+  transcriptionModel: text('transcription_model'),
   providerBaseUrl: text('provider_base_url').notNull(),
   providerApiKeyCt: text('provider_api_key_ct'),
   maxHistoryChars: integer('max_history_chars').notNull().default(32_000),
@@ -51,6 +52,8 @@ export const AGENT_HOST_SINGLETON_DDL = sql`
   );
 
   INSERT INTO agent_config (id) VALUES ('singleton') ON CONFLICT (id) DO NOTHING;
+
+  ALTER TABLE agent_config ADD COLUMN IF NOT EXISTS transcription_model text;
 
   DROP INDEX IF EXISTS agent_config_enabled_idx;
 
@@ -96,6 +99,7 @@ export const AGENT_HOST_MULTI_TENANT_DDL = sql`
   );
 
   ALTER TABLE agent_config ADD COLUMN IF NOT EXISTS smart_model text;
+  ALTER TABLE agent_config ADD COLUMN IF NOT EXISTS transcription_model text;
 
   UPDATE agent_config
     SET provider_base_url = 'https://openrouter.ai/api/v1'

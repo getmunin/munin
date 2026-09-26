@@ -26,6 +26,7 @@ export interface ConversationDetail {
   outreachCampaignId?: string | null;
   assistantName?: string | null;
   endUserLocale?: string | null;
+  whatsappWindow?: { open: boolean; closesAt: string | null; lastInboundAt: string | null };
   messages: Array<{
     id: string;
     authorType: 'user' | 'agent' | 'end_user' | 'system';
@@ -35,6 +36,13 @@ export interface ConversationDetail {
     attachments?: unknown[];
     metadata?: Record<string, unknown> | null;
   }>;
+}
+
+export interface RecordTranscriptionInput {
+  status: 'done' | 'failed';
+  text?: string;
+  error?: string;
+  model?: string;
 }
 
 export interface DelegatedToken {
@@ -148,6 +156,11 @@ export interface MuninRestClient {
     holder: string;
   }): Promise<{ released: boolean }>;
   postInternalNote(conversationId: string, body: string): Promise<void>;
+  recordTranscription(
+    conversationId: string,
+    messageId: string,
+    input: RecordTranscriptionInput,
+  ): Promise<void>;
   requestHandover(
     conversationId: string,
     input: { reason?: string; publicFallbackMessage?: string; postSystemNote?: boolean },
@@ -214,11 +227,16 @@ export function toRuntimeHistory(detail: ConversationDetail): ConversationMessag
       body: message.body,
       createdAt: message.createdAt,
     };
-    if (attachments.length > 0) runtimeMessage.attachments = attachments;
+    const images = attachments.filter(isImageAttachment);
+    if (images.length > 0) runtimeMessage.attachments = images;
     const quotedHistory = readQuotedHistory(message.metadata);
     if (quotedHistory.length > 0) runtimeMessage.quotedHistory = quotedHistory;
     return runtimeMessage;
   });
+}
+
+export function isImageAttachment(attachment: ConversationAttachment): boolean {
+  return attachment.mime.toLowerCase().startsWith('image/');
 }
 
 export function isSuppressed(message: { metadata?: Record<string, unknown> | null }): boolean {
@@ -334,6 +352,16 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
         method: 'POST',
         body: JSON.stringify({ body, internal: true }),
       });
+    },
+    async recordTranscription(
+      conversationId: string,
+      messageId: string,
+      input: RecordTranscriptionInput,
+    ): Promise<void> {
+      await call<unknown>(
+        `/v1/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/transcription`,
+        { method: 'POST', body: JSON.stringify(input) },
+      );
     },
     async requestHandover(
       conversationId: string,

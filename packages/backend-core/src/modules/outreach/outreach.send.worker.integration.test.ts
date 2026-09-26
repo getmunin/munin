@@ -80,6 +80,10 @@ const skipReason = TEST_URL
       [new VapiOutreachCaller(new VapiClientService(db)), new ThrellOutreachCaller(new ThrellClientService(db))],
       appDb,
       new CuratorJobsService(dispatcher),
+      {
+        prepareTemplate: () => Promise.reject(new Error('whatsapp templates not stubbed')),
+        sendTemplate: () => Promise.reject(new Error('whatsapp templates not stubbed')),
+      },
     );
     worker = new OutreachSendWorker(appDb, svc);
   });

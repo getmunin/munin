@@ -3125,7 +3125,8 @@
             "email",
             "voice",
             "chat",
-            "sms"
+            "sms",
+            "whatsapp"
           ]
         },
         "since": {
@@ -3178,7 +3179,7 @@
   {
     "name": "conv_send_message",
     "title": "Conv: Send message in conversation",
-    "description": "Append a message to a conversation. Pass `internal: true` to leave a staff-only note (drafts, side comments) — end-user agents never see internal messages. `attachmentIds` attaches images already stored on this conversation, listed as `attachments` on each message from conv_get_conversation; it cannot upload new files, and an id belonging to another conversation or already on another message is rejected.",
+    "description": "Append a message to a conversation. Pass `internal: true` to leave a staff-only note (drafts, side comments) — end-user agents never see internal messages. `attachmentIds` attaches images already stored on this conversation, listed as `attachments` on each message from conv_get_conversation; it cannot upload new files, and an id belonging to another conversation or already on another message is rejected. On a WhatsApp conversation a public message is accepted only while the 24-hour customer-service window is open (`whatsappWindow` on conv_get_conversation); outside it the call fails with conv_whatsapp_window_closed and only an approved template can be sent.",
     "audiences": [
       "admin"
     ],
@@ -3396,9 +3397,9 @@
     }
   },
   {
-    "name": "conv_get_email_open_stats",
-    "title": "Conv: Read email open stats",
-    "description": "Aggregate email open tracking per email channel over a recent window (default 30 days, max 365). Returns for each channel the number of messages delivered in the window, how many of those were opened at least once, the total open count, and the resulting open rate, plus org-wide totals. `trackOpens` reports whether the channel currently embeds the tracking pixel — a channel with tracking off records no opens, so its rate reads 0 rather than \"nobody opened these\". Open tracking is best-effort in general: only messages with an HTML part carry a pixel, clients that block remote images never report an open, and privacy proxies such as Apple Mail Privacy Protection pre-fetch images and inflate the count.",
+    "name": "conv_get_open_stats",
+    "title": "Conv: Read message open stats",
+    "description": "Aggregate open tracking per email and WhatsApp channel over a recent window (default 30 days, max 365). Returns for each channel its `channelType`, the number of messages delivered in the window, how many of those were opened (email) or read (WhatsApp) at least once, the total open count, and the resulting open rate, plus org-wide totals. `trackOpens` reports whether the channel records opens — an email channel with tracking off records none, so its rate reads 0 rather than \"nobody opened these\"; WhatsApp channels always report read receipts. Both are best-effort: email opens need an HTML part and remote images, privacy proxies such as Apple Mail Privacy Protection inflate the count, and a WhatsApp user who has turned read receipts off never reports a read.",
     "audiences": [
       "admin"
     ],
@@ -3412,7 +3413,7 @@
       "type": "object",
       "properties": {
         "channelId": {
-          "description": "Restrict to one email channel. Omit to cover every email channel in the org.",
+          "description": "Restrict to one email or WhatsApp channel. Omit to cover every email and WhatsApp channel in the org.",
           "type": "string"
         },
         "sinceDays": {
@@ -3752,7 +3753,8 @@
                       "email",
                       "voice",
                       "chat",
-                      "sms"
+                      "sms",
+                      "whatsapp"
                     ]
                   },
                   "vendor": {
@@ -4345,6 +4347,119 @@
     }
   },
   {
+    "name": "conv_list_whatsapp_templates",
+    "title": "Conv: List WhatsApp message templates",
+    "description": "List the message templates on a WhatsApp channel’s Business Account, read live from Meta. Each template carries its name, language, category (marketing, utility, authentication), review status, header/body/footer text, buttons, and the placeholder names to fill in `variables` / `headerVariables`. Only approved templates can be sent; templates are created and reviewed in Meta Business Manager, not here.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "WhatsApp channel whose Business Account templates to list."
+        },
+        "status": {
+          "description": "Only return templates in this review status. Omit for all.",
+          "type": "string",
+          "enum": [
+            "approved",
+            "pending",
+            "rejected",
+            "paused",
+            "disabled"
+          ]
+        }
+      },
+      "required": [
+        "channelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_send_whatsapp_template",
+    "title": "Conv: Send a WhatsApp template message",
+    "description": "Send an approved WhatsApp template, the only kind of message WhatsApp accepts outside the 24-hour customer-service window. Pass `conversationId` to continue a thread, or `contactId` + `channelId` to message a CRM contact (their open conversation on that channel is reused, otherwise a new one starts). The template must exist in that language, be approved, and have every placeholder filled; contacts who opted out are refused, and starting from `contactId` also requires a recorded lawful basis. The rendered text is stored on the thread and delivered like any outbound message.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "templateName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "description": "Template name exactly as listed."
+        },
+        "language": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 16,
+          "description": "Template language code exactly as listed, e.g. \"en_US\" or \"nb\"."
+        },
+        "conversationId": {
+          "description": "Continue this WhatsApp conversation. Pass this or contactId, not both.",
+          "type": "string"
+        },
+        "contactId": {
+          "description": "CRM contact to message. Reuses their open conversation on the channel, otherwise starts one. Requires channelId and a recorded lawful basis on the contact.",
+          "type": "string"
+        },
+        "channelId": {
+          "description": "WhatsApp channel to send from. Required with contactId; inferred from conversationId otherwise.",
+          "type": "string"
+        },
+        "variables": {
+          "description": "Body placeholder values keyed by placeholder name — \"1\", \"2\", … for positional templates, or the parameter name for named ones. Every placeholder listed in `variables` must be filled.",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]{1,64}$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        },
+        "headerVariables": {
+          "description": "Header placeholder values, keyed the same way, for templates whose text header has a placeholder.",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]{1,64}$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        }
+      },
+      "required": [
+        "templateName",
+        "language"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "conv_request_callback",
     "title": "Conv: Request a callback on this conversation",
     "description": "Place an outbound phone call to the contact in this conversation. Use this only when the user has asked to be called — e.g. \"can you call me?\". The call goes to the phone number already on file for this conversation's contact; you cannot specify an arbitrary number. The org must have an active Vapi voice channel configured. After requesting the call, tell the user briefly that a call is on the way and stop replying — the rest of the conversation happens on the phone.",
@@ -4520,8 +4635,8 @@
   },
   {
     "name": "conv_list_voice_sms_vendors",
-    "title": "Conv: List voice/SMS channel vendors",
-    "description": "List the voice/SMS channel vendors you can configure, with each vendor’s `kind`, capabilities (call/sendTest), and config fields (name, required, secret, description). Use this to discover what to pass to conv_configure_voice_sms_channel.",
+    "title": "Conv: List voice/SMS/WhatsApp channel vendors",
+    "description": "List the voice, SMS and WhatsApp channel vendors you can configure, with each vendor’s `kind` (voice, sms, whatsapp), capabilities (call/sendTest), and config fields (name, required, secret, description). Use this to discover what to pass to conv_configure_voice_sms_channel.",
     "audiences": [
       "admin"
     ],
@@ -4566,8 +4681,8 @@
   },
   {
     "name": "conv_configure_voice_sms_channel",
-    "title": "Conv: Configure a voice/SMS channel",
-    "description": "Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_voice_sms_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified. Pass `channelId` to update; omit to create. `defaultAgentMode` applies to SMS channels only.",
+    "title": "Conv: Configure a voice/SMS/WhatsApp channel",
+    "description": "Create or update a voice, SMS or WhatsApp channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_voice_sms_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified (for WhatsApp, saving also registers Munin’s webhook on the phone number). Pass `channelId` to update; omit to create. `defaultAgentMode` applies to SMS and WhatsApp channels only.",
     "audiences": [
       "admin"
     ],
@@ -4584,7 +4699,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 40,
-          "description": "Channel vendor, e.g. \"vapi\", \"threll\", \"twilio\", \"messagebird\". Call conv_list_voice_sms_vendors for the full list and each vendor’s config fields."
+          "description": "Channel vendor, e.g. \"vapi\", \"threll\", \"twilio\", \"messagebird\", \"meta\" (WhatsApp). Call conv_list_voice_sms_vendors for the full list and each vendor’s config fields."
         },
         "channelId": {
           "description": "Pass an existing channel id to update; omit to create a new channel.",
@@ -4597,7 +4712,7 @@
           "maxLength": 120
         },
         "defaultAgentMode": {
-          "description": "How the agent handles inbound messages on this channel: 'auto' replies directly, 'draft_only' files a draft for a human, 'off' does neither. SMS channels only — an inbound call is run by the vendor's assistant. Set 'draft_only' on an outreach-only number so replies are never auto-sent.",
+          "description": "How the agent handles inbound messages on this channel: 'auto' replies directly, 'draft_only' files a draft for a human, 'off' does neither. SMS and WhatsApp channels only — an inbound call is run by the vendor's assistant. Set 'draft_only' on an outreach-only number so replies are never auto-sent.",
           "type": "string",
           "enum": [
             "auto",
@@ -4623,8 +4738,8 @@
   },
   {
     "name": "conv_test_voice_sms_channel",
-    "title": "Conv: Test a voice/SMS channel’s stored credentials",
-    "description": "Verify a voice or SMS channel’s stored credentials with its vendor (no message sent). The result shape is vendor-specific. Email channels are tested with conv_test_email_channel instead.",
+    "title": "Conv: Test a voice/SMS/WhatsApp channel’s stored credentials",
+    "description": "Verify a voice, SMS or WhatsApp channel’s stored credentials with its vendor (no message sent). The result shape is vendor-specific; for WhatsApp it includes the phone number’s display number, verified name and quality rating. Email channels are tested with conv_test_email_channel instead.",
     "audiences": [
       "admin"
     ],
@@ -4649,8 +4764,8 @@
   },
   {
     "name": "conv_send_sms_channel_test",
-    "title": "Conv: Send a real test SMS on a channel",
-    "description": "Send a real test SMS through an SMS channel (Twilio, MessageBird), addressed to `to`. Useful for end-to-end deliverability checks. Voice channels have no test send — their credentials are checked with conv_test_voice_sms_channel, and a test call is placed by a human from the dashboard. Email channels use conv_send_email_channel_test.",
+    "title": "Conv: Send a real test SMS or WhatsApp message on a channel",
+    "description": "Send a real test message through an SMS channel (Twilio, MessageBird) or a WhatsApp channel, addressed to `to`. Useful for end-to-end deliverability checks. On WhatsApp, free text only reaches a number that has messaged the channel in the last 24 hours; pass `templateName` to send an approved template without placeholders instead. Voice channels have no test send — their credentials are checked with conv_test_voice_sms_channel, and a test call is placed by a human from the dashboard. Email channels use conv_send_email_channel_test.",
     "audiences": [
       "admin"
     ],
@@ -4675,6 +4790,18 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 1600
+        },
+        "templateName": {
+          "description": "WhatsApp only: send this approved template (no placeholders) instead of free text, e.g. \"hello_world\". Needed when the recipient has not messaged the number in the last 24 hours.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "templateLanguage": {
+          "description": "WhatsApp only: language code of `templateName`, e.g. \"en_US\". Defaults to en_US.",
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 16
         }
       },
       "required": [
@@ -9034,7 +9161,7 @@
   {
     "name": "outreach_propose_first_touch",
     "title": "Outreach: Propose first touch",
-    "description": "File one first-touch outreach draft per (campaign, contact) for human approval — an email body, an SMS body, or the script for an outbound call, depending on the channel the campaign sends on. Idempotent: re-proposing the same (campaign, contact, kind=initial) throws when a pending draft already exists, or when the contact already has a sent or approved first-touch in this campaign (they were already reached) — call `outreach_list_proposals` first to dedupe. Suppression and consent are re-checked at approve-time too; this tool refuses up-front if the contact is already suppressed.",
+    "description": "File one first-touch outreach draft per (campaign, contact) for human approval — an email body, an SMS body, an approved WhatsApp template with its values, or the script for an outbound call, depending on the channel the campaign sends on. Idempotent: re-proposing the same (campaign, contact, kind=initial) throws when a pending draft already exists, or when the contact already has a sent or approved first-touch in this campaign (they were already reached) — call `outreach_list_proposals` first to dedupe. Suppression and consent are re-checked at approve-time too; this tool refuses up-front if the contact is already suppressed.",
     "audiences": [
       "admin"
     ],
@@ -9058,15 +9185,60 @@
           "maxLength": 64
         },
         "draftSubject": {
-          "description": "Required for email campaigns; omit for SMS and voice campaigns, which have no subject.",
+          "description": "Required for email campaigns; omit for SMS, WhatsApp and voice campaigns, which have no subject.",
           "type": "string",
           "maxLength": 300
         },
         "draftBody": {
+          "description": "Required for email, SMS and voice campaigns; omit for WhatsApp, whose text comes from the template. For email campaigns: the email body. For SMS campaigns: the text message, capped at 480 characters, plain text — no markdown, and no opt-out line, which Munin appends. For voice campaigns: the opening line / talking-points the AI agent should use when the call connects.",
           "type": "string",
           "minLength": 1,
-          "maxLength": 20000,
-          "description": "For email campaigns: the email body. For SMS campaigns: the text message, capped at 480 characters, plain text — no markdown, and no opt-out line, which Munin appends. For voice campaigns: the opening line / talking-points the AI agent should use when the call connects."
+          "maxLength": 20000
+        },
+        "whatsappTemplate": {
+          "description": "Required for WhatsApp campaigns, rejected for the others: the approved template to send and its placeholder values, keyed as listed by conv_list_whatsapp_templates. The rendered text becomes the draft the operator reviews.",
+          "type": "object",
+          "properties": {
+            "templateName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "language": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 16
+            },
+            "variables": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_]{1,64}$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            },
+            "headerVariables": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_]{1,64}$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              }
+            }
+          },
+          "required": [
+            "templateName",
+            "language"
+          ],
+          "additionalProperties": false
         },
         "evidence": {
           "type": "object",
@@ -9084,8 +9256,7 @@
       },
       "required": [
         "campaignId",
-        "contactId",
-        "draftBody"
+        "contactId"
       ],
       "additionalProperties": false
     }

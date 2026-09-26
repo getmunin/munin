@@ -13,7 +13,9 @@ export function parseVendorConfig<T extends z.ZodType>(
   throw new BadRequestException(`conv_invalid: config for ${vendor}: ${detail}`);
 }
 
-export type ChannelAdminKind = 'voice' | 'sms';
+export type ChannelAdminKind = 'voice' | 'sms' | 'whatsapp';
+
+export const MESSAGING_ADMIN_KINDS: readonly ChannelAdminKind[] = ['sms', 'whatsapp'];
 
 export interface ChannelConfigFieldInfo {
   name: string;
@@ -60,6 +62,14 @@ export interface ListChannelOptionsInput {
   config?: unknown;
 }
 
+export interface ChannelSendTestInput {
+  channelId: string;
+  to: string;
+  body?: string;
+  templateName?: string;
+  templateLanguage?: string;
+}
+
 export interface CompleteSetupResult {
   ok: boolean;
   detail?: string;
@@ -76,7 +86,7 @@ export interface ChannelAdminProvider {
   configure(input: ConfigureChannelInput): Promise<ChannelAdminDto>;
   test(channelId: string): Promise<unknown>;
   call?(input: { channelId: string; to: string; customerName?: string }): Promise<unknown>;
-  sendTest?(input: { channelId: string; to: string; body?: string }): Promise<unknown>;
+  sendTest?(input: ChannelSendTestInput): Promise<unknown>;
   listOptions?(input: ListChannelOptionsInput): Promise<ChannelOptionsDto>;
   onArchive?(channelId: string): Promise<void>;
   validatePendingConfig?(config: Record<string, unknown>): Record<string, unknown>;

@@ -29,6 +29,11 @@ import { TestConversationBanner } from './test-conversation-banner';
 import { FailureBlockRegion, failureSummary } from './failure-block';
 import { usePaneLoadFailedProps } from '../../lib/use-load-failed-props';
 import {
+  WhatsAppTemplateDialog,
+  WhatsAppWindowNotice,
+  useWhatsAppWindowState,
+} from './whatsapp-composer';
+import {
   messageDraftKind,
   pendingDraftOf,
   type QueueController,
@@ -68,6 +73,8 @@ export function ConversationPane({
   const [streaming, setStreaming] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [retryingDeliveryId, setRetryingDeliveryId] = useState<string | null>(null);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const whatsappWindow = useWhatsAppWindowState(detail?.whatsappWindow);
 
   const retryDelivery = useCallback(
     (message: MessageDto) => {
@@ -141,6 +148,7 @@ export function ConversationPane({
     setNoteDraft('');
     setTab('reply');
     setExpanded(false);
+    setTemplateOpen(false);
   }, [selectedId]);
 
   useEffect(() => () => stopStream(), []);
@@ -197,11 +205,22 @@ export function ConversationPane({
   const claim = detail?.claim ?? null;
   const claimMine = !!claim && claim.holderId === viewerUserId;
   const canReply = isOpen && claimMine;
+  const isWhatsApp = (detail?.channelType ?? item?.channelType) === 'whatsapp';
+  const windowClosed = isWhatsApp && whatsappWindow !== null && !whatsappWindow.open;
   const dirty = !streaming && !!draft && suggestionId !== null && reply !== draft.body;
   const reviewingDraft = suggestionId !== null && !dirty;
 
   const sendReply = (): void => {
-    if (!selectedId || !reply.trim() || controller.pending || streaming || uploads.busy) return;
+    if (
+      !selectedId ||
+      !reply.trim() ||
+      controller.pending ||
+      streaming ||
+      uploads.busy ||
+      windowClosed
+    ) {
+      return;
+    }
     void controller
       .send(selectedId, reply, suggestionId ?? undefined, uploads.readyIds)
       .then((ok) => {
@@ -307,7 +326,7 @@ export function ConversationPane({
   const composerMeta = [item?.topicName, detail.subject ? customer : null]
     .filter((v): v is string => !!v)
     .join(' · ');
-  const channelType = item?.channelType ?? '';
+  const channelType = detail.channelType ?? item?.channelType ?? '';
   const claimHolderName = item?.claim?.holderName ?? null;
   const askedForDraft = !!controller.draftRequested[detail.id];
   const drafting = askedForDraft || item?.agentWorking === true;
@@ -584,6 +603,7 @@ export function ConversationPane({
             viewerUserId={viewerUserId}
             hue={hues.get(participantKey(m))}
             endUserLabel={caller}
+            channelType={channelType}
             onRetryDelivery={retryDelivery}
             retryingDelivery={retryingDeliveryId === m.id}
           />
@@ -758,18 +778,28 @@ export function ConversationPane({
                   ))}
                 </div>
               )}
+              {isWhatsApp && whatsappWindow ? (
+                <WhatsAppWindowNotice state={whatsappWindow} customer={customer} />
+              ) : null}
               <textarea
                 ref={replyBoxRef}
                 value={reply}
-                readOnly={streaming || askedForDraft}
+                readOnly={streaming || askedForDraft || windowClosed}
                 onChange={(e) => {
                   setReply(e.target.value);
                   notifyTyping(e.target.value.trim().length > 0);
                   if (err) controller.clearActionError();
                 }}
                 rows={4}
-                placeholder={t('replyPlaceholder', { name: customer })}
-                className={REPLY_BOX_CLASS}
+                placeholder={
+                  windowClosed
+                    ? t('whatsapp.replyPlaceholderClosed')
+                    : t('replyPlaceholder', { name: customer })
+                }
+                className={cn(
+                  REPLY_BOX_CLASS,
+                  windowClosed && 'bg-bone text-ink-soft dark:bg-secondary dark:text-foreground/80',
+                )}
               />
               <div className="flex shrink-0 flex-col flex-wrap items-stretch gap-2 md:flex-row md:items-center">
                 <input
@@ -784,29 +814,44 @@ export function ConversationPane({
                   }}
                 />
                 <div className="flex items-stretch gap-2 md:contents">
-                  <Button
-                    variant="accent"
-                    onClick={sendReply}
-                    disabled={
-                      controller.pending ||
-                      streaming ||
-                      askedForDraft ||
-                      !reply.trim() ||
-                      uploads.busy
-                    }
-                    pending={controller.pendingAction === 'send'}
-                    className="max-md:h-11 max-md:min-w-0 max-md:flex-1"
-                  >
-                    {err
-                      ? t('retrySend')
-                      : suggestionId && !dirty
-                        ? t('approveSend')
-                        : t('sendReply')}
-                  </Button>
+                  {windowClosed ? null : (
+                    <Button
+                      variant="accent"
+                      onClick={sendReply}
+                      disabled={
+                        controller.pending ||
+                        streaming ||
+                        askedForDraft ||
+                        !reply.trim() ||
+                        uploads.busy
+                      }
+                      pending={controller.pendingAction === 'send'}
+                      className="max-md:h-11 max-md:min-w-0 max-md:flex-1"
+                    >
+                      {err
+                        ? t('retrySend')
+                        : suggestionId && !dirty
+                          ? t('approveSend')
+                          : t('sendReply')}
+                    </Button>
+                  )}
+                  {isWhatsApp ? (
+                    <Button
+                      variant={windowClosed ? 'accent' : 'outline'}
+                      onClick={() => setTemplateOpen(true)}
+                      disabled={controller.pending || streaming}
+                      className={cn(
+                        'max-md:h-11',
+                        windowClosed ? 'max-md:min-w-0 max-md:flex-1' : 'shrink-0',
+                      )}
+                    >
+                      {t('whatsapp.sendTemplate')}
+                    </Button>
+                  ) : null}
                   <Button
                     variant="outline"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={controller.pending || streaming || askedForDraft}
+                    disabled={controller.pending || streaming || askedForDraft || windowClosed}
                     aria-label={tAtt('attach')}
                     title={tAtt('attach')}
                     className="shrink-0 max-md:h-11"
@@ -878,6 +923,15 @@ export function ConversationPane({
         </div>
         </div>
       </footer>
+      {isWhatsApp ? (
+        <WhatsAppTemplateDialog
+          open={templateOpen}
+          conversationId={detail.id}
+          customer={customer}
+          onOpenChange={setTemplateOpen}
+          onSent={() => void controller.retryDetail(detail.id)}
+        />
+      ) : null}
     </section>
   );
 }

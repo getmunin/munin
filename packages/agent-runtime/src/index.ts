@@ -60,6 +60,7 @@ export {
 } from './audit.ts';
 export {
   createMuninRestClient,
+  isImageAttachment,
   parseAttachments,
   toRuntimeHistory,
   type AckCuratorJobInput,
@@ -76,6 +77,7 @@ export {
   type FailCuratorJobInput,
   type MuninRestClient,
   type SetDraftReplyOpts,
+  type RecordTranscriptionInput,
   type UpdateCuratorJobProgressInput,
 } from './munin-rest.ts';
 export {

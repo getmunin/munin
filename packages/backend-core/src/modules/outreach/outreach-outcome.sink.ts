@@ -10,7 +10,7 @@ export const OUTCOME_JOB_URI = 'skill://outreach/extract-outcome';
 const VOICE_CALL_ENDED = 'conversation.voice.call_ended';
 const MESSAGE_RECEIVED = 'conversation.message.received';
 
-const REPLY_CHANNEL_TYPES: readonly string[] = ['email', 'sms'];
+const REPLY_CHANNEL_TYPES: readonly string[] = ['email', 'sms', 'whatsapp'];
 
 export interface JobEnqueuer {
   enqueue(input: {

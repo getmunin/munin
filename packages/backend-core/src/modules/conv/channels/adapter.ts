@@ -10,7 +10,7 @@ export interface ChannelAdapter {
   readonly inbound: InboundMode | null;
 }
 
-export type ChannelKind = 'email' | 'chat' | 'sms' | 'voice';
+export type ChannelKind = 'email' | 'chat' | 'sms' | 'voice' | 'whatsapp';
 
 export type InboundMode =
   | { mode: 'poll'; intervalMs: number; tick(channel: ChannelRow): Promise<PollTickResult> }
@@ -18,6 +18,7 @@ export type InboundMode =
       mode: 'webhook';
       verify(req: IncomingWebhookRequest, channel: ChannelRow): Promise<InboundBatch>;
       toResponse?(batch: InboundBatch, channel: ChannelRow): WebhookResponse;
+      challenge?(req: IncomingWebhookRequest, channelId: string): WebhookResponse | null;
     }
   | { mode: 'push' };
 
@@ -73,8 +74,15 @@ export interface InboundBatch {
     inReplyTo?: string | null;
     receivedAt: Date;
     raw?: Record<string, unknown>;
+    media?: InboundMedia[];
+    metadata?: Record<string, unknown>;
   }>;
   responseOverride?: WebhookResponse;
+}
+
+export interface InboundMedia {
+  name: string;
+  fetch(): Promise<{ body: Buffer; mime: string }>;
 }
 
 export interface InboundCursorIo<TCursor extends Record<string, unknown>> {
@@ -105,6 +113,10 @@ export class ChannelAdapterRegistry {
 
   get(kind: string, vendor: string): ChannelAdapter | null {
     return this.byKey.get(`${kind}:${vendor}`) ?? null;
+  }
+
+  challengeAdapters(): ChannelAdapter[] {
+    return this.adapters.filter((a) => a.inbound?.mode === 'webhook' && !!a.inbound.challenge);
   }
 
   pollAdapters(): Array<ChannelAdapter & { inbound: Extract<InboundMode, { mode: 'poll' }> }> {

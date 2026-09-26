@@ -160,7 +160,13 @@ export class ConvChannelsController {
   @Post(':id/send-test')
   @HttpCode(200)
   async sendTestChannel(@Param('id') id: string, @Body() input: ChannelSendTestBody): Promise<unknown> {
-    return this.channelAdmin.sendTest({ channelId: id, to: input.to, body: input.body });
+    return this.channelAdmin.sendTest({
+      channelId: id,
+      to: input.to,
+      body: input.body,
+      templateName: input.templateName,
+      templateLanguage: input.templateLanguage,
+    });
   }
 
   @Get()

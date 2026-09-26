@@ -27,6 +27,7 @@ import {
 import { deriveVariantColumns } from '../../cms/cms.variants.ts';
 import { parseMessageAttachmentProjection } from './conv-attachments.projection.ts';
 import {
+  CONV_ATTACHMENT_AUDIO_MIME_ALLOWLIST,
   CONV_ATTACHMENT_BYTES_MAX,
   CONV_ATTACHMENT_MIME_ALLOWLIST,
   CONV_ATTACHMENT_PENDING_PER_SESSION_MAX,
@@ -148,8 +149,9 @@ export class ConvAttachmentsService {
     name: string;
     mime: string;
     body: Buffer;
+    allowAudio?: boolean;
   }): Promise<StoredAttachmentBytes> {
-    this.assertMime(input.mime, input.name);
+    this.assertMime(input.mime, input.name, input.allowAudio ? CONV_ATTACHMENT_AUDIO_MIME_ALLOWLIST : []);
     this.assertSize(input.body.length);
     await this.quotas.assertCanAdd('conv_attachments');
     if (!this.storage.writeDirect) {
@@ -427,7 +429,7 @@ export class ConvAttachmentsService {
     return `conv/${orgId}/${conversationId}/${randomKeySegment()}.${ext}`;
   }
 
-  private assertMime(mime: string, name: string): void {
+  private assertMime(mime: string, name: string, extra: readonly string[] = []): void {
     const normalized = normalizeMime(mime);
     const ext = assetExtensionFromName(name);
     if (isSvgAsset(ext, normalized)) {
@@ -437,9 +439,10 @@ export class ConvAttachmentsService {
         code: 'conv_attachment_mime_rejected',
       });
     }
-    if (!CONV_ATTACHMENT_MIME_ALLOWLIST.includes(normalized)) {
+    const accepted = [...CONV_ATTACHMENT_MIME_ALLOWLIST, ...extra];
+    if (!accepted.includes(normalized)) {
       throw new BadRequestException({
-        message: `conv_attachment_mime_rejected: "${normalized}" is not an accepted attachment type (${CONV_ATTACHMENT_MIME_ALLOWLIST.join(', ')})`,
+        message: `conv_attachment_mime_rejected: "${normalized}" is not an accepted attachment type (${accepted.join(', ')})`,
         code: 'conv_attachment_mime_rejected',
       });
     }
@@ -506,6 +509,7 @@ export class ConvAttachmentsService {
     storageKey: string,
     body: Buffer,
   ): Promise<{ width?: number | null; height?: number | null; variants?: AssetVariant[] }> {
+    if (!mime.startsWith('image/')) return {};
     try {
       const { width, height, variants } = await deriveVariantColumns(this.storage, {
         mime,

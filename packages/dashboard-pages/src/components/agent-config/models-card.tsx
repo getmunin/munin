@@ -20,11 +20,13 @@ import {
   BARE_CARD,
   type AgentConfigDto,
   type ListModelsResult,
+  type ListTranscriptionModelsResult,
 } from './types';
 
 interface ModelsCardProps {
   config: AgentConfigDto;
   models: ListModelsResult | null;
+  transcriptionModels?: ListTranscriptionModelsResult | null;
   managed?: boolean;
   saveLabel?: string;
   extraActions?: ReactNode;
@@ -36,6 +38,7 @@ interface ModelsCardProps {
 export function ModelsCard({
   config,
   models,
+  transcriptionModels,
   managed,
   saveLabel,
   extraActions,
@@ -53,6 +56,7 @@ export function ModelsCard({
 
   const [fastModel, setFastModel] = useState(config.fastModel);
   const [smartModel, setSmartModel] = useState(config.smartModel ?? '');
+  const [transcriptionModel, setTranscriptionModel] = useState(config.transcriptionModel ?? '');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +70,23 @@ export function ModelsCard({
   const effectiveFast = knownIds.has(fastModel) ? fastModel : sortedModels[0]?.id ?? fastModel;
   const effectiveSmart = !smartModel || knownIds.has(smartModel) ? smartModel : '';
 
+  const transcriptionOptions = useMemo(() => {
+    if (!transcriptionModels?.supported) return [];
+    return [...transcriptionModels.models].sort((a, b) =>
+      (a.label || a.id).localeCompare(b.label || b.id),
+    );
+  }, [transcriptionModels]);
+  const transcriptionSelectable = transcriptionOptions.length > 0;
+  const effectiveTranscription =
+    transcriptionSelectable &&
+    transcriptionModel &&
+    !transcriptionOptions.some((m) => m.id === transcriptionModel)
+      ? ''
+      : transcriptionModel.trim();
+  const transcriptionChanged =
+    transcriptionModels !== undefined &&
+    effectiveTranscription !== (config.transcriptionModel ?? '');
+
   async function save() {
     setError(null);
     setMessage(null);
@@ -76,6 +97,7 @@ export function ModelsCard({
         body: JSON.stringify({
           fastModel: effectiveFast,
           smartModel: effectiveSmart || null,
+          ...(transcriptionChanged ? { transcriptionModel: effectiveTranscription || null } : {}),
         }),
       });
       setMessage(t('saved'));
@@ -90,6 +112,41 @@ export function ModelsCard({
   const credentialed = config.providerApiKeySet || managed === true;
   const canSave = credentialed && fastModel.length > 0 && !saving;
   const label = saveLabel ?? tCommon('save');
+
+  const transcriptionField =
+    transcriptionModels === undefined ? null : (
+      <div className="space-y-1.5">
+        <SettingsLabel htmlFor="transcriptionModel">{t('models.transcription')}</SettingsLabel>
+        <p className="text-xs text-muted-foreground">{t('models.transcriptionHint')}</p>
+        {transcriptionModels === null ? (
+          <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>
+        ) : transcriptionSelectable ? (
+          <NativeSelect
+            id="transcriptionModel"
+            wrapperClassName={SETTINGS_MEASURE_FIELD}
+            value={effectiveTranscription}
+            onChange={(e) => setTranscriptionModel(e.target.value)}
+          >
+            <option value="">{t('models.transcriptionOff')}</option>
+            {transcriptionOptions.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label || m.id}
+              </option>
+            ))}
+          </NativeSelect>
+        ) : !transcriptionModels.supported && config.providerApiKeySet ? (
+          <Input
+            id="transcriptionModel"
+            className={SETTINGS_MEASURE_FIELD}
+            value={transcriptionModel}
+            onChange={(e) => setTranscriptionModel(e.target.value)}
+            placeholder={t('models.transcriptionOffPlaceholder')}
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground">{t('models.transcriptionNone')}</p>
+        )}
+      </div>
+    );
 
   const body = <div className="space-y-4">
         {!credentialed ? (
@@ -129,6 +186,7 @@ export function ModelsCard({
                 ))}
               </NativeSelect>
             </div>
+            {transcriptionField}
           </>
         ) : models && !models.supported ? (
           <>
@@ -155,6 +213,7 @@ export function ModelsCard({
                 placeholder={t('models.smartSameAsFast')}
               />
             </div>
+            {transcriptionField}
           </>
         ) : (
           <p className="text-sm text-muted-foreground">{tCommon('loading')}</p>

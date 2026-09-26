@@ -2,6 +2,7 @@ export interface AgentConfigRow {
   id: string;
   fastModel: string;
   smartModel: string | null;
+  transcriptionModel: string | null;
   providerBaseUrl: string;
   providerApiKeySet: boolean;
   maxHistoryChars: number;
@@ -14,6 +15,7 @@ export interface AgentConfigRow {
 export interface AgentConfigPatch {
   fastModel?: string;
   smartModel?: string | null;
+  transcriptionModel?: string | null;
   providerBaseUrl?: string;
   providerApiKey?: string | null;
   maxHistoryChars?: number;

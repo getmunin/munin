@@ -169,6 +169,15 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       log.info(`skip ${detail.id}: newest turn transcribed no speech`);
       return null;
     }
+    const voiceNote = newestVoiceNoteState(detail);
+    if (voiceNote && voiceNote !== 'done') {
+      log.info(`skip ${detail.id}: newest turn is a voice note with transcription ${voiceNote}`);
+      return null;
+    }
+    if (detail.whatsappWindow && !detail.whatsappWindow.open) {
+      log.info(`skip ${detail.id}: WhatsApp customer-service window closed at ${detail.whatsappWindow.closesAt ?? 'unknown'}`);
+      return null;
+    }
     if (detail.status !== 'open') {
       log.info(`skip ${detail.id}: status=${detail.status}`);
       return null;
@@ -719,6 +728,15 @@ function lastPublicMessage(
     return m;
   }
   return null;
+}
+
+export function newestVoiceNoteState(detail: ConversationDetail): string | null {
+  const newest = lastPublicMessage(detail);
+  if (newest?.authorType !== 'end_user') return null;
+  const transcription = newest.metadata?.['transcription'];
+  if (!transcription || typeof transcription !== 'object') return null;
+  const status = (transcription as { status?: unknown }).status;
+  return typeof status === 'string' ? status : 'unknown';
 }
 
 function newestTurnIsSilent(detail: ConversationDetail): boolean {

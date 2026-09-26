@@ -5,6 +5,14 @@ export const CONV_ATTACHMENT_MIME_ALLOWLIST: readonly string[] = [
   'image/webp',
 ];
 
+export const CONV_ATTACHMENT_AUDIO_MIME_ALLOWLIST: readonly string[] = [
+  'audio/ogg',
+  'audio/mpeg',
+  'audio/mp4',
+  'audio/aac',
+  'audio/webm',
+];
+
 export const CONV_ATTACHMENT_BYTES_MAX = 10 * 1024 * 1024;
 
 export const CONV_ATTACHMENT_PER_MESSAGE_MAX = 10;

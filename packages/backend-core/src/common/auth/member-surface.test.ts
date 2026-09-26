@@ -12,6 +12,8 @@ const EXPECTED_MEMBER_SURFACE = [
   'v1/conversations GET :id',
   'v1/conversations POST :id/messages',
   'v1/conversations POST :id/messages/:messageId/retry-delivery',
+  'v1/conversations GET :id/whatsapp-templates',
+  'v1/conversations POST :id/whatsapp-template',
   'v1/conversations POST :id/status',
   'v1/conversations POST :id/take-over',
   'v1/conversations POST :id/release',

@@ -4,13 +4,18 @@ import { schema } from '@getmunin/db';
 import { getCurrentContext, type PiiIdentityRefKind } from '@getmunin/core';
 import { PiiLexiconService } from './pii-lexicon.service.ts';
 import { isPiiNerEnabled } from './pii-config.ts';
-import { PII_SETTINGS_KEY, parsePiiOrgFloor, readPiiOrgFloor } from './pii-org-policy.ts';
-import type { PiiOrgFloor } from './pii-policy.ts';
+import {
+  PII_SETTINGS_KEY,
+  parsePiiOrgPolicy,
+  readPiiOrgPolicy,
+  type PiiOrgPolicy,
+} from './pii-org-policy.ts';
 import type { PiiLayer } from './pii-result-filter.service.ts';
 import { resultRows } from './rows.ts';
 
 export interface PiiStatusDto {
-  externalRaw: PiiOrgFloor['externalRaw'];
+  externalRaw: PiiOrgPolicy['externalRaw'];
+  withholdUncheckedText: boolean;
   nerEnabled: boolean;
   layers: PiiLayer[];
   coverage: {
@@ -35,22 +40,24 @@ export class PiiStatusService {
   async getStatus(): Promise<PiiStatusDto> {
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
-    const floor = await readPiiOrgFloor(ctx.db, orgId);
-    return this.toDto(floor, orgId);
+    return this.toDto(await readPiiOrgPolicy(ctx.db, orgId), orgId);
   }
 
-  async configure(input: { externalRaw: PiiOrgFloor['externalRaw'] }): Promise<PiiStatusDto> {
+  async configure(input: Partial<PiiOrgPolicy>): Promise<PiiStatusDto> {
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
+    const patch: Partial<PiiOrgPolicy> = {};
+    if (input.externalRaw !== undefined) patch.externalRaw = input.externalRaw;
+    if (input.withholdUncheckedText !== undefined) patch.withholdUncheckedText = input.withholdUncheckedText;
     const [updated] = await ctx.db
       .update(schema.orgs)
       .set({
-        settings: sql`${schema.orgs.settings} || ${JSON.stringify({ [PII_SETTINGS_KEY]: { externalRaw: input.externalRaw } })}::jsonb`,
+        settings: sql`${schema.orgs.settings} || jsonb_build_object(${PII_SETTINGS_KEY}::text, coalesce(${schema.orgs.settings} -> ${PII_SETTINGS_KEY}::text, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb)`,
         updatedAt: new Date(),
       })
       .where(eq(schema.orgs.id, orgId))
       .returning({ settings: schema.orgs.settings });
-    return this.toDto(parsePiiOrgFloor(updated?.settings ?? {}), orgId);
+    return this.toDto(parsePiiOrgPolicy(updated?.settings ?? {}), orgId);
   }
 
   async lookupToken(token: string): Promise<PiiTokenIdentityDto> {
@@ -71,7 +78,7 @@ export class PiiStatusService {
     };
   }
 
-  private async toDto(floor: PiiOrgFloor, orgId: string): Promise<PiiStatusDto> {
+  private async toDto(policy: PiiOrgPolicy, orgId: string): Promise<PiiStatusDto> {
     const ctx = getCurrentContext();
     const rows = await ctx.db.execute(sql`
       SELECT
@@ -83,7 +90,8 @@ export class PiiStatusService {
     const ner = isPiiNerEnabled();
     const last = row?.last_annotated_at ?? null;
     return {
-      externalRaw: floor.externalRaw,
+      externalRaw: policy.externalRaw,
+      withholdUncheckedText: policy.withholdUncheckedText,
       nerEnabled: ner,
       layers: ner ? ['deterministic', 'directory', 'ner'] : ['deterministic', 'directory'],
       coverage: {

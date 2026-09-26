@@ -14,9 +14,14 @@ import {
 } from '../modules/pii/pii-status.service.ts';
 
 class PutPiiPolicyBody extends createZodDto(
-  z.object({
-    externalRaw: z.enum(['allow', 'forbid']),
-  }),
+  z
+    .object({
+      externalRaw: z.enum(['allow', 'forbid']).optional(),
+      withholdUncheckedText: z.boolean().optional(),
+    })
+    .refine((body) => body.externalRaw !== undefined || body.withholdUncheckedText !== undefined, {
+      message: 'pii_policy_invalid: set externalRaw, withholdUncheckedText, or both',
+    }),
 ) {}
 
 @Controller('v1/pii')

@@ -50,6 +50,8 @@ Names the org already holds, and every email, phone number, national ID and bank
 
 When you report findings from `pending` results, say so. Do not quote free text from them as if it were fully anonymized.
 
+An org can instead withhold text that name detection has not checked yet. Then `_meta["munin/pii"].withholdUncheckedText` is `true`, and an unchecked message comes back with its free text — body, quoted thread, attachment names — replaced by `[WITHHELD: not yet checked for names]`, while its id, author, timestamps and delivery status stay. A conversation's `subject` and `lastInboundPreview` are withheld the same way until every message in it has been checked. `withheld` counts the messages affected. Report how many were withheld rather than drawing conclusions from their absence, and try again later: the text appears once the worker reaches it.
+
 ## Passing tokens back
 
 Tokens are accepted anywhere a tool takes a name, email address or phone number. The server swaps in the real value before the tool runs, so:

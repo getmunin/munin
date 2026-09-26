@@ -124,6 +124,48 @@ export class PiiAnnotationsService {
     return { total: unique.length, annotated: rows.length };
   }
 
+  async uncheckedSubjects(
+    messageIds: readonly string[],
+    conversationIds: readonly string[],
+  ): Promise<{ messages: Set<string>; conversations: Set<string> }> {
+    const ctx = getCurrentContext();
+    const messages = new Set<string>();
+    const conversations = new Set<string>();
+    if (messageIds.length > 0) {
+      const checked = await ctx.db
+        .select({ messageId: schema.piiMessageAnnotations.messageId })
+        .from(schema.piiMessageAnnotations)
+        .where(
+          and(
+            inArray(schema.piiMessageAnnotations.messageId, [...messageIds]),
+            isNotNull(schema.piiMessageAnnotations.nerVersion),
+          ),
+        );
+      const done = new Set(checked.map((r) => r.messageId));
+      for (const id of messageIds) if (!done.has(id)) messages.add(id);
+    }
+    if (conversationIds.length > 0) {
+      const rows = await ctx.db
+        .selectDistinct({ conversationId: schema.convMessages.conversationId })
+        .from(schema.convMessages)
+        .leftJoin(
+          schema.piiMessageAnnotations,
+          and(
+            eq(schema.piiMessageAnnotations.messageId, schema.convMessages.id),
+            isNotNull(schema.piiMessageAnnotations.nerVersion),
+          ),
+        )
+        .where(
+          and(
+            inArray(schema.convMessages.conversationId, [...conversationIds]),
+            isNull(schema.piiMessageAnnotations.messageId),
+          ),
+        );
+      for (const row of rows) conversations.add(row.conversationId);
+    }
+    return { messages, conversations };
+  }
+
   private async claimForOrg(
     tx: Tx,
     orgId: string,

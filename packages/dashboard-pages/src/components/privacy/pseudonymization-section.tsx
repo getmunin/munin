@@ -7,10 +7,13 @@ import { api } from '../../api';
 import { useTranslateError } from '../../i18n/translate-error';
 import { useLoadGate } from '../../lib/use-load-gate';
 import { useRelative } from '../../lib/use-relative';
+import { useConfirm } from '../confirm-dialog';
+import { coverageNoticeFor, type CoverageNotice } from '../../lib/pii-coverage';
 import { extractPseudonymToken } from '../../lib/pseudonym-token';
 import { NativeSelect } from '../native-select';
 import { Skeleton } from '../skeleton';
 import {
+  CheckboxRow,
   SaveButton,
   SettingsFieldNote,
   SettingsLabel,
@@ -23,6 +26,7 @@ type Layer = 'deterministic' | 'directory' | 'ner';
 
 export interface PiiStatusDto {
   externalRaw: ExternalRaw;
+  withholdUncheckedText: boolean;
   nerEnabled: boolean;
   layers: Layer[];
   coverage: { messages: number; annotated: number; lastAnnotatedAt: string | null };
@@ -44,9 +48,11 @@ export function PseudonymizationSection() {
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
   const relative = useRelative();
+  const confirm = useConfirm();
 
   const [loaded, setLoaded] = useState<PiiStatusDto | null>(null);
   const [externalRaw, setExternalRaw] = useState<ExternalRaw>('allow');
+  const [withhold, setWithhold] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -55,6 +61,7 @@ export function PseudonymizationSection() {
     const data = await api<PiiStatusDto>('/v1/pii');
     setLoaded(data);
     setExternalRaw(data.externalRaw);
+    setWithhold(data.withholdUncheckedText);
   }, []);
   const { loadError, tryLoad } = useLoadGate(load);
 
@@ -62,20 +69,33 @@ export function PseudonymizationSection() {
     void tryLoad();
   }, [tryLoad]);
 
-  const dirty = !!loaded && externalRaw !== loaded.externalRaw;
+  const dirty =
+    !!loaded &&
+    (externalRaw !== loaded.externalRaw || withhold !== loaded.withholdUncheckedText);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!dirty || saving) return;
+    if (!dirty || saving || !loaded) return;
+    if (withhold && !loaded.withholdUncheckedText) {
+      const ok = await confirm({
+        title: t('withholdConfirm.title'),
+        message: loaded.nerEnabled ? t('withholdConfirm.body') : t('withholdConfirm.bodyNoNer'),
+        confirmLabel: t('withholdConfirm.confirm'),
+        cancelLabel: tCommon('cancel'),
+        destructive: !loaded.nerEnabled,
+      });
+      if (!ok) return;
+    }
     setSaving(true);
     setError(null);
     try {
       const updated = await api<PiiStatusDto>('/v1/pii', {
         method: 'PUT',
-        body: JSON.stringify({ externalRaw }),
+        body: JSON.stringify({ externalRaw, withholdUncheckedText: withhold }),
       });
       setLoaded(updated);
       setExternalRaw(updated.externalRaw);
+      setWithhold(updated.withholdUncheckedText);
       setSavedAt(Date.now());
     } catch (err) {
       setError(translate(err) || t('errors.save'));
@@ -104,6 +124,8 @@ export function PseudonymizationSection() {
         )
       ) : (
         <div className="space-y-6">
+          <CoverageCallout notice={coverageNoticeFor(loaded)} status={loaded} />
+
           <form className="space-y-4" onSubmit={(e) => void submit(e)}>
             <div className="space-y-2">
               <SettingsLabel htmlFor="pii-floor">{t('floorLabel')}</SettingsLabel>
@@ -121,6 +143,16 @@ export function PseudonymizationSection() {
                 ))}
               </NativeSelect>
               <SettingsFieldNote>{t(`floorHint.${externalRaw}`)}</SettingsFieldNote>
+            </div>
+
+            <div className="max-w-[460px]">
+              <CheckboxRow
+                checked={withhold}
+                onChange={() => setWithhold((current) => !current)}
+                disabled={saving}
+                title={t('withholdLabel')}
+                description={t('withholdHint')}
+              />
             </div>
 
             {error ? (
@@ -192,6 +224,29 @@ export function PseudonymizationSection() {
         </div>
       )}
     </SettingsSection>
+  );
+}
+
+function CoverageCallout({ notice, status }: { notice: CoverageNotice | null; status: PiiStatusDto }) {
+  const t = useTranslations('dashboard.privacy.pseudonymization.notice');
+  if (!notice) return null;
+  const remaining = Math.max(status.coverage.messages - status.coverage.annotated, 0);
+  const values = {
+    annotated: status.coverage.annotated,
+    messages: status.coverage.messages,
+    remaining,
+  };
+  return (
+    <div
+      role="note"
+      data-coverage-notice={notice}
+      className="max-w-[520px] border-l-2 border-amber-400 bg-amber-50 px-3 py-2 text-[12.5px] leading-[1.5] text-ink dark:bg-amber-950/30 dark:text-foreground"
+    >
+      <p>{t(notice, values)}</p>
+      {notice === 'pending' || notice === 'noNer' ? (
+        <p className="mt-1 text-ink-mute">{t(`${notice}Hint`)}</p>
+      ) : null}
+    </div>
   );
 }
 

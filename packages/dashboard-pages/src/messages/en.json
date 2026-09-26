@@ -1079,7 +1079,10 @@
         "shareRaw": "Share personal data as stored",
         "shareRawHint": "Only if <client></client> needs real names and contact details, for example to write to customers itself.",
         "rawWarning": "<client></client> will see customers' names, contact details and ID numbers exactly as Munin stores them.",
-        "requiredByOrg": "Your organization requires pseudonymized personal data for every connection, so <client></client> will see stable tokens whatever it asks for."
+        "requiredByOrg": "Your organization requires pseudonymized personal data for every connection, so <client></client> will see stable tokens whatever it asks for.",
+        "coveragePending": "Name detection is still checking older messages, so for a while names of people who aren't the organization's contacts may appear in what <client></client> sees.",
+        "coverageNoNer": "Names of people who aren't the organization's contacts are not detected on this installation, and may appear in what <client></client> sees.",
+        "coverageWithheld": "Message text that hasn't been checked for names yet is withheld from <client></client>."
       },
       "authorize": "Authorize access",
       "authorizing": "Authorizing…",
@@ -1785,6 +1788,22 @@
         "floorHint": {
           "allow": "Connections are pseudonymized unless the person authorizing one ticks “Share personal data as stored”. API keys minted with raw access keep it.",
           "forbid": "Every external connection and API key gets pseudonymized data, whatever it was granted. Takes effect on the next tool call."
+        },
+        "withholdLabel": "Withhold message text until names are checked",
+        "withholdHint": "Pseudonymized connections get a message's text — and a conversation's subject and preview — only after name detection has checked it. Dates, status and contact tokens are still returned.",
+        "withholdConfirm": {
+          "title": "Withhold unchecked message text?",
+          "body": "Until name detection reaches a message, pseudonymized connections see “[WITHHELD]” instead of its text. Analysing older conversations won't be useful until the first pass through your history has finished.",
+          "bodyNoNer": "Name detection isn't running on this installation, so no message text will reach pseudonymized connections at all — only dates, status and contact tokens. Turn this on only if that is what you want.",
+          "confirm": "Withhold text"
+        },
+        "notice": {
+          "pending": "Name detection is still working through your history: {annotated} of {messages} messages checked. Until it reaches a message, names of people who aren't your contacts can appear in MCP results.",
+          "pendingHint": "Turn on “Withhold message text until names are checked” to hide that text in the meantime.",
+          "noNer": "Name detection isn't running on this installation, so names of people who aren't your contacts appear in MCP results as written.",
+          "noNerHint": "Turn on “Withhold message text until names are checked” to keep message text out of MCP results instead.",
+          "withheldPending": "{remaining} messages are withheld from MCP results until name detection has checked them.",
+          "withheldNoNer": "No message text reaches pseudonymized connections, because name detection isn't running to check it."
         },
         "layersLabel": "What gets replaced",
         "layers": {

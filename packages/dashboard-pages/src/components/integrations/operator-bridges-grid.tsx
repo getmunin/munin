@@ -12,6 +12,7 @@ import { CardGrid, CardMenu, StatusLine } from '../card-kit';
 import { IntegrationCard } from './integration-card';
 import { NativeSelect } from '../native-select';
 import { dialogLabelClass } from '../../lib/dialog-style';
+import { TeamsBridgeCard, type TeamsStatusDto } from './teams-bridge-card';
 
 interface SlackRouteDto {
   id: string;
@@ -44,6 +45,7 @@ export function OperatorBridgesSection() {
   const confirm = useConfirm();
 
   const [status, setStatus] = useState<SlackStatusDto | null>(null);
+  const [teamsStatus, setTeamsStatus] = useState<TeamsStatusDto | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -57,9 +59,19 @@ export function OperatorBridgesSection() {
     }
   }, [translate]);
 
+  const refreshTeams = useCallback(async () => {
+    try {
+      setTeamsStatus(await api<TeamsStatusDto>('/v1/teams'));
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(translate(err));
+    }
+  }, [translate]);
+
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    void refreshTeams();
+  }, [refresh, refreshTeams]);
 
   function connect() {
     setBusy(true);
@@ -106,7 +118,8 @@ export function OperatorBridgesSection() {
     }
   }
 
-  const heading = <SectionHead title={tb('title')} subtitle={tb('subtitle')} actions={status ? tConn('connectedCount', { count: status.connected ? 1 : 0 }) : undefined} />;
+  const connectedCount = (status?.connected ? 1 : 0) + (teamsStatus?.connected ? 1 : 0);
+  const heading = <SectionHead title={tb('title')} subtitle={tb('subtitle')} actions={status && teamsStatus ? tConn('connectedCount', { count: connectedCount }) : undefined} />;
 
   if (loadError) {
     return (
@@ -116,11 +129,11 @@ export function OperatorBridgesSection() {
       </section>
     );
   }
-  if (!status) {
+  if (!status || !teamsStatus) {
     return (
       <section className="space-y-4">
         {heading}
-        <CardGridSkeleton count={1} />
+        <CardGridSkeleton count={2} />
       </section>
     );
   }
@@ -180,6 +193,7 @@ export function OperatorBridgesSection() {
             )
           }
         />
+        <TeamsBridgeCard status={teamsStatus} onChanged={() => void refreshTeams()} />
       </CardGrid>
 
       {configuring && (

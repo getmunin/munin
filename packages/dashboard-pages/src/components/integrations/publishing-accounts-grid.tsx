@@ -25,7 +25,7 @@ import { CardGridSkeleton } from '../skeleton';
 import { CardGrid, CardMenu, StatusLine } from '../card-kit';
 import { IntegrationCard } from './integration-card';
 import { dialogLabelClass } from '../../lib/dialog-style';
-import { useCopy } from '../../lib/use-copy';
+import { CopyField, DialogEyebrow, SetupStep } from './setup-dialog-kit';
 
 interface SocialAccountDto {
   id: string;
@@ -415,28 +415,6 @@ function ColleagueCount({ label }: { label: string }) {
   return <span className="text-[11px] text-ink-mute">{label}</span>;
 }
 
-function SetupStep({
-  index,
-  title,
-  children,
-}: {
-  index: string;
-  title: React.ReactNode;
-  children?: React.ReactNode;
-}) {
-  return (
-    <div className="flex gap-4 border-t-[1px] border-rule-soft py-4 dark:border-rule-on-dark">
-      <span className="flex-none pt-[1px] font-serif text-lg italic leading-none text-cobalt dark:text-cobalt-soft">
-        {index}
-      </span>
-      <div className="min-w-0 flex-1 space-y-2">
-        <p className="text-sm font-medium text-ink dark:text-foreground">{title}</p>
-        {children}
-      </div>
-    </div>
-  );
-}
-
 function ProductRow({ name, purpose }: { name: string; purpose: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-b-[1px] border-rule-soft px-3 py-2 last:border-b-0 dark:border-rule-on-dark">
@@ -444,15 +422,6 @@ function ProductRow({ name, purpose }: { name: string; purpose: string }) {
       <span className="flex-none font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
         {purpose}
       </span>
-    </div>
-  );
-}
-
-function DialogEyebrow({ left, right }: { left: string; right?: React.ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3 font-mono text-[10px] uppercase tracking-eyebrow text-ink-mute">
-      <span>{left}</span>
-      {right}
     </div>
   );
 }
@@ -496,7 +465,6 @@ function PlatformAppDialog({
   const [clientSecret, setClientSecret] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const redirectCopy = useCopy();
   const name = PLATFORM_NAMES[app.platform] ?? app.platform;
   const platformCopy = (key: string) => t(`platform.${app.platform}.${key}`);
   const portalUrl = PLATFORM_DEVELOPER_PORTALS[app.platform];
@@ -578,18 +546,7 @@ function PlatformAppDialog({
             </SetupStep>
 
             <SetupStep index="03" title={t('stepRedirect')}>
-              <div className="flex items-stretch border-[1px] border-rule-soft bg-paper-deep dark:border-rule-on-dark dark:bg-secondary">
-                <span className="min-w-0 flex-1 break-all px-3 py-2 font-mono text-xs text-ink dark:text-foreground">
-                  {app.redirectUri}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => redirectCopy.copy(app.redirectUri)}
-                  className="flex-none border-l-[1px] border-rule-soft px-3 font-mono text-[10px] uppercase tracking-eyebrow text-cobalt dark:border-rule-on-dark dark:text-cobalt-soft"
-                >
-                  {redirectCopy.copied ? t('copied') : t('copy')}
-                </button>
-              </div>
+              <CopyField value={app.redirectUri} copyLabel={t('copy')} copiedLabel={t('copied')} />
             </SetupStep>
           </div>
 

@@ -11,6 +11,19 @@ export function SlackMark(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function TeamsMark(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden {...props}>
+      <circle cx="19.25" cy="6.25" r="2.25" fill="#7B83EB" />
+      <path d="M16 9.75h6a1 1 0 0 1 1 1v4.75a3.75 3.75 0 0 1-3.75 3.75h-.5A3.75 3.75 0 0 1 15 15.5v-4.75a1 1 0 0 1 1-1z" fill="#7B83EB" />
+      <circle cx="11.75" cy="5" r="3.25" fill="#5059C9" />
+      <path d="M8 9.75h8.5a1 1 0 0 1 1 1V16a5.5 5.5 0 0 1-11 0v-5.25a1 1 0 0 1 1-1z" fill="#7B83EB" opacity="0.85" />
+      <rect x="1" y="7" width="12" height="12" rx="1.5" fill="#4B53BC" />
+      <path d="M4.25 10.25h5.5v1.6H7.9V16H6.1v-4.15H4.25z" fill="#fff" />
+    </svg>
+  );
+}
+
 export function ShopifyMark(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="#95BF47" aria-hidden {...props}>

@@ -7295,6 +7295,200 @@
         ]
       }
     },
+    "/v1/teams": {
+      "get": {
+        "operationId": "TeamsController_status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Teams"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "TeamsController_disconnect",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Teams"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/teams/connection": {
+      "post": {
+        "operationId": "TeamsController_createConnection",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTeamsConnectionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Teams"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/teams/credentials-link": {
+      "post": {
+        "operationId": "TeamsController_requestCredentials",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Teams"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/teams/app-package": {
+      "get": {
+        "operationId": "TeamsController_appPackage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Teams"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/teams/channels": {
+      "get": {
+        "operationId": "TeamsController_listChannels",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Teams"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/teams/routing": {
+      "put": {
+        "operationId": "TeamsController_setRouting",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetTeamsRoutingBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Teams"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/teams/test": {
+      "post": {
+        "operationId": "TeamsController_sendTest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Teams"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/connectors/vendors": {
       "get": {
         "operationId": "ConnectorsController_listVendors",
@@ -8062,6 +8256,21 @@
         },
         "tags": [
           "SocialOAuth"
+        ],
+        "security": []
+      }
+    },
+    "/v1/teams/messages": {
+      "post": {
+        "operationId": "TeamsMessagesController_handle",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TeamsMessages"
         ],
         "security": []
       }
@@ -12357,6 +12566,63 @@
         },
         "required": [
           "slackChannelId"
+        ]
+      },
+      "CreateTeamsConnectionBody": {
+        "type": "object",
+        "properties": {
+          "appId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "tenantId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "appSecret": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "appId",
+          "tenantId"
+        ]
+      },
+      "SetTeamsRoutingBody": {
+        "type": "object",
+        "properties": {
+          "teamsChannelId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "default",
+              "escalations"
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "convChannelId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          }
+        },
+        "required": [
+          "teamsChannelId"
         ]
       },
       "CreateConnectionBody": {

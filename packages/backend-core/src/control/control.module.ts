@@ -63,6 +63,8 @@ import { InboxController } from './inbox.controller.ts';
 import { AuthProvidersController } from './auth-providers.controller.ts';
 import { SlackController } from './slack.controller.ts';
 import { SlackModule } from '../modules/slack/slack.module.ts';
+import { TeamsController } from './teams.controller.ts';
+import { TeamsModule } from '../modules/teams/teams.module.ts';
 import { ConnectorsController } from './connectors.controller.ts';
 import { ConnectorsModule } from '../modules/connectors/connectors.module.ts';
 import { ReviewController } from './review.controller.ts';
@@ -81,6 +83,7 @@ import { ReviewModule } from '../modules/review/review.module.ts';
     RealtimeModule,
     WebhooksModule,
     SlackModule,
+    TeamsModule,
     ConnectorsModule,
     ReviewModule,
     SocialModule,
@@ -138,6 +141,7 @@ import { ReviewModule } from '../modules/review/review.module.ts';
     OutreachTransferController,
     AuthProvidersController,
     SlackController,
+    TeamsController,
     ConnectorsController,
   ],
   providers: [InvitationsService, SetupStateService],

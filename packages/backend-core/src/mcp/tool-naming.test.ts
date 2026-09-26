@@ -21,6 +21,7 @@ const MODULE_TITLE_PREFIX: Record<string, string> = {
   slack: 'Slack',
   social: 'Social',
   system_alerts: 'System alerts',
+  teams: 'Teams',
   webhooks: 'Webhooks',
 };
 

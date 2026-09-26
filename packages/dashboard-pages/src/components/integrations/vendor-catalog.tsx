@@ -1,6 +1,7 @@
 import type { ComponentType, SVGProps } from 'react';
 import {
   SlackMark,
+  TeamsMark,
   ShopifyMark,
   MagentoMark,
   GastroplannerMark,
@@ -24,6 +25,12 @@ export const VENDOR_PRESENTATION: Record<string, VendorPresentation> = {
     descriptionKey: 'slack',
     capabilityKeys: ['slackMirror', 'slackReply'],
     Mark: SlackMark,
+  },
+  teams: {
+    categoryKey: 'chatBridge',
+    descriptionKey: 'teams',
+    capabilityKeys: ['teamsMirror', 'teamsReply'],
+    Mark: TeamsMark,
   },
   shopify: {
     categoryKey: 'commerce',

@@ -8,6 +8,7 @@ import {
   readResource as dispatchReadResource,
   type CaptureExceptionFn,
   type DispatchContext,
+  type ToolDataFilter,
   type ResourceContent,
   type ResourceListing,
   type ToolCallResult,
@@ -23,6 +24,7 @@ export interface OpenInProcessMcpClientOptions {
   skills?: SkillRegistry;
   apiBaseUrl?: string;
   captureException?: CaptureExceptionFn;
+  dataFilter?: ToolDataFilter;
 }
 
 export interface InProcessMcpClient {
@@ -42,6 +44,7 @@ export function openInProcessMcpClient(opts: OpenInProcessMcpClientOptions): InP
     skills: opts.skills,
     apiBaseUrl: opts.apiBaseUrl,
     captureException: opts.captureException,
+    dataFilter: opts.dataFilter,
   };
   return {
     listTools: () => Promise.resolve(dispatchListTools(ctx)),

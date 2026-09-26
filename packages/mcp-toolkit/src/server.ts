@@ -10,6 +10,7 @@ import {
   readResource,
   type CaptureExceptionFn,
   type DispatchContext,
+  type ToolDataFilter,
 } from './dispatch.ts';
 
 export interface CreateMcpServerOptions {
@@ -23,6 +24,7 @@ export interface CreateMcpServerOptions {
   apiBaseUrl?: string;
   instructions?: string;
   captureException?: CaptureExceptionFn;
+  dataFilter?: ToolDataFilter;
 }
 
 const CACHE_HINTS: ServerOptions['cacheHints'] = {
@@ -43,6 +45,7 @@ export function createMcpServer(opts: CreateMcpServerOptions): Server {
     skills: opts.skills,
     apiBaseUrl: opts.apiBaseUrl,
     captureException: opts.captureException,
+    dataFilter: opts.dataFilter,
   };
 
   const server = new Server(info, {

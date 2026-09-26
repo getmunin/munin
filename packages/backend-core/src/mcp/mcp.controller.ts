@@ -30,6 +30,7 @@ import {
 } from '../common/error-reporter/error-reporter.ts';
 import { deriveMcpAudience } from './mcp.audience.ts';
 import { OrgScopedMcpDocs } from './mcp.org-scoped.docs.ts';
+import { PiiResultFilterService } from '../modules/pii/pii-result-filter.service.ts';
 
 @Controller('mcp')
 @UseGuards(AuthGuard, McpBurstGuard)
@@ -43,6 +44,7 @@ export class McpController {
     @Inject(RateLimitService) private readonly rateLimit: RateLimitService,
     @Inject(QUOTAS_SERVICE) private readonly quotas: QuotasService,
     @Inject(ERROR_REPORTER) private readonly errorReporter: ErrorReporter,
+    @Inject(PiiResultFilterService) private readonly pii: PiiResultFilterService,
   ) {}
 
   @Post()
@@ -89,6 +91,7 @@ export class McpController {
       );
     }
 
+    const dataFilter = await this.pii.filterFor(actor, audience);
     const server = createMcpServer({
       registry: this.registry,
       audience,
@@ -102,6 +105,7 @@ export class McpController {
       apiBaseUrl: readApiBaseUrl(),
       instructions: this.skills.instructions(),
       captureException: (error, context) => this.errorReporter.captureException(error, context),
+      dataFilter,
     });
 
     const handle = toNodeHandler(createMcpHandler(() => server));

@@ -1,12 +1,12 @@
-import { Global, Module } from '@nestjs/common';
-import { PiiAnnotationsService } from './pii-annotations.service.ts';
+import { Module } from '@nestjs/common';
+import { PiiDataModule } from './pii-data.module.ts';
 import { PiiWorkerController } from './pii-worker.controller.ts';
 import { PiiWorkerGuard } from './pii-worker.guard.ts';
 
-@Global()
 @Module({
+  imports: [PiiDataModule],
   controllers: [PiiWorkerController],
-  providers: [PiiAnnotationsService, PiiWorkerGuard],
-  exports: [PiiAnnotationsService],
+  providers: [PiiWorkerGuard],
+  exports: [PiiDataModule],
 })
 export class PiiModule {}

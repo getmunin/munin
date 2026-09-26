@@ -225,6 +225,7 @@ export class AnalyticsAdminTools {
     input: CursorInputSchema,
     readOnlyHint: true,
     destructiveHint: false,
+    rawDataOnly: true,
   })
   exportEvents(args: z.infer<typeof CursorInputSchema>) {
     return this.analytics.exportAnalyticsEvents(args);

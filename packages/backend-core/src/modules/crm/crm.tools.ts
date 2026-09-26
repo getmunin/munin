@@ -795,6 +795,7 @@ export class CrmAdminTools {
     input: EmptyInput,
     readOnlyHint: true,
     destructiveHint: false,
+    rawDataOnly: true,
   })
   exportCrm() {
     return this.crm.exportCrm();

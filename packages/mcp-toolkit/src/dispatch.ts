@@ -22,6 +22,18 @@ export type CaptureExceptionFn = (
 
 export type JsonSchemaObject = { type: 'object' } & Record<string, unknown>;
 
+export interface FilteredToolResult {
+  value: unknown;
+  notice?: string;
+  meta?: Record<string, unknown>;
+}
+
+export interface ToolDataFilter {
+  refuse(tool: { name: string; rawDataOnly: boolean }): string | null;
+  output(toolName: string, value: unknown): Promise<FilteredToolResult>;
+  error(message: string): Promise<string>;
+}
+
 export interface DispatchContext {
   registry: McpToolRegistry;
   audience: Audience;
@@ -31,6 +43,7 @@ export interface DispatchContext {
   skills?: SkillRegistry;
   apiBaseUrl?: string;
   captureException?: CaptureExceptionFn;
+  dataFilter?: ToolDataFilter;
 }
 
 export interface ToolListing {
@@ -139,6 +152,20 @@ export async function callTool(
     }
   }
 
+  const refusal = ctx.dataFilter?.refuse({
+    name: tool.meta.name,
+    rawDataOnly: tool.meta.rawDataOnly ?? false,
+  });
+  if (refusal) {
+    await ctx.audit.record({
+      tool: tool.meta.name,
+      args: redactedRawArgs,
+      result: 'denied',
+      error: 'raw_data_only',
+    });
+    return errorResult(refusal);
+  }
+
   const parseResult = tool.meta.input.safeParse(args ?? {});
   if (!parseResult.success) {
     await ctx.audit.record({
@@ -195,22 +222,59 @@ export async function callTool(
       actor: { type: ctx.actor.type, id: ctx.actor.id, orgId: ctx.actor.orgId },
       args: redactedArgs,
     });
-    return errorResult(message);
+    return errorResult(await filterErrorMessage(ctx, message));
   }
+
+  let filtered: FilteredToolResult = { value };
+  if (ctx.dataFilter) {
+    try {
+      filtered = await ctx.dataFilter.output(tool.meta.name, value);
+    } catch (err) {
+      await ctx.audit.record({
+        tool: tool.meta.name,
+        args: redactedArgs,
+        result: 'error',
+        error: 'result_filter_failed',
+        durationMs: Date.now() - startedAt,
+      });
+      safeReportException(ctx.captureException, err, {
+        tool: tool.meta.name,
+        actor: { type: ctx.actor.type, id: ctx.actor.id, orgId: ctx.actor.orgId },
+        args: redactedArgs,
+      });
+      return errorResult(RESULT_WITHHELD_MESSAGE);
+    }
+  }
+
   await ctx.audit.record({
     tool: tool.meta.name,
     args: redactedArgs,
     result: 'ok',
     durationMs: Date.now() - startedAt,
   });
-  return {
-    content: [
-      {
-        type: 'text' as const,
-        text: typeof value === 'string' ? value : JSON.stringify(value ?? null),
-      },
-    ],
-  };
+  const content: ToolCallResult['content'] = [
+    {
+      type: 'text' as const,
+      text:
+        typeof filtered.value === 'string'
+          ? filtered.value
+          : JSON.stringify(filtered.value ?? null),
+    },
+  ];
+  if (filtered.notice) content.push({ type: 'text' as const, text: filtered.notice });
+  return filtered.meta ? { content, _meta: filtered.meta } : { content };
+}
+
+export const RESULT_WITHHELD_MESSAGE =
+  'Result withheld: the personal data in it could not be pseudonymized. Try again, or ask an operator to check the server logs.';
+
+async function filterErrorMessage(ctx: DispatchContext, message: string): Promise<string> {
+  if (!ctx.dataFilter) return message;
+  try {
+    return await ctx.dataFilter.error(message);
+  } catch {
+    return 'Tool failed. The error message was withheld because it could not be pseudonymized.';
+  }
 }
 
 async function callSkillTool(

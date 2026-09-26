@@ -32,8 +32,11 @@ export {
 
 export { SystemAlertsModule } from './modules/system-alerts/system-alerts.module.ts';
 export { PiiModule } from './modules/pii/pii.module.ts';
+export { PiiDataModule } from './modules/pii/pii-data.module.ts';
 export { PiiAnnotationsService } from './modules/pii/pii-annotations.service.ts';
 export { isPiiNerEnabled } from './modules/pii/pii-config.ts';
+export { PiiResultFilterService, PII_META_KEY } from './modules/pii/pii-result-filter.service.ts';
+export { decidePiiMode, type PiiMode, type PiiModeDecision } from './modules/pii/pii-policy.ts';
 export {
   AlertsService,
   AlertNotFoundError,

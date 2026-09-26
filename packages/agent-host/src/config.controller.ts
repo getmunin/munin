@@ -42,6 +42,7 @@ class UpsertAgentConfigBody extends createZodDto(
   z.object({
     fastModel: z.string().min(1).optional(),
     smartModel: z.string().min(1).nullable().optional(),
+    transcriptionModel: z.string().min(1).nullable().optional(),
     providerBaseUrl: ProviderBaseUrl.optional(),
     providerApiKey: z.string().min(1).nullable().optional(),
     maxHistoryChars: z.number().int().positive().optional(),
@@ -75,5 +76,11 @@ export class AgentConfigController {
   @RequireRole('owner', 'admin')
   async listModels(): Promise<ListModelsResult> {
     return this.models.listForCurrentActor();
+  }
+
+  @Get('transcription-models')
+  @RequireRole('owner', 'admin')
+  async listTranscriptionModels(): Promise<ListModelsResult> {
+    return this.models.listTranscriptionModelsForCurrentActor();
   }
 }

@@ -35,6 +35,24 @@ describe('toRuntimeHistory', () => {
     expect(teammate?.body).toBe('what are you planning to make?');
   });
 
+  it('passes images to the model but never an audio attachment, which no chat model can read', () => {
+    const history = client.toRuntimeHistory(
+      makeDetail([
+        {
+          id: 'm1',
+          authorType: 'end_user',
+          body: 'Jeg vil endre leveringsadressen',
+          createdAt: 't1',
+          attachments: [
+            { id: 'a1', mime: 'audio/ogg', url: 'http://api/voice', name: 'voice-note.ogg' },
+            { id: 'a2', mime: 'image/jpeg', url: 'http://api/photo', name: 'photo.jpg' },
+          ],
+        },
+      ]),
+    );
+    expect(history[0]?.attachments?.map((a) => a.mime)).toEqual(['image/jpeg']);
+  });
+
   it('drops a voice turn that transcribed no speech, so no empty turn reaches the provider', () => {
     const history = client.toRuntimeHistory(
       makeDetail([

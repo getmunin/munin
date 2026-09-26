@@ -12,6 +12,7 @@ import { QueueActionErrorBanner } from './queue-action-error';
 import { MoreActionsSheet, MoreActionsTrigger } from './pane-more-actions';
 import { MetaArrow } from './meta-arrow';
 import { PaneNotice } from './pane-notice';
+import { readWhatsAppMessageMeta } from './whatsapp';
 
 export type OutreachQueueItem = {
   id: string;
@@ -82,6 +83,10 @@ export function ReviewOutreachPane({
   const channelType = proposal.delivery?.channelType ?? 'email';
   const isEmail = channelType === 'email';
   const isVoice = channelType === 'voice';
+  const isWhatsApp = channelType === 'whatsapp';
+  const whatsappTemplate = proposal.whatsappTemplate
+    ? readWhatsAppMessageMeta({ whatsappTemplate: proposal.whatsappTemplate }).template
+    : null;
 
   const approve = useCallback(() => {
     if (choice === 'now') {
@@ -240,11 +245,23 @@ export function ReviewOutreachPane({
             </div>
           ) : (
             <div className="flex items-center gap-3 border-b border-rule-soft bg-paper-deep px-4 py-2.5 dark:border-rule-on-dark dark:bg-secondary">
-              <EnvelopeLabel>{isVoice ? t('callsFrom') : t('textsFrom')}</EnvelopeLabel>
+              <EnvelopeLabel>
+                {isVoice ? t('callsFrom') : isWhatsApp ? t('messagesFrom') : t('textsFrom')}
+              </EnvelopeLabel>
               <span className="text-[12.5px] text-ink dark:text-foreground">
                 {proposal.delivery?.sender ?? t('senderUnknown')}
               </span>
-              {!isVoice ? (
+              {isWhatsApp ? (
+                whatsappTemplate ? (
+                  <span className="ml-auto font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
+                    {t('whatsappTemplate', {
+                      template: whatsappTemplate.language
+                        ? `${whatsappTemplate.name} · ${whatsappTemplate.language}`
+                        : whatsappTemplate.name,
+                    })}
+                  </span>
+                ) : null
+              ) : !isVoice ? (
                 <span className="ml-auto font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
                   {t('smsSegments', { count: segments, chars: editedBody.length })}
                 </span>

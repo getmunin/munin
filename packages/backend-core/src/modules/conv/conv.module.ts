@@ -74,6 +74,13 @@ import { WidgetChannelAdminService } from './widget/widget-channel-admin.service
 import { WidgetAdminTools } from './widget/widget.tools.ts';
 import { WidgetThrottlerGuard } from './widget/widget-throttler.guard.ts';
 import { InboundRedactionService } from './inbound-redaction.service.ts';
+import { MetaGraphClientService } from './whatsapp/meta-graph-client.service.ts';
+import { MetaWhatsAppService } from './whatsapp/meta-whatsapp.service.ts';
+import { MetaWhatsAppAdapter } from './whatsapp/meta-whatsapp-adapter.ts';
+import { MetaWhatsAppAdminService } from './whatsapp/meta-whatsapp-admin.service.ts';
+import { MetaWhatsAppAdminProvider } from './whatsapp/meta-whatsapp-admin.provider.ts';
+import { WhatsAppTemplatesService } from './whatsapp/whatsapp-templates.service.ts';
+import { WhatsAppTools } from './whatsapp/whatsapp.tools.ts';
 import { RedactBackfillService } from './redact-backfill.service.ts';
 
 @Module({
@@ -119,6 +126,12 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
     TwilioSmsService,
     TwilioSmsAdapter,
     TwilioSmsAdminService,
+    MetaGraphClientService,
+    MetaWhatsAppService,
+    MetaWhatsAppAdapter,
+    MetaWhatsAppAdminService,
+    WhatsAppTemplatesService,
+    WhatsAppTools,
     VoiceSelfServiceToolsService,
     VapiClientService,
     VapiService,
@@ -155,7 +168,8 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
         vapi: VapiAdapter,
         threll: ThrellAdapter,
         widget: WidgetAdapter,
-      ) => [email, twilioSms, messageBirdSms, vapi, threll, widget],
+        metaWhatsApp: MetaWhatsAppAdapter,
+      ) => [email, twilioSms, messageBirdSms, vapi, threll, widget, metaWhatsApp],
       inject: [
         EmailAdapter,
         TwilioSmsAdapter,
@@ -163,12 +177,14 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
         VapiAdapter,
         ThrellAdapter,
         WidgetAdapter,
+        MetaWhatsAppAdapter,
       ],
     },
     VapiAdminProvider,
     ThrellAdminProvider,
     TwilioSmsAdminProvider,
     MessageBirdSmsAdminProvider,
+    MetaWhatsAppAdminProvider,
     ChannelAdminService,
     ChannelAdminTools,
     {
@@ -178,12 +194,14 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
         threll: ThrellAdminProvider,
         twilioSms: TwilioSmsAdminProvider,
         messageBirdSms: MessageBirdSmsAdminProvider,
-      ): ChannelAdminProvider[] => [vapi, threll, twilioSms, messageBirdSms],
+        metaWhatsApp: MetaWhatsAppAdminProvider,
+      ): ChannelAdminProvider[] => [vapi, threll, twilioSms, messageBirdSms, metaWhatsApp],
       inject: [
         VapiAdminProvider,
         ThrellAdminProvider,
         TwilioSmsAdminProvider,
         MessageBirdSmsAdminProvider,
+        MetaWhatsAppAdminProvider,
       ],
     },
   ],
@@ -210,6 +228,11 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
     TwilioSmsService,
     TwilioSmsAdapter,
     TwilioSmsAdminService,
+    MetaGraphClientService,
+    MetaWhatsAppService,
+    MetaWhatsAppAdapter,
+    MetaWhatsAppAdminService,
+    WhatsAppTemplatesService,
     VapiClientService,
     VapiService,
     VapiAdapter,

@@ -18,6 +18,11 @@ import { getCurrentContext } from '@getmunin/core';
 import { MessageComponentsSchema } from '@getmunin/types';
 import { ConvAttachmentsService } from '../modules/conv/attachments/conv-attachments.service.ts';
 import {
+  WhatsAppTemplatesService,
+  type SendWhatsAppTemplateResult,
+} from '../modules/conv/whatsapp/whatsapp-templates.service.ts';
+import type { WhatsAppTemplateDto } from '../modules/conv/whatsapp/whatsapp-templates.ts';
+import {
   CONV_ATTACHMENT_BYTES_MAX,
   CONV_ATTACHMENT_PER_MESSAGE_MAX,
 } from '../modules/conv/attachments/conv-attachments.constants.ts';
@@ -106,6 +111,29 @@ class RunnerClaimBody extends createZodDto(
   }),
 ) {}
 
+const TemplateVariables = z.record(
+  z.string().regex(/^[A-Za-z0-9_]{1,64}$/),
+  z.string().min(1).max(1024),
+);
+
+class SendWhatsAppTemplateBody extends createZodDto(
+  z.object({
+    templateName: z.string().min(1).max(512),
+    language: z.string().min(2).max(16),
+    variables: TemplateVariables.optional(),
+    headerVariables: TemplateVariables.optional(),
+  }),
+) {}
+
+class RecordTranscriptionBody extends createZodDto(
+  z.object({
+    status: z.enum(['done', 'failed']),
+    text: z.string().max(50_000).optional(),
+    error: z.string().max(2_000).optional(),
+    model: z.string().max(200).optional(),
+  }),
+) {}
+
 class RunnerReleaseBody extends createZodDto(
   z.object({
     holder: z.string().min(1).max(128),
@@ -189,6 +217,7 @@ export class ConversationsController {
     private readonly claims: ConversationClaimsService,
     private readonly automation: ConvAutomationService,
     private readonly attachments: ConvAttachmentsService,
+    private readonly whatsappTemplates: WhatsAppTemplatesService,
   ) {}
 
   @Get()
@@ -448,6 +477,51 @@ export class ConversationsController {
         conversationId: id,
         holder: input.holder,
         leaseSeconds: input.leaseSeconds ?? 3600,
+      }),
+    );
+  }
+
+  @Get(':id/whatsapp-templates')
+  @AllowMember()
+  async listWhatsAppTemplates(
+    @Param('id') id: string,
+  ): Promise<{ channelId: string; templates: WhatsAppTemplateDto[] }> {
+    return this.whatsappTemplates.listTemplatesForConversation(id);
+  }
+
+  @Post(':id/whatsapp-template')
+  @HttpCode(201)
+  @AllowMember()
+  async sendWhatsAppTemplate(
+    @Param('id') id: string,
+    @Body() input: SendWhatsAppTemplateBody,
+  ): Promise<SendWhatsAppTemplateResult> {
+    return translate(() =>
+      this.whatsappTemplates.sendTemplate({
+        conversationId: id,
+        templateName: input.templateName,
+        language: input.language,
+        variables: input.variables,
+        headerVariables: input.headerVariables,
+      }),
+    );
+  }
+
+  @Post(':id/messages/:messageId/transcription')
+  @HttpCode(200)
+  async recordTranscription(
+    @Param('id') id: string,
+    @Param('messageId') messageId: string,
+    @Body() input: RecordTranscriptionBody,
+  ): Promise<{ updated: true; messageId: string; status: 'done' | 'failed' }> {
+    return translate(() =>
+      this.conv.recordVoiceNoteTranscription({
+        conversationId: id,
+        messageId,
+        status: input.status,
+        text: input.text,
+        error: input.error,
+        model: input.model,
       }),
     );
   }

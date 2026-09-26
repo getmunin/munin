@@ -249,7 +249,9 @@ export function OutreachQueuePane({
                     ? 'outreachDeliveryCall'
                     : delivery.channelType === 'sms'
                       ? 'outreachDeliverySms'
-                      : 'outreachDeliveryEmail',
+                      : delivery.channelType === 'whatsapp'
+                        ? 'outreachDeliveryWhatsApp'
+                        : 'outreachDeliveryEmail',
                   { destination: delivery.destination },
                 )}
           </p>

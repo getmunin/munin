@@ -6,7 +6,7 @@ import { api } from '../../api';
 import type { ApiError } from '../../api';
 import { useTranslateError } from '../../i18n/translate-error';
 import { useLoadGate } from '../../lib/use-load-gate';
-import type { AgentConfigDto, ListModelsResult } from './types';
+import type { AgentConfigDto, ListModelsResult, ListTranscriptionModelsResult } from './types';
 
 export interface UseAgentConfigResult {
   config: AgentConfigDto | null;
@@ -16,6 +16,7 @@ export interface UseAgentConfigResult {
   retrying: boolean;
   retry: () => Promise<void>;
   models: ListModelsResult | null;
+  transcriptionModels: ListTranscriptionModelsResult | null;
   setConfig: (cfg: AgentConfigDto) => void;
   setModels: (models: ListModelsResult) => void;
 }
@@ -26,6 +27,8 @@ export function useAgentConfig(): UseAgentConfigResult {
 
   const [config, setConfig] = useState<AgentConfigDto | null>(null);
   const [models, setModels] = useState<ListModelsResult | null>(null);
+  const [transcriptionModels, setTranscriptionModels] =
+    useState<ListTranscriptionModelsResult | null>(null);
 
   const load = useCallback(async () => {
     const cfg = await api<AgentConfigDto>('/v1/agent-config');
@@ -45,6 +48,14 @@ export function useAgentConfig(): UseAgentConfigResult {
       .catch(() => undefined);
   }, [config?.providerApiKeySet]);
 
+  useEffect(() => {
+    if (!config) return;
+    setTranscriptionModels(null);
+    void api<ListTranscriptionModelsResult>('/v1/agent-config/transcription-models')
+      .then(setTranscriptionModels)
+      .catch(() => setTranscriptionModels({ supported: false, models: [] }));
+  }, [config?.providerApiKeySet, config?.providerBaseUrl]);
+
   const loadErrorMessage = loadError ? translate(loadError) || t('errors.load') : null;
 
   return {
@@ -55,6 +66,7 @@ export function useAgentConfig(): UseAgentConfigResult {
     retrying,
     retry,
     models,
+    transcriptionModels,
     setConfig,
     setModels,
   };

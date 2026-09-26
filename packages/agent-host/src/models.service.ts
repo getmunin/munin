@@ -1,11 +1,17 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { describeError, safeFetch } from '@getmunin/core';
 import { stripTrailingSlashes } from '@getmunin/types';
-import { AGENT_CONFIG_REPOSITORY, DEFAULT_PROVIDER_MODELS } from './injection-tokens.ts';
+import {
+  AGENT_CONFIG_REPOSITORY,
+  DEFAULT_PROVIDER_MODELS,
+  DEFAULT_TRANSCRIPTION_MODELS,
+} from './injection-tokens.ts';
 import type { AgentConfigRepository } from './config.repository.ts';
 import { authHeaders } from './provider-auth.ts';
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
+
+const SPEECH_TO_TEXT_MODEL_PATTERN = /whisper|transcri|voxtral|speech-to-text|\bstt\b|\basr\b/i;
 
 export interface ModelEntry {
   id: string;
@@ -37,6 +43,12 @@ interface CacheEntry {
 
 export interface ProviderModelLister {
   listForProvider(id: string, baseUrl: string, apiKey: string): Promise<ListModelsResult>;
+  listTranscriptionModelsForProvider(
+    id: string,
+    baseUrl: string,
+    apiKey: string,
+  ): Promise<ListModelsResult>;
+  builtInTranscriptionModels(): ListModelsResult;
   invalidate(id: string): void;
 }
 
@@ -50,7 +62,36 @@ export class AgentModelsService implements ProviderModelLister {
     @Optional()
     @Inject(DEFAULT_PROVIDER_MODELS)
     private readonly defaultProviderModels: readonly ProviderModelOffering[] = [],
+    @Optional()
+    @Inject(DEFAULT_TRANSCRIPTION_MODELS)
+    private readonly defaultTranscriptionModels: readonly ProviderModelOffering[] = [],
   ) {}
+
+  async listTranscriptionModelsForCurrentActor(): Promise<ListModelsResult> {
+    const id = this.repo.resolveCurrentId();
+    const apiKey = await this.repo.readDecryptedProviderKey(id);
+    if (!apiKey) return this.builtInTranscriptionModels();
+    const config = await this.repo.read(id);
+    return this.listTranscriptionModelsForProvider(id, config.providerBaseUrl, apiKey);
+  }
+
+  builtInTranscriptionModels(): ListModelsResult {
+    return {
+      supported: this.defaultTranscriptionModels.length > 0,
+      models: this.defaultTranscriptionModels.map(toModelEntry),
+      fetchedAt: new Date().toISOString(),
+    };
+  }
+
+  async listTranscriptionModelsForProvider(
+    id: string,
+    baseUrl: string,
+    apiKey: string,
+  ): Promise<ListModelsResult> {
+    const listing = await this.listForProvider(id, baseUrl, apiKey);
+    const models = listing.models.filter((m) => isSpeechToTextModelId(m.id));
+    return { supported: listing.supported, models, fetchedAt: listing.fetchedAt };
+  }
 
   async listForCurrentActor(): Promise<ListModelsResult> {
     const id = this.repo.resolveCurrentId();
@@ -128,6 +169,10 @@ export class AgentModelsService implements ProviderModelLister {
       fetchedAt: new Date().toISOString(),
     };
   }
+}
+
+export function isSpeechToTextModelId(id: string): boolean {
+  return SPEECH_TO_TEXT_MODEL_PATTERN.test(id);
 }
 
 export function normalizeProviderModels(

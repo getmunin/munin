@@ -23,7 +23,12 @@ export const KNOWN_SKILL_URIS: ReadonlySet<string> = new Set([
 
 export const WEB_SCRAPE_SITE_TASK_URI = 'task://web/scrape-website';
 
-export const KNOWN_TASK_URIS: ReadonlySet<string> = new Set([WEB_SCRAPE_SITE_TASK_URI]);
+export const TRANSCRIBE_VOICE_NOTE_TASK_URI = 'task://conv/transcribe-voice-note';
+
+export const KNOWN_TASK_URIS: ReadonlySet<string> = new Set([
+  WEB_SCRAPE_SITE_TASK_URI,
+  TRANSCRIBE_VOICE_NOTE_TASK_URI,
+]);
 
 const TIER_BY_URI: ReadonlyMap<string, ModelTier> = new Map([
   ['skill://conv/strip-email-signature', 'fast'],
@@ -36,6 +41,7 @@ export function tierFor(uri: string): ModelTier {
 
 const PRIORITY_BY_URI: ReadonlyMap<string, number> = new Map([
   [WEB_SCRAPE_SITE_TASK_URI, 100],
+  [TRANSCRIBE_VOICE_NOTE_TASK_URI, 200],
 ]);
 
 export function priorityFor(uri: string): number {

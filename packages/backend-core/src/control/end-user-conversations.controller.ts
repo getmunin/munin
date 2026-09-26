@@ -34,7 +34,7 @@ class StartConversationBody extends createZodDto(
   z.object({
     body: z.string().min(1).max(50_000),
     subject: z.string().max(300).optional(),
-    channelHint: z.enum(['email', 'voice', 'chat', 'sms']).optional(),
+    channelHint: z.enum(['email', 'voice', 'chat', 'sms', 'whatsapp']).optional(),
   }),
 ) {}
 

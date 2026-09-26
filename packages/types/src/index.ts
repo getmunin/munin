@@ -57,6 +57,7 @@ export {
   KNOWN_SKILL_URIS,
   KNOWN_TASK_URIS,
   WEB_SCRAPE_SITE_TASK_URI,
+  TRANSCRIBE_VOICE_NOTE_TASK_URI,
   jobKindOf,
   tierFor,
   toolPrefixesFor,
@@ -82,6 +83,7 @@ export { type WebImportProgress } from './web-import.ts';
 export { type AssetVariant } from './asset-variants.ts';
 export {
   CONV_ATTACHMENT_MIME_ALLOWLIST,
+  CONV_ATTACHMENT_AUDIO_MIME_ALLOWLIST,
   CONV_ATTACHMENT_BYTES_MAX,
   CONV_ATTACHMENT_PER_MESSAGE_MAX,
   CONV_ATTACHMENT_MB_MAX,

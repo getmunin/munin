@@ -14,6 +14,7 @@ const baseRow: AgentConfigRow = {
   id: 'singleton',
   fastModel: 'anthropic/claude-haiku-4.5',
   smartModel: null,
+  transcriptionModel: null,
   providerBaseUrl: 'https://provider.example/v1',
   providerApiKeySet: false,
   maxHistoryChars: 32_000,
@@ -39,23 +40,35 @@ function makeRepo(opts: {
   };
 }
 
-function makeModels(modelIds: string[] = []): ProviderModelLister & {
+function modelListing(modelIds: string[], supported = modelIds.length > 0) {
+  return {
+    supported,
+    models: modelIds.map((id) => ({
+      id,
+      label: null,
+      contextLength: null,
+      promptCostPerMillion: null,
+      completionCostPerMillion: null,
+      supportsVision: null,
+    })),
+    fetchedAt: new Date('2026-01-01T00:00:00Z').toISOString(),
+  };
+}
+
+function makeModels(
+  modelIds: string[] = [],
+  transcription: { provider?: string[]; builtIn?: string[] } = {},
+): ProviderModelLister & {
   listForProvider: ReturnType<typeof vi.fn>;
   invalidate: ReturnType<typeof vi.fn>;
 } {
   return {
     invalidate: vi.fn(() => undefined),
-    listForProvider: vi.fn().mockResolvedValue({
-      supported: modelIds.length > 0,
-      models: modelIds.map((id) => ({
-        id,
-        label: null,
-        contextLength: null,
-        promptCostPerMillion: null,
-        completionCostPerMillion: null,
-      })),
-      fetchedAt: new Date('2026-01-01T00:00:00Z').toISOString(),
-    }),
+    listForProvider: vi.fn().mockResolvedValue(modelListing(modelIds)),
+    listTranscriptionModelsForProvider: vi
+      .fn()
+      .mockResolvedValue(modelListing(transcription.provider ?? [], transcription.provider !== undefined)),
+    builtInTranscriptionModels: () => modelListing(transcription.builtIn ?? []),
   };
 }
 
@@ -392,5 +405,98 @@ describe('AgentConfigService with a managed built-in provider', () => {
     await svc.upsertForCurrentActor({ fastModel: 'whatever-they-call-it' });
 
     expect(repo.update).toHaveBeenCalledWith('singleton', { fastModel: 'whatever-they-call-it' });
+  });
+});
+
+describe('AgentConfigService transcription model', () => {
+  const byokRow: AgentConfigRow = { ...baseRow, providerApiKeySet: true };
+
+  it('persists a speech-to-text model the org provider offers', async () => {
+    const repo = makeRepo({ before: byokRow, after: byokRow, apiKey: 'sk-x' });
+    const svc = new AgentConfigService(
+      repo,
+      makeWebhooks(),
+      makeHealthStub(),
+      makeModels([], { provider: ['whisper-1', 'gpt-4o-mini-transcribe'] }),
+    );
+
+    await svc.upsertForCurrentActor({ transcriptionModel: 'gpt-4o-mini-transcribe' });
+
+    expect(repo.update).toHaveBeenCalledWith('singleton', {
+      transcriptionModel: 'gpt-4o-mini-transcribe',
+    });
+  });
+
+  it('rejects a transcription model the org provider does not offer', async () => {
+    const repo = makeRepo({ before: byokRow, after: byokRow, apiKey: 'sk-x' });
+    const svc = new AgentConfigService(
+      repo,
+      makeWebhooks(),
+      makeHealthStub(),
+      makeModels([], { provider: ['whisper-1'] }),
+    );
+
+    await expect(
+      svc.upsertForCurrentActor({ transcriptionModel: 'whisper-large-v3' }),
+    ).rejects.toThrow(/agent_config_invalid_model/);
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it('checks a managed org against the built-in transcription models', async () => {
+    const repo = makeRepo({ before: baseRow, after: baseRow, apiKey: null });
+    const svc = new AgentConfigService(
+      repo,
+      makeWebhooks(),
+      makeHealthStub(),
+      makeModels([], { builtIn: ['whisper-large-v3'] }),
+      true,
+    );
+
+    await svc.upsertForCurrentActor({ transcriptionModel: 'whisper-large-v3' });
+    await expect(svc.upsertForCurrentActor({ transcriptionModel: 'whisper-1' })).rejects.toThrow(
+      /agent_config_invalid_model/,
+    );
+    expect(repo.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows clearing the transcription model', async () => {
+    const withModel: AgentConfigRow = { ...byokRow, transcriptionModel: 'whisper-1' };
+    const repo = makeRepo({ before: withModel, after: byokRow, apiKey: 'sk-x' });
+    const svc = new AgentConfigService(
+      repo,
+      makeWebhooks(),
+      makeHealthStub(),
+      makeModels([], { provider: ['whisper-1'] }),
+    );
+
+    await svc.upsertForCurrentActor({ transcriptionModel: null });
+
+    expect(repo.update).toHaveBeenCalledWith('singleton', { transcriptionModel: null });
+  });
+
+  it('clears a transcription model the new provider does not offer', async () => {
+    const withModel: AgentConfigRow = { ...byokRow, transcriptionModel: 'whisper-1' };
+    const repo = makeRepo({ before: withModel, after: byokRow, apiKey: 'sk-new' });
+    const svc = new AgentConfigService(
+      repo,
+      makeWebhooks(),
+      makeHealthStub(),
+      makeModels(['claude-haiku-4-5'], { provider: [] }),
+    );
+    vi.spyOn(core, 'safeFetch').mockImplementation(
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ data: [] }),
+      }),
+    );
+
+    await svc.upsertForCurrentActor({ providerApiKey: 'sk-new' });
+
+    expect(repo.update).toHaveBeenCalledWith(
+      'singleton',
+      expect.objectContaining({ providerApiKey: 'sk-new', transcriptionModel: null }),
+    );
+    vi.restoreAllMocks();
   });
 });

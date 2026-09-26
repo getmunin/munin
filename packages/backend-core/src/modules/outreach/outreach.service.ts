@@ -51,6 +51,7 @@ import type {
 import { EmailService } from '../conv/email/email.service.ts';
 import { publicChannelConfig } from '../conv/channels/public-config.ts';
 import { findOrCreateContactByPhone } from '../conv/contact-by-phone.ts';
+import { WhatsAppTemplatesService } from '../conv/whatsapp/whatsapp-templates.service.ts';
 import {
   OUTREACH_VOICE_CALLERS,
   type OutreachVoiceCaller,
@@ -87,7 +88,16 @@ export interface CuratorJobEnqueuer {
 export const PROPOSAL_KINDS = ['initial', 'reply', 'followup'] as const;
 export type ProposalKind = (typeof PROPOSAL_KINDS)[number];
 
-export const CHANNELS_REQUIRING_HUMAN_APPROVAL: readonly string[] = ['voice', 'sms'];
+export const CHANNELS_REQUIRING_HUMAN_APPROVAL: readonly string[] = ['voice', 'sms', 'whatsapp'];
+
+export interface WhatsAppTemplateChoice {
+  templateName: string;
+  language: string;
+  variables?: Record<string, string>;
+  headerVariables?: Record<string, string>;
+}
+
+export type TemplatePreparer = Pick<WhatsAppTemplatesService, 'prepareTemplate' | 'sendTemplate'>;
 
 export const SMS_DRAFT_MAX_CHARS = 480;
 
@@ -228,6 +238,7 @@ export interface ProposalDto {
   draftSubject: string | null;
   draftBody: string;
   originalDraftBody: string | null;
+  whatsappTemplate: Record<string, unknown> | null;
   draftFingerprint: string;
   evidence: Record<string, unknown>;
   proposedSendAt: string | null;
@@ -311,6 +322,7 @@ export class OutreachService {
     @Inject(OUTREACH_VOICE_CALLERS) voiceCallers: OutreachVoiceCaller[],
     @Inject(DB) private readonly db: Db,
     @Inject(CuratorJobsService) private readonly curatorJobs: CuratorJobEnqueuer,
+    @Inject(WhatsAppTemplatesService) private readonly whatsappTemplates: TemplatePreparer,
   ) {
     this.voiceCallers = new Map(voiceCallers.map((c) => [c.vendor, c]));
   }
@@ -658,15 +670,28 @@ export class OutreachService {
     campaignId: string;
     contactId: string;
     draftSubject?: string | null;
-    draftBody: string;
+    draftBody?: string;
+    whatsappTemplate?: WhatsAppTemplateChoice;
     evidence?: Record<string, unknown>;
     proposedSendAt?: string;
   }): Promise<ProposalDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    if (!input.draftBody.trim()) throw new OutreachInvalidError('draftBody must be non-empty');
     const campaign = await this.getCampaign(input.campaignId);
     const channel = await this.loadOutreachChannel(campaign.channelId);
+    if (channel.type !== 'whatsapp' && input.whatsappTemplate) {
+      throw new OutreachInvalidError(
+        `whatsappTemplate applies to WhatsApp campaigns only; this campaign sends on ${channel.type}`,
+      );
+    }
+    if (channel.type === 'whatsapp' && !input.whatsappTemplate) {
+      throw new OutreachInvalidError(
+        'WhatsApp first touches must be an approved template — pass whatsappTemplate (see conv_list_whatsapp_templates)',
+      );
+    }
+    if (channel.type !== 'whatsapp' && !input.draftBody?.trim()) {
+      throw new OutreachInvalidError('draftBody must be non-empty');
+    }
     if (channel.type === 'email') {
       if (!input.draftSubject?.trim()) {
         throw new OutreachInvalidError('draftSubject must be non-empty for email campaigns');
@@ -682,16 +707,26 @@ export class OutreachService {
       );
     }
     assertDeliverable(contact, channel.type);
-    if ((channel.type === 'voice' || channel.type === 'sms') && !contact.phone) {
+    if (
+      (channel.type === 'voice' || channel.type === 'sms' || channel.type === 'whatsapp') &&
+      !contact.phone
+    ) {
       throw new OutreachInvalidError(
         `contact ${input.contactId} has no phone number — required for ${channel.type} campaigns`,
       );
     }
-    if (channel.type === 'sms' && input.draftBody.length > SMS_DRAFT_MAX_CHARS) {
+    if (channel.type === 'sms' && (input.draftBody ?? '').length > SMS_DRAFT_MAX_CHARS) {
       throw new OutreachInvalidError(
-        `draftBody is ${input.draftBody.length} characters — SMS drafts are capped at ${SMS_DRAFT_MAX_CHARS} so a message stays within a few billable segments`,
+        `draftBody is ${(input.draftBody ?? '').length} characters — SMS drafts are capped at ${SMS_DRAFT_MAX_CHARS} so a message stays within a few billable segments`,
       );
     }
+    const prepared = input.whatsappTemplate
+      ? await this.whatsappTemplates.prepareTemplate({
+          channelId: campaign.channelId,
+          ...input.whatsappTemplate,
+        })
+      : null;
+    const draftBody = prepared?.body ?? input.draftBody!;
     const [contacted] = await ctx.db
       .select({ status: schema.outreachProposals.status })
       .from(schema.outreachProposals)
@@ -718,7 +753,8 @@ export class OutreachService {
           contactId: input.contactId,
           kind: 'initial',
           draftSubject: input.draftSubject?.trim() || null,
-          draftBody: input.draftBody,
+          draftBody,
+          whatsappTemplate: prepared ? { ...prepared.send } : null,
           evidence: input.evidence ?? {},
           proposedSendAt: input.proposedSendAt ? new Date(input.proposedSendAt) : null,
           status: 'pending',
@@ -1249,6 +1285,10 @@ export class OutreachService {
       return this.deliverInitialSms(proposal, campaign, contact, sender);
     }
 
+    if (channel.type === 'whatsapp') {
+      return this.deliverInitialWhatsApp(proposal, campaign, sender);
+    }
+
     if (!contact.email) {
       throw new OutreachInvalidError(`contact ${contact.id} has no email — cannot send`);
     }
@@ -1383,6 +1423,55 @@ export class OutreachService {
         contactId: contact.id,
         conversationId: conversation.id,
         messageId: firstMessageId,
+      },
+    });
+
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+  }
+
+  private async deliverInitialWhatsApp(
+    proposal: ProposalDto,
+    campaign: CampaignDto,
+    sender: ProposalSender,
+  ): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    const template = readTemplateChoice(proposal.whatsappTemplate);
+    if (!template) {
+      throw new OutreachInvalidError(`proposal ${proposal.id} has no WhatsApp template to send`);
+    }
+    const sent = await this.whatsappTemplates.sendTemplate({
+      channelId: campaign.channelId,
+      contactId: proposal.contactId,
+      ...template,
+      author: { type: 'agent', id: sender.id },
+      conversationDefaults: { outreachCampaignId: campaign.id, agentMode: 'draft_only' },
+    });
+
+    const [updated] = await ctx.db
+      .update(schema.outreachProposals)
+      .set({
+        status: 'sent',
+        conversationId: sent.conversationId,
+        sentMessageId: sent.message.id,
+        sentAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.outreachProposals.id, proposal.id))
+      .returning();
+
+    await ctx.db
+      .update(schema.crmContacts)
+      .set({ lastContactedAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.crmContacts.id, proposal.contactId));
+
+    await this.webhooks.emit({
+      type: 'outreach.proposal.sent',
+      payload: {
+        proposalId: proposal.id,
+        campaignId: campaign.id,
+        contactId: proposal.contactId,
+        conversationId: sent.conversationId,
+        messageId: sent.message.id,
       },
     });
 
@@ -1747,6 +1836,11 @@ export class OutreachService {
     if (input.draftBody !== undefined && input.draftBody.trim().length === 0) {
       throw new OutreachInvalidError('draftBody cannot be empty');
     }
+    if (input.draftBody !== undefined && proposal.whatsappTemplate) {
+      throw new OutreachInvalidError(
+        `proposal ${input.id} sends a WhatsApp template, whose text is fixed by Meta — withdraw it and propose again with different template values`,
+      );
+    }
     let proposedSendAt: Date | null | undefined;
     if (input.proposedSendAt !== undefined) {
       proposedSendAt = input.proposedSendAt === null ? null : new Date(input.proposedSendAt);
@@ -2069,6 +2163,7 @@ export class OutreachService {
     if (!channel) throw new OutreachInvalidError(`channel ${channelId} does not exist`);
     if (channel.type === 'email') return channel;
     if (channel.type === 'sms') return channel;
+    if (channel.type === 'whatsapp') return channel;
     if (channel.type === 'voice' && this.voiceCallers.has(channel.vendor)) return channel;
     if (channel.type === 'voice') {
       throw new OutreachInvalidError(
@@ -2076,7 +2171,7 @@ export class OutreachService {
       );
     }
     throw new OutreachInvalidError(
-      `channel ${channelId} is ${channel.type}:${channel.vendor}; outreach campaigns require an email, sms, or voice channel`,
+      `channel ${channelId} is ${channel.type}:${channel.vendor}; outreach campaigns require an email, sms, whatsapp, or voice channel`,
     );
   }
 
@@ -2329,6 +2424,7 @@ function toProposalDto(
     draftSubject: row.draftSubject,
     draftBody: row.draftBody,
     originalDraftBody: row.originalDraftBody,
+    whatsappTemplate: row.whatsappTemplate ?? null,
     draftFingerprint: draftFingerprint(row),
     evidence: row.evidence,
     proposedSendAt: row.proposedSendAt?.toISOString() ?? null,
@@ -2563,6 +2659,28 @@ function buildUnsubscribeUrl(input: {
   });
   const base = stripTrailingSlashes(input.publicBaseUrl);
   return `${base}/v1/outreach/unsubscribe?token=${encodeURIComponent(token)}`;
+}
+
+function readTemplateChoice(value: Record<string, unknown> | null): WhatsAppTemplateChoice | null {
+  if (!value) return null;
+  const name = value.name;
+  const language = value.language;
+  if (typeof name !== 'string' || typeof language !== 'string') return null;
+  return {
+    templateName: name,
+    language,
+    variables: asStringRecord(value.variables),
+    headerVariables: asStringRecord(value.headerVariables),
+  };
+}
+
+function asStringRecord(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object') return {};
+  const out: Record<string, string> = {};
+  for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof v === 'string') out[key] = v;
+  }
+  return out;
 }
 
 function composeSmsOutreachBody(input: {

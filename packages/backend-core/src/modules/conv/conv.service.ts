@@ -27,6 +27,15 @@ import type {
 import { countSignatureHints, isTrailingSignatureSplit } from './email/reply-history.ts';
 import { readPendingSetup } from './channels/channel-admin.ts';
 import { publicChannelConfig } from './channels/public-config.ts';
+import {
+  WhatsAppWindowClosedException,
+  computeWhatsAppWindow,
+  type WhatsAppWindow,
+} from './whatsapp/whatsapp-window.ts';
+import {
+  WHATSAPP_TEMPLATE_METADATA_KEY,
+  type WhatsAppTemplateSend,
+} from './whatsapp/whatsapp-templates.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { toIsoString } from '../../common/iso.ts';
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
@@ -71,7 +80,7 @@ export class AgentReplyRaceError extends Error {
   }
 }
 
-export const CHANNEL_TYPES = ['email', 'voice', 'chat', 'sms'] as const;
+export const CHANNEL_TYPES = ['email', 'voice', 'chat', 'sms', 'whatsapp'] as const;
 export const STATUSES = ['open', 'snoozed', 'closed', 'spam'] as const;
 
 export const SUPPRESSED_REASONS = [
@@ -89,7 +98,9 @@ export const AGENT_MODES = ['auto', 'draft_only', 'off'] as const;
 export const HANDOVER_FILTERS = ['active', 'resolved', 'never'] as const;
 export type HandoverFilter = (typeof HANDOVER_FILTERS)[number];
 
-const DELIVERABLE_CHANNEL_TYPES: readonly string[] = ['email', 'sms'];
+const DELIVERABLE_CHANNEL_TYPES: readonly string[] = ['email', 'sms', 'whatsapp'];
+
+const OPEN_TRACKING_CHANNEL_TYPES = ['email', 'whatsapp'] as const;
 
 const DELIVERY_SEVERITY_SQL = sql`CASE ${schema.convMessageDeliveries.status}
   WHEN 'dead' THEN 0
@@ -156,9 +167,10 @@ export interface MessageDto {
   deliveryNextAttemptAt: string | null;
 }
 
-export interface EmailOpenStatsChannel {
+export interface OpenStatsChannel {
   channelId: string;
   channelName: string;
+  channelType: (typeof OPEN_TRACKING_CHANNEL_TYPES)[number];
   trackOpens: boolean;
   sent: number;
   opened: number;
@@ -166,11 +178,11 @@ export interface EmailOpenStatsChannel {
   openRate: number | null;
 }
 
-export interface EmailOpenStats {
+export interface OpenStats {
   since: string;
   sinceDays: number;
-  channels: EmailOpenStatsChannel[];
-  totals: Omit<EmailOpenStatsChannel, 'channelId' | 'channelName' | 'trackOpens'>;
+  channels: OpenStatsChannel[];
+  totals: Omit<OpenStatsChannel, 'channelId' | 'channelName' | 'channelType' | 'trackOpens'>;
 }
 
 export interface ConversationSummary {
@@ -225,6 +237,7 @@ export interface ConversationDetail extends ConversationSummary {
   contactEmail: string | null;
   contactName: string | null;
   contactPhone: string | null;
+  whatsappWindow?: WhatsAppWindow;
 }
 
 export interface ConvChannelExport {
@@ -1142,13 +1155,16 @@ export class ConvService {
       contactEmail: row.contactEmail ?? row.endUserEmail ?? null,
       contactName: row.contactName ?? row.endUserName ?? null,
       contactPhone: row.contactPhone ?? row.endUserPhone ?? null,
+      ...(row.channelType === 'whatsapp'
+        ? { whatsappWindow: computeWhatsAppWindow(lastInboundAt(messages)) }
+        : {}),
     };
   }
 
-  async getEmailOpenStats(input?: {
+  async getOpenStats(input?: {
     channelId?: string;
     sinceDays?: number;
-  }): Promise<EmailOpenStats> {
+  }): Promise<OpenStats> {
     const ctx = getCurrentContext();
     const sinceDays = clampLimit(input?.sinceDays, 30, 365);
     const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
@@ -1163,9 +1179,9 @@ export class ConvService {
       if (!channel) {
         throw new NotFoundException(`conv_not_found: channel ${input.channelId}`);
       }
-      if (channel.type !== 'email') {
+      if (!isOpenTrackingChannelType(channel.type)) {
         throw new BadRequestException(
-          `conv_invalid: channel ${input.channelId} is a ${channel.type} channel; opens are tracked on email channels only`,
+          `conv_invalid: channel ${input.channelId} is a ${channel.type} channel; opens are tracked on email and WhatsApp channels only`,
         );
       }
     }
@@ -1174,7 +1190,8 @@ export class ConvService {
       .select({
         channelId: schema.convChannels.id,
         channelName: schema.convChannels.name,
-        trackOpens: sql<boolean>`COALESCE((${schema.convChannels.config}->'outbound'->>'trackOpens')::boolean, false)`,
+        channelType: schema.convChannels.type,
+        trackOpens: sql<boolean>`${schema.convChannels.type} = 'whatsapp' OR COALESCE((${schema.convChannels.config}->'outbound'->>'trackOpens')::boolean, false)`,
         sent: sql<number>`COUNT(${schema.convMessageDeliveries.id})::int`,
         opened: sql<number>`COUNT(${schema.convMessageDeliveries.firstOpenedAt})::int`,
         totalOpens: sql<number>`COALESCE(SUM(${schema.convMessageDeliveries.openCount}), 0)::int`,
@@ -1190,16 +1207,22 @@ export class ConvService {
       )
       .where(
         and(
-          eq(schema.convChannels.type, 'email'),
+          inArray(schema.convChannels.type, [...OPEN_TRACKING_CHANNEL_TYPES]),
           input?.channelId ? eq(schema.convChannels.id, input.channelId) : undefined,
         ),
       )
-      .groupBy(schema.convChannels.id, schema.convChannels.name, schema.convChannels.config)
+      .groupBy(
+        schema.convChannels.id,
+        schema.convChannels.name,
+        schema.convChannels.type,
+        schema.convChannels.config,
+      )
       .orderBy(asc(schema.convChannels.name));
 
     const channels = rows.map((r) => ({
       channelId: r.channelId,
       channelName: r.channelName,
+      channelType: r.channelType as OpenStatsChannel['channelType'],
       trackOpens: r.trackOpens,
       sent: r.sent,
       opened: r.opened,
@@ -1267,6 +1290,7 @@ export class ConvService {
     outreachCampaignId?: string;
     agentMode?: AgentMode;
     metadata?: Record<string, unknown>;
+    messageMetadata?: Record<string, unknown>;
     authorType: 'user' | 'agent' | 'end_user' | 'system';
     authorId: string;
   }): Promise<ConversationDetail> {
@@ -1309,6 +1333,7 @@ export class ConvService {
         authorId: input.authorId,
         body: input.body,
         internal: false,
+        ...(input.messageMetadata ? { metadata: input.messageMetadata } : {}),
       })
       .returning();
     await ctx.db
@@ -1413,6 +1438,7 @@ export class ConvService {
     components?: MessageComponent[];
     fromDraftId?: string;
     attachmentIds?: string[];
+    whatsappTemplate?: WhatsAppTemplateSend;
   }): Promise<MessageDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -1459,6 +1485,19 @@ export class ConvService {
       }
     }
 
+    if (input.whatsappTemplate && conv.channelType !== 'whatsapp') {
+      throw new ConvInvalidError(
+        `conversation ${input.conversationId} is on a ${conv.channelType} channel; templates apply to WhatsApp only`,
+      );
+    }
+
+    const isPublicStaffMessage =
+      !input.internal && (input.authorType === 'agent' || input.authorType === 'user');
+    if (conv.channelType === 'whatsapp' && isPublicStaffMessage && !input.whatsappTemplate) {
+      const window = computeWhatsAppWindow(await this.lastInboundAt(input.conversationId));
+      if (!window.open) throw new WhatsAppWindowClosedException(input.conversationId, window.closesAt);
+    }
+
     const reviewedElsewhere = Boolean(input.fromDraftId || conv.outreachCampaignId);
     if (isPublicAgentReply && !reviewedElsewhere) {
       const mode = await this.effectiveAgentModeOf(input.conversationId);
@@ -1483,6 +1522,7 @@ export class ConvService {
       ...(attachComponents ? { components: input.components } : {}),
       ...(approvedDraft ? { approvedDraft: approvedDraft.stamp } : {}),
       ...(isNote ? { kind: 'internal_note' } : {}),
+      ...(input.whatsappTemplate ? { [WHATSAPP_TEMPLATE_METADATA_KEY]: input.whatsappTemplate } : {}),
     };
 
     const [row] = await ctx.db
@@ -1682,6 +1722,23 @@ export class ConvService {
     );
   }
 
+  private async lastInboundAt(conversationId: string): Promise<Date | null> {
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ createdAt: schema.convMessages.createdAt })
+      .from(schema.convMessages)
+      .where(
+        and(
+          eq(schema.convMessages.conversationId, conversationId),
+          eq(schema.convMessages.authorType, 'end_user'),
+          eq(schema.convMessages.internal, false),
+        ),
+      )
+      .orderBy(desc(schema.convMessages.createdAt))
+      .limit(1);
+    return rows[0]?.createdAt ?? null;
+  }
+
   private async enqueueOutboundDelivery(
     messageId: string,
     conversationId: string,
@@ -1852,6 +1909,90 @@ export class ConvService {
       },
     });
     return { updated: true };
+  }
+
+  async recordVoiceNoteTranscription(input: {
+    conversationId: string;
+    messageId: string;
+    status: 'done' | 'failed';
+    text?: string;
+    error?: string;
+    model?: string;
+  }): Promise<{ updated: true; messageId: string; status: 'done' | 'failed' }> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const rows = await ctx.db
+      .select()
+      .from(schema.convMessages)
+      .where(
+        and(
+          eq(schema.convMessages.id, input.messageId),
+          eq(schema.convMessages.conversationId, input.conversationId),
+        ),
+      )
+      .limit(1);
+    const row = rows[0];
+    if (!row) throw new NotFoundException(`conv_not_found: message ${input.messageId} in conversation ${input.conversationId}`);
+    const transcription = (row.metadata ?? {}).transcription as { status?: unknown } | undefined;
+    if (!transcription) {
+      throw new ConvInvalidError(`message ${input.messageId} is not a voice note awaiting transcription`);
+    }
+    if (transcription.status !== 'pending') {
+      throw new ConflictException({
+        message: `conv_conflict: voice note ${input.messageId} is already ${String(transcription.status)}`,
+        code: 'conv_conflict',
+      });
+    }
+
+    const text = input.text?.trim() ?? '';
+    const status = input.status === 'done' && text.length > 0 ? 'done' : 'failed';
+    const record = {
+      status,
+      at: new Date().toISOString(),
+      ...(input.model ? { model: input.model } : {}),
+      ...(status === 'failed' ? { error: input.error ?? (input.status === 'done' ? 'no speech detected' : 'transcription failed') } : {}),
+    };
+
+    if (status === 'done') {
+      const redactionPolicy = await readRedactionPolicy(ctx.db, actor.orgId);
+      const scrubbed = applyInboundRedaction(
+        { body: text, metadata: { ...row.metadata, transcription: record } },
+        redactionPolicy,
+      );
+      await ctx.db
+        .update(schema.convMessages)
+        .set({ body: scrubbed.fields.body, metadata: scrubbed.fields.metadata ?? { ...row.metadata, transcription: record } })
+        .where(eq(schema.convMessages.id, row.id));
+      await this.webhooks.emit({
+        type: 'conversation.message.transcribed',
+        payload: {
+          conversationId: row.conversationId,
+          messageId: row.id,
+          authorType: row.authorType,
+          internal: row.internal,
+        },
+      });
+    } else {
+      await ctx.db
+        .update(schema.convMessages)
+        .set({ metadata: { ...row.metadata, transcription: record } })
+        .where(eq(schema.convMessages.id, row.id));
+      await ctx.db
+        .update(schema.convConversations)
+        .set({
+          needsHumanAttention: true,
+          needsHumanAttentionAt: new Date(),
+          handoverResolvedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.convConversations.id, row.conversationId),
+            eq(schema.convConversations.needsHumanAttention, false),
+          ),
+        );
+    }
+    return { updated: true, messageId: row.id, status };
   }
 
   async assignConversation(input: {
@@ -2775,6 +2916,18 @@ function toMessageDto(
   };
 }
 
+
+function isOpenTrackingChannelType(type: string): boolean {
+  return (OPEN_TRACKING_CHANNEL_TYPES as readonly string[]).includes(type);
+}
+
+function lastInboundAt(messages: ReadonlyArray<typeof schema.convMessages.$inferSelect>): Date | null {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const m = messages[i]!;
+    if (m.authorType === 'end_user' && !m.internal) return m.createdAt;
+  }
+  return null;
+}
 
 function toOpenRate(opened: number, sent: number): number | null {
   if (sent <= 0) return null;

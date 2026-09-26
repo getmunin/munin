@@ -1,6 +1,14 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import type { CoverageNotice } from '../../lib/pii-coverage';
+
+const CONSENT_COVERAGE_KEY: Record<CoverageNotice, string> = {
+  pending: 'coveragePending',
+  noNer: 'coverageNoNer',
+  withheldPending: 'coverageWithheld',
+  withheldNoNer: 'coverageWithheld',
+};
 
 export interface PersonalDataPanelProps {
   clientName: string;
@@ -9,6 +17,7 @@ export interface PersonalDataPanelProps {
   onShareRawChange: (next: boolean) => void;
   disabled?: boolean;
   orgRequiresPseudonymization?: boolean;
+  coverageNotice?: CoverageNotice | null;
 }
 
 export function PersonalDataPanel({
@@ -18,6 +27,7 @@ export function PersonalDataPanel({
   onShareRawChange,
   disabled,
   orgRequiresPseudonymization = false,
+  coverageNotice = null,
 }: PersonalDataPanelProps) {
   const t = useTranslations('dashboard.oauthConsent.personalData');
   const client = () => <b className="font-semibold text-ink">{clientName}</b>;
@@ -43,6 +53,14 @@ export function PersonalDataPanel({
         <p className="mt-2 text-[13px] leading-snug text-ink-soft [overflow-wrap:anywhere]">
           {t.rich('pseudonymizedBody', { client })}
         </p>
+        {coverageNotice && !raw && (
+          <p
+            data-coverage-notice={coverageNotice}
+            className="mt-2 text-[12.5px] leading-snug text-ink-mute [overflow-wrap:anywhere]"
+          >
+            {t.rich(CONSENT_COVERAGE_KEY[coverageNotice], { client })}
+          </p>
+        )}
         {orgRequiresPseudonymization && (
           <p className="mt-2 text-[12.5px] leading-snug text-ink-mute [overflow-wrap:anywhere]">
             {t.rich('requiredByOrg', { client })}

@@ -16,6 +16,7 @@ import {
   type ConsentScopeGroup,
 } from '../auth/consent-scopes';
 import { PersonalDataPanel } from '../components/consent/personal-data-panel';
+import { coverageNoticeFor, type CoverageNotice, type PiiCoverageStatus } from '../lib/pii-coverage';
 
 export interface OAuthClientInfo {
   client_id: string;
@@ -86,6 +87,7 @@ export function OAuthConsentPage({
   const rawRequested = useMemo(() => requestsRawPersonalData(scopes), [scopes]);
   const [shareRaw, setShareRaw] = useState(false);
   const [orgRequiresPseudonymization, setOrgRequiresPseudonymization] = useState(false);
+  const [coverageNotice, setCoverageNotice] = useState<CoverageNotice | null>(null);
 
   const [flow, setFlow] = useState<FlowState>('new');
   const [busy, setBusy] = useState<'allow' | 'deny' | null>(null);
@@ -101,17 +103,19 @@ export function OAuthConsentPage({
   }, [expiresAtMs, expired]);
 
   useEffect(() => {
-    if (!session || !rawRequested) return;
+    if (!session) return;
     let cancelled = false;
-    api<{ externalRaw: 'allow' | 'forbid' }>('/v1/pii')
+    api<PiiCoverageStatus & { externalRaw: 'allow' | 'forbid' }>('/v1/pii')
       .then((status) => {
-        if (!cancelled) setOrgRequiresPseudonymization(status.externalRaw === 'forbid');
+        if (cancelled) return;
+        setOrgRequiresPseudonymization(status.externalRaw === 'forbid');
+        setCoverageNotice(coverageNoticeFor(status));
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [session, rawRequested]);
+  }, [session]);
 
   useEffect(() => {
     if (!isPending && !session) {
@@ -199,6 +203,7 @@ export function OAuthConsentPage({
               shareRaw={shareRaw}
               onShareRawChange={setShareRaw}
               orgRequiresPseudonymization={orgRequiresPseudonymization}
+              coverageNotice={coverageNotice}
               busy={busy}
               error={error}
               onSubmit={(accept) => void submit(accept)}
@@ -332,6 +337,7 @@ interface RequestPaneProps {
   shareRaw: boolean;
   onShareRawChange: (next: boolean) => void;
   orgRequiresPseudonymization: boolean;
+  coverageNotice: CoverageNotice | null;
   busy: 'allow' | 'deny' | null;
   error: string | null;
   onSubmit: (accept: boolean) => void;
@@ -350,6 +356,7 @@ function RequestPane({
   shareRaw,
   onShareRawChange,
   orgRequiresPseudonymization,
+  coverageNotice,
   busy,
   error,
   onSubmit,
@@ -402,6 +409,7 @@ function RequestPane({
           shareRaw={shareRaw}
           onShareRawChange={onShareRawChange}
           orgRequiresPseudonymization={orgRequiresPseudonymization}
+          coverageNotice={coverageNotice}
           disabled={busy !== null}
         />
       )}

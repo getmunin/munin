@@ -10121,11 +10121,11 @@
               "allow",
               "forbid"
             ]
+          },
+          "withholdUncheckedText": {
+            "type": "boolean"
           }
-        },
-        "required": [
-          "externalRaw"
-        ]
+        }
       },
       "UpdateTopicBody": {
         "type": "object",

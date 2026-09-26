@@ -1079,7 +1079,10 @@
         "shareRaw": "Del personopplysninger i klartekst",
         "shareRawHint": "Bare hvis <client></client> trenger ekte navn og kontaktinfo, for eksempel for å skrive til kunder selv.",
         "rawWarning": "<client></client> får se kundenes navn, kontaktopplysninger og fødselsnumre akkurat slik Munin har dem lagret.",
-        "requiredByOrg": "Organisasjonen din krever pseudonymiserte personopplysninger for alle tilkoblinger, så <client></client> ser faste koder uansett hva den ber om."
+        "requiredByOrg": "Organisasjonen din krever pseudonymiserte personopplysninger for alle tilkoblinger, så <client></client> ser faste koder uansett hva den ber om.",
+        "coveragePending": "Navnegjenkjenningen sjekker fortsatt eldre meldinger, så en stund kan navn på folk som ikke er organisasjonens kontakter dukke opp i det <client></client> ser.",
+        "coverageNoNer": "Navn på folk som ikke er organisasjonens kontakter blir ikke gjenkjent på denne installasjonen, og kan dukke opp i det <client></client> ser.",
+        "coverageWithheld": "Meldingstekst som ikke er sjekket for navn ennå, holdes tilbake fra <client></client>."
       },
       "authorize": "Gi tilgang",
       "authorizing": "Gir tilgang …",
@@ -1785,6 +1788,22 @@
         "floorHint": {
           "allow": "Tilkoblinger pseudonymiseres med mindre den som godkjenner krysser av for «Del personopplysninger i klartekst». API-nøkler laget med klartekst beholder det.",
           "forbid": "Alle eksterne tilkoblinger og API-nøkler får pseudonymiserte data, uansett hva de har fått tilgang til. Gjelder fra neste verktøykall."
+        },
+        "withholdLabel": "Hold tilbake meldingstekst til navn er sjekket",
+        "withholdHint": "Pseudonymiserte tilkoblinger får teksten i en melding – og emnet og forhåndsvisningen i en samtale – først når navnegjenkjenningen har sjekket den. Datoer, status og kontaktkoder sendes fortsatt.",
+        "withholdConfirm": {
+          "title": "Holde tilbake usjekket meldingstekst?",
+          "body": "Til navnegjenkjenningen har nådd en melding, ser pseudonymiserte tilkoblinger «[WITHHELD]» i stedet for teksten. Analyse av eldre samtaler blir ikke nyttig før første gjennomgang av historikken er ferdig.",
+          "bodyNoNer": "Navnegjenkjenning kjører ikke på denne installasjonen, så pseudonymiserte tilkoblinger får ingen meldingstekst i det hele tatt – bare datoer, status og kontaktkoder. Slå det bare på hvis det er det du vil.",
+          "confirm": "Hold tilbake tekst"
+        },
+        "notice": {
+          "pending": "Navnegjenkjenningen jobber seg fortsatt gjennom historikken: {annotated} av {messages} meldinger er sjekket. Til den når en melding, kan navn på folk som ikke er kontaktene dine dukke opp i MCP-svar.",
+          "pendingHint": "Slå på «Hold tilbake meldingstekst til navn er sjekket» for å skjule den teksten i mellomtiden.",
+          "noNer": "Navnegjenkjenning kjører ikke på denne installasjonen, så navn på folk som ikke er kontaktene dine vises som de står i MCP-svar.",
+          "noNerHint": "Slå på «Hold tilbake meldingstekst til navn er sjekket» for å holde meldingstekst helt utenfor MCP-svar i stedet.",
+          "withheldPending": "{remaining} meldinger holdes tilbake fra MCP-svar til navnegjenkjenningen har sjekket dem.",
+          "withheldNoNer": "Ingen meldingstekst sendes til pseudonymiserte tilkoblinger, fordi navnegjenkjenning ikke kjører og kan sjekke den."
         },
         "layersLabel": "Hva som byttes ut",
         "layers": {

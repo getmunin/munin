@@ -13,8 +13,9 @@ import type { FilteredToolResult, ToolDataFilter } from '@getmunin/mcp-toolkit';
 import { PiiAnnotationsService } from './pii-annotations.service.ts';
 import { PiiLexiconService } from './pii-lexicon.service.ts';
 import { isPiiNerEnabled } from './pii-config.ts';
-import { DEFAULT_PII_ORG_FLOOR, decidePiiMode } from './pii-policy.ts';
-import { readPiiOrgFloor } from './pii-org-policy.ts';
+import { decidePiiMode } from './pii-policy.ts';
+import { DEFAULT_PII_ORG_POLICY, readPiiOrgPolicy } from './pii-org-policy.ts';
+import { collectSubjectIds, withholdUncheckedText } from './withhold.ts';
 
 export type PiiCoverage = 'complete' | 'pending';
 
@@ -26,11 +27,15 @@ export interface PiiResultMeta {
   layers: PiiLayer[];
   tokenized: number;
   masked: PiiStats['masked'];
+  withholdUncheckedText: boolean;
+  withheld: number;
+}
+
+export interface PseudonymizeOptions {
+  withholdUncheckedText: boolean;
 }
 
 export const PII_META_KEY = 'munin/pii';
-
-const MESSAGE_ID = /^cvm_[0-9a-z]{22}$/;
 
 @Injectable()
 export class PiiResultFilterService {
@@ -40,34 +45,51 @@ export class PiiResultFilterService {
   ) {}
 
   async filterFor(actor: ActorIdentity, audience: Audience): Promise<ToolDataFilter | undefined> {
-    const floor = actor.orgId
-      ? await readPiiOrgFloor(getCurrentContext().db, actor.orgId)
-      : DEFAULT_PII_ORG_FLOOR;
-    if (decidePiiMode(actor, audience, floor).mode === 'raw') return undefined;
-    return this.pseudonymizingFilter();
+    const policy = actor.orgId
+      ? await readPiiOrgPolicy(getCurrentContext().db, actor.orgId)
+      : DEFAULT_PII_ORG_POLICY;
+    if (decidePiiMode(actor, audience, policy).mode === 'raw') return undefined;
+    return this.pseudonymizingFilter({ withholdUncheckedText: policy.withholdUncheckedText });
   }
 
-  pseudonymizingFilter(): ToolDataFilter {
+  pseudonymizingFilter(options: PseudonymizeOptions = { withholdUncheckedText: false }): ToolDataFilter {
     return {
       refuse: (tool) => (tool.rawDataOnly ? rawOnlyRefusal(tool.name) : null),
       input: (_tool, args) => this.resolve(args),
-      output: (_tool, value) => this.pseudonymize(value),
+      output: (_tool, value) => this.pseudonymize(value, options),
       error: async (message) => pseudonymizeText(message, await this.lexicons.forCurrentOrg()),
     };
   }
 
-  async pseudonymize(value: unknown): Promise<FilteredToolResult> {
+  async pseudonymize(
+    value: unknown,
+    options: PseudonymizeOptions = { withholdUncheckedText: false },
+  ): Promise<FilteredToolResult> {
+    const ner = isPiiNerEnabled();
+    const strict = options.withholdUncheckedText;
+    let source = value;
+    let withheld = 0;
+    let coverage: PiiCoverage = 'complete';
+    if (ner || strict) {
+      const ids = collectSubjectIds(value);
+      const unchecked = await this.annotations.uncheckedSubjects(
+        ids.messages,
+        strict ? ids.conversations : [],
+      );
+      if (ner && unchecked.messages.size > 0) coverage = 'pending';
+      if (strict) ({ value: source, withheld } = withholdUncheckedText(value, unchecked));
+    }
     const lexicon = await this.lexicons.forCurrentOrg();
     const stats = emptyPiiStats();
-    const out = pseudonymizeValue(value, lexicon, stats);
-    const ner = isPiiNerEnabled();
-    const coverage = ner ? await this.coverageOf(value) : 'complete';
+    const out = pseudonymizeValue(source, lexicon, stats);
     const meta: PiiResultMeta = {
       mode: 'pseudonymized',
       coverage,
       layers: ner ? ['deterministic', 'directory', 'ner'] : ['deterministic', 'directory'],
       tokenized: stats.tokenized,
       masked: stats.masked,
+      withholdUncheckedText: strict,
+      withheld,
     };
     return { value: out, notice: describeResult(meta), meta: { [PII_META_KEY]: meta } };
   }
@@ -77,32 +99,18 @@ export class PiiResultFilterService {
     return isRecord(value) ? value : args;
   }
 
-  private async coverageOf(value: unknown): Promise<PiiCoverage> {
-    const ids = collectMessageIds(value);
-    if (ids.length === 0) return 'complete';
-    const { total, annotated } = await this.annotations.coverage(ids);
-    return annotated >= total ? 'complete' : 'pending';
-  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function collectMessageIds(value: unknown, out: string[] = []): string[] {
-  if (typeof value === 'string') {
-    if (MESSAGE_ID.test(value)) out.push(value);
-  } else if (Array.isArray(value)) {
-    for (const item of value) collectMessageIds(item, out);
-  } else if (value && typeof value === 'object') {
-    for (const item of Object.values(value)) collectMessageIds(item, out);
-  }
-  return out;
-}
-
 export function describeResult(meta: PiiResultMeta): string {
-  const pending =
-    meta.coverage === 'pending'
+  const pending = meta.withholdUncheckedText
+    ? meta.withheld > 0
+      ? ` The text of ${meta.withheld} message(s) is withheld until name detection has checked it; the rest has been checked.`
+      : ''
+    : meta.coverage === 'pending'
       ? ' Some messages here have not been through name detection yet, so a third party mentioned in their text may still appear by name; known contacts, emails, phone numbers and ID numbers are already replaced.'
       : '';
   return (

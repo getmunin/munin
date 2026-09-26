@@ -60,6 +60,38 @@ describe('PersonalDataPanel', () => {
     expect(container.textContent).toContain('requires pseudonymized personal data');
   });
 
+  it('warns that unknown names can still appear while name detection catches up, unless raw was chosen', () => {
+    const { container, rerender } = renderWithProviders(
+      <PersonalDataPanel
+        clientName="Claude"
+        rawRequested
+        shareRaw={false}
+        onShareRawChange={() => {}}
+        coverageNotice="pending"
+      />,
+    );
+    expect(container.querySelector('[data-coverage-notice="pending"]')?.textContent).toContain(
+      'still checking older messages',
+    );
+    rerender(
+      <PersonalDataPanel clientName="Claude" rawRequested shareRaw onShareRawChange={() => {}} coverageNotice="pending" />,
+    );
+    expect(container.querySelector('[data-coverage-notice]')).toBeNull();
+  });
+
+  it('says unchecked text is withheld when the org has strict mode on', () => {
+    const { container } = renderWithProviders(
+      <PersonalDataPanel
+        clientName="Claude"
+        rawRequested={false}
+        shareRaw={false}
+        onShareRawChange={() => {}}
+        coverageNotice="withheldNoNer"
+      />,
+    );
+    expect(container.querySelector('[data-coverage-notice]')?.textContent).toContain('withheld');
+  });
+
   it('reports the choice to its owner', () => {
     const onChange = vi.fn();
     renderWithProviders(

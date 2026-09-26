@@ -321,6 +321,42 @@ interface ToolResult {
     await db.delete(schema.convMessages).where(eq(schema.convMessages.id, stale!.id));
   });
 
+  it('withholds unchecked message text in strict mode, and shows it once name detection has run', async () => {
+    const put = async (body: Record<string, unknown>) => {
+      const res = await fetch(`${baseUrl}/v1/pii`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${rawKey}` },
+        body: JSON.stringify(body),
+      });
+      expect(res.status).toBe(200);
+      return (await res.json()) as { externalRaw: string; withholdUncheckedText: boolean };
+    };
+    await put({ externalRaw: 'forbid' });
+    const strict = await put({ withholdUncheckedText: true });
+    expect(strict).toMatchObject({ externalRaw: 'forbid', withholdUncheckedText: true });
+
+    await db.delete(schema.piiMessageAnnotations).where(eq(schema.piiMessageAnnotations.messageId, messageId));
+    const withheld = await call(pseudonymizedKey, 'conv_get_conversation', { id: conversationId });
+    const detail = JSON.parse(body(withheld)) as { subject: string; messages: Array<{ id: string; body: string }> };
+    expect(detail.subject).toMatch(/WITHHELD/);
+    expect(detail.messages[0]?.id).toBe(messageId);
+    expect(detail.messages[0]?.body).toMatch(/WITHHELD/);
+    expect(body(withheld)).not.toContain('Per Olsen');
+    expect(piiMeta(withheld)).toMatchObject({ withholdUncheckedText: true, withheld: 1 });
+    expect(withheld.content[1]?.text).toMatch(/withheld until name detection has checked it/);
+
+    await db.insert(schema.piiMessageAnnotations).values({ messageId, orgId, nerVersion: 100 });
+    const shown = JSON.parse(body(await call(pseudonymizedKey, 'conv_get_conversation', { id: conversationId }))) as {
+      subject: string;
+      messages: Array<{ body: string }>;
+    };
+    expect(shown.messages[0]?.body).toMatch(/\[Contact [a-z2-7]{8}\]/);
+    expect(shown.subject).not.toMatch(/WITHHELD/);
+
+    const reset = await put({ externalRaw: 'allow', withholdUncheckedText: false });
+    expect(reset).toMatchObject({ externalRaw: 'allow', withholdUncheckedText: false });
+  });
+
   it('refuses a bulk export on a pseudonymized connection and serves it on a raw one', async () => {
     const refused = await call(pseudonymizedKey, 'conv_export', {});
     expect(refused.isError).toBe(true);

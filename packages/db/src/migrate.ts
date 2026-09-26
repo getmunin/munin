@@ -23,6 +23,7 @@ export async function runMigrations(connectionString: string, migrationsFolder?:
   const analyticsPath = resolve(sqlDir, 'analytics.sql');
   const slackPath = resolve(sqlDir, 'slack.sql');
   const connectorsPath = resolve(sqlDir, 'connectors.sql');
+  const piiPath = resolve(sqlDir, 'pii.sql');
 
   const client = postgres(connectionString, { max: 1 });
   const db = drizzle(client);
@@ -52,6 +53,7 @@ export async function runMigrations(connectionString: string, migrationsFolder?:
   await client.unsafe(readFileSync(analyticsPath, 'utf8'));
   await client.unsafe(readFileSync(slackPath, 'utf8'));
   await client.unsafe(readFileSync(connectorsPath, 'utf8'));
+  await client.unsafe(readFileSync(piiPath, 'utf8'));
 
   const appPassword = process.env.MUNIN_APP_PASSWORD ?? APP_ROLE;
   await client.unsafe(`

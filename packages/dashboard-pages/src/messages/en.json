@@ -586,6 +586,7 @@
       "status": {
         "deactivatedMessage": "Auto-deactivated after {threshold} failed polls",
         "failingMessage": "Inbound polling failing · {attempt}/{threshold} · auto-deactivates at {threshold}",
+        "retryingMessage": "Inbound polling failing · {attempt} failed attempts · retrying automatically",
         "activate": "Activate",
         "awaitingCredentials": "Awaiting credentials",
         "active": "Active",

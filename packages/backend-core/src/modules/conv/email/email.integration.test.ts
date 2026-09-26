@@ -326,54 +326,173 @@ class StubImapFetcher implements ImapFetcher {
     expect(messages.some((m) => m.body.includes('Plus-addressed reply'))).toBe(true);
   }, 30_000);
 
-  it('5 consecutive poll failures auto-deactivate the channel and flag the alert', async () => {
-    const channel = (
-      await db
-        .select()
-        .from(schema.convChannels)
-        .where(eq(schema.convChannels.orgId, orgId))
-    )[0]!;
+  async function pollState(channelId: string) {
+    const rows = await db
+      .select()
+      .from(schema.convInboundState)
+      .where(eq(schema.convInboundState.channelId, channelId));
+    return rows[0]!;
+  }
 
-    const original = emailAdapter['fetcher'];
-    const throwing: ImapFetcher = {
-      fetchSince: () => Promise.reject(new Error('Command failed')),
+  async function clearBackoff(channelId: string): Promise<void> {
+    await db
+      .update(schema.convInboundState)
+      .set({ nextPollAt: null })
+      .where(eq(schema.convInboundState.channelId, channelId));
+  }
+
+  async function channelAlerts(channelId: string) {
+    return await db
+      .select()
+      .from(schema.orgAlerts)
+      .where(and(eq(schema.orgAlerts.orgId, orgId), eq(schema.orgAlerts.subjectId, channelId)));
+  }
+
+  async function restoreChannel(channelId: string): Promise<void> {
+    await db
+      .update(schema.convChannels)
+      .set({ active: true })
+      .where(eq(schema.convChannels.id, channelId));
+    await db
+      .update(schema.convInboundState)
+      .set({ consecutiveFailures: 0, failingSince: null, lastFailureAt: null, nextPollAt: null })
+      .where(eq(schema.convInboundState.channelId, channelId));
+    await db
+      .delete(schema.orgAlerts)
+      .where(and(eq(schema.orgAlerts.orgId, orgId), eq(schema.orgAlerts.subjectId, channelId)));
+  }
+
+  function failingFetcher(err: Error): ImapFetcher & { calls: number } {
+    const fetcher = {
+      calls: 0,
+      fetchSince: () => {
+        fetcher.calls += 1;
+        return Promise.reject(err);
+      },
     };
-    emailAdapter.setFetcher(throwing);
+    return fetcher;
+  }
+
+  it('five rejected logins in a row auto-deactivate the channel and flag the alert', async () => {
+    const channel = await imapChannel();
+    const original = emailAdapter['fetcher'];
+    emailAdapter.setFetcher(
+      failingFetcher(Object.assign(new Error('Authentication failed'), { authenticationFailed: true })),
+    );
 
     try {
       for (let i = 0; i < 5; i++) {
         await inboundWorker.tick();
+        await clearBackoff(channel.id);
       }
+
+      const refreshed = (
+        await db.select().from(schema.convChannels).where(eq(schema.convChannels.id, channel.id))
+      )[0]!;
+      expect(refreshed.active).toBe(false);
+
+      const alerts = await channelAlerts(channel.id);
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0]!.occurrenceCount).toBe(5);
+      expect(alerts[0]!.metadata).toMatchObject({
+        failureKind: 'permanent',
+        attemptCount: 5,
+        threshold: 5,
+      });
+      expect((alerts[0]!.metadata as { deactivatedAt?: string }).deactivatedAt).toBeDefined();
     } finally {
       emailAdapter.setFetcher(original);
+      await restoreChannel(channel.id);
     }
+  }, 30_000);
 
-    const refreshed = (
+  it('backs off an unreachable mail server, keeps the channel on, and alerts only once the outage has lasted', async () => {
+    const channel = await imapChannel();
+    const original = emailAdapter['fetcher'];
+    const unreachable = failingFetcher(
+      Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }),
+    );
+    emailAdapter.setFetcher(unreachable);
+
+    try {
+      await inboundWorker.tick();
+      let state = await pollState(channel.id);
+      expect(state.consecutiveFailures).toBe(1);
+      expect(state.nextPollAt).toBeNull();
+
+      await inboundWorker.tick();
+      state = await pollState(channel.id);
+      expect(state.consecutiveFailures).toBe(2);
+      expect(state.nextPollAt!.getTime()).toBeGreaterThan(Date.now());
+
+      const callsBeforeDeferredTick = unreachable.calls;
+      await inboundWorker.tick();
+      expect(unreachable.calls).toBe(callsBeforeDeferredTick);
+
+      for (let i = 0; i < 6; i++) {
+        await clearBackoff(channel.id);
+        await inboundWorker.tick();
+      }
+      state = await pollState(channel.id);
+      expect(state.consecutiveFailures).toBe(8);
+      expect(await channelAlerts(channel.id)).toHaveLength(0);
+
       await db
-        .select()
-        .from(schema.convChannels)
-        .where(eq(schema.convChannels.id, channel.id))
-    )[0]!;
-    expect(refreshed.active).toBe(false);
+        .update(schema.convInboundState)
+        .set({ failingSince: sql`now() - interval '6 minutes'`, nextPollAt: null })
+        .where(eq(schema.convInboundState.channelId, channel.id));
+      await inboundWorker.tick();
 
-    const alerts = await db
-      .select()
-      .from(schema.orgAlerts)
-      .where(
-        and(eq(schema.orgAlerts.orgId, orgId), eq(schema.orgAlerts.subjectId, channel.id)),
-      );
-    expect(alerts).toHaveLength(1);
-    expect(alerts[0]!.occurrenceCount).toBe(5);
-    expect((alerts[0]!.metadata as { deactivatedAt?: string }).deactivatedAt).toBeDefined();
+      const alerts = await channelAlerts(channel.id);
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0]!.resolvedAt).toBeNull();
+      expect(alerts[0]!.metadata).toMatchObject({ failureKind: 'transient', attemptCount: 9 });
+      expect(alerts[0]!.metadata).not.toHaveProperty('threshold');
 
-    await db
-      .update(schema.convChannels)
-      .set({ active: true })
-      .where(eq(schema.convChannels.id, channel.id));
-    await db
-      .update(schema.orgAlerts)
-      .set({ resolvedAt: new Date() })
-      .where(eq(schema.orgAlerts.id, alerts[0]!.id));
+      const refreshed = (
+        await db.select().from(schema.convChannels).where(eq(schema.convChannels.id, channel.id))
+      )[0]!;
+      expect(refreshed.active).toBe(true);
+
+      emailAdapter.setFetcher(original);
+      await clearBackoff(channel.id);
+      await inboundWorker.tick();
+
+      state = await pollState(channel.id);
+      expect(state.consecutiveFailures).toBe(0);
+      expect(state.failingSince).toBeNull();
+      expect(state.nextPollAt).toBeNull();
+      expect((await channelAlerts(channel.id))[0]!.resolvedAt).not.toBeNull();
+    } finally {
+      emailAdapter.setFetcher(original);
+      await restoreChannel(channel.id);
+    }
+  }, 30_000);
+
+  it('polls a backed-off channel straight away once an operator edits it', async () => {
+    const channel = await imapChannel();
+    const original = emailAdapter['fetcher'];
+    const unreachable = failingFetcher(Object.assign(new Error('connect ETIMEDOUT'), { code: 'ETIMEDOUT' }));
+    emailAdapter.setFetcher(unreachable);
+
+    try {
+      await inboundWorker.tick();
+      await inboundWorker.tick();
+      expect((await pollState(channel.id)).nextPollAt!.getTime()).toBeGreaterThan(Date.now());
+
+      await db
+        .update(schema.convChannels)
+        .set({ updatedAt: new Date(Date.now() + 1000) })
+        .where(eq(schema.convChannels.id, channel.id));
+
+      const callsBeforeEdit = unreachable.calls;
+      await inboundWorker.tick();
+      expect(unreachable.calls).toBe(callsBeforeEdit + 1);
+      expect((await pollState(channel.id)).consecutiveFailures).toBe(1);
+    } finally {
+      emailAdapter.setFetcher(original);
+      await restoreChannel(channel.id);
+    }
   }, 30_000);
 
   it('inbound from a fresh sender opens a new conversation + new contact', async () => {

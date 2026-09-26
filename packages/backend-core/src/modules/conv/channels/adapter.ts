@@ -12,8 +12,15 @@ export interface ChannelAdapter {
 
 export type ChannelKind = 'email' | 'chat' | 'sms' | 'voice';
 
+export type PollFailureKind = 'transient' | 'permanent';
+
 export type InboundMode =
-  | { mode: 'poll'; intervalMs: number; tick(channel: ChannelRow): Promise<PollTickResult> }
+  | {
+      mode: 'poll';
+      intervalMs: number;
+      tick(channel: ChannelRow): Promise<PollTickResult>;
+      classifyError?(err: unknown): PollFailureKind;
+    }
   | {
       mode: 'webhook';
       verify(req: IncomingWebhookRequest, channel: ChannelRow): Promise<InboundBatch>;

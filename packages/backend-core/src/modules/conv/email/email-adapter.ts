@@ -75,6 +75,7 @@ import {
   type InboundSuppression,
 } from './classify-sender.ts';
 import { extractFailedRecipients } from './failed-recipients.ts';
+import { classifyImapError } from './imap-errors.ts';
 import { AddressDeliverabilityService } from '../../crm/address-deliverability.service.ts';
 import {
   dropRecordedTurns,
@@ -212,6 +213,7 @@ export class EmailAdapter implements ChannelAdapter {
     mode: 'poll',
     intervalMs: POLL_INTERVAL_MS,
     tick: (channel) => this.pollOne(channel),
+    classifyError: classifyImapError,
   };
 
   async send(ctx: SendContext): Promise<SendResult> {

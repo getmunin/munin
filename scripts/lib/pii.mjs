@@ -79,6 +79,7 @@ export const ALLOWED_HOSTS = {
   'www.google.com': 'vendor host used in scraper and seo fixtures',
   'www.bing.com': 'seo connector vendor endpoint',
   'ssl.bing.com': 'seo connector vendor endpoint',
+  'api.dataforseo.com': 'seo keyword-research connector vendor endpoint',
   'github.com': 'our own source host',
   'esm.sh': 'CDN referenced in MCP Apps fixtures',
   'unpkg.com': 'CDN referenced in MCP Apps fixtures',

@@ -1,0 +1,178 @@
+{
+  "version": "0.1.20240801",
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "11.0816 sec.",
+  "cost": 0.01224,
+  "tasks_count": 1,
+  "tasks_error": 0,
+  "tasks": [
+    {
+      "id": "08221829-1535-0389-0000-9f67279d2422",
+      "status_code": 20000,
+      "status_message": "Ok.",
+      "time": "11.0207 sec.",
+      "cost": 0.01224,
+      "result_count": 1,
+      "path": [
+        "v3",
+        "dataforseo_labs"
+      ],
+      "data": {
+        "api": "dataforseo_labs",
+        "function": "domain_intersection",
+        "se_type": "google",
+        "target1": "competitor.example",
+        "target2": "example.no",
+        "intersections": false,
+        "location_code": 2578,
+        "language_code": "nb",
+        "limit": 2,
+        "order_by": [
+          "keyword_data.keyword_info.search_volume,desc"
+        ]
+      },
+      "result": [
+        {
+          "se_type": "google",
+          "target1": "competitor.example",
+          "target2": "example.no",
+          "location_code": 2578,
+          "language_code": "nb",
+          "total_count": 96,
+          "items_count": 2,
+          "items": [
+            {
+              "se_type": "google",
+              "keyword_data": {
+                "se_type": "google",
+                "keyword": "chatbot nettbutikk",
+                "location_code": 2578,
+                "language_code": "nb",
+                "keyword_info": {
+                  "se_type": "google",
+                  "last_updated_time": "2024-07-16 10:36:59 +00:00",
+                  "competition": 0.81,
+                  "competition_level": "HIGH",
+                  "cpc": 4.3,
+                  "search_volume": 720,
+                  "low_top_of_page_bid": 1.2699999809265137,
+                  "high_top_of_page_bid": 1.4800000190734863,
+                  "monthly_searches": [
+                    {
+                      "year": 2024,
+                      "month": 6,
+                      "search_volume": 2740000
+                    },
+                    {
+                      "year": 2024,
+                      "month": 5,
+                      "search_volume": 6120000
+                    }
+                  ],
+                  "search_volume_trend": {
+                    "monthly": 22,
+                    "quarterly": 22,
+                    "yearly": 0
+                  }
+                },
+                "keyword_properties": {
+                  "se_type": "google",
+                  "core_keyword": null,
+                  "keyword_difficulty": 38,
+                  "detected_language": "nb",
+                  "is_another_language": false
+                },
+                "search_intent_info": {
+                  "se_type": "google",
+                  "main_intent": "commercial",
+                  "foreign_intent": null,
+                  "last_updated_time": "2026-09-01 00:00:00 +00:00"
+                }
+              },
+              "first_domain_serp_element": {
+                "se_type": "google",
+                "type": "organic",
+                "rank_group": 3,
+                "rank_absolute": 3,
+                "position": "left",
+                "domain": "competitor.example",
+                "title": "Competitor page",
+                "url": "https://competitor.example/nettbutikk",
+                "description": "Placeholder description for a test fixture.",
+                "main_domain": "competitor.example",
+                "relative_url": "/nettbutikk",
+                "etv": 10500
+              },
+              "second_domain_serp_element": null
+            },
+            {
+              "se_type": "google",
+              "keyword_data": {
+                "se_type": "google",
+                "keyword": "ai kundeservice",
+                "location_code": 2578,
+                "language_code": "nb",
+                "keyword_info": {
+                  "se_type": "google",
+                  "last_updated_time": "2024-07-16 10:36:59 +00:00",
+                  "competition": 0.42,
+                  "competition_level": "MEDIUM",
+                  "cpc": 5.4,
+                  "search_volume": 880,
+                  "low_top_of_page_bid": 1.2699999809265137,
+                  "high_top_of_page_bid": 1.4800000190734863,
+                  "monthly_searches": [
+                    {
+                      "year": 2024,
+                      "month": 6,
+                      "search_volume": 2740000
+                    },
+                    {
+                      "year": 2024,
+                      "month": 5,
+                      "search_volume": 6120000
+                    }
+                  ],
+                  "search_volume_trend": {
+                    "monthly": 22,
+                    "quarterly": 22,
+                    "yearly": 0
+                  }
+                },
+                "keyword_properties": {
+                  "se_type": "google",
+                  "core_keyword": null,
+                  "keyword_difficulty": 31,
+                  "detected_language": "nb",
+                  "is_another_language": false
+                },
+                "search_intent_info": {
+                  "se_type": "google",
+                  "main_intent": "commercial",
+                  "foreign_intent": null,
+                  "last_updated_time": "2026-09-01 00:00:00 +00:00"
+                }
+              },
+              "first_domain_serp_element": {
+                "se_type": "google",
+                "type": "organic",
+                "rank_group": 5,
+                "rank_absolute": 5,
+                "position": "left",
+                "domain": "competitor.example",
+                "title": "Competitor page",
+                "url": "https://competitor.example/kundeservice",
+                "description": "Placeholder description for a test fixture.",
+                "main_domain": "competitor.example",
+                "relative_url": "/kundeservice",
+                "etv": 10500
+              },
+              "second_domain_serp_element": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

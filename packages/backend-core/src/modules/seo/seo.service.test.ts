@@ -7,8 +7,15 @@ import { BadGatewayException, BadRequestException, NotFoundException } from '@ne
 import { ConnectorsService } from '../connectors/connectors.service.ts';
 import { ConnectorRegistry } from '../connectors/connector.ts';
 import type { ConnectorFetch } from '../connectors/http.ts';
+import { readFileSync } from 'node:fs';
 import { BingAdapter } from './bing.adapter.ts';
+import { DataForSeoAdapter } from './dataforseo.adapter.ts';
 import { SeoService } from './seo.service.ts';
+import { SeoResearchService } from './seo-research.service.ts';
+
+const userData = JSON.parse(
+  readFileSync(new URL('./__fixtures__/dataforseo/user-data.json', import.meta.url), 'utf8'),
+) as unknown;
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -25,6 +32,7 @@ interface StubCall {
   let appDb: ReturnType<typeof createDb>;
   let connectors: ConnectorsService;
   let seo: SeoService;
+  let research: SeoResearchService;
   let orgId: string;
   let adminActor: ActorIdentity;
 
@@ -64,8 +72,18 @@ interface StubCall {
     orgId = org!.id;
     adminActor = new ActorIdentity('admin_agent', 'agt_seo_test', orgId, ['*'], ['admin']);
 
-    connectors = new ConnectorsService(new ConnectorRegistry([new BingAdapter(stubFetch)]));
+    connectors = new ConnectorsService(
+      new ConnectorRegistry([new BingAdapter(stubFetch), new DataForSeoAdapter(stubFetch)]),
+      {
+        mint: () =>
+          Promise.resolve({
+            url: 'https://app.example.com/connect/credentials#mncl_test',
+            expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+          }),
+      },
+    );
     seo = new SeoService(connectors);
+    research = new SeoResearchService(connectors);
   });
 
   afterAll(async () => {
@@ -229,6 +247,73 @@ interface StubCall {
       submitted: 1,
       dailyQuotaRemaining: 9,
       monthlyQuotaRemaining: 99,
+    });
+  });
+
+  describe('alongside a DataForSEO research connection', () => {
+    async function connectDataForSeo() {
+      const created = await run(() =>
+        connectors.createConnection({ vendor: 'dataforseo', name: 'Keyword research' }, { rejectSecrets: true }),
+      );
+      const applied = await run(() =>
+        connectors.applyCredentials(created.id, {
+          login: 'api-user@example.com',
+          password: 'dfs-password-plaintext',
+        }),
+      );
+      return { created, applied };
+    }
+
+    it('collects credentials through the link and reports the balance as the test result', async () => {
+      respond = (call) =>
+        call.url.includes('api.dataforseo.com') ? { body: userData } : { body: { d: [] } };
+
+      const { created, applied } = await connectDataForSeo();
+
+      expect(created.credentialState).toBe('pending');
+      expect(created.credentialLink?.url).toContain('mncl_');
+      expect(applied).toMatchObject({ ok: true, detail: 'credentials accepted; account balance $42.50' });
+      const [row] = await db.execute<{ config: Record<string, unknown>; credential_state: string }>(
+        sql`SELECT config, credential_state FROM connector_connections WHERE id = ${created.id}`,
+      );
+      expect(row!.credential_state).toBe('active');
+      expect(JSON.stringify(row!.config)).not.toContain('dfs-password-plaintext');
+      expect(JSON.stringify(row!.config)).not.toContain('api-user@example.com');
+    });
+
+    it('keeps console tools and research tools each resolving their own connection', async () => {
+      respond = (call) =>
+        call.url.includes('api.dataforseo.com')
+          ? { body: userData }
+          : call.url.includes('GetUserSites')
+            ? { body: { d: [site('https://example.com')] } }
+            : { body: { d: [{ Query: 'munin', Impressions: 10, Clicks: 1 }] } };
+      await createBingConnection();
+      await connectDataForSeo();
+
+      const queries = await run(() => seo.listQueries({ limit: 10 }));
+      const balance = await run(() => research.providerBalance({}));
+
+      expect(queries.connection.vendor).toBe('bing');
+      expect(balance.connection.vendor).toBe('dataforseo');
+      expect(balance.balanceUsd).toBe(42.5);
+    });
+
+    it('refuses a research call pointed at a console connection', async () => {
+      const bing = await createBingConnection();
+
+      await expect(run(() => research.providerBalance({ connectionId: bing.id }))).rejects.toThrow(
+        /Bing Webmaster Tools connection, which does not provide keyword research/,
+      );
+    });
+
+    it('refuses a console call when only a research connection exists', async () => {
+      respond = () => ({ body: userData });
+      await connectDataForSeo();
+
+      await expect(run(() => seo.listProperties({}))).rejects.toThrow(
+        /no active seo \(search console\) connection configured/,
+      );
     });
   });
 

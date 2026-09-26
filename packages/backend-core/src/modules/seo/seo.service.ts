@@ -6,13 +6,14 @@ import {
   type ConnectionSummary,
 } from '../connectors/connectors.service.ts';
 import { ConnectorVendorError } from '../connectors/http.ts';
-import type {
-  SeoAdapter,
-  SeoPageStatsResult,
-  SeoProperty,
-  SeoQueryStatsResult,
-  SeoSubmitResult,
-  SeoUrlStatus,
+import {
+  SEO_CONSOLE,
+  type SeoConsoleAdapter,
+  type SeoPageStatsResult,
+  type SeoProperty,
+  type SeoQueryStatsResult,
+  type SeoSubmitResult,
+  type SeoUrlStatus,
 } from './seo-adapter.ts';
 
 const DEFAULT_WINDOW_DAYS = 90;
@@ -33,8 +34,8 @@ export class SeoService {
   async listProperties(args: {
     connectionId?: string;
   }): Promise<{ connection: ConnectionSummary; properties: SeoProperty[] }> {
-    const scope = await this.connectors.resolveScope('seo', args.connectionId);
-    const adapter = scope.adapter as SeoAdapter;
+    const scope = await this.connectors.resolveScope('seo', args.connectionId, SEO_CONSOLE);
+    const adapter = scope.adapter as SeoConsoleAdapter;
     const properties = await this.connectors.vendorCall(() =>
       adapter.listProperties(this.connectors.connectionContext(scope.connection)),
     );
@@ -44,8 +45,8 @@ export class SeoService {
   async listQueries(
     args: StatsArgs,
   ): Promise<{ connection: ConnectionSummary; siteUrl: string } & SeoQueryStatsResult> {
-    const scope = await this.connectors.resolveScope('seo', args.connectionId);
-    const adapter = scope.adapter as SeoAdapter;
+    const scope = await this.connectors.resolveScope('seo', args.connectionId, SEO_CONSOLE);
+    const adapter = scope.adapter as SeoConsoleAdapter;
     const siteUrl = await this.resolveSiteUrl(scope, args.siteUrl);
     const range = resolveWindow(args.from, args.to);
     const result = await this.connectors.vendorCall(() =>
@@ -61,8 +62,8 @@ export class SeoService {
   async listPages(
     args: StatsArgs,
   ): Promise<{ connection: ConnectionSummary; siteUrl: string } & SeoPageStatsResult> {
-    const scope = await this.connectors.resolveScope('seo', args.connectionId);
-    const adapter = scope.adapter as SeoAdapter;
+    const scope = await this.connectors.resolveScope('seo', args.connectionId, SEO_CONSOLE);
+    const adapter = scope.adapter as SeoConsoleAdapter;
     const siteUrl = await this.resolveSiteUrl(scope, args.siteUrl);
     const range = resolveWindow(args.from, args.to);
     const result = await this.connectors.vendorCall(() =>
@@ -80,8 +81,8 @@ export class SeoService {
     siteUrl?: string;
     url: string;
   }): Promise<{ connection: ConnectionSummary; siteUrl: string; status: SeoUrlStatus }> {
-    const scope = await this.connectors.resolveScope('seo', args.connectionId);
-    const adapter = scope.adapter as SeoAdapter;
+    const scope = await this.connectors.resolveScope('seo', args.connectionId, SEO_CONSOLE);
+    const adapter = scope.adapter as SeoConsoleAdapter;
     const siteUrl = await this.resolveSiteUrl(scope, args.siteUrl);
     const status = await this.connectors.vendorCall(() =>
       adapter.inspectUrl(this.connectors.connectionContext(scope.connection), {
@@ -102,8 +103,8 @@ export class SeoService {
     siteUrl?: string;
     urls: string[];
   }): Promise<{ connection: ConnectionSummary; siteUrl: string } & SeoSubmitResult> {
-    const scope = await this.connectors.resolveScope('seo', args.connectionId);
-    const adapter = scope.adapter as SeoAdapter;
+    const scope = await this.connectors.resolveScope('seo', args.connectionId, SEO_CONSOLE);
+    const adapter = scope.adapter as SeoConsoleAdapter;
     const submit = adapter.submitUrls?.bind(adapter);
     if (!submit) {
       throw new BadRequestException(
@@ -135,7 +136,7 @@ export class SeoService {
 
   private async resolveSiteUrl(scope: ConnectionScope, siteUrl?: string): Promise<string> {
     if (siteUrl) return siteUrl;
-    const adapter = scope.adapter as SeoAdapter;
+    const adapter = scope.adapter as SeoConsoleAdapter;
     const properties = await this.connectors.vendorCall(() =>
       adapter.listProperties(this.connectors.connectionContext(scope.connection)),
     );

@@ -1,0 +1,100 @@
+{
+  "version": "0.1.20200129",
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "0.3059 sec.",
+  "cost": 0.002,
+  "tasks_count": 1,
+  "tasks_error": 0,
+  "tasks": [
+    {
+      "id": "11151456-0696-0066-0000-002a5915da37",
+      "status_code": 20000,
+      "status_message": "Ok.",
+      "time": "0.0952 sec.",
+      "cost": 0.002,
+      "result_count": 1,
+      "path": [
+        "v3",
+        "serp",
+        "google",
+        "organic",
+        "advanced",
+        "live"
+      ],
+      "data": {
+        "api": "serp",
+        "function": "live",
+        "se": "google",
+        "se_type": "organic",
+        "keyword": "kundeservice ai",
+        "location_code": 2578,
+        "language_code": "no",
+        "depth": 10,
+        "device": "desktop",
+        "os": "windows"
+      },
+      "result": [
+        {
+          "keyword": "kundeservice ai",
+          "type": "organic",
+          "se_domain": "google.no",
+          "location_code": 2578,
+          "language_code": "no",
+          "check_url": "https://www.google.no/search?q=kundeservice%20ai&hl=no&gl=NO",
+          "datetime": "2019-11-15 12:57:46 +00:00",
+          "spell": null,
+          "item_types": [
+            "organic",
+            "people_also_ask"
+          ],
+          "se_results_count": 1250000,
+          "pages_count": 1,
+          "items_count": 3,
+          "items": [
+            {
+              "type": "organic",
+              "rank_group": 1,
+              "rank_absolute": 1,
+              "page": 1,
+              "position": "left",
+              "domain": "competitor.example",
+              "title": "AI-kundeservice for nettbutikker",
+              "url": "https://competitor.example/kundeservice",
+              "breadcrumb": "https://competitor.example › kundeservice",
+              "website_name": "competitor.example",
+              "description": "Placeholder description for a test fixture.",
+              "is_featured_snippet": false
+            },
+            {
+              "type": "people_also_ask",
+              "rank_group": 1,
+              "rank_absolute": 2,
+              "position": "left",
+              "items": [
+                {
+                  "type": "people_also_ask_element",
+                  "title": "Hva koster AI-kundeservice?"
+                }
+              ]
+            },
+            {
+              "type": "organic",
+              "rank_group": 2,
+              "rank_absolute": 3,
+              "page": 1,
+              "position": "left",
+              "domain": "example.no",
+              "title": "Example AS",
+              "url": "https://example.no/",
+              "breadcrumb": "https://example.no › ",
+              "website_name": "example.no",
+              "description": "Placeholder description for a test fixture.",
+              "is_featured_snippet": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

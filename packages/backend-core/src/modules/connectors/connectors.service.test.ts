@@ -15,6 +15,7 @@ import { ConnectorsService, type CredentialLinkMinter } from './connectors.servi
 import {
   ConnectorRegistry,
   type ConnectorAdapter,
+  type ConnectorCapabilityFilter,
   type ConnectorConnectionContext,
   type ConnectorDomain,
   type ConnectorTestResult,
@@ -118,6 +119,8 @@ class FakeAdapter implements ConnectorAdapter {
     shopAdapter = new FakeAdapter('fakeshop', 'commerce');
     const registry = new ConnectorRegistry([shopAdapter]);
     registry.register(new FakeAdapter('fakedesk', 'bookings'));
+    registry.register(new FakeAdapter('fakeconsole', 'seo'));
+    registry.register(new FakeAdapter('fakeresearch', 'seo'));
     connectors = new ConnectorsService(registry);
   });
 
@@ -372,6 +375,60 @@ class FakeAdapter implements ConnectorAdapter {
       await expect(run(() => connectors.resolveScope('commerce'))).rejects.toThrow(
         /no active commerce connection/,
       );
+    });
+
+    describe('with a capability filter', () => {
+      const research: ConnectorCapabilityFilter = {
+        label: 'keyword research',
+        accept: (adapter) => adapter.vendor === 'fakeresearch',
+      };
+      const console: ConnectorCapabilityFilter = {
+        label: 'search console',
+        accept: (adapter) => adapter.vendor === 'fakeconsole',
+      };
+
+      it('resolves one connection per capability when a domain holds one of each', async () => {
+        await createConnection('fakeconsole', 'Console');
+        await createConnection('fakeresearch', 'Research');
+
+        await expect(run(() => connectors.resolveScope('seo'))).rejects.toThrow(
+          /multiple active seo connections/,
+        );
+        const forResearch = await run(() => connectors.resolveScope('seo', undefined, research));
+        const forConsole = await run(() => connectors.resolveScope('seo', undefined, console));
+
+        expect(forResearch.connection.vendor).toBe('fakeresearch');
+        expect(forConsole.connection.vendor).toBe('fakeconsole');
+      });
+
+      it('names the capability when no matching connection exists', async () => {
+        await createConnection('fakeconsole', 'Console');
+
+        await expect(
+          run(() => connectors.resolveScope('seo', undefined, research)),
+        ).rejects.toThrow(/no active seo \(keyword research\) connection configured/);
+      });
+
+      it('rejects an explicit connectionId whose vendor lacks the capability', async () => {
+        const consoleConn = await createConnection('fakeconsole', 'Console');
+
+        await expect(
+          run(() => connectors.resolveScope('seo', consoleConn.id, research)),
+        ).rejects.toThrow(/fakeconsole connection, which does not provide keyword research/);
+      });
+
+      it('lists only unusable connections of the matching capability', async () => {
+        await createConnection('fakeconsole', 'Console');
+        const paused = await createConnection('fakeresearch', 'Paused');
+        await run(() => connectors.updateConnection({ connectionId: paused.id, active: false }));
+
+        const err = (await run(() => connectors.resolveScope('seo', undefined, research)).catch(
+          (e: unknown) => e,
+        )) as Error;
+
+        expect(err.message).toMatch(/no active seo \(keyword research\) connection — Paused/);
+        expect(err.message).not.toContain('Console');
+      });
     });
   });
 

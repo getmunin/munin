@@ -1,0 +1,348 @@
+{
+  "version": "0.1.20250526",
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "0.1656 sec.",
+  "cost": 0,
+  "tasks_count": 1,
+  "tasks_error": 0,
+  "tasks": [
+    {
+      "id": "05291903-1535-0064-0000-b2e6429ff433",
+      "status_code": 20000,
+      "status_message": "Ok.",
+      "time": "0.1087 sec.",
+      "cost": 0,
+      "result_count": 1,
+      "path": [
+        "v3",
+        "appendix",
+        "user_data"
+      ],
+      "data": {
+        "api": "appendix",
+        "function": "user_data"
+      },
+      "result": [
+        {
+          "login": "api-user@example.com",
+          "timezone": "Europe/Oslo",
+          "rates": {
+            "limits": {
+              "day": {
+                "serp": {
+                  "live": {
+                    "regular": 0,
+                    "advanced": 0,
+                    "html": 0
+                  }
+                },
+                "total": 0,
+                "total_serp": 0,
+                "total_keywords_data": 0,
+                "total_appendix": 0,
+                "total_dataforseo_labs": 0,
+                "keywords_data": {
+                  "google_ads": {
+                    "search_volume": {
+                      "live": 0
+                    }
+                  }
+                },
+                "appendix": {
+                  "user_data": 0,
+                  "errors": 0
+                },
+                "dataforseo_labs": {
+                  "keyword_ideas": {
+                    "live": 0
+                  },
+                  "ranked_keywords": {
+                    "live": 0
+                  },
+                  "domain_intersection": {
+                    "live": 0
+                  }
+                }
+              },
+              "minute": {
+                "serp": {
+                  "live": {
+                    "regular": 0,
+                    "advanced": 0,
+                    "html": 0
+                  }
+                },
+                "total": 2000,
+                "total_serp": 0,
+                "total_keywords_data": 0,
+                "total_appendix": 0,
+                "total_dataforseo_labs": 0,
+                "keywords_data": {
+                  "google_ads": {
+                    "search_volume": {
+                      "live": 12
+                    }
+                  }
+                },
+                "appendix": {
+                  "user_data": 6,
+                  "errors": 0,
+                  "status": 10,
+                  "test": 3
+                },
+                "dataforseo_labs": {
+                  "keyword_ideas": {
+                    "live": 0
+                  },
+                  "ranked_keywords": {
+                    "live": 0
+                  },
+                  "domain_intersection": {
+                    "live": 0
+                  }
+                }
+              }
+            },
+            "statistics": {
+              "day": {
+                "serp": {
+                  "live": {
+                    "regular": 0,
+                    "advanced": 0,
+                    "html": 0
+                  }
+                },
+                "total": 0,
+                "total_serp": 0,
+                "total_keywords_data": 0,
+                "total_appendix": 0,
+                "total_dataforseo_labs": 0,
+                "keywords_data": {
+                  "google_ads": {
+                    "search_volume": {
+                      "live": 0
+                    }
+                  }
+                },
+                "appendix": {
+                  "user_data": 0,
+                  "errors": 0
+                },
+                "dataforseo_labs": {
+                  "keyword_ideas": {
+                    "live": 0
+                  },
+                  "ranked_keywords": {
+                    "live": 0
+                  },
+                  "domain_intersection": {
+                    "live": 0
+                  }
+                },
+                "value": "2025-05-29"
+              },
+              "minute": {
+                "serp": {
+                  "live": {
+                    "regular": 0,
+                    "advanced": 0,
+                    "html": 0
+                  }
+                },
+                "total": 0,
+                "total_serp": 0,
+                "total_keywords_data": 0,
+                "total_appendix": 0,
+                "total_dataforseo_labs": 0,
+                "keywords_data": {
+                  "google_ads": {
+                    "search_volume": {
+                      "live": 0
+                    }
+                  }
+                },
+                "appendix": {
+                  "user_data": 0,
+                  "errors": 0
+                },
+                "dataforseo_labs": {
+                  "keyword_ideas": {
+                    "live": 0
+                  },
+                  "ranked_keywords": {
+                    "live": 0
+                  },
+                  "domain_intersection": {
+                    "live": 0
+                  }
+                },
+                "value": "2025-05-29 16:03"
+              }
+            }
+          },
+          "money": {
+            "total": 100.0,
+            "balance": 42.5,
+            "limits": {
+              "day": {
+                "serp": {
+                  "live": {
+                    "regular": 0,
+                    "advanced": 0,
+                    "html": 0
+                  }
+                },
+                "total": 0,
+                "total_serp": 0,
+                "total_keywords_data": 0,
+                "total_appendix": 0,
+                "total_dataforseo_labs": 0,
+                "keywords_data": {
+                  "google_ads": {
+                    "search_volume": {
+                      "live": 0
+                    }
+                  }
+                },
+                "appendix": {
+                  "user_data": 0,
+                  "errors": 0,
+                  "status": 0,
+                  "test": 0
+                },
+                "dataforseo_labs": {
+                  "keyword_ideas": {
+                    "live": 0
+                  },
+                  "ranked_keywords": {
+                    "live": 0
+                  },
+                  "domain_intersection": {
+                    "live": 0
+                  }
+                }
+              },
+              "minute": {
+                "serp": {
+                  "live": {
+                    "regular": 0,
+                    "advanced": 0,
+                    "html": 0
+                  }
+                },
+                "total": 0,
+                "total_serp": 0,
+                "total_keywords_data": 0,
+                "total_appendix": 0,
+                "total_dataforseo_labs": 0,
+                "keywords_data": {
+                  "google_ads": {
+                    "search_volume": {
+                      "live": 0
+                    }
+                  }
+                },
+                "appendix": {
+                  "user_data": 0,
+                  "errors": 0,
+                  "status": 0,
+                  "test": 0
+                },
+                "dataforseo_labs": {
+                  "keyword_ideas": {
+                    "live": 0
+                  },
+                  "ranked_keywords": {
+                    "live": 0
+                  },
+                  "domain_intersection": {
+                    "live": 0
+                  }
+                }
+              }
+            },
+            "statistics": {
+              "day": {
+                "serp": {
+                  "live": {
+                    "regular": 0,
+                    "advanced": 0,
+                    "html": 0
+                  }
+                },
+                "total": 1.25,
+                "total_serp": 0,
+                "total_keywords_data": 0,
+                "total_appendix": 0,
+                "total_dataforseo_labs": 0,
+                "keywords_data": {
+                  "google_ads": {
+                    "search_volume": {
+                      "live": 0
+                    }
+                  }
+                },
+                "appendix": {
+                  "user_data": 0,
+                  "errors": 0
+                },
+                "dataforseo_labs": {
+                  "keyword_ideas": {
+                    "live": 0
+                  },
+                  "ranked_keywords": {
+                    "live": 0
+                  },
+                  "domain_intersection": {
+                    "live": 0
+                  }
+                },
+                "value": "2025-05-29"
+              },
+              "minute": {
+                "serp": {
+                  "live": {
+                    "regular": 0,
+                    "advanced": 0,
+                    "html": 0
+                  }
+                },
+                "total": 0,
+                "total_serp": 0,
+                "total_keywords_data": 0,
+                "total_appendix": 0,
+                "total_dataforseo_labs": 0,
+                "keywords_data": {
+                  "google_ads": {
+                    "search_volume": {
+                      "live": 0
+                    }
+                  }
+                },
+                "appendix": {
+                  "user_data": 0,
+                  "errors": 0
+                },
+                "dataforseo_labs": {
+                  "keyword_ideas": {
+                    "live": 0
+                  },
+                  "ranked_keywords": {
+                    "live": 0
+                  },
+                  "domain_intersection": {
+                    "live": 0
+                  }
+                },
+                "value": "2025-05-29 16:03"
+              }
+            }
+          },
+          "backlinks_subscription_expiry_date": "2050-01-01 00:00:00 +00:00",
+          "llm_mentions_subscription_expiry_date": "2026-02-28 14:01:38 +00:00"
+        }
+      ]
+    }
+  ]
+}

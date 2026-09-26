@@ -73,6 +73,11 @@ export const VENDOR_PRESENTATION: Record<string, VendorPresentation> = {
     capabilityKeys: ['seoQueries', 'seoPages', 'seoIndexStatus'],
     Mark: GoogleSearchConsoleMark,
   },
+  dataforseo: {
+    categoryKey: 'seo',
+    descriptionKey: 'dataforseo',
+    capabilityKeys: ['seoKeywordResearch', 'seoCompetitorGap', 'seoSerp'],
+  },
 };
 
 const DOMAIN_CATEGORY: Record<string, string> = {

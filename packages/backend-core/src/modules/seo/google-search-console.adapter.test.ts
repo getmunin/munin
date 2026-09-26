@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GoogleSearchConsoleAdapter } from './google-search-console.adapter.ts';
 import { ConnectorVendorError, type ConnectorFetch } from '../connectors/http.ts';
 import { OAuthGrantRevokedError, type ConnectorConnectionContext } from '../connectors/connector.ts';
-import type { SeoAdapter } from './seo-adapter.ts';
+import type { SeoConsoleAdapter } from './seo-adapter.ts';
 
 interface StubCall {
   url: string;
@@ -262,7 +262,7 @@ describe('GoogleSearchConsoleAdapter', () => {
   });
 
   it('does not offer URL submission, since Search Console has no such endpoint', () => {
-    const adapter: SeoAdapter = new GoogleSearchConsoleAdapter();
+    const adapter: SeoConsoleAdapter = new GoogleSearchConsoleAdapter();
     expect('submitUrls' in adapter).toBe(false);
   });
 

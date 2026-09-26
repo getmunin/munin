@@ -2046,6 +2046,7 @@
         "gastroplanner": "Sjekk ledige tider, book bord og håndter restaurantbookinger.",
         "bing": "Se hvilke søk som viser nettstedet ditt i Bing og Copilot — og send oppdaterte sider til ny indeksering.",
         "googleSearchConsole": "Se hvilke Google-søk sidene dine vises på, og om en side er indeksert.",
+        "dataforseo": "Finn søkevolum, søkeordforslag og hull mot konkurrentene med din egen DataForSEO-konto.",
         "generic": "Leses direkte på vegne av en kunde.",
         "customMcp": "Ditt eget system, som svarer kundene dine direkte. Du velger nøyaktig hvilke verktøy de får bruke.",
         "linkedin": "Publiser godkjente innlegg på LinkedIn fra en kollegas egen konto.",
@@ -2065,6 +2066,9 @@
         "seoPages": "Se hvilke sider som får visningene.",
         "seoIndexStatus": "Sjekk om en side er indeksert.",
         "seoSubmit": "Send oppdaterte sider til ny indeksering.",
+        "seoKeywordResearch": "Se søkevolum og nye søkeordforslag.",
+        "seoCompetitorGap": "Finn søkeordene konkurrentene rangerer på, og ikke du.",
+        "seoSerp": "Se hvem som rangerer på et søkeord akkurat nå.",
         "socialPublish": "Publiser innlegg",
         "socialAuthor": "Publiser i eget navn",
         "socialPage": "Publiser som side"
@@ -2113,6 +2117,18 @@
           "label": "OAuth-klienthemmelighet",
           "hint": "Fra samme OAuth-klient. Selve Google-kontoen godkjenner du i neste steg.",
           "invalid": "Dette ser ikke ut som en gyldig klienthemmelighet — lim den inn fra Google Cloud-konsollen."
+        }
+      },
+      "dataforseo": {
+        "login": {
+          "label": "API-brukernavn",
+          "hint": "Finnes på app.dataforseo.com under «API Access». Det er API-brukernavnet, ikke passordet til dashbordet.",
+          "invalid": "Lim inn API-brukernavnet fra «API Access»-siden hos DataForSEO."
+        },
+        "password": {
+          "label": "API-passord",
+          "hint": "Fra den samme «API Access»-siden. Kallene belastes saldoen på denne DataForSEO-kontoen.",
+          "invalid": "Lim inn API-passordet fra «API Access»-siden hos DataForSEO."
         }
       },
       "bing": {

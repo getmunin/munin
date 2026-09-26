@@ -7,7 +7,7 @@ import type {
 } from '../connectors/connector.ts';
 import { ConnectorVendorError, type ConnectorFetch, REQUEST_TIMEOUT_MS } from '../connectors/http.ts';
 import type {
-  SeoAdapter,
+  SeoConsoleAdapter,
   SeoPageStatsResult,
   SeoProperty,
   SeoQueryStatsResult,
@@ -56,9 +56,10 @@ interface BingQuota {
   MonthlyQuota?: number | null;
 }
 
-export class BingAdapter implements SeoAdapter {
+export class BingAdapter implements SeoConsoleAdapter {
   readonly vendor = 'bing';
   readonly domain = 'seo' as const;
+  readonly seoRole = 'console' as const;
   readonly displayName = 'Bing Webmaster Tools';
   readonly configInput = BingConfigInput;
   readonly configFields: ConnectorConfigFieldInfo[] = [

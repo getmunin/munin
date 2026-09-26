@@ -1,0 +1,199 @@
+{
+  "version": "0.1.20250526",
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "1.3363 sec.",
+  "cost": 0.01224,
+  "tasks_count": 1,
+  "tasks_error": 0,
+  "tasks": [
+    {
+      "id": "06201739-8284-0381-0000-dd310797563a",
+      "status_code": 20000,
+      "status_message": "Ok.",
+      "time": "1.2750 sec.",
+      "cost": 0.01224,
+      "result_count": 1,
+      "path": [
+        "v3",
+        "dataforseo_labs"
+      ],
+      "data": {
+        "api": "dataforseo_labs",
+        "function": "ranked_keywords",
+        "se_type": "google",
+        "target": "competitor.example",
+        "location_code": 2578,
+        "language_code": "nb",
+        "limit": 2,
+        "order_by": [
+          "keyword_data.keyword_info.search_volume,desc"
+        ]
+      },
+      "result": [
+        {
+          "se_type": "google",
+          "target": "competitor.example",
+          "location_code": 2578,
+          "language_code": "nb",
+          "total_count": 412,
+          "items_count": 2,
+          "items": [
+            {
+              "se_type": "google",
+              "keyword_data": {
+                "se_type": "google",
+                "keyword": "chatbot nettbutikk",
+                "location_code": 2578,
+                "language_code": "nb",
+                "keyword_info": {
+                  "se_type": "google",
+                  "last_updated_time": "2025-06-12 04:50:58 +00:00",
+                  "competition": 0.81,
+                  "competition_level": "HIGH",
+                  "cpc": 4.3,
+                  "search_volume": 720,
+                  "low_top_of_page_bid": null,
+                  "high_top_of_page_bid": null,
+                  "monthly_searches": [
+                    {
+                      "year": 2025,
+                      "month": 5,
+                      "search_volume": 390
+                    },
+                    {
+                      "year": 2025,
+                      "month": 4,
+                      "search_volume": 320
+                    }
+                  ],
+                  "search_volume_trend": {
+                    "monthly": 22,
+                    "quarterly": 86,
+                    "yearly": 457
+                  }
+                },
+                "keyword_properties": {
+                  "se_type": "google",
+                  "core_keyword": null,
+                  "keyword_difficulty": 38,
+                  "detected_language": "nb",
+                  "is_another_language": false
+                },
+                "search_intent_info": {
+                  "se_type": "google",
+                  "main_intent": "commercial",
+                  "foreign_intent": null,
+                  "last_updated_time": "2026-09-01 00:00:00 +00:00"
+                }
+              },
+              "ranked_serp_element": {
+                "se_type": "google",
+                "serp_item": {
+                  "se_type": "google",
+                  "type": "organic",
+                  "rank_group": 3,
+                  "rank_absolute": 3,
+                  "position": "left",
+                  "domain": "competitor.example",
+                  "title": "Competitor page",
+                  "url": "https://competitor.example/nettbutikk",
+                  "description": "Placeholder description for a test fixture.",
+                  "main_domain": "competitor.example",
+                  "relative_url": "/nettbutikk",
+                  "etv": 42.560001373291016
+                },
+                "check_url": "https://www.google.no/search?q=placeholder&hl=nb&gl=NO",
+                "serp_item_types": [
+                  "organic",
+                  "people_also_ask"
+                ],
+                "se_results_count": 320000000,
+                "keyword_difficulty": 7,
+                "is_lost": false,
+                "last_updated_time": "2025-05-19 22:51:01 +00:00",
+                "previous_updated_time": "2025-04-08 13:17:08 +00:00"
+              }
+            },
+            {
+              "se_type": "google",
+              "keyword_data": {
+                "se_type": "google",
+                "keyword": "ai telefonsvarer",
+                "location_code": 2578,
+                "language_code": "nb",
+                "keyword_info": {
+                  "se_type": "google",
+                  "last_updated_time": "2025-06-12 04:50:58 +00:00",
+                  "competition": 0.35,
+                  "competition_level": "LOW",
+                  "cpc": 3.9,
+                  "search_volume": 170,
+                  "low_top_of_page_bid": null,
+                  "high_top_of_page_bid": null,
+                  "monthly_searches": [
+                    {
+                      "year": 2025,
+                      "month": 5,
+                      "search_volume": 390
+                    },
+                    {
+                      "year": 2025,
+                      "month": 4,
+                      "search_volume": 320
+                    }
+                  ],
+                  "search_volume_trend": {
+                    "monthly": 22,
+                    "quarterly": 86,
+                    "yearly": 457
+                  }
+                },
+                "keyword_properties": {
+                  "se_type": "google",
+                  "core_keyword": null,
+                  "keyword_difficulty": 12,
+                  "detected_language": "nb",
+                  "is_another_language": false
+                },
+                "search_intent_info": {
+                  "se_type": "google",
+                  "main_intent": "informational",
+                  "foreign_intent": null,
+                  "last_updated_time": "2026-09-01 00:00:00 +00:00"
+                }
+              },
+              "ranked_serp_element": {
+                "se_type": "google",
+                "serp_item": {
+                  "se_type": "google",
+                  "type": "organic",
+                  "rank_group": 7,
+                  "rank_absolute": 7,
+                  "position": "left",
+                  "domain": "competitor.example",
+                  "title": "Competitor page",
+                  "url": "https://competitor.example/telefon",
+                  "description": "Placeholder description for a test fixture.",
+                  "main_domain": "competitor.example",
+                  "relative_url": "/telefon",
+                  "etv": 42.560001373291016
+                },
+                "check_url": "https://www.google.no/search?q=placeholder&hl=nb&gl=NO",
+                "serp_item_types": [
+                  "organic",
+                  "people_also_ask"
+                ],
+                "se_results_count": 320000000,
+                "keyword_difficulty": 7,
+                "is_lost": false,
+                "last_updated_time": "2025-05-19 22:51:01 +00:00",
+                "previous_updated_time": "2025-04-08 13:17:08 +00:00"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

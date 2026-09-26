@@ -32,6 +32,8 @@ Returns event type strings grouped by module. The catalog at time of writing:
 - **Outreach** — `outreach.proposal.created`, `outreach.proposal.updated`, `outreach.proposal.sent`, `outreach.proposal.dismissed`
 - **System** — `org_alert.opened`, `org_alert.acknowledged`, `org_alert.resolved`, `curator_job.pending`
 
+An alert that recurs within six hours of resolving is reopened rather than recreated: `org_alert.opened` fires again with the same `alertId` and `reopened: true` in its payload, so a receiver tracking alert state by id sees it flip back to open.
+
 The subscription accepts **arbitrary strings**, so future events work without a tool update. But subscribe to the specific events you handle, not "everything" — narrow subscriptions reduce noise, signature-verification CPU, and your receiver's failure surface.
 
 ## 2. Create the subscription

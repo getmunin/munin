@@ -129,9 +129,9 @@ Two refusals are worth recognizing rather than retrying through:
   went out, or the worker is still between automatic attempts. Re-read the
   conversation; do not loop on this.
 - `conv_delivery_channel_inactive` — the channel is switched off or archived, so
-  a retry would fail immediately. Repeated inbound failures auto-deactivate a
-  channel, so this often travels with a `channel_inbound` alert. Reactivate the
-  channel first.
+  a retry would fail immediately. Repeated rejected mailbox logins
+  auto-deactivate a channel, so this often travels with a `channel_inbound`
+  alert. Reactivate the channel first.
 
 ## What NOT to do
 

@@ -216,6 +216,7 @@ interface ChannelAlertDto {
   metadata: {
     attemptCount?: number;
     threshold?: number;
+    failureKind?: 'transient' | 'permanent';
     deactivatedAt?: string;
     channelName?: string;
   };
@@ -894,7 +895,9 @@ function AlertFooter({
   const threshold = alert.metadata.threshold ?? 5;
   const message = isDeactivated
     ? t('status.deactivatedMessage', { threshold })
-    : t('status.failingMessage', { attempt, threshold });
+    : alert.metadata.failureKind === 'transient'
+      ? t('status.retryingMessage', { attempt })
+      : t('status.failingMessage', { attempt, threshold });
   return (
     <div className="mt-3 border-t-[1px] border-rule-soft pt-3 dark:border-rule-on-dark">
       <p className="truncate text-[13px] text-ink dark:text-foreground">{message}</p>

@@ -612,6 +612,7 @@
       "status": {
         "deactivatedMessage": "Slått av etter {threshold} mislykkede forsøk på henting",
         "failingMessage": "Henting feiler · {attempt}/{threshold} · slås av ved {threshold}",
+        "retryingMessage": "Henting feiler · {attempt} mislykkede forsøk · prøver igjen automatisk",
         "activate": "Aktiver",
         "awaitingCredentials": "Venter på tilgang",
         "active": "Aktiv",

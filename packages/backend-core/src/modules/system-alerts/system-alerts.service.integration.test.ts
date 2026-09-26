@@ -190,14 +190,15 @@ const skipReason = TEST_URL
     });
   });
 
-  it('opens a fresh row when re-opening after resolve', async () => {
+  it('reopens a recently resolved alert instead of opening a second row', async () => {
     await asActor(orgA, async () => {
-      await service.openAlert({
+      const first = await service.openAlert({
         source: 'channel_inbound',
         subjectId: 'cch_test_3',
         severity: 'error',
         title: 'one',
       });
+      await service.acknowledgeAlert(first.alertId);
       await service.resolveAlert({ source: 'channel_inbound', subjectId: 'cch_test_3' });
       const reopened = await service.openAlert({
         source: 'channel_inbound',
@@ -205,7 +206,45 @@ const skipReason = TEST_URL
         severity: 'error',
         title: 'two',
       });
-      expect(reopened.opened).toBe(true);
+      expect(reopened).toMatchObject({
+        alertId: first.alertId,
+        opened: false,
+        reopened: true,
+        occurrenceCount: 2,
+      });
+    });
+
+    const rows = await svcDb.select().from(schema.orgAlerts);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.title).toBe('two');
+    expect(rows[0]!.resolvedAt).toBeNull();
+    expect(rows[0]!.acknowledgedAt).toBeNull();
+  });
+
+  it('opens a fresh row when the previous alert resolved outside the reopen window', async () => {
+    await asActor(orgA, async () => {
+      await service.openAlert({
+        source: 'channel_inbound',
+        subjectId: 'cch_test_4',
+        severity: 'error',
+        title: 'one',
+      });
+      await service.resolveAlert({ source: 'channel_inbound', subjectId: 'cch_test_4' });
+    });
+    await svcDb
+      .update(schema.orgAlerts)
+      .set({ resolvedAt: sql`now() - interval '7 hours'` })
+      .where(sql`subject_id = 'cch_test_4'`);
+
+    await asActor(orgA, async () => {
+      const again = await service.openAlert({
+        source: 'channel_inbound',
+        subjectId: 'cch_test_4',
+        severity: 'error',
+        title: 'two',
+      });
+      expect(again.opened).toBe(true);
+      expect(again.reopened).toBe(false);
     });
 
     const rows = await svcDb.select().from(schema.orgAlerts);

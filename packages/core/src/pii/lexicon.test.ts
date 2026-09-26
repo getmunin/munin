@@ -134,3 +134,15 @@ describe('buildPiiLexicon', () => {
     expect([...lex.detectedNames].sort()).toEqual(['anne lise', 'per olsen']);
   });
 });
+
+describe('emailKey on hostile input', () => {
+  it('rejects malformed addresses without backtracking on long runs', () => {
+    const hostile = `${'!.'.repeat(50_000)}@`;
+    const started = Date.now();
+    expect(emailKey(hostile)).toBeNull();
+    expect(emailKey('a@b@example.no')).toBeNull();
+    expect(emailKey('kari@example.')).toBeNull();
+    expect(emailKey('@example.no')).toBeNull();
+    expect(Date.now() - started).toBeLessThan(200);
+  });
+});

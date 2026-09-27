@@ -20,7 +20,13 @@ import type {
   ScheduledItem,
   SocialDraftEdit,
 } from './queue-panes/types';
-import { clearKey, contactLabel, feedbackSnippet, socialDraftTitle } from './inbox-helpers';
+import {
+  clearKey,
+  contactLabel,
+  feedbackSnippet,
+  previewLinkRefreshDelay,
+  socialDraftTitle,
+} from './inbox-helpers';
 import type {
   QueueActionError,
   InboxController,
@@ -315,8 +321,19 @@ export function useInboxData(): InboxController {
   useEffect(() => {
     if (!activeQueueItem || activeQueueItem.kind !== 'cms') return;
     const id = activeQueueItem.id;
-    if (cmsPreviewLinks[id] !== undefined) return;
-    void loadCmsPreviewLink(id);
+    const link = cmsPreviewLinks[id];
+    if (link === undefined) {
+      void loadCmsPreviewLink(id);
+      return;
+    }
+    const delay = previewLinkRefreshDelay(link, Date.now());
+    if (delay === null) return;
+    if (delay === 0) {
+      setCmsPreviewLinks((prev) => clearKey(prev, id));
+      return;
+    }
+    const timer = setTimeout(() => void loadCmsPreviewLink(id), delay);
+    return () => clearTimeout(timer);
   }, [activeQueueItem, cmsPreviewLinks, loadCmsPreviewLink]);
 
   const subscriptions = useMemo<SubscriptionChannel[]>(() => [{ channel: 'org' }], []);

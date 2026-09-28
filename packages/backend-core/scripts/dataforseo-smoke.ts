@@ -15,11 +15,13 @@ import { SEO_MARKETS } from '../src/modules/seo/seo-markets.ts';
 const usage = `Live DataForSEO smoke test. Spends real money on the account whose credentials you pass.
 
   DATAFORSEO_LOGIN=… DATAFORSEO_PASSWORD=… \\
-    pnpm -F @getmunin/backend-core smoke:dataforseo -- \\
+    pnpm -F @getmunin/backend-core smoke:dataforseo \\
       --target example.no --competitor competitor.example [--competitor …] \\
       [--location norway] [--limit 20] [--max-cost 0.50] [--verify-markets]`;
 
+const argv = process.argv.slice(2);
 const { values } = parseArgs({
+  args: argv[0] === '--' ? argv.slice(1) : argv,
   options: {
     target: { type: 'string' },
     competitor: { type: 'string', multiple: true },
@@ -73,8 +75,17 @@ async function verifyMarkets(): Promise<void> {
   const authorization = `Basic ${Buffer.from(`${login}:${password}`).toString('base64')}`;
   const get = async <T>(path: string): Promise<T[]> => {
     const res = await fetch(`https://api.dataforseo.com/v3/${path}`, { headers: { authorization } });
-    const body = (await res.json()) as { tasks?: Array<{ result?: T[] | null }> };
-    return body.tasks?.[0]?.result ?? [];
+    const body = (await res.json().catch(() => null)) as {
+      status_code?: number;
+      status_message?: string;
+      tasks?: Array<{ status_code?: number; status_message?: string; result?: T[] | null }>;
+    } | null;
+    const task = body?.tasks?.[0];
+    if (!res.ok || body?.status_code !== 20000 || task?.status_code !== 20000) {
+      const message = task?.status_message ?? body?.status_message ?? 'no task in response';
+      throw new Error(`--verify-markets: ${path} failed (HTTP ${res.status}): ${message}`);
+    }
+    return task.result ?? [];
   };
   const labs = await get<{
     location_code: number;

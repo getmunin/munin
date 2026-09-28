@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
   ConnectorsService,
@@ -328,6 +329,11 @@ function translate(adapter: SeoResearchAdapter, err: SeoResearchVendorError): Ht
       return new BadGatewayException(
         `seo_vendor_auth: ${adapter.displayName} rejected the stored API credentials (${err.message}); create a new connection with fresh credentials`,
       );
+    case 'account_restricted':
+      return new HttpException(
+        `seo_account_restricted: ${adapter.displayName} accepted the credentials but refused this request for the account (${err.message}); resolve it in the provider's account panel and retry — the connection itself does not need replacing`,
+        HttpStatus.FORBIDDEN,
+      );
     case 'balance':
       return new HttpException(
         `seo_insufficient_balance: the ${adapter.displayName} account balance is too low for this call (${err.message}); top up the account and retry`,
@@ -346,6 +352,10 @@ function translate(adapter: SeoResearchAdapter, err: SeoResearchVendorError): Ht
     case 'invalid_market':
       return new BadRequestException(
         `seo_invalid_market: ${adapter.displayName} rejected the location or language (${err.message})`,
+      );
+    case 'unavailable':
+      return new ServiceUnavailableException(
+        `seo_vendor_unavailable: ${adapter.displayName} returned an empty response (${err.message}); this is usually transient, retry shortly`,
       );
   }
 }

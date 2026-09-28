@@ -301,6 +301,27 @@ describe('DataForSeoAdapter', () => {
     expect(err.message).not.toContain(PASSWORD);
   });
 
+  it('turns an HTTP 403 into an account restriction, not an auth error', async () => {
+    const { fetch } = stubApi(() => ({ status: 403, body: fixture('error-account-unverified') }));
+
+    const err = await captureError(new DataForSeoAdapter(fetch).getBalance(ctx()));
+
+    expect(err).toBeInstanceOf(SeoResearchVendorError);
+    expect((err as SeoResearchVendorError).kind).toBe('account_restricted');
+    expect(err.message).toContain('HTTP 403: Please verify your account');
+    expect(err.message).not.toContain(LOGIN);
+    expect(err.message).not.toContain(PASSWORD);
+  });
+
+  it('marks an OK envelope with no task as unavailable', async () => {
+    const { fetch } = stubApi(() => ({ body: fixture('empty-tasks') }));
+
+    const err = await captureError(new DataForSeoAdapter(fetch).getBalance(ctx()));
+
+    expect(err).toBeInstanceOf(SeoResearchVendorError);
+    expect((err as SeoResearchVendorError).kind).toBe('unavailable');
+  });
+
   it('reads insufficient balance from a task-level status on an HTTP 200', async () => {
     const { fetch } = stubApi(() => ({ body: fixture('error-insufficient-balance') }));
 

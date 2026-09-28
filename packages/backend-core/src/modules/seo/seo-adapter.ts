@@ -219,10 +219,12 @@ export const SEO_RESEARCH: ConnectorCapabilityFilter = {
 
 export type SeoResearchErrorKind =
   | 'auth'
+  | 'account_restricted'
   | 'balance'
   | 'spend_limit'
   | 'rate_limited'
-  | 'invalid_market';
+  | 'invalid_market'
+  | 'unavailable';
 
 export class SeoResearchVendorError extends ConnectorVendorError {
   constructor(

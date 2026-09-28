@@ -232,6 +232,26 @@ describe('SeoResearchService', () => {
     expect(err.message).toMatch(/^seo_vendor_auth: DataForSEO rejected the stored API credentials/);
   });
 
+  it('translates an HTTP 403 into seo_account_restricted without telling the caller to replace the connection', async () => {
+    const { research } = setup(() => ({ status: 403, body: fixture('error-account-unverified') }));
+
+    const err = await rejection(research.providerBalance({}));
+
+    expect((err as HttpException).getStatus()).toBe(403);
+    expect(err.message).toMatch(/^seo_account_restricted: /);
+    expect(err.message).toContain('Please verify your account');
+    expect(err.message).not.toMatch(/fresh credentials|new connection/);
+  });
+
+  it('translates an OK envelope with no task into a retryable seo_vendor_unavailable', async () => {
+    const { research } = setup(() => ({ body: fixture('empty-tasks') }));
+
+    const err = await rejection(research.keywordVolume({ location: 'norway', keywords: ['ai'] }));
+
+    expect((err as HttpException).getStatus()).toBe(503);
+    expect(err.message).toMatch(/^seo_vendor_unavailable: /);
+  });
+
   it('translates a rate limit into a 429', async () => {
     const { research } = setup(() => ({ body: fixture('error-rate-limited') }));
 

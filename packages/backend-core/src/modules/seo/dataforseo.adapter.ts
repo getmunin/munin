@@ -385,13 +385,15 @@ export class DataForSeoAdapter implements SeoResearchAdapter {
     const text = await res.text();
     const parsed = safeJsonParse(text);
     const envelope = isEnvelope(parsed) ? parsed : null;
-    if (!res.ok) throw httpError(res.status, envelope);
+    if (!res.ok) throw httpError(res.status, parsed);
     if (!envelope) {
       throw new ConnectorVendorError(`DataForSEO returned a non-JSON response for ${path}`);
     }
     if (envelope.status_code !== OK) throw statusError(envelope.status_code, envelope.status_message);
     const task = envelope.tasks?.[0];
-    if (!task) throw new ConnectorVendorError(`DataForSEO returned no task for ${path}`);
+    if (!task) {
+      throw new SeoResearchVendorError('unavailable', `DataForSEO returned no task for ${path}`);
+    }
     const costUsd = num(envelope.cost) ?? num(task.cost) ?? 0;
     if (task.status_code === NO_RESULTS) return { result: [], costUsd, noData: true };
     if (task.status_code !== OK && task.status_code !== PARTIAL_RESULTS) {
@@ -456,13 +458,21 @@ function statusError(code: number | undefined, message: string | undefined): Con
   return kind ? new SeoResearchVendorError(kind, detail) : new ConnectorVendorError(detail);
 }
 
-function httpError(status: number, envelope: Envelope | null): ConnectorVendorError {
-  const detail = `DataForSEO HTTP ${status}${envelope?.status_message ? `: ${envelope.status_message}` : ''}`;
-  if (status === 401 || status === 403) return new SeoResearchVendorError('auth', detail);
+function httpError(status: number, body: unknown): ConnectorVendorError {
+  const envelope = isEnvelope(body) ? body : null;
+  const message = statusMessage(body);
+  const detail = `DataForSEO HTTP ${status}${message ? `: ${message}` : ''}`;
+  if (status === 401) return new SeoResearchVendorError('auth', detail);
+  if (status === 403) return new SeoResearchVendorError('account_restricted', detail);
   if (status === 402) return new SeoResearchVendorError('balance', detail);
   if (status === 429) return new SeoResearchVendorError('rate_limited', detail);
   const kind = classify(envelope?.status_code);
   return kind ? new SeoResearchVendorError(kind, detail) : new ConnectorVendorError(detail);
+}
+
+function statusMessage(body: unknown): string | null {
+  if (!body || typeof body !== 'object' || !('status_message' in body)) return null;
+  return typeof body.status_message === 'string' && body.status_message ? body.status_message : null;
 }
 
 function isEnvelope(body: unknown): body is Envelope {

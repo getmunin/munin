@@ -1,6 +1,10 @@
 import type { useTranslations } from 'next-intl';
 import { formatPhoneNumber } from '../../lib/format-phone';
-import type { CrmContactSummary, FeedbackOutboxDto } from './queue-panes/types';
+import type {
+  CmsPreviewLink,
+  CrmContactSummary,
+  FeedbackOutboxDto,
+} from './queue-panes/types';
 
 export const contactLabel = (c: CrmContactSummary) => c.name ?? c.email ?? c.id;
 
@@ -36,6 +40,15 @@ export function clearKey<T>(obj: Record<string, T>, key: string): Record<string,
   const next = { ...obj };
   delete next[key];
   return next;
+}
+
+export const PREVIEW_LINK_REFRESH_MARGIN_MS = 5 * 60 * 1000;
+
+export function previewLinkRefreshDelay(link: CmsPreviewLink, now: number): number | null {
+  if (!link.expiresAt) return null;
+  const expiresAt = Date.parse(link.expiresAt);
+  if (!Number.isFinite(expiresAt)) return null;
+  return Math.max(0, expiresAt - PREVIEW_LINK_REFRESH_MARGIN_MS - now);
 }
 
 export const SOCIAL_TITLE_MAX = 72;

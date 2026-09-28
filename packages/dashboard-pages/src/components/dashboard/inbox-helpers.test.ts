@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   customerIdentity,
   customerLabel,
+  PREVIEW_LINK_REFRESH_MARGIN_MS,
+  previewLinkRefreshDelay,
   socialDraftTitle,
   SOCIAL_TITLE_MAX,
 } from './inbox-helpers';
@@ -65,5 +67,28 @@ describe('socialDraftTitle', () => {
   it('clips mid-word only when the first word is longer than the budget', () => {
     const title = socialDraftTitle('x'.repeat(200), 'fallback');
     expect(title).toBe(`${'x'.repeat(SOCIAL_TITLE_MAX)}…`);
+  });
+});
+
+describe('previewLinkRefreshDelay', () => {
+  const now = Date.parse('2026-01-01T12:00:00Z');
+  const link = (expiresAt?: string | null) => ({ url: null, deliveryUrl: null, expiresAt });
+
+  it('schedules the refresh ahead of expiry by the margin', () => {
+    const expiresAt = new Date(now + 60 * 60 * 1000).toISOString();
+    expect(previewLinkRefreshDelay(link(expiresAt), now)).toBe(
+      60 * 60 * 1000 - PREVIEW_LINK_REFRESH_MARGIN_MS,
+    );
+  });
+
+  it('is zero once the link is inside the margin or already expired', () => {
+    expect(previewLinkRefreshDelay(link(new Date(now + 60 * 1000).toISOString()), now)).toBe(0);
+    expect(previewLinkRefreshDelay(link(new Date(now - 60 * 1000).toISOString()), now)).toBe(0);
+  });
+
+  it('is null without a usable expiry, so a failed fetch never loops', () => {
+    expect(previewLinkRefreshDelay(link(), now)).toBeNull();
+    expect(previewLinkRefreshDelay(link(null), now)).toBeNull();
+    expect(previewLinkRefreshDelay(link('not a date'), now)).toBeNull();
   });
 });

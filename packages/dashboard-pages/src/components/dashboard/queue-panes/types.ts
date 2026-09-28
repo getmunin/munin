@@ -222,6 +222,7 @@ export interface CmsPreviewEmbed {
 export interface CmsPreviewLink {
   url: string | null;
   deliveryUrl: string | null;
+  expiresAt?: string | null;
   embed?: CmsPreviewEmbed | null;
 }
 

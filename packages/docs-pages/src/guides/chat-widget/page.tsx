@@ -92,15 +92,19 @@ export default function WidgetGuide() {
         <dd>Small uppercase label above the welcome greeting, e.g. &ldquo;Acme Support · powered by Munin&rdquo;.</dd>
         <dt>data-munin-theme-color</dt>
         <dd>
-          Hex accent color for the unread badge, send button, links, and visitor bubbles. Defaults to{' '}
-          <code>#0059DE</code>. Text drawn on top of it flips between ink and paper automatically,
-          whichever contrasts better.
+          Hex accent color for the send button, focus rings, the email-save button, and the unread badge
+          while the launcher keeps its default color. Defaults to <code>#0059DE</code>. Text drawn on top
+          of it flips between ink and paper automatically, whichever contrasts better. On filled surfaces
+          a mid-tone that could only carry ink text is darkened slightly (at most 12%) so it carries paper
+          text instead; outlines and focus rings keep the exact color.
         </dd>
         <dt>data-munin-launcher-color</dt>
         <dd>
           Hex fill of the round launcher bubble. Defaults to the widget&rsquo;s near-black chrome tone
           (fixed regardless of light/dark mode), so a brand-colored bubble is an explicit opt-in. The chat
-          glyph inside follows with whichever of ink/paper contrasts better.
+          glyph inside follows with whichever of ink/paper contrasts better. Once it is set, the unread
+          badge inverts the bubble&rsquo;s colors (glyph color as its fill, bubble color as the count), so it
+          stays visible even when the bubble matches the theme color.
         </dd>
         <dt>data-munin-launcher-icon-color</dt>
         <dd>

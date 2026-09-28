@@ -273,7 +273,7 @@
         "codeFeedback": "FBK",
         "kbSnippetProposed": "Ny artikkel · {space}",
         "crmSnippet": "{confidence, select, high {Høy treffsikkerhet} medium {Middels treffsikkerhet} other {{confidence} treffsikkerhet}} · sammenslåing foreslått",
-        "outreachDraftFallback": "Utgående utkast",
+        "outreachDraftFallback": "Kampanjeutkast",
         "cmsSnippet": "{collection} · {wordCount, plural, =1 {# ord} other {# ord}}",
         "cmsSnippetNoBody": "{collection}",
         "cmsUntitled": "Utkast uten tittel",
@@ -973,12 +973,12 @@
     "oauthConsent": {
       "eyebrow": "OAuth 2.1 · autoriseringsforespørsel",
       "title": "Gi <client></client> tilgang?",
-      "lede": "<client></client> vil koble seg til Munin og handle gjennom MCP-verktøyene på dine vegne. Se hva applikasjonen kan nå før du bestemmer deg.",
-      "resourceLede": "<client></client> vil koble seg til <resource></resource> og handle på dine vegne. Se hva applikasjonen kan nå før du bestemmer deg.",
+      "lede": "<client></client> vil koble seg til Munin og bruke verktøyene der på dine vegne. Se hva applikasjonen får tilgang til før du bestemmer deg.",
+      "resourceLede": "<client></client> vil koble seg til <resource></resource> og handle på dine vegne. Se hva applikasjonen får tilgang til før du bestemmer deg.",
       "registered": "Registrert {date}",
-      "trustFirst": "Første gang du kobler <client></client> til denne kontoen. Ingenting er delt med den enda.",
+      "trustFirst": "Første gang du kobler <client></client> til denne kontoen. Ingenting er delt med den ennå.",
       "scopesLabel": "Forespurt tilgang",
-      "scopesCount": "{modules, plural, =0 {0 moduler} =1 {1 modul} other {# moduler}} · {scopes, plural, =0 {0 omfang} =1 {1 omfang} other {# omfang}}",
+      "scopesCount": "{modules, plural, =0 {0 moduler} =1 {1 modul} other {# moduler}} · {scopes, plural, =0 {0 tillatelser} =1 {1 tillatelse} other {# tillatelser}}",
       "noModuleScopes": "Bare innlogging — ingen produkttillatelser forespurt.",
       "resourceScopesCount": "{scopes, plural, =0 {0 tillatelser} =1 {1 tillatelse} other {# tillatelser}}",
       "noResourcePermissions": "Bare innlogging — ingen ekstra tillatelser forespurt.",
@@ -987,49 +987,49 @@
         "conv": "Samtaler",
         "crm": "Kontakter",
         "cms": "Innhold",
-        "outreach": "Utgående",
+        "outreach": "Kampanjer",
         "social": "Sosiale medier",
         "analytics": "Analyse",
-        "commerce": "Handel",
+        "commerce": "Nettbutikk",
         "bookings": "Booking",
         "seo": "Synlighet i søk",
-        "connectors": "Koblinger",
+        "connectors": "Tilkoblede systemer",
         "slack": "Slack",
         "webhooks": "Webhooks",
-        "feedback": "Tilbakemelding",
+        "feedback": "Tilbakemelding til Munin",
         "system_alerts": "Systemvarsler"
       },
       "moduleDescriptions": {
         "kb": {
-          "readWrite": "Les og rediger artikler, områder og søk.",
-          "read": "Les artikler, områder og søk."
+          "readWrite": "Les, skriv og publiser artikler i kunnskapsbasen, og importer innhold fra nettstedet deres.",
+          "read": "Les og søk i artiklene i kunnskapsbasen."
         },
         "conv": {
-          "readWrite": "Les tråder og send meldinger på dine vegne.",
-          "read": "Les samtaletråder og meldinger."
+          "readWrite": "Les og svar på samtaler på dine vegne, og sett opp kanaler som e-post, SMS og chat.",
+          "read": "Les samtaler og meldinger."
         },
         "crm": {
-          "readWrite": "Les og endre kontakter, avtaler og segmenter.",
-          "read": "Les kontakter, avtaler og segmenter."
+          "readWrite": "Les og endre kontakter, bedrifter, salgsmuligheter og segmenter.",
+          "read": "Les kontakter, bedrifter, salgsmuligheter og segmenter."
         },
         "cms": {
-          "readWrite": "Opprett, rediger og publiser CMS-innhold og planlegging.",
-          "read": "Les CMS-samlinger, oppføringer og ressurser."
+          "readWrite": "Opprett, rediger og publiser innhold, bilder og filer, også med planlagt publisering.",
+          "read": "Les innholdet, bildene og filene i CMS-et."
         },
         "outreach": {
-          "readWrite": "Lag utkast til kampanjer og send til samtykkende kontakter. Samtykkesjekker er fortsatt aktive.",
-          "read": "Les utgående kampanjer og forslag."
+          "readWrite": "Lag utkast til kampanjer og send dem til kontakter som har samtykket. Samtykke sjekkes alltid før sending.",
+          "read": "Les kampanjer og meldingsforslag."
         },
         "social": {
-          "readWrite": "Les utkast og publiser innlegg på kontoene dere har koblet til.",
-          "read": "Les tilkoblede kontoer og utkast til innlegg."
+          "readWrite": "Lag utkast og publiser innlegg på de sosiale kontoene dere har koblet til.",
+          "read": "Les tilkoblede sosiale kontoer og utkast til innlegg."
         },
         "analytics": {
-          "readWrite": "Les analyse og administrer sporingsnøkler.",
-          "read": "Les analyse for innhold og søk."
+          "readWrite": "Les besøksstatistikk og administrer sporingskodene på nettstedet deres.",
+          "read": "Les statistikk over sidevisninger og søk på nettstedet deres."
         },
         "commerce": {
-          "readWrite": "Les og endre ordrer og produkter i nettbutikken dere har koblet til.",
+          "readWrite": "Slå opp ordrer og produkter i nettbutikken dere har koblet til.",
           "read": "Slå opp ordrer og produkter i nettbutikken dere har koblet til."
         },
         "bookings": {
@@ -1041,24 +1041,24 @@
           "read": "Les klikk, visninger og plasseringer i søk for de verifiserte nettstedene deres."
         },
         "connectors": {
-          "readWrite": "Koble til og fra systemene Munin henter data fra, og lagre påloggingen deres.",
-          "read": "Les hvilke systemer som er koblet til, og om påloggingen fortsatt virker."
+          "readWrite": "Koble nettbutikk, bookingsystem og andre systemer til og fra Munin, og lagre API-nøklene og tilgangene deres.",
+          "read": "Se hvilke systemer som er koblet til, og om tilgangen fortsatt virker."
         },
         "slack": {
-          "readWrite": "Les Slack-koblingen og endre kanalruting og koblede brukere.",
-          "read": "Les Slack-koblingen, kanalene og koblede brukere."
+          "readWrite": "Se Slack-oppsettet, velg hvilke kanaler samtalene vises i, og koble Slack-brukere til teammedlemmer.",
+          "read": "Se Slack-oppsettet, kanalene og hvilke Slack-brukere som er koblet til teammedlemmer."
         },
         "webhooks": {
-          "readWrite": "Les, opprett og slett webhook-abonnementer og roter signeringshemmeligheter.",
-          "read": "Les webhook-abonnementer og leveringshistorikk."
+          "readWrite": "Opprett, endre og slett webhooks, og bytt signeringsnøklene deres.",
+          "read": "Les webhooks og leveringshistorikken deres."
         },
         "feedback": {
-          "readWrite": "Les, send inn og håndter tilbakemeldinger og veikartelementer.",
-          "read": "Les tilbakemeldinger og veikartelementer."
+          "readWrite": "Skriv tilbakemeldinger om Munin, godkjenn eller avvis dem før de sendes til Munin-teamet, og stem på saker i veikartet.",
+          "read": "Les tilbakemeldinger om Munin som venter på godkjenning, og søk i Munins veikart."
         },
         "system_alerts": {
-          "readWrite": "Les og løs operasjonelle systemvarsler.",
-          "read": "Les operasjonelle systemvarsler."
+          "readWrite": "Les driftsvarsler for organisasjonen, og merk dem som sett eller løst.",
+          "read": "Les driftsvarsler for organisasjonen."
         }
       },
       "undescribedScopes": "Tilganger denne skjermen ikke beskriver ennå: {scopes}.",
@@ -1079,9 +1079,9 @@
       "granted": {
         "eyebrow": "Autorisering fullført",
         "title": "Tilgang <em>gitt</em>.",
-        "sub": "<client></client> kan nå handle i <strong>Munin</strong> innenfor de omfangene du godkjente. Sender deg tilbake til applikasjonen.",
+        "sub": "<client></client> kan nå handle i <strong>Munin</strong> innenfor tillatelsene du godkjente. Sender deg tilbake til applikasjonen.",
         "panelTitle": "<client></client> er tilkoblet.",
-        "panelBody": "En autorisasjonskode ble utstedt og byttes inn i et token. <client></client> har nå tilgangene du godkjente for <strong>Munin</strong>, gyldig i 90 dager og fornyet stille.",
+        "panelBody": "En autorisasjonskode ble utstedt og byttes inn i et token. <client></client> har nå tilgangene du godkjente for <strong>Munin</strong>, gyldig i 90 dager og fornyet automatisk.",
         "redirecting": "Returnerer til {host} …"
       },
       "denied": {
@@ -1307,7 +1307,7 @@
         "publishedBodyLabel": "Publisert artikkel",
         "publishedBodyUnavailable": "Den publiserte artikkelen kunne ikke lastes. Den kan ha blitt slettet i mellomtiden.",
         "outreach": {
-          "eyebrow": "Utgående",
+          "eyebrow": "Kampanje",
           "channel_email": "E-post",
           "channel_sms": "SMS",
           "channel_voice": "Tale",
@@ -1380,7 +1380,7 @@
           "columnArchived": "Arkiveres ved godkjenning",
           "andThen": "Og så",
           "consequences": "Aktiviteter, avtaler og relasjoner flyttes over. Duplikatet arkiveres og settes til ikke-kontakt.",
-          "outreachCancelled": "{count, plural, =1 {# utgående melding i kø avbrytes} other {# utgående meldinger i kø avbrytes}}",
+          "outreachCancelled": "{count, plural, =1 {# kampanjemelding i kø avbrytes} other {# kampanjemeldinger i kø avbrytes}}",
           "proposedByAgent": "Foreslått av en agent",
           "proposedByUser": "Foreslått av en person",
           "superseded": "{count, plural, =1 {# annet ventende forslag på denne raden avvises} other {# andre ventende forslag på denne raden avvises}}",
@@ -1869,7 +1869,7 @@
       "fast": "Rask modell",
       "fastHint": "Brukes til: chat-bot-svar, signaturfjerning, klassifisering, korte oppsummeringer. Latens og kostnad veier tyngre enn intelligens her.",
       "smart": "Smart modell",
-      "smartUseHint": "Brukes til: KB-kurering, CRM-hygiene, utgående utkast — overalt der agenten må vurdere på tvers av mange meldinger.",
+      "smartUseHint": "Brukes til: KB-kurering, CRM-hygiene, kampanjeutkast — overalt der agenten må vurdere på tvers av mange meldinger.",
       "smartSameAsFast": "Samme som rask modell",
       "capabilityChat": "chat",
       "capabilityVision": "bilde"
@@ -2217,7 +2217,7 @@
     "list": {
       "persona": {
         "title": "Persona",
-        "blurb": "Brukes overalt der AI-en snakker eller skriver til kundene dine — chatsvar, utgående utkast, utgående svar.",
+        "blurb": "Brukes overalt der AI-en snakker eller skriver til kundene dine — chatsvar, kampanjeutkast og svar i kampanjer.",
         "meta": "Møter kunden"
       },
       "models": {
@@ -2343,7 +2343,7 @@
   "inspector": {
     "chrome": {
       "contextInspector": "Inspektør",
-      "contextOutreach": "Utgående",
+      "contextOutreach": "Kampanjer",
       "contextCrm": "CRM",
       "contextKb": "Kunnskapsbase",
       "contextAnalytics": "Statistikk",
@@ -2362,7 +2362,7 @@
     },
     "proposals": {
       "eyebrow": "Venter på godkjenning",
-      "title": "Utgående forslag",
+      "title": "Kampanjeforslag",
       "sublineEmpty": "Ingenting venter — køen er tom.",
       "sublinePending": "{count} venter på godkjenning — å godkjenne leverer det.",
       "refresh": "Oppdater",

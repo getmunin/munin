@@ -988,7 +988,7 @@
         "analytics": "Analyse",
         "commerce": "Handel",
         "bookings": "Booking",
-        "seo": "Søkeytelse",
+        "seo": "Synlighet i søk",
         "connectors": "Koblinger",
         "slack": "Slack",
         "webhooks": "Webhooks",
@@ -1033,8 +1033,8 @@
           "read": "Les bookinger og ledige tider fra bookingsystemet deres."
         },
         "seo": {
-          "readWrite": "Les søkeytelse for de verifiserte nettstedene deres og send inn nettadresser for ny gjennomgang.",
-          "read": "Les søkeytelse for de verifiserte nettstedene deres."
+          "readWrite": "Les klikk, visninger og plasseringer i søk for de verifiserte nettstedene deres, og send inn nettadresser for ny gjennomgang.",
+          "read": "Les klikk, visninger og plasseringer i søk for de verifiserte nettstedene deres."
         },
         "connectors": {
           "readWrite": "Koble til og fra systemene Munin henter data fra, og lagre påloggingen deres.",

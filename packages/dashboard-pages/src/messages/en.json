@@ -1786,7 +1786,7 @@
     },
     "wizard": {
       "stepEyebrow": "Step {step} of {total}",
-      "readyTitle": "Lift-off.",
+      "readyTitle": "Munin takes flight.",
       "readyLede": "From here, Munin handles new conversations on its own. The inbox shows what it's doing.",
       "saveAndContinue": "Save & continue",
       "checklist": {

@@ -1813,7 +1813,7 @@
     },
     "wizard": {
       "stepEyebrow": "Steg {step} av {total}",
-      "readyTitle": "Avgang.",
+      "readyTitle": "Munin letter.",
       "readyLede": "Herfra håndterer Munin nye samtaler på egen hånd. Innboksen viser hva som skjer.",
       "saveAndContinue": "Lagre og fortsett",
       "checklist": {

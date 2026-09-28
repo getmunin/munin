@@ -842,6 +842,74 @@ const PERMALINK = 'https://social.example.test/posts/7';
       expect((await readStoredDraft(draft.id)).status).toBe('published');
     });
 
+    it('previews the title and picture the linked page advertises, reading the page once', async () => {
+      const draft = await inOrg(orgA, () =>
+        service.createDraft({ body: 'Worth sharing.', linkUrl: ARTICLE }),
+      );
+      const media = new StubMediaReader({
+        preview: {
+          title: 'Agentic support',
+          description: 'Why it works',
+          imageUrl: 'https://example.test/og.png',
+        },
+      });
+      const svc = buildService(new StubPublisherLookup(), media);
+
+      const first = await inOrg(orgA, () => svc.getDraftLinkPreview(draft.id));
+      const second = await inOrg(orgA, () => svc.getDraftLinkPreview(draft.id));
+
+      expect(first).toEqual({
+        linkUrl: ARTICLE,
+        readable: true,
+        title: 'Agentic support',
+        imageUrl: 'https://example.test/og.png',
+      });
+      expect(second).toEqual(first);
+      expect(media.pages).toEqual([ARTICLE]);
+    });
+
+    it('previews an unreadable linked page as unreadable instead of failing', async () => {
+      const draft = await inOrg(orgA, () =>
+        service.createDraft({ body: 'Worth sharing.', linkUrl: ARTICLE }),
+      );
+      const media = new StubMediaReader({ preview: new SocialMediaError('answered 503') });
+      const svc = buildService(new StubPublisherLookup(), media);
+
+      await expect(inOrg(orgA, () => svc.getDraftLinkPreview(draft.id))).resolves.toEqual({
+        linkUrl: ARTICLE,
+        readable: false,
+        title: null,
+        imageUrl: null,
+      });
+    });
+
+    it('previews a draft with no link without reading any page', async () => {
+      const draft = await inOrg(orgA, () => service.createDraft({ body: 'No link here.' }));
+      const media = new StubMediaReader();
+      const svc = buildService(new StubPublisherLookup(), media);
+
+      await expect(inOrg(orgA, () => svc.getDraftLinkPreview(draft.id))).resolves.toEqual({
+        linkUrl: null,
+        readable: false,
+        title: null,
+        imageUrl: null,
+      });
+      expect(media.pages).toHaveLength(0);
+    });
+
+    it('refuses to preview another org\'s draft', async () => {
+      const draft = await inOrg(orgA, () =>
+        service.createDraft({ body: 'Worth sharing.', linkUrl: ARTICLE }),
+      );
+      const media = new StubMediaReader();
+      const svc = buildService(new StubPublisherLookup(), media);
+
+      await expect(inOrg(orgB, () => svc.getDraftLinkPreview(draft.id))).rejects.toThrow(
+        /social_not_found/,
+      );
+      expect(media.pages).toHaveLength(0);
+    });
+
     it('records a refused comment on the published draft instead of failing the post', async () => {
       const publisher = new StubPublisherLookup({
         result: {

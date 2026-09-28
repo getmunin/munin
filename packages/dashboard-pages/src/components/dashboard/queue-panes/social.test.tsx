@@ -8,6 +8,10 @@ vi.mock('../../../auth/use-active-role', () => ({
   useActiveMembership: () => ({ membership: { name: 'Ola Nordmann' } }),
 }));
 
+vi.mock('../../../lib/use-social-link-preview', () => ({
+  useSocialLinkPreview: () => null,
+}));
+
 const BODY = 'We rebuilt our support desk around one idea.';
 
 function draft(over: Partial<SocialDraftDto> = {}): SocialDraftDto {

@@ -6,6 +6,7 @@ import {
   foldPreviewBody,
   linkHost,
   previewLink,
+  previewPicture,
   splitUrls,
   type SocialPreviewDraft,
 } from './social-preview';
@@ -55,6 +56,56 @@ describe('composePreviewBody', () => {
   it('appends the link to a Facebook post that carries a picture, as the adapter does', () => {
     const withMedia = { ...draft, platform: 'facebook', mediaUrl: 'https://example.test/a.png' };
     expect(composePreviewBody(withMedia)).toBe(`${draft.body}\n\n${draft.shareUrl}`);
+  });
+
+  it('appends the link to a Facebook post whose picture comes from the linked page', () => {
+    expect(composePreviewBody({ ...draft, platform: 'facebook' }, true)).toBe(
+      `${draft.body}\n\n${draft.shareUrl}`,
+    );
+  });
+});
+
+describe('previewPicture', () => {
+  const page = {
+    linkUrl: draft.linkUrl,
+    readable: true,
+    title: 'A knowledge base that writes itself',
+    imageUrl: 'https://example.test/og.png',
+  };
+
+  it('is the attached file whenever the draft carries one', () => {
+    const withMedia = { ...draft, mediaUrl: 'https://example.test/a.png' };
+    expect(previewPicture(withMedia, page)).toEqual({ kind: 'attached' });
+  });
+
+  it('is pending while the linked page is still being read', () => {
+    expect(previewPicture(draft, undefined)).toEqual({ kind: 'pending' });
+  });
+
+  it('is the picture the linked page advertises, wherever the link is placed', () => {
+    const expected = { kind: 'page', imageUrl: page.imageUrl };
+    expect(previewPicture(draft, page)).toEqual(expected);
+    expect(previewPicture({ ...draft, linkPlacement: 'comment' }, page)).toEqual(expected);
+  });
+
+  it('is nothing when the linked page advertises no picture', () => {
+    expect(previewPicture(draft, { ...page, imageUrl: null })).toEqual({
+      kind: 'none',
+      readable: true,
+    });
+  });
+
+  it('is nothing, and unreadable, when the page or the preview request failed', () => {
+    const unreadable = { kind: 'none', readable: false };
+    expect(previewPicture(draft, { ...page, readable: false, imageUrl: null })).toEqual(unreadable);
+    expect(previewPicture(draft, null)).toEqual(unreadable);
+  });
+
+  it('is nothing on a draft with no link', () => {
+    expect(previewPicture({ ...draft, linkUrl: null, shareUrl: null }, undefined)).toEqual({
+      kind: 'none',
+      readable: true,
+    });
   });
 });
 

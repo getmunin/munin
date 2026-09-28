@@ -474,11 +474,13 @@
         "socialPreviewSend": "Send",
         "socialPreviewShare": "Share",
         "socialPreviewCardImage": "The page's own share image",
-        "socialPreviewCardTitle": "The page's own title",
         "socialPreviewAuthorUnknown": "Your account",
         "socialPreviewNoteMedia": "The attached file is the post itself, so the link gets no card of its own.",
-        "socialPreviewNoteLink": "Picture and title are read off the linked page when the post goes out — Facebook shows them as a card, LinkedIn as the post's own picture.",
-        "socialPreviewNoteLayout": "A sketch of the layout — the network decides the final spacing, and folds long posts behind a “see more”."
+        "socialPreviewReadingPage": "Reading the linked page…",
+        "socialPreviewNotePageImage": "No file attached, so the picture the linked page advertises goes out as the post's own.",
+        "socialPreviewNoteNoPageImage": "The linked page advertises no picture, so the post goes out without one.",
+        "socialPreviewNoteFacebookCard": "The linked page advertises no picture, so Facebook builds its own card from the link.",
+        "socialPreviewNoteUnreadable": "The linked page couldn't be read just now. Munin tries again when the post goes out, and posts it without a picture if it still can't."
       },
       "relative": {
         "justNow": "just now",

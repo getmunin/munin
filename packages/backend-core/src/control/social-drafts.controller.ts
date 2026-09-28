@@ -16,7 +16,11 @@ import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { SOCIAL_LINK_PLACEMENTS } from '../modules/social/social-platform.ts';
-import { SocialService, type SocialDraftDto } from '../modules/social/social.service.ts';
+import {
+  SocialService,
+  type SocialDraftDto,
+  type SocialLinkPreviewDto,
+} from '../modules/social/social.service.ts';
 
 class ReviseBody extends createZodDto(z.object({ body: z.string().min(1) })) {}
 
@@ -44,6 +48,11 @@ export class SocialDraftsController {
   @Get(':id')
   get(@Param('id') id: string): Promise<SocialDraftDto> {
     return this.social.getDraft(id);
+  }
+
+  @Get(':id/link-preview')
+  linkPreview(@Param('id') id: string): Promise<SocialLinkPreviewDto> {
+    return this.social.getDraftLinkPreview(id);
   }
 
   @Patch(':id')

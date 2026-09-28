@@ -37,3 +37,11 @@ export function resolveReviewFirstRun(
   if (lastDecisionAt !== null && withinDecidedWindow(lastDecisionAt, now)) return null;
   return true;
 }
+
+export type ReviewDecisionOutcome = 'approved' | 'dismissed' | 'scheduled';
+
+export function nextAfterDecision(ids: readonly string[], decidedId: string): string | null {
+  const index = ids.indexOf(decidedId);
+  if (index < 0) return null;
+  return ids[index + 1] ?? ids[index - 1] ?? null;
+}

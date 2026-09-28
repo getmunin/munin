@@ -58,7 +58,7 @@ interface SocialPlatformAppDto {
   clientSecretSetAt: string | null;
 }
 
-const PLATFORM_NAMES: Record<string, string> = { linkedin: 'LinkedIn', facebook: 'Facebook' };
+export const PLATFORM_NAMES: Record<string, string> = { linkedin: 'LinkedIn', facebook: 'Facebook' };
 
 const PLATFORM_DEVELOPER_PORTALS: Record<string, string> = {
   linkedin: 'https://www.linkedin.com/developers/apps',

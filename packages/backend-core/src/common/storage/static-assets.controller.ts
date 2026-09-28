@@ -13,6 +13,7 @@ import { LocalFsStorage, type AssetStorage } from '@getmunin/core';
 import type { Request, Response } from 'express';
 
 import { PublicController } from '../auth/auth.guard.ts';
+import { readBody } from './read-body.ts';
 import { STORAGE } from './storage.token.ts';
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
@@ -70,7 +71,11 @@ export class StaticAssetsController {
     if (!this.storage.verifyUploadSignature(key, expMs, sizeBytes, sig)) {
       throw new ForbiddenException('invalid or expired upload signature');
     }
-    const body = await readBody(req, MAX_UPLOAD_BYTES);
+    const body = await readBody(
+      req,
+      MAX_UPLOAD_BYTES,
+      () => new BadRequestException(`upload exceeds ${MAX_UPLOAD_BYTES} bytes`),
+    );
     if (body.length !== sizeBytes) {
       throw new BadRequestException(
         `upload size mismatch: got ${body.length} bytes, signature was for ${sizeBytes}`,
@@ -79,22 +84,4 @@ export class StaticAssetsController {
     await this.storage.writeDirect(key, body);
     res.status(204).end();
   }
-}
-
-async function readBody(req: Request, maxBytes: number): Promise<Buffer> {
-  return new Promise((resolveBody, rejectBody) => {
-    const chunks: Buffer[] = [];
-    let total = 0;
-    req.on('data', (chunk: Buffer) => {
-      total += chunk.length;
-      if (total > maxBytes) {
-        req.destroy();
-        rejectBody(new BadRequestException(`upload exceeds ${maxBytes} bytes`));
-        return;
-      }
-      chunks.push(chunk);
-    });
-    req.on('end', () => resolveBody(Buffer.concat(chunks)));
-    req.on('error', rejectBody);
-  });
 }

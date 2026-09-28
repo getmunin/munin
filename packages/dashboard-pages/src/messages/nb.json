@@ -1717,7 +1717,22 @@
       "errors": {
         "save": "Kunne ikke lagre organisasjonen."
       },
-      "orgSectionMeta": "Synlig for alle"
+      "orgSectionMeta": "Synlig for alle",
+      "logoSectionTitle": "Logo",
+      "logoSectionMeta": "Synlig for alle",
+      "logoLabel": "Organisasjonens logo",
+      "logoHint": "PNG, JPEG, WebP eller SVG, inntil 2 MB. Et kvadratisk bilde fungerer best.",
+      "logoEmpty": "Ingen logo er lastet opp ennå.",
+      "logoAlt": "Organisasjonens nåværende logo",
+      "logoUpload": "Last opp logo",
+      "logoReplace": "Bytt logo",
+      "logoUploading": "Laster opp…",
+      "logoRemove": "Fjern",
+      "logoRemoving": "Fjerner…",
+      "logoErrors": {
+        "upload": "Kunne ikke laste opp logoen.",
+        "remove": "Kunne ikke fjerne logoen."
+      }
     },
     "privacy": {
       "eyebrow": "Arbeidsområde · Personvern",
@@ -2297,6 +2312,8 @@
     "kb_version_conflict": "Noen endret teksten mens du hadde den åpen, så ingenting ble lagret. Åpne den på nytt for å se gjeldende versjon og ta stilling til den.",
     "member_forbidden": "Dette er forbeholdt eiere og administratorer. Spør en eier hvis du trenger tilgang.",
     "org_access_denied": "Denne fanen var åpen i en organisasjon du ikke lenger har tilgang til. Laster inn på nytt med organisasjonen du er i nå.",
+    "org_logo_too_large": "Logoen er for stor. Maksstørrelsen er 2 MB.",
+    "org_logo_unsupported_type": "Filtypen støttes ikke. Last opp et PNG-, JPEG-, WebP- eller SVG-bilde.",
     "outreach_undeliverable": "E-post kommer ikke fram til den adressen. Rett opp e-postadressen til kontakten, eller nullstill adressen når den virker igjen.",
     "social_account_taken": "Den kontoen er alt koblet til av en annen i organisasjonen.",
     "social_app_missing": "Sett opp organisasjonens app før du kobler til en konto.",

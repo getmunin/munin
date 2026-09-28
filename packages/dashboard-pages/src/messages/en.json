@@ -1717,7 +1717,22 @@
       "errors": {
         "save": "Could not save organization."
       },
-      "orgSectionMeta": "Visible to everyone"
+      "orgSectionMeta": "Visible to everyone",
+      "logoSectionTitle": "Logo",
+      "logoSectionMeta": "Visible to everyone",
+      "logoLabel": "Organization logo",
+      "logoHint": "PNG, JPEG, WebP or SVG, up to 2 MB. A square image works best.",
+      "logoEmpty": "No logo uploaded yet.",
+      "logoAlt": "Current organization logo",
+      "logoUpload": "Upload logo",
+      "logoReplace": "Replace logo",
+      "logoUploading": "Uploading…",
+      "logoRemove": "Remove",
+      "logoRemoving": "Removing…",
+      "logoErrors": {
+        "upload": "Could not upload the logo.",
+        "remove": "Could not remove the logo."
+      }
     },
     "privacy": {
       "eyebrow": "Workspace · Privacy",
@@ -2297,6 +2312,8 @@
     "kb_version_conflict": "Someone changed this text while you had it open, so nothing was saved. Reopen it to see the current version and decide on that.",
     "member_forbidden": "That's limited to owners and admins. Ask an owner if you need access.",
     "org_access_denied": "This tab was open in an organization you no longer have access to. Reloading with your current organization.",
+    "org_logo_too_large": "This logo is too large. The maximum size is 2 MB.",
+    "org_logo_unsupported_type": "This file type isn't supported. Upload a PNG, JPEG, WebP or SVG image.",
     "outreach_undeliverable": "Mail can't reach that address. Correct the contact's email, or clear the address once it works again.",
     "social_account_taken": "That account is already connected by someone else in your organisation.",
     "social_app_missing": "Set up your organisation's app before connecting an account.",

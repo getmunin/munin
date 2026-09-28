@@ -1,0 +1,188 @@
+{
+  "version": "0.1.20240801",
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "0.7097 sec.",
+  "cost": 0.01236,
+  "tasks_count": 1,
+  "tasks_error": 0,
+  "tasks": [
+    {
+      "id": "08221822-1535-0400-0000-8fccf5eb0f23",
+      "status_code": 20000,
+      "status_message": "Ok.",
+      "time": "0.6455 sec.",
+      "cost": 0.01236,
+      "result_count": 1,
+      "path": [
+        "v3",
+        "dataforseo_labs"
+      ],
+      "data": {
+        "api": "dataforseo_labs",
+        "function": "keyword_ideas",
+        "se_type": "google",
+        "keywords": [
+          "kundeservice ai"
+        ],
+        "location_code": 2578,
+        "language_code": "nb",
+        "limit": 3
+      },
+      "result": [
+        {
+          "se_type": "google",
+          "seed_keywords": [
+            "kundeservice ai"
+          ],
+          "location_code": 2578,
+          "language_code": "nb",
+          "total_count": 1840,
+          "items_count": 3,
+          "offset": 0,
+          "offset_token": "eyJDdXJyZW50T2Zmc2V0IjozLC…(truncated)",
+          "items": [
+            {
+              "se_type": "google",
+              "keyword": "ai kundeservice",
+              "location_code": 2578,
+              "language_code": "nb",
+              "keyword_info": {
+                "se_type": "google",
+                "last_updated_time": "2024-08-11 13:24:34 +00:00",
+                "competition": 0.42,
+                "competition_level": "MEDIUM",
+                "cpc": 5.4,
+                "search_volume": 880,
+                "low_top_of_page_bid": 3.08,
+                "high_top_of_page_bid": 10.5,
+                "monthly_searches": [
+                  {
+                    "year": 2024,
+                    "month": 7,
+                    "search_volume": 450000
+                  },
+                  {
+                    "year": 2024,
+                    "month": 6,
+                    "search_volume": 368000
+                  }
+                ],
+                "search_volume_trend": {
+                  "monthly": 22,
+                  "quarterly": 22,
+                  "yearly": 0
+                }
+              },
+              "keyword_properties": {
+                "se_type": "google",
+                "core_keyword": null,
+                "keyword_difficulty": 31,
+                "detected_language": "nb",
+                "is_another_language": false
+              },
+              "search_intent_info": {
+                "se_type": "google",
+                "main_intent": "commercial",
+                "foreign_intent": null,
+                "last_updated_time": "2026-09-01 00:00:00 +00:00"
+              }
+            },
+            {
+              "se_type": "google",
+              "keyword": "kundeservice chatbot",
+              "location_code": 2578,
+              "language_code": "nb",
+              "keyword_info": {
+                "se_type": "google",
+                "last_updated_time": "2024-08-11 13:24:34 +00:00",
+                "competition": 0.66,
+                "competition_level": "HIGH",
+                "cpc": 7.1,
+                "search_volume": 260,
+                "low_top_of_page_bid": 3.08,
+                "high_top_of_page_bid": 10.5,
+                "monthly_searches": [
+                  {
+                    "year": 2024,
+                    "month": 7,
+                    "search_volume": 450000
+                  },
+                  {
+                    "year": 2024,
+                    "month": 6,
+                    "search_volume": 368000
+                  }
+                ],
+                "search_volume_trend": {
+                  "monthly": 22,
+                  "quarterly": 22,
+                  "yearly": 0
+                }
+              },
+              "keyword_properties": {
+                "se_type": "google",
+                "core_keyword": null,
+                "keyword_difficulty": 24,
+                "detected_language": "nb",
+                "is_another_language": false
+              },
+              "search_intent_info": {
+                "se_type": "google",
+                "main_intent": "commercial",
+                "foreign_intent": null,
+                "last_updated_time": "2026-09-01 00:00:00 +00:00"
+              }
+            },
+            {
+              "se_type": "google",
+              "keyword": "hva er ai kundeservice",
+              "location_code": 2578,
+              "language_code": "nb",
+              "keyword_info": {
+                "se_type": "google",
+                "last_updated_time": "2024-08-11 13:24:34 +00:00",
+                "competition": null,
+                "competition_level": null,
+                "cpc": null,
+                "search_volume": 50,
+                "low_top_of_page_bid": 3.08,
+                "high_top_of_page_bid": 10.5,
+                "monthly_searches": [
+                  {
+                    "year": 2024,
+                    "month": 7,
+                    "search_volume": 450000
+                  },
+                  {
+                    "year": 2024,
+                    "month": 6,
+                    "search_volume": 368000
+                  }
+                ],
+                "search_volume_trend": {
+                  "monthly": 22,
+                  "quarterly": 22,
+                  "yearly": 0
+                }
+              },
+              "keyword_properties": {
+                "se_type": "google",
+                "core_keyword": null,
+                "keyword_difficulty": null,
+                "detected_language": "nb",
+                "is_another_language": false
+              },
+              "search_intent_info": {
+                "se_type": "google",
+                "main_intent": "informational",
+                "foreign_intent": null,
+                "last_updated_time": "2026-09-01 00:00:00 +00:00"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

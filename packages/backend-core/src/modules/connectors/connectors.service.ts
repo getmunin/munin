@@ -21,6 +21,7 @@ import {
   audienceForDomain,
   supportsToolCatalog,
   type ConnectorAdapter,
+  type ConnectorCapabilityFilter,
   type ConnectorConnectionContext,
   type ConnectorAudience,
   type ConnectorDomain,
@@ -510,8 +511,13 @@ export class ConnectorsService {
     }
   }
 
-  async resolveScope(domain: ConnectorDomain, connectionId?: string): Promise<ConnectionScope> {
+  async resolveScope(
+    domain: ConnectorDomain,
+    connectionId?: string,
+    capability?: ConnectorCapabilityFilter,
+  ): Promise<ConnectionScope> {
     const ctx = getCurrentContext();
+    const label = capability ? `${domain} (${capability.label})` : domain;
     if (connectionId) {
       const row = await this.requireConnection(connectionId);
       if (row.domain !== domain) {
@@ -519,11 +525,27 @@ export class ConnectorsService {
           `connectors_invalid: connection ${row.name} is a ${row.domain} connection, not ${domain}`,
         );
       }
+      const adapter = this.requireAdapter(row.vendor);
+      if (capability && !capability.accept(adapter)) {
+        throw new BadRequestException(
+          `connectors_invalid: connection ${row.name} is a ${adapter.displayName} connection, which does not provide ${capability.label}`,
+        );
+      }
       if (!row.active) {
         throw new BadRequestException(`connectors_invalid: connection ${row.name} is not active`);
       }
-      return { connection: row, adapter: this.requireAdapter(row.vendor) };
+      return { connection: row, adapter };
     }
+    const vendors = capability
+      ? this.registry
+          .listByDomain(domain)
+          .filter((a) => capability.accept(a))
+          .map((a) => a.vendor)
+      : null;
+    if (vendors && vendors.length === 0) {
+      throw new BadRequestException(`connectors_invalid: no active ${label} connection configured`);
+    }
+    const vendorFilter = vendors ? inArray(schema.connectorConnections.vendor, vendors) : undefined;
     const rows = await ctx.db
       .select()
       .from(schema.connectorConnections)
@@ -531,6 +553,7 @@ export class ConnectorsService {
         and(
           eq(schema.connectorConnections.domain, domain),
           eq(schema.connectorConnections.active, true),
+          vendorFilter,
         ),
       );
     if (rows.length === 0) {
@@ -540,21 +563,21 @@ export class ConnectorsService {
           credentialState: schema.connectorConnections.credentialState,
         })
         .from(schema.connectorConnections)
-        .where(eq(schema.connectorConnections.domain, domain));
+        .where(and(eq(schema.connectorConnections.domain, domain), vendorFilter));
       if (unusable.length > 0) {
         const detail = unusable.map((r) => `${r.name} (${r.credentialState})`).join(', ');
         throw new BadRequestException(
-          `connectors_invalid: no active ${domain} connection — ${detail}. Finish or renew the connection before using these tools.`,
+          `connectors_invalid: no active ${label} connection — ${detail}. Finish or renew the connection before using these tools.`,
         );
       }
       throw new BadRequestException(
-        `connectors_invalid: no active ${domain} connection configured`,
+        `connectors_invalid: no active ${label} connection configured`,
       );
     }
     if (rows.length > 1) {
       const names = rows.map((r) => `${r.name} (${r.id})`).join(', ');
       throw new BadRequestException(
-        `connectors_invalid: multiple active ${domain} connections — pass connectionId. Available: ${names}`,
+        `connectors_invalid: multiple active ${label} connections — pass connectionId. Available: ${names}`,
       );
     }
     return { connection: rows[0]!, adapter: this.requireAdapter(rows[0]!.vendor) };

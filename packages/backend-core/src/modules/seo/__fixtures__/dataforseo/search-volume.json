@@ -1,0 +1,101 @@
+{
+  "version": "0.1.20231117",
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "1.9903 sec.",
+  "cost": 0.09,
+  "tasks_count": 1,
+  "tasks_error": 0,
+  "tasks": [
+    {
+      "id": "11301935-1535-0367-0000-b44e4432f0be",
+      "status_code": 20000,
+      "status_message": "Ok.",
+      "time": "1.8689 sec.",
+      "cost": 0.09,
+      "result_count": 3,
+      "path": [
+        "v3",
+        "keywords_data"
+      ],
+      "data": {
+        "api": "keywords_data",
+        "function": "search_volume",
+        "se": "google_ads",
+        "location_code": 2578,
+        "keywords": [
+          "kundeservice ai",
+          "chatbot nettbutikk",
+          "telefonsvarer ai"
+        ],
+        "date_from": "2025-09-01"
+      },
+      "result": [
+        {
+          "keyword": "kundeservice ai",
+          "spell": null,
+          "location_code": 2578,
+          "language_code": null,
+          "search_partners": false,
+          "competition": "MEDIUM",
+          "competition_index": 48,
+          "search_volume": 390,
+          "low_top_of_page_bid": 1.84,
+          "high_top_of_page_bid": 8.57,
+          "cpc": 6.12,
+          "monthly_searches": [
+            {
+              "year": 2026,
+              "month": 8,
+              "search_volume": 390
+            },
+            {
+              "year": 2026,
+              "month": 7,
+              "search_volume": 350
+            }
+          ]
+        },
+        {
+          "keyword": "chatbot nettbutikk",
+          "spell": null,
+          "location_code": 2578,
+          "language_code": null,
+          "search_partners": false,
+          "competition": "HIGH",
+          "competition_index": 81,
+          "search_volume": 720,
+          "low_top_of_page_bid": 1.29,
+          "high_top_of_page_bid": 6.02,
+          "cpc": 4.3,
+          "monthly_searches": [
+            {
+              "year": 2026,
+              "month": 8,
+              "search_volume": 720
+            },
+            {
+              "year": 2026,
+              "month": 7,
+              "search_volume": 680
+            }
+          ]
+        },
+        {
+          "keyword": "telefonsvarer ai",
+          "spell": null,
+          "location_code": 2578,
+          "language_code": null,
+          "search_partners": false,
+          "competition": null,
+          "competition_index": null,
+          "search_volume": null,
+          "low_top_of_page_bid": null,
+          "high_top_of_page_bid": null,
+          "cpc": null,
+          "monthly_searches": null
+        }
+      ]
+    }
+  ]
+}

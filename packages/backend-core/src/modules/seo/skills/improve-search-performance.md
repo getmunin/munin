@@ -18,7 +18,7 @@ The connector is read-live: nothing from the search engine is stored in Munin, s
 - `seo_inspect_url` — one URL's index record: indexed or not, HTTP status at last crawl, when it was last crawled and first discovered.
 - `seo_submit_urls` — ask the engine to (re)crawl up to 500 URLs under the property.
 
-`connectionId` is only needed when the org has several active seo connections. `siteUrl` is only needed when the account has several verified properties — with one, it resolves itself.
+`connectionId` is only needed when the org has several active search-console connections. A DataForSEO keyword-research connection doesn't count: these tools never pick one, and the research tools never pick a console connection. `siteUrl` is only needed when the account has several verified properties — with one, it resolves itself.
 
 ## Two engines, one shape
 
@@ -54,6 +54,7 @@ Three properties of this data will mislead you if you treat it like Munin's own 
 
 ## Related
 
+- `skill://seo/research-keywords` — the market side: search volume for keywords the site doesn't rank for yet, and the keywords competitors win. Use it to decide what to write before this loop measures whether it worked.
 - `skill://analytics/track-website-traffic` — the post-click half, from Munin's own tracker: which pages were viewed, from which referrers, and what visitors searched for on the site.
 - `skill://connectors/connect-external-system` — how a connection is created and credentialed in the first place, including the OAuth redirect that Google Search Console needs.
 - `skill://cms/publish-entry` and `skill://kb/review-content` — where step 5 of the loop actually happens.

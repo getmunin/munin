@@ -211,22 +211,32 @@ const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
   });
 
   describe('connector-backed tools refuse cleanly when no connection is configured', () => {
-    const CONNECTOR_TOOLS: Array<[string, Record<string, unknown>]> = [
-      ['seo_list_properties', {}],
-      ['seo_list_queries', {}],
-      ['seo_list_pages', {}],
-      ['seo_inspect_url', { url: 'https://example.com/a' }],
-      ['seo_submit_urls', { urls: ['https://example.com/a'] }],
+    const CONNECTOR_TOOLS: Array<[string, Record<string, unknown>, string]> = [
+      ['seo_list_properties', {}, 'search console'],
+      ['seo_list_queries', {}, 'search console'],
+      ['seo_list_pages', {}, 'search console'],
+      ['seo_inspect_url', { url: 'https://example.com/a' }, 'search console'],
+      ['seo_submit_urls', { urls: ['https://example.com/a'] }, 'search console'],
+      ['seo_get_provider_balance', {}, 'keyword research'],
+      ['seo_get_keyword_volume', { keywords: ['kundeservice'] }, 'keyword research'],
+      ['seo_list_keyword_ideas', { seeds: ['kundeservice'] }, 'keyword research'],
+      ['seo_list_ranked_keywords', { domain: 'example.com' }, 'keyword research'],
+      [
+        'seo_list_keyword_gaps',
+        { domain: 'example.com', competitors: ['competitor.example'] },
+        'keyword research',
+      ],
+      ['seo_get_serp_snapshot', { keyword: 'kundeservice' }, 'keyword research'],
     ];
 
-    for (const [name, args] of CONNECTOR_TOOLS) {
+    for (const [name, args, capability] of CONNECTOR_TOOLS) {
       it(`${name} reports a client error rather than a server fault`, async () => {
         const result = await admin.callTool(name, args);
         const dumped = JSON.stringify(result);
         expect(result.isError, `${name} should have errored. Raw: ${dumped.slice(0, 400)}`).toBe(
           true,
         );
-        expect(dumped).toContain('no active seo connection configured');
+        expect(dumped).toContain(`no active seo (${capability}) connection configured`);
         expect(dumped).not.toMatch(/Internal server error|-32602|undefined/);
       });
     }

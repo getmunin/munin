@@ -19,6 +19,11 @@ export interface ConnectorAdapter {
   testConnection(ctx: ConnectorConnectionContext): Promise<ConnectorTestResult>;
 }
 
+export interface ConnectorCapabilityFilter {
+  label: string;
+  accept(adapter: ConnectorAdapter): boolean;
+}
+
 export type ConnectorDomain = 'commerce' | 'bookings' | 'mcp' | 'seo';
 
 export type ConnectorAudience = 'customer' | 'team' | 'both';

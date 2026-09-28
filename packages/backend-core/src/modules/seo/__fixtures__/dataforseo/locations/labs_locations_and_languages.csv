@@ -1,0 +1,57 @@
+location_code,location_name,country_iso_code,language_name,language_code
+2008,Albania,AL,Albanian,sq
+2031,Azerbaijan,AZ,Azeri,az
+2040,Austria,AT,German,de
+2051,Armenia,AM,Armenian,hy
+2056,Belgium,BE,French,fr
+2056,Belgium,BE,Dutch,nl
+2056,Belgium,BE,German,de
+2070,Bosnia and Herzegovina,BA,Bosnian,bs
+2100,Bulgaria,BG,Bulgarian,bg
+2124,Canada,CA,English,en
+2124,Canada,CA,French,fr
+2188,Costa Rica,CR,Spanish,es
+2191,Croatia,HR,Croatian,hr
+2196,Cyprus,CY,Greek,el
+2196,Cyprus,CY,English,en
+2203,Czechia,CZ,Czech,cs
+2208,Denmark,DK,Danish,da
+2222,El Salvador,SV,Spanish,es
+2233,Estonia,EE,Estonian,et
+2246,Finland,FI,Finnish,fi
+2250,France,FR,French,fr
+2276,Germany,DE,German,de
+2300,Greece,GR,Greek,el
+2300,Greece,GR,English,en
+2320,Guatemala,GT,Spanish,es
+2348,Hungary,HU,Hungarian,hu
+2372,Ireland,IE,English,en
+2380,Italy,IT,Italian,it
+2428,Latvia,LV,Latvian,lv
+2440,Lithuania,LT,Lithuanian,lt
+2470,Malta,MT,English,en
+2484,Mexico,MX,Spanish,es
+2492,Monaco,MC,French,fr
+2498,Moldova,MD,Romanian,ro
+2528,Netherlands,NL,Dutch,nl
+2558,Nicaragua,NI,Spanish,es
+2578,Norway,NO,Norwegian (Bokmål),nb
+2591,Panama,PA,Spanish,es
+2616,Poland,PL,Polish,pl
+2620,Portugal,PT,Portuguese,pt
+2642,Romania,RO,Romanian,ro
+2688,Serbia,RS,Serbian,sr
+2703,Slovakia,SK,Slovak,sk
+2705,Slovenia,SI,Slovenian,sl
+2724,Spain,ES,Spanish,es
+2752,Sweden,SE,Swedish,sv
+2756,Switzerland,CH,German,de
+2756,Switzerland,CH,French,fr
+2756,Switzerland,CH,Italian,it
+2792,Turkiye,TR,Turkish,tr
+2804,Ukraine,UA,Ukrainian,uk
+2804,Ukraine,UA,Russian,ru
+2807,North Macedonia,MK,Macedonian,mk
+2826,United Kingdom,GB,English,en
+2840,United States,US,English,en
+2840,United States,US,Spanish,es

@@ -11,7 +11,7 @@ import {
 } from '../connectors/connector.ts';
 import { ConnectorVendorError, type ConnectorFetch, REQUEST_TIMEOUT_MS } from '../connectors/http.ts';
 import type {
-  SeoAdapter,
+  SeoConsoleAdapter,
   SeoPageStatsResult,
   SeoProperty,
   SeoQueryStatsResult,
@@ -65,9 +65,10 @@ interface TokenResponse {
   error_description?: string | null;
 }
 
-export class GoogleSearchConsoleAdapter implements SeoAdapter {
+export class GoogleSearchConsoleAdapter implements SeoConsoleAdapter {
   readonly vendor = 'google_search_console';
   readonly domain = 'seo' as const;
+  readonly seoRole = 'console' as const;
   readonly displayName = 'Google Search Console';
   readonly configInput = GoogleSearchConsoleConfigInput;
   readonly configFields: ConnectorConfigFieldInfo[] = [

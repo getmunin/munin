@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { applyInboundRedaction, REDACTION_OFF } from './inbound-redaction.ts';
-import { parseRedactionPolicy, REDACTION_SETTINGS_KEY } from './redaction-policy.ts';
+import {
+  isRedactionConfigured,
+  parseRedactionPolicy,
+  REDACTION_SETTINGS_KEY,
+} from './redaction-policy.ts';
 
 const NO_SYNTHETIC = '01819012365';
 
@@ -117,5 +121,23 @@ describe('parseRedactionPolicy', () => {
 
   it('ignores a malformed settings value', () => {
     expect(parseRedactionPolicy({ [REDACTION_SETTINGS_KEY]: 'yes' })).toEqual(REDACTION_OFF);
+  });
+});
+
+describe('isRedactionConfigured', () => {
+  it('is false for an org that never saved a policy', () => {
+    expect(isRedactionConfigured({})).toBe(false);
+  });
+
+  it('counts an explicit off as a decision', () => {
+    expect(
+      isRedactionConfigured({
+        [REDACTION_SETTINGS_KEY]: { detectors: [], policy: 'off', minConfidence: 'high' },
+      }),
+    ).toBe(true);
+  });
+
+  it('does not count a malformed settings value as a decision', () => {
+    expect(isRedactionConfigured({ [REDACTION_SETTINGS_KEY]: 'yes' })).toBe(false);
   });
 });

@@ -10,12 +10,18 @@ import {
   type InboundRedactionResult,
   type InboundTextFields,
 } from './inbound-redaction.ts';
-import { parseRedactionPolicy, readRedactionPolicy, REDACTION_SETTINGS_KEY } from './redaction-policy.ts';
+import {
+  isRedactionConfigured,
+  parseRedactionPolicy,
+  readRedactionState,
+  REDACTION_SETTINGS_KEY,
+} from './redaction-policy.ts';
 
 export interface RedactionPolicyDto {
   detectors: NationalIdDetector[];
   policy: 'off' | 'mask' | 'remove';
   minConfidence: 'high' | 'medium';
+  configured: boolean;
   availableDetectors: readonly NationalIdDetector[];
 }
 
@@ -28,8 +34,8 @@ export class InboundRedactionService {
   async getPolicy(): Promise<RedactionPolicyDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    const policy = await readRedactionPolicy(ctx.db, actor.orgId);
-    return toDto(policy);
+    const { policy, configured } = await readRedactionState(ctx.db, actor.orgId);
+    return toDto(policy, configured);
   }
 
   async configure(input: {
@@ -60,7 +66,9 @@ export class InboundRedactionService {
       })
       .where(eq(schema.orgs.id, actor.orgId))
       .returning({ settings: schema.orgs.settings });
-    return toDto(parseRedactionPolicy(updated?.settings ?? {}));
+    await this.alerts.resolveAlert({ source: 'data_protection' });
+    const settings = updated?.settings ?? {};
+    return toDto(parseRedactionPolicy(settings), isRedactionConfigured(settings));
   }
 
   async apply<T extends InboundTextFields>(
@@ -68,22 +76,21 @@ export class InboundRedactionService {
     orgId: string,
     fields: T,
   ): Promise<InboundRedactionResult<T>> {
-    const policy = await readRedactionPolicy(db, orgId);
+    const { policy, configured } = await readRedactionState(db, orgId);
     const result = applyInboundRedaction(fields, policy);
     if (result.detected.length > 0) {
-      await this.raise(result.detected, policy.policy !== 'off' && result.redacted);
+      if (configured) await this.alerts.resolveAlert({ source: 'data_protection' });
+      else await this.raise(result.detected);
     }
     return result;
   }
 
-  private async raise(detected: DetectedNationalId[], redacted: boolean): Promise<void> {
+  private async raise(detected: DetectedNationalId[]): Promise<void> {
     await this.alerts.openAlert({
       source: 'data_protection',
       severity: 'warning',
-      title: redacted
-        ? 'National identity numbers are arriving and being redacted'
-        : 'National identity numbers are arriving in your inbox',
-      detail: describe(detected, redacted),
+      title: 'National identity numbers are arriving in your inbox',
+      detail: describe(detected),
       metadata: { detectors: detected },
       ctaHref: '/dashboard/settings/privacy',
       ctaLabelKey: 'alerts.cta.reviewRedaction',
@@ -99,11 +106,9 @@ export function stampDetections(
   return { ...metadata, [DETECTED_NATIONAL_IDS_KEY]: detected };
 }
 
-function describe(detected: readonly DetectedNationalId[], redacted: boolean): string {
+function describe(detected: readonly DetectedNationalId[]): string {
   const kinds = [...new Set(detected.map((d) => LABEL[d.detector]))].join(', ');
-  return redacted
-    ? `Inbound messages contain ${kinds}. They are being redacted before storage.`
-    : `Inbound messages contain ${kinds}, and are being stored in full. Review your redaction policy.`;
+  return `Inbound messages contain ${kinds}, and are being stored in full. Choose whether to redact them or keep them.`;
 }
 
 const LABEL: Record<DetectedNationalId['detector'], string> = {
@@ -112,15 +117,19 @@ const LABEL: Record<DetectedNationalId['detector'], string> = {
   dk_cpr: 'Danish CPR numbers',
 };
 
-function toDto(policy: {
-  detectors: readonly NationalIdDetector[];
-  policy: 'off' | 'mask' | 'remove';
-  minConfidence: 'high' | 'medium';
-}): RedactionPolicyDto {
+function toDto(
+  policy: {
+    detectors: readonly NationalIdDetector[];
+    policy: 'off' | 'mask' | 'remove';
+    minConfidence: 'high' | 'medium';
+  },
+  configured: boolean,
+): RedactionPolicyDto {
   return {
     detectors: [...policy.detectors],
     policy: policy.policy,
     minConfidence: policy.minConfidence,
+    configured,
     availableDetectors: NATIONAL_ID_DETECTORS,
   };
 }

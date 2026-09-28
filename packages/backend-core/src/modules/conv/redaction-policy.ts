@@ -24,14 +24,29 @@ export function parseRedactionPolicy(settings: Record<string, unknown>): Inbound
   return { detectors: [...new Set(detectors)], policy, minConfidence };
 }
 
-export async function readRedactionPolicy(
-  db: Db | Tx,
-  orgId: string,
-): Promise<InboundRedactionPolicy> {
+export function isRedactionConfigured(settings: Record<string, unknown>): boolean {
+  const raw = settings[REDACTION_SETTINGS_KEY];
+  return typeof raw === 'object' && raw !== null;
+}
+
+export interface RedactionState {
+  policy: InboundRedactionPolicy;
+  configured: boolean;
+}
+
+export async function readRedactionState(db: Db | Tx, orgId: string): Promise<RedactionState> {
   const rows = await db
     .select({ settings: schema.orgs.settings })
     .from(schema.orgs)
     .where(eq(schema.orgs.id, orgId))
     .limit(1);
-  return parseRedactionPolicy(rows[0]?.settings ?? {});
+  const settings = rows[0]?.settings ?? {};
+  return { policy: parseRedactionPolicy(settings), configured: isRedactionConfigured(settings) };
+}
+
+export async function readRedactionPolicy(
+  db: Db | Tx,
+  orgId: string,
+): Promise<InboundRedactionPolicy> {
+  return (await readRedactionState(db, orgId)).policy;
 }

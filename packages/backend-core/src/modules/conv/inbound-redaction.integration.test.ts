@@ -7,6 +7,7 @@ import { sql, eq, and, desc } from 'drizzle-orm';
 import { AppModule } from '../../app.module.ts';
 import { EmailAdapter, parseMessage } from './email/email-adapter.ts';
 import { RedactBackfillService } from './redact-backfill.service.ts';
+import { InboundRedactionService } from './inbound-redaction.service.ts';
 import { ActorIdentity, withContext } from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
 import { REDACTION_SETTINGS_KEY } from './redaction-policy.ts';
@@ -24,6 +25,8 @@ const NO_SYNTHETIC = '01819012365';
   let orgId: string;
   let adapter: EmailAdapter;
   let backfill: RedactBackfillService;
+  let redaction: InboundRedactionService;
+  let ownerId: string;
   let channel: typeof schema.convChannels.$inferSelect;
 
   beforeAll(async () => {
@@ -43,6 +46,13 @@ const NO_SYNTHETIC = '01819012365';
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     const [org] = await db.insert(schema.orgs).values({ name: 'Redaction IT Org' }).returning();
     orgId = org!.id;
+
+    const [owner] = await db
+      .insert(schema.users)
+      .values({ name: 'Ola Nordmann', email: `owner-${randomUUID()}@example.test` })
+      .returning();
+    ownerId = owner!.id;
+    await db.insert(schema.orgMembers).values({ orgId, userId: ownerId, role: 'owner' });
 
     const [inserted] = await db.insert(schema.convChannels).values({
       orgId,
@@ -69,6 +79,7 @@ const NO_SYNTHETIC = '01819012365';
     await app.init();
     adapter = app.get(EmailAdapter);
     backfill = app.get(RedactBackfillService);
+    redaction = app.get(InboundRedactionService);
   });
 
   afterAll(async () => {
@@ -76,6 +87,7 @@ const NO_SYNTHETIC = '01819012365';
     if (db) {
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
       await db.delete(schema.orgs).where(eq(schema.orgs.id, orgId));
+      await db.delete(schema.users).where(eq(schema.users.id, ownerId));
     }
   });
 
@@ -93,6 +105,41 @@ const NO_SYNTHETIC = '01819012365';
   function runBackfill(limit?: number) {
     const actor = new ActorIdentity('system', 'redaction-backfill-test', orgId, ['*'], ['admin']);
     return withContext({ db, actor, correlationId: randomUUID() }, () => backfill.run({ limit }));
+  }
+
+  function asAdmin<T>(fn: () => Promise<T>): Promise<T> {
+    const actor = new ActorIdentity('system', 'redaction-policy-test', orgId, ['*'], ['admin']);
+    return withContext({ db, actor, correlationId: randomUUID() }, fn);
+  }
+
+  async function deliverFnr(): Promise<void> {
+    await deliver(
+      rfc822({
+        from: 'Kari Nordmann <kari@kunde.no>',
+        subject: 'Søknad',
+        messageId: `redaction-${randomUUID()}@kunde.no`,
+        body: `Mitt fødselsnummer er ${NO_SYNTHETIC}.`,
+      }),
+    );
+  }
+
+  async function clearAlerts(): Promise<void> {
+    await db.delete(schema.alertNotifications).where(eq(schema.alertNotifications.orgId, orgId));
+    await db.delete(schema.orgAlerts).where(eq(schema.orgAlerts.orgId, orgId));
+  }
+
+  async function dataProtectionAlerts() {
+    return await db
+      .select()
+      .from(schema.orgAlerts)
+      .where(and(eq(schema.orgAlerts.orgId, orgId), eq(schema.orgAlerts.source, 'data_protection')));
+  }
+
+  async function alertEmails() {
+    return await db
+      .select()
+      .from(schema.alertNotifications)
+      .where(eq(schema.alertNotifications.orgId, orgId));
   }
 
   async function newestMessage(): Promise<typeof schema.convMessages.$inferSelect> {
@@ -223,6 +270,66 @@ const NO_SYNTHETIC = '01819012365';
     await runBackfill();
     const second = await runBackfill();
     expect(second.messagesRewritten).toBe(0);
+  });
+
+  it('asks an org that has not chosen a policy once, however many numbers arrive', async () => {
+    await setPolicy(null);
+    await clearAlerts();
+    await deliverFnr();
+    await deliverFnr();
+
+    const alerts = await dataProtectionAlerts();
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]!.resolvedAt).toBeNull();
+    expect(alerts[0]!.occurrenceCount).toBe(2);
+    expect(await alertEmails()).toHaveLength(1);
+  });
+
+  it('stays quiet for an org that chose to keep the numbers', async () => {
+    await setPolicy({ detectors: [], policy: 'off', minConfidence: 'high' });
+    await clearAlerts();
+    await deliverFnr();
+
+    expect((await newestMessage()).body).toContain(NO_SYNTHETIC);
+    expect(await dataProtectionAlerts()).toHaveLength(0);
+    expect(await alertEmails()).toHaveLength(0);
+  });
+
+  it('stays quiet while the numbers are being redacted', async () => {
+    await setPolicy({ detectors: ['no_fnr'], policy: 'remove', minConfidence: 'high' });
+    await clearAlerts();
+    await deliverFnr();
+
+    expect((await newestMessage()).body).not.toContain(NO_SYNTHETIC);
+    expect(await dataProtectionAlerts()).toHaveLength(0);
+    expect(await alertEmails()).toHaveLength(0);
+  });
+
+  it('resolves the alert when any policy is saved, off included', async () => {
+    await setPolicy(null);
+    await clearAlerts();
+    await deliverFnr();
+    expect((await asAdmin(() => redaction.getPolicy())).configured).toBe(false);
+
+    const saved = await asAdmin(() => redaction.configure({ detectors: [], policy: 'off' }));
+
+    expect(saved.configured).toBe(true);
+    const alerts = await dataProtectionAlerts();
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]!.resolvedAt).not.toBeNull();
+  });
+
+  it('resolves an alert left open from before a policy was chosen on the next arrival', async () => {
+    await setPolicy(null);
+    await clearAlerts();
+    await deliverFnr();
+    await setPolicy({ detectors: ['no_fnr'], policy: 'remove', minConfidence: 'high' });
+    await deliverFnr();
+
+    const alerts = await dataProtectionAlerts();
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]!.resolvedAt).not.toBeNull();
+    expect(await alertEmails()).toHaveLength(1);
   });
 });
 

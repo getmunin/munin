@@ -56,6 +56,9 @@ export const orgs = pgTable('orgs', {
   id: id('org'),
   name: text('name').notNull(),
   settings: jsonb('settings').$type<Record<string, unknown>>().notNull().default({}),
+  logoStorageKey: text('logo_storage_key'),
+  logoMime: text('logo_mime'),
+  logoUpdatedAt: timestamp('logo_updated_at', { withTimezone: true }),
   createdAt,
   updatedAt,
 });

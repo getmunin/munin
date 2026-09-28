@@ -700,6 +700,72 @@
         ]
       }
     },
+    "/v1/orgs/me/logo": {
+      "put": {
+        "operationId": "OrgsController_uploadLogo",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Orgs"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "OrgsController_removeLogo",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Orgs"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/public/orgs/{orgId}/logo": {
+      "get": {
+        "operationId": "OrgLogoPublicController_serve",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OrgLogoPublic"
+        ],
+        "security": []
+      }
+    },
     "/v1/skills": {
       "get": {
         "operationId": "SkillsController_list",

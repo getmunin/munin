@@ -4,6 +4,8 @@ import { EndUsersController } from './end-users.controller.ts';
 import { DelegatedTokenController } from './delegated-token.controller.ts';
 import { TokensController } from './tokens.controller.ts';
 import { OrgsController } from './orgs.controller.ts';
+import { OrgLogoPublicController } from './org-logo-public.controller.ts';
+import { OrgLogoService } from './org-logo.service.ts';
 import { SkillsController } from './skills.controller.ts';
 import { AssistantsController } from './assistants.controller.ts';
 import { AuditLogController } from './audit-log.controller.ts';
@@ -91,6 +93,7 @@ import { ReviewModule } from '../modules/review/review.module.ts';
     DelegatedTokenController,
     TokensController,
     OrgsController,
+    OrgLogoPublicController,
     SkillsController,
     AssistantsController,
     AuditLogController,
@@ -140,6 +143,6 @@ import { ReviewModule } from '../modules/review/review.module.ts';
     SlackController,
     ConnectorsController,
   ],
-  providers: [InvitationsService, SetupStateService],
+  providers: [InvitationsService, SetupStateService, OrgLogoService],
 })
 export class ControlModule {}

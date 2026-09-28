@@ -41,6 +41,7 @@ export interface GreetRequestedBusEvent {
 
 export interface DraftRequestedBusEvent {
   conversationId: string;
+  note?: string;
 }
 
 export interface AgentConfigChangedBusEvent {
@@ -189,7 +190,11 @@ function dispatchEvent(event: EventRow, handlers: RealtimeBusHandlers): void {
   if (type === 'conversation.draft_requested' && handlers.onDraftRequested) {
     const conversationId = payload['conversationId'];
     if (typeof conversationId !== 'string') return;
-    handlers.onDraftRequested({ conversationId });
+    const note = payload['note'];
+    handlers.onDraftRequested({
+      conversationId,
+      ...(typeof note === 'string' && note ? { note } : {}),
+    });
     return;
   }
 

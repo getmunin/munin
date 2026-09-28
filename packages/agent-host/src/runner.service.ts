@@ -495,7 +495,10 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
         },
         onDraftRequested: (event: DraftRequestedBusEvent) => {
           if (this.lockManager && !this.lockManager.holds(id)) return;
-          handlerRef.current?.requestDraft({ conversationId: event.conversationId });
+          handlerRef.current?.requestDraft({
+            conversationId: event.conversationId,
+            ...(event.note ? { note: event.note } : {}),
+          });
         },
         onCuratorJobPending: (event) => curatorWorker.onPending(event),
         onConnected: () => {

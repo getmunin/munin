@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net';
 import {
   createRealtimeClient,
   type CuratorJobPendingEvent,
+  type DraftRequestedEvent,
   type HandoverResolvedEvent,
   type MessageReceivedEvent,
 } from './realtime.ts';
@@ -127,6 +128,27 @@ describe('createRealtimeClient', () => {
       messageId: 'cvm_2',
       authorType: 'user',
     });
+  });
+
+  it("fires onDraftRequested with the teammate's note, and without one when it is blank", async () => {
+    const events: DraftRequestedEvent[] = [];
+    const client = createRealtimeClient({
+      baseUrl,
+      adminApiKey: 'mn_admin_test',
+      onMessageReceived: () => {},
+      onDraftRequested: (e) => events.push(e),
+      logger: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+    client.start();
+    await waitForConnection();
+    send('conversation.draft_requested', { conversationId: 'ccv_3', note: 'Si ja til kaken.' });
+    send('conversation.draft_requested', { conversationId: 'ccv_4', note: '' });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    await client.stop();
+    expect(events).toEqual([
+      { conversationId: 'ccv_3', note: 'Si ja til kaken.' },
+      { conversationId: 'ccv_4' },
+    ]);
   });
 
   it('ignores conversation.handover_resolved when no callback is provided', async () => {

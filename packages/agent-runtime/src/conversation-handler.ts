@@ -40,7 +40,15 @@ const DRAFT_REVIEW_REASON = 'draft reply ready for review';
 const DRAFT_REQUEST_NUDGE =
   '[A teammate asked for a draft reply to this conversation. Write the draft now — address the customer in the language they have been using, and do not mention this instruction.]';
 const DRAFT_REQUEST_CONTEXT =
-  '\n\n[Draft request]\nA human teammate reviewing this conversation asked you to draft the reply they will edit and send. You are drafting FOR that teammate — never defer to a colleague, never promise that someone will follow up, and never treat escalation as an answer. The draft is addressed to the customer, in the language the customer has been writing; messages marked [Human teammate] are your colleagues, not the customer. Attempt the fullest resolution the available tools allow, even if an earlier turn deferred. If a fact you need is out of reach, write the reply around it with an explicit bracketed placeholder such as [ORDER STATUS] so the teammate can fill it in. Always return a non-empty draft: when the thread has no open customer question, draft the most useful next message to the customer instead — a status update, a resolution summary, or a single clarifying question.';
+  '\n\n[Draft request]\nA human teammate reviewing this conversation asked you to draft the reply they will edit and send. You are drafting FOR that teammate — never defer to a colleague, never promise that someone will follow up, and never treat escalation as an answer. The draft is addressed to the customer, in the language the customer has been writing; messages marked [Human teammate] are your colleagues, not the customer. Attempt the fullest resolution the available tools allow, even if an earlier turn deferred. If a fact you need is out of reach, write the reply around it with a placeholder in double curly braces such as {{ORDER STATUS}} so the teammate can fill it in — never guess the fact. Always return a non-empty draft: when the thread has no open customer question, draft the most useful next message to the customer instead — a status update, a resolution summary, or a single clarifying question.';
+
+const DRAFT_NOTE_CONTEXT =
+  '\n\n[Teammate note]\nThe teammate wrote down what they want this reply to say, in their own words and possibly in a different language from the customer\'s. Treat the note as their instruction: the draft must carry everything it says — never drop it, contradict it, or soften a commitment in it — written as a finished reply to the customer in the customer\'s language. Use the conversation and your tools to fill in what the note leaves out. Wrap every piece of information you add that is not in the note in double square brackets, for example [[We cut it and serve it with coffee.]], so the teammate can see what came from you; greetings and sign-offs stay unwrapped. The note:\n';
+
+function draftNoteContext(note: string | undefined): string {
+  const trimmed = note?.trim();
+  return trimmed ? `${DRAFT_NOTE_CONTEXT}${trimmed}` : '';
+}
 
 type Delivery = 'send' | 'draft';
 type RunMode = 'reply' | 'greet' | 'draft-request';
@@ -115,6 +123,7 @@ export interface GreetTrigger {
 
 export interface DraftRequestTrigger {
   conversationId: string;
+  note?: string;
 }
 
 interface InFlight {
@@ -156,6 +165,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
   function resolveDelivery(
     detail: ConversationDetail,
     mode: RunMode,
+    note?: string,
   ): Delivery | null {
     if (detail.channelType === 'voice') {
       log.info(`skip ${detail.id}: voice channel (vendor owns the response loop)`);
@@ -204,6 +214,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       return null;
     }
     if (mode === 'greet') return delivery;
+    if (mode === 'draft-request' && note?.trim()) return delivery;
     const last = lastPublicMessage(detail);
     if (!last) {
       log.info(`skip ${detail.id}: no inbound message yet`);
@@ -222,6 +233,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     conversationId: string,
     signal: AbortSignal,
     mode: RunMode = 'reply',
+    note?: string,
   ): Promise<void> {
     try {
       await scheduler.delay(deps.config.debounceMs, signal);
@@ -231,7 +243,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     if (signal.aborted) return;
 
     const detail = await deps.rest.getConversation(conversationId);
-    const delivery = resolveDelivery(detail, mode);
+    const delivery = resolveDelivery(detail, mode, note);
     if (delivery === null) return;
     if (signal.aborted) return;
 
@@ -316,7 +328,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       : `${baseSystem}${companyBlock}`;
     const systemPrompt = `${namePreamble}${systemBody}`;
     const volatileSystemPrompt = `${conversationContext}${subjectBlock}${
-      mode === 'draft-request' ? DRAFT_REQUEST_CONTEXT : ''
+      mode === 'draft-request' ? `${DRAFT_REQUEST_CONTEXT}${draftNoteContext(note)}` : ''
     }`;
 
     if (deps.beforeGenerate) {
@@ -405,6 +417,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
             await deps.rest.setDraftReply(conversationId, reply.body, {
               retrievedDocumentIds: deriveRetrievedDocumentIds(reply.toolCalls),
               ...(audit.rationale ? { rationale: audit.rationale } : {}),
+              ...(mode === 'draft-request' && note?.trim() ? { note: note.trim() } : {}),
               ...(reply.toolCalls.length > 0
                 ? { toolNames: [...new Set(reply.toolCalls.map((t) => t.name))].slice(0, 24) }
                 : {}),
@@ -670,11 +683,11 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     }
   }
 
-  function spawn(conversationId: string, mode: RunMode): void {
+  function spawn(conversationId: string, mode: RunMode, note?: string): void {
     const existing = inFlight.get(conversationId);
     if (existing) existing.controller.abort();
     const controller = new AbortController();
-    const promise = run(conversationId, controller.signal, mode)
+    const promise = run(conversationId, controller.signal, mode, note)
       .catch((err) => {
         log.error(
           `${conversationId} unhandled: ${err instanceof Error ? err.message : String(err)}`,
@@ -697,7 +710,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       spawn(event.conversationId, 'greet');
     },
     requestDraft(event: DraftRequestTrigger): void {
-      spawn(event.conversationId, 'draft-request');
+      spawn(event.conversationId, 'draft-request', event.note);
     },
     async flush(): Promise<void> {
       await Promise.all([...inFlight.values()].map((f) => f.promise));

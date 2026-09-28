@@ -29,7 +29,9 @@ import { TestConversationBanner } from './test-conversation-banner';
 import { FailureBlockRegion, failureSummary } from './failure-block';
 import { usePaneLoadFailedProps } from '../../lib/use-load-failed-props';
 import {
+  draftNoteOf,
   messageDraftKind,
+  openDraftSlots,
   pendingDraftOf,
   type QueueController,
   type QueueItemDto,
@@ -316,14 +318,18 @@ export function ConversationPane({
     'end_user';
   const agentCanDraft = !!detail.endUserId && item?.agentMode !== 'off';
   const draftInFlight = !!draft || drafting;
-  const canAskDraft = canReply && endUserSpokeLast && agentCanDraft && !draftInFlight;
+  const hasDraftNote = reply.trim().length > 0;
+  const canAskDraft =
+    canReply && (endUserSpokeLast || hasDraftNote) && agentCanDraft && !draftInFlight;
+  const unfilledSlots = suggestionId && !streaming ? openDraftSlots(draft, reply) : [];
   const err =
     controller.actionError?.conversationId === detail.id ? controller.actionError : null;
 
   const rejectAndClear = () => {
+    const note = draftNoteOf(draft);
     void controller.rejectDraft(detail.id).then(() => {
       setSuggestionId(null);
-      setReply('');
+      setReply(note ?? '');
     });
   };
 
@@ -398,10 +404,10 @@ export function ConversationPane({
       <Button
         variant="outline"
         className={className}
-        onClick={() => void controller.requestDraft(detail.id)}
+        onClick={() => void controller.requestDraft(detail.id, reply)}
         disabled={controller.pending}
       >
-        {t('askDraft')}
+        {hasDraftNote ? t('askDraftFromNote') : t('askDraft')}
       </Button>
     ) : null;
 
@@ -768,7 +774,7 @@ export function ConversationPane({
                   if (err) controller.clearActionError();
                 }}
                 rows={4}
-                placeholder={t('replyPlaceholder', { name: customer })}
+                placeholder={t(agentCanDraft ? 'replyPlaceholderOrNote' : 'replyPlaceholder', { name: customer })}
                 className={REPLY_BOX_CLASS}
               />
               <div className="flex shrink-0 flex-col flex-wrap items-stretch gap-2 md:flex-row md:items-center">
@@ -792,6 +798,7 @@ export function ConversationPane({
                       streaming ||
                       askedForDraft ||
                       !reply.trim() ||
+                      unfilledSlots.length > 0 ||
                       uploads.busy
                     }
                     pending={controller.pendingAction === 'send'}
@@ -816,6 +823,7 @@ export function ConversationPane({
                   {composerActionsMenu}
                 </div>
                 {askDraftButton('max-md:h-11')}
+                {unfilledSlots.length > 0 ? gateCaption(t('draftSlotsOpen')) : null}
               </div>
             </div>
           ) : draft ? (

@@ -213,6 +213,7 @@ function buildClient(opts: BuildOptions): MuninRestClient {
           retrievedDocumentIds: draftOpts?.retrievedDocumentIds,
           rationale: draftOpts?.rationale,
           toolNames: draftOpts?.toolNames,
+          note: draftOpts?.note,
         });
       });
     },

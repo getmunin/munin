@@ -14,6 +14,7 @@ import { getCurrentContext, sameAfterNormalizing, WebhookDispatcher } from '@get
 import type { MessageComponent } from '@getmunin/types';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from './set-topic-job.ts';
+import { openDraftSlots, parseDraftMarkup } from './draft-markup.ts';
 import { raiseAttentionWhenAgentIsOff } from './unanswerable-handover.ts';
 import { effectiveAgentModeSql, topicUneditedPctSql } from './topic-auto-gate.ts';
 import { buildDeltaCurationPrompt, buildGapCurationPrompt } from './curation-job.ts';
@@ -132,6 +133,7 @@ export interface ApprovedDraftStamp {
   draftBody: string;
   edited: boolean;
   retrievedDocumentIds: string[];
+  note?: string;
 }
 
 export interface MessageDto {
@@ -2213,6 +2215,17 @@ export class ConvService {
       });
     }
     const retrieved = draft.metadata['retrievedDocumentIds'];
+    const slots = draft.metadata['slots'];
+    const openSlots = openDraftSlots(
+      Array.isArray(slots) ? slots.filter((v): v is string => typeof v === 'string') : [],
+      sentBody,
+    );
+    if (openSlots.length > 0) {
+      throw new BadRequestException(
+        `conv_draft_slots_open: fill in ${openSlots.join(', ')} before sending draft ${draftId}`,
+      );
+    }
+    const note = draft.metadata['note'];
     return {
       stamp: {
         draftMessageId: draft.id,
@@ -2221,6 +2234,7 @@ export class ConvService {
         retrievedDocumentIds: Array.isArray(retrieved)
           ? retrieved.filter((v): v is string => typeof v === 'string')
           : [],
+        ...(typeof note === 'string' && note ? { note } : {}),
       },
     };
   }
@@ -2231,9 +2245,17 @@ export class ConvService {
     retrievedDocumentIds?: string[];
     rationale?: string;
     toolNames?: string[];
+    note?: string;
   }): Promise<{ id: string }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    const parsed = parseDraftMarkup(input.body);
+    if (parsed.body.trim().length === 0) {
+      throw new BadRequestException(
+        `conv_invalid: the draft for conversation ${input.conversationId} is empty once its markup is removed`,
+      );
+    }
+    const note = input.note?.trim();
     const [conv] = await ctx.db
       .select({ id: schema.convConversations.id })
       .from(schema.convConversations)
@@ -2249,10 +2271,13 @@ export class ConvService {
         conversationId: input.conversationId,
         authorType: 'agent',
         authorId: actor.id,
-        body: input.body,
+        body: parsed.body,
         internal: true,
         metadata: {
           kind: 'draft_reply',
+          ...(parsed.annotated ? { annotated: parsed.annotated } : {}),
+          ...(parsed.slots.length ? { slots: parsed.slots } : {}),
+          ...(note ? { note } : {}),
           ...(input.retrievedDocumentIds?.length
             ? { retrievedDocumentIds: input.retrievedDocumentIds }
             : {}),
@@ -2326,7 +2351,10 @@ export class ConvService {
     return { cleared: 1 };
   }
 
-  async requestDraft(conversationId: string): Promise<{ requested: boolean }> {
+  async requestDraft(
+    conversationId: string,
+    opts: { note?: string } = {},
+  ): Promise<{ requested: boolean }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const convRows = await ctx.db
@@ -2369,6 +2397,7 @@ export class ConvService {
         code: 'conv_draft_request_invalid',
       });
     }
+    const note = opts.note?.trim();
     const [pending] = await ctx.db
       .select({ id: schema.convMessages.id })
       .from(schema.convMessages)
@@ -2391,6 +2420,7 @@ export class ConvService {
       payload: {
         conversationId,
         requestedByUserId: actor.type === 'user' ? (actor.userId ?? actor.id) : null,
+        ...(note ? { note } : {}),
       },
     });
     return { requested: true };

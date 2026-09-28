@@ -978,7 +978,7 @@
       "registered": "Registered {date}",
       "trustFirst": "First time you're connecting <client></client> to this account. Nothing has been shared with it yet.",
       "scopesLabel": "Requested access",
-      "scopesCount": "{modules, plural, =0 {0 modules} =1 {1 module} other {# modules}} · {scopes, plural, =0 {0 scopes} =1 {1 scope} other {# scopes}}",
+      "scopesCount": "{modules, plural, =0 {0 modules} =1 {1 module} other {# modules}} · {scopes, plural, =0 {0 permissions} =1 {1 permission} other {# permissions}}",
       "noModuleScopes": "Sign-in only — no product permissions requested.",
       "resourceScopesCount": "{scopes, plural, =0 {0 permissions} =1 {1 permission} other {# permissions}}",
       "noResourcePermissions": "Sign-in only — no additional permissions requested.",
@@ -993,24 +993,24 @@
         "commerce": "Commerce",
         "bookings": "Bookings",
         "seo": "Search performance",
-        "connectors": "Connections",
+        "connectors": "Connected systems",
         "slack": "Slack",
         "webhooks": "Webhooks",
-        "feedback": "Feedback",
+        "feedback": "Feedback to Munin",
         "system_alerts": "System alerts"
       },
       "moduleDescriptions": {
         "kb": {
-          "readWrite": "Read and edit your articles, spaces, and search.",
-          "read": "Read your articles, spaces, and search."
+          "readWrite": "Read, write, and publish knowledge-base articles, and import content from your website.",
+          "read": "Read and search your knowledge-base articles."
         },
         "conv": {
-          "readWrite": "Read threads and send messages on your behalf.",
+          "readWrite": "Read and reply to conversations on your behalf, and set up channels such as email, SMS, and chat.",
           "read": "Read conversation threads and messages."
         },
         "crm": {
-          "readWrite": "Read and modify contact records, deals, and segments.",
-          "read": "Read contact records, deals, and segments."
+          "readWrite": "Read and modify contacts, companies, deals, and segments.",
+          "read": "Read contacts, companies, deals, and segments."
         },
         "cms": {
           "readWrite": "Create, edit, and publish CMS content and schedules.",
@@ -1021,15 +1021,15 @@
           "read": "Read outreach campaigns and proposals."
         },
         "social": {
-          "readWrite": "Read social drafts and publish posts to your connected accounts.",
+          "readWrite": "Draft and publish posts to your connected social accounts.",
           "read": "Read connected social accounts and post drafts."
         },
         "analytics": {
-          "readWrite": "Read analytics and manage tracker keys.",
-          "read": "Read analytics for content and search engagement."
+          "readWrite": "Read site analytics and manage your tracking codes.",
+          "read": "Read page-view and search analytics for your site."
         },
         "commerce": {
-          "readWrite": "Read and change orders and products in the shop you have connected.",
+          "readWrite": "Look up orders and products in the shop you have connected.",
           "read": "Look up orders and products in the shop you have connected."
         },
         "bookings": {
@@ -1041,24 +1041,24 @@
           "read": "Read search-engine performance for your verified sites."
         },
         "connectors": {
-          "readWrite": "Connect and disconnect the systems Munin reads from, and store their credentials.",
-          "read": "Read which systems are connected and whether their credentials still work."
+          "readWrite": "Connect and disconnect your shop, booking system, and other systems, and store their API keys and access.",
+          "read": "See which systems are connected and whether their access still works."
         },
         "slack": {
-          "readWrite": "Read the Slack connection and change channel routing and linked accounts.",
-          "read": "Read the Slack connection, its channels, and linked accounts."
+          "readWrite": "See the Slack setup, choose which channels conversations appear in, and link Slack users to team members.",
+          "read": "See the Slack setup, its channels, and which Slack users are linked to team members."
         },
         "webhooks": {
           "readWrite": "Read, create, and delete webhook subscriptions and rotate their signing secrets.",
           "read": "Read webhook subscriptions and delivery history."
         },
         "feedback": {
-          "readWrite": "Read, submit, and act on feedback and roadmap items.",
-          "read": "Read feedback and roadmap items."
+          "readWrite": "Write feedback about Munin, approve or dismiss it before it goes to the Munin team, and vote on roadmap items.",
+          "read": "Read feedback about Munin awaiting approval, and search the Munin roadmap."
         },
         "system_alerts": {
-          "readWrite": "Read and resolve operational system alerts.",
-          "read": "Read operational system alerts."
+          "readWrite": "Read operational alerts for your organization, and acknowledge or resolve them.",
+          "read": "Read operational alerts for your organization."
         }
       },
       "undescribedScopes": "Permissions this screen doesn't describe yet: {scopes}.",
@@ -1079,9 +1079,9 @@
       "granted": {
         "eyebrow": "Authorization complete",
         "title": "Access <em>granted</em>.",
-        "sub": "<client></client> can now act in <strong>Munin</strong> within the scopes you approved. Sending you back to the app.",
+        "sub": "<client></client> can now act in <strong>Munin</strong> within the permissions you approved. Sending you back to the app.",
         "panelTitle": "<client></client> is connected.",
-        "panelBody": "An authorization code was issued and is being exchanged for a token. <client></client> now holds the scopes you approved for <strong>Munin</strong>, valid for 90 days and refreshed silently.",
+        "panelBody": "An authorization code was issued and is being exchanged for a token. <client></client> now holds the permissions you approved for <strong>Munin</strong>, valid for 90 days and refreshed automatically.",
         "redirecting": "Returning to {host}…"
       },
       "denied": {

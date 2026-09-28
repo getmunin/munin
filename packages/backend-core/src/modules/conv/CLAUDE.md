@@ -14,7 +14,8 @@ interface ChannelAdapter {
 }
 
 type InboundMode =
-  | { mode: 'poll';    intervalMs: number; tick(channel): Promise<PollTickResult> }
+  | { mode: 'poll';    intervalMs: number; tick(channel): Promise<PollTickResult>;
+      classifyError?(err): 'transient' | 'permanent' }
   | { mode: 'webhook'; verify(req, channel): Promise<InboundBatch> }
   | { mode: 'push' };                     // adapter exposes its own controller
 ```
@@ -35,7 +36,7 @@ Mostly mechanical once you've picked an inbound mode.
 2. **Channel config schema.** A Zod schema for the user-supplied config (provider, hostnames, allowlists, etc.). Encrypted secrets (SMTP passwords, OAuth tokens) go through pgcrypto via `@getmunin/core`'s `encryptSecretSql` / `decryptSecretSql`. See `email/email.service.ts` for the pattern.
 3. **Implement `send(ctx)`.** Build the provider-shaped payload from `ctx.message`, send it, return `{ providerMessageId }`. The generic `OutboundDeliveryWorker` handles attempts, backoff, terminal `dead`, and the `conversation.message.delivered` / `conversation.message.delivery_failed` webhooks. Throw on transport failures; the worker counts and retries.
 4. **Implement inbound:**
-   - `poll`: `tick(channel)` reads `conv_inbound_state.cursor`, fetches from the provider, ingests messages (insert into `conv_messages` directly or via a service), writes back the new cursor + any error. The generic `InboundPollWorker` schedules ticks.
+   - `poll`: `tick(channel)` reads `conv_inbound_state.cursor`, fetches from the provider, ingests messages (insert into `conv_messages` directly or via a service), writes back the new cursor + any error. The generic `InboundPollWorker` schedules ticks. Throw when the provider can't be read at all, and implement `classifyError` so the worker can tell a retryable failure from one that won't fix itself (rejected credentials, missing mailbox — see `email/imap-errors.ts`). Unclassified errors are treated as transient: the worker backs the channel off, alerts only after about five minutes of continuous failure, and never deactivates it. Permanent errors alert immediately and deactivate the channel after five in a row. The worker owns the `consecutive_failures` / `failing_since` / `last_failure_at` / `next_poll_at` columns on `conv_inbound_state`; adapters only touch `cursor`.
    - `webhook`: `verify(req, channel)` rejects unsigned/invalid requests and returns an `InboundBatch`. The generic webhook controller persists each message via the same path used elsewhere (TBD: a shared `ingestMessage` helper).
    - `push`: write a controller. Authenticate via existing `AuthGuard` + a new key kind (e.g. `mn_widget_*`). Use `@UseGuards(AuthGuard) @UseInterceptors(TenancyInterceptor, AuditInterceptor)` so tenancy GUCs are set.
 5. **Register.** Add the adapter class to `ConvModule`'s providers and to the `CHANNEL_ADAPTERS` factory:

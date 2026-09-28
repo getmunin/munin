@@ -73,7 +73,10 @@ class RecordingMailer implements Mailer {
       .where(eq(schema.alertNotifications.orgId, orgId));
   }
 
+  const previousGrace = process.env.MUNIN_ALERT_NOTIFY_GRACE_MS;
+
   beforeAll(async () => {
+    process.env.MUNIN_ALERT_NOTIFY_GRACE_MS = '0';
     await runMigrations(TEST_URL!);
     svcDb = createDb(TEST_URL!, { serviceRole: true });
     appDb = createDb(
@@ -106,6 +109,8 @@ class RecordingMailer implements Mailer {
   });
 
   afterAll(async () => {
+    if (previousGrace === undefined) delete process.env.MUNIN_ALERT_NOTIFY_GRACE_MS;
+    else process.env.MUNIN_ALERT_NOTIFY_GRACE_MS = previousGrace;
     if (!svcDb) return;
     await svcDb.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     await svcDb.delete(schema.orgs).where(eq(schema.orgs.id, orgId));
@@ -169,6 +174,83 @@ class RecordingMailer implements Mailer {
     expect(alerts).toHaveLength(1);
     expect(alerts[0]!.occurrenceCount).toBe(3);
     expect(await notifications()).toHaveLength(2);
+  });
+
+  it('emails once for an alert that keeps resolving and coming back', async () => {
+    await asActor(ownerOne, async () => {
+      for (let i = 0; i < 3; i += 1) {
+        await service.openAlert({
+          source: 'channel_inbound',
+          subjectId: 'cch_flapping',
+          severity: 'error',
+          title: 'Inbound polling failing',
+        });
+        if (i < 2) {
+          await service.resolveAlert({ source: 'channel_inbound', subjectId: 'cch_flapping' });
+        }
+      }
+    });
+
+    const alerts = await svcDb.select().from(schema.orgAlerts);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]!.occurrenceCount).toBe(3);
+    expect(alerts[0]!.resolvedAt).toBeNull();
+    expect(await notifications()).toHaveLength(2);
+
+    await worker.tick();
+    expect(mailer.sent).toHaveLength(2);
+  });
+
+  it('holds a notification through the grace period and drops it if the alert clears meanwhile', async () => {
+    process.env.MUNIN_ALERT_NOTIFY_GRACE_MS = String(10 * 60_000);
+    try {
+      await asActor(ownerOne, async () => {
+        await service.openAlert({
+          source: 'llm_provider',
+          subjectId: 'provider-blip',
+          severity: 'error',
+          title: 'Provider unreachable',
+        });
+      });
+    } finally {
+      process.env.MUNIN_ALERT_NOTIFY_GRACE_MS = '0';
+    }
+
+    const [row] = await svcDb.execute<{ held: boolean }>(
+      sql`SELECT bool_and(next_attempt_at > now() + interval '9 minutes') AS held FROM alert_notifications WHERE org_id = ${orgId}`,
+    );
+    expect(row!.held).toBe(true);
+    expect(await worker.tick()).toEqual({ sent: 0, failed: 0 });
+
+    await asActor(ownerOne, async () => {
+      await service.resolveAlert({ source: 'llm_provider', subjectId: 'provider-blip' });
+    });
+    await svcDb
+      .update(schema.alertNotifications)
+      .set({ nextAttemptAt: sql`now() - interval '1 second'` })
+      .where(eq(schema.alertNotifications.orgId, orgId));
+
+    await worker.tick();
+    expect(mailer.sent).toHaveLength(0);
+  });
+
+  it('sends a channel_inbound alert without the grace period, since the poll worker already waited', async () => {
+    process.env.MUNIN_ALERT_NOTIFY_GRACE_MS = String(10 * 60_000);
+    try {
+      await asActor(ownerOne, async () => {
+        await service.openAlert({
+          source: 'channel_inbound',
+          subjectId: 'cch_down',
+          severity: 'error',
+          title: 'Inbound polling failing',
+        });
+      });
+    } finally {
+      process.env.MUNIN_ALERT_NOTIFY_GRACE_MS = '0';
+    }
+
+    expect(await worker.tick()).toEqual({ sent: 2, failed: 0 });
+    expect(mailer.sent).toHaveLength(2);
   });
 
   it('honours the per-source notify policy', async () => {

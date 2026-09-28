@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import { schema, makeId } from '@getmunin/db';
-import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
+import { getCurrentContext, parseEnvInt, WebhookDispatcher } from '@getmunin/core';
 
 export const ALERT_SOURCES = [
   'llm_provider',
@@ -52,6 +52,7 @@ export interface OpenAlertInput {
 export interface OpenAlertResult {
   alertId: string;
   opened: boolean;
+  reopened: boolean;
   occurrenceCount: number;
 }
 
@@ -74,6 +75,15 @@ export class AlertNotFoundError extends Error {
 }
 
 const MAX_DETAIL_CHARS = 1000;
+const DEFAULT_REOPEN_WINDOW_MS = 6 * 60 * 60_000;
+
+export function alertReopenWindowMs(): number {
+  return parseEnvInt({
+    name: 'MUNIN_ALERT_REOPEN_WINDOW_MS',
+    default: DEFAULT_REOPEN_WINDOW_MS,
+    min: 0,
+  });
+}
 
 @Injectable()
 export class AlertsService {
@@ -107,9 +117,11 @@ export class AlertsService {
       )
       .limit(1);
 
-    const prior = existing[0];
-    if (prior) {
-      const nextCount = prior.occurrenceCount + 1;
+    const open = existing[0];
+    const target = open ?? (await this.recentlyResolved(orgId, input.source, subjectId, userId));
+    if (target) {
+      const reopened = !open;
+      const nextCount = target.occurrenceCount + 1;
       await ctx.db
         .update(schema.orgAlerts)
         .set({
@@ -121,13 +133,31 @@ export class AlertsService {
           ctaLabelKey: input.ctaLabelKey ?? null,
           lastSeenAt: new Date(),
           occurrenceCount: nextCount,
+          ...(reopened ? { resolvedAt: null, acknowledgedAt: null, acknowledgedBy: null } : {}),
           updatedAt: new Date(),
         })
-        .where(eq(schema.orgAlerts.id, prior.id));
-      this.log.debug(
-        `alert bumped id=${prior.id} source=${input.source} subject=${subjectId ?? 'none'} count=${nextCount}`,
+        .where(eq(schema.orgAlerts.id, target.id));
+      if (!reopened) {
+        this.log.debug(
+          `alert bumped id=${target.id} source=${input.source} subject=${subjectId ?? 'none'} count=${nextCount}`,
+        );
+        return { alertId: target.id, opened: false, reopened, occurrenceCount: nextCount };
+      }
+      this.log.warn(
+        `alert reopened id=${target.id} source=${input.source} subject=${subjectId ?? 'none'} count=${nextCount}`,
       );
-      return { alertId: prior.id, opened: false, occurrenceCount: nextCount };
+      await this.webhooks.emit({
+        type: 'org_alert.opened',
+        payload: {
+          alertId: target.id,
+          source: input.source,
+          subjectId,
+          userId,
+          severity: input.severity,
+          reopened,
+        },
+      });
+      return { alertId: target.id, opened: false, reopened, occurrenceCount: nextCount };
     }
 
     const id = makeId('alr');
@@ -155,9 +185,38 @@ export class AlertsService {
         subjectId,
         userId,
         severity: input.severity,
+        reopened: false,
       },
     });
-    return { alertId: id, opened: true, occurrenceCount: 1 };
+    return { alertId: id, opened: true, reopened: false, occurrenceCount: 1 };
+  }
+
+  private async recentlyResolved(
+    orgId: string,
+    source: AlertSource,
+    subjectId: string | null,
+    userId: string | null,
+  ): Promise<{ id: string; occurrenceCount: number } | null> {
+    const windowMs = alertReopenWindowMs();
+    if (windowMs === 0) return null;
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.orgAlerts.id, occurrenceCount: schema.orgAlerts.occurrenceCount })
+      .from(schema.orgAlerts)
+      .where(
+        and(
+          eq(schema.orgAlerts.orgId, orgId),
+          eq(schema.orgAlerts.source, source),
+          gt(schema.orgAlerts.resolvedAt, sql`now() - ${windowMs} * interval '1 millisecond'`),
+          subjectId === null
+            ? isNull(schema.orgAlerts.subjectId)
+            : eq(schema.orgAlerts.subjectId, subjectId),
+          sameUser(userId),
+        ),
+      )
+      .orderBy(desc(schema.orgAlerts.resolvedAt))
+      .limit(1);
+    return rows[0] ?? null;
   }
 
   async updateMetadata(alertId: string, patch: Record<string, unknown>): Promise<void> {

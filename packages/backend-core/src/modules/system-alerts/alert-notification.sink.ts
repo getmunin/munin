@@ -1,16 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { makeId, schema } from '@getmunin/db';
-import { getCurrentContext, type EmittedEvent, type EventSink } from '@getmunin/core';
+import { getCurrentContext, parseEnvInt, type EmittedEvent, type EventSink } from '@getmunin/core';
 import type { AlertSeverity, AlertSource } from './system-alerts.service.ts';
 
 export interface NotifyRule {
   minSeverity: AlertSeverity;
+  graceMs?: number;
 }
 
 export const NOTIFY_POLICY: Record<AlertSource, NotifyRule | null> = {
   llm_provider: { minSeverity: 'error' },
-  channel_inbound: { minSeverity: 'error' },
+  channel_inbound: { minSeverity: 'error', graceMs: 0 },
   channel_outbound: { minSeverity: 'error' },
   curator: null,
   delivery: { minSeverity: 'error' },
@@ -30,6 +31,14 @@ export function shouldNotify(source: string, severity: string): boolean {
   return actual >= required;
 }
 
+const DEFAULT_NOTIFY_GRACE_MS = 10 * 60_000;
+
+export function alertNotifyGraceMs(source: string): number {
+  const perSource = NOTIFY_POLICY[source as AlertSource]?.graceMs;
+  if (perSource !== undefined) return perSource;
+  return parseEnvInt({ name: 'MUNIN_ALERT_NOTIFY_GRACE_MS', default: DEFAULT_NOTIFY_GRACE_MS, min: 0 });
+}
+
 export function alertEmailsDisabled(): boolean {
   const raw = (process.env.MUNIN_ALERT_EMAILS_DISABLED ?? '').trim().toLowerCase();
   return raw === '1' || raw === 'true' || raw === 'yes';
@@ -41,6 +50,7 @@ export class AlertNotificationSink implements EventSink {
 
   async onEvent(event: EmittedEvent): Promise<void> {
     if (event.type !== 'org_alert.opened') return;
+    if (event.payload.reopened === true) return;
     if (alertEmailsDisabled()) return;
 
     const source = typeof event.payload.source === 'string' ? event.payload.source : '';
@@ -60,6 +70,7 @@ export class AlertNotificationSink implements EventSink {
       return;
     }
 
+    const graceMs = alertNotifyGraceMs(source);
     await ctx.db
       .insert(schema.alertNotifications)
       .values(
@@ -69,6 +80,7 @@ export class AlertNotificationSink implements EventSink {
           alertId,
           recipientUserId: recipient.id,
           email: recipient.email,
+          nextAttemptAt: sql`now() + ${graceMs} * interval '1 millisecond'`,
         })),
       )
       .onConflictDoNothing();

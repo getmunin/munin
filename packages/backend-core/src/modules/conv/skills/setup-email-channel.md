@@ -111,10 +111,19 @@ Call `conv_list_channels`. Look for the new row with `type: 'email'`, `active: t
 
 ## Reactivating a deactivated channel
 
-Five consecutive IMAP polling failures auto-deactivate a channel and open a system alert (`conv_list_channels` shows `active: false`, `system_alerts_list` carries the failure detail). Two ways back:
+IMAP polling failures come in two kinds, and only one of them switches a channel off:
+
+- **The mailbox refused us** — the login was rejected, or the configured mailbox does not exist. Retrying cannot fix that, so the alert opens on the first failure and five in a row auto-deactivate the channel (`conv_list_channels` shows `active: false`, `system_alerts_list` carries the failure detail and `metadata.failureKind: "permanent"`).
+- **The mail server could not be reached** — connection refused, a timeout, a DNS blip, a server that is briefly unavailable. The channel stays on and polling backs off, doubling the gap after each failure up to 15 minutes. No alert opens until the failures have gone on for about five minutes — in practice the poll seven minutes in, given the backoff; the alert then carries `metadata.failureKind: "transient"`, and the first successful poll resolves it and returns to the normal cadence. A server that fails only intermittently, with successful polls in between, never builds up that run and does not alert: mail is still collected on the polls that succeed.
+
+A mail server that keeps dropping out and coming back does not produce a fresh alert — or a fresh email to the org's owners — every time. An alert that comes back within six hours of resolving reopens the same row (its `occurrenceCount` keeps climbing) and emails nobody. Owners are emailed as soon as a new inbound alert opens — the wait already happened before it opened.
+
+Two ways back from a deactivated channel:
 
 - **The config was wrong** — call `conv_configure_email_channel` with `channelId` and the corrected fields. The update re-tests the stored credentials: SMTP and IMAP both connecting reactivates the channel and resolves the alert, and anything else leaves it deactivated with the connection errors in the response's `probe` field. In the dashboard this is the Edit → Save button on the channel card.
-- **Nothing was wrong on our side** — the mailbox was down, the provider throttled, a certificate lapsed. There is nothing to edit, so just switch the channel back on: the Activate button on the channel card. Polling resumes on the next tick and re-deactivates the channel if the failures continue.
+- **Nothing was wrong on our side** — the provider locked the account for a while, a certificate lapsed. There is nothing to edit, so just switch the channel back on: the Activate button on the channel card.
+
+Editing or reactivating a channel clears its backoff, so the next tick polls it straight away and counts failures from zero.
 
 ## Troubleshooting
 

@@ -1170,6 +1170,10 @@ export const convInboundState = pgTable('conv_inbound_state', {
     .references(() => convChannels.id, { onDelete: 'cascade' }),
   cursor: jsonb('cursor').$type<Record<string, unknown>>().notNull().default({}),
   lastPolledAt: timestamp('last_polled_at', { withTimezone: true }),
+  consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+  failingSince: timestamp('failing_since', { withTimezone: true }),
+  lastFailureAt: timestamp('last_failure_at', { withTimezone: true }),
+  nextPollAt: timestamp('next_poll_at', { withTimezone: true }),
   createdAt,
   updatedAt,
 });

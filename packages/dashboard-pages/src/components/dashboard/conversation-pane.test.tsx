@@ -203,22 +203,29 @@ describe('ConversationPane composer', () => {
     expect(screen.getAllByRole('button', { name: 'Draft from my note' }).length).toBeGreaterThan(0);
   });
 
-  it('holds Approve & send until every [ ] slot in the draft is filled in', () => {
+  it('refuses to send while a [ ] slot is open, says so inline, and selects the slot', () => {
+    const send = vi.fn(() => Promise.resolve(true));
     const draft = makeDraft('conv_a', 'conv_a_draft', 'Your refund of [AMOUNT] is on its way.');
     draft.metadata = { kind: 'draft_reply', slots: ['[AMOUNT]'] };
     const detail = makeDetail('conv_a', {
       messages: [makeMessage({ id: 'conv_a_m1', conversationId: 'conv_a' }), draft],
     });
-    renderWithProviders(pane('conv_a', detail, stubController()));
+    renderWithProviders(pane('conv_a', detail, stubController({ send })));
 
-    const approve = screen.getByRole<HTMLButtonElement>('button', { name: 'Approve & send' });
-    expect(approve.disabled).toBe(true);
+    expect(screen.queryByRole('alert')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Approve & send' }));
 
-    fireEvent.change(replyBox(), { target: { value: 'Your refund of 40 EUR is on its way.' } });
+    expect(send).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toBe('Fill in [AMOUNT] before sending.');
+    const box = replyBox();
+    expect(box.getAttribute('aria-invalid')).toBe('true');
+    expect(box.value.slice(box.selectionStart, box.selectionEnd)).toBe('[AMOUNT]');
 
-    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Send reply' }).disabled).toBe(
-      false,
-    );
+    fireEvent.change(box, { target: { value: 'Your refund of 40 EUR is on its way.' } });
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Send reply' }));
+    expect(send).toHaveBeenCalled();
   });
 
   it('translates a reply to a foreign-language customer, and sends it as typed once unticked', () => {

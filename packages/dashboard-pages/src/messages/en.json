@@ -1544,6 +1544,7 @@
         "writeReply": "Write reply",
         "continueReply": "Continue reply",
         "restoreDraft": "Restore draft",
+        "draftSlotsOpen": "Fill in {slots} before sending.",
         "release": "Release",
         "translatedFrom": "Translated from {language}",
         "showingOriginal": "Original in {language}",

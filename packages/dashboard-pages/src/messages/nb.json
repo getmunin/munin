@@ -1544,6 +1544,7 @@
         "writeReply": "Skriv svar",
         "continueReply": "Fortsett svaret",
         "restoreDraft": "Gjenopprett kladd",
+        "draftSlotsOpen": "Fyll inn {slots} før du sender.",
         "release": "Frigi",
         "translatedFrom": "Oversatt fra {language}",
         "showingOriginal": "Originalen på {language}",

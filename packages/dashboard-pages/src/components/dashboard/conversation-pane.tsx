@@ -46,7 +46,7 @@ import {
 const COMPOSER_MAX_HEIGHT_PX = 320;
 
 const REPLY_BOX_CLASS =
-  'w-full resize-none rounded-input border border-rule-soft bg-paper px-3.5 py-3 text-base leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt max-md:min-h-0 max-md:flex-1 md:text-sm dark:border-rule-on-dark dark:bg-card';
+  'w-full resize-none rounded-input border border-rule-soft bg-paper px-3.5 py-3 text-base leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive max-md:min-h-0 max-md:flex-1 md:text-sm dark:border-rule-on-dark dark:bg-card';
 
 export function ConversationPane({
   selectedId,
@@ -75,6 +75,7 @@ export function ConversationPane({
   const [expanded, setExpanded] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
   const [translateOnSend, setTranslateOnSend] = useState(true);
+  const [slotsNudged, setSlotsNudged] = useState(false);
   const locale = useLocale();
   const [retryingDeliveryId, setRetryingDeliveryId] = useState<string | null>(null);
 
@@ -150,6 +151,7 @@ export function ConversationPane({
     setNoteDraft('');
     setTab('reply');
     setTranslateOnSend(true);
+    setSlotsNudged(false);
     setExpanded(false);
   }, [selectedId]);
 
@@ -216,6 +218,17 @@ export function ConversationPane({
 
   const sendReply = (): void => {
     if (!selectedId || !reply.trim() || controller.pending || streaming || uploads.busy) return;
+    const firstSlot = unfilledSlots[0];
+    if (firstSlot) {
+      setSlotsNudged(true);
+      const box = replyBoxRef.current;
+      const at = reply.indexOf(firstSlot);
+      if (box && at >= 0) {
+        box.focus();
+        box.setSelectionRange(at, at + firstSlot.length);
+      }
+      return;
+    }
     void controller
       .send(
         selectedId,
@@ -826,8 +839,14 @@ export function ConversationPane({
                 }}
                 rows={4}
                 placeholder={t(agentCanDraft ? 'replyPlaceholderOrNote' : 'replyPlaceholder', { name: customer })}
+                aria-invalid={slotsNudged && unfilledSlots.length > 0}
                 className={REPLY_BOX_CLASS}
               />
+              {slotsNudged && unfilledSlots.length > 0 ? (
+                <p role="alert" className="text-[13px] text-destructive">
+                  {t('draftSlotsOpen', { slots: unfilledSlots.join(', ') })}
+                </p>
+              ) : null}
               <div className="flex shrink-0 flex-col flex-wrap items-stretch gap-2 md:flex-row md:items-center">
                 <input
                   ref={fileInputRef}
@@ -849,7 +868,6 @@ export function ConversationPane({
                       streaming ||
                       askedForDraft ||
                       !reply.trim() ||
-                      unfilledSlots.length > 0 ||
                       uploads.busy
                     }
                     pending={controller.pendingAction === 'send'}

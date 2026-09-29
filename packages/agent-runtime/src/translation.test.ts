@@ -5,6 +5,7 @@ import {
   createTranslationHandler,
   parseTranslationResponse,
   translateMessages,
+  translateText,
   type PendingTranslationMessage,
   type PendingTranslations,
   type SaveTranslationsInput,
@@ -108,6 +109,24 @@ describe('translateMessages', () => {
       providerImpl: stub.provider,
     });
     expect(result).toEqual({ customerLanguage: 'no', translations: [] });
+  });
+});
+
+describe('translateText', () => {
+  it('fences the reply as data and returns the translation trimmed', async () => {
+    const stub = createStubProvider({ responses: [reply('  Le reembolsamos hoy.\n')] });
+    const text = await translateText({
+      provider: PROVIDER,
+      model: 'fast',
+      text: 'Vi refunderer deg i dag.',
+      sourceLanguage: 'nb',
+      targetLanguage: 'es',
+      providerImpl: stub.provider,
+    });
+    expect(text).toBe('Le reembolsamos hoy.');
+    const [system, user] = stub.calls[0]!.messages;
+    expect(system!.content).toContain('from Norwegian Bokmål (nb) into Spanish (es)');
+    expect(user!.content).toBe('<data>\nVi refunderer deg i dag.\n</data>');
   });
 });
 

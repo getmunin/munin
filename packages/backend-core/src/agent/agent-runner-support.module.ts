@@ -7,6 +7,6 @@ import { InProcessMuninRestClientFactoryService } from './in-process-rest-client
 @Module({
   imports: [DbModule, ConvModule, CuratorModule],
   providers: [InProcessMuninRestClientFactoryService],
-  exports: [InProcessMuninRestClientFactoryService],
+  exports: [InProcessMuninRestClientFactoryService, ConvModule],
 })
 export class AgentRunnerSupportModule {}

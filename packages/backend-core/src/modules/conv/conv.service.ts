@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { applyInboundRedaction } from './inbound-redaction.ts';
 import { readRedactionPolicy } from './redaction-policy.ts';
-import { deleteMessageTranslations } from './conv-translation.service.ts';
+import { deleteMessageTranslations, normalizeLanguageTag } from './translation-helpers.ts';
 import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, sameAfterNormalizing, WebhookDispatcher } from '@getmunin/core';
@@ -1416,6 +1416,7 @@ export class ConvService {
     claim?: boolean;
     components?: MessageComponent[];
     fromDraftId?: string;
+    approvalBody?: string;
     attachmentIds?: string[];
   }): Promise<MessageDto> {
     const ctx = getCurrentContext();
@@ -1475,7 +1476,11 @@ export class ConvService {
       (input.authorType === 'agent' || input.authorType === 'user');
 
     const approvedDraft = input.fromDraftId
-      ? await this.loadApprovedDraft(input.conversationId, input.fromDraftId, input.body)
+      ? await this.loadApprovedDraft(
+          input.conversationId,
+          input.fromDraftId,
+          input.approvalBody ?? input.body,
+        )
       : null;
 
     const isNote =
@@ -2356,7 +2361,7 @@ export class ConvService {
 
   async requestDraft(
     conversationId: string,
-    opts: { note?: string } = {},
+    opts: { note?: string; language?: string } = {},
   ): Promise<{ requested: boolean }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -2401,6 +2406,7 @@ export class ConvService {
       });
     }
     const note = opts.note?.trim();
+    const language = opts.language ? normalizeLanguageTag(opts.language) : undefined;
     const [pending] = await ctx.db
       .select({ id: schema.convMessages.id })
       .from(schema.convMessages)
@@ -2424,6 +2430,7 @@ export class ConvService {
         conversationId,
         requestedByUserId: actor.type === 'user' ? (actor.userId ?? actor.id) : null,
         ...(note ? { note } : {}),
+        ...(language ? { language } : {}),
       },
     });
     return { requested: true };

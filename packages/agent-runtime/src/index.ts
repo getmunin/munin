@@ -124,6 +124,8 @@ export {
   languageName,
   parseTranslationResponse,
   translateMessages,
+  translateText,
+  type TranslateTextArgs,
   type PendingTranslationMessage,
   type PendingTranslations,
   type SaveTranslationsInput,

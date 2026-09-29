@@ -536,6 +536,33 @@ describe('createConversationHandler', () => {
     expect(seen[0]!.config.volatileSystemPrompt).not.toContain('[Teammate note]');
   });
 
+  it('draft-request with a language drafts in the teammate language', async () => {
+    const seen: Parameters<Provider>[0][] = [];
+    const provider: Provider = (args) => {
+      seen.push(args);
+      return Promise.resolve(assistantStop('Her er svaret.'));
+    };
+    const rest = buildRest({
+      getConversation: vi.fn(() => Promise.resolve(buildConversation({ agentMode: 'auto' }))),
+    });
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider,
+    });
+    handler.requestDraft({ conversationId: 'conv_1', language: 'nb' });
+    await handler.flush();
+    const brief = seen[0]!.config.volatileSystemPrompt!;
+    expect(brief).toContain("in Norwegian Bokmål (nb), the teammate's language — not the customer's language");
+    expect(brief).not.toContain('in the language the customer has been writing');
+    const nudge = seen[0]!.messages[seen[0]!.messages.length - 1]!;
+    expect(nudge.content).toContain('Norwegian Bokmål (nb)');
+  });
+
   it("draft-request carries the teammate's note into the brief and back onto the parked draft", async () => {
     const seen: Array<{ config: { volatileSystemPrompt?: string } }> = [];
     let call = 0;

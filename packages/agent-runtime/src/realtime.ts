@@ -38,6 +38,7 @@ export interface GreetRequestedEvent {
 export interface DraftRequestedEvent {
   conversationId: string;
   note?: string;
+  language?: string;
 }
 
 export interface TranslationRequestedEvent {
@@ -196,9 +197,11 @@ export function createRealtimeClient(opts: RealtimeClientOptions): RealtimeClien
           const conversationId = payload['conversationId'];
           if (typeof conversationId !== 'string') return;
           const note = payload['note'];
+          const language = payload['language'];
           opts.onDraftRequested({
             conversationId,
             ...(typeof note === 'string' && note ? { note } : {}),
+            ...(typeof language === 'string' && language ? { language } : {}),
           });
           return;
         }

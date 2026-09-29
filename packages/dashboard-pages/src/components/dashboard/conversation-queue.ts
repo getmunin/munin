@@ -290,12 +290,13 @@ export interface QueueController {
     body: string,
     fromDraftId?: string,
     attachmentIds?: string[],
+    translateFrom?: string,
   ) => Promise<boolean>;
   deleteAttachment: (conversationId: string, attachmentId: string) => Promise<boolean>;
   retryDelivery: (conversationId: string, messageId: string) => Promise<boolean>;
   addNote: (id: string, body: string) => Promise<boolean>;
   rejectDraft: (id: string) => Promise<void>;
-  requestDraft: (id: string, note?: string) => Promise<void>;
+  requestDraft: (id: string, note?: string, language?: string) => Promise<void>;
 }
 
 function useDebounced(value: string, delayMs: number): string {
@@ -657,7 +658,13 @@ export function useConversationQueue(
   );
 
   const send = useCallback(
-    async (id: string, body: string, fromDraftId?: string, attachmentIds?: string[]) => {
+    async (
+      id: string,
+      body: string,
+      fromDraftId?: string,
+      attachmentIds?: string[],
+      translateFrom?: string,
+    ) => {
       const trimmed = body.trim();
       if (!trimmed) return false;
       return runAction('send', id, () =>
@@ -667,6 +674,7 @@ export function useConversationQueue(
             body: trimmed,
             ...(fromDraftId ? { fromDraftId } : {}),
             ...(attachmentIds?.length ? { attachmentIds } : {}),
+            ...(translateFrom ? { translateFrom } : {}),
           }),
         }),
       );
@@ -719,12 +727,15 @@ export function useConversationQueue(
   );
 
   const requestDraft = useCallback(
-    async (id: string, note?: string) => {
+    async (id: string, note?: string, language?: string) => {
       const trimmed = note?.trim();
       const ok = await runAction('requestDraft', id, () =>
         api(`/v1/conversations/${id}/request-draft`, {
           method: 'POST',
-          body: JSON.stringify(trimmed ? { note: trimmed } : {}),
+          body: JSON.stringify({
+            ...(trimmed ? { note: trimmed } : {}),
+            ...(language ? { language } : {}),
+          }),
         }),
       );
       if (!ok) return;

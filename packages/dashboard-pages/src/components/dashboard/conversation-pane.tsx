@@ -37,7 +37,12 @@ import {
   type QueueItemDto,
 } from './conversation-queue';
 import type { ConversationDetail } from './inbox-types';
-import { languageLabel, threadTranslations } from './inbox-translation';
+import {
+  languageLabel,
+  sameLanguage,
+  threadTranslations,
+  viewerLanguageName,
+} from './inbox-translation';
 
 const COMPOSER_MAX_HEIGHT_PX = 320;
 
@@ -71,6 +76,7 @@ export function ConversationPane({
   const [streaming, setStreaming] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
+  const [translateOnSend, setTranslateOnSend] = useState(true);
   const locale = useLocale();
   const [retryingDeliveryId, setRetryingDeliveryId] = useState<string | null>(null);
 
@@ -145,6 +151,7 @@ export function ConversationPane({
     setReply('');
     setNoteDraft('');
     setTab('reply');
+    setTranslateOnSend(true);
     setExpanded(false);
   }, [selectedId]);
 
@@ -205,10 +212,20 @@ export function ConversationPane({
   const dirty = !streaming && !!draft && suggestionId !== null && reply !== draft.body;
   const reviewingDraft = suggestionId !== null && !dirty;
 
+  const customerLanguage = detail?.customerLanguage ?? null;
+  const foreignCustomer = !!customerLanguage && !sameLanguage(customerLanguage, locale);
+  const translatesOnSend = foreignCustomer && translateOnSend;
+
   const sendReply = (): void => {
     if (!selectedId || !reply.trim() || controller.pending || streaming || uploads.busy) return;
     void controller
-      .send(selectedId, reply, suggestionId ?? undefined, uploads.readyIds)
+      .send(
+        selectedId,
+        reply,
+        suggestionId ?? undefined,
+        uploads.readyIds,
+        translatesOnSend ? locale : undefined,
+      )
       .then((ok) => {
         if (ok) {
           setReply('');
@@ -412,7 +429,9 @@ export function ConversationPane({
       <Button
         variant="outline"
         className={className}
-        onClick={() => void controller.requestDraft(detail.id, reply)}
+        onClick={() =>
+          void controller.requestDraft(detail.id, reply, translatesOnSend ? locale : undefined)
+        }
         disabled={controller.pending}
       >
         {hasDraftNote ? t('askDraftFromNote') : t('askDraft')}
@@ -832,6 +851,18 @@ export function ConversationPane({
                     e.target.value = '';
                   }}
                 />
+                {foreignCustomer ? (
+                  <label className="flex shrink-0 cursor-pointer items-center gap-2 text-[13px] text-ink-soft md:order-last dark:text-foreground/80">
+                    <input
+                      type="checkbox"
+                      className="size-3.5 shrink-0 accent-ink"
+                      checked={translateOnSend}
+                      onChange={(e) => setTranslateOnSend(e.target.checked)}
+                      disabled={controller.pending}
+                    />
+                    {t('translateOnSend', { language: customerLanguageName ?? '' })}
+                  </label>
+                ) : null}
                 <div className="flex flex-wrap items-stretch gap-2 md:contents">
                   <Button
                     variant="accent"
@@ -849,9 +880,13 @@ export function ConversationPane({
                   >
                     {err
                       ? t('retrySend')
-                      : suggestionId && !dirty
-                        ? t('approveSend')
-                        : t('sendReply')}
+                      : translatesOnSend && controller.pendingAction === 'send'
+                        ? t('translatingAndSending')
+                        : suggestionId && !dirty
+                          ? t('approveSend')
+                          : foreignCustomer && !translateOnSend
+                            ? t('sendInLanguage', { language: viewerLanguageName(locale) })
+                            : t('sendReply')}
                   </Button>
                   {askDraftButton('max-md:order-last max-md:h-11 max-md:basis-full')}
                   <Button

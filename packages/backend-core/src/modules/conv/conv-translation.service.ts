@@ -1,11 +1,21 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { schema, type Db, type Tx } from '@getmunin/db';
+import {
+  BadGatewayException,
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { schema } from '@getmunin/db';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
-
-const LANGUAGE_TAG = /^[a-z]{2,3}(-[a-z0-9]{2,8})?$/;
-const NORWEGIAN = new Set(['nb', 'nn', 'no']);
-const TRANSLATABLE_AUTHORS = ['end_user', 'agent', 'user'] as const;
+import { ConvService, type MessageDto } from './conv.service.ts';
+import { MessageTranslatorRegistry } from './message-translator.ts';
+import {
+  TRANSLATABLE_AUTHORS,
+  normalizeLanguageTag,
+  sameLanguage,
+} from './translation-helpers.ts';
 
 export interface PendingTranslationMessage {
   id: string;
@@ -33,35 +43,98 @@ export interface SaveTranslationsInput {
   translations: Array<{ messageId: string; body: string }>;
 }
 
-export function normalizeLanguageTag(tag: string): string {
-  const normalized = tag.trim().toLowerCase().replace(/_/g, '-');
-  if (!LANGUAGE_TAG.test(normalized)) {
-    throw new BadRequestException(
-      `conv_invalid: ${JSON.stringify(tag)} is not a language tag such as "en", "nb" or "pt-br"`,
-    );
-  }
-  return normalized;
-}
-
-export function sameLanguage(a: string, b: string): boolean {
-  const primaryA = a.split('-')[0]!;
-  const primaryB = b.split('-')[0]!;
-  return primaryA === primaryB || (NORWEGIAN.has(primaryA) && NORWEGIAN.has(primaryB));
-}
-
-export async function deleteMessageTranslations(
-  db: Db | Tx,
-  messageIds: readonly string[],
-): Promise<void> {
-  if (messageIds.length === 0) return;
-  await db
-    .delete(schema.convMessageTranslations)
-    .where(inArray(schema.convMessageTranslations.messageId, [...messageIds]));
+export interface SendTranslatedReplyInput {
+  conversationId: string;
+  body: string;
+  sourceLanguage: string;
+  authorId: string;
+  fromDraftId?: string;
+  attachmentIds?: string[];
+  claim?: boolean;
+  inReplyToId?: string;
 }
 
 @Injectable()
 export class ConvTranslationService {
-  constructor(@Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher) {}
+  constructor(
+    @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
+    @Inject(ConvService) private readonly conv: Pick<ConvService, 'sendMessage'>,
+    @Inject(MessageTranslatorRegistry) private readonly translators: MessageTranslatorRegistry,
+  ) {}
+
+  async sendTranslatedReply(input: SendTranslatedReplyInput): Promise<MessageDto> {
+    const source = normalizeLanguageTag(input.sourceLanguage);
+    const conv = await this.loadConversation(input.conversationId);
+    const send = (body: string, approvalBody?: string) =>
+      this.conv.sendMessage({
+        conversationId: input.conversationId,
+        body,
+        ...(approvalBody !== undefined ? { approvalBody } : {}),
+        authorType: 'user',
+        authorId: input.authorId,
+        fromDraftId: input.fromDraftId,
+        attachmentIds: input.attachmentIds,
+        claim: input.claim,
+        inReplyToId: input.inReplyToId,
+      });
+    if (!conv.customerLanguage) {
+      throw new BadRequestException({
+        message: `conv_translation_unavailable: the language of conversation ${input.conversationId} is not known yet, so the reply cannot be translated`,
+        code: 'conv_translation_unavailable',
+      });
+    }
+    if (sameLanguage(conv.customerLanguage, source)) return send(input.body);
+
+    const translator = this.translators.get();
+    if (!translator) {
+      throw new ServiceUnavailableException({
+        message: 'conv_translation_unavailable: no agent is running to translate the reply',
+        code: 'conv_translation_unavailable',
+      });
+    }
+    let translated: string;
+    try {
+      translated = (
+        await translator.translateText({
+          orgId: conv.orgId,
+          text: input.body,
+          sourceLanguage: source,
+          targetLanguage: conv.customerLanguage,
+        })
+      ).trim();
+    } catch (err) {
+      throw new BadGatewayException({
+        message: `conv_translation_failed: ${err instanceof Error ? err.message : String(err)}`,
+        code: 'conv_translation_failed',
+      });
+    }
+    if (!translated) {
+      throw new BadGatewayException({
+        message: 'conv_translation_failed: the translation came back empty',
+        code: 'conv_translation_failed',
+      });
+    }
+
+    const message = await send(translated, input.body);
+    const ctx = getCurrentContext();
+    await ctx.db
+      .insert(schema.convMessageTranslations)
+      .values({
+        orgId: conv.orgId,
+        conversationId: input.conversationId,
+        messageId: message.id,
+        targetLanguage: source,
+        body: input.body,
+      })
+      .onConflictDoUpdate({
+        target: [
+          schema.convMessageTranslations.messageId,
+          schema.convMessageTranslations.targetLanguage,
+        ],
+        set: { body: sql`excluded.body` },
+      });
+    return message;
+  }
 
   async requestTranslation(
     conversationId: string,

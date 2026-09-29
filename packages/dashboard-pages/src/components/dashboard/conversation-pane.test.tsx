@@ -179,7 +179,7 @@ describe('ConversationPane composer', () => {
     fireEvent.change(replyBox(), { target: { value: 'Refund is approved, 3–5 days.' } });
     fireEvent.click(screen.getAllByRole('button', { name: 'Draft from my note' })[0]!);
 
-    expect(requestDraft).toHaveBeenCalledWith('conv_a', 'Refund is approved, 3–5 days.');
+    expect(requestDraft).toHaveBeenCalledWith('conv_a', 'Refund is approved, 3–5 days.', undefined);
   });
 
   it('a note lets you ask for a draft even when the customer did not write last', () => {
@@ -222,4 +222,39 @@ describe('ConversationPane composer', () => {
     );
     expect(screen.queryByText('Fill in what’s in [ ] before sending')).toBeNull();
   });
+
+  it('translates a reply to a foreign-language customer, and sends it as typed once unticked', () => {
+    const send = vi.fn(() => Promise.resolve(true));
+    const detail = makeDetail('conv_a', { customerLanguage: 'es' });
+    renderWithProviders(pane('conv_a', detail, stubController({ send })));
+
+    const box = screen.getByRole<HTMLInputElement>('checkbox', { name: 'Translate to Spanish' });
+    expect(box.checked).toBe(true);
+    fireEvent.change(replyBox(), { target: { value: 'We refund you today.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send reply' }));
+    expect(send).toHaveBeenLastCalledWith('conv_a', 'We refund you today.', undefined, [], 'en');
+
+    fireEvent.click(box);
+    fireEvent.change(replyBox(), { target: { value: 'We refund you today.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send in English' }));
+    expect(send).toHaveBeenLastCalledWith('conv_a', 'We refund you today.', undefined, [], undefined);
+  });
+
+  it('asks for the draft in the teammate language while translation is on', () => {
+    const requestDraft = vi.fn(() => Promise.resolve());
+    const detail = makeDetail('conv_a', { customerLanguage: 'es' });
+    renderWithProviders(pane('conv_a', detail, stubController({ requestDraft })));
+
+    fireEvent.change(replyBox(), { target: { value: 'Refund approved.' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Draft from my note' })[0]!);
+    expect(requestDraft).toHaveBeenCalledWith('conv_a', 'Refund approved.', 'en');
+  });
+
+  it('offers no translation choice when the customer writes the teammate language', () => {
+    renderWithProviders(
+      pane('conv_a', makeDetail('conv_a', { customerLanguage: 'en' }), stubController()),
+    );
+    expect(screen.queryByRole('checkbox', { name: /Translate to/ })).toBeNull();
+  });
 });
+

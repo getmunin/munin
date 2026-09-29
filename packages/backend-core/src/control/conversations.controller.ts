@@ -93,6 +93,7 @@ class SendReplyBody extends createZodDto(
       .array(z.string().min(1).max(64))
       .max(CONV_ATTACHMENT_PER_MESSAGE_MAX)
       .optional(),
+    translateFrom: z.string().trim().min(2).max(16).optional(),
   }),
 ) {}
 
@@ -153,6 +154,7 @@ class SetDraftReplyBody extends createZodDto(
 class RequestDraftBody extends createZodDto(
   z.object({
     note: z.string().max(4000).optional(),
+    language: z.string().trim().min(2).max(16).optional(),
   }),
 ) {}
 
@@ -411,6 +413,25 @@ export class ConversationsController {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     if (input.totalTokens != null) ctx.aiTokens = input.totalTokens;
+    if (input.translateFrom && !input.internal) {
+      if (actor.type !== 'user') {
+        throw new BadRequestException(
+          'conv_invalid: translateFrom is for replies a teammate writes; an agent writes in the customer language itself',
+        );
+      }
+      return translate(() =>
+        this.translation.sendTranslatedReply({
+          conversationId: id,
+          body: input.body,
+          sourceLanguage: input.translateFrom!,
+          authorId: actor.id,
+          fromDraftId: input.fromDraftId,
+          attachmentIds: input.attachmentIds,
+          claim: input.claim,
+          inReplyToId: input.inReplyToId,
+        }),
+      );
+    }
     return translate(() =>
       this.conv.sendMessage({
         conversationId: id,
@@ -600,7 +621,9 @@ export class ConversationsController {
     @Param('id') id: string,
     @Body() input: RequestDraftBody,
   ): Promise<{ requested: boolean }> {
-    return translate(() => this.conv.requestDraft(id, { note: input.note }));
+    return translate(() =>
+      this.conv.requestDraft(id, { note: input.note, language: input.language }),
+    );
   }
 
   @Post(':id/request-translation')

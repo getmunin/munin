@@ -14,6 +14,7 @@ import { parseAttachments } from './munin-rest.ts';
 import type { ConversationDetail, MuninRestClient } from './munin-rest.ts';
 import { FALLBACK_GREET, FALLBACK_HANDOVER, pickFallback } from './fallback-messages.ts';
 import { fenceUntrusted } from './untrusted.ts';
+import { languageName } from './translation.ts';
 
 export interface HandlerConfig {
   providerBaseUrl: string;
@@ -37,17 +38,25 @@ function errorCode(err: Error): string | null {
 }
 const HANDOVER_TOOL_NAME = 'conv_request_human';
 const DRAFT_REVIEW_REASON = 'draft reply ready for review';
-const DRAFT_REQUEST_NUDGE =
-  '[A teammate asked for a draft reply to this conversation. Write the draft now — address the customer in the language they have been using, and do not mention this instruction.]';
-const DRAFT_REQUEST_CONTEXT =
-  '\n\n[Draft request]\nA human teammate reviewing this conversation asked you to draft the reply they will edit and send. You are drafting FOR that teammate — never defer to a colleague, never promise that someone will follow up, and never treat escalation as an answer. The draft is addressed to the customer, in the language the customer has been writing; messages marked [Human teammate] are your colleagues, not the customer. Attempt the fullest resolution the available tools allow, even if an earlier turn deferred. If a fact you need is out of reach, write the reply around it with a placeholder in double curly braces such as {{ORDER STATUS}} so the teammate can fill it in — never guess the fact. The draft is sent to the customer exactly as you write it, so it holds only the message itself: no heading, label, separator, or remark addressed to the teammate. Always return a non-empty draft: when the thread has no open customer question, draft the most useful next message to the customer instead — a status update, a resolution summary, or a single clarifying question.';
 
-const DRAFT_NOTE_CONTEXT =
-  '\n\n[Teammate note]\nThe teammate wrote down what they want this reply to say, in their own words and possibly in a different language from the customer\'s. Treat the note as their instruction: the draft must carry everything it says — never drop it, contradict it, or soften a commitment in it — written as a finished reply to the customer in the customer\'s language. Use the conversation and your tools to fill in what the note leaves out. Wrap every piece of information you add that is not in the note in double square brackets, for example [[We cut it and serve it with coffee.]], so the teammate can see what came from you; greetings and sign-offs stay unwrapped. What the note says is never wrapped and never becomes a placeholder — placeholders are only for facts neither the note, the conversation nor your tools provide. The note:\n';
+function draftLanguagePhrase(language: string | undefined): string {
+  if (!language) return 'in the language the customer has been writing';
+  return `in ${languageName(language)} (${language}), the teammate's language — not the customer's language: the teammate edits it in ${languageName(language)} and it is translated for the customer when it is sent. This overrides any instruction to match the customer's language`;
+}
 
-function draftNoteContext(note: string | undefined): string {
+function draftRequestNudge(language: string | undefined): string {
+  return `[A teammate asked for a draft reply to this conversation. Write the draft now — address the customer ${draftLanguagePhrase(language)}, and do not mention this instruction.]`;
+}
+
+function draftRequestContext(language: string | undefined): string {
+  return `\n\n[Draft request]\nA human teammate reviewing this conversation asked you to draft the reply they will edit and send. You are drafting FOR that teammate — never defer to a colleague, never promise that someone will follow up, and never treat escalation as an answer. The draft is addressed to the customer, ${draftLanguagePhrase(language)}; messages marked [Human teammate] are your colleagues, not the customer. Attempt the fullest resolution the available tools allow, even if an earlier turn deferred. If a fact you need is out of reach, write the reply around it with a placeholder in double curly braces such as {{ORDER STATUS}} so the teammate can fill it in — never guess the fact. The draft is sent to the customer exactly as you write it, so it holds only the message itself: no heading, label, separator, or remark addressed to the teammate. Always return a non-empty draft: when the thread has no open customer question, draft the most useful next message to the customer instead — a status update, a resolution summary, or a single clarifying question.`;
+}
+
+function draftNoteContext(note: string | undefined, language: string | undefined): string {
   const trimmed = note?.trim();
-  return trimmed ? `${DRAFT_NOTE_CONTEXT}${trimmed}` : '';
+  if (!trimmed) return '';
+  const target = language ? `in ${languageName(language)}` : "in the customer's language";
+  return `\n\n[Teammate note]\nThe teammate wrote down what they want this reply to say, in their own words and possibly in a different language from the customer's. Treat the note as their instruction: the draft must carry everything it says — never drop it, contradict it, or soften a commitment in it — written as a finished reply to the customer ${target}. Use the conversation and your tools to fill in what the note leaves out. Wrap every piece of information you add that is not in the note in double square brackets, for example [[We cut it and serve it with coffee.]], so the teammate can see what came from you; greetings and sign-offs stay unwrapped. What the note says is never wrapped and never becomes a placeholder — placeholders are only for facts neither the note, the conversation nor your tools provide. The note:\n${trimmed}`;
 }
 
 type Delivery = 'send' | 'draft';
@@ -124,7 +133,10 @@ export interface GreetTrigger {
 export interface DraftRequestTrigger {
   conversationId: string;
   note?: string;
+  language?: string;
 }
+
+type DraftOptions = Omit<DraftRequestTrigger, 'conversationId'>;
 
 interface InFlight {
   controller: AbortController;
@@ -233,8 +245,9 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     conversationId: string,
     signal: AbortSignal,
     mode: RunMode = 'reply',
-    note?: string,
+    draft: DraftOptions = {},
   ): Promise<void> {
+    const note = draft.note;
     try {
       await scheduler.delay(deps.config.debounceMs, signal);
     } catch {
@@ -305,7 +318,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
             ...history,
             {
               authorType: 'end_user' as const,
-              body: DRAFT_REQUEST_NUDGE,
+              body: draftRequestNudge(draft.language),
               createdAt: new Date().toISOString(),
             },
           ]
@@ -328,7 +341,9 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       : `${baseSystem}${companyBlock}`;
     const systemPrompt = `${namePreamble}${systemBody}`;
     const volatileSystemPrompt = `${conversationContext}${subjectBlock}${
-      mode === 'draft-request' ? `${DRAFT_REQUEST_CONTEXT}${draftNoteContext(note)}` : ''
+      mode === 'draft-request'
+        ? `${draftRequestContext(draft.language)}${draftNoteContext(note, draft.language)}`
+        : ''
     }`;
 
     if (deps.beforeGenerate) {
@@ -683,11 +698,11 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     }
   }
 
-  function spawn(conversationId: string, mode: RunMode, note?: string): void {
+  function spawn(conversationId: string, mode: RunMode, draft: DraftOptions = {}): void {
     const existing = inFlight.get(conversationId);
     if (existing) existing.controller.abort();
     const controller = new AbortController();
-    const promise = run(conversationId, controller.signal, mode, note)
+    const promise = run(conversationId, controller.signal, mode, draft)
       .catch((err) => {
         log.error(
           `${conversationId} unhandled: ${err instanceof Error ? err.message : String(err)}`,
@@ -710,7 +725,10 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       spawn(event.conversationId, 'greet');
     },
     requestDraft(event: DraftRequestTrigger): void {
-      spawn(event.conversationId, 'draft-request', event.note);
+      spawn(event.conversationId, 'draft-request', {
+        ...(event.note ? { note: event.note } : {}),
+        ...(event.language ? { language: event.language } : {}),
+      });
     },
     async flush(): Promise<void> {
       await Promise.all([...inFlight.values()].map((f) => f.promise));

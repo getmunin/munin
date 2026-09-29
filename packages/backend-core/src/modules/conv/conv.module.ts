@@ -6,6 +6,7 @@ import { RealtimeModule } from '../../realtime/realtime.module.ts';
 import { PublicThrottleModule } from '../../common/rate-limit/public-throttle.module.ts';
 import { ConvService } from './conv.service.ts';
 import { ConvTranslationService } from './conv-translation.service.ts';
+import { MessageTranslatorRegistry } from './message-translator.ts';
 import { ConvAttachmentsService } from './attachments/conv-attachments.service.ts';
 import { AttachmentGcWorker } from './attachments/attachment-gc.worker.ts';
 import { InlineImageBackfillService } from './attachments/inline-image-backfill.service.ts';
@@ -91,6 +92,7 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
   providers: [
     ConvService,
     ConvTranslationService,
+    MessageTranslatorRegistry,
     InboundRedactionService,
     RedactBackfillService,
     ConvAttachmentsService,
@@ -193,6 +195,7 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
     OUTREACH_VOICE_CALLERS,
     ConvService,
     ConvTranslationService,
+    MessageTranslatorRegistry,
     InboundRedactionService,
     RedactBackfillService,
     ConvAttachmentsService,

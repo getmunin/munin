@@ -1615,7 +1615,6 @@
           "emptyFilteredBody": "Widen the status, origin or activity window — or clear the filters to go back to the queue."
         },
         "askDraftFromNote": "Draft from my note",
-        "draftSlotsOpen": "Fill in what’s in [ ] before sending",
         "replyPlaceholderOrNote": "Write the reply to {name} — or a rough note, and ask for a draft…"
       }
     },

@@ -213,14 +213,12 @@ describe('ConversationPane composer', () => {
 
     const approve = screen.getByRole<HTMLButtonElement>('button', { name: 'Approve & send' });
     expect(approve.disabled).toBe(true);
-    expect(screen.getByText('Fill in what’s in [ ] before sending')).toBeTruthy();
 
     fireEvent.change(replyBox(), { target: { value: 'Your refund of 40 EUR is on its way.' } });
 
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Send reply' }).disabled).toBe(
       false,
     );
-    expect(screen.queryByText('Fill in what’s in [ ] before sending')).toBeNull();
   });
 
   it('translates a reply to a foreign-language customer, and sends it as typed once unticked', () => {

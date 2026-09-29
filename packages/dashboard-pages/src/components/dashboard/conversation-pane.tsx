@@ -890,7 +890,6 @@ export function ConversationPane({
                     {t('translateOnSend', { language: customerLanguageName ?? '' })}
                   </label>
                 ) : null}
-                {unfilledSlots.length > 0 ? gateCaption(t('draftSlotsOpen')) : null}
               </div>
             </div>
           ) : draft ? (

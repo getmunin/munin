@@ -1615,7 +1615,6 @@
           "emptyFilteredBody": "Utvid status, opphav eller tidsrom — eller nullstill filtrene for å gå tilbake til køen."
         },
         "askDraftFromNote": "Lag kladd fra notatet",
-        "draftSlotsOpen": "Fyll inn det som står i [ ] før du sender",
         "replyPlaceholderOrNote": "Skriv svaret til {name} – eller noen stikkord, og be om en kladd …"
       }
     },

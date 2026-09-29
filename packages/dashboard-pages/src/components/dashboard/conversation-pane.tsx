@@ -45,6 +45,9 @@ import {
 
 const COMPOSER_MAX_HEIGHT_PX = 320;
 
+const STATUS_BADGE_CLASS = 'border-transparent bg-ink/[0.06] dark:bg-paper/10';
+const LIVE_BADGE_CLASS = 'border-transparent bg-cobalt/10 dark:bg-cobalt-soft/15';
+
 const REPLY_BOX_CLASS =
   'w-full resize-none rounded-input border border-rule-soft bg-paper px-3.5 py-3 text-base leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive max-md:min-h-0 max-md:flex-1 md:text-sm dark:border-rule-on-dark dark:bg-card';
 
@@ -439,8 +442,12 @@ export function ConversationPane({
     ? gateCaption(t('claimGateOther', { name: claimHolderName ?? t('teammate') }))
     : null;
 
-  const askDraftButton = (className?: string) =>
-    canAskDraft ? (
+  const askDraftButton = (className?: string, opts?: { showPending?: boolean }) =>
+    opts?.showPending && canReply && drafting && !streaming ? (
+      <Button variant="outline" className={className} pending>
+        {t('draftingPending')}
+      </Button>
+    ) : canAskDraft ? (
       <Button
         variant="outline"
         className={className}
@@ -487,32 +494,25 @@ export function ConversationPane({
 
   const composerState = !isOpen
     ? t('stateClosed')
-    : streaming
+    : streaming && !canReply
       ? t('stateWriting')
-      : drafting
+      : drafting && !canReply
         ? t('stateThinking')
         : !claim
         ? t('stateUnclaimed')
         : !claimMine
           ? t('stateOwnedBy', { name: claimHolderName ?? t('teammate') })
           : null;
-  const composerLabel = composerState ?? (editedByYou ? t('draftEdited') : null);
 
   const statusAction = (label: string, onClick: () => void) => (
     <button
       type="button"
       onClick={onClick}
       disabled={controller.pending}
-      className="hidden shrink-0 uppercase underline underline-offset-[3px] text-ink-soft transition-colors duration-fast hover:text-ink disabled:no-underline disabled:opacity-50 md:inline dark:text-foreground/70 dark:hover:text-foreground"
+      className="hidden shrink-0 font-mono text-[10px] font-medium uppercase tracking-meta underline underline-offset-[3px] text-ink-soft transition-colors duration-fast hover:text-ink disabled:no-underline disabled:opacity-50 md:inline dark:text-foreground/70 dark:hover:text-foreground"
     >
       {label}
     </button>
-  );
-
-  const statusSeparator = (
-    <span aria-hidden className="hidden shrink-0 text-ink-mute md:inline">
-      ·
-    </span>
   );
 
   const composerActionsMenu = (
@@ -534,7 +534,7 @@ export function ConversationPane({
           {t('release')}
         </DropdownMenuItem>
         {editedByYou ? (
-          <DropdownMenuItem className="md:hidden" onClick={() => setReply(draft.body)}>
+          <DropdownMenuItem onClick={() => setReply(draft.body)}>
             {t('restoreDraft')}
           </DropdownMenuItem>
         ) : null}
@@ -552,39 +552,31 @@ export function ConversationPane({
   const statusStrip = (
     <span
       className={cn(
-        'flex min-w-0 flex-wrap items-center gap-x-5 gap-y-1 font-mono text-[10px] font-medium uppercase tracking-meta md:ml-auto md:justify-end',
+        'flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 md:ml-auto md:justify-end',
         composerState ? 'max-md:w-full max-md:pb-2 max-md:pt-1' : 'max-md:hidden',
       )}
     >
       {canReply ? (
         <span className="hidden shrink-0 items-center gap-1.5 md:flex">
-          <span className="text-ink-mute">{t('claimYours')}</span>
-          {statusSeparator}
+          <Pill tone="draft" marker="none" className={STATUS_BADGE_CLASS}>
+            {t('claimYours')}
+          </Pill>
           {statusAction(t('release'), releaseClaim)}
         </span>
       ) : null}
-      {composerLabel ? (
+      {composerState ? (
         <span className="flex min-w-0 items-center gap-1.5">
-          {streaming || drafting ? (
-            <span
-              aria-hidden
-              className="size-1.5 shrink-0 animate-pulse rounded-full bg-cobalt dark:bg-cobalt-soft"
-            />
-          ) : null}
-          <span
+          <Pill
+            tone={streaming || drafting ? 'live' : 'draft'}
+            marker={streaming || drafting ? 'dot' : 'none'}
+            pulse={streaming || drafting}
             className={cn(
-              'truncate',
-              streaming || drafting ? 'text-cobalt dark:text-cobalt-soft' : 'text-ink-mute',
+              'min-w-0',
+              streaming || drafting ? LIVE_BADGE_CLASS : STATUS_BADGE_CLASS,
             )}
           >
-            {composerLabel}
-          </span>
-          {editedByYou ? (
-            <>
-              {statusSeparator}
-              {statusAction(t('restoreDraft'), () => setReply(draft.body))}
-            </>
-          ) : null}
+            <span className="truncate">{composerState}</span>
+          </Pill>
         </span>
       ) : null}
     </span>
@@ -844,7 +836,7 @@ export function ConversationPane({
                 rows={4}
                 placeholder={t(agentCanDraft ? 'replyPlaceholderOrNote' : 'replyPlaceholder', { name: customer })}
                 aria-invalid={slotsNudged && unfilledSlots.length > 0}
-                className={REPLY_BOX_CLASS}
+                className={cn(REPLY_BOX_CLASS, drafting && !streaming && 'text-ink-mute')}
               />
               {slotsNudged && unfilledSlots.length > 0 ? (
                 <p role="alert" className="text-[13px] text-destructive">
@@ -887,7 +879,7 @@ export function ConversationPane({
                             ? t('sendInLanguage', { language: viewerLanguageName(locale) })
                             : t('sendReply')}
                   </Button>
-                  {askDraftButton('max-md:order-last max-md:h-11 max-md:basis-full')}
+                  {askDraftButton('max-md:order-last max-md:h-11 max-md:basis-full', { showPending: true })}
                   <Button
                     variant="outline"
                     onClick={() => fileInputRef.current?.click()}

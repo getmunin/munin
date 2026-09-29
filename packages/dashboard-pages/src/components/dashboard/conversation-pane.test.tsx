@@ -44,8 +44,9 @@ function replyBox(): HTMLTextAreaElement {
   );
 }
 
-function restoreDraftButton(): HTMLElement | null {
-  return screen.queryByRole('button', { name: 'Restore draft' });
+function restoreDraftItem(): HTMLElement | null {
+  fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+  return screen.queryByRole('menuitem', { name: 'Restore draft' });
 }
 
 function failureBlocks(): HTMLElement[] {
@@ -66,7 +67,7 @@ describe('ConversationPane composer', () => {
 
     expect(replyBox().value).toBe(DRAFT_A);
     expect(screen.getByRole('button', { name: 'Approve & send' })).toBeTruthy();
-    expect(restoreDraftButton()).toBeNull();
+    expect(restoreDraftItem()).toBeNull();
   });
 
   it('reopening a conversation with a cached draft seeds the composer and is not dirty', () => {
@@ -79,8 +80,7 @@ describe('ConversationPane composer', () => {
     rerender(pane('conv_b', detailWithDraft('conv_b', DRAFT_B), controller));
 
     expect(replyBox().value).toBe(DRAFT_B);
-    expect(screen.queryByText('edited by you')).toBeNull();
-    expect(restoreDraftButton()).toBeNull();
+    expect(restoreDraftItem()).toBeNull();
     expect(screen.getByRole('button', { name: 'Approve & send' })).toBeTruthy();
   });
 
@@ -94,8 +94,7 @@ describe('ConversationPane composer', () => {
     rerender(pane('conv_b', detailWithDraft('conv_b', DRAFT_B), controller));
 
     expect(replyBox().value).toBe(DRAFT_B);
-    expect(screen.queryByText('edited by you')).toBeNull();
-    expect(restoreDraftButton()).toBeNull();
+    expect(restoreDraftItem()).toBeNull();
   });
 
   it('a send failure stays on its own conversation when you switch away and back', () => {
@@ -133,6 +132,7 @@ describe('ConversationPane composer', () => {
     const drafting = stubController({ draftRequested: { conv_a: true } });
     const { rerender } = renderWithProviders(pane('conv_a', makeDetail('conv_a'), drafting));
     expect(screen.getAllByText('Thinking').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Drafting…' })).toHaveProperty('disabled', true);
 
     rerender(pane('conv_a', detailWithDraft('conv_a', DRAFT_A), stubController()));
 
@@ -142,15 +142,13 @@ describe('ConversationPane composer', () => {
     expect(replyBox().value.length).toBeGreaterThan(0);
     expect(replyBox().value.length).toBeLessThan(DRAFT_A.length);
     expect(screen.getAllByText('Writing').length).toBeGreaterThan(0);
-    expect(screen.queryByText('edited by you')).toBeNull();
-    expect(restoreDraftButton()).toBeNull();
+    expect(restoreDraftItem()).toBeNull();
 
     act(() => {
       vi.advanceTimersByTime(24 * DRAFT_A.length);
     });
     expect(replyBox().value).toBe(DRAFT_A);
-    expect(screen.queryByText('edited by you')).toBeNull();
-    expect(restoreDraftButton()).toBeNull();
+    expect(restoreDraftItem()).toBeNull();
   });
 
   it('clearing the box by hand is dirty and Restore draft refills it', () => {
@@ -158,14 +156,12 @@ describe('ConversationPane composer', () => {
 
     fireEvent.change(replyBox(), { target: { value: '' } });
 
-    expect(screen.getAllByText('edited by you').length).toBeGreaterThan(0);
-    expect(restoreDraftButton()).toBeTruthy();
+    expect(restoreDraftItem()).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Send reply' })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Restore draft' }));
+    fireEvent.click(restoreDraftItem()!);
 
     expect(replyBox().value).toBe(DRAFT_A);
-    expect(screen.queryByText('edited by you')).toBeNull();
     expect(screen.getByRole('button', { name: 'Approve & send' })).toBeTruthy();
   });
 

@@ -387,15 +387,19 @@ export function ConversationPane({
     });
   };
 
-  const takeOverLabel = draft
-    ? claim
-      ? t('takeOverToReviewDraft')
-      : t('claimToReviewDraft')
-    : claim
-      ? t('takeOverToReply')
-      : t('claimToReply');
+  const takeOverLabel = (draftHidden: boolean) =>
+    draft && draftHidden
+      ? claim
+        ? t('takeOverToReviewDraft')
+        : t('claimToReviewDraft')
+      : claim
+        ? t('takeOverToReply')
+        : t('claimToReply');
 
-  const takeOverButton = (className: string, opts?: { expandOnSuccess?: boolean }) => (
+  const takeOverButton = (
+    className: string,
+    opts?: { expandOnSuccess?: boolean; draftHidden?: boolean },
+  ) => (
     <Button
       variant="accent"
       className={className}
@@ -407,7 +411,7 @@ export function ConversationPane({
       disabled={controller.pending}
       pending={controller.pendingAction === 'takeOver'}
     >
-      {takeOverLabel} <span aria-hidden>→</span>
+      {takeOverLabel(opts?.draftHidden ?? false)} <span aria-hidden>→</span>
     </Button>
   );
 
@@ -688,7 +692,7 @@ export function ConversationPane({
               closedFooter
             ) : !canReply ? (
               <div className="flex flex-col items-stretch gap-2.5 px-5 py-4">
-                {takeOverButton('h-11', { expandOnSuccess: true })}
+                {takeOverButton('h-11', { expandOnSuccess: true, draftHidden: true })}
                 {claimGateCaption}
               </div>
             ) : suggestionId && !dirty && !streaming ? (
@@ -925,7 +929,7 @@ export function ConversationPane({
               />
               <div className="flex shrink-0 flex-col flex-wrap items-stretch gap-2.5 md:flex-row md:items-center">
                 {takeOverButton('max-md:h-11')}
-                {claimGateCaption ?? gateCaption(t('draftPreviewHint'))}
+                {claimGateCaption}
               </div>
             </div>
           ) : (

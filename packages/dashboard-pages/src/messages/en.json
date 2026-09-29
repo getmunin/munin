@@ -1540,7 +1540,6 @@
         "rejectDraft": "Reject draft",
         "reviewDraft": "Review draft",
         "draftPreviewLabel": "Agent draft",
-        "draftPreviewHint": "Read-only until you claim it",
         "writeReply": "Write reply",
         "continueReply": "Continue reply",
         "restoreDraft": "Restore draft",

@@ -890,7 +890,7 @@ export function ConversationPane({
                   {composerActionsMenu}
                 </div>
                 {foreignCustomer ? (
-                  <label className="flex shrink-0 cursor-pointer items-center gap-2 text-[13px] text-ink-soft dark:text-foreground/80">
+                  <label className="flex shrink-0 cursor-pointer items-center gap-2 text-[13px] text-ink-soft md:order-last dark:text-foreground/80">
                     <input
                       type="checkbox"
                       className="size-3.5 shrink-0 accent-ink"

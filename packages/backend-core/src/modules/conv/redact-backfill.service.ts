@@ -5,6 +5,7 @@ import { WebhookDispatcher, getCurrentContext } from '@getmunin/core';
 import { encodeCursor, decodeCursor } from '../../common/transfer/transfer.helpers.ts';
 import { applyInboundRedaction } from './inbound-redaction.ts';
 import { readRedactionPolicy } from './redaction-policy.ts';
+import { deleteMessageTranslations } from './conv-translation.service.ts';
 
 export interface RedactBackfillResult {
   scanned: number;
@@ -83,6 +84,7 @@ export class RedactBackfillService {
           metadata: scrubbed.fields.metadata ?? {},
         })
         .where(eq(schema.convMessages.id, row.id));
+      await deleteMessageTranslations(ctx.db, [row.id]);
       messagesRewritten += 1;
       touchedConversations.add(row.conversationId);
 

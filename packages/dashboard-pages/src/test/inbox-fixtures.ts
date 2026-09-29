@@ -118,6 +118,7 @@ export function stubController(overrides: Partial<QueueController> = {}): QueueC
     clearActionError: () => undefined,
     reportAttachmentError: () => undefined,
     draftRequested: {},
+    translating: {},
     takeOver: () => Promise.resolve(true),
     release: () => Promise.resolve(true),
     closeConv: () => Promise.resolve(true),

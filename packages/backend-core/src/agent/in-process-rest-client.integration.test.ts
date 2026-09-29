@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { WebhookDispatcher } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
+import { ConvTranslationService } from '../modules/conv/conv-translation.service.ts';
 import { ConvService } from '../modules/conv/conv.service.ts';
 import { ConversationClaimsService } from '../modules/conv/conv.claims.service.ts';
 import { CuratorJobsService } from '../modules/curator/curator-jobs.service.ts';
@@ -86,6 +87,7 @@ const skipReason = TEST_URL
       conv,
       claims,
       new CuratorJobsService(dispatcher),
+      new ConvTranslationService(dispatcher),
     );
     const client = factory.forOrg(orgId);
 
@@ -119,6 +121,7 @@ const skipReason = TEST_URL
       conv,
       claims,
       new CuratorJobsService(dispatcher),
+      new ConvTranslationService(dispatcher),
     );
     const client = factory.forOrg(orgId);
 
@@ -148,6 +151,7 @@ const skipReason = TEST_URL
       conv,
       claims,
       new CuratorJobsService(dispatcher),
+      new ConvTranslationService(dispatcher),
     );
     const client = factory.forOrg(orgId);
 
@@ -211,6 +215,7 @@ const skipReason = TEST_URL
       conv,
       claims,
       new CuratorJobsService(dispatcher),
+      new ConvTranslationService(dispatcher),
     );
     const client = factory.forOrg(orgId);
 
@@ -247,6 +252,7 @@ const skipReason = TEST_URL
       conv,
       claims,
       new CuratorJobsService(dispatcher),
+      new ConvTranslationService(dispatcher),
     );
     const client = factory.forOrg(orgId);
 
@@ -297,6 +303,7 @@ const skipReason = TEST_URL
       conv,
       claims,
       new CuratorJobsService(dispatcher),
+      new ConvTranslationService(dispatcher),
     );
     const client = factory.forOrg(orgId);
 

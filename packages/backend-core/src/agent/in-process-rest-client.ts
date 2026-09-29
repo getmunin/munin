@@ -21,17 +21,23 @@ import {
   type EnqueueCuratorJobInput,
   type FailCuratorJobInput,
   type MuninRestClient,
+  type PendingTranslations,
+  type SaveTranslationsInput,
+  type TranslationRestClient,
   type UpdateCuratorJobProgressInput,
   toRuntimeHistory,
 } from '@getmunin/agent-runtime';
 import type { ConversationMessage, SetDraftReplyOpts } from '@getmunin/agent-runtime';
 import { ConvService } from '../modules/conv/conv.service.ts';
+import { ConvTranslationService } from '../modules/conv/conv-translation.service.ts';
 import { ConversationClaimsService } from '../modules/conv/conv.claims.service.ts';
 import { CuratorJobsService } from '../modules/curator/curator-jobs.service.ts';
 import { DB } from '../common/db/db.module.ts';
 import { applyTenancyGUCs } from '../common/tenancy/tenancy.interceptor.ts';
 
-export type MuninRestClientFactory = (orgId: string) => MuninRestClient;
+export type AgentRestClient = MuninRestClient & TranslationRestClient;
+
+export type MuninRestClientFactory = (orgId: string) => AgentRestClient;
 
 @Injectable()
 export class InProcessMuninRestClientFactoryService {
@@ -42,15 +48,17 @@ export class InProcessMuninRestClientFactoryService {
     private readonly conv: ConvService,
     private readonly claims: ConversationClaimsService,
     private readonly curator: CuratorJobsService,
+    private readonly translation: ConvTranslationService,
   ) {}
 
-  forOrg(orgId: string): MuninRestClient {
+  forOrg(orgId: string): AgentRestClient {
     return buildClient({
       db: this.db,
       audit: this.audit,
       conv: this.conv,
       claims: this.claims,
       curator: this.curator,
+      translation: this.translation,
       actor: buildAdminAgentActor(orgId),
     });
   }
@@ -62,10 +70,11 @@ interface BuildOptions {
   conv: ConvService;
   claims: ConversationClaimsService;
   curator: CuratorJobsService;
+  translation: ConvTranslationService;
   actor: ActorIdentity;
 }
 
-function buildClient(opts: BuildOptions): MuninRestClient {
+function buildClient(opts: BuildOptions): AgentRestClient {
   function withTenancy<T>(fn: () => Promise<T>): Promise<T> {
     return opts.db.transaction(async (tx) => {
       await applyTenancyGUCs(tx, opts.actor);
@@ -215,6 +224,24 @@ function buildClient(opts: BuildOptions): MuninRestClient {
           toolNames: draftOpts?.toolNames,
         });
       });
+    },
+
+    async getPendingTranslations(
+      conversationId: string,
+      targetLanguage: string,
+    ): Promise<PendingTranslations> {
+      return audited('runner:getPendingTranslations', () =>
+        opts.translation.pendingTranslations(conversationId, targetLanguage),
+      );
+    },
+
+    async saveTranslations(
+      conversationId: string,
+      input: SaveTranslationsInput,
+    ): Promise<{ saved: number }> {
+      return audited('runner:saveTranslations', () =>
+        opts.translation.saveTranslations({ conversationId, ...input }),
+      );
     },
 
     async clearDraftReply(conversationId: string): Promise<void> {

@@ -43,6 +43,11 @@ export interface DraftRequestedBusEvent {
   conversationId: string;
 }
 
+export interface TranslationRequestedBusEvent {
+  conversationId: string;
+  targetLanguage: string;
+}
+
 export interface AgentConfigChangedBusEvent {
   configId: string;
 }
@@ -54,6 +59,7 @@ export interface RealtimeBusHandlers {
   onCuratorJobPending?: (event: CuratorJobPendingBusEvent) => void;
   onGreetRequested?: (event: GreetRequestedBusEvent) => void;
   onDraftRequested?: (event: DraftRequestedBusEvent) => void;
+  onTranslationRequested?: (event: TranslationRequestedBusEvent) => void;
   onAgentConfigChanged?: (event: AgentConfigChangedBusEvent) => void;
   onConnected?: () => void;
 }
@@ -190,6 +196,14 @@ function dispatchEvent(event: EventRow, handlers: RealtimeBusHandlers): void {
     const conversationId = payload['conversationId'];
     if (typeof conversationId !== 'string') return;
     handlers.onDraftRequested({ conversationId });
+    return;
+  }
+
+  if (type === 'conversation.translation_requested' && handlers.onTranslationRequested) {
+    const conversationId = payload['conversationId'];
+    const targetLanguage = payload['targetLanguage'];
+    if (typeof conversationId !== 'string' || typeof targetLanguage !== 'string') return;
+    handlers.onTranslationRequested({ conversationId, targetLanguage });
     return;
   }
 

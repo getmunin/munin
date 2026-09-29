@@ -42,6 +42,7 @@ import {
   composeVoiceSystemPrompt,
   type ChatMessageSeed,
 } from './vapi-assistant.ts';
+import { deleteMessageTranslations } from '../conv-translation.service.ts';
 
 interface ConversationStatusWriter {
   changeStatus(input: { id: string; status: 'closed' }): Promise<unknown>;
@@ -309,6 +310,7 @@ export class VapiAdapter implements ChannelAdapter {
               .update(schema.convMessages)
               .set({ body: text })
               .where(eq(schema.convMessages.id, existing.id));
+            await deleteMessageTranslations(tx, [existing.id]);
           }
           continue;
         }

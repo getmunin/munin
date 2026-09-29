@@ -71,9 +71,17 @@ export interface MessageDto {
   deliveryNextAttemptAt?: string | null;
 }
 
+export interface ConversationTranslations {
+  customerLanguage: string | null;
+  targetLanguage: string;
+  messages: Record<string, string>;
+}
+
 export interface ConversationDetail extends ConversationSummary {
   messages: MessageDto[];
   claim: { holderType: 'user'; holderId: string; expiresAt: string } | null;
+  customerLanguage?: string | null;
+  translations?: ConversationTranslations;
   contactEmail: string | null;
   contactName: string | null;
   contactPhone: string | null;

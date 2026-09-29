@@ -2,6 +2,11 @@ import type { MessageComponent } from '@getmunin/types';
 import { readQuotedHistory } from './quoted-history.ts';
 import type { ConversationAttachment, ConversationMessage } from './types.ts';
 import { stripTrailingSlashes } from '@getmunin/types';
+import type {
+  PendingTranslations,
+  SaveTranslationsInput,
+  TranslationRestClient,
+} from './translation.ts';
 
 export interface SetDraftReplyOpts {
   retrievedDocumentIds?: string[];
@@ -243,7 +248,9 @@ export function parseAttachments(raw: unknown): ConversationAttachment[] {
   return out;
 }
 
-export function createMuninRestClient(opts: CreateMuninRestClientOptions): MuninRestClient {
+export function createMuninRestClient(
+  opts: CreateMuninRestClientOptions,
+): MuninRestClient & TranslationRestClient {
   const baseUrl = stripTrailingSlashes(opts.baseUrl);
   const fetchImpl = opts.fetch ?? globalThis.fetch;
 
@@ -272,6 +279,24 @@ export function createMuninRestClient(opts: CreateMuninRestClientOptions): Munin
   return {
     async getConversation(id: string): Promise<ConversationDetail> {
       return call<ConversationDetail>(`/v1/conversations/${encodeURIComponent(id)}`);
+    },
+    async getPendingTranslations(
+      conversationId: string,
+      targetLanguage: string,
+    ): Promise<PendingTranslations> {
+      const params = new URLSearchParams({ targetLanguage });
+      return call<PendingTranslations>(
+        `/v1/conversations/${encodeURIComponent(conversationId)}/pending-translations?${params.toString()}`,
+      );
+    },
+    async saveTranslations(
+      conversationId: string,
+      input: SaveTranslationsInput,
+    ): Promise<{ saved: number }> {
+      return call<{ saved: number }>(
+        `/v1/conversations/${encodeURIComponent(conversationId)}/translations`,
+        { method: 'POST', body: JSON.stringify(input) },
+      );
     },
     async listConversationsAwaitingReply(
       input: { limit?: number; lookbackMinutes?: number } = {},

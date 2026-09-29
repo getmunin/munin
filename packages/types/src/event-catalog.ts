@@ -45,6 +45,8 @@ export const CONVERSATION_EVENT_TYPES = [
   'conversation.greet_requested',
   'conversation.draft_requested',
   'conversation.draft_ready',
+  'conversation.translation_requested',
+  'conversation.translated',
   'conversation.note_added',
   'conversation.message.received',
   'conversation.message.sent',

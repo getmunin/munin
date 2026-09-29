@@ -119,6 +119,22 @@ export {
   type QuotedHistoryTurn,
 } from './quoted-history.ts';
 export {
+  batchMessages,
+  createTranslationHandler,
+  languageName,
+  parseTranslationResponse,
+  translateMessages,
+  type PendingTranslationMessage,
+  type PendingTranslations,
+  type SaveTranslationsInput,
+  type TranslateMessagesArgs,
+  type TranslateMessagesResult,
+  type TranslationHandler,
+  type TranslationHandlerDeps,
+  type TranslationRestClient,
+  type TranslationTrigger,
+} from './translation.ts';
+export {
   createRealtimeClient,
   type AgentConfigChangedEvent,
   type CuratorJobPendingEvent,
@@ -129,6 +145,7 @@ export {
   type MessageReceivedEvent,
   type RealtimeClient,
   type RealtimeClientOptions,
+  type TranslationRequestedEvent,
 } from './realtime.ts';
 export type {
   AgentConfig,

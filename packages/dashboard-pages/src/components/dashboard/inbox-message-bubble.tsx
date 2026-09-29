@@ -116,6 +116,7 @@ export function MessageBubble({
   onDeleteAttachment,
   onRetryDelivery,
   retryingDelivery = false,
+  displayBody,
 }: {
   message: MessageDto;
   showAuthor?: boolean;
@@ -125,6 +126,7 @@ export function MessageBubble({
   onDeleteAttachment?: (attachment: MessageAttachment) => void;
   onRetryDelivery?: (message: MessageDto) => void;
   retryingDelivery?: boolean;
+  displayBody?: string;
 }) {
   const t = useTranslations('dashboard.overview.drawer');
   const role = messageRole(message, viewerUserId);
@@ -217,7 +219,7 @@ export function MessageBubble({
         {noSpeech ? (
           <p className="italic opacity-60">{t('noSpeech')}</p>
         ) : (
-          <MessageMarkdown body={message.body} />
+          <MessageMarkdown body={displayBody ?? message.body} />
         )}
       </div>
       <MessageAttachments attachments={message.attachments} onDelete={onDeleteAttachment} />

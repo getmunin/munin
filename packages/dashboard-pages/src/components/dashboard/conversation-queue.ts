@@ -1,14 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { api, ApiError } from '../../api';
 import { getErrorCode, useTranslateError } from '../../i18n/translate-error';
 import { notify } from '../../lib/notify';
 import { useRealtime, type SubscriptionChannel } from '../../realtime';
 import type { ConversationDetail, MessageDto, Status } from './inbox-types';
+import { untranslatedMessageIds } from './inbox-translation';
 
 const DRAFT_REQUEST_TIMEOUT_MS = 60_000;
+const TRANSLATION_TIMEOUT_MS = 60_000;
 const RUNNER_PICKUP_POLL_MS = 1_500;
 const AGENT_WORKING_POLL_MS = 2_000;
 
@@ -263,6 +265,7 @@ export interface QueueController {
   clearActionError: () => void;
   reportAttachmentError: (conversationId: string, message: string) => void;
   draftRequested: Record<string, boolean>;
+  translating: Record<string, boolean>;
   takeOver: (id: string) => Promise<boolean>;
   release: (id: string) => Promise<boolean>;
   closeConv: (id: string) => Promise<boolean>;
@@ -297,6 +300,7 @@ export function useConversationQueue(
 ): QueueController {
   const translateErr = useTranslateError();
   const t = useTranslations('dashboard.console.queue');
+  const locale = useLocale();
   const [open, setOpen] = useState<QueueItemDto[]>([]);
   const [finished, setFinished] = useState<QueueItemDto[]>([]);
   const [results, setResults] = useState<QueueItemDto[]>([]);
@@ -330,6 +334,58 @@ export function useConversationQueue(
   const draftRequestedRef = useRef(draftRequested);
   draftRequestedRef.current = draftRequested;
   const draftTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const [translating, setTranslating] = useState<Record<string, boolean>>({});
+  const translationTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const translationAsked = useRef(new Set<string>());
+
+  const stopTranslating = useCallback((id: string) => {
+    const timer = translationTimers.current.get(id);
+    if (timer) clearTimeout(timer);
+    translationTimers.current.delete(id);
+    setTranslating((prev) => {
+      if (!prev[id]) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
+
+  const syncTranslation = useCallback(
+    (d: ConversationDetail) => {
+      const missing = untranslatedMessageIds(d, locale);
+      if (missing.length === 0) {
+        stopTranslating(d.id);
+        return;
+      }
+      const key = `${d.id}:${locale}:${missing.join(',')}`;
+      if (translationAsked.current.has(key)) return;
+      translationAsked.current.add(key);
+      void api<{ requested: boolean }>(`/v1/conversations/${d.id}/request-translation`, {
+        method: 'POST',
+        body: JSON.stringify({ targetLanguage: locale }),
+      })
+        .then(({ requested }) => {
+          if (!requested) return;
+          const existing = translationTimers.current.get(d.id);
+          if (existing) clearTimeout(existing);
+          setTranslating((prev) => ({ ...prev, [d.id]: true }));
+          translationTimers.current.set(
+            d.id,
+            setTimeout(() => stopTranslating(d.id), TRANSLATION_TIMEOUT_MS),
+          );
+        })
+        .catch(() => undefined);
+    },
+    [locale, stopTranslating],
+  );
+
+  useEffect(() => {
+    const timers = translationTimers.current;
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+    };
+  }, []);
   const followUpTimers = useRef(new Set<ReturnType<typeof setTimeout>>());
 
   const clearDraftRequested = useCallback((id: string) => {
@@ -438,8 +494,10 @@ export function useConversationQueue(
 
   const loadDetail = useCallback(async (id: string) => {
     try {
-      const d = await api<ConversationDetail>(`/v1/conversations/${id}`);
+      const params = new URLSearchParams({ translateTo: locale });
+      const d = await api<ConversationDetail>(`/v1/conversations/${id}?${params.toString()}`);
       setDetails((prev) => ({ ...prev, [id]: d }));
+      syncTranslation(d);
       setDetailErrors((prev) => {
         if (!(id in prev)) return prev;
         const next = { ...prev };
@@ -455,7 +513,7 @@ export function useConversationQueue(
     } catch (err) {
       if (err instanceof ApiError) setDetailErrors((prev) => ({ ...prev, [id]: err }));
     }
-  }, [clearDraftRequested]);
+  }, [clearDraftRequested, locale, syncTranslation]);
 
   useEffect(() => {
     void loadQueue();
@@ -710,6 +768,7 @@ export function useConversationQueue(
     clearActionError,
     reportAttachmentError,
     draftRequested,
+    translating,
     takeOver,
     release,
     closeConv,

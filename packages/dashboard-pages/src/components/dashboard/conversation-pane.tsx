@@ -390,7 +390,7 @@ export function ConversationPane({
   );
 
   const gateCaption = (text: string) => (
-    <span className="min-w-0 font-mono text-[10px] font-medium uppercase tracking-meta leading-relaxed text-ink-mute">
+    <span className="min-w-0 font-mono text-[10px] font-medium uppercase tracking-meta leading-relaxed text-ink-mute md:order-last">
       {text}
     </span>
   );
@@ -438,9 +438,8 @@ export function ConversationPane({
         ? t('stateUnclaimed')
         : !claimMine
           ? t('stateOwnedBy', { name: claimHolderName ?? t('teammate') })
-          : editedByYou
-            ? t('draftEdited')
-            : null;
+          : null;
+  const composerLabel = composerState ?? (editedByYou ? t('draftEdited') : null);
 
   const statusAction = (label: string, onClick: () => void) => (
     <button
@@ -478,7 +477,7 @@ export function ConversationPane({
           {t('release')}
         </DropdownMenuItem>
         {editedByYou ? (
-          <DropdownMenuItem onClick={() => setReply(draft.body)}>
+          <DropdownMenuItem className="md:hidden" onClick={() => setReply(draft.body)}>
             {t('restoreDraft')}
           </DropdownMenuItem>
         ) : null}
@@ -507,7 +506,7 @@ export function ConversationPane({
           {statusAction(t('release'), releaseClaim)}
         </span>
       ) : null}
-      {composerState ? (
+      {composerLabel ? (
         <span className="flex min-w-0 items-center gap-1.5">
           {streaming || drafting ? (
             <span
@@ -521,7 +520,7 @@ export function ConversationPane({
               streaming || drafting ? 'text-cobalt dark:text-cobalt-soft' : 'text-ink-mute',
             )}
           >
-            {composerState}
+            {composerLabel}
           </span>
           {editedByYou ? (
             <>
@@ -789,7 +788,7 @@ export function ConversationPane({
                     e.target.value = '';
                   }}
                 />
-                <div className="flex items-stretch gap-2 md:contents">
+                <div className="flex flex-wrap items-stretch gap-2 md:contents">
                   <Button
                     variant="accent"
                     onClick={sendReply}
@@ -810,6 +809,7 @@ export function ConversationPane({
                         ? t('approveSend')
                         : t('sendReply')}
                   </Button>
+                  {askDraftButton('max-md:order-last max-md:h-11 max-md:basis-full')}
                   <Button
                     variant="outline"
                     onClick={() => fileInputRef.current?.click()}
@@ -822,7 +822,6 @@ export function ConversationPane({
                   </Button>
                   {composerActionsMenu}
                 </div>
-                {askDraftButton('max-md:h-11')}
                 {unfilledSlots.length > 0 ? gateCaption(t('draftSlotsOpen')) : null}
               </div>
             </div>

@@ -10718,7 +10718,7 @@ MIT License
 
 ---
 
-## @types/node@22.20.1, 22.20.2
+## @types/node@22.20.1, 22.20.4
 
 > TypeScript definitions for node
 - Homepage: https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node
@@ -26959,7 +26959,7 @@ SOFTWARE.
 
 ---
 
-## rettime@0.11.11
+## rettime@0.11.12
 
 > A type-safe marriage of `EventTarget` and `EventEmitter`.
 - Homepage: https://github.com/kettanaito/rettime#readme
@@ -30204,7 +30204,7 @@ SOFTWARE.
 
 ---
 
-## tldts@7.4.13
+## tldts@7.4.16
 
 > Library to work against complex domain names, subdomains and URIs.
 - Homepage: https://github.com/remusao/tldts#readme
@@ -30229,7 +30229,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTH
 
 ---
 
-## tldts-core@7.4.13
+## tldts-core@7.4.16
 
 > tldts core primitives (internal module)
 - Homepage: https://github.com/remusao/tldts#readme
@@ -30621,7 +30621,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## type-fest@0.7.1, 5.9.0
+## type-fest@0.7.1, 5.10.0
 
 > A collection of essential TypeScript types
 - Homepage: https://github.com/sindresorhus/type-fest#readme
@@ -30922,7 +30922,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## undici@7.29.0
+## undici@7.29.1
 
 > An HTTP/1.1 client, written from scratch for Node.js
 - Homepage: https://undici.nodejs.org

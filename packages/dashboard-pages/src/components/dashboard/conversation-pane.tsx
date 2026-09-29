@@ -13,7 +13,6 @@ import {
   Pill,
   cn,
 } from '@getmunin/ui';
-import { useRelative } from '../../lib/use-relative';
 import { useConversationTyping } from '../../realtime';
 import { useCmdEnter } from './queue-panes/shared';
 import { MessageBubble, startsAuthorGroup } from './inbox-message-bubble';
@@ -66,7 +65,6 @@ export function ConversationPane({
 }) {
   const t = useTranslations('dashboard.console.queue');
   const tCommon = useTranslations('common');
-  const age = useRelative();
   const buildPaneLoadFailedProps = usePaneLoadFailedProps();
 
   const [tab, setTab] = useState<'reply' | 'note'>('reply');
@@ -438,18 +436,9 @@ export function ConversationPane({
       </Button>
     ) : null;
 
-  const originLine = drafting
-    ? t('originDrafting')
-    : draft
-      ? t('originDrafted', { age: age(draft.createdAt) })
-      : detail.needsHumanAttention && detail.needsHumanAttentionAt
-        ? t('originStopped', { age: age(detail.needsHumanAttentionAt) })
-        : detail.status;
-
   const metaParts = [
     `#${detail.displayId}`,
     item?.topicName ?? null,
-    originLine,
     customerPhone === customer ? null : customerPhone,
   ].filter((v): v is string => !!v);
 

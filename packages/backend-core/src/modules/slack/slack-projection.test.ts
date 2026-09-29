@@ -536,4 +536,39 @@ describe('socialDraftApprovalText', () => {
     expect(text).toContain("organisation's Facebook page");
     expect(text).not.toContain('your own Facebook account');
   });
+
+  it('quotes a short post in full without a truncation marker', () => {
+    const text = socialDraftApprovalText({ ...snap, body: 'Line one\n\nLine two' });
+    expect(text).toContain('> Line one\n> \n> Line two');
+    expect(text).not.toContain('read the full post in Munin');
+  });
+
+  it('previews only the first lines of a long post', () => {
+    const body = Array.from({ length: 12 }, (_, i) => `Paragraph ${i + 1}`).join('\n\n');
+    const text = socialDraftApprovalText({ ...snap, body });
+    expect(text).toContain('> Paragraph 1');
+    expect(text).toContain('> Paragraph 3');
+    expect(text).not.toContain('Paragraph 4');
+    expect(text).toContain('> … _(read the full post in Munin)_');
+    expect(text).not.toMatch(/> \n> …/);
+  });
+
+  it('clips a single long paragraph at a word boundary', () => {
+    const body = 'word '.repeat(200).trim();
+    const text = socialDraftApprovalText({ ...snap, body });
+    const quoted = text.split('\n').filter((line) => line.startsWith('> '));
+    expect(quoted).toHaveLength(2);
+    expect(quoted[0]!.length).toBeLessThanOrEqual(410);
+    expect(quoted[0]).toMatch(/word…$/);
+  });
+
+  it('labels the share link without its tracking query string', () => {
+    const text = socialDraftApprovalText({
+      ...snap,
+      shareUrl: 'https://www.example.test/no/blog/post/?utm_source=linkedin&utm_medium=social',
+    });
+    expect(text).toContain(
+      '*Link:* <https://www.example.test/no/blog/post/?utm_source=linkedin&utm_medium=social|example.test/no/blog/post>',
+    );
+  });
 });

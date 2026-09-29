@@ -1342,6 +1342,83 @@ const skipReason = TEST_URL
       expect(await eventTypes()).toContain('conversation.draft_requested');
     });
 
+    it("requestDraft carries the teammate's trimmed note on the event payload", async () => {
+      const { conv } = await seedQueueConversation();
+      await run(() => svc.requestDraft(conv.id, { note: '  Kake er greit.  ' }), userActor());
+      const [row] = await db.execute<{ payload: Record<string, unknown> }>(
+        sql`SELECT payload FROM events
+            WHERE org_id = ${orgId} AND type = 'conversation.draft_requested'`,
+      );
+      expect(row!.payload['note']).toBe('Kake er greit.');
+    });
+
+    it('requestDraft leaves a blank note off the event payload', async () => {
+      const { conv } = await seedQueueConversation();
+      await run(() => svc.requestDraft(conv.id, { note: '   ' }), userActor());
+      const [row] = await db.execute<{ payload: Record<string, unknown> }>(
+        sql`SELECT payload FROM events
+            WHERE org_id = ${orgId} AND type = 'conversation.draft_requested'`,
+      );
+      expect(row!.payload).not.toHaveProperty('note');
+    });
+
+    it('setDraftReply stores clean text and keeps the markup, slots and note in metadata', async () => {
+      const { conv } = await seedQueueConversation();
+      const raw = 'Kake er greit. [[Vi serverer den til kaffen.]] Depositum: {{BELØP}}.';
+      const draft = await run(() =>
+        svc.setDraftReply({ conversationId: conv.id, body: raw, note: 'Kake er greit.' }),
+      );
+      const [row] = await db.execute<{ body: string; metadata: Record<string, unknown> }>(
+        sql`SELECT body, metadata FROM conv_messages WHERE id = ${draft.id}`,
+      );
+      expect(row!.body).toBe('Kake er greit. Vi serverer den til kaffen. Depositum: [BELØP].');
+      expect(row!.metadata).toEqual({
+        kind: 'draft_reply',
+        annotated: raw,
+        slots: ['[BELØP]'],
+        note: 'Kake er greit.',
+      });
+    });
+
+    it('sending a draft refuses while a slot is still unfilled, then carries the note once it is', async () => {
+      const { conv } = await seedQueueConversation();
+      const draft = await run(() =>
+        svc.setDraftReply({
+          conversationId: conv.id,
+          body: 'Depositum: {{BELØP}}.',
+          note: 'Be om depositum.',
+        }),
+      );
+      await expect(
+        run(() =>
+          svc.sendMessage({
+            conversationId: conv.id,
+            body: 'Depositum: [BELØP].',
+            authorType: 'user',
+            authorId: userId,
+            fromDraftId: draft.id,
+          }),
+        ),
+      ).rejects.toThrow(/conv_draft_slots_open/);
+      const sent = await run(() =>
+        svc.sendMessage({
+          conversationId: conv.id,
+          body: 'Depositum: 500 kr.',
+          authorType: 'user',
+          authorId: userId,
+          fromDraftId: draft.id,
+        }),
+      );
+      const [row] = await db.execute<{ metadata: Record<string, unknown> }>(
+        sql`SELECT metadata FROM conv_messages WHERE id = ${sent.id}`,
+      );
+      expect(row!.metadata['approvedDraft']).toMatchObject({
+        draftMessageId: draft.id,
+        edited: true,
+        note: 'Be om depositum.',
+      });
+    });
+
     it('requestDraft conflicts while a draft is pending and rejects closed conversations', async () => {
       const { conv } = await seedQueueConversation();
       await run(() => svc.setDraftReply({ conversationId: conv.id, body: 'Pending.' }));

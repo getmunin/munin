@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { deliveryFailure, startsAuthorGroup, suppressedKind } from './inbox-message-bubble';
+import {
+  deliveryFailure,
+  sentDraftNote,
+  startsAuthorGroup,
+  suppressedKind,
+} from './inbox-message-bubble';
 import type { MessageDto } from './inbox-types';
 
 const message = (overrides: Partial<MessageDto> = {}): MessageDto => ({
@@ -15,6 +20,16 @@ const message = (overrides: Partial<MessageDto> = {}): MessageDto => ({
   metadata: {},
   createdAt: '2026-09-09T10:30:00.000Z',
   ...overrides,
+});
+
+describe('sentDraftNote', () => {
+  it('reads the note the teammate drafted from off the approved-draft stamp', () => {
+    expect(
+      sentDraftNote(message({ metadata: { approvedDraft: { draftMessageId: 'cvm_0', note: 'Si ja.' } } })),
+    ).toBe('Si ja.');
+    expect(sentDraftNote(message({ metadata: { approvedDraft: { draftMessageId: 'cvm_0' } } }))).toBeNull();
+    expect(sentDraftNote(message())).toBeNull();
+  });
 });
 
 describe('suppressedKind', () => {

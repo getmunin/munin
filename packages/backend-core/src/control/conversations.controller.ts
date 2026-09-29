@@ -146,6 +146,13 @@ class SetDraftReplyBody extends createZodDto(
     retrievedDocumentIds: z.array(z.string().min(1).max(64)).max(8).optional(),
     rationale: z.string().min(1).max(2000).optional(),
     toolNames: z.array(z.string().min(1).max(128)).max(24).optional(),
+    note: z.string().max(4000).optional(),
+  }),
+) {}
+
+class RequestDraftBody extends createZodDto(
+  z.object({
+    note: z.string().max(4000).optional(),
   }),
 ) {}
 
@@ -574,6 +581,7 @@ export class ConversationsController {
         retrievedDocumentIds: input.retrievedDocumentIds,
         rationale: input.rationale,
         toolNames: input.toolNames,
+        note: input.note,
       }),
     );
   }
@@ -588,8 +596,11 @@ export class ConversationsController {
   @Post(':id/request-draft')
   @HttpCode(202)
   @AllowMember()
-  async requestDraft(@Param('id') id: string): Promise<{ requested: boolean }> {
-    return translate(() => this.conv.requestDraft(id));
+  async requestDraft(
+    @Param('id') id: string,
+    @Body() input: RequestDraftBody,
+  ): Promise<{ requested: boolean }> {
+    return translate(() => this.conv.requestDraft(id, { note: input.note }));
   }
 
   @Post(':id/request-translation')

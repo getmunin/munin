@@ -2,8 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   FINISHED_MIN_ITEMS,
   FINISHED_WINDOW_DAYS,
+  draftNoteOf,
+  draftSlotsOf,
   loadQueuePages,
   messageDraftKind,
+  openDraftSlots,
   partitionQueue,
   visibleFinished,
   type QueueItemDto,
@@ -127,6 +130,20 @@ describe('messageDraftKind', () => {
     expect(messageDraftKind({ ...base, metadata: { kind: 'internal_note' } })).toBeNull();
     expect(messageDraftKind({ ...base, internal: false, metadata: {} })).toBeNull();
     expect(messageDraftKind({ ...base, authorType: 'user', metadata: { kind: 'draft_reply' } })).toBeNull();
+  });
+
+  it('reads slots and the note off a draft, ignoring malformed metadata', () => {
+    const draft = { ...base, metadata: { kind: 'draft_reply', slots: ['[DATE]', 7], note: 'Say yes.' } };
+    expect(draftSlotsOf(draft)).toEqual(['[DATE]']);
+    expect(draftNoteOf(draft)).toBe('Say yes.');
+    expect(draftSlotsOf(null)).toEqual([]);
+    expect(draftNoteOf({ ...base, metadata: { kind: 'draft_reply', note: '  ' } })).toBeNull();
+  });
+
+  it('counts a slot as open only while its token is still in the reply', () => {
+    const draft = { ...base, metadata: { kind: 'draft_reply', slots: ['[DATE]', '[AMOUNT]'] } };
+    expect(openDraftSlots(draft, 'Arrives [DATE], total 40 EUR.')).toEqual(['[DATE]']);
+    expect(openDraftSlots(draft, 'Arrives Friday, total 40 EUR.')).toEqual([]);
   });
 });
 

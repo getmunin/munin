@@ -1,5 +1,71 @@
 # @getmunin/db
 
+## 5.37.0
+
+### Minor Changes
+
+- 88301e6: Read a conversation in your own language. When a teammate opens a conversation, the inbox asks the agent to translate it into the dashboard's language. The thread then shows the translation, and a "Show original" toggle in the header switches back to the customer's own words.
+
+  - Conversations carry `customerLanguage`: the language the customer writes in, as a short BCP 47 tag. The agent detects it the first time a teammate opens the conversation. Once it matches the dashboard language, no more translation is asked for.
+  - New table `conv_message_translations`: one row per message and target language, staff-only under RLS (end-user audiences never see a row). A row is deleted with its message and whenever the message body is rewritten, so a redacted or signature-stripped body never keeps a stale translation.
+  - `POST /v1/conversations/:id/request-translation` takes `targetLanguage`. It emits `conversation.translation_requested` only when public messages are missing a translation. `GET /v1/conversations/:id?translateTo=<tag>` adds a `translations` block to the detail.
+  - For agent runtimes: `GET /v1/conversations/:id/pending-translations?targetLanguage=<tag>` lists what still needs translating. `POST /v1/conversations/:id/translations` saves the results and emits `conversation.translated`. The realtime client gains `onTranslationRequested`.
+  - The in-process agent host translates with the fast model in one call per batch. Customer text is fenced as data. The call counts against the same token metering and generate gate as chat replies.
+  - Only public messages from the customer, the agent and teammates are translated. Internal notes, drafts and system lines stay as written.
+
+- 4c333bc: Let an organization upload a logo.
+
+  Owners and admins can upload, replace and remove a logo from the Account settings page. The
+  control plane gains `PUT /v1/orgs/me/logo` (the raw image as the request body, its type as
+  `Content-Type`) and `DELETE /v1/orgs/me/logo`, and `GET /v1/orgs/me` now returns `logoUrl`, or
+  `null` when no logo is set. PNG, JPEG, WebP and SVG are accepted up to 2 MB; the bytes must
+  match the declared type, and a rejected upload answers `org_logo_unsupported_type` or
+  `org_logo_too_large`, both translated in the dashboard. Replacing or removing a logo deletes the
+  old object from asset storage.
+
+  Logos are served anonymously from `GET /v1/public/orgs/:orgId/logo`, and `logoUrl` carries a
+  version parameter so a replaced logo busts caches. They are never linked as raw storage URLs:
+  SVG can carry script, which is why CMS assets refuse it, so the logo endpoint serves every
+  format with a `sandbox` Content-Security-Policy and `nosniff`. A script inside an SVG logo
+  therefore cannot run, even when the file is opened directly rather than through `<img>`.
+
+  Migration `0110_org_logo` adds nullable `logo_storage_key`, `logo_mime` and `logo_updated_at`
+  columns to `orgs`. The logo lives in real columns rather than in `settings`, because
+  `PATCH /v1/orgs/me` replaces `settings` wholesale and would clobber it.
+
+  Uploads whose declared `Content-Length` exceeds the cap on the signed local-storage endpoint are
+  now answered with a 400 instead of having their connection reset.
+
+### Patch Changes
+
+- f4f514e: Stop an unstable mail server from flooding org owners with alert emails, and stop a short outage from switching an email channel off.
+
+  An inbound poll failure used to open a `channel_inbound` alert straight away, and the next successful poll resolved it. A server that kept dropping out therefore opened a brand-new alert, and sent a brand-new email to every owner, on each failure that followed a success: up to one every two minutes. A server that stayed down instead reached five failures in about five minutes and auto-deactivated the channel, which then stayed off after the server came back.
+
+  **Alerts and alert emails (every source).**
+
+  - An alert that comes back within six hours of resolving now reopens the same row and keeps counting (`MUNIN_ALERT_REOPEN_WINDOW_MS`, `0` turns this off). `org_alert.opened` fires again for it with `reopened: true` in the payload so webhook receivers and the dashboard banner see it flip back to open, but no second email is sent. A reopened alert also has its acknowledgement cleared.
+  - A new alert's owner email now waits for a grace period before its first send attempt. The worker already skipped alerts that had resolved by send time, so a blip that clears within the grace period emails nobody. The grace period is set per source in `NOTIFY_POLICY`, and sources without their own value use `MUNIN_ALERT_NOTIFY_GRACE_MS` (default ten minutes, `0` sends at once). `channel_inbound` uses `0`, because the poll worker already waits before opening a transient alert and a rejected login should reach the owner straight away.
+
+  **Inbound polling.**
+
+  - A poll adapter can classify a failure as `transient` or `permanent` through a new optional `classifyError` on its `poll` inbound mode. For IMAP, a rejected login or a server response of `AUTHENTICATIONFAILED`, `AUTHORIZATIONFAILED`, `EXPIRED` or `NONEXISTENT` is permanent. Everything else, including connection refusals, timeouts and DNS errors, is transient. An adapter that does not classify its errors gets transient.
+  - Every failing channel now backs off: after the second failure in a row the gap doubles, up to 15 minutes. Editing or reactivating the channel clears the backoff.
+  - A permanent failure alerts on the first failure and auto-deactivates the channel after five in a row, as before.
+  - A transient failure never deactivates the channel, and opens an alert only once the channel has been failing for five minutes. With the backoff that is the poll seven minutes in, and the owner email goes out at that point. The first successful poll resolves the alert. A server that fails intermittently, with successful polls in between, never builds up five minutes of continuous failure and does not alert; mail is still collected on the polls that succeed.
+  - The worker keeps its consecutive-failure count on `conv_inbound_state` instead of reading the alert's `occurrenceCount`, which now carries on across reopens. Migration `0109_conv_inbound_poll_backoff` adds `consecutive_failures`, `failing_since`, `last_failure_at` and `next_poll_at` to that table.
+  - `channel_inbound` alerts carry `metadata.failureKind`. The channel card shows "retrying automatically" for a transient failure instead of counting down to a deactivation that won't happen.
+
+- 6fbbe6f: Stop simultaneous scheduler ticks from deadlocking the database pool.
+
+  `withSchedulerLock` holds a transaction for the advisory lock while the tick does its work through the same pool. When as many ticks fired at once as the pool had connections — typically when a host wakes from sleep and every interval is overdue — each tick held a connection and waited for another, and the pool stayed stuck for good. Every authenticated request then hung behind it.
+
+  At most a third of the pool (at least one connection) now holds a scheduler lock at a time; a tick that finds every slot taken is skipped, just as it is when another replica holds the lock, and runs on its next interval. `@getmunin/db` exports `resolvePoolMax` so the cap follows `MUNIN_DB_POOL_MAX`.
+
+- Updated dependencies [11d73ca]
+- Updated dependencies [88301e6]
+  - @getmunin/types@5.37.0
+
 ## 5.36.0
 
 ### Patch Changes

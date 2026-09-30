@@ -1,5 +1,7 @@
 # @getmunin/sdk
 
+## 5.37.0
+
 ## 5.36.0
 
 ### Minor Changes

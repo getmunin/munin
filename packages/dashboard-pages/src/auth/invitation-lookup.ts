@@ -33,6 +33,16 @@ export function isInvalidInvitationError(err: unknown): boolean {
   return err instanceof ApiError && (err.status === 400 || err.status === 404);
 }
 
+export type InvitationErrorKind = 'mismatch' | 'used' | 'invalid' | 'generic';
+
+export function classifyAcceptError(err: unknown): InvitationErrorKind {
+  if (!(err instanceof ApiError)) return 'generic';
+  if (err.code === 'invitation_email_mismatch') return 'mismatch';
+  if (err.status === 409) return 'used';
+  if (err.status === 404 || err.status === 410) return 'invalid';
+  return 'generic';
+}
+
 export function inviteAuthHref(path: '/login' | '/signup', token: string): string {
   const redirect = `/accept-invite?token=${encodeURIComponent(token)}`;
   return `${path}?redirect=${encodeURIComponent(redirect)}`;

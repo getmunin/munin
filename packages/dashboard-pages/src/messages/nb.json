@@ -2289,10 +2289,18 @@
       "admin": "Admin",
       "member": "Medlem"
     },
+    "goToSignIn": "Gå til innlogging",
+    "errorHeadings": {
+      "mismatch": "Feil konto",
+      "used": "Allerede akseptert",
+      "invalid": "Lenken er ikke lenger gyldig",
+      "generic": "Noe gikk galt"
+    },
     "errors": {
       "lookup": "Kunne ikke slå opp invitasjonen.",
       "accept": "Kunne ikke akseptere invitasjonen.",
-      "expired": "Denne invitasjonen er ikke lenger gyldig (trukket tilbake eller utløpt)."
+      "expired": "Den kan være trukket tilbake, allerede brukt eller utløpt. Be den som inviterte deg om å sende en ny invitasjon.",
+      "alreadyAccepted": "Denne invitasjonen er allerede akseptert. Logg inn med den inviterte adressen for å åpne organisasjonen."
     }
   },
   "errors": {

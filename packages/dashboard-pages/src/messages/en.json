@@ -2289,10 +2289,18 @@
       "admin": "Admin",
       "member": "Member"
     },
+    "goToSignIn": "Go to sign in",
+    "errorHeadings": {
+      "mismatch": "Wrong account",
+      "used": "Already accepted",
+      "invalid": "Link no longer valid",
+      "generic": "Something went wrong"
+    },
     "errors": {
       "lookup": "Could not look up the invitation.",
       "accept": "Could not accept invitation.",
-      "expired": "This invitation is no longer valid (revoked or expired)."
+      "expired": "It may have been revoked, already used, or expired. Ask the person who invited you to send a new invitation.",
+      "alreadyAccepted": "This invitation has already been accepted. Sign in with the invited address to open the organization."
     }
   },
   "errors": {

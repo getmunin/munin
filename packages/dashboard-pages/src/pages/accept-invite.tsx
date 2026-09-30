@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Link, useRouter } from '../i18n-navigation';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
@@ -9,7 +9,9 @@ import { authClient } from '../auth-client';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
 import {
+  classifyAcceptError,
   inviteAuthHref,
+  type InvitationErrorKind,
   useInvitationLookup,
   type InvitationLookup,
 } from '../auth/invitation-lookup';
@@ -35,14 +37,20 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
   const { data: session, isPending: sessionLoading } = authClient.useSession();
   const [status, setStatus] = useState<'idle' | 'pending' | 'accepted' | 'error'>('idle');
   const [message, setMessage] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<InvitationErrorKind>('generic');
+
+  const fail = useCallback((kind: InvitationErrorKind, text: string) => {
+    setErrorKind(kind);
+    setMessage(text);
+    setStatus('error');
+  }, []);
 
   const lookup = useInvitationLookup(token, !sessionLoading && !session);
 
   useEffect(() => {
     if (sessionLoading) return;
     if (!token) {
-      setStatus('error');
-      setMessage(t('missingToken'));
+      fail('invalid', t('missingToken'));
       return;
     }
     if (!session) return;
@@ -56,21 +64,25 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
         });
         setStatus('accepted');
       } catch (err) {
-        setStatus('error');
-        setMessage(translate(err) || t('errors.accept'));
+        const kind = classifyAcceptError(err);
+        const text =
+          kind === 'used'
+            ? t('errors.alreadyAccepted')
+            : kind === 'invalid'
+              ? t('errors.expired')
+              : translate(err) || t('errors.accept');
+        fail(kind, text);
       }
     })();
-  }, [sessionLoading, session, token, status, t, translate]);
+  }, [sessionLoading, session, token, status, t, translate, fail]);
 
   useEffect(() => {
     if (lookup.status === 'invalid') {
-      setStatus('error');
-      setMessage(t('errors.expired'));
+      fail('invalid', t('errors.expired'));
     } else if (lookup.status === 'failed') {
-      setStatus('error');
-      setMessage(t('errors.lookup'));
+      fail('generic', t('errors.lookup'));
     }
-  }, [lookup.status, t]);
+  }, [lookup.status, t, fail]);
 
   const epigraphState = status === 'error' ? 'invite-bad' : 'invite';
 
@@ -119,15 +131,15 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
           <AuthInviteCard
             tone="bad"
             badge={t('errorTitle')}
-            title={message ?? tCommon('unknownError')}
-            body={null}
+            title={t(`errorHeadings.${errorKind}`)}
+            body={message ?? tCommon('unknownError')}
             primary={
               <Link
                 href={session ? '/dashboard' : '/login'}
                 className="inline-flex items-center gap-2 border-[1px] border-ink bg-transparent px-[18px] py-3 text-[14px] text-ink transition-colors duration-fast ease-munin hover:bg-ink hover:text-paper"
               >
                 <ArrowLeft className="size-3.5" strokeWidth={2} />
-                {session ? t('backToDashboard') : t('errors.expired')}
+                {session ? t('backToDashboard') : t('goToSignIn')}
               </Link>
             }
             secondary={

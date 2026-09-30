@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { ApiError } from '../api';
 import {
+  classifyAcceptError,
   extractInviteToken,
   inviteAuthHref,
   isInvalidInvitationError,
 } from './invitation-lookup';
 
-function apiError(status: number): ApiError {
+function apiError(status: number, code: string | null = null): ApiError {
   return new ApiError({
     status,
     statusText: '',
@@ -14,6 +15,7 @@ function apiError(status: number): ApiError {
     method: 'GET',
     requestId: null,
     message: `status ${status}`,
+    code,
   });
 }
 
@@ -50,5 +52,25 @@ describe('isInvalidInvitationError', () => {
   it('treats rate limiting and network failures as a failed lookup', () => {
     expect(isInvalidInvitationError(apiError(429))).toBe(false);
     expect(isInvalidInvitationError(new TypeError('fetch failed'))).toBe(false);
+  });
+});
+
+describe('classifyAcceptError', () => {
+  it('recognises an invitation sent to another address by its code', () => {
+    expect(classifyAcceptError(apiError(403, 'invitation_email_mismatch'))).toBe('mismatch');
+  });
+
+  it('maps an already-claimed invitation to used', () => {
+    expect(classifyAcceptError(apiError(409))).toBe('used');
+  });
+
+  it('maps unknown, revoked and expired invitations to invalid', () => {
+    expect(classifyAcceptError(apiError(404))).toBe('invalid');
+    expect(classifyAcceptError(apiError(410))).toBe('invalid');
+  });
+
+  it('falls back to generic for anything else', () => {
+    expect(classifyAcceptError(apiError(500))).toBe('generic');
+    expect(classifyAcceptError(new TypeError('fetch failed'))).toBe('generic');
   });
 });

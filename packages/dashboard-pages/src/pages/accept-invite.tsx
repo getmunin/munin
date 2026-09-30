@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Link, useRouter } from '../i18n-navigation';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
@@ -36,6 +36,7 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
   const token = params.get('token');
   const { data: liveSession, isPending: sessionLoading } = authClient.useSession();
   const [signedOut, setSignedOut] = useState(false);
+  const acceptStarted = useRef(false);
   const session = signedOut ? null : liveSession;
   const [status, setStatus] = useState<'idle' | 'pending' | 'accepted' | 'error'>('idle');
   const [message, setMessage] = useState<string | null>(null);
@@ -56,7 +57,8 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
       return;
     }
     if (!session) return;
-    if (status !== 'idle') return;
+    if (status !== 'idle' || acceptStarted.current) return;
+    acceptStarted.current = true;
     setStatus('pending');
     void (async () => {
       try {

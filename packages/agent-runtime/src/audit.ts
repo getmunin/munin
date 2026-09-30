@@ -3,7 +3,7 @@ import { summarizeQuotedHistory, type QuotedHistoryTurn } from './quoted-history
 import { fenceUntrusted } from './untrusted.ts';
 import type { AuthorType, ChatMessage, Provider, ProviderConfig } from './types.ts';
 import { redactNationalIdsForPrompt } from './redact-ids.ts';
-import { languageName } from './translation.ts';
+import { languageLabel } from './translation.ts';
 
 export type AuditAction =
   | { type: 'request_handover'; reason: string }
@@ -96,14 +96,20 @@ Judge the latest turn in the context of the whole conversation, not the last mes
 
 `;
 
+const NO_TOPICS_NOTE = '\nThe org has no topics defined yet — skip the `set_topic` action entirely.';
+
+function draftLanguageNote(draftLanguage: string): string {
+  return `The reply is a draft a teammate asked for, written in ${languageLabel(draftLanguage)} on purpose: the teammate edits it in their own language and it is translated into the customer's language when it is sent. Its language is not a problem.`;
+}
+
 const SUBJECT_GUIDE = `
 An [Email subject] block is present: that is the Subject line the customer wrote on this thread, and it is part of what they said. A thin or terse body is normal when the subject carries the question, so weigh it before calling the message spam, and read it as evidence when picking a topic.`;
 
 export async function auditConversation(args: AuditConversationArgs): Promise<AuditVerdict> {
   const provider = args.providerImpl ?? defaultProvider;
   const subject = normaliseSubject(args.subject);
-  const systemPrompt = buildSystemPrompt(args.topicCatalog, subject !== null);
-  const userPrompt = buildUserPrompt(
+  const systemPrompt = auditSystemPrompt(args.topicCatalog, subject !== null);
+  const userPrompt = auditUserPrompt(
     args.question,
     args.reply,
     args.toolNames,
@@ -144,18 +150,16 @@ function normaliseSubject(raw: string | null | undefined): string | null {
   return truncate(trimmed, MAX_SUBJECT_CHARS);
 }
 
-function buildSystemPrompt(topicCatalog: AuditTopic[] | undefined, hasSubject: boolean): string {
+function auditSystemPrompt(topicCatalog: AuditTopic[] | undefined, hasSubject: boolean): string {
   const parts = [SYSTEM_PROMPT_HEAD, ACTION_GUIDE];
   if (hasSubject) parts.push(SUBJECT_GUIDE);
   if (!topicCatalog || topicCatalog.length === 0) {
-    parts.push(
-      '\nThe org has no topics defined yet — skip the `set_topic` action entirely.',
-    );
+    parts.push(NO_TOPICS_NOTE);
   }
   return parts.join('\n');
 }
 
-function buildUserPrompt(
+function auditUserPrompt(
   question: string,
   reply: string,
   toolNames: string[],
@@ -185,13 +189,7 @@ function buildUserPrompt(
     '[Agent reply]',
     redactNationalIdsForPrompt(truncate(reply, 4000)),
     '',
-    ...(draftLanguage
-      ? [
-          '[Draft language]',
-          `The reply is a draft a teammate asked for, written in ${languageName(draftLanguage)} (${draftLanguage}) on purpose: the teammate edits it in their own language and it is translated into the customer's language when it is sent. Its language is not a problem.`,
-          '',
-        ]
-      : []),
+    ...(draftLanguage ? ['[Draft language]', draftLanguageNote(draftLanguage), ''] : []),
     '[Tools the agent already called this turn]',
     toolNames.length > 0 ? toolNames.join(', ') : '(none)',
   );

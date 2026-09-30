@@ -1,0 +1,8 @@
+[End-user question]
+When do you open on Saturday?
+
+[Agent reply]
+We open at 10 on Saturdays.
+
+[Tools the agent already called this turn]
+(none)

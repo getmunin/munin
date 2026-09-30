@@ -1,0 +1,26 @@
+[Email subject]
+<data>
+Jacket reservation
+</data>
+
+[Conversation so far, oldest first]
+<data>
+customer: Do you have the jacket in blue?
+agent: Yes, in sizes S and M.
+</data>
+
+[End-user question]
+M please, can you hold it?
+
+[Agent reply]
+Jeg holder av jakken i M til fredag.
+
+[Draft language]
+The reply is a draft a teammate asked for, written in Norwegian Bokmål (nb) on purpose: the teammate edits it in their own language and it is translated into the customer's language when it is sent. Its language is not a problem.
+
+[Tools the agent already called this turn]
+kb_search, commerce_get_product
+
+[Available topic slugs (pick at most one if it fits)]
+- orders: Orders — Order status and changes
+- returns: Returns

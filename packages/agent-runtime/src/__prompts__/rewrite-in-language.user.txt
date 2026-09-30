@@ -1,0 +1,4 @@
+<data>
+Draft for teammate:
+Hei {{FIRST_NAME}}, jakken er [[reservert]] til fredag.
+</data>

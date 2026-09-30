@@ -1,0 +1,17 @@
+[Customer language already detected: es]
+
+[Earlier messages, oldest first — context only, do not translate]
+<data from="customer">
+¿Tienen la chaqueta en azul?
+</data>
+<data from="assistant">
+Sí, en las tallas S y M.
+</data>
+
+[Messages, oldest first]
+<data id="m1" from="customer">
+La M, por favor.
+</data>
+<data id="m2" from="teammate">
+Te la reservo hasta el viernes.
+</data>

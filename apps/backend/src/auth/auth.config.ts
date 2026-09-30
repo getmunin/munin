@@ -65,7 +65,10 @@ export function createMuninAuth({
       : undefined,
     signupBefore: (user: SignupBeforeUser) =>
       assertSignupAllowed(db, user.email, allowedEmailDomains),
-    signupAfter: (user: SignupHookUser) => ensureSingletonOrgMembershipFor(db, user),
+    signupAfter: (user: SignupHookUser) =>
+      ensureSingletonOrgMembershipFor(db, user, allowedEmailDomains),
+    afterEmailVerification: (user: SignupHookUser) =>
+      ensureSingletonOrgMembershipFor(db, user, allowedEmailDomains),
   });
 }
 
@@ -80,7 +83,7 @@ async function assertSignupAllowed(
   if ((userCount[0]?.c ?? 0) === 0) return;
 
   const domain = email.split('@')[1] ?? '';
-  if (domain && allowedEmailDomains.includes(domain)) return;
+  if (isAllowlistedEmail(email, allowedEmailDomains)) return;
 
   const invite = await db
     .select({ id: schema.orgInvitations.id })
@@ -110,9 +113,15 @@ async function assertSignupAllowed(
   });
 }
 
+export function isAllowlistedEmail(rawEmail: string, allowedEmailDomains: string[]): boolean {
+  const domain = rawEmail.trim().toLowerCase().split('@')[1] ?? '';
+  return domain.length > 0 && allowedEmailDomains.includes(domain);
+}
+
 async function ensureSingletonOrgMembershipFor(
   db: Db,
-  user: { id: string; email: string; name?: string | null },
+  user: SignupHookUser,
+  allowedEmailDomains: string[],
 ): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
@@ -145,7 +154,11 @@ async function ensureSingletonOrgMembershipFor(
       .select({ c: sql<number>`count(*)::int` })
       .from(schema.orgMembers)
       .where(eq(schema.orgMembers.orgId, orgRow!.id));
-    const role = (memberCount[0]?.c ?? 0) === 0 ? 'owner' : 'member';
+    const bootstrap = (memberCount[0]?.c ?? 0) === 0;
+    if (!bootstrap && !(user.emailVerified && isAllowlistedEmail(user.email, allowedEmailDomains))) {
+      return;
+    }
+    const role = bootstrap ? 'owner' : 'member';
     await tx
       .insert(schema.orgMembers)
       .values({ orgId: orgRow!.id, userId: user.id, role, isDefault: true });

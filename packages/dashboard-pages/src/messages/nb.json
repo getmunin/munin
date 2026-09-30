@@ -165,7 +165,10 @@
       "expiredCta": "Gå til innlogging",
       "invalidTitle": "Lenken er ugyldig",
       "invalidSubtitle": "Vi kjente ikke igjen denne bekreftelseslenken. Be om en ny ved å logge inn.",
-      "invalidCta": "Gå til innlogging"
+      "invalidCta": "Gå til innlogging",
+      "pendingTitle": "Bekreft e-postadressen din",
+      "pendingSubtitle": "Kontoen din er ikke knyttet til en organisasjon ennå. Har du nettopp registrert deg, åpner du bekreftelseslenken vi sendte på e-post. Hvis ikke, ber du en administrator om å sende deg en invitasjon.",
+      "pendingCta": "Tilbake til innlogging"
     }
   },
   "nav": {
@@ -2325,6 +2328,7 @@
     "conv_redaction_invalid": "Velg minst én type nummer, eller slå av fjerning.",
     "conv_test_self_addressed": "Den adressen tilhører kanalen selv. Send testen til en annen postkasse du har tilgang til.",
     "kb_curation_decided": "Denne er allerede behandlet – publisert eller forkastet – og blir ikke foreslått igjen. Oppdater køen.",
+    "invitation_email_mismatch": "Invitasjonen ble sendt til en annen e-postadresse. Logg ut, og logg inn eller registrer deg med adressen invitasjonen gikk til.",
     "kb_version_conflict": "Noen endret teksten mens du hadde den åpen, så ingenting ble lagret. Åpne den på nytt for å se gjeldende versjon og ta stilling til den.",
     "member_forbidden": "Dette er forbeholdt eiere og administratorer. Spør en eier hvis du trenger tilgang.",
     "org_access_denied": "Denne fanen var åpen i en organisasjon du ikke lenger har tilgang til. Laster inn på nytt med organisasjonen du er i nå.",

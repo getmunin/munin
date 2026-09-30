@@ -14,6 +14,7 @@ import {
   socialCallbackUrl,
 } from '../../auth/post-signin-redirect';
 import { resolvePostAuthDestination } from '../../auth/post-auth-destination';
+import { MEMBERSHIP_PENDING_PATH, hasOrgMembership } from '../../auth/org-membership-probe';
 import {
   AuthShell,
   AuthHeading,
@@ -107,6 +108,10 @@ export function SignupForm({ providers, footer }: SignupFormProps) {
         return;
       }
       await refetch();
+      if (!inviteToken && !(await hasOrgMembership())) {
+        router.push(MEMBERSHIP_PENDING_PATH);
+        return;
+      }
       if (hasOauthAuthorizeParams(params)) {
         router.push(`/setup?${params.toString()}`);
         return;

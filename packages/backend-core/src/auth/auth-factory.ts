@@ -29,6 +29,7 @@ export interface SignupHookUser {
   id: string;
   email: string;
   name?: string | null;
+  emailVerified?: boolean | null;
 }
 
 export interface SignupBeforeUser {
@@ -56,6 +57,7 @@ export interface MuninAuthCoreOptions {
 
   signupBefore?: (user: SignupBeforeUser) => Promise<void>;
   signupAfter?: (user: SignupHookUser) => Promise<void>;
+  afterEmailVerification?: (user: SignupHookUser) => Promise<void>;
 
   deleteUser?: DeleteUserConfig;
 
@@ -189,11 +191,13 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
         requireEmailVerification: false,
         autoSignIn: true,
         sendResetPassword: opts.sendResetPassword,
+        revokeSessionsOnPasswordReset: true,
       },
       emailVerification: opts.sendVerificationEmail
         ? {
             sendVerificationEmail: opts.sendVerificationEmail,
             sendOnSignUp: true,
+            afterEmailVerification: opts.afterEmailVerification,
           }
         : undefined,
       socialProviders,
@@ -202,7 +206,6 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
         accountLinking: {
           enabled: true,
           trustedProviders: ['google', 'github'],
-          requireLocalEmailVerified: false,
         },
       },
       user: opts.deleteUser

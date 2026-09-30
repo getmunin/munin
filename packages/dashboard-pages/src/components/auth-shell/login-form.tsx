@@ -14,6 +14,7 @@ import {
   absoluteCallbackUrl,
 } from '../../auth/post-signin-redirect';
 import { resolvePostAuthDestination } from '../../auth/post-auth-destination';
+import { MEMBERSHIP_PENDING_PATH, hasOrgMembership } from '../../auth/org-membership-probe';
 import { AuthShell, AuthHeading, AuthSubheading, AuthFootnote, AuthDivider } from './auth-shell';
 import { AuthEpigraph } from './auth-epigraph';
 import { ErrorAlert } from './error-alert';
@@ -89,6 +90,10 @@ export function LoginForm({ providers, footer }: LoginFormProps) {
       const oauthResume = resumeOauthAuthorizeUrl(params);
       if (oauthResume) {
         window.location.assign(oauthResume);
+        return;
+      }
+      if (!redirectRaw?.startsWith('/accept-invite') && !(await hasOrgMembership())) {
+        router.push(MEMBERSHIP_PENDING_PATH);
         return;
       }
       router.push(redirectRaw ? redirectTo : await resolvePostAuthDestination(redirectTo));

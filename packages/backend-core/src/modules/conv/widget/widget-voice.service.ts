@@ -21,6 +21,7 @@ import {
   VOICE_SYSTEM_PROMPT_SLUG,
   WebhookDispatcher,
   createPromptCache,
+  signVoiceCallToken,
   type PromptCache,
 } from '@getmunin/core';
 import { DB } from '../../../common/db/db.module.ts';
@@ -33,7 +34,7 @@ import { ThrellClientService } from '../threll/threll-client.service.ts';
 import { ThrellToolBridge } from '../threll/threll-tool-bridge.ts';
 import {
   OrgScopedKbDocReader,
-  buildInlineAssistantConfig,
+  buildBrowserAssistantOverrides,
   composeVoiceSystemPrompt,
   type ChatMessageSeed,
 } from '../vapi/vapi-assistant.ts';
@@ -249,10 +250,16 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
         { role: 'system', content: openerInstruction },
       ];
 
-      const inlineAssistant = buildInlineAssistantConfig({
+      const assistantOverrides = buildBrowserAssistantOverrides({
         baseConfig: fetched.config,
         messages: seededMessages,
         tools: await this.toolBridge.buildToolList(orgId, tx),
+      });
+      const callToken = signVoiceCallToken({
+        orgId,
+        channelId: channel.id,
+        conversationId: conv.id,
+        endUserId,
       });
       this.logger.log(
         `voice/start convId=${conv.id} vendor=vapi seededMessages=${seededMessages.length}`,
@@ -267,8 +274,9 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
           metadata: {
             conversationId: conv.id,
             endUserId,
+            callToken,
           },
-          assistant: inlineAssistant,
+          assistantOverrides,
         },
       };
     });

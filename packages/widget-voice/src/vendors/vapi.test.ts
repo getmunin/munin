@@ -102,6 +102,24 @@ describe('VapiVoiceSession', () => {
     });
   });
 
+  it('starts the stored assistant by id with the server-built overrides and the signed call metadata', async () => {
+    const session = new VapiVoiceSession({
+      ...descriptor(),
+      metadata: { conversationId: 'ccv_test', endUserId: 'eu_test', callToken: 'vct1.signed' },
+      assistantOverrides: {
+        model: { provider: 'openai', model: 'gpt-4o-mini', messages: [] },
+        metadata: { conversationId: 'ccv_other' },
+      },
+    });
+    await session.start();
+    const v = FakeVapi.lastInstance!;
+    expect(v.startedWith?.assistantId).toBe('asst_test');
+    expect(v.startedWith?.overrides).toEqual({
+      model: { provider: 'openai', model: 'gpt-4o-mini', messages: [] },
+      metadata: { conversationId: 'ccv_test', endUserId: 'eu_test', callToken: 'vct1.signed' },
+    });
+  });
+
   it('emits state transitions in order: connecting → listening → speaking → listening → ended', async () => {
     const events: VoiceSessionEvent[] = [];
     const session = new VapiVoiceSession(descriptor());

@@ -100,6 +100,13 @@ export {
   verifyPreviewToken,
   PREVIEW_TOKEN_MAX_AGE_SECONDS,
 } from './crypto/preview-token.ts';
+export {
+  type VoiceCallTokenPayload,
+  VoiceCallTokenError,
+  signVoiceCallToken,
+  verifyVoiceCallToken,
+  VOICE_CALL_TOKEN_MAX_AGE_SECONDS,
+} from './crypto/voice-call-token.ts';
 export { BOT_UA, looksLikeBot } from './http/bot-ua.ts';
 
 export {

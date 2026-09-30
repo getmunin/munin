@@ -10,7 +10,6 @@ import type {
 type VapiInstance = InstanceType<typeof VapiCtor>;
 
 type VapiStartArgs = Parameters<VapiInstance['start']>;
-type VapiAssistantArg = Exclude<VapiStartArgs[0], string | undefined>;
 type VapiOverridesArg = NonNullable<VapiStartArgs[1]>;
 
 type VapiDescriptor = Extract<VoiceDescriptor, { vendor: 'vapi' }>;
@@ -47,23 +46,11 @@ export class VapiVoiceSession implements VoiceSession {
     this.vapi = new VapiCtor(this.descriptor.publicKey);
     this.attachEventHandlers(this.vapi);
     try {
-      if (this.descriptor.assistant) {
-        const inline = {
-          ...this.descriptor.assistant,
-          metadata: this.descriptor.metadata,
-        } as VapiAssistantArg;
-        const overrides: VapiOverridesArg = { metadata: this.descriptor.metadata };
-        if (typeof console !== 'undefined' && typeof console.info === 'function') {
-          console.info('[munin-voice] vapi.start inline payload:', inline, 'overrides:', overrides);
-        }
-        await this.vapi.start(inline, overrides);
-      } else {
-        const overrides: VapiOverridesArg = {
-          metadata: this.descriptor.metadata,
-          ...(this.descriptor.assistantOverrides ?? {}),
-        };
-        await this.vapi.start(this.descriptor.assistantId, overrides);
-      }
+      const overrides: VapiOverridesArg = {
+        ...(this.descriptor.assistantOverrides ?? {}),
+        metadata: this.descriptor.metadata,
+      };
+      await this.vapi.start(this.descriptor.assistantId, overrides);
     } catch (err) {
       this.emit({ type: 'error', error: toError(err) });
       this.setState('error');

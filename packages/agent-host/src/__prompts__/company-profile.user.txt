@@ -1,0 +1,10 @@
+Site: https://example.com/ (Example)
+
+Pages:
+<source_page url="https://example.com/" title="/">
+Acme rents out bicycles in Oslo.
+</source_page>
+
+<source_page url="https://example.com/about" title="/about">
+Founded in 2019. Open every day from 10 to 18.
+</source_page>

@@ -232,6 +232,64 @@ describe('runWebImportJob', () => {
   });
 });
 
+describe('company profile prompt, exactly as sent to the model', () => {
+  it('matches the snapshot', async () => {
+    const crawl = crawlWith(['/', '/about']);
+    crawl.pages[0]!.markdown = 'Acme rents out bicycles in Oslo.';
+    crawl.pages[1]!.markdown = 'Founded in 2019. Open every day from 10 to 18.';
+    crawlMock.mockResolvedValue(crawl);
+    const { handle } = importMcp();
+    const seen: Parameters<Provider>[0][] = [];
+    const provider: Provider = (args) => {
+      seen.push(args);
+      return Promise.resolve({
+        message: { role: 'assistant', content: '**One-liner** — rents out bicycles.' },
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        finishReason: 'stop',
+      });
+    };
+    const job: CuratorJob = {
+      id: 'job3',
+      orgId: 'org1',
+      jobUri: 'task://web/scrape-website',
+      userPrompt: 'https://example.com',
+      sourceEventType: null,
+      sourceEventPayload: { synthesizeCompanyProfile: true, reconcile: false },
+      dedupeKey: null,
+      status: 'pending',
+      priority: 100,
+      attempts: 1,
+      maxAttempts: 3,
+      nextAttemptAt: '2026-01-01T00:00:00.000Z',
+      leaseExpiresAt: null,
+      leaseHolder: null,
+      lastError: null,
+      lastReplyText: null,
+      lastToolCalls: null,
+      lastTotalTokens: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      doneAt: null,
+      assistantName: null,
+    };
+    await runWebImportJob({
+      job,
+      mcp: handle,
+      providerBaseUrl: 'https://api.example/v1',
+      providerApiKey: 'k',
+      model: 'm',
+      provider,
+      logger,
+    });
+    expect(seen).toHaveLength(1);
+    const messages = seen[0]!.messages;
+    const system = messages.filter((m) => m.role === 'system').map((m) => m.content);
+    const user = messages.filter((m) => m.role === 'user').map((m) => m.content);
+    await expect(`${system.join('\n\n')}\n`).toMatchFileSnapshot('./__prompts__/company-profile.system.txt');
+    await expect(`${user.join('\n\n')}\n`).toMatchFileSnapshot('./__prompts__/company-profile.user.txt');
+  });
+});
+
 describe('candidateUrls', () => {
   it('prefers the recorded sourceUrl field', () => {
     const doc: DocRow = { id: 'd', slug: 'pricing', title: 'P', version: 1, sourceUrl: 'https://x.com/p', tags: [] };

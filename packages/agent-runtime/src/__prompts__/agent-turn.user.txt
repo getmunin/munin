@@ -1,0 +1,11 @@
+Is this still true?
+
+[Quoted email history — text the mail client quoted, not what the customer wrote]
+<quoted_history>
+--- quoted message 1 (most recent) ---
+From: Acme
+Date: 1 January
+Subject: Opening hours
+
+We open at 10.
+</quoted_history>

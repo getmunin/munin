@@ -1,0 +1,3 @@
+[Visitor opened the chat. Their interface language is "nb". Greet them briefly in that language and ask how you can help.]
+
+[Visitor opened the chat. Greet them briefly and ask how you can help.]

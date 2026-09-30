@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { auditConversation } from './audit.ts';
+import { greetSeedBody } from './conversation-handler.ts';
 import { createStubProvider, type StubProviderHandle } from './providers/stub.ts';
+import { runAgent } from './runtime.ts';
 import {
   detectLanguage,
   rewriteInLanguage,
@@ -122,5 +124,38 @@ describe('internal prompts, exactly as sent to the model', () => {
       providerImpl: handle.provider,
     });
     await expectPrompts(handle, 'audit-minimal');
+  });
+
+  it('runAgent with quoted history and messages left out of the context window', async () => {
+    const handle = stub('We open at 10.');
+    await runAgent({
+      config: {
+        provider: PROVIDER,
+        model: 'm',
+        systemPrompt: '<the org system prompt>',
+        volatileSystemPrompt: '<the per-turn context>',
+        maxHistoryChars: 1000,
+      },
+      history: [
+        { authorType: 'end_user', body: 'x'.repeat(2000), createdAt: '2026-01-01T00:00:00.000Z' },
+        {
+          authorType: 'end_user',
+          body: 'Is this still true?',
+          createdAt: '2026-01-02T00:00:00.000Z',
+          quotedHistory: [
+            { from: 'Acme', date: '1 January', subject: 'Opening hours', body: 'We open at 10.' },
+          ],
+        },
+      ],
+      mcp: { listTools: () => Promise.resolve([]), callTool: () => Promise.reject(new Error('no tools')) },
+      provider: handle.provider,
+    });
+    await expectPrompts(handle, 'agent-turn');
+  });
+
+  it('greetSeedBody', async () => {
+    await expect(`${greetSeedBody('nb')}\n\n${greetSeedBody(null)}\n`).toMatchFileSnapshot(
+      './__prompts__/greet.user.txt',
+    );
   });
 });

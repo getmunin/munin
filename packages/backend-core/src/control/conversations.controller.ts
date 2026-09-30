@@ -20,6 +20,7 @@ import { ConvAttachmentsService } from '../modules/conv/attachments/conv-attachm
 import {
   ConvTranslationService,
   type ConversationTranslations,
+  type LanguageDetectionSample,
   type PendingTranslations,
 } from '../modules/conv/conv-translation.service.ts';
 import {
@@ -205,6 +206,10 @@ class SaveTranslationsBody extends createZodDto(
       .array(z.object({ messageId: z.string().min(1).max(64), body: z.string().max(50_000) }))
       .max(500),
   }),
+) {}
+
+class SaveCustomerLanguageBody extends createZodDto(
+  z.object({ customerLanguage: LanguageTag }),
 ) {}
 
 interface ConversationDetailResponse extends ConversationDetail {
@@ -657,6 +662,23 @@ export class ConversationsController {
       targetLanguage: input.targetLanguage,
       customerLanguage: input.customerLanguage,
       translations: input.translations,
+    });
+  }
+
+  @Get(':id/language-detection')
+  async languageDetection(@Param('id') id: string): Promise<LanguageDetectionSample> {
+    return this.translation.languageDetectionSample(id);
+  }
+
+  @Post(':id/customer-language')
+  @HttpCode(200)
+  async saveCustomerLanguage(
+    @Param('id') id: string,
+    @Body() input: SaveCustomerLanguageBody,
+  ): Promise<{ saved: boolean; customerLanguage: string | null }> {
+    return this.translation.saveCustomerLanguage({
+      conversationId: id,
+      customerLanguage: input.customerLanguage,
     });
   }
 

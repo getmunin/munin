@@ -30,6 +30,12 @@ export interface PendingTranslations {
   messages: PendingTranslationMessage[];
 }
 
+export interface LanguageDetectionSample {
+  conversationId: string;
+  customerLanguage: string | null;
+  messages: PendingTranslationMessage[];
+}
+
 export interface ConversationTranslations {
   customerLanguage: string | null;
   targetLanguage: string;
@@ -53,6 +59,8 @@ export interface SendTranslatedReplyInput {
   claim?: boolean;
   inReplyToId?: string;
 }
+
+const LANGUAGE_SAMPLE_MESSAGES = 3;
 
 @Injectable()
 export class ConvTranslationService {
@@ -280,6 +288,67 @@ export class ConvTranslationService {
     const language = draft.language ?? customerLanguage;
     if (language && sameLanguage(language, target)) return null;
     return { id: draft.id, authorType: 'agent', body: draft.body };
+  }
+
+  async languageDetectionSample(conversationId: string): Promise<LanguageDetectionSample> {
+    const conv = await this.loadConversation(conversationId);
+    const base: LanguageDetectionSample = {
+      conversationId,
+      customerLanguage: conv.customerLanguage,
+      messages: [],
+    };
+    if (conv.customerLanguage) return base;
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.convMessages.id, body: schema.convMessages.body })
+      .from(schema.convMessages)
+      .where(
+        and(
+          eq(schema.convMessages.conversationId, conversationId),
+          eq(schema.convMessages.internal, false),
+          eq(schema.convMessages.authorType, 'end_user'),
+          sql`btrim(${schema.convMessages.body}) <> ''`,
+        ),
+      )
+      .orderBy(desc(schema.convMessages.createdAt))
+      .limit(LANGUAGE_SAMPLE_MESSAGES);
+    return {
+      ...base,
+      messages: rows.reverse().map((r) => ({ id: r.id, authorType: 'end_user', body: r.body })),
+    };
+  }
+
+  async saveCustomerLanguage(input: {
+    conversationId: string;
+    customerLanguage: string;
+  }): Promise<{ saved: boolean; customerLanguage: string | null }> {
+    const language = normalizeLanguageTag(input.customerLanguage);
+    const conv = await this.loadConversation(input.conversationId);
+    if (conv.customerLanguage) return { saved: false, customerLanguage: conv.customerLanguage };
+    const ctx = getCurrentContext();
+    const updated = await ctx.db
+      .update(schema.convConversations)
+      .set({ customerLanguage: language })
+      .where(
+        and(
+          eq(schema.convConversations.id, input.conversationId),
+          isNull(schema.convConversations.customerLanguage),
+        ),
+      )
+      .returning({ id: schema.convConversations.id });
+    if (updated.length === 0) {
+      const current = await this.loadConversation(input.conversationId);
+      return { saved: false, customerLanguage: current.customerLanguage };
+    }
+    await this.webhooks.emit({
+      type: 'conversation.language_detected',
+      payload: {
+        conversationId: input.conversationId,
+        endUserId: conv.endUserId,
+        customerLanguage: language,
+      },
+    });
+    return { saved: true, customerLanguage: language };
   }
 
   async translationsFor(

@@ -3,6 +3,7 @@ import { readQuotedHistory } from './quoted-history.ts';
 import type { ConversationAttachment, ConversationMessage } from './types.ts';
 import { stripTrailingSlashes } from '@getmunin/types';
 import type {
+  LanguageDetectionSample,
   PendingTranslations,
   SaveTranslationsInput,
   TranslationRestClient,
@@ -298,6 +299,20 @@ export function createMuninRestClient(
       return call<{ saved: number }>(
         `/v1/conversations/${encodeURIComponent(conversationId)}/translations`,
         { method: 'POST', body: JSON.stringify(input) },
+      );
+    },
+    async getLanguageDetectionSample(conversationId: string): Promise<LanguageDetectionSample> {
+      return call<LanguageDetectionSample>(
+        `/v1/conversations/${encodeURIComponent(conversationId)}/language-detection`,
+      );
+    },
+    async saveCustomerLanguage(
+      conversationId: string,
+      customerLanguage: string,
+    ): Promise<{ saved: boolean; customerLanguage: string | null }> {
+      return call<{ saved: boolean; customerLanguage: string | null }>(
+        `/v1/conversations/${encodeURIComponent(conversationId)}/customer-language`,
+        { method: 'POST', body: JSON.stringify({ customerLanguage }) },
       );
     },
     async listConversationsAwaitingReply(

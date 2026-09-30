@@ -39,6 +39,14 @@ export interface InvitationDto {
   createdAt: string;
 }
 
+export interface InvitationLookupDto {
+  email: string;
+  role: string;
+  expiresAt: string;
+  orgName: string | null;
+  hasAccount: boolean;
+}
+
 export interface CreatedInvitation extends InvitationDto {
   token: string;
   acceptUrl: string;
@@ -148,7 +156,7 @@ export class InvitationsService {
     return { revoked: true };
   }
 
-  async lookupByToken(token: string): Promise<{ email: string; role: string; expiresAt: string } | null> {
+  async lookupByToken(token: string): Promise<InvitationLookupDto | null> {
     if (!token) return null;
     const tokenHash = hashSecret(token);
     const rows = await this.serviceDb
@@ -158,14 +166,27 @@ export class InvitationsService {
         expiresAt: schema.orgInvitations.expiresAt,
         acceptedAt: schema.orgInvitations.acceptedAt,
         revokedAt: schema.orgInvitations.revokedAt,
+        orgName: schema.orgs.name,
       })
       .from(schema.orgInvitations)
+      .innerJoin(schema.orgs, eq(schema.orgs.id, schema.orgInvitations.orgId))
       .where(eq(schema.orgInvitations.tokenHash, tokenHash))
       .limit(1);
     const inv = rows[0];
     if (!inv) return null;
     if (inv.acceptedAt || inv.revokedAt || inv.expiresAt.getTime() < Date.now()) return null;
-    return { email: inv.email, role: inv.role, expiresAt: inv.expiresAt.toISOString() };
+    const account = await this.serviceDb
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(eq(schema.users.email, inv.email.trim().toLowerCase()))
+      .limit(1);
+    return {
+      email: inv.email,
+      role: inv.role,
+      expiresAt: inv.expiresAt.toISOString(),
+      orgName: inv.orgName.trim() || null,
+      hasAccount: account.length > 0,
+    };
   }
 
   async accept(input: { token: string; userId: string }): Promise<{ orgId: string; role: string }> {

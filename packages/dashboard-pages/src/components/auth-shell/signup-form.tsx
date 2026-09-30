@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { api, ApiError } from '../../api';
 import { authClient } from '../../auth-client';
 import { Link, useRouter } from '../../i18n-navigation';
 import { useTranslateError } from '../../i18n/translate-error';
@@ -15,6 +14,7 @@ import {
 } from '../../auth/post-signin-redirect';
 import { resolvePostAuthDestination } from '../../auth/post-auth-destination';
 import { MEMBERSHIP_PENDING_PATH, hasOrgMembership } from '../../auth/org-membership-probe';
+import { extractInviteToken, useInvitationLookup } from '../../auth/invitation-lookup';
 import {
   AuthShell,
   AuthHeading,
@@ -33,17 +33,6 @@ import type { AuthProviders } from './fetch-auth-providers';
 export interface SignupFormProps {
   providers: AuthProviders;
   footer: AuthFooter;
-}
-
-function extractInviteToken(redirectRaw: string | null): string | null {
-  if (!redirectRaw) return null;
-  if (!redirectRaw.startsWith('/accept-invite')) return null;
-  try {
-    const url = new URL(redirectRaw, 'http://placeholder');
-    return url.searchParams.get('token');
-  } catch {
-    return null;
-  }
 }
 
 export function SignupForm({ providers, footer }: SignupFormProps) {
@@ -65,27 +54,21 @@ export function SignupForm({ providers, footer }: SignupFormProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState<string | null>(null);
-  const [inviteError, setInviteError] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileHandle>(null);
 
+  const invite = useInvitationLookup(inviteToken);
+  const inviteEmail = invite.status === 'found' ? invite.invitation.email : null;
+  const inviteError =
+    invite.status === 'invalid'
+      ? t('invitationInvalid')
+      : invite.status === 'failed'
+        ? t('invitationLookupFailed')
+        : null;
+
   useEffect(() => {
-    if (!inviteToken) return;
-    void (async () => {
-      try {
-        const result = await api<{ email: string }>(
-          `/v1/invitations/lookup?token=${encodeURIComponent(inviteToken)}`,
-        );
-        setInviteEmail(result.email);
-        setEmail(result.email);
-      } catch (err) {
-        setInviteError(
-          err instanceof ApiError ? t('invitationInvalid') : t('invitationLookupFailed'),
-        );
-      }
-    })();
-  }, [inviteToken, t]);
+    if (inviteEmail) setEmail(inviteEmail);
+  }, [inviteEmail]);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();

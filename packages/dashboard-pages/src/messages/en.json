@@ -64,7 +64,8 @@
       "oauthError": {
         "title": "Couldn't sign you in.",
         "hint": "That sign-in didn't complete. Try again, or use another method."
-      }
+      },
+      "invitationSubtitle": "Sign in as {email} to accept the invitation."
     },
     "signUp": {
       "title": "Create your account",
@@ -2262,8 +2263,6 @@
     }
   },
   "acceptInvite": {
-    "pendingTitle": "Accepting your invitation…",
-    "pendingBody": "One moment.",
     "acceptedTitle": "Invitation accepted",
     "acceptedBody": "You're now a member of the org.",
     "goToDashboard": "Go to dashboard",
@@ -2271,10 +2270,34 @@
     "signOutAndRetry": "Sign out and try again",
     "backToDashboard": "Back to dashboard",
     "missingToken": "Missing invitation token.",
+    "invitedBadge": "You're invited",
+    "invitedTitle": "Join {org}",
+    "invitedTitleNoOrg": "Join the organization",
+    "signInBody": "Sign in as {email} to accept.",
+    "createAccountBody": "Create an account for {email} to accept.",
+    "signInCta": "Sign in to accept",
+    "createAccountCta": "Create account",
+    "meta": {
+      "email": "Email",
+      "role": "Role"
+    },
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "member": "Member"
+    },
+    "goToSignIn": "Go to sign in",
+    "errorHeadings": {
+      "mismatch": "Wrong account",
+      "used": "Already accepted",
+      "invalid": "Link no longer valid",
+      "generic": "Something went wrong"
+    },
     "errors": {
       "lookup": "Could not look up the invitation.",
       "accept": "Could not accept invitation.",
-      "expired": "This invitation is no longer valid (revoked or expired)."
+      "expired": "It may have been revoked, already used, or expired. Ask the person who invited you to send a new invitation.",
+      "alreadyAccepted": "This invitation has already been accepted. Sign in with the invited address to open the organization."
     }
   },
   "errors": {

@@ -17,6 +17,7 @@ import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { AllowMember, ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
+import { OrgLogoService } from './org-logo.service.ts';
 
 class SetActiveMembershipBody extends createZodDto(
   z.object({
@@ -29,6 +30,7 @@ interface MembershipDto {
   name: string;
   role: string;
   isDefault: boolean;
+  logoUrl: string | null;
 }
 
 @Controller('v1/me/memberships')
@@ -36,6 +38,8 @@ interface MembershipDto {
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 @AllowMember()
 export class MembershipsController {
+  constructor(private readonly logos: OrgLogoService) {}
+
   @Get()
   async list(): Promise<MembershipDto[]> {
     const ctx = getCurrentContext();
@@ -50,6 +54,8 @@ export class MembershipsController {
       .select({
         orgId: schema.orgs.id,
         name: schema.orgs.name,
+        logoStorageKey: schema.orgs.logoStorageKey,
+        logoUpdatedAt: schema.orgs.logoUpdatedAt,
         role: schema.orgMembers.role,
         isDefault: schema.orgMembers.isDefault,
         createdAt: schema.orgMembers.createdAt,
@@ -64,6 +70,11 @@ export class MembershipsController {
       name: r.name,
       role: r.role,
       isDefault: r.isDefault,
+      logoUrl: this.logos.logoUrl({
+        id: r.orgId,
+        logoStorageKey: r.logoStorageKey,
+        logoUpdatedAt: r.logoUpdatedAt,
+      }),
     }));
   }
 

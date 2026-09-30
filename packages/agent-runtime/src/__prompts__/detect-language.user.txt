@@ -1,0 +1,7 @@
+[Customer messages, oldest first]
+<data>
+¿Tienen la chaqueta en azul?
+</data>
+<data>
+La M, por favor.
+</data>

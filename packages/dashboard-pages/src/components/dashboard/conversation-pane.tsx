@@ -44,6 +44,8 @@ import {
 } from './conversation-queue';
 import type { ConversationDetail } from './inbox-types';
 import {
+  draftAwaitsTranslation,
+  draftInViewerLanguage,
   languageLabel,
   sameLanguage,
   threadTranslations,
@@ -135,7 +137,19 @@ export function ConversationPane({
   const uploads = useAttachmentUploads(selectedId, uploadMessages, onAttachmentError);
   const confirm = useConfirm();
 
-  const draft = pendingDraftOf(detail);
+  const agentDraft = pendingDraftOf(detail);
+  const draftTranslating =
+    !!agentDraft &&
+    !!detail &&
+    draftAwaitsTranslation(detail, agentDraft, locale) &&
+    !controller.translationStalled[detail.id];
+  const draft = useMemo(
+    () =>
+      !agentDraft || !detail || draftTranslating
+        ? null
+        : draftInViewerLanguage(detail, agentDraft, locale),
+    [agentDraft, detail, draftTranslating, locale],
+  );
 
   const fitComposer = useCallback(() => {
     for (const el of [replyBoxRef.current, noteBoxRef.current]) {
@@ -180,8 +194,9 @@ export function ConversationPane({
   useEffect(() => () => stopStream(), []);
 
   useEffect(() => {
-    if (!draft || seededDraftId.current === draft.id) return;
-    seededDraftId.current = draft.id;
+    const seedKey = `${draft?.id}\n${draft?.body}`;
+    if (!draft || seededDraftId.current === seedKey) return;
+    seededDraftId.current = seedKey;
     setSuggestionId(draft.id);
     const untouched =
       replyRef.current.trim() === '' || replyRef.current === seededBody.current;
@@ -376,10 +391,12 @@ export function ConversationPane({
     [...thread].reverse().find((m) => !m.internal && m.body.trim().length > 0)?.authorType ===
     'end_user';
   const agentCanDraft = !!detail.endUserId && item?.agentMode !== 'off';
-  const draftInFlight = !!draft || drafting;
+  const draftInFlight = !!draft || drafting || draftTranslating;
   const hasDraftNote = reply.trim().length > 0;
   const draftSkeleton =
-    canReply && !streaming && (askedForDraft || (item?.agentWorking === true && !hasDraftNote));
+    canReply &&
+    !streaming &&
+    (askedForDraft || ((item?.agentWorking === true || draftTranslating) && !hasDraftNote));
   const draftingFromNote = draftSkeleton && askedForDraft && hasDraftNote;
   const agentDraftState = draftSkeleton || streaming
     ? 'writing'
@@ -852,7 +869,9 @@ export function ConversationPane({
                           ? t('draftEditedLabel')
                           : draftingFromNote
                             ? t('draftingFromNote')
-                            : t('draftingLabel')
+                            : draftTranslating && !askedForDraft
+                              ? t('translatingDraft')
+                              : t('draftingLabel')
                     }
                     aside={
                       agentDraftState === 'ready' ? (
@@ -971,10 +990,14 @@ export function ConversationPane({
                 ) : null}
               </div>
             </div>
-          ) : drafting || draft ? (
+          ) : drafting || draftTranslating || draft ? (
             <div className="flex flex-col gap-2.5 px-5 py-4 max-md:min-h-0 max-md:flex-1 md:px-7">
-              {drafting ? (
-                <AgentDraftSlab busy label={t('draftingLabel')} className="min-h-28 max-md:flex-1">
+              {drafting || draftTranslating ? (
+                <AgentDraftSlab
+                  busy
+                  label={drafting ? t('draftingLabel') : t('translatingDraft')}
+                  className="min-h-28 max-md:flex-1"
+                >
                   <DraftSkeleton />
                 </AgentDraftSlab>
               ) : (

@@ -28,10 +28,47 @@ export function customerSpeaksViewerLanguage(detail: ConversationDetail, locale:
   return !!detail.customerLanguage && sameLanguage(detail.customerLanguage, locale);
 }
 
-export function untranslatedMessageIds(detail: ConversationDetail, locale: string): string[] {
-  if (customerSpeaksViewerLanguage(detail, locale)) return [];
+function draftNeedsTranslation(
+  detail: ConversationDetail,
+  draft: MessageDto,
+  locale: string,
+): boolean {
+  const tagged = draft.metadata?.['language'];
+  const language = typeof tagged === 'string' && tagged ? tagged : detail.customerLanguage;
+  return !!language && !sameLanguage(language, locale);
+}
+
+export function draftAwaitsTranslation(
+  detail: ConversationDetail,
+  draft: MessageDto,
+  locale: string,
+): boolean {
+  return (
+    draftNeedsTranslation(detail, draft, locale) && !(draft.id in (translationsIn(detail, locale) ?? {}))
+  );
+}
+
+export function draftInViewerLanguage(
+  detail: ConversationDetail,
+  draft: MessageDto,
+  locale: string,
+): MessageDto {
+  const translated = translationsIn(detail, locale)?.[draft.id];
+  return translated === undefined || !draftNeedsTranslation(detail, draft, locale)
+    ? draft
+    : { ...draft, body: translated };
+}
+
+export function untranslatedMessageIds(
+  detail: ConversationDetail,
+  locale: string,
+  draft: MessageDto | null = null,
+): string[] {
   const done = translationsIn(detail, locale) ?? {};
-  return detail.messages.filter((m) => isTranslatable(m) && !(m.id in done)).map((m) => m.id);
+  const thread = customerSpeaksViewerLanguage(detail, locale)
+    ? []
+    : detail.messages.filter((m) => isTranslatable(m) && !(m.id in done)).map((m) => m.id);
+  return draft && draftAwaitsTranslation(detail, draft, locale) ? [...thread, draft.id] : thread;
 }
 
 export function threadTranslations(

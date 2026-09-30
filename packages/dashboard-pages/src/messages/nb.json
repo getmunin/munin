@@ -1619,6 +1619,7 @@
         "draftingPending": "Skriver utkast …",
         "draftingLabel": "Skriver utkast",
         "draftingFromNote": "Skriver utkast fra dine stikkord",
+        "translatingDraft": "Oversetter utkast",
         "draftLabel": "Utkast",
         "draftReadOnly": "Forhåndsvisning",
         "draftEditedLabel": "Redigert utkast",

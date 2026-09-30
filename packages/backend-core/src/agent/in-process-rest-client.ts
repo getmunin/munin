@@ -223,6 +223,7 @@ function buildClient(opts: BuildOptions): AgentRestClient {
           rationale: draftOpts?.rationale,
           toolNames: draftOpts?.toolNames,
           note: draftOpts?.note,
+          language: draftOpts?.language,
         });
       });
     },

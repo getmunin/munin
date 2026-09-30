@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { makeDetail, makeMessage } from '../../test/inbox-fixtures';
+import { makeDetail, makeDraft, makeMessage } from '../../test/inbox-fixtures';
 import {
+  draftAwaitsTranslation,
+  draftInViewerLanguage,
   languageLabel,
   sameLanguage,
   threadTranslations,
@@ -41,6 +43,45 @@ describe('untranslatedMessageIds', () => {
   it('asks for nothing when the customer writes the viewer language', () => {
     const detail = makeDetail('c', { messages: thread, customerLanguage: 'no' });
     expect(untranslatedMessageIds(detail, 'nb')).toEqual([]);
+  });
+});
+
+describe('draft translation', () => {
+  const spanishDraft = makeDraft('c', 'd1', 'Su pedido salió el martes.');
+  const spanish = (translated?: string) =>
+    makeDetail('c', {
+      messages: [makeMessage({ id: 'm1', body: 'Hola' }), spanishDraft],
+      customerLanguage: 'es',
+      translations: {
+        customerLanguage: 'es',
+        targetLanguage: 'nb',
+        messages: { m1: 'Hei', ...(translated ? { d1: translated } : {}) },
+      },
+    });
+
+  it('asks for the pending draft when it is in the customer language and not yet translated', () => {
+    expect(untranslatedMessageIds(spanish(), 'nb', spanishDraft)).toEqual(['d1']);
+    expect(draftAwaitsTranslation(spanish(), spanishDraft, 'nb')).toBe(true);
+  });
+
+  it('shows the draft in the viewer language once its translation is in', () => {
+    const detail = spanish('Bestillingen din ble sendt tirsdag.');
+    expect(untranslatedMessageIds(detail, 'nb', spanishDraft)).toEqual([]);
+    expect(draftInViewerLanguage(detail, spanishDraft, 'nb').body).toBe(
+      'Bestillingen din ble sendt tirsdag.',
+    );
+  });
+
+  it('leaves a draft asked for in the viewer language alone', () => {
+    const norwegianDraft = makeDraft('c', 'd1', 'Bestillingen din ble sendt tirsdag.');
+    norwegianDraft.metadata = { kind: 'draft_reply', language: 'nb' };
+    expect(draftAwaitsTranslation(spanish(), norwegianDraft, 'nb')).toBe(false);
+    expect(draftInViewerLanguage(spanish('Noe annet'), norwegianDraft, 'nb')).toBe(norwegianDraft);
+  });
+
+  it('does not hold a draft back while the customer language is unknown', () => {
+    const detail = makeDetail('c', { messages: [spanishDraft] });
+    expect(draftAwaitsTranslation(detail, spanishDraft, 'nb')).toBe(false);
   });
 });
 

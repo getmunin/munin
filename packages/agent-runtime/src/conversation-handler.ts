@@ -445,6 +445,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
               retrievedDocumentIds: deriveRetrievedDocumentIds(reply.toolCalls),
               ...(audit.rationale ? { rationale: audit.rationale } : {}),
               ...(mode === 'draft-request' && note?.trim() ? { note: note.trim() } : {}),
+              ...(mode === 'draft-request' && draft.language ? { language: draft.language } : {}),
               ...(reply.toolCalls.length > 0
                 ? { toolNames: [...new Set(reply.toolCalls.map((t) => t.name))].slice(0, 24) }
                 : {}),

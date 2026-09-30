@@ -148,6 +148,7 @@ class SetDraftReplyBody extends createZodDto(
     rationale: z.string().min(1).max(2000).optional(),
     toolNames: z.array(z.string().min(1).max(128)).max(24).optional(),
     note: z.string().max(4000).optional(),
+    language: z.string().trim().min(2).max(16).optional(),
   }),
 ) {}
 
@@ -603,6 +604,7 @@ export class ConversationsController {
         rationale: input.rationale,
         toolNames: input.toolNames,
         note: input.note,
+        language: input.language,
       }),
     );
   }

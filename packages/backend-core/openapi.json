@@ -10651,6 +10651,11 @@
           "note": {
             "type": "string",
             "maxLength": 4000
+          },
+          "language": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 16
           }
         },
         "required": [

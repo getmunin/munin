@@ -1,5 +1,80 @@
 # @getmunin/agent-host
 
+## 5.37.0
+
+### Minor Changes
+
+- 11d73ca: Match curator skill tool allow-lists by exact tool name, and refuse to run a skill that has no allow-list.
+
+  The allow-list that sandboxes each background skill job compared tool names by prefix, so an entry such as `conv_set_topic` also admitted every longer tool whose name began with it (`conv_set_topic_automation`, an org-wide automation setting the topic job was never meant to touch). A tool is now admitted only when its name is listed exactly, in both the tool list the model sees and at call time.
+
+  A skill job with no allow-list entry, or an empty one, used to run with the full admin tool surface. It now fails with the non-retryable `no_tool_allowlist` reason instead. Every skill in `KNOWN_SKILL_URIS` already has an entry, and a catalog test keeps it that way and checks that every listed name is a registered tool.
+
+  Renames, to match the exact semantics:
+
+  - `toolPrefixesFor` → `allowedToolsFor` (`@getmunin/types`); the map is exported as `TOOLS_BY_URI`.
+  - `withAllowedToolPrefixes` → `withAllowedTools` (`@getmunin/agent-runtime`). An empty list now exposes no tools instead of all of them.
+  - `SkillPassOptions.allowedToolPrefixes` → `allowedTools`; runners that call `runSkillPass` directly must pass it or the pass is skipped.
+
+- 1e6b073: Ask for a draft from a rough note. Whatever a teammate has typed in the reply box when they click "Draft from my note" goes to the agent as their instruction. The agent turns the note into a finished reply in the customer's language and fills in the rest from the conversation and its tools.
+
+  - `POST /v1/conversations/:id/request-draft` takes an optional `note` (max 4000 characters). It rides on the `conversation.draft_requested` event, so both the in-process runner and external runtimes on the realtime socket receive it. With a note, a draft can be requested even when the customer did not write last.
+  - In the draft, the agent wraps anything it added beyond the note in `[[…]]` and marks each fact it could not find as `{{…}}`. `setDraftReply` strips the markup: the draft `body` is clean text with each missing fact rendered as `[LABEL]`, and `metadata` keeps `annotated` (the marked-up original), `slots` and `note`. Placeholders the agent is asked to write change from `[ORDER STATUS]` to `{{ORDER STATUS}}`, but what the reviewer sees is unchanged.
+  - Sending a draft (`fromDraftId`) while any of its slots is still in the text fails with `conv_draft_slots_open`, and the composer holds Approve & send until they are filled in. Once sent, the note is kept on the `approvedDraft` stamp and shown under the message in the thread.
+  - Rejecting a draft puts the note back in the reply box, so it can be edited and asked again.
+  - The draft-request prompt now says the draft is sent verbatim (no headings, labels or remarks to the teammate), and that nothing from the note becomes a placeholder.
+  - Composer: the ask-draft button sits next to Send, the unfilled-slot hint comes last in the row, and on phones "edited by you" is no longer shown while "Restore draft" moves into the actions menu (desktop keeps it in the status line). The Norwegian label reads "Gjenopprett kladd".
+
+- 88301e6: Read a conversation in your own language. When a teammate opens a conversation, the inbox asks the agent to translate it into the dashboard's language. The thread then shows the translation, and a "Show original" toggle in the header switches back to the customer's own words.
+
+  - Conversations carry `customerLanguage`: the language the customer writes in, as a short BCP 47 tag. The agent detects it the first time a teammate opens the conversation. Once it matches the dashboard language, no more translation is asked for.
+  - New table `conv_message_translations`: one row per message and target language, staff-only under RLS (end-user audiences never see a row). A row is deleted with its message and whenever the message body is rewritten, so a redacted or signature-stripped body never keeps a stale translation.
+  - `POST /v1/conversations/:id/request-translation` takes `targetLanguage`. It emits `conversation.translation_requested` only when public messages are missing a translation. `GET /v1/conversations/:id?translateTo=<tag>` adds a `translations` block to the detail.
+  - For agent runtimes: `GET /v1/conversations/:id/pending-translations?targetLanguage=<tag>` lists what still needs translating. `POST /v1/conversations/:id/translations` saves the results and emits `conversation.translated`. The realtime client gains `onTranslationRequested`.
+  - The in-process agent host translates with the fast model in one call per batch. Customer text is fenced as data. The call counts against the same token metering and generate gate as chat replies.
+  - Only public messages from the customer, the agent and teammates are translated. Internal notes, drafts and system lines stay as written.
+
+- df70b38: Reply in your own language, and the customer gets it in theirs. In a conversation whose customer writes another language, the composer shows a "Translate to <language>" checkbox, on by default. You write and edit in your own language. On send, the reply is translated and the translation goes out, while what you wrote is kept as that message's translation, so the thread shows your own words and "Show original" shows what the customer received. Untick the box to send as typed; the button then says "Send in <your language>".
+
+  - `POST /v1/conversations/:id/messages` takes `translateFrom`, the language the teammate wrote in. The reply is translated into the conversation's `customerLanguage` before it is stored and delivered. If translation fails, nothing is sent (`conv_translation_failed`). If the customer's language is not known yet, the reply is refused (`conv_translation_unavailable`). Draft slots and the edited-draft stamp are checked against what the teammate wrote, not the translation. Only teammates can use it: an agent writes the customer's language itself.
+  - backend-core gains `MessageTranslatorRegistry`, a hook the in-process agent host fills in. It translates on the fast model, under the same metering and generate gate as chat replies.
+  - `POST /v1/conversations/:id/request-draft` takes `language`, which rides on `conversation.draft_requested`. The agent then drafts in that language instead of the customer's, so a draft asked for with translation on arrives in the teammate's language, ready to edit.
+  - A draft asked for in a given language is checked once more after the agent writes it. A cheap pass on the audit model rewrites it into that language when the agent slipped into the customer's, and answers `OK` (a few tokens) when it is already right. The audit is told the language is intentional, so it no longer flags a Norwegian draft to a Spanish customer as a mismatch.
+  - The composer shows what the agent is doing in the reply box itself, on the agent's cool tint. While it writes, the box carries "Writing draft" (or "Writing draft from your notes", with the notes folded behind Show) over three skeleton lines, then the text as it streams in. A finished draft is labelled "Draft · Reject" and stays tinted and editable; once edited, the tint goes and the label reads "Edited draft · Discard", which brings the agent's version back. Teammates who don't hold the conversation see the same skeleton, then the draft labelled "Draft · Preview". Reject and Restore move out of the actions menu into the label, and "Release" becomes "Release conversation".
+  - Clicking another composer action while one is in flight no longer briefly disables the rest, and a draft seen first on a phone-width window no longer shows an empty box after widening to desktop.
+
+### Patch Changes
+
+- Updated dependencies [b6bbdd7]
+- Updated dependencies [f01b611]
+- Updated dependencies [09d81c8]
+- Updated dependencies [2b2d59a]
+- Updated dependencies [11d73ca]
+- Updated dependencies [692bdbe]
+- Updated dependencies [1e6b073]
+- Updated dependencies [4b1378b]
+- Updated dependencies [8c3ceb9]
+- Updated dependencies [f4f514e]
+- Updated dependencies [88301e6]
+- Updated dependencies [126b291]
+- Updated dependencies [afaf944]
+- Updated dependencies [4c333bc]
+- Updated dependencies [6fbbe6f]
+- Updated dependencies [dd19a4a]
+- Updated dependencies [b9ed9d5]
+- Updated dependencies [9fb0ec4]
+- Updated dependencies [8b218f0]
+- Updated dependencies [8781428]
+- Updated dependencies [022b4ed]
+- Updated dependencies [df70b38]
+- Updated dependencies [1421181]
+- Updated dependencies [0ea66cf]
+  - @getmunin/backend-core@5.37.0
+  - @getmunin/core@5.37.0
+  - @getmunin/types@5.37.0
+  - @getmunin/agent-runtime@5.37.0
+  - @getmunin/db@5.37.0
+
 ## 5.36.0
 
 ### Minor Changes

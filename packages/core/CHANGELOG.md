@@ -1,5 +1,41 @@
 # @getmunin/core
 
+## 5.37.0
+
+### Patch Changes
+
+- f01b611: An admin API key now acts with its creator's current org role instead of passing every role gate. A `*` key minted by an admin can do admin work but no longer gets through owner-only routes (removing members, revoking invitations). If the creator is demoted, the key loses those rights on its next request. Keys with no recorded creator, such as ones seeded straight into the database, are treated as admin and never as owner.
+
+  An admin key also stops working as soon as its creator stops being a member of the key's org. Removing a member revokes the admin keys they created in that org, so inviting them back doesn't bring old keys back to life. When account deletion is enabled, deleting an account revokes that user's admin keys in every org before the deployment's own `beforeDelete` hook runs. Widget and tracker keys are not affected.
+
+- 09d81c8: Clear every `pnpm audit` advisory. undici moves to 7.29.1 (TLS validation bypass in `BalancedPool`, WebSocket crash paths, shared-cache cookie disclosure) and nodemailer to 10.0.13 (quadratic backtracking in the address parser, cross-transport TLS server-name reuse, recipient-array stack exhaustion), with mailparser raised to 3.9.32 so inbound parsing and outbound sending share one nodemailer. nodemailer 10 ships its own type declarations, so `@types/nodemailer` is dropped. multer is lifted to 2.4.0 for the aborted-upload disk-write DoS; the remaining advisories were build- and dev-tree only and are pinned through overrides.
+- 8781428: Social post media and link-preview fetches now go through the shared `safeFetch` guard instead of a module-local check. The shared guard pins DNS at connect time and re-checks every redirect hop, so the social module now refuses IPv4-mapped IPv6 hosts, hostnames that re-resolve to a private address between check and connect, and the reserved ranges the local check missed. A blocked destination is reported as "not an allowed destination" and a network failure as "could not fetch", without echoing what an internal host answered.
+
+  `safeFetch` itself:
+
+  - `SsrfBlockedError` messages no longer include the private address a hostname resolved to, and a failed lookup reads the same as a private one; the resolved address stays in the server log and on the error's `detail` field.
+  - NAT64 `64:ff9b::/96` addresses are judged by the IPv4 address they embed, `64:ff9b:1::/48` and IPv4-compatible `::a.b.c.d` addresses are refused.
+  - A bracketed IPv6 URL host is checked as the literal it is rather than handed to the resolver.
+  - The response's `url` is the URL it finally landed on after redirects, so relative links and `og:image` values resolve against the right page.
+
+- 1421181: Keep the Vapi webhook secret server-side and bind in-browser voice calls to their conversation.
+
+  In-browser voice calls used to receive a full copy of the Vapi assistant config, including the assistant's server settings, where the webhook secret Munin authenticates Vapi webhooks with is stored. `voice/start` now starts the stored assistant by id and sends only the per-call overrides (model, messages, tools). Server settings never reach the browser, and neither do assistant tools that carry their own server or credential config.
+
+  The conversation id in a call's metadata used to be trusted as sent. Each call now carries a short-lived token that Munin signs over the org, voice channel, conversation and end user. Tool calls, transcripts and end-of-call reports whose token is missing, doesn't verify, or doesn't match are no longer attached to an existing conversation. Tool calls also refuse to run when the token's end user no longer owns the conversation. Inbound phone calls get the same signed token from the assistant-request response.
+
+  Rotating the webhook secret now updates the assistant too. Whether it arrives through the dashboard or a `conv_request_channel_credentials` link, a new secret for a channel whose assistant webhook Munin configured is written to the assistant first. If that write fails, nothing is saved, so Vapi is never left sending a secret Munin has stopped accepting.
+
+  **Action for operators:** rotate the webhook secret on every existing Vapi voice channel that has a public key set (in-browser voice). Treat the old secret as exposed.
+
+- Updated dependencies [11d73ca]
+- Updated dependencies [f4f514e]
+- Updated dependencies [88301e6]
+- Updated dependencies [4c333bc]
+- Updated dependencies [6fbbe6f]
+  - @getmunin/types@5.37.0
+  - @getmunin/db@5.37.0
+
 ## 5.36.0
 
 ### Minor Changes

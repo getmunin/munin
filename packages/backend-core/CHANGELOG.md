@@ -1,5 +1,216 @@
 # @getmunin/backend-core
 
+## 5.37.0
+
+### Minor Changes
+
+- b6bbdd7: Opening an invitation link while signed out now shows who the invitation is for — the organization, the invited address and the role — instead of bouncing straight to the sign-in page. The page sends an invitee who already has an account to sign in and everyone else to create one, with the invited address filled in on both forms.
+
+  `GET /v1/invitations/lookup` now also returns `orgName` and `hasAccount`, and is rate-limited like the other public endpoints. Whether an account exists is only revealed for the one address the invitation token was sent to.
+
+- 692bdbe: Add DataForSEO as a bring-your-own-key keyword-research connector in the `seo` domain. Six new read-only tools — `seo_get_provider_balance`, `seo_get_keyword_volume`, `seo_list_keyword_ideas`, `seo_list_ranked_keywords`, `seo_list_keyword_gaps` and `seo_get_serp_snapshot` — cover the countries of Europe and North America. Search volume and SERP snapshots reach every one of them. Keyword ideas, ranked keywords and gaps reach the countries DataForSEO Labs indexes, in the languages it indexes there. The country and language table is checked against DataForSEO's published location lists. Each org connects its own DataForSEO account: the API login and password are collected only through the one-time credential link, stored encrypted, and never appear in tool input or output. `connectors_test_connection` reports the account balance.
+
+  Every research call estimates its worst-case cost from DataForSEO's published per-task and per-item prices before sending anything. It refuses up front when an optional `maxCostUsd` would be exceeded, and every result reports both `cost.estimatedUsd` and `cost.actualUsd`. DataForSEO's per-task status codes are checked on every response, so an insufficient balance, rejected credentials, an account DataForSEO refuses to serve (such as one not yet verified), rate limiting or an unsupported market comes back as a clear error rather than an empty result. A response that carries no task at all is reported as a retryable `seo_vendor_unavailable`. A genuinely empty answer is flagged with `noData` and a `reason`.
+
+  `seo` now holds two adapter contracts, `SeoConsoleAdapter` (Bing, Google Search Console) and `SeoResearchAdapter` (DataForSEO). `ConnectorsService.resolveScope` takes an optional capability filter, so an org with a search-console connection and a research connection can still call either tool family without passing `connectionId`. The Integrations page gets a DataForSEO card, and a new `skill://seo/research-keywords` describes the workflow and how to keep spend bounded.
+
+- 1e6b073: Ask for a draft from a rough note. Whatever a teammate has typed in the reply box when they click "Draft from my note" goes to the agent as their instruction. The agent turns the note into a finished reply in the customer's language and fills in the rest from the conversation and its tools.
+
+  - `POST /v1/conversations/:id/request-draft` takes an optional `note` (max 4000 characters). It rides on the `conversation.draft_requested` event, so both the in-process runner and external runtimes on the realtime socket receive it. With a note, a draft can be requested even when the customer did not write last.
+  - In the draft, the agent wraps anything it added beyond the note in `[[…]]` and marks each fact it could not find as `{{…}}`. `setDraftReply` strips the markup: the draft `body` is clean text with each missing fact rendered as `[LABEL]`, and `metadata` keeps `annotated` (the marked-up original), `slots` and `note`. Placeholders the agent is asked to write change from `[ORDER STATUS]` to `{{ORDER STATUS}}`, but what the reviewer sees is unchanged.
+  - Sending a draft (`fromDraftId`) while any of its slots is still in the text fails with `conv_draft_slots_open`, and the composer holds Approve & send until they are filled in. Once sent, the note is kept on the `approvedDraft` stamp and shown under the message in the thread.
+  - Rejecting a draft puts the note back in the reply box, so it can be edited and asked again.
+  - The draft-request prompt now says the draft is sent verbatim (no headings, labels or remarks to the teammate), and that nothing from the note becomes a placeholder.
+  - Composer: the ask-draft button sits next to Send, the unfilled-slot hint comes last in the row, and on phones "edited by you" is no longer shown while "Restore draft" moves into the actions menu (desktop keeps it in the status line). The Norwegian label reads "Gjenopprett kladd".
+
+- 88301e6: Read a conversation in your own language. When a teammate opens a conversation, the inbox asks the agent to translate it into the dashboard's language. The thread then shows the translation, and a "Show original" toggle in the header switches back to the customer's own words.
+
+  - Conversations carry `customerLanguage`: the language the customer writes in, as a short BCP 47 tag. The agent detects it the first time a teammate opens the conversation. Once it matches the dashboard language, no more translation is asked for.
+  - New table `conv_message_translations`: one row per message and target language, staff-only under RLS (end-user audiences never see a row). A row is deleted with its message and whenever the message body is rewritten, so a redacted or signature-stripped body never keeps a stale translation.
+  - `POST /v1/conversations/:id/request-translation` takes `targetLanguage`. It emits `conversation.translation_requested` only when public messages are missing a translation. `GET /v1/conversations/:id?translateTo=<tag>` adds a `translations` block to the detail.
+  - For agent runtimes: `GET /v1/conversations/:id/pending-translations?targetLanguage=<tag>` lists what still needs translating. `POST /v1/conversations/:id/translations` saves the results and emits `conversation.translated`. The realtime client gains `onTranslationRequested`.
+  - The in-process agent host translates with the fast model in one call per batch. Customer text is fenced as data. The call counts against the same token metering and generate gate as chat replies.
+  - Only public messages from the customer, the agent and teammates are translated. Internal notes, drafts and system lines stay as written.
+
+- 4c333bc: Let an organization upload a logo.
+
+  Owners and admins can upload, replace and remove a logo from the Account settings page. The
+  control plane gains `PUT /v1/orgs/me/logo` (the raw image as the request body, its type as
+  `Content-Type`) and `DELETE /v1/orgs/me/logo`, and `GET /v1/orgs/me` now returns `logoUrl`, or
+  `null` when no logo is set. PNG, JPEG, WebP and SVG are accepted up to 2 MB; the bytes must
+  match the declared type, and a rejected upload answers `org_logo_unsupported_type` or
+  `org_logo_too_large`, both translated in the dashboard. Replacing or removing a logo deletes the
+  old object from asset storage.
+
+  Logos are served anonymously from `GET /v1/public/orgs/:orgId/logo`, and `logoUrl` carries a
+  version parameter so a replaced logo busts caches. They are never linked as raw storage URLs:
+  SVG can carry script, which is why CMS assets refuse it, so the logo endpoint serves every
+  format with a `sandbox` Content-Security-Policy and `nosniff`. A script inside an SVG logo
+  therefore cannot run, even when the file is opened directly rather than through `<img>`.
+
+  Migration `0110_org_logo` adds nullable `logo_storage_key`, `logo_mime` and `logo_updated_at`
+  columns to `orgs`. The logo lives in real columns rather than in `settings`, because
+  `PATCH /v1/orgs/me` replaces `settings` wholesale and would clobber it.
+
+  Uploads whose declared `Content-Length` exceeds the cap on the signed local-storage endpoint are
+  now answered with a 400 instead of having their connection reset.
+
+- 8b218f0: Show the linked page's real picture in the social post preview, instead of a "the page's own share image" placeholder.
+
+  `GET /v1/social/drafts/:id/link-preview` reads the draft's link with the same `fetchOpenGraph` the publish step uses, and returns the page's `og:image` and `og:title`. Results are cached in memory per URL (ten minutes on success, one minute on failure), and a page that cannot be read comes back as `readable: false` instead of an error. The browser could not do this itself: reading another site's HTML is blocked cross-origin.
+
+  The preview now draws what publishing actually sends. On both LinkedIn and Facebook, a draft with no attached file goes out with the page's image uploaded as the post's own picture and the link in the text — there is no title card on either network, so the LinkedIn mock's title strip is gone. The picture shows whether the link sits in the body or the first comment, since publishing attaches it either way. When the page advertises no picture, Facebook builds its own card from the link, and the preview shows that card with the page's real title. A note under the preview says which case applies, including a page that could not be read just now.
+
+  Also in the review pane: the decided social pane shows the share link as a read-only field like the pending pane does, the "a sketch of the layout" note is gone, and the "see more" ellipsis sits against the text.
+
+- 022b4ed: Show an automatic draft in the teammate's own language. A draft the agent writes on its own (draft-only mode, or a reply it parks for review) is in the customer's language. When a teammate who reads another language opens the conversation, the pending draft is now translated along with the thread, and the composer holds it in their language, ready to edit. While that translation is on its way the reply box shows "Translating draft"; if it doesn't arrive within a minute, the draft is shown as written.
+
+  - A draft records the language it was written in. `POST /v1/conversations/:id/draft-reply` takes an optional `language`, and the agent sets it on drafts asked for in a given language. A draft without one is taken to be in the customer's language.
+  - `GET /v1/conversations/:id/pending-translations` includes the pending draft when its language differs from the target, and `POST /v1/conversations/:id/translations` accepts its translation. The detail's `translations` block then carries it like any message.
+  - Approving a translated draft without changes sends the agent's original text, not a translation of the translation, and stores what the teammate saw as the sent message's translation. An edited draft is translated on send as before.
+  - The translation prompt keeps labels in square brackets, such as `[DELIVERY DATE]`, exactly as written, so the check for unfilled facts still finds them in the translated draft.
+
+- df70b38: Reply in your own language, and the customer gets it in theirs. In a conversation whose customer writes another language, the composer shows a "Translate to <language>" checkbox, on by default. You write and edit in your own language. On send, the reply is translated and the translation goes out, while what you wrote is kept as that message's translation, so the thread shows your own words and "Show original" shows what the customer received. Untick the box to send as typed; the button then says "Send in <your language>".
+
+  - `POST /v1/conversations/:id/messages` takes `translateFrom`, the language the teammate wrote in. The reply is translated into the conversation's `customerLanguage` before it is stored and delivered. If translation fails, nothing is sent (`conv_translation_failed`). If the customer's language is not known yet, the reply is refused (`conv_translation_unavailable`). Draft slots and the edited-draft stamp are checked against what the teammate wrote, not the translation. Only teammates can use it: an agent writes the customer's language itself.
+  - backend-core gains `MessageTranslatorRegistry`, a hook the in-process agent host fills in. It translates on the fast model, under the same metering and generate gate as chat replies.
+  - `POST /v1/conversations/:id/request-draft` takes `language`, which rides on `conversation.draft_requested`. The agent then drafts in that language instead of the customer's, so a draft asked for with translation on arrives in the teammate's language, ready to edit.
+  - A draft asked for in a given language is checked once more after the agent writes it. A cheap pass on the audit model rewrites it into that language when the agent slipped into the customer's, and answers `OK` (a few tokens) when it is already right. The audit is told the language is intentional, so it no longer flags a Norwegian draft to a Spanish customer as a mismatch.
+  - The composer shows what the agent is doing in the reply box itself, on the agent's cool tint. While it writes, the box carries "Writing draft" (or "Writing draft from your notes", with the notes folded behind Show) over three skeleton lines, then the text as it streams in. A finished draft is labelled "Draft · Reject" and stays tinted and editable; once edited, the tint goes and the label reads "Edited draft · Discard", which brings the agent's version back. Teammates who don't hold the conversation see the same skeleton, then the draft labelled "Draft · Preview". Reject and Restore move out of the actions menu into the label, and "Release" becomes "Release conversation".
+  - Clicking another composer action while one is in flight no longer briefly disables the rest, and a draft seen first on a phone-width window no longer shows an empty box after widening to desktop.
+
+### Patch Changes
+
+- f01b611: An admin API key now acts with its creator's current org role instead of passing every role gate. A `*` key minted by an admin can do admin work but no longer gets through owner-only routes (removing members, revoking invitations). If the creator is demoted, the key loses those rights on its next request. Keys with no recorded creator, such as ones seeded straight into the database, are treated as admin and never as owner.
+
+  An admin key also stops working as soon as its creator stops being a member of the key's org. Removing a member revokes the admin keys they created in that org, so inviting them back doesn't bring old keys back to life. When account deletion is enabled, deleting an account revokes that user's admin keys in every org before the deployment's own `beforeDelete` hook runs. Widget and tracker keys are not affected.
+
+- 09d81c8: Clear every `pnpm audit` advisory. undici moves to 7.29.1 (TLS validation bypass in `BalancedPool`, WebSocket crash paths, shared-cache cookie disclosure) and nodemailer to 10.0.13 (quadratic backtracking in the address parser, cross-transport TLS server-name reuse, recipient-array stack exhaustion), with mailparser raised to 3.9.32 so inbound parsing and outbound sending share one nodemailer. nodemailer 10 ships its own type declarations, so `@types/nodemailer` is dropped. multer is lifted to 2.4.0 for the aborted-upload disk-write DoS; the remaining advisories were build- and dev-tree only and are pinned through overrides.
+- 2b2d59a: CMS asset uploads now accept an explicit allow-list of file types instead of rejecting only SVG. Raster images (png, jpeg, gif, webp, avif, heic/heif, bmp, tiff, ico), video (mp4, webm, mov, ogv), audio (mp3, m4a, aac, wav, ogg/opus, weba, flac) and PDF are accepted; everything else — HTML, XHTML, XML, SVG, scripts, plain text and unknown types — is refused with `cms_asset_type_not_allowed` on every upload route (presigned upload, base64, from-URL and import). Assets are served from a public URL with the declared content type, so a type a browser renders as an active document must never be stored there.
+
+  The declared MIME type is normalized (lowercased, parameters stripped) before it is checked and stored, and a filename extension that contradicts it is refused with the same code. A name without an extension takes the extension of its MIME type. The dashboard shows a translated message for the new code, and the upload tool descriptions and the asset skills list the accepted types. Assets stored before this change are not touched.
+
+- 4b1378b: Outbound email replies no longer pass raw HTML through from markdown. The HTML part of a reply is rendered from the message body and the quoted history, and the quoted history includes what the customer wrote — so any HTML tags a customer typed used to go out as live markup in the org's own signed mail. Raw HTML in either part is now shown as literal text, and link and image URLs are limited to `http`, `https` and `mailto` (plus `cid` for images); anything else keeps its visible text but loses the link. This matches how the dashboard already displays the same messages. Ordinary markdown — emphasis, lists, links, code, line breaks — renders as before. The renderer also stops mutating the shared `marked` singleton.
+- 8c3ceb9: Self-service booking writes now refuse email whose sender identity was taken from a forward rather than from the authenticated message.
+
+  When a relay email channel receives a forwarded message, Munin attributes the conversation to the original sender named inside the forwarded text. No mail server ever checked that address, so a message in the latest customer turn that was forwarded now records `senderAuth: 'forwarded'`, and `bookings_create_my_booking`, `bookings_update_my_booking` and `bookings_cancel_my_booking` refuse with `connectors_sender_forwarded` in that case. Reads are unchanged.
+
+  Forward detection also no longer masks a DMARC failure. The DMARC verdict of the message as received is evaluated first, and a `fail` stays `fail` even when the message looks like an automatic or manual forward. An automatic forward whose sender is the message's own `From` address now carries that message's real verdict instead of always recording `unknown`.
+
+- f4f514e: Stop an unstable mail server from flooding org owners with alert emails, and stop a short outage from switching an email channel off.
+
+  An inbound poll failure used to open a `channel_inbound` alert straight away, and the next successful poll resolved it. A server that kept dropping out therefore opened a brand-new alert, and sent a brand-new email to every owner, on each failure that followed a success: up to one every two minutes. A server that stayed down instead reached five failures in about five minutes and auto-deactivated the channel, which then stayed off after the server came back.
+
+  **Alerts and alert emails (every source).**
+
+  - An alert that comes back within six hours of resolving now reopens the same row and keeps counting (`MUNIN_ALERT_REOPEN_WINDOW_MS`, `0` turns this off). `org_alert.opened` fires again for it with `reopened: true` in the payload so webhook receivers and the dashboard banner see it flip back to open, but no second email is sent. A reopened alert also has its acknowledgement cleared.
+  - A new alert's owner email now waits for a grace period before its first send attempt. The worker already skipped alerts that had resolved by send time, so a blip that clears within the grace period emails nobody. The grace period is set per source in `NOTIFY_POLICY`, and sources without their own value use `MUNIN_ALERT_NOTIFY_GRACE_MS` (default ten minutes, `0` sends at once). `channel_inbound` uses `0`, because the poll worker already waits before opening a transient alert and a rejected login should reach the owner straight away.
+
+  **Inbound polling.**
+
+  - A poll adapter can classify a failure as `transient` or `permanent` through a new optional `classifyError` on its `poll` inbound mode. For IMAP, a rejected login or a server response of `AUTHENTICATIONFAILED`, `AUTHORIZATIONFAILED`, `EXPIRED` or `NONEXISTENT` is permanent. Everything else, including connection refusals, timeouts and DNS errors, is transient. An adapter that does not classify its errors gets transient.
+  - Every failing channel now backs off: after the second failure in a row the gap doubles, up to 15 minutes. Editing or reactivating the channel clears the backoff.
+  - A permanent failure alerts on the first failure and auto-deactivates the channel after five in a row, as before.
+  - A transient failure never deactivates the channel, and opens an alert only once the channel has been failing for five minutes. With the backoff that is the poll seven minutes in, and the owner email goes out at that point. The first successful poll resolves the alert. A server that fails intermittently, with successful polls in between, never builds up five minutes of continuous failure and does not alert; mail is still collected on the polls that succeed.
+  - The worker keeps its consecutive-failure count on `conv_inbound_state` instead of reading the alert's `occurrenceCount`, which now carries on across reopens. Migration `0109_conv_inbound_poll_backoff` adds `consecutive_failures`, `failing_since`, `last_failure_at` and `next_poll_at` to that table.
+  - `channel_inbound` alerts carry `metadata.failureKind`. The channel card shows "retrying automatically" for a transient failure instead of counting down to a deactivation that won't happen.
+
+- 126b291: National identity numbers now only raise a `data_protection` alert, and the owner email that goes with it, while the org has not chosen a redaction policy. Before, every org got a "Munin needs attention" email the first time a number arrived, even when redaction was already on and working, and the alert never closed. An org that deliberately keeps the numbers had no way to dismiss it.
+
+  Saving any policy, `off` included, now counts as the decision: it resolves the open alert, and later arrivals stay quiet whether they are redacted or kept. An alert left open from before this change resolves the next time a number arrives in an org that has a policy.
+
+  `conv_get_redaction_policy` and `GET /v1/conversations/redaction` return a new `configured` flag, which drives the reworked privacy settings page:
+
+  - What happens to a match is now a radio list (remove, keep the date of birth, store unchanged) with nothing preselected until the org has chosen. Save stays disabled until one is picked, so storing the numbers unchanged is a deliberate choice rather than an untouched default.
+  - An unconfigured org sees a note, marked with a yellow dot, explaining that owners are alerted until a choice is saved.
+  - The settings sidebar shows a yellow dot next to Privacy while a `data_protection` alert is open. Settings nav items can name an `alertSource` to get the same indicator.
+  - New `RadioRow` in the settings scaffold, alongside `CheckboxRow`.
+
+- afaf944: Harden the OAuth client icon endpoint (`GET /v1/oauth/clients/:id/icon`). The icon is fetched from a URL chosen by whoever registered the client, and registration needs no account, so the endpoint no longer passes through SVG images — an SVG can carry script, and it was served from the API origin. Only raster formats (PNG, JPEG, GIF, WebP, ICO) are proxied now; anything else falls back to the built-in generic icon. Every icon response, including that fallback, now carries a sandboxing `Content-Security-Policy`, `X-Content-Type-Options: nosniff` and an inline `Content-Disposition`, and the upstream body is streamed against the 256 KB cap instead of being buffered whole before the size check.
+- 6fbbe6f: Stop simultaneous scheduler ticks from deadlocking the database pool.
+
+  `withSchedulerLock` holds a transaction for the advisory lock while the tick does its work through the same pool. When as many ticks fired at once as the pool had connections — typically when a host wakes from sleep and every interval is overdue — each tick held a connection and waited for another, and the pool stayed stuck for good. Every authenticated request then hung behind it.
+
+  At most a third of the pool (at least one connection) now holds a scheduler lock at a time; a tick that finds every slot taken is skipped, just as it is when another replica holds the lock, and runs on its next interval. `@getmunin/db` exports `resolvePoolMax` so the cap follows `MUNIN_DB_POOL_MAX`.
+
+- dd19a4a: The API now sends baseline security headers on every response. All responses carry `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`, and `Strict-Transport-Security` is added when the public API URL (`MUNIN_API_URL`) is https. API and JSON responses additionally get `X-Frame-Options: DENY` and `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, so nothing the API returns can run script or be framed if a browser is sent to it directly. The auth error page keeps its inline styles.
+
+  Resources that customer sites load or open directly are left embeddable, so no CSP or frame restriction is added to them: the widget and tracker bundles, `/static/assets/*` (CMS assets, including inline PDFs), conversation attachment downloads, and the favicon and app icons. The `X-Powered-By` header is no longer sent.
+
+  The dashboard also refuses to be framed now (`X-Frame-Options: DENY`, `frame-ancestors 'none'`), which protects the login, consent and dashboard pages against clickjacking. It additionally sends `nosniff`, a `strict-origin-when-cross-origin` referrer policy, and a Permissions-Policy that turns off camera, geolocation, payment, USB and topics.
+
+- b9ed9d5: Signing up no longer grants organization membership to an email address that hasn't been proven.
+
+  - Invitation acceptance is bound to the invited address: the signed-in account's email must match the invitation, otherwise the request is refused with `invitation_email_mismatch`. Acceptance is claimed atomically, so an invitation is consumed exactly once; accepting again as the same account (a reload or a double submit) succeeds without side effects, while any other account gets a 409. The invitee receives the invited role even when they already joined as a member. Accepting marks the account's email as verified, since the invitation link was delivered to that mailbox.
+  - `createMuninAuthCore` accepts an `afterEmailVerification` hook, and `SignupHookUser` carries `emailVerified`, so a deployment can defer membership until the address is confirmed.
+  - Account linking now keeps BetterAuth's default of requiring a verified local email before a Google or GitHub sign-in is attached to an existing password account, and resetting a password revokes the account's other sessions.
+  - The dashboard's sign-up and sign-in forms send an account that has no organization yet to a "confirm your email" page instead of an empty dashboard, and the invitation page explains an email mismatch.
+
+  Self-hosted single-org deployments: a new sign-up on an allowlisted domain joins the organization only after opening the verification link, and an invited sign-up joins by accepting the invitation link rather than at sign-up time. The first account on a fresh install still becomes the owner immediately.
+
+- 9fb0ec4: Slack review cards for social post drafts now show a short preview of the post (the first five lines, capped at about 400 characters) with a pointer to the full draft in Munin, instead of quoting up to 2,900 characters inline. The share link is labelled with its host and path, so the UTM query string no longer spills across several lines. The character count and the full link target are unchanged.
+- 8781428: Social post media and link-preview fetches now go through the shared `safeFetch` guard instead of a module-local check. The shared guard pins DNS at connect time and re-checks every redirect hop, so the social module now refuses IPv4-mapped IPv6 hosts, hostnames that re-resolve to a private address between check and connect, and the reserved ranges the local check missed. A blocked destination is reported as "not an allowed destination" and a network failure as "could not fetch", without echoing what an internal host answered.
+
+  `safeFetch` itself:
+
+  - `SsrfBlockedError` messages no longer include the private address a hostname resolved to, and a failed lookup reads the same as a private one; the resolved address stays in the server log and on the error's `detail` field.
+  - NAT64 `64:ff9b::/96` addresses are judged by the IPv4 address they embed, `64:ff9b:1::/48` and IPv4-compatible `::a.b.c.d` addresses are refused.
+  - A bracketed IPv6 URL host is checked as the literal it is rather than handed to the resolver.
+  - The response's `url` is the URL it finally landed on after redirects, so relative links and `og:image` values resolve against the right page.
+
+- 1421181: Keep the Vapi webhook secret server-side and bind in-browser voice calls to their conversation.
+
+  In-browser voice calls used to receive a full copy of the Vapi assistant config, including the assistant's server settings, where the webhook secret Munin authenticates Vapi webhooks with is stored. `voice/start` now starts the stored assistant by id and sends only the per-call overrides (model, messages, tools). Server settings never reach the browser, and neither do assistant tools that carry their own server or credential config.
+
+  The conversation id in a call's metadata used to be trusted as sent. Each call now carries a short-lived token that Munin signs over the org, voice channel, conversation and end user. Tool calls, transcripts and end-of-call reports whose token is missing, doesn't verify, or doesn't match are no longer attached to an existing conversation. Tool calls also refuse to run when the token's end user no longer owns the conversation. Inbound phone calls get the same signed token from the assistant-request response.
+
+  Rotating the webhook secret now updates the assistant too. Whether it arrives through the dashboard or a `conv_request_channel_credentials` link, a new secret for a channel whose assistant webhook Munin configured is written to the assistant first. If that write fails, nothing is saved, so Vapi is never left sending a secret Munin has stopped accepting.
+
+  **Action for operators:** rotate the webhook secret on every existing Vapi voice channel that has a public key set (in-browser voice). Treat the old secret as exposed.
+
+- 0ea66cf: Keep the unread badge distinct from a custom launcher, and give mid-tone theme colours white text on filled buttons.
+
+  The launcher's unread badge was always filled with the theme colour. A site that set
+  `data-munin-launcher-color` to the same colour as its theme got a badge the same colour as the
+  bubble under it, separated only by the ring, so it stopped reading as a notification. With a custom
+  launcher the badge now takes the launcher's colours inverted — the icon colour as fill, the launcher
+  colour as the count, floored to 4.5:1 when an explicit icon colour sits too close. Over the default
+  ink launcher it stays on the theme colour. The ring around it is 1px instead of 2px.
+
+  Filled theme surfaces — the email-save button and the badge over the default launcher — now paint
+  `--munin-theme-fill`: the theme colour darkened by at most 12% when that is enough for paper text to
+  reach AA. A mid-tone such as `#4577F6` passed AA only with ink text (4.60:1), which read as muddy on
+  a primary button; it now fills `#3F6CE0` with paper text. Light brand colours (yellow, emerald,
+  coral, amber) are out of that reach and keep their exact colour with ink text. Outlines, focus rings
+  and the send arrow keep the configured colour unchanged.
+
+  The welcome CTA arrow now uses `--munin-theme-edge` rather than the raw theme colour, so a pale theme
+  still gets an arrow at 3:1 against the panel.
+
+  The chat-widget guide and the `setup-chat-widget` skill describe both colours accordingly, and no
+  longer claim the theme colour paints links and visitor bubbles, which it hasn't since the WCAG
+  palette pass.
+
+- Updated dependencies [f01b611]
+- Updated dependencies [09d81c8]
+- Updated dependencies [11d73ca]
+- Updated dependencies [1e6b073]
+- Updated dependencies [f4f514e]
+- Updated dependencies [88301e6]
+- Updated dependencies [4c333bc]
+- Updated dependencies [6fbbe6f]
+- Updated dependencies [8781428]
+- Updated dependencies [022b4ed]
+- Updated dependencies [df70b38]
+- Updated dependencies [1421181]
+  - @getmunin/core@5.37.0
+  - @getmunin/types@5.37.0
+  - @getmunin/agent-runtime@5.37.0
+  - @getmunin/db@5.37.0
+  - @getmunin/inspector-app@5.37.0
+  - @getmunin/mcp-toolkit@5.37.0
+  - @getmunin/emails@5.37.0
+
 ## 5.36.0
 
 ### Minor Changes

@@ -1,5 +1,46 @@
 # @getmunin/chat-widget
 
+## 5.37.0
+
+### Patch Changes
+
+- 1421181: Keep the Vapi webhook secret server-side and bind in-browser voice calls to their conversation.
+
+  In-browser voice calls used to receive a full copy of the Vapi assistant config, including the assistant's server settings, where the webhook secret Munin authenticates Vapi webhooks with is stored. `voice/start` now starts the stored assistant by id and sends only the per-call overrides (model, messages, tools). Server settings never reach the browser, and neither do assistant tools that carry their own server or credential config.
+
+  The conversation id in a call's metadata used to be trusted as sent. Each call now carries a short-lived token that Munin signs over the org, voice channel, conversation and end user. Tool calls, transcripts and end-of-call reports whose token is missing, doesn't verify, or doesn't match are no longer attached to an existing conversation. Tool calls also refuse to run when the token's end user no longer owns the conversation. Inbound phone calls get the same signed token from the assistant-request response.
+
+  Rotating the webhook secret now updates the assistant too. Whether it arrives through the dashboard or a `conv_request_channel_credentials` link, a new secret for a channel whose assistant webhook Munin configured is written to the assistant first. If that write fails, nothing is saved, so Vapi is never left sending a secret Munin has stopped accepting.
+
+  **Action for operators:** rotate the webhook secret on every existing Vapi voice channel that has a public key set (in-browser voice). Treat the old secret as exposed.
+
+- 0ea66cf: Keep the unread badge distinct from a custom launcher, and give mid-tone theme colours white text on filled buttons.
+
+  The launcher's unread badge was always filled with the theme colour. A site that set
+  `data-munin-launcher-color` to the same colour as its theme got a badge the same colour as the
+  bubble under it, separated only by the ring, so it stopped reading as a notification. With a custom
+  launcher the badge now takes the launcher's colours inverted — the icon colour as fill, the launcher
+  colour as the count, floored to 4.5:1 when an explicit icon colour sits too close. Over the default
+  ink launcher it stays on the theme colour. The ring around it is 1px instead of 2px.
+
+  Filled theme surfaces — the email-save button and the badge over the default launcher — now paint
+  `--munin-theme-fill`: the theme colour darkened by at most 12% when that is enough for paper text to
+  reach AA. A mid-tone such as `#4577F6` passed AA only with ink text (4.60:1), which read as muddy on
+  a primary button; it now fills `#3F6CE0` with paper text. Light brand colours (yellow, emerald,
+  coral, amber) are out of that reach and keep their exact colour with ink text. Outlines, focus rings
+  and the send arrow keep the configured colour unchanged.
+
+  The welcome CTA arrow now uses `--munin-theme-edge` rather than the raw theme colour, so a pale theme
+  still gets an arrow at 3:1 against the panel.
+
+  The chat-widget guide and the `setup-chat-widget` skill describe both colours accordingly, and no
+  longer claim the theme colour paints links and visitor bubbles, which it hasn't since the WCAG
+  palette pass.
+
+- Updated dependencies [11d73ca]
+- Updated dependencies [88301e6]
+  - @getmunin/types@5.37.0
+
 ## 5.36.0
 
 ### Minor Changes

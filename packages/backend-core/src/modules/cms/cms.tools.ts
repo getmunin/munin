@@ -6,6 +6,7 @@ import { CmsSearchService } from './cms.search.ts';
 import { FIELD_TYPES, type FieldDef } from './cms.fields.ts';
 import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
 import { TEXT_REPLACEMENTS_MAX, TextReplacementSchema } from '../../common/text-replacements.ts';
+import { CMS_ASSET_TYPES_SUMMARY } from '../../common/storage/asset-validation.ts';
 import { INSPECTOR_APP_URI } from '../../mcp/inspector.resource.ts';
 
 const FieldSchema: z.ZodType<FieldDef> = z.lazy(() =>
@@ -241,9 +242,15 @@ const ListAssetsInput = z.object({
   limit: z.number().int().positive().max(200).optional(),
 });
 
+const AssetMimeInput = z
+  .string()
+  .min(1)
+  .max(120)
+  .describe(`MIME type of the file. Accepted: ${CMS_ASSET_TYPES_SUMMARY}.`);
+
 const RequestUploadInput = z.object({
   name: z.string().min(1).max(255),
-  mime: z.string().min(1).max(120),
+  mime: AssetMimeInput,
   sizeBytes: z.number().int().positive(),
   altText: z.string().max(500).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
@@ -254,7 +261,7 @@ const DeleteAssetInput = z.object({ id: z.string() });
 
 const UploadAssetFromBase64Input = z.object({
   name: z.string().min(1).max(255),
-  mime: z.string().min(1).max(120),
+  mime: AssetMimeInput,
   base64Body: z.string().min(1),
   altText: z.string().max(500).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
@@ -272,7 +279,7 @@ const UploadAssetFromUrlInput = z.object({
       }
     }, 'sourceUrl must use https://'),
   name: z.string().min(1).max(255).optional(),
-  mime: z.string().min(1).max(120).optional(),
+  mime: AssetMimeInput.optional(),
   altText: z.string().max(500).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
@@ -663,7 +670,7 @@ export class CmsAdminTools {
     name: 'cms_request_asset_upload',
     title: 'CMS: Request asset upload URL',
     description:
-      'Mint a presigned upload for a new asset. Only usable from clients that can issue raw HTTP PUT/POST themselves. If your runtime has no client-side PUT primitive, this tool is not a fit — use `cms_upload_asset_from_base64` (small inline base64) or `cms_upload_asset_from_url` (public HTTPS URL) instead. Flow: the asset row is created in `uploaded:false` state. Look at `uploadMethod`: if `"PUT"`, send the file body as the raw PUT body to `uploadUrl`. If `"POST"`, send multipart/form-data to `uploadUrl` including every key/value in `uploadFields` followed by a `file` part; the embedded policy enforces an exact `Content-Length` match. Then call `cms_complete_asset_upload` to verify and mark the row live. SVG uploads are rejected — SVG can carry inline scripts and is not safe to serve as an asset.',
+      'Mint a presigned upload for a new asset. Only usable from clients that can issue raw HTTP PUT/POST themselves. If your runtime has no client-side PUT primitive, this tool is not a fit — use `cms_upload_asset_from_base64` (small inline base64) or `cms_upload_asset_from_url` (public HTTPS URL) instead. Flow: the asset row is created in `uploaded:false` state. Look at `uploadMethod`: if `"PUT"`, send the file body as the raw PUT body to `uploadUrl`. If `"POST"`, send multipart/form-data to `uploadUrl` including every key/value in `uploadFields` followed by a `file` part; the embedded policy enforces an exact `Content-Length` match. Then call `cms_complete_asset_upload` to verify and mark the row live. Only raster images, video, audio and PDF are accepted (see the `mime` field); anything else, SVG and HTML included, is rejected with `cms_asset_type_not_allowed`, as is a filename extension that contradicts the MIME type.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: RequestUploadInput,
@@ -678,7 +685,7 @@ export class CmsAdminTools {
     name: 'cms_upload_asset_from_base64',
     title: 'CMS: Upload asset from base64',
     description:
-      'Upload a small asset inline as base64 (≤100 KB decoded). The right choice when you have generated the asset in this conversation (image-gen output, screenshot, plot) and need it in the CMS without leaving the chat: compress to WebP or JPEG well under 100 KB first, then pass the bytes here. SVG is rejected. For larger assets reachable over HTTPS use `cms_upload_asset_from_url`; for larger arbitrary files use `cms_request_asset_upload` from a client that can issue HTTP PUT.',
+      'Upload a small asset inline as base64 (≤100 KB decoded). The right choice when you have generated the asset in this conversation (image-gen output, screenshot, plot) and need it in the CMS without leaving the chat: compress to WebP or JPEG well under 100 KB first, then pass the bytes here. Only raster images, video, audio and PDF are accepted (see the `mime` field); SVG and anything else is rejected with `cms_asset_type_not_allowed`. For larger assets reachable over HTTPS use `cms_upload_asset_from_url`; for larger arbitrary files use `cms_request_asset_upload` from a client that can issue HTTP PUT.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: UploadAssetFromBase64Input,
@@ -693,7 +700,7 @@ export class CmsAdminTools {
     name: 'cms_upload_asset_from_url',
     title: 'CMS: Upload asset from URL',
     description:
-      'Fetch a publicly reachable HTTPS asset and store it as a CMS asset in one call. Use this when your runtime cannot PUT to a presigned URL or pass large base64 payloads — typical for ChatGPT/Claude workspace agents whose sandbox blocks outbound PUTs and truncates long base64 strings. The server fetches the URL with SSRF protection, validates content-type (image/*, video/*, audio/*, application/pdf — SVG rejected) and size (≤50 MB), and creates the asset row in `uploaded:true` state. Filename and MIME are inferred from the response unless overridden. The original URL is recorded in `metadata.sourceUrl`.',
+      'Fetch a publicly reachable HTTPS asset and store it as a CMS asset in one call. Use this when your runtime cannot PUT to a presigned URL or pass large base64 payloads — typical for ChatGPT/Claude workspace agents whose sandbox blocks outbound PUTs and truncates long base64 strings. The server fetches the URL with SSRF protection, validates content-type against the same raster-image, video, audio and PDF allow-list as the other upload tools (see the `mime` field; SVG rejected) and size (≤50 MB), and creates the asset row in `uploaded:true` state. Filename and MIME are inferred from the response unless overridden. The original URL is recorded in `metadata.sourceUrl`.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: UploadAssetFromUrlInput,

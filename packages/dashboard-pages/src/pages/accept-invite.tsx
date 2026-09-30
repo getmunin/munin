@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Link, useRouter } from '../i18n-navigation';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
@@ -8,6 +8,13 @@ import { useTranslations } from 'next-intl';
 import { authClient } from '../auth-client';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
+import {
+  classifyAcceptError,
+  inviteAuthHref,
+  type InvitationErrorKind,
+  useInvitationLookup,
+  type InvitationLookup,
+} from '../auth/invitation-lookup';
 import {
   AuthShell,
   AuthEpigraph,
@@ -27,23 +34,31 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get('token');
-  const { data: session, isPending: sessionLoading } = authClient.useSession();
+  const { data: liveSession, isPending: sessionLoading } = authClient.useSession();
+  const [signedOut, setSignedOut] = useState(false);
+  const acceptStarted = useRef(false);
+  const session = signedOut ? null : liveSession;
   const [status, setStatus] = useState<'idle' | 'pending' | 'accepted' | 'error'>('idle');
   const [message, setMessage] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<InvitationErrorKind>('generic');
+
+  const fail = useCallback((kind: InvitationErrorKind, text: string) => {
+    setErrorKind(kind);
+    setMessage(text);
+    setStatus('error');
+  }, []);
+
+  const lookup = useInvitationLookup(token, !sessionLoading && !session);
 
   useEffect(() => {
     if (sessionLoading) return;
     if (!token) {
-      setStatus('error');
-      setMessage(t('missingToken'));
+      fail('invalid', t('missingToken'));
       return;
     }
-    if (!session) {
-      const redirect = `/accept-invite?token=${encodeURIComponent(token)}`;
-      router.push(`/login?redirect=${encodeURIComponent(redirect)}`);
-      return;
-    }
-    if (status !== 'idle') return;
+    if (!session) return;
+    if (status !== 'idle' || acceptStarted.current) return;
+    acceptStarted.current = true;
     setStatus('pending');
     void (async () => {
       try {
@@ -53,13 +68,35 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
         });
         setStatus('accepted');
       } catch (err) {
-        setStatus('error');
-        setMessage(translate(err) || t('errors.accept'));
+        const kind = classifyAcceptError(err);
+        const text =
+          kind === 'used'
+            ? t('errors.alreadyAccepted')
+            : kind === 'invalid'
+              ? t('errors.expired')
+              : translate(err) || t('errors.accept');
+        fail(kind, text);
       }
     })();
-  }, [sessionLoading, session, token, router, status, t, translate]);
+  }, [sessionLoading, session, token, status, t, translate, fail]);
 
-  const epigraphState = status === 'error' ? 'invite-bad' : 'invite';
+  useEffect(() => {
+    if (lookup.status === 'invalid') {
+      fail('invalid', t('errors.expired'));
+    } else if (lookup.status === 'failed') {
+      fail('generic', t('errors.lookup'));
+    }
+  }, [lookup.status, t, fail]);
+
+  if (status === 'idle' && token && !session && lookup.status === 'found') {
+    return (
+      <AuthShell
+        variant="invite"
+        rightZone={<AuthEpigraph state="invite" footer={footer} />}
+        leftZone={<InvitationLanding token={token} invitation={lookup.invitation} />}
+      />
+    );
+  }
 
   if (status === 'accepted') {
     return (
@@ -96,15 +133,15 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
           <AuthInviteCard
             tone="bad"
             badge={t('errorTitle')}
-            title={message ?? tCommon('unknownError')}
-            body={null}
+            title={t(`errorHeadings.${errorKind}`)}
+            body={message ?? tCommon('unknownError')}
             primary={
               <Link
                 href={session ? '/dashboard' : '/login'}
                 className="inline-flex items-center gap-2 border-[1px] border-ink bg-transparent px-[18px] py-3 text-[14px] text-ink transition-colors duration-fast ease-munin hover:bg-ink hover:text-paper"
               >
                 <ArrowLeft className="size-3.5" strokeWidth={2} />
-                {session ? t('backToDashboard') : t('errors.expired')}
+                {session ? t('backToDashboard') : t('goToSignIn')}
               </Link>
             }
             secondary={
@@ -115,11 +152,14 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
                   onClick={() => {
                     void (async () => {
                       await authClient.signOut();
-                      if (token) {
-                        router.push(`/accept-invite?token=${encodeURIComponent(token)}`);
-                      } else {
+                      if (!token) {
                         router.push('/login');
+                        return;
                       }
+                      setSignedOut(true);
+                      setMessage(null);
+                      setErrorKind('generic');
+                      setStatus('idle');
                     })();
                   }}
                 >
@@ -133,17 +173,45 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
     );
   }
 
+  return <AuthShell variant="invite" leftZone={null} rightZone={null} />;
+}
+
+function InvitationLanding({
+  token,
+  invitation,
+}: {
+  token: string;
+  invitation: InvitationLookup;
+}) {
+  const t = useTranslations('acceptInvite');
+  const roleKey = (['owner', 'admin', 'member'] as const).find((r) => r === invitation.role);
+  const href = inviteAuthHref(invitation.hasAccount ? '/login' : '/signup', token);
   return (
-    <AuthShell
-      variant="invite"
-      rightZone={<AuthEpigraph state={epigraphState} footer={footer} />}
-      leftZone={
-        <AuthInviteCard
-          tone="good"
-          badge={t('pendingTitle')}
-          title={t('pendingBody')}
-          body={null}
-        />
+    <AuthInviteCard
+      tone="good"
+      badge={t('invitedBadge')}
+      title={
+        invitation.orgName
+          ? t('invitedTitle', { org: invitation.orgName })
+          : t('invitedTitleNoOrg')
+      }
+      body={
+        invitation.hasAccount
+          ? t('signInBody', { email: invitation.email })
+          : t('createAccountBody', { email: invitation.email })
+      }
+      meta={[
+        { label: t('meta.email'), value: invitation.email },
+        { label: t('meta.role'), value: roleKey ? t(`roles.${roleKey}`) : invitation.role },
+      ]}
+      primary={
+        <Link
+          href={href}
+          className="inline-flex items-center gap-2.5 border-[1px] border-ink bg-ink px-[22px] py-3.5 text-[15px] font-medium text-paper transition-colors duration-fast ease-munin hover:border-cobalt-deep hover:bg-cobalt-deep"
+        >
+          {invitation.hasAccount ? t('signInCta') : t('createAccountCta')}
+          <ArrowRight className="size-4" strokeWidth={2} />
+        </Link>
       }
     />
   );

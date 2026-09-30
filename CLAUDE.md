@@ -200,7 +200,7 @@ Playbooks are intentionally noun-led ("Customer acquisition", "Support desk laun
 
 Code consumers of skill URIs live in:
 
-- `packages/types/src/job-catalog.ts` — `KNOWN_SKILL_URIS`, `TIER_BY_URI`, `TOOL_PREFIXES_BY_URI`, and `WEB_SCRAPE_SITE_TASK_URI`.
+- `packages/types/src/job-catalog.ts` — `KNOWN_SKILL_URIS`, `TIER_BY_URI`, `TOOLS_BY_URI`, and `WEB_SCRAPE_SITE_TASK_URI`.
 - `packages/backend-core/src/modules/curator/curator-scheduler.service.ts` — scheduled `jobUri` constants.
 - `packages/backend-core/src/modules/conv/conv.service.ts` — dispatch sites for draft / curation / extraction jobs.
 - `packages/backend-core/src/modules/{kb,crm}/*.tools.ts` — `skill://...` references inside MCP tool descriptions.

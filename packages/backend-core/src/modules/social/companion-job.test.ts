@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { KNOWN_SKILL_URIS, toolPrefixesFor } from '@getmunin/types';
+import { KNOWN_SKILL_URIS, allowedToolsFor } from '@getmunin/types';
 import {
   buildCompanionPrompt,
   companionDedupeKey,
@@ -27,16 +27,16 @@ describe('companion job registration', () => {
   });
 
   it('declares a tool sandbox, or the run gets the full admin surface', () => {
-    const prefixes = toolPrefixesFor(COMPANION_JOB_URI);
-    expect(prefixes).toBeDefined();
-    expect(prefixes).toContain('social_propose_post_set');
-    expect(prefixes).toContain('cms_get_entry');
+    const allowed = allowedToolsFor(COMPANION_JOB_URI);
+    expect(allowed).toBeDefined();
+    expect(allowed).toContain('social_propose_post_set');
+    expect(allowed).toContain('cms_get_entry');
   });
 
   it('withholds every tool that decides a draft', () => {
-    const prefixes = toolPrefixesFor(COMPANION_JOB_URI) ?? [];
-    expect(prefixes).not.toContain('social_dismiss_post_draft');
-    expect(prefixes).not.toContain('social_mark_draft_posted');
+    const allowed = allowedToolsFor(COMPANION_JOB_URI) ?? [];
+    expect(allowed).not.toContain('social_dismiss_post_draft');
+    expect(allowed).not.toContain('social_mark_draft_posted');
   });
 });
 

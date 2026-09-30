@@ -19,6 +19,7 @@ import {
 import { readAuthIpAddressFromEnv } from '../auth-env.ts';
 import { authCookiePrefix } from './auth-cookies.ts';
 import { createDbOrgScopeStore, registerOrgScopeStore } from './org-scope-store.ts';
+import { revokeAdminKeysCreatedBy } from '../common/api-keys/api-key.helpers.ts';
 import { stripTrailingSlashes } from '@getmunin/types';
 
 type BetterAuthInstance = ReturnType<typeof betterAuth>;
@@ -29,6 +30,7 @@ export interface SignupHookUser {
   id: string;
   email: string;
   name?: string | null;
+  emailVerified?: boolean | null;
 }
 
 export interface SignupBeforeUser {
@@ -56,6 +58,7 @@ export interface MuninAuthCoreOptions {
 
   signupBefore?: (user: SignupBeforeUser) => Promise<void>;
   signupAfter?: (user: SignupHookUser) => Promise<void>;
+  afterEmailVerification?: (user: SignupHookUser) => Promise<void>;
 
   deleteUser?: DeleteUserConfig;
 
@@ -84,6 +87,16 @@ export interface MuninAuthCoreOptions {
 }
 
 export type MuninAuthInstance = BetterAuthInstance;
+
+export function revokeKeysThen(
+  db: Db,
+  next: DeleteUserConfig['beforeDelete'],
+): (user: { id: string; email: string }) => Promise<void> {
+  return async (user) => {
+    await revokeAdminKeysCreatedBy(db, user.id);
+    if (next) await next(user);
+  };
+}
 
 const asMuninAuth = (instance: unknown): MuninAuthInstance => instance as MuninAuthInstance;
 
@@ -189,11 +202,13 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
         requireEmailVerification: false,
         autoSignIn: true,
         sendResetPassword: opts.sendResetPassword,
+        revokeSessionsOnPasswordReset: true,
       },
       emailVerification: opts.sendVerificationEmail
         ? {
             sendVerificationEmail: opts.sendVerificationEmail,
             sendOnSignUp: true,
+            afterEmailVerification: opts.afterEmailVerification,
           }
         : undefined,
       socialProviders,
@@ -202,14 +217,13 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
         accountLinking: {
           enabled: true,
           trustedProviders: ['google', 'github'],
-          requireLocalEmailVerified: false,
         },
       },
       user: opts.deleteUser
         ? {
             deleteUser: {
               enabled: true,
-              beforeDelete: opts.deleteUser.beforeDelete,
+              beforeDelete: revokeKeysThen(opts.db, opts.deleteUser.beforeDelete),
               sendDeleteAccountVerification: opts.deleteUser.sendDeleteAccountVerification,
             },
           }

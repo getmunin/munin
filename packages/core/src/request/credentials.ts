@@ -22,6 +22,18 @@ async function readMembershipsForUser(
 
 export { readMembershipsForUser };
 
+async function isOrgMember(db: Db, orgId: string, userId: string): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+    const rows = await tx
+      .select({ userId: schema.orgMembers.userId })
+      .from(schema.orgMembers)
+      .where(and(eq(schema.orgMembers.orgId, orgId), eq(schema.orgMembers.userId, userId)))
+      .limit(1);
+    return rows.length > 0;
+  });
+}
+
 function resolvePinnedMembership(
   memberships: Array<typeof schema.orgMembers.$inferSelect>,
   pinnedOrgId: string | null,
@@ -183,6 +195,9 @@ export class CredentialResolver {
     let audiences: readonly Audience[];
     let scopes: readonly string[];
     if (row.type === 'admin') {
+      if (row.createdByUserId && !(await isOrgMember(this.db, orgId, row.createdByUserId))) {
+        return null;
+      }
       actorType = 'admin_agent';
       audiences = (row.audiences as Audience[] | null | undefined) ?? ['admin'];
       scopes = row.scopes;

@@ -60,6 +60,10 @@ const skipReason = TEST_URL
       .values({ email: `convctrl-b-${ts}@example.com`, name: 'Admin B' })
       .returning();
     adminUserAId = adminUserA!.id;
+    await db.insert(schema.orgMembers).values([
+      { orgId: orgAId, userId: adminUserA!.id, role: 'admin', isDefault: true },
+      { orgId: orgBId, userId: adminUserB!.id, role: 'admin', isDefault: true },
+    ]);
 
     adminKeyA = buildApiKey('admin');
     await db.insert(schema.apiKeys).values({

@@ -416,6 +416,25 @@ const skipReason = TEST_URL
     expect(calls).toHaveLength(0);
   });
 
+  it('refuses a booking write when the latest message names its sender only inside forwarded text', async () => {
+    await createConnection();
+    respond = cancelResponds;
+    const forwardedConversationId = await seedConversation({
+      channelId: emailChannelId,
+      endUserId: janeEndUserId,
+      contactId: janeContactId,
+      messages: [{ author: 'end_user', contactId: janeContactId, senderAuth: 'forwarded' }],
+    });
+
+    await expect(
+      run(
+        () => bookings.cancelMyBooking({ bookingRef: '512' }),
+        writerFor(janeEndUserId, forwardedConversationId),
+      ),
+    ).rejects.toThrow(/connectors_sender_forwarded/);
+    expect(calls).toHaveLength(0);
+  });
+
   it('cancels on email that carries no DMARC verdict, since nothing says it is forged', async () => {
     await createConnection();
     respond = cancelResponds;

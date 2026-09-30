@@ -64,7 +64,8 @@
       "oauthError": {
         "title": "Kunne ikke logge deg inn.",
         "hint": "Innloggingen ble ikke fullført. Prøv igjen, eller bruk en annen metode."
-      }
+      },
+      "invitationSubtitle": "Logg inn som {email} for å akseptere invitasjonen."
     },
     "signUp": {
       "title": "Opprett konto",
@@ -165,7 +166,10 @@
       "expiredCta": "Gå til innlogging",
       "invalidTitle": "Lenken er ugyldig",
       "invalidSubtitle": "Vi kjente ikke igjen denne bekreftelseslenken. Be om en ny ved å logge inn.",
-      "invalidCta": "Gå til innlogging"
+      "invalidCta": "Gå til innlogging",
+      "pendingTitle": "Bekreft e-postadressen din",
+      "pendingSubtitle": "Kontoen din er ikke knyttet til en organisasjon ennå. Har du nettopp registrert deg, åpner du bekreftelseslenken vi sendte på e-post. Hvis ikke, ber du en administrator om å sende deg en invitasjon.",
+      "pendingCta": "Tilbake til innlogging"
     }
   },
   "nav": {
@@ -2273,8 +2277,6 @@
     }
   },
   "acceptInvite": {
-    "pendingTitle": "Aksepterer invitasjonen…",
-    "pendingBody": "Et øyeblikk.",
     "acceptedTitle": "Invitasjon akseptert",
     "acceptedBody": "Du er nå medlem av organisasjonen.",
     "goToDashboard": "Gå til dashbord",
@@ -2282,10 +2284,34 @@
     "signOutAndRetry": "Logg ut og prøv igjen",
     "backToDashboard": "Tilbake til dashbord",
     "missingToken": "Mangler invitasjonstoken.",
+    "invitedBadge": "Du er invitert",
+    "invitedTitle": "Bli med i {org}",
+    "invitedTitleNoOrg": "Bli med i organisasjonen",
+    "signInBody": "Logg inn som {email} for å akseptere invitasjonen.",
+    "createAccountBody": "Opprett en konto for {email} for å akseptere invitasjonen.",
+    "signInCta": "Logg inn og aksepter",
+    "createAccountCta": "Opprett konto",
+    "meta": {
+      "email": "E-post",
+      "role": "Rolle"
+    },
+    "roles": {
+      "owner": "Eier",
+      "admin": "Admin",
+      "member": "Medlem"
+    },
+    "goToSignIn": "Gå til innlogging",
+    "errorHeadings": {
+      "mismatch": "Feil konto",
+      "used": "Allerede akseptert",
+      "invalid": "Lenken er ikke lenger gyldig",
+      "generic": "Noe gikk galt"
+    },
     "errors": {
       "lookup": "Kunne ikke slå opp invitasjonen.",
       "accept": "Kunne ikke akseptere invitasjonen.",
-      "expired": "Denne invitasjonen er ikke lenger gyldig (trukket tilbake eller utløpt)."
+      "expired": "Den kan være trukket tilbake, allerede brukt eller utløpt. Be den som inviterte deg om å sende en ny invitasjon.",
+      "alreadyAccepted": "Denne invitasjonen er allerede akseptert. Logg inn med den inviterte adressen for å åpne organisasjonen."
     }
   },
   "errors": {
@@ -2320,6 +2346,7 @@
     "agent_config_invalid_model": "KI-leverandøren tilbyr ikke denne modellen lenger. Last siden på nytt for å oppdatere listen, velg en modell og lagre igjen.",
     "claim_held_by_other": "En kollega har allerede denne samtalen.",
     "cms_asset_too_large": "Filen er for stor til å lastes opp. Maksstørrelsen er 50 MB.",
+    "cms_asset_type_not_allowed": "Denne filtypen kan ikke lastes opp. Bruk et PNG-, JPEG-, GIF-, WebP- eller AVIF-bilde – SVG støttes ikke.",
     "cms_asset_upload_failed": "Opplastingen ble ikke fullført. Sjekk tilkoblingen og prøv igjen.",
     "cms_version_conflict": "Oppføringen ble endret et annet sted mens du redigerte. Last den inn på nytt og prøv igjen.",
     "conv_translation_failed": "Svaret kunne ikke oversettes, så ingenting ble sendt. Prøv igjen, eller fjern haken for oversettelse for å sende det slik du skrev det.",
@@ -2341,6 +2368,7 @@
     "conv_redaction_invalid": "Velg minst én type nummer, eller slå av fjerning.",
     "conv_test_self_addressed": "Den adressen tilhører kanalen selv. Send testen til en annen postkasse du har tilgang til.",
     "kb_curation_decided": "Denne er allerede behandlet – publisert eller forkastet – og blir ikke foreslått igjen. Oppdater køen.",
+    "invitation_email_mismatch": "Invitasjonen ble sendt til en annen e-postadresse. Logg ut, og logg inn eller registrer deg med adressen invitasjonen gikk til.",
     "kb_version_conflict": "Noen endret teksten mens du hadde den åpen, så ingenting ble lagret. Åpne den på nytt for å se gjeldende versjon og ta stilling til den.",
     "member_forbidden": "Dette er forbeholdt eiere og administratorer. Spør en eier hvis du trenger tilgang.",
     "org_access_denied": "Denne fanen var åpen i en organisasjon du ikke lenger har tilgang til. Laster inn på nytt med organisasjonen du er i nå.",

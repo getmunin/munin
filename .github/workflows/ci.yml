@@ -82,7 +82,7 @@ jobs:
         run: node scripts/check-fixture-pii.mjs
 
       - name: Pull request text check
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}

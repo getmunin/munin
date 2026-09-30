@@ -1,9 +1,11 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import sharp from 'sharp';
 import {
   SocialMediaError,
   extractOpenGraph,
   fetchMedia,
+  fetchOpenGraph,
+  type SocialFetch,
   mediaKindFor,
   transcodeImage,
   transcodesToImage,
@@ -142,12 +144,8 @@ describe('transcodeImage', () => {
 });
 
 describe('fetchMedia', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  function stub(response: Response) {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(response)));
+  function stub(response: Response): SocialFetch {
+    return () => Promise.resolve(response);
   }
 
   function body(bytes: Buffer, headers: Record<string, string>) {
@@ -155,22 +153,22 @@ describe('fetchMedia', () => {
   }
 
   it('returns the bytes with the kind the content type implies', async () => {
-    stub(body(Buffer.from('png'), { 'content-type': 'image/png' }));
-    const media = await fetchMedia('https://example.com/a.png', { limits: LIMITS });
+    const fetcher = stub(body(Buffer.from('png'), { 'content-type': 'image/png' }));
+    const media = await fetchMedia('https://example.com/a.png', { limits: LIMITS }, fetcher);
     expect(media.kind).toBe('image');
     expect(media.bytes.toString()).toBe('png');
   });
 
   it('refuses a type the platform does not take', async () => {
-    stub(body(Buffer.from('%PDF'), { 'content-type': 'application/pdf' }));
-    await expect(fetchMedia('https://example.com/a.pdf', { limits: LIMITS })).rejects.toBeInstanceOf(
-      SocialMediaError,
-    );
+    const fetcher = stub(body(Buffer.from('%PDF'), { 'content-type': 'application/pdf' }));
+    await expect(
+      fetchMedia('https://example.com/a.pdf', { limits: LIMITS }, fetcher),
+    ).rejects.toBeInstanceOf(SocialMediaError);
   });
 
   it('converts a webp card image the platform would otherwise reject, rather than dropping it', async () => {
-    stub(body(await solidImage('webp', 1), { 'content-type': 'image/webp' }));
-    const media = await fetchMedia('https://example.com/card.webp', { limits: BIG_LIMITS });
+    const fetcher = stub(body(await solidImage('webp', 1), { 'content-type': 'image/webp' }));
+    const media = await fetchMedia('https://example.com/card.webp', { limits: BIG_LIMITS }, fetcher);
     expect(media.kind).toBe('image');
     expect(media.contentType).toBe('image/jpeg');
     expect(BIG_LIMITS.imageContentTypes).toContain(media.contentType);
@@ -179,66 +177,115 @@ describe('fetchMedia', () => {
   it('converts avif too, and an opaque alpha channel still goes to jpeg, not an oversized png', async () => {
     const source = await solidImage('avif', 1);
     expect((await sharp(source).metadata()).hasAlpha).toBe(true);
-    stub(body(source, { 'content-type': 'image/avif' }));
-    const media = await fetchMedia('https://example.com/card.avif', { limits: BIG_LIMITS });
+    const fetcher = stub(body(source, { 'content-type': 'image/avif' }));
+    const media = await fetchMedia('https://example.com/card.avif', { limits: BIG_LIMITS }, fetcher);
     expect(media.contentType).toBe('image/jpeg');
   });
 
   it('counts a converted image as the image the draft expected', async () => {
-    stub(body(await solidImage('webp', 1), { 'content-type': 'image/webp' }));
-    const media = await fetchMedia('https://example.com/card.webp', {
-      expectedKind: 'image',
-      limits: BIG_LIMITS,
-    });
+    const fetcher = stub(body(await solidImage('webp', 1), { 'content-type': 'image/webp' }));
+    const media = await fetchMedia(
+      'https://example.com/card.webp',
+      { expectedKind: 'image', limits: BIG_LIMITS },
+      fetcher,
+    );
     expect(media.kind).toBe('image');
   });
 
   it('refuses a converted image that came out over the cap instead of letting the platform reject it', async () => {
-    stub(body(await solidImage('webp', 1), { 'content-type': 'image/webp' }));
+    const fetcher = stub(body(await solidImage('webp', 1), { 'content-type': 'image/webp' }));
     await expect(
-      fetchMedia('https://example.com/card.webp', { limits: { ...LIMITS, maxImageBytes: 200 } }),
+      fetchMedia(
+        'https://example.com/card.webp',
+        { limits: { ...LIMITS, maxImageBytes: 200 } },
+        fetcher,
+      ),
     ).rejects.toThrow(/over the/);
   });
 
   it('refuses a file that is not the kind the draft declared', async () => {
-    stub(body(Buffer.from('mp4'), { 'content-type': 'video/mp4' }));
+    const fetcher = stub(body(Buffer.from('mp4'), { 'content-type': 'video/mp4' }));
     await expect(
-      fetchMedia('https://example.com/a.mp4', { expectedKind: 'image', limits: LIMITS }),
+      fetchMedia('https://example.com/a.mp4', { expectedKind: 'image', limits: LIMITS }, fetcher),
     ).rejects.toThrow(/is a video, not a image/);
   });
 
   it('refuses a body over the per-kind cap even when the server declares no length', async () => {
-    stub(body(Buffer.alloc(2048), { 'content-type': 'image/png' }));
-    await expect(fetchMedia('https://example.com/big.png', { limits: LIMITS })).rejects.toThrow(
-      /limit/,
-    );
+    const fetcher = stub(body(Buffer.alloc(2048), { 'content-type': 'image/png' }));
+    await expect(
+      fetchMedia('https://example.com/big.png', { limits: LIMITS }, fetcher),
+    ).rejects.toThrow(/limit/);
   });
 
-  it('refuses a non-public host before any request goes out', async () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-    await expect(fetchMedia('http://127.0.0.1/a.png', { limits: LIMITS })).rejects.toThrow(
-      /not a public address/,
-    );
-    await expect(fetchMedia('http://[::1]/a.png', { limits: LIMITS })).rejects.toThrow(
-      /not a public address/,
-    );
-    await expect(fetchMedia('http://169.254.169.254/latest', { limits: LIMITS })).rejects.toThrow(
-      /not a public address/,
-    );
-    expect(fetchMock).not.toHaveBeenCalled();
+  it('refuses a non-http scheme before any request goes out', async () => {
+    const fetcher = vi.fn<SocialFetch>();
+    await expect(
+      fetchMedia('file:///etc/passwd', { limits: LIMITS }, fetcher),
+    ).rejects.toThrow(/not a fetchable scheme/);
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
-  it('re-checks the host on every redirect hop, not only the one it was handed', async () => {
-    const fetchMock = vi.fn(() =>
-      Promise.resolve(
-        new Response('', { status: 302, headers: { location: 'http://10.0.0.1/secret' } }),
-      ),
+  for (const url of [
+    'http://127.0.0.1/a.png',
+    'http://[::1]/a.png',
+    'http://169.254.169.254/latest',
+    'http://[::ffff:127.0.0.1]/a.png',
+    'http://[::ffff:7f00:1]/a.png',
+    'http://[::ffff:a9fe:a9fe]/latest/meta-data/',
+    'http://[64:ff9b::a9fe:a9fe]/latest/meta-data/',
+  ]) {
+    it(`refuses ${url} through the shared public-destination guard`, async () => {
+      await expect(fetchMedia(url, { limits: LIMITS })).rejects.toThrow(
+        /is not an allowed destination/,
+      );
+    });
+  }
+
+  it('says only that a blocked destination is not allowed, never what an internal host answered', async () => {
+    const fetcher: SocialFetch = () =>
+      Promise.reject(
+        new TypeError('fetch failed', {
+          cause: Object.assign(new Error('host internal.example is not reachable'), {
+            code: 'ESSRF_BLOCKED',
+          }),
+        }),
+      );
+    const message = await fetchMedia('https://internal.example/a.png', { limits: LIMITS }, fetcher)
+      .then(() => '')
+      .catch((err: Error) => err.message);
+    expect(message).toBe('https://internal.example/a.png is not an allowed destination');
+  });
+
+  it('reports a network failure without echoing the underlying error', async () => {
+    const fetcher: SocialFetch = () =>
+      Promise.reject(new TypeError('fetch failed', { cause: new Error('connect ECONNREFUSED 203.0.113.9:443') }));
+    const message = await fetchMedia('https://example.com/a.png', { limits: LIMITS }, fetcher)
+      .then(() => '')
+      .catch((err: Error) => err.message);
+    expect(message).toBe('could not fetch https://example.com/a.png');
+  });
+});
+
+describe('link preview card image', () => {
+  it('refuses an og:image that points at a private address instead of fetching it', async () => {
+    const page = new Response(
+      '<html><head><meta property="og:image" content="http://169.254.169.254/latest/meta-data/iam"></head></html>',
+      { status: 200, headers: { 'content-type': 'text/html' } },
     );
-    vi.stubGlobal('fetch', fetchMock);
-    await expect(fetchMedia('https://example.com/a.png', { limits: LIMITS })).rejects.toThrow(
-      /not a public address/,
-    );
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const preview = await fetchOpenGraph('https://example.com/post', () => Promise.resolve(page));
+    expect(preview.imageUrl).toBe('http://169.254.169.254/latest/meta-data/iam');
+    await expect(
+      fetchMedia(preview.imageUrl!, { expectedKind: 'image', limits: LIMITS }),
+    ).rejects.toThrow(/is not an allowed destination/);
+  });
+
+  it('resolves a relative og:image against the url the page finally landed on', async () => {
+    const page = new Response('<meta property="og:image" content="card.png">', {
+      status: 200,
+      headers: { 'content-type': 'text/html' },
+    });
+    Object.defineProperty(page, 'url', { value: 'https://example.com/moved/post' });
+    const preview = await fetchOpenGraph('https://example.com/post', () => Promise.resolve(page));
+    expect(preview.imageUrl).toBe('https://example.com/moved/card.png');
   });
 });

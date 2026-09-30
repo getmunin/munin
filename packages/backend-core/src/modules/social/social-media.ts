@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { lookup } from 'node:dns/promises';
-import { isIP } from 'node:net';
+import { safeFetch, SsrfBlockedError } from '@getmunin/core';
 import sharp from 'sharp';
 import type { SocialMediaKind } from './social-platform.ts';
 
@@ -19,7 +18,6 @@ export interface OpenGraphSummary {
 
 export class SocialMediaError extends Error {}
 
-const MAX_REDIRECTS = 4;
 const PAGE_TIMEOUT_MS = 10_000;
 const MEDIA_TIMEOUT_MS = 120_000;
 const MAX_PAGE_BYTES = 2 * 1024 * 1024;
@@ -84,104 +82,111 @@ export function extractOpenGraph(html: string, baseUrl: string): OpenGraphSummar
   };
 }
 
-function isPrivateAddress(address: string, family: number): boolean {
-  if (family === 6) {
-    const normalized = address.toLowerCase();
-    if (normalized === '::1' || normalized === '::') return true;
-    if (/^f[cd]/.test(normalized)) return true;
-    if (normalized.startsWith('fe80')) return true;
-    const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(normalized);
-    if (mapped) return isPrivateAddress(mapped[1]!, 4);
-    return false;
+export interface SocialFetchResponse {
+  ok: boolean;
+  status: number;
+  url: string;
+  headers: { get(name: string): string | null };
+  body: ReadableStream<Uint8Array> | null;
+}
+
+export type SocialFetch = (
+  url: string,
+  init: { signal: AbortSignal; headers: Record<string, string> },
+) => Promise<SocialFetchResponse>;
+
+const defaultSocialFetch: SocialFetch = (url, init) => safeFetch(url, init);
+
+function isSsrfBlock(err: unknown): boolean {
+  let cur: unknown = err;
+  for (let depth = 0; cur && depth < 4; depth += 1) {
+    if (cur instanceof SsrfBlockedError) return true;
+    if (cur instanceof Error && (cur as NodeJS.ErrnoException).code === 'ESSRF_BLOCKED') return true;
+    cur = cur instanceof Error ? cur.cause : undefined;
   }
-  const parts = address.split('.').map((part) => Number.parseInt(part, 10));
-  if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) return true;
-  const [a, b] = parts as [number, number, number, number];
-  if (a === 0 || a === 10 || a === 127) return true;
-  if (a === 169 && b === 254) return true;
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  if (a === 192 && b === 168) return true;
-  if (a === 100 && b >= 64 && b <= 127) return true;
-  if (a >= 224) return true;
   return false;
 }
 
-async function assertPublicUrl(url: URL): Promise<void> {
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new SocialMediaError(`${url.protocol} is not a fetchable scheme`);
-  }
-  const host = url.hostname.replace(/^\[|\]$/g, '');
-  const literal = isIP(host);
-  if (literal) {
-    if (isPrivateAddress(host, literal)) {
-      throw new SocialMediaError(`${url.hostname} is not a public address`);
-    }
-    return;
-  }
-  let addresses: { address: string; family: number }[];
+async function fetchPublic(
+  rawUrl: string,
+  timeoutMs: number,
+  fetcher: SocialFetch,
+): Promise<SocialFetchResponse> {
+  let parsed: URL;
   try {
-    addresses = await lookup(host, { all: true });
+    parsed = new URL(rawUrl);
   } catch {
-    throw new SocialMediaError(`${url.hostname} could not be resolved`);
+    throw new SocialMediaError(`${rawUrl} is not a valid URL`);
   }
-  if (addresses.length === 0) {
-    throw new SocialMediaError(`${url.hostname} could not be resolved`);
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new SocialMediaError(`${parsed.protocol} is not a fetchable scheme`);
   }
-  for (const entry of addresses) {
-    if (isPrivateAddress(entry.address, entry.family)) {
-      throw new SocialMediaError(`${url.hostname} resolves to a non-public address`);
-    }
-  }
-}
-
-async function safeFetch(rawUrl: string, timeoutMs: number): Promise<Response> {
-  let target = new URL(rawUrl);
-  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
-    await assertPublicUrl(target);
-    const res = await fetch(target, {
-      redirect: 'manual',
+  try {
+    return await fetcher(parsed.toString(), {
       signal: AbortSignal.timeout(timeoutMs),
       headers: { 'user-agent': 'Munin/1.0 (+https://getmunin.com)' },
     });
-    if (res.status < 300 || res.status > 399) return res;
-    const location = res.headers.get('location');
-    if (!location) return res;
-    target = new URL(location, target);
+  } catch (err) {
+    if (isSsrfBlock(err)) {
+      throw new SocialMediaError(`${rawUrl} is not an allowed destination`);
+    }
+    throw new SocialMediaError(`could not fetch ${rawUrl}`);
   }
-  throw new SocialMediaError(`${rawUrl} redirected more than ${MAX_REDIRECTS} times`);
 }
 
-async function readCapped(res: Response, maxBytes: number, what: string): Promise<Buffer> {
+async function refuse(res: SocialFetchResponse, message: string): Promise<never> {
+  await res.body?.cancel().catch(() => undefined);
+  throw new SocialMediaError(message);
+}
+
+async function readCapped(
+  res: SocialFetchResponse,
+  maxBytes: number,
+  what: string,
+): Promise<Buffer> {
   const declared = Number.parseInt(res.headers.get('content-length') ?? '', 10);
   if (Number.isFinite(declared) && declared > maxBytes) {
+    await res.body?.cancel().catch(() => undefined);
     throw new SocialMediaError(
       `${what} is ${Math.round(declared / 1024 / 1024)}MB, over the ${Math.round(maxBytes / 1024 / 1024)}MB limit`,
     );
   }
+  if (!res.body) return Buffer.alloc(0);
+  const reader = res.body.getReader();
   const chunks: Buffer[] = [];
   let total = 0;
-  const body = res.body;
-  if (!body) return Buffer.alloc(0);
-  for await (const chunk of body as unknown as AsyncIterable<Uint8Array>) {
-    total += chunk.byteLength;
-    if (total > maxBytes) {
-      throw new SocialMediaError(
-        `${what} is over the ${Math.round(maxBytes / 1024 / 1024)}MB limit`,
-      );
+  try {
+    while (true) {
+      const next = await reader.read().catch(() => {
+        throw new SocialMediaError(`${what} could not be read`);
+      });
+      if (next.done) break;
+      total += next.value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new SocialMediaError(
+          `${what} is over the ${Math.round(maxBytes / 1024 / 1024)}MB limit`,
+        );
+      }
+      chunks.push(Buffer.from(next.value));
     }
-    chunks.push(Buffer.from(chunk));
+  } finally {
+    reader.releaseLock();
   }
   return Buffer.concat(chunks);
 }
 
-export async function fetchOpenGraph(pageUrl: string): Promise<OpenGraphSummary> {
-  const res = await safeFetch(pageUrl, PAGE_TIMEOUT_MS);
+export async function fetchOpenGraph(
+  pageUrl: string,
+  fetcher: SocialFetch = defaultSocialFetch,
+): Promise<OpenGraphSummary> {
+  const res = await fetchPublic(pageUrl, PAGE_TIMEOUT_MS, fetcher);
   if (!res.ok) {
-    throw new SocialMediaError(`${pageUrl} answered ${res.status}`);
+    await refuse(res, `${pageUrl} answered ${res.status}`);
   }
   const contentType = res.headers.get('content-type') ?? '';
   if (!/text\/html|application\/xhtml/i.test(contentType)) {
-    throw new SocialMediaError(`${pageUrl} is ${contentType || 'not HTML'}`);
+    await refuse(res, `${pageUrl} is ${contentType || 'not HTML'}`);
   }
   const html = (await readCapped(res, MAX_PAGE_BYTES, 'the page')).toString('utf8');
   return extractOpenGraph(html, res.url || pageUrl);
@@ -253,24 +258,24 @@ export async function fetchMedia(
       videoContentTypes: readonly string[];
     };
   },
+  fetcher: SocialFetch = defaultSocialFetch,
 ): Promise<FetchedMedia> {
-  const res = await safeFetch(mediaUrl, MEDIA_TIMEOUT_MS);
+  const res = await fetchPublic(mediaUrl, MEDIA_TIMEOUT_MS, fetcher);
   if (!res.ok) {
-    throw new SocialMediaError(`${mediaUrl} answered ${res.status}`);
+    await refuse(res, `${mediaUrl} answered ${res.status}`);
   }
   const contentType = (res.headers.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase();
   const needsTranscode = transcodesToImage(contentType, args.limits);
   const kind = needsTranscode ? 'image' : mediaKindFor(contentType, args.limits);
   if (!kind) {
     const accepted = [...args.limits.imageContentTypes, ...args.limits.videoContentTypes].join(', ');
-    throw new SocialMediaError(
+    return refuse(
+      res,
       `${mediaUrl} is ${contentType || 'of unknown type'}; the platform accepts ${accepted}`,
     );
   }
   if (args.expectedKind && args.expectedKind !== kind) {
-    throw new SocialMediaError(
-      `${mediaUrl} is ${contentType}, which is a ${kind}, not a ${args.expectedKind}`,
-    );
+    return refuse(res, `${mediaUrl} is ${contentType}, which is a ${kind}, not a ${args.expectedKind}`);
   }
   const maxBytes = kind === 'image' ? args.limits.maxImageBytes : args.limits.maxVideoBytes;
   const bytes = await readCapped(res, maxBytes, `the ${kind}`);

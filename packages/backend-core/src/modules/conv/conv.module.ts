@@ -5,6 +5,7 @@ import { McpModule } from '../../mcp/mcp.module.ts';
 import { RealtimeModule } from '../../realtime/realtime.module.ts';
 import { PublicThrottleModule } from '../../common/rate-limit/public-throttle.module.ts';
 import { ConvService } from './conv.service.ts';
+import { ConvTranslationService } from './conv-translation.service.ts';
 import { ConvAttachmentsService } from './attachments/conv-attachments.service.ts';
 import { AttachmentGcWorker } from './attachments/attachment-gc.worker.ts';
 import { InlineImageBackfillService } from './attachments/inline-image-backfill.service.ts';
@@ -89,6 +90,7 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
   controllers: [WidgetController, ChannelWebhookController, EmailRelayController],
   providers: [
     ConvService,
+    ConvTranslationService,
     InboundRedactionService,
     RedactBackfillService,
     ConvAttachmentsService,
@@ -190,6 +192,7 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
   exports: [
     OUTREACH_VOICE_CALLERS,
     ConvService,
+    ConvTranslationService,
     InboundRedactionService,
     RedactBackfillService,
     ConvAttachmentsService,

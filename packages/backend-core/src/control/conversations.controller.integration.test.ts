@@ -374,6 +374,105 @@ const skipReason = TEST_URL
     expect(resp.status).toBe(404);
   }, 30_000);
 
+  it('translation round trip: request, agent reads pending, saves, dashboard reads it back', async () => {
+    const startResp = await rest<{ id: string }>(
+      endUserToken,
+      'POST',
+      '/v1/end-users/me/conversations',
+      { body: 'Hola, ¿dónde está mi pedido?' },
+    );
+    expect(startResp.status).toBe(201);
+    const convId = startResp.body.id;
+
+    const asked = await rest<{ requested: boolean }>(
+      adminKeyA,
+      'POST',
+      `/v1/conversations/${convId}/request-translation`,
+      { targetLanguage: 'nb' },
+    );
+    expect(asked.status).toBe(202);
+    expect(asked.body).toEqual({ requested: true });
+
+    const pending = await rest<{ messages: Array<{ id: string; body: string }> }>(
+      adminKeyA,
+      'GET',
+      `/v1/conversations/${convId}/pending-translations?targetLanguage=nb`,
+    );
+    expect(pending.status).toBe(200);
+    expect(pending.body.messages.map((m) => m.body)).toEqual(['Hola, ¿dónde está mi pedido?']);
+
+    const saved = await rest<{ saved: number }>(
+      adminKeyA,
+      'POST',
+      `/v1/conversations/${convId}/translations`,
+      {
+        targetLanguage: 'nb',
+        customerLanguage: 'es',
+        translations: [{ messageId: pending.body.messages[0]!.id, body: 'Hei, hvor er bestillingen min?' }],
+      },
+    );
+    expect(saved.status).toBe(200);
+    expect(saved.body).toEqual({ saved: 1 });
+
+    const detail = await rest<{
+      customerLanguage: string | null;
+      translations?: { messages: Record<string, string> };
+    }>(adminKeyA, 'GET', `/v1/conversations/${convId}?translateTo=nb`);
+    expect(detail.body.customerLanguage).toBe('es');
+    expect(Object.values(detail.body.translations?.messages ?? {})).toEqual([
+      'Hei, hvor er bestillingen min?',
+    ]);
+
+    const plain = await rest<{ translations?: unknown }>(adminKeyA, 'GET', `/v1/conversations/${convId}`);
+    expect(plain.body.translations).toBeUndefined();
+
+    const again = await rest<{ requested: boolean }>(
+      adminKeyA,
+      'POST',
+      `/v1/conversations/${convId}/request-translation`,
+      { targetLanguage: 'nb' },
+    );
+    expect(again.body).toEqual({ requested: false });
+  }, 30_000);
+
+  it('request-translation rejects a target that is not a language tag', async () => {
+    const startResp = await rest<{ id: string }>(
+      endUserToken,
+      'POST',
+      '/v1/end-users/me/conversations',
+      { body: 'Bonjour' },
+    );
+    const resp = await rest<unknown>(
+      adminKeyA,
+      'POST',
+      `/v1/conversations/${startResp.body.id}/request-translation`,
+      { targetLanguage: 'french please' },
+    );
+    expect(resp.status).toBe(400);
+  }, 30_000);
+
+  it('the other org cannot read or write translations of a conversation', async () => {
+    const startResp = await rest<{ id: string }>(
+      endUserToken,
+      'POST',
+      '/v1/end-users/me/conversations',
+      { body: 'Guten Tag' },
+    );
+    const read = await rest<unknown>(
+      adminKeyB,
+      'GET',
+      `/v1/conversations/${startResp.body.id}/pending-translations?targetLanguage=nb`,
+    );
+    expect(read.status).toBe(404);
+    const write = await rest<unknown>(
+      adminKeyB,
+      'POST',
+      `/v1/conversations/${startResp.body.id}/translations`,
+      { targetLanguage: 'nb', translations: [] },
+    );
+    expect(write.status).toBe(404);
+  }, 30_000);
+
   it('clear-draft removes the suggested handover draft', async () => {
     const startResp = await rest<{ id: string }>(
       endUserToken,

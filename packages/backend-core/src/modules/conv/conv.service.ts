@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { applyInboundRedaction } from './inbound-redaction.ts';
 import { readRedactionPolicy } from './redaction-policy.ts';
+import { deleteMessageTranslations } from './conv-translation.service.ts';
 import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, sameAfterNormalizing, WebhookDispatcher } from '@getmunin/core';
@@ -194,6 +195,7 @@ export interface ConversationSummary {
   handoverResolvedAt: string | null;
   agentMode: AgentMode;
   outreachCampaignId: string | null;
+  customerLanguage: string | null;
   voiceActive: boolean;
   isTest: boolean;
   updatedAt: string;
@@ -1843,6 +1845,7 @@ export class ConvService {
       .update(schema.convMessages)
       .set({ body: scrubbed.fields.body, metadata: patchedMeta })
       .where(eq(schema.convMessages.id, input.messageId));
+    await deleteMessageTranslations(ctx.db, [input.messageId]);
     await this.webhooks.emit({
       type: 'conversation.message.body_revised',
       payload: {
@@ -2754,6 +2757,7 @@ function toConversationSummary(
     handoverResolvedAt: row.handoverResolvedAt?.toISOString() ?? null,
     agentMode: row.agentMode as AgentMode,
     outreachCampaignId: row.outreachCampaignId,
+    customerLanguage: row.customerLanguage,
     voiceActive: row.metadata.voiceActive === true,
     isTest: isTestConversation(row.metadata),
     updatedAt: row.updatedAt.toISOString(),

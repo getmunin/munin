@@ -4621,6 +4621,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "translateTo",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -5231,6 +5239,127 @@
         },
         "responses": {
           "202": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conversations/{id}/request-translation": {
+      "post": {
+        "operationId": "ConversationsController_requestTranslation",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestTranslationBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conversations/{id}/pending-translations": {
+      "get": {
+        "operationId": "ConversationsController_pendingTranslations",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "targetLanguage",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conversations/{id}/translations": {
+      "post": {
+        "operationId": "ConversationsController_saveTranslations",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveTranslationsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
             "description": ""
           }
         },
@@ -10530,6 +10659,71 @@
             "maxLength": 4000
           }
         }
+      },
+      "RequestTranslationBody": {
+        "type": "object",
+        "properties": {
+          "targetLanguage": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 16
+          }
+        },
+        "required": [
+          "targetLanguage"
+        ]
+      },
+      "SaveTranslationsBody": {
+        "type": "object",
+        "properties": {
+          "targetLanguage": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 16,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "customerLanguage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 16
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          },
+          "translations": {
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "messageId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "body": {
+                  "type": "string",
+                  "maxLength": 50000
+                }
+              },
+              "required": [
+                "messageId",
+                "body"
+              ]
+            },
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          }
+        },
+        "required": [
+          "targetLanguage",
+          "translations"
+        ]
       },
       "SetTopicBody": {
         "type": "object",

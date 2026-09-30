@@ -40,6 +40,11 @@ export interface DraftRequestedEvent {
   note?: string;
 }
 
+export interface TranslationRequestedEvent {
+  conversationId: string;
+  targetLanguage: string;
+}
+
 export interface AgentConfigChangedEvent {
   configId: string;
 }
@@ -53,6 +58,7 @@ export interface RealtimeClientOptions {
   onCuratorJobPending?: (event: CuratorJobPendingEvent) => void;
   onGreetRequested?: (event: GreetRequestedEvent) => void;
   onDraftRequested?: (event: DraftRequestedEvent) => void;
+  onTranslationRequested?: (event: TranslationRequestedEvent) => void;
   onAgentConfigChanged?: (event: AgentConfigChangedEvent) => void;
   onConnected?: () => void;
   logger?: { info: (msg: string) => void; warn: (msg: string) => void; error: (msg: string) => void };
@@ -194,6 +200,14 @@ export function createRealtimeClient(opts: RealtimeClientOptions): RealtimeClien
             conversationId,
             ...(typeof note === 'string' && note ? { note } : {}),
           });
+          return;
+        }
+
+        if (opts.onTranslationRequested && eventType === 'conversation.translation_requested') {
+          const conversationId = payload['conversationId'];
+          const targetLanguage = payload['targetLanguage'];
+          if (typeof conversationId !== 'string' || typeof targetLanguage !== 'string') return;
+          opts.onTranslationRequested({ conversationId, targetLanguage });
           return;
         }
 

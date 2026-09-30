@@ -948,6 +948,7 @@ export const convConversations = pgTable(
     ),
     agentMode: varchar('agent_mode', { length: 16 }).notNull().default('auto'),
     // 'auto' | 'draft_only' | 'off'
+    customerLanguage: varchar('customer_language', { length: 16 }),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
     createdAt,
     updatedAt,
@@ -1092,6 +1093,32 @@ export const convMessageDeliveries = pgTable(
 // dashboard surfaces these as "Seen at …" badges. One row per
 // (message, end_user) — `ON CONFLICT DO NOTHING` on the unique index keeps
 // re-emissions idempotent.
+export const convMessageTranslations = pgTable(
+  'conv_message_translations',
+  {
+    id: id('cmt'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => convConversations.id, { onDelete: 'cascade' }),
+    messageId: text('message_id')
+      .notNull()
+      .references(() => convMessages.id, { onDelete: 'cascade' }),
+    targetLanguage: varchar('target_language', { length: 16 }).notNull(),
+    body: text('body').notNull(),
+    createdAt,
+  },
+  (t) => ({
+    uq: uniqueIndex('conv_message_translations_message_target_uq').on(
+      t.messageId,
+      t.targetLanguage,
+    ),
+    convIdx: index('conv_message_translations_conv_idx').on(t.conversationId, t.targetLanguage),
+  }),
+);
+
 export const convMessageReads = pgTable(
   'conv_message_reads',
   {

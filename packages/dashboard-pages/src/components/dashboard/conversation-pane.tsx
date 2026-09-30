@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { MoreHorizontal, Paperclip, X } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import {
   Button,
   DropdownMenu,
@@ -37,6 +37,7 @@ import {
   type QueueItemDto,
 } from './conversation-queue';
 import type { ConversationDetail } from './inbox-types';
+import { languageLabel, threadTranslations } from './inbox-translation';
 
 const COMPOSER_MAX_HEIGHT_PX = 320;
 
@@ -69,6 +70,8 @@ export function ConversationPane({
   const [suggestionId, setSuggestionId] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [showOriginal, setShowOriginal] = useState(false);
+  const locale = useLocale();
   const [retryingDeliveryId, setRetryingDeliveryId] = useState<string | null>(null);
 
   const retryDelivery = useCallback(
@@ -312,6 +315,11 @@ export function ConversationPane({
   const channelType = item?.channelType ?? '';
   const claimHolderName = item?.claim?.holderName ?? null;
   const askedForDraft = !!controller.draftRequested[detail.id];
+  const translations = threadTranslations(detail, locale);
+  const translatingThread = !translations && !!controller.translating[detail.id];
+  const customerLanguageName = detail.customerLanguage
+    ? languageLabel(detail.customerLanguage, locale)
+    : null;
   const drafting = askedForDraft || item?.agentWorking === true;
   const endUserSpokeLast =
     [...thread].reverse().find((m) => !m.internal && m.body.trim().length > 0)?.authorType ===
@@ -425,6 +433,30 @@ export function ConversationPane({
     originLine,
     customerPhone === customer ? null : customerPhone,
   ].filter((v): v is string => !!v);
+
+  const translationStatus = translations ? (
+    <span className="flex min-w-0 items-center gap-2">
+      <span className="truncate">
+        {showOriginal
+          ? t('showingOriginal', { language: customerLanguageName ?? '' })
+          : t('translatedFrom', { language: customerLanguageName ?? '' })}
+      </span>
+      <span aria-hidden>·</span>
+      <button
+        type="button"
+        aria-pressed={showOriginal}
+        onClick={() => setShowOriginal((v) => !v)}
+        className="shrink-0 uppercase underline underline-offset-[3px] text-ink-soft transition-colors duration-fast hover:text-ink dark:text-foreground/70 dark:hover:text-foreground"
+      >
+        {showOriginal ? t('showTranslation') : t('showOriginal')}
+      </button>
+    </span>
+  ) : translatingThread ? (
+    <span className="flex items-center gap-1.5 text-cobalt dark:text-cobalt-soft">
+      <span aria-hidden className="size-1.5 shrink-0 animate-pulse rounded-full bg-current" />
+      {t('translating')}
+    </span>
+  ) : null;
 
   const editedByYou = canReply && tab === 'reply' && dirty;
 
@@ -572,6 +604,12 @@ export function ConversationPane({
                 <span className="truncate">{part}</span>
               </span>
             ))}
+            {translationStatus ? (
+              <span className="flex min-w-0 items-center gap-2">
+                <span aria-hidden>·</span>
+                {translationStatus}
+              </span>
+            ) : null}
           </div>
         </header>
 
@@ -580,8 +618,14 @@ export function ConversationPane({
         ) : null}
 
         <div ref={bodyRef} className="flex flex-col gap-4 px-5 py-5 md:min-h-0 md:flex-1 md:overflow-y-auto md:px-7">
+        {translationStatus ? (
+          <div className="flex min-w-0 font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute md:hidden">
+            {translationStatus}
+          </div>
+        ) : null}
         {thread.map((m, i, arr) => (
           <MessageBubble
+            displayBody={translations && !showOriginal ? translations[m.id] : undefined}
             onDeleteAttachment={canReply ? requestAttachmentDelete : undefined}
             key={m.id}
             message={m}

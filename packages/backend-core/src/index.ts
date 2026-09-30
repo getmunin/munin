@@ -108,6 +108,7 @@ export {
   type HandoverResolvedBusEvent,
   type CuratorJobPendingBusEvent,
   type DraftRequestedBusEvent,
+  type TranslationRequestedBusEvent,
   type GreetRequestedBusEvent,
   type AgentConfigChangedBusEvent,
   type AgentTypingBusEvent,
@@ -122,6 +123,7 @@ export {
 } from './agent/in-process-context.ts';
 export {
   InProcessMuninRestClientFactoryService,
+  type AgentRestClient,
   type MuninRestClientFactory,
 } from './agent/in-process-rest-client.ts';
 export {

@@ -18,6 +18,11 @@ import { getCurrentContext } from '@getmunin/core';
 import { MessageComponentsSchema } from '@getmunin/types';
 import { ConvAttachmentsService } from '../modules/conv/attachments/conv-attachments.service.ts';
 import {
+  ConvTranslationService,
+  type ConversationTranslations,
+  type PendingTranslations,
+} from '../modules/conv/conv-translation.service.ts';
+import {
   CONV_ATTACHMENT_BYTES_MAX,
   CONV_ATTACHMENT_PER_MESSAGE_MAX,
 } from '../modules/conv/attachments/conv-attachments.constants.ts';
@@ -183,8 +188,25 @@ interface ConversationQueueResponse {
   nextCursor: string | null;
 }
 
+const LanguageTag = z.string().trim().min(2).max(16);
+
+class RequestTranslationBody extends createZodDto(
+  z.object({ targetLanguage: LanguageTag }),
+) {}
+
+class SaveTranslationsBody extends createZodDto(
+  z.object({
+    targetLanguage: LanguageTag,
+    customerLanguage: LanguageTag.nullable().optional(),
+    translations: z
+      .array(z.object({ messageId: z.string().min(1).max(64), body: z.string().max(50_000) }))
+      .max(500),
+  }),
+) {}
+
 interface ConversationDetailResponse extends ConversationDetail {
   claim: { holderType: 'user'; holderId: string; expiresAt: string } | null;
+  translations?: ConversationTranslations;
 }
 
 @Controller('v1/conversations')
@@ -196,6 +218,7 @@ export class ConversationsController {
     private readonly claims: ConversationClaimsService,
     private readonly automation: ConvAutomationService,
     private readonly attachments: ConvAttachmentsService,
+    private readonly translation: ConvTranslationService,
   ) {}
 
   @Get()
@@ -363,14 +386,21 @@ export class ConversationsController {
 
   @Get(':id')
   @AllowMember()
-  async get(@Param('id') id: string): Promise<ConversationDetailResponse> {
+  async get(
+    @Param('id') id: string,
+    @Query('translateTo') translateTo?: string,
+  ): Promise<ConversationDetailResponse> {
     const detail = await translate(() => this.conv.getConversation(id));
     const claim = await this.claims.getActiveClaim(id);
+    const translations = translateTo
+      ? await this.translation.translationsFor(id, translateTo)
+      : undefined;
     return {
       ...detail,
       claim: claim
         ? { holderType: claim.holderType, holderId: claim.holderId, expiresAt: claim.expiresAt }
         : null,
+      ...(translations ? { translations } : {}),
     };
   }
 
@@ -571,6 +601,38 @@ export class ConversationsController {
     @Body() input: RequestDraftBody,
   ): Promise<{ requested: boolean }> {
     return translate(() => this.conv.requestDraft(id, { note: input.note }));
+  }
+
+  @Post(':id/request-translation')
+  @HttpCode(202)
+  @AllowMember()
+  async requestTranslation(
+    @Param('id') id: string,
+    @Body() input: RequestTranslationBody,
+  ): Promise<{ requested: boolean }> {
+    return this.translation.requestTranslation(id, input.targetLanguage);
+  }
+
+  @Get(':id/pending-translations')
+  async pendingTranslations(
+    @Param('id') id: string,
+    @Query('targetLanguage') targetLanguage: string,
+  ): Promise<PendingTranslations> {
+    return this.translation.pendingTranslations(id, targetLanguage ?? '');
+  }
+
+  @Post(':id/translations')
+  @HttpCode(200)
+  async saveTranslations(
+    @Param('id') id: string,
+    @Body() input: SaveTranslationsBody,
+  ): Promise<{ saved: number }> {
+    return this.translation.saveTranslations({
+      conversationId: id,
+      targetLanguage: input.targetLanguage,
+      customerLanguage: input.customerLanguage,
+      translations: input.translations,
+    });
   }
 
   @Post(':id/topic')

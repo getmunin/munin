@@ -25,6 +25,7 @@ import {
   type AgentConfigChangedBusEvent,
   type CuratorJobPendingBusEvent,
   type DraftRequestedBusEvent,
+  type TranslationRequestedBusEvent,
   type GreetRequestedBusEvent,
   type KbDocumentChangedBusEvent,
   type MessageReceivedBusEvent,
@@ -35,6 +36,7 @@ import {
   composeToolHandles,
   createConversationHandler,
   createPromptResolver,
+  createTranslationHandler,
   defaultProvider,
   openHttpMcpClient,
   runSkillPass,
@@ -478,6 +480,23 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
 
     const handlerRef: { current: ConversationHandler | null } = { current: null };
     const sweeper = this.buildConversationSweeper({ id, rest, handlerRef });
+    const beforeGenerate = this.options?.beforeGenerate
+      ? (): Promise<{ allowed: boolean; reason?: string }> =>
+          runWithServiceContext(
+            this.db,
+            id,
+            () => this.options!.beforeGenerate!({ orgId, config, managed, trigger: 'chat' }),
+            { orgId },
+          )
+      : undefined;
+    const translations = createTranslationHandler({
+      rest,
+      provider: { baseUrl: providerBaseUrl, apiKey: providerApiKey },
+      model: fastModel,
+      providerImpl: provider,
+      beforeGenerate,
+      logger: this.scopedLogger(id, 'translate'),
+    });
     const realtime = this.eventBus.subscribe(
       { orgId },
       {
@@ -499,6 +518,10 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
             conversationId: event.conversationId,
             ...(event.note ? { note: event.note } : {}),
           });
+        },
+        onTranslationRequested: (event: TranslationRequestedBusEvent) => {
+          if (this.lockManager && !this.lockManager.holds(id)) return;
+          translations.request(event);
         },
         onCuratorJobPending: (event) => curatorWorker.onPending(event),
         onConnected: () => {
@@ -548,16 +571,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
         };
       },
       provider,
-      beforeGenerate: this.options?.beforeGenerate
-        ? () =>
-            runWithServiceContext(
-              this.db,
-              id,
-              () =>
-                this.options!.beforeGenerate!({ orgId, config, managed, trigger: 'chat' }),
-              { orgId },
-            )
-        : undefined,
+      beforeGenerate,
       holderId: this.holderId,
       logger: this.scopedLogger(id, 'chat'),
       onTyping: (conversationId, isTyping) =>

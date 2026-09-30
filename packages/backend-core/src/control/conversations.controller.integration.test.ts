@@ -332,6 +332,38 @@ const skipReason = TEST_URL
     ]);
   }, 30_000);
 
+  it('request-draft accepts no body or a note, and refuses an oversized note with a 400', async () => {
+    const startResp = await rest<{ id: string }>(
+      endUserToken,
+      'POST',
+      '/v1/end-users/me/conversations',
+      { body: 'Can we bring our own cake?' },
+    );
+    expect(startResp.status).toBe(201);
+    const id = startResp.body.id;
+
+    const tooLong = await rest<unknown>(adminKeyA, 'POST', `/v1/conversations/${id}/request-draft`, {
+      note: 'x'.repeat(4001),
+    });
+    expect(tooLong.status).toBe(400);
+
+    const bare = await rest<{ requested: boolean }>(
+      adminKeyA,
+      'POST',
+      `/v1/conversations/${id}/request-draft`,
+    );
+    expect(bare.status).toBe(202);
+
+    const withNote = await rest<{ requested: boolean }>(
+      adminKeyA,
+      'POST',
+      `/v1/conversations/${id}/request-draft`,
+      { note: 'Kake er greit, 50 kr per person.' },
+    );
+    expect(withNote.status).toBe(202);
+    expect(withNote.body).toEqual({ requested: true });
+  }, 30_000);
+
   it('draft-reply on an unknown conversation is a 404, not a 500', async () => {
     const resp = await rest<unknown>(
       adminKeyA,

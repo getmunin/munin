@@ -39,7 +39,9 @@ function pane(id: string, detail: ConversationDetail, controller: QueueControlle
 }
 
 function replyBox(): HTMLTextAreaElement {
-  return screen.getByPlaceholderText<HTMLTextAreaElement>('Write the reply to Ada Customer…');
+  return screen.getByPlaceholderText<HTMLTextAreaElement>(
+    'Write the reply to Ada Customer — or a rough note, and ask for a draft…',
+  );
 }
 
 function restoreDraftButton(): HTMLElement | null {
@@ -165,5 +167,59 @@ describe('ConversationPane composer', () => {
     expect(replyBox().value).toBe(DRAFT_A);
     expect(screen.queryByText('edited by you')).toBeNull();
     expect(screen.getByRole('button', { name: 'Approve & send' })).toBeTruthy();
+  });
+
+  it('asking for a draft with text in the box sends that text as the note', () => {
+    const requestDraft = vi.fn(() => Promise.resolve());
+    renderWithProviders(
+      pane('conv_a', makeDetail('conv_a'), stubController({ requestDraft })),
+    );
+
+    expect(screen.getAllByRole('button', { name: 'Ask for a draft' }).length).toBeGreaterThan(0);
+    fireEvent.change(replyBox(), { target: { value: 'Refund is approved, 3–5 days.' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Draft from my note' })[0]!);
+
+    expect(requestDraft).toHaveBeenCalledWith('conv_a', 'Refund is approved, 3–5 days.');
+  });
+
+  it('a note lets you ask for a draft even when the customer did not write last', () => {
+    const detail = makeDetail('conv_a', {
+      messages: [
+        makeMessage({ id: 'conv_a_m1', conversationId: 'conv_a' }),
+        makeMessage({
+          id: 'conv_a_m2',
+          conversationId: 'conv_a',
+          authorType: 'agent',
+          authorId: 'agent_1',
+          authorName: 'Munin',
+          body: 'It shipped on Tuesday.',
+        }),
+      ],
+    });
+    renderWithProviders(pane('conv_a', detail, stubController()));
+
+    expect(screen.queryByRole('button', { name: 'Ask for a draft' })).toBeNull();
+    fireEvent.change(replyBox(), { target: { value: 'Follow up on the tracking link.' } });
+    expect(screen.getAllByRole('button', { name: 'Draft from my note' }).length).toBeGreaterThan(0);
+  });
+
+  it('holds Approve & send until every [ ] slot in the draft is filled in', () => {
+    const draft = makeDraft('conv_a', 'conv_a_draft', 'Your refund of [AMOUNT] is on its way.');
+    draft.metadata = { kind: 'draft_reply', slots: ['[AMOUNT]'] };
+    const detail = makeDetail('conv_a', {
+      messages: [makeMessage({ id: 'conv_a_m1', conversationId: 'conv_a' }), draft],
+    });
+    renderWithProviders(pane('conv_a', detail, stubController()));
+
+    const approve = screen.getByRole<HTMLButtonElement>('button', { name: 'Approve & send' });
+    expect(approve.disabled).toBe(true);
+    expect(screen.getByText('Fill in what’s in [ ] before sending')).toBeTruthy();
+
+    fireEvent.change(replyBox(), { target: { value: 'Your refund of 40 EUR is on its way.' } });
+
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Send reply' }).disabled).toBe(
+      false,
+    );
+    expect(screen.queryByText('Fill in what’s in [ ] before sending')).toBeNull();
   });
 });

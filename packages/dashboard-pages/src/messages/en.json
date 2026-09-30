@@ -485,7 +485,8 @@
         "socialPreviewNotePageImage": "No file attached, so the picture the linked page advertises goes out as the post's own.",
         "socialPreviewNoteNoPageImage": "The linked page advertises no picture, so the post goes out without one.",
         "socialPreviewNoteFacebookCard": "The linked page advertises no picture, so Facebook builds its own card from the link.",
-        "socialPreviewNoteUnreadable": "The linked page couldn't be read just now. Munin tries again when the post goes out, and posts it without a picture if it still can't."
+        "socialPreviewNoteUnreadable": "The linked page couldn't be read just now. Munin tries again when the post goes out, and posts it without a picture if it still can't.",
+        "draftNoteLabel": "Note"
       },
       "relative": {
         "justNow": "just now",
@@ -1611,7 +1612,10 @@
           "results": "Results ({count})",
           "emptyFilteredTitle": "Nothing matches these filters",
           "emptyFilteredBody": "Widen the status, origin or activity window — or clear the filters to go back to the queue."
-        }
+        },
+        "askDraftFromNote": "Draft from my note",
+        "draftSlotsOpen": "Fill in what’s in [ ] before sending",
+        "replyPlaceholderOrNote": "Write the reply to {name} — or a rough note, and ask for a draft…"
       }
     },
     "firstRun": {

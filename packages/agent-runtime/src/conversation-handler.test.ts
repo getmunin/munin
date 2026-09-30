@@ -512,6 +512,116 @@ describe('createConversationHandler', () => {
     expect(toolNames).not.toContain('conv_request_human');
   });
 
+  it('draft-request without a note asks for curly-brace slots but not for note markup', async () => {
+    const seen: Array<{ config: { volatileSystemPrompt?: string } }> = [];
+    const provider: Provider = (args) => {
+      seen.push(args);
+      return Promise.resolve(assistantStop('Here is the answer.'));
+    };
+    const rest = buildRest({
+      getConversation: vi.fn(() => Promise.resolve(buildConversation({ agentMode: 'auto' }))),
+    });
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider,
+    });
+    handler.requestDraft({ conversationId: 'conv_1' });
+    await handler.flush();
+    expect(seen[0]!.config.volatileSystemPrompt).toContain('{{ORDER STATUS}}');
+    expect(seen[0]!.config.volatileSystemPrompt).not.toContain('[Teammate note]');
+  });
+
+  it("draft-request carries the teammate's note into the brief and back onto the parked draft", async () => {
+    const seen: Array<{ config: { volatileSystemPrompt?: string } }> = [];
+    let call = 0;
+    const provider: Provider = (args) => {
+      seen.push(args);
+      call += 1;
+      return Promise.resolve(
+        call === 1
+          ? assistantStop('Cake is fine. [[We serve it with coffee.]]')
+          : assistantStop('{"actions":[]}'),
+      );
+    };
+    const rest = buildRest({
+      getConversation: vi.fn(() => Promise.resolve(buildConversation({ agentMode: 'auto' }))),
+    });
+    const draftSpy = vi.fn((_conversationId: string, _body: string, _opts?: unknown) =>
+      Promise.resolve(),
+    );
+    rest.setDraftReply = draftSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider,
+    });
+    handler.requestDraft({ conversationId: 'conv_1', note: '  Kake er greit, 50 kr per person.  ' });
+    await handler.flush();
+    const brief = seen[0]!.config.volatileSystemPrompt!;
+    expect(brief).toContain('[Teammate note]');
+    expect(brief).toContain('Kake er greit, 50 kr per person.');
+    expect(draftSpy.mock.calls[0]![1]).toBe('Cake is fine. [[We serve it with coffee.]]');
+    expect(draftSpy.mock.calls[0]![2]).toMatchObject({ note: 'Kake er greit, 50 kr per person.' });
+  });
+
+  it('draft-request with a note drafts even when the agent spoke last', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            agentMode: 'auto',
+            messages: [
+              {
+                id: 'msg_1',
+                authorType: 'end_user',
+                body: 'when do you open?',
+                createdAt: new Date().toISOString(),
+                internal: false,
+              },
+              {
+                id: 'msg_2',
+                authorType: 'agent',
+                body: 'We open at 10am.',
+                createdAt: new Date().toISOString(),
+                internal: false,
+              },
+            ],
+          }),
+        ),
+      ),
+    });
+    const draftSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    rest.setDraftReply = draftSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([
+        assistantStop('A quick follow-up on Saturday.'),
+        assistantStop('{"actions":[]}'),
+      ]),
+    });
+    handler.requestDraft({ conversationId: 'conv_1' });
+    await handler.flush();
+    expect(draftSpy).not.toHaveBeenCalled();
+
+    handler.requestDraft({ conversationId: 'conv_1', note: 'Minn dem på at vi stenger tidlig lørdag.' });
+    await handler.flush();
+    expect(draftSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('an email draft, and the audit that judges it, both see the Subject line', async () => {
     const seen: Array<{
       config: { volatileSystemPrompt?: string };

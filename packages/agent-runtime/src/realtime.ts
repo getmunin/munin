@@ -37,6 +37,7 @@ export interface GreetRequestedEvent {
 
 export interface DraftRequestedEvent {
   conversationId: string;
+  note?: string;
 }
 
 export interface AgentConfigChangedEvent {
@@ -188,7 +189,11 @@ export function createRealtimeClient(opts: RealtimeClientOptions): RealtimeClien
         if (opts.onDraftRequested && eventType === 'conversation.draft_requested') {
           const conversationId = payload['conversationId'];
           if (typeof conversationId !== 'string') return;
-          opts.onDraftRequested({ conversationId });
+          const note = payload['note'];
+          opts.onDraftRequested({
+            conversationId,
+            ...(typeof note === 'string' && note ? { note } : {}),
+          });
           return;
         }
 

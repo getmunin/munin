@@ -485,7 +485,8 @@
         "socialPreviewNotePageImage": "Ingen fil er lagt ved, så bildet siden det lenkes til deler, går ut som innleggets eget.",
         "socialPreviewNoteNoPageImage": "Siden det lenkes til deler ikke noe bilde, så innlegget går ut uten.",
         "socialPreviewNoteFacebookCard": "Siden det lenkes til deler ikke noe bilde, så Facebook lager sitt eget kort fra lenken.",
-        "socialPreviewNoteUnreadable": "Siden det lenkes til kunne ikke leses akkurat nå. Munin prøver igjen når innlegget går ut, og legger det ut uten bilde hvis det fortsatt ikke går."
+        "socialPreviewNoteUnreadable": "Siden det lenkes til kunne ikke leses akkurat nå. Munin prøver igjen når innlegget går ut, og legger det ut uten bilde hvis det fortsatt ikke går.",
+        "draftNoteLabel": "Notat"
       },
       "relative": {
         "justNow": "akkurat nå",
@@ -1549,7 +1550,7 @@
         "draftPreviewHint": "Skrivebeskyttet til du tar saken",
         "writeReply": "Skriv svar",
         "continueReply": "Fortsett svaret",
-        "restoreDraft": "Hent tilbake kladden",
+        "restoreDraft": "Gjenopprett kladd",
         "release": "Frigi",
         "askDraft": "Be om en kladd",
         "closeNoReply": "Lukk uten svar",
@@ -1611,7 +1612,10 @@
           "results": "Treff ({count})",
           "emptyFilteredTitle": "Ingenting treffer disse filtrene",
           "emptyFilteredBody": "Utvid status, opphav eller tidsrom — eller nullstill filtrene for å gå tilbake til køen."
-        }
+        },
+        "askDraftFromNote": "Lag kladd fra notatet",
+        "draftSlotsOpen": "Fyll inn det som står i [ ] før du sender",
+        "replyPlaceholderOrNote": "Skriv svaret til {name} – eller noen stikkord, og be om en kladd …"
       }
     },
     "firstRun": {

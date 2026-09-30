@@ -131,6 +131,7 @@ export function MessageBubble({
   const isOutbound = message.authorType === 'user' || message.authorType === 'agent';
   const noSpeech = message.metadata.voiceNoSpeech === true;
   const quoted = readQuotedTurns(message.metadata);
+  const draftNote = sentDraftNote(message);
 
   if (role === 'system') {
     return (
@@ -223,6 +224,14 @@ export function MessageBubble({
       <MessageAttachments attachments={message.attachments} onDelete={onDeleteAttachment} />
       {quoted.length > 0 ? <QuotedThread turns={quoted} /> : null}
       {isOutbound && <MessageComponents metadata={message.metadata} />}
+      {isOutbound && draftNote ? (
+        <div className="flex max-w-full items-baseline justify-end gap-2 text-right text-[12.5px] leading-snug text-ink-soft dark:text-foreground/70">
+          <span className="shrink-0 font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
+            {t('draftNoteLabel')}
+          </span>
+          <span className="min-w-0 [overflow-wrap:anywhere]">{draftNote}</span>
+        </div>
+      ) : null}
       {isOutbound && failure ? (
         <div
           role="status"
@@ -289,6 +298,13 @@ function bubbleLabel(
   if (message.authorName) return message.authorName;
   if (message.authorType === 'end_user') return endUserLabel ?? t('anonymousVisitor');
   return message.authorType;
+}
+
+export function sentDraftNote(message: MessageDto): string | null {
+  const stamp = message.metadata['approvedDraft'];
+  if (!stamp || typeof stamp !== 'object') return null;
+  const note = (stamp as Record<string, unknown>)['note'];
+  return typeof note === 'string' && note.trim() ? note : null;
 }
 
 export function suppressedKind(message: MessageDto): string | null {

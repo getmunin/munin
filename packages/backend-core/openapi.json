@@ -5219,6 +5219,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestDraftBody"
+              }
+            }
+          }
+        },
         "responses": {
           "202": {
             "description": ""
@@ -10502,11 +10512,24 @@
               "minLength": 1,
               "maxLength": 128
             }
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 4000
           }
         },
         "required": [
           "body"
         ]
+      },
+      "RequestDraftBody": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 4000
+          }
+        }
       },
       "SetTopicBody": {
         "type": "object",

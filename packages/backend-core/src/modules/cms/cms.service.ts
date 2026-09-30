@@ -37,8 +37,9 @@ import {
 import { STORAGE } from '../../common/storage/storage.token.ts';
 import {
   assetExtensionFromName,
-  isSvgAsset,
-  isSvgMime,
+  checkCmsAssetType,
+  CMS_ASSET_TYPES_SUMMARY,
+  normalizeMime,
   randomKeySegment,
 } from '../../common/storage/asset-validation.ts';
 import {
@@ -1346,8 +1347,7 @@ export class CmsService {
         code: 'cms_asset_too_large',
       });
     }
-    const ext = assetExtensionFromName(input.name);
-    rejectSvgAsset(ext, input.mime);
+    const { mime, ext } = assertCmsAssetType(input.name, input.mime);
     await this.quotas.assertCanAdd('cms_assets');
 
     const ctx = getCurrentContext();
@@ -1355,7 +1355,7 @@ export class CmsService {
     const key = `cms/${actor.orgId}/${randomKeySegment()}.${ext}`;
     const presigned = await this.storage.presignedUpload({
       key,
-      mime: input.mime,
+      mime,
       sizeBytes: input.sizeBytes,
     });
 
@@ -1365,7 +1365,7 @@ export class CmsService {
       .values({
         orgId: actor.orgId,
         name: input.name,
-        mime: input.mime,
+        mime,
         sizeBytes: input.sizeBytes,
         storageProvider: this.storage.provider,
         storageKey: key,
@@ -1423,11 +1423,14 @@ export class CmsService {
     });
     if (!res.ok) throw new CmsInvalidError(`fetch failed with status ${res.status}`);
 
-    const mime = (
-      input.mime ?? res.headers.get('content-type')?.split(';')[0]?.trim() ?? 'application/octet-stream'
-    ).toLowerCase();
-    if (!isAllowedFetchedMime(mime)) {
-      throw new CmsInvalidError(`fetched content-type "${mime}" is not allowed`);
+    const mime = normalizeMime(
+      input.mime ?? res.headers.get('content-type') ?? 'application/octet-stream',
+    );
+    if (!checkCmsAssetType('', mime).ok) {
+      throw new CmsInvalidError(
+        `fetched content-type "${mime}" is not allowed; accepted types are ${CMS_ASSET_TYPES_SUMMARY}`,
+        { code: 'cms_asset_type_not_allowed' },
+      );
     }
 
     const body = await readBodyWithCap(res, FETCH_BYTES_MAX);
@@ -1449,8 +1452,7 @@ export class CmsService {
     altText?: string;
     metadata?: Record<string, unknown>;
   }): Promise<AssetDto> {
-    const ext = assetExtensionFromName(input.name);
-    rejectSvgAsset(ext, input.mime);
+    const { mime, ext } = assertCmsAssetType(input.name, input.mime);
     await this.quotas.assertCanAdd('cms_assets');
 
     if (!this.storage.writeDirect) {
@@ -1459,15 +1461,15 @@ export class CmsService {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const key = `cms/${actor.orgId}/${randomKeySegment()}.${ext}`;
-    await this.storage.writeDirect(key, input.body, { mime: input.mime });
-    const derived = await this.deriveVariantsOrDefer(input.mime, key, input.body);
+    await this.storage.writeDirect(key, input.body, { mime });
+    const derived = await this.deriveVariantsOrDefer(mime, key, input.body);
 
     const [row] = await ctx.db
       .insert(schema.cmsAssets)
       .values({
         orgId: actor.orgId,
         name: input.name,
-        mime: input.mime,
+        mime,
         sizeBytes: input.body.length,
         ...derived,
         storageProvider: this.storage.provider,
@@ -2634,22 +2636,22 @@ export function deriveEntryTitle(
   return { title: null, fieldName: null };
 }
 
-function rejectSvgAsset(ext: string, mime: string): void {
-  if (isSvgAsset(ext, mime)) {
+function assertCmsAssetType(name: string, rawMime: string): { mime: string; ext: string } {
+  const check = checkCmsAssetType(name, rawMime);
+  if (check.ok) return { mime: check.mime, ext: check.ext };
+  if (check.reason === 'extension_mismatch') {
     throw new CmsInvalidError(
-      'svg uploads are not allowed: SVG can carry inline scripts that execute in the browser',
+      `file extension ".${check.ext}" does not match mime "${check.mime}"`,
+      { code: 'cms_asset_type_not_allowed' },
     );
   }
+  throw new CmsInvalidError(
+    `mime "${check.mime}" is not allowed; accepted types are ${CMS_ASSET_TYPES_SUMMARY}`,
+    { code: 'cms_asset_type_not_allowed' },
+  );
 }
 
 const FETCH_BYTES_MAX = 50 * 1024 * 1024;
-
-const FETCHED_MIME_ALLOWLIST = [/^image\//, /^video\//, /^audio\//, /^application\/pdf$/];
-
-function isAllowedFetchedMime(mime: string): boolean {
-  if (isSvgMime(mime)) return false;
-  return FETCHED_MIME_ALLOWLIST.some((re) => re.test(mime));
-}
 
 async function readBodyWithCap(
   res: { body: ReadableStream<Uint8Array> | null; arrayBuffer: () => Promise<ArrayBuffer> },
@@ -2695,7 +2697,10 @@ const MIME_TO_EXT: Record<string, string> = {
 
 function deriveNameFromUrl(url: URL, mime: string): string {
   const last = url.pathname.split('/').filter(Boolean).pop();
-  if (last && last.includes('.')) return decodeURIComponent(last).slice(0, 200);
+  if (last && last.includes('.')) {
+    const decoded = decodeURIComponent(last).slice(0, 200);
+    if (checkCmsAssetType(decoded, mime).ok) return decoded;
+  }
   const ext = MIME_TO_EXT[mime] ?? mime.split('/')[1] ?? 'bin';
   return `asset.${ext.replace(/[^a-z0-9]/gi, '').slice(0, 16) || 'bin'}`;
 }

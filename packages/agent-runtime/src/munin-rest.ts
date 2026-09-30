@@ -12,6 +12,7 @@ export interface SetDraftReplyOpts {
   retrievedDocumentIds?: string[];
   rationale?: string;
   toolNames?: string[];
+  note?: string;
 }
 
 export interface ConversationDetail {
@@ -389,6 +390,7 @@ export function createMuninRestClient(
       }
       if (opts?.rationale) payload.rationale = opts.rationale;
       if (opts?.toolNames?.length) payload.toolNames = opts.toolNames;
+      if (opts?.note) payload.note = opts.note;
       await call<unknown>(
         `/v1/conversations/${encodeURIComponent(conversationId)}/draft-reply`,
         { method: 'POST', body: JSON.stringify(payload) },

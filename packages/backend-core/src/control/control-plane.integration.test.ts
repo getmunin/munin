@@ -8,6 +8,7 @@ import { createDb, runMigrations, schema } from '@getmunin/db';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { createApp } from '../bootstrap-app.ts';
 import { AppModule } from '../app.module.ts';
+import { revokeKeysThen } from '../auth/auth-factory.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -992,17 +993,65 @@ interface OrgFixture {
       expect(res.status).toBe(404);
     });
 
-    it('lookup with a valid token returns invitation detail', async () => {
+    it('lookup with a valid token returns invitation detail for a new address', async () => {
+      const email = `lookup-${Date.now()}@example.com`;
       const create = await fetch(`${baseUrl}/v1/orgs/me/invitations`, {
         method: 'POST',
         headers: cookieHeaders(orgA.sessionToken),
-        body: JSON.stringify({ email: `lookup-${Date.now()}@example.com` }),
+        body: JSON.stringify({ email, role: 'admin' }),
       });
       const inv = (await create.json()) as { id: string; token: string };
       const res = await fetch(
         `${baseUrl}/v1/invitations/lookup?token=${encodeURIComponent(inv.token)}`,
       );
       expect(res.status).toBe(200);
+      const body = (await res.json()) as Record<string, unknown>;
+      const [org] = await db
+        .select({ name: schema.orgs.name })
+        .from(schema.orgs)
+        .where(eq(schema.orgs.id, orgA.id));
+      expect(body).toMatchObject({ email, role: 'admin', orgName: org!.name, hasAccount: false });
+    });
+
+    it('lookup reports hasAccount when the invited address already has a user', async () => {
+      const email = `lookup-existing-${Date.now()}@example.com`;
+      const [user] = await db
+        .insert(schema.users)
+        .values({ email, name: 'Existing User' })
+        .returning({ id: schema.users.id });
+      try {
+        const create = await fetch(`${baseUrl}/v1/orgs/me/invitations`, {
+          method: 'POST',
+          headers: cookieHeaders(orgA.sessionToken),
+          body: JSON.stringify({ email: email.toUpperCase() }),
+        });
+        const inv = (await create.json()) as { token: string };
+        const res = await fetch(
+          `${baseUrl}/v1/invitations/lookup?token=${encodeURIComponent(inv.token)}`,
+        );
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as { hasAccount: boolean };
+        expect(body.hasAccount).toBe(true);
+      } finally {
+        await db.delete(schema.users).where(eq(schema.users.id, user!.id));
+      }
+    });
+
+    it('lookup returns 404 once the invitation is revoked', async () => {
+      const create = await fetch(`${baseUrl}/v1/orgs/me/invitations`, {
+        method: 'POST',
+        headers: cookieHeaders(orgA.sessionToken),
+        body: JSON.stringify({ email: `lookup-revoked-${Date.now()}@example.com` }),
+      });
+      const inv = (await create.json()) as { id: string; token: string };
+      await fetch(`${baseUrl}/v1/orgs/me/invitations/${inv.id}`, {
+        method: 'DELETE',
+        headers: cookieHeaders(orgA.sessionToken),
+      });
+      const res = await fetch(
+        `${baseUrl}/v1/invitations/lookup?token=${encodeURIComponent(inv.token)}`,
+      );
+      expect(res.status).toBe(404);
     });
 
     it('accept without session cookie is forbidden', async () => {
@@ -1039,6 +1088,190 @@ interface OrgFixture {
         body: JSON.stringify({ role: 'member' }),
       });
       expect(patch.status).toBe(403);
+    });
+  });
+
+  describe('API keys act with their creator\'s current role', () => {
+    async function seedMember(role: 'owner' | 'admin' | 'member'): Promise<{
+      userId: string;
+      cookie: Record<string, string>;
+    }> {
+      const slug = `cp-a-${role}-key-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+      const [user] = await db
+        .insert(schema.users)
+        .values({ email: `${slug}@example.com`, name: 'Kari Nordmann' })
+        .returning();
+      await db.insert(schema.orgMembers).values({ orgId: orgA.id, userId: user!.id, role });
+      const token = randomToken(32);
+      await db.insert(schema.sessions).values({
+        userId: user!.id,
+        token,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      });
+      return { userId: user!.id, cookie: cookieHeaders(token) };
+    }
+
+    async function mintKeyAs(cookie: Record<string, string>): Promise<{ id: string; key: string }> {
+      const res = await fetch(`${baseUrl}/v1/api-keys`, {
+        method: 'POST',
+        headers: cookie,
+        body: JSON.stringify({ name: `creator-role-${Date.now()}`, scopes: ['*'] }),
+      });
+      expect(res.status).toBe(201);
+      return (await res.json()) as { id: string; key: string };
+    }
+
+    async function isMember(userId: string): Promise<boolean> {
+      const rows = await db
+        .select({ userId: schema.orgMembers.userId })
+        .from(schema.orgMembers)
+        .where(sql`${schema.orgMembers.orgId} = ${orgA.id} AND ${schema.orgMembers.userId} = ${userId}`);
+      return rows.length > 0;
+    }
+
+    it('a "*" key minted by an admin cannot perform owner-only member removal', async () => {
+      const admin = await seedMember('admin');
+      const target = await seedMember('member');
+      const { key } = await mintKeyAs(admin.cookie);
+
+      const res = await fetch(`${baseUrl}/v1/orgs/me/members/${target.userId}`, {
+        method: 'DELETE',
+        headers: authHeaders(key),
+      });
+      expect(res.status).toBe(403);
+      expect(await isMember(target.userId)).toBe(true);
+
+      const list = await fetch(`${baseUrl}/v1/orgs/me/members`, { headers: authHeaders(key) });
+      expect(list.status).toBe(200);
+    });
+
+    it('a "*" key minted by an owner can perform owner-only member removal', async () => {
+      const owner = await seedMember('owner');
+      const target = await seedMember('member');
+      const { key } = await mintKeyAs(owner.cookie);
+
+      const res = await fetch(`${baseUrl}/v1/orgs/me/members/${target.userId}`, {
+        method: 'DELETE',
+        headers: authHeaders(key),
+      });
+      expect(res.status).toBe(204);
+      expect(await isMember(target.userId)).toBe(false);
+    });
+
+    it('a creatorless "*" key is capped at admin and cannot perform owner-only actions', async () => {
+      const target = await seedMember('member');
+      const res = await fetch(`${baseUrl}/v1/orgs/me/members/${target.userId}`, {
+        method: 'DELETE',
+        headers: authHeaders(orgA.adminKey),
+      });
+      expect(res.status).toBe(403);
+      expect(await isMember(target.userId)).toBe(true);
+    });
+
+    it('a key loses owner powers as soon as its creator is demoted', async () => {
+      const owner = await seedMember('owner');
+      const target = await seedMember('member');
+      const { key } = await mintKeyAs(owner.cookie);
+      await db
+        .update(schema.orgMembers)
+        .set({ role: 'admin' })
+        .where(sql`${schema.orgMembers.orgId} = ${orgA.id} AND ${schema.orgMembers.userId} = ${owner.userId}`);
+
+      const res = await fetch(`${baseUrl}/v1/orgs/me/members/${target.userId}`, {
+        method: 'DELETE',
+        headers: authHeaders(key),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it('removing a member revokes their admin keys, which stay dead after a re-invite', async () => {
+      const admin = await seedMember('admin');
+      const { id, key } = await mintKeyAs(admin.cookie);
+      const before = await fetch(`${baseUrl}/v1/orgs/me/members`, { headers: authHeaders(key) });
+      expect(before.status).toBe(200);
+
+      const remove = await fetch(`${baseUrl}/v1/orgs/me/members/${admin.userId}`, {
+        method: 'DELETE',
+        headers: cookieHeaders(orgA.sessionToken),
+      });
+      expect(remove.status).toBe(204);
+
+      const [row] = await db
+        .select({ revokedAt: schema.apiKeys.revokedAt })
+        .from(schema.apiKeys)
+        .where(eq(schema.apiKeys.id, id));
+      expect(row!.revokedAt).not.toBeNull();
+
+      const afterRemoval = await fetch(`${baseUrl}/v1/orgs/me/members`, {
+        headers: authHeaders(key),
+      });
+      expect(afterRemoval.status).toBe(401);
+
+      await db
+        .insert(schema.orgMembers)
+        .values({ orgId: orgA.id, userId: admin.userId, role: 'admin' });
+      const afterReinvite = await fetch(`${baseUrl}/v1/orgs/me/members`, {
+        headers: authHeaders(key),
+      });
+      expect(afterReinvite.status).toBe(401);
+    });
+
+    it('a key stops resolving once its creator is no longer a member, even if never revoked', async () => {
+      const admin = await seedMember('admin');
+      const { id, key } = await mintKeyAs(admin.cookie);
+      await db
+        .delete(schema.orgMembers)
+        .where(sql`${schema.orgMembers.orgId} = ${orgA.id} AND ${schema.orgMembers.userId} = ${admin.userId}`);
+
+      const [row] = await db
+        .select({ revokedAt: schema.apiKeys.revokedAt })
+        .from(schema.apiKeys)
+        .where(eq(schema.apiKeys.id, id));
+      expect(row!.revokedAt).toBeNull();
+
+      const res = await fetch(`${baseUrl}/v1/orgs/me/members`, { headers: authHeaders(key) });
+      expect(res.status).toBe(401);
+    });
+
+    it('account deletion revokes the admin keys the user created before running the deployment hook', async () => {
+      const admin = await seedMember('admin');
+      const { id } = await mintKeyAs(admin.cookie);
+      const seen: string[] = [];
+      await revokeKeysThen(db, async (user) => {
+        const [row] = await db
+          .select({ revokedAt: schema.apiKeys.revokedAt })
+          .from(schema.apiKeys)
+          .where(eq(schema.apiKeys.id, id));
+        seen.push(row!.revokedAt ? `revoked:${user.id}` : 'live');
+      })({ id: admin.userId, email: 'placeholder@example.com' });
+      expect(seen).toEqual([`revoked:${admin.userId}`]);
+    });
+
+    it('widget keys keep working after the member who created them is removed', async () => {
+      const admin = await seedMember('admin');
+      const [channel] = await db
+        .insert(schema.convChannels)
+        .values({ orgId: orgA.id, type: 'chat', vendor: 'munin', name: 'creator-removed-channel' })
+        .returning({ id: schema.convChannels.id });
+      const widgetKey = buildApiKey('widget');
+      await db.insert(schema.apiKeys).values({
+        channelId: channel!.id,
+        orgId: orgA.id,
+        type: 'widget',
+        name: 'creator-removed-widget',
+        keyHash: hashSecret(widgetKey),
+        keyPrefix: keyPrefix(widgetKey),
+        scopes: ['conv:widget:write'],
+        createdByUserId: admin.userId,
+      });
+      const remove = await fetch(`${baseUrl}/v1/orgs/me/members/${admin.userId}`, {
+        method: 'DELETE',
+        headers: cookieHeaders(orgA.sessionToken),
+      });
+      expect(remove.status).toBe(204);
+
+      const res = await fetch(`${baseUrl}/v1/api-keys`, { headers: authHeaders(widgetKey) });
+      expect(res.status).toBe(403);
     });
   });
 

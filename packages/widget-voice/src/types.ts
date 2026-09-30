@@ -31,6 +31,7 @@ export interface VoiceSession {
 export interface VoiceSessionMetadata {
   conversationId: string;
   endUserId: string;
+  callToken?: string;
 }
 
 export interface VapiVoiceDescriptor {
@@ -39,7 +40,6 @@ export interface VapiVoiceDescriptor {
   publicKey: string;
   assistantId: string;
   metadata: VoiceSessionMetadata;
-  assistant?: Record<string, unknown>;
   assistantOverrides?: Record<string, unknown>;
 }
 

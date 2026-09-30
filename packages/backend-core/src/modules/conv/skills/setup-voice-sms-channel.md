@@ -32,6 +32,12 @@ A channel waiting on its credential link is `active: false` and every admin acti
 
 Once setup is complete the stored secrets show up as `••••` in that listing — vendor keys, auth tokens and signing keys never leave Munin, in any form, so there is nothing to read back or repeat.
 
+## Rotating secrets
+
+`conv_request_channel_credentials { channelId }` also works on a live channel: the link replaces the stored secrets. For **Vapi**, ask the human to choose a **new** webhook secret rather than re-entering the old one. When Munin configured the assistant's server URL, it writes the new secret to the assistant before saving and refuses to save if that write fails, so Vapi is never left sending a secret Munin no longer accepts. If the server URL was set by hand in the Vapi dashboard, the `X-Webhook-Secret` header there must be updated too.
+
+The widget never receives the webhook secret: in-browser calls start the stored assistant by id, and each call carries a short-lived token Munin signs for that one conversation. Tool calls and transcripts from a call whose token is missing or doesn't match are not attached to any existing conversation.
+
 ## Picking assistant/worker ids
 
 `conv_list_channel_options` lists a vendor's selectable options (Vapi assistants, Threll workers) **using a channel's stored credentials** — so it works only after the credential link is completed. For the initial create, the human reads the id from the vendor dashboard; to switch later, complete setup first, then call `conv_list_channel_options { channelId }` and update with `conv_configure_voice_sms_channel`.

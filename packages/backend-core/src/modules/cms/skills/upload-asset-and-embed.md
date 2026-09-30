@@ -14,6 +14,12 @@ CMS assets are uploaded out-of-band: the server hands you a **presigned upload**
 3. `cms_complete_asset_upload` — verifies the on-storage size matches what was declared, then flips `uploaded: true`. On size mismatch the storage object is deleted; the row stays at `uploaded:false` and you can retry from step 1.
 4. Embed via `cms_update_entry`: write the asset id into a typed field with `data`, or place an inline image in prose with `textReplacements`.
 
+## What the CMS accepts
+
+Raster images (png, jpeg, gif, webp, avif, heic/heif, bmp, tiff, ico), video (mp4, webm, mov, ogv), audio (mp3, m4a, aac, wav, ogg/opus, weba, flac) and PDF. Everything else — SVG, HTML, XML, scripts, plain text, archives, office documents — is refused with `cms_asset_type_not_allowed` on every upload route, because assets are served from a public URL and a browser would run an active document there. The same code comes back when the filename's extension contradicts the `mime` (`logo.svg` declared as `image/png`). A name without an extension is fine; the stored file takes the extension of its `mime`. Case and parameters in `mime` are ignored (`Image/PNG; charset=binary` is stored as `image/png`).
+
+If the operator wants to publish a vector logo, export it to PNG or WebP first.
+
 ## Step 1 — request the upload
 
 ```jsonc

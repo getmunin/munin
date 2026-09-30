@@ -64,7 +64,8 @@
       "oauthError": {
         "title": "Couldn't sign you in.",
         "hint": "That sign-in didn't complete. Try again, or use another method."
-      }
+      },
+      "invitationSubtitle": "Sign in as {email} to accept the invitation."
     },
     "signUp": {
       "title": "Create your account",
@@ -165,7 +166,10 @@
       "expiredCta": "Go to sign in",
       "invalidTitle": "Invalid link",
       "invalidSubtitle": "We didn't recognize this verification link. Sign in to request a new one.",
-      "invalidCta": "Go to sign in"
+      "invalidCta": "Go to sign in",
+      "pendingTitle": "Confirm your email",
+      "pendingSubtitle": "Your account isn't part of an organization yet. If you just signed up, open the confirmation link we emailed you. Otherwise, ask an admin to send you an invitation.",
+      "pendingCta": "Back to sign in"
     }
   },
   "nav": {
@@ -481,7 +485,8 @@
         "socialPreviewNotePageImage": "No file attached, so the picture the linked page advertises goes out as the post's own.",
         "socialPreviewNoteNoPageImage": "The linked page advertises no picture, so the post goes out without one.",
         "socialPreviewNoteFacebookCard": "The linked page advertises no picture, so Facebook builds its own card from the link.",
-        "socialPreviewNoteUnreadable": "The linked page couldn't be read just now. Munin tries again when the post goes out, and posts it without a picture if it still can't."
+        "socialPreviewNoteUnreadable": "The linked page couldn't be read just now. Munin tries again when the post goes out, and posts it without a picture if it still can't.",
+        "draftNoteLabel": "Note"
       },
       "relative": {
         "justNow": "just now",
@@ -1612,7 +1617,10 @@
           "results": "Results ({count})",
           "emptyFilteredTitle": "Nothing matches these filters",
           "emptyFilteredBody": "Widen the status, origin or activity window — or clear the filters to go back to the queue."
-        }
+        },
+        "askDraftFromNote": "Draft from my note",
+        "draftSlotsOpen": "Fill in what’s in [ ] before sending",
+        "replyPlaceholderOrNote": "Write the reply to {name} — or a rough note, and ask for a draft…"
       }
     },
     "firstRun": {
@@ -2264,8 +2272,6 @@
     }
   },
   "acceptInvite": {
-    "pendingTitle": "Accepting your invitation…",
-    "pendingBody": "One moment.",
     "acceptedTitle": "Invitation accepted",
     "acceptedBody": "You're now a member of the org.",
     "goToDashboard": "Go to dashboard",
@@ -2273,10 +2279,34 @@
     "signOutAndRetry": "Sign out and try again",
     "backToDashboard": "Back to dashboard",
     "missingToken": "Missing invitation token.",
+    "invitedBadge": "You're invited",
+    "invitedTitle": "Join {org}",
+    "invitedTitleNoOrg": "Join the organization",
+    "signInBody": "Sign in as {email} to accept.",
+    "createAccountBody": "Create an account for {email} to accept.",
+    "signInCta": "Sign in to accept",
+    "createAccountCta": "Create account",
+    "meta": {
+      "email": "Email",
+      "role": "Role"
+    },
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "member": "Member"
+    },
+    "goToSignIn": "Go to sign in",
+    "errorHeadings": {
+      "mismatch": "Wrong account",
+      "used": "Already accepted",
+      "invalid": "Link no longer valid",
+      "generic": "Something went wrong"
+    },
     "errors": {
       "lookup": "Could not look up the invitation.",
       "accept": "Could not accept invitation.",
-      "expired": "This invitation is no longer valid (revoked or expired)."
+      "expired": "It may have been revoked, already used, or expired. Ask the person who invited you to send a new invitation.",
+      "alreadyAccepted": "This invitation has already been accepted. Sign in with the invited address to open the organization."
     }
   },
   "errors": {
@@ -2311,6 +2341,7 @@
     "agent_config_invalid_model": "Your AI provider no longer offers that model. Reload the page to refresh the list, then pick a model and save again.",
     "claim_held_by_other": "Another teammate already holds this conversation.",
     "cms_asset_too_large": "This file is too large to upload. The maximum size is 50 MB.",
+    "cms_asset_type_not_allowed": "This file type can't be uploaded. Use a PNG, JPEG, GIF, WebP or AVIF image — SVG isn't supported.",
     "cms_asset_upload_failed": "The file upload didn't finish. Check your connection and try again.",
     "cms_version_conflict": "This entry was changed elsewhere while you were editing. Reload it and try again.",
     "conv_attachment_conflict": "That image cannot be attached to this message.",
@@ -2330,6 +2361,7 @@
     "conv_redaction_invalid": "Pick at least one identifier type, or turn redaction off.",
     "conv_test_self_addressed": "That address is the channel's own. Send the test to a different mailbox you can read.",
     "kb_curation_decided": "This one was already decided — published or dismissed — so it won't be proposed again. Refresh the queue.",
+    "invitation_email_mismatch": "This invitation was sent to a different email address. Sign out, then sign in or sign up with the address the invitation went to.",
     "kb_version_conflict": "Someone changed this text while you had it open, so nothing was saved. Reopen it to see the current version and decide on that.",
     "member_forbidden": "That's limited to owners and admins. Ask an owner if you need access.",
     "org_access_denied": "This tab was open in an organization you no longer have access to. Reloading with your current organization.",

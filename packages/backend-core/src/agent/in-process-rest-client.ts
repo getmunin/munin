@@ -222,6 +222,7 @@ function buildClient(opts: BuildOptions): AgentRestClient {
           retrievedDocumentIds: draftOpts?.retrievedDocumentIds,
           rationale: draftOpts?.rationale,
           toolNames: draftOpts?.toolNames,
+          note: draftOpts?.note,
         });
       });
     },

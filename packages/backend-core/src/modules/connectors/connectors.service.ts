@@ -30,7 +30,11 @@ import {
 } from './connector.ts';
 import { SecretCipherError } from '../../common/outbound-oauth/grant-store.ts';
 import { ConnectorVendorError } from './http.ts';
-import { hasFailedSenderAuth, isSelfReportedIdentity } from './identity-provenance.ts';
+import {
+  isSelfReportedIdentity,
+  latestTurnSenderAuthBlock,
+  type SenderAuthBlock,
+} from './identity-provenance.ts';
 import { ConnectorOAuthService, OAUTH_CONFIG_KEY } from './connector-oauth.service.ts';
 import { DB } from '../../common/db/db.module.ts';
 import { CredentialHandoffService, type CredentialLink } from '../credential-handoff/credential-handoff.service.ts';
@@ -612,15 +616,24 @@ export class ConnectorsService {
     const email = await this.requireEndUserEmail();
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    if (actor.conversationId && (await this.latestTurnFailedSenderAuth(ctx.db, actor))) {
+    const block = actor.conversationId ? await this.latestTurnSenderAuthBlock(ctx.db, actor) : null;
+    if (block === 'fail') {
       throw new BadRequestException(
         'connectors_sender_auth_failed: the latest customer message in this conversation failed its DMARC check for the address it claims to come from, so it may be forged and cannot be used to change a booking. Hand over to a human.',
+      );
+    }
+    if (block === 'forwarded') {
+      throw new BadRequestException(
+        'connectors_sender_forwarded: the latest customer message in this conversation was forwarded, so its original sender comes from the forwarded text rather than an authenticated address and cannot be used to change a booking. Hand over to a human.',
       );
     }
     return email;
   }
 
-  private async latestTurnFailedSenderAuth(db: Db | Tx, actor: ActorIdentity): Promise<boolean> {
+  private async latestTurnSenderAuthBlock(
+    db: Db | Tx,
+    actor: ActorIdentity,
+  ): Promise<SenderAuthBlock | null> {
     const messages = await db
       .select({
         authorType: schema.convMessages.authorType,
@@ -642,7 +655,7 @@ export class ConnectorsService {
       )
       .orderBy(desc(schema.convMessages.createdAt), desc(schema.convMessages.ingestedAt))
       .limit(LATEST_TURN_LOOKBACK);
-    return hasFailedSenderAuth(messages);
+    return latestTurnSenderAuthBlock(messages);
   }
 
   connectionContext(row: ConnectionRow): ConnectorConnectionContext {

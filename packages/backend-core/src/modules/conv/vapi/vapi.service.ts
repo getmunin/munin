@@ -197,6 +197,13 @@ export class VapiService {
           'This Vapi assistant already has a server URL configured. Recreate the channel with replaceWebhook: true to overwrite it.',
       });
     }
+    if (!pending && !auto.configured && jsonbToStored(channel.config).managedWebhook) {
+      return {
+        ok: false,
+        error:
+          'the new webhook secret could not be written to the Vapi assistant, so nothing was saved — check the API key and assistant, then retry',
+      };
+    }
     const stored = await this.toStored(parsed.data, auto);
     await ctx.db
       .update(schema.convChannels)
@@ -233,6 +240,26 @@ export class VapiService {
       throw new BadRequestException(`channel ${input.channelId} is not a voice:vapi channel`);
     }
     const prev = jsonbToStored(channel.config);
+    const rotatedSecret = input.config?.webhookSecret;
+    let webhookConfigured: boolean | undefined;
+    if (rotatedSecret && prev.managedWebhook) {
+      const apiKey = input.config?.apiKey ?? (await this.client.loadSecret(prev.encryptedApiKey));
+      const repatched = await this.tryConfigureAssistantWebhook(
+        {
+          apiKey,
+          webhookSecret: rotatedSecret,
+          assistantId: input.config?.assistantId ?? prev.assistantId,
+        },
+        buildWebhookUrl(channel.id),
+        false,
+      );
+      if (!repatched.configured) {
+        throw new BadRequestException(
+          'conv_invalid: the new webhookSecret could not be written to the Vapi assistant, so it was not saved. Check the API key and assistant, then retry.',
+        );
+      }
+      webhookConfigured = true;
+    }
     const merged: StoredVapiConfig = {
       encryptedApiKey: input.config?.apiKey
         ? await encryptString(input.config.apiKey)
@@ -256,7 +283,7 @@ export class VapiService {
       .where(eq(schema.convChannels.id, input.channelId))
       .returning();
     if (!row) throw new ConflictException('channel_update_failed');
-    return this.toDto(row.id, row.name, row.active, merged);
+    return this.toDto(row.id, row.name, row.active, merged, webhookConfigured);
   }
 
   private async toStored(

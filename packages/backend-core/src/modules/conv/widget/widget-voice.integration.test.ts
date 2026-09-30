@@ -4,7 +4,7 @@ import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
-import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
+import { ActorIdentity, verifyVoiceCallToken, withContext, type RequestContext } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql, eq } from 'drizzle-orm';
 import { AppModule } from '../../../app.module.ts';
@@ -255,7 +255,59 @@ const skipReason = TEST_URL
     expect(body.descriptor?.metadata).toEqual({
       conversationId: aliceConvId,
       endUserId: expect.any(String) as unknown,
+      callToken: expect.any(String) as unknown,
     });
+    const bound = verifyVoiceCallToken(body.descriptor!.metadata.callToken!);
+    expect(bound).toMatchObject({
+      orgId,
+      channelId: voiceChannelId,
+      conversationId: aliceConvId,
+      endUserId: body.descriptor!.metadata.endUserId,
+    });
+  });
+
+  it('never hands the browser the assistant server config or its webhook secret', async () => {
+    fetchAssistantSpy.mockResolvedValueOnce({
+      ok: true,
+      config: {
+        id: 'asst_wv',
+        name: 'Test assistant',
+        server: {
+          url: 'https://munin.example/v1/conversations/channels/x/webhook',
+          headers: { 'x-webhook-secret': 'vapi-webhook-secret-wv' },
+        },
+        model: {
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          messages: [],
+          toolIds: ['tool_saved_1'],
+          tools: [
+            { type: 'endCall' },
+            {
+              type: 'function',
+              function: { name: 'vendor_lookup' },
+              server: { url: 'https://vendor.example/hook', headers: { authorization: 'Bearer hidden-token' } },
+            },
+          ],
+        },
+      },
+    });
+    const { status, json } = await call({
+      channelId: widgetChannelId,
+      conversationId: aliceConvId,
+      sessionId: ALICE_SESSION_ID,
+    });
+    expect(status).toBe(201);
+    const raw = JSON.stringify(json);
+    expect(raw).not.toContain('vapi-webhook-secret-wv');
+    expect(raw).not.toContain('hidden-token');
+    expect(raw).not.toContain('"server"');
+    const body = json as {
+      descriptor: { assistant?: unknown; assistantOverrides: { model: { tools: unknown[]; toolIds: string[] } } };
+    };
+    expect(body.descriptor.assistant).toBeUndefined();
+    expect(body.descriptor.assistantOverrides.model.toolIds).toEqual(['tool_saved_1']);
+    expect(body.descriptor.assistantOverrides.model.tools).toContainEqual({ type: 'endCall' });
   });
 
   it('rejects unauthenticated requests', async () => {

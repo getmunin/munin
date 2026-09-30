@@ -1,4 +1,5 @@
 import { schema, type Db, type Tx } from '@getmunin/db';
+import { and, eq, isNull } from 'drizzle-orm';
 import { buildApiKey, hashSecret, keyPrefix, type KeyKind } from '@getmunin/core';
 
 export interface MintApiKeyInput {
@@ -34,4 +35,23 @@ export async function mintApiKey(db: Db | Tx, input: MintApiKeyInput): Promise<M
   if (input.channelId) values.channelId = input.channelId;
   const [row] = await db.insert(schema.apiKeys).values(values).returning();
   return { id: row!.id, rawKey, keyPrefix: row!.keyPrefix };
+}
+
+export async function revokeAdminKeysCreatedBy(
+  db: Db | Tx,
+  userId: string,
+  orgId?: string,
+): Promise<number> {
+  const conditions = [
+    eq(schema.apiKeys.createdByUserId, userId),
+    eq(schema.apiKeys.type, 'admin'),
+    isNull(schema.apiKeys.revokedAt),
+  ];
+  if (orgId) conditions.push(eq(schema.apiKeys.orgId, orgId));
+  const revoked = await db
+    .update(schema.apiKeys)
+    .set({ revokedAt: new Date() })
+    .where(and(...conditions))
+    .returning({ id: schema.apiKeys.id });
+  return revoked.length;
 }

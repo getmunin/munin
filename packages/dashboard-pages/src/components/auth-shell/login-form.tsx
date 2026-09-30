@@ -14,6 +14,8 @@ import {
   absoluteCallbackUrl,
 } from '../../auth/post-signin-redirect';
 import { resolvePostAuthDestination } from '../../auth/post-auth-destination';
+import { MEMBERSHIP_PENDING_PATH, hasOrgMembership } from '../../auth/org-membership-probe';
+import { extractInviteToken, useInvitationLookup } from '../../auth/invitation-lookup';
 import { AuthShell, AuthHeading, AuthSubheading, AuthFootnote, AuthDivider } from './auth-shell';
 import { AuthEpigraph } from './auth-epigraph';
 import { ErrorAlert } from './error-alert';
@@ -58,6 +60,12 @@ export function LoginForm({ providers, footer }: LoginFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileHandle>(null);
+  const invite = useInvitationLookup(extractInviteToken(redirectRaw));
+  const inviteEmail = invite.status === 'found' ? invite.invitation.email : null;
+
+  useEffect(() => {
+    if (inviteEmail) setEmail(inviteEmail);
+  }, [inviteEmail]);
 
   useEffect(() => {
     const code = params.get('error');
@@ -91,6 +99,10 @@ export function LoginForm({ providers, footer }: LoginFormProps) {
         window.location.assign(oauthResume);
         return;
       }
+      if (!redirectRaw?.startsWith('/accept-invite') && !(await hasOrgMembership())) {
+        router.push(MEMBERSHIP_PENDING_PATH);
+        return;
+      }
       router.push(redirectRaw ? redirectTo : await resolvePostAuthDestination(redirectTo));
     } catch (err) {
       turnstileRef.current?.reset();
@@ -122,7 +134,9 @@ export function LoginForm({ providers, footer }: LoginFormProps) {
       leftZone={
         <>
           <AuthHeading>{t('title')}</AuthHeading>
-          <AuthSubheading>{t('subtitle')}</AuthSubheading>
+          <AuthSubheading>
+            {inviteEmail ? t('invitationSubtitle', { email: inviteEmail }) : t('subtitle')}
+          </AuthSubheading>
 
           {error && <ErrorAlert title={alertTitle}>{alertHint}</ErrorAlert>}
 

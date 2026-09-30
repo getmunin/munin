@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   KNOWN_SKILL_URIS,
+  TOOLS_BY_URI,
+  allowedToolsFor,
   jobKindOf,
   priorityFor,
   tierFor,
-  toolPrefixesFor,
 } from './job-catalog.ts';
 
 describe('jobKindOf', () => {
@@ -33,9 +34,9 @@ describe('tierFor', () => {
   });
 });
 
-describe('toolPrefixesFor', () => {
+describe('allowedToolsFor', () => {
   it('returns the configured tool allowlist for a known skill', () => {
-    expect(toolPrefixesFor('skill://kb/review-content')).toEqual([
+    expect(allowedToolsFor('skill://kb/review-content')).toEqual([
       'conv_list_conversations',
       'conv_get_conversation',
       'kb_search',
@@ -49,11 +50,28 @@ describe('toolPrefixesFor', () => {
   });
 
   it('lets the curation pass read prior decisions its own skill requires', () => {
-    expect(toolPrefixesFor('skill://kb/review-content')).toContain('kb_list_curation_decisions');
+    expect(allowedToolsFor('skill://kb/review-content')).toContain('kb_list_curation_decisions');
   });
   it('returns undefined for unmapped URIs', () => {
-    expect(toolPrefixesFor('task://web/scrape-website')).toBeUndefined();
-    expect(toolPrefixesFor('skill://unknown/x')).toBeUndefined();
+    expect(allowedToolsFor('task://web/scrape-website')).toBeUndefined();
+    expect(allowedToolsFor('skill://unknown/x')).toBeUndefined();
+  });
+
+  it('gives every known skill a non-empty allowlist so no skill job runs with the full admin surface', () => {
+    const missing = [...KNOWN_SKILL_URIS].filter((uri) => (allowedToolsFor(uri)?.length ?? 0) === 0);
+    expect(missing).toEqual([]);
+  });
+
+  it('only allowlists known skill URIs', () => {
+    const unknown = [...TOOLS_BY_URI.keys()].filter((uri) => !KNOWN_SKILL_URIS.has(uri));
+    expect(unknown).toEqual([]);
+  });
+
+  it('lists full snake_case tool names rather than prefixes', () => {
+    const prefixLike = [...TOOLS_BY_URI.values()]
+      .flat()
+      .filter((name) => !/^[a-z]+(_[a-z0-9]+)+$/.test(name) || name.endsWith('_'));
+    expect(prefixLike).toEqual([]);
   });
 });
 

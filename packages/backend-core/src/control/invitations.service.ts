@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   GoneException,
   Inject,
   Injectable,
@@ -36,6 +37,14 @@ export interface InvitationDto {
   acceptedByUserId: string | null;
   revokedAt: string | null;
   createdAt: string;
+}
+
+export interface InvitationLookupDto {
+  email: string;
+  role: string;
+  expiresAt: string;
+  orgName: string | null;
+  hasAccount: boolean;
 }
 
 export interface CreatedInvitation extends InvitationDto {
@@ -147,7 +156,7 @@ export class InvitationsService {
     return { revoked: true };
   }
 
-  async lookupByToken(token: string): Promise<{ email: string; role: string; expiresAt: string } | null> {
+  async lookupByToken(token: string): Promise<InvitationLookupDto | null> {
     if (!token) return null;
     const tokenHash = hashSecret(token);
     const rows = await this.serviceDb
@@ -157,14 +166,27 @@ export class InvitationsService {
         expiresAt: schema.orgInvitations.expiresAt,
         acceptedAt: schema.orgInvitations.acceptedAt,
         revokedAt: schema.orgInvitations.revokedAt,
+        orgName: schema.orgs.name,
       })
       .from(schema.orgInvitations)
+      .innerJoin(schema.orgs, eq(schema.orgs.id, schema.orgInvitations.orgId))
       .where(eq(schema.orgInvitations.tokenHash, tokenHash))
       .limit(1);
     const inv = rows[0];
     if (!inv) return null;
     if (inv.acceptedAt || inv.revokedAt || inv.expiresAt.getTime() < Date.now()) return null;
-    return { email: inv.email, role: inv.role, expiresAt: inv.expiresAt.toISOString() };
+    const account = await this.serviceDb
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(eq(schema.users.email, inv.email.trim().toLowerCase()))
+      .limit(1);
+    return {
+      email: inv.email,
+      role: inv.role,
+      expiresAt: inv.expiresAt.toISOString(),
+      orgName: inv.orgName.trim() || null,
+      hasAccount: account.length > 0,
+    };
   }
 
   async accept(input: { token: string; userId: string }): Promise<{ orgId: string; role: string }> {
@@ -180,6 +202,9 @@ export class InvitationsService {
     const invitation = rows[0];
     if (!invitation) throw new NotFoundException('Invitation not found.');
     if (invitation.acceptedAt) {
+      if (invitation.acceptedByUserId === input.userId) {
+        return { orgId: invitation.orgId, role: invitation.role };
+      }
       throw new ConflictException('This invitation has already been accepted.');
     }
     if (invitation.revokedAt) {
@@ -190,14 +215,41 @@ export class InvitationsService {
     }
 
     const userRows = await this.serviceDb
-      .select({ id: schema.users.id })
+      .select({ id: schema.users.id, email: schema.users.email })
       .from(schema.users)
       .where(eq(schema.users.id, input.userId))
       .limit(1);
-    if (!userRows[0]) throw new NotFoundException('Signed-in user not found.');
+    const user = userRows[0];
+    if (!user) throw new NotFoundException('Signed-in user not found.');
+    if (user.email.trim().toLowerCase() !== invitation.email.trim().toLowerCase()) {
+      throw new ForbiddenException({
+        message: `invitation_email_mismatch: this invitation was sent to ${invitation.email}; sign in with that address to accept it.`,
+        code: 'invitation_email_mismatch',
+      });
+    }
 
-    await this.serviceDb.transaction(async (tx) => {
+    const outcome = await this.serviceDb.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      const claimed = await tx
+        .update(schema.orgInvitations)
+        .set({ acceptedAt: new Date(), acceptedByUserId: input.userId })
+        .where(
+          and(
+            eq(schema.orgInvitations.id, invitation.id),
+            isNull(schema.orgInvitations.acceptedAt),
+            isNull(schema.orgInvitations.revokedAt),
+            sql`${schema.orgInvitations.expiresAt} > now()`,
+          ),
+        )
+        .returning({ id: schema.orgInvitations.id });
+      if (claimed.length === 0) {
+        const [current] = await tx
+          .select({ acceptedByUserId: schema.orgInvitations.acceptedByUserId })
+          .from(schema.orgInvitations)
+          .where(eq(schema.orgInvitations.id, invitation.id))
+          .limit(1);
+        return current?.acceptedByUserId === input.userId ? 'already_mine' : 'taken';
+      }
       await tx
         .insert(schema.orgMembers)
         .values({
@@ -205,12 +257,20 @@ export class InvitationsService {
           userId: input.userId,
           role: invitation.role,
         })
-        .onConflictDoNothing();
+        .onConflictDoUpdate({
+          target: [schema.orgMembers.orgId, schema.orgMembers.userId],
+          set: { role: invitation.role },
+          setWhere: eq(schema.orgMembers.role, 'member'),
+        });
       await tx
-        .update(schema.orgInvitations)
-        .set({ acceptedAt: new Date(), acceptedByUserId: input.userId })
-        .where(eq(schema.orgInvitations.id, invitation.id));
+        .update(schema.users)
+        .set({ emailVerified: true })
+        .where(eq(schema.users.id, input.userId));
+      return 'claimed';
     });
+    if (outcome === 'taken') {
+      throw new ConflictException('This invitation has already been accepted.');
+    }
     return { orgId: invitation.orgId, role: invitation.role };
   }
 

@@ -96,7 +96,7 @@ export {
 } from './external-tools.ts';
 export {
   runSkillPass,
-  withAllowedToolPrefixes,
+  withAllowedTools,
   type SkillPassOptions,
   type SkillPassResult,
   type SkillReader,

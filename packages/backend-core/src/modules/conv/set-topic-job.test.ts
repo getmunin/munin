@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { KNOWN_SKILL_URIS, tierFor, toolPrefixesFor } from '@getmunin/types';
+import { KNOWN_SKILL_URIS, tierFor, allowedToolsFor } from '@getmunin/types';
 import { SET_TOPIC_AND_TITLE_SKILL_URI, buildSetTopicAndTitleJob } from './set-topic-job.ts';
 
 describe('buildSetTopicAndTitleJob', () => {
@@ -7,7 +7,7 @@ describe('buildSetTopicAndTitleJob', () => {
     expect(SET_TOPIC_AND_TITLE_SKILL_URI).toBe('skill://conv/set-topic-and-title');
     expect(KNOWN_SKILL_URIS.has(SET_TOPIC_AND_TITLE_SKILL_URI)).toBe(true);
     expect(tierFor(SET_TOPIC_AND_TITLE_SKILL_URI)).toBe('fast');
-    expect(toolPrefixesFor(SET_TOPIC_AND_TITLE_SKILL_URI)).toEqual([
+    expect(allowedToolsFor(SET_TOPIC_AND_TITLE_SKILL_URI)).toEqual([
       'conv_get_conversation',
       'conv_list_topics',
       'conv_create_topic',

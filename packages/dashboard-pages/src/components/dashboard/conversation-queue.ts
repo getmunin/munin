@@ -242,6 +242,20 @@ export function pendingDraftOf(detail: ConversationDetail | undefined): MessageD
   );
 }
 
+export function draftSlotsOf(draft: MessageDto | null): string[] {
+  const slots = draft?.metadata?.['slots'];
+  return Array.isArray(slots) ? slots.filter((s): s is string => typeof s === 'string') : [];
+}
+
+export function openDraftSlots(draft: MessageDto | null, reply: string): string[] {
+  return draftSlotsOf(draft).filter((slot) => reply.includes(slot));
+}
+
+export function draftNoteOf(draft: MessageDto | null): string | null {
+  const note = draft?.metadata?.['note'];
+  return typeof note === 'string' && note.trim() ? note : null;
+}
+
 export interface QueueController {
   results: QueueItemDto[];
   filtersActive: boolean;
@@ -281,7 +295,7 @@ export interface QueueController {
   retryDelivery: (conversationId: string, messageId: string) => Promise<boolean>;
   addNote: (id: string, body: string) => Promise<boolean>;
   rejectDraft: (id: string) => Promise<void>;
-  requestDraft: (id: string) => Promise<void>;
+  requestDraft: (id: string, note?: string) => Promise<void>;
 }
 
 function useDebounced(value: string, delayMs: number): string {
@@ -705,9 +719,13 @@ export function useConversationQueue(
   );
 
   const requestDraft = useCallback(
-    async (id: string) => {
+    async (id: string, note?: string) => {
+      const trimmed = note?.trim();
       const ok = await runAction('requestDraft', id, () =>
-        api(`/v1/conversations/${id}/request-draft`, { method: 'POST', body: '{}' }),
+        api(`/v1/conversations/${id}/request-draft`, {
+          method: 'POST',
+          body: JSON.stringify(trimmed ? { note: trimmed } : {}),
+        }),
       );
       if (!ok) return;
       const existing = draftTimers.current.get(id);

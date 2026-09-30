@@ -1,4 +1,4 @@
-export type EmailAuthVerdict = 'pass' | 'fail' | 'unknown';
+export type EmailAuthVerdict = 'pass' | 'fail' | 'unknown' | 'forwarded';
 
 export interface AuthResultInfo {
   method: string;
@@ -151,12 +151,13 @@ export function inboundSenderAuth(
   parsed: { authenticationResults: readonly string[]; fromAddress: string | null },
   sender: { kind: string; senderAddress: string },
 ): EmailAuthVerdict {
-  if (sender.kind !== 'direct') return 'unknown';
-  const claimed = sender.senderAddress.trim().toLowerCase();
-  const envelope = (parsed.fromAddress ?? '').trim().toLowerCase();
-  if (!claimed || claimed !== envelope) return 'unknown';
-  return evaluateInboundEmailAuth({
+  const envelopeVerdict = evaluateInboundEmailAuth({
     authenticationResults: parsed.authenticationResults,
     fromAddress: parsed.fromAddress,
   });
+  if (envelopeVerdict === 'fail') return 'fail';
+  const claimed = sender.senderAddress.trim().toLowerCase();
+  const envelope = (parsed.fromAddress ?? '').trim().toLowerCase();
+  if (sender.kind === 'manual-forward' || !claimed || claimed !== envelope) return 'forwarded';
+  return envelopeVerdict;
 }

@@ -85,6 +85,21 @@ const skipReason = TEST_URL
     return { status: res.status, userId: body.user.id, cookie };
   }
 
+  async function seedSignedInUser(email: string): Promise<{ userId: string; cookie: string }> {
+    const [user] = await db
+      .insert(schema.users)
+      .values({ email, name: email.split('@')[0]! })
+      .returning({ id: schema.users.id });
+    const sessionToken = randomToken(32);
+    await db.insert(schema.sessions).values({
+      userId: user!.id,
+      token: sessionToken,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+    userIdsToCleanup.push(user!.id);
+    return { userId: user!.id, cookie: `better-auth.session_token=${sessionToken}` };
+  }
+
   async function membershipsOf(userId: string): Promise<Array<{ role: string; orgId: string }>> {
     return db
       .select({ role: schema.orgMembers.role, orgId: schema.orgMembers.orgId })
@@ -183,7 +198,35 @@ const skipReason = TEST_URL
     expect(user!.emailVerified).toBe(true);
 
     const again = await acceptInvitation(token, cookie!);
-    expect(again.status).toBe(409);
+    expect(again.status).toBe(200);
+    expect(await membershipsOf(userId!)).toHaveLength(1);
+  });
+
+  it('concurrent accepts by the invitee both succeed and create one membership', async () => {
+    const email = `double-${Date.now()}@elsewhere.example`;
+    const token = await createInvitation(email, 'member');
+    const { userId, cookie } = await seedSignedInUser(email);
+
+    const results = await Promise.all([
+      acceptInvitation(token, cookie),
+      acceptInvitation(token, cookie),
+    ]);
+    expect(results.map((r) => r.status)).toEqual([200, 200]);
+    expect(await membershipsOf(userId)).toHaveLength(1);
+  });
+
+  it('an invitation claimed by another account answers 409', async () => {
+    const email = `claimed-${Date.now()}@elsewhere.example`;
+    const token = await createInvitation(email, 'member');
+    const { cookie } = await seedSignedInUser(email);
+
+    expect((await acceptInvitation(token, cookie)).status).toBe(200);
+    await db
+      .update(schema.orgInvitations)
+      .set({ acceptedByUserId: null })
+      .where(sql`token_hash = ${hashSecret(token)}`);
+
+    expect((await acceptInvitation(token, cookie)).status).toBe(409);
   });
 
   it('an invitation cannot be accepted by a user signed in with a different email', async () => {

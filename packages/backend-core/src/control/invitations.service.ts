@@ -181,6 +181,9 @@ export class InvitationsService {
     const invitation = rows[0];
     if (!invitation) throw new NotFoundException('Invitation not found.');
     if (invitation.acceptedAt) {
+      if (invitation.acceptedByUserId === input.userId) {
+        return { orgId: invitation.orgId, role: invitation.role };
+      }
       throw new ConflictException('This invitation has already been accepted.');
     }
     if (invitation.revokedAt) {
@@ -204,7 +207,7 @@ export class InvitationsService {
       });
     }
 
-    await this.serviceDb.transaction(async (tx) => {
+    const outcome = await this.serviceDb.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
       const claimed = await tx
         .update(schema.orgInvitations)
@@ -219,7 +222,12 @@ export class InvitationsService {
         )
         .returning({ id: schema.orgInvitations.id });
       if (claimed.length === 0) {
-        throw new ConflictException('This invitation has already been accepted.');
+        const [current] = await tx
+          .select({ acceptedByUserId: schema.orgInvitations.acceptedByUserId })
+          .from(schema.orgInvitations)
+          .where(eq(schema.orgInvitations.id, invitation.id))
+          .limit(1);
+        return current?.acceptedByUserId === input.userId ? 'already_mine' : 'taken';
       }
       await tx
         .insert(schema.orgMembers)
@@ -237,7 +245,11 @@ export class InvitationsService {
         .update(schema.users)
         .set({ emailVerified: true })
         .where(eq(schema.users.id, input.userId));
+      return 'claimed';
     });
+    if (outcome === 'taken') {
+      throw new ConflictException('This invitation has already been accepted.');
+    }
     return { orgId: invitation.orgId, role: invitation.role };
   }
 

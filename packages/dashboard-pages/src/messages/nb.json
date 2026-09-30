@@ -64,7 +64,8 @@
       "oauthError": {
         "title": "Kunne ikke logge deg inn.",
         "hint": "Innloggingen ble ikke fullført. Prøv igjen, eller bruk en annen metode."
-      }
+      },
+      "invitationSubtitle": "Logg inn som {email} for å akseptere invitasjonen."
     },
     "signUp": {
       "title": "Opprett konto",
@@ -2271,6 +2272,23 @@
     "signOutAndRetry": "Logg ut og prøv igjen",
     "backToDashboard": "Tilbake til dashbord",
     "missingToken": "Mangler invitasjonstoken.",
+    "lookingUpTitle": "Sjekker invitasjonen…",
+    "invitedBadge": "Du er invitert",
+    "invitedTitle": "Bli med i {org}",
+    "invitedTitleNoOrg": "Bli med i organisasjonen",
+    "signInBody": "Logg inn som {email} for å akseptere invitasjonen.",
+    "createAccountBody": "Opprett en konto for {email} for å akseptere invitasjonen.",
+    "signInCta": "Logg inn og aksepter",
+    "createAccountCta": "Opprett konto",
+    "meta": {
+      "email": "E-post",
+      "role": "Rolle"
+    },
+    "roles": {
+      "owner": "Eier",
+      "admin": "Admin",
+      "member": "Medlem"
+    },
     "errors": {
       "lookup": "Kunne ikke slå opp invitasjonen.",
       "accept": "Kunne ikke akseptere invitasjonen.",

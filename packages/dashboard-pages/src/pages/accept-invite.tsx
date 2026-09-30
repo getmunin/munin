@@ -9,6 +9,11 @@ import { authClient } from '../auth-client';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
 import {
+  inviteAuthHref,
+  useInvitationLookup,
+  type InvitationLookup,
+} from '../auth/invitation-lookup';
+import {
   AuthShell,
   AuthEpigraph,
   AuthInviteCard,
@@ -31,6 +36,8 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
   const [status, setStatus] = useState<'idle' | 'pending' | 'accepted' | 'error'>('idle');
   const [message, setMessage] = useState<string | null>(null);
 
+  const lookup = useInvitationLookup(token, !sessionLoading && !session);
+
   useEffect(() => {
     if (sessionLoading) return;
     if (!token) {
@@ -38,11 +45,7 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
       setMessage(t('missingToken'));
       return;
     }
-    if (!session) {
-      const redirect = `/accept-invite?token=${encodeURIComponent(token)}`;
-      router.push(`/login?redirect=${encodeURIComponent(redirect)}`);
-      return;
-    }
+    if (!session) return;
     if (status !== 'idle') return;
     setStatus('pending');
     void (async () => {
@@ -57,9 +60,29 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
         setMessage(translate(err) || t('errors.accept'));
       }
     })();
-  }, [sessionLoading, session, token, router, status, t, translate]);
+  }, [sessionLoading, session, token, status, t, translate]);
+
+  useEffect(() => {
+    if (lookup.status === 'invalid') {
+      setStatus('error');
+      setMessage(t('errors.expired'));
+    } else if (lookup.status === 'failed') {
+      setStatus('error');
+      setMessage(t('errors.lookup'));
+    }
+  }, [lookup.status, t]);
 
   const epigraphState = status === 'error' ? 'invite-bad' : 'invite';
+
+  if (status === 'idle' && token && !session && lookup.status === 'found') {
+    return (
+      <AuthShell
+        variant="invite"
+        rightZone={<AuthEpigraph state="invite" footer={footer} />}
+        leftZone={<InvitationLanding token={token} invitation={lookup.invitation} />}
+      />
+    );
+  }
 
   if (status === 'accepted') {
     return (
@@ -140,10 +163,51 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
       leftZone={
         <AuthInviteCard
           tone="good"
-          badge={t('pendingTitle')}
+          badge={session ? t('pendingTitle') : t('lookingUpTitle')}
           title={t('pendingBody')}
           body={null}
         />
+      }
+    />
+  );
+}
+
+function InvitationLanding({
+  token,
+  invitation,
+}: {
+  token: string;
+  invitation: InvitationLookup;
+}) {
+  const t = useTranslations('acceptInvite');
+  const roleKey = (['owner', 'admin', 'member'] as const).find((r) => r === invitation.role);
+  const href = inviteAuthHref(invitation.hasAccount ? '/login' : '/signup', token);
+  return (
+    <AuthInviteCard
+      tone="good"
+      badge={t('invitedBadge')}
+      title={
+        invitation.orgName
+          ? t('invitedTitle', { org: invitation.orgName })
+          : t('invitedTitleNoOrg')
+      }
+      body={
+        invitation.hasAccount
+          ? t('signInBody', { email: invitation.email })
+          : t('createAccountBody', { email: invitation.email })
+      }
+      meta={[
+        { label: t('meta.email'), value: invitation.email },
+        { label: t('meta.role'), value: roleKey ? t(`roles.${roleKey}`) : invitation.role },
+      ]}
+      primary={
+        <Link
+          href={href}
+          className="inline-flex items-center gap-2.5 border-[1px] border-ink bg-ink px-[22px] py-3.5 text-[15px] font-medium text-paper transition-colors duration-fast ease-munin hover:border-cobalt-deep hover:bg-cobalt-deep"
+        >
+          {invitation.hasAccount ? t('signInCta') : t('createAccountCta')}
+          <ArrowRight className="size-4" strokeWidth={2} />
+        </Link>
       }
     />
   );

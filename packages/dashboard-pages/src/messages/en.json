@@ -64,7 +64,8 @@
       "oauthError": {
         "title": "Couldn't sign you in.",
         "hint": "That sign-in didn't complete. Try again, or use another method."
-      }
+      },
+      "invitationSubtitle": "Sign in as {email} to accept the invitation."
     },
     "signUp": {
       "title": "Create your account",
@@ -2271,6 +2272,23 @@
     "signOutAndRetry": "Sign out and try again",
     "backToDashboard": "Back to dashboard",
     "missingToken": "Missing invitation token.",
+    "lookingUpTitle": "Checking your invitation…",
+    "invitedBadge": "You're invited",
+    "invitedTitle": "Join {org}",
+    "invitedTitleNoOrg": "Join the organization",
+    "signInBody": "Sign in as {email} to accept.",
+    "createAccountBody": "Create an account for {email} to accept.",
+    "signInCta": "Sign in to accept",
+    "createAccountCta": "Create account",
+    "meta": {
+      "email": "Email",
+      "role": "Role"
+    },
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "member": "Member"
+    },
     "errors": {
       "lookup": "Could not look up the invitation.",
       "accept": "Could not accept invitation.",

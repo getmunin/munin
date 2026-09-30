@@ -992,17 +992,65 @@ interface OrgFixture {
       expect(res.status).toBe(404);
     });
 
-    it('lookup with a valid token returns invitation detail', async () => {
+    it('lookup with a valid token returns invitation detail for a new address', async () => {
+      const email = `lookup-${Date.now()}@example.com`;
       const create = await fetch(`${baseUrl}/v1/orgs/me/invitations`, {
         method: 'POST',
         headers: cookieHeaders(orgA.sessionToken),
-        body: JSON.stringify({ email: `lookup-${Date.now()}@example.com` }),
+        body: JSON.stringify({ email, role: 'admin' }),
       });
       const inv = (await create.json()) as { id: string; token: string };
       const res = await fetch(
         `${baseUrl}/v1/invitations/lookup?token=${encodeURIComponent(inv.token)}`,
       );
       expect(res.status).toBe(200);
+      const body = (await res.json()) as Record<string, unknown>;
+      const [org] = await db
+        .select({ name: schema.orgs.name })
+        .from(schema.orgs)
+        .where(eq(schema.orgs.id, orgA.id));
+      expect(body).toMatchObject({ email, role: 'admin', orgName: org!.name, hasAccount: false });
+    });
+
+    it('lookup reports hasAccount when the invited address already has a user', async () => {
+      const email = `lookup-existing-${Date.now()}@example.com`;
+      const [user] = await db
+        .insert(schema.users)
+        .values({ email, name: 'Existing User' })
+        .returning({ id: schema.users.id });
+      try {
+        const create = await fetch(`${baseUrl}/v1/orgs/me/invitations`, {
+          method: 'POST',
+          headers: cookieHeaders(orgA.sessionToken),
+          body: JSON.stringify({ email: email.toUpperCase() }),
+        });
+        const inv = (await create.json()) as { token: string };
+        const res = await fetch(
+          `${baseUrl}/v1/invitations/lookup?token=${encodeURIComponent(inv.token)}`,
+        );
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as { hasAccount: boolean };
+        expect(body.hasAccount).toBe(true);
+      } finally {
+        await db.delete(schema.users).where(eq(schema.users.id, user!.id));
+      }
+    });
+
+    it('lookup returns 404 once the invitation is revoked', async () => {
+      const create = await fetch(`${baseUrl}/v1/orgs/me/invitations`, {
+        method: 'POST',
+        headers: cookieHeaders(orgA.sessionToken),
+        body: JSON.stringify({ email: `lookup-revoked-${Date.now()}@example.com` }),
+      });
+      const inv = (await create.json()) as { id: string; token: string };
+      await fetch(`${baseUrl}/v1/orgs/me/invitations/${inv.id}`, {
+        method: 'DELETE',
+        headers: cookieHeaders(orgA.sessionToken),
+      });
+      const res = await fetch(
+        `${baseUrl}/v1/invitations/lookup?token=${encodeURIComponent(inv.token)}`,
+      );
+      expect(res.status).toBe(404);
     });
 
     it('accept without session cookie is forbidden', async () => {

@@ -251,6 +251,44 @@ const skipReason = TEST_URL
     expect(await run(() => svc.requestTranslation(conv.id, 'nb'))).toEqual({ requested: false });
   });
 
+  it('samples only public customer messages with a body for language detection', async () => {
+    const { conv, messages } = await seedConversation();
+    const sample = await run(() => svc.languageDetectionSample(conv.id));
+    expect(sample).toEqual({
+      conversationId: conv.id,
+      customerLanguage: null,
+      messages: [{ id: messages[0]!.id, authorType: 'end_user', body: 'Hola, ¿dónde está mi pedido?' }],
+    });
+  });
+
+  it('has nothing to sample once the customer language is known', async () => {
+    const { conv } = await seedConversation('es');
+    const sample = await run(() => svc.languageDetectionSample(conv.id));
+    expect(sample).toEqual({ conversationId: conv.id, customerLanguage: 'es', messages: [] });
+  });
+
+  it('records a detected customer language and announces it', async () => {
+    const { conv } = await seedConversation();
+    const res = await run(() =>
+      svc.saveCustomerLanguage({ conversationId: conv.id, customerLanguage: 'NO' }),
+    );
+    expect(res).toEqual({ saved: true, customerLanguage: 'no' });
+    const [event] = await db.execute<{ payload: Record<string, unknown> }>(
+      sql`SELECT payload FROM events WHERE org_id = ${orgId} AND type = 'conversation.language_detected'`,
+    );
+    expect(event!.payload).toMatchObject({ conversationId: conv.id, endUserId, customerLanguage: 'no' });
+    expect(await run(() => svc.requestTranslation(conv.id, 'nb'))).toEqual({ requested: false });
+  });
+
+  it('keeps a customer language that is already recorded', async () => {
+    const { conv } = await seedConversation('es');
+    const res = await run(() =>
+      svc.saveCustomerLanguage({ conversationId: conv.id, customerLanguage: 'pt' }),
+    );
+    expect(res).toEqual({ saved: false, customerLanguage: 'es' });
+    expect(await eventTypes()).not.toContain('conversation.language_detected');
+  });
+
   it('overwrites an earlier translation of the same message', async () => {
     const { conv, messages } = await seedConversation();
     const save = (body: string) =>

@@ -4,10 +4,12 @@ import {
   batchMessages,
   contextWindow,
   createTranslationHandler,
+  detectLanguage,
   parseTranslationResponse,
   rewriteInLanguage,
   translateMessages,
   translateText,
+  type LanguageDetectionSample,
   type PendingTranslationMessage,
   type PendingTranslations,
   type SaveTranslationsInput,
@@ -229,8 +231,16 @@ describe('rewriteInLanguage', () => {
   });
 });
 
-function fakeRest(pending: PendingTranslations) {
+function fakeRest(
+  pending: PendingTranslations,
+  sample: LanguageDetectionSample = {
+    conversationId: pending.conversationId,
+    customerLanguage: pending.customerLanguage,
+    messages: pending.messages.filter((m) => m.authorType === 'end_user'),
+  },
+) {
   const saved: Array<{ conversationId: string; input: SaveTranslationsInput }> = [];
+  const languages: Array<{ conversationId: string; customerLanguage: string }> = [];
   let pendingCalls = 0;
   const rest: TranslationRestClient = {
     getPendingTranslations() {
@@ -241,8 +251,15 @@ function fakeRest(pending: PendingTranslations) {
       saved.push({ conversationId, input });
       return Promise.resolve({ saved: input.translations.length });
     },
+    getLanguageDetectionSample() {
+      return Promise.resolve(sample);
+    },
+    saveCustomerLanguage(conversationId, customerLanguage) {
+      languages.push({ conversationId, customerLanguage });
+      return Promise.resolve({ saved: true, customerLanguage });
+    },
   };
-  return { rest, saved, pendingCalls: () => pendingCalls };
+  return { rest, saved, languages, pendingCalls: () => pendingCalls };
 }
 
 describe('createTranslationHandler', () => {
@@ -315,5 +332,113 @@ describe('createTranslationHandler', () => {
     await handler.idle();
     expect(stub.calls).toHaveLength(0);
     expect(saved).toHaveLength(0);
+  });
+});
+
+describe('detectLanguage', () => {
+  it('reads the language tag from the model answer', async () => {
+    const stub = createStubProvider({ responses: [reply('{"language":"ES"}')] });
+    expect(
+      await detectLanguage({
+        provider: PROVIDER,
+        model: 'fast',
+        messages: MESSAGES,
+        providerImpl: stub.provider,
+      }),
+    ).toBe('es');
+    expect(stub.calls[0]!.messages[1]!.content).toContain('Hola, ¿dónde está mi pedido 40412?');
+  });
+
+  it('gives null without calling the model when there is nothing to read', async () => {
+    const stub = createStubProvider({ responses: [] });
+    expect(
+      await detectLanguage({ provider: PROVIDER, model: 'fast', messages: [], providerImpl: stub.provider }),
+    ).toBeNull();
+    expect(stub.calls).toHaveLength(0);
+  });
+
+  it('gives null when the answer holds no language tag', async () => {
+    const stub = createStubProvider({ responses: [reply('Spanish, I think')] });
+    expect(
+      await detectLanguage({
+        provider: PROVIDER,
+        model: 'fast',
+        messages: MESSAGES,
+        providerImpl: stub.provider,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe('createTranslationHandler detect', () => {
+  const pending: PendingTranslations = {
+    conversationId: 'ccv_1',
+    customerLanguage: null,
+    targetLanguage: 'nb',
+    messages: MESSAGES,
+  };
+
+  it('stores the language the customer writes in', async () => {
+    const { rest, languages, saved } = fakeRest(pending);
+    const stub = createStubProvider({ responses: [reply('{"language":"es"}')] });
+    const handler = createTranslationHandler({
+      rest,
+      provider: PROVIDER,
+      model: 'fast',
+      providerImpl: stub.provider,
+    });
+    handler.detect('ccv_1');
+    await handler.idle();
+    expect(languages).toEqual([{ conversationId: 'ccv_1', customerLanguage: 'es' }]);
+    expect(saved).toHaveLength(0);
+  });
+
+  it('skips the model call once the language is known', async () => {
+    const { rest, languages } = fakeRest(pending, {
+      conversationId: 'ccv_1',
+      customerLanguage: 'es',
+      messages: [],
+    });
+    const stub = createStubProvider({ responses: [] });
+    const handler = createTranslationHandler({
+      rest,
+      provider: PROVIDER,
+      model: 'fast',
+      providerImpl: stub.provider,
+    });
+    handler.detect('ccv_1');
+    await handler.idle();
+    expect(stub.calls).toHaveLength(0);
+    expect(languages).toHaveLength(0);
+  });
+
+  it('skips the model call when the generate gate says no', async () => {
+    const { rest, languages } = fakeRest(pending);
+    const stub = createStubProvider({ responses: [] });
+    const handler = createTranslationHandler({
+      rest,
+      provider: PROVIDER,
+      model: 'fast',
+      providerImpl: stub.provider,
+      beforeGenerate: () => Promise.resolve({ allowed: false, reason: 'quota' }),
+    });
+    handler.detect('ccv_1');
+    await handler.idle();
+    expect(stub.calls).toHaveLength(0);
+    expect(languages).toHaveLength(0);
+  });
+
+  it('stores nothing when the model gives no language tag', async () => {
+    const { rest, languages } = fakeRest(pending);
+    const stub = createStubProvider({ responses: [reply('not sure')] });
+    const handler = createTranslationHandler({
+      rest,
+      provider: PROVIDER,
+      model: 'fast',
+      providerImpl: stub.provider,
+    });
+    handler.detect('ccv_1');
+    await handler.idle();
+    expect(languages).toHaveLength(0);
   });
 });

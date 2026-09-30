@@ -506,6 +506,57 @@ const skipReason = TEST_URL
     expect(write.status).toBe(404);
   }, 30_000);
 
+  it('an agent records the customer language it detected from the customer messages', async () => {
+    const startResp = await rest<{ id: string }>(
+      endUserToken,
+      'POST',
+      '/v1/end-users/me/conversations',
+      { body: 'Hei, hvor er pakken min?' },
+    );
+    const convId = startResp.body.id;
+    const sample = await rest<{ customerLanguage: string | null; messages: Array<{ body: string }> }>(
+      adminKeyA,
+      'GET',
+      `/v1/conversations/${convId}/language-detection`,
+    );
+    expect(sample.status).toBe(200);
+    expect(sample.body.customerLanguage).toBeNull();
+    expect(sample.body.messages.map((m) => m.body)).toEqual(['Hei, hvor er pakken min?']);
+
+    const invalid = await rest<unknown>(
+      adminKeyA,
+      'POST',
+      `/v1/conversations/${convId}/customer-language`,
+      { customerLanguage: 'norwegian please' },
+    );
+    expect(invalid.status).toBe(400);
+
+    const saved = await rest<{ saved: boolean; customerLanguage: string | null }>(
+      adminKeyA,
+      'POST',
+      `/v1/conversations/${convId}/customer-language`,
+      { customerLanguage: 'no' },
+    );
+    expect(saved.status).toBe(200);
+    expect(saved.body).toEqual({ saved: true, customerLanguage: 'no' });
+
+    const asked = await rest<{ requested: boolean }>(
+      adminKeyA,
+      'POST',
+      `/v1/conversations/${convId}/request-translation`,
+      { targetLanguage: 'nb' },
+    );
+    expect(asked.body).toEqual({ requested: false });
+
+    const otherOrg = await rest<unknown>(
+      adminKeyB,
+      'POST',
+      `/v1/conversations/${convId}/customer-language`,
+      { customerLanguage: 'es' },
+    );
+    expect(otherOrg.status).toBe(404);
+  }, 30_000);
+
   it('clear-draft removes the suggested handover draft', async () => {
     const startResp = await rest<{ id: string }>(
       endUserToken,

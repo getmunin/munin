@@ -519,6 +519,7 @@ export class AgentHostRunner
         onMessageReceived: (event: MessageReceivedBusEvent) => {
           if (this.lockManager && !this.lockManager.holds(id)) return;
           if (event.autoReply || event.suppressed) return;
+          if (event.authorType === 'end_user') translations.detect(event.conversationId);
           handlerRef.current?.handle({
             conversationId: event.conversationId,
             authorType: event.authorType,

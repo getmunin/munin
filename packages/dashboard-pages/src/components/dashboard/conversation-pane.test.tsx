@@ -66,6 +66,7 @@ function retrySendButtons(): HTMLElement[] {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe('ConversationPane composer', () => {
@@ -222,6 +223,26 @@ describe('ConversationPane composer', () => {
     expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Agent draft' }).value).toBe(
       DRAFT_A,
     );
+  });
+
+  it('fits the reply box to the seeded draft once the teammate claims the conversation', () => {
+    vi.spyOn(HTMLTextAreaElement.prototype, 'scrollHeight', 'get').mockReturnValue(240);
+    vi.spyOn(HTMLTextAreaElement.prototype, 'getClientRects').mockReturnValue({
+      length: 1,
+    } as DOMRectList);
+    const unclaimed = makeDetail('conv_a', {
+      claim: null,
+      messages: [
+        makeMessage({ id: 'conv_a_m1', conversationId: 'conv_a' }),
+        makeDraft('conv_a', 'conv_a_draft', DRAFT_A),
+      ],
+    });
+    const { rerender } = renderWithProviders(pane('conv_a', unclaimed, stubController()));
+
+    rerender(pane('conv_a', detailWithDraft('conv_a', DRAFT_A), stubController()));
+
+    expect(replyBox().value).toBe(DRAFT_A);
+    expect(replyBox().style.height).toBe('240px');
   });
 
   it('editing the draft drops the agent tint, says so, and Discard brings the draft back', () => {

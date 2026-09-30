@@ -4,6 +4,7 @@ import {
   batchMessages,
   createTranslationHandler,
   parseTranslationResponse,
+  rewriteInLanguage,
   translateMessages,
   translateText,
   type PendingTranslationMessage,
@@ -127,6 +128,33 @@ describe('translateText', () => {
     const [system, user] = stub.calls[0]!.messages;
     expect(system!.content).toContain('from Norwegian Bokmål (nb) into Spanish (es)');
     expect(user!.content).toBe('<data>\nVi refunderer deg i dag.\n</data>');
+  });
+});
+
+describe('rewriteInLanguage', () => {
+  const args = {
+    provider: PROVIDER,
+    model: 'fast',
+    text: 'Dzień dobry, wyślemy fakturę dzisiaj.',
+    targetLanguage: 'nb',
+  };
+
+  it('keeps the draft as written when the model says it is already in the language', async () => {
+    const stub = createStubProvider({ responses: [reply('"OK."')] });
+    expect(await rewriteInLanguage({ ...args, text: 'Hei!', providerImpl: stub.provider })).toBe(
+      'Hei!',
+    );
+    expect(stub.calls[0]!.messages[0]!.content).toContain('answer with exactly OK');
+  });
+
+  it('returns the rewritten draft when the model translates it', async () => {
+    const stub = createStubProvider({ responses: [reply(' Hei, vi sender fakturaen i dag.\n')] });
+    expect(await rewriteInLanguage({ ...args, providerImpl: stub.provider })).toBe(
+      'Hei, vi sender fakturaen i dag.',
+    );
+    expect(stub.calls[0]!.messages[1]!.content).toBe(
+      '<data>\nDzień dobry, wyślemy fakturę dzisiaj.\n</data>',
+    );
   });
 });
 

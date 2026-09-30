@@ -14,7 +14,7 @@ import { parseAttachments } from './munin-rest.ts';
 import type { ConversationDetail, MuninRestClient } from './munin-rest.ts';
 import { FALLBACK_GREET, FALLBACK_HANDOVER, pickFallback } from './fallback-messages.ts';
 import { fenceUntrusted } from './untrusted.ts';
-import { languageName } from './translation.ts';
+import { languageName, rewriteInLanguage } from './translation.ts';
 
 export interface HandlerConfig {
   providerBaseUrl: string;
@@ -381,7 +381,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
           : mcp;
       if (delivery === 'send') startTyping();
       try {
-        const reply = await runAgent({
+        const agentReply = await runAgent({
           config: {
             provider: {
               baseUrl: deps.config.providerBaseUrl,
@@ -402,6 +402,15 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
 
         if (signal.aborted) return;
 
+        const reply =
+          mode === 'draft-request' && draft.language && agentReply.body.trim().length > 0
+            ? {
+                ...agentReply,
+                body: await draftInLanguage(agentReply.body, draft.language, signal, log),
+              }
+            : agentReply;
+        if (signal.aborted) return;
+
         if (reply.body.trim().length > 0) {
           deps.onProviderSuccess?.();
           const llmHandoverArgs = reply.toolCalls.find((t) => t.name === HANDOVER_TOOL_NAME)
@@ -416,6 +425,9 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
             log,
             delivery,
             mode,
+            ...(mode === 'draft-request' && draft.language
+              ? { draftLanguage: draft.language }
+              : {}),
           });
           if (audit.spam) {
             log.warn(`${conversationId} spam verdict: withholding reply, parking draft`);
@@ -570,6 +582,30 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     }
   }
 
+  async function draftInLanguage(
+    body: string,
+    language: string,
+    signal: AbortSignal,
+    log: { warn: (m: string) => void },
+  ): Promise<string> {
+    try {
+      const rewritten = await rewriteInLanguage({
+        provider: { baseUrl: deps.config.providerBaseUrl, apiKey: deps.config.providerApiKey },
+        model: deps.config.auditModel ?? deps.config.model,
+        text: body,
+        targetLanguage: language,
+        providerImpl: deps.provider,
+        abortSignal: signal,
+      });
+      return rewritten.length > 0 ? rewritten : body;
+    } catch (err) {
+      log.warn(
+        `draft language rewrite failed, keeping the draft as written: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return body;
+    }
+  }
+
   async function runAuditPass(args: {
     conversationId: string;
     reply: { body: string; toolCalls: { name: string }[] };
@@ -579,6 +615,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     log: { info: (m: string) => void; warn: (m: string) => void; error: (m: string) => void };
     delivery: Delivery;
     mode?: RunMode;
+    draftLanguage?: string;
   }): Promise<AuditOutcome> {
     if (deps.config.auditEnabled === false) return NO_AUDIT_ACTIONS;
     const reversed = [...args.history].reverse();
@@ -610,6 +647,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
         })),
       toolNames: args.reply.toolCalls.map((t) => t.name),
       topicCatalog,
+      ...(args.draftLanguage ? { draftLanguage: args.draftLanguage } : {}),
       providerImpl: deps.provider,
     });
 

@@ -171,6 +171,38 @@ const skipReason = TEST_URL
     const pending = await run(() => svc.pendingTranslations(conv.id, 'nb'));
     expect(pending.messages.map((m) => m.id)).toEqual([messages[0]!.id, messages[1]!.id]);
     expect(pending.customerLanguage).toBeNull();
+    expect(pending.context).toEqual([]);
+  });
+
+  it('sends the already translated messages before a new one as context', async () => {
+    const { conv, messages } = await seedConversation('es');
+    await run(() =>
+      svc.saveTranslations({
+        conversationId: conv.id,
+        targetLanguage: 'nb',
+        translations: [
+          { messageId: messages[0]!.id, body: 'Hei, hvor er bestillingen min?' },
+          { messageId: messages[1]!.id, body: 'Hva er ordrenummeret?' },
+        ],
+      }),
+    );
+    const [followUp] = await db
+      .insert(schema.convMessages)
+      .values({
+        orgId,
+        conversationId: conv.id,
+        authorType: 'end_user',
+        authorId: endUserId,
+        body: 'El 40412',
+        createdAt: new Date(Date.UTC(2026, 8, 1, 12, 0, 6)),
+      })
+      .returning();
+    const pending = await run(() => svc.pendingTranslations(conv.id, 'nb'));
+    expect(pending.messages.map((m) => m.id)).toEqual([followUp!.id]);
+    expect(pending.context).toEqual([
+      { id: messages[0]!.id, authorType: 'end_user', body: 'Hola, ¿dónde está mi pedido?' },
+      { id: messages[1]!.id, authorType: 'agent', body: '¿Cuál es el número de pedido?' },
+    ]);
   });
 
   it('asks the agent to translate and announces it', async () => {

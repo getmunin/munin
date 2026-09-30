@@ -7,7 +7,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { getCurrentContext, sameAfterNormalizing, WebhookDispatcher } from '@getmunin/core';
 import { ConvService, type MessageDto } from './conv.service.ts';
 import { MessageTranslatorRegistry } from './message-translator.ts';
@@ -28,6 +28,7 @@ export interface PendingTranslations {
   customerLanguage: string | null;
   targetLanguage: string;
   messages: PendingTranslationMessage[];
+  context: PendingTranslationMessage[];
 }
 
 export interface LanguageDetectionSample {
@@ -60,6 +61,8 @@ export interface SendTranslatedReplyInput {
   inReplyToId?: string;
 }
 
+const CONTEXT_MESSAGES = 6;
+const CONTEXT_CHARS = 3000;
 const LANGUAGE_SAMPLE_MESSAGES = 3;
 
 @Injectable()
@@ -214,6 +217,7 @@ export class ConvTranslationService {
       customerLanguage: conv.customerLanguage,
       targetLanguage: target,
       messages: [],
+      context: [],
     };
     if (conv.customerLanguage && sameLanguage(conv.customerLanguage, target)) return base;
     const ctx = getCurrentContext();
@@ -242,8 +246,11 @@ export class ConvTranslationService {
       )
       .orderBy(asc(schema.convMessages.createdAt));
     const draft = await this.pendingDraftToTranslate(conversationId, target, conv.customerLanguage);
+    const first = rows[0] ?? (draft ? { id: draft.id } : null);
+    const context = first ? await this.contextBefore(conversationId, first.id) : [];
     return {
       ...base,
+      context,
       messages: [
         ...rows.map((r) => ({
           id: r.id,
@@ -253,6 +260,49 @@ export class ConvTranslationService {
         ...(draft ? [draft] : []),
       ],
     };
+  }
+
+  private async contextBefore(
+    conversationId: string,
+    messageId: string,
+  ): Promise<PendingTranslationMessage[]> {
+    const ctx = getCurrentContext();
+    const [anchor] = await ctx.db
+      .select({ createdAt: schema.convMessages.createdAt })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.id, messageId))
+      .limit(1);
+    if (!anchor) return [];
+    const rows = await ctx.db
+      .select({
+        id: schema.convMessages.id,
+        authorType: schema.convMessages.authorType,
+        body: schema.convMessages.body,
+      })
+      .from(schema.convMessages)
+      .where(
+        and(
+          eq(schema.convMessages.conversationId, conversationId),
+          eq(schema.convMessages.internal, false),
+          inArray(schema.convMessages.authorType, [...TRANSLATABLE_AUTHORS]),
+          sql`btrim(${schema.convMessages.body}) <> ''`,
+          lt(schema.convMessages.createdAt, anchor.createdAt),
+        ),
+      )
+      .orderBy(desc(schema.convMessages.createdAt))
+      .limit(CONTEXT_MESSAGES);
+    const context: PendingTranslationMessage[] = [];
+    let size = 0;
+    for (const row of rows) {
+      if (context.length > 0 && size + row.body.length > CONTEXT_CHARS) break;
+      size += row.body.length;
+      context.unshift({
+        id: row.id,
+        authorType: row.authorType as PendingTranslationMessage['authorType'],
+        body: row.body.slice(-CONTEXT_CHARS),
+      });
+    }
+    return context;
   }
 
   private async pendingDraftToTranslate(

@@ -1237,7 +1237,7 @@ function holderFor(): EmbeddingProviderHolder {
             sizeBytes: 1024,
           }),
         ),
-      ).rejects.toThrow(/svg uploads are not allowed/);
+      ).rejects.toMatchObject({ code: 'cms_asset_type_not_allowed' });
     });
 
     it('requestAssetUpload rejects SVG by mime even when extension is laundered', async () => {
@@ -1249,7 +1249,7 @@ function holderFor(): EmbeddingProviderHolder {
             sizeBytes: 1024,
           }),
         ),
-      ).rejects.toThrow(/svg uploads are not allowed/);
+      ).rejects.toMatchObject({ code: 'cms_asset_type_not_allowed' });
       await expect(
         run(() =>
           svc.requestAssetUpload({
@@ -1258,7 +1258,58 @@ function holderFor(): EmbeddingProviderHolder {
             sizeBytes: 1024,
           }),
         ),
-      ).rejects.toThrow(/svg uploads are not allowed/);
+      ).rejects.toMatchObject({ code: 'cms_asset_type_not_allowed' });
+    });
+
+    it('requestAssetUpload refuses every browser-executable document type', async () => {
+      for (const mime of [
+        'text/html',
+        'TEXT/HTML; charset=utf-8',
+        'application/xhtml+xml',
+        'text/xml',
+        'application/xml',
+        'application/javascript',
+        'text/javascript',
+        'application/octet-stream',
+      ]) {
+        await expect(
+          run(() => svc.requestAssetUpload({ name: 'page', mime, sizeBytes: 1024 })),
+        ).rejects.toMatchObject({ code: 'cms_asset_type_not_allowed' });
+      }
+    });
+
+    it('requestAssetUpload refuses a filename extension that contradicts an allowed mime', async () => {
+      await expect(
+        run(() =>
+          svc.requestAssetUpload({ name: 'page.html', mime: 'image/png', sizeBytes: 1024 }),
+        ),
+      ).rejects.toMatchObject({ code: 'cms_asset_type_not_allowed' });
+      await expect(
+        run(() =>
+          svc.requestAssetUpload({ name: 'clip.mp4', mime: 'image/png', sizeBytes: 1024 }),
+        ),
+      ).rejects.toMatchObject({ code: 'cms_asset_type_not_allowed' });
+    });
+
+    it('requestAssetUpload stores the normalized mime and keys a dotless name by the mime extension', async () => {
+      const handle = await run(() =>
+        svc.requestAssetUpload({ name: 'banner', mime: ' Image/PNG; foo=bar', sizeBytes: 1024 }),
+      );
+      expect(handle.mime).toBe('image/png');
+      expect(handle.storageKey.endsWith('.png')).toBe(true);
+    });
+
+    it('requestAssetUpload accepts audio and PDF alongside images and video', async () => {
+      for (const [name, mime] of [
+        ['voice.mp3', 'audio/mpeg'],
+        ['voice.wav', 'audio/wav'],
+        ['brochure.pdf', 'application/pdf'],
+        ['clip.webm', 'video/webm'],
+        ['photo.jpg', 'image/jpeg'],
+      ] as const) {
+        const handle = await run(() => svc.requestAssetUpload({ name, mime, sizeBytes: 1024 }));
+        expect(handle.mime).toBe(mime);
+      }
     });
 
     it('completeAssetUpload flips the uploaded flag when actual size matches', async () => {
@@ -1458,12 +1509,30 @@ function holderFor(): EmbeddingProviderHolder {
         run(() =>
           svc.uploadAssetFromBase64({ name: 'logo.svg', mime: 'application/octet-stream', base64Body: body }),
         ),
-      ).rejects.toThrow(/svg uploads are not allowed/);
+      ).rejects.toMatchObject({ code: 'cms_asset_type_not_allowed' });
       await expect(
         run(() =>
           svc.uploadAssetFromBase64({ name: 'logo.png', mime: 'image/svg+xml', base64Body: body }),
         ),
-      ).rejects.toThrow(/svg uploads are not allowed/);
+      ).rejects.toMatchObject({ code: 'cms_asset_type_not_allowed' });
+    });
+
+    it('uploadAssetFromBase64 never writes an HTML body to storage', async () => {
+      const body = Buffer.from('<html></html>').toString('base64');
+      const before = storage.directWrites.length;
+      await expect(
+        run(() => svc.uploadAssetFromBase64({ name: 'page.html', mime: 'text/html', base64Body: body })),
+      ).rejects.toMatchObject({ code: 'cms_asset_type_not_allowed' });
+      expect(storage.directWrites.length).toBe(before);
+    });
+
+    it('uploadAssetFromBase64 writes with the normalized mime', async () => {
+      const body = Buffer.from('%PDF-1.4').toString('base64');
+      const asset = await run(() =>
+        svc.uploadAssetFromBase64({ name: 'brochure.pdf', mime: 'APPLICATION/PDF; x=1', base64Body: body }),
+      );
+      expect(asset.mime).toBe('application/pdf');
+      expect(storage.directWrites.at(-1)?.mime).toBe('application/pdf');
     });
 
     it('uploadAssetFromUrl rejects loopback host via SSRF guard', async () => {

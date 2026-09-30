@@ -5663,7 +5663,7 @@ THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## @next/env@16.3.4
+## @next/env@16.3.6
 
 > Next.js dotenv file loading
 - Homepage: https://github.com/vercel/next.js#readme
@@ -10718,7 +10718,7 @@ MIT License
 
 ---
 
-## @types/node@22.20.1, 22.20.2
+## @types/node@22.20.1, 22.20.4
 
 > TypeScript definitions for node
 - Homepage: https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node
@@ -13322,7 +13322,7 @@ SOFTWARE.
 
 ---
 
-## baseline-browser-mapping@2.11.20
+## baseline-browser-mapping@2.11.26
 
 > A library for obtaining browser versions with their maximum supported Baseline feature set and Widely Available status.
 - Homepage: https://github.com/web-platform-dx/baseline-browser-mapping#readme
@@ -13975,7 +13975,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## caniuse-lite@1.0.30001810
+## caniuse-lite@1.0.30001814
 
 > A smaller version of caniuse-db, with only the essentials!
 - Homepage: https://github.com/browserslist/caniuse-lite#readme
@@ -23853,7 +23853,7 @@ _No LICENSE file shipped in the package; refer to homepage above._
 
 ---
 
-## next@16.3.4
+## next@16.3.6
 
 > The React Framework
 - Homepage: https://nextjs.org
@@ -24985,7 +24985,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
-## pg-protocol@1.16.0
+## pg-protocol@1.16.1
 
 > The postgres client/server binary protocol, implemented in TypeScript
 - Homepage: https://github.com/brianc/node-postgres#readme
@@ -26865,7 +26865,7 @@ SOFTWARE.
 
 ---
 
-## rettime@0.11.11
+## rettime@0.11.12
 
 > A type-safe marriage of `EventTarget` and `EventEmitter`.
 - Homepage: https://github.com/kettanaito/rettime#readme
@@ -28220,7 +28220,7 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
-## sharp@0.35.4
+## sharp@0.35.4, 0.35.5
 
 > High performance Node.js image processing, the fastest module to resize JPEG, PNG, WebP, GIF, AVIF and TIFF images
 - Homepage: https://sharp.pixelplumbing.com
@@ -30019,7 +30019,7 @@ SOFTWARE.
 
 ---
 
-## tldts@7.4.13
+## tldts@7.4.16
 
 > Library to work against complex domain names, subdomains and URIs.
 - Homepage: https://github.com/remusao/tldts#readme
@@ -30044,7 +30044,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTH
 
 ---
 
-## tldts-core@7.4.13
+## tldts-core@7.4.16
 
 > tldts core primitives (internal module)
 - Homepage: https://github.com/remusao/tldts#readme
@@ -30436,7 +30436,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## type-fest@0.7.1, 5.9.0
+## type-fest@0.7.1, 5.10.0
 
 > A collection of essential TypeScript types
 - Homepage: https://github.com/sindresorhus/type-fest#readme

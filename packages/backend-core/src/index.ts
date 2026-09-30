@@ -113,6 +113,11 @@ export {
   type AgentConfigChangedBusEvent,
   type AgentTypingBusEvent,
 } from './realtime/realtime-event-bus.ts';
+export {
+  MessageTranslatorRegistry,
+  type MessageTranslator,
+  type TranslateTextInput,
+} from './modules/conv/message-translator.ts';
 export { RealtimeModule } from './realtime/realtime.module.ts';
 export {
   openAdminAgentMcpClient,

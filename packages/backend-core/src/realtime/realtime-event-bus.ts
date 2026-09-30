@@ -42,6 +42,7 @@ export interface GreetRequestedBusEvent {
 export interface DraftRequestedBusEvent {
   conversationId: string;
   note?: string;
+  language?: string;
 }
 
 export interface TranslationRequestedBusEvent {
@@ -197,9 +198,11 @@ function dispatchEvent(event: EventRow, handlers: RealtimeBusHandlers): void {
     const conversationId = payload['conversationId'];
     if (typeof conversationId !== 'string') return;
     const note = payload['note'];
+    const language = payload['language'];
     handlers.onDraftRequested({
       conversationId,
       ...(typeof note === 'string' && note ? { note } : {}),
+      ...(typeof language === 'string' && language ? { language } : {}),
     });
     return;
   }

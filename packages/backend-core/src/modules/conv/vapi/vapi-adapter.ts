@@ -44,7 +44,7 @@ import {
   composeVoiceSystemPrompt,
   type ChatMessageSeed,
 } from './vapi-assistant.ts';
-import { deleteMessageTranslations } from '../conv-translation.service.ts';
+import { deleteMessageTranslations } from '../translation-helpers.ts';
 
 interface ConversationStatusWriter {
   changeStatus(input: { id: string; status: 'closed' }): Promise<unknown>;

@@ -54,3 +54,8 @@ export function languageLabel(tag: string, locale: string): string {
     return tag;
   }
 }
+
+export function viewerLanguageName(locale: string): string {
+  const primary = locale.toLowerCase().split('-')[0]!;
+  return languageLabel(NORWEGIAN.has(primary) ? 'no' : locale, locale);
+}

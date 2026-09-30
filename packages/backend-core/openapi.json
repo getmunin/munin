@@ -10466,6 +10466,12 @@
               "maxLength": 64
             },
             "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "translateFrom": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 16,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
           }
         },
         "required": [
@@ -10657,6 +10663,11 @@
           "note": {
             "type": "string",
             "maxLength": 4000
+          },
+          "language": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 16
           }
         }
       },

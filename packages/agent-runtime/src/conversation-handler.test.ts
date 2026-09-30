@@ -536,6 +536,74 @@ describe('createConversationHandler', () => {
     expect(seen[0]!.config.volatileSystemPrompt).not.toContain('[Teammate note]');
   });
 
+  it('draft-request with a language drafts in the teammate language', async () => {
+    const seen: Parameters<Provider>[0][] = [];
+    const provider: Provider = (args) => {
+      seen.push(args);
+      return Promise.resolve(assistantStop('Her er svaret.'));
+    };
+    const rest = buildRest({
+      getConversation: vi.fn(() => Promise.resolve(buildConversation({ agentMode: 'auto' }))),
+    });
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider,
+    });
+    handler.requestDraft({ conversationId: 'conv_1', language: 'nb' });
+    await handler.flush();
+    const brief = seen[0]!.config.volatileSystemPrompt!;
+    expect(brief).toContain("in Norwegian Bokmål (nb), the teammate's language — not the customer's language");
+    expect(brief).not.toContain('in the language the customer has been writing');
+    const nudge = seen[0]!.messages[seen[0]!.messages.length - 1]!;
+    expect(nudge.content).toContain('Norwegian Bokmål (nb)');
+  });
+
+  it('draft-request with a language rewrites a draft the agent wrote in the customer language', async () => {
+    const seen: Parameters<Provider>[0][] = [];
+    const provider: Provider = (args) => {
+      seen.push(args);
+      const system = args.config.systemPrompt ?? '';
+      if (system.startsWith('You make sure')) {
+        return Promise.resolve(assistantStop('Hei, vi sender fakturaen i dag.'));
+      }
+      if (system.startsWith('You audit')) {
+        return Promise.resolve(assistantStop('{"rationale": "Grounded.", "actions": []}'));
+      }
+      return Promise.resolve(assistantStop('Dzień dobry, wyślemy fakturę dzisiaj.'));
+    };
+    const draftSpy = vi.fn(() => Promise.resolve());
+    const rest = buildRest({
+      getConversation: vi.fn(() => Promise.resolve(buildConversation({ agentMode: 'auto' }))),
+    });
+    rest.setDraftReply = draftSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider,
+    });
+    handler.requestDraft({ conversationId: 'conv_1', language: 'nb' });
+    await handler.flush();
+    expect(draftSpy).toHaveBeenCalledWith(
+      'conv_1',
+      'Hei, vi sender fakturaen i dag.',
+      expect.anything(),
+    );
+    const rewrite = seen.find((a) => (a.config.systemPrompt ?? '').startsWith('You make sure'))!;
+    expect(rewrite.config.systemPrompt).toContain('Norwegian Bokmål (nb)');
+    expect(rewrite.messages[1]!.content).toContain('Dzień dobry, wyślemy fakturę dzisiaj.');
+    const audit = seen.find((a) => (a.config.systemPrompt ?? '').startsWith('You audit'))!;
+    expect(audit.messages[1]!.content).toContain('[Draft language]');
+  });
+
   it("draft-request carries the teammate's note into the brief and back onto the parked draft", async () => {
     const seen: Array<{ config: { volatileSystemPrompt?: string } }> = [];
     let call = 0;

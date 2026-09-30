@@ -13,6 +13,7 @@ import { and, eq } from 'drizzle-orm';
 import {
   InProcessMuninRestClientFactoryService,
   McpRegistryService,
+  MessageTranslatorRegistry,
   McpSkillRegistryService,
   RateLimitService,
   RealtimeEventBus,
@@ -22,6 +23,8 @@ import {
   openEndUserAgentMcpClient,
   type AgentMcpClient,
   type ExternalMcpEndpoint,
+  type MessageTranslator,
+  type TranslateTextInput,
   type AgentConfigChangedBusEvent,
   type CuratorJobPendingBusEvent,
   type DraftRequestedBusEvent,
@@ -38,6 +41,7 @@ import {
   createPromptResolver,
   createTranslationHandler,
   defaultProvider,
+  translateText,
   openHttpMcpClient,
   runSkillPass,
   parseAttachments,
@@ -189,6 +193,8 @@ export interface AgentHostRunnerOptions {
 }
 
 interface PerConfigRunner {
+  orgId: string;
+  translate: (input: TranslateTextInput) => Promise<string>;
   realtime: RealtimeBusSubscription;
   handler: ConversationHandler;
   prompts: PromptResolver;
@@ -209,7 +215,9 @@ interface ConversationSweeper {
 }
 
 @Injectable()
-export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy {
+export class AgentHostRunner
+  implements OnApplicationBootstrap, OnModuleDestroy, MessageTranslator
+{
   private readonly logger = new Logger(AgentHostRunner.name);
   private readonly runners = new Map<string, PerConfigRunner>();
   private readonly failedSpawns = new Map<string, { error: string; loggedAt: number }>();
@@ -233,9 +241,11 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     @Inject(AgentHealthService) private readonly health: AgentHealthService,
     @Inject(AgentModelsService) private readonly models: AgentModelsService,
     @Optional() @Inject(RateLimitService) private readonly rateLimit: RateLimitService | undefined,
+    @Optional() @Inject(MessageTranslatorRegistry) translators?: MessageTranslatorRegistry,
     @Optional() @Inject('AGENT_HOST_RUNNER_OPTIONS') options?: AgentHostRunnerOptions,
   ) {
     this.options = options;
+    translators?.register(this);
     this.holderId =
       process.env.MUNIN_AGENT_HOLDER_ID ??
       `agent-host-${hostname()}-${randomUUID().slice(0, 8)}`;
@@ -246,6 +256,12 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
         'no DATABASE_URL — chat sub-loop runs unconditionally; safe only on a single replica',
       );
     }
+  }
+
+  async translateText(input: TranslateTextInput): Promise<string> {
+    const runner = [...this.runners.values()].find((r) => r.orgId === input.orgId);
+    if (!runner) throw new Error(`no agent runner is serving organization ${input.orgId}`);
+    return runner.translate(input);
   }
 
   onApplicationBootstrap(): void {
@@ -517,6 +533,7 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
           handlerRef.current?.requestDraft({
             conversationId: event.conversationId,
             ...(event.note ? { note: event.note } : {}),
+            ...(event.language ? { language: event.language } : {}),
           });
         },
         onTranslationRequested: (event: TranslationRequestedBusEvent) => {
@@ -597,7 +614,33 @@ export class AgentHostRunner implements OnApplicationBootstrap, OnModuleDestroy 
     });
     handlerRef.current = handler;
 
-    return { realtime, handler, prompts, adminMcp, curatorWorker, sweeper };
+    const translate = async (input: TranslateTextInput): Promise<string> => {
+      if (beforeGenerate) {
+        const verdict = await beforeGenerate();
+        if (!verdict.allowed) {
+          throw new Error(`generation is paused for this organization: ${verdict.reason ?? 'gate denied'}`);
+        }
+      }
+      return translateText({
+        provider: { baseUrl: providerBaseUrl, apiKey: providerApiKey },
+        model: fastModel,
+        text: input.text,
+        sourceLanguage: input.sourceLanguage,
+        targetLanguage: input.targetLanguage,
+        providerImpl: provider,
+      });
+    };
+
+    return {
+      orgId,
+      translate,
+      realtime,
+      handler,
+      prompts,
+      adminMcp,
+      curatorWorker,
+      sweeper,
+    };
   }
 
   private buildConversationSweeper(opts: {

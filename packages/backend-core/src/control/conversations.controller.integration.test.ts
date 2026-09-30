@@ -435,6 +435,39 @@ const skipReason = TEST_URL
     expect(again.body).toEqual({ requested: false });
   }, 30_000);
 
+  it('translateFrom is refused for an agent, which writes the customer language itself', async () => {
+    const startResp = await rest<{ id: string }>(
+      endUserToken,
+      'POST',
+      '/v1/end-users/me/conversations',
+      { body: 'Hola' },
+    );
+    const resp = await rest<{ message: string }>(
+      adminKeyA,
+      'POST',
+      `/v1/conversations/${startResp.body.id}/messages`,
+      { body: 'Hei', translateFrom: 'nb' },
+    );
+    expect(resp.status).toBe(400);
+    expect(resp.body.message).toContain('translateFrom');
+  }, 30_000);
+
+  it('request-draft rejects a draft language that is not a language tag', async () => {
+    const startResp = await rest<{ id: string }>(
+      endUserToken,
+      'POST',
+      '/v1/end-users/me/conversations',
+      { body: 'Hola' },
+    );
+    const resp = await rest<unknown>(
+      adminKeyA,
+      'POST',
+      `/v1/conversations/${startResp.body.id}/request-draft`,
+      { language: 'the teammate one' },
+    );
+    expect(resp.status).toBe(400);
+  }, 30_000);
+
   it('request-translation rejects a target that is not a language tag', async () => {
     const startResp = await rest<{ id: string }>(
       endUserToken,

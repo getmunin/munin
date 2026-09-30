@@ -5,7 +5,7 @@ import { WebhookDispatcher, getCurrentContext } from '@getmunin/core';
 import { encodeCursor, decodeCursor } from '../../common/transfer/transfer.helpers.ts';
 import { applyInboundRedaction } from './inbound-redaction.ts';
 import { readRedactionPolicy } from './redaction-policy.ts';
-import { deleteMessageTranslations } from './conv-translation.service.ts';
+import { deleteMessageTranslations } from './translation-helpers.ts';
 
 export interface RedactBackfillResult {
   scanned: number;

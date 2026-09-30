@@ -3,6 +3,7 @@ import { summarizeQuotedHistory, type QuotedHistoryTurn } from './quoted-history
 import { fenceUntrusted } from './untrusted.ts';
 import type { AuthorType, ChatMessage, Provider, ProviderConfig } from './types.ts';
 import { redactNationalIdsForPrompt } from './redact-ids.ts';
+import { languageName } from './translation.ts';
 
 export type AuditAction =
   | { type: 'request_handover'; reason: string }
@@ -32,6 +33,7 @@ export interface AuditConversationArgs {
   thread?: readonly AuditThreadMessage[];
   toolNames: string[];
   topicCatalog?: AuditTopic[];
+  draftLanguage?: string;
   providerImpl?: Provider;
   abortSignal?: AbortSignal;
 }
@@ -108,6 +110,7 @@ export async function auditConversation(args: AuditConversationArgs): Promise<Au
     args.topicCatalog,
     args.thread,
     subject,
+    args.draftLanguage,
   );
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt },
@@ -159,6 +162,7 @@ function buildUserPrompt(
   topicCatalog: AuditTopic[] | undefined,
   thread: readonly AuditThreadMessage[] | undefined,
   subject: string | null,
+  draftLanguage?: string,
 ): string {
   const lines: string[] = [];
   if (subject) {
@@ -181,6 +185,13 @@ function buildUserPrompt(
     '[Agent reply]',
     redactNationalIdsForPrompt(truncate(reply, 4000)),
     '',
+    ...(draftLanguage
+      ? [
+          '[Draft language]',
+          `The reply is a draft a teammate asked for, written in ${languageName(draftLanguage)} (${draftLanguage}) on purpose: the teammate edits it in their own language and it is translated into the customer's language when it is sent. Its language is not a problem.`,
+          '',
+        ]
+      : []),
     '[Tools the agent already called this turn]',
     toolNames.length > 0 ? toolNames.join(', ') : '(none)',
   );

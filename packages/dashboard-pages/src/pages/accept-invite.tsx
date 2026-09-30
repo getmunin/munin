@@ -34,7 +34,9 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get('token');
-  const { data: session, isPending: sessionLoading } = authClient.useSession();
+  const { data: liveSession, isPending: sessionLoading } = authClient.useSession();
+  const [signedOut, setSignedOut] = useState(false);
+  const session = signedOut ? null : liveSession;
   const [status, setStatus] = useState<'idle' | 'pending' | 'accepted' | 'error'>('idle');
   const [message, setMessage] = useState<string | null>(null);
   const [errorKind, setErrorKind] = useState<InvitationErrorKind>('generic');
@@ -83,8 +85,6 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
       fail('generic', t('errors.lookup'));
     }
   }, [lookup.status, t, fail]);
-
-  const epigraphState = status === 'error' ? 'invite-bad' : 'invite';
 
   if (status === 'idle' && token && !session && lookup.status === 'found') {
     return (
@@ -150,11 +150,14 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
                   onClick={() => {
                     void (async () => {
                       await authClient.signOut();
-                      if (token) {
-                        router.push(`/accept-invite?token=${encodeURIComponent(token)}`);
-                      } else {
+                      if (!token) {
                         router.push('/login');
+                        return;
                       }
+                      setSignedOut(true);
+                      setMessage(null);
+                      setErrorKind('generic');
+                      setStatus('idle');
                     })();
                   }}
                 >
@@ -168,20 +171,7 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
     );
   }
 
-  return (
-    <AuthShell
-      variant="invite"
-      rightZone={<AuthEpigraph state={epigraphState} footer={footer} />}
-      leftZone={
-        <AuthInviteCard
-          tone="good"
-          badge={session ? t('pendingTitle') : t('lookingUpTitle')}
-          title={t('pendingBody')}
-          body={null}
-        />
-      }
-    />
-  );
+  return <AuthShell variant="invite" leftZone={null} rightZone={null} />;
 }
 
 function InvitationLanding({

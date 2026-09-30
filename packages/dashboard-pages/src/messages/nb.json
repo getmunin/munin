@@ -2263,8 +2263,6 @@
     }
   },
   "acceptInvite": {
-    "pendingTitle": "Aksepterer invitasjonen…",
-    "pendingBody": "Et øyeblikk.",
     "acceptedTitle": "Invitasjon akseptert",
     "acceptedBody": "Du er nå medlem av organisasjonen.",
     "goToDashboard": "Gå til dashbord",
@@ -2272,7 +2270,6 @@
     "signOutAndRetry": "Logg ut og prøv igjen",
     "backToDashboard": "Tilbake til dashbord",
     "missingToken": "Mangler invitasjonstoken.",
-    "lookingUpTitle": "Sjekker invitasjonen…",
     "invitedBadge": "Du er invitert",
     "invitedTitle": "Bli med i {org}",
     "invitedTitleNoOrg": "Bli med i organisasjonen",

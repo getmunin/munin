@@ -2263,8 +2263,6 @@
     }
   },
   "acceptInvite": {
-    "pendingTitle": "Accepting your invitation…",
-    "pendingBody": "One moment.",
     "acceptedTitle": "Invitation accepted",
     "acceptedBody": "You're now a member of the org.",
     "goToDashboard": "Go to dashboard",
@@ -2272,7 +2270,6 @@
     "signOutAndRetry": "Sign out and try again",
     "backToDashboard": "Back to dashboard",
     "missingToken": "Missing invitation token.",
-    "lookingUpTitle": "Checking your invitation…",
     "invitedBadge": "You're invited",
     "invitedTitle": "Join {org}",
     "invitedTitleNoOrg": "Join the organization",

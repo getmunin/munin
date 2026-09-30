@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createStubProvider } from './providers/stub.ts';
 import {
   batchMessages,
+  contextWindow,
   createTranslationHandler,
   parseTranslationResponse,
   rewriteInLanguage,
@@ -110,6 +111,76 @@ describe('translateMessages', () => {
       providerImpl: stub.provider,
     });
     expect(result).toEqual({ customerLanguage: 'no', translations: [] });
+  });
+
+  it('shows earlier messages as context without ids, so a short follow-up keeps its meaning', async () => {
+    const stub = createStubProvider({
+      responses: [reply('{"language":"es","translations":[{"id":"m1","text":"Ja, den blå"}]}')],
+    });
+    const result = await translateMessages({
+      provider: PROVIDER,
+      model: 'fast',
+      targetLanguage: 'nb',
+      customerLanguage: 'es',
+      context: [{ id: 'cvm_0', authorType: 'agent', body: '¿Quiere la chaqueta azul o la roja?' }],
+      messages: [{ id: 'cvm_9', authorType: 'end_user', body: 'Sí, la azul' }],
+      providerImpl: stub.provider,
+    });
+    expect(result.translations).toEqual([{ messageId: 'cvm_9', body: 'Ja, den blå' }]);
+    const prompt = stub.calls[0]!.messages[1]!.content!;
+    expect(prompt).toContain('<data from="assistant">\n¿Quiere la chaqueta azul o la roja?\n</data>');
+    expect(prompt.indexOf('[Earlier messages')).toBeLessThan(prompt.indexOf('[Messages, oldest first]'));
+    expect(prompt).toContain('<data id="m1" from="customer">');
+  });
+
+  it('carries the end of one batch into the next as context', async () => {
+    const long = (n: number): PendingTranslationMessage => ({
+      id: `cvm_${n}`,
+      authorType: 'end_user',
+      body: `${'x'.repeat(3500)} ${n}`,
+    });
+    const stub = createStubProvider({
+      responses: [
+        reply('{"language":"es","translations":[]}'),
+        reply('{"language":"es","translations":[]}'),
+      ],
+    });
+    await translateMessages({
+      provider: PROVIDER,
+      model: 'fast',
+      targetLanguage: 'nb',
+      customerLanguage: null,
+      messages: [long(1), long(2)],
+      providerImpl: stub.provider,
+    });
+    expect(stub.calls).toHaveLength(2);
+    expect(stub.calls[0]!.messages[1]!.content).not.toContain('[Earlier messages');
+    const second = stub.calls[1]!.messages[1]!.content!;
+    expect(second).toContain('[Earlier messages');
+    expect(second).toContain('x 1\n</data>');
+    expect(second).toContain('<data id="m1" from="customer">');
+  });
+});
+
+describe('contextWindow', () => {
+  const msg = (id: string, body: string): PendingTranslationMessage => ({
+    id,
+    authorType: 'end_user',
+    body,
+  });
+
+  it('keeps the most recent messages, oldest first', () => {
+    const messages = ['a', 'b', 'c', 'd'].map((b, i) => msg(`cvm_${i}`, b));
+    expect(contextWindow(messages, 2).map((m) => m.body)).toEqual(['c', 'd']);
+  });
+
+  it('stops before the character budget runs out', () => {
+    const messages = [msg('cvm_1', 'x'.repeat(10)), msg('cvm_2', 'y'.repeat(10))];
+    expect(contextWindow(messages, 6, 15).map((m) => m.id)).toEqual(['cvm_2']);
+  });
+
+  it('keeps the end of a single message longer than the budget', () => {
+    expect(contextWindow([msg('cvm_1', 'abcdef')], 6, 3)).toEqual([msg('cvm_1', 'def')]);
   });
 });
 

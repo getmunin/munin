@@ -19,22 +19,51 @@ describe('inboundSenderAuth', () => {
     );
   });
 
-  it('refuses to extend the verdict to a manually forwarded sender, whom DMARC never checked', () => {
+  const failing = {
+    authenticationResults: ['mx.test; dmarc=fail header.from=example.com'],
+    fromAddress: 'ola@example.com',
+  };
+
+  it('marks a manually forwarded sender as forwarded, since DMARC never checked the address in the body', () => {
     expect(
       inboundSenderAuth(passing, { kind: 'manual-forward', senderAddress: 'kari@example.test' }),
-    ).toBe('unknown');
+    ).toBe('forwarded');
   });
 
-  it('refuses to extend the verdict to an auto-forwarded sender', () => {
+  it('marks an auto-forwarded sender that differs from the authenticated From as forwarded', () => {
     expect(
       inboundSenderAuth(passing, { kind: 'auto-forward', senderAddress: 'kari@example.test' }),
-    ).toBe('unknown');
+    ).toBe('forwarded');
   });
 
-  it('refuses when a direct sender was rewritten away from the authenticated From address', () => {
+  it('applies the DMARC verdict to an auto-forward whose sender is the From address itself', () => {
+    expect(
+      inboundSenderAuth(passing, { kind: 'auto-forward', senderAddress: 'ola@example.com' }),
+    ).toBe('pass');
+  });
+
+  it('marks a direct sender rewritten away from the authenticated From address as forwarded', () => {
     expect(
       inboundSenderAuth(passing, { kind: 'direct', senderAddress: 'kari@example.test' }),
-    ).toBe('unknown');
+    ).toBe('forwarded');
+  });
+
+  it('keeps an envelope DMARC failure as fail even when the message is detected as a forward', () => {
+    expect(
+      inboundSenderAuth(failing, { kind: 'auto-forward', senderAddress: 'ola@example.com' }),
+    ).toBe('fail');
+    expect(
+      inboundSenderAuth(failing, { kind: 'manual-forward', senderAddress: 'kari@example.test' }),
+    ).toBe('fail');
+  });
+
+  it('marks a manual forward as forwarded when the envelope carries no DMARC result', () => {
+    expect(
+      inboundSenderAuth(
+        { authenticationResults: [], fromAddress: 'ola@example.com' },
+        { kind: 'manual-forward', senderAddress: 'kari@example.test' },
+      ),
+    ).toBe('forwarded');
   });
 
   it('still reports a failing verdict for a direct sender rather than swallowing it', () => {

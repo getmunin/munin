@@ -45,11 +45,18 @@ export function latestEndUserTurn<T extends { authorType: string }>(
   return turn;
 }
 
-export function hasFailedSenderAuth(newestFirst: readonly ConversationTurnMessage[]): boolean {
-  return latestEndUserTurn(newestFirst).some(
+export type SenderAuthBlock = 'fail' | 'forwarded';
+
+export function latestTurnSenderAuthBlock(
+  newestFirst: readonly ConversationTurnMessage[],
+): SenderAuthBlock | null {
+  const verdicts = latestEndUserTurn(newestFirst).map(
     (message) =>
-      (message.metadata as Record<string, unknown> | null)?.[SENDER_AUTH_METADATA_KEY] === 'fail',
+      (message.metadata as Record<string, unknown> | null)?.[SENDER_AUTH_METADATA_KEY],
   );
+  if (verdicts.includes('fail')) return 'fail';
+  if (verdicts.includes('forwarded')) return 'forwarded';
+  return null;
 }
 
 export function identityProvenance(args: {

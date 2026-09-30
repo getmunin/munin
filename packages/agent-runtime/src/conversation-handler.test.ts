@@ -595,7 +595,7 @@ describe('createConversationHandler', () => {
     expect(draftSpy).toHaveBeenCalledWith(
       'conv_1',
       'Hei, vi sender fakturaen i dag.',
-      expect.anything(),
+      expect.objectContaining({ language: 'nb' }),
     );
     const rewrite = seen.find((a) => (a.config.systemPrompt ?? '').startsWith('You make sure'))!;
     expect(rewrite.config.systemPrompt).toContain('Norwegian Bokmål (nb)');

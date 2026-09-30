@@ -268,6 +268,101 @@ const skipReason = TEST_URL
     expect(await run(count, outsider)).toHaveLength(0);
   });
 
+  async function seedDraft(conversationId: string, body: string, metadata: Record<string, unknown> = {}) {
+    const [draft] = await db
+      .insert(schema.convMessages)
+      .values({
+        orgId,
+        conversationId,
+        authorType: 'agent',
+        authorId: 'agent',
+        body,
+        internal: true,
+        metadata: { kind: 'draft_reply', ...metadata },
+        createdAt: new Date(Date.UTC(2026, 8, 1, 12, 1, 0)),
+      })
+      .returning();
+    return draft!;
+  }
+
+  describe('the pending draft', () => {
+    it('is translated along with the thread when it is in the customer language', async () => {
+      const { conv, messages } = await seedConversation('es');
+      const draft = await seedDraft(conv.id, 'Su pedido salió el martes.');
+      const pending = await run(() => svc.pendingTranslations(conv.id, 'nb'));
+      expect(pending.messages.map((m) => m.id)).toEqual([messages[0]!.id, messages[1]!.id, draft.id]);
+
+      await run(() =>
+        svc.saveTranslations({
+          conversationId: conv.id,
+          targetLanguage: 'nb',
+          translations: [{ messageId: draft.id, body: 'Bestillingen din ble sendt tirsdag.' }],
+        }),
+      );
+      const stored = await run(() => svc.translationsFor(conv.id, 'nb'));
+      expect(stored.messages[draft.id]).toBe('Bestillingen din ble sendt tirsdag.');
+      const again = await run(() => svc.pendingTranslations(conv.id, 'nb'));
+      expect(again.messages.map((m) => m.id)).not.toContain(draft.id);
+    });
+
+    it('is left alone when it was drafted in the target language', async () => {
+      const { conv } = await seedConversation('es');
+      const draft = await seedDraft(conv.id, 'Bestillingen din ble sendt tirsdag.', { language: 'nb' });
+      const pending = await run(() => svc.pendingTranslations(conv.id, 'nb'));
+      expect(pending.messages.map((m) => m.id)).not.toContain(draft.id);
+    });
+
+    it('sends the agent original when approved without changes, and translates an edit', async () => {
+      const { conv } = await seedConversation('es');
+      const draft = await seedDraft(conv.id, 'Su pedido salió el martes.');
+      await run(() =>
+        svc.saveTranslations({
+          conversationId: conv.id,
+          targetLanguage: 'nb',
+          translations: [{ messageId: draft.id, body: 'Bestillingen din ble sendt tirsdag.' }],
+        }),
+      );
+      const sent = await run(
+        () =>
+          svc.sendTranslatedReply({
+            conversationId: conv.id,
+            body: 'Bestillingen din ble sendt tirsdag.\n',
+            sourceLanguage: 'nb',
+            authorId: userId,
+            fromDraftId: draft.id,
+          }),
+        teammate,
+      );
+      expect(sent.body).toBe('Su pedido salió el martes.');
+      expect(translatorCalls).toHaveLength(0);
+      expect(sent.metadata['approvedDraft']).toMatchObject({ edited: false });
+      const stored = await run(() => svc.translationsFor(conv.id, 'nb'));
+      expect(stored.messages[sent.id]).toBe('Bestillingen din ble sendt tirsdag.\n');
+
+      const next = await seedDraft(conv.id, 'Le reembolsamos hoy.');
+      await run(() =>
+        svc.saveTranslations({
+          conversationId: conv.id,
+          targetLanguage: 'nb',
+          translations: [{ messageId: next.id, body: 'Vi refunderer deg i dag.' }],
+        }),
+      );
+      const edited = await run(
+        () =>
+          svc.sendTranslatedReply({
+            conversationId: conv.id,
+            body: 'Vi refunderer deg i morgen.',
+            sourceLanguage: 'nb',
+            authorId: userId,
+            fromDraftId: next.id,
+          }),
+        teammate,
+      );
+      expect(edited.body).toBe('[es] Vi refunderer deg i morgen.');
+      expect(edited.metadata['approvedDraft']).toMatchObject({ edited: true });
+    });
+  });
+
   describe('sendTranslatedReply', () => {
     it('sends the translation and keeps what the teammate wrote as its translation', async () => {
       const { conv } = await seedConversation('es');

@@ -7,8 +7,8 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
+import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { getCurrentContext, sameAfterNormalizing, WebhookDispatcher } from '@getmunin/core';
 import { ConvService, type MessageDto } from './conv.service.ts';
 import { MessageTranslatorRegistry } from './message-translator.ts';
 import {
@@ -85,6 +85,15 @@ export class ConvTranslationService {
     }
     if (sameLanguage(conv.customerLanguage, source)) return send(input.body);
 
+    const untouchedDraft = input.fromDraftId
+      ? await this.untouchedDraftOriginal(input.conversationId, input.fromDraftId, source, input.body)
+      : null;
+    if (untouchedDraft !== null) {
+      const message = await send(untouchedDraft);
+      await this.keepTeammateVersion(conv.orgId, input.conversationId, message.id, source, input.body);
+      return message;
+    }
+
     const translator = this.translators.get();
     if (!translator) {
       throw new ServiceUnavailableException({
@@ -116,16 +125,52 @@ export class ConvTranslationService {
     }
 
     const message = await send(translated, input.body);
+    await this.keepTeammateVersion(conv.orgId, input.conversationId, message.id, source, input.body);
+    return message;
+  }
+
+  private async untouchedDraftOriginal(
+    conversationId: string,
+    draftId: string,
+    language: string,
+    body: string,
+  ): Promise<string | null> {
+    const ctx = getCurrentContext();
+    const [row] = await ctx.db
+      .select({
+        body: schema.convMessages.body,
+        translated: schema.convMessageTranslations.body,
+      })
+      .from(schema.convMessages)
+      .innerJoin(
+        schema.convMessageTranslations,
+        and(
+          eq(schema.convMessageTranslations.messageId, schema.convMessages.id),
+          eq(schema.convMessageTranslations.targetLanguage, language),
+        ),
+      )
+      .where(
+        and(
+          eq(schema.convMessages.id, draftId),
+          eq(schema.convMessages.conversationId, conversationId),
+          sql`${schema.convMessages.metadata} ->> 'kind' = 'draft_reply'`,
+        ),
+      )
+      .limit(1);
+    return row && sameAfterNormalizing(row.translated, body) ? row.body : null;
+  }
+
+  private async keepTeammateVersion(
+    orgId: string,
+    conversationId: string,
+    messageId: string,
+    language: string,
+    body: string,
+  ): Promise<void> {
     const ctx = getCurrentContext();
     await ctx.db
       .insert(schema.convMessageTranslations)
-      .values({
-        orgId: conv.orgId,
-        conversationId: input.conversationId,
-        messageId: message.id,
-        targetLanguage: source,
-        body: input.body,
-      })
+      .values({ orgId, conversationId, messageId, targetLanguage: language, body })
       .onConflictDoUpdate({
         target: [
           schema.convMessageTranslations.messageId,
@@ -133,7 +178,6 @@ export class ConvTranslationService {
         ],
         set: { body: sql`excluded.body` },
       });
-    return message;
   }
 
   async requestTranslation(
@@ -189,14 +233,53 @@ export class ConvTranslationService {
         ),
       )
       .orderBy(asc(schema.convMessages.createdAt));
+    const draft = await this.pendingDraftToTranslate(conversationId, target, conv.customerLanguage);
     return {
       ...base,
-      messages: rows.map((r) => ({
-        id: r.id,
-        authorType: r.authorType as PendingTranslationMessage['authorType'],
-        body: r.body,
-      })),
+      messages: [
+        ...rows.map((r) => ({
+          id: r.id,
+          authorType: r.authorType as PendingTranslationMessage['authorType'],
+          body: r.body,
+        })),
+        ...(draft ? [draft] : []),
+      ],
     };
+  }
+
+  private async pendingDraftToTranslate(
+    conversationId: string,
+    target: string,
+    customerLanguage: string | null,
+  ): Promise<PendingTranslationMessage | null> {
+    const ctx = getCurrentContext();
+    const [draft] = await ctx.db
+      .select({
+        id: schema.convMessages.id,
+        body: schema.convMessages.body,
+        language: sql<string | null>`${schema.convMessages.metadata} ->> 'language'`,
+      })
+      .from(schema.convMessages)
+      .leftJoin(
+        schema.convMessageTranslations,
+        and(
+          eq(schema.convMessageTranslations.messageId, schema.convMessages.id),
+          eq(schema.convMessageTranslations.targetLanguage, target),
+        ),
+      )
+      .where(
+        and(
+          eq(schema.convMessages.conversationId, conversationId),
+          sql`${schema.convMessages.metadata} ->> 'kind' = 'draft_reply'`,
+          isNull(schema.convMessageTranslations.id),
+        ),
+      )
+      .orderBy(desc(schema.convMessages.createdAt))
+      .limit(1);
+    if (!draft) return null;
+    const language = draft.language ?? customerLanguage;
+    if (language && sameLanguage(language, target)) return null;
+    return { id: draft.id, authorType: 'agent', body: draft.body };
   }
 
   async translationsFor(
@@ -245,8 +328,13 @@ export class ConvTranslationService {
             .where(
               and(
                 eq(schema.convMessages.conversationId, input.conversationId),
-                eq(schema.convMessages.internal, false),
-                inArray(schema.convMessages.authorType, [...TRANSLATABLE_AUTHORS]),
+                or(
+                  and(
+                    eq(schema.convMessages.internal, false),
+                    inArray(schema.convMessages.authorType, [...TRANSLATABLE_AUTHORS]),
+                  ),
+                  sql`${schema.convMessages.metadata} ->> 'kind' = 'draft_reply'`,
+                ),
                 inArray(schema.convMessages.id, [...byId.keys()]),
               ),
             );

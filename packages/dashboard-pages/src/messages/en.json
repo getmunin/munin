@@ -1615,6 +1615,7 @@
         "draftingPending": "Writing draft…",
         "draftingLabel": "Writing draft",
         "draftingFromNote": "Writing draft from your notes",
+        "translatingDraft": "Translating draft",
         "draftLabel": "Draft",
         "draftReadOnly": "Preview",
         "draftEditedLabel": "Edited draft",

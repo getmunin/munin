@@ -2254,6 +2254,7 @@ export class ConvService {
     rationale?: string;
     toolNames?: string[];
     note?: string;
+    language?: string;
   }): Promise<{ id: string }> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -2286,6 +2287,7 @@ export class ConvService {
           ...(parsed.annotated ? { annotated: parsed.annotated } : {}),
           ...(parsed.slots.length ? { slots: parsed.slots } : {}),
           ...(note ? { note } : {}),
+          ...(input.language ? { language: normalizeLanguageTag(input.language) } : {}),
           ...(input.retrievedDocumentIds?.length
             ? { retrievedDocumentIds: input.retrievedDocumentIds }
             : {}),

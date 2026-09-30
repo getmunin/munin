@@ -280,6 +280,7 @@ export interface QueueController {
   reportAttachmentError: (conversationId: string, message: string) => void;
   draftRequested: Record<string, boolean>;
   translating: Record<string, boolean>;
+  translationStalled: Record<string, boolean>;
   takeOver: (id: string) => Promise<boolean>;
   release: (id: string) => Promise<boolean>;
   closeConv: (id: string) => Promise<boolean>;
@@ -351,6 +352,7 @@ export function useConversationQueue(
   draftRequestedRef.current = draftRequested;
   const draftTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const [translating, setTranslating] = useState<Record<string, boolean>>({});
+  const [translationStalled, setTranslationStalled] = useState<Record<string, boolean>>({});
   const translationTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const translationAsked = useRef(new Set<string>());
 
@@ -366,33 +368,51 @@ export function useConversationQueue(
     });
   }, []);
 
+  const markTranslationStalled = useCallback((id: string, stalled: boolean) => {
+    setTranslationStalled((prev) => {
+      if (!!prev[id] === stalled) return prev;
+      const next = { ...prev };
+      if (stalled) next[id] = true;
+      else delete next[id];
+      return next;
+    });
+  }, []);
+
   const syncTranslation = useCallback(
     (d: ConversationDetail) => {
-      const missing = untranslatedMessageIds(d, locale);
+      const missing = untranslatedMessageIds(d, locale, pendingDraftOf(d));
       if (missing.length === 0) {
         stopTranslating(d.id);
+        markTranslationStalled(d.id, false);
         return;
       }
       const key = `${d.id}:${locale}:${missing.join(',')}`;
       if (translationAsked.current.has(key)) return;
       translationAsked.current.add(key);
+      markTranslationStalled(d.id, false);
       void api<{ requested: boolean }>(`/v1/conversations/${d.id}/request-translation`, {
         method: 'POST',
         body: JSON.stringify({ targetLanguage: locale }),
       })
         .then(({ requested }) => {
-          if (!requested) return;
+          if (!requested) {
+            markTranslationStalled(d.id, true);
+            return;
+          }
           const existing = translationTimers.current.get(d.id);
           if (existing) clearTimeout(existing);
           setTranslating((prev) => ({ ...prev, [d.id]: true }));
           translationTimers.current.set(
             d.id,
-            setTimeout(() => stopTranslating(d.id), TRANSLATION_TIMEOUT_MS),
+            setTimeout(() => {
+              stopTranslating(d.id);
+              markTranslationStalled(d.id, true);
+            }, TRANSLATION_TIMEOUT_MS),
           );
         })
-        .catch(() => undefined);
+        .catch(() => markTranslationStalled(d.id, true));
     },
-    [locale, stopTranslating],
+    [locale, markTranslationStalled, stopTranslating],
   );
 
   useEffect(() => {
@@ -802,6 +822,7 @@ export function useConversationQueue(
     reportAttachmentError,
     draftRequested,
     translating,
+    translationStalled,
     takeOver,
     release,
     closeConv,

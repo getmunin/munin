@@ -328,6 +328,47 @@ describe('ConversationPane composer', () => {
     expect(requestDraft).toHaveBeenCalledWith('conv_a', 'Refund approved.', 'en');
   });
 
+  it('holds an automatic draft in the customer language until it is translated for you', () => {
+    const spanishDraft = makeDraft('conv_a', 'conv_a_draft', 'Su pedido salió el martes.');
+    const detail = (translated?: string) =>
+      makeDetail('conv_a', {
+        customerLanguage: 'es',
+        messages: [makeMessage({ id: 'conv_a_m1', conversationId: 'conv_a' }), spanishDraft],
+        translations: {
+          customerLanguage: 'es',
+          targetLanguage: 'en',
+          messages: translated ? { conv_a_draft: translated } : {},
+        },
+      });
+    const controller = stubController();
+    const { rerender } = renderWithProviders(pane('conv_a', detail(), controller));
+
+    expect(draftStatus()).toBe('Translating draft');
+    expect(screen.queryByRole('button', { name: 'Approve & send' })).toBeNull();
+
+    rerender(pane('conv_a', detail('Your order shipped on Tuesday.'), controller));
+
+    expect(replyBox().value).toBe('Your order shipped on Tuesday.');
+    expect(draftStatus()).toBe('Draft·Reject');
+    expect(screen.getByRole('button', { name: 'Approve & send' })).toBeTruthy();
+  });
+
+  it('falls back to the draft as written when its translation stalls', () => {
+    const detail = makeDetail('conv_a', {
+      customerLanguage: 'es',
+      messages: [
+        makeMessage({ id: 'conv_a_m1', conversationId: 'conv_a' }),
+        makeDraft('conv_a', 'conv_a_draft', 'Su pedido salió el martes.'),
+      ],
+    });
+    renderWithProviders(
+      pane('conv_a', detail, stubController({ translationStalled: { conv_a: true } })),
+    );
+
+    expect(replyBox().value).toBe('Su pedido salió el martes.');
+    expect(draftStatus()).toBe('Draft·Reject');
+  });
+
   it('offers no translation choice when the customer writes the teammate language', () => {
     renderWithProviders(
       pane('conv_a', makeDetail('conv_a', { customerLanguage: 'en' }), stubController()),

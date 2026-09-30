@@ -120,6 +120,7 @@ export {
 } from './quoted-history.ts';
 export {
   batchMessages,
+  contextWindow,
   createTranslationHandler,
   detectLanguage,
   languageName,

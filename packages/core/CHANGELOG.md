@@ -1,5 +1,13 @@
 # @getmunin/core
 
+## 5.38.0
+
+### Patch Changes
+
+- Updated dependencies [55e57fe]
+  - @getmunin/types@5.38.0
+  - @getmunin/db@5.38.0
+
 ## 5.37.0
 
 ### Patch Changes

@@ -1,5 +1,31 @@
 # @getmunin/agent-runtime
 
+## 5.38.0
+
+### Minor Changes
+
+- 55e57fe: Find out a conversation's language when the customer writes, not when a teammate first opens it. Before, a conversation's language stayed unknown until someone opened it in the inbox, so every first open ran a model call and showed "Translating…", even when the customer wrote the teammate's own language and nothing needed translating. The agent host now makes one short model call when a customer message arrives and the conversation's language is still unknown, and stores the result. The conversation is then usually ready by the time a teammate opens it: nothing to translate if the customer writes their language, the translation request right away if not.
+
+  - `GET /v1/conversations/:id/language-detection` returns up to three recent public customer messages while the conversation's language is unknown, and none once it is known. `POST /v1/conversations/:id/customer-language` records a detected language. It only sets a language that is still unknown and never overwrites one, and it emits the new `conversation.language_detected` event.
+  - `TranslationRestClient` gains `getLanguageDetectionSample` and `saveCustomerLanguage`. `TranslationHandler` gains `detect(conversationId)`, which uses the same generate gate as translation. `detectLanguage()` is exported for other runtimes.
+  - Detection skips auto-replies and suppressed conversations. It runs again on the next customer message if the model gives no usable language tag.
+  - The inbox says "Detecting language…" instead of "Translating…" while the language is still unknown, which is still the case for conversations from before this release until a new customer message arrives or someone opens them.
+  - Both markers sit in the header's meta line as plain text in the same muted colour as the rest of that line, without the pulsing cobalt dot.
+
+- aa2917d: Translate new messages with the rest of the conversation in view. Only messages without a translation are sent to the model, so a message that arrives after a teammate has opened the conversation used to be translated on its own. A short answer such as "Yes, the blue one" or "No, the other one" lost what it referred to. Each translation call now also gets the last few messages before it, in the original language, as context the model reads but does not translate.
+
+  - `GET /v1/conversations/:id/pending-translations` returns a `context` list: up to six public customer, agent and teammate messages from before the first pending one, about 3,000 characters at most. It is empty when nothing comes before the pending messages.
+  - `translateMessages` takes an optional `context`. When a long thread is split into several calls, each call also gets the end of the one before it, so a split no longer cuts a message off from what came before. Context messages are fenced as data without an id, so the model cannot return a translation for them.
+  - `PendingTranslations.context` is optional in `@getmunin/agent-runtime`, so a runtime pointed at an older backend keeps working without context.
+
+### Patch Changes
+
+- d0767e1: Pin the remaining internal prompts in plain-text snapshots under `src/__prompts__/`. The agent's reply and draft-request turns, the system notes every turn carries, the chat greeting seed, and the company profile generated from a website import are covered. The last inline prompt text (the conversation-context and company-context blocks, the note about messages left out of the context window, and the company-profile system prompt) now has a name. The prompts sent are unchanged.
+- 3fa187c: Give every prompt behind translation, language detection and the turn audit a name, and pin each one in a plain-text snapshot under `src/__prompts__/`. A change to what these internal calls tell the model now shows up in review as a readable text diff, and a test fails until the snapshot is updated with it. The prompts sent are unchanged.
+- Updated dependencies [55e57fe]
+  - @getmunin/types@5.38.0
+  - @getmunin/core@5.38.0
+
 ## 5.37.0
 
 ### Minor Changes

@@ -21,6 +21,7 @@ import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
+import { revokeAdminKeysCreatedBy } from '../common/api-keys/api-key.helpers.ts';
 import { assertOwner, assertOwnerOrAdmin } from './role-guard.ts';
 import { RoleGuard } from './role.guard.ts';
 import { RequireRole } from './role.decorator.ts';
@@ -176,5 +177,6 @@ export class MembersController {
       .where(
         and(eq(schema.orgMembers.orgId, actor.orgId), eq(schema.orgMembers.userId, userId)),
       );
+    await revokeAdminKeysCreatedBy(ctx.db, userId, actor.orgId);
   }
 }

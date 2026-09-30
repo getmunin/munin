@@ -10,7 +10,7 @@ import type { ActorIdentity, ActorType, ResolvedCredential } from '@getmunin/cor
 import { schema, type Db } from '@getmunin/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { DB } from '../common/db/db.module.ts';
-import { type OrgRole } from './role-guard.ts';
+import { resolveAgentRole, type OrgRole } from './role-guard.ts';
 import { REQUIRE_ACTOR_TYPE_KEY, REQUIRE_ROLE_KEY } from './role.decorator.ts';
 
 @Injectable()
@@ -57,8 +57,13 @@ export class RoleGuard implements CanActivate {
 
       if (actor.type === 'system') return true;
       if (actor.type === 'admin_agent') {
-        if (!actor.hasScope('*')) {
-          throw new ForbiddenException('scoped admin keys cannot perform owner/admin actions');
+        const role = await resolveAgentRole(actor, (creatorId) =>
+          this.readUserRole(actor.orgId, creatorId),
+        );
+        if (!(requiredRoles as readonly string[]).includes(role)) {
+          throw new ForbiddenException(
+            `this route requires role ${requiredRoles.join(' | ')}, but this key acts as "${role}"`,
+          );
         }
         return true;
       }

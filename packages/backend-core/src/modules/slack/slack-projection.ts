@@ -496,13 +496,49 @@ export function socialDraftApprovalText(snap: SocialDraftApprovalSnapshot): stri
     `_${snap.bodyChars} of ${snap.maxBodyChars} characters_`,
     `<${snap.dashboardUrl}|Review in Munin>`,
   ];
-  if (snap.shareUrl) footer.unshift(`*Link:* ${snap.shareUrl}`);
-  const overhead = [...header, ...footer].reduce((total, line) => total + line.length + 1, 0);
-  const body = quotedBodyLines(
-    markdownToMrkdwn(snap.body),
-    Math.max(TRUNCATION_MARKER.length, MAX_BODY_CHARS - overhead),
-  );
-  return [...header, ...body, ...footer].join('\n');
+  if (snap.shareUrl) footer.unshift(`*Link:* <${snap.shareUrl}|${escapeSlackText(shortUrlLabel(snap.shareUrl))}>`);
+  return [...header, ...previewBodyLines(markdownToMrkdwn(snap.body)), ...footer].join('\n');
+}
+
+const SOCIAL_PREVIEW_MAX_LINES = 5;
+const SOCIAL_PREVIEW_MAX_CHARS = 400;
+const SOCIAL_PREVIEW_MARKER = '> … _(read the full post in Munin)_';
+
+function previewBodyLines(body: string): string[] {
+  const source = body.split('\n');
+  const kept: string[] = [];
+  let used = 0;
+  let cut = false;
+  for (const line of source) {
+    if (kept.length >= SOCIAL_PREVIEW_MAX_LINES) {
+      cut = true;
+      break;
+    }
+    if (used + line.length > SOCIAL_PREVIEW_MAX_CHARS) {
+      const room = SOCIAL_PREVIEW_MAX_CHARS - used;
+      const head = line.slice(0, room);
+      const atWord = head.lastIndexOf(' ');
+      const clipped = (atWord > room / 2 ? head.slice(0, atWord) : head).replace(/&[a-z]*$/, '');
+      if (clipped.trim()) kept.push(`${clipped.trimEnd()}…`);
+      cut = true;
+      break;
+    }
+    kept.push(line);
+    used += line.length + 1;
+  }
+  if (!cut) return kept.map((line) => `> ${line}`);
+  while (kept.length > 0 && kept.at(-1)?.trim() === '') kept.pop();
+  return [...kept.map((line) => `> ${line}`), SOCIAL_PREVIEW_MARKER];
+}
+
+function shortUrlLabel(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const path = parsed.pathname.replace(/\/+$/, '');
+    return `${parsed.hostname.replace(/^www\./, '')}${path}`;
+  } catch {
+    return url;
+  }
 }
 
 export interface CmsDraftApprovalSnapshot {

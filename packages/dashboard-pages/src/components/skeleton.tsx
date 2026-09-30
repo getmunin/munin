@@ -1,12 +1,14 @@
 'use client';
 
+import type { CSSProperties } from 'react';
 import { cn } from '@getmunin/ui';
 
-export function Skeleton({ className }: { className?: string }) {
+export function Skeleton({ className, style }: { className?: string; style?: CSSProperties }) {
   return (
     <div
       aria-hidden
       className={cn('animate-pulse bg-ink/10 dark:bg-foreground/10', className)}
+      style={style}
     />
   );
 }

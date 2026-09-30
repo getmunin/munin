@@ -16,6 +16,13 @@ import {
 import { useConversationTyping } from '../../realtime';
 import { useCmdEnter } from './queue-panes/shared';
 import { MessageBubble, startsAuthorGroup } from './inbox-message-bubble';
+import {
+  AGENT_TINT_CLASS,
+  AgentDraftAction,
+  AgentDraftLabel,
+  AgentDraftSlab,
+  DraftSkeleton,
+} from './agent-draft-slab';
 import { useAttachmentUploads } from './use-attachment-uploads';
 import type { AttachmentRejection } from '@getmunin/types';
 import { useConfirm } from '../confirm-dialog';
@@ -46,10 +53,12 @@ import {
 const COMPOSER_MAX_HEIGHT_PX = 320;
 
 const STATUS_BADGE_CLASS = 'border-transparent bg-ink/[0.06] dark:bg-paper/10';
-const LIVE_BADGE_CLASS = 'border-transparent bg-cobalt/10 dark:bg-cobalt-soft/15';
 
-const REPLY_BOX_CLASS =
-  'w-full resize-none rounded-input border border-rule-soft bg-paper px-3.5 py-3 text-base leading-relaxed outline-none focus-visible:border-cobalt focus-visible:ring-1 focus-visible:ring-cobalt aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive max-md:min-h-0 max-md:flex-1 md:text-sm dark:border-rule-on-dark dark:bg-card';
+const REPLY_FRAME_CLASS =
+  'flex flex-col gap-2.5 rounded-input border border-rule-soft bg-paper px-3.5 py-3 focus-within:border-cobalt focus-within:ring-1 focus-within:ring-cobalt has-[[aria-invalid=true]]:border-destructive has-[[aria-invalid=true]]:ring-1 has-[[aria-invalid=true]]:ring-destructive max-md:min-h-0 max-md:flex-1 dark:border-rule-on-dark dark:bg-card';
+
+const REPLY_TEXT_CLASS =
+  'w-full resize-none bg-transparent text-base leading-relaxed outline-none max-md:min-h-0 max-md:flex-1 md:text-sm';
 
 export function ConversationPane({
   selectedId,
@@ -79,6 +88,7 @@ export function ConversationPane({
   const [showOriginal, setShowOriginal] = useState(false);
   const [translateOnSend, setTranslateOnSend] = useState(true);
   const [slotsNudged, setSlotsNudged] = useState(false);
+  const [draftNoteOpen, setDraftNoteOpen] = useState(false);
   const locale = useLocale();
   const [retryingDeliveryId, setRetryingDeliveryId] = useState<string | null>(null);
 
@@ -127,13 +137,21 @@ export function ConversationPane({
 
   const draft = pendingDraftOf(detail);
 
-  useLayoutEffect(() => {
+  const fitComposer = useCallback(() => {
     for (const el of [replyBoxRef.current, noteBoxRef.current]) {
       if (!el) continue;
       el.style.height = 'auto';
+      if (el.getClientRects().length === 0) continue;
       el.style.height = `${Math.min(el.scrollHeight, COMPOSER_MAX_HEIGHT_PX)}px`;
     }
-  }, [reply, noteDraft, tab, expanded, draft?.body]);
+  }, []);
+
+  useLayoutEffect(fitComposer, [fitComposer, reply, noteDraft, tab, expanded, draft?.body]);
+
+  useEffect(() => {
+    window.addEventListener('resize', fitComposer);
+    return () => window.removeEventListener('resize', fitComposer);
+  }, [fitComposer]);
 
   const stopStream = () => {
     if (streamTimer.current) {
@@ -155,6 +173,7 @@ export function ConversationPane({
     setTab('reply');
     setTranslateOnSend(true);
     setSlotsNudged(false);
+    setDraftNoteOpen(false);
     setExpanded(false);
   }, [selectedId]);
 
@@ -201,6 +220,7 @@ export function ConversationPane({
   const draftingSelected = selectedId ? !!controller.draftRequested[selectedId] : false;
   useEffect(() => {
     if (draftingSelected) wasDrafting.current = true;
+    else setDraftNoteOpen(false);
   }, [draftingSelected]);
   useEffect(() => {
     for (const el of [bodyRef.current, scrollAreaRef.current]) {
@@ -358,6 +378,16 @@ export function ConversationPane({
   const agentCanDraft = !!detail.endUserId && item?.agentMode !== 'off';
   const draftInFlight = !!draft || drafting;
   const hasDraftNote = reply.trim().length > 0;
+  const draftSkeleton =
+    canReply && !streaming && (askedForDraft || (item?.agentWorking === true && !hasDraftNote));
+  const draftingFromNote = draftSkeleton && askedForDraft && hasDraftNote;
+  const agentDraftState = draftSkeleton || streaming
+    ? 'writing'
+    : suggestionId
+      ? dirty
+        ? 'edited'
+        : 'ready'
+      : null;
   const canAskDraft =
     canReply && (endUserSpokeLast || hasDraftNote) && agentCanDraft && !draftInFlight;
   const unfilledSlots = suggestionId && !streaming ? openDraftSlots(draft, reply) : [];
@@ -442,12 +472,16 @@ export function ConversationPane({
     ? gateCaption(t('claimGateOther', { name: claimHolderName ?? t('teammate') }))
     : null;
 
-  const askDraftButton = (className?: string, opts?: { showPending?: boolean }) =>
-    opts?.showPending && canReply && drafting && !streaming ? (
-      <Button variant="outline" className={className} pending>
-        {t('draftingPending')}
-      </Button>
-    ) : canAskDraft ? (
+  const agentLiveCaption =
+    drafting || streaming ? (
+      <span className="flex min-w-0 items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-meta text-cobalt dark:text-cobalt-soft">
+        <span aria-hidden className="size-1.5 shrink-0 animate-pulse rounded-full bg-current" />
+        <span className="truncate">{t('draftingPending')}</span>
+      </span>
+    ) : null;
+
+  const askDraftButton = (className?: string) =>
+    canAskDraft ? (
       <Button
         variant="outline"
         className={className}
@@ -490,15 +524,9 @@ export function ConversationPane({
     </span>
   ) : null;
 
-  const editedByYou = canReply && tab === 'reply' && dirty;
-
   const composerState = !isOpen
     ? t('stateClosed')
-    : streaming && !canReply
-      ? t('stateWriting')
-      : drafting && !canReply
-        ? t('stateThinking')
-        : !claim
+    : !claim
         ? t('stateUnclaimed')
         : !claimMine
           ? t('stateOwnedBy', { name: claimHolderName ?? t('teammate') })
@@ -508,8 +536,7 @@ export function ConversationPane({
     <button
       type="button"
       onClick={onClick}
-      disabled={controller.pending}
-      className="hidden shrink-0 font-mono text-[10px] font-medium uppercase tracking-meta underline underline-offset-[3px] text-ink-soft transition-colors duration-fast hover:text-ink disabled:no-underline disabled:opacity-50 md:inline dark:text-foreground/70 dark:hover:text-foreground"
+      className="hidden shrink-0 font-mono text-[10px] font-medium uppercase tracking-meta underline underline-offset-[3px] text-ink-soft transition-colors duration-fast hover:text-ink md:inline dark:text-foreground/70 dark:hover:text-foreground"
     >
       {label}
     </button>
@@ -533,14 +560,6 @@ export function ConversationPane({
         <DropdownMenuItem className="md:hidden" onClick={releaseClaim}>
           {t('release')}
         </DropdownMenuItem>
-        {editedByYou ? (
-          <DropdownMenuItem onClick={() => setReply(draft.body)}>
-            {t('restoreDraft')}
-          </DropdownMenuItem>
-        ) : null}
-        {suggestionId ? (
-          <DropdownMenuItem onClick={rejectAndClear}>{t('rejectDraft')}</DropdownMenuItem>
-        ) : null}
         <DropdownMenuItem onClick={markSpam}>{t('markSpam')}</DropdownMenuItem>
         <DropdownMenuItem variant="destructive" onClick={closeNoReply}>
           {t('closeNoReply')}
@@ -566,15 +585,7 @@ export function ConversationPane({
       ) : null}
       {composerState ? (
         <span className="flex min-w-0 items-center gap-1.5">
-          <Pill
-            tone={streaming || drafting ? 'live' : 'draft'}
-            marker={streaming || drafting ? 'dot' : 'none'}
-            pulse={streaming || drafting}
-            className={cn(
-              'min-w-0',
-              streaming || drafting ? LIVE_BADGE_CLASS : STATUS_BADGE_CLASS,
-            )}
-          >
+          <Pill tone="draft" marker="none" className={cn('min-w-0', STATUS_BADGE_CLASS)}>
             <span className="truncate">{composerState}</span>
           </Pill>
         </span>
@@ -685,7 +696,7 @@ export function ConversationPane({
             ) : !canReply ? (
               <div className="flex flex-col items-stretch gap-2.5 px-5 py-4">
                 {takeOverButton('h-11', { expandOnSuccess: true, draftHidden: true })}
-                {claimGateCaption}
+                {agentLiveCaption ?? claimGateCaption}
               </div>
             ) : suggestionId && !dirty && !streaming ? (
               <div className="px-5 py-4">
@@ -710,7 +721,7 @@ export function ConversationPane({
                         aria-hidden
                         className="size-1.5 shrink-0 animate-pulse rounded-full bg-current"
                       />
-                      {t(streaming ? 'stateWriting' : 'stateThinking')}
+                      {t('draftingPending')}
                     </span>
                   ) : (
                     <>
@@ -824,20 +835,74 @@ export function ConversationPane({
                   ))}
                 </div>
               )}
-              <textarea
-                ref={replyBoxRef}
-                value={reply}
-                readOnly={streaming || askedForDraft}
-                onChange={(e) => {
-                  setReply(e.target.value);
-                  notifyTyping(e.target.value.trim().length > 0);
-                  if (err) controller.clearActionError();
-                }}
-                rows={4}
-                placeholder={t(agentCanDraft ? 'replyPlaceholderOrNote' : 'replyPlaceholder', { name: customer })}
-                aria-invalid={slotsNudged && unfilledSlots.length > 0}
-                className={cn(REPLY_BOX_CLASS, drafting && !streaming && 'text-ink-mute')}
-              />
+              <div
+                className={cn(
+                  REPLY_FRAME_CLASS,
+                  (agentDraftState === 'writing' || agentDraftState === 'ready') &&
+                    AGENT_TINT_CLASS,
+                )}
+              >
+                {agentDraftState ? (
+                  <AgentDraftLabel
+                    busy={agentDraftState === 'writing'}
+                    label={
+                      agentDraftState === 'ready'
+                        ? t('draftLabel')
+                        : agentDraftState === 'edited'
+                          ? t('draftEditedLabel')
+                          : draftingFromNote
+                            ? t('draftingFromNote')
+                            : t('draftingLabel')
+                    }
+                    aside={
+                      agentDraftState === 'ready' ? (
+                        <AgentDraftAction
+                          ariaLabel={t('rejectDraft')}
+                          disabled={controller.pending}
+                          onClick={rejectAndClear}
+                        >
+                          {t('rejectDraftShort')}
+                        </AgentDraftAction>
+                      ) : agentDraftState === 'edited' && draft ? (
+                        <AgentDraftAction onClick={() => setReply(draft.body)}>
+                          {t('discardDraftEdits')}
+                        </AgentDraftAction>
+                      ) : draftingFromNote ? (
+                        <AgentDraftAction
+                          expanded={draftNoteOpen}
+                          onClick={() => setDraftNoteOpen((v) => !v)}
+                        >
+                          {draftNoteOpen ? t('hideDraftNote') : t('showDraftNote')}
+                        </AgentDraftAction>
+                      ) : null
+                    }
+                  />
+                ) : null}
+                <div className="relative flex flex-col max-md:min-h-0 max-md:flex-1">
+                  <textarea
+                    ref={replyBoxRef}
+                    value={reply}
+                    readOnly={streaming || askedForDraft}
+                    onChange={(e) => {
+                      setReply(e.target.value);
+                      notifyTyping(e.target.value.trim().length > 0);
+                      if (err) controller.clearActionError();
+                    }}
+                    rows={4}
+                    placeholder={t(agentCanDraft ? 'replyPlaceholderOrNote' : 'replyPlaceholder', { name: customer })}
+                    aria-invalid={slotsNudged && unfilledSlots.length > 0}
+                    className={cn(REPLY_TEXT_CLASS, draftSkeleton && 'invisible')}
+                  />
+                  {draftSkeleton ? (
+                    <div className="absolute inset-0 flex flex-col gap-2.5 overflow-y-auto">
+                      {draftingFromNote && draftNoteOpen ? (
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed">{reply}</p>
+                      ) : null}
+                      <DraftSkeleton />
+                    </div>
+                  ) : null}
+                </div>
+              </div>
               {slotsNudged && unfilledSlots.length > 0 ? (
                 <p role="alert" className="text-[13px] text-destructive">
                   {t('draftSlotsOpen', { slots: unfilledSlots.join(', ') })}
@@ -879,7 +944,7 @@ export function ConversationPane({
                             ? t('sendInLanguage', { language: viewerLanguageName(locale) })
                             : t('sendReply')}
                   </Button>
-                  {askDraftButton('max-md:order-last max-md:h-11 max-md:basis-full', { showPending: true })}
+                  {askDraftButton('max-md:order-last max-md:h-11 max-md:basis-full')}
                   <Button
                     variant="outline"
                     onClick={() => fileInputRef.current?.click()}
@@ -906,19 +971,33 @@ export function ConversationPane({
                 ) : null}
               </div>
             </div>
-          ) : draft ? (
+          ) : drafting || draft ? (
             <div className="flex flex-col gap-2.5 px-5 py-4 max-md:min-h-0 max-md:flex-1 md:px-7">
-              <textarea
-                ref={replyBoxRef}
-                value={draft.body}
-                readOnly
-                rows={4}
-                aria-label={t('draftPreviewLabel')}
-                className={cn(
-                  REPLY_BOX_CLASS,
-                  'bg-bone text-ink-soft dark:bg-secondary dark:text-foreground/80',
-                )}
-              />
+              {drafting ? (
+                <AgentDraftSlab busy label={t('draftingLabel')} className="min-h-28 max-md:flex-1">
+                  <DraftSkeleton />
+                </AgentDraftSlab>
+              ) : (
+                <AgentDraftSlab
+                  label={t('draftLabel')}
+                  aside={
+                    <>
+                      <span aria-hidden className="text-ink-mute">·</span>
+                      <span className="shrink-0">{t('draftReadOnly')}</span>
+                    </>
+                  }
+                  className="min-h-28 max-md:min-h-0 max-md:flex-1"
+                >
+                  <textarea
+                    ref={replyBoxRef}
+                    value={draft?.body ?? ''}
+                    readOnly
+                    rows={3}
+                    aria-label={t('draftPreviewLabel')}
+                    className="w-full cursor-default resize-none bg-transparent text-base leading-relaxed outline-none max-md:min-h-0 max-md:flex-1 md:text-sm"
+                  />
+                </AgentDraftSlab>
+              )}
               <div className="flex shrink-0 flex-col flex-wrap items-stretch gap-2.5 md:flex-row md:items-center">
                 {takeOverButton('max-md:h-11')}
                 {claimGateCaption}

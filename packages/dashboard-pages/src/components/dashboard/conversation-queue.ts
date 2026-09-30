@@ -344,6 +344,7 @@ export function useConversationQueue(
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [pendingAction, setPendingAction] = useState<QueueActionType | null>(null);
+  const actionInFlight = useRef(false);
   const [actionError, setActionError] = useState<QueueActionError>(null);
   const [draftRequested, setDraftRequested] = useState<Record<string, boolean>>({});
   const draftRequestedRef = useRef(draftRequested);
@@ -584,6 +585,8 @@ export function useConversationQueue(
       id: string,
       fn: () => Promise<void>,
     ): Promise<boolean> => {
+      if (actionInFlight.current) return false;
+      actionInFlight.current = true;
       setPendingAction(type);
       try {
         await fn();
@@ -601,6 +604,7 @@ export function useConversationQueue(
         }));
         return false;
       } finally {
+        actionInFlight.current = false;
         setPendingAction(null);
       }
     },

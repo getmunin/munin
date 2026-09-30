@@ -44,9 +44,16 @@ function replyBox(): HTMLTextAreaElement {
   );
 }
 
-function restoreDraftItem(): HTMLElement | null {
-  fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
-  return screen.queryByRole('menuitem', { name: 'Restore draft' });
+function discardEditsButton(): HTMLElement | null {
+  return screen.queryByRole('button', { name: 'Discard' });
+}
+
+function draftStatus(): string | null {
+  return screen.queryByRole('status')?.textContent ?? null;
+}
+
+function replyFrame(): HTMLElement {
+  return replyBox().parentElement!.parentElement!;
 }
 
 function failureBlocks(): HTMLElement[] {
@@ -67,7 +74,26 @@ describe('ConversationPane composer', () => {
 
     expect(replyBox().value).toBe(DRAFT_A);
     expect(screen.getByRole('button', { name: 'Approve & send' })).toBeTruthy();
-    expect(restoreDraftItem()).toBeNull();
+    expect(draftStatus()).toBe('Draft·Reject');
+    expect(replyFrame().className).toContain('bg-agent-tint');
+    expect(replyBox().readOnly).toBe(false);
+    expect(discardEditsButton()).toBeNull();
+  });
+
+  it('rejecting the draft from its label hands back the note it was drafted from', async () => {
+    const rejectDraft = vi.fn(() => Promise.resolve());
+    const draft = makeDraft('conv_a', 'conv_a_draft', DRAFT_A);
+    draft.metadata = { kind: 'draft_reply', note: 'Say it shipped Tuesday.' };
+    const detail = makeDetail('conv_a', {
+      messages: [makeMessage({ id: 'conv_a_m1', conversationId: 'conv_a' }), draft],
+    });
+    renderWithProviders(pane('conv_a', detail, stubController({ rejectDraft })));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reject draft' }));
+    await act(() => Promise.resolve());
+
+    expect(rejectDraft).toHaveBeenCalledWith('conv_a');
+    expect(replyBox().value).toBe('Say it shipped Tuesday.');
   });
 
   it('reopening a conversation with a cached draft seeds the composer and is not dirty', () => {
@@ -80,7 +106,7 @@ describe('ConversationPane composer', () => {
     rerender(pane('conv_b', detailWithDraft('conv_b', DRAFT_B), controller));
 
     expect(replyBox().value).toBe(DRAFT_B);
-    expect(restoreDraftItem()).toBeNull();
+    expect(discardEditsButton()).toBeNull();
     expect(screen.getByRole('button', { name: 'Approve & send' })).toBeTruthy();
   });
 
@@ -94,7 +120,7 @@ describe('ConversationPane composer', () => {
     rerender(pane('conv_b', detailWithDraft('conv_b', DRAFT_B), controller));
 
     expect(replyBox().value).toBe(DRAFT_B);
-    expect(restoreDraftItem()).toBeNull();
+    expect(discardEditsButton()).toBeNull();
   });
 
   it('a send failure stays on its own conversation when you switch away and back', () => {
@@ -131,8 +157,8 @@ describe('ConversationPane composer', () => {
     vi.useFakeTimers();
     const drafting = stubController({ draftRequested: { conv_a: true } });
     const { rerender } = renderWithProviders(pane('conv_a', makeDetail('conv_a'), drafting));
-    expect(screen.getAllByText('Thinking').length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: 'Drafting…' })).toHaveProperty('disabled', true);
+    expect(draftStatus()).toBe('Writing draft');
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Send reply' }).disabled).toBe(true);
 
     rerender(pane('conv_a', detailWithDraft('conv_a', DRAFT_A), stubController()));
 
@@ -141,27 +167,78 @@ describe('ConversationPane composer', () => {
     });
     expect(replyBox().value.length).toBeGreaterThan(0);
     expect(replyBox().value.length).toBeLessThan(DRAFT_A.length);
-    expect(screen.getAllByText('Writing').length).toBeGreaterThan(0);
-    expect(restoreDraftItem()).toBeNull();
+    expect(draftStatus()).toBe('Writing draft');
+    expect(replyFrame().className).toContain('bg-agent-tint');
+    expect(discardEditsButton()).toBeNull();
 
     act(() => {
       vi.advanceTimersByTime(24 * DRAFT_A.length);
     });
     expect(replyBox().value).toBe(DRAFT_A);
-    expect(restoreDraftItem()).toBeNull();
+    expect(draftStatus()).toBe('Draft·Reject');
+    expect(replyFrame().className).toContain('bg-agent-tint');
+    expect(discardEditsButton()).toBeNull();
   });
 
-  it('clearing the box by hand is dirty and Restore draft refills it', () => {
+  it('folds the note behind Show while the agent drafts from it', () => {
+    const controller = stubController({ requestDraft: vi.fn(() => Promise.resolve()) });
+    const { rerender } = renderWithProviders(pane('conv_a', makeDetail('conv_a'), controller));
+    fireEvent.change(replyBox(), { target: { value: 'Refund is approved, 3–5 days.' } });
+
+    rerender(pane('conv_a', makeDetail('conv_a'), { ...controller, draftRequested: { conv_a: true } }));
+
+    const revealedNote = () =>
+      screen.queryByText('Refund is approved, 3–5 days.', { selector: 'p' });
+    expect(draftStatus()).toContain('Writing draft from your notes');
+    expect(revealedNote()).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Show' }));
+    expect(revealedNote()).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Hide' }).getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('shows a teammate who does not hold the conversation a skeleton, then the draft', () => {
+    const unclaimed = (body?: string) =>
+      makeDetail('conv_a', {
+        claim: null,
+        messages: [
+          makeMessage({ id: 'conv_a_m1', conversationId: 'conv_a' }),
+          ...(body ? [makeDraft('conv_a', 'conv_a_draft', body)] : []),
+        ],
+      });
+    const working = (
+      <ConversationPane
+        selectedId="conv_a"
+        item={{ ...makeItem('conv_a'), agentWorking: true }}
+        detail={unclaimed()}
+        controller={stubController()}
+        viewerUserId={VIEWER_USER_ID}
+      />
+    );
+    const { rerender } = renderWithProviders(working);
+    expect(draftStatus()).toBe('Writing draft');
+
+    rerender(pane('conv_a', unclaimed(DRAFT_A), stubController()));
+    expect(draftStatus()).toBe('Draft·Preview');
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Agent draft' }).value).toBe(
+      DRAFT_A,
+    );
+  });
+
+  it('editing the draft drops the agent tint, says so, and Discard brings the draft back', () => {
     renderWithProviders(pane('conv_a', detailWithDraft('conv_a', DRAFT_A), stubController()));
 
     fireEvent.change(replyBox(), { target: { value: '' } });
 
-    expect(restoreDraftItem()).toBeTruthy();
+    expect(draftStatus()).toBe('Edited draft·Discard');
+    expect(screen.queryByRole('button', { name: 'Reject draft' })).toBeNull();
+    expect(replyFrame().className).not.toContain('bg-agent-tint');
     expect(screen.getByRole('button', { name: 'Send reply' })).toBeTruthy();
 
-    fireEvent.click(restoreDraftItem()!);
+    fireEvent.click(discardEditsButton()!);
 
     expect(replyBox().value).toBe(DRAFT_A);
+    expect(draftStatus()).toBe('Draft·Reject');
+    expect(replyFrame().className).toContain('bg-agent-tint');
     expect(screen.getByRole('button', { name: 'Approve & send' })).toBeTruthy();
   });
 

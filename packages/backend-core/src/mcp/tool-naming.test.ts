@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NestFactory } from '@nestjs/core';
+import { TOOLS_BY_URI } from '@getmunin/types';
 import type { INestApplication } from '@nestjs/common';
 import { DocsAppModule } from '../docs-app.module.ts';
 import { McpRegistryService } from './mcp.registry.ts';
@@ -123,6 +124,14 @@ describe('MCP tool naming: names, titles and verbs agree', () => {
 
   it('registers a non-trivial number of tools', () => {
     expect(tools.length).toBeGreaterThan(150);
+  });
+
+  it('every curator skill allow-list entry names a registered tool, so exact matching never silently drops one', () => {
+    const registered = new Set(tools.map((t) => t.name));
+    const unknown = [...TOOLS_BY_URI].flatMap(([uri, names]) =>
+      names.filter((name) => !registered.has(name)).map((name) => `${uri} -> ${name}`),
+    );
+    expect(unknown).toEqual([]);
   });
 
   it('every tool has a title', () => {

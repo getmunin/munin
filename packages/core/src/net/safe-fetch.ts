@@ -6,7 +6,7 @@ import {
 import { promisify } from 'node:util';
 import { isIP as isIp } from 'node:net';
 import { Agent, fetch as undiciFetch, Response as UndiciResponse } from 'undici';
-import type { RequestInit as UndiciRequestInit } from 'undici';
+import type { Dispatcher, RequestInit as UndiciRequestInit } from 'undici';
 import { parseEnvBool } from '../env/index.ts';
 
 const dnsLookup = promisify((hostname: string, cb: (err: NodeJS.ErrnoException | null, addrs: LookupAddress[]) => void) =>
@@ -112,10 +112,15 @@ function isPrivateIpv6(ip: string): boolean {
   if ((g[0]! & 0xfe00) === 0xfc00) return true;
   if ((g[0]! & 0xffc0) === 0xfe80) return true;
   if ((g[0]! & 0xff00) === 0xff00) return true;
+  const embeddedV4 = `${(g[6]! >> 8) & 0xff}.${g[6]! & 0xff}.${(g[7]! >> 8) & 0xff}.${g[7]! & 0xff}`;
   if (g[0] === 0 && g[1] === 0 && g[2] === 0 && g[3] === 0 && g[4] === 0 && g[5] === 0xffff) {
-    const v4 = `${(g[6]! >> 8) & 0xff}.${g[6]! & 0xff}.${(g[7]! >> 8) & 0xff}.${g[7]! & 0xff}`;
-    return isPrivateIp(v4);
+    return isPrivateIp(embeddedV4);
   }
+  if (g.slice(0, 6).every((x) => x === 0)) return true;
+  if (g[0] === 0x64 && g[1] === 0xff9b && g[2] === 0 && g[3] === 0 && g[4] === 0 && g[5] === 0) {
+    return isPrivateIp(embeddedV4);
+  }
+  if (g[0] === 0x64 && g[1] === 0xff9b && g[2] === 1) return true;
   if (g[0] === 0x2002) {
     const v4 = `${(g[1]! >> 8) & 0xff}.${g[1]! & 0xff}.${(g[2]! >> 8) & 0xff}.${g[2]! & 0xff}`;
     return isPrivateIp(v4);
@@ -135,10 +140,18 @@ export function isPrivateIp(ip: string): boolean {
 }
 
 export class SsrfBlockedError extends Error {
-  constructor(message: string) {
+  readonly detail: string | undefined;
+
+  constructor(message: string, detail?: string) {
     super(message);
     this.name = 'SsrfBlockedError';
+    this.detail = detail;
   }
+}
+
+function unreachableHost(hostname: string, detail: string): SsrfBlockedError {
+  console.warn(`[safe-fetch] blocked ${hostname}: ${detail}`);
+  return new SsrfBlockedError(`host ${hostname} is not reachable as a public address`, detail);
 }
 
 export interface AssertPublicHostOptions {
@@ -164,7 +177,7 @@ export async function resolvePublicHost(
   opts: AssertPublicHostOptions = {},
 ): Promise<{ address: string; family: number } | null> {
   if (parseEnvBool({ name: 'MUNIN_SSRF_ALLOW_PRIVATE', default: false })) return null;
-  const host = hostname.toLowerCase();
+  const host = hostname.toLowerCase().replace(/^\[(.*)\]$/, '$1');
   if (!host) throw new SsrfBlockedError('empty host');
   if (BLOCKED_HOSTNAMES.has(host)) {
     throw new SsrfBlockedError(`host "${hostname}" is not allowed`);
@@ -183,16 +196,17 @@ export async function resolvePublicHost(
   try {
     records = await resolver(host);
   } catch (err) {
-    throw new SsrfBlockedError(
-      `dns lookup failed for ${hostname}: ${err instanceof Error ? err.message : String(err)}`,
+    throw unreachableHost(
+      hostname,
+      `dns lookup failed: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
   if (records.length === 0) {
-    throw new SsrfBlockedError(`dns lookup returned no records for ${hostname}`);
+    throw unreachableHost(hostname, 'dns lookup returned no records');
   }
   for (const r of records) {
     if (isPrivateIp(r.address)) {
-      throw new SsrfBlockedError(`host ${hostname} resolves to private ip ${r.address}`);
+      throw unreachableHost(hostname, `resolves to private ip ${r.address}`);
     }
   }
   return records[0]!;
@@ -218,14 +232,15 @@ function makeBlockingAgent(connectLookup: ConnectLookup): Agent {
         cb: (err: NodeJS.ErrnoException | null, address: string | LookupAddress[], family: number) => void,
       ) => {
         const wantAll = lookupOpts.all === true;
-        const rejectSsrf = (msg: string): void => {
-          const e = new Error(msg) as NodeJS.ErrnoException;
+        const rejectSsrf = (detail: string): void => {
+          console.warn(`[safe-fetch] blocked ${hostname} at connect: ${detail}`);
+          const e = new Error(`host ${hostname} is not reachable as a public address`) as NodeJS.ErrnoException;
           e.code = 'ESSRF_BLOCKED';
           cb(e, wantAll ? [] : '', 0);
         };
         const hostOk = isIp(hostname) ? !isPrivateIp(hostname) : !isBannedHostname(hostname);
         if (!hostOk && !parseEnvBool({ name: 'MUNIN_SSRF_ALLOW_PRIVATE', default: false })) {
-          rejectSsrf(`host ${hostname} is not allowed`);
+          rejectSsrf('host is not allowed');
           return;
         }
         connectLookup(hostname, (err, records) => {
@@ -236,7 +251,7 @@ function makeBlockingAgent(connectLookup: ConnectLookup): Agent {
           if (!parseEnvBool({ name: 'MUNIN_SSRF_ALLOW_PRIVATE', default: false })) {
             for (const r of records) {
               if (isPrivateIp(r.address)) {
-                return rejectSsrf(`host ${hostname} resolved to private ip ${r.address}`);
+                return rejectSsrf(`resolved to private ip ${r.address}`);
               }
             }
           }
@@ -263,11 +278,12 @@ export interface SafeFetchOptions extends Omit<UndiciRequestInit, 'redirect' | '
   resolver?: (hostname: string) => Promise<{ address: string; family: number }[]>;
   maxRedirects?: number;
   __connectLookup?: ConnectLookup;
+  __dispatcher?: Dispatcher;
 }
 
 const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 
-function closeAgent(agent: Agent): void {
+function closeAgent(agent: Dispatcher): void {
   void agent.close().catch((err: unknown) => {
     console.warn('[safe-fetch] agent close failed', err);
   });
@@ -317,8 +333,8 @@ export const safeFetchCompat: GlobalFetchLike = async (url, init) => {
 };
 
 export async function safeFetch(input: string, init: SafeFetchOptions = {}): Promise<UndiciResponse> {
-  const { resolver, maxRedirects = MAX_REDIRECTS, __connectLookup, ...rest } = init;
-  const agent = makeBlockingAgent(__connectLookup ?? defaultConnectLookup);
+  const { resolver, maxRedirects = MAX_REDIRECTS, __connectLookup, __dispatcher, ...rest } = init;
+  const agent = __dispatcher ?? makeBlockingAgent(__connectLookup ?? defaultConnectLookup);
   let currentUrl = input;
   let hops = 0;
   try {
@@ -331,7 +347,7 @@ export async function safeFetch(input: string, init: SafeFetchOptions = {}): Pro
         dispatcher: agent,
       });
       const nextUrl = redirectTarget(res, currentUrl);
-      if (!nextUrl) return attachAgentLifetime(res, agent);
+      if (!nextUrl) return attachAgentLifetime(res, agent, currentUrl);
       await discardBody(res);
       if (++hops > maxRedirects) {
         throw new SsrfBlockedError(`too many redirects (>${maxRedirects})`);
@@ -344,10 +360,15 @@ export async function safeFetch(input: string, init: SafeFetchOptions = {}): Pro
   }
 }
 
-function attachAgentLifetime(res: UndiciResponse, agent: Agent): UndiciResponse {
+function withFinalUrl(res: UndiciResponse, url: string): UndiciResponse {
+  Object.defineProperty(res, 'url', { value: url, enumerable: true });
+  return res;
+}
+
+function attachAgentLifetime(res: UndiciResponse, agent: Dispatcher, finalUrl: string): UndiciResponse {
   if (!res.body) {
     closeAgent(agent);
-    return res;
+    return withFinalUrl(res, finalUrl);
   }
   const upstream: ReadableStreamDefaultReader<Uint8Array> = res.body.getReader();
   const wrapped = new ReadableStream<Uint8Array>({
@@ -373,9 +394,12 @@ function attachAgentLifetime(res: UndiciResponse, agent: Agent): UndiciResponse 
       }
     },
   });
-  return new UndiciResponse(wrapped, {
-    status: res.status,
-    statusText: res.statusText,
-    headers: res.headers,
-  });
+  return withFinalUrl(
+    new UndiciResponse(wrapped, {
+      status: res.status,
+      statusText: res.statusText,
+      headers: res.headers,
+    }),
+    finalUrl,
+  );
 }

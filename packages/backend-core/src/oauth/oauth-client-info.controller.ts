@@ -37,12 +37,40 @@ const FAVICON_MIME_ALLOWLIST = new Set([
   'image/png',
   'image/jpeg',
   'image/gif',
-  'image/svg+xml',
   'image/webp',
 ]);
 
-const FAVICON_MAX_BYTES = 256 * 1024;
+export const FAVICON_MAX_BYTES = 256 * 1024;
 const FAVICON_BROWSER_TTL_SECONDS = 60 * 60 * 24;
+
+export const ICON_RESPONSE_HEADERS: Readonly<Record<string, string>> = {
+  'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+  'x-content-type-options': 'nosniff',
+  'content-disposition': 'inline; filename="icon"',
+  'cache-control': `public, max-age=${FAVICON_BROWSER_TTL_SECONDS}`,
+};
+
+export interface IconResponse {
+  status(code: number): IconResponse;
+  setHeader(name: string, value: string): IconResponse;
+  send(body: Buffer): unknown;
+}
+
+export interface FetchedIcon {
+  body: Buffer;
+  mime: string;
+}
+
+export interface IconFetchResponse {
+  ok: boolean;
+  headers: { get(name: string): string | null };
+  body: ReadableStream<Uint8Array> | null;
+}
+
+export type IconFetcher = (
+  url: string,
+  init: { method: string; headers: Record<string, string>; signal: AbortSignal },
+) => Promise<IconFetchResponse>;
 
 @PublicController('v1/oauth/clients')
 export class OAuthClientInfoController {
@@ -67,20 +95,7 @@ export class OAuthClientInfoController {
   @Get(':clientId/icon')
   async icon(@Param('clientId') clientId: string, @Res() res: Response): Promise<void> {
     const row = await this.loadRow(clientId);
-    const icon = await this.resolveIcon(row);
-    if (!icon) {
-      res
-        .status(200)
-        .setHeader('content-type', 'image/svg+xml')
-        .setHeader('cache-control', `public, max-age=${FAVICON_BROWSER_TTL_SECONDS}`)
-        .send(GENERIC_APP_ICON_SVG);
-      return;
-    }
-    res
-      .status(200)
-      .setHeader('content-type', icon.mime)
-      .setHeader('cache-control', `public, max-age=${FAVICON_BROWSER_TTL_SECONDS}`)
-      .send(icon.body);
+    sendIcon(res, await this.resolveIcon(row));
   }
 
   private async loadRow(clientId: string): Promise<{
@@ -148,10 +163,47 @@ function deriveFallbackName(host: string | null): string | null {
   return host.replace(/^www\./, '');
 }
 
-async function fetchImage(url: string): Promise<{ body: Buffer; mime: string } | null> {
-  let res: Awaited<ReturnType<typeof safeFetch>>;
+export function sendIcon(res: IconResponse, icon: FetchedIcon | null): void {
+  res.status(200);
+  for (const [name, value] of Object.entries(ICON_RESPONSE_HEADERS)) res.setHeader(name, value);
+  if (!icon) {
+    res.setHeader('content-type', 'image/svg+xml').send(GENERIC_APP_ICON_SVG);
+    return;
+  }
+  res.setHeader('content-type', icon.mime).send(icon.body);
+}
+
+export async function readCappedBody(
+  body: ReadableStream<Uint8Array> | null,
+  maxBytes: number,
+): Promise<Buffer | null> {
+  if (!body) return null;
+  const reader = body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks, total);
+}
+
+const defaultIconFetcher: IconFetcher = (url, init) => safeFetch(url, init);
+
+export async function fetchImage(
+  url: string,
+  fetcher: IconFetcher = defaultIconFetcher,
+): Promise<FetchedIcon | null> {
+  let res: IconFetchResponse;
   try {
-    res = await safeFetch(url, {
+    res = await fetcher(url, {
       method: 'GET',
       headers: { 'user-agent': 'Munin-Consent/1.0 (+https://getmunin.com)' },
       signal: AbortSignal.timeout(5_000),
@@ -164,11 +216,28 @@ async function fetchImage(url: string): Promise<{ body: Buffer; mime: string } |
     }
     return null;
   }
-  if (!res.ok) return null;
+  if (!res.ok) {
+    await res.body?.cancel().catch(() => undefined);
+    return null;
+  }
   const rawMime = res.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() ?? '';
-  if (!FAVICON_MIME_ALLOWLIST.has(rawMime)) return null;
-  const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length === 0 || buf.length > FAVICON_MAX_BYTES) return null;
+  if (!FAVICON_MIME_ALLOWLIST.has(rawMime)) {
+    await res.body?.cancel().catch(() => undefined);
+    return null;
+  }
+  const declared = Number(res.headers.get('content-length') ?? NaN);
+  if (Number.isFinite(declared) && declared > FAVICON_MAX_BYTES) {
+    await res.body?.cancel().catch(() => undefined);
+    return null;
+  }
+  let buf: Buffer | null;
+  try {
+    buf = await readCappedBody(res.body, FAVICON_MAX_BYTES);
+  } catch (err) {
+    console.warn(`[oauth-client-icon] body read failed for ${url}: ${describeError(err)}`);
+    return null;
+  }
+  if (!buf || buf.length === 0) return null;
   return { body: buf, mime: rawMime };
 }
 

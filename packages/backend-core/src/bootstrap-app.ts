@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication, NestApplicationOptions, Type } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { LocalFsStorage, type AssetStorage } from '@getmunin/core';
+import { LocalFsStorage, readApiBaseUrl, type AssetStorage } from '@getmunin/core';
 import { createReadStream, existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
@@ -63,6 +63,8 @@ export async function createApp(
     rawBody: true,
     ...nestOpts,
   });
+  (app.getHttpAdapter().getInstance() as { disable: (k: string) => void }).disable('x-powered-by');
+  app.use(securityHeadersMiddleware({ hsts: readApiBaseUrl().startsWith('https://') }));
   app.use(EMAIL_RELAY_PATH, emailRelaySignatureGateMiddleware, emailRelayBodyParser());
   app.useBodyParser('json', { limit: JSON_BODY_LIMIT, type: ['application/json', 'text/plain'] });
   app.useBodyParser('urlencoded', { extended: true, limit: JSON_BODY_LIMIT });
@@ -96,6 +98,42 @@ export async function createApp(
   app.use(brandIconMiddleware(resolvedIconDir));
 
   return app;
+}
+
+const API_DOCUMENT_CSP = "default-src 'none'; frame-ancestors 'none'";
+const AUTH_ERROR_PAGE_CSP = "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'";
+const AUTH_ERROR_PAGE_PATH = '/auth/error';
+const HSTS_VALUE = 'max-age=31536000';
+
+const EMBEDDABLE_RESOURCE_PATHS = new Set(['/widget.js', '/tracker.js']);
+const EMBEDDABLE_RESOURCE_PREFIXES = ['/widget/', '/tracker/', '/static/assets/', '/v1/c/a/'];
+
+export function isEmbeddableResourcePath(path: string): boolean {
+  return (
+    EMBEDDABLE_RESOURCE_PATHS.has(path) ||
+    Object.hasOwn(BRAND_ICON_FILES, path) ||
+    EMBEDDABLE_RESOURCE_PREFIXES.some((prefix) => path.startsWith(prefix))
+  );
+}
+
+interface HeaderSink {
+  setHeader(name: string, value: string): unknown;
+}
+
+export function securityHeadersMiddleware(opts: { hsts: boolean }) {
+  return (req: { path: string }, res: HeaderSink, next: () => void): void => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    if (opts.hsts) res.setHeader('Strict-Transport-Security', HSTS_VALUE);
+    if (!isEmbeddableResourcePath(req.path)) {
+      res.setHeader('X-Frame-Options', 'DENY');
+      res.setHeader(
+        'Content-Security-Policy',
+        req.path === AUTH_ERROR_PAGE_PATH ? AUTH_ERROR_PAGE_CSP : API_DOCUMENT_CSP,
+      );
+    }
+    next();
+  };
 }
 
 export function emailRelaySignatureGateMiddleware(

@@ -1,11 +1,13 @@
 import { ForbiddenException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { and, eq } from 'drizzle-orm';
-import { getCurrentContext } from '@getmunin/core';
+import { getCurrentContext, type ActorIdentity } from '@getmunin/core';
 
 export type OrgRole = 'owner' | 'admin' | 'member';
 
 export const VALID_ROLES: ReadonlySet<string> = new Set<OrgRole>(['owner', 'admin', 'member']);
+
+export const CREATORLESS_AGENT_ROLE: OrgRole = 'admin';
 
 async function readUserRole(orgId: string, userId: string): Promise<string | null> {
   const ctx = getCurrentContext();
@@ -17,7 +19,28 @@ async function readUserRole(orgId: string, userId: string): Promise<string | nul
   return rows[0]?.role ?? null;
 }
 
+export async function resolveAgentRole(
+  actor: ActorIdentity,
+  readRole: (userId: string) => Promise<string | null>,
+): Promise<string> {
+  if (!actor.hasScope('*')) {
+    throw new ForbiddenException('scoped admin keys cannot perform owner/admin actions');
+  }
+  if (!actor.userId) return CREATORLESS_AGENT_ROLE;
+  const role = await readRole(actor.userId);
+  if (!role) {
+    throw new ForbiddenException(
+      'the user who created this key is no longer a member of this org',
+    );
+  }
+  return role;
+}
+
 export async function assertOwner(orgId: string, userId: string): Promise<void> {
+  const actor = getCurrentContext().actor;
+  if (actor?.type === 'admin_agent' && !actor.hasScope('*')) {
+    throw new ForbiddenException('scoped admin keys cannot perform owner/admin actions');
+  }
   const role = await readUserRole(orgId, userId);
   if (role !== 'owner') {
     throw new ForbiddenException('only org owners can perform this action');
@@ -29,8 +52,9 @@ export async function assertOwnerOrAdmin(orgId: string, userId: string): Promise
   if (!actor) throw new ForbiddenException('unauthenticated');
   if (actor.type === 'system') return;
   if (actor.type === 'admin_agent') {
-    if (!actor.hasScope('*')) {
-      throw new ForbiddenException('scoped admin keys cannot perform owner/admin actions');
+    const role = await resolveAgentRole(actor, (creatorId) => readUserRole(orgId, creatorId));
+    if (role !== 'owner' && role !== 'admin') {
+      throw new ForbiddenException('only org owners or admins can perform this action');
     }
     return;
   }

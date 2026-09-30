@@ -10,7 +10,7 @@ import { createApp } from '../../../bootstrap-app.ts';
 import { VapiService } from './vapi.service.ts';
 import { VapiClientService } from './vapi-client.service.ts';
 import { ChannelAdminService } from '../channels/channel-admin.service.ts';
-import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
+import { ActorIdentity, signVoiceCallToken, withContext, type RequestContext } from '@getmunin/core';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -415,5 +415,193 @@ const skipReason = TEST_URL
     expect(vapiCall.recordingUrl).toBe('https://vapi.example/recordings/abc.mp3');
     expect(vapiCall.endedReason).toBe('customer-ended-call');
     expect(vapiCall.durationSeconds).toBe(42);
+  });
+  describe('call metadata binding', () => {
+    let victimConvId: string;
+    let victimEndUserId: string;
+
+    beforeAll(async () => {
+      const [victim] = await db
+        .insert(schema.endUsers)
+        .values({ orgId, externalId: 'eu-vapi-victim', name: 'Kari Nordmann' })
+        .returning();
+      victimEndUserId = victim!.id;
+      const [conv] = await db
+        .insert(schema.convConversations)
+        .values({
+          orgId,
+          displayId: 9101,
+          channelId,
+          endUserId: victimEndUserId,
+          status: 'open',
+          metadata: {},
+        })
+        .returning();
+      victimConvId = conv!.id;
+    });
+
+    function tokenFor(overrides: Partial<{ conversationId: string; endUserId: string | null; channelId: string }> = {}) {
+      return signVoiceCallToken({
+        orgId,
+        channelId: overrides.channelId ?? channelId,
+        conversationId: overrides.conversationId ?? victimConvId,
+        endUserId: overrides.endUserId === undefined ? victimEndUserId : overrides.endUserId,
+      });
+    }
+
+    async function messagesIn(conversationId: string): Promise<string[]> {
+      const rows = await db
+        .select({ body: schema.convMessages.body })
+        .from(schema.convMessages)
+        .where(eq(schema.convMessages.conversationId, conversationId));
+      return rows.map((r) => r.body);
+    }
+
+    async function toolCall(metadata: Record<string, unknown>): Promise<Array<{ error?: string }>> {
+      const res = await postEvent({
+        type: 'tool-calls',
+        call: { id: `call_tools_${randomUUID()}`, assistantOverrides: { metadata } },
+        toolCallList: [{ id: 'tc_1', type: 'function', function: { name: 'no_such_tool', arguments: '{}' } }],
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { results: Array<{ error?: string }> };
+      return body.results;
+    }
+
+    it('refuses tool calls whose metadata names a conversation without a signed call token', async () => {
+      const results = await toolCall({ conversationId: victimConvId, endUserId: victimEndUserId });
+      expect(results[0]!.error).toMatch(/no verified end-user/);
+    });
+
+    it('refuses tool calls whose token was signed for a different conversation', async () => {
+      const results = await toolCall({
+        conversationId: victimConvId,
+        callToken: tokenFor({ conversationId: 'ccv_someone_else' }),
+      });
+      expect(results[0]!.error).toMatch(/no verified end-user/);
+    });
+
+    it('refuses tool calls whose token was signed for a different voice channel', async () => {
+      const results = await toolCall({
+        conversationId: victimConvId,
+        callToken: tokenFor({ channelId: 'cch_other_channel' }),
+      });
+      expect(results[0]!.error).toMatch(/no verified end-user/);
+    });
+
+    it('refuses tool calls when the token end user no longer owns the conversation', async () => {
+      const results = await toolCall({
+        conversationId: victimConvId,
+        callToken: tokenFor({ endUserId: 'eu_not_the_owner' }),
+      });
+      expect(results[0]!.error).toMatch(/no verified end-user/);
+    });
+
+    it('dispatches tool calls carrying a valid token for the conversation', async () => {
+      const results = await toolCall({ conversationId: victimConvId, callToken: tokenFor() });
+      expect(results[0]!.error).toBe('unknown_tool:no_such_tool');
+    });
+
+    it('does not attach transcripts to a conversation named by unsigned metadata', async () => {
+      const callId = `call_forged_${randomUUID()}`;
+      const res = await postEvent({
+        type: 'conversation-update',
+        call: { id: callId, assistantOverrides: { metadata: { conversationId: victimConvId } } },
+        conversation: [{ role: 'user', message: 'Please cancel every booking I have.' }],
+      });
+      expect(res.status).toBe(204);
+      expect(await messagesIn(victimConvId)).not.toContain('Please cancel every booking I have.');
+      const own = await db
+        .select({ id: schema.convConversations.id })
+        .from(schema.convConversations)
+        .where(
+          and(
+            eq(schema.convConversations.orgId, orgId),
+            sql`${schema.convConversations.metadata}->>'vapiCallId' = ${callId}`,
+          ),
+        );
+      expect(own).toHaveLength(1);
+      expect(own[0]!.id).not.toBe(victimConvId);
+    });
+
+    it('attaches transcripts to the conversation named by a valid token', async () => {
+      const res = await postEvent({
+        type: 'conversation-update',
+        call: {
+          id: `call_signed_${randomUUID()}`,
+          assistantOverrides: { metadata: { conversationId: victimConvId, callToken: tokenFor() } },
+        },
+        conversation: [{ role: 'user', message: 'What time is my table?' }],
+      });
+      expect(res.status).toBe(204);
+      expect(await messagesIn(victimConvId)).toContain('What time is my table?');
+    });
+  });
+
+  describe('webhook secret rotation', () => {
+    const actor = () => new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
+
+    it('writes a rotated secret to a Munin-managed assistant before saving it', async () => {
+      const client = app.get(VapiClientService);
+      const svc = app.get(VapiService);
+      vi.spyOn(client, 'fetchAssistantConfig').mockResolvedValue({ ok: true, config: { id: 'asst_rot' } });
+      const update = vi.spyOn(client, 'updateAssistantServer').mockResolvedValue({ ok: true });
+      const created = await runAsActor(actor(), () =>
+        svc.createChannel({
+          name: 'Vapi rotate',
+          config: { apiKey: API_KEY, webhookSecret: 'old-secret-rot', assistantId: 'asst_rot' },
+        }),
+      );
+      expect(created.webhookConfigured).toBe(true);
+
+      vi.spyOn(client, 'fetchAssistantConfig').mockResolvedValue({
+        ok: true,
+        config: {
+          id: 'asst_rot',
+          server: {
+            url: `https://munin.example/v1/conversations/channels/${created.id}/webhook`,
+            headers: { 'x-webhook-secret': 'old-secret-rot' },
+          },
+        },
+      });
+      update.mockClear();
+      const rotated = await runAsActor(actor(), () =>
+        svc.updateChannel({ channelId: created.id, config: { webhookSecret: 'new-secret-rot' } }),
+      );
+      expect(rotated.webhookConfigured).toBe(true);
+      expect(update).toHaveBeenCalledTimes(1);
+      const server = update.mock.calls[0]![0].server as { headers: Record<string, string> };
+      expect(server.headers['x-webhook-secret']).toBe('new-secret-rot');
+    });
+
+    it('keeps the old secret when the rotated one cannot be written to the managed assistant', async () => {
+      const client = app.get(VapiClientService);
+      const svc = app.get(VapiService);
+      vi.spyOn(client, 'fetchAssistantConfig').mockResolvedValue({ ok: true, config: { id: 'asst_rot2' } });
+      vi.spyOn(client, 'updateAssistantServer').mockResolvedValue({ ok: true });
+      const created = await runAsActor(actor(), () =>
+        svc.createChannel({
+          name: 'Vapi rotate fail',
+          config: { apiKey: API_KEY, webhookSecret: 'old-secret-rot2', assistantId: 'asst_rot2' },
+        }),
+      );
+      const [before] = await db
+        .select({ config: schema.convChannels.config })
+        .from(schema.convChannels)
+        .where(eq(schema.convChannels.id, created.id));
+
+      vi.spyOn(client, 'fetchAssistantConfig').mockResolvedValue({ ok: false, error: 'vapi_down' });
+      await expect(
+        runAsActor(actor(), () =>
+          svc.updateChannel({ channelId: created.id, config: { webhookSecret: 'new-secret-rot2' } }),
+        ),
+      ).rejects.toThrow(/could not be written to the Vapi assistant/);
+
+      const [after] = await db
+        .select({ config: schema.convChannels.config })
+        .from(schema.convChannels)
+        .where(eq(schema.convChannels.id, created.id));
+      expect(after!.config.encryptedWebhookSecret).toBe(before!.config.encryptedWebhookSecret);
+    });
   });
 });

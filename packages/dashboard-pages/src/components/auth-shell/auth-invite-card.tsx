@@ -61,10 +61,10 @@ export function AuthInviteCard({
           ))}
         </dl>
       )}
-      {primary && <div className="inline-flex items-center">{primary}</div>}
-      {secondary && (
-        <div className="mt-4 inline-flex items-center">
-          <div className="ml-1.5">{secondary}</div>
+      {(primary || secondary) && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          {primary}
+          {secondary}
         </div>
       )}
     </div>

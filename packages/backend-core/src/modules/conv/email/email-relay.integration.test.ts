@@ -273,7 +273,9 @@ const RELAY_DOMAIN = 'in.getmunin.test';
       expect(messages[0]!.body).toContain('My order never arrived');
       expect(messages[0]!.metadata).toMatchObject({
         forwarding: { kind: 'manual-forward', forwardedBy: 'ops@acme.test' },
+        senderAuth: 'forwarded',
       });
+      expect(messages[0]!.metadata).not.toHaveProperty('provenEmail');
     });
 
     it('does not ingest the same forwarded message twice', async () => {
@@ -1153,6 +1155,43 @@ const RELAY_DOMAIN = 'in.getmunin.test';
       expect(rows).toHaveLength(1);
       expect(rows[0]!.state).toBe('soft_failing');
       expect(rows[0]!.reason).toBe('no_reply_notice');
+    });
+
+    it('keeps a DMARC failure on a message that also claims to be an auto-forward', async () => {
+      const res = await postRelay({
+        recipient: relayAddress,
+        raw: Buffer.from(
+          [
+            'From: Kari Nordmann <kari@spoofed.test>',
+            `To: <${relayAddress}>`,
+            'X-Forwarded-For: someone@elsewhere.test',
+            'Authentication-Results: mx.relay.test; spf=pass smtp.mailfrom=bounce@elsewhere.test; dmarc=fail header.from=spoofed.test',
+            'Subject: Change my booking',
+            'Message-ID: <fwd-dmarc-fail@spoofed.test>',
+            'Content-Type: text/plain; charset="utf-8"',
+            '',
+            'Please move my booking to Friday.',
+            '',
+          ].join('\r\n'),
+        ).toString('base64'),
+      });
+      expect(res.status).toBe(201);
+      expect(res.body).toContain('ingested');
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const [row] = await db
+        .select({ metadata: schema.convMessages.metadata })
+        .from(schema.convMessages)
+        .where(
+          and(
+            eq(schema.convMessages.orgId, orgId),
+            sql`${schema.convMessages.metadata}->>'inboundMessageId' = 'fwd-dmarc-fail@spoofed.test'`,
+          ),
+        );
+      expect(row?.metadata).toMatchObject({
+        forwarding: { kind: 'auto-forward' },
+        senderAuth: 'fail',
+      });
     });
 
     it('is not throttled per client IP: 65 signed posts in a minute all get through', async () => {

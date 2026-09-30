@@ -60,7 +60,7 @@ import {
 import {
   jobKindOf,
   tierFor,
-  toolPrefixesFor,
+  allowedToolsFor,
   WEB_SCRAPE_SITE_TASK_URI,
   type WebImportProgress,
 } from '@getmunin/types';
@@ -755,7 +755,6 @@ export class AgentHostRunner
             result = await handler(ctx);
           }
         } else if (kind === 'skill') {
-          const prefixes = toolPrefixesFor(job.jobUri);
           result = await runSkillPass({
             mcp: jobMcp,
             skills,
@@ -769,7 +768,7 @@ export class AgentHostRunner
             maxToolIterations: CURATOR_MAX_TOOL_ITERATIONS,
             maxHistoryChars: opts.config.maxHistoryChars,
             providerImpl: opts.provider,
-            allowedToolPrefixes: prefixes ? [...prefixes] : undefined,
+            allowedTools: allowedToolsFor(job.jobUri),
             logger: log,
           });
         } else {
@@ -805,6 +804,7 @@ export class AgentHostRunner
 
       const retryable =
         result.skipped !== 'skill_missing' &&
+        result.skipped !== 'no_tool_allowlist' &&
         result.skipped !== 'no_admin_key' &&
         result.skipped !== 'no_provider_key' &&
         result.skipped !== 'quota_exceeded';

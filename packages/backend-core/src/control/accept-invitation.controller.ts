@@ -22,7 +22,8 @@ import { z } from 'zod';
 import { CredentialResolver } from '@getmunin/core';
 import type { Db } from '@getmunin/db';
 import { DB } from '../common/db/db.module.ts';
-import { InvitationsService } from './invitations.service.ts';
+import { PublicThrottlerGuard } from '../common/rate-limit/public-throttler.guard.ts';
+import { InvitationsService, type InvitationLookupDto } from './invitations.service.ts';
 
 class AcceptInvitationBody extends createZodDto(
   z.object({
@@ -62,7 +63,8 @@ export class AcceptInvitationController {
 
   @Get('lookup')
   @AllowAnonymous()
-  async lookup(@Query('token') token?: string) {
+  @UseGuards(PublicThrottlerGuard)
+  async lookup(@Query('token') token?: string): Promise<InvitationLookupDto> {
     if (!token) throw new BadRequestException('token_required');
     const found = await this.invites.lookupByToken(token);
     if (!found) throw new NotFoundException('invitation_not_found_or_expired');

@@ -61,9 +61,9 @@ export interface SendTranslatedReplyInput {
   inReplyToId?: string;
 }
 
-const LANGUAGE_SAMPLE_MESSAGES = 3;
 const CONTEXT_MESSAGES = 6;
 const CONTEXT_CHARS = 3000;
+const LANGUAGE_SAMPLE_MESSAGES = 3;
 
 @Injectable()
 export class ConvTranslationService {

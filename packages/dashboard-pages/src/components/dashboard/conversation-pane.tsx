@@ -160,8 +160,6 @@ export function ConversationPane({
     }
   }, []);
 
-  useLayoutEffect(fitComposer, [fitComposer, reply, noteDraft, tab, expanded, draft?.body]);
-
   useEffect(() => {
     window.addEventListener('resize', fitComposer);
     return () => window.removeEventListener('resize', fitComposer);
@@ -247,6 +245,8 @@ export function ConversationPane({
   const claim = detail?.claim ?? null;
   const claimMine = !!claim && claim.holderId === viewerUserId;
   const canReply = isOpen && claimMine;
+
+  useLayoutEffect(fitComposer, [fitComposer, reply, noteDraft, tab, expanded, draft?.body, canReply]);
   const dirty = !streaming && !!draft && suggestionId !== null && reply !== draft.body;
   const reviewingDraft = suggestionId !== null && !dirty;
 
@@ -535,10 +535,7 @@ export function ConversationPane({
       </button>
     </span>
   ) : translatingThread ? (
-    <span className="flex items-center gap-1.5 text-cobalt dark:text-cobalt-soft">
-      <span aria-hidden className="size-1.5 shrink-0 animate-pulse rounded-full bg-current" />
-      {detail.customerLanguage ? t('translating') : t('detectingLanguage')}
-    </span>
+    <span>{detail.customerLanguage ? t('translating') : t('detectingLanguage')}</span>
   ) : null;
 
   const composerState = !isOpen

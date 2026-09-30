@@ -1286,6 +1286,40 @@ interface OrgFixture {
       expect(items.find((m) => m.orgId === orgA.id)).toBeTruthy();
     });
 
+    it('reports no logoUrl for an org without a logo', async () => {
+      const res = await fetch(`${baseUrl}/v1/me/memberships`, {
+        headers: cookieHeaders(orgA.sessionToken),
+      });
+      const items = (await res.json()) as Array<{ orgId: string; logoUrl: string | null }>;
+      expect(items.find((m) => m.orgId === orgA.id)?.logoUrl).toBeNull();
+    });
+
+    it('returns a versioned public logoUrl once the org has a logo', async () => {
+      const updatedAt = new Date('2026-09-30T12:00:00Z');
+      await db
+        .update(schema.orgs)
+        .set({
+          logoStorageKey: `orgs/${orgA.id}/logo/test.png`,
+          logoMime: 'image/png',
+          logoUpdatedAt: updatedAt,
+        })
+        .where(eq(schema.orgs.id, orgA.id));
+      try {
+        const res = await fetch(`${baseUrl}/v1/me/memberships`, {
+          headers: cookieHeaders(orgA.sessionToken),
+        });
+        const items = (await res.json()) as Array<{ orgId: string; logoUrl: string | null }>;
+        expect(items.find((m) => m.orgId === orgA.id)?.logoUrl).toMatch(
+          new RegExp(`/v1/public/orgs/${orgA.id}/logo\\?v=${updatedAt.getTime()}$`),
+        );
+      } finally {
+        await db
+          .update(schema.orgs)
+          .set({ logoStorageKey: null, logoMime: null, logoUpdatedAt: null })
+          .where(eq(schema.orgs.id, orgA.id));
+      }
+    });
+
     it('admin API key cannot list memberships (user session required)', async () => {
       const res = await fetch(`${baseUrl}/v1/me/memberships`, {
         headers: authHeaders(orgA.adminKey),

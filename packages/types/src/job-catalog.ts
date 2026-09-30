@@ -42,7 +42,7 @@ export function priorityFor(uri: string): number {
   return PRIORITY_BY_URI.get(uri) ?? 0;
 }
 
-const TOOL_PREFIXES_BY_URI: ReadonlyMap<string, readonly string[]> = new Map([
+export const TOOLS_BY_URI: ReadonlyMap<string, readonly string[]> = new Map([
   [
     'skill://kb/review-content',
     [
@@ -121,6 +121,6 @@ const TOOL_PREFIXES_BY_URI: ReadonlyMap<string, readonly string[]> = new Map([
   ],
 ]);
 
-export function toolPrefixesFor(uri: string): readonly string[] | undefined {
-  return TOOL_PREFIXES_BY_URI.get(uri);
+export function allowedToolsFor(uri: string): readonly string[] | undefined {
+  return TOOLS_BY_URI.get(uri);
 }

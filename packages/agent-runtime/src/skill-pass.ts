@@ -26,7 +26,7 @@ export interface SkillPassOptions {
   maxToolIterations?: number;
   maxHistoryChars?: number;
   providerImpl?: Provider;
-  allowedToolPrefixes?: string[];
+  allowedTools?: readonly string[];
   logger?: {
     info: (msg: string) => void;
     warn: (msg: string) => void;
@@ -48,6 +48,7 @@ export type SkillPassResult =
         | 'no_admin_key'
         | 'no_provider_key'
         | 'skill_missing'
+        | 'no_tool_allowlist'
         | 'mcp_connect_failed'
         | 'agent_error'
         | 'provider_error'
@@ -80,9 +81,11 @@ export async function runSkillPass(opts: SkillPassOptions): Promise<SkillPassRes
     return { ok: false, skipped: 'skill_missing' };
   }
 
-  const mcp = opts.allowedToolPrefixes
-    ? withAllowedToolPrefixes(opts.mcp, opts.allowedToolPrefixes)
-    : opts.mcp;
+  if (!opts.allowedTools || opts.allowedTools.length === 0) {
+    log.warn(`${opts.skillUri} has no tool allow-list; refusing to run it with the full tool surface`);
+    return { ok: false, skipped: 'no_tool_allowlist' };
+  }
+  const mcp = withAllowedTools(opts.mcp, opts.allowedTools);
 
   try {
     const reply = await runAgent({
@@ -129,13 +132,12 @@ export async function runSkillPass(opts: SkillPassOptions): Promise<SkillPassRes
   }
 }
 
-export function withAllowedToolPrefixes(
+export function withAllowedTools(
   handle: McpToolHandle,
-  allowedPrefixes: readonly string[],
+  allowedTools: readonly string[],
 ): McpToolHandle {
-  if (allowedPrefixes.length === 0) return handle;
-  const isAllowed = (name: string): boolean =>
-    allowedPrefixes.some((prefix) => name.startsWith(prefix));
+  const allowed = new Set(allowedTools);
+  const isAllowed = (name: string): boolean => allowed.has(name);
   return {
     async listTools(): Promise<McpTool[]> {
       const tools = await handle.listTools();

@@ -12,3 +12,4 @@ Find out a conversation's language when the customer writes, not when a teammate
 - `TranslationRestClient` gains `getLanguageDetectionSample` and `saveCustomerLanguage`. `TranslationHandler` gains `detect(conversationId)`, which uses the same generate gate as translation. `detectLanguage()` is exported for other runtimes.
 - Detection skips auto-replies and suppressed conversations. It runs again on the next customer message if the model gives no usable language tag.
 - The inbox says "Detecting language…" instead of "Translating…" while the language is still unknown, which is still the case for conversations from before this release until a new customer message arrives or someone opens them.
+- Both markers sit in the header's meta line as plain text in the same muted colour as the rest of that line, without the pulsing cobalt dot.

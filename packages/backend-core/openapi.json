@@ -5376,6 +5376,78 @@
         ]
       }
     },
+    "/v1/conversations/{id}/language-detection": {
+      "get": {
+        "operationId": "ConversationsController_languageDetection",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conversations/{id}/customer-language": {
+      "post": {
+        "operationId": "ConversationsController_saveCustomerLanguage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCustomerLanguageBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Conversations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/{id}/topic": {
       "post": {
         "operationId": "ConversationsController_setTopic",
@@ -10739,6 +10811,19 @@
         "required": [
           "targetLanguage",
           "translations"
+        ]
+      },
+      "SaveCustomerLanguageBody": {
+        "type": "object",
+        "properties": {
+          "customerLanguage": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 16
+          }
+        },
+        "required": [
+          "customerLanguage"
         ]
       },
       "SetTopicBody": {

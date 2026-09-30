@@ -1551,6 +1551,7 @@
         "showOriginal": "Vis original",
         "showTranslation": "Vis oversettelse",
         "translating": "Oversetter …",
+        "detectingLanguage": "Sjekker språket …",
         "translateOnSend": "Oversett til {language}",
         "sendInLanguage": "Send på {language}",
         "translatingAndSending": "Oversetter og sender …",

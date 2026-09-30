@@ -21,6 +21,7 @@ import {
   type EnqueueCuratorJobInput,
   type FailCuratorJobInput,
   type MuninRestClient,
+  type LanguageDetectionSample,
   type PendingTranslations,
   type SaveTranslationsInput,
   type TranslationRestClient,
@@ -243,6 +244,21 @@ function buildClient(opts: BuildOptions): AgentRestClient {
     ): Promise<{ saved: number }> {
       return audited('runner:saveTranslations', () =>
         opts.translation.saveTranslations({ conversationId, ...input }),
+      );
+    },
+
+    async getLanguageDetectionSample(conversationId: string): Promise<LanguageDetectionSample> {
+      return audited('runner:getLanguageDetectionSample', () =>
+        opts.translation.languageDetectionSample(conversationId),
+      );
+    },
+
+    async saveCustomerLanguage(
+      conversationId: string,
+      customerLanguage: string,
+    ): Promise<{ saved: boolean; customerLanguage: string | null }> {
+      return audited('runner:saveCustomerLanguage', () =>
+        opts.translation.saveCustomerLanguage({ conversationId, customerLanguage }),
       );
     },
 

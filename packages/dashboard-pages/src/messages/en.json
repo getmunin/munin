@@ -1551,6 +1551,7 @@
         "showOriginal": "Show original",
         "showTranslation": "Show translation",
         "translating": "Translating…",
+        "detectingLanguage": "Detecting language…",
         "translateOnSend": "Translate to {language}",
         "sendInLanguage": "Send in {language}",
         "translatingAndSending": "Translating and sending…",

@@ -535,10 +535,7 @@ export function ConversationPane({
       </button>
     </span>
   ) : translatingThread ? (
-    <span className="flex items-center gap-1.5 text-cobalt dark:text-cobalt-soft">
-      <span aria-hidden className="size-1.5 shrink-0 animate-pulse rounded-full bg-current" />
-      {t('translating')}
-    </span>
+    <span>{detail.customerLanguage ? t('translating') : t('detectingLanguage')}</span>
   ) : null;
 
   const composerState = !isOpen

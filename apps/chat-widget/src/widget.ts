@@ -18,6 +18,7 @@ import { createRealtimeClient, type IncomingTyping } from './realtime.ts';
 import { mount, type UiController } from './ui.ts';
 import { prepareImageForUpload, rejectionForPrepared, uploadToPresigned } from './upload.ts';
 import { pickLocale } from './strings/index.ts';
+import { isNudgeSnoozed, snoozeNudge } from './nudge.ts';
 import { createVoiceSession, type VoiceSession } from '@getmunin/widget-voice';
 
 function bootstrap(): void {
@@ -130,7 +131,36 @@ export function start(config: WidgetConfig): void {
 
   function recordMessages(messages: ListedMessage[]): void {
     for (const m of messages) messagesById.set(m.id, m);
+    if (messagesById.size > 0) ui.hideNudge();
     refreshUnreadBadge();
+  }
+
+  let historyLoaded = false;
+  let nudgeDue = false;
+
+  function scheduleNudge(): void {
+    if (config.nudge === null) return;
+    if (isNudgeSnoozed(config.channelId)) return;
+    setTimeout(() => {
+      nudgeDue = true;
+      maybeShowNudge();
+    }, config.nudgeDelayMs);
+  }
+
+  function maybeShowNudge(): void {
+    if (!nudgeDue || !historyLoaded) return;
+    nudgeDue = false;
+    if (ui.isOpen() || messagesById.size > 0) return;
+    if (isNudgeSnoozed(config.channelId)) return;
+    ui.showNudge(config.nudge || strings.nudgeDefault);
+  }
+
+  function sendFromNudge(text: string): void {
+    snoozeNudge(config.channelId);
+    ui.setChatKind('new');
+    ui.setView('chat');
+    ui.open();
+    void sendMessage(text, []);
   }
 
   function markLocallyRead(messageId: string): void {
@@ -191,6 +221,10 @@ export function start(config: WidgetConfig): void {
       }
     } finally {
       backfillInFlight = false;
+      if (!historyLoaded) {
+        historyLoaded = true;
+        maybeShowNudge();
+      }
       if (backfillPending) {
         backfillPending = false;
         void backfill();
@@ -435,6 +469,16 @@ export function start(config: WidgetConfig): void {
     onVoiceMuteToggle(muted) {
       toggleVoiceMute(muted);
     },
+    onOpen() {
+      nudgeDue = false;
+      if (config.nudge !== null) snoozeNudge(config.channelId);
+    },
+    onNudgeSend(text) {
+      sendFromNudge(text);
+    },
+    onNudgeDismiss() {
+      snoozeNudge(config.channelId);
+    },
   });
 
   if (mn.widget) {
@@ -526,6 +570,7 @@ export function start(config: WidgetConfig): void {
   });
 
   realtime.connect();
+  scheduleNudge();
 
   window.addEventListener(
     'beforeunload',

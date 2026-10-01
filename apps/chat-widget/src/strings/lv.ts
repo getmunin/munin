@@ -68,6 +68,10 @@ const lv: Strings = {
   attachTooLarge: 'Attēlam jābūt mazākam par {n} MB.',
   attachmentUnavailable: 'Attēls vairs nav pieejams',
   lightboxCloseAriaLabel: 'Aizvērt attēlu',
+  nudgeDefault: 'Sveiki. Vai jums ir jautājums? Rakstiet šeit, un mēs atbildēsim uzreiz.',
+  nudgePlaceholder: 'Uzdodiet jautājumu…',
+  nudgeAuthor: 'Klientu atbalsts',
+  nudgeDismissAriaLabel: 'Paslēpt ziņu',
 };
 
 export default lv;

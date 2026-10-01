@@ -68,6 +68,10 @@ const hu: Strings = {
   attachTooLarge: 'A kép legfeljebb {n} MB lehet.',
   attachmentUnavailable: 'A kép már nem elérhető',
   lightboxCloseAriaLabel: 'Kép bezárása',
+  nudgeDefault: 'Szia. Kérdésed van? Írd ide, és azonnal válaszolunk.',
+  nudgePlaceholder: 'Tegyél fel egy kérdést…',
+  nudgeAuthor: 'Ügyfélszolgálat',
+  nudgeDismissAriaLabel: 'Üzenet elrejtése',
 };
 
 export default hu;

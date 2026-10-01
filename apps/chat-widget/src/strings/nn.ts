@@ -68,6 +68,10 @@ const nn: Strings = {
   attachTooLarge: 'Biletet må vere under {n} MB.',
   attachmentUnavailable: 'Biletet er ikkje tilgjengeleg lenger',
   lightboxCloseAriaLabel: 'Lukk biletet',
+  nudgeDefault: 'Hei. Lurer du på noko? Skriv her, så svarar vi med ein gong.',
+  nudgePlaceholder: 'Still eit spørsmål…',
+  nudgeAuthor: 'Kundestøtte',
+  nudgeDismissAriaLabel: 'Skjul meldinga',
 };
 
 export default nn;

@@ -1,5 +1,7 @@
 export const WIDGET_END_USER_BODY_MAX_CHARS = 1_000;
 export const WIDGET_END_USER_BODY_HTML_MAX_CHARS = 4_000;
+export const NUDGE_TEXT_MAX_CHARS = 280;
+export const NUDGE_DELAY_MAX_SECONDS = 3_600;
 
 const VALID_POSITIONS = ['bottom-right', 'bottom-left'] as const;
 type Position = (typeof VALID_POSITIONS)[number];
@@ -49,6 +51,9 @@ export interface WidgetConfig {
   corners: Corners;
   colorScheme: ColorScheme;
   showHistory: boolean;
+  nudge: string | null;
+  nudgeDelayMs: number;
+  nudgeColor?: string;
   visitor?: WidgetVisitor;
   cookieDomain?: string;
 }
@@ -70,6 +75,7 @@ const DEFAULTS = {
   corners: 'square' as Corners,
   colorScheme: 'auto' as ColorScheme,
   showHistory: true,
+  nudgeDelaySeconds: 8,
 };
 
 export function parseConfig(scriptEl: HTMLElement): ParseResult {
@@ -121,6 +127,11 @@ export function parseConfig(scriptEl: HTMLElement): ParseResult {
     DEFAULTS.colorScheme;
   const showHistory =
     optBool(scriptEl, 'data-munin-show-history', warnings) ?? DEFAULTS.showHistory;
+  const nudge = parseNudge(scriptEl);
+  const nudgeColor = optColor(scriptEl, 'data-munin-nudge-color', warnings);
+  const nudgeDelayMs =
+    (optSeconds(scriptEl, 'data-munin-nudge-delay', NUDGE_DELAY_MAX_SECONDS, warnings) ??
+      DEFAULTS.nudgeDelaySeconds) * 1000;
 
   const visitor = parseVisitor(scriptEl, warnings);
   const cookieDomain = optCookieDomain(scriptEl, warnings);
@@ -153,6 +164,9 @@ export function parseConfig(scriptEl: HTMLElement): ParseResult {
       corners,
       colorScheme,
       showHistory,
+      nudge,
+      nudgeDelayMs,
+      nudgeColor,
       visitor,
       cookieDomain,
     },
@@ -242,6 +256,33 @@ function optBool(el: HTMLElement, attr: string, warnings: ParseError[]): boolean
   if (t === 'false' || t === '0' || t === 'no') return false;
   warnings.push({ attr, message: `${attr} must be true|false` });
   return undefined;
+}
+
+function parseNudge(el: HTMLElement): string | null {
+  const v = el.getAttribute('data-munin-nudge');
+  if (v === null) return null;
+  const t = v.trim();
+  const lower = t.toLowerCase();
+  if (lower === 'false' || lower === '0' || lower === 'no') return null;
+  if (t === '' || lower === 'true' || lower === '1' || lower === 'yes') return '';
+  return t.slice(0, NUDGE_TEXT_MAX_CHARS);
+}
+
+function optSeconds(
+  el: HTMLElement,
+  attr: string,
+  max: number,
+  warnings: ParseError[],
+): number | undefined {
+  const v = el.getAttribute(attr);
+  if (v === null) return undefined;
+  const t = v.trim();
+  const n = Number(t);
+  if (t === '' || !Number.isFinite(n) || n < 0 || n > max) {
+    warnings.push({ attr, message: `${attr} must be a number of seconds between 0 and ${max}` });
+    return undefined;
+  }
+  return n;
 }
 
 function parseVisitor(el: HTMLElement, warnings: ParseError[]): WidgetVisitor | undefined {

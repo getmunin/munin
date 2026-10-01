@@ -68,6 +68,10 @@ const cs: Strings = {
   attachTooLarge: 'Obrázek musí mít méně než {n} MB.',
   attachmentUnavailable: 'Obrázek už není dostupný',
   lightboxCloseAriaLabel: 'Zavřít obrázek',
+  nudgeDefault: 'Dobrý den. Máte dotaz? Napište ho sem a hned odpovíme.',
+  nudgePlaceholder: 'Zeptejte se…',
+  nudgeAuthor: 'Zákaznická podpora',
+  nudgeDismissAriaLabel: 'Skrýt zprávu',
 };
 
 export default cs;

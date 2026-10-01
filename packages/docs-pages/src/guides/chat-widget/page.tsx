@@ -160,6 +160,30 @@ export default function WidgetGuide() {
         <dd>
           Set to <code>&quot;false&quot;</code> to hide the past-conversation list on the welcome screen.
         </dd>
+        <dt>data-munin-corners</dt>
+        <dd>
+          <code>&quot;square&quot;</code> (default) or <code>&quot;rounded&quot;</code>. Square gives a
+          square launcher with the unread badge centered on its corner; rounded softens the panel and
+          its controls and turns the launcher into a circle.
+        </dd>
+        <dt>data-munin-nudge</dt>
+        <dd>
+          Opt-in teaser above the closed launcher: a short message with a dismiss button and an inline
+          input. Leave the value empty for a localized default. Whatever the visitor types there opens
+          the panel and starts a conversation with it. It stays away once the panel has been opened or
+          the visitor already has messages, and for seven days after it is dismissed. Up to 280
+          characters.
+        </dd>
+        <dt>data-munin-nudge-delay</dt>
+        <dd>
+          Seconds after page load before the nudge appears, <code>0</code>&ndash;<code>3600</code>.
+          Defaults to <code>8</code>.
+        </dd>
+        <dt>data-munin-nudge-color</dt>
+        <dd>
+          Hex fill for the nudge&rsquo;s message bubble. Left off, the bubble is a light tint of the
+          theme color; either way the text on it flips between ink and paper for contrast.
+        </dd>
       </dl>
       <p className="tag-blurb">
         Whichever language wins travels with the conversation when it starts: the agent is asked to

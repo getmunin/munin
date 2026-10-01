@@ -113,6 +113,8 @@ const baseConfig: WidgetConfig = {
   corners: 'square',
   colorScheme: 'auto',
   showHistory: true,
+  nudge: null,
+  nudgeDelayMs: 8000,
 };
 
 const HASH = 'a'.repeat(64);

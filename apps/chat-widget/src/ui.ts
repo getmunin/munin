@@ -42,6 +42,8 @@ export interface UiHooks {
   onVoiceStart?: () => void;
   onVoiceEnd?: () => void;
   onVoiceMuteToggle?: (muted: boolean) => void;
+  onNudgeSend?: (text: string) => void;
+  onNudgeDismiss?: () => void;
 }
 
 export type VoiceUiState = 'idle' | 'connecting' | 'listening' | 'speaking' | 'ended' | 'error';
@@ -57,6 +59,9 @@ export interface UiController {
   setPastConversations(convs: ConversationSummary[]): void;
   setConversation(envelope: ConversationEnvelope | null): void;
   setLauncherUnread(count: number): void;
+  showNudge(text: string): void;
+  hideNudge(): void;
+  isNudgeVisible(): boolean;
   showEmailCard(): void;
   setEmailSaved(email: string): void;
   setView(view: 'welcome' | 'chat'): void;
@@ -126,6 +131,10 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   } else if (config.launcherIconColor) {
     root.style.setProperty('--munin-launcher-fg', config.launcherIconColor);
   }
+  if (config.nudgeColor) {
+    root.style.setProperty('--munin-nudge-bg', config.nudgeColor);
+    root.style.setProperty('--munin-nudge-fg', readableOn(config.nudgeColor));
+  }
   if (config.headerColor) {
     root.style.setProperty('--munin-header', config.headerColor);
     root.style.setProperty('--munin-header-fg', readableOn(config.headerColor));
@@ -134,7 +143,8 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
 
   const { btn: launcher, badge: launcherBadge } = renderLauncher(strings);
   const panel = renderPanel(config, strings);
-  root.append(launcher, panel.el);
+  const nudge = renderNudge(config, strings);
+  root.append(nudge.el, launcher, panel.el);
   panel.el.hidden = true;
 
   let view: 'welcome' | 'chat' = 'welcome';
@@ -165,6 +175,19 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
       : null;
 
   launcher.addEventListener('click', () => open());
+  nudge.messageEl.addEventListener('click', () => open());
+  nudge.closeBtn.addEventListener('click', () => {
+    hideNudge();
+    hooks.onNudgeDismiss?.();
+  });
+  nudge.form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = nudge.input.value.trim();
+    if (text.length === 0) return;
+    nudge.input.value = '';
+    hideNudge();
+    hooks.onNudgeSend?.(text);
+  });
   panel.closeBtn.addEventListener('click', () => close());
   panel.backBtn.addEventListener('click', () => {
     hooks.onBackToWelcome?.();
@@ -352,7 +375,16 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     window.scrollTo(0, scrollY);
   }
 
+  function hasAnyConversation(): boolean {
+    return pastConvs.length > 0 || seenIds.size > 0 || conversationEnvelope !== null;
+  }
+
   function open(): void {
+    hideNudge();
+    if (view === 'welcome' && !hasAnyConversation()) {
+      setChatKind('new');
+      setView('chat');
+    }
     panelOpen = true;
     panel.el.hidden = false;
     lockBodyScroll();
@@ -830,7 +862,11 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   setPastConversations([]);
   paintChatHead();
 
-  function setLauncherUnread(count: number): void {
+  let unreadCount = 0;
+  let nudgeVisible = false;
+
+  function paintLauncherBadge(): void {
+    const count = unreadCount > 0 ? unreadCount : nudgeVisible ? 1 : 0;
     if (count <= 0) {
       launcherBadge.hidden = true;
       launcherBadge.textContent = '';
@@ -838,6 +874,34 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     }
     launcherBadge.hidden = false;
     launcherBadge.textContent = count > 9 ? '9+' : String(count);
+  }
+
+  function setLauncherUnread(count: number): void {
+    unreadCount = count;
+    paintLauncherBadge();
+  }
+
+  function showNudge(text: string): void {
+    if (panelOpen) return;
+    nudge.textEl.textContent = text;
+    nudgeVisible = true;
+    nudge.el.hidden = false;
+    requestAnimationFrame(() => {
+      if (nudgeVisible) nudge.el.classList.add('open');
+    });
+    paintLauncherBadge();
+  }
+
+  function hideNudge(): void {
+    if (!nudgeVisible) return;
+    nudgeVisible = false;
+    nudge.el.classList.remove('open');
+    nudge.el.hidden = true;
+    paintLauncherBadge();
+  }
+
+  function isNudgeVisible(): boolean {
+    return nudgeVisible;
   }
 
   return {
@@ -849,6 +913,9 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     setPastConversations,
     setConversation,
     setLauncherUnread,
+    showNudge,
+    hideNudge,
+    isNudgeVisible,
     showEmailCard,
     setEmailSaved,
     setView,
@@ -1133,6 +1200,51 @@ function renderLauncher(strings: Strings): { btn: HTMLButtonElement; badge: HTML
   badge.hidden = true;
   btn.appendChild(badge);
   return { btn, badge };
+}
+
+interface NudgeHandles {
+  el: HTMLDivElement;
+  messageEl: HTMLButtonElement;
+  textEl: HTMLSpanElement;
+  closeBtn: HTMLButtonElement;
+  form: HTMLFormElement;
+  input: HTMLInputElement;
+}
+
+function renderNudge(config: WidgetConfig, strings: Strings): NudgeHandles {
+  const el = document.createElement('div');
+  el.className = 'nudge';
+  el.hidden = true;
+  const author = config.title ?? strings.nudgeAuthor;
+  el.setAttribute('role', 'region');
+  el.setAttribute('aria-label', author);
+  el.innerHTML = `
+    <div class="nudge-head">
+      <span class="nudge-eyebrow"></span>
+      <button type="button" class="nudge-close" aria-label="${escapeAttr(strings.nudgeDismissAriaLabel)}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+      </button>
+    </div>
+    <button type="button" class="nudge-message" aria-label="${escapeAttr(strings.launcherAriaLabel)}">
+      <span class="nudge-text" aria-live="polite"></span>
+    </button>
+    <form class="nudge-form">
+      <input type="text" class="nudge-input" maxlength="${WIDGET_END_USER_BODY_MAX_CHARS}" autocomplete="off" />
+      <button type="submit" class="nudge-send" aria-label="${escapeAttr(strings.sendAriaLabel)}">→</button>
+    </form>
+  `;
+  (el.querySelector('.nudge-eyebrow') as HTMLElement).textContent = `${author} · ${strings.timeNow}`;
+  const input = el.querySelector('.nudge-input') as HTMLInputElement;
+  input.placeholder = strings.nudgePlaceholder;
+  input.setAttribute('aria-label', strings.nudgePlaceholder);
+  return {
+    el,
+    messageEl: el.querySelector('.nudge-message') as HTMLButtonElement,
+    textEl: el.querySelector('.nudge-text') as HTMLSpanElement,
+    closeBtn: el.querySelector('.nudge-close') as HTMLButtonElement,
+    form: el.querySelector('.nudge-form') as HTMLFormElement,
+    input,
+  };
 }
 
 interface PanelHandles {

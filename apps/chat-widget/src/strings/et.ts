@@ -68,6 +68,10 @@ const et: Strings = {
   attachTooLarge: 'Pilt peab olema alla {n} MB.',
   attachmentUnavailable: 'Pilt ei ole enam saadaval',
   lightboxCloseAriaLabel: 'Sulge pilt',
+  nudgeDefault: 'Tere. Kas sul on küsimus? Kirjuta siia ja vastame kohe.',
+  nudgePlaceholder: 'Esita küsimus…',
+  nudgeAuthor: 'Klienditugi',
+  nudgeDismissAriaLabel: 'Peida sõnum',
 };
 
 export default et;

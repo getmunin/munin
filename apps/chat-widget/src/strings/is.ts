@@ -68,6 +68,10 @@ const is: Strings = {
   attachTooLarge: 'Myndir verða að vera undir {n} MB.',
   attachmentUnavailable: 'Myndin er ekki lengur tiltæk',
   lightboxCloseAriaLabel: 'Loka mynd',
+  nudgeDefault: 'Hæ. Ertu með spurningu? Skrifaðu hér og við svörum strax.',
+  nudgePlaceholder: 'Spyrðu spurningar…',
+  nudgeAuthor: 'Þjónustuver',
+  nudgeDismissAriaLabel: 'Fela skilaboð',
 };
 
 export default is;

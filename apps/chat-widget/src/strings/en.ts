@@ -68,6 +68,10 @@ const en: Strings = {
   attachTooLarge: 'Images have to be under {n} MB.',
   attachmentUnavailable: 'Image no longer available',
   lightboxCloseAriaLabel: 'Close image',
+  nudgeDefault: "Hi. Got a question? Type it here and we'll answer right away.",
+  nudgePlaceholder: "Ask a question…",
+  nudgeAuthor: "Support",
+  nudgeDismissAriaLabel: "Dismiss message",
 };
 
 export default en;

@@ -68,6 +68,10 @@ const sk: Strings = {
   attachTooLarge: 'Obrázok musí mať menej ako {n} MB.',
   attachmentUnavailable: 'Obrázok už nie je dostupný',
   lightboxCloseAriaLabel: 'Zavrieť obrázok',
+  nudgeDefault: 'Dobrý deň. Máte otázku? Napíšte ju sem a hneď odpovieme.',
+  nudgePlaceholder: 'Opýtajte sa…',
+  nudgeAuthor: 'Zákaznícka podpora',
+  nudgeDismissAriaLabel: 'Skryť správu',
 };
 
 export default sk;

@@ -68,6 +68,10 @@ const nl: Strings = {
   attachTooLarge: 'Afbeeldingen moeten kleiner zijn dan {n} MB.',
   attachmentUnavailable: 'Afbeelding niet meer beschikbaar',
   lightboxCloseAriaLabel: 'Afbeelding sluiten',
+  nudgeDefault: 'Hoi. Heb je een vraag? Typ hem hier en we antwoorden meteen.',
+  nudgePlaceholder: 'Stel een vraag…',
+  nudgeAuthor: 'Klantenservice',
+  nudgeDismissAriaLabel: 'Bericht verbergen',
 };
 
 export default nl;

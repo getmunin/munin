@@ -43,6 +43,10 @@ If the customer uses Munin's own `widget.js` bundle rather than their own chat U
 | `data-munin-locale` | BCP-47 tag | Forces the widget's UI language instead of negotiating from the browser. |
 | `data-munin-color-scheme` | `auto` (default), `light`, `dark` | `auto` follows the visitor's OS/browser preference (`prefers-color-scheme`) and updates live if they switch it; `light`/`dark` pins the panel regardless of OS setting. The launcher bubble, header bar and voice-call screen stay their fixed near-black chrome in every mode unless overridden by the color attributes above — only the panel body (welcome/chat/composer/cards) inverts. |
 | `data-munin-show-history` | `true` (default), `false` | Whether past conversations are listed on the welcome screen. |
+| `data-munin-corners` | `square` (default), `rounded` | Corner style for the panel, its controls and the launcher. `square` gives a square launcher with the unread badge centered on its top-right corner; `rounded` softens the panel and turns the launcher into a circle. |
+| `data-munin-nudge` | free text, or empty | Opt-in teaser shown above the closed launcher: a short message, a dismiss button and an inline input. Leave the value empty for a localized default ("Hi. Got a question? Type it here and we'll answer right away."). Sending from the input opens the panel and posts the message as the first turn of a new conversation. While it shows, the launcher badge reads `1`. It stays hidden when the panel has been opened or the current session already has messages, and for 7 days after the visitor dismisses it or opens the widget. Max 280 chars. |
+| `data-munin-nudge-delay` | seconds, `0`–`3600` | How long after page load the nudge appears. Defaults to `8`. |
+| `data-munin-nudge-color` | hex | Fill of the nudge's message bubble. Defaults to a light tint of `data-munin-theme-color` (stronger in dark mode); the text on it flips between ink and paper for contrast. The small label above the bubble always follows the theme color. |
 
 An unrecognized value is a console warning, not an error — the widget falls back to the default and still mounts.
 

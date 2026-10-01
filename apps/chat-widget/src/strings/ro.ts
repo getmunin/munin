@@ -68,6 +68,10 @@ const ro: Strings = {
   attachTooLarge: 'Imaginile trebuie să aibă mai puțin de {n} MB.',
   attachmentUnavailable: 'Imaginea nu mai este disponibilă',
   lightboxCloseAriaLabel: 'Închide imaginea',
+  nudgeDefault: 'Bună. Ai o întrebare? Scrie aici și îți răspundem imediat.',
+  nudgePlaceholder: 'Pune o întrebare…',
+  nudgeAuthor: 'Asistență clienți',
+  nudgeDismissAriaLabel: 'Ascunde mesajul',
 };
 
 export default ro;

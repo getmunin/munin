@@ -1111,6 +1111,15 @@
         "cancelling": "Cancelling…",
         "dashboard": "Open dashboard"
       },
+      "wrongAccount": {
+        "eyebrow": "OAuth 2.1 · wrong account",
+        "title": "Sign in with <em>another account</em>.",
+        "sub": "<client></client> is connecting to an organization that <user></user> isn't a member of.",
+        "panelTitle": "This connection belongs to another organization",
+        "body": "The application asked for access to organization <org></org>. You're signed in as <user></user>, which isn't a member of it, so authorizing here would fail. Sign in with an account that belongs to that organization and this request carries on from there.",
+        "switch": "Sign in with another account",
+        "switching": "Signing out…"
+      },
       "expired": {
         "eyebrow": "OAuth 2.1 · request expired",
         "title": "This request has <em>expired</em>.",

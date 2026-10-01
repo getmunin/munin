@@ -357,6 +357,36 @@ describe('detectLanguage', () => {
     expect(stub.calls).toHaveLength(0);
   });
 
+  it('leaves a reasoning model room to think before it answers', async () => {
+    const budgets: Array<number | undefined> = [];
+    await detectLanguage({
+      provider: PROVIDER,
+      model: 'fast',
+      messages: MESSAGES,
+      providerImpl: (args) => {
+        budgets.push(args.config.maxTokens);
+        return Promise.resolve(reply('{"language":"es"}'));
+      },
+    });
+    expect(budgets[0]).toBeGreaterThanOrEqual(1024);
+  });
+
+  it('throws when the model runs out of tokens before it answers', async () => {
+    await expect(
+      detectLanguage({
+        provider: PROVIDER,
+        model: 'fast',
+        messages: MESSAGES,
+        providerImpl: () =>
+          Promise.resolve({
+            message: { role: 'assistant', content: null },
+            finishReason: 'length',
+            usage: {},
+          }),
+      }),
+    ).rejects.toThrow(/output tokens before it answered/);
+  });
+
   it('gives null when the answer holds no language tag', async () => {
     const stub = createStubProvider({ responses: [reply('Spanish, I think')] });
     expect(

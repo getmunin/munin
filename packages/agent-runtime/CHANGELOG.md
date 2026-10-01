@@ -1,5 +1,12 @@
 # @getmunin/agent-runtime
 
+## 5.39.1
+
+### Patch Changes
+
+- @getmunin/core@5.39.1
+  - @getmunin/types@5.39.1
+
 ## 5.39.0
 
 ### Minor Changes

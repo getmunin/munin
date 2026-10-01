@@ -1,5 +1,14 @@
 # @getmunin/inspector-app
 
+## 5.39.1
+
+### Patch Changes
+
+- Updated dependencies [4704755]
+  - @getmunin/dashboard-pages@5.39.1
+  - @getmunin/types@5.39.1
+  - @getmunin/ui@5.39.1
+
 ## 5.39.0
 
 ### Patch Changes

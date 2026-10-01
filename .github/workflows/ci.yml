@@ -206,8 +206,26 @@ jobs:
             "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
           echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum -c -
           tar xzf mcp-publisher.tar.gz mcp-publisher
-          ./mcp-publisher login dns --domain getmunin.com --private-key "$MCP_PRIVATE_KEY"
-          ./mcp-publisher publish
+          published() {
+            curl -sSf "https://registry.modelcontextprotocol.io/v0/servers?search=com.getmunin/munin&version=latest" \
+              | jq -e --arg v "$VERSION" '[.servers[]? | select(.server.name == "com.getmunin/munin" and .server.version == $v)] | length > 0' >/dev/null
+          }
+          for attempt in 1 2 3 4; do
+            if ./mcp-publisher login dns --domain getmunin.com --private-key "$MCP_PRIVATE_KEY" \
+              && ./mcp-publisher publish; then
+              exit 0
+            fi
+            if published; then
+              echo "com.getmunin/munin@$VERSION is listed despite the error; treating it as published"
+              exit 0
+            fi
+            [ "$attempt" -lt 4 ] || break
+            delay=$((30 * 2 ** (attempt - 1)))
+            echo "Publish attempt $attempt failed; retrying in ${delay}s"
+            sleep "$delay"
+          done
+          echo "::error::Publishing com.getmunin/munin@$VERSION to the MCP registry failed after 4 attempts"
+          exit 1
 
   licenses:
     name: license policy

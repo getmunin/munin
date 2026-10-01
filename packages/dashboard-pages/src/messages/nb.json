@@ -1111,6 +1111,15 @@
         "cancelling": "Avbryter …",
         "dashboard": "Åpne dashbordet"
       },
+      "wrongAccount": {
+        "eyebrow": "OAuth 2.1 · feil konto",
+        "title": "Logg inn med <em>en annen konto</em>.",
+        "sub": "<client></client> kobler til en organisasjon som <user></user> ikke er medlem av.",
+        "panelTitle": "Denne tilkoblingen hører til en annen organisasjon",
+        "body": "Applikasjonen ba om tilgang til organisasjonen <org></org>. Du er logget inn som <user></user>, som ikke er medlem av den, så autorisering her ville feilet. Logg inn med en konto som hører til organisasjonen, så fortsetter forespørselen derfra.",
+        "switch": "Logg inn med en annen konto",
+        "switching": "Logger ut …"
+      },
       "expired": {
         "eyebrow": "OAuth 2.1 · forespørselen er utløpt",
         "title": "Denne forespørselen er <em>utløpt</em>.",

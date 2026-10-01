@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { PageSpinner } from '@getmunin/ui';
 import { authClient } from '../auth-client';
 import { authorizationExpiresAt } from '../auth/authorization-expiry';
+import { checkConsentOrgBinding, type ConsentOrgBinding } from '../auth/consent-org-binding';
 import { api, ApiError } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
 import {
@@ -53,7 +54,7 @@ interface OAuthConsentResponse {
 }
 
 type FlowState = 'new' | 'granted' | 'denied';
-type HeaderState = FlowState | 'blocked' | 'expired';
+type HeaderState = FlowState | 'blocked' | 'expired' | 'wrongAccount';
 
 const REDIRECT_DELAY_MS = 1200;
 
@@ -84,6 +85,10 @@ export function OAuthConsentPage({
   const [flow, setFlow] = useState<FlowState>('new');
   const [busy, setBusy] = useState<'allow' | 'deny' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [switching, setSwitching] = useState(false);
+  const [binding, setBinding] = useState<ConsentOrgBinding | null>(null);
+  const codeChallenge = search?.get('code_challenge') ?? '';
+  const sessionUserId = session?.user?.id ?? null;
 
   const expiresAtMs = authorizationExpiresAt(search?.get('exp'));
   const [expired, setExpired] = useState(() => expiresAtMs !== null && expiresAtMs <= Date.now());
@@ -100,7 +105,19 @@ export function OAuthConsentPage({
     }
   }, [isPending, session, oauthQuery]);
 
-  if (isPending || !session) {
+  useEffect(() => {
+    if (!sessionUserId) return;
+    let cancelled = false;
+    setBinding(null);
+    void checkConsentOrgBinding(codeChallenge).then((result) => {
+      if (!cancelled) setBinding(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionUserId, codeChallenge]);
+
+  if (isPending || !session || !binding) {
     return <PageSpinner className="min-h-screen bg-background" />;
   }
 
@@ -138,22 +155,46 @@ export function OAuthConsentPage({
     }
   }
 
+  function switchAccount() {
+    setSwitching(true);
+    void (async () => {
+      await authClient.signOut();
+      window.location.assign(oauthQuery ? `/login?${oauthQuery}` : '/login');
+    })();
+  }
+
   const stale = flow === 'new' && expired;
-  const blocked = flow === 'new' && !stale && denial !== null;
+  const foreignOrgId = binding.status === 'foreign' ? binding.orgId : null;
+  const wrongAccount = flow === 'new' && !stale && foreignOrgId !== null;
+  const blocked = flow === 'new' && !stale && !wrongAccount && denial !== null;
   const resourceName = denial?.resourceName ?? resourceInfo?.name ?? '';
 
   return (
     <div className="bg-background">
       <main className="mx-auto flex w-full max-w-[720px] flex-col px-6 py-12 sm:py-16">
         <EditorialHeader
-          flow={stale ? 'expired' : blocked ? 'blocked' : flow}
+          flow={stale ? 'expired' : wrongAccount ? 'wrongAccount' : blocked ? 'blocked' : flow}
           clientName={displayName}
+          userName={userName}
           resourceName={resourceName}
         />
 
         <section className="mt-8 border-[1px] border-ink bg-paper dark:border-rule-on-dark dark:bg-card">
           {stale ? (
             <ExpiredPane clientInfo={clientInfo} clientId={clientId} displayName={displayName} />
+          ) : wrongAccount ? (
+            <WrongAccountPane
+              clientInfo={clientInfo}
+              clientId={clientId}
+              displayName={displayName}
+              userName={userName}
+              orgId={foreignOrgId}
+              busy={busy}
+              switching={switching}
+              error={error}
+              onSwitchAccount={switchAccount}
+              onCancel={() => void submit(false)}
+            />
           ) : blocked ? (
             <BlockedPane
               clientInfo={clientInfo}
@@ -176,12 +217,7 @@ export function OAuthConsentPage({
               busy={busy}
               error={error}
               onSubmit={(accept) => void submit(accept)}
-              onSwitchAccount={() => {
-                void (async () => {
-                  await authClient.signOut();
-                  window.location.assign(oauthQuery ? `/login?${oauthQuery}` : '/login');
-                })();
-              }}
+              onSwitchAccount={switchAccount}
             />
           ) : (
             <ResultPane
@@ -199,11 +235,30 @@ export function OAuthConsentPage({
 interface EditorialHeaderProps {
   flow: HeaderState;
   clientName: string;
+  userName: string;
   resourceName: string;
 }
 
-function EditorialHeader({ flow, clientName, resourceName }: EditorialHeaderProps) {
+function EditorialHeader({ flow, clientName, userName, resourceName }: EditorialHeaderProps) {
   const t = useTranslations('dashboard.oauthConsent');
+  if (flow === 'wrongAccount') {
+    return (
+      <header className="mb-6">
+        <div className="mb-4 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-ink-mute">
+          {t('wrongAccount.eyebrow')}
+        </div>
+        <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em] min-w-0 [overflow-wrap:anywhere] [word-break:break-word]">
+          {t.rich('wrongAccount.title', { em: (chunks) => <em className="not-italic text-ink italic">{chunks}</em> })}
+        </h1>
+        <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
+          {t.rich('wrongAccount.sub', {
+            client: () => <em className="not-italic font-medium text-ink italic">{clientName}</em>,
+            user: () => <em className="not-italic font-medium text-ink italic">{userName || '…'}</em>,
+          })}
+        </p>
+      </header>
+    );
+  }
   if (flow === 'expired') {
     return (
       <header className="mb-6">
@@ -522,6 +577,77 @@ function ExpiredPane({ clientInfo, clientId, displayName }: ExpiredPaneProps) {
         >
           {t('expired.dashboard')}
         </a>
+      </div>
+    </>
+  );
+}
+
+interface WrongAccountPaneProps {
+  clientInfo: OAuthClientInfo | null;
+  clientId: string;
+  displayName: string;
+  userName: string;
+  orgId: string;
+  busy: 'allow' | 'deny' | null;
+  switching: boolean;
+  error: string | null;
+  onSwitchAccount: () => void;
+  onCancel: () => void;
+}
+
+function WrongAccountPane({
+  clientInfo,
+  clientId,
+  displayName,
+  userName,
+  orgId,
+  busy,
+  switching,
+  error,
+  onSwitchAccount,
+  onCancel,
+}: WrongAccountPaneProps) {
+  const t = useTranslations('dashboard.oauthConsent');
+  const disabled = busy !== null || switching;
+  return (
+    <>
+      <IdentityCard clientInfo={clientInfo} clientId={clientId} displayName={displayName} />
+
+      <div className="flex flex-col gap-4 px-7 py-8">
+        <div className="font-serif text-[24px] tracking-[-0.01em] [overflow-wrap:anywhere]">
+          {t('wrongAccount.panelTitle')}
+        </div>
+        <div className="max-w-[52ch] text-sm leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
+          {t.rich('wrongAccount.body', {
+            org: () => <code className="font-mono text-[12.5px] text-ink">{orgId}</code>,
+            user: () => <b className="font-semibold text-ink">{userName || '…'}</b>,
+          })}
+        </div>
+      </div>
+
+      {error && (
+        <p className="px-7 pb-3 text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3 border-t-[1px] border-rule-soft px-7 py-5 dark:border-rule-on-dark">
+        <button
+          type="button"
+          onClick={onSwitchAccount}
+          disabled={disabled}
+          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-ink px-6 font-sans text-[15px] font-medium text-paper transition hover:bg-cobalt hover:border-cobalt disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {switching ? t('wrongAccount.switching') : t('wrongAccount.switch')}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={disabled}
+          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-transparent px-6 font-sans text-[15px] font-medium text-ink transition hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {busy === 'deny' ? t('blocked.cancelling') : t('blocked.cancel')}
+        </button>
       </div>
     </>
   );

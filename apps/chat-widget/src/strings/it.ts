@@ -68,6 +68,10 @@ const it: Strings = {
   attachTooLarge: 'Le immagini devono pesare meno di {n} MB.',
   attachmentUnavailable: 'Immagine non più disponibile',
   lightboxCloseAriaLabel: 'Chiudi l’immagine',
+  nudgeDefault: 'Ciao. Hai una domanda? Scrivila qui e ti rispondiamo subito.',
+  nudgePlaceholder: 'Fai una domanda…',
+  nudgeAuthor: 'Assistenza clienti',
+  nudgeDismissAriaLabel: 'Nascondi il messaggio',
 };
 
 export default it;

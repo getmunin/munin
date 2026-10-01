@@ -68,6 +68,10 @@ const sv: Strings = {
   attachTooLarge: 'Bilder måste vara under {n} MB.',
   attachmentUnavailable: 'Bilden är inte längre tillgänglig',
   lightboxCloseAriaLabel: 'Stäng bilden',
+  nudgeDefault: 'Hej. Undrar du något? Skriv här så svarar vi direkt.',
+  nudgePlaceholder: 'Ställ en fråga…',
+  nudgeAuthor: 'Kundsupport',
+  nudgeDismissAriaLabel: 'Dölj meddelandet',
 };
 
 export default sv;

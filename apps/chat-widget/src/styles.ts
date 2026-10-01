@@ -18,6 +18,7 @@ const DARK_VARS = String.raw`
     --munin-theme-edge: var(--munin-theme-edge-dark, var(--munin-theme));
     --munin-verdigris: #62C39C;
     --munin-verdigris-tint: #1B382A;
+    --munin-nudge-mix: 24%;
     --munin-agent-tint: #1E252C;
     --munin-self-tint: #272C33;
     --munin-field-border: rgba(255, 255, 255, 0.34);
@@ -141,6 +142,7 @@ button {
     inset 0 0 0 1px rgba(255, 255, 255, 0.06);
   transition: transform 160ms cubic-bezier(.2,.7,.2,1), box-shadow 160ms;
 }
+.root[data-corners='square'] .launcher { border-radius: var(--munin-r-surface); }
 .launcher:hover { transform: translateY(-2px) scale(1.03); }
 .launcher:active { transform: translateY(0) scale(.98); }
 .launcher:focus-visible {
@@ -153,23 +155,119 @@ button {
   position: absolute;
   top: -2px;
   right: -2px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
   box-sizing: border-box;
   border-radius: 999px;
   background: var(--munin-badge, var(--munin-theme-fill, var(--munin-theme)));
   color: var(--munin-badge-fg, var(--munin-theme-fg));
   font-family: var(--munin-mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--munin-bone);
   pointer-events: none;
 }
+.root[data-corners='square'] .launcher-badge { top: -9px; right: -9px; }
+
+.nudge {
+  position: absolute;
+  bottom: 72px;
+  width: 300px;
+  max-width: calc(100vw - 48px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    transform 220ms cubic-bezier(.2,.7,.2,1),
+    opacity 180ms cubic-bezier(.2,.7,.2,1);
+}
+.nudge.open { opacity: 1; transform: translateY(0); }
+.root[data-position='bottom-right'] .nudge { right: 0; }
+.root[data-position='bottom-left']  .nudge { left: 0; }
+.nudge-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+}
+.nudge-eyebrow {
+  padding-left: 2px;
+  font-family: var(--munin-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--munin-theme-edge);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nudge-close {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--munin-rule);
+  border-radius: var(--munin-r-control);
+  background: var(--munin-paper);
+  color: var(--munin-ink-mute);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.nudge-close:hover { color: var(--munin-ink); border-color: var(--munin-ink); }
+.nudge-close svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; }
+.nudge-message {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  background: var(--munin-nudge-bg, color-mix(in srgb, var(--munin-theme) var(--munin-nudge-mix, 12%), var(--munin-paper)));
+  border-radius: 14px;
+  color: var(--munin-nudge-fg, var(--munin-ink));
+  font-size: 14.5px;
+  line-height: 1.45;
+  word-wrap: break-word;
+}
+.nudge-form {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--munin-field-border);
+  border-radius: var(--munin-r-surface);
+  background: var(--munin-paper);
+  overflow: hidden;
+}
+.nudge-form:focus-within {
+  outline: 2px solid var(--munin-theme-edge);
+  outline-offset: -2px;
+}
+.nudge-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--munin-ink);
+  outline: none;
+}
+.nudge-input::placeholder { color: var(--munin-ink-mute); }
+.nudge-send {
+  flex-shrink: 0;
+  width: 44px;
+  border-left: 1px solid var(--munin-rule);
+  color: var(--munin-send);
+  font-size: 18px;
+  line-height: 1;
+}
+.nudge-send:hover { background: var(--munin-paper-deep); }
 
 /* ─── Panel ──────────────────────────────────────────── */
 .panel {
@@ -982,6 +1080,7 @@ button {
   .root { bottom: 16px; }
   .root[data-position='bottom-right'] { right: 16px; }
   .root[data-position='bottom-left']  { left:  16px; }
+  .nudge { max-width: calc(100vw - 32px); }
 
   .root[data-size] .panel {
     position: fixed;
@@ -1002,12 +1101,14 @@ button {
 
 @media (hover: none) and (pointer: coarse) {
   .composer textarea,
-  .card-form input { font-size: 16px; }
+  .card-form input,
+  .nudge-input { font-size: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .launcher { transition: none; }
   .panel { transition: none; }
+  .nudge { transition: none; }
   .bubble.typing span { animation: none; opacity: 0.6; }
 }
 `;

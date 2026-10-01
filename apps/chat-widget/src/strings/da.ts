@@ -68,6 +68,10 @@ const da: Strings = {
   attachTooLarge: 'Billeder skal være under {n} MB.',
   attachmentUnavailable: 'Billedet er ikke længere tilgængeligt',
   lightboxCloseAriaLabel: 'Luk billedet',
+  nudgeDefault: 'Hej. Er der noget, du vil vide? Skriv her, så svarer vi med det samme.',
+  nudgePlaceholder: 'Stil et spørgsmål…',
+  nudgeAuthor: 'Kundesupport',
+  nudgeDismissAriaLabel: 'Skjul beskeden',
 };
 
 export default da;

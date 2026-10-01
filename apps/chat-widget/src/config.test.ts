@@ -39,6 +39,8 @@ describe('parseConfig', () => {
       corners: 'square',
       colorScheme: 'auto',
       showHistory: true,
+      nudge: null,
+      nudgeDelayMs: 8000,
     });
     expect(result.config.visitor).toBeUndefined();
     expect(result.config.externalId).toBeUndefined();
@@ -517,5 +519,63 @@ describe('parseConfig', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.config.visitor?.name).toHaveLength(120);
+  });
+});
+
+describe('parseConfig nudge', () => {
+  const required = {
+    'data-munin-host': 'https://munin.example.com',
+    'data-widget-key': 'mn_widget_abc',
+    'data-channel-id': 'cnv_001',
+  };
+
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  function parse(attrs: Record<string, string>) {
+    const result = parseConfig(makeScript({ ...required, ...attrs }));
+    if (!result.ok) throw new Error('expected a valid config');
+    return result;
+  }
+
+  it('leaves the nudge off when the attribute is absent', () => {
+    expect(parse({}).config.nudge).toBeNull();
+  });
+
+  it('uses the localized default for an empty or boolean-true value', () => {
+    expect(parse({ 'data-munin-nudge': '' }).config.nudge).toBe('');
+    expect(parse({ 'data-munin-nudge': 'true' }).config.nudge).toBe('');
+  });
+
+  it('treats an explicit false as off', () => {
+    expect(parse({ 'data-munin-nudge': 'false' }).config.nudge).toBeNull();
+  });
+
+  it('keeps custom text, trimmed and capped at 280 chars', () => {
+    expect(parse({ 'data-munin-nudge': '  Need a hand?  ' }).config.nudge).toBe('Need a hand?');
+    expect(parse({ 'data-munin-nudge': 'x'.repeat(400) }).config.nudge).toHaveLength(280);
+  });
+
+  it('accepts a hex nudge color and warns on anything else', () => {
+    expect(parse({}).config.nudgeColor).toBeUndefined();
+    expect(parse({ 'data-munin-nudge-color': '#FFE8CC' }).config.nudgeColor).toBe('#FFE8CC');
+    const bad = parse({ 'data-munin-nudge-color': 'peach' });
+    expect(bad.config.nudgeColor).toBeUndefined();
+    expect(bad.warnings.map((w) => w.attr)).toContain('data-munin-nudge-color');
+  });
+
+  it('reads the delay in seconds and defaults to 8', () => {
+    expect(parse({}).config.nudgeDelayMs).toBe(8000);
+    expect(parse({ 'data-munin-nudge-delay': '2.5' }).config.nudgeDelayMs).toBe(2500);
+    expect(parse({ 'data-munin-nudge-delay': '0' }).config.nudgeDelayMs).toBe(0);
+  });
+
+  it('warns and falls back on an out-of-range or non-numeric delay', () => {
+    for (const bad of ['-1', 'soon', '', '9999']) {
+      const result = parse({ 'data-munin-nudge-delay': bad });
+      expect(result.config.nudgeDelayMs).toBe(8000);
+      expect(result.warnings.map((w) => w.attr)).toContain('data-munin-nudge-delay');
+    }
   });
 });

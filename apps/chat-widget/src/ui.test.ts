@@ -19,6 +19,8 @@ const baseConfig: WidgetConfig = {
   corners: 'square',
   colorScheme: 'auto',
   showHistory: true,
+  nudge: null,
+  nudgeDelayMs: 8000,
 };
 
 let controller: UiController | null = null;
@@ -69,15 +71,42 @@ describe('ui: mount + lifecycle', () => {
     expect(($('.panel')).hidden).toBe(true);
   });
 
-  it('opens the panel on launcher click, lands on the welcome screen', () => {
+  it('opens straight into a new chat on launcher click when the visitor has no conversations', () => {
     const onOpen = vi.fn();
     controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {}, onOpen });
     ($('.launcher')).click();
     expect(($('.panel')).hidden).toBe(false);
     expect(($('.launcher')).hidden).toBe(true);
+    expect(($('.welcome')).hidden).toBe(true);
+    expect(($('.chat')).hidden).toBe(false);
+    expect($('.chat-title').textContent).toBe(strings.newConversation);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('lands on the welcome screen when the visitor has past conversations', () => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    controller.setPastConversations([
+      {
+        id: 'ccv_a',
+        sessionId: 'sid_a',
+        title: 'Refund question',
+        preview: 'Thanks.',
+        status: 'closed',
+        handedOver: false,
+        lastMessageAt: new Date().toISOString(),
+      },
+    ]);
+    ($('.launcher')).click();
     expect(($('.welcome')).hidden).toBe(false);
     expect(($('.chat')).hidden).toBe(true);
-    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('lands on the welcome screen when the current session already has messages', () => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    controller.addMessages([msg({ id: 'm1', role: 'agent', body: 'Hello' })]);
+    controller.setView('welcome');
+    ($('.launcher')).click();
+    expect(($('.welcome')).hidden).toBe(false);
   });
 
   it('renders the configured greeting and eyebrow on the welcome screen', () => {
@@ -195,6 +224,7 @@ describe('ui: welcome → chat transitions', () => {
   });
 
   it('setView swaps the visible screen', () => {
+    controller!.setView('welcome');
     expect(($('.welcome')).hidden).toBe(false);
     expect(($('.chat')).hidden).toBe(true);
     controller!.setView('chat');
@@ -994,5 +1024,102 @@ describe('ui: powered-by credit links', () => {
       expect(url.searchParams.get('utm_medium')).toBe('referral');
       expect(url.searchParams.get('utm_campaign')).toBe('powered_by');
     }
+  });
+});
+
+describe('ui: nudge', () => {
+  it('shows the nudge text with the org eyebrow and a badge of 1', () => {
+    controller = mount({ ...baseConfig, title: 'Acme' }, strings, {
+      onSend: () => {},
+      onTypingIntent: () => {},
+    });
+    expect(($('.nudge')).hidden).toBe(true);
+    controller.showNudge('Got a question?');
+    expect(($('.nudge')).hidden).toBe(false);
+    expect($('.nudge-text').textContent).toBe('Got a question?');
+    expect($('.nudge-eyebrow').textContent).toBe(`Acme · ${strings.timeNow}`);
+    expect($('.launcher-badge').textContent).toBe('1');
+    expect(controller.isNudgeVisible()).toBe(true);
+  });
+
+  it('paints an explicit nudge color with a contrasting text color', () => {
+    controller = mount({ ...baseConfig, nudgeColor: '#0F1419' }, strings, {
+      onSend: () => {},
+      onTypingIntent: () => {},
+    });
+    const root = $('.root');
+    expect(root.style.getPropertyValue('--munin-nudge-bg')).toBe('#0F1419');
+    expect(root.style.getPropertyValue('--munin-nudge-fg')).not.toBe('');
+  });
+
+  it('leaves the nudge on the theme tint when no color is set', () => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    expect($('.root').style.getPropertyValue('--munin-nudge-bg')).toBe('');
+  });
+
+  it('lets real unread messages win over the nudge badge', () => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    controller.showNudge('Hi');
+    controller.setLauncherUnread(3);
+    expect($('.launcher-badge').textContent).toBe('3');
+    controller.setLauncherUnread(0);
+    expect($('.launcher-badge').textContent).toBe('1');
+  });
+
+  it('dismisses on the close button, clears the badge and reports it', () => {
+    const onNudgeDismiss = vi.fn();
+    controller = mount(baseConfig, strings, {
+      onSend: () => {},
+      onTypingIntent: () => {},
+      onNudgeDismiss,
+    });
+    controller.showNudge('Hi');
+    ($('.nudge-close')).click();
+    expect(($('.nudge')).hidden).toBe(true);
+    expect(($('.launcher-badge')).hidden).toBe(true);
+    expect(onNudgeDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('hands the typed text to onNudgeSend and hides the nudge', () => {
+    const onNudgeSend = vi.fn();
+    controller = mount(baseConfig, strings, {
+      onSend: () => {},
+      onTypingIntent: () => {},
+      onNudgeSend,
+    });
+    controller.showNudge('Hi');
+    const input = $<HTMLInputElement>('.nudge-input');
+    input.value = '  Where is my order?  ';
+    $<HTMLFormElement>('.nudge-form').dispatchEvent(new Event('submit', { cancelable: true }));
+    expect(onNudgeSend).toHaveBeenCalledWith('Where is my order?');
+    expect(controller.isNudgeVisible()).toBe(false);
+  });
+
+  it('ignores a blank submit', () => {
+    const onNudgeSend = vi.fn();
+    controller = mount(baseConfig, strings, {
+      onSend: () => {},
+      onTypingIntent: () => {},
+      onNudgeSend,
+    });
+    controller.showNudge('Hi');
+    $<HTMLFormElement>('.nudge-form').dispatchEvent(new Event('submit', { cancelable: true }));
+    expect(onNudgeSend).not.toHaveBeenCalled();
+    expect(controller.isNudgeVisible()).toBe(true);
+  });
+
+  it('opens the panel when the message is clicked and hides the nudge', () => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    controller.showNudge('Hi');
+    ($('.nudge-message')).click();
+    expect(controller.isOpen()).toBe(true);
+    expect(controller.isNudgeVisible()).toBe(false);
+  });
+
+  it('never shows over an open panel', () => {
+    controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+    controller.open();
+    controller.showNudge('Hi');
+    expect(controller.isNudgeVisible()).toBe(false);
   });
 });

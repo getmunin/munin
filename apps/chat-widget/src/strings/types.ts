@@ -77,6 +77,10 @@ export interface Strings {
   attachTooLarge: string;
   attachmentUnavailable: string;
   lightboxCloseAriaLabel: string;
+  nudgeDefault: string;
+  nudgePlaceholder: string;
+  nudgeAuthor: string;
+  nudgeDismissAriaLabel: string;
 }
 
 const PLURAL_KEYS: readonly (keyof PluralValue)[] = ['zero', 'one', 'two', 'few', 'many', 'other'];

@@ -68,6 +68,10 @@ const nb: Strings = {
   attachTooLarge: 'Bildet må være under {n} MB.',
   attachmentUnavailable: 'Bildet er ikke tilgjengelig lenger',
   lightboxCloseAriaLabel: 'Lukk bildet',
+  nudgeDefault: 'Hei. Lurer du på noe? Skriv her, så svarer vi med en gang.',
+  nudgePlaceholder: 'Still et spørsmål…',
+  nudgeAuthor: 'Kundesupport',
+  nudgeDismissAriaLabel: 'Skjul meldingen',
 };
 
 export default nb;

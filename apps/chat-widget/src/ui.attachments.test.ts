@@ -19,6 +19,8 @@ const baseConfig: WidgetConfig = {
   corners: 'square',
   colorScheme: 'auto',
   showHistory: true,
+  nudge: null,
+  nudgeDelayMs: 8000,
 };
 
 let controller: UiController | null = null;

@@ -68,6 +68,10 @@ const fi: Strings = {
   attachTooLarge: 'Kuvan koko saa olla enintään {n} MB.',
   attachmentUnavailable: 'Kuva ei ole enää saatavilla',
   lightboxCloseAriaLabel: 'Sulje kuva',
+  nudgeDefault: 'Hei. Onko sinulla kysyttävää? Kirjoita tähän, niin vastaamme heti.',
+  nudgePlaceholder: 'Kysy jotain…',
+  nudgeAuthor: 'Asiakastuki',
+  nudgeDismissAriaLabel: 'Piilota viesti',
 };
 
 export default fi;

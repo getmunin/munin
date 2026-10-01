@@ -68,6 +68,10 @@ const lt: Strings = {
   attachTooLarge: 'Vaizdas turi būti mažesnis nei {n} MB.',
   attachmentUnavailable: 'Vaizdas nebepasiekiamas',
   lightboxCloseAriaLabel: 'Uždaryti vaizdą',
+  nudgeDefault: 'Sveiki. Turite klausimą? Parašykite čia ir iškart atsakysime.',
+  nudgePlaceholder: 'Užduokite klausimą…',
+  nudgeAuthor: 'Klientų aptarnavimas',
+  nudgeDismissAriaLabel: 'Paslėpti žinutę',
 };
 
 export default lt;

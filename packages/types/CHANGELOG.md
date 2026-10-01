@@ -1,5 +1,7 @@
 # @getmunin/types
 
+## 5.39.1
+
 ## 5.39.0
 
 ### Patch Changes

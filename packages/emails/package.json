@@ -1,6 +1,6 @@
 {
   "name": "@getmunin/emails",
-  "version": "5.38.1",
+  "version": "5.39.0",
   "license": "MIT",
   "description": "Munin transactional email templates (React Email).",
   "publishConfig": {

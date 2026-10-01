@@ -57,6 +57,7 @@ export interface EmailChannelConfigDto {
         username: string;
         password: typeof REDACTED_PASSWORD;
         mailbox?: string;
+        backfillDays?: number;
       }
     | {
         provider: 'relay';
@@ -89,6 +90,7 @@ const StoredImapInboundSchema = z.object({
   username: z.string(),
   encryptedPassword: z.string(),
   mailbox: z.string().optional(),
+  backfillDays: z.number().int().optional(),
 });
 
 const StoredRelayInboundSchema = z.object({
@@ -189,6 +191,7 @@ export class EmailService {
           ? await encryptString(input.inbound.password)
           : '',
         mailbox: input.inbound.mailbox,
+        ...(input.inbound.backfillDays ? { backfillDays: input.inbound.backfillDays } : {}),
       };
     } else if (input.inbound?.provider === 'relay') {
       const domain = readRelayDomain();
@@ -246,6 +249,7 @@ export class EmailService {
         username: stored.inbound.username,
         password: REDACTED_PASSWORD,
         mailbox: stored.inbound.mailbox,
+        ...(stored.inbound.backfillDays ? { backfillDays: stored.inbound.backfillDays } : {}),
       };
     } else if (stored.inbound?.provider === 'relay') {
       out.inbound = {

@@ -38,6 +38,7 @@ export const ImapInboundSchema = z.object({
   username: z.string().min(1),
   password: sensitive(z.string().min(1).optional()),
   mailbox: z.string().max(120).optional(),
+  backfillDays: z.number().int().min(0).max(90).optional(),
 });
 
 export const RelayInboundSchema = z.object({

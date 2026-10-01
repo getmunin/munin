@@ -9899,6 +9899,11 @@
                       "mailbox": {
                         "type": "string",
                         "maxLength": 120
+                      },
+                      "backfillDays": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 90
                       }
                     },
                     "required": [

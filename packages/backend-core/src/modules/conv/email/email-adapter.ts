@@ -13,7 +13,7 @@ import {
   type Mailer,
   type RequestContext,
 } from '@getmunin/core';
-import { ImapFlow } from 'imapflow';
+import { ImapFlow, type MailboxObject } from 'imapflow';
 import { simpleParser, type Attachment, type ParsedMail, type AddressObject } from 'mailparser';
 import { randomUUID } from 'node:crypto';
 import { createTransport, type Transporter } from 'nodemailer';
@@ -114,32 +114,74 @@ interface StoredInboundAttachment {
   contentId: string | null;
 }
 
+export interface ImapConnectOptions {
+  host: string;
+  port: number;
+  secure: boolean;
+  username: string;
+  password: string;
+  mailbox: string;
+}
+
+export interface ImapAnchor {
+  uidValidity: string;
+  lastUid: number;
+}
+
+export interface ImapFetchResult {
+  uidValidity: string;
+  messages: ImapMessageMin[];
+}
+
 export interface ImapFetcher {
-  fetchSince(opts: {
-    host: string;
-    port: number;
-    secure: boolean;
-    username: string;
-    password: string;
-    mailbox: string;
-    sinceUid: number | null;
-    limit: number;
-  }): Promise<ImapMessageMin[]>;
+  anchor(opts: ImapConnectOptions & { since: Date | null }): Promise<ImapAnchor>;
+  fetchSince(
+    opts: ImapConnectOptions & {
+      sinceUid: number;
+      uidValidity: string | null;
+      limit: number;
+    },
+  ): Promise<ImapFetchResult>;
 }
 
 class ImapFlowFetcher implements ImapFetcher {
   private static readonly logger = new Logger(ImapFlowFetcher.name);
 
-  async fetchSince(opts: {
-    host: string;
-    port: number;
-    secure: boolean;
-    username: string;
-    password: string;
-    mailbox: string;
-    sinceUid: number | null;
-    limit: number;
-  }): Promise<ImapMessageMin[]> {
+  async anchor(opts: ImapConnectOptions & { since: Date | null }): Promise<ImapAnchor> {
+    return this.withMailbox(opts, async (client, mailbox) => {
+      const uidValidity = mailbox.uidValidity.toString();
+      const endUid = Math.max(0, mailbox.uidNext - 1);
+      if (!opts.since) return { uidValidity, lastUid: endUid };
+      const uids = await client.search({ since: opts.since }, { uid: true });
+      if (!uids || uids.length === 0) return { uidValidity, lastUid: endUid };
+      const firstUid = uids.reduce((min, uid) => (uid < min ? uid : min), uids[0]!);
+      return { uidValidity, lastUid: Math.max(0, firstUid - 1) };
+    });
+  }
+
+  async fetchSince(
+    opts: ImapConnectOptions & { sinceUid: number; uidValidity: string | null; limit: number },
+  ): Promise<ImapFetchResult> {
+    return this.withMailbox(opts, async (client, mailbox) => {
+      const uidValidity = mailbox.uidValidity.toString();
+      if (opts.uidValidity !== null && opts.uidValidity !== uidValidity) {
+        return { uidValidity, messages: [] };
+      }
+      const range = `${opts.sinceUid + 1}:*`;
+      const messages: ImapMessageMin[] = [];
+      for await (const msg of client.fetch(range, { uid: true, source: true }, { uid: true })) {
+        if (!msg.source || msg.uid <= opts.sinceUid) continue;
+        messages.push({ uid: msg.uid, source: msg.source });
+        if (messages.length >= opts.limit) break;
+      }
+      return { uidValidity, messages };
+    });
+  }
+
+  private async withMailbox<T>(
+    opts: ImapConnectOptions,
+    fn: (client: ImapFlow, mailbox: MailboxObject) => Promise<T>,
+  ): Promise<T> {
     const resolved = await resolvePublicHost(opts.host);
     const client = new ImapFlow({
       host: resolved?.address ?? opts.host,
@@ -163,15 +205,8 @@ class ImapFlowFetcher implements ImapFetcher {
       throw err;
     }
     try {
-      await client.mailboxOpen(opts.mailbox);
-      const range = opts.sinceUid ? `${opts.sinceUid + 1}:*` : '1:*';
-      const out: ImapMessageMin[] = [];
-      for await (const msg of client.fetch(range, { uid: true, source: true }, { uid: true })) {
-        if (!msg.source) continue;
-        out.push({ uid: msg.uid, source: msg.source });
-        if (out.length >= opts.limit) break;
-      }
-      return out;
+      const mailbox = await client.mailboxOpen(opts.mailbox);
+      return await fn(client, mailbox);
     } finally {
       await client.logout().catch((err) => {
         ImapFlowFetcher.logger.warn(
@@ -309,29 +344,53 @@ export class EmailAdapter implements ChannelAdapter {
     if (!inbound) return { messagesIngested: 0 };
 
     const cursor = await this.readCursor(channel.id);
-    const sinceUid = typeof cursor.lastUid === 'number' ? cursor.lastUid : null;
+    const storedUid = typeof cursor.lastUid === 'number' ? cursor.lastUid : null;
+    const storedValidity = typeof cursor.uidValidity === 'string' ? cursor.uidValidity : null;
 
     const password = await this.db.transaction((tx) =>
       this.emailService.decryptImapPassword(tx, inbound.encryptedPassword),
     );
-
-    const messages = await this.fetcher.fetchSince({
+    const connect = {
       host: inbound.host,
       port: inbound.port,
       secure: inbound.secure,
       username: inbound.username,
       password,
       mailbox: inbound.mailbox ?? 'INBOX',
-      sinceUid,
-      limit: MAX_MESSAGES_PER_TICK,
-    });
+    };
 
-    if (messages.length === 0) {
-      await this.writeCursor(channel.id, { lastUid: sinceUid ?? null });
+    if (storedUid === null) {
+      const since = inbound.backfillDays
+        ? new Date(Date.now() - inbound.backfillDays * 24 * 60 * 60 * 1000)
+        : null;
+      const anchor = await this.fetcher.anchor({ ...connect, since });
+      await this.writeCursor(channel.id, { lastUid: anchor.lastUid, uidValidity: anchor.uidValidity });
       return { messagesIngested: 0 };
     }
 
-    let highWater = sinceUid ?? 0;
+    const fetched = await this.fetcher.fetchSince({
+      ...connect,
+      sinceUid: storedUid,
+      uidValidity: storedValidity,
+      limit: MAX_MESSAGES_PER_TICK,
+    });
+
+    if (storedValidity !== null && fetched.uidValidity !== storedValidity) {
+      const anchor = await this.fetcher.anchor({ ...connect, since: null });
+      this.logger.warn(
+        `uidvalidity changed channel=${channel.id} (${storedValidity} -> ${anchor.uidValidity}); re-anchoring at uid ${anchor.lastUid}`,
+      );
+      await this.writeCursor(channel.id, { lastUid: anchor.lastUid, uidValidity: anchor.uidValidity });
+      return { messagesIngested: 0 };
+    }
+
+    const messages = fetched.messages;
+    if (messages.length === 0) {
+      await this.writeCursor(channel.id, { lastUid: storedUid, uidValidity: fetched.uidValidity });
+      return { messagesIngested: 0 };
+    }
+
+    let highWater = storedUid;
     let ingested = 0;
     let lastError: string | null = null;
     let stalled = false;
@@ -361,7 +420,7 @@ export class EmailAdapter implements ChannelAdapter {
         break;
       }
     }
-    await this.writeCursor(channel.id, { lastUid: highWater });
+    await this.writeCursor(channel.id, { lastUid: highWater, uidValidity: fetched.uidValidity });
     return { messagesIngested: ingested, lastError, stalled };
   }
 

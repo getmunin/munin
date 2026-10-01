@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { auditConversation, type AuditAction, type AuditTopic } from './audit.ts';
 import { deriveMessageComponents } from './message-components.ts';
 import { deriveRetrievedDocumentIds } from './kb-citations.ts';
-import { classifyProviderError, type ProviderErrorCode } from './providers/transport.ts';
+import {
+  affectsProviderHealth,
+  classifyProviderError,
+  type ProviderErrorCode,
+} from './providers/transport.ts';
 import { runAgent } from './runtime.ts';
 import type {
   ConversationMessage,
@@ -519,6 +523,10 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
         }
         const classified = classifyProviderError(err);
         if (classified.status !== undefined) {
+          if (!affectsProviderHealth(classified.code)) {
+            log.warn(`${conversationId} prompt exceeds the model context window: ${classified.message}`);
+            break;
+          }
           deps.onProviderError?.(classified.code, classified.message);
           if (classified.code === 'provider_auth' || classified.code === 'provider_regional') {
             providerErrorCode = classified.code;

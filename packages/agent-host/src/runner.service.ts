@@ -74,6 +74,7 @@ import { AgentHealthService } from './agent-health.service.ts';
 import { createMeteringProvider } from './usage-metering.ts';
 import { createDrainScheduler, type DrainScheduler } from './drain-scheduler.ts';
 import { drainCuratorQueue } from './curator-drain.ts';
+import { curatorFailureDisposition } from './curator-failure.ts';
 
 interface TaskHandlerContext {
   job: CuratorJob;
@@ -803,12 +804,7 @@ export class AgentHostRunner
         return false;
       }
 
-      const retryable =
-        result.skipped !== 'skill_missing' &&
-        result.skipped !== 'no_tool_allowlist' &&
-        result.skipped !== 'no_admin_key' &&
-        result.skipped !== 'no_provider_key' &&
-        result.skipped !== 'quota_exceeded';
+      const { retryable, providerHealthFailure } = curatorFailureDisposition(result);
       log.warn(`${job.id} skipped: ${result.skipped}${result.error ? ` (${result.error})` : ''}`);
       const failBody: { error: string; retryable: boolean; code?: string; failedStep?: string } = {
         error: `${result.skipped}${result.error ? `: ${result.error}` : ''}`,
@@ -817,6 +813,8 @@ export class AgentHostRunner
       if (result.skipped === 'provider_error' && result.code) {
         failBody.code = result.code;
         if (result.failedStep) failBody.failedStep = result.failedStep;
+      }
+      if (providerHealthFailure && result.code) {
         const code = result.code;
         const detail = withProviderContext(
           result.error ?? result.skipped,
@@ -833,7 +831,7 @@ export class AgentHostRunner
       await opts.rest
         .failCuratorJob(job.id, failBody)
         .catch((e) => log.error(`fail-report failed: ${describe(e)}`));
-      return result.skipped === 'provider_error';
+      return providerHealthFailure;
     };
 
     const admit = async (): Promise<boolean> => {

@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { compactHistory, normalizeReplyBody, runAgent } from './runtime.ts';
+import {
+  MAX_TOOL_RESULT_CHARS,
+  MAX_TOTAL_TOOL_RESULT_CHARS,
+  compactHistory,
+  normalizeReplyBody,
+  runAgent,
+  visionKnownUnsupported,
+} from './runtime.ts';
+import { ProviderError } from './providers/transport.ts';
 import { neutralizeFraming, sanitizeToolName } from './untrusted.ts';
 import { createStubProvider } from './providers/stub.ts';
 import {
@@ -700,5 +708,98 @@ describe('runAgent quoted email history', () => {
     const kept = compactHistory([{ authorType: 'end_user', body: 'earlier' }, withQuote], 400);
     expect(kept.history).toEqual([]);
     expect(kept.truncated).toBe(2);
+  });
+});
+
+describe('runAgent tool-result budget', () => {
+  function bigResultMcp(chars: number): McpToolHandle {
+    return makeMcp({
+      callTool: vi.fn(() =>
+        Promise.resolve({ content: [{ type: 'text' as const, text: 'x'.repeat(chars) }] }),
+      ),
+    });
+  }
+
+  it('truncates a single oversized tool result and tells the model how to see the rest', async () => {
+    const { provider, calls } = createStubProvider({
+      responses: [
+        toolCallResponse('call_1', 'kb_search', { query: 'all' }),
+        plainTextResponse('done'),
+      ],
+    });
+
+    await runAgent({
+      config: baseConfig,
+      history: [{ authorType: 'user', body: 'go' }],
+      mcp: bigResultMcp(MAX_TOOL_RESULT_CHARS * 3),
+      provider,
+    });
+
+    const tool = calls[1]?.messages.find((m) => m.role === 'tool');
+    expect(tool?.content?.length).toBeLessThan(MAX_TOOL_RESULT_CHARS + 1_000);
+    expect(tool?.content).toContain('result truncated');
+  });
+
+  it('elides the oldest tool results once their total passes the budget, keeping the newest whole', async () => {
+    const perCall = MAX_TOOL_RESULT_CHARS - 1_000;
+    const rounds = Math.ceil(MAX_TOTAL_TOOL_RESULT_CHARS / perCall) + 2;
+    const { provider, calls } = createStubProvider({
+      responses: [
+        ...Array.from({ length: rounds }, (_, i) =>
+          toolCallResponse(`call_${i}`, 'kb_search', { query: `q${i}` }),
+        ),
+        plainTextResponse('done'),
+      ],
+    });
+
+    const reply = await runAgent({
+      config: { ...baseConfig, maxToolIterations: rounds + 1 },
+      history: [{ authorType: 'user', body: 'go' }],
+      mcp: bigResultMcp(perCall),
+      provider,
+    });
+
+    expect(reply.body).toBe('done');
+    const last = calls.at(-1)?.messages ?? [];
+    const tools = last.filter((m) => m.role === 'tool');
+    expect(tools).toHaveLength(rounds);
+    const total = tools.reduce((sum, m) => sum + (m.content?.length ?? 0), 0);
+    expect(total).toBeLessThanOrEqual(MAX_TOTAL_TOOL_RESULT_CHARS);
+    expect(tools[0]?.content).toContain('Earlier result omitted');
+    expect(tools[0]?.content).toContain('tool="kb_search"');
+    expect(tools.at(-1)?.content?.length).toBeGreaterThan(perCall);
+  });
+
+  it('does not mark a model vision-unsupported when an image turn overflows the context window', async () => {
+    const overflow = new ProviderError(
+      "provider returned 400: Input length (165979) exceeds model's maximum context length (131072).",
+      400,
+    );
+    const provider = vi.fn(() => Promise.reject(overflow));
+    const fetchImage: ImageFetch = () =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: () => '3' },
+        arrayBuffer: () => Promise.resolve(new Uint8Array([1, 2, 3]).buffer),
+      });
+
+    await expect(
+      runAgent({
+        config: { ...baseConfig, model: 'overflow-model' },
+        history: [
+          {
+            authorType: 'end_user',
+            body: 'see image',
+            attachments: [{ mime: 'image/png', url: 'https://munin.test/v1/c/a/tok', name: 'a.png' }],
+          },
+        ],
+        mcp: makeMcp(),
+        provider,
+        fetchImage,
+      }),
+    ).rejects.toBe(overflow);
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(visionKnownUnsupported('overflow-model')).toBe(false);
   });
 });

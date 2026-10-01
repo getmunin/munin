@@ -229,7 +229,15 @@ const LinkTranslationInput = z.object({
 
 const UnlinkTranslationInput = z.object({ id: z.string() });
 
-const ListVersionsInput = z.object({ entryId: z.string() });
+const ListVersionsInput = z.object({
+  entryId: z.string(),
+  limit: z.number().int().positive().max(200).optional(),
+});
+
+const GetVersionInput = z.object({
+  entryId: z.string(),
+  version: z.number().int().positive(),
+});
 
 const RestoreVersionInput = z.object({
   entryId: z.string(),
@@ -623,7 +631,8 @@ export class CmsAdminTools {
   @McpTool({
     name: 'cms_list_versions',
     title: 'CMS: List entry versions',
-    description: 'List all prior versions of an entry, newest first.',
+    description:
+      'List prior versions of an entry as summaries, newest first (default 50, max 200). Each version carries its number, status and timestamp; short fields come back verbatim, long text is shortened to a lead with a word count in `fieldSummary`, and `truncated: true` marks a version whose full values were withheld. A non-zero `dropped` means older versions were left out to stay inside the result budget — lower `limit`. Use `cms_get_version` to read one version in full.',
     audiences: ['admin'],
     scopes: ['cms:read'],
     input: ListVersionsInput,
@@ -631,7 +640,22 @@ export class CmsAdminTools {
     destructiveHint: false,
   })
   listVersions(args: z.infer<typeof ListVersionsInput>) {
-    return this.cms.listVersions(args.entryId);
+    return this.cms.listVersions(args);
+  }
+
+  @McpTool({
+    name: 'cms_get_version',
+    title: 'CMS: Read entry version',
+    description:
+      'Read one prior version of an entry in full, as it was stored when that version was written. Find version numbers with `cms_list_versions`.',
+    audiences: ['admin'],
+    scopes: ['cms:read'],
+    input: GetVersionInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getVersion(args: z.infer<typeof GetVersionInput>) {
+    return this.cms.getVersion(args.entryId, args.version);
   }
 
   @McpTool({

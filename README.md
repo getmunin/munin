@@ -126,7 +126,7 @@ Have a system no vendor adapter covers? Point Munin at an MCP server you run and
 An in-process, per-org agent runner answers live conversations on every channel (chat widget, email, SMS, voice) against the LLM provider you configure — drafting and sending replies, and handing off to a human when needed.
 
 #### Curator loop
-The in-process agent runner also works a durable background job queue: scheduled KB curation, CRM hygiene, contact extraction, stale-content review, and outreach drafts, with retry and dead-letter handling.
+The in-process agent runner also works a durable background job queue: scheduled KB curation, CRM hygiene, contact extraction, and outreach drafts, with retry and dead-letter handling.
 
 #### Review
 Everything an agent proposes and a person decides lands in one queue — KB revisions, outreach proposals, merge proposals, drafted replies — and every decision is kept, so the Decided feed is a durable record of who approved what, not a list that empties as you work it.

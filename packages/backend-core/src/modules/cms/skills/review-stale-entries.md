@@ -1,15 +1,15 @@
 ---
 title: CMS: Review stale entries
-description: Periodic curator pass — find drafts that have stalled, published entries that haven't been touched in months, and orphaned assets. Reports findings with recommended actions. No persistence layer; the operator reviews the curator-runner's log/reply and acts manually via existing CMS tools.
+description: On-demand review — find drafts that have stalled, published entries that haven't been touched in months, and orphaned assets. Reports findings with recommended actions to the operator you are working with, who decides what to act on via the existing CMS tools.
 audiences: [admin]
 ---
 
 # Review stale entries
 CMS data accumulates: drafts that someone started but never published, articles that were great two years ago but reference a product that's been retired, asset uploads from a campaign that ended last quarter. None of this is wrong individually — together it makes search worse, makes the editorial team trust the CMS less, and makes "is this current?" the first question every consumer asks.
 
-This skill walks an admin agent through one periodic stale-content pass. The agent finds suspect items, judges each one against the org's velocity and content style, and produces a structured report. There's no proposal queue or merge-table for v1 — the report goes back as the curator-runner's reply, the operator reads it, and they (or their admin agent) act on it via the existing `cms_*` tools.
+This skill walks an admin agent through one stale-content review, run when the operator asks for it ("what in the CMS is out of date?", "clean up old drafts"). The agent finds suspect items, judges each one against the org's velocity and content style, and produces a structured report. The operator is in the conversation: present the report, and act on the items they confirm via the existing `cms_*` tools.
 
-Run periodically. Quarterly is a good default for content-stable orgs; monthly for fast-moving ones. Don't run inline per CMS write — staleness is a population property, not a per-row property.
+Quarterly is a sensible cadence for content-stable orgs; monthly for fast-moving ones. Don't run it inline per CMS write — staleness is a population property, not a per-row property.
 
 ## TL;DR
 
@@ -18,7 +18,7 @@ Run periodically. Quarterly is a good default for content-stable orgs; monthly f
 3. **Find stale published entries** — `cms_list_entries({ status: "published" })`, filter to `updatedAt > N months ago` per collection's velocity. For each, run `cms_list_inbound_references` to see if the entry is still load-bearing or has been superseded.
 4. **Find orphaned assets** — `cms_list_assets`, cross-reference against entry bodies (search for asset IDs in entries' `data` payloads) to find uploads no entry points to.
 5. **Compose a structured report** grouped by recommended action: `archive`, `refresh`, `delete-asset`, `keep`. Include enough evidence per item that a reviewer can decide without re-querying.
-6. **Stop.** The operator reviews the report (your reply-to-the-user output for ad-hoc runs, or the scheduled-runner log if you're invoked from a cron) and acts on it manually using the existing `cms_*` tools.
+6. **Stop and hand over.** Present the report and let the operator choose. Run a mutating `cms_*` tool only for the items they explicitly confirm.
 
 ## Step 1 — collections inventory
 
@@ -48,7 +48,7 @@ Prefer `fieldSummary.<field>.words` over eyeballing the lead when you need a len
 For each draft older than the collection's threshold, decide:
 
 - **Abandoned** — recommend `archive` or `delete`. Triggers: same author hasn't touched it in 60+ days; a very short body (`fieldSummary.body.words` under ~40, or a lead that is clearly the whole field) suggesting it never got going; title suggests an event/launch that has passed.
-- **Work in progress** — leave alone. Triggers: long body actively being edited (use `cms_list_versions` to see edit velocity); recent author activity in other entries.
+- **Work in progress** — leave alone. Triggers: long body actively being edited (`cms_list_versions` with a small `limit`, e.g. 5, shows edit velocity from the version timestamps — you don't need the version bodies); recent author activity in other entries.
 - **Stuck on a blocker** — leave alone but flag for the reviewer to ping the author.
 
 ## Step 3 — stale published entries
@@ -131,23 +131,22 @@ Structure the output so an operator can scan it. Group by recommended action, no
   - Action: none (annotated for the next pass to skip)
 ```
 
-The operator reviews this report and runs the recommended commands. None of the recommendations execute automatically.
+The operator reviews this report and tells you which recommendations to carry out. None of them execute without that confirmation.
 
 ## What NOT to do
 
-- **Don't auto-execute.** v1 of this skill is propose-only. Even `delete` on an orphaned draft is the operator's call — the agent might be wrong about what's load-bearing.
+- **Don't execute without confirmation.** The report is a proposal. Even `delete` on an orphaned draft is the operator's call — the agent might be wrong about what's load-bearing.
 - **Don't apply one global staleness threshold.** A 14-month-old "About us" page is healthy; a 14-month-old "Q2 2024 promotions" page is not. Per-collection velocity in Step 1 is the whole point.
 - **Don't recommend deleting entries with active inbound references** without flagging the references explicitly — silent breakage is worse than visible staleness.
-- **Don't recurse into the full-text content of every published entry on every pass.** The pass should be cheap. Sample, prioritize obvious cases, and let next quarter's pass cover what this one didn't.
+- **Don't recurse into the full-text content of every published entry on every pass.** The pass should be cheap. Work from the `cms_list_entries` summaries, open an entry with `cms_get_entry` only when the summary can't settle it, sample, prioritize obvious cases, and let the next review cover what this one didn't.
 - **Don't include private end-user data in the report** (a stale entry's body might contain customer names, account ids, etc.). Reference items by id + title; let the reviewer open them in context.
 
 ## Future work
 
-- A `cms_curation_proposals` table (mirroring `crm_merge_proposals`) so this skill produces a persistent review queue instead of a one-shot report. Add when the volume justifies it.
+- A `cms_curation_proposals` table (mirroring `crm_merge_proposals`) so this review produces a persistent queue instead of a one-shot report. Add when the volume justifies it.
 - Per-asset inbound-reference check (a dedicated tool that walks all entries' `data` for asset id mentions). Today the skill uses `cms_search_entries` as a workaround.
-- Automated `cms_unpublish_entry` for the high-confidence "time-bound, expired, zero references" subset, gated behind an explicit org-level toggle.
 
 ## Related
 
-- `skill://kb/review-content` — sibling curator pass for conversation → KB document candidates. Different domain, similar "propose, don't apply" philosophy. KB curation has a persistent inbox; CMS stale-content review v1 does not.
-- `skill://crm/clean-contact-data` — sibling curator pass for CRM merge proposals. Different domain, structured proposals table.
+- `skill://kb/review-content` — curator pass for conversation → KB document candidates. Different domain, similar "propose, don't apply" philosophy; it runs on a schedule because it feeds a persistent review inbox.
+- `skill://crm/clean-contact-data` — curator pass for CRM merge proposals. Different domain, structured proposals table.

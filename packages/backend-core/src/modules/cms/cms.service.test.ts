@@ -972,8 +972,51 @@ function holderFor(): EmbeddingProviderHolder {
         svc.createEntry({ collection: col.slug, slug: 'v', data: { title: 'v1' } }),
       );
       await run(() => svc.updateEntry({ id: entry.id, ifVersion: 1, data: { title: 'v2' } }));
-      const versions = await run(() => svc.listVersions(entry.id));
-      expect(versions.map((v) => v.version)).toEqual([2, 1]);
+      const result = await run(() => svc.listVersions({ entryId: entry.id }));
+      expect(result.versions.map((v) => v.version)).toEqual([2, 1]);
+      expect(result.dropped).toBe(0);
+    });
+
+    it('listVersions summarizes long text and stays inside the result budget', async () => {
+      const col = await seedCollection();
+      const body = 'word '.repeat(4_000);
+      const entry = await run(() =>
+        svc.createEntry({ collection: col.slug, slug: 'long', data: { title: 'long', body } }),
+      );
+      for (let v = 1; v <= 12; v += 1) {
+        await run(() =>
+          svc.updateEntry({ id: entry.id, ifVersion: v, data: { title: 'long', body: `${body}${v}` } }),
+        );
+      }
+      const result = await run(() => svc.listVersions({ entryId: entry.id }));
+      expect(result.returned).toBe(13);
+      expect(result.truncated).toBe(true);
+      expect(result.versions[0]?.fieldSummary.body).toMatchObject({ truncated: true });
+      expect(JSON.stringify(result.versions).length).toBeLessThan(30_000);
+    });
+
+    it('listVersions honours limit', async () => {
+      const col = await seedCollection();
+      const entry = await run(() =>
+        svc.createEntry({ collection: col.slug, slug: 'lim', data: { title: 'v1' } }),
+      );
+      await run(() => svc.updateEntry({ id: entry.id, ifVersion: 1, data: { title: 'v2' } }));
+      await run(() => svc.updateEntry({ id: entry.id, ifVersion: 2, data: { title: 'v3' } }));
+      const result = await run(() => svc.listVersions({ entryId: entry.id, limit: 2 }));
+      expect(result.versions.map((v) => v.version)).toEqual([3, 2]);
+    });
+
+    it('getVersion returns one version in full', async () => {
+      const col = await seedCollection();
+      const body = 'word '.repeat(4_000);
+      const entry = await run(() =>
+        svc.createEntry({ collection: col.slug, slug: 'gv', data: { title: 'gv', body } }),
+      );
+      await run(() => svc.updateEntry({ id: entry.id, ifVersion: 1, data: { title: 'v2' } }));
+      const version = await run(() => svc.getVersion(entry.id, 1));
+      expect(version.version).toBe(1);
+      expect(version.data.body).toBe(body);
+      await expect(run(() => svc.getVersion(entry.id, 99))).rejects.toThrow(NotFoundException);
     });
 
     it('restoreVersion creates a new version with prior data', async () => {

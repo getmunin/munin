@@ -20,8 +20,6 @@ const KB_SWEEP_PROMPT =
   'Run a KB curation pass over the last 7 days of resolved-handover conversations. Follow the procedure in the skill exactly. First fetch prior decisions via kb_list_curation_decisions so you do not redraft sources an operator already dismissed or published. Scope the pass with conv_list_conversations({ handover: "resolved", since: <7 days ago> }) — do not widen it. Skip duplicates and one-off answers. File each candidate via kb_propose_curation_candidate. Stop when there are no more candidates to file.';
 const CRM_HYGIENE_PROMPT =
   'Run a CRM hygiene pass. Follow the skill. First fetch dismissed pairs via crm_list_merge_proposals so you do not refile rejected pairs. Then list contacts, build suspect pairs, judge each, and file high-confidence pairs as structured proposals via crm_propose_merge. Stop when there are no more new pairs to propose.';
-const CMS_STALE_PROMPT =
-  'Run a CMS stale-content review pass. Follow the skill. Walk each collection, judge per-collection velocity, find stale drafts, find unrefreshed published entries, find orphaned assets. Produce a structured action report grouped by recommended action. Do not execute any mutating tool — propose only.';
 const OUTREACH_FIRST_TOUCH_PROMPT =
   'Run an outreach first-touch drafting pass. Follow skill://outreach/draft-first-touch-email exactly. List enabled campaigns, materialise each segment via crm_list_contacts_in_segment, dedupe via outreach_list_proposals, ground each draft in kb_search results, and file every new draft via outreach_propose_first_touch. Do NOT approve or send anything — drafts go to the operator review queue.';
 const OUTREACH_DRAFT_FOLLOWUP_PROMPT =
@@ -76,16 +74,6 @@ export class CuratorSchedulerService implements OnModuleInit {
         jobUri: 'skill://crm/clean-contact-data',
         userPrompt: CRM_HYGIENE_PROMPT,
         dedupeKey: 'crm-hygiene:scheduled',
-      },
-      {
-        name: 'curator-cms-stale',
-        cron: parseEnvCron({
-          name: 'MUNIN_CURATOR_CMS_STALE_CRON',
-          default: CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT,
-        }),
-        jobUri: 'skill://cms/review-stale-entries',
-        userPrompt: CMS_STALE_PROMPT,
-        dedupeKey: 'cms-stale:scheduled',
       },
       {
         name: 'curator-outreach-first-touch',

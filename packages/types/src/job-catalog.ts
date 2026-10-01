@@ -11,7 +11,6 @@ export const KNOWN_SKILL_URIS: ReadonlySet<string> = new Set([
   'skill://kb/review-content',
   'skill://crm/clean-contact-data',
   'skill://crm/extract-contact-from-message',
-  'skill://cms/review-stale-entries',
   'skill://outreach/draft-first-touch-email',
   'skill://outreach/draft-reply-email',
   'skill://outreach/draft-followup-email',
@@ -93,17 +92,6 @@ export const TOOLS_BY_URI: ReadonlyMap<string, readonly string[]> = new Map([
       'conv_get_conversation',
       'outreach_propose_followup',
       'kb_search',
-    ],
-  ],
-  [
-    'skill://cms/review-stale-entries',
-    [
-      'cms_list_collections',
-      'cms_list_entries',
-      'cms_list_inbound_references',
-      'cms_list_assets',
-      'cms_search_entries',
-      'cms_list_versions',
     ],
   ],
   [

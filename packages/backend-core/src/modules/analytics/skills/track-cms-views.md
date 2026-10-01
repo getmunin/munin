@@ -194,4 +194,4 @@ Entry views recorded through the pre-signed `_tracking` pixel or beacon carry no
 
 - `skill://analytics/track-website-traffic` — sibling flow for traffic-level analytics on the host (URL-keyed, `mn_track_*` key, per-org origin allowlist).
 - `skill://cms/publish-entry` — how entries reach the `published` state where they show up in delivery responses.
-- `skill://cms/review-stale-entries` — periodic pass that consults `cms_entry` view data to decide what to refresh or archive.
+- `skill://cms/review-stale-entries` — stale-content review that consults `cms_entry` view data to decide what to refresh or archive.

@@ -247,4 +247,4 @@ The dashboard editor will warn before destructive changes; if you're driving thi
 - `skill://cms/localize-entry` — adding locale variants to a localized collection.
 - `skill://cms/upload-asset-and-embed` — wiring up the `asset` field type end-to-end.
 - `skill://cms/preview-entry` — `settings.previewUrl` plus the frontend contract for previewing drafts.
-- `skill://cms/review-stale-entries` — operational pass once the collection is in production.
+- `skill://cms/review-stale-entries` — stale-content review once the collection is in production.

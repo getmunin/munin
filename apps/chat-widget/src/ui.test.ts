@@ -1028,7 +1028,7 @@ describe('ui: powered-by credit links', () => {
 });
 
 describe('ui: nudge', () => {
-  it('shows the nudge text with the org eyebrow and a badge of 1', () => {
+  it('shows the nudge text, labelled by the org name, with a badge of 1', () => {
     controller = mount({ ...baseConfig, title: 'Acme' }, strings, {
       onSend: () => {},
       onTypingIntent: () => {},
@@ -1037,7 +1037,7 @@ describe('ui: nudge', () => {
     controller.showNudge('Got a question?');
     expect(($('.nudge')).hidden).toBe(false);
     expect($('.nudge-text').textContent).toBe('Got a question?');
-    expect($('.nudge-eyebrow').textContent).toBe(`Acme · ${strings.timeNow}`);
+    expect($('.nudge').getAttribute('aria-label')).toBe('Acme');
     expect($('.launcher-badge').textContent).toBe('1');
     expect(controller.isNudgeVisible()).toBe(true);
   });
@@ -1121,5 +1121,45 @@ describe('ui: nudge', () => {
     controller.open();
     controller.showNudge('Hi');
     expect(controller.isNudgeVisible()).toBe(false);
+  });
+
+  describe('on scroll', () => {
+    const origMatchMedia = window.matchMedia;
+
+    function scrollTo(y: number): void {
+      Object.defineProperty(window, 'scrollY', { value: y, configurable: true });
+      window.dispatchEvent(new Event('scroll'));
+    }
+
+    afterEach(() => {
+      window.matchMedia = origMatchMedia;
+      Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
+    });
+
+    it('steps aside on a phone once the visitor scrolls most of a screen, without reporting a dismissal', () => {
+      window.matchMedia = vi.fn().mockReturnValue({ matches: true });
+      Object.defineProperty(window, 'innerHeight', { value: 700, configurable: true });
+      const onNudgeDismiss = vi.fn();
+      controller = mount(baseConfig, strings, {
+        onSend: () => {},
+        onTypingIntent: () => {},
+        onNudgeDismiss,
+      });
+      controller.showNudge('Hi');
+      scrollTo(200);
+      expect(controller.isNudgeVisible()).toBe(true);
+      scrollTo(500);
+      expect(controller.isNudgeVisible()).toBe(false);
+      expect(($('.launcher-badge')).hidden).toBe(true);
+      expect(onNudgeDismiss).not.toHaveBeenCalled();
+    });
+
+    it('stays put on larger viewports', () => {
+      window.matchMedia = vi.fn().mockReturnValue({ matches: false });
+      controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
+      controller.showNudge('Hi');
+      scrollTo(5000);
+      expect(controller.isNudgeVisible()).toBe(true);
+    });
   });
 });

@@ -77,7 +77,7 @@ export interface TranslationHandlerDeps {
 
 const MAX_BATCH_CHARS = 6000;
 const MAX_TRANSLATION_TOKENS = 8192;
-const MAX_DETECTION_TOKENS = 64;
+const MAX_DETECTION_TOKENS = 1024;
 const MAX_DETECTION_CHARS = 2000;
 const MAX_CONTEXT_MESSAGES = 6;
 const MAX_CONTEXT_CHARS = 3000;
@@ -358,7 +358,14 @@ export async function detectLanguage(args: DetectLanguageArgs): Promise<string |
     tools: [],
     abortSignal: args.abortSignal,
   });
-  return parseTranslationResponse(response.message.content ?? '', [])?.customerLanguage ?? null;
+  const language =
+    parseTranslationResponse(response.message.content ?? '', [])?.customerLanguage ?? null;
+  if (!language && response.finishReason === 'length') {
+    throw new Error(
+      `the model used all ${MAX_DETECTION_TOKENS} output tokens before it answered`,
+    );
+  }
+  return language;
 }
 
 export interface TranslateTextArgs {

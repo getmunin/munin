@@ -28,6 +28,7 @@ export {
 export { defaultProvider, selectProvider } from './providers/default-provider.ts';
 export {
   ProviderError,
+  affectsProviderHealth,
   classifyProviderError,
   type ProviderErrorCode,
   type ProviderErrorClassification,

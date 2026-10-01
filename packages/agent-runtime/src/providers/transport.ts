@@ -69,7 +69,15 @@ export type ProviderErrorCode =
   | 'provider_regional'
   | 'provider_rate_limit'
   | 'provider_model_not_found'
+  | 'provider_context_length'
   | 'provider_other';
+
+const CONTEXT_LENGTH_PATTERN =
+  /context[_ ]length|context window|maximum context|prompt is too long|input length .*exceeds|too many (?:input )?tokens/i;
+
+export function affectsProviderHealth(code: ProviderErrorCode): boolean {
+  return code !== 'provider_context_length';
+}
 
 export class ProviderError extends Error {
   override readonly name = 'ProviderError';
@@ -84,6 +92,9 @@ export class ProviderError extends Error {
 }
 
 function classifyByStatus(status: number, message: string): ProviderErrorCode {
+  if ((status === 400 || status === 413 || status === 422) && CONTEXT_LENGTH_PATTERN.test(message)) {
+    return 'provider_context_length';
+  }
   if (status === 401) return 'provider_auth';
   if (status === 403) {
     if (/region|regional/i.test(message)) return 'provider_regional';

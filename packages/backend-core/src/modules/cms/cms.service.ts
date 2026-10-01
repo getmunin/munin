@@ -72,6 +72,7 @@ import {
   fitWithinBudget,
   SUMMARY_LEAD_CHARS,
   summarizeEntryData,
+  summarizeValues,
   type FieldSummaryNote,
 } from './cms.summary.ts';
 import {
@@ -209,6 +210,24 @@ export interface VersionDto {
   status: EntryStatus;
   data: Record<string, unknown>;
   createdAt: string;
+}
+
+export interface VersionSummaryDto {
+  id: string;
+  entryId: string;
+  version: number;
+  status: EntryStatus;
+  data: Record<string, unknown>;
+  fieldSummary: Record<string, FieldSummaryNote>;
+  truncated: boolean;
+  createdAt: string;
+}
+
+export interface VersionListResult {
+  versions: VersionSummaryDto[];
+  returned: number;
+  dropped: number;
+  truncated: boolean;
 }
 
 export interface AssetDto {
@@ -1279,15 +1298,41 @@ export class CmsService {
     return { deleted: true };
   }
 
-  async listVersions(entryId: string): Promise<VersionDto[]> {
+  async listVersions(input: { entryId: string; limit?: number }): Promise<VersionListResult> {
+    const ctx = getCurrentContext();
+    await this.loadEntryRow(input.entryId);
+    const rows = await ctx.db
+      .select()
+      .from(schema.cmsEntryVersions)
+      .where(eq(schema.cmsEntryVersions.entryId, input.entryId))
+      .orderBy(desc(schema.cmsEntryVersions.version))
+      .limit(input.limit ?? 50);
+    const { items, dropped } = fitWithinBudget((leadChars) =>
+      rows.map((row) => toVersionSummaryDto(row, leadChars)),
+    );
+    return {
+      versions: items,
+      returned: items.length,
+      dropped,
+      truncated: dropped > 0 || items.some((v) => v.truncated),
+    };
+  }
+
+  async getVersion(entryId: string, version: number): Promise<VersionDto> {
     const ctx = getCurrentContext();
     await this.loadEntryRow(entryId);
     const rows = await ctx.db
       .select()
       .from(schema.cmsEntryVersions)
-      .where(eq(schema.cmsEntryVersions.entryId, entryId))
-      .orderBy(desc(schema.cmsEntryVersions.version));
-    return rows.map(toVersionDto);
+      .where(
+        and(
+          eq(schema.cmsEntryVersions.entryId, entryId),
+          eq(schema.cmsEntryVersions.version, version),
+        ),
+      )
+      .limit(1);
+    if (!rows[0]) throw new NotFoundException(`cms_not_found: version ${version} of entry ${entryId}`);
+    return toVersionDto(rows[0]);
   }
 
   async restoreVersion(input: {
@@ -2385,6 +2430,23 @@ function toVersionDto(row: typeof schema.cmsEntryVersions.$inferSelect): Version
     version: row.version,
     status: row.status as EntryStatus,
     data: row.data,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function toVersionSummaryDto(
+  row: typeof schema.cmsEntryVersions.$inferSelect,
+  leadChars: number,
+): VersionSummaryDto {
+  const summary = summarizeValues(row.data ?? {}, leadChars);
+  return {
+    id: row.id,
+    entryId: row.entryId,
+    version: row.version,
+    status: row.status as EntryStatus,
+    data: summary.data,
+    fieldSummary: summary.fieldSummary,
+    truncated: summary.truncated,
     createdAt: row.createdAt.toISOString(),
   };
 }

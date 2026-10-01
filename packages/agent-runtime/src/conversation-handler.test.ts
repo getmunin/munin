@@ -7,6 +7,7 @@ import {
 } from './conversation-handler.ts';
 import { MuninRestError, type ConversationDetail, type MuninRestClient } from './munin-rest.ts';
 import type { PromptResolver } from './prompt-resolver.ts';
+import { ProviderError } from './providers/transport.ts';
 import type { McpToolResult, Provider, ProviderResponse } from './types.ts';
 
 const baseConfig: HandlerConfig = {
@@ -1806,6 +1807,39 @@ describe('createConversationHandler', () => {
     expect(conversationId).toBe('conv_1');
     expect(args.reason).toMatch(/retries exhausted/);
     expect(args.publicFallbackMessage).toMatch(/teammate will follow up/);
+  });
+
+  it('hands over after one attempt without flagging provider health when the prompt overflows the context window', async () => {
+    const rest = buildRest();
+    const handoverSpy = vi.fn(() => Promise.resolve());
+    rest.requestHandover = handoverSpy;
+    const onProviderError = vi.fn();
+    const provider = vi.fn<Provider>(() =>
+      Promise.reject(
+        new ProviderError(
+          "provider returned 400: Input length (165979) exceeds model's maximum context length (131072).",
+          400,
+        ),
+      ),
+    );
+
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      provider,
+      onProviderError,
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+    });
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(onProviderError).not.toHaveBeenCalled();
+    expect(handoverSpy).toHaveBeenCalledTimes(1);
   });
 
   it('sends the public reply after a handover and leaves the draft to the send path, however similar', async () => {

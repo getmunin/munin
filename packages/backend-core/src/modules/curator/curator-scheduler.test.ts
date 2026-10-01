@@ -9,7 +9,6 @@ describe('CuratorSchedulerService.onModuleInit', () => {
     delete process.env.MUNIN_CURATOR_SCHEDULER_DISABLED;
     delete process.env.MUNIN_CURATOR_KB_SWEEP_CRON;
     delete process.env.MUNIN_CURATOR_CRM_HYGIENE_CRON;
-    delete process.env.MUNIN_CURATOR_CMS_STALE_CRON;
   });
   afterEach(() => {
     process.env.NODE_ENV = 'test';
@@ -23,12 +22,11 @@ describe('CuratorSchedulerService.onModuleInit', () => {
     return { svc, registry };
   }
 
-  it('registers the five default cron jobs when not disabled', () => {
+  it('registers the four default cron jobs when not disabled', () => {
     const { svc, registry } = build();
     svc.onModuleInit();
     const jobs = registry.getCronJobs();
     expect([...jobs.keys()].sort()).toEqual([
-      'curator-cms-stale',
       'curator-crm-hygiene',
       'curator-kb-sweep',
       'curator-outreach-draft-followup',
@@ -37,13 +35,12 @@ describe('CuratorSchedulerService.onModuleInit', () => {
   });
 
   it('skips a sweep when its env var is set to "off"', () => {
-    process.env.MUNIN_CURATOR_CMS_STALE_CRON = 'off';
+    process.env.MUNIN_CURATOR_CRM_HYGIENE_CRON = 'off';
     const { svc, registry } = build();
     svc.onModuleInit();
     const names = [...registry.getCronJobs().keys()];
     expect(names).toContain('curator-kb-sweep');
-    expect(names).toContain('curator-crm-hygiene');
-    expect(names).not.toContain('curator-cms-stale');
+    expect(names).not.toContain('curator-crm-hygiene');
   });
 
   it('honors a custom cron expression from env', () => {

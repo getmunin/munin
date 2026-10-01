@@ -205,6 +205,12 @@ Clears `publishedAt` and sets `status: 'draft'`. Content unchanged.
 { "name": "cms_list_versions", "arguments": { "entryId": "<entryId>" } }
 ```
 
+→ each version comes back as a summary (long text shortened to a lead). To compare a candidate's full content before restoring, read it with:
+
+```jsonc
+{ "name": "cms_get_version", "arguments": { "entryId": "<entryId>", "version": 5 } }
+```
+
 → pick the `version` you want to restore.
 
 ```jsonc

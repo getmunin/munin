@@ -7,7 +7,7 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import type { StubMailer } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
-import { sql, eq, and } from 'drizzle-orm';
+import { sql, eq, and, asc } from 'drizzle-orm';
 import { AppModule } from '../../../app.module.ts';
 import {
   EmailAdapter,
@@ -1497,7 +1497,8 @@ async function imapChannelFor(
         eq(schema.convChannels.type, 'email'),
         sql`${schema.convChannels.config} -> 'inbound' ->> 'provider' = 'imap'`,
       ),
-    );
+    )
+    .orderBy(asc(schema.convChannels.createdAt), asc(schema.convChannels.id));
   const found = rows[0];
   if (!found) throw new Error('no imap-inbound email channel seeded for this org');
   return found;

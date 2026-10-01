@@ -27,6 +27,7 @@ import {
   imapInbound,
   jsonbToStored,
   type StoredEmailChannelConfig,
+  type StoredImapInbound,
 } from './email.service.ts';
 import { smtpTransportOptions } from './email-probe.service.ts';
 import {
@@ -101,6 +102,7 @@ import type {
 const POLL_INTERVAL_MS = parseEnvInt({ name: 'MUNIN_EMAIL_INBOUND_POLL_MS', default: 60_000 });
 const MAX_MESSAGES_PER_TICK = 100;
 const RECORDED_BODY_LOOKBACK = 50;
+const ANCHOR_CLOCK_SKEW_MS = 10 * 60 * 1000;
 
 interface ImapMessageMin {
   uid: number;
@@ -134,7 +136,7 @@ export interface ImapFetchResult {
 }
 
 export interface ImapFetcher {
-  anchor(opts: ImapConnectOptions & { since: Date | null }): Promise<ImapAnchor>;
+  anchor(opts: ImapConnectOptions & { from: Date | null }): Promise<ImapAnchor>;
   fetchSince(
     opts: ImapConnectOptions & {
       sinceUid: number;
@@ -147,15 +149,21 @@ export interface ImapFetcher {
 class ImapFlowFetcher implements ImapFetcher {
   private static readonly logger = new Logger(ImapFlowFetcher.name);
 
-  async anchor(opts: ImapConnectOptions & { since: Date | null }): Promise<ImapAnchor> {
+  async anchor(opts: ImapConnectOptions & { from: Date | null }): Promise<ImapAnchor> {
     return this.withMailbox(opts, async (client, mailbox) => {
       const uidValidity = mailbox.uidValidity.toString();
-      const endUid = Math.max(0, mailbox.uidNext - 1);
-      if (!opts.since) return { uidValidity, lastUid: endUid };
-      const uids = await client.search({ since: opts.since }, { uid: true });
-      if (!uids || uids.length === 0) return { uidValidity, lastUid: endUid };
-      const firstUid = uids.reduce((min, uid) => (uid < min ? uid : min), uids[0]!);
-      return { uidValidity, lastUid: Math.max(0, firstUid - 1) };
+      const end = { uidValidity, lastUid: Math.max(0, mailbox.uidNext - 1) };
+      const from = opts.from;
+      if (!from) return end;
+      const uids = await client.search({ since: from }, { uid: true });
+      if (!uids || uids.length === 0) return end;
+      const lowest = uids.reduce((min, uid) => (uid < min ? uid : min), uids[0]!);
+      for await (const msg of client.fetch(`${lowest}:*`, { uid: true, internalDate: true }, { uid: true })) {
+        if (msg.uid < lowest) continue;
+        const received = msg.internalDate ? new Date(msg.internalDate) : null;
+        if (!received || received >= from) return { uidValidity, lastUid: msg.uid - 1 };
+      }
+      return end;
     });
   }
 
@@ -359,26 +367,26 @@ export class EmailAdapter implements ChannelAdapter {
       mailbox: inbound.mailbox ?? 'INBOX',
     };
 
-    if (storedUid === null) {
-      const since = inbound.backfillDays
-        ? new Date(Date.now() - inbound.backfillDays * 24 * 60 * 60 * 1000)
-        : null;
-      const anchor = await this.fetcher.anchor({ ...connect, since });
+    let sinceUid = storedUid;
+    let expectedValidity = storedValidity;
+    if (sinceUid === null) {
+      const anchor = await this.fetcher.anchor({ ...connect, from: await this.anchorFrom(channel.id, inbound) });
       await this.writeCursor(channel.id, { lastUid: anchor.lastUid, uidValidity: anchor.uidValidity });
-      return { messagesIngested: 0 };
+      sinceUid = anchor.lastUid;
+      expectedValidity = anchor.uidValidity;
     }
 
     const fetched = await this.fetcher.fetchSince({
       ...connect,
-      sinceUid: storedUid,
-      uidValidity: storedValidity,
+      sinceUid,
+      uidValidity: expectedValidity,
       limit: MAX_MESSAGES_PER_TICK,
     });
 
-    if (storedValidity !== null && fetched.uidValidity !== storedValidity) {
-      const anchor = await this.fetcher.anchor({ ...connect, since: null });
+    if (expectedValidity !== null && fetched.uidValidity !== expectedValidity) {
+      const anchor = await this.fetcher.anchor({ ...connect, from: null });
       this.logger.warn(
-        `uidvalidity changed channel=${channel.id} (${storedValidity} -> ${anchor.uidValidity}); re-anchoring at uid ${anchor.lastUid}`,
+        `uidvalidity changed channel=${channel.id} (${expectedValidity} -> ${anchor.uidValidity}); re-anchoring at uid ${anchor.lastUid}`,
       );
       await this.writeCursor(channel.id, { lastUid: anchor.lastUid, uidValidity: anchor.uidValidity });
       return { messagesIngested: 0 };
@@ -386,11 +394,11 @@ export class EmailAdapter implements ChannelAdapter {
 
     const messages = fetched.messages;
     if (messages.length === 0) {
-      await this.writeCursor(channel.id, { lastUid: storedUid, uidValidity: fetched.uidValidity });
+      await this.writeCursor(channel.id, { lastUid: sinceUid, uidValidity: fetched.uidValidity });
       return { messagesIngested: 0 };
     }
 
-    let highWater = storedUid;
+    let highWater = sinceUid;
     let ingested = 0;
     let lastError: string | null = null;
     let stalled = false;
@@ -422,6 +430,23 @@ export class EmailAdapter implements ChannelAdapter {
     }
     await this.writeCursor(channel.id, { lastUid: highWater, uidValidity: fetched.uidValidity });
     return { messagesIngested: ingested, lastError, stalled };
+  }
+
+  private async anchorFrom(channelId: string, inbound: StoredImapInbound): Promise<Date> {
+    const activatedAt = await this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      const rows = await tx
+        .select({ updatedAt: schema.convChannels.updatedAt })
+        .from(schema.convChannels)
+        .where(eq(schema.convChannels.id, channelId))
+        .limit(1);
+      return rows[0]?.updatedAt ?? new Date();
+    });
+    const activatedFrom = activatedAt.getTime() - ANCHOR_CLOCK_SKEW_MS;
+    const backfillFrom = inbound.backfillDays
+      ? Date.now() - inbound.backfillDays * 24 * 60 * 60 * 1000
+      : activatedFrom;
+    return new Date(Math.min(activatedFrom, backfillFrom));
   }
 
   async ingest(

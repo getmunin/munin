@@ -42,10 +42,10 @@ class StubImapFetcher implements ImapFetcher {
     return uid;
   }
 
-  anchor(opts: { since: Date | null }): Promise<ImapAnchor> {
+  anchor(opts: { from: Date | null }): Promise<ImapAnchor> {
     const endUid = this.queue[this.queue.length - 1]?.uid ?? 0;
-    const since = opts.since;
-    const first = since ? this.queue.find((m) => m.receivedAt >= since) : undefined;
+    const from = opts.from;
+    const first = from ? this.queue.find((m) => m.receivedAt >= from) : undefined;
     return Promise.resolve({
       uidValidity: this.uidValidity,
       lastUid: first ? first.uid - 1 : endUid,
@@ -224,15 +224,16 @@ class StubImapFetcher implements ImapFetcher {
     expect(setupAudit).toHaveLength(1);
     expect(JSON.stringify(setupAudit[0]!.args)).not.toContain('app-pw-stub');
 
-    fetcher.push(rfc822({
-      from: 'Old Sender <old@customer.test>',
-      to: 'support@acme.test',
-      subject: 'Sitting in the mailbox before the channel connected',
-      messageId: 'pre-existing-1@customer.test',
-      body: 'This predates the channel.',
-    }));
-    const anchorTick = await inboundWorker.tick();
-    expect(anchorTick.messagesIngested).toBe(0);
+    fetcher.push(
+      rfc822({
+        from: 'Old Sender <old@customer.test>',
+        to: 'support@acme.test',
+        subject: 'Sitting in the mailbox before the channel connected',
+        messageId: 'pre-existing-1@customer.test',
+        body: 'This predates the channel.',
+      }),
+      new Date(Date.now() - 2 * 60 * 60 * 1000),
+    );
 
     fetcher.push(rfc822({
       from: 'Customer One <c1@customer.test>',
@@ -1018,7 +1019,6 @@ class StubImapFetcher implements ImapFetcher {
 
     const orphanFetcher = new StubImapFetcher();
     emailAdapter.setFetcher(orphanFetcher);
-    await inboundWorker.tick();
     orphanFetcher.push(rfc822({
       from: 'Prospect <prospect@lead.test>',
       to: 'outreach@acme.test',
@@ -1191,10 +1191,6 @@ class StubImapFetcher implements ImapFetcher {
     emailAdapter.setFetcher(historyFetcher);
 
     try {
-      const anchored = await emailAdapter.inbound.tick(channel);
-      expect(anchored.messagesIngested).toBe(0);
-      expect(await inboundCursor(channelId)).toEqual({ lastUid: 1, uidValidity: '1' });
-
       const backfilled = await emailAdapter.inbound.tick(channel);
       expect(backfilled.messagesIngested).toBe(2);
       expect(await inboundCursor(channelId)).toEqual({ lastUid: 3, uidValidity: '1' });

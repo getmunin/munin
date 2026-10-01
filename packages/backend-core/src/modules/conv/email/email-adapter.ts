@@ -13,7 +13,7 @@ import {
   type Mailer,
   type RequestContext,
 } from '@getmunin/core';
-import { ImapFlow } from 'imapflow';
+import { ImapFlow, type MailboxObject } from 'imapflow';
 import { simpleParser, type Attachment, type ParsedMail, type AddressObject } from 'mailparser';
 import { randomUUID } from 'node:crypto';
 import { createTransport, type Transporter } from 'nodemailer';
@@ -27,6 +27,7 @@ import {
   imapInbound,
   jsonbToStored,
   type StoredEmailChannelConfig,
+  type StoredImapInbound,
 } from './email.service.ts';
 import { smtpTransportOptions } from './email-probe.service.ts';
 import {
@@ -101,6 +102,7 @@ import type {
 const POLL_INTERVAL_MS = parseEnvInt({ name: 'MUNIN_EMAIL_INBOUND_POLL_MS', default: 60_000 });
 const MAX_MESSAGES_PER_TICK = 100;
 const RECORDED_BODY_LOOKBACK = 50;
+const ANCHOR_CLOCK_SKEW_MS = 10 * 60 * 1000;
 
 interface ImapMessageMin {
   uid: number;
@@ -114,32 +116,80 @@ interface StoredInboundAttachment {
   contentId: string | null;
 }
 
+export interface ImapConnectOptions {
+  host: string;
+  port: number;
+  secure: boolean;
+  username: string;
+  password: string;
+  mailbox: string;
+}
+
+export interface ImapAnchor {
+  uidValidity: string;
+  lastUid: number;
+}
+
+export interface ImapFetchResult {
+  uidValidity: string;
+  messages: ImapMessageMin[];
+}
+
 export interface ImapFetcher {
-  fetchSince(opts: {
-    host: string;
-    port: number;
-    secure: boolean;
-    username: string;
-    password: string;
-    mailbox: string;
-    sinceUid: number | null;
-    limit: number;
-  }): Promise<ImapMessageMin[]>;
+  anchor(opts: ImapConnectOptions & { from: Date | null }): Promise<ImapAnchor>;
+  fetchSince(
+    opts: ImapConnectOptions & {
+      sinceUid: number;
+      uidValidity: string | null;
+      limit: number;
+    },
+  ): Promise<ImapFetchResult>;
 }
 
 class ImapFlowFetcher implements ImapFetcher {
   private static readonly logger = new Logger(ImapFlowFetcher.name);
 
-  async fetchSince(opts: {
-    host: string;
-    port: number;
-    secure: boolean;
-    username: string;
-    password: string;
-    mailbox: string;
-    sinceUid: number | null;
-    limit: number;
-  }): Promise<ImapMessageMin[]> {
+  async anchor(opts: ImapConnectOptions & { from: Date | null }): Promise<ImapAnchor> {
+    return this.withMailbox(opts, async (client, mailbox) => {
+      const uidValidity = mailbox.uidValidity.toString();
+      const end = { uidValidity, lastUid: Math.max(0, mailbox.uidNext - 1) };
+      const from = opts.from;
+      if (!from) return end;
+      const uids = await client.search({ since: from }, { uid: true });
+      if (!uids || uids.length === 0) return end;
+      const lowest = uids.reduce((min, uid) => (uid < min ? uid : min), uids[0]!);
+      for await (const msg of client.fetch(`${lowest}:*`, { uid: true, internalDate: true }, { uid: true })) {
+        if (msg.uid < lowest) continue;
+        const received = msg.internalDate ? new Date(msg.internalDate) : null;
+        if (!received || received >= from) return { uidValidity, lastUid: msg.uid - 1 };
+      }
+      return end;
+    });
+  }
+
+  async fetchSince(
+    opts: ImapConnectOptions & { sinceUid: number; uidValidity: string | null; limit: number },
+  ): Promise<ImapFetchResult> {
+    return this.withMailbox(opts, async (client, mailbox) => {
+      const uidValidity = mailbox.uidValidity.toString();
+      if (opts.uidValidity !== null && opts.uidValidity !== uidValidity) {
+        return { uidValidity, messages: [] };
+      }
+      const range = `${opts.sinceUid + 1}:*`;
+      const messages: ImapMessageMin[] = [];
+      for await (const msg of client.fetch(range, { uid: true, source: true }, { uid: true })) {
+        if (!msg.source || msg.uid <= opts.sinceUid) continue;
+        messages.push({ uid: msg.uid, source: msg.source });
+        if (messages.length >= opts.limit) break;
+      }
+      return { uidValidity, messages };
+    });
+  }
+
+  private async withMailbox<T>(
+    opts: ImapConnectOptions,
+    fn: (client: ImapFlow, mailbox: MailboxObject) => Promise<T>,
+  ): Promise<T> {
     const resolved = await resolvePublicHost(opts.host);
     const client = new ImapFlow({
       host: resolved?.address ?? opts.host,
@@ -163,15 +213,8 @@ class ImapFlowFetcher implements ImapFetcher {
       throw err;
     }
     try {
-      await client.mailboxOpen(opts.mailbox);
-      const range = opts.sinceUid ? `${opts.sinceUid + 1}:*` : '1:*';
-      const out: ImapMessageMin[] = [];
-      for await (const msg of client.fetch(range, { uid: true, source: true }, { uid: true })) {
-        if (!msg.source) continue;
-        out.push({ uid: msg.uid, source: msg.source });
-        if (out.length >= opts.limit) break;
-      }
-      return out;
+      const mailbox = await client.mailboxOpen(opts.mailbox);
+      return await fn(client, mailbox);
     } finally {
       await client.logout().catch((err) => {
         ImapFlowFetcher.logger.warn(
@@ -309,29 +352,53 @@ export class EmailAdapter implements ChannelAdapter {
     if (!inbound) return { messagesIngested: 0 };
 
     const cursor = await this.readCursor(channel.id);
-    const sinceUid = typeof cursor.lastUid === 'number' ? cursor.lastUid : null;
+    const storedUid = typeof cursor.lastUid === 'number' ? cursor.lastUid : null;
+    const storedValidity = typeof cursor.uidValidity === 'string' ? cursor.uidValidity : null;
 
     const password = await this.db.transaction((tx) =>
       this.emailService.decryptImapPassword(tx, inbound.encryptedPassword),
     );
-
-    const messages = await this.fetcher.fetchSince({
+    const connect = {
       host: inbound.host,
       port: inbound.port,
       secure: inbound.secure,
       username: inbound.username,
       password,
       mailbox: inbound.mailbox ?? 'INBOX',
+    };
+
+    let sinceUid = storedUid;
+    let expectedValidity = storedValidity;
+    if (sinceUid === null) {
+      const anchor = await this.fetcher.anchor({ ...connect, from: await this.anchorFrom(channel.id, inbound) });
+      await this.writeCursor(channel.id, { lastUid: anchor.lastUid, uidValidity: anchor.uidValidity });
+      sinceUid = anchor.lastUid;
+      expectedValidity = anchor.uidValidity;
+    }
+
+    const fetched = await this.fetcher.fetchSince({
+      ...connect,
       sinceUid,
+      uidValidity: expectedValidity,
       limit: MAX_MESSAGES_PER_TICK,
     });
 
-    if (messages.length === 0) {
-      await this.writeCursor(channel.id, { lastUid: sinceUid ?? null });
+    if (expectedValidity !== null && fetched.uidValidity !== expectedValidity) {
+      const anchor = await this.fetcher.anchor({ ...connect, from: null });
+      this.logger.warn(
+        `uidvalidity changed channel=${channel.id} (${expectedValidity} -> ${anchor.uidValidity}); re-anchoring at uid ${anchor.lastUid}`,
+      );
+      await this.writeCursor(channel.id, { lastUid: anchor.lastUid, uidValidity: anchor.uidValidity });
       return { messagesIngested: 0 };
     }
 
-    let highWater = sinceUid ?? 0;
+    const messages = fetched.messages;
+    if (messages.length === 0) {
+      await this.writeCursor(channel.id, { lastUid: sinceUid, uidValidity: fetched.uidValidity });
+      return { messagesIngested: 0 };
+    }
+
+    let highWater = sinceUid;
     let ingested = 0;
     let lastError: string | null = null;
     let stalled = false;
@@ -361,8 +428,25 @@ export class EmailAdapter implements ChannelAdapter {
         break;
       }
     }
-    await this.writeCursor(channel.id, { lastUid: highWater });
+    await this.writeCursor(channel.id, { lastUid: highWater, uidValidity: fetched.uidValidity });
     return { messagesIngested: ingested, lastError, stalled };
+  }
+
+  private async anchorFrom(channelId: string, inbound: StoredImapInbound): Promise<Date> {
+    const activatedAt = await this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      const rows = await tx
+        .select({ updatedAt: schema.convChannels.updatedAt })
+        .from(schema.convChannels)
+        .where(eq(schema.convChannels.id, channelId))
+        .limit(1);
+      return rows[0]?.updatedAt ?? new Date();
+    });
+    const activatedFrom = activatedAt.getTime() - ANCHOR_CLOCK_SKEW_MS;
+    const backfillFrom = inbound.backfillDays
+      ? Date.now() - inbound.backfillDays * 24 * 60 * 60 * 1000
+      : activatedFrom;
+    return new Date(Math.min(activatedFrom, backfillFrom));
   }
 
   async ingest(

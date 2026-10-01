@@ -9,7 +9,12 @@ import type { StubMailer } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql, eq, and } from 'drizzle-orm';
 import { AppModule } from '../../../app.module.ts';
-import { EmailAdapter, type ImapFetcher } from './email-adapter.ts';
+import {
+  EmailAdapter,
+  type ImapAnchor,
+  type ImapFetcher,
+  type ImapFetchResult,
+} from './email-adapter.ts';
 import { InboundPollWorker } from '../channels/inbound-poll.worker.ts';
 import { OutboundDeliveryWorker } from '../channels/outbound-delivery.worker.ts';
 import { MAILER } from '../../../common/mail/mail.module.ts';
@@ -24,27 +29,42 @@ const REPLY_DOMAIN = 'reply.example.test';
 interface QueuedMessage {
   uid: number;
   source: string;
+  receivedAt: Date;
 }
 
 class StubImapFetcher implements ImapFetcher {
   readonly queue: QueuedMessage[] = [];
+  uidValidity = '1';
 
-  push(source: string): number {
+  push(source: string, receivedAt: Date = new Date()): number {
     const uid = (this.queue[this.queue.length - 1]?.uid ?? 0) + 1;
-    this.queue.push({ uid, source });
+    this.queue.push({ uid, source, receivedAt });
     return uid;
   }
 
+  anchor(opts: { from: Date | null }): Promise<ImapAnchor> {
+    const endUid = this.queue[this.queue.length - 1]?.uid ?? 0;
+    const from = opts.from;
+    const first = from ? this.queue.find((m) => m.receivedAt >= from) : undefined;
+    return Promise.resolve({
+      uidValidity: this.uidValidity,
+      lastUid: first ? first.uid - 1 : endUid,
+    });
+  }
+
   fetchSince(opts: {
-    sinceUid: number | null;
+    sinceUid: number;
+    uidValidity: string | null;
     limit: number;
-  }): Promise<{ uid: number; source: Buffer | string }[]> {
-    const since = opts.sinceUid ?? 0;
-    const out = this.queue
-      .filter((m) => m.uid > since)
+  }): Promise<ImapFetchResult> {
+    if (opts.uidValidity !== null && opts.uidValidity !== this.uidValidity) {
+      return Promise.resolve({ uidValidity: this.uidValidity, messages: [] });
+    }
+    const messages = this.queue
+      .filter((m) => m.uid > opts.sinceUid)
       .slice(0, opts.limit)
       .map((m) => ({ uid: m.uid, source: m.source }));
-    return Promise.resolve(out);
+    return Promise.resolve({ uidValidity: this.uidValidity, messages });
   }
 }
 
@@ -203,6 +223,17 @@ class StubImapFetcher implements ImapFetcher {
       );
     expect(setupAudit).toHaveLength(1);
     expect(JSON.stringify(setupAudit[0]!.args)).not.toContain('app-pw-stub');
+
+    fetcher.push(
+      rfc822({
+        from: 'Old Sender <old@customer.test>',
+        to: 'support@acme.test',
+        subject: 'Sitting in the mailbox before the channel connected',
+        messageId: 'pre-existing-1@customer.test',
+        body: 'This predates the channel.',
+      }),
+      new Date(Date.now() - 2 * 60 * 60 * 1000),
+    );
 
     fetcher.push(rfc822({
       from: 'Customer One <c1@customer.test>',
@@ -365,6 +396,10 @@ class StubImapFetcher implements ImapFetcher {
   function failingFetcher(err: Error): ImapFetcher & { calls: number } {
     const fetcher = {
       calls: 0,
+      anchor: () => {
+        fetcher.calls += 1;
+        return Promise.reject(err);
+      },
       fetchSince: () => {
         fetcher.calls += 1;
         return Promise.reject(err);
@@ -1107,6 +1142,104 @@ class StubImapFetcher implements ImapFetcher {
     for (const id of ids) {
       expect(stored.some((m) => m.body.includes(`body of ${id}`))).toBe(true);
     }
+  }, 30_000);
+
+  async function inboundCursor(channelId: string): Promise<Record<string, unknown>> {
+    const [row] = await db
+      .select({ cursor: schema.convInboundState.cursor })
+      .from(schema.convInboundState)
+      .where(eq(schema.convInboundState.channelId, channelId));
+    return row?.cursor ?? {};
+  }
+
+  function stubMessage(id: string): string {
+    return rfc822({
+      from: 'History Tester <history@example.com>',
+      to: 'support@acme.test',
+      subject: `history ${id}`,
+      messageId: `${id}@example.com`,
+      body: `body of ${id}`,
+    });
+  }
+
+  async function storedBodies(): Promise<string[]> {
+    const rows = await db
+      .select({ body: schema.convMessages.body })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.orgId, orgId));
+    return rows.map((r) => r.body);
+  }
+
+  it('a newly connected mailbox imports only the last backfillDays of existing mail', async () => {
+    const { id: channelId } = await imapChannel();
+    const run = Math.random().toString(36).slice(2, 8);
+    const day = 24 * 60 * 60 * 1000;
+    await db
+      .delete(schema.convInboundState)
+      .where(eq(schema.convInboundState.channelId, channelId));
+    await db
+      .update(schema.convChannels)
+      .set({ config: sql`jsonb_set(${schema.convChannels.config}, '{inbound,backfillDays}', '7')` })
+      .where(eq(schema.convChannels.id, channelId));
+    const channel = await imapChannel();
+
+    const historyFetcher = new StubImapFetcher();
+    historyFetcher.push(stubMessage(`old-${run}`), new Date(Date.now() - 30 * day));
+    historyFetcher.push(stubMessage(`recent-${run}`), new Date(Date.now() - 3 * day));
+    historyFetcher.push(stubMessage(`today-${run}`));
+    const originalFetcher = emailAdapter['fetcher'];
+    emailAdapter.setFetcher(historyFetcher);
+
+    try {
+      const backfilled = await emailAdapter.inbound.tick(channel);
+      expect(backfilled.messagesIngested).toBe(2);
+      expect(await inboundCursor(channelId)).toEqual({ lastUid: 3, uidValidity: '1' });
+    } finally {
+      emailAdapter.setFetcher(originalFetcher);
+      await db
+        .update(schema.convChannels)
+        .set({ config: sql`${schema.convChannels.config} #- '{inbound,backfillDays}'` })
+        .where(eq(schema.convChannels.id, channelId));
+    }
+
+    const bodies = await storedBodies();
+    expect(bodies.some((b) => b.includes(`body of old-${run}`))).toBe(false);
+    expect(bodies.some((b) => b.includes(`body of recent-${run}`))).toBe(true);
+    expect(bodies.some((b) => b.includes(`body of today-${run}`))).toBe(true);
+  }, 30_000);
+
+  it('re-anchors at the end of the mailbox when the server renumbers it (UIDVALIDITY change)', async () => {
+    const channel = await imapChannel();
+    const run = Math.random().toString(36).slice(2, 8);
+    await resetCursor(db, channel.id);
+
+    const renumberFetcher = new StubImapFetcher();
+    renumberFetcher.push(stubMessage(`before-${run}`));
+    const originalFetcher = emailAdapter['fetcher'];
+    emailAdapter.setFetcher(renumberFetcher);
+
+    try {
+      const first = await emailAdapter.inbound.tick(channel);
+      expect(first.messagesIngested).toBe(1);
+      expect(await inboundCursor(channel.id)).toEqual({ lastUid: 1, uidValidity: '1' });
+
+      renumberFetcher.uidValidity = '2';
+      renumberFetcher.push(stubMessage(`renumbered-${run}`));
+      const reset = await emailAdapter.inbound.tick(channel);
+      expect(reset.messagesIngested).toBe(0);
+      expect(await inboundCursor(channel.id)).toEqual({ lastUid: 2, uidValidity: '2' });
+
+      renumberFetcher.push(stubMessage(`after-${run}`));
+      const resumed = await emailAdapter.inbound.tick(channel);
+      expect(resumed.messagesIngested).toBe(1);
+      expect(await inboundCursor(channel.id)).toEqual({ lastUid: 3, uidValidity: '2' });
+    } finally {
+      emailAdapter.setFetcher(originalFetcher);
+    }
+
+    const bodies = await storedBodies();
+    expect(bodies.some((b) => b.includes(`body of renumbered-${run}`))).toBe(false);
+    expect(bodies.some((b) => b.includes(`body of after-${run}`))).toBe(true);
   }, 30_000);
 
   it('a send that dies on a permanent recipient rejection marks the address undeliverable', async () => {

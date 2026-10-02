@@ -536,7 +536,8 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
 
     const outcome = approvalOutcomeFor(row.eventType);
     if (outcome) {
-      if (!link || link.resolvedAt) return;
+      if (!link) return;
+      if (link.resolvedAt && subject.subjectType !== 'cms_draft_entry') return;
       const rendering = await this.renderApproval(integration.orgId, subject, payload, actorId, outcome);
       await this.updateCard(integration, link, token, rendering);
       await this.db
@@ -550,10 +551,10 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     const rendering = await this.renderApproval(integration.orgId, subject, payload, actorId, null);
     if (link) {
       await this.updateCard(integration, link, token, rendering);
-      if (rendering.resolved && !link.resolvedAt) {
+      if (rendering.resolved !== Boolean(link.resolvedAt)) {
         await this.db
           .update(schema.slackNotificationLinks)
-          .set({ resolvedAt: new Date() })
+          .set({ resolvedAt: rendering.resolved ? new Date() : null })
           .where(eq(schema.slackNotificationLinks.id, link.id));
         await this.refreshParent(integration, subject, token);
       }
@@ -989,10 +990,11 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         text: cmsGroupParentText({ ...context, dashboardUrl: reviewListUrl(integration.orgId) }),
       }),
     );
-    if (context.pendingLocales.length === 0 && !link.resolvedAt) {
+    const resolved = context.pendingLocales.length === 0;
+    if (resolved !== Boolean(link.resolvedAt)) {
       await this.db
         .update(schema.slackNotificationLinks)
-        .set({ resolvedAt: new Date() })
+        .set({ resolvedAt: resolved ? new Date() : null })
         .where(eq(schema.slackNotificationLinks.id, link.id));
     }
   }

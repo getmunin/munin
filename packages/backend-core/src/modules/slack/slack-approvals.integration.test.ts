@@ -1228,6 +1228,59 @@ function buttonValues(blocks: unknown[] | undefined): string[] {
     expect(buttonValues(api.updated[0]!.blocks)[0]).toBe(`cms_draft_entry:${entryId}#2`);
   });
 
+  it('keeps tracking a card that was scheduled, reopened as a draft, then rescheduled and published', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const entryId = await seedCmsDraft();
+    const step = async (
+      eventType: string,
+      set: Partial<typeof schema.cmsEntries.$inferInsert>,
+      payload: Record<string, unknown>,
+    ) => {
+      await db.update(schema.cmsEntries).set(set).where(eq(schema.cmsEntries.id, entryId));
+      await emit(eventType, { entryId, collectionSlug: 'blog', slug: 'agentic-support', locale: 'en', ...payload });
+      await worker.tick();
+      return api.updated.at(-1)!;
+    };
+
+    await emit('cms.entry.created', {
+      entryId,
+      collectionSlug: 'blog',
+      slug: 'agentic-support',
+      locale: 'en',
+      status: 'draft',
+      version: 1,
+    });
+    await worker.tick();
+
+    const scheduledAt = new Date(Date.now() + 86_400_000);
+    await step('cms.entry.scheduled', { status: 'scheduled', scheduledAt, version: 2 }, { status: 'scheduled', version: 2 });
+    expect((await notificationLink('cms_draft_entry', entryId))?.resolvedAt).toBeTruthy();
+
+    const reopened = await step(
+      'cms.entry.updated',
+      { status: 'draft', scheduledAt: null, version: 3, data: { title: 'Agentic support, retitled' } },
+      { status: 'draft', version: 3 },
+    );
+    expect(buttonValues(reopened.blocks)[0]).toBe(`cms_draft_entry:${entryId}#3`);
+    expect((await notificationLink('cms_draft_entry', entryId))?.resolvedAt).toBeNull();
+
+    const rescheduled = await step(
+      'cms.entry.scheduled',
+      { status: 'scheduled', scheduledAt, version: 4 },
+      { status: 'scheduled', version: 4 },
+    );
+    expect(actionIds(rescheduled.blocks)).toEqual([]);
+
+    const published = await step(
+      'cms.entry.published',
+      { status: 'published', scheduledAt: null, publishedAt: new Date(), version: 5 },
+      { title: 'Agentic support, retitled', previousStatus: 'scheduled', url: 'https://example.test/blog/agentic-support' },
+    );
+    expect(published.text).toContain(':rocket: *Published*');
+    expect(actionIds(published.blocks)).toEqual([]);
+  });
+
   it('threads the locales of one article under a parent, and leaves a single-locale entry standalone', async () => {
     const api = new FakeSlackApi();
     const worker = new SlackBridgeWorker(db, api);

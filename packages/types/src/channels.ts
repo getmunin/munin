@@ -165,6 +165,42 @@ export const SendMessageBirdSmsTestBody = z.object({
 
 export type SendMessageBirdSmsTestBodyT = z.infer<typeof SendMessageBirdSmsTestBody>;
 
+export const StrexEnvironmentSchema = z.enum(['production', 'test']);
+
+export type StrexEnvironment = z.infer<typeof StrexEnvironmentSchema>;
+
+export const STREX_SHORT_NUMBER_ID = /^[A-Z]{2}-\d{3,15}$/;
+
+export const STREX_KEYWORD = /^[\p{L}\p{N}]{1,40}$/u;
+
+export const ConfigureStrexSmsBody = z
+  .object({
+    channelId: z.string().optional(),
+    name: z.string().min(1).max(120).optional(),
+    apiKey: sensitive(z.string().min(1).max(512).optional()),
+    sender: z.string().min(1).max(15).optional(),
+    shortNumberId: z
+      .string()
+      .regex(STREX_SHORT_NUMBER_ID, 'must look like NO-2002')
+      .nullable()
+      .optional(),
+    keyword: z.string().regex(STREX_KEYWORD, 'must be a single word').nullable().optional(),
+    environment: StrexEnvironmentSchema.optional(),
+    defaultAgentMode: AgentModeSchema.optional(),
+  })
+  .refine((v) => v.channelId !== undefined || (v.name && v.apiKey && v.sender), {
+    message: 'name, apiKey, and sender are required when creating',
+  });
+
+export type ConfigureStrexSmsBodyT = z.infer<typeof ConfigureStrexSmsBody>;
+
+export const SendStrexSmsTestBody = z.object({
+  to: z.string().regex(E164, 'must be E.164').max(32),
+  body: z.string().min(1).max(1600).optional(),
+});
+
+export type SendStrexSmsTestBodyT = z.infer<typeof SendStrexSmsTestBody>;
+
 export const ConfigureVapiBody = z
   .object({
     channelId: z.string().optional(),

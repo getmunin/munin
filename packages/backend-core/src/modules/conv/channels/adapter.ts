@@ -79,6 +79,7 @@ export interface InboundBatch {
     providerMessageId: string;
     inReplyTo?: string | null;
     receivedAt: Date;
+    optOut?: boolean;
     raw?: Record<string, unknown>;
   }>;
   responseOverride?: WebhookResponse;

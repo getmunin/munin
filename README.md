@@ -61,7 +61,7 @@ These six modules aren't separate products — they share one Postgres schema, o
 - Agents revise a long article in place with targeted text replacements, instead of rewriting the whole body to change a sentence.
 
 #### Conversations
-- One inbox across email, chat widget, voice (Threll.ai / Vapi), and SMS (Twilio / MessageBird).
+- One inbox across email, chat widget, voice (Threll.ai / Vapi), and SMS (Twilio / MessageBird / Strex).
 - Inbound *and* outbound — agents answer conversations and can place outbound calls.
 - Images in and out on every channel: customers send screenshots, operators and the agent reply with them, and the agent can see what it was sent.
 - Email that behaves like email — start by forwarding to a generated address, quoted history reconstructed from Gmail, Outlook and Apple Mail replies, auto-replies and bounces filed away instead of queued, junk senders remembered, undelivered messages surfaced and retried.
@@ -101,7 +101,7 @@ These six modules aren't separate products — they share one Postgres schema, o
 Three kinds of integration, three homes. Which one you want depends on what the other system *is*.
 
 #### Messaging channels — where customers write to you
-Email over IMAP/SMTP, or a generated forwarding address you point your existing mailbox at. The embeddable chat widget, themeable and dark-mode aware, speaking 23 languages. Voice through Threll.ai or Vapi, SMS through Twilio or MessageBird. Each one is a channel adapter behind the same `conv_*` tools.
+Email over IMAP/SMTP, or a generated forwarding address you point your existing mailbox at. The embeddable chat widget, themeable and dark-mode aware, speaking 23 languages. Voice through Threll.ai or Vapi, SMS through Twilio, MessageBird or Strex. Each one is a channel adapter behind the same `conv_*` tools.
 
 #### Operator bridges — where your team already works
 Slack mirrors each conversation into a thread: your team replies from the thread and the customer receives it, outreach proposals arrive with approve and dismiss buttons, and CMS publishes are announced with a link to the live article. The conversation, the approval, and the audit entry are the same ones the dashboard shows.

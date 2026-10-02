@@ -19,6 +19,7 @@ const DARK_VARS = String.raw`
     --munin-verdigris: #62C39C;
     --munin-verdigris-tint: #1B382A;
     --munin-nudge-mix: 24%;
+    --munin-nudge-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.35);
     --munin-agent-tint: #1E252C;
     --munin-self-tint: #272C33;
     --munin-field-border: rgba(255, 255, 255, 0.34);
@@ -71,6 +72,7 @@ const BASE_CSS = String.raw`
   --munin-agent-tint: #DCE2E8;
   --munin-self-tint: #E8E4DC;
   --munin-field-border: var(--munin-ink);
+  --munin-nudge-shadow: 0 10px 28px rgba(15, 20, 25, 0.10), 0 1px 3px rgba(15, 20, 25, 0.08);
 
   --munin-r-panel: 0;
   --munin-r-surface: 0;
@@ -181,7 +183,7 @@ button {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   opacity: 0;
   transform: translateY(8px);
   transition:
@@ -191,45 +193,29 @@ button {
 .nudge.open { opacity: 1; transform: translateY(0); }
 .root[data-position='bottom-right'] .nudge { right: 0; }
 .root[data-position='bottom-left']  .nudge { left: 0; }
-.nudge-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 8px;
-}
-.nudge-eyebrow {
-  padding-left: 2px;
-  font-family: var(--munin-mono);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--munin-theme-edge);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .nudge-close {
-  flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-  border: 1px solid var(--munin-rule);
-  border-radius: var(--munin-r-control);
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
   background: var(--munin-paper);
-  color: var(--munin-ink-mute);
+  color: var(--munin-ink);
+  box-shadow: var(--munin-nudge-shadow);
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
-.nudge-close:hover { color: var(--munin-ink); border-color: var(--munin-ink); }
-.nudge-close svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; }
+.root[data-position='bottom-right'] .nudge-close { align-self: flex-end; }
+.root[data-position='bottom-left']  .nudge-close { align-self: flex-start; }
+.nudge-close:hover { background: var(--munin-paper-deep); }
+.nudge-close svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.25; }
 .nudge-message {
   display: block;
   width: 100%;
   text-align: left;
-  padding: 12px 14px;
+  padding: 14px 16px;
   background: var(--munin-nudge-bg, color-mix(in srgb, var(--munin-theme) var(--munin-nudge-mix, 12%), var(--munin-paper)));
   border-radius: 14px;
+  box-shadow: var(--munin-nudge-shadow);
   color: var(--munin-nudge-fg, var(--munin-ink));
   font-size: 14.5px;
   line-height: 1.45;
@@ -238,9 +224,10 @@ button {
 .nudge-form {
   display: flex;
   align-items: stretch;
-  border: 1px solid var(--munin-field-border);
+  border: 1px solid var(--munin-rule);
   border-radius: var(--munin-r-surface);
   background: var(--munin-paper);
+  box-shadow: var(--munin-nudge-shadow);
   overflow: hidden;
 }
 .nudge-form:focus-within {
@@ -252,16 +239,16 @@ button {
   min-width: 0;
   border: 0;
   background: transparent;
-  padding: 10px 12px;
+  padding: 13px 14px;
   font: inherit;
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--munin-ink);
   outline: none;
 }
 .nudge-input::placeholder { color: var(--munin-ink-mute); }
 .nudge-send {
   flex-shrink: 0;
-  width: 44px;
+  width: 46px;
   border-left: 1px solid var(--munin-rule);
   color: var(--munin-send);
   font-size: 18px;
@@ -1081,6 +1068,7 @@ button {
   .root[data-position='bottom-right'] { right: 16px; }
   .root[data-position='bottom-left']  { left:  16px; }
   .nudge { max-width: calc(100vw - 32px); }
+  .nudge-form { display: none; }
 
   .root[data-size] .panel {
     position: fixed;

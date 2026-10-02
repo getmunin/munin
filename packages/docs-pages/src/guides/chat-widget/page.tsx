@@ -171,8 +171,9 @@ export default function WidgetGuide() {
           Opt-in teaser above the closed launcher: a short message with a dismiss button and an inline
           input. Leave the value empty for a localized default. Whatever the visitor types there opens
           the panel and starts a conversation with it. It stays away once the panel has been opened or
-          the visitor already has messages, and for seven days after it is dismissed. Up to 280
-          characters.
+          the visitor already has messages, and for seven days after it is dismissed. On phones it
+          drops the input and shows just the message, which opens the full-screen chat when tapped,
+          and it steps aside once the visitor scrolls on. Up to 280 characters.
         </dd>
         <dt>data-munin-nudge-delay</dt>
         <dd>

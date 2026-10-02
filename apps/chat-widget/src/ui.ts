@@ -23,6 +23,7 @@ import {
 export type ConnectionLabel = 'connected' | 'reconnecting' | 'closed' | 'idle' | 'connecting';
 
 const RECONNECT_STATUS_GRACE_MS = 1500;
+const NUDGE_MOBILE_SCROLL_HIDE_RATIO = 0.6;
 
 export interface UploadedAttachment {
   id: string;
@@ -881,6 +882,14 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     paintLauncherBadge();
   }
 
+  let nudgeScrollStart = 0;
+
+  function onNudgeScroll(): void {
+    if (Math.abs(window.scrollY - nudgeScrollStart) > window.innerHeight * NUDGE_MOBILE_SCROLL_HIDE_RATIO) {
+      hideNudge();
+    }
+  }
+
   function showNudge(text: string): void {
     if (panelOpen) return;
     nudge.textEl.textContent = text;
@@ -889,12 +898,17 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     requestAnimationFrame(() => {
       if (nudgeVisible) nudge.el.classList.add('open');
     });
+    if (fullscreenMql?.matches) {
+      nudgeScrollStart = window.scrollY;
+      window.addEventListener('scroll', onNudgeScroll, { passive: true });
+    }
     paintLauncherBadge();
   }
 
   function hideNudge(): void {
     if (!nudgeVisible) return;
     nudgeVisible = false;
+    window.removeEventListener('scroll', onNudgeScroll);
     nudge.el.classList.remove('open');
     nudge.el.hidden = true;
     paintLauncherBadge();
@@ -1219,12 +1233,9 @@ function renderNudge(config: WidgetConfig, strings: Strings): NudgeHandles {
   el.setAttribute('role', 'region');
   el.setAttribute('aria-label', author);
   el.innerHTML = `
-    <div class="nudge-head">
-      <span class="nudge-eyebrow"></span>
-      <button type="button" class="nudge-close" aria-label="${escapeAttr(strings.nudgeDismissAriaLabel)}">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
-      </button>
-    </div>
+    <button type="button" class="nudge-close" aria-label="${escapeAttr(strings.nudgeDismissAriaLabel)}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+    </button>
     <button type="button" class="nudge-message" aria-label="${escapeAttr(strings.launcherAriaLabel)}">
       <span class="nudge-text" aria-live="polite"></span>
     </button>
@@ -1233,7 +1244,6 @@ function renderNudge(config: WidgetConfig, strings: Strings): NudgeHandles {
       <button type="submit" class="nudge-send" aria-label="${escapeAttr(strings.sendAriaLabel)}">→</button>
     </form>
   `;
-  (el.querySelector('.nudge-eyebrow') as HTMLElement).textContent = `${author} · ${strings.timeNow}`;
   const input = el.querySelector('.nudge-input') as HTMLInputElement;
   input.placeholder = strings.nudgePlaceholder;
   input.setAttribute('aria-label', strings.nudgePlaceholder);

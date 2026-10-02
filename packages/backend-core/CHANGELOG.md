@@ -1,5 +1,42 @@
 # @getmunin/backend-core
 
+## 5.41.0
+
+### Minor Changes
+
+- 32f3356: Add `MembershipHooksModule.forRoot({ afterLastMembershipRemoved })`. When an owner removes a member who has no other membership left, the hook runs inside the removal transaction with the removed user, so a deployment can give that user somewhere to land, such as a fresh org to set up. Without a registered hook, removal behaves as before.
+
+  `POST /v1/invitations/accept` is now reachable when `AuthGuard` is registered as a global guard. It still requires a signed-in session, which its own guard checks, but no longer requires that session to belong to an org already. A user with no memberships can now accept an invitation.
+
+- a58e120: Slack: several Munin orgs in one workspace can now route into the same Slack channel.
+
+  - `slack_set_routing` no longer refuses a channel because another org already routes into it. `slack_conflict` now only means the channel is already one of this org's own routes. The response gains `sharedChannel`, true when another org also routes into the channel.
+  - While a channel is shared, every top-level message the bot posts there opens with the org's name: thread parents, escalation alerts, approval cards and their group parents, and publish announcements. Thread replies stay unlabelled, and a channel only one org uses looks exactly as before. Updates follow the current routing, so a message gains or loses the label as other orgs join or leave the channel.
+  - When the bot joins a channel in a workspace several orgs share, it now posts one routing prompt with a row of buttons per org instead of staying silent. Each org's owners and admins answer for their own org, answering one row leaves the others open, and orgs already routed into the channel are left out.
+  - In a shared channel, the "not linked" notices for replies and button clicks name the org they refer to.
+  - Migration `0112_slack_shared_channels` replaces the `(team_id, slack_channel_id)` unique index on `slack_channel_routes` with a unique index on `(integration_id, slack_channel_id)`, plus a plain index on `(team_id, slack_channel_id)`.
+  - `skill://slack/connect-slack` documents channel sharing.
+
+### Patch Changes
+
+- 32f3356: Accepting an organization invitation now makes the invited org the user's default and pins it as the active org in the dashboard. Previously a user who already had another default membership — such as an org provisioned automatically at signup — landed back in that org after accepting, and was sent into setup instead of the org they had just joined.
+- 186b3c6: Slack CMS draft cards now follow the entry through a reschedule and a scheduled publish. A card that resolved as "Scheduled to publish" stayed marked resolved after an edit put the entry back to draft, so the reschedule and the eventual publish were dropped and the card kept a Publish button bound to an old version (`cms_version_conflict` when pressed). Reopening a card now clears its resolved marker (and the locale parent's), and CMS cards re-render on every scheduled/published/archived/deleted event since they are drawn from the entry's current status. This also fixes scheduled publishes never showing as published when the card sits in the announcement channel.
+- bd86dd9: Chat widget nudge: lifted pieces, and a compact form on phones.
+
+  - The nudge drops the eyebrow (org name · now). The dismiss button is now a round 32px chip floating above the message, and the message bubble and input field each carry a soft shadow, so the three pieces read as lifted off the page. The field uses the lighter rule border instead of the ink one.
+  - On phone-sized screens (600px wide or less, where the panel goes full-screen) the nudge shows only the message and the dismiss button; tapping the message opens the full-screen chat with the composer focused. The inline input was the piece that fought the on-screen keyboard over a fixed-position element, and it saved no steps on a phone since sending opens the full-screen panel anyway.
+  - On phones the nudge also steps aside once the visitor scrolls more than 60% of a screen away from where it appeared. That is not a dismissal: it is not snoozed and returns on the next page load.
+  - `skill://conv/setup-chat-widget` and the chat-widget docs guide describe the mobile behavior.
+
+- Updated dependencies [a58e120]
+  - @getmunin/db@5.41.0
+  - @getmunin/inspector-app@5.41.0
+  - @getmunin/core@5.41.0
+  - @getmunin/agent-runtime@5.41.0
+  - @getmunin/mcp-toolkit@5.41.0
+  - @getmunin/emails@5.41.0
+  - @getmunin/types@5.41.0
+
 ## 5.40.0
 
 ### Minor Changes

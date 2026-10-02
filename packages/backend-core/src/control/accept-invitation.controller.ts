@@ -73,6 +73,7 @@ export class AcceptInvitationController {
 
   @Post('accept')
   @HttpCode(200)
+  @AllowAnonymous()
   @UseGuards(SessionOnlyGuard)
   async accept(@Body() input: AcceptInvitationBody, @Req() req: AcceptRequest) {
     if (!req.userId) throw new ForbiddenException('not_signed_in');

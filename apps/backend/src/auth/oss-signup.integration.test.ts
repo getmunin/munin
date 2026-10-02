@@ -215,6 +215,32 @@ const skipReason = TEST_URL
     expect(await membershipsOf(userId)).toHaveLength(1);
   });
 
+  it('accepting makes the invited org the default over an org the user already had', async () => {
+    const email = `shell-owner-${Date.now()}@elsewhere.example`;
+    const token = await createInvitation(email, 'member');
+    const { userId, cookie } = await seedSignedInUser(email);
+    const [shell] = await db
+      .insert(schema.orgs)
+      .values({ name: '' })
+      .returning({ id: schema.orgs.id });
+    orgIdsToCleanup.push(shell!.id);
+    await db
+      .insert(schema.orgMembers)
+      .values({ orgId: shell!.id, userId, role: 'owner', isDefault: true });
+
+    const accept = await acceptInvitation(token, cookie);
+    expect(accept.status).toBe(200);
+    const { orgId: invitedOrgId } = (await accept.json()) as { orgId: string };
+
+    const rows = await db
+      .select({ orgId: schema.orgMembers.orgId, isDefault: schema.orgMembers.isDefault })
+      .from(schema.orgMembers)
+      .where(sql`user_id = ${userId}`);
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.orgId === invitedOrgId)?.isDefault).toBe(true);
+    expect(rows.find((r) => r.orgId === shell!.id)?.isDefault).toBe(false);
+  });
+
   it('an invitation claimed by another account answers 409', async () => {
     const email = `claimed-${Date.now()}@elsewhere.example`;
     const token = await createInvitation(email, 'member');

@@ -192,6 +192,12 @@ export {
 } from './oauth/oauth.constants.ts';
 export { McpSurfacesModule } from './oauth/mcp-surfaces.module.ts';
 export {
+  MEMBERSHIP_HOOKS,
+  MembershipHooksModule,
+  type MembershipHookUser,
+  type MembershipHooks,
+} from './control/membership-hooks.module.ts';
+export {
   ADDITIONAL_MCP_SURFACES,
   findMcpSurfaceForPath,
   mcpSurfaceAudiences,

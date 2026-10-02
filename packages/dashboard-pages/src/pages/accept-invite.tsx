@@ -8,6 +8,8 @@ import { useTranslations } from 'next-intl';
 import { authClient } from '../auth-client';
 import { api } from '../api';
 import { useTranslateError } from '../i18n/translate-error';
+import { setActiveOrgId } from '../auth/active-org';
+import { invalidateActiveMembershipCache } from '../auth/use-active-role';
 import {
   classifyAcceptError,
   inviteAuthHref,
@@ -62,10 +64,13 @@ function AcceptInviteInner({ footer }: { footer: AuthFooter }) {
     setStatus('pending');
     void (async () => {
       try {
-        await api('/v1/invitations/accept', {
+        const accepted = await api<{ orgId: string }>('/v1/invitations/accept', {
           method: 'POST',
+          crossOrg: true,
           body: JSON.stringify({ token }),
         });
+        setActiveOrgId(accepted.orgId);
+        invalidateActiveMembershipCache();
         setStatus('accepted');
       } catch (err) {
         const kind = classifyAcceptError(err);

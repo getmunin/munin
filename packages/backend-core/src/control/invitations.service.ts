@@ -9,7 +9,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   getCurrentContext,
@@ -262,6 +262,24 @@ export class InvitationsService {
           set: { role: invitation.role },
           setWhere: eq(schema.orgMembers.role, 'member'),
         });
+      await tx
+        .update(schema.orgMembers)
+        .set({ isDefault: false })
+        .where(
+          and(
+            eq(schema.orgMembers.userId, input.userId),
+            ne(schema.orgMembers.orgId, invitation.orgId),
+          ),
+        );
+      await tx
+        .update(schema.orgMembers)
+        .set({ isDefault: true })
+        .where(
+          and(
+            eq(schema.orgMembers.userId, input.userId),
+            eq(schema.orgMembers.orgId, invitation.orgId),
+          ),
+        );
       await tx
         .update(schema.users)
         .set({ emailVerified: true })

@@ -23,11 +23,12 @@ import {
   statusChangedText,
   threadParentBlocks,
   threadParentText,
-  isSharedRoutePrompt,
-  MAX_SHARED_ROUTE_PROMPT_ORGS,
-  resolveSharedRoutePrompt,
-  sharedRoutePromptBlocks,
+  parseWorkspaceRouteValue,
+  updateWorkspaceRoutePrompt,
   withOrgLabel,
+  workspaceRouteOutcomeLine,
+  workspaceRoutePromptBlocks,
+  workspaceRouteValue,
   type ConversationSnapshot,
 } from './slack-projection.ts';
 
@@ -603,45 +604,33 @@ describe('withOrgLabel', () => {
   });
 });
 
-describe('shared route prompt', () => {
-  const orgs = [
-    { integrationId: 'slk_a', orgName: 'Acme' },
-    { integrationId: 'slk_b', orgName: null },
-  ];
-
-  it('gives every org its own labelled row of buttons', () => {
-    const blocks = sharedRoutePromptBlocks(orgs);
-    expect(blocks.map((b) => b.block_id ?? null)).toEqual([
-      null,
-      'munin_route_org:slk_a',
-      'munin_route_actions:slk_a',
-      'munin_route_org:slk_b',
-      'munin_route_actions:slk_b',
-    ]);
-    expect(JSON.stringify(blocks)).toContain('Unnamed org');
-    expect(isSharedRoutePrompt(blocks, 'slk_b')).toBe(true);
-    expect(isSharedRoutePrompt(blocks, 'slk_c')).toBe(false);
-    expect(isSharedRoutePrompt(null, 'slk_a')).toBe(false);
+describe('workspace route prompt', () => {
+  it('names no org and points every button at the workspace', () => {
+    const blocks = workspaceRoutePromptBlocks('T1');
+    const values = (blocks[1]!.elements as Array<{ value: string }>).map((e) => e.value);
+    expect(values).toEqual(['workspace:T1', 'workspace:T1', 'workspace:T1']);
+    expect(JSON.stringify(blocks)).not.toContain(':office:');
   });
 
-  it('stays inside the Slack block limit however many orgs share the workspace', () => {
-    const many = Array.from({ length: 40 }, (_, i) => ({ integrationId: `slk_${i}`, orgName: `Org ${i}` }));
-    expect(sharedRoutePromptBlocks(many)).toHaveLength(1 + MAX_SHARED_ROUTE_PROMPT_ORGS * 2);
-    expect(1 + MAX_SHARED_ROUTE_PROMPT_ORGS * 2).toBeLessThanOrEqual(50);
+  it('parses only workspace button values', () => {
+    expect(parseWorkspaceRouteValue(workspaceRouteValue('T1'))).toBe('T1');
+    expect(parseWorkspaceRouteValue('workspace:')).toBeNull();
+    expect(parseWorkspaceRouteValue('3f1c0a52-8d55-4b7e-9a51-6f7c2d1e0b9a')).toBeNull();
   });
 
-  it('replaces only the resolved org row and drops its buttons', () => {
-    const resolved = resolveSharedRoutePrompt(sharedRoutePromptBlocks(orgs), 'slk_a', 'Acme', 'Done.');
-    expect(resolved.map((b) => b.block_id ?? null)).toEqual([
-      null,
-      'munin_route_org:slk_a',
-      'munin_route_org:slk_b',
-      'munin_route_actions:slk_b',
-    ]);
-    expect(resolved[1]).toEqual({
-      type: 'section',
-      block_id: 'munin_route_org:slk_a',
-      text: { type: 'mrkdwn', text: ':office: *Acme*\nDone.' },
-    });
+  it('records an outcome above the buttons and keeps them while other orgs can still route', () => {
+    const line = workspaceRouteOutcomeLine('Acme', 'Done.');
+    const updated = updateWorkspaceRoutePrompt(workspaceRoutePromptBlocks('T1'), 'T1', line, true);
+    expect(updated.map((b) => b.type)).toEqual(['section', 'section', 'actions']);
+    expect(updated[1]).toEqual({ type: 'section', text: { type: 'mrkdwn', text: ':office: *Acme*\nDone.' } });
+    const closed = updateWorkspaceRoutePrompt(updated, 'T1', workspaceRouteOutcomeLine(null, 'Also done.'), false);
+    expect(closed.map((b) => b.type)).toEqual(['section', 'section', 'section']);
+    expect(JSON.stringify(closed[2])).toContain('Unnamed org');
+  });
+
+  it('rebuilds the prompt when Slack sends no blocks back', () => {
+    const updated = updateWorkspaceRoutePrompt(null, 'T1', 'Done.', true);
+    expect(updated.map((b) => b.type)).toEqual(['section', 'section', 'actions']);
+    expect(JSON.stringify(updated[2])).toContain('workspace:T1');
   });
 });

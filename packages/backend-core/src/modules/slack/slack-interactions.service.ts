@@ -36,12 +36,13 @@ import {
   ROUTE_DISMISS_ACTION_ID,
   ROUTE_ESCALATIONS_ACTION_ID,
   escapeSlackText,
-  isSharedRoutePrompt,
   parseApprovalValue,
-  resolveSharedRoutePrompt,
+  parseWorkspaceRouteValue,
   routeConfirmedText,
   routeDismissedText,
+  updateWorkspaceRoutePrompt,
   withOrgLabel,
+  workspaceRouteOutcomeLine,
   type SlackBlock,
 } from './slack-projection.ts';
 import { isChannelShared, orgName, sharedChannelOrgName } from './slack-shared-channel.ts';
@@ -86,6 +87,10 @@ const ROUTE_ACTIONS = new Set([
 ]);
 const APPROVAL_ACTIONS = new Set([APPROVAL_APPROVE_ACTION_ID, APPROVAL_DISMISS_ACTION_ID]);
 
+function routePurpose(actionId: string): 'default' | 'escalations' {
+  return actionId === ROUTE_ESCALATIONS_ACTION_ID ? 'escalations' : 'default';
+}
+
 function unlinkedText(sharedOrgName: string | null): string {
   const org = sharedOrgName ? `*${escapeSlackText(sharedOrgName)}*` : 'the org';
   return `:no_entry: That action needs a linked Munin account — ask an admin to add you to ${org} with your Slack email.`;
@@ -114,14 +119,22 @@ export class SlackInteractionsService {
     if (!parsed.success) return;
     const routeAction = parsed.data.actions.find((a) => ROUTE_ACTIONS.has(a.action_id));
     if (routeAction?.value && parsed.data.channel) {
-      await this.handleRoutePrompt({
+      const prompt = {
         actionId: routeAction.action_id,
-        integrationId: routeAction.value,
         slackChannelId: parsed.data.channel.id,
         slackUserId: parsed.data.user.id,
         promptTs: parsed.data.message?.ts ?? null,
-        promptBlocks: parsed.data.message?.blocks ?? null,
-      });
+      };
+      const teamId = parseWorkspaceRouteValue(routeAction.value);
+      if (teamId) {
+        await this.handleWorkspaceRoutePrompt({
+          ...prompt,
+          teamId,
+          promptBlocks: parsed.data.message?.blocks ?? null,
+        });
+      } else {
+        await this.handleRoutePrompt({ ...prompt, integrationId: routeAction.value });
+      }
       return;
     }
     const approvalAction = parsed.data.actions.find((a) => APPROVAL_ACTIONS.has(a.action_id));
@@ -381,7 +394,6 @@ export class SlackInteractionsService {
     slackChannelId: string;
     slackUserId: string;
     promptTs: string | null;
-    promptBlocks: SlackBlock[] | null;
   }): Promise<void> {
     const [integration] = await this.db
       .select()
@@ -391,16 +403,10 @@ export class SlackInteractionsService {
     if (!integration || !integration.active) return;
 
     const token = await decryptSecretValue(this.db, integration.encryptedBotToken);
-    const ephemeral = (text: string) =>
-      this.api
-        .postEphemeral({ token, channel: input.slackChannelId, user: input.slackUserId, text })
-        .catch((err: unknown) => this.logger.warn(`ephemeral notice failed: ${describeError(err)}`));
-
-    const sharedPrompt = isSharedRoutePrompt(input.promptBlocks, integration.id);
-    const promptOrgName =
-      sharedPrompt || (await isChannelShared(this.db, integration, input.slackChannelId))
-        ? await orgName(this.db, integration.orgId)
-        : null;
+    const ephemeral = this.ephemeralTo(token, input.slackChannelId, input.slackUserId);
+    const promptOrgName = (await isChannelShared(this.db, integration, input.slackChannelId))
+      ? await orgName(this.db, integration.orgId)
+      : null;
 
     const userId = await this.mapping.resolveMuninUser(integration, input.slackUserId, token);
     if (!userId) {
@@ -415,9 +421,6 @@ export class SlackInteractionsService {
         input.slackChannelId,
         input.promptTs,
         withOrgLabel({ text: outcome }, promptOrgName).text,
-        sharedPrompt && input.promptBlocks
-          ? resolveSharedRoutePrompt(input.promptBlocks, integration.id, promptOrgName, outcome)
-          : [],
       );
     };
 
@@ -426,14 +429,7 @@ export class SlackInteractionsService {
       return;
     }
 
-    const [membership] = await this.db
-      .select({ role: schema.orgMembers.role })
-      .from(schema.orgMembers)
-      .where(
-        and(eq(schema.orgMembers.orgId, integration.orgId), eq(schema.orgMembers.userId, userId)),
-      )
-      .limit(1);
-    if (!membership || !['owner', 'admin'].includes(membership.role)) {
+    if (!(await this.isOrgAdmin(integration.orgId, userId))) {
       await ephemeral(
         promptOrgName
           ? `:no_entry: Only owners and admins of *${escapeSlackText(promptOrgName)}* can change its Slack routing.`
@@ -442,7 +438,133 @@ export class SlackInteractionsService {
       return;
     }
 
-    const purpose = input.actionId === ROUTE_ESCALATIONS_ACTION_ID ? 'escalations' : 'default';
+    const purpose = routePurpose(input.actionId);
+    const failure = await this.routeAsMember(integration, userId, input, purpose);
+    if (failure) {
+      await ephemeral(failure);
+      return;
+    }
+    await resolvePrompt(routeConfirmedText(purpose, input.slackUserId));
+  }
+
+  private async handleWorkspaceRoutePrompt(input: {
+    actionId: string;
+    teamId: string;
+    slackChannelId: string;
+    slackUserId: string;
+    promptTs: string | null;
+    promptBlocks: SlackBlock[] | null;
+  }): Promise<void> {
+    const integrations = await this.db
+      .select()
+      .from(schema.slackIntegrations)
+      .where(
+        and(
+          eq(schema.slackIntegrations.teamId, input.teamId),
+          eq(schema.slackIntegrations.active, true),
+        ),
+      )
+      .orderBy(schema.slackIntegrations.createdAt);
+    if (integrations.length === 0) return;
+
+    const routed = await this.db
+      .select({ integrationId: schema.slackChannelRoutes.integrationId })
+      .from(schema.slackChannelRoutes)
+      .where(
+        and(
+          eq(schema.slackChannelRoutes.teamId, input.teamId),
+          eq(schema.slackChannelRoutes.slackChannelId, input.slackChannelId),
+        ),
+      );
+    const routedIds = new Set(routed.map((route) => route.integrationId));
+
+    const token = await decryptSecretValue(this.db, integrations[0]!.encryptedBotToken);
+    const ephemeral = this.ephemeralTo(token, input.slackChannelId, input.slackUserId);
+
+    let linked = false;
+    const administered: Array<{ integration: (typeof integrations)[number]; userId: string }> = [];
+    for (const integration of integrations) {
+      const userId = await this.mapping.resolveMuninUser(integration, input.slackUserId, token);
+      if (!userId) continue;
+      linked = true;
+      if (!routedIds.has(integration.id) && (await this.isOrgAdmin(integration.orgId, userId))) {
+        administered.push({ integration, userId });
+      }
+    }
+    if (!linked) {
+      await ephemeral(unlinkedText(null));
+      return;
+    }
+
+    const updatePrompt = async (text: string, line: string, keepButtons: boolean) => {
+      if (!input.promptTs) return;
+      await this.updatePrompt(
+        token,
+        input.slackChannelId,
+        input.promptTs,
+        text,
+        updateWorkspaceRoutePrompt(input.promptBlocks, input.teamId, line, keepButtons),
+      );
+    };
+
+    if (input.actionId === ROUTE_DISMISS_ACTION_ID) {
+      await updatePrompt(routeDismissedText(), routeDismissedText(), false);
+      return;
+    }
+
+    if (administered.length === 0) {
+      await ephemeral(
+        ':no_entry: Only owners and admins can route a Munin org into this channel, and you are not one for any org here that is not routed into it yet.',
+      );
+      return;
+    }
+    if (administered.length > 1) {
+      const names = await Promise.all(
+        administered.map(async ({ integration }) => {
+          const name = await orgName(this.db, integration.orgId);
+          return `*${escapeSlackText(name ?? 'Unnamed org')}*`;
+        }),
+      );
+      await ephemeral(
+        `:information_source: You are an owner or admin of several Munin orgs here (${names.join(', ')}). Route the one you mean from its dashboard (Settings → Integrations) or with slack_set_routing.`,
+      );
+      return;
+    }
+
+    const { integration, userId } = administered[0]!;
+    const purpose = routePurpose(input.actionId);
+    const failure = await this.routeAsMember(integration, userId, input, purpose);
+    if (failure) {
+      await ephemeral(failure);
+      return;
+    }
+    const name = await orgName(this.db, integration.orgId);
+    const outcome = routeConfirmedText(purpose, input.slackUserId);
+    const unroutedLeft = integrations.some(
+      (other) => other.id !== integration.id && !routedIds.has(other.id),
+    );
+    await updatePrompt(
+      withOrgLabel({ text: outcome }, name ?? 'Unnamed org').text,
+      workspaceRouteOutcomeLine(name, outcome),
+      unroutedLeft,
+    );
+  }
+
+  private async isOrgAdmin(orgId: string, userId: string): Promise<boolean> {
+    const [membership] = await this.db
+      .select({ role: schema.orgMembers.role })
+      .from(schema.orgMembers)
+      .where(and(eq(schema.orgMembers.orgId, orgId), eq(schema.orgMembers.userId, userId)))
+      .limit(1);
+    return membership !== undefined && ['owner', 'admin'].includes(membership.role);
+  }
+
+  private async routeAsMember(
+    integration: typeof schema.slackIntegrations.$inferSelect,
+    userId: string,
+    input: { actionId: string; slackChannelId: string; slackUserId: string },
+    purpose: 'default' | 'escalations',
+  ): Promise<string | null> {
     const actor = new ActorIdentity(
       'user',
       userId,
@@ -459,21 +581,27 @@ export class SlackInteractionsService {
         await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
         const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
         await withContext(ctx, () =>
-          this.slack.setRouting({ slackChannelId: input.slackChannelId, purpose }),
+          this.slack.setRouting(
+            { slackChannelId: input.slackChannelId, purpose },
+            { verifiedSlackUserId: input.slackUserId },
+          ),
         );
       });
+      return null;
     } catch (err) {
-      if (err instanceof HttpException) {
-        await ephemeral(`:no_entry: ${err.message}`);
-        return;
-      }
+      if (err instanceof HttpException) return `:no_entry: ${err.message}`;
       this.logger.error(
         `slack route prompt ${input.actionId} failed for ${input.slackChannelId}: ${describeError(err)}`,
       );
-      return;
+      return ':warning: Munin could not save that routing — try again, or set it from the dashboard.';
     }
+  }
 
-    await resolvePrompt(routeConfirmedText(purpose, input.slackUserId));
+  private ephemeralTo(token: string, channel: string, user: string) {
+    return (text: string) =>
+      this.api
+        .postEphemeral({ token, channel, user, text })
+        .catch((err: unknown) => this.logger.warn(`ephemeral notice failed: ${describeError(err)}`));
   }
 
   private async updatePrompt(

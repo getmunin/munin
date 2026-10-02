@@ -19,6 +19,7 @@ interface SlackRouteDto {
   slackChannelName: string | null;
   purpose: string;
   mention: string | null;
+  sharedChannel: boolean;
 }
 
 interface SlackStatusDto {
@@ -210,6 +211,9 @@ function SlackConfigureDialog({
   const [channels, setChannels] = useState<SlackChannelOption[] | null>(null);
   const [channelsFailed, setChannelsFailed] = useState(false);
   const [botMissing, setBotMissing] = useState(false);
+  const [sharedChannelId, setSharedChannelId] = useState(
+    defaultRoute?.sharedChannel ? defaultRoute.slackChannelId : null,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -247,7 +251,9 @@ function SlackConfigureDialog({
         body: JSON.stringify({ slackChannelId: channelId.trim() }),
       });
       onChanged();
+      setSharedChannelId(route.sharedChannel ? route.slackChannelId : null);
       if (route.botInChannel) {
+        if (route.sharedChannel) notify.info(t('sharedChannel'));
         onClose();
         return;
       }
@@ -301,6 +307,9 @@ function SlackConfigureDialog({
               </>
             )}
           </div>
+          {sharedChannelId !== null && sharedChannelId === channelId.trim() && (
+            <p className="text-sm text-amber-600">{t('sharedChannel')}</p>
+          )}
           {botMissing && <p className="text-sm text-amber-600">{t('inviteBot')}</p>}
           {status.deliveries.failedLastDay > 0 && (
             <p className="text-sm text-amber-600">{t('failedDeliveries', { count: status.deliveries.failedLastDay })}</p>

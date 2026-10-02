@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
@@ -20,7 +21,7 @@ import { DB } from '../../common/db/db.module.ts';
 import { authorizationServerUrl } from '../../oauth/oauth.constants.ts';
 import { SlackApiClient, SlackApiError } from './slack-api.client.ts';
 import { testMessageText } from './slack-projection.ts';
-import { isChannelShared } from './slack-shared-channel.ts';
+import { isChannelShared, sharedChannelIds } from './slack-shared-channel.ts';
 import { readSlackAppConfig, SLACK_BOT_SCOPES } from './slack.constants.ts';
 
 const INSTALL_STATE_TTL_MS = 10 * 60 * 1000;
@@ -32,11 +33,11 @@ export interface SlackRouteDto {
   purpose: string;
   convChannelId: string | null;
   mention: string | null;
+  sharedChannel: boolean;
 }
 
 export interface SlackRoutingResult extends SlackRouteDto {
   botInChannel: boolean;
-  sharedChannel: boolean;
 }
 
 export interface SlackIntegrationDto {
@@ -72,6 +73,10 @@ export interface SetRoutingInput {
   purpose?: 'default' | 'escalations' | 'approvals' | 'content';
   mention?: string | null;
   convChannelId?: string | null;
+}
+
+export interface SetRoutingOptions {
+  verifiedSlackUserId?: string;
 }
 
 interface InstallState {
@@ -146,7 +151,10 @@ export function verifyInstallState(raw: unknown, secret: string): InstallState |
   };
 }
 
-function toRouteDto(row: typeof schema.slackChannelRoutes.$inferSelect): SlackRouteDto {
+function toRouteDto(
+  row: typeof schema.slackChannelRoutes.$inferSelect,
+  sharedChannel: boolean,
+): SlackRouteDto {
   return {
     id: row.id,
     slackChannelId: row.slackChannelId,
@@ -154,12 +162,14 @@ function toRouteDto(row: typeof schema.slackChannelRoutes.$inferSelect): SlackRo
     purpose: row.purpose,
     convChannelId: row.convChannelId,
     mention: row.mention,
+    sharedChannel,
   };
 }
 
 function toIntegrationDto(
   row: typeof schema.slackIntegrations.$inferSelect,
   routes: (typeof schema.slackChannelRoutes.$inferSelect)[],
+  shared: Set<string>,
 ): SlackIntegrationDto {
   return {
     id: row.id,
@@ -168,7 +178,7 @@ function toIntegrationDto(
     botUserId: row.botUserId,
     active: row.active,
     installedByUserId: row.installedByUserId,
-    routes: routes.map(toRouteDto),
+    routes: routes.map((route) => toRouteDto(route, shared.has(route.slackChannelId))),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -198,7 +208,14 @@ export class SlackService {
         .select()
         .from(schema.slackChannelRoutes)
         .where(eq(schema.slackChannelRoutes.integrationId, integration.id));
-      dto = toIntegrationDto(integration, routes);
+      const shared = integration.active
+        ? await sharedChannelIds(
+            this.db,
+            integration,
+            routes.map((route) => route.slackChannelId),
+          )
+        : new Set<string>();
+      dto = toIntegrationDto(integration, routes, shared);
 
       const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const [pendingRow] = await ctx.db
@@ -319,7 +336,10 @@ export class SlackService {
     return { orgId: state.orgId };
   }
 
-  async setRouting(input: SetRoutingInput): Promise<SlackRoutingResult> {
+  async setRouting(
+    input: SetRoutingInput,
+    options: SetRoutingOptions = {},
+  ): Promise<SlackRoutingResult> {
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
     const purpose = input.purpose ?? 'default';
@@ -373,7 +393,10 @@ export class SlackService {
     }
 
     const [existing] = await ctx.db
-      .select({ id: schema.slackChannelRoutes.id })
+      .select({
+        id: schema.slackChannelRoutes.id,
+        slackChannelId: schema.slackChannelRoutes.slackChannelId,
+      })
       .from(schema.slackChannelRoutes)
       .where(
         and(
@@ -407,6 +430,11 @@ export class SlackService {
       );
     }
 
+    const sharedChannel = await isChannelShared(this.db, integration, channel.id);
+    if (sharedChannel && existing?.slackChannelId !== channel.id) {
+      await this.assertRouterInChannel(token, channel.id, options.verifiedSlackUserId);
+    }
+
     const values = {
       teamId: integration.teamId,
       slackChannelId: channel.id,
@@ -429,11 +457,49 @@ export class SlackService {
         .returning();
     }
     if (!row) throw new ConflictException('slack_route_write_failed');
-    return {
-      ...toRouteDto(row),
-      botInChannel: channel.isMember,
-      sharedChannel: await isChannelShared(this.db, integration, channel.id),
-    };
+    return { ...toRouteDto(row, sharedChannel), botInChannel: channel.isMember };
+  }
+
+  private async assertRouterInChannel(
+    token: string,
+    slackChannelId: string,
+    verifiedSlackUserId: string | undefined,
+  ): Promise<void> {
+    try {
+      const slackUserId = verifiedSlackUserId ?? (await this.actorSlackUserId(token));
+      if (
+        slackUserId &&
+        (await this.api.isConversationMember({ token, channel: slackChannelId, user: slackUserId }))
+      ) {
+        return;
+      }
+    } catch (err) {
+      if (err instanceof SlackApiError) {
+        throw new BadRequestException(
+          `slack_api_error: Slack rejected the channel membership lookup (${err.apiError})`,
+        );
+      }
+      throw err;
+    }
+    throw new ForbiddenException({
+      message:
+        'slack_not_channel_member: another Munin org already routes into that Slack channel, so only someone in the channel can add a route to it — join it in Slack with the account that uses your Munin email address, then try again',
+      code: 'slack_not_channel_member',
+    });
+  }
+
+  private async actorSlackUserId(token: string): Promise<string | null> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const userId = actor.type === 'user' ? actor.id : (actor.userId ?? null);
+    if (!userId) return null;
+    const [user] = await ctx.db
+      .select({ email: schema.users.email })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+    if (!user?.email) return null;
+    return await this.api.usersLookupByEmail({ token, email: user.email });
   }
 
   async listChannels(): Promise<{

@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { sql, eq, and } from 'drizzle-orm';
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   ActorIdentity,
   signHmac,
@@ -98,6 +103,19 @@ class FakeSlackApi extends SlackApiClient {
 
   override conversationsInfo(input: { token: string; channel: string }) {
     return Promise.resolve({ id: input.channel, name: 'support', isMember: true });
+  }
+
+  slackUsersByEmail = new Map<string, string>();
+  channelMembers = new Map<string, string[]>();
+  memberLookups = 0;
+
+  override usersLookupByEmail(input: { token: string; email: string }) {
+    return Promise.resolve(this.slackUsersByEmail.get(input.email) ?? null);
+  }
+
+  override isConversationMember(input: { token: string; channel: string; user: string }) {
+    this.memberLookups += 1;
+    return Promise.resolve(this.channelMembers.get(input.channel)?.includes(input.user) ?? false);
   }
 
   channelPages: Array<{
@@ -1055,16 +1073,103 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     }
   }
 
-  it('lets a second org route into a channel another org already uses', async () => {
+  async function withRoutingUser(fn: (user: ActorIdentity, email: string) => Promise<void>) {
+    const email = `slack-router-${randomUUID()}@example.com`;
+    const [user] = await db.insert(schema.users).values({ email, name: 'Rita Router' }).returning();
+    try {
+      await db.insert(schema.orgMembers).values({ orgId, userId: user!.id, role: 'admin' });
+      await fn(new ActorIdentity('user', user!.id, orgId, ['*'], ['admin']), email);
+    } finally {
+      await db.delete(schema.users).where(eq(schema.users.id, user!.id));
+    }
+  }
+
+  it('lets a member of the channel route a second org into it', async () => {
     const api = new FakeSlackApi();
     const service = new SlackService(db, api);
     await withSharingOrg('C_SHARED', async () => {
-      const route = await run(() =>
-        service.setRouting({ slackChannelId: 'C_SHARED', purpose: 'escalations' }),
-      );
-      expect(route.slackChannelId).toBe('C_SHARED');
-      expect(route.sharedChannel).toBe(true);
+      await withRoutingUser(async (user, email) => {
+        api.slackUsersByEmail.set(email, 'U_RITA');
+        api.channelMembers.set('C_SHARED', ['U_OTHER', 'U_RITA']);
+        const route = await run(
+          () => service.setRouting({ slackChannelId: 'C_SHARED', purpose: 'escalations' }),
+          user,
+        );
+        expect(route.slackChannelId).toBe('C_SHARED');
+        expect(route.sharedChannel).toBe(true);
+      });
     });
+  });
+
+  it('refuses to route into a channel another org uses when the caller is not in it', async () => {
+    const api = new FakeSlackApi();
+    const service = new SlackService(db, api);
+    await withSharingOrg('C_SHARED', async () => {
+      await withRoutingUser(async (user, email) => {
+        api.slackUsersByEmail.set(email, 'U_RITA');
+        api.channelMembers.set('C_SHARED', ['U_OTHER']);
+        await expect(
+          run(() => service.setRouting({ slackChannelId: 'C_SHARED', purpose: 'escalations' }), user),
+        ).rejects.toThrow(ForbiddenException);
+      });
+      const routes = await db
+        .select()
+        .from(schema.slackChannelRoutes)
+        .where(
+          and(
+            eq(schema.slackChannelRoutes.orgId, orgId),
+            eq(schema.slackChannelRoutes.slackChannelId, 'C_SHARED'),
+          ),
+        );
+      expect(routes).toHaveLength(0);
+    });
+  });
+
+  it('refuses a caller whose Munin email has no account in the Slack workspace', async () => {
+    const api = new FakeSlackApi();
+    const service = new SlackService(db, api);
+    await withSharingOrg('C_SHARED', async () => {
+      await withRoutingUser(async (user) => {
+        await expect(
+          run(() => service.setRouting({ slackChannelId: 'C_SHARED', purpose: 'escalations' }), user),
+        ).rejects.toThrow(/slack_not_channel_member/);
+      });
+    });
+  });
+
+  it('refuses an agent with no user behind it, since nobody can be checked against the channel', async () => {
+    const api = new FakeSlackApi();
+    const service = new SlackService(db, api);
+    await withSharingOrg('C_SHARED', async () => {
+      await expect(
+        run(() => service.setRouting({ slackChannelId: 'C_SHARED', purpose: 'escalations' })),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  it('keeps editing a route that already sits in a shared channel without a membership check', async () => {
+    const api = new FakeSlackApi();
+    const service = new SlackService(db, api);
+    await withSharingOrg('C_DEFAULT', async () => {
+      const route = await run(() =>
+        service.setRouting({ slackChannelId: 'C_DEFAULT', mention: '<!here>' }),
+      );
+      expect(route.mention).toBe('<!here>');
+      expect(route.sharedChannel).toBe(true);
+      expect(api.memberLookups).toBe(0);
+    });
+  });
+
+  it('flags shared routes in the status', async () => {
+    const api = new FakeSlackApi();
+    const service = new SlackService(db, api);
+    await withSharingOrg('C_DEFAULT', async () => {
+      const status = await run(() => service.status());
+      const route = status.integration!.routes.find((r) => r.slackChannelId === 'C_DEFAULT');
+      expect(route!.sharedChannel).toBe(true);
+    });
+    const status = await run(() => service.status());
+    expect(status.integration!.routes.every((r) => !r.sharedChannel)).toBe(true);
   });
 
   it('reports an unshared channel as such', async () => {

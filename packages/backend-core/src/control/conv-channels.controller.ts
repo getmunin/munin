@@ -28,6 +28,7 @@ import {
 } from '../modules/conv/email/email.service.ts';
 import { TwilioSmsAdminService } from '../modules/conv/twilio/twilio-sms-admin.service.ts';
 import { MessageBirdSmsAdminService } from '../modules/conv/messagebird/messagebird-sms-admin.service.ts';
+import { StrexSmsAdminService } from '../modules/conv/strex/strex-sms-admin.service.ts';
 import { VapiAdminService } from '../modules/conv/vapi/vapi-admin.service.ts';
 import { ThrellAdminService } from '../modules/conv/threll/threll-admin.service.ts';
 import { ChannelAdminService } from '../modules/conv/channels/channel-admin.service.ts';
@@ -41,6 +42,8 @@ import {
   SendTwilioSmsTestBody as SendTwilioSmsTestSchema,
   ConfigureMessageBirdSmsBody as ConfigureMessageBirdSmsSchema,
   SendMessageBirdSmsTestBody as SendMessageBirdSmsTestSchema,
+  ConfigureStrexSmsBody as ConfigureStrexSmsSchema,
+  SendStrexSmsTestBody as SendStrexSmsTestSchema,
   ConfigureVapiBody as ConfigureVapiSchema,
   VapiCallInitiateBody as VapiCallInitiateSchema,
   ConfigureThrellBody as ConfigureThrellSchema,
@@ -80,6 +83,10 @@ class ConfigureMessageBirdSmsBody extends createZodDto(ConfigureMessageBirdSmsSc
 
 class SendMessageBirdSmsTestBody extends createZodDto(SendMessageBirdSmsTestSchema) {}
 
+class ConfigureStrexSmsBody extends createZodDto(ConfigureStrexSmsSchema) {}
+
+class SendStrexSmsTestBody extends createZodDto(SendStrexSmsTestSchema) {}
+
 class ConfigureVapiBody extends createZodDto(ConfigureVapiSchema) {}
 
 class VapiCallInitiateBody extends createZodDto(VapiCallInitiateSchema) {}
@@ -106,6 +113,7 @@ export class ConvChannelsController {
     private readonly email: EmailService,
     private readonly twilioSmsTools: TwilioSmsAdminService,
     private readonly messageBirdSmsTools: MessageBirdSmsAdminService,
+    private readonly strexSmsTools: StrexSmsAdminService,
     private readonly vapiTools: VapiAdminService,
     private readonly threllTools: ThrellAdminService,
     private readonly channelAdmin: ChannelAdminService,
@@ -277,6 +285,35 @@ export class ConvChannelsController {
     @Body() input: SendMessageBirdSmsTestBody,
   ): Promise<Awaited<ReturnType<MessageBirdSmsAdminService['sendTest']>>> {
     return this.messageBirdSmsTools.sendTest({
+      channelId: id,
+      to: input.to,
+      body: input.body,
+    });
+  }
+
+  @Post('strex-sms')
+  @HttpCode(200)
+  async configureStrexSms(
+    @Body() input: ConfigureStrexSmsBody,
+  ): Promise<Awaited<ReturnType<StrexSmsAdminService['configure']>>> {
+    return this.strexSmsTools.configure(input);
+  }
+
+  @Post('strex-sms/:id/test')
+  @HttpCode(200)
+  async testStrexSms(
+    @Param('id') id: string,
+  ): Promise<Awaited<ReturnType<StrexSmsAdminService['testChannel']>>> {
+    return this.strexSmsTools.testChannel({ channelId: id });
+  }
+
+  @Post('strex-sms/:id/send-test')
+  @HttpCode(200)
+  async sendStrexSmsTest(
+    @Param('id') id: string,
+    @Body() input: SendStrexSmsTestBody,
+  ): Promise<Awaited<ReturnType<StrexSmsAdminService['sendTest']>>> {
+    return this.strexSmsTools.sendTest({
       channelId: id,
       to: input.to,
       body: input.body,

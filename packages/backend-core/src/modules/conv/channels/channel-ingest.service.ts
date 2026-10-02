@@ -135,7 +135,7 @@ export class ChannelIngestService {
             ...(spamSender ? { autoReply: true, suppressed: 'spam_sender' } : {}),
           },
         });
-        if (channel.type === 'sms' && isOptOutKeyword(msg.body)) {
+        if (channel.type === 'sms' && (msg.optOut === true || isOptOutKeyword(msg.body))) {
           await suppressContactByPhone(tx, orgId, contact.phone, channel.id);
         }
 

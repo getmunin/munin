@@ -12,7 +12,7 @@ const ConfigureInput = z.object({
     .string()
     .min(1)
     .max(40)
-    .describe('Channel vendor, e.g. "vapi", "threll", "twilio", "messagebird". Call conv_list_voice_sms_vendors for the full list and each vendor’s config fields.'),
+    .describe('Channel vendor, e.g. "vapi", "threll", "twilio", "messagebird", "strex". Call conv_list_voice_sms_vendors for the full list and each vendor’s config fields.'),
   channelId: z
     .string()
     .optional()
@@ -131,7 +131,7 @@ export class ChannelAdminTools {
     name: 'conv_send_sms_channel_test',
     title: 'Conv: Send a real test SMS on a channel',
     description:
-      'Send a real test SMS through an SMS channel (Twilio, MessageBird), addressed to `to`. Useful for end-to-end deliverability checks. Voice channels have no test send — their credentials are checked with conv_test_voice_sms_channel, and a test call is placed by a human from the dashboard. Email channels use conv_send_email_channel_test.',
+      'Send a real test SMS through an SMS channel (Twilio, MessageBird, Strex), addressed to `to`. Useful for end-to-end deliverability checks. Voice channels have no test send — their credentials are checked with conv_test_voice_sms_channel, and a test call is placed by a human from the dashboard. Email channels use conv_send_email_channel_test.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: SendTestInput,

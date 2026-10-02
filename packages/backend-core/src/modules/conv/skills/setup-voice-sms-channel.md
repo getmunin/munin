@@ -1,12 +1,12 @@
 ---
 title: Set up a voice or SMS channel
-description: Configure a Vapi/Threll voice channel or Twilio/MessageBird SMS channel with non-secret config, hand off the API keys through a credential link, and verify the result.
+description: Configure a Vapi/Threll voice channel or Twilio/MessageBird/Strex SMS channel with non-secret config, hand off the API keys through a credential link, and verify the result.
 audiences: [admin]
 ---
 
 # Set up a voice or SMS channel
 
-Use this when a customer wants Munin on a phone number — an AI voice line (Vapi, Threll) or two-way SMS (Twilio, MessageBird).
+Use this when a customer wants Munin on a phone number — an AI voice line (Vapi, Threll) or two-way SMS (Twilio, MessageBird, Strex).
 
 ## TL;DR
 
@@ -23,6 +23,12 @@ Use this when a customer wants Munin on a phone number — an AI voice line (Vap
 - **Threll (voice)** — `workerId` (required; from the Threll webapp), `accountId` (optional, resolved from the API key), `replaceWebhook: true` if that worker already has a webhook subscription pointing somewhere other than Munin. The link asks for the API key; on save Munin creates a webhook subscription **scoped to that worker** and stores the signing secret Threll returns. Other workers on the same Threll account keep their own webhooks, so several Munin channels can share one account — one channel per worker. Pointing an existing channel at a different worker re-registers the subscription on the new worker and removes the old one.
 - **Twilio (SMS)** — `accountSid` (required) plus `fromNumber` or `messagingServiceSid`. The link asks for the auth token.
 - **MessageBird (SMS)** — `originator` (required). The link asks for the access key and signing key.
+- **Strex (SMS, Norway)** — `sender` (required), plus `shortNumberId` (e.g. `NO-2002`) when customers should be able to reply. The link asks for the Strex Connect API key. On save Munin registers a keyword on that short number whose forward URL is this channel, so inbound texts arrive without anyone touching Strex Connect. The questions to ask the human:
+  - **Can customers reply?** Only if `sender` is the short number itself (`"2002"`) and `shortNumberId` is set. An alphanumeric `sender` (up to 11 characters, e.g. `"AcmeSupport"`) is outbound-only — the network delivers no replies to it — so leave `shortNumberId` out.
+  - **Dedicated or shared short number?** On a dedicated number omit `keyword`: Munin registers a catch-all and every text reaches the channel. On a shared number set `keyword` (one word, e.g. `ACME`); Strex then only forwards texts whose **first word** is that keyword, so tell the customer their replies must start with it.
+  - **Testing?** `environment: "test"` points the channel at the Strex test platform instead of production.
+
+  Strex refuses a keyword that already forwards somewhere else on that short number — the tool answers `strex_keyword_conflict`, and the human removes the old keyword in Strex Connect or picks another one. Changing `shortNumberId` or `keyword` later moves the route (the new keyword is registered before the old one is deleted); `shortNumberId: null` makes the channel outbound-only, `keyword: null` switches back to the catch-all, and archiving the channel deletes its keyword. A text Strex itself classifies as a stop message (`STOPP ACME` on a shared number) suppresses the contact like the opt-out keywords below.
 
 ## While the channel is pending
 
@@ -60,6 +66,6 @@ A caller turn whose audio produced no words is kept as a turn with an **empty bo
 
 ## Verify
 
-- `conv_test_voice_sms_channel { channelId }` — vendor-shaped credential check (Twilio account fetch, MessageBird balance, etc.), no message sent.
+- `conv_test_voice_sms_channel { channelId }` — vendor-shaped credential check (Twilio account fetch, MessageBird balance, Strex API key plus whether the inbound keyword is still registered and forwarding to Munin), no message sent.
 - SMS: `conv_send_sms_channel_test { channelId, to }` sends a real message end-to-end. Voice vendors have no test send — the tool answers `channel vendor 'vapi' does not support test sends`.
 - Voice: there is no tool that places a call. A human verifies the channel end-to-end from the dashboard — Channels → the channel's ⋯ menu → **Make a test call**.

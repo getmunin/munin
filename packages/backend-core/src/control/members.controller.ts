@@ -6,7 +6,9 @@ import {
   ForbiddenException,
   Get,
   HttpCode,
+  Inject,
   NotFoundException,
+  Optional,
   Param,
   Patch,
   UseGuards,
@@ -15,7 +17,7 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { schema } from '@getmunin/db';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -25,6 +27,7 @@ import { revokeAdminKeysCreatedBy } from '../common/api-keys/api-key.helpers.ts'
 import { assertOwner, assertOwnerOrAdmin } from './role-guard.ts';
 import { RoleGuard } from './role.guard.ts';
 import { RequireRole } from './role.decorator.ts';
+import { MEMBERSHIP_HOOKS, type MembershipHooks } from './membership-hooks.module.ts';
 
 class PatchMemberBody extends createZodDto(
   z
@@ -50,6 +53,10 @@ interface MemberDto {
 @UseGuards(AuthGuard, ControlPlaneGuard, RoleGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class MembersController {
+  constructor(
+    @Optional() @Inject(MEMBERSHIP_HOOKS) private readonly hooks: MembershipHooks | null = null,
+  ) {}
+
   @Get()
   @RequireRole('owner', 'admin')
   async list(): Promise<MemberDto[]> {
@@ -178,5 +185,28 @@ export class MembersController {
         and(eq(schema.orgMembers.orgId, actor.orgId), eq(schema.orgMembers.userId, userId)),
       );
     await revokeAdminKeysCreatedBy(ctx.db, userId, actor.orgId);
+
+    const afterLastMembershipRemoved = this.hooks?.afterLastMembershipRemoved;
+    if (!afterLastMembershipRemoved) return;
+    await ctx.db.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+    const remaining = await ctx.db
+      .select({ orgId: schema.orgMembers.orgId })
+      .from(schema.orgMembers)
+      .where(eq(schema.orgMembers.userId, userId))
+      .limit(1);
+    if (!remaining[0]) {
+      const [user] = await ctx.db
+        .select({
+          id: schema.users.id,
+          email: schema.users.email,
+          name: schema.users.name,
+          emailVerified: schema.users.emailVerified,
+        })
+        .from(schema.users)
+        .where(eq(schema.users.id, userId))
+        .limit(1);
+      if (user) await afterLastMembershipRemoved(ctx.db, user);
+    }
+    await ctx.db.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
   }
 }

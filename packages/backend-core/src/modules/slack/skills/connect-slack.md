@@ -66,19 +66,19 @@ Workspaces installed before the `channels:history` scope was added must reinstal
 
 Call `slack_get_install_url` and give the operator the returned URL. They open it in a browser, pick the Slack workspace, and approve. The link expires after 10 minutes — mint a fresh one if they were slow. On success the browser lands back on the dashboard's Integrations page with `slack=connected`.
 
-One workspace can serve multiple Munin orgs, but each Slack **channel** belongs to exactly one org.
+One workspace can serve multiple Munin orgs, and several of them may route into the same Slack channel — see [Sharing a channel between orgs](#sharing-a-channel-between-orgs).
 
 ## Step 2 — route a channel
 
 Conversations do not mirror until a default channel is routed. Two paths:
 
-**From Slack (simplest):** the operator runs `/invite @Munin` in the channel they want. The bot posts a prompt with buttons (*Mirror all conversations* / *Escalation alerts only* / *Not now*); an org owner or admin clicks one and routing is set — no channel ID needed. The prompt is skipped when the channel is already routed or when several Munin orgs share the workspace.
+**From Slack (simplest):** the operator runs `/invite @Munin` in the channel they want. The bot posts a prompt with buttons (*Mirror all conversations* / *Escalation alerts only* / *Not now*); an org owner or admin clicks one and routing is set — no channel ID needed. When several Munin orgs share the workspace, the one prompt lists each of them with its own row of buttons; an owner or admin of each org answers for their own org, and answering one row leaves the others open. Orgs already routed into the channel are left out, and the prompt is skipped when all of them are.
 
 **From here:**
 
 1. Call `slack_list_channels` and ask the operator which channel to use (public channels only — for a private channel, ask for its ID: channel details → *About* → Channel ID, e.g. `C0123456789`).
 2. Call `slack_set_routing` with `{ "slackChannelId": "C0123456789" }`.
-3. If the response has `botInChannel: false`, the operator must run `/invite @Munin` in that channel — the bot cannot post until invited.
+3. If the response has `botInChannel: false`, the operator must run `/invite @Munin` in that channel — the bot cannot post until invited. `sharedChannel: true` means another Munin org also routes into that channel (see below).
 
 Optional escalations channel — handover alerts land here instead of the default channel, with an attention mention:
 
@@ -95,6 +95,14 @@ Optional source-channel routing — mirror conversations from one Munin conversa
 ```
 
 Every route needs its own Slack channel (an escalations route pointing at the default channel is redundant — just leave it unset).
+
+### Sharing a channel between orgs
+
+Two Munin orgs connected to the same Slack workspace can route into one channel — a team that handles support for several brands can keep a single `#support`. Each org still owns its own messages: a thread belongs to the org whose conversation started it, buttons act in that org, and replies are attributed against that org's members. Sharing changes nothing about who can do what; it only puts several orgs' traffic side by side.
+
+So that side by side stays readable, while a channel is shared every top-level message the bot posts there opens with the org's name (":office: *Acme*") — conversation thread parents, escalation alerts, approval cards and their group parents, and publish announcements. Thread replies are not labelled, since the parent above them already is. A channel only one org routes into shows no label. The label follows the routing: a message updated after the channel becomes shared gains it, and one updated after the other org leaves loses it. The ephemeral notices a teammate sees when their Slack account is not linked name the org too, because in a shared channel "this org" does not say which one.
+
+Everyone in the channel sees every org's conversations, so share a channel only between orgs whose teams may see each other's customers.
 
 ## Step 3 — verify
 
@@ -171,6 +179,6 @@ A reply in a mirrored thread is sent to the customer over the conversation's ori
 
 - `slack_not_configured` — deployment env vars missing (step 0).
 - `slack_bot_not_in_channel` / parent messages missing — the bot was never invited to the routed channel.
-- `slack_conflict` on routing — that channel already mirrors a different Munin org; pick another channel.
+- `slack_conflict` on routing — that channel is already one of this org's other routes; every route of an org needs its own channel. (Another org using the channel is not a conflict.)
 - Mirroring stopped after workspace changes — reinstall via `slack_get_install_url` (token may have been revoked), then re-check `slack_get_status`.
 - Delivery backlog — `slack_get_status` reports `deliveries.pending` and `deliveries.failedLastDay`; failures retry up to 5 times with backoff and respect Slack rate limits.

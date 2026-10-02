@@ -35,10 +35,16 @@ import {
   ROUTE_DEFAULT_ACTION_ID,
   ROUTE_DISMISS_ACTION_ID,
   ROUTE_ESCALATIONS_ACTION_ID,
+  escapeSlackText,
+  isSharedRoutePrompt,
   parseApprovalValue,
+  resolveSharedRoutePrompt,
   routeConfirmedText,
   routeDismissedText,
+  withOrgLabel,
+  type SlackBlock,
 } from './slack-projection.ts';
+import { isChannelShared, orgName, sharedChannelOrgName } from './slack-shared-channel.ts';
 
 export interface CmsDraftDecider {
   publishEntry(input: { id: string; ifVersion: number }): Promise<unknown>;
@@ -54,7 +60,14 @@ const BlockActionsSchema = z.object({
   type: z.literal('block_actions'),
   user: z.object({ id: z.string().min(1) }),
   channel: z.object({ id: z.string().min(1) }).optional(),
-  message: z.object({ ts: z.string().min(1) }).optional(),
+  message: z
+    .object({
+      ts: z.string().min(1),
+      blocks: z
+        .array(z.object({ type: z.string(), block_id: z.string().optional() }).passthrough())
+        .optional(),
+    })
+    .optional(),
   actions: z
     .array(z.object({ action_id: z.string().min(1), value: z.string().optional() }))
     .min(1),
@@ -72,6 +85,11 @@ const ROUTE_ACTIONS = new Set([
   ROUTE_DISMISS_ACTION_ID,
 ]);
 const APPROVAL_ACTIONS = new Set([APPROVAL_APPROVE_ACTION_ID, APPROVAL_DISMISS_ACTION_ID]);
+
+function unlinkedText(sharedOrgName: string | null): string {
+  const org = sharedOrgName ? `*${escapeSlackText(sharedOrgName)}*` : 'the org';
+  return `:no_entry: That action needs a linked Munin account — ask an admin to add you to ${org} with your Slack email.`;
+}
 
 @Injectable()
 export class SlackInteractionsService {
@@ -102,6 +120,7 @@ export class SlackInteractionsService {
         slackChannelId: parsed.data.channel.id,
         slackUserId: parsed.data.user.id,
         promptTs: parsed.data.message?.ts ?? null,
+        promptBlocks: parsed.data.message?.blocks ?? null,
       });
       return;
     }
@@ -142,7 +161,7 @@ export class SlackInteractionsService {
         token,
         link,
         slackUserId,
-        ':no_entry: That action needs a linked Munin account — ask an admin to add you to the org with your Slack email.',
+        unlinkedText(await sharedChannelOrgName(this.db, integration, link.slackChannelId)),
       );
       return;
     }
@@ -237,7 +256,7 @@ export class SlackInteractionsService {
     const userId = await this.mapping.resolveMuninUser(integration, input.slackUserId, token);
     if (!userId) {
       await ephemeral(
-        ':no_entry: That action needs a linked Munin account — ask an admin to add you to the org with your Slack email.',
+        unlinkedText(await sharedChannelOrgName(this.db, integration, link.slackChannelId)),
       );
       return;
     }
@@ -362,6 +381,7 @@ export class SlackInteractionsService {
     slackChannelId: string;
     slackUserId: string;
     promptTs: string | null;
+    promptBlocks: SlackBlock[] | null;
   }): Promise<void> {
     const [integration] = await this.db
       .select()
@@ -376,18 +396,33 @@ export class SlackInteractionsService {
         .postEphemeral({ token, channel: input.slackChannelId, user: input.slackUserId, text })
         .catch((err: unknown) => this.logger.warn(`ephemeral notice failed: ${describeError(err)}`));
 
+    const sharedPrompt = isSharedRoutePrompt(input.promptBlocks, integration.id);
+    const promptOrgName =
+      sharedPrompt || (await isChannelShared(this.db, integration, input.slackChannelId))
+        ? await orgName(this.db, integration.orgId)
+        : null;
+
     const userId = await this.mapping.resolveMuninUser(integration, input.slackUserId, token);
     if (!userId) {
-      await ephemeral(
-        ':no_entry: That action needs a linked Munin account — ask an admin to add you to the org with your Slack email.',
-      );
+      await ephemeral(unlinkedText(promptOrgName));
       return;
     }
 
+    const resolvePrompt = async (outcome: string) => {
+      if (!input.promptTs) return;
+      await this.updatePrompt(
+        token,
+        input.slackChannelId,
+        input.promptTs,
+        withOrgLabel({ text: outcome }, promptOrgName).text,
+        sharedPrompt && input.promptBlocks
+          ? resolveSharedRoutePrompt(input.promptBlocks, integration.id, promptOrgName, outcome)
+          : [],
+      );
+    };
+
     if (input.actionId === ROUTE_DISMISS_ACTION_ID) {
-      if (input.promptTs) {
-        await this.updatePrompt(token, input.slackChannelId, input.promptTs, routeDismissedText());
-      }
+      await resolvePrompt(routeDismissedText());
       return;
     }
 
@@ -399,7 +434,11 @@ export class SlackInteractionsService {
       )
       .limit(1);
     if (!membership || !['owner', 'admin'].includes(membership.role)) {
-      await ephemeral(':no_entry: Only org owners and admins can change Slack routing.');
+      await ephemeral(
+        promptOrgName
+          ? `:no_entry: Only owners and admins of *${escapeSlackText(promptOrgName)}* can change its Slack routing.`
+          : ':no_entry: Only org owners and admins can change Slack routing.',
+      );
       return;
     }
 
@@ -434,14 +473,7 @@ export class SlackInteractionsService {
       return;
     }
 
-    if (input.promptTs) {
-      await this.updatePrompt(
-        token,
-        input.slackChannelId,
-        input.promptTs,
-        routeConfirmedText(purpose, input.slackUserId),
-      );
-    }
+    await resolvePrompt(routeConfirmedText(purpose, input.slackUserId));
   }
 
   private async updatePrompt(
@@ -449,9 +481,10 @@ export class SlackInteractionsService {
     channel: string,
     ts: string,
     text: string,
+    blocks: SlackBlock[] = [],
   ): Promise<void> {
     try {
-      await this.api.updateMessage({ token, channel, ts, text, blocks: [] });
+      await this.api.updateMessage({ token, channel, ts, text, blocks });
     } catch (err) {
       this.logger.warn(`route prompt update failed: ${describeError(err)}`);
     }

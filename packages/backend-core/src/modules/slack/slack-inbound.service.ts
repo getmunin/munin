@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { schema, type Db } from '@getmunin/db';
 import { ActorIdentity, describeError, withContext, type RequestContext } from '@getmunin/core';
@@ -9,7 +9,14 @@ import { ConvService } from '../conv/conv.service.ts';
 import { SlackApiClient } from './slack-api.client.ts';
 import { SlackUserMappingService } from './slack-user-mapping.service.ts';
 import { decryptSecretValue } from './slack.service.ts';
-import { routePromptBlocks, routePromptText } from './slack-projection.ts';
+import {
+  escapeSlackText,
+  routePromptBlocks,
+  routePromptText,
+  sharedRoutePromptBlocks,
+  sharedRoutePromptText,
+} from './slack-projection.ts';
+import { orgName, sharedChannelOrgName } from './slack-shared-channel.ts';
 import {
   collectSlackMentionIds,
   mrkdwnToMarkdown,
@@ -126,7 +133,8 @@ export class SlackInboundService {
     const token = await decryptSecretValue(this.db, integration.encryptedBotToken);
     const userId = await this.mapping.resolveMuninUser(integration, event.user, token);
     if (!userId) {
-      await this.rejectReply(token, event);
+      const sharedOrgName = await sharedChannelOrgName(this.db, integration, event.channel);
+      await this.rejectReply(token, event, sharedOrgName);
       return;
     }
 
@@ -251,35 +259,42 @@ export class SlackInboundService {
           eq(schema.slackIntegrations.active, true),
           ...(event.team ? [eq(schema.slackIntegrations.teamId, event.team)] : []),
         ),
-      );
-    if (integrations.length !== 1) return;
-    const integration = integrations[0]!;
+      )
+      .orderBy(schema.slackIntegrations.createdAt);
+    if (integrations.length === 0) return;
 
-    const [existingRoute] = await this.db
-      .select({ id: schema.slackChannelRoutes.id })
+    const routed = await this.db
+      .select({ integrationId: schema.slackChannelRoutes.integrationId })
       .from(schema.slackChannelRoutes)
       .where(
         and(
-          eq(schema.slackChannelRoutes.teamId, integration.teamId),
+          inArray(
+            schema.slackChannelRoutes.integrationId,
+            integrations.map((integration) => integration.id),
+          ),
           eq(schema.slackChannelRoutes.slackChannelId, event.channel),
         ),
-      )
-      .limit(1);
-    if (existingRoute) return;
+      );
+    const routedIds = new Set(routed.map((route) => route.integrationId));
+    const unrouted = integrations.filter((integration) => !routedIds.has(integration.id));
+    if (unrouted.length === 0) return;
 
-    const [org] = await this.db
-      .select({ name: schema.orgs.name })
-      .from(schema.orgs)
-      .where(eq(schema.orgs.id, integration.orgId))
-      .limit(1);
-
-    const token = await decryptSecretValue(this.db, integration.encryptedBotToken);
+    const orgs = await Promise.all(
+      unrouted.map(async (integration) => ({
+        integrationId: integration.id,
+        orgName: await orgName(this.db, integration.orgId),
+      })),
+    );
+    const single = orgs.length === 1 ? orgs[0]! : null;
+    const token = await decryptSecretValue(this.db, unrouted[0]!.encryptedBotToken);
     try {
       await this.api.postMessage({
         token,
         channel: event.channel,
-        text: routePromptText(org?.name ?? null),
-        blocks: routePromptBlocks(integration.id, org?.name ?? null),
+        text: single ? routePromptText(single.orgName) : sharedRoutePromptText(),
+        blocks: single
+          ? routePromptBlocks(single.integrationId, single.orgName)
+          : sharedRoutePromptBlocks(orgs),
       });
     } catch (err) {
       this.logger.warn(`route prompt failed for ${event.channel}: ${describeError(err)}`);
@@ -334,11 +349,16 @@ export class SlackInboundService {
     }
   }
 
-  private async rejectReply(token: string, event: MessageEvent): Promise<void> {
+  private async rejectReply(
+    token: string,
+    event: MessageEvent,
+    sharedOrgName: string | null,
+  ): Promise<void> {
+    const org = sharedOrgName ? `the Munin org *${escapeSlackText(sharedOrgName)}*` : 'this Munin org';
     await this.notify(
       token,
       event,
-      ':no_entry: Your reply was *not sent to the customer* — your Slack account is not linked to a member of this Munin org. Ask an admin to add you with your Slack email, or reply from the Munin dashboard.',
+      `:no_entry: Your reply was *not sent to the customer* — your Slack account is not linked to a member of ${org}. Ask an admin to add you with your Slack email, or reply from the Munin dashboard.`,
     );
   }
 

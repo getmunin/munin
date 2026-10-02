@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, afterEach } from 'vitest';
 import { and, eq, sql } from 'drizzle-orm';
 import { StubEmbeddingProvider, WebhookDispatcher } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
@@ -31,6 +31,7 @@ import { SlackEventSink } from './slack-event-sink.ts';
 import { SlackInteractionsService } from './slack-interactions.service.ts';
 import { SlackUserMappingService } from './slack-user-mapping.service.ts';
 import { SlackService, encryptSecretValue } from './slack.service.ts';
+import { sharedRoutePromptBlocks } from './slack-projection.ts';
 import { mergeFingerprint } from '../crm/merge-fingerprint.ts';
 import { stubAttachmentGateway } from '../conv/attachments/conv-attachments.test-stub.ts';
 
@@ -45,7 +46,7 @@ const CHANNEL = 'C_ACTIONS';
 class FakeSlackApi extends SlackApiClient {
   usersById = new Map<string, { email: string | null }>();
   ephemerals: { user: string; text: string }[] = [];
-  updated: { channel: string; ts: string; text: string }[] = [];
+  updated: { channel: string; ts: string; text: string; blocks?: unknown[] }[] = [];
 
   override usersInfo(input: { token: string; user: string }) {
     const entry = this.usersById.get(input.user);
@@ -66,8 +67,19 @@ class FakeSlackApi extends SlackApiClient {
     return Promise.resolve({ id: input.channel, name: 'routed', isMember: true });
   }
 
-  override updateMessage(input: { token: string; channel: string; ts: string; text: string }) {
-    this.updated.push({ channel: input.channel, ts: input.ts, text: input.text });
+  override updateMessage(input: {
+    token: string;
+    channel: string;
+    ts: string;
+    text: string;
+    blocks?: unknown[];
+  }) {
+    this.updated.push({
+      channel: input.channel,
+      ts: input.ts,
+      text: input.text,
+      blocks: input.blocks,
+    });
     return Promise.resolve();
   }
 
@@ -281,6 +293,35 @@ class FakeSlackApi extends SlackApiClient {
 
     expect((await conversation()).status).toBe('open');
     expect(api.ephemerals).toHaveLength(1);
+    expect(api.ephemerals[0]!.text).toContain('add you to the org');
+  });
+
+  it('names the org when rejecting an unmapped clicker in a channel another org shares', async () => {
+    const [otherOrg] = await db.insert(schema.orgs).values({ name: 'Globex' }).returning();
+    try {
+      const encrypted = await encryptSecretValue(db, 'xoxb-globex');
+      const [other] = await db
+        .insert(schema.slackIntegrations)
+        .values({ orgId: otherOrg!.id, teamId: 'T_ACTIONS', encryptedBotToken: encrypted })
+        .returning();
+      await db.insert(schema.slackChannelRoutes).values({
+        orgId: otherOrg!.id,
+        integrationId: other!.id,
+        teamId: 'T_ACTIONS',
+        slackChannelId: CHANNEL,
+        purpose: 'default',
+      });
+      api.usersById.set('U_STRANGER', { email: 'stranger@example.com' });
+
+      await interactions.processBlockActions(
+        actionPayload('munin_close', { user: { id: 'U_STRANGER' } }),
+      );
+
+      expect((await conversation()).status).toBe('open');
+      expect(api.ephemerals[0]!.text).toContain('*Slack Interactions Test Org*');
+    } finally {
+      await db.delete(schema.orgs).where(sql`id = ${otherOrg!.id}`);
+    }
   });
 
   it('tells the clicker when the conversation is already claimed by someone else', async () => {
@@ -449,6 +490,102 @@ class FakeSlackApi extends SlackApiClient {
 
       expect(api.ephemerals).toHaveLength(1);
       expect(api.ephemerals[0]!.text).toContain('slack_conflict');
+    });
+
+    describe('in a channel several orgs share', () => {
+      let otherOrgId: string;
+      let otherIntegrationId: string;
+
+      beforeEach(async () => {
+        const [otherOrg] = await db.insert(schema.orgs).values({ name: 'Globex' }).returning();
+        otherOrgId = otherOrg!.id;
+        const encrypted = await encryptSecretValue(db, 'xoxb-globex');
+        const [other] = await db
+          .insert(schema.slackIntegrations)
+          .values({ orgId: otherOrgId, teamId: 'T_ACTIONS', encryptedBotToken: encrypted })
+          .returning();
+        otherIntegrationId = other!.id;
+      });
+
+      afterEach(async () => {
+        await db.delete(schema.orgs).where(sql`id = ${otherOrgId}`);
+      });
+
+      function sharedPrompt() {
+        return sharedRoutePromptBlocks([
+          { integrationId, orgName: 'Slack Interactions Test Org' },
+          { integrationId: otherIntegrationId, orgName: 'Globex' },
+        ]);
+      }
+
+      it('routes the channel even though another org already routes into it', async () => {
+        await db.insert(schema.slackChannelRoutes).values({
+          orgId: otherOrgId,
+          integrationId: otherIntegrationId,
+          teamId: 'T_ACTIONS',
+          slackChannelId: 'C_FRESH',
+          purpose: 'default',
+        });
+
+        await interactions.processBlockActions(routePayload('munin_route_default'));
+
+        const rows = await routes();
+        expect(rows.map((r) => r.orgId).sort()).toEqual([orgId, otherOrgId].sort());
+        expect(api.ephemerals).toHaveLength(0);
+        expect(api.updated[0]!.text).toContain('*Slack Interactions Test Org*');
+        expect(api.updated[0]!.blocks).toEqual([]);
+      });
+
+      it('resolves only the clicked org in a shared prompt and keeps the others actionable', async () => {
+        const blocks = sharedPrompt();
+        await interactions.processBlockActions(
+          routePayload('munin_route_default', {
+            message: { ts: '1750000000.000900', blocks },
+          }),
+        );
+
+        expect(await routes()).toHaveLength(1);
+        const update = api.updated[0]!;
+        expect(update.text).toContain('*Slack Interactions Test Org*');
+        const ids = (update.blocks as { block_id?: string }[]).map((b) => b.block_id ?? null);
+        expect(ids).toEqual([
+          null,
+          `munin_route_org:${integrationId}`,
+          `munin_route_org:${otherIntegrationId}`,
+          `munin_route_actions:${otherIntegrationId}`,
+        ]);
+        const resolved = (update.blocks as { text?: { text: string } }[])[1]!.text!.text;
+        expect(resolved).toContain('*Slack Interactions Test Org*');
+        expect(resolved).toContain('all mirrored conversations');
+      });
+
+      it('dismissing in a shared prompt leaves the other org untouched', async () => {
+        await interactions.processBlockActions(
+          routePayload('munin_route_dismiss', {
+            message: { ts: '1750000000.000900', blocks: sharedPrompt() },
+          }),
+        );
+
+        expect(await routes()).toHaveLength(0);
+        const ids = (api.updated[0]!.blocks as { block_id?: string }[]).map(
+          (b) => b.block_id ?? null,
+        );
+        expect(ids).toContain(`munin_route_actions:${otherIntegrationId}`);
+        expect(ids).not.toContain(`munin_route_actions:${integrationId}`);
+      });
+
+      it('names the org when an unlinked clicker hits a shared prompt', async () => {
+        api.usersById.set('U_NOBODY', { email: 'nobody@example.com' });
+        await interactions.processBlockActions(
+          routePayload('munin_route_default', {
+            user: { id: 'U_NOBODY' },
+            message: { ts: '1750000000.000900', blocks: sharedPrompt() },
+          }),
+        );
+
+        expect(api.ephemerals).toHaveLength(1);
+        expect(api.ephemerals[0]!.text).toContain('*Slack Interactions Test Org*');
+      });
     });
   });
   describe('approval buttons', () => {

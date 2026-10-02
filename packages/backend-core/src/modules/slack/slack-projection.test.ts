@@ -23,6 +23,11 @@ import {
   statusChangedText,
   threadParentBlocks,
   threadParentText,
+  isSharedRoutePrompt,
+  MAX_SHARED_ROUTE_PROMPT_ORGS,
+  resolveSharedRoutePrompt,
+  sharedRoutePromptBlocks,
+  withOrgLabel,
   type ConversationSnapshot,
 } from './slack-projection.ts';
 
@@ -570,5 +575,73 @@ describe('socialDraftApprovalText', () => {
     expect(text).toContain(
       '*Link:* <https://www.example.test/no/blog/post/?utm_source=linkedin&utm_medium=social|example.test/no/blog/post>',
     );
+  });
+});
+
+describe('withOrgLabel', () => {
+  it('leaves a message untouched when no org name is given', () => {
+    const message = { channel: 'C1', text: 'hello', blocks: [{ type: 'section' }] };
+    expect(withOrgLabel(message, null)).toBe(message);
+  });
+
+  it('prefixes the text of a text-only message without inventing blocks', () => {
+    const labeled = withOrgLabel({ channel: 'C1', text: 'hello' }, 'Acme <Ops>');
+    expect(labeled).toEqual({ channel: 'C1', text: ':office: *Acme &lt;Ops&gt;*\nhello' });
+  });
+
+  it('puts a context block above existing blocks and prefixes the fallback text', () => {
+    const labeled = withOrgLabel({ text: 'hello', blocks: [{ type: 'section' }] }, 'Acme');
+    expect(labeled.text).toBe(':office: *Acme*\nhello');
+    expect(labeled.blocks).toEqual([
+      { type: 'context', elements: [{ type: 'mrkdwn', text: ':office: *Acme*' }] },
+      { type: 'section' },
+    ]);
+  });
+
+  it('keeps an empty block list empty so a cleared message stays cleared', () => {
+    expect(withOrgLabel({ text: 'done', blocks: [] }, 'Acme').blocks).toEqual([]);
+  });
+});
+
+describe('shared route prompt', () => {
+  const orgs = [
+    { integrationId: 'slk_a', orgName: 'Acme' },
+    { integrationId: 'slk_b', orgName: null },
+  ];
+
+  it('gives every org its own labelled row of buttons', () => {
+    const blocks = sharedRoutePromptBlocks(orgs);
+    expect(blocks.map((b) => b.block_id ?? null)).toEqual([
+      null,
+      'munin_route_org:slk_a',
+      'munin_route_actions:slk_a',
+      'munin_route_org:slk_b',
+      'munin_route_actions:slk_b',
+    ]);
+    expect(JSON.stringify(blocks)).toContain('Unnamed org');
+    expect(isSharedRoutePrompt(blocks, 'slk_b')).toBe(true);
+    expect(isSharedRoutePrompt(blocks, 'slk_c')).toBe(false);
+    expect(isSharedRoutePrompt(null, 'slk_a')).toBe(false);
+  });
+
+  it('stays inside the Slack block limit however many orgs share the workspace', () => {
+    const many = Array.from({ length: 40 }, (_, i) => ({ integrationId: `slk_${i}`, orgName: `Org ${i}` }));
+    expect(sharedRoutePromptBlocks(many)).toHaveLength(1 + MAX_SHARED_ROUTE_PROMPT_ORGS * 2);
+    expect(1 + MAX_SHARED_ROUTE_PROMPT_ORGS * 2).toBeLessThanOrEqual(50);
+  });
+
+  it('replaces only the resolved org row and drops its buttons', () => {
+    const resolved = resolveSharedRoutePrompt(sharedRoutePromptBlocks(orgs), 'slk_a', 'Acme', 'Done.');
+    expect(resolved.map((b) => b.block_id ?? null)).toEqual([
+      null,
+      'munin_route_org:slk_a',
+      'munin_route_org:slk_b',
+      'munin_route_actions:slk_b',
+    ]);
+    expect(resolved[1]).toEqual({
+      type: 'section',
+      block_id: 'munin_route_org:slk_a',
+      text: { type: 'mrkdwn', text: ':office: *Acme*\nDone.' },
+    });
   });
 });

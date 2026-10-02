@@ -2396,10 +2396,10 @@ export const slackIntegrations = pgTable(
   }),
 );
 
-// Which Slack channel an org's conversations mirror into. The
-// (team_id, slack_channel_id) unique constraint is the multi-org
-// invariant: a Slack channel belongs to exactly one org (and one route),
-// so inbound channel→org resolution is always unambiguous. A non-null
+// Which Slack channel an org's conversations mirror into. Several orgs may
+// share one Slack channel — inbound events resolve their org through the
+// thread link or the button's subject, never the channel alone — but within
+// an org (integration) a channel serves exactly one route. A non-null
 // conv_channel_id makes the row a source-channel override: conversations
 // arriving on that conv channel mirror there instead of the default.
 export const slackChannelRoutes = pgTable(
@@ -2426,7 +2426,11 @@ export const slackChannelRoutes = pgTable(
     updatedAt,
   },
   (t) => ({
-    teamChannelUq: uniqueIndex('slack_channel_routes_team_channel_uq').on(
+    integrationChannelUq: uniqueIndex('slack_channel_routes_integration_channel_uq').on(
+      t.integrationId,
+      t.slackChannelId,
+    ),
+    teamChannelIdx: index('slack_channel_routes_team_channel_idx').on(
       t.teamId,
       t.slackChannelId,
     ),

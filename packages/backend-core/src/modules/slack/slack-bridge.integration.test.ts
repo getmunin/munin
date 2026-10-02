@@ -300,6 +300,8 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     expect(reply!.iconUrl).toMatch(/\/v1\/slack\/avatars\/A\.[0-9a-f]{8}\.png$/);
     expect(reply!.iconEmoji).toBeUndefined();
     expect(reply!.text).not.toContain('*Ada Lovelace*');
+    expect(parent!.text).not.toContain(':office:');
+    expect((parent!.blocks![0] as { type: string }).type).toBe('section');
 
     const [link] = await db
       .select()
@@ -1020,10 +1022,11 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     expect(rows).toHaveLength(0);
   });
 
-  it('rejects routing a channel already claimed by another org', async () => {
-    const api = new FakeSlackApi();
-    const service = new SlackService(db, api);
-
+  async function withSharingOrg(
+    slackChannelId: string,
+    fn: () => Promise<void>,
+    options: { active?: boolean } = {},
+  ): Promise<void> {
     const [otherOrg] = await db
       .insert(schema.orgs)
       .values({ name: 'Slack Bridge Other Org' })
@@ -1032,22 +1035,122 @@ function actionIds(blocks: unknown[] | undefined): string[] {
       const encrypted = await encryptSecretValue(db, 'xoxb-other-token');
       const [otherIntegration] = await db
         .insert(schema.slackIntegrations)
-        .values({ orgId: otherOrg!.id, teamId: 'T_TEST', encryptedBotToken: encrypted })
+        .values({
+          orgId: otherOrg!.id,
+          teamId: 'T_TEST',
+          encryptedBotToken: encrypted,
+          active: options.active ?? true,
+        })
         .returning();
       await db.insert(schema.slackChannelRoutes).values({
         orgId: otherOrg!.id,
         integrationId: otherIntegration!.id,
         teamId: 'T_TEST',
-        slackChannelId: 'C_CLAIMED',
+        slackChannelId,
         purpose: 'default',
       });
-
-      await expect(
-        run(() => service.setRouting({ slackChannelId: 'C_CLAIMED' })),
-      ).rejects.toThrow(ConflictException);
+      await fn();
     } finally {
       await db.delete(schema.orgs).where(sql`id = ${otherOrg!.id}`);
     }
+  }
+
+  it('lets a second org route into a channel another org already uses', async () => {
+    const api = new FakeSlackApi();
+    const service = new SlackService(db, api);
+    await withSharingOrg('C_SHARED', async () => {
+      const route = await run(() =>
+        service.setRouting({ slackChannelId: 'C_SHARED', purpose: 'escalations' }),
+      );
+      expect(route.slackChannelId).toBe('C_SHARED');
+      expect(route.sharedChannel).toBe(true);
+    });
+  });
+
+  it('reports an unshared channel as such', async () => {
+    const api = new FakeSlackApi();
+    const service = new SlackService(db, api);
+    const route = await run(() => service.setRouting({ slackChannelId: 'C_ALONE' }));
+    expect(route.sharedChannel).toBe(false);
+  });
+
+  it('names the org on top-level messages while another org shares the channel, not in threads', async () => {
+    await withSharingOrg('C_DEFAULT', async () => {
+      const api = new FakeSlackApi();
+      const worker = new SlackBridgeWorker(db, api);
+      const conversationId = await seedConversation();
+      const messageId = await seedMessage(conversationId, 'Where is my parcel?');
+      await enqueue('conversation.message.received', conversationId, {
+        conversationId,
+        messageId,
+        authorType: 'end_user',
+        internal: false,
+      });
+      await enqueue('conversation.status_changed', conversationId, {
+        conversationId,
+        status: 'pending',
+      });
+
+      await worker.tick();
+      const [parent, ...replies] = api.posted;
+      expect(parent!.threadTs).toBeUndefined();
+      expect(parent!.text.startsWith(':office: *Slack Bridge Test Org*\n')).toBe(true);
+      expect(parent!.blocks![0]).toEqual({
+        type: 'context',
+        elements: [{ type: 'mrkdwn', text: ':office: *Slack Bridge Test Org*' }],
+      });
+      expect(actionIds(parent!.blocks)).toEqual(['munin_claim', 'munin_close']);
+      expect(replies.length).toBeGreaterThan(0);
+      for (const reply of replies) {
+        expect(reply.threadTs).toBe(parent!.ts);
+        expect(reply.text).not.toContain(':office:');
+      }
+
+      const parentUpdate = api.updated.find((u) => u.ts === parent!.ts);
+      expect(parentUpdate!.text.startsWith(':office: *Slack Bridge Test Org*\n')).toBe(true);
+      expect((parentUpdate!.blocks![0] as { type: string }).type).toBe('context');
+    });
+  });
+
+  it('names the org on escalation alerts in a shared escalations channel', async () => {
+    await db.insert(schema.slackChannelRoutes).values({
+      orgId,
+      integrationId,
+      teamId: 'T_TEST',
+      slackChannelId: 'C_ESC_SHARED',
+      purpose: 'escalations',
+    });
+    await withSharingOrg('C_ESC_SHARED', async () => {
+      const api = new FakeSlackApi();
+      const worker = new SlackBridgeWorker(db, api);
+      const conversationId = await seedConversation();
+      await enqueue('conversation.handover_requested', conversationId, {
+        conversationId,
+        reason: 'Wants a refund',
+      });
+
+      await worker.tick();
+      const alert = api.posted.find((p) => p.channel === 'C_ESC_SHARED');
+      expect(alert!.text.startsWith(':office: *Slack Bridge Test Org*\n')).toBe(true);
+      const parent = api.posted.find((p) => p.channel === 'C_DEFAULT' && !p.threadTs);
+      expect(parent!.text).not.toContain(':office:');
+    });
+  });
+
+  it('does not count an inactive integration as sharing the channel', async () => {
+    await withSharingOrg(
+      'C_DEFAULT',
+      async () => {
+        const api = new FakeSlackApi();
+        const worker = new SlackBridgeWorker(db, api);
+        const conversationId = await seedConversation();
+        await enqueue('conversation.created', conversationId, { conversationId });
+
+        await worker.tick();
+        expect(api.posted[0]!.text).not.toContain(':office:');
+      },
+      { active: false },
+    );
   });
 
   it('rejects reusing a slack channel across routes of the same org', async () => {

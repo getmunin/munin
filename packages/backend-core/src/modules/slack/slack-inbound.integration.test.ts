@@ -26,7 +26,8 @@ class FakeSlackApi extends SlackApiClient {
   usersById = new Map<string, { email: string | null; isBot?: boolean }>();
   usersInfoCalls = 0;
   ephemerals: { channel: string; user: string; text: string }[] = [];
-  posted: { channel: string; text: string; threadTs?: string; ts: string }[] = [];
+  posted: { channel: string; text: string; blocks?: unknown[]; threadTs?: string; ts: string }[] =
+    [];
   private counter = 0;
 
   override usersInfo(input: { token: string; user: string }) {
@@ -49,10 +50,22 @@ class FakeSlackApi extends SlackApiClient {
     return Promise.resolve();
   }
 
-  override postMessage(input: { token: string; channel: string; text: string; threadTs?: string }) {
+  override postMessage(input: {
+    token: string;
+    channel: string;
+    text: string;
+    blocks?: unknown[];
+    threadTs?: string;
+  }) {
     this.counter += 1;
     const ts = `1750000001.${String(this.counter).padStart(6, '0')}`;
-    this.posted.push({ channel: input.channel, text: input.text, threadTs: input.threadTs, ts });
+    this.posted.push({
+      channel: input.channel,
+      text: input.text,
+      blocks: input.blocks,
+      threadTs: input.threadTs,
+      ts,
+    });
     return Promise.resolve({ ts, channel: input.channel });
   }
 
@@ -308,6 +321,39 @@ class FakeSlackApi extends SlackApiClient {
     expect(await messages()).toHaveLength(0);
     expect(api.ephemerals).toHaveLength(1);
     expect(api.ephemerals[0]).toMatchObject({ channel: CHANNEL, user: 'U_OPERATOR' });
+    expect(api.ephemerals[0]!.text).toContain('this Munin org');
+  });
+
+  it('names the org when rejecting an unmapped reply in a channel another org shares', async () => {
+    api.usersById.set('U_OPERATOR', { email: 'stranger@example.com' });
+    const [otherOrg] = await db.insert(schema.orgs).values({ name: 'Globex' }).returning();
+    try {
+      const encrypted = await encryptSecretValue(db, 'xoxb-globex');
+      const [other] = await db
+        .insert(schema.slackIntegrations)
+        .values({
+          orgId: otherOrg!.id,
+          teamId: 'T_INBOUND',
+          encryptedBotToken: encrypted,
+          botUserId: 'U_MUNIN_BOT',
+        })
+        .returning();
+      await db.insert(schema.slackChannelRoutes).values({
+        orgId: otherOrg!.id,
+        integrationId: other!.id,
+        teamId: 'T_INBOUND',
+        slackChannelId: CHANNEL,
+        purpose: 'default',
+      });
+
+      await inbound.processEventCallback(replyPayload());
+
+      expect(await messages()).toHaveLength(0);
+      expect(api.ephemerals).toHaveLength(1);
+      expect(api.ephemerals[0]!.text).toContain('*Slack Inbound Test Org*');
+    } finally {
+      await db.delete(schema.orgs).where(sql`id = ${otherOrg!.id}`);
+    }
   });
 
   it('rejects a previously-mapped user whose org membership was revoked', async () => {
@@ -540,25 +586,71 @@ class FakeSlackApi extends SlackApiClient {
       expect(api.posted).toHaveLength(0);
     });
 
-    it('stays silent when several orgs share the workspace', async () => {
+    async function withSecondOrg(fn: (secondIntegrationId: string) => Promise<void>) {
       const [otherOrg] = await db
         .insert(schema.orgs)
         .values({ name: 'Second Slack Org' })
         .returning();
       try {
         const encrypted = await encryptSecretValue(db, 'xoxb-second-org');
-        await db.insert(schema.slackIntegrations).values({
-          orgId: otherOrg!.id,
-          teamId: 'T_INBOUND',
-          encryptedBotToken: encrypted,
-          botUserId: 'U_MUNIN_BOT',
-        });
-
-        await inbound.processEventCallback(joinPayload());
-        expect(api.posted).toHaveLength(0);
+        const [second] = await db
+          .insert(schema.slackIntegrations)
+          .values({
+            orgId: otherOrg!.id,
+            teamId: 'T_INBOUND',
+            encryptedBotToken: encrypted,
+            botUserId: 'U_MUNIN_BOT',
+          })
+          .returning();
+        await fn(second!.id);
       } finally {
         await db.delete(schema.orgs).where(sql`id = ${otherOrg!.id}`);
       }
+    }
+
+    function blockIds(blocks: unknown[] | undefined): string[] {
+      return (blocks ?? []).flatMap((block) => {
+        const id = (block as { block_id?: string }).block_id;
+        return id ? [id] : [];
+      });
+    }
+
+    it('asks every org sharing the workspace in one prompt, each with its own buttons', async () => {
+      await withSecondOrg(async (secondIntegrationId) => {
+        await inbound.processEventCallback(joinPayload());
+
+        expect(api.posted).toHaveLength(1);
+        const prompt = api.posted[0]!;
+        expect(prompt.channel).toBe('C_JOINED');
+        expect(prompt.text).toContain('Several Munin orgs');
+        expect(blockIds(prompt.blocks)).toEqual([
+          `munin_route_org:${integrationId}`,
+          `munin_route_actions:${integrationId}`,
+          `munin_route_org:${secondIntegrationId}`,
+          `munin_route_actions:${secondIntegrationId}`,
+        ]);
+        const text = JSON.stringify(prompt.blocks);
+        expect(text).toContain('*Slack Inbound Test Org*');
+        expect(text).toContain('*Second Slack Org*');
+      });
+    });
+
+    it('asks only the orgs not yet routed into the channel', async () => {
+      await withSecondOrg(async () => {
+        await db.insert(schema.slackChannelRoutes).values({
+          orgId,
+          integrationId,
+          teamId: 'T_INBOUND',
+          slackChannelId: 'C_JOINED',
+          purpose: 'escalations',
+        });
+
+        await inbound.processEventCallback(joinPayload());
+
+        expect(api.posted).toHaveLength(1);
+        expect(api.posted[0]!.text).toContain('*Second Slack Org*');
+        expect(blockIds(api.posted[0]!.blocks)).toEqual([]);
+      });
     });
   });
 });

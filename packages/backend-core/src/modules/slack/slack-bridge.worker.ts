@@ -42,7 +42,9 @@ import {
   type ConversationSnapshot,
   type ParentState,
   type SlackBlock,
+  withOrgLabel,
 } from './slack-projection.ts';
+import { sharedChannelOrgName } from './slack-shared-channel.ts';
 import {
   SLACK_ANNOUNCEMENT_SUBJECT_TYPES,
   approvalSubjectRef,
@@ -245,7 +247,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       case 'conversation.created':
         return;
       case 'conversation.subject_changed':
-        return await this.syncParent(link, context, token);
+        return await this.syncParent(input.integration, link, context, token);
       case 'conversation.message.received':
       case 'conversation.message.sent':
         return await this.mirrorMessage({ row, payload, context, link, token });
@@ -253,37 +255,39 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         return await this.reviseMirroredMessage({ payload, context, token });
       case 'conversation.handover_requested': {
         const reason = typeof payload.reason === 'string' ? payload.reason : null;
-        await this.api.postMessage({
-          token,
-          channel: escalationRoute.slackChannelId,
-          text: escalationAlertText(context.snapshot, reason, escalationRoute.mention),
-        });
-        await this.syncParent(link, context, token);
+        await this.api.postMessage(
+          await this.labeledForChannel(input.integration, {
+            token,
+            channel: escalationRoute.slackChannelId,
+            text: escalationAlertText(context.snapshot, reason, escalationRoute.mention),
+          }),
+        );
+        await this.syncParent(input.integration, link, context, token);
         return await this.postThreadReply(token, link, handoverRequestedText(reason));
       }
       case 'conversation.handover_resolved':
-        await this.syncParent(link, context, token);
+        await this.syncParent(input.integration, link, context, token);
         return await this.postThreadReply(token, link, handoverResolvedText());
       case 'conversation.status_changed': {
         const status = typeof payload.status === 'string' ? payload.status : 'unknown';
-        await this.syncParent(link, context, token);
+        await this.syncParent(input.integration, link, context, token);
         return await this.postThreadReply(token, link, statusChangedText(status));
       }
       case 'conversation.assigned': {
         const assigneeUserId =
           typeof payload.assigneeUserId === 'string' ? payload.assigneeUserId : null;
         const name = assigneeUserId ? await this.userName(assigneeUserId) : null;
-        await this.syncParent(link, context, token);
+        await this.syncParent(input.integration, link, context, token);
         return await this.postThreadReply(token, link, assignedText(name));
       }
       case 'conversation.taken_over': {
         const name = await this.holderName(payload);
-        await this.syncParent(link, context, token);
+        await this.syncParent(input.integration, link, context, token);
         return await this.postThreadReply(token, link, takenOverText(name));
       }
       case 'conversation.released': {
         const name = await this.holderName(payload);
-        await this.syncParent(link, context, token);
+        await this.syncParent(input.integration, link, context, token);
         return await this.postThreadReply(token, link, releasedText(name));
       }
       default:
@@ -447,12 +451,10 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
 
     let posted;
     try {
-      posted = await this.api.postMessage({
-        token,
-        channel: route.slackChannelId,
-        text,
-        threadTs,
-      });
+      const message = { token, channel: route.slackChannelId, text, threadTs };
+      posted = await this.api.postMessage(
+        threadTs ? message : await this.labeledForChannel(integration, message),
+      );
     } catch (err) {
       if (err instanceof SlackApiError && err.apiError === 'not_in_channel') {
         throw new TerminalDeliveryError('bot_not_in_channel');
@@ -536,13 +538,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     if (outcome) {
       if (!link || link.resolvedAt) return;
       const rendering = await this.renderApproval(integration.orgId, subject, payload, actorId, outcome);
-      await this.api.updateMessage({
-        token,
-        channel: link.slackChannelId,
-        ts: link.slackTs,
-        text: rendering.text,
-        blocks: rendering.blocks,
-      });
+      await this.updateCard(integration, link, token, rendering);
       await this.db
         .update(schema.slackNotificationLinks)
         .set({ resolvedAt: new Date() })
@@ -553,13 +549,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
 
     const rendering = await this.renderApproval(integration.orgId, subject, payload, actorId, null);
     if (link) {
-      await this.api.updateMessage({
-        token,
-        channel: link.slackChannelId,
-        ts: link.slackTs,
-        text: rendering.text,
-        blocks: rendering.blocks,
-      });
+      await this.updateCard(integration, link, token, rendering);
       if (rendering.resolved && !link.resolvedAt) {
         await this.db
           .update(schema.slackNotificationLinks)
@@ -583,13 +573,10 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
 
     let posted;
     try {
-      posted = await this.api.postMessage({
-        token,
-        channel,
-        threadTs,
-        text: rendering.text,
-        blocks: rendering.blocks,
-      });
+      const message = { token, channel, threadTs, text: rendering.text, blocks: rendering.blocks };
+      posted = await this.api.postMessage(
+        threadTs ? message : await this.labeledForChannel(integration, message),
+      );
     } catch (err) {
       if (err instanceof SlackApiError && err.apiError === 'not_in_channel') {
         throw new TerminalDeliveryError('bot_not_in_channel');
@@ -722,7 +709,9 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     );
     let posted;
     try {
-      posted = await this.api.postMessage({ token, channel: route.slackChannelId, text });
+      posted = await this.api.postMessage(
+        await this.labeledForChannel(integration, { token, channel: route.slackChannelId, text }),
+      );
     } catch (err) {
       if (err instanceof SlackApiError && err.apiError === 'not_in_channel') {
         throw new TerminalDeliveryError('bot_not_in_channel');
@@ -731,12 +720,14 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     }
     if (link && !link.resolvedAt) {
       await this.api
-        .updateMessage({
-          token,
-          channel: link.slackChannelId,
-          ts: link.slackTs,
-          text: outreachCampaignParentMovedText(context.campaignName),
-        })
+        .updateMessage(
+          await this.labeledForChannel(integration, {
+            token,
+            channel: link.slackChannelId,
+            ts: link.slackTs,
+            text: outreachCampaignParentMovedText(context.campaignName),
+          }),
+        )
         .catch(() => undefined);
     }
     if (link) {
@@ -776,16 +767,18 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     if (!context) return;
     const link = await this.outreachParentLink(integration.id, context.campaignId);
     if (!link) return;
-    await this.api.updateMessage({
-      token,
-      channel: link.slackChannelId,
-      ts: link.slackTs,
-      text: outreachCampaignParentText(
-        context.campaignName,
-        context.pendingCount,
-        reviewListUrl(integration.orgId),
-      ),
-    });
+    await this.api.updateMessage(
+      await this.labeledForChannel(integration, {
+        token,
+        channel: link.slackChannelId,
+        ts: link.slackTs,
+        text: outreachCampaignParentText(
+          context.campaignName,
+          context.pendingCount,
+          reviewListUrl(integration.orgId),
+        ),
+      }),
+    );
     if (context.pendingCount === 0 && !link.resolvedAt) {
       await this.db
         .update(schema.slackNotificationLinks)
@@ -887,11 +880,13 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
 
     let posted;
     try {
-      posted = await this.api.postMessage({
-        token,
-        channel: route.slackChannelId,
-        text: cmsGroupParentText({ ...context, dashboardUrl: reviewListUrl(integration.orgId) }),
-      });
+      posted = await this.api.postMessage(
+        await this.labeledForChannel(integration, {
+          token,
+          channel: route.slackChannelId,
+          text: cmsGroupParentText({ ...context, dashboardUrl: reviewListUrl(integration.orgId) }),
+        }),
+      );
     } catch (err) {
       if (err instanceof SlackApiError && err.apiError === 'not_in_channel') {
         throw new TerminalDeliveryError('bot_not_in_channel');
@@ -986,12 +981,14 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     if (!context) return;
     const link = await this.cmsGroupParentLink(integration.id, context.groupId);
     if (!link) return;
-    await this.api.updateMessage({
-      token,
-      channel: link.slackChannelId,
-      ts: link.slackTs,
-      text: cmsGroupParentText({ ...context, dashboardUrl: reviewListUrl(integration.orgId) }),
-    });
+    await this.api.updateMessage(
+      await this.labeledForChannel(integration, {
+        token,
+        channel: link.slackChannelId,
+        ts: link.slackTs,
+        text: cmsGroupParentText({ ...context, dashboardUrl: reviewListUrl(integration.orgId) }),
+      }),
+    );
     if (context.pendingLocales.length === 0 && !link.resolvedAt) {
       await this.db
         .update(schema.slackNotificationLinks)
@@ -1072,11 +1069,13 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
 
     let posted;
     try {
-      posted = await this.api.postMessage({
-        token,
-        channel: route.slackChannelId,
-        text: socialSetParentText({ ...context, dashboardUrl: reviewListUrl(integration.orgId) }),
-      });
+      posted = await this.api.postMessage(
+        await this.labeledForChannel(integration, {
+          token,
+          channel: route.slackChannelId,
+          text: socialSetParentText({ ...context, dashboardUrl: reviewListUrl(integration.orgId) }),
+        }),
+      );
     } catch (err) {
       if (err instanceof SlackApiError && err.apiError === 'not_in_channel') {
         throw new TerminalDeliveryError('bot_not_in_channel');
@@ -1113,12 +1112,14 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     if (!context) return;
     const link = await this.socialSetParentLink(integration.id, context.setId);
     if (!link) return;
-    await this.api.updateMessage({
-      token,
-      channel: link.slackChannelId,
-      ts: link.slackTs,
-      text: socialSetParentText({ ...context, dashboardUrl: reviewListUrl(integration.orgId) }),
-    });
+    await this.api.updateMessage(
+      await this.labeledForChannel(integration, {
+        token,
+        channel: link.slackChannelId,
+        ts: link.slackTs,
+        text: socialSetParentText({ ...context, dashboardUrl: reviewListUrl(integration.orgId) }),
+      }),
+    );
     if (context.pendingCount === 0 && !link.resolvedAt) {
       await this.db
         .update(schema.slackNotificationLinks)
@@ -1391,12 +1392,14 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     const state = await this.loadParentState(context);
     let posted;
     try {
-      posted = await this.api.postMessage({
-        token,
-        channel: defaultRoute.slackChannelId,
-        text: `${threadParentText(context.snapshot)}\n${parentStateLine(state)}`,
-        blocks: threadParentBlocks(context.snapshot, state, context.conversation.id),
-      });
+      posted = await this.api.postMessage(
+        await this.labeledForChannel(integration, {
+          token,
+          channel: defaultRoute.slackChannelId,
+          text: `${threadParentText(context.snapshot)}\n${parentStateLine(state)}`,
+          blocks: threadParentBlocks(context.snapshot, state, context.conversation.id),
+        }),
+      );
     } catch (err) {
       if (err instanceof SlackApiError && err.apiError === 'not_in_channel') {
         throw new TerminalDeliveryError('bot_not_in_channel');
@@ -1425,24 +1428,52 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   private async syncParent(
+    integration: IntegrationRow,
     link: LinkRow,
     context: ConversationContext,
     token: string,
   ): Promise<void> {
     const state = await this.loadParentState(context);
     try {
-      await this.api.updateMessage({
-        token,
-        channel: link.slackChannelId,
-        ts: link.slackThreadTs,
-        text: `${threadParentText(context.snapshot)}\n${parentStateLine(state)}`,
-        blocks: threadParentBlocks(context.snapshot, state, context.conversation.id),
-      });
+      await this.api.updateMessage(
+        await this.labeledForChannel(integration, {
+          token,
+          channel: link.slackChannelId,
+          ts: link.slackThreadTs,
+          text: `${threadParentText(context.snapshot)}\n${parentStateLine(state)}`,
+          blocks: threadParentBlocks(context.snapshot, state, context.conversation.id),
+        }),
+      );
     } catch (err) {
       if (!(err instanceof SlackApiError) || err.apiError !== 'message_not_found') throw err;
       await this.retireLink(link);
       throw new TerminalDeliveryError('slack_thread_missing');
     }
+  }
+
+  private async labeledForChannel<T extends { channel: string; text: string; blocks?: unknown[] }>(
+    integration: IntegrationRow,
+    message: T,
+  ) {
+    return withOrgLabel(message, await sharedChannelOrgName(this.db, integration, message.channel));
+  }
+
+  private async updateCard(
+    integration: IntegrationRow,
+    link: typeof schema.slackNotificationLinks.$inferSelect,
+    token: string,
+    rendering: { text: string; blocks: SlackBlock[] },
+  ): Promise<void> {
+    const message = {
+      token,
+      channel: link.slackChannelId,
+      ts: link.slackTs,
+      text: rendering.text,
+      blocks: rendering.blocks,
+    };
+    await this.api.updateMessage(
+      link.slackThreadTs ? message : await this.labeledForChannel(integration, message),
+    );
   }
 
   private async retireLink(link: LinkRow): Promise<void> {

@@ -268,6 +268,23 @@ export function threadParentBlocks(
   ];
 }
 
+export function orgLabelLine(orgName: string): string {
+  return `:office: *${escapeSlackText(orgName)}*`;
+}
+
+export function withOrgLabel<T extends { text: string; blocks?: unknown[] }>(
+  message: T,
+  orgName: string | null,
+): Omit<T, 'text' | 'blocks'> & { text: string; blocks?: unknown[] } {
+  if (!orgName) return message;
+  const line = orgLabelLine(orgName);
+  const blocks =
+    message.blocks && message.blocks.length > 0
+      ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: line }] }, ...message.blocks]
+      : message.blocks;
+  return { ...message, text: `${line}\n${message.text}`, ...(blocks ? { blocks } : {}) };
+}
+
 export function testMessageText(orgName: string | null): string {
   const scope = orgName ? ` for *${escapeSlackText(orgName)}*` : '';
   return `:wave: Munin is connected${scope}. New conversations will mirror into this channel as threads.`;
@@ -282,18 +299,89 @@ export function routePromptText(orgName: string | null): string {
   return `:wave: Munin joined this channel. Should conversations${scope} mirror in here?`;
 }
 
+function routeButtons(integrationId: string): Record<string, unknown>[] {
+  return [
+    actionButton(ROUTE_DEFAULT_ACTION_ID, 'Mirror all conversations', integrationId),
+    actionButton(ROUTE_ESCALATIONS_ACTION_ID, 'Escalation alerts only', integrationId),
+    actionButton(ROUTE_DISMISS_ACTION_ID, 'Not now', integrationId),
+  ];
+}
+
 export function routePromptBlocks(integrationId: string, orgName: string | null): SlackBlock[] {
   return [
     { type: 'section', text: { type: 'mrkdwn', text: routePromptText(orgName) } },
-    {
-      type: 'actions',
-      elements: [
-        actionButton(ROUTE_DEFAULT_ACTION_ID, 'Mirror all conversations', integrationId),
-        actionButton(ROUTE_ESCALATIONS_ACTION_ID, 'Escalation alerts only', integrationId),
-        actionButton(ROUTE_DISMISS_ACTION_ID, 'Not now', integrationId),
-      ],
-    },
+    { type: 'actions', elements: routeButtons(integrationId) },
   ];
+}
+
+export interface RoutePromptOrg {
+  integrationId: string;
+  orgName: string | null;
+}
+
+export const MAX_SHARED_ROUTE_PROMPT_ORGS = 20;
+
+export function sharedRoutePromptText(): string {
+  return ':wave: Munin joined this channel. Several Munin orgs share this workspace — which of them should mirror in here?';
+}
+
+export function routePromptOrgBlockId(integrationId: string): string {
+  return `munin_route_org:${integrationId}`;
+}
+
+export function routePromptActionsBlockId(integrationId: string): string {
+  return `munin_route_actions:${integrationId}`;
+}
+
+function promptOrgLine(orgName: string | null): string {
+  return orgLabelLine(orgName ?? 'Unnamed org');
+}
+
+export function sharedRoutePromptBlocks(orgs: RoutePromptOrg[]): SlackBlock[] {
+  return [
+    { type: 'section', text: { type: 'mrkdwn', text: sharedRoutePromptText() } },
+    ...orgs.slice(0, MAX_SHARED_ROUTE_PROMPT_ORGS).flatMap((org) => [
+      {
+        type: 'section',
+        block_id: routePromptOrgBlockId(org.integrationId),
+        text: { type: 'mrkdwn', text: promptOrgLine(org.orgName) },
+      },
+      {
+        type: 'actions',
+        block_id: routePromptActionsBlockId(org.integrationId),
+        elements: routeButtons(org.integrationId),
+      },
+    ]),
+  ];
+}
+
+export function isSharedRoutePrompt(
+  blocks: readonly SlackBlock[] | null,
+  integrationId: string,
+): boolean {
+  const actionsId = routePromptActionsBlockId(integrationId);
+  return blocks?.some((block) => block.block_id === actionsId) === true;
+}
+
+export function resolveSharedRoutePrompt(
+  blocks: readonly SlackBlock[],
+  integrationId: string,
+  orgName: string | null,
+  outcome: string,
+): SlackBlock[] {
+  const orgId = routePromptOrgBlockId(integrationId);
+  const actionsId = routePromptActionsBlockId(integrationId);
+  return blocks
+    .filter((block) => block.block_id !== actionsId)
+    .map((block) =>
+      block.block_id === orgId
+        ? {
+            type: 'section',
+            block_id: orgId,
+            text: { type: 'mrkdwn', text: `${promptOrgLine(orgName)}\n${outcome}` },
+          }
+        : block,
+    );
 }
 
 export function routeConfirmedText(

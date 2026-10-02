@@ -22,7 +22,7 @@ import { RequireRole } from './role.decorator.ts';
 import {
   SlackService,
   SLACK_INSTALL_NONCE_COOKIE,
-  type SlackRouteDto,
+  type SlackRoutingResult,
   type SlackStatusDto,
 } from '../modules/slack/slack.service.ts';
 
@@ -72,9 +72,7 @@ export class SlackController {
   }
 
   @Put('routing')
-  setRouting(
-    @Body() input: SetSlackRoutingBody,
-  ): Promise<SlackRouteDto & { botInChannel: boolean }> {
+  setRouting(@Body() input: SetSlackRoutingBody): Promise<SlackRoutingResult> {
     return this.slack.setRouting({
       slackChannelId: input.slackChannelId,
       purpose: input.purpose,

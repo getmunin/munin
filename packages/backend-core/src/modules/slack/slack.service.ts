@@ -20,6 +20,7 @@ import { DB } from '../../common/db/db.module.ts';
 import { authorizationServerUrl } from '../../oauth/oauth.constants.ts';
 import { SlackApiClient, SlackApiError } from './slack-api.client.ts';
 import { testMessageText } from './slack-projection.ts';
+import { isChannelShared } from './slack-shared-channel.ts';
 import { readSlackAppConfig, SLACK_BOT_SCOPES } from './slack.constants.ts';
 
 const INSTALL_STATE_TTL_MS = 10 * 60 * 1000;
@@ -31,6 +32,11 @@ export interface SlackRouteDto {
   purpose: string;
   convChannelId: string | null;
   mention: string | null;
+}
+
+export interface SlackRoutingResult extends SlackRouteDto {
+  botInChannel: boolean;
+  sharedChannel: boolean;
 }
 
 export interface SlackIntegrationDto {
@@ -313,7 +319,7 @@ export class SlackService {
     return { orgId: state.orgId };
   }
 
-  async setRouting(input: SetRoutingInput): Promise<SlackRouteDto & { botInChannel: boolean }> {
+  async setRouting(input: SetRoutingInput): Promise<SlackRoutingResult> {
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
     const purpose = input.purpose ?? 'default';
@@ -382,26 +388,20 @@ export class SlackService {
       )
       .limit(1);
 
-    const [conflicting] = await this.db
+    const [conflicting] = await ctx.db
       .select({
         id: schema.slackChannelRoutes.id,
-        orgId: schema.slackChannelRoutes.orgId,
         purpose: schema.slackChannelRoutes.purpose,
       })
       .from(schema.slackChannelRoutes)
       .where(
         and(
-          eq(schema.slackChannelRoutes.teamId, integration.teamId),
+          eq(schema.slackChannelRoutes.integrationId, integration.id),
           eq(schema.slackChannelRoutes.slackChannelId, channel.id),
         ),
       )
       .limit(1);
     if (conflicting && conflicting.id !== existing?.id) {
-      if (conflicting.orgId !== orgId) {
-        throw new ConflictException(
-          'slack_conflict: that Slack channel is already routed to a different Munin org — channels can only mirror one org',
-        );
-      }
       throw new ConflictException(
         `slack_conflict: that Slack channel is already used by this org's '${conflicting.purpose}' route — every route needs its own channel (escalations falls back to the default channel when unset)`,
       );
@@ -429,7 +429,11 @@ export class SlackService {
         .returning();
     }
     if (!row) throw new ConflictException('slack_route_write_failed');
-    return { ...toRouteDto(row), botInChannel: channel.isMember };
+    return {
+      ...toRouteDto(row),
+      botInChannel: channel.isMember,
+      sharedChannel: await isChannelShared(this.db, integration, channel.id),
+    };
   }
 
   async listChannels(): Promise<{

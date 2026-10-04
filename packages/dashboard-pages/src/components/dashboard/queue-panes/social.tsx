@@ -7,9 +7,11 @@ import { useActiveMembership } from '../../../auth/use-active-role';
 import { useCopy } from '../../../lib/use-copy';
 import { useRelative } from '../../../lib/use-relative';
 import { useSocialPublishTargets } from '../../../lib/use-publish-target';
+import { platformName } from '../../../lib/social-connect';
 import { PaneFooter, PaneHeader, useCmdEnter, ViewTab, ViewTabRow } from './shared';
 import type { QueueActionError } from '../inbox-types';
 import { shortPublishName, socialMediaKind, socialPublishAvailability } from './social-actions';
+import { SocialConnectDialog } from './social-connect-dialog';
 import { SocialPostPreview } from './social-post-preview';
 import { countBodyChars } from './social-preview';
 import type { SocialDraftDto, SocialDraftEdit } from './types';
@@ -42,6 +44,7 @@ export function SocialQueuePane({
   const linkCopy = useCopy();
   const { membership } = useActiveMembership();
   const [view, setView] = useState<'preview' | 'text'>('preview');
+  const [connecting, setConnecting] = useState(false);
 
   const stored = item.raw;
   const storedComment = stored.linkCommentText ?? '';
@@ -49,7 +52,10 @@ export function SocialQueuePane({
   const [editedBody, setEditedBody] = useState(stored.body);
   const [editedComment, setEditedComment] = useState(storedComment);
 
-  useEffect(() => setView('preview'), [item.id]);
+  useEffect(() => {
+    setView('preview');
+    setConnecting(false);
+  }, [item.id]);
 
   useEffect(() => {
     setEditing(false);
@@ -72,7 +78,13 @@ export function SocialQueuePane({
   const mediaKind = socialMediaKind(draft);
   const targets = useSocialPublishTargets(draft.canPublish);
   const availability = socialPublishAvailability(draft, targets);
-  const canPublishNow = availability.state === 'ready' && onPublish !== undefined;
+  const needsAccount = availability.state === 'needsAccount';
+  const canPublishNow =
+    (availability.state === 'ready' || needsAccount) && onPublish !== undefined;
+  const publish = useCallback(() => {
+    if (needsAccount) setConnecting(true);
+    else onPublish?.();
+  }, [needsAccount, onPublish]);
 
   const bodyChars = countBodyChars(draft.platform, editedBody);
   const overBy = Math.max(0, bodyChars - stored.maxBodyChars);
@@ -112,7 +124,7 @@ export function SocialQueuePane({
       void saveEdit();
       return;
     }
-    if (availability.state === 'ready' && onPublish) onPublish();
+    if (canPublishNow) publish();
     else if (availability.state === 'unsupported') onApprove();
   });
 
@@ -298,16 +310,18 @@ export function SocialQueuePane({
           </>
         )}
 
-        {!editing && availability.state !== 'needsAccount' ? (
+        {!editing ? (
           <p className="text-xs text-ink-mute">
-            {availability.state === 'ready'
-              ? asPage
-                ? t('socialPublishHintPage', {
-                    platform: draft.platform,
-                    name: availability.authorName ?? draft.platform,
-                  })
-                : t('socialPublishHint', { platform: draft.platform })
-              : t('socialComposerHint')}
+            {needsAccount
+              ? t('socialNeedsAccountHint', { platform: platformName(draft.platform) })
+              : availability.state === 'ready'
+                ? asPage
+                  ? t('socialPublishHintPage', {
+                      platform: draft.platform,
+                      name: availability.authorName ?? draft.platform,
+                    })
+                  : t('socialPublishHint', { platform: draft.platform })
+                : t('socialComposerHint')}
           </p>
         ) : null}
       </div>
@@ -342,8 +356,8 @@ export function SocialQueuePane({
         <PaneFooter
           primary={{
             label: publishLabel,
-            onClick: onPublish,
-            disabled: pending || availability.state !== 'ready',
+            onClick: publish,
+            disabled: pending || !canPublishNow,
             arrow: true,
           }}
           secondary={[
@@ -356,6 +370,12 @@ export function SocialQueuePane({
           onClearError={onClearActionError}
         />
       )}
+
+      <SocialConnectDialog
+        platform={draft.platform}
+        open={connecting}
+        onClose={() => setConnecting(false)}
+      />
     </>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readableReason } from './social-oauth.controller.ts';
+import { readableReason, withParams } from './social-oauth.controller.ts';
 
 describe('readableReason', () => {
   it("carries the platform's own explanation through, which is the only thing that names the cause", () => {
@@ -19,5 +19,16 @@ describe('readableReason', () => {
   it('returns null for nothing worth showing, so the generic message stands', () => {
     expect(readableReason(undefined)).toBeNull();
     expect(readableReason('   ')).toBeNull();
+  });
+});
+
+describe('withParams', () => {
+  it('starts a query on a bare path and extends one that already has a query', () => {
+    expect(withParams('https://app.example/dashboard/review/qi_1', 'social=connected')).toBe(
+      'https://app.example/dashboard/review/qi_1?social=connected',
+    );
+    expect(withParams('https://app.example/dashboard/review?tab=waiting', 'social=connected')).toBe(
+      'https://app.example/dashboard/review?tab=waiting&social=connected',
+    );
   });
 });

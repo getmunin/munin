@@ -83,6 +83,17 @@ interface AuthorizeState {
   userId: string;
   platform: SocialPlatform;
   exp: number;
+  returnTo?: string;
+}
+
+const MAX_RETURN_TO_CHARS = 512;
+
+export function isSafeReturnTo(raw: unknown): raw is string {
+  return (
+    typeof raw === 'string' &&
+    raw.length <= MAX_RETURN_TO_CHARS &&
+    /^\/(?![/\\])[^\s\\#]*$/.test(raw)
+  );
 }
 
 type AccountRow = typeof schema.socialAccounts.$inferSelect;
@@ -115,7 +126,10 @@ export function verifySocialState(raw: unknown): AuthorizeState | null {
   if (typeof orgId !== 'string' || typeof userId !== 'string') return null;
   if (typeof platform !== 'string' || !isSocialPlatform(platform)) return null;
   if (typeof exp !== 'number') return null;
-  return { orgId, userId, platform, exp };
+  const returnTo = state['returnTo'];
+  return isSafeReturnTo(returnTo)
+    ? { orgId, userId, platform, exp, returnTo }
+    : { orgId, userId, platform, exp };
 }
 
 export function expiresSoon(
@@ -231,7 +245,7 @@ export class SocialAccountsService {
     });
   }
 
-  async authorizeUrl(input: { platform: SocialPlatform }): Promise<{
+  async authorizeUrl(input: { platform: SocialPlatform; returnTo?: string | undefined }): Promise<{
     url: string;
     expiresAt: string;
   }> {
@@ -244,16 +258,35 @@ export class SocialAccountsService {
         'social_invalid: a social account is connected by a signed-in person, not by a service key',
       );
     }
+    if (input.returnTo !== undefined && !isSafeReturnTo(input.returnTo)) {
+      throw new BadRequestException(
+        'social_invalid: returnTo must be a path on this dashboard, starting with a single /',
+      );
+    }
     const clientId = await this.store.inRootTransaction(async (tx) => {
       const client = await this.readClient(tx, orgId, input.platform, adapter);
       return client.clientId;
     });
     const exp = Date.now() + AUTHORIZE_STATE_TTL_MS;
-    const state = signSocialState({ orgId, userId, platform: input.platform, exp });
+    const state = signSocialState({
+      orgId,
+      userId,
+      platform: input.platform,
+      exp,
+      ...(input.returnTo ? { returnTo: input.returnTo } : {}),
+    });
     return {
       url: adapter.authorizeUrl({ state, redirectUri: socialOAuthRedirectUri(), clientId }),
       expiresAt: new Date(exp).toISOString(),
     };
+  }
+
+  returnToFromState(raw: unknown): string | null {
+    try {
+      return verifySocialState(raw)?.returnTo ?? null;
+    } catch {
+      return null;
+    }
   }
 
   async completeAuthorization(args: { code: string; state: string }): Promise<{

@@ -4,7 +4,7 @@ import type { CSSProperties } from 'react';
 import { Check } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { cn } from '@getmunin/ui';
-import { PLATFORM_NAMES } from '../integrations/publishing-accounts-grid';
+import { PLATFORM_NAMES } from '../../lib/social-connect';
 import { MetaArrow } from './meta-arrow';
 import type { QueueItem } from './queue-panes/types';
 import type { ReviewDecisionOutcome } from './review-queue';

@@ -1,0 +1,5 @@
+---
+"@getmunin/backend-core": patch
+---
+
+The Slack prompt that asks which of several orgs sharing a workspace should mirror into a newly joined channel no longer repeats a row of three buttons per org. It now has a bold title, one org picker with an *All orgs* option, and the three buttons once ("All conversations", "Escalations only", "Not now"). Pick an org (or all of them), then a button. Each org still needs an owner or admin to route it, so *All orgs* routes every org the clicker administers and names the skipped ones in an ephemeral notice. Routed orgs drop out of the picker and are listed underneath as one compact line each. *Not now* closes the prompt for every org still waiting, and a button pressed before an org is picked asks for one. In both the shared and the single-org prompt, *All conversations* is now the highlighted (primary) button. Shared prompts posted before this release show per-org buttons; pressing one now routes that org and replaces the whole prompt with its confirmation.

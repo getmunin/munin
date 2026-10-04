@@ -615,7 +615,7 @@ class FakeSlackApi extends SlackApiClient {
       });
     }
 
-    it('asks every org sharing the workspace in one prompt, each with its own buttons', async () => {
+    it('asks every org sharing the workspace in one prompt with a single org picker', async () => {
       await withSecondOrg(async (secondIntegrationId) => {
         await inbound.processEventCallback(joinPayload());
 
@@ -623,15 +623,12 @@ class FakeSlackApi extends SlackApiClient {
         const prompt = api.posted[0]!;
         expect(prompt.channel).toBe('C_JOINED');
         expect(prompt.text).toContain('Several Munin orgs');
-        expect(blockIds(prompt.blocks)).toEqual([
-          `munin_route_org:${integrationId}`,
-          `munin_route_actions:${integrationId}`,
-          `munin_route_org:${secondIntegrationId}`,
-          `munin_route_actions:${secondIntegrationId}`,
-        ]);
+        expect(blockIds(prompt.blocks)).toEqual(['munin_route_shared']);
         const text = JSON.stringify(prompt.blocks);
-        expect(text).toContain('*Slack Inbound Test Org*');
-        expect(text).toContain('*Second Slack Org*');
+        expect(text).toContain(`"value":"${integrationId}"`);
+        expect(text).toContain(`"value":"${secondIntegrationId}"`);
+        expect(text).toContain('Slack Inbound Test Org');
+        expect(text).toContain('Second Slack Org');
       });
     });
 

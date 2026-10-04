@@ -536,53 +536,80 @@ class FakeSlackApi extends SlackApiClient {
         expect(api.updated[0]!.blocks).toEqual([]);
       });
 
-      it('resolves only the clicked org in a shared prompt and keeps the others actionable', async () => {
-        const blocks = sharedPrompt();
-        await interactions.processBlockActions(
-          routePayload('munin_route_default', {
-            message: { ts: '1750000000.000900', blocks },
-          }),
-        );
+      function sharedClick(
+        actionId: string,
+        pickedOrg: string | null,
+        overrides: Record<string, unknown> = {},
+      ) {
+        return routePayload(actionId, {
+          actions: [{ action_id: actionId, value: 'shared' }],
+          message: { ts: '1750000000.000900', blocks: sharedPrompt() },
+          state: {
+            values: {
+              munin_route_shared: {
+                munin_route_pick_org: {
+                  type: 'static_select',
+                  selected_option: pickedOrg ? { value: pickedOrg } : null,
+                },
+              },
+            },
+          },
+          ...overrides,
+        });
+      }
 
-        expect(await routes()).toHaveLength(1);
+      function pickerValues(blocks: unknown): string[] {
+        const actions = (blocks as { block_id?: string; elements?: unknown[] }[]).find(
+          (b) => b.block_id === 'munin_route_shared',
+        );
+        const select = actions?.elements?.[0] as { options?: { value: string }[] } | undefined;
+        return (select?.options ?? []).map((o) => o.value);
+      }
+
+      it('routes only the picked org and keeps the others in the picker', async () => {
+        await interactions.processBlockActions(sharedClick('munin_route_default', integrationId));
+
+        expect((await routes()).map((r) => r.orgId)).toEqual([orgId]);
         const update = api.updated[0]!;
         expect(update.text).toContain('*Slack Interactions Test Org*');
-        const ids = (update.blocks as { block_id?: string }[]).map((b) => b.block_id ?? null);
-        expect(ids).toEqual([
-          null,
-          `munin_route_org:${integrationId}`,
-          `munin_route_org:${otherIntegrationId}`,
-          `munin_route_actions:${otherIntegrationId}`,
-        ]);
-        const resolved = (update.blocks as { text?: { text: string } }[])[1]!.text!.text;
-        expect(resolved).toContain('*Slack Interactions Test Org*');
-        expect(resolved).toContain('all mirrored conversations');
+        expect(pickerValues(update.blocks)).toEqual([otherIntegrationId]);
+        expect(JSON.stringify(update.blocks)).toContain(`munin_route_done:${integrationId}`);
+        expect(JSON.stringify(update.blocks)).toContain('all conversations');
       });
 
-      it('dismissing in a shared prompt leaves the other org untouched', async () => {
-        await interactions.processBlockActions(
-          routePayload('munin_route_dismiss', {
-            message: { ts: '1750000000.000900', blocks: sharedPrompt() },
-          }),
-        );
+      it('routes every org the clicker administers for all orgs and names the ones it skipped', async () => {
+        await interactions.processBlockActions(sharedClick('munin_route_escalations', 'all'));
+
+        const rows = await routes();
+        expect(rows.map((r) => [r.orgId, r.purpose])).toEqual([[orgId, 'escalations']]);
+        expect(pickerValues(api.updated[0]!.blocks)).toEqual([otherIntegrationId]);
+        expect(api.ephemerals).toHaveLength(1);
+        expect(api.ephemerals[0]!.text).toContain('*Globex*');
+      });
+
+      it('asks for an org when a button is clicked before one is picked', async () => {
+        await interactions.processBlockActions(sharedClick('munin_route_default', null));
 
         expect(await routes()).toHaveLength(0);
-        const ids = (api.updated[0]!.blocks as { block_id?: string }[]).map(
-          (b) => b.block_id ?? null,
-        );
-        expect(ids).toContain(`munin_route_actions:${otherIntegrationId}`);
-        expect(ids).not.toContain(`munin_route_actions:${integrationId}`);
+        expect(api.updated).toHaveLength(0);
+        expect(api.ephemerals[0]!.text).toContain('Pick an org');
+      });
+
+      it('dismissing a shared prompt closes it for every org without routing', async () => {
+        await interactions.processBlockActions(sharedClick('munin_route_dismiss', null));
+
+        expect(await routes()).toHaveLength(0);
+        expect(pickerValues(api.updated[0]!.blocks)).toEqual([]);
+        expect(api.updated[0]!.text).toContain('dashboard');
       });
 
       it('names the org when an unlinked clicker hits a shared prompt', async () => {
         api.usersById.set('U_NOBODY', { email: 'nobody@example.com' });
         await interactions.processBlockActions(
-          routePayload('munin_route_default', {
-            user: { id: 'U_NOBODY' },
-            message: { ts: '1750000000.000900', blocks: sharedPrompt() },
-          }),
+          sharedClick('munin_route_default', integrationId, { user: { id: 'U_NOBODY' } }),
         );
 
+        expect(await routes()).toHaveLength(0);
         expect(api.ephemerals).toHaveLength(1);
         expect(api.ephemerals[0]!.text).toContain('*Slack Interactions Test Org*');
       });

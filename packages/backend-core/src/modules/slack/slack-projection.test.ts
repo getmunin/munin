@@ -25,10 +25,14 @@ import {
   threadParentText,
   isSharedRoutePrompt,
   MAX_SHARED_ROUTE_PROMPT_ORGS,
+  dismissSharedRoutePrompt,
   resolveSharedRoutePrompt,
+  sharedRouteDoneLine,
   sharedRoutePromptBlocks,
+  sharedRoutePromptIntegrationIds,
   withOrgLabel,
   type ConversationSnapshot,
+  type SlackBlock,
 } from './slack-projection.ts';
 
 const conv: ConversationSnapshot = {
@@ -609,39 +613,101 @@ describe('shared route prompt', () => {
     { integrationId: 'slk_b', orgName: null },
   ];
 
-  it('gives every org its own labelled row of buttons', () => {
+  function picker(blocks: SlackBlock[]) {
+    const actions = blocks.find((b) => b.block_id === 'munin_route_shared');
+    const elements = (actions?.elements ?? []) as Record<string, unknown>[];
+    return {
+      options: ((elements[0]?.options ?? []) as { value: string; text: { text: string } }[]).map(
+        (o) => [o.value, o.text.text],
+      ),
+      buttons: elements.slice(1).map((e) => [e.action_id, e.value, e.style ?? null]),
+    };
+  }
+
+  it('offers every org once in a single picker, with the buttons shown once', () => {
     const blocks = sharedRoutePromptBlocks(orgs);
-    expect(blocks.map((b) => b.block_id ?? null)).toEqual([
-      null,
-      'munin_route_org:slk_a',
-      'munin_route_actions:slk_a',
-      'munin_route_org:slk_b',
-      'munin_route_actions:slk_b',
-    ]);
-    expect(JSON.stringify(blocks)).toContain('Unnamed org');
-    expect(isSharedRoutePrompt(blocks, 'slk_b')).toBe(true);
-    expect(isSharedRoutePrompt(blocks, 'slk_c')).toBe(false);
-    expect(isSharedRoutePrompt(null, 'slk_a')).toBe(false);
-  });
-
-  it('stays inside the Slack block limit however many orgs share the workspace', () => {
-    const many = Array.from({ length: 40 }, (_, i) => ({ integrationId: `slk_${i}`, orgName: `Org ${i}` }));
-    expect(sharedRoutePromptBlocks(many)).toHaveLength(1 + MAX_SHARED_ROUTE_PROMPT_ORGS * 2);
-    expect(1 + MAX_SHARED_ROUTE_PROMPT_ORGS * 2).toBeLessThanOrEqual(50);
-  });
-
-  it('replaces only the resolved org row and drops its buttons', () => {
-    const resolved = resolveSharedRoutePrompt(sharedRoutePromptBlocks(orgs), 'slk_a', 'Acme', 'Done.');
-    expect(resolved.map((b) => b.block_id ?? null)).toEqual([
-      null,
-      'munin_route_org:slk_a',
-      'munin_route_org:slk_b',
-      'munin_route_actions:slk_b',
-    ]);
-    expect(resolved[1]).toEqual({
-      type: 'section',
-      block_id: 'munin_route_org:slk_a',
-      text: { type: 'mrkdwn', text: ':office: *Acme*\nDone.' },
+    expect(blocks.map((b) => b.type)).toEqual(['section', 'divider', 'actions']);
+    expect(picker(blocks)).toEqual({
+      options: [
+        ['all', 'All orgs'],
+        ['slk_a', 'Acme'],
+        ['slk_b', 'Unnamed org'],
+      ],
+      buttons: [
+        ['munin_route_default', 'shared', 'primary'],
+        ['munin_route_escalations', 'shared', null],
+        ['munin_route_dismiss', 'shared', null],
+      ],
     });
+    expect(isSharedRoutePrompt(blocks)).toBe(true);
+    expect(isSharedRoutePrompt(null)).toBe(false);
+    expect(sharedRoutePromptIntegrationIds(blocks)).toEqual(['slk_a', 'slk_b']);
+  });
+
+  it('stays inside the Slack block and option limits however many orgs share the workspace', () => {
+    const many = Array.from({ length: 120 }, (_, i) => ({ integrationId: `slk_${i}`, orgName: `Org ${i}` }));
+    const blocks = sharedRoutePromptBlocks(many);
+    expect(picker(blocks).options).toHaveLength(MAX_SHARED_ROUTE_PROMPT_ORGS + 1);
+    const allDone = resolveSharedRoutePrompt(
+      blocks,
+      sharedRoutePromptIntegrationIds(blocks).map((id) => ({ integrationId: id, line: id })),
+    );
+    expect(allDone.length).toBeLessThanOrEqual(50);
+  });
+
+  it('cuts an org name to the 75 characters a Slack option allows', () => {
+    const blocks = sharedRoutePromptBlocks([
+      { integrationId: 'slk_a', orgName: 'x'.repeat(80) },
+      { integrationId: 'slk_b', orgName: 'Globex' },
+    ]);
+    expect(picker(blocks).options[1]![1]).toHaveLength(75);
+  });
+
+  it('drops a resolved org from the picker and lists it underneath', () => {
+    const three = [...orgs, { integrationId: 'slk_c', orgName: 'Initech' }];
+    const resolved = resolveSharedRoutePrompt(sharedRoutePromptBlocks(three), [
+      { integrationId: 'slk_a', line: sharedRouteDoneLine('Acme', 'default', 'U1') },
+    ]);
+    expect(picker(resolved).options.map(([value]) => value)).toEqual(['all', 'slk_b', 'slk_c']);
+    expect(resolved.at(-1)).toEqual({
+      type: 'context',
+      block_id: 'munin_route_done:slk_a',
+      elements: [{ type: 'mrkdwn', text: ':white_check_mark: *Acme* · all conversations · set by <@U1>' }],
+    });
+  });
+
+  it('hides the all-orgs option once a single org is left', () => {
+    const resolved = resolveSharedRoutePrompt(sharedRoutePromptBlocks(orgs), [
+      { integrationId: 'slk_a', line: 'done' },
+    ]);
+    expect(picker(resolved).options).toEqual([['slk_b', 'Unnamed org']]);
+  });
+
+  it('removes the picker once every org is resolved', () => {
+    const resolved = resolveSharedRoutePrompt(sharedRoutePromptBlocks(orgs), [
+      { integrationId: 'slk_a', line: 'a' },
+      { integrationId: 'slk_b', line: 'b' },
+    ]);
+    expect(resolved.map((b) => b.block_id ?? b.type)).toEqual([
+      'section',
+      'divider',
+      'munin_route_done:slk_a',
+      'munin_route_done:slk_b',
+    ]);
+    expect(isSharedRoutePrompt(resolved)).toBe(false);
+  });
+
+  it('dismissing keeps earlier choices and drops the picker', () => {
+    const partly = resolveSharedRoutePrompt(sharedRoutePromptBlocks(orgs), [
+      { integrationId: 'slk_a', line: 'a' },
+    ]);
+    const dismissed = dismissSharedRoutePrompt(partly);
+    expect(dismissed.map((b) => b.block_id ?? b.type)).toEqual([
+      'section',
+      'divider',
+      'munin_route_done:slk_a',
+      'context',
+    ]);
+    expect(JSON.stringify(dismissed.at(-1))).toContain('dashboard');
   });
 });

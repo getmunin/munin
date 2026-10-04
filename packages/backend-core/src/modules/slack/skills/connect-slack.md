@@ -72,7 +72,7 @@ One workspace can serve multiple Munin orgs, and several of them may route into 
 
 Conversations do not mirror until a default channel is routed. Two paths:
 
-**From Slack (simplest):** the operator runs `/invite @Munin` in the channel they want. The bot posts a prompt with buttons (*Mirror all conversations* / *Escalation alerts only* / *Not now*); an org owner or admin clicks one and routing is set — no channel ID needed. When several Munin orgs share the workspace, the one prompt lists each of them with its own row of buttons; an owner or admin of each org answers for their own org, and answering one row leaves the others open. Orgs already routed into the channel are left out, and the prompt is skipped when all of them are.
+**From Slack (simplest):** the operator runs `/invite @Munin` in the channel they want. The bot posts a prompt with buttons (*Mirror all conversations* / *Escalation alerts only* / *Not now*); an org owner or admin clicks one and routing is set — no channel ID needed. When several Munin orgs share the workspace, the prompt instead has one org picker followed by *All conversations* / *Escalations only* / *Not now*: pick an org (or *All orgs*), then a button. Each choice needs an owner or admin of that org, so *All orgs* routes every org the clicker administers and names the ones it skipped in a private notice. A routed org drops out of the picker and is listed under it; *Not now* closes the prompt for every org still waiting. Orgs already routed into the channel are left out, and the prompt is skipped when all of them are.
 
 **From here:**
 

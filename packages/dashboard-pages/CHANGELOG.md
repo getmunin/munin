@@ -1,5 +1,21 @@
 # @getmunin/dashboard-pages
 
+## 5.42.0
+
+### Minor Changes
+
+- 2647f25: Slack: guard shared channels.
+
+  - Routing an org into a Slack channel that another org already routes into now requires the caller to be in that channel. Munin finds the Slack account that uses the caller's Munin email address (or, from the Slack prompt, uses the clicker's own account) and checks channel membership; otherwise `slack_set_routing` and `PUT /v1/slack/routing` refuse with `slack_not_channel_member`. Agents without a user behind them cannot pass the check. Editing a route an org already has in the channel is unaffected.
+  - When the bot joins a channel in a workspace several orgs share, the routing prompt no longer lists the orgs by name. Its buttons act for the org the clicker is an owner or admin of, a routed org is noted on the prompt, and the buttons stay until every org routes into the channel. Prompts already posted with a row per org still work, but answering one now closes the whole prompt.
+  - `slack_get_status` and `GET /v1/slack` report `sharedChannel` on every route, and the dashboard's Slack dialog warns when the selected channel is shared with another org.
+
+### Patch Changes
+
+- f22be10: Placing a test call on a Threll voice channel whose threll has no outbound phone number now fails up front with `threll_no_outbound_number` and a translated explanation, instead of a bare `threll_400: 400` from Threll. Threll error responses also keep their detail when it isn't a plain `message` string — a message array, an `error` string or object, or an `errors` list — so other rejections are readable too.
+- @getmunin/types@5.42.0
+  - @getmunin/ui@5.42.0
+
 ## 5.41.0
 
 ### Patch Changes

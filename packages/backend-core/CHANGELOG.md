@@ -1,5 +1,27 @@
 # @getmunin/backend-core
 
+## 5.43.0
+
+### Minor Changes
+
+- f336f40: Choose which voice channel answers a chat widget's calls. `conv_create_widget_channel` and `conv_update_widget_channel` take a `voiceChannelId`, as do `POST` and `PATCH /v1/conversations/channels/widget`. Pass `null` on update to unlink. Only a Vapi or Threll voice channel in the same organization can be linked; anything else is refused with `conv_widget_voice_channel_invalid` before it is saved. Until now the link could only be set in the database, so an organization with two voice channels had no supported way to make widget calls work.
+
+  Updating a widget channel no longer erases its voice link. The update rebuilt the stored config from a fixed list of fields, so any edit, even one that only changed the origin allow-list, silently removed `voiceChannelId`, and calls fell back to `multiple_voice_channels_without_widget_routing`. It now carries every stored field forward.
+
+  Chat widget cards in the dashboard gain an Edit dialog for the origin allow-list and the voice channel, and the create dialog offers the same voice channel picker. Edit takes the card's main button, matching the other channel cards, and the embed snippet sits beside it as a plain text button. Each card says where its calls go, and is flagged when they are off: several voice channels with none linked, a linked channel that has been deleted, or one that is deactivated.
+
+### Patch Changes
+
+- 327cfcd: The Slack prompt posted when the bot joins a channel in a workspace several orgs share now has a bold title, one org picker with an _All orgs_ option, and the three buttons once ("All conversations", "Escalations only", "Not now"). Pick an org (or all of them), then a button. The picker lists the waiting orgs by name again, so everyone in the channel sees which Munin orgs use the workspace. Each org still needs an owner or admin to route it, and joining a channel another org already routes into still needs the clicker to be a member of it, so _All orgs_ routes every org the clicker can route and names the skipped ones in an ephemeral notice. Routed orgs drop out of the picker and are listed underneath as one compact line each. _Not now_ closes the prompt for every org still waiting, and a button pressed before an org is picked asks for one. In both the shared and the single-org prompt, _All conversations_ is now the highlighted (primary) button. Prompts posted by earlier releases keep working: the unnamed prompt acts for the org the clicker administers, and the older prompt with a row of buttons per org routes that org and replaces the whole prompt with its confirmation.
+- Updated dependencies [f336f40]
+  - @getmunin/types@5.43.0
+  - @getmunin/agent-runtime@5.43.0
+  - @getmunin/core@5.43.0
+  - @getmunin/db@5.43.0
+  - @getmunin/inspector-app@5.43.0
+  - @getmunin/mcp-toolkit@5.43.0
+  - @getmunin/emails@5.43.0
+
 ## 5.42.0
 
 ### Minor Changes

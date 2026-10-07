@@ -2077,6 +2077,7 @@
       "channelsLoadFailed": "Kunne ikke hente kanallisten — lim inn kanal-ID-en manuelt.",
       "saveRouting": "Lagre kanal",
       "inviteBot": "Boten er ikke i kanalen ennå — kjør /invite @Munin i Slack, og bruk deretter Test på Slack-kortet.",
+      "sharedChannel": "En annen Munin-organisasjon ruter også inn i denne kanalen. Så lenge dere deler den, starter hver toppnivåmelding Munin poster der med navnet på organisasjonen deres, og alle i kanalen ser samtalene til begge organisasjonene.",
       "sendTest": "Send testmelding",
       "testSent": "Testmelding sendt",
       "disconnect": "Koble fra",
@@ -2386,6 +2387,7 @@
     "org_logo_too_large": "Logoen er for stor. Maksstørrelsen er 2 MB.",
     "org_logo_unsupported_type": "Filtypen støttes ikke. Last opp et PNG-, JPEG-, WebP- eller SVG-bilde.",
     "outreach_undeliverable": "E-post kommer ikke fram til den adressen. Rett opp e-postadressen til kontakten, eller nullstill adressen når den virker igjen.",
+    "threll_no_outbound_number": "Denne threllen har ikke noe utgående telefonnummer, så den kan ikke ringe ut. Legg til et i Threll og prøv igjen.",
     "social_account_taken": "Den kontoen er alt koblet til av en annen i organisasjonen.",
     "social_app_missing": "Sett opp organisasjonens app før du kobler til en konto.",
     "social_client_secret_required": "Skriv inn hemmeligheten — det er ingen lagret å beholde.",
@@ -2395,6 +2397,7 @@
     "social_reconnect_required": "Tilgangen har utløpt. Koble til på nytt på Integrasjoner-siden.",
     "social_target_unavailable": "Den siden kan du ikke lenger publisere på. Velg en annen, eller koble til på nytt.",
     "social_authorization_expired": "Denne autoriseringen er ikke åpen lenger. Start tilkoblingen på nytt.",
+    "slack_not_channel_member": "En annen Munin-organisasjon ruter allerede inn i den Slack-kanalen, så bare noen som er med i kanalen kan legge til en rute dit. Bli med i kanalen i Slack med kontoen som bruker e-postadressen din i Munin, og prøv igjen.",
     "social_no_targets": "Denne kontoen administrerer ingen side Munin kan publisere på. Gi appen tilgang til en side og koble til på nytt."
   },
   "footer": {

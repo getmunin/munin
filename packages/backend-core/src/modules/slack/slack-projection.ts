@@ -312,13 +312,13 @@ const SHARED_ROUTE_BUTTON_LABELS = {
 };
 
 function routeButtons(
-  integrationId: string,
+  value: string,
   labels: typeof ROUTE_BUTTON_LABELS = ROUTE_BUTTON_LABELS,
 ): Record<string, unknown>[] {
   return [
-    actionButton(ROUTE_DEFAULT_ACTION_ID, labels.default, integrationId, 'primary'),
-    actionButton(ROUTE_ESCALATIONS_ACTION_ID, labels.escalations, integrationId),
-    actionButton(ROUTE_DISMISS_ACTION_ID, labels.dismiss, integrationId),
+    actionButton(ROUTE_DEFAULT_ACTION_ID, labels.default, value, 'primary'),
+    actionButton(ROUTE_ESCALATIONS_ACTION_ID, labels.escalations, value),
+    actionButton(ROUTE_DISMISS_ACTION_ID, labels.dismiss, value),
   ];
 }
 
@@ -446,6 +446,53 @@ export function dismissSharedRoutePrompt(blocks: readonly SlackBlock[]): SlackBl
 
 function promptOrgLine(orgName: string | null): string {
   return `*${escapeSlackText(orgName ?? 'Unnamed org')}*`;
+}
+
+const WORKSPACE_ROUTE_VALUE_PREFIX = 'workspace:';
+const WORKSPACE_ROUTE_ACTIONS_BLOCK_ID = 'munin_route_actions';
+
+export function workspaceRouteValue(teamId: string): string {
+  return `${WORKSPACE_ROUTE_VALUE_PREFIX}${teamId}`;
+}
+
+export function parseWorkspaceRouteValue(value: string): string | null {
+  if (!value.startsWith(WORKSPACE_ROUTE_VALUE_PREFIX)) return null;
+  const teamId = value.slice(WORKSPACE_ROUTE_VALUE_PREFIX.length);
+  return teamId.length > 0 ? teamId : null;
+}
+
+export function workspaceRoutePromptText(): string {
+  return ':wave: Munin joined this channel. Several Munin orgs use this workspace — should yours mirror in here? The buttons act for the org you are an owner or admin of.';
+}
+
+export function workspaceRoutePromptBlocks(teamId: string): SlackBlock[] {
+  return [
+    { type: 'section', text: { type: 'mrkdwn', text: workspaceRoutePromptText() } },
+    {
+      type: 'actions',
+      block_id: WORKSPACE_ROUTE_ACTIONS_BLOCK_ID,
+      elements: routeButtons(workspaceRouteValue(teamId)),
+    },
+  ];
+}
+
+export function workspaceRouteOutcomeLine(orgName: string | null, outcome: string): string {
+  return `${orgLabelLine(orgName ?? 'Unnamed org')}\n${outcome}`;
+}
+
+export function updateWorkspaceRoutePrompt(
+  blocks: readonly SlackBlock[] | null,
+  teamId: string,
+  line: string,
+  keepButtons: boolean,
+): SlackBlock[] {
+  const current = blocks && blocks.length > 0 ? blocks : workspaceRoutePromptBlocks(teamId);
+  const actions = current.find((block) => block.block_id === WORKSPACE_ROUTE_ACTIONS_BLOCK_ID);
+  return [
+    ...current.filter((block) => block.block_id !== WORKSPACE_ROUTE_ACTIONS_BLOCK_ID),
+    { type: 'section', text: { type: 'mrkdwn', text: line } },
+    ...(keepButtons && actions ? [actions] : []),
+  ];
 }
 
 export function routeConfirmedText(

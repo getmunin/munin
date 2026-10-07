@@ -30,7 +30,12 @@ import {
   sharedRouteDoneLine,
   sharedRoutePromptBlocks,
   sharedRoutePromptIntegrationIds,
+  parseWorkspaceRouteValue,
+  updateWorkspaceRoutePrompt,
   withOrgLabel,
+  workspaceRouteOutcomeLine,
+  workspaceRoutePromptBlocks,
+  workspaceRouteValue,
   type ConversationSnapshot,
   type SlackBlock,
 } from './slack-projection.ts';
@@ -709,5 +714,36 @@ describe('shared route prompt', () => {
       'context',
     ]);
     expect(JSON.stringify(dismissed.at(-1))).toContain('dashboard');
+  });
+});
+
+describe('workspace route prompt', () => {
+  it('names no org and points every button at the workspace', () => {
+    const blocks = workspaceRoutePromptBlocks('T1');
+    const values = (blocks[1]!.elements as Array<{ value: string }>).map((e) => e.value);
+    expect(values).toEqual(['workspace:T1', 'workspace:T1', 'workspace:T1']);
+    expect(JSON.stringify(blocks)).not.toContain(':office:');
+  });
+
+  it('parses only workspace button values', () => {
+    expect(parseWorkspaceRouteValue(workspaceRouteValue('T1'))).toBe('T1');
+    expect(parseWorkspaceRouteValue('workspace:')).toBeNull();
+    expect(parseWorkspaceRouteValue('3f1c0a52-8d55-4b7e-9a51-6f7c2d1e0b9a')).toBeNull();
+  });
+
+  it('records an outcome above the buttons and keeps them while other orgs can still route', () => {
+    const line = workspaceRouteOutcomeLine('Acme', 'Done.');
+    const updated = updateWorkspaceRoutePrompt(workspaceRoutePromptBlocks('T1'), 'T1', line, true);
+    expect(updated.map((b) => b.type)).toEqual(['section', 'section', 'actions']);
+    expect(updated[1]).toEqual({ type: 'section', text: { type: 'mrkdwn', text: ':office: *Acme*\nDone.' } });
+    const closed = updateWorkspaceRoutePrompt(updated, 'T1', workspaceRouteOutcomeLine(null, 'Also done.'), false);
+    expect(closed.map((b) => b.type)).toEqual(['section', 'section', 'section']);
+    expect(JSON.stringify(closed[2])).toContain('Unnamed org');
+  });
+
+  it('rebuilds the prompt when Slack sends no blocks back', () => {
+    const updated = updateWorkspaceRoutePrompt(null, 'T1', 'Done.', true);
+    expect(updated.map((b) => b.type)).toEqual(['section', 'section', 'actions']);
+    expect(JSON.stringify(updated[2])).toContain('workspace:T1');
   });
 });

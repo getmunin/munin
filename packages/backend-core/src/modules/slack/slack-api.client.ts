@@ -130,6 +130,40 @@ export class SlackApiClient {
     };
   }
 
+  async usersLookupByEmail(input: { token: string; email: string }): Promise<string | null> {
+    try {
+      const data = await this.call('users.lookupByEmail', input.token, { email: input.email });
+      const user = data.user as Record<string, unknown> | undefined;
+      return typeof user?.id === 'string' ? user.id : null;
+    } catch (err) {
+      if (err instanceof SlackApiError && err.apiError === 'users_not_found') return null;
+      throw err;
+    }
+  }
+
+  async isConversationMember(input: {
+    token: string;
+    channel: string;
+    user: string;
+  }): Promise<boolean> {
+    let cursor: string | undefined;
+    do {
+      const data = await this.call('conversations.members', input.token, {
+        channel: input.channel,
+        limit: 1000,
+        ...(cursor ? { cursor } : {}),
+      });
+      const members = Array.isArray(data.members) ? (data.members as unknown[]) : [];
+      if (members.includes(input.user)) return true;
+      const meta = data.response_metadata as Record<string, unknown> | undefined;
+      cursor =
+        typeof meta?.next_cursor === 'string' && meta.next_cursor.length > 0
+          ? meta.next_cursor
+          : undefined;
+    } while (cursor);
+    return false;
+  }
+
   async conversationsList(input: {
     token: string;
     cursor?: string;

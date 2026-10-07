@@ -88,6 +88,8 @@ window.mn.widget.toggle();   // flips it
 window.mn.widget.isOpen();   // current state, boolean
 window.mn.widget.ready;      // true once the namespace is installed
 await window.mn.widget.identify(externalId, userHash);  // see §4
+await window.mn.widget.call();     // opens the panel and starts a voice call
+await window.mn.widget.endCall();  // hangs up the active call
 ```
 
 Wire a "Chat with us" link anywhere in the page's own nav/footer to `window.mn.widget.toggle()` instead of relying on the launcher bubble alone. Because the script tag has `defer`, `window.mn.widget` isn't installed until after the page has parsed — safe to call from a click handler, not safe to call synchronously in an inline `<script>` above the widget tag.
@@ -103,6 +105,33 @@ window.mn?.widget?.ready
 ```
 
 The flag closes the listener-attached-too-late race: if the widget mounted before your code ran, the event has already fired, but the flag says it is safe to call now. (`munin:widget-ready` is the widget's own signal — the analytics tracker fires `munin:analytics-ready` separately.)
+
+### Start a voice call from the page
+
+When the widget channel has a voice channel linked, the page can skip the chat step and put the visitor straight into a call — a "Call us" button in the hero, a phone icon in the header. The quickest way is a `data-munin-call` attribute on any element; no script needed:
+
+```html
+<button type="button" data-munin-call>Talk to us</button>
+```
+
+A click on it, or on anything inside it, opens the panel and starts the call. The widget also calls `preventDefault()` on the click, so a link will not navigate. For more control, call `window.mn.widget.call()` from your own click handler. It resolves to `{ started: true }` once the call is connecting, or to `{ started: false, reason }` when it could not start:
+
+| `reason` | Meaning |
+|---|---|
+| `already_in_call` | A call is already running; the panel is brought forward instead of starting a second one. |
+| `conversation_failed` | The widget could not create the conversation to attach the call to. |
+| `request_failed` | The voice start request did not reach the backend. |
+| `session_failed` | The browser could not set up the call — usually microphone permission denied. |
+| anything else | The server's reason the channel cannot take a call right now, e.g. no voice channel linked. |
+
+```js
+document.getElementById('call-us').addEventListener('click', async () => {
+  const result = await window.mn.widget.call();
+  if (!result.started) showPhoneNumberInstead();
+});
+```
+
+The call joins the visitor's current conversation, or starts a new one if there is none, so the transcript sits in the same thread as any earlier chat. Trigger it from a click: the browser asks for microphone permission when the call starts. A `data-munin-call` element does nothing until the widget script has run, so a click during page load is lost rather than queued.
 
 `window.mn.widget` is a single global, so on a page with two widget embeds it stays bound to whichever mounted **first** and the second logs a warning. Don't rely on it when you deliberately run two channels on one page — drive those from their own launchers.
 

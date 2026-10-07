@@ -134,6 +134,18 @@ export class ThrellAdminService {
     const channel = await this.loadChannel(args.channelId);
     const config = jsonbToStored(channel.config);
     const apiKey = await this.client.loadSecret(config.encryptedApiKey);
+    const worker = await this.client.fetchWorker({
+      apiKey,
+      accountId: config.accountId,
+      workerId: config.workerId,
+    });
+    if (!worker.ok) throw new BadRequestException(worker.error);
+    if (!worker.worker.outboundPhoneNumber) {
+      throw new BadRequestException({
+        message: `threll_no_outbound_number: threll ${worker.worker.name ?? config.workerId} has no outbound phone number. Add one in Threll before placing calls from this channel.`,
+        code: 'threll_no_outbound_number',
+      });
+    }
     try {
       const res = await this.client.placeCall({
         apiKey,

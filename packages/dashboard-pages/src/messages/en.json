@@ -2077,6 +2077,7 @@
       "channelsLoadFailed": "Could not load the channel list — paste the channel ID manually.",
       "saveRouting": "Save channel",
       "inviteBot": "The bot is not in that channel yet — run /invite @Munin in Slack, then use Test on the Slack card.",
+      "sharedChannel": "Another Munin org also routes into this channel. While you share it, every top-level message Munin posts there starts with your org's name, and everyone in the channel sees both orgs' conversations.",
       "sendTest": "Send test message",
       "testSent": "Test message sent",
       "disconnect": "Disconnect",
@@ -2386,6 +2387,7 @@
     "org_logo_too_large": "This logo is too large. The maximum size is 2 MB.",
     "org_logo_unsupported_type": "This file type isn't supported. Upload a PNG, JPEG, WebP or SVG image.",
     "outreach_undeliverable": "Mail can't reach that address. Correct the contact's email, or clear the address once it works again.",
+    "threll_no_outbound_number": "This threll has no outbound phone number, so it can't place calls. Add one in Threll, then try again.",
     "social_account_taken": "That account is already connected by someone else in your organisation.",
     "social_app_missing": "Set up your organisation's app before connecting an account.",
     "social_client_secret_required": "Enter the secret — there is none stored to keep.",
@@ -2395,6 +2397,7 @@
     "social_reconnect_required": "Your connection has lapsed. Reconnect it on the Integrations page.",
     "social_target_unavailable": "That Page is no longer one you can post to. Choose another, or connect again.",
     "social_authorization_expired": "This authorisation is no longer open. Start connecting again.",
+    "slack_not_channel_member": "Another Munin org already routes into that Slack channel, so only someone in the channel can add a route to it. Join the channel in Slack with the account that uses your Munin email address, then try again.",
     "social_no_targets": "This account administers no Page Munin may post to. Give the app access to a Page and connect again."
   },
   "footer": {

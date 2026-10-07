@@ -649,5 +649,33 @@ class FakeSlackApi extends SlackApiClient {
         expect(blockIds(api.posted[0]!.blocks)).toEqual([]);
       });
     });
+
+    it('stays silent when every org sharing the workspace already routes into the channel', async () => {
+      await withSecondOrg(async (secondIntegrationId) => {
+        const [second] = await db
+          .select()
+          .from(schema.slackIntegrations)
+          .where(eq(schema.slackIntegrations.id, secondIntegrationId));
+        await db.insert(schema.slackChannelRoutes).values([
+          {
+            orgId,
+            integrationId,
+            teamId: 'T_INBOUND',
+            slackChannelId: 'C_JOINED',
+            purpose: 'escalations',
+          },
+          {
+            orgId: second!.orgId,
+            integrationId: secondIntegrationId,
+            teamId: 'T_INBOUND',
+            slackChannelId: 'C_JOINED',
+            purpose: 'default',
+          },
+        ]);
+
+        await inbound.processEventCallback(joinPayload());
+        expect(api.posted).toHaveLength(0);
+      });
+    });
   });
 });

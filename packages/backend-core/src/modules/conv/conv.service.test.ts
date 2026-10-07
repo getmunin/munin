@@ -1275,6 +1275,37 @@ const skipReason = TEST_URL
       expect(row!.metadata['kind']).toBe('internal_note');
     });
 
+    it('requestHandover is a no-op while a teammate holds the claim, so nobody is paged for a conversation already owned', async () => {
+      const { conv } = await seedQueueConversation();
+      await run(() => claims.claim({ conversationId: conv.id }), humanActor);
+      const summary = await run(() =>
+        svc.requestHandover({
+          conversationId: conv.id,
+          reason: 'customs question',
+          suggestedReply: 'No customs duty applies.',
+        }),
+      );
+      expect(summary.needsHumanAttention).toBe(false);
+      const detail = await run(() => svc.getConversation(conv.id));
+      expect(detail.needsHumanAttention).toBe(false);
+      const internal = await db.execute<{ id: string }>(
+        sql`SELECT id FROM conv_messages WHERE conversation_id = ${conv.id} AND internal = true`,
+      );
+      expect(internal).toHaveLength(0);
+      const flagged = await db.execute<{ id: string }>(
+        sql`SELECT id FROM events
+            WHERE org_id = ${orgId} AND type = 'conversation.handover_requested'
+              AND payload ->> 'conversationId' = ${conv.id}`,
+      );
+      expect(flagged).toHaveLength(0);
+
+      await run(() => claims.release({ conversationId: conv.id }), humanActor);
+      const afterRelease = await run(() =>
+        svc.requestHandover({ conversationId: conv.id, reason: 'customs question' }),
+      );
+      expect(afterRelease.needsHumanAttention).toBe(true);
+    });
+
     it('clearDraftReply stamps draft_reply_rejected with the rejecting user instead of deleting', async () => {
       const { conv } = await seedQueueConversation();
       const draft = await run(() =>

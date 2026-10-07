@@ -1,5 +1,32 @@
 # @getmunin/backend-core
 
+## 5.42.0
+
+### Minor Changes
+
+- 2647f25: Slack: guard shared channels.
+
+  - Routing an org into a Slack channel that another org already routes into now requires the caller to be in that channel. Munin finds the Slack account that uses the caller's Munin email address (or, from the Slack prompt, uses the clicker's own account) and checks channel membership; otherwise `slack_set_routing` and `PUT /v1/slack/routing` refuse with `slack_not_channel_member`. Agents without a user behind them cannot pass the check. Editing a route an org already has in the channel is unaffected.
+  - When the bot joins a channel in a workspace several orgs share, the routing prompt no longer lists the orgs by name. Its buttons act for the org the clicker is an owner or admin of, a routed org is noted on the prompt, and the buttons stay until every org routes into the channel. Prompts already posted with a row per org still work, but answering one now closes the whole prompt.
+  - `slack_get_status` and `GET /v1/slack` report `sharedChannel` on every route, and the dashboard's Slack dialog warns when the selected channel is shared with another org.
+
+### Patch Changes
+
+- d75847f: A conversation a teammate has taken over no longer raises "Human attention needed". On a `draft_only` conversation the runner keeps drafting on each customer message after a claim, since #873 made that deliberate, but each run could still escalate: the model could call `conv_request_human`, and parking the draft flagged it for review. Every human reply clears the flag, so each new customer message paged the team again (in Slack, a fresh alert in the escalations channel) for a conversation someone already owned. A run that started before the teammate answered could also re-flag a question they had just resolved.
+
+  `requestHandover` is now a no-op while a user holds an active claim, covering every caller: the admin and self-service tools, `/v1/conversations/:id/request-handover`, and the runner's draft and retries-exhausted paths. While a human holds the claim, the runner also hides `conv_request_human` from the model and skips the review flag after parking a draft, so the claimer gets a usable draft instead of a deferral. Auto-send on a claimed conversation is still refused, as before.
+
+- f22be10: Placing a test call on a Threll voice channel whose threll has no outbound phone number now fails up front with `threll_no_outbound_number` and a translated explanation, instead of a bare `threll_400: 400` from Threll. Threll error responses also keep their detail when it isn't a plain `message` string — a message array, an `error` string or object, or an `errors` list — so other rejections are readable too.
+- 2d52fe3: Let a page start a voice call in the chat widget directly. Any element with `data-munin-call` opens the panel and starts the call when clicked, and `window.mn.widget.call()` does the same from script. `call()` resolves to `{ started: true }`, or to `{ started: false, reason }` so the page can fall back to a phone number when no voice channel is linked or the visitor denies the microphone. `window.mn.widget.endCall()` hangs up. The call joins the visitor's current conversation, or starts one if there is none. Two quick triggers no longer race into two calls, and this also applies to the in-panel call button.
+- Updated dependencies [d75847f]
+  - @getmunin/agent-runtime@5.42.0
+  - @getmunin/inspector-app@5.42.0
+  - @getmunin/core@5.42.0
+  - @getmunin/db@5.42.0
+  - @getmunin/emails@5.42.0
+  - @getmunin/mcp-toolkit@5.42.0
+  - @getmunin/types@5.42.0
+
 ## 5.41.0
 
 ### Minor Changes

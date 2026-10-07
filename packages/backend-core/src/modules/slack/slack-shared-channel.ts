@@ -1,4 +1,4 @@
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 import { schema, type Db } from '@getmunin/db';
 
 export interface SharedChannelIntegration {
@@ -46,4 +46,28 @@ export async function sharedChannelOrgName(
 ): Promise<string | null> {
   if (!(await isChannelShared(db, integration, slackChannelId))) return null;
   return await orgName(db, integration.orgId);
+}
+
+export async function sharedChannelIds(
+  db: Db,
+  integration: SharedChannelIntegration,
+  slackChannelIds: string[],
+): Promise<Set<string>> {
+  if (slackChannelIds.length === 0) return new Set();
+  const rows = await db
+    .selectDistinct({ slackChannelId: schema.slackChannelRoutes.slackChannelId })
+    .from(schema.slackChannelRoutes)
+    .innerJoin(
+      schema.slackIntegrations,
+      eq(schema.slackIntegrations.id, schema.slackChannelRoutes.integrationId),
+    )
+    .where(
+      and(
+        eq(schema.slackChannelRoutes.teamId, integration.teamId),
+        inArray(schema.slackChannelRoutes.slackChannelId, slackChannelIds),
+        ne(schema.slackChannelRoutes.orgId, integration.orgId),
+        eq(schema.slackIntegrations.active, true),
+      ),
+    );
+  return new Set(rows.map((row) => row.slackChannelId));
 }

@@ -338,6 +338,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
         : history;
     const sinceMessageId = detail.messages[detail.messages.length - 1]?.id;
     const endUserId = detail.endUserId!;
+    const heldByHuman = detail.claim?.holderType === 'user';
     const baseSystem = deps.prompts.system();
     const channelDescriptor = detail.channelType
       ? deps.prompts.channel(detail.channelType)
@@ -383,7 +384,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
         channelType: detail.channelType ?? null,
       });
       const agentMcp: McpToolHandle =
-        mode === 'draft-request'
+        mode === 'draft-request' || heldByHuman
           ? {
               listTools: () =>
                 mcp.listTools().then((tools) => tools.filter((t) => t.name !== HANDOVER_TOOL_NAME)),
@@ -461,16 +462,18 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
                 ? { toolNames: [...new Set(reply.toolCalls.map((t) => t.name))].slice(0, 24) }
                 : {}),
             });
-            await deps.rest
-              .requestHandover(conversationId, {
-                reason: DRAFT_REVIEW_REASON,
-                postSystemNote: false,
-              })
-              .catch((err) =>
-                log.warn(
-                  `${conversationId} failed to flag draft for review: ${err instanceof Error ? err.message : String(err)}`,
-                ),
-              );
+            if (!heldByHuman) {
+              await deps.rest
+                .requestHandover(conversationId, {
+                  reason: DRAFT_REVIEW_REASON,
+                  postSystemNote: false,
+                })
+                .catch((err) =>
+                  log.warn(
+                    `${conversationId} failed to flag draft for review: ${err instanceof Error ? err.message : String(err)}`,
+                  ),
+                );
+            }
             log.info(
               `${conversationId} drafted for review (model=${reply.model}, tools=${reply.toolCalls.length}, tokens=${reply.usage.totalTokens})`,
             );

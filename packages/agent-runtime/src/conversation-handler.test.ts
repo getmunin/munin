@@ -1130,6 +1130,56 @@ describe('createConversationHandler', () => {
     expect(draftSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('never escalates a conversation a human holds: the handover tool is hidden and the draft is not flagged', async () => {
+    const seen: Array<{ tools: unknown }> = [];
+    const provider: Provider = (args) => {
+      seen.push(args);
+      return Promise.resolve(assistantStop('Norwegian VAT is included in the price.'));
+    };
+    const mcp = buildMcp();
+    mcp.listTools = vi.fn(() =>
+      Promise.resolve([
+        { name: 'conv_request_human', description: 'handover', inputSchema: {} },
+        { name: 'kb_search', description: 'search', inputSchema: {} },
+      ]),
+    );
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            agentMode: 'draft_only',
+            channelType: 'email',
+            claim: {
+              holderType: 'user',
+              holderId: 'user_7',
+              expiresAt: new Date(Date.now() + 600_000).toISOString(),
+            },
+          }),
+        ),
+      ),
+    });
+    const draftSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    const handoverSpy = vi.fn(() => Promise.resolve());
+    rest.setDraftReply = draftSpy;
+    rest.requestHandover = handoverSpy;
+    const handler = createConversationHandler({
+      config: { ...baseConfig, auditEnabled: false },
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(mcp),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider,
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(draftSpy).toHaveBeenCalledTimes(1);
+    expect(handoverSpy).not.toHaveBeenCalled();
+    const toolNames = JSON.stringify(seen[0]!.tools);
+    expect(toolNames).toContain('kb_search');
+    expect(toolNames).not.toContain('conv_request_human');
+  });
+
   it('still refuses to auto-send on a conversation a human holds', async () => {
     const rest = buildRest({
       getConversation: vi.fn(() =>

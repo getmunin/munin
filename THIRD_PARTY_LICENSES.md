@@ -3773,7 +3773,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## @inquirer/ansi@2.0.8
+## @inquirer/ansi@2.0.9
 
 - Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/ansi/README.md
 - Author: Simon Boudrias
@@ -3806,7 +3806,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/confirm@6.3.2
+## @inquirer/confirm@6.3.3
 
 > Inquirer confirm prompt
 - Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/confirm/README.md
@@ -3840,7 +3840,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/core@12.0.3
+## @inquirer/core@12.0.4
 
 > Core Inquirer prompt API
 - Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/core/README.md
@@ -3908,7 +3908,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/type@4.1.1
+## @inquirer/type@4.2.0
 
 > Inquirer core TS types
 - Homepage: https://github.com/SBoudrias/Inquirer.js#readme
@@ -4245,7 +4245,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ---
 
-## @modelcontextprotocol/client@2.0.0
+## @modelcontextprotocol/client@2.2.0
 
 > Model Context Protocol implementation for TypeScript - Client package
 - Homepage: https://modelcontextprotocol.io
@@ -4473,7 +4473,7 @@ the full license text.
 
 ---
 
-## @modelcontextprotocol/core@2.0.0
+## @modelcontextprotocol/core@2.0.0, 2.2.0
 
 > Model Context Protocol for TypeScript — public Zod schemas (spec + OAuth/OpenID)
 - Homepage: https://modelcontextprotocol.io
@@ -10718,7 +10718,7 @@ MIT License
 
 ---
 
-## @types/node@22.20.1, 22.20.4
+## @types/node@22.20.1, 22.20.5
 
 > TypeScript definitions for node
 - Homepage: https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node
@@ -20523,7 +20523,7 @@ SOFTWARE.
 
 ---
 
-## jose@6.2.10
+## jose@6.2.10, 6.2.12
 
 > JWA, JWS, JWE, JWT, JWK, JWKS for Node.js, Browser, Cloudflare Workers, Deno, Bun, and other Web-interoperable runtimes
 - Homepage: https://github.com/panva/jose

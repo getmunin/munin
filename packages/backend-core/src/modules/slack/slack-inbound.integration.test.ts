@@ -608,34 +608,29 @@ class FakeSlackApi extends SlackApiClient {
       }
     }
 
-    function blockIds(blocks: unknown[] | undefined): string[] {
+    function buttonValues(blocks: unknown[] | undefined): string[] {
       return (blocks ?? []).flatMap((block) => {
-        const id = (block as { block_id?: string }).block_id;
-        return id ? [id] : [];
+        const elements = (block as { elements?: { value?: string }[] }).elements ?? [];
+        return elements.flatMap((element) => (element.value ? [element.value] : []));
       });
     }
 
-    it('asks every org sharing the workspace in one prompt, each with its own buttons', async () => {
-      await withSecondOrg(async (secondIntegrationId) => {
+    it('posts one prompt naming no org when several orgs share the workspace', async () => {
+      await withSecondOrg(async () => {
         await inbound.processEventCallback(joinPayload());
 
         expect(api.posted).toHaveLength(1);
         const prompt = api.posted[0]!;
         expect(prompt.channel).toBe('C_JOINED');
         expect(prompt.text).toContain('Several Munin orgs');
-        expect(blockIds(prompt.blocks)).toEqual([
-          `munin_route_org:${integrationId}`,
-          `munin_route_actions:${integrationId}`,
-          `munin_route_org:${secondIntegrationId}`,
-          `munin_route_actions:${secondIntegrationId}`,
-        ]);
-        const text = JSON.stringify(prompt.blocks);
-        expect(text).toContain('*Slack Inbound Test Org*');
-        expect(text).toContain('*Second Slack Org*');
+        const content = JSON.stringify([prompt.text, prompt.blocks]);
+        expect(content).not.toContain('Slack Inbound Test Org');
+        expect(content).not.toContain('Second Slack Org');
+        expect(new Set(buttonValues(prompt.blocks))).toEqual(new Set(['workspace:T_INBOUND']));
       });
     });
 
-    it('asks only the orgs not yet routed into the channel', async () => {
+    it('keeps the prompt anonymous even when only one of the orgs is left unrouted', async () => {
       await withSecondOrg(async () => {
         await db.insert(schema.slackChannelRoutes).values({
           orgId,
@@ -648,8 +643,38 @@ class FakeSlackApi extends SlackApiClient {
         await inbound.processEventCallback(joinPayload());
 
         expect(api.posted).toHaveLength(1);
-        expect(api.posted[0]!.text).toContain('*Second Slack Org*');
-        expect(blockIds(api.posted[0]!.blocks)).toEqual([]);
+        expect(JSON.stringify(api.posted[0]!)).not.toContain('Second Slack Org');
+        expect(new Set(buttonValues(api.posted[0]!.blocks))).toEqual(
+          new Set(['workspace:T_INBOUND']),
+        );
+      });
+    });
+
+    it('stays silent when every org sharing the workspace already routes into the channel', async () => {
+      await withSecondOrg(async (secondIntegrationId) => {
+        const [second] = await db
+          .select()
+          .from(schema.slackIntegrations)
+          .where(eq(schema.slackIntegrations.id, secondIntegrationId));
+        await db.insert(schema.slackChannelRoutes).values([
+          {
+            orgId,
+            integrationId,
+            teamId: 'T_INBOUND',
+            slackChannelId: 'C_JOINED',
+            purpose: 'escalations',
+          },
+          {
+            orgId: second!.orgId,
+            integrationId: secondIntegrationId,
+            teamId: 'T_INBOUND',
+            slackChannelId: 'C_JOINED',
+            purpose: 'default',
+          },
+        ]);
+
+        await inbound.processEventCallback(joinPayload());
+        expect(api.posted).toHaveLength(0);
       });
     });
   });

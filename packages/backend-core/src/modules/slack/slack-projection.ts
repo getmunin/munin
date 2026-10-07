@@ -299,11 +299,11 @@ export function routePromptText(orgName: string | null): string {
   return `:wave: Munin joined this channel. Should conversations${scope} mirror in here?`;
 }
 
-function routeButtons(integrationId: string): Record<string, unknown>[] {
+function routeButtons(value: string): Record<string, unknown>[] {
   return [
-    actionButton(ROUTE_DEFAULT_ACTION_ID, 'Mirror all conversations', integrationId),
-    actionButton(ROUTE_ESCALATIONS_ACTION_ID, 'Escalation alerts only', integrationId),
-    actionButton(ROUTE_DISMISS_ACTION_ID, 'Not now', integrationId),
+    actionButton(ROUTE_DEFAULT_ACTION_ID, 'Mirror all conversations', value),
+    actionButton(ROUTE_ESCALATIONS_ACTION_ID, 'Escalation alerts only', value),
+    actionButton(ROUTE_DISMISS_ACTION_ID, 'Not now', value),
   ];
 }
 
@@ -314,74 +314,51 @@ export function routePromptBlocks(integrationId: string, orgName: string | null)
   ];
 }
 
-export interface RoutePromptOrg {
-  integrationId: string;
-  orgName: string | null;
+const WORKSPACE_ROUTE_VALUE_PREFIX = 'workspace:';
+const WORKSPACE_ROUTE_ACTIONS_BLOCK_ID = 'munin_route_actions';
+
+export function workspaceRouteValue(teamId: string): string {
+  return `${WORKSPACE_ROUTE_VALUE_PREFIX}${teamId}`;
 }
 
-export const MAX_SHARED_ROUTE_PROMPT_ORGS = 20;
-
-export function sharedRoutePromptText(): string {
-  return ':wave: Munin joined this channel. Several Munin orgs share this workspace — which of them should mirror in here?';
+export function parseWorkspaceRouteValue(value: string): string | null {
+  if (!value.startsWith(WORKSPACE_ROUTE_VALUE_PREFIX)) return null;
+  const teamId = value.slice(WORKSPACE_ROUTE_VALUE_PREFIX.length);
+  return teamId.length > 0 ? teamId : null;
 }
 
-export function routePromptOrgBlockId(integrationId: string): string {
-  return `munin_route_org:${integrationId}`;
+export function workspaceRoutePromptText(): string {
+  return ':wave: Munin joined this channel. Several Munin orgs use this workspace — should yours mirror in here? The buttons act for the org you are an owner or admin of.';
 }
 
-export function routePromptActionsBlockId(integrationId: string): string {
-  return `munin_route_actions:${integrationId}`;
-}
-
-function promptOrgLine(orgName: string | null): string {
-  return orgLabelLine(orgName ?? 'Unnamed org');
-}
-
-export function sharedRoutePromptBlocks(orgs: RoutePromptOrg[]): SlackBlock[] {
+export function workspaceRoutePromptBlocks(teamId: string): SlackBlock[] {
   return [
-    { type: 'section', text: { type: 'mrkdwn', text: sharedRoutePromptText() } },
-    ...orgs.slice(0, MAX_SHARED_ROUTE_PROMPT_ORGS).flatMap((org) => [
-      {
-        type: 'section',
-        block_id: routePromptOrgBlockId(org.integrationId),
-        text: { type: 'mrkdwn', text: promptOrgLine(org.orgName) },
-      },
-      {
-        type: 'actions',
-        block_id: routePromptActionsBlockId(org.integrationId),
-        elements: routeButtons(org.integrationId),
-      },
-    ]),
+    { type: 'section', text: { type: 'mrkdwn', text: workspaceRoutePromptText() } },
+    {
+      type: 'actions',
+      block_id: WORKSPACE_ROUTE_ACTIONS_BLOCK_ID,
+      elements: routeButtons(workspaceRouteValue(teamId)),
+    },
   ];
 }
 
-export function isSharedRoutePrompt(
-  blocks: readonly SlackBlock[] | null,
-  integrationId: string,
-): boolean {
-  const actionsId = routePromptActionsBlockId(integrationId);
-  return blocks?.some((block) => block.block_id === actionsId) === true;
+export function workspaceRouteOutcomeLine(orgName: string | null, outcome: string): string {
+  return `${orgLabelLine(orgName ?? 'Unnamed org')}\n${outcome}`;
 }
 
-export function resolveSharedRoutePrompt(
-  blocks: readonly SlackBlock[],
-  integrationId: string,
-  orgName: string | null,
-  outcome: string,
+export function updateWorkspaceRoutePrompt(
+  blocks: readonly SlackBlock[] | null,
+  teamId: string,
+  line: string,
+  keepButtons: boolean,
 ): SlackBlock[] {
-  const orgId = routePromptOrgBlockId(integrationId);
-  const actionsId = routePromptActionsBlockId(integrationId);
-  return blocks
-    .filter((block) => block.block_id !== actionsId)
-    .map((block) =>
-      block.block_id === orgId
-        ? {
-            type: 'section',
-            block_id: orgId,
-            text: { type: 'mrkdwn', text: `${promptOrgLine(orgName)}\n${outcome}` },
-          }
-        : block,
-    );
+  const current = blocks && blocks.length > 0 ? blocks : workspaceRoutePromptBlocks(teamId);
+  const actions = current.find((block) => block.block_id === WORKSPACE_ROUTE_ACTIONS_BLOCK_ID);
+  return [
+    ...current.filter((block) => block.block_id !== WORKSPACE_ROUTE_ACTIONS_BLOCK_ID),
+    { type: 'section', text: { type: 'mrkdwn', text: line } },
+    ...(keepButtons && actions ? [actions] : []),
+  ];
 }
 
 export function routeConfirmedText(

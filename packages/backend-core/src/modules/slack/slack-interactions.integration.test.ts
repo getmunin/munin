@@ -31,7 +31,7 @@ import { SlackEventSink } from './slack-event-sink.ts';
 import { SlackInteractionsService } from './slack-interactions.service.ts';
 import { SlackUserMappingService } from './slack-user-mapping.service.ts';
 import { SlackService, encryptSecretValue } from './slack.service.ts';
-import { sharedRoutePromptBlocks } from './slack-projection.ts';
+import { workspaceRoutePromptBlocks } from './slack-projection.ts';
 import { mergeFingerprint } from '../crm/merge-fingerprint.ts';
 import { stubAttachmentGateway } from '../conv/attachments/conv-attachments.test-stub.ts';
 
@@ -45,6 +45,7 @@ const CHANNEL = 'C_ACTIONS';
 
 class FakeSlackApi extends SlackApiClient {
   usersById = new Map<string, { email: string | null }>();
+  channelMembers = new Map<string, string[]>();
   ephemerals: { user: string; text: string }[] = [];
   updated: { channel: string; ts: string; text: string; blocks?: unknown[] }[] = [];
 
@@ -65,6 +66,17 @@ class FakeSlackApi extends SlackApiClient {
 
   override conversationsInfo(input: { token: string; channel: string }) {
     return Promise.resolve({ id: input.channel, name: 'routed', isMember: true });
+  }
+
+  override usersLookupByEmail(input: { token: string; email: string }) {
+    for (const [id, entry] of this.usersById) {
+      if (entry.email === input.email) return Promise.resolve(id);
+    }
+    return Promise.resolve(null);
+  }
+
+  override isConversationMember(input: { token: string; channel: string; user: string }) {
+    return Promise.resolve(this.channelMembers.get(input.channel)?.includes(input.user) ?? false);
   }
 
   override updateMessage(input: {
@@ -511,14 +523,7 @@ class FakeSlackApi extends SlackApiClient {
         await db.delete(schema.orgs).where(sql`id = ${otherOrgId}`);
       });
 
-      function sharedPrompt() {
-        return sharedRoutePromptBlocks([
-          { integrationId, orgName: 'Slack Interactions Test Org' },
-          { integrationId: otherIntegrationId, orgName: 'Globex' },
-        ]);
-      }
-
-      it('routes the channel even though another org already routes into it', async () => {
+      async function routeGlobex() {
         await db.insert(schema.slackChannelRoutes).values({
           orgId: otherOrgId,
           integrationId: otherIntegrationId,
@@ -526,6 +531,19 @@ class FakeSlackApi extends SlackApiClient {
           slackChannelId: 'C_FRESH',
           purpose: 'default',
         });
+      }
+
+      function workspacePayload(actionId: string, overrides: Record<string, unknown> = {}) {
+        return routePayload(actionId, {
+          message: { ts: '1750000000.000900', blocks: workspaceRoutePromptBlocks('T_ACTIONS') },
+          actions: [{ action_id: actionId, value: 'workspace:T_ACTIONS' }],
+          ...overrides,
+        });
+      }
+
+      it('routes the channel when the clicker is in it, even though another org routes there', async () => {
+        await routeGlobex();
+        api.channelMembers.set('C_FRESH', ['U_BELLA']);
 
         await interactions.processBlockActions(routePayload('munin_route_default'));
 
@@ -536,55 +554,82 @@ class FakeSlackApi extends SlackApiClient {
         expect(api.updated[0]!.blocks).toEqual([]);
       });
 
-      it('resolves only the clicked org in a shared prompt and keeps the others actionable', async () => {
-        const blocks = sharedPrompt();
-        await interactions.processBlockActions(
-          routePayload('munin_route_default', {
-            message: { ts: '1750000000.000900', blocks },
-          }),
-        );
+      it('refuses to route a clicker who is not in the channel another org routes into', async () => {
+        await routeGlobex();
 
-        expect(await routes()).toHaveLength(1);
-        const update = api.updated[0]!;
-        expect(update.text).toContain('*Slack Interactions Test Org*');
-        const ids = (update.blocks as { block_id?: string }[]).map((b) => b.block_id ?? null);
-        expect(ids).toEqual([
-          null,
-          `munin_route_org:${integrationId}`,
-          `munin_route_org:${otherIntegrationId}`,
-          `munin_route_actions:${otherIntegrationId}`,
-        ]);
-        const resolved = (update.blocks as { text?: { text: string } }[])[1]!.text!.text;
-        expect(resolved).toContain('*Slack Interactions Test Org*');
-        expect(resolved).toContain('all mirrored conversations');
+        await interactions.processBlockActions(routePayload('munin_route_default'));
+
+        expect((await routes()).map((r) => r.orgId)).toEqual([otherOrgId]);
+        expect(api.ephemerals).toHaveLength(1);
+        expect(api.ephemerals[0]!.text).toContain('slack_not_channel_member');
+        expect(api.updated).toHaveLength(0);
       });
 
-      it('dismissing in a shared prompt leaves the other org untouched', async () => {
-        await interactions.processBlockActions(
-          routePayload('munin_route_dismiss', {
-            message: { ts: '1750000000.000900', blocks: sharedPrompt() },
-          }),
-        );
-
-        expect(await routes()).toHaveLength(0);
-        const ids = (api.updated[0]!.blocks as { block_id?: string }[]).map(
-          (b) => b.block_id ?? null,
-        );
-        expect(ids).toContain(`munin_route_actions:${otherIntegrationId}`);
-        expect(ids).not.toContain(`munin_route_actions:${integrationId}`);
-      });
-
-      it('names the org when an unlinked clicker hits a shared prompt', async () => {
+      it('names the org when an unlinked clicker hits a prompt in a shared channel', async () => {
+        await routeGlobex();
         api.usersById.set('U_NOBODY', { email: 'nobody@example.com' });
         await interactions.processBlockActions(
-          routePayload('munin_route_default', {
-            user: { id: 'U_NOBODY' },
-            message: { ts: '1750000000.000900', blocks: sharedPrompt() },
-          }),
+          routePayload('munin_route_default', { user: { id: 'U_NOBODY' } }),
         );
 
         expect(api.ephemerals).toHaveLength(1);
         expect(api.ephemerals[0]!.text).toContain('*Slack Interactions Test Org*');
+      });
+
+      it("routes the clicker's own org from the workspace prompt and keeps the buttons for the rest", async () => {
+        await interactions.processBlockActions(workspacePayload('munin_route_default'));
+
+        expect((await routes()).map((r) => r.orgId)).toEqual([orgId]);
+        const update = api.updated[0]!;
+        expect(update.text).toContain('*Slack Interactions Test Org*');
+        expect(update.text).not.toContain('Globex');
+        const blocks = update.blocks as { type: string; text?: { text: string } }[];
+        expect(blocks.map((b) => b.type)).toEqual(['section', 'section', 'actions']);
+        expect(blocks[1]!.text!.text).toContain('all mirrored conversations');
+        expect(JSON.stringify(blocks)).not.toContain('Globex');
+      });
+
+      it('drops the workspace prompt buttons once every org routes into the channel', async () => {
+        await routeGlobex();
+        api.channelMembers.set('C_FRESH', ['U_BELLA']);
+
+        await interactions.processBlockActions(workspacePayload('munin_route_escalations'));
+
+        expect((await routes()).map((r) => r.purpose).sort()).toEqual(['default', 'escalations']);
+        const blocks = api.updated[0]!.blocks as { type: string }[];
+        expect(blocks.map((b) => b.type)).toEqual(['section', 'section']);
+      });
+
+      it('asks a clicker who administers several unrouted orgs to pick one elsewhere', async () => {
+        await db.insert(schema.orgMembers).values({ orgId: otherOrgId, userId: memberUserId, role: 'admin' });
+
+        await interactions.processBlockActions(workspacePayload('munin_route_default'));
+
+        expect(await routes()).toHaveLength(0);
+        expect(api.updated).toHaveLength(0);
+        expect(api.ephemerals).toHaveLength(1);
+        expect(api.ephemerals[0]!.text).toContain('*Slack Interactions Test Org*');
+        expect(api.ephemerals[0]!.text).toContain('*Globex*');
+      });
+
+      it('rejects an unlinked workspace prompt clicker without naming any org', async () => {
+        api.usersById.set('U_NOBODY', { email: 'nobody@example.com' });
+        await interactions.processBlockActions(
+          workspacePayload('munin_route_default', { user: { id: 'U_NOBODY' } }),
+        );
+
+        expect(await routes()).toHaveLength(0);
+        expect(api.ephemerals).toHaveLength(1);
+        expect(api.ephemerals[0]!.text).toContain('add you to the org');
+      });
+
+      it('dismissing the workspace prompt closes it without routing', async () => {
+        await interactions.processBlockActions(workspacePayload('munin_route_dismiss'));
+
+        expect(await routes()).toHaveLength(0);
+        const blocks = api.updated[0]!.blocks as { type: string }[];
+        expect(blocks.map((b) => b.type)).toEqual(['section', 'section']);
+        expect(api.updated[0]!.text).toContain('dashboard');
       });
     });
   });

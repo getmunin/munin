@@ -42,6 +42,7 @@ import { OUTREACH_VOICE_CALLERS } from './channels/outreach-voice.ts';
 import { ThrellAdminProvider } from './threll/threll-admin.provider.ts';
 import { TwilioSmsAdminProvider } from './twilio/twilio-sms-admin.provider.ts';
 import { MessageBirdSmsAdminProvider } from './messagebird/messagebird-sms-admin.provider.ts';
+import { StrexSmsAdminProvider } from './strex/strex-sms-admin.provider.ts';
 import { ChannelIngestService } from './channels/channel-ingest.service.ts';
 import { ChannelWebhookController } from './channels/channel-webhook.controller.ts';
 import { InboundPollWorker } from './channels/inbound-poll.worker.ts';
@@ -51,6 +52,10 @@ import { MessageBirdClientService } from './messagebird/messagebird-client.servi
 import { MessageBirdSmsAdapter } from './messagebird/messagebird-sms-adapter.ts';
 import { MessageBirdSmsAdminService } from './messagebird/messagebird-sms-admin.service.ts';
 import { MessageBirdSmsService } from './messagebird/messagebird-sms.service.ts';
+import { StrexClientService } from './strex/strex-client.service.ts';
+import { StrexSmsAdapter } from './strex/strex-sms-adapter.ts';
+import { StrexSmsAdminService } from './strex/strex-sms-admin.service.ts';
+import { StrexSmsService } from './strex/strex-sms.service.ts';
 import { VapiClientService } from './vapi/vapi-client.service.ts';
 import { VapiAdapter } from './vapi/vapi-adapter.ts';
 import { VapiAdminService } from './vapi/vapi-admin.service.ts';
@@ -119,6 +124,10 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
     MessageBirdSmsService,
     MessageBirdSmsAdapter,
     MessageBirdSmsAdminService,
+    StrexClientService,
+    StrexSmsService,
+    StrexSmsAdapter,
+    StrexSmsAdminService,
     TwilioClientService,
     TwilioSmsService,
     TwilioSmsAdapter,
@@ -156,14 +165,16 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
         email: EmailAdapter,
         twilioSms: TwilioSmsAdapter,
         messageBirdSms: MessageBirdSmsAdapter,
+        strexSms: StrexSmsAdapter,
         vapi: VapiAdapter,
         threll: ThrellAdapter,
         widget: WidgetAdapter,
-      ) => [email, twilioSms, messageBirdSms, vapi, threll, widget],
+      ) => [email, twilioSms, messageBirdSms, strexSms, vapi, threll, widget],
       inject: [
         EmailAdapter,
         TwilioSmsAdapter,
         MessageBirdSmsAdapter,
+        StrexSmsAdapter,
         VapiAdapter,
         ThrellAdapter,
         WidgetAdapter,
@@ -173,6 +184,7 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
     ThrellAdminProvider,
     TwilioSmsAdminProvider,
     MessageBirdSmsAdminProvider,
+    StrexSmsAdminProvider,
     ChannelAdminService,
     ChannelAdminTools,
     {
@@ -182,12 +194,14 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
         threll: ThrellAdminProvider,
         twilioSms: TwilioSmsAdminProvider,
         messageBirdSms: MessageBirdSmsAdminProvider,
-      ): ChannelAdminProvider[] => [vapi, threll, twilioSms, messageBirdSms],
+        strexSms: StrexSmsAdminProvider,
+      ): ChannelAdminProvider[] => [vapi, threll, twilioSms, messageBirdSms, strexSms],
       inject: [
         VapiAdminProvider,
         ThrellAdminProvider,
         TwilioSmsAdminProvider,
         MessageBirdSmsAdminProvider,
+        StrexSmsAdminProvider,
       ],
     },
   ],
@@ -212,6 +226,10 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
     MessageBirdSmsService,
     MessageBirdSmsAdapter,
     MessageBirdSmsAdminService,
+    StrexClientService,
+    StrexSmsService,
+    StrexSmsAdapter,
+    StrexSmsAdminService,
     TwilioClientService,
     TwilioSmsService,
     TwilioSmsAdapter,

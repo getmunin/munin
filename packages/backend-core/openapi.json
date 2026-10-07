@@ -3762,6 +3762,110 @@
         ]
       }
     },
+    "/v1/conversations/channels/strex-sms": {
+      "post": {
+        "operationId": "ConvChannelsController_configureStrexSms",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigureStrexSmsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conversations/channels/strex-sms/{id}/test": {
+      "post": {
+        "operationId": "ConvChannelsController_testStrexSms",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conversations/channels/strex-sms/{id}/send-test": {
+      "post": {
+        "operationId": "ConvChannelsController_sendStrexSmsTest",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendStrexSmsTestBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/channels/vapi": {
       "post": {
         "operationId": "ConvChannelsController_configureVapi",
@@ -10108,6 +10212,94 @@
         }
       },
       "SendMessageBirdSmsTestBody": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^\\+[1-9]\\d{4,18}$"
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1600
+          }
+        },
+        "required": [
+          "to"
+        ]
+      },
+      "ConfigureStrexSmsBody": {
+        "type": "object",
+        "properties": {
+          "channelId": {
+            "type": "string",
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "apiKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "sender": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 15,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "shortNumberId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{2}-\\d{3,15}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          },
+          "keyword": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[\\p{L}\\p{N}]{1,40}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "production",
+              "test"
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "defaultAgentMode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "draft_only",
+              "off"
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          }
+        }
+      },
+      "SendStrexSmsTestBody": {
         "type": "object",
         "properties": {
           "to": {

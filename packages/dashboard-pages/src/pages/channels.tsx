@@ -9,6 +9,7 @@ import {
   Mail,
   MessageCircle,
   MessageSquare,
+  MessageSquareText,
   Phone,
   RefreshCw,
 } from 'lucide-react';
@@ -35,6 +36,9 @@ import {
   SendTwilioSmsTestBody,
   ConfigureMessageBirdSmsBody,
   SendMessageBirdSmsTestBody,
+  ConfigureStrexSmsBody,
+  SendStrexSmsTestBody,
+  type StrexEnvironment,
   ConfigureVapiBody,
   VapiCallInitiateBody,
   ConfigureThrellBody,
@@ -145,6 +149,18 @@ interface MessageBirdSmsChannelDto extends ChannelDto {
   };
 }
 
+interface StrexSmsChannelDto extends ChannelDto {
+  type: 'sms';
+  vendor: 'strex';
+  config: {
+    apiKey?: string;
+    sender?: string;
+    environment?: StrexEnvironment;
+    shortNumberId?: string | null;
+    keyword?: string | null;
+  };
+}
+
 interface VapiChannelDto extends ChannelDto {
   type: 'voice';
   vendor: 'vapi';
@@ -238,6 +254,7 @@ export function ChannelsPage() {
   const [addSmsOpen, setAddSmsOpen] = useState(false);
   const [editTwilioSms, setEditTwilioSms] = useState<TwilioSmsChannelDto | null>(null);
   const [editMessageBirdSms, setEditMessageBirdSms] = useState<MessageBirdSmsChannelDto | null>(null);
+  const [editStrexSms, setEditStrexSms] = useState<StrexSmsChannelDto | null>(null);
   const [addVoiceOpen, setAddVoiceOpen] = useState(false);
   const [editVapi, setEditVapi] = useState<VapiChannelDto | null>(null);
   const [placeVapiCallFor, setPlaceVapiCallFor] = useState<VapiChannelDto | null>(null);
@@ -253,6 +270,7 @@ export function ChannelsPage() {
   const [sendSmsTestFor, setSendSmsTestFor] = useState<TwilioSmsChannelDto | null>(null);
   const [sendMessageBirdTestFor, setSendMessageBirdTestFor] =
     useState<MessageBirdSmsChannelDto | null>(null);
+  const [sendStrexTestFor, setSendStrexTestFor] = useState<StrexSmsChannelDto | null>(null);
   const [alerts, setAlerts] = useState<Record<string, ChannelAlertDto>>({});
 
   const load = useCallback(async () => {
@@ -426,6 +444,19 @@ export function ChannelsPage() {
         />
       )}
 
+      {editStrexSms && (
+        <StrexSmsChannelDialog
+          open
+          editChannel={editStrexSms}
+          onOpenChange={(next) => {
+            if (!next) setEditStrexSms(null);
+          }}
+          onSaved={() => {
+            void tryLoad();
+          }}
+        />
+      )}
+
       <RotatedSecretDialog
         open={rotated !== null}
         title={t('rotatedTitle')}
@@ -498,6 +529,13 @@ export function ChannelsPage() {
         <SendTestMessageBirdSmsDialog
           channel={sendMessageBirdTestFor}
           onClose={() => setSendMessageBirdTestFor(null)}
+        />
+      )}
+
+      {sendStrexTestFor && (
+        <SendTestStrexSmsDialog
+          channel={sendStrexTestFor}
+          onClose={() => setSendStrexTestFor(null)}
         />
       )}
 
@@ -626,6 +664,8 @@ export function ChannelsPage() {
                     setEditTwilioSms(c as TwilioSmsChannelDto);
                   } else if (c.type === 'sms' && c.vendor === 'messagebird') {
                     setEditMessageBirdSms(c as MessageBirdSmsChannelDto);
+                  } else if (c.type === 'sms' && c.vendor === 'strex') {
+                    setEditStrexSms(c as StrexSmsChannelDto);
                   } else if (c.type === 'voice' && c.vendor === 'vapi') {
                     setEditVapi(c as VapiChannelDto);
                   } else if (c.type === 'voice' && c.vendor === 'threll') {
@@ -639,6 +679,8 @@ export function ChannelsPage() {
                     setSendSmsTestFor(c as TwilioSmsChannelDto);
                   } else if (c.type === 'sms' && c.vendor === 'messagebird') {
                     setSendMessageBirdTestFor(c as MessageBirdSmsChannelDto);
+                  } else if (c.type === 'sms' && c.vendor === 'strex') {
+                    setSendStrexTestFor(c as StrexSmsChannelDto);
                   } else if (c.type === 'voice' && c.vendor === 'vapi') {
                     setPlaceVapiCallFor(c as VapiChannelDto);
                   } else if (c.type === 'voice' && c.vendor === 'threll') {
@@ -687,6 +729,7 @@ function ChannelRow({
   const isChat = channel.type === 'chat';
   const isTwilioSms = channel.type === 'sms' && channel.vendor === 'twilio';
   const isMessageBirdSms = channel.type === 'sms' && channel.vendor === 'messagebird';
+  const isStrexSms = channel.type === 'sms' && channel.vendor === 'strex';
   const isVapiVoice = channel.type === 'voice' && channel.vendor === 'vapi';
   const isThrellVoice = channel.type === 'voice' && channel.vendor === 'threll';
   const widgetConfig = isChat
@@ -697,13 +740,19 @@ function ChannelRow({
   const mbSmsConfig = isMessageBirdSms
     ? (channel.config as MessageBirdSmsChannelDto['config'])
     : null;
+  const strexSmsConfig = isStrexSms ? (channel.config as StrexSmsChannelDto['config']) : null;
   const origins = widgetConfig?.originAllowlist ?? [];
 
   const isDeactivated = !channel.active;
   const awaitingCredentials = channel.needsCredentials === true;
   const canEdit =
     !awaitingCredentials &&
-    (channel.type === 'email' || isTwilioSms || isMessageBirdSms || isVapiVoice || isThrellVoice);
+    (channel.type === 'email' ||
+      isTwilioSms ||
+      isMessageBirdSms ||
+      isStrexSms ||
+      isVapiVoice ||
+      isThrellVoice);
 
   const kind = isChat
     ? t('typeChat')
@@ -721,7 +770,9 @@ function ChannelRow({
       ? (smsConfig?.fromNumber ? formatPhoneNumber(smsConfig.fromNumber) : undefined)
       : isMessageBirdSms
         ? (mbSmsConfig?.originator ? formatPhoneNumber(mbSmsConfig.originator) : undefined)
-        : undefined;
+        : isStrexSms
+          ? (strexSmsConfig?.sender ?? undefined)
+          : undefined;
 
   const relayAddress =
     emailConfig?.inbound?.provider === 'relay' ? emailConfig.inbound.address : null;
@@ -750,7 +801,9 @@ function ChannelRow({
     ? 'twilio'
     : isMessageBirdSms
       ? 'messagebird'
-      : isVapiVoice
+      : isStrexSms
+        ? 'strex'
+        : isVapiVoice
         ? 'vapi'
         : isThrellVoice
           ? 'threll'
@@ -846,6 +899,12 @@ function ChannelRow({
               <DropdownMenuSeparator />
             </>
           )}
+          {!awaitingCredentials && isStrexSms && (
+            <>
+              <DropdownMenuItem onClick={onSendTest}>{t('strexSms.sendTest')}</DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
           {!awaitingCredentials && isVapiVoice && (
             <>
               <DropdownMenuItem onClick={onSendTest}>{t('vapi.placeCall')}</DropdownMenuItem>
@@ -908,7 +967,7 @@ function AlertFooter({
   );
 }
 
-type ChannelVendor = 'twilio' | 'messagebird' | 'vapi' | 'threll';
+type ChannelVendor = 'twilio' | 'messagebird' | 'strex' | 'vapi' | 'threll';
 
 function VendorLogo({
   vendor,
@@ -922,9 +981,11 @@ function VendorLogo({
       ? TwilioLogo
       : vendor === 'messagebird'
         ? MessageBirdLogo
-        : vendor === 'threll'
-          ? ThrellLogo
-          : VapiLogo;
+        : vendor === 'strex'
+          ? MessageSquareText
+          : vendor === 'threll'
+            ? ThrellLogo
+            : VapiLogo;
   const colorClass =
     vendor === 'twilio'
       ? ''
@@ -1837,6 +1898,7 @@ function EnterChannelCredentialsDialog({
 const VENDOR_COPY_NAMESPACE: Record<string, string> = {
   twilio: 'twilioSms',
   messagebird: 'messageBirdSms',
+  strex: 'strexSms',
   vapi: 'vapi',
   threll: 'threll',
 };
@@ -2884,7 +2946,356 @@ function SendTestMessageBirdSmsDialog({
   );
 }
 
-type SmsVendor = 'twilio' | 'messagebird';
+function StrexRoutingFields({
+  sender,
+  onSenderChange,
+  shortNumberId,
+  onShortNumberIdChange,
+  keyword,
+  onKeywordChange,
+  environment,
+  onEnvironmentChange,
+  fieldErrors,
+  senderRequired,
+}: {
+  sender: string;
+  onSenderChange: (next: string) => void;
+  shortNumberId: string;
+  onShortNumberIdChange: (next: string) => void;
+  keyword: string;
+  onKeywordChange: (next: string) => void;
+  environment: StrexEnvironment;
+  onEnvironmentChange: (next: StrexEnvironment) => void;
+  fieldErrors: Record<string, string>;
+  senderRequired?: boolean;
+}) {
+  const t = useTranslations('dashboard.channels');
+  return (
+    <>
+      <FormField
+        label={t('strexSms.senderLabel')}
+        hint={t('strexSms.senderHint')}
+        error={fieldErrors.sender}
+      >
+        <Input
+          value={sender}
+          onChange={(e) => onSenderChange(e.target.value)}
+          placeholder="2002 or AcmeSupport"
+          maxLength={15}
+          required={senderRequired}
+        />
+      </FormField>
+      <FormField
+        label={t('strexSms.shortNumberIdLabel')}
+        hint={t('strexSms.shortNumberIdHint')}
+        error={fieldErrors.shortNumberId}
+      >
+        <Input
+          value={shortNumberId}
+          onChange={(e) => onShortNumberIdChange(e.target.value)}
+          placeholder="NO-2002"
+          maxLength={20}
+        />
+      </FormField>
+      <FormField
+        label={t('strexSms.keywordLabel')}
+        hint={t('strexSms.keywordHint')}
+        error={fieldErrors.keyword}
+      >
+        <Input
+          value={keyword}
+          onChange={(e) => onKeywordChange(e.target.value)}
+          placeholder="ACME"
+          maxLength={40}
+          disabled={!shortNumberId.trim()}
+        />
+      </FormField>
+      <FormField label={t('strexSms.environmentLabel')} hint={t('strexSms.environmentHint')}>
+        <NativeSelect
+          value={environment}
+          onChange={(e) => onEnvironmentChange(e.target.value as StrexEnvironment)}
+        >
+          <option value="production">{t('strexSms.environmentProduction')}</option>
+          <option value="test">{t('strexSms.environmentTest')}</option>
+        </NativeSelect>
+      </FormField>
+    </>
+  );
+}
+
+function StrexSmsChannelDialog({
+  open,
+  onOpenChange,
+  onSaved,
+  editChannel,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+  editChannel: StrexSmsChannelDto;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [name, setName] = useState(editChannel.name);
+  const [apiKey, setApiKey] = useState('');
+  const [sender, setSender] = useState(editChannel.config?.sender ?? '');
+  const [shortNumberId, setShortNumberId] = useState(editChannel.config?.shortNumberId ?? '');
+  const [keyword, setKeyword] = useState(editChannel.config?.keyword ?? '');
+  const [environment, setEnvironment] = useState<StrexEnvironment>(
+    editChannel.config?.environment ?? 'production',
+  );
+  const [defaultAgentMode, setDefaultAgentMode] = useState<'auto' | 'draft_only' | 'off'>(
+    editChannel.defaultAgentMode ?? 'auto',
+  );
+  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!open) return;
+    setName(editChannel.name);
+    setApiKey('');
+    setSender(editChannel.config?.sender ?? '');
+    setShortNumberId(editChannel.config?.shortNumberId ?? '');
+    setKeyword(editChannel.config?.keyword ?? '');
+    setEnvironment(editChannel.config?.environment ?? 'production');
+    setDefaultAgentMode(editChannel.defaultAgentMode ?? 'auto');
+    setSubmitError(null);
+    setFieldErrors({});
+    setSaving(false);
+  }, [open, editChannel]);
+
+  async function submit() {
+    const payload: Record<string, unknown> = {
+      channelId: editChannel.id,
+      ...(name.trim() ? { name: name.trim() } : {}),
+      ...(apiKey ? { apiKey } : {}),
+      ...(sender.trim() ? { sender: sender.trim() } : {}),
+      shortNumberId: shortNumberId.trim() ? shortNumberId.trim().toUpperCase() : null,
+      keyword: shortNumberId.trim() && keyword.trim() ? keyword.trim() : null,
+      environment,
+      defaultAgentMode,
+    };
+    const parsed = ConfigureStrexSmsBody.safeParse(payload);
+    if (!parsed.success) {
+      setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      return;
+    }
+    setFieldErrors({});
+    setSaving(true);
+    setSubmitError(null);
+    try {
+      await api('/v1/conversations/channels/strex-sms', {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      onOpenChange(false);
+      onSaved();
+    } catch (err) {
+      setSubmitError(toFormError(err, translate(err) || t('errors.updateStrexSms')));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>{t('strexSms.editTitle')}</DialogTitle>
+          <DialogDescription>{t('strexSms.editDescription')}</DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <FormField label={t('nameLabel')} hint={t('strexSms.nameHint')}>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. strex-support"
+              maxLength={120}
+            />
+          </FormField>
+          <FormField label={t('strexSms.apiKeyLabel')} hint={t('strexSms.apiKeyHintEdit')}>
+            <Input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="••••"
+              autoComplete="off"
+            />
+          </FormField>
+          <StrexRoutingFields
+            sender={sender}
+            onSenderChange={setSender}
+            shortNumberId={shortNumberId}
+            onShortNumberIdChange={setShortNumberId}
+            keyword={keyword}
+            onKeywordChange={setKeyword}
+            environment={environment}
+            onEnvironmentChange={setEnvironment}
+            fieldErrors={fieldErrors}
+          />
+          <FormField label={t('agentReplies.label')} hint={t('agentReplies.hintSms')}>
+            <NativeSelect
+              value={defaultAgentMode}
+              onChange={(e) =>
+                setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
+              }
+            >
+              <option value="auto">{t('agentReplies.auto')}</option>
+              <option value="draft_only">{t('agentReplies.draftOnly')}</option>
+              <option value="off">{t('agentReplies.off')}</option>
+            </NativeSelect>
+          </FormField>
+          {submitError && <FormError detail={submitError} />}
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={() => onOpenChange(false)}
+              disabled={saving}
+            >
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={saving}
+              pending={saving}
+            >
+              {saving ? tCommon('saving') : tCommon('saveChanges')}
+              <span aria-hidden className="ml-1 font-mono">↵</span>
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SendTestStrexSmsDialog({
+  channel,
+  onClose,
+}: {
+  channel: StrexSmsChannelDto;
+  onClose: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [to, setTo] = useState('');
+  const [body, setBody] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+
+  async function submit() {
+    const trimmed = to.trim();
+    if (!trimmed) return;
+    const payload: Record<string, unknown> = { to: trimmed };
+    if (body.trim()) payload.body = body.trim();
+    const parsed = SendStrexSmsTestBody.safeParse(payload);
+    if (!parsed.success) {
+      setError(zodIssuesToErrorMessage(parsed.error.issues, t));
+      return;
+    }
+    setSending(true);
+    setError(null);
+    try {
+      await api(`/v1/conversations/channels/strex-sms/${channel.id}/send-test`, {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      notify.success(t('strexSms.sendTestDialog.success', { to: trimmed }));
+      onClose();
+    } catch (err) {
+      setError(translate(err) || t('errors.sendTestStrexSms'));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('strexSms.sendTestDialog.title')}</DialogTitle>
+          <DialogDescription>
+            {t('strexSms.sendTestDialog.description', { name: channel.name })}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <FormField
+            label={t('strexSms.sendTestDialog.toLabel')}
+            hint={t('strexSms.sendTestDialog.toHint')}
+            error={error ?? undefined}
+          >
+            <Input
+              value={to}
+              onChange={(e) => {
+                setTo(e.target.value);
+                if (error) setError(null);
+              }}
+              required
+              autoFocus
+              placeholder="+4712345678"
+              aria-invalid={error ? true : undefined}
+            />
+          </FormField>
+          <FormField
+            label={t('strexSms.sendTestDialog.bodyLabel')}
+            hint={t('strexSms.sendTestDialog.bodyHint')}
+          >
+            <Input
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              maxLength={1600}
+              placeholder={t('strexSms.sendTestDialog.bodyPlaceholder')}
+            />
+          </FormField>
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={onClose}
+              disabled={sending}
+            >
+              {tCommon('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="accent"
+              className={dialogButtonClass}
+              disabled={sending || !to.trim()}
+              pending={sending}
+            >
+              {sending
+                ? t('strexSms.sendTestDialog.sending')
+                : t('strexSms.sendTestDialog.submit')}
+              <span aria-hidden className="ml-1 font-mono">↵</span>
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type SmsVendor = 'twilio' | 'messagebird' | 'strex';
 
 function AddSmsDialog({
   open,
@@ -2907,6 +3318,11 @@ function AddSmsDialog({
   const [accessKey, setAccessKey] = useState('');
   const [signingKey, setSigningKey] = useState('');
   const [originator, setOriginator] = useState('');
+  const [strexApiKey, setStrexApiKey] = useState('');
+  const [strexSender, setStrexSender] = useState('');
+  const [shortNumberId, setShortNumberId] = useState('');
+  const [keyword, setKeyword] = useState('');
+  const [environment, setEnvironment] = useState<StrexEnvironment>('production');
   const [defaultAgentMode, setDefaultAgentMode] = useState<'auto' | 'draft_only' | 'off'>('auto');
   const [sender, setSender] = useState<TwilioSender>('number');
   const [saving, setSaving] = useState(false);
@@ -2926,6 +3342,11 @@ function AddSmsDialog({
     setAccessKey('');
     setSigningKey('');
     setOriginator('');
+    setStrexApiKey('');
+    setStrexSender('');
+    setShortNumberId('');
+    setKeyword('');
+    setEnvironment('production');
     setSubmitError(null);
     setFieldErrors({});
     setSaving(false);
@@ -3000,10 +3421,43 @@ function AddSmsDialog({
     }
   }
 
+  async function submitStrex(): Promise<void> {
+    const payload: Record<string, unknown> = {
+      ...(name.trim() ? { name: name.trim() } : {}),
+      ...(strexApiKey ? { apiKey: strexApiKey } : {}),
+      ...(strexSender.trim() ? { sender: strexSender.trim() } : {}),
+      ...(shortNumberId.trim() ? { shortNumberId: shortNumberId.trim().toUpperCase() } : {}),
+      ...(shortNumberId.trim() && keyword.trim() ? { keyword: keyword.trim() } : {}),
+      environment,
+      defaultAgentMode,
+    };
+    const parsed = ConfigureStrexSmsBody.safeParse(payload);
+    if (!parsed.success) {
+      setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      return;
+    }
+    setFieldErrors({});
+    setSaving(true);
+    setSubmitError(null);
+    try {
+      await api('/v1/conversations/channels/strex-sms', {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      onOpenChange(false);
+      onSaved();
+    } catch (err) {
+      setSubmitError(toFormError(err, translate(err) || t('errors.createStrexSms')));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function submit(): void {
     setFieldErrors({});
     if (vendor === 'twilio') void submitTwilio();
-    else void submitMessageBird();
+    else if (vendor === 'messagebird') void submitMessageBird();
+    else void submitStrex();
   }
 
   return (
@@ -3024,6 +3478,7 @@ function AddSmsDialog({
             options={[
               { id: 'twilio', label: t('typeTwilioSms') },
               { id: 'messagebird', label: t('typeMessageBirdSms') },
+              { id: 'strex', label: t('typeStrexSms') },
             ]}
             value={vendor}
             onChange={(next) => setVendor(next)}
@@ -3101,7 +3556,7 @@ function AddSmsDialog({
                 </FormField>
               )}
             </>
-          ) : (
+          ) : vendor === 'messagebird' ? (
             <>
               <FormField label={t('nameLabel')} hint={t('messageBirdSms.nameHint')}>
                 <Input
@@ -3149,6 +3604,42 @@ function AddSmsDialog({
                   required
                 />
               </FormField>
+            </>
+          ) : (
+            <>
+              <FormField label={t('nameLabel')} hint={t('strexSms.nameHint')}>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. strex-support"
+                  maxLength={120}
+                  required
+                />
+              </FormField>
+              <FormField
+                label={t('strexSms.apiKeyLabel')}
+                hint={t('strexSms.apiKeyHintCreate')}
+              >
+                <Input
+                  type="password"
+                  value={strexApiKey}
+                  onChange={(e) => setStrexApiKey(e.target.value)}
+                  autoComplete="off"
+                  required
+                />
+              </FormField>
+              <StrexRoutingFields
+                sender={strexSender}
+                onSenderChange={setStrexSender}
+                shortNumberId={shortNumberId}
+                onShortNumberIdChange={setShortNumberId}
+                keyword={keyword}
+                onKeywordChange={setKeyword}
+                environment={environment}
+                onEnvironmentChange={setEnvironment}
+                fieldErrors={fieldErrors}
+                senderRequired
+              />
             </>
           )}
           <FormField label={t('agentReplies.label')} hint={t('agentReplies.hintSms')}>

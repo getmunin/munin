@@ -21,6 +21,16 @@ const STORED_CONFIGS: Array<{ vendor: string; config: Record<string, unknown> }>
     },
   },
   {
+    vendor: 'strex',
+    config: {
+      encryptedApiKey: CIPHERTEXT,
+      sender: '2002',
+      environment: 'production',
+      shortNumberId: 'NO-2002',
+      keywordId: 'kw_1',
+    },
+  },
+  {
     vendor: 'vapi',
     config: {
       encryptedApiKey: CIPHERTEXT,

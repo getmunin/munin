@@ -3773,7 +3773,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## @inquirer/ansi@2.0.8
+## @inquirer/ansi@2.0.9
 
 - Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/ansi/README.md
 - Author: Simon Boudrias
@@ -3806,7 +3806,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/confirm@6.3.2
+## @inquirer/confirm@6.3.3
 
 > Inquirer confirm prompt
 - Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/confirm/README.md
@@ -3840,7 +3840,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/core@12.0.3
+## @inquirer/core@12.0.4
 
 > Core Inquirer prompt API
 - Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/core/README.md
@@ -3908,7 +3908,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/type@4.1.1
+## @inquirer/type@4.2.0
 
 > Inquirer core TS types
 - Homepage: https://github.com/SBoudrias/Inquirer.js#readme
@@ -10718,7 +10718,7 @@ MIT License
 
 ---
 
-## @types/node@22.20.1, 22.20.4
+## @types/node@22.20.1, 22.20.5
 
 > TypeScript definitions for node
 - Homepage: https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node
@@ -28220,7 +28220,7 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
-## sharp@0.35.4, 0.35.5
+## sharp@0.35.5
 
 > High performance Node.js image processing, the fastest module to resize JPEG, PNG, WebP, GIF, AVIF and TIFF images
 - Homepage: https://sharp.pixelplumbing.com

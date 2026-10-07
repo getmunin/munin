@@ -2130,7 +2130,7 @@ export class ConvService {
       throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
     }
 
-    if (existing.needsHumanAttention) {
+    if (existing.needsHumanAttention || (await this.claims.isClaimed(input.conversationId))) {
       return toConversationSummary(existing);
     }
 

@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { describe, it, expect, beforeAll, afterAll, vi, type MockInstance } from 'vitest';
-import { ConflictException, type INestApplication } from '@nestjs/common';
+import { BadRequestException, ConflictException, type INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { createHmac, randomUUID } from 'node:crypto';
 import { createDb, runMigrations, schema } from '@getmunin/db';
@@ -9,6 +9,7 @@ import { AppModule } from '../../../app.module.ts';
 import { createApp } from '../../../bootstrap-app.ts';
 import { ThrellService, findReusableSigningSecret } from './threll.service.ts';
 import { ThrellClientService } from './threll-client.service.ts';
+import { ThrellAdminService } from './threll-admin.service.ts';
 import { ChannelAdminService } from '../channels/channel-admin.service.ts';
 import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
 
@@ -1011,6 +1012,39 @@ const skipReason = TEST_URL
         ),
       );
     expect(jobs.map((j) => j.jobUri)).toContain('skill://crm/extract-contact-from-message');
+  });
+
+  it('refuses a test call with threll_no_outbound_number before asking Threll to dial', async () => {
+    const fetchSpy = vi.spyOn(client, 'fetchWorker').mockResolvedValueOnce({
+      ok: true,
+      worker: { id: WORKER_ID, name: 'Front desk', inboundPhoneNumber: '+4712345678', outboundPhoneNumber: null },
+    });
+    const placeSpy = vi.spyOn(client, 'placeCall');
+    const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
+    const err = await runAsActor(actor, () =>
+      app.get(ThrellAdminService).callInitiate({ channelId, to: '+4712345679' }),
+    ).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect((err as BadRequestException).getResponse()).toMatchObject({ code: 'threll_no_outbound_number' });
+    expect(placeSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+    placeSpy.mockRestore();
+  });
+
+  it('places the test call when the threll has an outbound number', async () => {
+    const fetchSpy = vi.spyOn(client, 'fetchWorker').mockResolvedValueOnce({
+      ok: true,
+      worker: { id: WORKER_ID, name: 'Front desk', inboundPhoneNumber: null, outboundPhoneNumber: '+4712345678' },
+    });
+    const placeSpy = vi.spyOn(client, 'placeCall').mockResolvedValueOnce({ id: 'call_1', status: 'queued' });
+    const actor = new ActorIdentity('user', 'usr_test', orgId, ['*'], ['admin']);
+    const res = await runAsActor(actor, () =>
+      app.get(ThrellAdminService).callInitiate({ channelId, to: '+4712345679' }),
+    );
+    expect(res).toEqual({ initiated: true, callId: 'call_1', status: 'queued' });
+    expect(placeSpy).toHaveBeenCalledWith(expect.objectContaining({ workerId: WORKER_ID, toNumber: '+4712345679' }));
+    fetchSpy.mockRestore();
+    placeSpy.mockRestore();
   });
 });
 

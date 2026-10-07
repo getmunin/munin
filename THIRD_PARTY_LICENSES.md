@@ -28220,7 +28220,7 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
-## sharp@0.35.4, 0.35.5
+## sharp@0.35.5
 
 > High performance Node.js image processing, the fastest module to resize JPEG, PNG, WebP, GIF, AVIF and TIFF images
 - Homepage: https://sharp.pixelplumbing.com

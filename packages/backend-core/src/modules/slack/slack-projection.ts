@@ -299,11 +299,26 @@ export function routePromptText(orgName: string | null): string {
   return `:wave: Munin joined this channel. Should conversations${scope} mirror in here?`;
 }
 
-function routeButtons(value: string): Record<string, unknown>[] {
+const ROUTE_BUTTON_LABELS = {
+  default: 'Mirror all conversations',
+  escalations: 'Escalation alerts only',
+  dismiss: 'Not now',
+};
+
+const SHARED_ROUTE_BUTTON_LABELS = {
+  default: 'All conversations',
+  escalations: 'Escalations only',
+  dismiss: 'Not now',
+};
+
+function routeButtons(
+  value: string,
+  labels: typeof ROUTE_BUTTON_LABELS = ROUTE_BUTTON_LABELS,
+): Record<string, unknown>[] {
   return [
-    actionButton(ROUTE_DEFAULT_ACTION_ID, 'Mirror all conversations', value),
-    actionButton(ROUTE_ESCALATIONS_ACTION_ID, 'Escalation alerts only', value),
-    actionButton(ROUTE_DISMISS_ACTION_ID, 'Not now', value),
+    actionButton(ROUTE_DEFAULT_ACTION_ID, labels.default, value, 'primary'),
+    actionButton(ROUTE_ESCALATIONS_ACTION_ID, labels.escalations, value),
+    actionButton(ROUTE_DISMISS_ACTION_ID, labels.dismiss, value),
   ];
 }
 
@@ -312,6 +327,125 @@ export function routePromptBlocks(integrationId: string, orgName: string | null)
     { type: 'section', text: { type: 'mrkdwn', text: routePromptText(orgName) } },
     { type: 'actions', elements: routeButtons(integrationId) },
   ];
+}
+
+export interface RoutePromptOrg {
+  integrationId: string;
+  orgName: string | null;
+}
+
+export const MAX_SHARED_ROUTE_PROMPT_ORGS = 40;
+export const ROUTE_PICK_ORG_ACTION_ID = 'munin_route_pick_org';
+export const SHARED_ROUTE_VALUE = 'shared';
+export const SHARED_ROUTE_ALL_ORGS = 'all';
+const SHARED_ROUTE_ACTIONS_BLOCK_ID = 'munin_route_shared';
+const SHARED_ROUTE_DONE_BLOCK_PREFIX = 'munin_route_done:';
+const SLACK_OPTION_TEXT_MAX = 75;
+
+export function sharedRoutePromptText(): string {
+  return ':wave: Munin joined this channel. Several Munin orgs share this workspace — pick an org and choose what it should post here.';
+}
+
+function sharedRoutePromptIntro(): string {
+  return ':wave: *Munin joined this channel*\nSeveral Munin orgs share this workspace. Pick an org, then choose what it should post here.';
+}
+
+function orgOption(text: string, value: string): Record<string, unknown> {
+  const label = text.length > SLACK_OPTION_TEXT_MAX ? `${text.slice(0, SLACK_OPTION_TEXT_MAX - 1)}…` : text;
+  return { text: { type: 'plain_text', text: label }, value };
+}
+
+function orgPicker(options: Record<string, unknown>[]): Record<string, unknown> {
+  const orgCount = options.filter((option) => option.value !== SHARED_ROUTE_ALL_ORGS).length;
+  return {
+    type: 'static_select',
+    action_id: ROUTE_PICK_ORG_ACTION_ID,
+    placeholder: { type: 'plain_text', text: 'Select an org' },
+    options: orgCount > 1 ? [orgOption('All orgs', SHARED_ROUTE_ALL_ORGS), ...options] : options,
+  };
+}
+
+function sharedRouteActions(options: Record<string, unknown>[]): SlackBlock {
+  return {
+    type: 'actions',
+    block_id: SHARED_ROUTE_ACTIONS_BLOCK_ID,
+    elements: [orgPicker(options), ...routeButtons(SHARED_ROUTE_VALUE, SHARED_ROUTE_BUTTON_LABELS)],
+  };
+}
+
+export function sharedRoutePromptBlocks(orgs: RoutePromptOrg[]): SlackBlock[] {
+  return [
+    { type: 'section', text: { type: 'mrkdwn', text: sharedRoutePromptIntro() } },
+    { type: 'divider' },
+    sharedRouteActions(
+      orgs
+        .slice(0, MAX_SHARED_ROUTE_PROMPT_ORGS)
+        .map((org) => orgOption(org.orgName ?? 'Unnamed org', org.integrationId)),
+    ),
+  ];
+}
+
+function sharedRouteOrgOptions(blocks: readonly SlackBlock[]): Record<string, unknown>[] {
+  const actions = blocks.find((block) => block.block_id === SHARED_ROUTE_ACTIONS_BLOCK_ID);
+  const elements = Array.isArray(actions?.elements) ? (actions.elements as Record<string, unknown>[]) : [];
+  const picker = elements.find((element) => element.action_id === ROUTE_PICK_ORG_ACTION_ID);
+  const options = Array.isArray(picker?.options) ? (picker.options as Record<string, unknown>[]) : [];
+  return options.filter(
+    (option) => typeof option.value === 'string' && option.value !== SHARED_ROUTE_ALL_ORGS,
+  );
+}
+
+export function isSharedRoutePrompt(blocks: readonly SlackBlock[] | null): boolean {
+  return blocks?.some((block) => block.block_id === SHARED_ROUTE_ACTIONS_BLOCK_ID) === true;
+}
+
+export function sharedRoutePromptIntegrationIds(blocks: readonly SlackBlock[]): string[] {
+  return sharedRouteOrgOptions(blocks).map((option) => option.value as string);
+}
+
+export function sharedRouteDoneLine(
+  orgName: string | null,
+  purpose: 'default' | 'escalations',
+  slackUserId: string,
+): string {
+  const what = purpose === 'default' ? 'all conversations' : 'escalation alerts';
+  return `:white_check_mark: ${promptOrgLine(orgName)} · ${what} · set by <@${slackUserId}>`;
+}
+
+export function resolveSharedRoutePrompt(
+  blocks: readonly SlackBlock[],
+  resolved: { integrationId: string; line: string }[],
+): SlackBlock[] {
+  const done = new Set(resolved.map((entry) => entry.integrationId));
+  const remaining = sharedRouteOrgOptions(blocks).filter((option) => !done.has(option.value as string));
+  const doneBlocks = resolved.map(
+    (entry): SlackBlock => ({
+      type: 'context',
+      block_id: `${SHARED_ROUTE_DONE_BLOCK_PREFIX}${entry.integrationId}`,
+      elements: [{ type: 'mrkdwn', text: entry.line }],
+    }),
+  );
+  return [
+    ...blocks.flatMap((block) =>
+      block.block_id === SHARED_ROUTE_ACTIONS_BLOCK_ID
+        ? remaining.length > 0
+          ? [sharedRouteActions(remaining)]
+          : []
+        : [block],
+    ),
+    ...doneBlocks,
+  ];
+}
+
+export function dismissSharedRoutePrompt(blocks: readonly SlackBlock[]): SlackBlock[] {
+  return [
+    ...blocks.filter((block) => block.block_id !== SHARED_ROUTE_ACTIONS_BLOCK_ID),
+    { type: 'context', elements: [{ type: 'mrkdwn', text: routeDismissedText() }] },
+  ];
+}
+
+function promptOrgLine(orgName: string | null): string {
+  return `*${escapeSlackText(orgName ?? 'Unnamed org')}*`;
 }
 
 const WORKSPACE_ROUTE_VALUE_PREFIX = 'workspace:';

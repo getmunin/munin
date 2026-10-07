@@ -13,8 +13,8 @@ import {
   escapeSlackText,
   routePromptBlocks,
   routePromptText,
-  workspaceRoutePromptBlocks,
-  workspaceRoutePromptText,
+  sharedRoutePromptBlocks,
+  sharedRoutePromptText,
 } from './slack-projection.ts';
 import { orgName, sharedChannelOrgName } from './slack-shared-channel.ts';
 import {
@@ -279,25 +279,23 @@ export class SlackInboundService {
     const unrouted = integrations.filter((integration) => !routedIds.has(integration.id));
     if (unrouted.length === 0) return;
 
-    const first = unrouted[0]!;
-    const token = await decryptSecretValue(this.db, first.encryptedBotToken);
+    const orgs = await Promise.all(
+      unrouted.map(async (integration) => ({
+        integrationId: integration.id,
+        orgName: await orgName(this.db, integration.orgId),
+      })),
+    );
+    const single = orgs.length === 1 ? orgs[0]! : null;
+    const token = await decryptSecretValue(this.db, unrouted[0]!.encryptedBotToken);
     try {
-      if (integrations.length === 1) {
-        const name = await orgName(this.db, first.orgId);
-        await this.api.postMessage({
-          token,
-          channel: event.channel,
-          text: routePromptText(name),
-          blocks: routePromptBlocks(first.id, name),
-        });
-      } else {
-        await this.api.postMessage({
-          token,
-          channel: event.channel,
-          text: workspaceRoutePromptText(),
-          blocks: workspaceRoutePromptBlocks(first.teamId),
-        });
-      }
+      await this.api.postMessage({
+        token,
+        channel: event.channel,
+        text: single ? routePromptText(single.orgName) : sharedRoutePromptText(),
+        blocks: single
+          ? routePromptBlocks(single.integrationId, single.orgName)
+          : sharedRoutePromptBlocks(orgs),
+      });
     } catch (err) {
       this.logger.warn(`route prompt failed for ${event.channel}: ${describeError(err)}`);
     }

@@ -31,7 +31,7 @@ import { SlackEventSink } from './slack-event-sink.ts';
 import { SlackInteractionsService } from './slack-interactions.service.ts';
 import { SlackUserMappingService } from './slack-user-mapping.service.ts';
 import { SlackService, encryptSecretValue } from './slack.service.ts';
-import { workspaceRoutePromptBlocks } from './slack-projection.ts';
+import { sharedRoutePromptBlocks, workspaceRoutePromptBlocks } from './slack-projection.ts';
 import { mergeFingerprint } from '../crm/merge-fingerprint.ts';
 import { stubAttachmentGateway } from '../conv/attachments/conv-attachments.test-stub.ts';
 
@@ -533,6 +533,13 @@ class FakeSlackApi extends SlackApiClient {
         });
       }
 
+      function sharedPrompt() {
+        return sharedRoutePromptBlocks([
+          { integrationId, orgName: 'Slack Interactions Test Org' },
+          { integrationId: otherIntegrationId, orgName: 'Globex' },
+        ]);
+      }
+
       function workspacePayload(actionId: string, overrides: Record<string, unknown> = {}) {
         return routePayload(actionId, {
           message: { ts: '1750000000.000900', blocks: workspaceRoutePromptBlocks('T_ACTIONS') },
@@ -630,6 +637,95 @@ class FakeSlackApi extends SlackApiClient {
         const blocks = api.updated[0]!.blocks as { type: string }[];
         expect(blocks.map((b) => b.type)).toEqual(['section', 'section']);
         expect(api.updated[0]!.text).toContain('dashboard');
+      });
+
+      function sharedClick(
+        actionId: string,
+        pickedOrg: string | null,
+        overrides: Record<string, unknown> = {},
+      ) {
+        return routePayload(actionId, {
+          actions: [{ action_id: actionId, value: 'shared' }],
+          message: { ts: '1750000000.000900', blocks: sharedPrompt() },
+          state: {
+            values: {
+              munin_route_shared: {
+                munin_route_pick_org: {
+                  type: 'static_select',
+                  selected_option: pickedOrg ? { value: pickedOrg } : null,
+                },
+              },
+            },
+          },
+          ...overrides,
+        });
+      }
+
+      function pickerValues(blocks: unknown): string[] {
+        const actions = (blocks as { block_id?: string; elements?: unknown[] }[]).find(
+          (b) => b.block_id === 'munin_route_shared',
+        );
+        const select = actions?.elements?.[0] as { options?: { value: string }[] } | undefined;
+        return (select?.options ?? []).map((o) => o.value);
+      }
+
+      it('routes only the picked org and keeps the others in the picker', async () => {
+        await interactions.processBlockActions(sharedClick('munin_route_default', integrationId));
+
+        expect((await routes()).map((r) => r.orgId)).toEqual([orgId]);
+        const update = api.updated[0]!;
+        expect(update.text).toContain('*Slack Interactions Test Org*');
+        expect(pickerValues(update.blocks)).toEqual([otherIntegrationId]);
+        expect(JSON.stringify(update.blocks)).toContain(`munin_route_done:${integrationId}`);
+        expect(JSON.stringify(update.blocks)).toContain('all conversations');
+      });
+
+      it('routes every org the clicker administers for all orgs and names the ones it skipped', async () => {
+        await interactions.processBlockActions(sharedClick('munin_route_escalations', 'all'));
+
+        const rows = await routes();
+        expect(rows.map((r) => [r.orgId, r.purpose])).toEqual([[orgId, 'escalations']]);
+        expect(pickerValues(api.updated[0]!.blocks)).toEqual([otherIntegrationId]);
+        expect(api.ephemerals).toHaveLength(1);
+        expect(api.ephemerals[0]!.text).toContain('*Globex*');
+      });
+
+      it('asks for an org when a button is clicked before one is picked', async () => {
+        await interactions.processBlockActions(sharedClick('munin_route_default', null));
+
+        expect(await routes()).toHaveLength(0);
+        expect(api.updated).toHaveLength(0);
+        expect(api.ephemerals[0]!.text).toContain('Pick an org');
+      });
+
+      it('dismissing a shared prompt closes it for every org without routing', async () => {
+        await interactions.processBlockActions(sharedClick('munin_route_dismiss', null));
+
+        expect(await routes()).toHaveLength(0);
+        expect(pickerValues(api.updated[0]!.blocks)).toEqual([]);
+        expect(api.updated[0]!.text).toContain('dashboard');
+      });
+
+      it('names the org when an unlinked clicker hits a shared prompt', async () => {
+        api.usersById.set('U_NOBODY', { email: 'nobody@example.com' });
+        await interactions.processBlockActions(
+          sharedClick('munin_route_default', integrationId, { user: { id: 'U_NOBODY' } }),
+        );
+
+        expect(await routes()).toHaveLength(0);
+        expect(api.ephemerals).toHaveLength(1);
+        expect(api.ephemerals[0]!.text).toContain('*Slack Interactions Test Org*');
+      });
+
+      it('refuses a picked org when the clicker is not in the channel another org routes into', async () => {
+        await routeGlobex();
+
+        await interactions.processBlockActions(sharedClick('munin_route_default', integrationId));
+
+        expect((await routes()).map((r) => r.orgId)).toEqual([otherOrgId]);
+        expect(api.updated).toHaveLength(0);
+        expect(api.ephemerals).toHaveLength(1);
+        expect(api.ephemerals[0]!.text).toContain('slack_not_channel_member');
       });
     });
   });

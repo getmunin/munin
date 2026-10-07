@@ -8,6 +8,14 @@ const CreateInput = z.object({
   originAllowlist: z.array(z.string().url()).default([]),
   webhookOnEscalation: z.string().url().optional(),
   requireVerifiedIdentity: z.boolean().optional(),
+  voiceChannelId: z
+    .string()
+    .min(1)
+    .max(64)
+    .optional()
+    .describe(
+      'Id of the Vapi or Threll voice channel that takes calls started from this widget. Leave unset to use the organization\'s only voice channel; with more than one, calls stay unavailable until one is set.',
+    ),
 });
 
 const UpdateInput = z.object({
@@ -15,6 +23,15 @@ const UpdateInput = z.object({
   originAllowlist: z.array(z.string().url()).optional(),
   webhookOnEscalation: z.string().url().nullable().optional(),
   requireVerifiedIdentity: z.boolean().optional(),
+  voiceChannelId: z
+    .string()
+    .min(1)
+    .max(64)
+    .nullable()
+    .optional()
+    .describe(
+      'Id of the Vapi or Threll voice channel that takes calls started from this widget. Pass null to unlink and fall back to the organization\'s only voice channel; omit to keep the current link.',
+    ),
 });
 
 const RotateInput = z.object({ channelId: z.string() });
@@ -44,7 +61,7 @@ export class WidgetAdminTools {
     name: 'conv_update_widget_channel',
     title: 'Conv: Update chat-widget channel',
     description:
-      'Update a chat-widget channel\'s originAllowlist / webhookOnEscalation. Pass null to clear webhookOnEscalation. The widget API key is unchanged.',
+      'Update a chat-widget channel\'s originAllowlist, webhookOnEscalation, requireVerifiedIdentity, or the voice channel its call button uses (voiceChannelId). Omitted fields keep their current value; pass null to clear webhookOnEscalation or voiceChannelId. The widget API key is unchanged.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: UpdateInput,

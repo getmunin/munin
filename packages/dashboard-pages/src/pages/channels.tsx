@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Check,
   ChevronDown,
-  Code,
   Copy,
   Mail,
   MessageCircle,
@@ -30,6 +29,7 @@ import { useCopy } from '../lib/use-copy';
 import {
   stripTrailingSlashes,
   CreateWidgetBody,
+  UpdateWidgetBody,
   SetupEmailBody,
   ConfigureTwilioSmsBody,
   SendTwilioSmsTestBody,
@@ -76,6 +76,28 @@ interface ChannelDto {
   defaultAgentMode?: 'auto' | 'draft_only' | 'off';
   needsCredentials?: boolean;
   createdAt: string;
+}
+
+interface WidgetChannelDto extends ChannelDto {
+  type: 'chat';
+  config: {
+    originAllowlist?: string[];
+    voiceChannelId?: string;
+  };
+}
+
+interface VoiceChannelOption {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
+const WIDGET_VOICE_VENDORS = new Set(['vapi', 'threll']);
+
+function widgetVoiceOptions(channels: readonly ChannelDto[] | null): VoiceChannelOption[] {
+  return (channels ?? [])
+    .filter((c) => c.type === 'voice' && WIDGET_VOICE_VENDORS.has(c.vendor))
+    .map((c) => ({ id: c.id, name: c.name, active: c.active }));
 }
 
 interface ChannelVendorFieldDto {
@@ -233,6 +255,7 @@ export function ChannelsPage() {
   const confirm = useConfirm();
   const [channels, setChannels] = useState<ChannelDto[] | null>(null);
   const [widgetOpen, setWidgetOpen] = useState(false);
+  const [editWidget, setEditWidget] = useState<WidgetChannelDto | null>(null);
   const [emailOpen, setEmailOpen] = useState(false);
   const [editEmail, setEditEmail] = useState<EmailChannelDto | null>(null);
   const [addSmsOpen, setAddSmsOpen] = useState(false);
@@ -281,6 +304,7 @@ export function ChannelsPage() {
   const { loadError, hasLoadedOnce, retrying, tryLoad, retry } = useLoadGate(load);
   const buildLoadFailedProps = useSettingsLoadFailedProps();
   const awaitingCredentialsCount = channels?.filter((c) => c.needsCredentials).length ?? 0;
+  const voiceChannels = widgetVoiceOptions(channels);
 
   useEffect(() => {
     void tryLoad();
@@ -373,10 +397,24 @@ export function ChannelsPage() {
       <CreateWidgetDialog
         open={widgetOpen}
         onOpenChange={setWidgetOpen}
+        voiceChannels={voiceChannels}
         onCreated={() => {
           void tryLoad();
         }}
       />
+
+      {editWidget && (
+        <EditWidgetDialog
+          channel={editWidget}
+          voiceChannels={voiceChannels}
+          onOpenChange={(next) => {
+            if (!next) setEditWidget(null);
+          }}
+          onSaved={() => {
+            void tryLoad();
+          }}
+        />
+      )}
 
       <EmailChannelDialog
         open={emailOpen || editEmail !== null}
@@ -600,6 +638,7 @@ export function ChannelsPage() {
               <ChannelRow
                 key={c.id}
                 channel={c}
+                voiceChannels={voiceChannels}
                 alert={alerts[c.id] ?? null}
                 onActivate={() => {
                   void activateChannel(c);
@@ -622,7 +661,9 @@ export function ChannelsPage() {
                   else setEnterVendorCredsFor(c);
                 }}
                 onEdit={() => {
-                  if (c.type === 'sms' && c.vendor === 'twilio') {
+                  if (c.type === 'chat') {
+                    setEditWidget(c as WidgetChannelDto);
+                  } else if (c.type === 'sms' && c.vendor === 'twilio') {
                     setEditTwilioSms(c as TwilioSmsChannelDto);
                   } else if (c.type === 'sms' && c.vendor === 'messagebird') {
                     setEditMessageBirdSms(c as MessageBirdSmsChannelDto);
@@ -659,6 +700,7 @@ export function ChannelsPage() {
 
 function ChannelRow({
   channel,
+  voiceChannels,
   alert,
   onActivate,
   onRotate,
@@ -671,6 +713,7 @@ function ChannelRow({
   onSendTest,
 }: {
   channel: ChannelDto;
+  voiceChannels: readonly VoiceChannelOption[];
   alert: ChannelAlertDto | null;
   onActivate: () => void;
   onRotate: () => void;
@@ -689,9 +732,7 @@ function ChannelRow({
   const isMessageBirdSms = channel.type === 'sms' && channel.vendor === 'messagebird';
   const isVapiVoice = channel.type === 'voice' && channel.vendor === 'vapi';
   const isThrellVoice = channel.type === 'voice' && channel.vendor === 'threll';
-  const widgetConfig = isChat
-    ? (channel.config as { originAllowlist?: string[] } | null)
-    : null;
+  const widgetConfig = isChat ? (channel.config as WidgetChannelDto['config'] | null) : null;
   const emailConfig = channel.type === 'email' ? (channel.config as EmailChannelDto['config']) : null;
   const smsConfig = isTwilioSms ? (channel.config as TwilioSmsChannelDto['config']) : null;
   const mbSmsConfig = isMessageBirdSms
@@ -725,6 +766,8 @@ function ChannelRow({
 
   const relayAddress =
     emailConfig?.inbound?.provider === 'relay' ? emailConfig.inbound.address : null;
+
+  const voiceNote = isChat ? widgetVoiceNote(widgetConfig?.voiceChannelId, voiceChannels, t) : null;
 
   const emailIdentity = emailConfig?.addressing?.fromAddress
     ? emailConfig.addressing.fromName
@@ -779,10 +822,14 @@ function ChannelRow({
   const sideVariant = needsActivation ? 'ghost' : 'outline';
 
   const primaryAction = isChat ? (
-    <Button variant={sideVariant} size="sm" onClick={onShowEmbed} className="gap-1.5">
-      <Code className="size-3.5" />
-      {t('showEmbed')}
-    </Button>
+    <>
+      <Button variant={sideVariant} size="sm" onClick={onEdit}>
+        {tCommon('edit')}
+      </Button>
+      <Button variant="ghost" size="sm" onClick={onShowEmbed}>
+        {t('showEmbed')}
+      </Button>
+    </>
   ) : awaitingCredentials && canEnterCredentials ? (
     <Button variant="outline" size="sm" onClick={onEnterCredentials}>
       {t('enterCredentials.button')}
@@ -810,7 +857,15 @@ function ChannelRow({
       name={channel.name}
       qualifier={qualifier}
       status={status}
-      accent={awaitingCredentials ? 'pending' : isDeactivated ? 'error' : alert ? 'pending' : undefined}
+      accent={
+        awaitingCredentials
+          ? 'pending'
+          : isDeactivated
+            ? 'error'
+            : alert || voiceNote?.warn
+              ? 'pending'
+              : undefined
+      }
       footerAction={footerAction}
       footerMeta={vendorLabel}
       menu={
@@ -867,6 +922,17 @@ function ChannelRow({
       }
     >
       <p className="text-[12.5px] leading-snug text-ink-mute">{description}</p>
+      {voiceNote && (
+        <p
+          className={cn(
+            'mt-1 flex items-center gap-1.5 text-[12.5px] leading-snug',
+            voiceNote.warn ? 'text-ink dark:text-foreground' : 'text-ink-mute',
+          )}
+        >
+          <Phone aria-hidden className="size-3 shrink-0" />
+          {voiceNote.text}
+        </p>
+      )}
       {relayAddress && (
         <div className="mt-1 text-[12.5px] leading-snug text-ink-mute">
           <p>{t('email.relayCardPrefix')}</p>
@@ -879,6 +945,24 @@ function ChannelRow({
       {alert && <AlertFooter alert={alert} channel={channel} t={t} />}
     </SettingsCard>
   );
+}
+
+function widgetVoiceNote(
+  voiceChannelId: string | undefined,
+  voiceChannels: readonly VoiceChannelOption[],
+  t: ReturnType<typeof useTranslations<'dashboard.channels'>>,
+): { text: string; warn: boolean } | null {
+  if (voiceChannelId) {
+    const linked = voiceChannels.find((c) => c.id === voiceChannelId);
+    if (!linked) return { text: t('widgetVoice.cardMissing'), warn: true };
+    return linked.active
+      ? { text: t('widgetVoice.cardLinked', { name: linked.name }), warn: false }
+      : { text: t('widgetVoice.cardLinkedInactive', { name: linked.name }), warn: true };
+  }
+  const active = voiceChannels.filter((c) => c.active);
+  if (active.length === 0) return null;
+  if (active.length > 1) return { text: t('widgetVoice.cardAmbiguous'), warn: true };
+  return { text: t('widgetVoice.cardLinked', { name: active[0]!.name }), warn: false };
 }
 
 function AlertFooter({
@@ -974,13 +1058,58 @@ function VendorPicker<V extends ChannelVendor>({
 
 type TwilioSender = 'number' | 'service';
 
+function WidgetVoiceChannelField({
+  voiceChannels,
+  value,
+  onChange,
+}: {
+  voiceChannels: readonly VoiceChannelOption[];
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  if (voiceChannels.length === 0 && !value) return null;
+  const active = voiceChannels.filter((c) => c.active);
+  const missing = value !== '' && !voiceChannels.some((c) => c.id === value);
+  return (
+    <FormField label={t('widgetVoice.label')} hint={t('widgetVoice.hint')}>
+      <NativeSelect value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">
+          {active.length === 1
+            ? t('widgetVoice.automaticOnly', { name: active[0]!.name })
+            : t('widgetVoice.automatic')}
+        </option>
+        {voiceChannels.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.active ? c.name : t('widgetVoice.inactiveOption', { name: c.name })}
+          </option>
+        ))}
+        {missing && (
+          <option value={value} disabled>
+            {t('widgetVoice.missingOption')}
+          </option>
+        )}
+      </NativeSelect>
+    </FormField>
+  );
+}
+
+function parseOriginAllowlist(raw: string): string[] {
+  return raw
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 function CreateWidgetDialog({
   open,
   onOpenChange,
+  voiceChannels,
   onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  voiceChannels: readonly VoiceChannelOption[];
   onCreated: () => void;
 }) {
   const t = useTranslations('dashboard.channels');
@@ -989,6 +1118,7 @@ function CreateWidgetDialog({
   const [name, setName] = useState('');
   const [originAllowlist, setOriginAllowlist] = useState('');
   const [originsError, setOriginsError] = useState<string | null>(null);
+  const [voiceChannelId, setVoiceChannelId] = useState('');
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<CreatedWidget | null>(null);
   const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
@@ -998,6 +1128,7 @@ function CreateWidgetDialog({
       setName('');
       setOriginAllowlist('');
       setOriginsError(null);
+      setVoiceChannelId('');
       setCreated(null);
       setSubmitError(null);
       setCreating(false);
@@ -1006,13 +1137,11 @@ function CreateWidgetDialog({
 
   async function submit() {
     if (!name.trim()) return;
-    const allowlist = originAllowlist
-      .split(/[\s,]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const allowlist = parseOriginAllowlist(originAllowlist);
     const parsed = CreateWidgetBody.safeParse({
       name: name.trim(),
       originAllowlist: allowlist,
+      voiceChannelId: voiceChannelId || undefined,
     });
     if (!parsed.success) {
       const issue = parsed.error.issues.find(
@@ -1110,6 +1239,11 @@ function CreateWidgetDialog({
                   </p>
                 )}
               </FormField>
+              <WidgetVoiceChannelField
+                voiceChannels={voiceChannels}
+                value={voiceChannelId}
+                onChange={setVoiceChannelId}
+              />
 
               {submitError && <FormError detail={submitError} />}
               <DialogFooter className={dialogFooterClass}>
@@ -1134,6 +1268,123 @@ function CreateWidgetDialog({
             </form>
           </>
         )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditWidgetDialog({
+  channel,
+  voiceChannels,
+  onOpenChange,
+  onSaved,
+}: {
+  channel: WidgetChannelDto;
+  voiceChannels: readonly VoiceChannelOption[];
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+}) {
+  const t = useTranslations('dashboard.channels');
+  const tCommon = useTranslations('common');
+  const translate = useTranslateError();
+  const [originAllowlist, setOriginAllowlist] = useState(
+    (channel.config.originAllowlist ?? []).join(', '),
+  );
+  const [originsError, setOriginsError] = useState<string | null>(null);
+  const [voiceChannelId, setVoiceChannelId] = useState(channel.config.voiceChannelId ?? '');
+  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
+
+  async function submit() {
+    const allowlist = parseOriginAllowlist(originAllowlist);
+    const previous = channel.config.originAllowlist ?? [];
+    const originsChanged =
+      allowlist.length !== previous.length || allowlist.some((o, i) => o !== previous[i]);
+    const parsed = UpdateWidgetBody.safeParse({
+      originAllowlist: originsChanged ? allowlist : undefined,
+      voiceChannelId: voiceChannelId || null,
+    });
+    if (!parsed.success) {
+      const issue = parsed.error.issues.find(
+        (i) => Array.isArray(i.path) && i.path[0] === 'originAllowlist',
+      );
+      const badIndex = issue?.path[1];
+      const badValue = typeof badIndex === 'number' ? allowlist[badIndex] : undefined;
+      setOriginsError(t('originsInvalid', { invalid: badValue ?? allowlist.join(', ') }));
+      return;
+    }
+    setOriginsError(null);
+    setSaving(true);
+    setSubmitError(null);
+    try {
+      await api(`/v1/conversations/channels/widget/${channel.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(parsed.data),
+      });
+      notify.success(tCommon('saved'));
+      onSaved();
+      onOpenChange(false);
+    } catch (err) {
+      setSubmitError(toFormError(err, translate(err) || t('errors.updateWidget')));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('editWidgetTitle')}</DialogTitle>
+          <DialogDescription>{t('editWidgetDescription', { name: channel.name })}</DialogDescription>
+        </DialogHeader>
+        <form
+          className="mt-4 flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <FormField label={t('originsLabel')} hint={t('originsHint')}>
+            <Input
+              value={originAllowlist}
+              onChange={(e) => {
+                setOriginAllowlist(e.target.value);
+                if (originsError) setOriginsError(null);
+              }}
+              placeholder="https://example.com, https://www.example.com"
+              required={widgetAllowlistRequired()}
+              aria-invalid={originsError ? true : undefined}
+              autoFocus
+            />
+            {originsError && (
+              <p className="text-sm text-destructive" role="alert">
+                {originsError}
+              </p>
+            )}
+          </FormField>
+          <WidgetVoiceChannelField
+            voiceChannels={voiceChannels}
+            value={voiceChannelId}
+            onChange={setVoiceChannelId}
+          />
+
+          {submitError && <FormError detail={submitError} />}
+          <DialogFooter className={dialogFooterClass}>
+            <Button
+              type="button"
+              variant="outline"
+              className={dialogButtonClass}
+              onClick={() => onOpenChange(false)}
+            >
+              {tCommon('cancel')}
+            </Button>
+            <Button type="submit" variant="accent" className={dialogButtonClass} disabled={saving}>
+              {saving ? tCommon('saving') : tCommon('saveChanges')}
+              <span aria-hidden className="ml-1 font-mono">↵</span>
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

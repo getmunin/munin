@@ -5,6 +5,8 @@ import {
   CONV_ATTACHMENT_PER_MESSAGE_MAX,
 } from '../attachments/conv-attachments.constants.ts';
 
+export const WIDGET_VOICE_VENDORS = ['vapi', 'threll'] as const;
+
 export const WidgetChannelConfig = z.object({
   provider: z.literal('widget'),
   originAllowlist: z.array(z.string().url()).default([]),

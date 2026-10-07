@@ -76,6 +76,7 @@ export const CreateWidgetBody = z.object({
   originAllowlist: z.array(z.string().url()).default([]),
   webhookOnEscalation: z.string().url().optional(),
   requireVerifiedIdentity: z.boolean().optional(),
+  voiceChannelId: z.string().min(1).max(64).optional(),
 });
 
 export type CreateWidgetBodyT = z.infer<typeof CreateWidgetBody>;
@@ -84,6 +85,7 @@ export const UpdateWidgetBody = z.object({
   originAllowlist: z.array(z.string().url()).optional(),
   webhookOnEscalation: z.string().url().nullable().optional(),
   requireVerifiedIdentity: z.boolean().optional(),
+  voiceChannelId: z.string().min(1).max(64).nullable().optional(),
 });
 
 export type UpdateWidgetBodyT = z.infer<typeof UpdateWidgetBody>;

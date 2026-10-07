@@ -106,6 +106,24 @@ window.mn?.widget?.ready
 
 The flag closes the listener-attached-too-late race: if the widget mounted before your code ran, the event has already fired, but the flag says it is safe to call now. (`munin:widget-ready` is the widget's own signal — the analytics tracker fires `munin:analytics-ready` separately.)
 
+### Link a voice channel
+
+The widget's call button and `window.mn.widget.call()` connect the visitor to a Vapi or Threll voice channel. Which one is decided on the server, from the widget channel's `voiceChannelId`:
+
+- **Unset** — the call goes to the organization's only active voice channel. With none, calls report `no_active_voice_channel`; with two or more, they report `multiple_voice_channels_without_widget_routing` rather than picking one at random.
+- **Set** — the call always goes to that channel. If it has since been deactivated or deleted, calls report `widget_voice_channel_id_not_found_or_inactive`.
+
+So once an organization has more than one voice channel, every widget that should take calls needs one linked. Find the id with `conv_list_channels` (a `voice` channel with vendor `vapi` or `threll`), then set it:
+
+```json
+{
+  "name": "conv_update_widget_channel",
+  "arguments": { "channelId": "<widget channel id>", "voiceChannelId": "<voice channel id>" }
+}
+```
+
+`conv_create_widget_channel` takes the same `voiceChannelId` argument. Pass `"voiceChannelId": null` to the update to unlink and fall back to the single-channel rule; leaving it out keeps the current link. Anything other than a Vapi or Threll voice channel in the same organization — including a deleted one — is refused with `conv_widget_voice_channel_invalid`; a deactivated channel can be linked, but takes no calls until it is reactivated. Dashboard users can set the same link under Channels → the widget's Edit → Voice channel.
+
 ### Start a voice call from the page
 
 When the widget channel has a voice channel linked, the page can skip the chat step and put the visitor straight into a call — a "Call us" button in the hero, a phone icon in the header. The quickest way is a `data-munin-call` attribute on any element; no script needed:
@@ -122,7 +140,7 @@ A click on it, or on anything inside it, opens the panel and starts the call. Th
 | `conversation_failed` | The widget could not create the conversation to attach the call to. |
 | `request_failed` | The voice start request did not reach the backend. |
 | `session_failed` | The browser could not set up the call — usually microphone permission denied. |
-| anything else | The server's reason the channel cannot take a call right now, e.g. no voice channel linked. |
+| anything else | The server's reason the channel cannot take a call right now — one of the voice-routing reasons under *Link a voice channel*, or a vendor failure. |
 
 ```js
 document.getElementById('call-us').addEventListener('click', async () => {
@@ -318,4 +336,5 @@ If you must call the endpoint from browser JS, the channel's `originAllowlist` r
 | Rotate the widget key | `conv_rotate_widget_key`. Old key revoked; existing inflight requests with it 401. |
 | Rotate the identity secret | `conv_rotate_widget_identity_secret`. Previously-issued `data-user-hash` values stop verifying; re-render signed-in pages with freshly-computed hashes. |
 | Tighten `originAllowlist` | `conv_update_widget_channel`. |
+| Route calls to a different voice channel | `conv_update_widget_channel` with `voiceChannelId` (see *Link a voice channel*). |
 | Inspect a conversation | Standard `conv_*` tools. The `metadata.sessionId`, `metadata.providerMessageId`, and `metadata.url` fields tell you the visitor's session. |

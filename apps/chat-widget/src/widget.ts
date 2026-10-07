@@ -21,6 +21,8 @@ import { pickLocale } from './strings/index.ts';
 import { isNudgeSnoozed, snoozeNudge } from './nudge.ts';
 import { createVoiceSession, type VoiceSession } from '@getmunin/widget-voice';
 
+type CallResult = { started: true } | { started: false; reason: string };
+
 function bootstrap(): void {
   const scriptEl = currentScript();
   if (!scriptEl) return;
@@ -114,6 +116,8 @@ export function start(config: WidgetConfig): void {
           userHash: string,
           options?: { email?: string },
         ) => Promise<void>;
+        call: () => Promise<CallResult>;
+        endCall: () => Promise<void>;
         ready: boolean;
       };
     };
@@ -317,6 +321,7 @@ export function start(config: WidgetConfig): void {
   let voiceProbedFor: string | null = null;
   let voiceCallStartedAt: number | null = null;
   let voiceStartedEmitted = false;
+  let voiceStartInFlight = false;
 
   function callWhoFromEnvelope(env: ConversationEnvelope | null): string {
     if (env?.handedOver) {
@@ -370,28 +375,38 @@ export function start(config: WidgetConfig): void {
       .catch((err) => console.warn('[munin-widget] voice event (ended) failed:', err));
   }
 
-  async function startVoice(): Promise<void> {
-    if (voiceSession) return;
+  async function startVoice(): Promise<CallResult> {
+    if (voiceSession || voiceStartInFlight) return { started: false, reason: 'already_in_call' };
     if (!currentConversationId) {
       console.warn('[munin-widget] voice start: no active conversation');
-      return;
+      return { started: false, reason: 'no_conversation' };
     }
+    voiceStartInFlight = true;
+    try {
+      return await openVoiceSession(currentConversationId);
+    } finally {
+      voiceStartInFlight = false;
+    }
+  }
+
+  async function openVoiceSession(conversationId: string): Promise<CallResult> {
     ui.setVoiceCallWho(callWhoFromEnvelope(currentEnvelope));
     ui.setVoiceState('connecting');
     let res;
     try {
-      res = await api.voiceStart(currentConversationId);
+      res = await api.voiceStart(conversationId);
     } catch (err) {
       ui.setVoiceState('error');
       console.warn('[munin-widget] voice start request failed:', err);
-      return;
+      return { started: false, reason: 'request_failed' };
     }
     if (!res.available) {
       ui.setVoiceState('error');
       ui.setVoiceAvailable(false);
       console.warn(`[munin-widget] voice unavailable: ${res.reason}`);
-      return;
+      return { started: false, reason: res.reason };
     }
+    ui.setVoiceAvailable(true);
     const session = createVoiceSession(res.descriptor);
     voiceSession = session;
     voiceStartedEmitted = false;
@@ -415,7 +430,26 @@ export function start(config: WidgetConfig): void {
     } catch (err) {
       console.warn('[munin-widget] voice session start failed:', err);
       voiceSession = null;
+      return { started: false, reason: 'session_failed' };
     }
+    return { started: true };
+  }
+
+  async function callFromPage(): Promise<CallResult> {
+    if (voiceSession || voiceStartInFlight) {
+      ui.open();
+      return { started: false, reason: 'already_in_call' };
+    }
+    if (!currentConversationId) ui.setChatKind('new');
+    ui.setView('chat');
+    ui.open();
+    try {
+      await ensureConversation();
+    } catch (err) {
+      console.warn('[munin-widget] call: start conversation failed:', err);
+      return { started: false, reason: 'conversation_failed' };
+    }
+    return startVoice();
   }
 
   async function endVoice(): Promise<void> {
@@ -492,8 +526,16 @@ export function start(config: WidgetConfig): void {
       toggle: () => (ui.isOpen() ? ui.close() : ui.open()),
       isOpen: () => ui.isOpen(),
       identify: identifyVisitor,
+      call: callFromPage,
+      endCall: endVoice,
       ready: true,
     };
+    document.addEventListener('click', (e) => {
+      const target = e.target instanceof Element ? e.target.closest('[data-munin-call]') : null;
+      if (!target) return;
+      e.preventDefault();
+      void callFromPage();
+    });
     document.dispatchEvent(new CustomEvent('munin:widget-ready'));
   }
 

@@ -307,6 +307,44 @@ window.mn?.widget?.ready
         silently stealing it.
       </p>
 
+      <h3 className="tag-h" id="call" style={{ marginTop: 32 }}>
+        Start a voice call from your page
+      </h3>
+      <p className="tag-blurb">
+        If the widget channel has a voice channel linked, a button on your own page can put the visitor
+        straight into a call. Add <code>data-munin-call</code> to any element and no script is needed.
+        A click opens the panel and starts the call.
+      </p>
+      <div className="curl">
+        <div className="curl-h">
+          <span>HTML</span>
+          <span style={{ color: 'var(--docs-mute)' }}>anywhere on the page</span>
+        </div>
+        <pre>{`<button type="button" data-munin-call>Talk to us</button>`}</pre>
+      </div>
+      <p className="tag-blurb" style={{ marginTop: 16 }}>
+        For more control, call <code>window.mn.widget.call()</code> yourself. It resolves to{' '}
+        <code>{'{ started: true }'}</code> once the call is connecting, or to{' '}
+        <code>{'{ started: false, reason }'}</code> when it can&rsquo;t start, for example when no voice
+        channel is linked or the visitor denies microphone access. Use that result to fall back to a
+        phone number. <code>window.mn.widget.endCall()</code> hangs up.
+      </p>
+      <div className="curl">
+        <div className="curl-h">
+          <span>Browser</span>
+          <span style={{ color: 'var(--docs-mute)' }}>from a click handler</span>
+        </div>
+        <pre>{`document.getElementById('call-us').addEventListener('click', async () => {
+  const result = await window.mn.widget.call();
+  if (!result.started) showPhoneNumberInstead();
+});`}</pre>
+      </div>
+      <p className="tag-blurb" style={{ marginTop: 16 }}>
+        The call joins the visitor&rsquo;s current conversation, or starts one if there is none, so the
+        transcript lands in the same thread as any earlier chat. Start it from a click, because the
+        browser asks for microphone permission as the call connects.
+      </p>
+
       <h2 className="tag-h" id="visitor" style={{ marginTop: 56 }}>
         Visitor profile
       </h2>

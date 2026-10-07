@@ -29,7 +29,7 @@
     "@getmunin/dashboard-pages": "workspace:*",
     "@getmunin/types": "workspace:*",
     "@getmunin/ui": "workspace:*",
-    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/client": "2.2.0",
     "@modelcontextprotocol/ext-apps": "^1.7.5",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

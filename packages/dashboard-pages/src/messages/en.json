@@ -2386,6 +2386,7 @@
     "org_logo_too_large": "This logo is too large. The maximum size is 2 MB.",
     "org_logo_unsupported_type": "This file type isn't supported. Upload a PNG, JPEG, WebP or SVG image.",
     "outreach_undeliverable": "Mail can't reach that address. Correct the contact's email, or clear the address once it works again.",
+    "threll_no_outbound_number": "This threll has no outbound phone number, so it can't place calls. Add one in Threll, then try again.",
     "social_account_taken": "That account is already connected by someone else in your organisation.",
     "social_app_missing": "Set up your organisation's app before connecting an account.",
     "social_client_secret_required": "Enter the secret — there is none stored to keep.",

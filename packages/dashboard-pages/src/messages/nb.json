@@ -2386,6 +2386,7 @@
     "org_logo_too_large": "Logoen er for stor. Maksstørrelsen er 2 MB.",
     "org_logo_unsupported_type": "Filtypen støttes ikke. Last opp et PNG-, JPEG-, WebP- eller SVG-bilde.",
     "outreach_undeliverable": "E-post kommer ikke fram til den adressen. Rett opp e-postadressen til kontakten, eller nullstill adressen når den virker igjen.",
+    "threll_no_outbound_number": "Denne threllen har ikke noe utgående telefonnummer, så den kan ikke ringe ut. Legg til et i Threll og prøv igjen.",
     "social_account_taken": "Den kontoen er alt koblet til av en annen i organisasjonen.",
     "social_app_missing": "Sett opp organisasjonens app før du kobler til en konto.",
     "social_client_secret_required": "Skriv inn hemmeligheten — det er ingen lagret å beholde.",

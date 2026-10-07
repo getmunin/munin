@@ -122,10 +122,9 @@ export class ThrellClientService {
       }
       const json: unknown = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const message = asRecord(json).message;
         return {
           ok: false,
-          error: `threll_${res.status}: ${typeof message === 'string' ? message : res.status}`,
+          error: `threll_${res.status}: ${threllErrorDetail(json) || res.statusText || res.status}`,
         };
       }
       return { ok: true, json };
@@ -320,6 +319,29 @@ export class ThrellClientService {
       },
     };
   }
+}
+
+export function threllErrorDetail(json: unknown): string | undefined {
+  const r = asRecord(json);
+  const fromValue = (value: unknown): string | undefined => {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (Array.isArray(value)) {
+      const parts = value.map(fromValue).filter((p): p is string => !!p);
+      return parts.length > 0 ? parts.join('; ') : undefined;
+    }
+    if (value && typeof value === 'object') {
+      const nested = asRecord(value);
+      return fromValue(nested.message) ?? fromValue(nested.detail);
+    }
+    return undefined;
+  };
+  return (
+    fromValue(r.message) ??
+    fromValue(r.error) ??
+    fromValue(r.detail) ??
+    fromValue(r.errors) ??
+    fromValue(r.issues)
+  );
 }
 
 function toWorker(json: unknown): ThrellWorkerSummary {

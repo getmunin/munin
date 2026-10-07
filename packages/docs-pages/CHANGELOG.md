@@ -1,5 +1,17 @@
 # @getmunin/docs-pages
 
+## 5.42.0
+
+### Patch Changes
+
+- 2d52fe3: Let a page start a voice call in the chat widget directly. Any element with `data-munin-call` opens the panel and starts the call when clicked, and `window.mn.widget.call()` does the same from script. `call()` resolves to `{ started: true }`, or to `{ started: false, reason }` so the page can fall back to a phone number when no voice channel is linked or the visitor denies the microphone. `window.mn.widget.endCall()` hangs up. The call joins the visitor's current conversation, or starts one if there is none. Two quick triggers no longer race into two calls, and this also applies to the in-panel call button.
+- Updated dependencies [d75847f]
+- Updated dependencies [2647f25]
+- Updated dependencies [f22be10]
+- Updated dependencies [2d52fe3]
+  - @getmunin/backend-core@5.42.0
+  - @getmunin/types@5.42.0
+
 ## 5.41.0
 
 ### Patch Changes

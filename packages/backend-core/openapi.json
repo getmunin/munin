@@ -9732,6 +9732,11 @@
           },
           "requireVerifiedIdentity": {
             "type": "boolean"
+          },
+          "voiceChannelId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
           }
         },
         "required": [
@@ -9765,6 +9770,20 @@
           "requireVerifiedIdentity": {
             "type": "boolean",
             "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "voiceChannelId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
           }
         }
       },

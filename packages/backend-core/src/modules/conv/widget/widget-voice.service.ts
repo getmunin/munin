@@ -38,7 +38,7 @@ import {
   composeVoiceSystemPrompt,
   type ChatMessageSeed,
 } from '../vapi/vapi-assistant.ts';
-import { WidgetChannelConfig } from './widget.types.ts';
+import { WIDGET_VOICE_VENDORS, WidgetChannelConfig } from './widget.types.ts';
 import type {
   WidgetChannelConfigT,
   WidgetVoiceAvailabilityResult,
@@ -374,7 +374,7 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
     const voiceBaseConditions = [
       eq(schema.convChannels.orgId, orgId),
       eq(schema.convChannels.type, 'voice'),
-      inArray(schema.convChannels.vendor, ['vapi', 'threll']),
+      inArray(schema.convChannels.vendor, [...WIDGET_VOICE_VENDORS]),
       eq(schema.convChannels.active, true),
       isNull(schema.convChannels.archivedAt),
     ];

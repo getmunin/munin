@@ -1,11 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { z } from 'zod';
 import { schema } from '@getmunin/db';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { getCurrentContext, randomToken } from '@getmunin/core';
 import { mintApiKey } from '../../../common/api-keys/api-key.helpers.ts';
 import { assertOriginAllowlistPopulated } from '../../../common/allowlist.ts';
-import { WidgetChannelConfig } from './widget.types.ts';
+import { WIDGET_VOICE_VENDORS, WidgetChannelConfig } from './widget.types.ts';
 
 type WidgetConfig = z.infer<typeof WidgetChannelConfig>;
 
@@ -36,6 +36,7 @@ export interface CreateWidgetChannelInput {
   originAllowlist: string[];
   webhookOnEscalation?: string;
   requireVerifiedIdentity?: boolean;
+  voiceChannelId?: string;
 }
 
 export interface UpdateWidgetChannelInput {
@@ -43,6 +44,7 @@ export interface UpdateWidgetChannelInput {
   originAllowlist?: string[];
   webhookOnEscalation?: string | null;
   requireVerifiedIdentity?: boolean;
+  voiceChannelId?: string | null;
 }
 
 function assertAllowlistPopulated(originAllowlist: readonly string[]): void {
@@ -53,6 +55,29 @@ function assertAllowlistPopulated(originAllowlist: readonly string[]): void {
     field: 'originAllowlist',
     defaultRequire: true,
   });
+}
+
+async function assertVoiceChannelLinkable(orgId: string, voiceChannelId: string): Promise<void> {
+  const ctx = getCurrentContext();
+  const rows = await ctx.db
+    .select({ id: schema.convChannels.id })
+    .from(schema.convChannels)
+    .where(
+      and(
+        eq(schema.convChannels.id, voiceChannelId),
+        eq(schema.convChannels.orgId, orgId),
+        eq(schema.convChannels.type, 'voice'),
+        inArray(schema.convChannels.vendor, [...WIDGET_VOICE_VENDORS]),
+        isNull(schema.convChannels.archivedAt),
+      ),
+    )
+    .limit(1);
+  if (!rows[0]) {
+    throw new BadRequestException({
+      message: `conv_widget_voice_channel_invalid: ${voiceChannelId} is not a Vapi or Threll voice channel in this organization`,
+      code: 'conv_widget_voice_channel_invalid',
+    });
+  }
 }
 
 function sanitizeConfig(config: WidgetConfig): SanitizedWidgetConfig {
@@ -67,6 +92,9 @@ export class WidgetChannelAdminService {
     const actor = ctx.actor!;
 
     assertAllowlistPopulated(args.originAllowlist);
+    if (args.voiceChannelId) {
+      await assertVoiceChannelLinkable(actor.orgId, args.voiceChannelId);
+    }
 
     const identityVerificationSecret = randomToken(32);
     const config = WidgetChannelConfig.parse({
@@ -75,6 +103,7 @@ export class WidgetChannelAdminService {
       webhookOnEscalation: args.webhookOnEscalation,
       identityVerificationSecret,
       requireVerifiedIdentity: args.requireVerifiedIdentity ?? false,
+      voiceChannelId: args.voiceChannelId,
     });
 
     const [channel] = await ctx.db
@@ -129,16 +158,20 @@ export class WidgetChannelAdminService {
     if (args.originAllowlist !== undefined) {
       assertAllowlistPopulated(args.originAllowlist);
     }
+    if (args.voiceChannelId) {
+      await assertVoiceChannelLinkable(actor.orgId, args.voiceChannelId);
+    }
 
     const next = WidgetChannelConfig.parse({
-      provider: 'widget',
+      ...prev,
       originAllowlist: args.originAllowlist ?? prev.originAllowlist,
       webhookOnEscalation:
         args.webhookOnEscalation === null
           ? undefined
           : (args.webhookOnEscalation ?? prev.webhookOnEscalation),
-      identityVerificationSecret: prev.identityVerificationSecret,
       requireVerifiedIdentity: args.requireVerifiedIdentity ?? prev.requireVerifiedIdentity,
+      voiceChannelId:
+        args.voiceChannelId === null ? undefined : (args.voiceChannelId ?? prev.voiceChannelId),
     });
 
     const [updated] = await ctx.db

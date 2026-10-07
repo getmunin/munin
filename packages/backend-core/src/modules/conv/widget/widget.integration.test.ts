@@ -654,6 +654,182 @@ const skipReason = TEST_URL
     await db.delete(schema.orgs).where(sql`id = ${otherOrg!.id}`);
   });
 
+  describe('voice channel routing', () => {
+    let vapiVoiceId: string;
+    let threllVoiceId: string;
+    let smsChannelId: string;
+    let archivedVoiceId: string;
+    let otherOrgId: string;
+    let otherOrgVoiceId: string;
+
+    async function insertChannel(values: {
+      orgId: string;
+      type: string;
+      vendor: string;
+      name: string;
+      archivedAt?: Date;
+    }): Promise<string> {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const [row] = await db
+        .insert(schema.convChannels)
+        .values({ ...values, active: true, config: {} })
+        .returning({ id: schema.convChannels.id });
+      return row!.id;
+    }
+
+    async function storedVoiceChannelId(id: string): Promise<string | undefined> {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const rows = await db
+        .select({ config: schema.convChannels.config })
+        .from(schema.convChannels)
+        .where(eq(schema.convChannels.id, id));
+      return (rows[0]!.config as { voiceChannelId?: string }).voiceChannelId;
+    }
+
+    async function updateWidget(args: Record<string, unknown>) {
+      return withClient(adminKey, (c) =>
+        c.callTool({ name: 'conv_update_widget_channel', arguments: { channelId, ...args } }),
+      );
+    }
+
+    beforeAll(async () => {
+      vapiVoiceId = await insertChannel({ orgId, type: 'voice', vendor: 'vapi', name: 'vapi-line' });
+      threllVoiceId = await insertChannel({
+        orgId,
+        type: 'voice',
+        vendor: 'threll',
+        name: 'threll-line',
+      });
+      smsChannelId = await insertChannel({ orgId, type: 'sms', vendor: 'twilio', name: 'sms-line' });
+      archivedVoiceId = await insertChannel({
+        orgId,
+        type: 'voice',
+        vendor: 'vapi',
+        name: 'old-line',
+        archivedAt: new Date(),
+      });
+      const [otherOrg] = await db
+        .insert(schema.orgs)
+        .values({ name: 'Widget IT Voice Org B' })
+        .returning();
+      otherOrgId = otherOrg!.id;
+      otherOrgVoiceId = await insertChannel({
+        orgId: otherOrgId,
+        type: 'voice',
+        vendor: 'vapi',
+        name: 'foreign-line',
+      });
+    });
+
+    afterAll(async () => {
+      await updateWidget({ voiceChannelId: null });
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      await db.delete(schema.orgs).where(eq(schema.orgs.id, otherOrgId));
+      await db
+        .delete(schema.convChannels)
+        .where(
+          sql`${schema.convChannels.id} IN (${vapiVoiceId}, ${threllVoiceId}, ${smsChannelId}, ${archivedVoiceId})`,
+        );
+    });
+
+    it('links a voice channel and keeps the link across unrelated updates', async () => {
+      const linked = parseToolResult<{ config: { voiceChannelId?: string } }>(
+        await updateWidget({ voiceChannelId: vapiVoiceId }),
+      );
+      expect(linked.config.voiceChannelId).toBe(vapiVoiceId);
+
+      parseToolResult(await updateWidget({ requireVerifiedIdentity: false }));
+      parseToolResult(await updateWidget({ originAllowlist: ['https://customer.example'] }));
+      expect(await storedVoiceChannelId(channelId)).toBe(vapiVoiceId);
+
+      const unlinked = parseToolResult<{ config: { voiceChannelId?: string } }>(
+        await updateWidget({ voiceChannelId: null }),
+      );
+      expect(unlinked.config.voiceChannelId).toBeUndefined();
+      expect(await storedVoiceChannelId(channelId)).toBeUndefined();
+    });
+
+    it('rejects linking a channel that cannot take widget calls and keeps the current link', async () => {
+      parseToolResult(await updateWidget({ voiceChannelId: threllVoiceId }));
+
+      for (const candidate of [
+        smsChannelId,
+        archivedVoiceId,
+        otherOrgVoiceId,
+        channelId,
+        'cch_does_not_exist',
+      ]) {
+        const result = (await updateWidget({ voiceChannelId: candidate })) as {
+          isError?: boolean;
+          content?: Array<{ text?: string }>;
+        };
+        expect(result.isError).toBe(true);
+        expect(result.content?.[0]?.text).toMatch(/conv_widget_voice_channel_invalid/);
+      }
+      expect(await storedVoiceChannelId(channelId)).toBe(threllVoiceId);
+    });
+
+    it('links a voice channel through the control plane', async () => {
+      const res = await call(
+        'PATCH',
+        `/v1/conversations/channels/widget/${channelId}`,
+        adminKey,
+        { voiceChannelId: vapiVoiceId },
+      );
+      expect(res.status).toBe(200);
+      expect((res.json as { config: { voiceChannelId?: string } }).config.voiceChannelId).toBe(
+        vapiVoiceId,
+      );
+
+      const bad = await call(
+        'PATCH',
+        `/v1/conversations/channels/widget/${channelId}`,
+        adminKey,
+        { voiceChannelId: smsChannelId },
+      );
+      expect(bad.status).toBe(400);
+      expect((bad.json as { code?: string }).code).toBe('conv_widget_voice_channel_invalid');
+      expect(await storedVoiceChannelId(channelId)).toBe(vapiVoiceId);
+    });
+
+    it('creates a widget channel already linked to a voice channel', async () => {
+      const created = parseToolResult<{ id: string; config: { voiceChannelId?: string } }>(
+        await withClient(adminKey, (c) =>
+          c.callTool({
+            name: 'conv_create_widget_channel',
+            arguments: {
+              name: 'voice-linked-widget',
+              originAllowlist: ['https://customer.example'],
+              voiceChannelId: threllVoiceId,
+            },
+          }),
+        ),
+      );
+      expect(created.config.voiceChannelId).toBe(threllVoiceId);
+      expect(await storedVoiceChannelId(created.id)).toBe(threllVoiceId);
+
+      const rejected = (await withClient(adminKey, (c) =>
+        c.callTool({
+          name: 'conv_create_widget_channel',
+          arguments: {
+            name: 'bad-voice-widget',
+            originAllowlist: ['https://customer.example'],
+            voiceChannelId: smsChannelId,
+          },
+        }),
+      )) as { isError?: boolean };
+      expect(rejected.isError).toBe(true);
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const leftovers = await db
+        .select({ id: schema.convChannels.id })
+        .from(schema.convChannels)
+        .where(
+          and(eq(schema.convChannels.orgId, orgId), eq(schema.convChannels.name, 'bad-voice-widget')),
+        );
+      expect(leftovers).toHaveLength(0);
+    });
+  });
+
   it('accepts a verified visitor and binds the contact to externalId', async () => {
     const externalId = 'user_42';
     const userHash = signHmac(externalId, identityVerificationSecret);

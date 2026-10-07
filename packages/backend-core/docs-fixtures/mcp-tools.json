@@ -4455,6 +4455,12 @@
         },
         "requireVerifiedIdentity": {
           "type": "boolean"
+        },
+        "voiceChannelId": {
+          "description": "Id of the Vapi or Threll voice channel that takes calls started from this widget. Leave unset to use the organization's only voice channel; with more than one, calls stay unavailable until one is set.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
         }
       },
       "required": [
@@ -4467,7 +4473,7 @@
   {
     "name": "conv_update_widget_channel",
     "title": "Conv: Update chat-widget channel",
-    "description": "Update a chat-widget channel's originAllowlist / webhookOnEscalation. Pass null to clear webhookOnEscalation. The widget API key is unchanged.",
+    "description": "Update a chat-widget channel's originAllowlist, webhookOnEscalation, requireVerifiedIdentity, or the voice channel its call button uses (voiceChannelId). Omitted fields keep their current value; pass null to clear webhookOnEscalation or voiceChannelId. The widget API key is unchanged.",
     "audiences": [
       "admin"
     ],
@@ -4503,6 +4509,19 @@
         },
         "requireVerifiedIdentity": {
           "type": "boolean"
+        },
+        "voiceChannelId": {
+          "description": "Id of the Vapi or Threll voice channel that takes calls started from this widget. Pass null to unlink and fall back to the organization's only voice channel; omit to keep the current link.",
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [

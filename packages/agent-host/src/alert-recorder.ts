@@ -1,7 +1,9 @@
+export type AlertRecorderSource = 'llm_provider' | 'quota';
+
 export type AlertRecorderSeverity = 'warning' | 'error';
 
 export interface AlertRecorderOpenInput {
-  source: 'llm_provider';
+  source: AlertRecorderSource;
   subjectId?: string | null;
   severity: AlertRecorderSeverity;
   title: string;
@@ -10,7 +12,7 @@ export interface AlertRecorderOpenInput {
 }
 
 export interface AlertRecorderResolveInput {
-  source: 'llm_provider';
+  source: AlertRecorderSource;
   subjectId?: string | null;
 }
 

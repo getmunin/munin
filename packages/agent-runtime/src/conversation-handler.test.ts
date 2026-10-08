@@ -7,6 +7,7 @@ import {
 } from './conversation-handler.ts';
 import { MuninRestError, type ConversationDetail, type MuninRestClient } from './munin-rest.ts';
 import type { PromptResolver } from './prompt-resolver.ts';
+import { FALLBACK_HANDOVER } from './fallback-messages.ts';
 import { ProviderError } from './providers/transport.ts';
 import type { McpToolResult, Provider, ProviderResponse } from './types.ts';
 
@@ -2373,7 +2374,69 @@ describe('createConversationHandler', () => {
     await handler.flush();
 
     expect(postSpy).not.toHaveBeenCalled();
-    expect(onGenerateBlocked).toHaveBeenCalledWith('quota_exhausted');
+    expect(onGenerateBlocked).toHaveBeenCalledWith('quota_exhausted', undefined);
+    expect(rest.requestHandover).not.toHaveBeenCalled();
+  });
+
+  it('hands the conversation to a human when the gate denies with a notice', async () => {
+    const rest = buildRest();
+    const handoverSpy = vi.fn(() => Promise.resolve());
+    rest.requestHandover = handoverSpy;
+    const provider = vi.fn<Provider>(() => Promise.resolve(assistantStop('hi')));
+    const notice = { title: 'AI quota used up for this month', detail: 'Resets on 1 Nov.' };
+    const onGenerateBlocked = vi.fn();
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider,
+      beforeGenerate: () =>
+        Promise.resolve({ allowed: false, reason: 'quota_exceeded', notice }),
+      onGenerateBlocked,
+    });
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    expect(provider).not.toHaveBeenCalled();
+    expect(onGenerateBlocked).toHaveBeenCalledWith('quota_exceeded', notice);
+    expect(handoverSpy).toHaveBeenCalledWith('conv_1', {
+      reason: 'AI quota used up for this month',
+      publicFallbackMessage: FALLBACK_HANDOVER.en,
+    });
+  });
+
+  it('notes a gate denial on a draft request instead of handing over', async () => {
+    const rest = buildRest();
+    const noteSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    rest.postInternalNote = noteSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: () => Promise.resolve(assistantStop('hi')),
+      beforeGenerate: () =>
+        Promise.resolve({
+          allowed: false,
+          reason: 'quota_exceeded',
+          notice: { title: 'AI quota used up for this month' },
+        }),
+    });
+
+    handler.requestDraft({ conversationId: 'conv_1' });
+    await handler.flush();
+
+    expect(noteSpy).toHaveBeenCalledWith(
+      'conv_1',
+      'Draft request failed: AI quota used up for this month',
+    );
+    expect(rest.requestHandover).not.toHaveBeenCalled();
   });
 
   it('seeds the greet turn with the end user locale so the greeting comes out in their language', async () => {

@@ -50,6 +50,7 @@ import {
   type AwaitingReplyConversation,
   type ConversationHandler,
   type CuratorJob,
+  type GenerateVerdict,
   type HandlerConfig,
   type MuninRestClient,
   type PromptResolver,
@@ -190,7 +191,7 @@ export interface AgentHostRunnerOptions {
     config: AgentConfigRow;
     managed: boolean;
     trigger: GenerateTrigger;
-  }) => Promise<{ allowed: boolean; reason?: string }>;
+  }) => Promise<GenerateVerdict>;
 }
 
 interface PerConfigRunner {
@@ -498,7 +499,7 @@ export class AgentHostRunner
     const handlerRef: { current: ConversationHandler | null } = { current: null };
     const sweeper = this.buildConversationSweeper({ id, rest, handlerRef });
     const beforeGenerate = this.options?.beforeGenerate
-      ? (): Promise<{ allowed: boolean; reason?: string }> =>
+      ? (): Promise<GenerateVerdict> =>
           runWithServiceContext(
             this.db,
             id,
@@ -604,6 +605,17 @@ export class AgentHostRunner
           { orgId },
         ).catch((err) =>
           this.scopedLogger(id, 'chat').warn(`recordFailure failed: ${describe(err)}`),
+        );
+      },
+      onGenerateBlocked: (reason, notice) => {
+        if (!notice) return;
+        void runWithServiceContext(
+          this.db,
+          id,
+          () => this.health.recordBlocked(id, notice, reason),
+          { orgId },
+        ).catch((err) =>
+          this.scopedLogger(id, 'chat').warn(`recordBlocked failed: ${describe(err)}`),
         );
       },
       onProviderSuccess: () => {
@@ -847,12 +859,21 @@ export class AgentHostRunner
             trigger: 'scheduled',
           }),
         { orgId: opts.orgId },
-      ).catch((err): { allowed: boolean; reason?: string } => {
+      ).catch((err): GenerateVerdict => {
         log.warn(`beforeGenerate failed, proceeding: ${describe(err)}`);
         return { allowed: true };
       });
       if (!verdict.allowed) {
         log.info(`scheduled work suppressed: ${verdict.reason ?? 'gate denied'}`);
+        const notice = verdict.notice;
+        if (notice) {
+          await runWithServiceContext(
+            this.db,
+            opts.id,
+            () => this.health.recordBlocked(opts.id, notice, verdict.reason),
+            { orgId: opts.orgId },
+          ).catch((e) => log.warn(`recordBlocked failed: ${describe(e)}`));
+        }
         return false;
       }
       return true;

@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import type { ReactNode } from 'react';
-import { Eyebrow } from '@getmunin/ui';
+import { Eyebrow, cn } from '@getmunin/ui';
+import { MUNIN_LOGO_SRC, logoDarkClass } from '../lib/brand-logo';
 
 export interface StandaloneNoticeProps {
   eyebrow: ReactNode;
@@ -17,12 +18,12 @@ export function StandaloneNotice({
   lede,
   footnote,
   action,
-  logoSrc = '/munin-logo.png',
+  logoSrc = MUNIN_LOGO_SRC,
 }: StandaloneNoticeProps) {
   return (
     <main className="min-h-dvh w-full bg-bone dark:bg-background">
       <div className="mx-auto flex min-h-dvh max-w-2xl flex-col justify-center gap-6 px-6">
-        <Image src={logoSrc} alt="Munin" width={40} height={40} className="block" priority />
+        <Image src={logoSrc} alt="Munin" width={40} height={40} className={cn('block', logoDarkClass(logoSrc))} priority />
         <Eyebrow tone="muted">{eyebrow}</Eyebrow>
         <h1 className="font-serif text-4xl md:text-5xl leading-[1.05] font-normal tracking-tight text-ink dark:text-foreground">
           {title}

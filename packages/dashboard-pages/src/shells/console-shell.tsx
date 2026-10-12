@@ -18,6 +18,7 @@ import {
 import { api } from '../api';
 import { authClient } from '../auth-client';
 import { initialsOf } from '../lib/initials';
+import { MUNIN_LOGO_SRC, logoDarkClass } from '../lib/brand-logo';
 import { clearActiveOrgId } from '../auth/active-org';
 import { isOwnerOrAdmin, useActiveRole } from '../auth/use-active-role';
 import { Link, usePathname, useRouter } from '../i18n-navigation';
@@ -201,7 +202,7 @@ export function ConsoleShell(props: ConsoleShellProps) {
 function ConsoleShellInner({
   brand,
   brandHref = '/dashboard',
-  logoSrc = '/munin-logo.png',
+  logoSrc = MUNIN_LOGO_SRC,
   headSlot,
   children,
 }: ConsoleShellProps) {
@@ -322,7 +323,7 @@ function ConsoleShellInner({
           <div className="flex h-full flex-col bg-bone dark:bg-secondary">
             <div className="flex items-center gap-2.5 px-5 pb-2 pt-5 font-sans text-[15px] font-medium tracking-normal text-ink dark:text-foreground">
               <BrandMark href={brandHref} label={brand}>
-                <Image src={logoSrc} alt="" aria-hidden width={26} height={26} className="block size-[26px] shrink-0 object-contain" />
+                <Image src={logoSrc} alt="" aria-hidden width={26} height={26} className={cn('block size-[26px] shrink-0 object-contain', logoDarkClass(logoSrc))} />
               </BrandMark>
               {headSlot ? (
                 <>

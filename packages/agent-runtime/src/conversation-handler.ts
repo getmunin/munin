@@ -18,6 +18,7 @@ import { parseAttachments } from './munin-rest.ts';
 import type { ConversationDetail, MuninRestClient } from './munin-rest.ts';
 import { FALLBACK_GREET, FALLBACK_HANDOVER, pickFallback } from './fallback-messages.ts';
 import { fenceUntrusted } from './untrusted.ts';
+import { htmlToMarkdown } from './html-to-markdown.ts';
 import { languageLabel, languageName, rewriteInLanguage } from './translation.ts';
 
 export interface HandlerConfig {
@@ -393,7 +394,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
           : mcp;
       if (delivery === 'send') startTyping();
       try {
-        const agentReply = await runAgent({
+        const rawReply = await runAgent({
           config: {
             provider: {
               baseUrl: deps.config.providerBaseUrl,
@@ -414,6 +415,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
 
         if (signal.aborted) return;
 
+        const agentReply = { ...rawReply, body: htmlToMarkdown(rawReply.body) };
         const reply =
           mode === 'draft-request' && draft.language && agentReply.body.trim().length > 0
             ? {

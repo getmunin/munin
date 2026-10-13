@@ -15,7 +15,7 @@ import {
 } from '@getmunin/ui';
 import { useConversationTyping } from '../../realtime';
 import { useCmdEnter } from './queue-panes/shared';
-import { MessageBubble, startsAuthorGroup } from './inbox-message-bubble';
+import { MessageBubble, MessageMarkdown, startsAuthorGroup } from './inbox-message-bubble';
 import {
   AGENT_TINT_CLASS,
   AgentDraftAction,
@@ -1008,14 +1008,13 @@ export function ConversationPane({
                   }
                   className="min-h-28 max-md:min-h-0 max-md:flex-1"
                 >
-                  <textarea
-                    ref={replyBoxRef}
-                    value={draft?.body ?? ''}
-                    readOnly
-                    rows={3}
+                  <div
+                    role="document"
                     aria-label={t('draftPreviewLabel')}
-                    className="w-full cursor-default resize-none bg-transparent text-base leading-relaxed outline-none max-md:min-h-0 max-md:flex-1 md:text-sm"
-                  />
+                    className="w-full cursor-default overflow-y-auto text-base leading-relaxed max-md:min-h-0 max-md:flex-1 md:max-h-80 md:text-sm"
+                  >
+                    <MessageMarkdown body={draft?.body ?? ''} />
+                  </div>
                 </AgentDraftSlab>
               )}
               <div className="flex shrink-0 flex-col flex-wrap items-stretch gap-2.5 md:flex-row md:items-center">

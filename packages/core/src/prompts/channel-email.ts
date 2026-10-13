@@ -9,4 +9,4 @@ Include a short greeting only on the very first agent message in the thread. On 
 
 End with a brief signoff.
 
-Your reply is rendered as HTML, so inline markdown (bold, italics, lists, links) is fine and will render in the recipient's mail client. Avoid tables and fenced code blocks unless quoting source material.`;
+Format the reply in Markdown: bold, italics, bulleted or numbered lists and links all render in the recipient's mail client. Never write HTML tags such as <p>, <br>, <ul>, <li> or <strong> — use the Markdown equivalent instead. Avoid tables and fenced code blocks unless quoting source material.`;

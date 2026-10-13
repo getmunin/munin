@@ -385,6 +385,30 @@ describe('createConversationHandler', () => {
     });
   });
 
+  it('parks a model that answered in HTML as Markdown, because every channel escapes raw tags', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(buildConversation({ agentMode: 'draft_only', channelType: 'email' })),
+      ),
+    });
+    const draftSpy = vi.fn((_conversationId: string, _body: string) => Promise.resolve());
+    rest.setDraftReply = draftSpy;
+    const handler = createConversationHandler({
+      config: { ...baseConfig, auditEnabled: false },
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([
+        assistantStop('Two steps:\n\n<ul>\n  <li><strong>Log in:</strong> use BankID.</li>\n  <li>Pick a loan.</li>\n</ul>'),
+      ]),
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(draftSpy.mock.calls[0]?.[1]).toBe('Two steps:\n\n- **Log in:** use BankID.\n- Pick a loan.');
+  });
+
   it('records the KB documents it drafted from so a later edit can be traced to them', async () => {
     const rest = buildRest({
       getConversation: vi.fn(() =>

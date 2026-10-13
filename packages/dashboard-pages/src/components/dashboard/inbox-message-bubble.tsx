@@ -89,7 +89,7 @@ const MESSAGE_MD_COMPONENTS: Components = {
   ),
 };
 
-function MessageMarkdown({ body }: { body: string }) {
+export function MessageMarkdown({ body }: { body: string }) {
   return (
     <div className="break-words [overflow-wrap:anywhere]">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={MESSAGE_MD_COMPONENTS}>

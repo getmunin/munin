@@ -220,9 +220,22 @@ describe('ConversationPane composer', () => {
 
     rerender(pane('conv_a', unclaimed(DRAFT_A), stubController()));
     expect(draftStatus()).toBe('Draft·Preview');
-    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Agent draft' }).value).toBe(
-      DRAFT_A,
-    );
+    expect(screen.getByRole('document', { name: 'Agent draft' }).textContent).toBe(DRAFT_A);
+  });
+
+  it('renders the read-only draft preview as Markdown rather than source', () => {
+    const unclaimed = makeDetail('conv_a', {
+      claim: null,
+      messages: [
+        makeMessage({ id: 'conv_a_m1', conversationId: 'conv_a' }),
+        makeDraft('conv_a', 'conv_a_draft', 'Two options:\n\n* **Car loan:** adjust it yourself\n* **Credit card:** ask the bank'),
+      ],
+    });
+    renderWithProviders(pane('conv_a', unclaimed, stubController()));
+    const preview = screen.getByRole('document', { name: 'Agent draft' });
+    expect(preview.querySelectorAll('li')).toHaveLength(2);
+    expect(preview.querySelector('strong')?.textContent).toBe('Car loan:');
+    expect(preview.textContent).not.toContain('**');
   });
 
   it('fits the reply box to the seeded draft once the teammate claims the conversation', () => {

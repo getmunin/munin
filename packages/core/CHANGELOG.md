@@ -1,5 +1,25 @@
 # @getmunin/core
 
+## 5.44.0
+
+### Minor Changes
+
+- 80f946a: The support agent now knows which channel a conversation arrived on. Its system prompt gains a `[Channel]` block naming the channel and its id, placed after the channel-type descriptor. Until now an org with two chat widgets, one per website, gave the agent the same `channel-chat` descriptor for both and no way to tell the sites apart.
+
+  The block also carries a per-channel descriptor when the `agent-runtime` KB space holds one. Its slug is `channel-` followed by the channel id with `_` replaced by `-`, so channel `cch_abc123` reads `channel-cch-abc123`. It adds to the channel-type descriptor rather than replacing it, so it only needs to say what is specific to that channel, such as which site the agent answers for. The runner reads it the first time one of that channel's conversations needs a reply, then follows edits, new documents and deletions as they happen. Unlike the seeded prompts, these per-channel documents can be deleted. `GET /v1/conversations/:id` returns the channel's `channelName`. `skill://conv/serve-multiple-sites` walks through the setup.
+
+### Patch Changes
+
+- 73edcf9: Agent replies written in HTML no longer reach customers as literal tags. Some models answer with `<ul>`, `<li>`, `<strong>` or `<p>` even when asked for Markdown, and every channel escapes raw HTML on purpose, so an approved draft arrived in the customer's inbox or chat widget as visible markup. The agent runtime now converts the HTML models commonly produce (paragraphs, line breaks, ordered and unordered lists including nested ones, bold, italics, headings, links and inline code) into Markdown before a reply is drafted, translated, audited or sent. Text without those tags is left untouched, as is anything inside code spans or fenced code blocks. Links keep only `http`, `https`, `mailto` and `tel` targets, and tags outside that set stay as they are for the channel renderer to escape.
+
+  The default email channel descriptor no longer says the reply "is rendered as HTML", which smaller models read as an invitation to write HTML. It now asks for Markdown and explicitly rules out HTML tags, and the chat descriptor gains the same rule. Organizations keep the descriptor seeded when they were created, so existing ones only pick this up by editing `channel-email` and `channel-chat` in their `agent-runtime` space.
+
+  The read-only draft preview in the inbox now renders Markdown the same way the sent message does, instead of showing the source with its asterisks and list markers.
+
+- Updated dependencies [80f946a]
+  - @getmunin/db@5.44.0
+  - @getmunin/types@5.44.0
+
 ## 5.43.0
 
 ### Patch Changes

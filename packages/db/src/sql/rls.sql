@@ -35,6 +35,13 @@ CREATE OR REPLACE FUNCTION app_bypass_rls() RETURNS bool
   LANGUAGE sql STABLE PARALLEL SAFE
   AS $$ SELECT COALESCE(current_setting('app.bypass_rls', true), 'off') = 'on'; $$;
 
+-- KB spaces the current end-user caller is confined to, from the channel its
+-- conversation arrived on (conv_channel_kb_spaces). NULL means unrestricted —
+-- the GUC is unset, or the channel has no space bindings.
+CREATE OR REPLACE FUNCTION app_kb_space_ids() RETURNS text[]
+  LANGUAGE sql STABLE PARALLEL SAFE
+  AS $$ SELECT string_to_array(NULLIF(current_setting('app.kb_space_ids', true), ''), ','); $$;
+
 -- ───────────────────────── policy template ─────────────────────────────────
 --
 -- For org-scoped tables: tenant_isolation policy

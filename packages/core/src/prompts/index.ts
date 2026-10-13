@@ -70,6 +70,15 @@ export const AGENT_RUNTIME_PROMPT_SPACE_SLUG = 'agent-runtime';
 export const COMPANY_PROFILE_SPACE_SLUG = 'website-import';
 export const CHANNEL_PROMPT_PREFIX = 'channel-';
 export const COMPANY_PROFILE_SLUG = 'company-profile';
+export const CHANNEL_INSTANCE_PROMPT_PREFIX = `${CHANNEL_PROMPT_PREFIX}cch-`;
+
+export function channelInstancePromptSlug(channelId: string): string {
+  return `${CHANNEL_PROMPT_PREFIX}${channelId.toLowerCase().replace(/_/g, '-')}`;
+}
+
+export function isChannelInstancePromptSlug(slug: string | null | undefined): boolean {
+  return !!slug && slug.startsWith(CHANNEL_INSTANCE_PROMPT_PREFIX);
+}
 
 export {
   createPromptCache,
@@ -124,5 +133,6 @@ export function isSystemRuntimeDoc(
   if (!spaceSlug || !docSlug) return false;
   if (spaceSlug !== AGENT_RUNTIME_PROMPT_SPACE_SLUG) return false;
   if (SEEDABLE_PROMPTS.some((p) => p.slug === docSlug)) return true;
+  if (isChannelInstancePromptSlug(docSlug)) return false;
   return docSlug.startsWith(CHANNEL_PROMPT_PREFIX);
 }

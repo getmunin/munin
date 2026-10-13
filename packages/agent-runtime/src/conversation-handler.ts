@@ -89,6 +89,19 @@ function companyContextBlock(companyContext: string): string {
   return `\n\n[Company context]\n${COMPANY_CONTEXT_NOTE}\n${fenceUntrusted('company_context', companyContext)}`;
 }
 
+export function channelContextBlock(
+  detail: Pick<ConversationDetail, 'channelId' | 'channelName'>,
+  instanceDescriptor: string,
+): string {
+  if (!detail.channelId) return '';
+  const name = detail.channelName?.trim();
+  const origin = name
+    ? `This conversation arrived on the channel "${name}" (channelId: ${detail.channelId}).`
+    : `This conversation arrived on channelId: ${detail.channelId}.`;
+  const body = instanceDescriptor.trim();
+  return body ? `[Channel]\n${origin}\n\n${body}` : `[Channel]\n${origin}`;
+}
+
 function conversationContextBlock(conversationId: string): string {
   return `[Conversation context]\nYou are replying in conversationId: ${conversationId}. Pass this exact value to any tool that asks for \`conversationId\` — never substitute placeholders like "current" or "this".`;
 }
@@ -343,14 +356,18 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     const channelDescriptor = detail.channelType
       ? deps.prompts.channel(detail.channelType)
       : '';
+    const instanceDescriptor = detail.channelId
+      ? await deps.prompts.channelInstance(detail.channelId)
+      : '';
+    const channelBlock = channelContextBlock(detail, instanceDescriptor);
     const companyContext = deps.prompts.companyContext();
     const companyBlock = companyContextBlock(companyContext);
     const conversationContext = conversationContextBlock(conversationId);
     const subjectBlock = emailSubjectBlock(detail);
     const namePreamble = assistantNamePreamble(detail.assistantName);
-    const systemBody = channelDescriptor
-      ? `${baseSystem}${companyBlock}\n\n${channelDescriptor}`
-      : `${baseSystem}${companyBlock}`;
+    const systemBody = [`${baseSystem}${companyBlock}`, channelDescriptor, channelBlock]
+      .filter(Boolean)
+      .join('\n\n');
     const systemPrompt = `${namePreamble}${systemBody}`;
     const volatileSystemPrompt = `${conversationContext}${subjectBlock}${
       mode === 'draft-request'

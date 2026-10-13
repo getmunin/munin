@@ -58,9 +58,11 @@ END $$;
 -- ───────────────────────── KB RLS policies ─────────────────────────────────
 -- All KB tables are org-scoped. Documents have an `audiences` jsonb array
 -- consulted by self-service callers (when app.end_user_id is set, only
--- docs whose audiences include 'self_service' are visible). Chunks/versions
--- inherit visibility from their parent document — a tighter sub-policy
--- avoids leaking embedding text via direct chunk reads.
+-- docs whose audiences include 'self_service' are visible). Self-service
+-- callers in a conversation whose channel is bound to KB spaces
+-- (app_kb_space_ids() non-NULL) see only documents in those spaces.
+-- Chunks/versions inherit visibility from their parent document — a tighter
+-- sub-policy avoids leaking embedding text via direct chunk reads.
 
 ALTER TABLE kb_spaces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kb_spaces FORCE ROW LEVEL SECURITY;
@@ -77,7 +79,13 @@ CREATE POLICY tenant_isolation ON kb_documents
     app_bypass_rls()
     OR (
       org_id = app_org_id()
-      AND (app_end_user_id() = '' OR audiences @> '["self_service"]'::jsonb)
+      AND (
+        app_end_user_id() = ''
+        OR (
+          audiences @> '["self_service"]'::jsonb
+          AND (app_kb_space_ids() IS NULL OR space_id = ANY (app_kb_space_ids()))
+        )
+      )
     )
   )
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
@@ -96,6 +104,7 @@ CREATE POLICY tenant_isolation ON kb_document_chunks
           SELECT 1 FROM kb_documents d
           WHERE d.id = kb_document_chunks.document_id
             AND d.audiences @> '["self_service"]'::jsonb
+            AND (app_kb_space_ids() IS NULL OR d.space_id = ANY (app_kb_space_ids()))
         )
       )
     )

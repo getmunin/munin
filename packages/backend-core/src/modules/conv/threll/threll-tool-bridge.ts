@@ -57,6 +57,7 @@ export class ThrellToolBridge {
   async dispatch(opts: {
     orgId: string;
     endUserId: string;
+    conversationId?: string;
     name: string;
     args: unknown;
   }): Promise<ThrellToolCallResult> {
@@ -82,6 +83,12 @@ export class ThrellToolBridge {
       SELF_SERVICE_SCOPES,
       ['self_service'],
       opts.endUserId,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      opts.conversationId,
     );
     const correlationId = randomUUID();
     const outerCtx: RequestContext = { db: this.db, actor, correlationId };

@@ -20,9 +20,9 @@ function stubRest(
   return { fetch, urls };
 }
 
-function ctx(): ConnectorConnectionContext {
+function ctx(extra: Record<string, unknown> = {}): ConnectorConnectionContext {
   return {
-    config: { baseUrl: 'https://store.example.com', encryptedAccessToken: 'ct_abc' },
+    config: { baseUrl: 'https://store.example.com', encryptedAccessToken: 'ct_abc', ...extra },
     decryptSecret: () => Promise.resolve('integration_token'),
   };
 }
@@ -397,6 +397,160 @@ describe('MagentoAdapter', () => {
         { baseUrl: 'https://store.example.com', encryptedAccessToken: 'ct_old' },
       );
       expect(stored.encryptedAccessToken).toBe('ct_old');
+    });
+  });
+
+  describe('with a storeCode', () => {
+    const multiStoreConfigs = [
+      { id: 1, code: 'default', website_id: 1, base_currency_code: 'EUR' },
+      { id: 2, code: 'acme', website_id: 2, base_currency_code: 'NOK' },
+      { id: 3, code: 'acme_en', website_id: 2, base_currency_code: 'NOK' },
+      { id: 4, code: 'globex', website_id: 3, base_currency_code: 'NOK' },
+    ];
+    const scoped = () => ctx({ storeCode: 'acme' });
+
+    it('calls the store-scoped REST root and filters product search to that website', async () => {
+      const { fetch, urls } = stubRest((url) =>
+        url.includes('/store/storeConfigs')
+          ? { body: multiStoreConfigs }
+          : { body: { items: [product()], total_count: 1 } },
+      );
+      const adapter = new MagentoAdapter(fetch);
+
+      const products = await adapter.searchProducts(scoped(), { query: 'mug', limit: 10 });
+
+      expect(new URL(urls[0]!).pathname).toBe('/rest/acme/V1/store/storeConfigs');
+      const url = new URL(urls[1]!);
+      expect(url.pathname).toBe('/rest/acme/V1/products');
+      expect(url.searchParams.get('searchCriteria[filter_groups][3][filters][0][field]')).toBe(
+        'website_id',
+      );
+      expect(url.searchParams.get('searchCriteria[filter_groups][3][filters][0][value]')).toBe('2');
+      expect(products[0]?.currency).toBe('NOK');
+    });
+
+    it('limits order lookups to every store view of the scoped website', async () => {
+      const { fetch, urls } = stubRest((url) =>
+        url.includes('/store/storeConfigs')
+          ? { body: multiStoreConfigs }
+          : {
+              body: {
+                items: [order({ store_id: 3 }), order({ entity_id: 43, store_id: 4 })],
+                total_count: 2,
+              },
+            },
+      );
+      const adapter = new MagentoAdapter(fetch);
+
+      const orders = await adapter.listOrdersForCustomer(scoped(), {
+        email: 'jane@example.com',
+        limit: 5,
+      });
+
+      const url = new URL(urls[1]!);
+      expect(url.pathname).toBe('/rest/acme/V1/orders');
+      expect(url.searchParams.get('searchCriteria[filter_groups][1][filters][0][field]')).toBe(
+        'store_id',
+      );
+      expect(url.searchParams.get('searchCriteria[filter_groups][1][filters][0][value]')).toBe(
+        '2,3',
+      );
+      expect(url.searchParams.get('searchCriteria[filter_groups][1][filters][0][condition_type]')).toBe(
+        'in',
+      );
+      expect(orders.map((o) => o.orderRef)).toEqual(['42']);
+    });
+
+    it('treats an order from another website as not found', async () => {
+      const { fetch, urls } = stubRest((url) =>
+        url.includes('/store/storeConfigs')
+          ? { body: multiStoreConfigs }
+          : { body: order({ store_id: 4 }) },
+      );
+      const adapter = new MagentoAdapter(fetch);
+
+      const detail = await adapter.getOrderForCustomer(scoped(), {
+        email: 'jane@example.com',
+        orderRef: '42',
+      });
+
+      expect(detail).toBeNull();
+      expect(urls.some((u) => u.includes('/shipments'))).toBe(false);
+    });
+
+    it('scopes an increment-id lookup to the website, since increment ids repeat across stores', async () => {
+      const { fetch, urls } = stubRest((url) =>
+        url.includes('/store/storeConfigs')
+          ? { body: multiStoreConfigs }
+          : url.includes('/shipments')
+            ? { body: { items: [], total_count: 0 } }
+            : { body: { items: [order({ store_id: 2 })], total_count: 1 } },
+      );
+      const adapter = new MagentoAdapter(fetch);
+
+      const detail = await adapter.getOrderForCustomer(scoped(), {
+        email: 'jane@example.com',
+        orderNumber: '000000042',
+      });
+
+      const url = new URL(urls[1]!);
+      expect(url.searchParams.get('searchCriteria[filter_groups][1][filters][0][value]')).toBe(
+        '2,3',
+      );
+      expect(detail?.orderNumber).toBe('000000042');
+    });
+
+    it('hides a product that is not assigned to the scoped website', async () => {
+      const { fetch } = stubRest((url) =>
+        url.includes('/store/storeConfigs')
+          ? { body: multiStoreConfigs }
+          : { body: product({ extension_attributes: { website_ids: [3] } }) },
+      );
+      const adapter = new MagentoAdapter(fetch);
+
+      expect(await adapter.getProduct(scoped(), { sku: 'MUG-1' })).toBeNull();
+    });
+
+    it('fails the connection test with the known codes when the store code does not exist', async () => {
+      const { fetch } = stubRest(() => ({ body: multiStoreConfigs }));
+      const adapter = new MagentoAdapter(fetch);
+
+      await expect(adapter.testConnection(ctx({ storeCode: 'nope' }))).rejects.toThrow(
+        /no store view with code nope \(store views: default, acme, acme_en, globex\)/,
+      );
+      await expect(adapter.testConnection(scoped())).resolves.toMatchObject({
+        ok: true,
+        detail: 'connected; scoped to store view acme (website 2, 2 store view(s))',
+      });
+    });
+
+    it('stores and exposes the store code, and drops a blank one', async () => {
+      const adapter = new MagentoAdapter(stubRest(() => ({ body: {} })).fetch);
+      const encrypt = (plain: string) => Promise.resolve(`enc(${plain})`);
+
+      const stored = await adapter.buildStoredConfig(
+        { baseUrl: 'https://store.example.com', accessToken: 'integration_token', storeCode: ' acme ' },
+        encrypt,
+      );
+      expect(stored).toMatchObject({ storeCode: 'acme' });
+      expect(adapter.publicConfig(stored)).toEqual({
+        baseUrl: 'https://store.example.com',
+        storeCode: 'acme',
+      });
+
+      const blank = await adapter.buildStoredConfig(
+        { baseUrl: 'https://store.example.com', accessToken: 'integration_token', storeCode: '' },
+        encrypt,
+      );
+      expect(blank).not.toHaveProperty('storeCode');
+    });
+
+    it('rejects a store code that is not a valid Magento code', () => {
+      const adapter = new MagentoAdapter(stubRest(() => ({ body: {} })).fetch);
+      expect(
+        adapter.configInput.safeParse({ baseUrl: 'https://store.example.com', storeCode: '../admin' })
+          .success,
+      ).toBe(false);
     });
   });
 });

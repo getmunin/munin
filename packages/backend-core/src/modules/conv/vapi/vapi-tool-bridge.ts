@@ -60,6 +60,7 @@ export class VapiToolBridge {
   async dispatch(opts: {
     orgId: string;
     endUserId: string;
+    conversationId?: string;
     toolCalls: VapiToolCall[];
   }): Promise<VapiToolResult[]> {
     const results: VapiToolResult[] = [];
@@ -108,6 +109,12 @@ export class VapiToolBridge {
         SELF_SERVICE_SCOPES,
         ['self_service'],
         opts.endUserId,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        opts.conversationId,
       );
       const correlationId = randomUUID();
       const outerCtx: RequestContext = { db: this.db, actor, correlationId };

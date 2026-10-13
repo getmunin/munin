@@ -1,6 +1,7 @@
 import {
   BadGatewayException,
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
@@ -479,6 +480,21 @@ export class ConnectorsService {
   async deleteConnection(args: { connectionId: string }): Promise<{ deleted: true; id: string }> {
     const ctx = getCurrentContext();
     const row = await this.requireConnection(args.connectionId);
+    const bound = await ctx.db
+      .select({ name: schema.convChannels.name })
+      .from(schema.convChannelConnections)
+      .innerJoin(
+        schema.convChannels,
+        eq(schema.convChannels.id, schema.convChannelConnections.channelId),
+      )
+      .where(eq(schema.convChannelConnections.connectionId, row.id));
+    if (bound.length > 0) {
+      const names = bound.map((b) => b.name).join(', ');
+      throw new ConflictException({
+        message: `connectors_connection_bound: connection ${row.name} is bound to channel(s) ${names}; remove it from those channels with conv_set_channel_sources first`,
+        code: 'connectors_connection_bound',
+      });
+    }
     if (this.requireAdapter(row.vendor).oauth) await this.requireOAuth().revoke(row);
     await ctx.db
       .delete(schema.connectorConnections)
@@ -517,11 +533,18 @@ export class ConnectorsService {
 
   async resolveScope(
     domain: ConnectorDomain,
-    connectionId?: string,
+    requestedConnectionId?: string,
     capability?: ConnectorCapabilityFilter,
   ): Promise<ConnectionScope> {
     const ctx = getCurrentContext();
     const label = capability ? `${domain} (${capability.label})` : domain;
+    const bound = await this.channelBoundConnectionId(domain);
+    if (bound && requestedConnectionId && requestedConnectionId !== bound) {
+      throw new BadRequestException(
+        `connectors_invalid: this conversation's channel is bound to connection ${bound} for ${domain}; connection ${requestedConnectionId} is not available here`,
+      );
+    }
+    const connectionId = bound ?? requestedConnectionId;
     if (connectionId) {
       const row = await this.requireConnection(connectionId);
       if (row.domain !== domain) {
@@ -585,6 +608,27 @@ export class ConnectorsService {
       );
     }
     return { connection: rows[0]!, adapter: this.requireAdapter(rows[0]!.vendor) };
+  }
+
+  private async channelBoundConnectionId(domain: ConnectorDomain): Promise<string | null> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor;
+    if (!actor?.endUserId || !actor.conversationId) return null;
+    const rows = await ctx.db
+      .select({ connectionId: schema.convChannelConnections.connectionId })
+      .from(schema.convChannelConnections)
+      .innerJoin(
+        schema.convConversations,
+        eq(schema.convConversations.channelId, schema.convChannelConnections.channelId),
+      )
+      .where(
+        and(
+          eq(schema.convConversations.id, actor.conversationId),
+          eq(schema.convChannelConnections.domain, domain),
+        ),
+      )
+      .limit(1);
+    return rows[0]?.connectionId ?? null;
   }
 
   async requireEndUserEmail(): Promise<string> {

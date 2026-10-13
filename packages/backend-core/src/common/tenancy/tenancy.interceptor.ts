@@ -29,7 +29,26 @@ export async function applyTenancyGUCs(tx: Db | Tx, actor: ActorIdentity): Promi
   }
   if (actor.endUserId) {
     await tx.execute(sql`SELECT set_config('app.end_user_id', ${actor.endUserId}, true)`);
+    if (actor.conversationId) await applyKbSpaceScopeGUC(tx, actor.conversationId);
   }
+}
+
+async function applyKbSpaceScopeGUC(tx: Db | Tx, conversationId: string): Promise<void> {
+  await tx.execute(sql`
+    SELECT set_config(
+      'app.kb_space_ids',
+      COALESCE(
+        (
+          SELECT string_agg(s.space_id, ',')
+          FROM conv_channel_kb_spaces s
+          JOIN conv_conversations c ON c.channel_id = s.channel_id
+          WHERE c.id = ${conversationId}
+        ),
+        ''
+      ),
+      true
+    )
+  `);
 }
 
 async function applyEncryptionKeyGUC(tx: Db | Tx): Promise<void> {

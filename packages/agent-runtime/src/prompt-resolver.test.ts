@@ -8,6 +8,7 @@ import {
   DEFAULT_VOICE_OPENER_CONTINUATION,
   DEFAULT_VOICE_SYSTEM_PROMPT,
   SEEDABLE_PROMPTS,
+  channelInstancePromptSlug,
 } from '@getmunin/core';
 import {
   PROMPT_SPACE_SLUG,
@@ -73,6 +74,10 @@ function fakeMcp(opts: {
         return Promise.resolve({
           content: [{ type: 'text', text: JSON.stringify({ slug, body }) }],
         });
+      }
+      if (name === 'kb_delete_document') {
+        existing.delete(args['slug'] as string);
+        return Promise.resolve({ content: [{ type: 'text', text: '{}' }] });
       }
       if (name === 'kb_create_document') {
         const slug = args['slug'] as string;
@@ -181,5 +186,55 @@ describe('createPromptResolver', () => {
     expect(resolver.isPromptDocument('some-other-doc')).toBe(false);
     expect(resolver.isPromptDocument(null)).toBe(false);
     expect(resolver.isPromptDocument(undefined)).toBe(false);
+  });
+
+  it('reads a per-channel descriptor lazily and returns empty when none exists', async () => {
+    const instanceSlug = channelInstancePromptSlug('cch_acme0000000000000');
+    const mcp = fakeMcp({ existingDocs: { [instanceSlug]: 'You answer for the Acme shop.' } });
+    const resolver = await createPromptResolver({ mcp, logger: silentLogger });
+    const reads = () =>
+      mcp.calls.filter((c) => c.name === 'kb_get_document_by_slug' && c.args['slug'] === instanceSlug);
+    expect(reads()).toHaveLength(0);
+
+    expect(await resolver.channelInstance('cch_acme0000000000000')).toBe(
+      'You answer for the Acme shop.',
+    );
+    expect(await resolver.channelInstance('cch_acme0000000000000')).toBe(
+      'You answer for the Acme shop.',
+    );
+    expect(reads()).toHaveLength(1);
+    expect(await resolver.channelInstance('cch_globex000000000000')).toBe('');
+  });
+
+  it('maps a channel id onto a valid KB slug', () => {
+    expect(channelInstancePromptSlug('cch_abc123')).toBe('channel-cch-abc123');
+    expect(channelInstancePromptSlug('cch_abc123')).toMatch(/^[a-z0-9][a-z0-9-]{0,63}$/);
+  });
+
+  it('refresh() picks up an edited, created or deleted per-channel descriptor once it has been read', async () => {
+    const channelId = 'cch_acme0000000000000';
+    const instanceSlug = channelInstancePromptSlug(channelId);
+    const mcp = fakeMcp();
+    const resolver = await createPromptResolver({ mcp, logger: silentLogger });
+    expect(resolver.isPromptDocument(instanceSlug)).toBe(true);
+    expect(await resolver.channelInstance(channelId)).toBe('');
+
+    await mcp.callTool('kb_create_document', { slug: instanceSlug, body: 'Acme v1' });
+    await resolver.refresh(instanceSlug);
+    expect(await resolver.channelInstance(channelId)).toBe('Acme v1');
+
+    await mcp.callTool('kb_delete_document', { slug: instanceSlug });
+    await resolver.refresh(instanceSlug);
+    expect(await resolver.channelInstance(channelId)).toBe('');
+  });
+
+  it('refresh() ignores a per-channel slug no conversation has asked for yet', async () => {
+    const instanceSlug = channelInstancePromptSlug('cch_unused000000000000000');
+    const mcp = fakeMcp({ existingDocs: { [instanceSlug]: 'unused' } });
+    const resolver = await createPromptResolver({ mcp, logger: silentLogger });
+    await resolver.refresh(instanceSlug);
+    expect(
+      mcp.calls.filter((c) => c.name === 'kb_get_document_by_slug' && c.args['slug'] === instanceSlug),
+    ).toHaveLength(0);
   });
 });

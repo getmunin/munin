@@ -9,7 +9,9 @@ import {
   VOICE_OPENER_COLD_SLUG,
   VOICE_OPENER_CONTINUATION_SLUG,
   VOICE_SYSTEM_PROMPT_SLUG,
+  channelInstancePromptSlug,
   createPromptCache,
+  isChannelInstancePromptSlug,
   type KbDocLocation,
   type KbDocReader,
   type PromptCacheEntry,
@@ -31,6 +33,7 @@ export {
 export interface PromptResolver {
   system(): string;
   channel(kind: string): string;
+  channelInstance(channelId: string): Promise<string>;
   companyContext(): string;
   voiceSystem(): string;
   voiceOpener(hasPriorAgentTurn: boolean): string;
@@ -77,6 +80,20 @@ export async function createPromptResolver(
 
   const reader = new McpKbDocReader(opts.mcp);
   const cache = await createPromptCache({ reader, entries, logger: log });
+  const instanceBodies = new Map<string, string>();
+
+  async function loadInstance(slug: string): Promise<void> {
+    try {
+      const body = await reader.getBody({ spaceSlug: AGENT_RUNTIME_PROMPT_SPACE_SLUG, slug });
+      instanceBodies.set(slug, body?.trim() ? body : '');
+    } catch (err) {
+      log.warn(
+        `failed to load ${AGENT_RUNTIME_PROMPT_SPACE_SLUG}/${slug}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
 
   const KNOWN_EXACT_SLUGS = new Set<string>([
     SYSTEM_PROMPT_SLUG,
@@ -101,6 +118,11 @@ export async function createPromptResolver(
       if (cache.has(slug)) return cache.get(slug);
       return cache.get(CHANNEL_DEFAULT_SLUG);
     },
+    async channelInstance(channelId: string): Promise<string> {
+      const slug = channelInstancePromptSlug(channelId);
+      if (!instanceBodies.has(slug)) await loadInstance(slug);
+      return instanceBodies.get(slug) ?? '';
+    },
     companyContext(): string {
       return cache.get(COMPANY_PROFILE_SLUG);
     },
@@ -115,8 +137,17 @@ export async function createPromptResolver(
     isPromptDocument(slug): boolean {
       return isPromptSlug(slug);
     },
-    refresh: (slug) => cache.refresh(slug),
-    refreshAll: () => cache.refreshAll(),
+    async refresh(slug: string): Promise<void> {
+      if (isChannelInstancePromptSlug(slug)) {
+        if (instanceBodies.has(slug)) await loadInstance(slug);
+        return;
+      }
+      await cache.refresh(slug);
+    },
+    async refreshAll(): Promise<void> {
+      await cache.refreshAll();
+      for (const slug of [...instanceBodies.keys()]) await loadInstance(slug);
+    },
     async close(): Promise<void> {
     },
   };

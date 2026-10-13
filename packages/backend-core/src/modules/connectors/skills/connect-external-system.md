@@ -64,6 +64,25 @@ Create an integration token:
 
 The credential link asks for the access token. `baseUrl` must be https and publicly reachable (private/internal hosts are refused). Shipment tracking comes from the Sales → Shipments resource, so include it in the ACL.
 
+### One Magento install, several sites
+
+When one Magento install runs several sites (Magento *websites*), create one connection per site and set `storeCode` to a store view code of that site:
+
+```json
+{
+  "vendor": "magento",
+  "name": "Acme store",
+  "config": {
+    "baseUrl": "https://store.example.com",
+    "storeCode": "acme"
+  }
+}
+```
+
+With a `storeCode`, every call goes to `/rest/<storeCode>/V1`, so product names and prices come from that store view. Order lookups only return orders placed in a store view of the same website, and product search and lookups only return products assigned to that website. Without it the connection sees every website, as before. `connectors_test_connection` fails if the code doesn't exist, and the error lists the store view codes that do. The access token can be shared between the connections: create each one with its own credential link and paste the same token.
+
+Pin each connection to the chat widget or channel of its site so the support agent never queries the wrong store — see `skill://conv/serve-multiple-sites`.
+
 ## Gastroplanner (bookings)
 
 Gastroplanner's customer API (`https://api.gastroplanner.eu/docs/customer/`) uses a Bearer token plus an `X-RESTAURANT` header naming the restaurant every query runs against:
@@ -121,7 +140,7 @@ Google's `webmasters.readonly` is a **sensitive scope**. An org's own OAuth clie
 
 ## Multiple connections
 
-Connections are org-scoped and names must be unique. Within a domain: with one active connection, lookup tools use it automatically; with several, calls must pass `connectionId` (the error message lists the candidates). Connections in *different* domains never conflict — a Shopify store and a Gastroplanner account coexist without any `connectionId`. Deactivate with `connectors_update_connection { active: false }` to take one out of rotation without deleting the credential.
+Connections are org-scoped and names must be unique. Within a domain: with one active connection, lookup tools use it automatically; with several, calls must pass `connectionId` (the error message lists the candidates). A channel can pin its own commerce and bookings connection with `conv_set_channel_sources`; in that channel's conversations the support agent always uses the pinned connection and any other `connectionId` is refused (`skill://conv/serve-multiple-sites`). A pinned connection can't be deleted until it is removed from those channels. Connections in *different* domains never conflict — a Shopify store and a Gastroplanner account coexist without any `connectionId`. Deactivate with `connectors_update_connection { active: false }` to take one out of rotation without deleting the credential.
 
 `connectors_update_connection` handles renames, non-secret config changes, and activation — the stored secret is kept, and secret fields are rejected the same way as at create time. To rotate a credential, delete the connection and create it again, entering the new secret through the fresh credential link (or use the dashboard's Integrations page).
 

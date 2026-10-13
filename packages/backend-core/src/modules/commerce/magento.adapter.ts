@@ -26,12 +26,35 @@ export const MagentoConfigInput = z.object({
     .refine((u) => u.startsWith('https://'), 'baseUrl must be https')
     .transform((u) => stripTrailingSlashes(u)),
   accessToken: z.string().min(10).max(256).optional(),
+  storeCode: z
+    .string()
+    .trim()
+    .regex(
+      /^([a-z][a-z0-9_]{0,31})?$/i,
+      'storeCode must be a Magento store view code: a letter followed by letters, digits or underscores (max 32)',
+    )
+    .optional()
+    .transform((code) => code || undefined),
 });
 
 const StoredMagentoConfig = z.object({
   baseUrl: z.string(),
   encryptedAccessToken: z.string(),
+  storeCode: z.string().optional(),
 });
+
+interface MagentoStoreConfig {
+  id: number;
+  code: string;
+  website_id: number;
+  base_currency_code?: string;
+}
+
+interface MagentoStoreScope {
+  currency: string;
+  websiteId: number | null;
+  storeIds: number[] | null;
+}
 
 interface MagentoOrderItem {
   name: string;
@@ -46,6 +69,7 @@ interface MagentoOrder {
   status: string;
   created_at: string;
   customer_email: string | null;
+  store_id?: number;
   grand_total: number;
   order_currency_code: string;
   total_qty_ordered: number;
@@ -69,6 +93,7 @@ interface MagentoProduct {
   status: number;
   type_id: string;
   custom_attributes?: Array<{ attribute_code: string; value: unknown }>;
+  extension_attributes?: { website_ids?: number[] };
 }
 
 interface MagentoStockItem {
@@ -95,6 +120,12 @@ export class MagentoAdapter implements CommerceAdapter {
       required: true,
       secret: true,
     },
+    {
+      key: 'storeCode',
+      label: 'Store view code (optional; limits orders and products to that store view\'s website)',
+      required: false,
+      placeholder: 'default',
+    },
   ];
 
   constructor(private readonly fetchImpl: ConnectorFetch = safeFetch) {}
@@ -114,29 +145,45 @@ export class MagentoAdapter implements CommerceAdapter {
     if (!encryptedAccessToken) {
       throw new ConnectorVendorError('accessToken is required when creating a Magento connection');
     }
-    return { baseUrl: parsed.baseUrl, encryptedAccessToken };
+    return {
+      baseUrl: parsed.baseUrl,
+      encryptedAccessToken,
+      ...(parsed.storeCode ? { storeCode: parsed.storeCode } : {}),
+    };
   }
 
   publicConfig(stored: Record<string, unknown>): Record<string, unknown> {
     const parsed = StoredMagentoConfig.parse(stored);
-    return { baseUrl: parsed.baseUrl };
+    return {
+      baseUrl: parsed.baseUrl,
+      ...(parsed.storeCode ? { storeCode: parsed.storeCode } : {}),
+    };
   }
 
   async testConnection(ctx: ConnectorConnectionContext): Promise<ConnectorTestResult> {
-    const configs = await this.get<Array<{ code: string }>>(ctx, '/rest/V1/store/storeConfigs');
-    return { ok: true, detail: `connected; ${configs.length} store view(s) visible` };
+    const { storeCode } = StoredMagentoConfig.parse(ctx.config);
+    if (!storeCode) {
+      const configs = await this.get<MagentoStoreConfig[]>(ctx, '/store/storeConfigs');
+      return { ok: true, detail: `connected; ${configs.length} store view(s) visible` };
+    }
+    const scope = await this.storeScope(ctx, { currency: false });
+    return {
+      ok: true,
+      detail: `connected; scoped to store view ${storeCode} (website ${scope.websiteId}, ${scope.storeIds?.length ?? 0} store view(s))`,
+    };
   }
 
   async listOrdersForCustomer(
     ctx: ConnectorConnectionContext,
     args: { email: string; limit: number },
   ): Promise<CommerceOrderSummary[]> {
+    const scope = await this.storeScope(ctx, { currency: false });
     const result = await this.get<MagentoSearchResult<MagentoOrder>>(
       ctx,
-      `/rest/V1/orders?${orderSearchParams(args.email, args.limit)}`,
+      `/orders?${orderSearchParams(args.email, args.limit, scope.storeIds)}`,
     );
     return result.items
-      .filter((order) => this.ownedBy(order, args.email))
+      .filter((order) => this.ownedBy(order, args.email) && inScope(order, scope))
       .map((order) => this.toSummary(order));
   }
 
@@ -144,12 +191,13 @@ export class MagentoAdapter implements CommerceAdapter {
     ctx: ConnectorConnectionContext,
     args: { email: string; orderRef?: string; orderNumber?: string },
   ): Promise<CommerceOrderDetail | null> {
+    const scope = await this.storeScope(ctx, { currency: false });
     const order = args.orderRef
       ? await this.orderById(ctx, args.orderRef)
       : args.orderNumber
-        ? await this.orderByIncrementId(ctx, args.orderNumber)
+        ? await this.orderByIncrementId(ctx, args.orderNumber, scope)
         : null;
-    if (!order || !this.ownedBy(order, args.email)) return null;
+    if (!order || !this.ownedBy(order, args.email) || !inScope(order, scope)) return null;
     const shipments = await this.shipmentsForOrder(ctx, order.entity_id);
     return this.toDetail(order, shipments);
   }
@@ -160,10 +208,10 @@ export class MagentoAdapter implements CommerceAdapter {
   ): Promise<CommerceProductSummary[]> {
     const tokens = args.query.trim().split(/\s+/).filter(Boolean).slice(0, 8);
     if (!tokens.length) return [];
-    const currency = await this.baseCurrency(ctx);
+    const scope = await this.storeScope(ctx, { currency: true });
     const likes = tokens.map((t) => `%${t.replace(/([\\%_])/g, '\\$1')}%`);
 
-    const all = await this.productSearch(ctx, currency, args.limit, (params) => {
+    const all = await this.productSearch(ctx, scope, args.limit, (params) => {
       likes.forEach((like, index) => {
         setFilter(params, index, 'name', like, 'like', 0);
         setFilter(params, index, 'sku', like, 'like', 1);
@@ -172,7 +220,7 @@ export class MagentoAdapter implements CommerceAdapter {
     });
     if (all.length > 0 || likes.length < 2) return all;
 
-    const any = await this.productSearch(ctx, currency, broadSearchLimit(args.limit), (params) => {
+    const any = await this.productSearch(ctx, scope, broadSearchLimit(args.limit), (params) => {
       likes.forEach((like, index) => {
         setFilter(params, 0, 'name', like, 'like', index * 2);
         setFilter(params, 0, 'sku', like, 'like', index * 2 + 1);
@@ -184,7 +232,7 @@ export class MagentoAdapter implements CommerceAdapter {
 
   private async productSearch(
     ctx: ConnectorConnectionContext,
-    currency: string,
+    scope: MagentoStoreScope,
     limit: number,
     applyTermFilters: (params: URLSearchParams) => number,
   ): Promise<CommerceProductSummary[]> {
@@ -192,12 +240,15 @@ export class MagentoAdapter implements CommerceAdapter {
     const nextGroup = applyTermFilters(params);
     setFilter(params, nextGroup, 'status', '1', 'eq');
     setFilter(params, nextGroup + 1, 'visibility', '1', 'neq');
+    if (scope.websiteId !== null) {
+      setFilter(params, nextGroup + 2, 'website_id', String(scope.websiteId), 'eq');
+    }
     params.set('searchCriteria[pageSize]', String(limit));
     const result = await this.get<MagentoSearchResult<MagentoProduct>>(
       ctx,
-      `/rest/V1/products?${params.toString()}`,
+      `/products?${params.toString()}`,
     );
-    return result.items.map((product) => this.toProductSummary(ctx, product, currency));
+    return result.items.map((product) => this.toProductSummary(ctx, product, scope.currency));
   }
 
   async getProduct(
@@ -208,13 +259,18 @@ export class MagentoAdapter implements CommerceAdapter {
     if (!sku) return null;
     let product: MagentoProduct;
     try {
-      product = await this.get<MagentoProduct>(ctx, `/rest/V1/products/${encodeURIComponent(sku)}`);
+      product = await this.get<MagentoProduct>(ctx, `/products/${encodeURIComponent(sku)}`);
     } catch (err) {
       if (err instanceof ConnectorVendorError && err.notFound) return null;
       throw err;
     }
     if (product.status !== 1) return null;
-    const currency = await this.baseCurrency(ctx);
+    const scope = await this.storeScope(ctx, { currency: true });
+    const websiteIds = product.extension_attributes?.website_ids;
+    if (scope.websiteId !== null && websiteIds && !websiteIds.includes(scope.websiteId)) {
+      return null;
+    }
+    const { currency } = scope;
     const children =
       product.type_id === 'configurable' ? await this.configurableChildren(ctx, sku) : [product];
     const variants = await Promise.all(
@@ -248,7 +304,7 @@ export class MagentoAdapter implements CommerceAdapter {
     try {
       return await this.get<MagentoProduct[]>(
         ctx,
-        `/rest/V1/configurable-products/${encodeURIComponent(sku)}/children`,
+        `/configurable-products/${encodeURIComponent(sku)}/children`,
       );
     } catch (err) {
       if (err instanceof ConnectorVendorError && err.notFound) return [];
@@ -260,7 +316,7 @@ export class MagentoAdapter implements CommerceAdapter {
     try {
       const item = await this.get<MagentoStockItem>(
         ctx,
-        `/rest/V1/stockItems/${encodeURIComponent(sku)}`,
+        `/stockItems/${encodeURIComponent(sku)}`,
       );
       return typeof item.is_in_stock === 'boolean' ? item.is_in_stock : null;
     } catch {
@@ -268,12 +324,28 @@ export class MagentoAdapter implements CommerceAdapter {
     }
   }
 
-  private async baseCurrency(ctx: ConnectorConnectionContext): Promise<string> {
-    const configs = await this.get<Array<{ base_currency_code?: string }>>(
-      ctx,
-      '/rest/V1/store/storeConfigs',
-    );
-    return configs[0]?.base_currency_code ?? '';
+  private async storeScope(
+    ctx: ConnectorConnectionContext,
+    opts: { currency: boolean },
+  ): Promise<MagentoStoreScope> {
+    const { storeCode } = StoredMagentoConfig.parse(ctx.config);
+    if (!storeCode && !opts.currency) return { currency: '', websiteId: null, storeIds: null };
+    const configs = await this.get<MagentoStoreConfig[]>(ctx, '/store/storeConfigs');
+    if (!storeCode) {
+      return { currency: configs[0]?.base_currency_code ?? '', websiteId: null, storeIds: null };
+    }
+    const match = configs.find((c) => c.code.toLowerCase() === storeCode.toLowerCase());
+    if (!match) {
+      const known = configs.map((c) => c.code).join(', ') || 'none';
+      throw new ConnectorVendorError(
+        `magento has no store view with code ${storeCode} (store views: ${known})`,
+      );
+    }
+    return {
+      currency: match.base_currency_code ?? '',
+      websiteId: match.website_id,
+      storeIds: configs.filter((c) => c.website_id === match.website_id).map((c) => c.id),
+    };
   }
 
   private toProductSummary(
@@ -303,7 +375,7 @@ export class MagentoAdapter implements CommerceAdapter {
   ): Promise<MagentoOrder | null> {
     if (!/^\d+$/.test(orderRef)) return null;
     try {
-      return await this.get<MagentoOrder>(ctx, `/rest/V1/orders/${orderRef}`);
+      return await this.get<MagentoOrder>(ctx, `/orders/${orderRef}`);
     } catch (err) {
       if (err instanceof ConnectorVendorError && err.notFound) return null;
       throw err;
@@ -313,15 +385,17 @@ export class MagentoAdapter implements CommerceAdapter {
   private async orderByIncrementId(
     ctx: ConnectorConnectionContext,
     orderNumber: string,
+    scope: MagentoStoreScope,
   ): Promise<MagentoOrder | null> {
     const normalized = orderNumber.trim().replace(/^#/, '');
     if (!normalized) return null;
     const params = new URLSearchParams();
     setFilter(params, 0, 'increment_id', normalized, 'eq');
+    if (scope.storeIds) setFilter(params, 1, 'store_id', scope.storeIds.join(','), 'in');
     params.set('searchCriteria[pageSize]', '1');
     const result = await this.get<MagentoSearchResult<MagentoOrder>>(
       ctx,
-      `/rest/V1/orders?${params.toString()}`,
+      `/orders?${params.toString()}`,
     );
     return result.items[0] ?? null;
   }
@@ -334,7 +408,7 @@ export class MagentoAdapter implements CommerceAdapter {
     setFilter(params, 0, 'order_id', String(orderId), 'eq');
     const result = await this.get<MagentoSearchResult<MagentoShipment>>(
       ctx,
-      `/rest/V1/shipments?${params.toString()}`,
+      `/shipments?${params.toString()}`,
     );
     return result.items;
   }
@@ -382,7 +456,10 @@ export class MagentoAdapter implements CommerceAdapter {
   private async get<T>(ctx: ConnectorConnectionContext, path: string): Promise<T> {
     const config = StoredMagentoConfig.parse(ctx.config);
     const accessToken = await ctx.decryptSecret(config.encryptedAccessToken);
-    const res = await this.fetchImpl(`${config.baseUrl}${path}`, {
+    const restRoot = config.storeCode
+      ? `/rest/${encodeURIComponent(config.storeCode)}/V1`
+      : '/rest/V1';
+    const res = await this.fetchImpl(`${config.baseUrl}${restRoot}${path}`, {
       method: 'GET',
       headers: { authorization: `Bearer ${accessToken}` },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -421,9 +498,15 @@ function attributeValue(product: MagentoProduct, code: string): string | null {
   return typeof value === 'string' && value ? value : null;
 }
 
-function orderSearchParams(email: string, limit: number): string {
+function inScope(order: MagentoOrder, scope: MagentoStoreScope): boolean {
+  if (!scope.storeIds || order.store_id === undefined) return true;
+  return scope.storeIds.includes(order.store_id);
+}
+
+function orderSearchParams(email: string, limit: number, storeIds: number[] | null): string {
   const params = new URLSearchParams();
   setFilter(params, 0, 'customer_email', normalizeEmail(email), 'eq');
+  if (storeIds) setFilter(params, 1, 'store_id', storeIds.join(','), 'in');
   params.set('searchCriteria[sortOrders][0][field]', 'created_at');
   params.set('searchCriteria[sortOrders][0][direction]', 'DESC');
   params.set('searchCriteria[pageSize]', String(limit));

@@ -21,6 +21,8 @@ export interface ConversationDetail {
   id: string;
   status: 'open' | 'snoozed' | 'closed' | 'spam';
   channelType?: string;
+  channelId?: string;
+  channelName?: string | null;
   subject?: string | null;
   endUserId: string | null;
   assigneeUserId: string | null;

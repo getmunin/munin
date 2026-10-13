@@ -48,6 +48,8 @@ export {
   createConversationHandler,
   type ConversationHandler,
   type ConversationHandlerDeps,
+  type GenerateBlockNotice,
+  type GenerateVerdict,
   type HandlerConfig,
   type IncomingMessage,
   type OpenedMcp,

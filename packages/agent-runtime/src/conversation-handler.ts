@@ -107,6 +107,17 @@ export interface OpenedMcp extends McpToolHandle {
   close(): Promise<void>;
 }
 
+export interface GenerateBlockNotice {
+  title: string;
+  detail?: string;
+}
+
+export interface GenerateVerdict {
+  allowed: boolean;
+  reason?: string;
+  notice?: GenerateBlockNotice;
+}
+
 export interface ConversationHandlerDeps {
   config: HandlerConfig;
   rest: MuninRestClient;
@@ -127,11 +138,11 @@ export interface ConversationHandlerDeps {
     delay: (ms: number, signal: AbortSignal) => Promise<void>;
   };
   provider?: Provider;
-  beforeGenerate?: (args: { trigger: 'chat' }) => Promise<{ allowed: boolean; reason?: string }>;
+  beforeGenerate?: (args: { trigger: 'chat' }) => Promise<GenerateVerdict>;
   onTyping?: (conversationId: string, isTyping: boolean) => void;
   onProviderError?: (code: ProviderErrorCode, message: string) => void;
   onProviderSuccess?: () => void;
-  onGenerateBlocked?: (reason?: string) => void;
+  onGenerateBlocked?: (reason?: string, notice?: GenerateBlockNotice) => void;
 }
 
 export interface IncomingMessage {
@@ -358,10 +369,50 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
         : ''
     }`;
 
+    const fallBack = async (reason: string): Promise<void> => {
+      const fallbackLocale = pickFallback(detail.endUserLocale);
+
+      if (mode === 'greet') {
+        log.warn(`${conversationId} greet fallback (${fallbackLocale}): ${reason}`);
+        await deps.rest
+          .postAgentMessage(conversationId, FALLBACK_GREET[fallbackLocale], {
+            sinceMessageId,
+          })
+          .catch((err) => {
+            log.error(
+              `${conversationId} greet fallback post failed: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          });
+      } else if (mode === 'draft-request') {
+        log.error(`${conversationId} draft request failed: ${reason}`);
+        await deps.rest
+          .postInternalNote(conversationId, `Draft request failed: ${reason}`)
+          .catch((err) => {
+            log.error(
+              `${conversationId} draft-failure note post failed: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          });
+      } else {
+        log.error(`${conversationId} handover (${fallbackLocale}): ${reason}`);
+        await deps.rest
+          .requestHandover(conversationId, {
+            reason,
+            ...(delivery === 'send'
+              ? { publicFallbackMessage: FALLBACK_HANDOVER[fallbackLocale] }
+              : {}),
+          })
+          .catch((err) => {
+            log.error(
+              `${conversationId} handover request failed: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          });
+      }
+    };
+
     if (deps.beforeGenerate) {
       const verdict = await deps
         .beforeGenerate({ trigger: 'chat' })
-        .catch((err): { allowed: boolean; reason?: string } => {
+        .catch((err): GenerateVerdict => {
           log.warn(
             `${conversationId} beforeGenerate failed, proceeding: ${err instanceof Error ? err.message : String(err)}`,
           );
@@ -369,7 +420,8 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
         });
       if (!verdict.allowed) {
         log.info(`${conversationId} reply suppressed: ${verdict.reason ?? 'gate denied'}`);
-        deps.onGenerateBlocked?.(verdict.reason);
+        deps.onGenerateBlocked?.(verdict.reason, verdict.notice);
+        if (verdict.notice) await fallBack(verdict.notice.title);
         return;
       }
     }
@@ -555,46 +607,11 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       }
     }
 
-    const reason = providerErrorCode
-      ? `provider unavailable (${providerErrorCode})`
-      : `agent retries exhausted (${lastError?.message ?? 'unknown'})`;
-    const fallbackLocale = pickFallback(detail.endUserLocale);
-
-    if (mode === 'greet') {
-      log.warn(`${conversationId} greet fallback (${fallbackLocale}): ${reason}`);
-      await deps.rest
-        .postAgentMessage(conversationId, FALLBACK_GREET[fallbackLocale], {
-          sinceMessageId,
-        })
-        .catch((err) => {
-          log.error(
-            `${conversationId} greet fallback post failed: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        });
-    } else if (mode === 'draft-request') {
-      log.error(`${conversationId} draft request failed: ${reason}`);
-      await deps.rest
-        .postInternalNote(conversationId, `Draft request failed: ${reason}`)
-        .catch((err) => {
-          log.error(
-            `${conversationId} draft-failure note post failed: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        });
-    } else {
-      log.error(`${conversationId} handover (${fallbackLocale}): ${reason}`);
-      await deps.rest
-        .requestHandover(conversationId, {
-          reason,
-          ...(delivery === 'send'
-            ? { publicFallbackMessage: FALLBACK_HANDOVER[fallbackLocale] }
-            : {}),
-        })
-        .catch((err) => {
-          log.error(
-            `${conversationId} handover request failed: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        });
-    }
+    await fallBack(
+      providerErrorCode
+        ? `provider unavailable (${providerErrorCode})`
+        : `agent retries exhausted (${lastError?.message ?? 'unknown'})`,
+    );
     } finally {
       stopTyping();
       await releaseClaim(conversationId);

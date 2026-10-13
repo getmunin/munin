@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { getCurrentContext } from '@getmunin/core';
 import { sql } from 'drizzle-orm';
-import type { ProviderErrorCode } from '@getmunin/agent-runtime';
+import type { GenerateBlockNotice, ProviderErrorCode } from '@getmunin/agent-runtime';
 import { AGENT_CONFIG_REPOSITORY, ALERT_RECORDER } from './injection-tokens.ts';
 import type { AgentConfigRepository } from './config.repository.ts';
 import type { AlertRecorder, AlertRecorderSeverity } from './alert-recorder.ts';
@@ -35,6 +35,7 @@ export class AgentHealthService implements AgentHealthRecorder {
       SET last_ok_at = now(), updated_at = now()
       WHERE id = ${id}
     `);
+    await this.alerts.resolveAlert({ source: 'quota', subjectId: id });
     const { resolved } = await this.alerts.resolveAlert({ source: 'llm_provider', subjectId: id });
     if (resolved) {
       this.log.log(`agent-health ${id} recovered`);
@@ -64,6 +65,18 @@ export class AgentHealthService implements AgentHealthRecorder {
       metadata: { code },
     });
     this.log.warn(`agent-health ${id} degraded (${code})`);
+  }
+
+  async recordBlocked(id: string, notice: GenerateBlockNotice, reason?: string): Promise<void> {
+    const { opened } = await this.alerts.openAlert({
+      source: 'quota',
+      subjectId: id,
+      severity: 'error',
+      title: notice.title,
+      detail: notice.detail ?? null,
+      metadata: reason ? { reason } : {},
+    });
+    if (opened) this.log.warn(`agent-health ${id} generation blocked (${reason ?? 'gate denied'})`);
   }
 
   private async sweepRetryable(id: string): Promise<void> {

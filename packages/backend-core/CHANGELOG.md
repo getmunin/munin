@@ -1,5 +1,41 @@
 # @getmunin/backend-core
 
+## 5.44.0
+
+### Minor Changes
+
+- 80f946a: The support agent now knows which channel a conversation arrived on. Its system prompt gains a `[Channel]` block naming the channel and its id, placed after the channel-type descriptor. Until now an org with two chat widgets, one per website, gave the agent the same `channel-chat` descriptor for both and no way to tell the sites apart.
+
+  The block also carries a per-channel descriptor when the `agent-runtime` KB space holds one. Its slug is `channel-` followed by the channel id with `_` replaced by `-`, so channel `cch_abc123` reads `channel-cch-abc123`. It adds to the channel-type descriptor rather than replacing it, so it only needs to say what is specific to that channel, such as which site the agent answers for. The runner reads it the first time one of that channel's conversations needs a reply, then follows edits, new documents and deletions as they happen. Unlike the seeded prompts, these per-channel documents can be deleted. `GET /v1/conversations/:id` returns the channel's `channelName`. `skill://conv/serve-multiple-sites` walks through the setup.
+
+- 80f946a: Pin a channel to its own knowledge-base spaces and store connections, so an org that runs several sites can keep one site's answers out of another's conversations. `conv_set_channel_sources` (and `PUT /v1/conversations/channels/:id/sources`) takes `kbSpaceIds` and `connectionIds`; `conv_get_channel_sources` (and `GET` on the same path) reads them back. Each list replaces the current one, an omitted list is left as it is, and an empty list lifts that restriction.
+
+  With KB spaces set, the support agent and voice tool calls in that channel's conversations can only search and read self-service documents in those spaces. The filter lives in the `kb_documents` and `kb_document_chunks` row-level security policies, keyed by an `app.kb_space_ids` setting the tenancy layer derives from the actor's conversation, so it holds for every KB read rather than only for search.
+
+  With connections set (at most one commerce and one bookings connection per channel), commerce and bookings tools in that channel's conversations use the pinned connection without a `connectionId`, and refuse a call that names a different one. Search-console connections cannot be pinned. Deleting a pinned connection is refused with `connectors_connection_bound` until it is unpinned, so removing one store's connection can never silently send that channel's lookups to the store that remains.
+
+  The Channels page sets the same bindings: every add and edit channel dialog has a **Knowledge** tab next to the channel settings, where the knowledge base is either all spaces or a ticked list, with a store and a bookings picker. Its label shows the current scope, and a bound channel's card lists its spaces and pinned connections. The email channel dialog is regrouped into sending (from name and address, SMTP, delivery options), receiving and agent replies: the SMTP settings collapse to a one-line summary when editing, and agent replies are a three-way switch. `GET /v1/conversations/channels/sources` returns every channel's bindings in one call for that page.
+
+  Teammates, admin agents and delegated end-user tokens are not restricted, since none of them act inside a single channel's conversation. Vapi and Threll tool calls now carry the verified conversation id, which is what lets the bindings apply to voice.
+
+  Migration `0113_conv_channel_sources` adds the `conv_channel_kb_spaces` and `conv_channel_connections` tables.
+
+- 80f946a: A Magento connection can be limited to one site of a multi-site install with an optional `storeCode`. With it set, every call goes to `/rest/<storeCode>/V1`, so product names, prices and currency come from that store view. Order lookups return only orders placed in a store view of the same Magento website, and product search and lookups return only products assigned to that website. Order-number lookups are scoped the same way, since increment ids can repeat across stores. `connectors_test_connection` fails when the code does not exist and lists the store view codes that do. Connections without a `storeCode` behave as before.
+
+### Patch Changes
+
+- Updated dependencies [73edcf9]
+- Updated dependencies [80f946a]
+- Updated dependencies [80f946a]
+- Updated dependencies [45e840a]
+  - @getmunin/agent-runtime@5.44.0
+  - @getmunin/core@5.44.0
+  - @getmunin/db@5.44.0
+  - @getmunin/types@5.44.0
+  - @getmunin/mcp-toolkit@5.44.0
+  - @getmunin/inspector-app@5.44.0
+  - @getmunin/emails@5.44.0
+
 ## 5.43.0
 
 ### Minor Changes

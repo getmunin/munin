@@ -1,5 +1,32 @@
 # @getmunin/agent-host
 
+## 5.44.0
+
+### Minor Changes
+
+- 80f946a: The support agent now knows which channel a conversation arrived on. Its system prompt gains a `[Channel]` block naming the channel and its id, placed after the channel-type descriptor. Until now an org with two chat widgets, one per website, gave the agent the same `channel-chat` descriptor for both and no way to tell the sites apart.
+
+  The block also carries a per-channel descriptor when the `agent-runtime` KB space holds one. Its slug is `channel-` followed by the channel id with `_` replaced by `-`, so channel `cch_abc123` reads `channel-cch-abc123`. It adds to the channel-type descriptor rather than replacing it, so it only needs to say what is specific to that channel, such as which site the agent answers for. The runner reads it the first time one of that channel's conversations needs a reply, then follows edits, new documents and deletions as they happen. Unlike the seeded prompts, these per-channel documents can be deleted. `GET /v1/conversations/:id` returns the channel's `channelName`. `skill://conv/serve-multiple-sites` walks through the setup.
+
+- 45e840a: A host's `beforeGenerate` gate can now return a `notice` (`{ title, detail? }`) with its denial, meaning the denial needs someone to act and won't clear on its own. A quota that has run out is the case it was added for. Until now any denial was silent: the reply was skipped and one log line written, with no message to the visitor, no handover and no alert. A visitor on an organization with no AI quota left got no answer, and nobody at the organization could tell why.
+
+  When a chat reply is denied with a notice, the conversation now falls back exactly as it does when the provider keeps failing. A reply is handed over to a human, using the notice title as the reason and, when the agent sends directly, the localized "a teammate will follow up" message to the visitor. A draft request gets an internal note. A greeting gets the static greeting. The agent host also opens an organization alert (source `quota`, severity `error`) with the notice's title and detail. Owners are emailed under the existing `quota` notification policy. The same alert opens when scheduled curator work is denied with a notice, so an organization with no live conversations still finds out. The alert resolves on the next successful generation.
+
+  A denial without a notice keeps the old behaviour (skip and log), which is right for transient gates such as a per-minute rate limit, where the awaiting-reply sweep retries on its own. `onGenerateBlocked` now receives the notice as a second argument.
+
+### Patch Changes
+
+- Updated dependencies [73edcf9]
+- Updated dependencies [80f946a]
+- Updated dependencies [80f946a]
+- Updated dependencies [80f946a]
+- Updated dependencies [45e840a]
+  - @getmunin/agent-runtime@5.44.0
+  - @getmunin/core@5.44.0
+  - @getmunin/backend-core@5.44.0
+  - @getmunin/db@5.44.0
+  - @getmunin/types@5.44.0
+
 ## 5.43.0
 
 ### Patch Changes

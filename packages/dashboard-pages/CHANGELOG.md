@@ -1,5 +1,34 @@
 # @getmunin/dashboard-pages
 
+## 5.44.0
+
+### Minor Changes
+
+- 80f946a: Pin a channel to its own knowledge-base spaces and store connections, so an org that runs several sites can keep one site's answers out of another's conversations. `conv_set_channel_sources` (and `PUT /v1/conversations/channels/:id/sources`) takes `kbSpaceIds` and `connectionIds`; `conv_get_channel_sources` (and `GET` on the same path) reads them back. Each list replaces the current one, an omitted list is left as it is, and an empty list lifts that restriction.
+
+  With KB spaces set, the support agent and voice tool calls in that channel's conversations can only search and read self-service documents in those spaces. The filter lives in the `kb_documents` and `kb_document_chunks` row-level security policies, keyed by an `app.kb_space_ids` setting the tenancy layer derives from the actor's conversation, so it holds for every KB read rather than only for search.
+
+  With connections set (at most one commerce and one bookings connection per channel), commerce and bookings tools in that channel's conversations use the pinned connection without a `connectionId`, and refuse a call that names a different one. Search-console connections cannot be pinned. Deleting a pinned connection is refused with `connectors_connection_bound` until it is unpinned, so removing one store's connection can never silently send that channel's lookups to the store that remains.
+
+  The Channels page sets the same bindings: every add and edit channel dialog has a **Knowledge** tab next to the channel settings, where the knowledge base is either all spaces or a ticked list, with a store and a bookings picker. Its label shows the current scope, and a bound channel's card lists its spaces and pinned connections. The email channel dialog is regrouped into sending (from name and address, SMTP, delivery options), receiving and agent replies: the SMTP settings collapse to a one-line summary when editing, and agent replies are a three-way switch. `GET /v1/conversations/channels/sources` returns every channel's bindings in one call for that page.
+
+  Teammates, admin agents and delegated end-user tokens are not restricted, since none of them act inside a single channel's conversation. Vapi and Threll tool calls now carry the verified conversation id, which is what lets the bindings apply to voice.
+
+  Migration `0113_conv_channel_sources` adds the `conv_channel_kb_spaces` and `conv_channel_connections` tables.
+
+### Patch Changes
+
+- 73edcf9: Agent replies written in HTML no longer reach customers as literal tags. Some models answer with `<ul>`, `<li>`, `<strong>` or `<p>` even when asked for Markdown, and every channel escapes raw HTML on purpose, so an approved draft arrived in the customer's inbox or chat widget as visible markup. The agent runtime now converts the HTML models commonly produce (paragraphs, line breaks, ordered and unordered lists including nested ones, bold, italics, headings, links and inline code) into Markdown before a reply is drafted, translated, audited or sent. Text without those tags is left untouched, as is anything inside code spans or fenced code blocks. Links keep only `http`, `https`, `mailto` and `tel` targets, and tags outside that set stay as they are for the channel renderer to escape.
+
+  The default email channel descriptor no longer says the reply "is rendered as HTML", which smaller models read as an invitation to write HTML. It now asks for Markdown and explicitly rules out HTML tags, and the chat descriptor gains the same rule. Organizations keep the descriptor seeded when they were created, so existing ones only pick this up by editing `channel-email` and `channel-chat` in their `agent-runtime` space.
+
+  The read-only draft preview in the inbox now renders Markdown the same way the sent message does, instead of showing the source with its asterisks and list markers.
+
+- 3f6f685: Dark mode readability. The OAuth consent screen's body text, inline emphasis, scope pills, reassurance callout and Authorize / Deny / Cancel buttons used the fixed light ink, so on a dark system scheme they rendered dark on dark. Every state (request, media, blocked, wrong account, expired, granted, denied) now carries the same dark variants as the `@getmunin/ui` buttons and the rest of the dashboard. The default Munin raven in the dashboard header, the mobile menu and the standalone 404 / outside-org notices is now inverted on dark so it reads white instead of vanishing. A custom `logoSrc` is left in its own colours, and the auth shell, which is light-locked, is unchanged.
+- Updated dependencies [80f946a]
+  - @getmunin/types@5.44.0
+  - @getmunin/ui@5.44.0
+
 ## 5.43.0
 
 ### Minor Changes

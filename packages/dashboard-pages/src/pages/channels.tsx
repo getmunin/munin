@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
+  BookOpen,
   Check,
   ChevronDown,
   Copy,
@@ -9,6 +10,7 @@ import {
   MessageCircle,
   MessageSquare,
   Phone,
+  Plug,
   RefreshCw,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -63,6 +65,14 @@ import {
 import { CardGrid, CardMenu, SettingsCard, StatusLine } from '../components/card-kit';
 import { CopyField } from '../components/copy-field';
 import { CopyableSecret } from '../components/copyable-secret';
+import {
+  ChannelDialogShell,
+  Segmented,
+  channelSourcesSummary,
+  useChannelKnowledge,
+  type ChannelDialogTab,
+  type ChannelSources,
+} from '../components/channel-knowledge';
 import { formatPhoneNumber } from '../lib/format-phone';
 import { MessageBirdLogo, ThrellLogo, TwilioLogo, VapiLogo } from './channel-vendor-logos';
 
@@ -277,17 +287,22 @@ export function ChannelsPage() {
   const [sendMessageBirdTestFor, setSendMessageBirdTestFor] =
     useState<MessageBirdSmsChannelDto | null>(null);
   const [alerts, setAlerts] = useState<Record<string, ChannelAlertDto>>({});
+  const [sources, setSources] = useState<Record<string, ChannelSources>>({});
 
   const load = useCallback(async () => {
-    const [list, alertsRes, vendorsRes] = await Promise.all([
+    const [list, alertsRes, vendorsRes, sourcesRes] = await Promise.all([
       api<{ items: ChannelDto[] }>('/v1/conversations/channels'),
       api<{ items: ChannelAlertDto[] }>('/v1/system/alerts?source=channel_inbound').catch(() => ({
         items: [],
       })),
       api<ChannelVendorDto[]>('/v1/conversations/channels/vendors').catch(() => []),
+      api<{ items: ChannelSources[] }>('/v1/conversations/channels/sources').catch(() => ({
+        items: [],
+      })),
     ]);
     setChannels(list.items);
     setVendors(vendorsRes);
+    setSources(Object.fromEntries(sourcesRes.items.map((item) => [item.channelId, item])));
     const byChannel: Record<string, ChannelAlertDto> = {};
     for (const alert of alertsRes.items) {
       if (alert.subjectId && !alert.resolvedAt) byChannel[alert.subjectId] = alert;
@@ -406,6 +421,7 @@ export function ChannelsPage() {
       {editWidget && (
         <EditWidgetDialog
           channel={editWidget}
+          sources={sources[editWidget.id]}
           voiceChannels={voiceChannels}
           onOpenChange={(next) => {
             if (!next) setEditWidget(null);
@@ -419,6 +435,7 @@ export function ChannelsPage() {
       <EmailChannelDialog
         open={emailOpen || editEmail !== null}
         editChannel={editEmail}
+        sources={editEmail ? sources[editEmail.id] : undefined}
         onOpenChange={(next) => {
           if (!next) {
             setEmailOpen(false);
@@ -442,6 +459,7 @@ export function ChannelsPage() {
         <TwilioSmsChannelDialog
           open
           editChannel={editTwilioSms}
+          sources={sources[editTwilioSms.id]}
           onOpenChange={(next) => {
             if (!next) setEditTwilioSms(null);
           }}
@@ -455,6 +473,7 @@ export function ChannelsPage() {
         <MessageBirdSmsChannelDialog
           open
           editChannel={editMessageBirdSms}
+          sources={sources[editMessageBirdSms.id]}
           onOpenChange={(next) => {
             if (!next) setEditMessageBirdSms(null);
           }}
@@ -551,6 +570,7 @@ export function ChannelsPage() {
         <VapiChannelDialog
           open
           editChannel={editVapi}
+          sources={sources[editVapi.id]}
           onOpenChange={(next) => {
             if (!next) setEditVapi(null);
           }}
@@ -571,6 +591,7 @@ export function ChannelsPage() {
         <ThrellChannelDialog
           open
           editChannel={editThrell}
+          sources={sources[editThrell.id]}
           onOpenChange={(next) => {
             if (!next) setEditThrell(null);
           }}
@@ -639,6 +660,7 @@ export function ChannelsPage() {
                 key={c.id}
                 channel={c}
                 voiceChannels={voiceChannels}
+                sources={sources[c.id]}
                 alert={alerts[c.id] ?? null}
                 onActivate={() => {
                   void activateChannel(c);
@@ -701,6 +723,7 @@ export function ChannelsPage() {
 function ChannelRow({
   channel,
   voiceChannels,
+  sources,
   alert,
   onActivate,
   onRotate,
@@ -714,6 +737,7 @@ function ChannelRow({
 }: {
   channel: ChannelDto;
   voiceChannels: readonly VoiceChannelOption[];
+  sources: ChannelSources | undefined;
   alert: ChannelAlertDto | null;
   onActivate: () => void;
   onRotate: () => void;
@@ -768,6 +792,7 @@ function ChannelRow({
     emailConfig?.inbound?.provider === 'relay' ? emailConfig.inbound.address : null;
 
   const voiceNote = isChat ? widgetVoiceNote(widgetConfig?.voiceChannelId, voiceChannels, t) : null;
+  const sourcesNote = channelSourcesSummary(sources);
 
   const emailIdentity = emailConfig?.addressing?.fromAddress
     ? emailConfig.addressing.fromName
@@ -931,6 +956,22 @@ function ChannelRow({
         >
           <Phone aria-hidden className="size-3 shrink-0" />
           {voiceNote.text}
+        </p>
+      )}
+      {sourcesNote.spaces && (
+        <p className="mt-1 flex items-center gap-1.5 text-[12.5px] leading-snug text-ink-mute">
+          <BookOpen aria-hidden className="size-3 shrink-0" />
+          <span className="truncate" title={sourcesNote.spaces}>
+            {t('knowledge.cardSpaces', { names: sourcesNote.spaces })}
+          </span>
+        </p>
+      )}
+      {sourcesNote.connections && (
+        <p className="mt-1 flex items-center gap-1.5 text-[12.5px] leading-snug text-ink-mute">
+          <Plug aria-hidden className="size-3 shrink-0" />
+          <span className="truncate" title={sourcesNote.connections}>
+            {t('knowledge.cardConnections', { names: sourcesNote.connections })}
+          </span>
         </p>
       )}
       {relayAddress && (
@@ -1101,6 +1142,16 @@ function parseOriginAllowlist(raw: string): string[] {
     .filter(Boolean);
 }
 
+const channelDialogContentClass = 'flex max-h-[90vh] flex-col sm:max-w-[600px]';
+
+function useChannelDialogTab(open: boolean) {
+  const [tab, setTab] = useState<ChannelDialogTab>('channel');
+  useEffect(() => {
+    if (open) setTab('channel');
+  }, [open]);
+  return [tab, setTab] as const;
+}
+
 function CreateWidgetDialog({
   open,
   onOpenChange,
@@ -1122,6 +1173,8 @@ function CreateWidgetDialog({
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<CreatedWidget | null>(null);
   const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
+  const [tab, setTab] = useChannelDialogTab(open);
+  const knowledge = useChannelKnowledge(open, undefined);
 
   useEffect(() => {
     if (open) {
@@ -1150,6 +1203,7 @@ function CreateWidgetDialog({
       const badIndex = issue?.path[1];
       const badValue = typeof badIndex === 'number' ? allowlist[badIndex] : undefined;
       setOriginsError(t('originsInvalid', { invalid: badValue ?? allowlist.join(', ') }));
+      setTab('channel');
       return;
     }
     setOriginsError(null);
@@ -1160,6 +1214,8 @@ function CreateWidgetDialog({
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
+      const knowledgeError = await knowledge.commit(result.id);
+      if (knowledgeError) notify.error(knowledgeError.message);
       setCreated(result);
       onCreated();
     } catch (err) {
@@ -1171,7 +1227,7 @@ function CreateWidgetDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className={created ? undefined : channelDialogContentClass}>
         {created ? (
           <>
             <DialogHeader>
@@ -1201,52 +1257,53 @@ function CreateWidgetDialog({
             </DialogFooter>
           </>
         ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle>{t('createWidgetTitle')}</DialogTitle>
-              <DialogDescription>{t('createWidgetDescription')}</DialogDescription>
-            </DialogHeader>
-            <form
-              className="mt-4 flex flex-col gap-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void submit();
-              }}
-            >
-              <FormField label={t('nameLabel')} hint={t('nameHint')}>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={t('namePlaceholder')}
-                  required
-                  autoFocus
+          <ChannelDialogShell
+            eyebrow={t('knowledge.eyebrowNew', { kind: t('typeChat') })}
+            title={t('createWidgetTitle')}
+            description={t('createWidgetDescription')}
+            tab={tab}
+            onTabChange={setTab}
+            knowledge={knowledge}
+            channelName={name}
+            onSubmit={() => void submit()}
+            submitError={submitError}
+            channelPanel={
+              <div className="flex flex-col gap-4 pt-5">
+                <FormField label={t('nameLabel')} hint={t('nameHint')}>
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder={t('namePlaceholder')}
+                    required
+                    autoFocus
+                  />
+                </FormField>
+                <FormField label={t('originsLabel')} hint={t('originsHint')}>
+                  <Input
+                    value={originAllowlist}
+                    onChange={(e) => {
+                      setOriginAllowlist(e.target.value);
+                      if (originsError) setOriginsError(null);
+                    }}
+                    placeholder="https://example.com, https://www.example.com"
+                    required={widgetAllowlistRequired()}
+                    aria-invalid={originsError ? true : undefined}
+                  />
+                  {originsError && (
+                    <p className="text-sm text-destructive" role="alert">
+                      {originsError}
+                    </p>
+                  )}
+                </FormField>
+                <WidgetVoiceChannelField
+                  voiceChannels={voiceChannels}
+                  value={voiceChannelId}
+                  onChange={setVoiceChannelId}
                 />
-              </FormField>
-              <FormField label={t('originsLabel')} hint={t('originsHint')}>
-                <Input
-                  value={originAllowlist}
-                  onChange={(e) => {
-                    setOriginAllowlist(e.target.value);
-                    if (originsError) setOriginsError(null);
-                  }}
-                  placeholder="https://example.com, https://www.example.com"
-                  required={widgetAllowlistRequired()}
-                  aria-invalid={originsError ? true : undefined}
-                />
-                {originsError && (
-                  <p className="text-sm text-destructive" role="alert">
-                    {originsError}
-                  </p>
-                )}
-              </FormField>
-              <WidgetVoiceChannelField
-                voiceChannels={voiceChannels}
-                value={voiceChannelId}
-                onChange={setVoiceChannelId}
-              />
-
-              {submitError && <FormError detail={submitError} />}
-              <DialogFooter className={dialogFooterClass}>
+              </div>
+            }
+            actions={
+              <>
                 <Button
                   type="button"
                   variant="outline"
@@ -1264,9 +1321,9 @@ function CreateWidgetDialog({
                   {creating ? tCommon('creating') : t('createWidget')}
                   <span aria-hidden className="ml-1 font-mono">↵</span>
                 </Button>
-              </DialogFooter>
-            </form>
-          </>
+              </>
+            }
+          />
         )}
       </DialogContent>
     </Dialog>
@@ -1275,11 +1332,13 @@ function CreateWidgetDialog({
 
 function EditWidgetDialog({
   channel,
+  sources,
   voiceChannels,
   onOpenChange,
   onSaved,
 }: {
   channel: WidgetChannelDto;
+  sources: ChannelSources | undefined;
   voiceChannels: readonly VoiceChannelOption[];
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
@@ -1294,6 +1353,8 @@ function EditWidgetDialog({
   const [voiceChannelId, setVoiceChannelId] = useState(channel.config.voiceChannelId ?? '');
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
+  const [tab, setTab] = useChannelDialogTab(true);
+  const knowledge = useChannelKnowledge(true, sources);
 
   async function submit() {
     const allowlist = parseOriginAllowlist(originAllowlist);
@@ -1311,6 +1372,7 @@ function EditWidgetDialog({
       const badIndex = issue?.path[1];
       const badValue = typeof badIndex === 'number' ? allowlist[badIndex] : undefined;
       setOriginsError(t('originsInvalid', { invalid: badValue ?? allowlist.join(', ') }));
+      setTab('channel');
       return;
     }
     setOriginsError(null);
@@ -1321,72 +1383,111 @@ function EditWidgetDialog({
         method: 'PATCH',
         body: JSON.stringify(parsed.data),
       });
-      notify.success(tCommon('saved'));
-      onSaved();
-      onOpenChange(false);
     } catch (err) {
       setSubmitError(toFormError(err, translate(err) || t('errors.updateWidget')));
-    } finally {
       setSaving(false);
+      return;
     }
+    const knowledgeError = await knowledge.commit(channel.id);
+    setSaving(false);
+    onSaved();
+    if (knowledgeError) {
+      setSubmitError(knowledgeError);
+      setTab('knowledge');
+      return;
+    }
+    notify.success(tCommon('saved'));
+    onOpenChange(false);
   }
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('editWidgetTitle')}</DialogTitle>
-          <DialogDescription>{t('editWidgetDescription', { name: channel.name })}</DialogDescription>
-        </DialogHeader>
-        <form
-          className="mt-4 flex flex-col gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submit();
-          }}
-        >
-          <FormField label={t('originsLabel')} hint={t('originsHint')}>
-            <Input
-              value={originAllowlist}
-              onChange={(e) => {
-                setOriginAllowlist(e.target.value);
-                if (originsError) setOriginsError(null);
-              }}
-              placeholder="https://example.com, https://www.example.com"
-              required={widgetAllowlistRequired()}
-              aria-invalid={originsError ? true : undefined}
-              autoFocus
+      <DialogContent className={channelDialogContentClass}>
+        <ChannelDialogShell
+          eyebrow={t('knowledge.eyebrow', { kind: t('typeChat'), name: channel.name })}
+          title={t('editWidgetTitle')}
+          description={t('editWidgetDescription', { name: channel.name })}
+          tab={tab}
+          onTabChange={setTab}
+          knowledge={knowledge}
+          channelName={channel.name}
+          onSubmit={() => void submit()}
+          submitError={submitError}
+          channelPanel={
+            <div className="flex flex-col gap-4 pt-5">
+              <FormField label={t('originsLabel')} hint={t('originsHint')}>
+                <Input
+                  value={originAllowlist}
+                  onChange={(e) => {
+                    setOriginAllowlist(e.target.value);
+                    if (originsError) setOriginsError(null);
+                  }}
+                  placeholder="https://example.com, https://www.example.com"
+                  required={widgetAllowlistRequired()}
+                  aria-invalid={originsError ? true : undefined}
+                  autoFocus
+                />
+                {originsError && (
+                  <p className="text-sm text-destructive" role="alert">
+                    {originsError}
+                  </p>
+                )}
+              </FormField>
+              <WidgetVoiceChannelField
+                voiceChannels={voiceChannels}
+                value={voiceChannelId}
+                onChange={setVoiceChannelId}
+              />
+            </div>
+          }
+          actions={
+            <ChannelDialogActions
+              saving={saving}
+              label={tCommon('saveChanges')}
+              savingLabel={tCommon('saving')}
+              onCancel={() => onOpenChange(false)}
             />
-            {originsError && (
-              <p className="text-sm text-destructive" role="alert">
-                {originsError}
-              </p>
-            )}
-          </FormField>
-          <WidgetVoiceChannelField
-            voiceChannels={voiceChannels}
-            value={voiceChannelId}
-            onChange={setVoiceChannelId}
-          />
-
-          {submitError && <FormError detail={submitError} />}
-          <DialogFooter className={dialogFooterClass}>
-            <Button
-              type="button"
-              variant="outline"
-              className={dialogButtonClass}
-              onClick={() => onOpenChange(false)}
-            >
-              {tCommon('cancel')}
-            </Button>
-            <Button type="submit" variant="accent" className={dialogButtonClass} disabled={saving}>
-              {saving ? tCommon('saving') : tCommon('saveChanges')}
-              <span aria-hidden className="ml-1 font-mono">↵</span>
-            </Button>
-          </DialogFooter>
-        </form>
+          }
+        />
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ChannelDialogActions({
+  saving,
+  label,
+  savingLabel,
+  onCancel,
+}: {
+  saving: boolean;
+  label: string;
+  savingLabel: string;
+  onCancel: () => void;
+}) {
+  const tCommon = useTranslations('common');
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        className={dialogButtonClass}
+        onClick={onCancel}
+        disabled={saving}
+      >
+        {tCommon('cancel')}
+      </Button>
+      <Button
+        type="submit"
+        variant="accent"
+        className={dialogButtonClass}
+        disabled={saving}
+        pending={saving}
+      >
+        {saving ? savingLabel : label}
+        <span aria-hidden className="ml-1 font-mono">↵</span>
+      </Button>
+    </>
   );
 }
 
@@ -1449,23 +1550,114 @@ function parsePositiveInt(raw: string): number | null {
   return n;
 }
 
+type AgentMode = 'auto' | 'draft_only' | 'off';
+
+const SMTP_ERROR_KEYS = ['smtpHost', 'smtpPort', 'username', 'password'];
+
+function DialogSection({
+  label,
+  last,
+  className,
+  children,
+}: {
+  label?: string;
+  last?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex flex-col gap-3.5 py-5',
+        !last && 'border-b-[1px] border-rule-soft dark:border-rule-on-dark',
+        className,
+      )}
+    >
+      {label ? (
+        <span className="font-mono text-[11px] uppercase tracking-eyebrow text-ink-soft dark:text-foreground/70">
+          {label}
+        </span>
+      ) : null}
+      {children}
+    </div>
+  );
+}
+
+function TextLinkButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="border-b-[1px] border-current text-[13px] text-cobalt hover:text-cobalt-deep dark:text-cobalt-soft"
+    >
+      {children}
+    </button>
+  );
+}
+
+function CheckField({
+  checked,
+  onChange,
+  label,
+  hint,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  label: string;
+  hint?: string;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-2.5 text-sm text-ink dark:text-foreground">
+      <input
+        type="checkbox"
+        className="mt-0.5 size-4 shrink-0 accent-ink dark:accent-foreground"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span>
+        {label}
+        {hint ? (
+          <span className="mt-0.5 block text-[13px] leading-[1.5] text-ink-mute">{hint}</span>
+        ) : null}
+      </span>
+    </label>
+  );
+}
+
+function RelayAddressBar({ address }: { address: string }) {
+  const tCommon = useTranslations('common');
+  const { copied, copy } = useCopy();
+  return (
+    <div className="flex items-center justify-between gap-3 bg-paper-deep px-3.5 py-2.5 dark:bg-secondary">
+      <span className="min-w-0 break-all font-mono text-[13px] font-medium text-ink dark:text-foreground">
+        {address}
+      </span>
+      <TextLinkButton onClick={() => copy(address)}>
+        {copied ? tCommon('copied') : tCommon('copy')}
+      </TextLinkButton>
+    </div>
+  );
+}
+
 function EmailChannelDialog({
   open,
   onOpenChange,
   onSaved,
   editChannel,
+  sources,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
   editChannel: EmailChannelDto | null;
+  sources: ChannelSources | undefined;
 }) {
   const [isEdit, setIsEdit] = useState(editChannel !== null);
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
   const [name, setName] = useState('');
-  const [defaultAgentMode, setDefaultAgentMode] = useState<'auto' | 'draft_only' | 'off'>('auto');
+  const [defaultAgentMode, setDefaultAgentMode] = useState<AgentMode>('auto');
   const [fromAddress, setFromAddress] = useState('');
   const [fromName, setFromName] = useState('');
   const [smtpHost, setSmtpHost] = useState('');
@@ -1473,6 +1665,7 @@ function EmailChannelDialog({
   const [smtpSecure, setSmtpSecure] = useState(false);
   const [smtpUsername, setSmtpUsername] = useState('');
   const [smtpPassword, setSmtpPassword] = useState('');
+  const [smtpOpen, setSmtpOpen] = useState(true);
   const [trackOpens, setTrackOpens] = useState(false);
   const [inboundMode, setInboundMode] = useState<InboundMode>('none');
   const [imapHost, setImapHost] = useState('');
@@ -1487,9 +1680,12 @@ function EmailChannelDialog({
   const [limitSending, setLimitSending] = useState(false);
   const [perDayMax, setPerDayMax] = useState('');
   const [perHourMax, setPerHourMax] = useState('');
+  const [deliveryOpen, setDeliveryOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [tab, setTab] = useChannelDialogTab(open);
+  const knowledge = useChannelKnowledge(open, sources);
   const clearFieldError = (key: string) => {
     setFieldErrors((prev) => {
       if (!prev[key]) return prev;
@@ -1512,6 +1708,7 @@ function EmailChannelDialog({
     setSmtpSecure(cfg?.outbound?.secure ?? false);
     setSmtpUsername(cfg?.outbound?.username ?? '');
     setSmtpPassword('');
+    setSmtpOpen(!cfg?.outbound?.host);
     setTrackOpens(cfg?.outbound?.trackOpens ?? false);
     const imap = cfg?.inbound?.provider === 'imap' ? cfg.inbound : null;
     const relay = cfg?.inbound?.provider === 'relay' ? cfg.inbound : null;
@@ -1530,6 +1727,7 @@ function EmailChannelDialog({
     setPerHourMax(
       cfg?.sendLimits?.perHourMax != null ? String(cfg.sendLimits.perHourMax) : '',
     );
+    setDeliveryOpen(false);
     setSubmitError(null);
     setFieldErrors({});
     setCreating(false);
@@ -1603,7 +1801,10 @@ function EmailChannelDialog({
     };
     const parsed = SetupEmailBody.safeParse(payload);
     if (!parsed.success) {
-      setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      const errors = zodIssuesToFieldErrors(parsed.error.issues, t);
+      setFieldErrors(errors);
+      if (SMTP_ERROR_KEYS.some((k) => errors[k])) setSmtpOpen(true);
+      setTab('channel');
       return;
     }
     setFieldErrors({});
@@ -1611,6 +1812,7 @@ function EmailChannelDialog({
     setSubmitError(null);
     try {
       const saved = await api<{
+        id: string;
         active: boolean;
         probe?: { smtp: string; imap: string };
         config?: { inbound?: { provider?: string; address?: string } };
@@ -1618,7 +1820,17 @@ function EmailChannelDialog({
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
+      const knowledgeError = await knowledge.commit(saved.id);
       onSaved();
+      if (knowledgeError) {
+        if (!isEdit) {
+          notify.error(knowledgeError.message);
+        } else {
+          setSubmitError(knowledgeError);
+          setTab('knowledge');
+          return;
+        }
+      }
       if (saved.probe && !saved.active) {
         setSubmitError(
           toFormError(
@@ -1628,6 +1840,8 @@ function EmailChannelDialog({
             }),
           ),
         );
+        setTab('channel');
+        if (saved.probe.smtp !== 'ok') setSmtpOpen(true);
         return;
       }
       const minted =
@@ -1677,59 +1891,71 @@ function EmailChannelDialog({
     );
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{t(isEdit ? 'email.editTitle' : 'email.createTitle')}</DialogTitle>
-          <DialogDescription>
-            {t(isEdit ? 'email.editDescription' : 'email.createDescription')}
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          className="flex min-h-0 flex-1 flex-col"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submit();
-          }}
-        >
-          <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <FormField label={t('nameLabel')}>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. support-inbox"
-                maxLength={120}
-                required
-              />
-            </FormField>
-            <FormField label={t('email.fromAddressLabel')} error={fieldErrors.fromAddress}>
-              <Input
-                type="email"
-                value={fromAddress}
-                onChange={(e) => {
-                  setFromAddress(e.target.value);
-                  clearFieldError('fromAddress');
-                }}
-                placeholder="support@example.com"
-                required
-                aria-invalid={fieldErrors.fromAddress ? true : undefined}
-              />
-            </FormField>
-            <FormField label={t('email.fromNameLabel')}>
-              <Input
-                value={fromName}
-                onChange={(e) => setFromName(e.target.value)}
-                placeholder="Acme Support"
-                maxLength={120}
-              />
-            </FormField>
-          </div>
+  const storedPasswordPlaceholder = isEdit ? t('email.passwordStored') : '••••••••';
+  const deliverySummary = [
+    trackOpens ? t('email.delivery.trackingOn') : t('email.delivery.trackingOff'),
+    (() => {
+      const day = limitSending ? parsePositiveInt(perDayMax) : null;
+      const hour = limitSending ? parsePositiveInt(perHourMax) : null;
+      if (day === null && hour === null) return t('email.delivery.noLimit');
+      return [
+        day !== null ? t('email.delivery.perDay', { count: day }) : null,
+        hour !== null ? t('email.delivery.perHour', { count: hour }) : null,
+      ]
+        .filter(Boolean)
+        .join(', ');
+    })(),
+  ].join(' · ');
+  const smtpSummary = [
+    `${smtpHost}:${smtpPort}`,
+    smtpSecure ? t('email.securityTls') : t('email.securityStarttls'),
+    smtpUsername,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
-          <fieldset className="space-y-3 border border-rule-soft px-3 pb-3 dark:border-rule-on-dark">
-            <legend className="px-2 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">{t('email.outboundLabel')}</legend>
-            <div className="grid gap-3 sm:grid-cols-2">
+  const channelPanel = (
+    <div className="flex flex-col">
+      <DialogSection>
+        <FormField label={t('nameLabel')}>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. support-inbox"
+            maxLength={120}
+            required
+          />
+        </FormField>
+      </DialogSection>
+
+      <DialogSection label={t('email.outboundLabel')} className="pb-3.5">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+          <FormField label={t('email.fromNameLabel')}>
+            <Input
+              value={fromName}
+              onChange={(e) => setFromName(e.target.value)}
+              placeholder="Acme Support"
+              maxLength={120}
+            />
+          </FormField>
+          <FormField label={t('email.fromAddressLabel')} error={fieldErrors.fromAddress}>
+            <Input
+              type="email"
+              value={fromAddress}
+              onChange={(e) => {
+                setFromAddress(e.target.value);
+                clearFieldError('fromAddress');
+              }}
+              placeholder="support@example.com"
+              required
+              aria-invalid={fieldErrors.fromAddress ? true : undefined}
+            />
+          </FormField>
+        </div>
+        <div className="flex flex-col gap-3.5">
+        {smtpOpen ? (
+          <>
+            <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-3">
               <FormField label={t('email.host')} error={fieldErrors.smtpHost}>
                 <Input
                   value={smtpHost}
@@ -1754,14 +1980,8 @@ function EmailChannelDialog({
                   aria-invalid={fieldErrors.smtpPort ? true : undefined}
                 />
               </FormField>
-              <label className="flex items-center gap-2 text-sm sm:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={smtpSecure}
-                  onChange={(e) => setSmtpSecure(e.target.checked)}
-                />
-                {t('email.secure')}
-              </label>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
               <FormField label={t('email.username')}>
                 <Input
                   value={smtpUsername}
@@ -1774,41 +1994,60 @@ function EmailChannelDialog({
                   type="password"
                   value={smtpPassword}
                   onChange={(e) => setSmtpPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder={storedPasswordPlaceholder}
                   required={!isEdit}
                 />
               </FormField>
-              <label className="flex items-start gap-2 text-sm sm:col-span-2">
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  checked={trackOpens}
-                  onChange={(e) => setTrackOpens(e.target.checked)}
-                />
-                <span>
-                  {t('email.trackOpens')}
-                  <span className="block text-[11px] text-ink-mute">
-                    {t('email.trackOpensHint')}
-                  </span>
-                </span>
-              </label>
-              <div className="space-y-2 border-t border-rule-soft pt-3 sm:col-span-2">
-                <label className="flex items-start gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5"
-                    checked={limitSending}
-                    onChange={(e) => setLimitSending(e.target.checked)}
-                  />
-                  <span>
-                    {t('email.sendLimitsLabel')}
-                    <span className="block text-[11px] text-ink-mute">
-                      {t('email.sendLimitsHelp')}
-                    </span>
-                  </span>
-                </label>
-                {limitSending && (
-                <div className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-2">
+            </div>
+            <div className="flex items-baseline justify-between gap-3">
+              <CheckField checked={smtpSecure} onChange={setSmtpSecure} label={t('email.secure')} />
+              {isEdit ? (
+                <TextLinkButton onClick={() => setSmtpOpen(false)}>{tCommon('done')}</TextLinkButton>
+              ) : null}
+            </div>
+          </>
+        ) : (
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="min-w-0 break-all font-mono text-[13px] text-ink dark:text-foreground">
+              {smtpSummary}
+            </p>
+            <TextLinkButton onClick={() => setSmtpOpen(true)}>{t('email.change')}</TextLinkButton>
+          </div>
+        )}
+        </div>
+        <div className="flex flex-col gap-3.5 border-t-[1px] border-rule-soft pt-3.5 dark:border-rule-on-dark">
+          <button
+            type="button"
+            aria-expanded={deliveryOpen}
+            onClick={() => setDeliveryOpen((v) => !v)}
+            className="flex items-baseline gap-3 text-left"
+          >
+            <span className="text-sm font-semibold text-ink dark:text-foreground">
+              {t('email.delivery.label')}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[13px] text-ink-mute">
+              {deliverySummary}
+            </span>
+            <span aria-hidden className="font-mono text-sm text-ink dark:text-foreground">
+              {deliveryOpen ? '−' : '+'}
+            </span>
+          </button>
+          {deliveryOpen && (
+            <>
+              <CheckField
+                checked={trackOpens}
+                onChange={setTrackOpens}
+                label={t('email.trackOpens')}
+                hint={t('email.trackOpensHint')}
+              />
+              <CheckField
+                checked={limitSending}
+                onChange={setLimitSending}
+                label={t('email.sendLimitsLabel')}
+                hint={t('email.sendLimitsHelp')}
+              />
+              {limitSending && (
+                <div className="grid grid-cols-1 gap-3 pl-[26px] sm:grid-cols-2">
                   <FormField label={t('email.perDayMax')}>
                     <Input
                       type="number"
@@ -1832,144 +2071,150 @@ function EmailChannelDialog({
                     />
                   </FormField>
                 </div>
-                )}
-              </div>
-            </div>
-          </fieldset>
+              )}
+            </>
+          )}
+        </div>
+      </DialogSection>
 
-          <fieldset className="space-y-3 border border-rule-soft px-3 pb-3 dark:border-rule-on-dark">
-            <legend className="px-2 font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">{t('email.inboundLabel')}</legend>
-            <FormField label={t('email.inboundModeLabel')} hint={t(`email.inboundModeHint.${inboundMode}`)}>
-              <NativeSelect
-                value={inboundMode}
-                onChange={(e) => {
-                  setInboundMode(e.target.value as InboundMode);
-                  clearFieldError('imapHost');
-                  clearFieldError('imapPort');
-                }}
-              >
-                <option value="none">{t('email.inboundModeNone')}</option>
-                <option value="imap">{t('email.inboundModeImap')}</option>
-                {(relayEnabled || inboundMode === 'relay') && (
-                  <option value="relay">{t('email.inboundModeRelay')}</option>
-                )}
-              </NativeSelect>
-            </FormField>
-            {inboundMode === 'relay' && relayAddress ? (
-              <CopyableSecret
-                variant="field"
-                label={t('email.relayAddressLabel')}
-                value={relayAddress}
-                hint={t('email.relayAddressHint')}
-              />
-            ) : null}
-            {inboundMode === 'imap' && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <FormField label={t('email.host')} error={fieldErrors.imapHost}>
-                  <Input
-                    value={imapHost}
-                    onChange={(e) => {
-                      setImapHost(e.target.value);
-                      clearFieldError('imapHost');
-                    }}
-                    placeholder="imap.example.com"
-                    required
-                    aria-invalid={fieldErrors.imapHost ? true : undefined}
-                  />
-                </FormField>
-                <FormField label={t('email.port')} error={fieldErrors.imapPort}>
-                  <Input
-                    type="number"
-                    value={imapPort}
-                    onChange={(e) => {
-                      setImapPort(e.target.value);
-                      clearFieldError('imapPort');
-                    }}
-                    required
-                    aria-invalid={fieldErrors.imapPort ? true : undefined}
-                  />
-                </FormField>
-                <label className="flex items-center gap-2 text-sm sm:col-span-2">
-                  <input
-                    type="checkbox"
-                    checked={imapSecure}
-                    onChange={(e) => setImapSecure(e.target.checked)}
-                  />
-                  {t('email.secure')}
-                </label>
-                <FormField label={t('email.username')}>
-                  <Input
-                    value={imapUsername}
-                    onChange={(e) => setImapUsername(e.target.value)}
-                    required
-                  />
-                </FormField>
-                <FormField label={t('email.password')}>
-                  <Input
-                    type="password"
-                    value={imapPassword}
-                    onChange={(e) => setImapPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required={!isEdit || editChannel?.config.inbound?.provider !== 'imap'}
-                  />
-                </FormField>
-                <FormField label={t('email.mailbox')}>
-                  <Input
-                    value={imapMailbox}
-                    onChange={(e) => setImapMailbox(e.target.value)}
-                    placeholder="INBOX"
-                    maxLength={120}
-                  />
-                </FormField>
-              </div>
+      <DialogSection label={t('email.inboundLabel')} last={inboundMode === 'none'}>
+        <FormField
+          label={t('email.inboundModeLabel')}
+          hint={t(`email.inboundModeHint.${inboundMode}`)}
+        >
+          <NativeSelect
+            value={inboundMode}
+            onChange={(e) => {
+              setInboundMode(e.target.value as InboundMode);
+              clearFieldError('imapHost');
+              clearFieldError('imapPort');
+            }}
+          >
+            <option value="none">{t('email.inboundModeNone')}</option>
+            <option value="imap">{t('email.inboundModeImap')}</option>
+            {(relayEnabled || inboundMode === 'relay') && (
+              <option value="relay">{t('email.inboundModeRelay')}</option>
             )}
-            {inboundMode !== 'none' && (
-              <FormField label={t('agentReplies.label')} hint={t('agentReplies.hintEmail')}>
-                <NativeSelect
-                  value={defaultAgentMode}
-                  onChange={(e) =>
-                    setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
-                  }
-                >
-                  <option value="auto">{t('agentReplies.auto')}</option>
-                  <option value="draft_only">{t('agentReplies.draftOnly')}</option>
-                  <option value="off">{t('agentReplies.off')}</option>
-                </NativeSelect>
+          </NativeSelect>
+        </FormField>
+        {inboundMode === 'relay' && relayAddress ? <RelayAddressBar address={relayAddress} /> : null}
+        {inboundMode === 'imap' && (
+          <>
+            <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-3">
+              <FormField label={t('email.imapHost')} error={fieldErrors.imapHost}>
+                <Input
+                  value={imapHost}
+                  onChange={(e) => {
+                    setImapHost(e.target.value);
+                    clearFieldError('imapHost');
+                  }}
+                  placeholder="imap.example.com"
+                  required
+                  aria-invalid={fieldErrors.imapHost ? true : undefined}
+                />
               </FormField>
-            )}
-          </fieldset>
-          </div>
+              <FormField label={t('email.port')} error={fieldErrors.imapPort}>
+                <Input
+                  type="number"
+                  value={imapPort}
+                  onChange={(e) => {
+                    setImapPort(e.target.value);
+                    clearFieldError('imapPort');
+                  }}
+                  required
+                  aria-invalid={fieldErrors.imapPort ? true : undefined}
+                />
+              </FormField>
+            </div>
+            <CheckField checked={imapSecure} onChange={setImapSecure} label={t('email.secure')} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormField label={t('email.username')}>
+                <Input
+                  value={imapUsername}
+                  onChange={(e) => setImapUsername(e.target.value)}
+                  placeholder={fromAddress || undefined}
+                  required
+                />
+              </FormField>
+              <FormField label={t('email.password')}>
+                <Input
+                  type="password"
+                  value={imapPassword}
+                  onChange={(e) => setImapPassword(e.target.value)}
+                  placeholder={
+                    isEdit && editChannel?.config.inbound?.provider === 'imap'
+                      ? t('email.passwordStored')
+                      : '••••••••'
+                  }
+                  required={!isEdit || editChannel?.config.inbound?.provider !== 'imap'}
+                />
+              </FormField>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormField label={t('email.mailbox')}>
+                <Input
+                  value={imapMailbox}
+                  onChange={(e) => setImapMailbox(e.target.value)}
+                  placeholder="INBOX"
+                  maxLength={120}
+                />
+              </FormField>
+            </div>
+          </>
+        )}
+      </DialogSection>
 
-          {submitError && <FormError detail={submitError} pinned />}
-          <DialogFooter className={cn(dialogFooterClass, submitError && 'mt-0')}>
-            <Button
-              type="button"
-              variant="outline"
-              className={dialogButtonClass}
-              onClick={() => onOpenChange(false)}
-            >
-              {tCommon('cancel')}
-            </Button>
-            <Button
-              type="submit"
-              variant="accent"
-              className={dialogButtonClass}
-              disabled={creating}
-            >
-              {creating
-                ? tCommon(isEdit ? 'saving' : 'creating')
-                : isEdit
-                  ? tCommon('saveChanges')
-                  : t('email.create')}
-              <span aria-hidden className="ml-1 font-mono">↵</span>
-            </Button>
-          </DialogFooter>
-        </form>
+      {inboundMode !== 'none' && (
+        <DialogSection label={t('agentReplies.heading')} last>
+          <Segmented<AgentMode>
+            label={t('agentReplies.heading')}
+            options={[
+              { value: 'off', label: t('agentReplies.segmentOff') },
+              { value: 'draft_only', label: t('agentReplies.segmentDraft') },
+              { value: 'auto', label: t('agentReplies.segmentAuto') },
+            ]}
+            value={defaultAgentMode}
+            onChange={setDefaultAgentMode}
+            className="[&>button]:py-2"
+          />
+          <p className="text-[13px] leading-[1.5] text-ink-mute">{t('agentReplies.hintShort')}</p>
+        </DialogSection>
+      )}
+
+    </div>
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className={channelDialogContentClass}>
+        <ChannelDialogShell
+          eyebrow={
+            isEdit && editChannel
+              ? t('knowledge.eyebrow', { kind: t('typeEmail'), name: editChannel.name })
+              : t('knowledge.eyebrowNew', { kind: t('typeEmail') })
+          }
+          title={t(isEdit ? 'email.editTitle' : 'email.createTitle')}
+          description={isEdit ? undefined : t('email.createDescription')}
+          tab={tab}
+          onTabChange={setTab}
+          knowledge={knowledge}
+          channelName={name}
+          onSubmit={() => void submit()}
+          submitError={submitError}
+          channelPanel={channelPanel}
+          actions={
+            <ChannelDialogActions
+              saving={creating}
+              label={isEdit ? tCommon('saveChanges') : t('email.create')}
+              savingLabel={tCommon(isEdit ? 'saving' : 'creating')}
+              onCancel={() => onOpenChange(false)}
+            />
+          }
+        />
       </DialogContent>
     </Dialog>
   );
 }
-
 
 function EnterChannelCredentialsDialog({
   channel,
@@ -2549,11 +2794,13 @@ function TwilioSmsChannelDialog({
   onOpenChange,
   onSaved,
   editChannel,
+  sources,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
   editChannel: TwilioSmsChannelDto;
+  sources: ChannelSources | undefined;
 }) {
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
@@ -2574,6 +2821,8 @@ function TwilioSmsChannelDialog({
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [tab, setTab] = useChannelDialogTab(open);
+  const knowledge = useChannelKnowledge(open, sources);
 
   useEffect(() => {
     if (!open) return;
@@ -2603,6 +2852,7 @@ function TwilioSmsChannelDialog({
     const parsed = ConfigureTwilioSmsBody.safeParse(payload);
     if (!parsed.success) {
       setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      setTab('channel');
       return;
     }
     setFieldErrors({});
@@ -2613,8 +2863,14 @@ function TwilioSmsChannelDialog({
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
-      onOpenChange(false);
+      const knowledgeError = await knowledge.commit(editChannel.id);
       onSaved();
+      if (knowledgeError) {
+        setSubmitError(knowledgeError);
+        setTab('knowledge');
+        return;
+      }
+      onOpenChange(false);
     } catch (err) {
       setSubmitError(toFormError(err, translate(err) || t('errors.updateTwilioSms')));
     } finally {
@@ -2624,118 +2880,107 @@ function TwilioSmsChannelDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{t('twilioSms.editTitle')}</DialogTitle>
-          <DialogDescription>{t('twilioSms.editDescription')}</DialogDescription>
-        </DialogHeader>
-        <form
-          className="mt-4 flex flex-col gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submit();
-          }}
-        >
-          <FormField label={t('nameLabel')} hint={t('twilioSms.nameHint')}>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. main-twilio"
-              maxLength={120}
+      <DialogContent className={channelDialogContentClass}>
+        <ChannelDialogShell
+          eyebrow={t('knowledge.eyebrow', { kind: t('kindSms'), name: editChannel.name })}
+          title={t('twilioSms.editTitle')}
+          description={t('twilioSms.editDescription')}
+          tab={tab}
+          onTabChange={setTab}
+          knowledge={knowledge}
+          channelName={name}
+          onSubmit={() => void submit()}
+          submitError={submitError}
+          channelPanel={
+            <div className="flex flex-col gap-4 pt-5">
+              <FormField label={t('nameLabel')} hint={t('twilioSms.nameHint')}>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. main-twilio"
+                  maxLength={120}
+                />
+              </FormField>
+              <FormField
+                label={t('twilioSms.accountSidLabel')}
+                hint={t('twilioSms.accountSidHint')}
+                error={fieldErrors.accountSid}
+              >
+                <Input
+                  value={accountSid}
+                  onChange={(e) => setAccountSid(e.target.value)}
+                  placeholder="AC…"
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField
+                label={t('twilioSms.authTokenLabel')}
+                hint={t('twilioSms.authTokenHintEdit')}
+              >
+                <Input
+                  type="password"
+                  value={authToken}
+                  onChange={(e) => setAuthToken(e.target.value)}
+                  placeholder="••••"
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField label={t('twilioSms.senderLabel')} hint={t('twilioSms.senderHint')}>
+                <NativeSelect value={sender} onChange={(e) => setSender(e.target.value as TwilioSender)}>
+                  <option value="number">{t('twilioSms.senderNumber')}</option>
+                  <option value="service">{t('twilioSms.senderService')}</option>
+                </NativeSelect>
+              </FormField>
+              {sender === 'number' ? (
+                <FormField
+                  label={t('twilioSms.fromNumberLabel')}
+                  hint={t('twilioSms.fromNumberHint')}
+                  error={fieldErrors.fromNumber}
+                >
+                  <Input
+                    value={fromNumber}
+                    onChange={(e) => setFromNumber(e.target.value)}
+                    placeholder="+15551234567"
+                    maxLength={32}
+                  />
+                </FormField>
+              ) : (
+                <FormField
+                  label={t('twilioSms.messagingServiceSidLabel')}
+                  hint={t('twilioSms.messagingServiceSidHint')}
+                  error={fieldErrors.messagingServiceSid}
+                >
+                  <Input
+                    value={messagingServiceSid}
+                    onChange={(e) => setMessagingServiceSid(e.target.value)}
+                    placeholder="MG…"
+                    maxLength={64}
+                  />
+                </FormField>
+              )}
+              <FormField label={t('agentReplies.label')} hint={t('agentReplies.hintSms')}>
+                <NativeSelect
+                  value={defaultAgentMode}
+                  onChange={(e) =>
+                    setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
+                  }
+                >
+                  <option value="auto">{t('agentReplies.auto')}</option>
+                  <option value="draft_only">{t('agentReplies.draftOnly')}</option>
+                  <option value="off">{t('agentReplies.off')}</option>
+                </NativeSelect>
+              </FormField>
+            </div>
+          }
+          actions={
+            <ChannelDialogActions
+              saving={saving}
+              label={tCommon('saveChanges')}
+              savingLabel={tCommon('saving')}
+              onCancel={() => onOpenChange(false)}
             />
-          </FormField>
-          <FormField
-            label={t('twilioSms.accountSidLabel')}
-            hint={t('twilioSms.accountSidHint')}
-            error={fieldErrors.accountSid}
-          >
-            <Input
-              value={accountSid}
-              onChange={(e) => setAccountSid(e.target.value)}
-              placeholder="AC…"
-              autoComplete="off"
-            />
-          </FormField>
-          <FormField
-            label={t('twilioSms.authTokenLabel')}
-            hint={t('twilioSms.authTokenHintEdit')}
-          >
-            <Input
-              type="password"
-              value={authToken}
-              onChange={(e) => setAuthToken(e.target.value)}
-              placeholder="••••"
-              autoComplete="off"
-            />
-          </FormField>
-          <FormField label={t('twilioSms.senderLabel')} hint={t('twilioSms.senderHint')}>
-            <NativeSelect value={sender} onChange={(e) => setSender(e.target.value as TwilioSender)}>
-              <option value="number">{t('twilioSms.senderNumber')}</option>
-              <option value="service">{t('twilioSms.senderService')}</option>
-            </NativeSelect>
-          </FormField>
-          {sender === 'number' ? (
-            <FormField
-              label={t('twilioSms.fromNumberLabel')}
-              hint={t('twilioSms.fromNumberHint')}
-              error={fieldErrors.fromNumber}
-            >
-              <Input
-                value={fromNumber}
-                onChange={(e) => setFromNumber(e.target.value)}
-                placeholder="+15551234567"
-                maxLength={32}
-              />
-            </FormField>
-          ) : (
-            <FormField
-              label={t('twilioSms.messagingServiceSidLabel')}
-              hint={t('twilioSms.messagingServiceSidHint')}
-              error={fieldErrors.messagingServiceSid}
-            >
-              <Input
-                value={messagingServiceSid}
-                onChange={(e) => setMessagingServiceSid(e.target.value)}
-                placeholder="MG…"
-                maxLength={64}
-              />
-            </FormField>
-          )}
-          <FormField label={t('agentReplies.label')} hint={t('agentReplies.hintSms')}>
-            <NativeSelect
-              value={defaultAgentMode}
-              onChange={(e) =>
-                setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
-              }
-            >
-              <option value="auto">{t('agentReplies.auto')}</option>
-              <option value="draft_only">{t('agentReplies.draftOnly')}</option>
-              <option value="off">{t('agentReplies.off')}</option>
-            </NativeSelect>
-          </FormField>
-          {submitError && <FormError detail={submitError} />}
-          <DialogFooter className={dialogFooterClass}>
-            <Button
-              type="button"
-              variant="outline"
-              className={dialogButtonClass}
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-            >
-              {tCommon('cancel')}
-            </Button>
-            <Button
-              type="submit"
-              variant="accent"
-              className={dialogButtonClass}
-              disabled={saving}
-              pending={saving}
-            >
-              {saving ? tCommon('saving') : tCommon('saveChanges')}
-              <span aria-hidden className="ml-1 font-mono">↵</span>
-            </Button>
-          </DialogFooter>
-        </form>
+          }
+        />
       </DialogContent>
     </Dialog>
   );
@@ -2860,11 +3105,13 @@ function MessageBirdSmsChannelDialog({
   onOpenChange,
   onSaved,
   editChannel,
+  sources,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
   editChannel: MessageBirdSmsChannelDto;
+  sources: ChannelSources | undefined;
 }) {
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
@@ -2879,6 +3126,8 @@ function MessageBirdSmsChannelDialog({
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [tab, setTab] = useChannelDialogTab(open);
+  const knowledge = useChannelKnowledge(open, sources);
 
   useEffect(() => {
     if (!open) return;
@@ -2904,6 +3153,7 @@ function MessageBirdSmsChannelDialog({
     const parsed = ConfigureMessageBirdSmsBody.safeParse(payload);
     if (!parsed.success) {
       setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      setTab('channel');
       return;
     }
     setFieldErrors({});
@@ -2914,8 +3164,14 @@ function MessageBirdSmsChannelDialog({
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
-      onOpenChange(false);
+      const knowledgeError = await knowledge.commit(editChannel.id);
       onSaved();
+      if (knowledgeError) {
+        setSubmitError(knowledgeError);
+        setTab('knowledge');
+        return;
+      }
+      onOpenChange(false);
     } catch (err) {
       setSubmitError(toFormError(err, translate(err) || t('errors.updateMessageBirdSms')));
     } finally {
@@ -2925,97 +3181,86 @@ function MessageBirdSmsChannelDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{t('messageBirdSms.editTitle')}</DialogTitle>
-          <DialogDescription>{t('messageBirdSms.editDescription')}</DialogDescription>
-        </DialogHeader>
-        <form
-          className="mt-4 flex flex-col gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submit();
-          }}
-        >
-          <FormField label={t('nameLabel')} hint={t('messageBirdSms.nameHint')}>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. nordic-messagebird"
-              maxLength={120}
+      <DialogContent className={channelDialogContentClass}>
+        <ChannelDialogShell
+          eyebrow={t('knowledge.eyebrow', { kind: t('kindSms'), name: editChannel.name })}
+          title={t('messageBirdSms.editTitle')}
+          description={t('messageBirdSms.editDescription')}
+          tab={tab}
+          onTabChange={setTab}
+          knowledge={knowledge}
+          channelName={name}
+          onSubmit={() => void submit()}
+          submitError={submitError}
+          channelPanel={
+            <div className="flex flex-col gap-4 pt-5">
+              <FormField label={t('nameLabel')} hint={t('messageBirdSms.nameHint')}>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. nordic-messagebird"
+                  maxLength={120}
+                />
+              </FormField>
+              <FormField
+                label={t('messageBirdSms.accessKeyLabel')}
+                hint={t('messageBirdSms.accessKeyHintEdit')}
+              >
+                <Input
+                  type="password"
+                  value={accessKey}
+                  onChange={(e) => setAccessKey(e.target.value)}
+                  placeholder="••••"
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField
+                label={t('messageBirdSms.signingKeyLabel')}
+                hint={t('messageBirdSms.signingKeyHintEdit')}
+              >
+                <Input
+                  type="password"
+                  value={signingKey}
+                  onChange={(e) => setSigningKey(e.target.value)}
+                  placeholder="••••"
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField
+                label={t('messageBirdSms.originatorLabel')}
+                hint={t('messageBirdSms.originatorHint')}
+                error={fieldErrors.originator}
+              >
+                <Input
+                  value={originator}
+                  onChange={(e) => setOriginator(e.target.value)}
+                  placeholder="+15551234567 or AcmeSupport"
+                  maxLength={32}
+                />
+              </FormField>
+              <FormField label={t('agentReplies.label')} hint={t('agentReplies.hintSms')}>
+                <NativeSelect
+                  value={defaultAgentMode}
+                  onChange={(e) =>
+                    setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
+                  }
+                >
+                  <option value="auto">{t('agentReplies.auto')}</option>
+                  <option value="draft_only">{t('agentReplies.draftOnly')}</option>
+                  <option value="off">{t('agentReplies.off')}</option>
+                </NativeSelect>
+              </FormField>
+            </div>
+          }
+          actions={
+            <ChannelDialogActions
+              saving={saving}
+              label={tCommon('saveChanges')}
+              savingLabel={tCommon('saving')}
+              onCancel={() => onOpenChange(false)}
             />
-          </FormField>
-          <FormField
-            label={t('messageBirdSms.accessKeyLabel')}
-            hint={t('messageBirdSms.accessKeyHintEdit')}
-          >
-            <Input
-              type="password"
-              value={accessKey}
-              onChange={(e) => setAccessKey(e.target.value)}
-              placeholder="••••"
-              autoComplete="off"
-            />
-          </FormField>
-          <FormField
-            label={t('messageBirdSms.signingKeyLabel')}
-            hint={t('messageBirdSms.signingKeyHintEdit')}
-          >
-            <Input
-              type="password"
-              value={signingKey}
-              onChange={(e) => setSigningKey(e.target.value)}
-              placeholder="••••"
-              autoComplete="off"
-            />
-          </FormField>
-          <FormField
-            label={t('messageBirdSms.originatorLabel')}
-            hint={t('messageBirdSms.originatorHint')}
-            error={fieldErrors.originator}
-          >
-            <Input
-              value={originator}
-              onChange={(e) => setOriginator(e.target.value)}
-              placeholder="+15551234567 or AcmeSupport"
-              maxLength={32}
-            />
-          </FormField>
-          <FormField label={t('agentReplies.label')} hint={t('agentReplies.hintSms')}>
-            <NativeSelect
-              value={defaultAgentMode}
-              onChange={(e) =>
-                setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
-              }
-            >
-              <option value="auto">{t('agentReplies.auto')}</option>
-              <option value="draft_only">{t('agentReplies.draftOnly')}</option>
-              <option value="off">{t('agentReplies.off')}</option>
-            </NativeSelect>
-          </FormField>
-          {submitError && <FormError detail={submitError} />}
-          <DialogFooter className={dialogFooterClass}>
-            <Button
-              type="button"
-              variant="outline"
-              className={dialogButtonClass}
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-            >
-              {tCommon('cancel')}
-            </Button>
-            <Button
-              type="submit"
-              variant="accent"
-              className={dialogButtonClass}
-              disabled={saving}
-              pending={saving}
-            >
-              {saving ? tCommon('saving') : tCommon('saveChanges')}
-              <span aria-hidden className="ml-1 font-mono">↵</span>
-            </Button>
-          </DialogFooter>
-        </form>
+          }
+        />
       </DialogContent>
     </Dialog>
   );
@@ -3163,6 +3408,8 @@ function AddSmsDialog({
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [tab, setTab] = useChannelDialogTab(open);
+  const knowledge = useChannelKnowledge(open, undefined);
 
   useEffect(() => {
     if (!open) return;
@@ -3188,6 +3435,7 @@ function AddSmsDialog({
       setFieldErrors({
         [usingService ? 'messagingServiceSid' : 'fromNumber']: t('twilioSms.senderRequired'),
       });
+      setTab('channel');
       return;
     }
     const payload: Record<string, unknown> = {
@@ -3202,16 +3450,19 @@ function AddSmsDialog({
     const parsed = ConfigureTwilioSmsBody.safeParse(payload);
     if (!parsed.success) {
       setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      setTab('channel');
       return;
     }
     setFieldErrors({});
     setSaving(true);
     setSubmitError(null);
     try {
-      await api('/v1/conversations/channels/twilio-sms', {
+      const created = await api<{ id: string }>('/v1/conversations/channels/twilio-sms', {
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
+      const knowledgeError = await knowledge.commit(created.id);
+      if (knowledgeError) notify.error(knowledgeError.message);
       onOpenChange(false);
       onSaved();
     } catch (err) {
@@ -3232,16 +3483,19 @@ function AddSmsDialog({
     const parsed = ConfigureMessageBirdSmsBody.safeParse(payload);
     if (!parsed.success) {
       setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      setTab('channel');
       return;
     }
     setFieldErrors({});
     setSaving(true);
     setSubmitError(null);
     try {
-      await api('/v1/conversations/channels/messagebird-sms', {
+      const created = await api<{ id: string }>('/v1/conversations/channels/messagebird-sms', {
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
+      const knowledgeError = await knowledge.commit(created.id);
+      if (knowledgeError) notify.error(knowledgeError.message);
       onOpenChange(false);
       onSaved();
     } catch (err) {
@@ -3259,184 +3513,173 @@ function AddSmsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{t('addSmsDialog.title')}</DialogTitle>
-          <DialogDescription>{t('addSmsDialog.description')}</DialogDescription>
-        </DialogHeader>
-        <form
-          className="mt-4 flex flex-col gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit();
-          }}
-        >
-          <VendorPicker
-            options={[
-              { id: 'twilio', label: t('typeTwilioSms') },
-              { id: 'messagebird', label: t('typeMessageBirdSms') },
-            ]}
-            value={vendor}
-            onChange={(next) => setVendor(next)}
-          />
-          {vendor === 'twilio' ? (
-            <>
-              <FormField label={t('nameLabel')} hint={t('twilioSms.nameHint')}>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. main-twilio"
-                  maxLength={120}
-                  required
-                />
-              </FormField>
-              <FormField
-                label={t('twilioSms.accountSidLabel')}
-                hint={t('twilioSms.accountSidHint')}
-                error={fieldErrors.accountSid}
-              >
-                <Input
-                  value={accountSid}
-                  onChange={(e) => setAccountSid(e.target.value)}
-                  placeholder="AC…"
-                  autoComplete="off"
-                  required
-                />
-              </FormField>
-              <FormField
-                label={t('twilioSms.authTokenLabel')}
-                hint={t('twilioSms.authTokenHintCreate')}
-              >
-                <Input
-                  type="password"
-                  value={authToken}
-                  onChange={(e) => setAuthToken(e.target.value)}
-                  autoComplete="off"
-                  required
-                />
-              </FormField>
-              <FormField label={t('twilioSms.senderLabel')} hint={t('twilioSms.senderHint')}>
+      <DialogContent className={channelDialogContentClass}>
+        <ChannelDialogShell
+          eyebrow={t('knowledge.eyebrowNew', { kind: t('kindSms') })}
+          title={t('addSmsDialog.title')}
+          description={t('addSmsDialog.description')}
+          tab={tab}
+          onTabChange={setTab}
+          knowledge={knowledge}
+          channelName={name}
+          onSubmit={submit}
+          submitError={submitError}
+          channelPanel={
+            <div className="flex flex-col gap-4 pt-5">
+              <VendorPicker
+                options={[
+                  { id: 'twilio', label: t('typeTwilioSms') },
+                  { id: 'messagebird', label: t('typeMessageBirdSms') },
+                ]}
+                value={vendor}
+                onChange={(next) => setVendor(next)}
+              />
+              {vendor === 'twilio' ? (
+                <>
+                  <FormField label={t('nameLabel')} hint={t('twilioSms.nameHint')}>
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="e.g. main-twilio"
+                      maxLength={120}
+                      required
+                    />
+                  </FormField>
+                  <FormField
+                    label={t('twilioSms.accountSidLabel')}
+                    hint={t('twilioSms.accountSidHint')}
+                    error={fieldErrors.accountSid}
+                  >
+                    <Input
+                      value={accountSid}
+                      onChange={(e) => setAccountSid(e.target.value)}
+                      placeholder="AC…"
+                      autoComplete="off"
+                      required
+                    />
+                  </FormField>
+                  <FormField
+                    label={t('twilioSms.authTokenLabel')}
+                    hint={t('twilioSms.authTokenHintCreate')}
+                  >
+                    <Input
+                      type="password"
+                      value={authToken}
+                      onChange={(e) => setAuthToken(e.target.value)}
+                      autoComplete="off"
+                      required
+                    />
+                  </FormField>
+                  <FormField label={t('twilioSms.senderLabel')} hint={t('twilioSms.senderHint')}>
+                    <NativeSelect
+                      value={sender}
+                      onChange={(e) => setSender(e.target.value as TwilioSender)}
+                    >
+                      <option value="number">{t('twilioSms.senderNumber')}</option>
+                      <option value="service">{t('twilioSms.senderService')}</option>
+                    </NativeSelect>
+                  </FormField>
+                  {sender === 'number' ? (
+                    <FormField
+                      label={t('twilioSms.fromNumberLabel')}
+                      hint={t('twilioSms.fromNumberHint')}
+                      error={fieldErrors.fromNumber}
+                    >
+                      <Input
+                        value={fromNumber}
+                        onChange={(e) => setFromNumber(e.target.value)}
+                        placeholder="+15551234567"
+                        maxLength={32}
+                      />
+                    </FormField>
+                  ) : (
+                    <FormField
+                      label={t('twilioSms.messagingServiceSidLabel')}
+                      hint={t('twilioSms.messagingServiceSidHint')}
+                      error={fieldErrors.messagingServiceSid}
+                    >
+                      <Input
+                        value={messagingServiceSid}
+                        onChange={(e) => setMessagingServiceSid(e.target.value)}
+                        placeholder="MG…"
+                        maxLength={64}
+                      />
+                    </FormField>
+                  )}
+                </>
+              ) : (
+                <>
+                  <FormField label={t('nameLabel')} hint={t('messageBirdSms.nameHint')}>
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="e.g. nordic-messagebird"
+                      maxLength={120}
+                      required
+                    />
+                  </FormField>
+                  <FormField
+                    label={t('messageBirdSms.accessKeyLabel')}
+                    hint={t('messageBirdSms.accessKeyHintCreate')}
+                  >
+                    <Input
+                      type="password"
+                      value={accessKey}
+                      onChange={(e) => setAccessKey(e.target.value)}
+                      autoComplete="off"
+                      required
+                    />
+                  </FormField>
+                  <FormField
+                    label={t('messageBirdSms.signingKeyLabel')}
+                    hint={t('messageBirdSms.signingKeyHintCreate')}
+                  >
+                    <Input
+                      type="password"
+                      value={signingKey}
+                      onChange={(e) => setSigningKey(e.target.value)}
+                      autoComplete="off"
+                      required
+                    />
+                  </FormField>
+                  <FormField
+                    label={t('messageBirdSms.originatorLabel')}
+                    hint={t('messageBirdSms.originatorHint')}
+                    error={fieldErrors.originator}
+                  >
+                    <Input
+                      value={originator}
+                      onChange={(e) => setOriginator(e.target.value)}
+                      placeholder="+15551234567 or AcmeSupport"
+                      maxLength={32}
+                      required
+                    />
+                  </FormField>
+                </>
+              )}
+              <FormField label={t('agentReplies.label')} hint={t('agentReplies.hintSms')}>
                 <NativeSelect
-                  value={sender}
-                  onChange={(e) => setSender(e.target.value as TwilioSender)}
+                  value={defaultAgentMode}
+                  onChange={(e) =>
+                    setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
+                  }
                 >
-                  <option value="number">{t('twilioSms.senderNumber')}</option>
-                  <option value="service">{t('twilioSms.senderService')}</option>
+                  <option value="auto">{t('agentReplies.auto')}</option>
+                  <option value="draft_only">{t('agentReplies.draftOnly')}</option>
+                  <option value="off">{t('agentReplies.off')}</option>
                 </NativeSelect>
               </FormField>
-              {sender === 'number' ? (
-                <FormField
-                  label={t('twilioSms.fromNumberLabel')}
-                  hint={t('twilioSms.fromNumberHint')}
-                  error={fieldErrors.fromNumber}
-                >
-                  <Input
-                    value={fromNumber}
-                    onChange={(e) => setFromNumber(e.target.value)}
-                    placeholder="+15551234567"
-                    maxLength={32}
-                  />
-                </FormField>
-              ) : (
-                <FormField
-                  label={t('twilioSms.messagingServiceSidLabel')}
-                  hint={t('twilioSms.messagingServiceSidHint')}
-                  error={fieldErrors.messagingServiceSid}
-                >
-                  <Input
-                    value={messagingServiceSid}
-                    onChange={(e) => setMessagingServiceSid(e.target.value)}
-                    placeholder="MG…"
-                    maxLength={64}
-                  />
-                </FormField>
-              )}
-            </>
-          ) : (
-            <>
-              <FormField label={t('nameLabel')} hint={t('messageBirdSms.nameHint')}>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. nordic-messagebird"
-                  maxLength={120}
-                  required
-                />
-              </FormField>
-              <FormField
-                label={t('messageBirdSms.accessKeyLabel')}
-                hint={t('messageBirdSms.accessKeyHintCreate')}
-              >
-                <Input
-                  type="password"
-                  value={accessKey}
-                  onChange={(e) => setAccessKey(e.target.value)}
-                  autoComplete="off"
-                  required
-                />
-              </FormField>
-              <FormField
-                label={t('messageBirdSms.signingKeyLabel')}
-                hint={t('messageBirdSms.signingKeyHintCreate')}
-              >
-                <Input
-                  type="password"
-                  value={signingKey}
-                  onChange={(e) => setSigningKey(e.target.value)}
-                  autoComplete="off"
-                  required
-                />
-              </FormField>
-              <FormField
-                label={t('messageBirdSms.originatorLabel')}
-                hint={t('messageBirdSms.originatorHint')}
-                error={fieldErrors.originator}
-              >
-                <Input
-                  value={originator}
-                  onChange={(e) => setOriginator(e.target.value)}
-                  placeholder="+15551234567 or AcmeSupport"
-                  maxLength={32}
-                  required
-                />
-              </FormField>
-            </>
-          )}
-          <FormField label={t('agentReplies.label')} hint={t('agentReplies.hintSms')}>
-            <NativeSelect
-              value={defaultAgentMode}
-              onChange={(e) =>
-                setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
-              }
-            >
-              <option value="auto">{t('agentReplies.auto')}</option>
-              <option value="draft_only">{t('agentReplies.draftOnly')}</option>
-              <option value="off">{t('agentReplies.off')}</option>
-            </NativeSelect>
-          </FormField>
-          {submitError && <FormError detail={submitError} />}
-          <DialogFooter className={dialogFooterClass}>
-            <Button
-              type="button"
-              variant="outline"
-              className={dialogButtonClass}
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-            >
-              {tCommon('cancel')}
-            </Button>
-            <Button
-              type="submit"
-              variant="accent"
-              className={dialogButtonClass}
-              disabled={saving}
-              pending={saving}
-            >
-              {saving ? tCommon('creating') : t('addSmsDialog.create')}
-              <span aria-hidden className="ml-1 font-mono">↵</span>
-            </Button>
-          </DialogFooter>
-        </form>
+            </div>
+          }
+          actions={
+            <ChannelDialogActions
+              saving={saving}
+              label={t('addSmsDialog.create')}
+              savingLabel={tCommon('creating')}
+              onCancel={() => onOpenChange(false)}
+            />
+          }
+        />
       </DialogContent>
     </Dialog>
   );
@@ -3848,11 +4091,13 @@ function VapiChannelDialog({
   onOpenChange,
   onSaved,
   editChannel,
+  sources,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
   editChannel: VapiChannelDto;
+  sources: ChannelSources | undefined;
 }) {
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
@@ -3867,6 +4112,8 @@ function VapiChannelDialog({
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [tab, setTab] = useChannelDialogTab(open);
+  const knowledge = useChannelKnowledge(open, sources);
 
   useEffect(() => {
     if (!open) return;
@@ -3908,6 +4155,7 @@ function VapiChannelDialog({
     const parsed = ConfigureVapiBody.safeParse(payload);
     if (!parsed.success) {
       setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      setTab('channel');
       return;
     }
     setFieldErrors({});
@@ -3918,8 +4166,14 @@ function VapiChannelDialog({
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
-      onOpenChange(false);
+      const knowledgeError = await knowledge.commit(editChannel.id);
       onSaved();
+      if (knowledgeError) {
+        setSubmitError(knowledgeError);
+        setTab('knowledge');
+        return;
+      }
+      onOpenChange(false);
     } catch (err) {
       setSubmitError(toFormError(err, translate(err) || t('errors.updateVapi')));
     } finally {
@@ -3929,114 +4183,103 @@ function VapiChannelDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{t('vapi.editTitle')}</DialogTitle>
-          <DialogDescription>{t('vapi.editDescription')}</DialogDescription>
-        </DialogHeader>
-        <form
-          className="mt-4 flex flex-col gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submit();
-          }}
-        >
-          <FormField label={t('nameLabel')} hint={t('vapi.nameHint')}>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. main-vapi"
-              maxLength={120}
+      <DialogContent className={channelDialogContentClass}>
+        <ChannelDialogShell
+          eyebrow={t('knowledge.eyebrow', { kind: t('kindVoice'), name: editChannel.name })}
+          title={t('vapi.editTitle')}
+          description={t('vapi.editDescription')}
+          tab={tab}
+          onTabChange={setTab}
+          knowledge={knowledge}
+          channelName={name}
+          onSubmit={() => void submit()}
+          submitError={submitError}
+          channelPanel={
+            <div className="flex flex-col gap-4 pt-5">
+              <FormField label={t('nameLabel')} hint={t('vapi.nameHint')}>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. main-vapi"
+                  maxLength={120}
+                />
+              </FormField>
+              <FormField label={t('vapi.apiKeyLabel')} hint={t('vapi.apiKeyHintEdit')}>
+                <Input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="••••"
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField
+                label={t('vapi.publicKeyLabel')}
+                hint={t('vapi.publicKeyHintEdit')}
+                error={fieldErrors.publicKey}
+              >
+                <Input
+                  value={publicKey}
+                  onChange={(e) => setPublicKey(e.target.value)}
+                  maxLength={256}
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField label={t('vapi.webhookSecretLabel')} hint={t('vapi.webhookSecretHintEdit')}>
+                <WebhookSecretField
+                  value={webhookSecret}
+                  onChange={setWebhookSecret}
+                  generateLabel={t('vapi.webhookSecretGenerate')}
+                  regenerateLabel={t('vapi.webhookSecretRegenerate')}
+                  emptyHint={t('vapi.webhookSecretKeepHint')}
+                />
+              </FormField>
+              <FormField
+                label={t('vapi.assistantIdLabel')}
+                hint={t('vapi.assistantIdHint')}
+                error={fieldErrors.assistantId}
+              >
+                {assistants.length > 0 ? (
+                  <NativeSelect value={assistantId} onChange={(e) => setAssistantId(e.target.value)}>
+                    {!assistants.some((a) => a.value === assistantId) && assistantId ? (
+                      <option value={assistantId}>{assistantId}</option>
+                    ) : null}
+                    {assistants.map((a) => (
+                      <option key={a.value} value={a.value}>
+                        {optionLabel(a)}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                ) : (
+                  <Input
+                    value={assistantId}
+                    onChange={(e) => setAssistantId(e.target.value)}
+                    maxLength={128}
+                  />
+                )}
+              </FormField>
+              <FormField
+                label={t('vapi.phoneNumberIdLabel')}
+                hint={t('vapi.phoneNumberIdHint')}
+                error={fieldErrors.phoneNumberId}
+              >
+                <Input
+                  value={phoneNumberId}
+                  onChange={(e) => setPhoneNumberId(e.target.value)}
+                  maxLength={128}
+                />
+              </FormField>
+            </div>
+          }
+          actions={
+            <ChannelDialogActions
+              saving={saving}
+              label={tCommon('saveChanges')}
+              savingLabel={tCommon('saving')}
+              onCancel={() => onOpenChange(false)}
             />
-          </FormField>
-          <FormField label={t('vapi.apiKeyLabel')} hint={t('vapi.apiKeyHintEdit')}>
-            <Input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="••••"
-              autoComplete="off"
-            />
-          </FormField>
-          <FormField
-            label={t('vapi.publicKeyLabel')}
-            hint={t('vapi.publicKeyHintEdit')}
-            error={fieldErrors.publicKey}
-          >
-            <Input
-              value={publicKey}
-              onChange={(e) => setPublicKey(e.target.value)}
-              maxLength={256}
-              autoComplete="off"
-            />
-          </FormField>
-          <FormField label={t('vapi.webhookSecretLabel')} hint={t('vapi.webhookSecretHintEdit')}>
-            <WebhookSecretField
-              value={webhookSecret}
-              onChange={setWebhookSecret}
-              generateLabel={t('vapi.webhookSecretGenerate')}
-              regenerateLabel={t('vapi.webhookSecretRegenerate')}
-              emptyHint={t('vapi.webhookSecretKeepHint')}
-            />
-          </FormField>
-          <FormField
-            label={t('vapi.assistantIdLabel')}
-            hint={t('vapi.assistantIdHint')}
-            error={fieldErrors.assistantId}
-          >
-            {assistants.length > 0 ? (
-              <NativeSelect value={assistantId} onChange={(e) => setAssistantId(e.target.value)}>
-                {!assistants.some((a) => a.value === assistantId) && assistantId ? (
-                  <option value={assistantId}>{assistantId}</option>
-                ) : null}
-                {assistants.map((a) => (
-                  <option key={a.value} value={a.value}>
-                    {optionLabel(a)}
-                  </option>
-                ))}
-              </NativeSelect>
-            ) : (
-              <Input
-                value={assistantId}
-                onChange={(e) => setAssistantId(e.target.value)}
-                maxLength={128}
-              />
-            )}
-          </FormField>
-          <FormField
-            label={t('vapi.phoneNumberIdLabel')}
-            hint={t('vapi.phoneNumberIdHint')}
-            error={fieldErrors.phoneNumberId}
-          >
-            <Input
-              value={phoneNumberId}
-              onChange={(e) => setPhoneNumberId(e.target.value)}
-              maxLength={128}
-            />
-          </FormField>
-          {submitError && <FormError detail={submitError} />}
-          <DialogFooter className={dialogFooterClass}>
-            <Button
-              type="button"
-              variant="outline"
-              className={dialogButtonClass}
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-            >
-              {tCommon('cancel')}
-            </Button>
-            <Button
-              type="submit"
-              variant="accent"
-              className={dialogButtonClass}
-              disabled={saving}
-              pending={saving}
-            >
-              {saving ? tCommon('saving') : tCommon('saveChanges')}
-              <span aria-hidden className="ml-1 font-mono">↵</span>
-            </Button>
-          </DialogFooter>
-        </form>
+          }
+        />
       </DialogContent>
     </Dialog>
   );
@@ -4234,11 +4477,13 @@ function ThrellChannelDialog({
   onOpenChange,
   onSaved,
   editChannel,
+  sources,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
   editChannel: ThrellChannelDto;
+  sources: ChannelSources | undefined;
 }) {
   const t = useTranslations('dashboard.channels');
   const tCommon = useTranslations('common');
@@ -4251,6 +4496,8 @@ function ThrellChannelDialog({
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [tab, setTab] = useChannelDialogTab(open);
+  const knowledge = useChannelKnowledge(open, sources);
 
   useEffect(() => {
     if (!open) return;
@@ -4287,6 +4534,7 @@ function ThrellChannelDialog({
     const parsed = ConfigureThrellBody.safeParse(payload);
     if (!parsed.success) {
       setFieldErrors(zodIssuesToFieldErrors(parsed.error.issues, t));
+      setTab('channel');
       return;
     }
     setFieldErrors({});
@@ -4297,8 +4545,14 @@ function ThrellChannelDialog({
         method: 'POST',
         body: JSON.stringify(parsed.data),
       });
-      onOpenChange(false);
+      const knowledgeError = await knowledge.commit(editChannel.id);
       onSaved();
+      if (knowledgeError) {
+        setSubmitError(knowledgeError);
+        setTab('knowledge');
+        return;
+      }
+      onOpenChange(false);
     } catch (err) {
       if (err instanceof ApiError && err.code === 'webhook_conflict') {
         setSaving(false);
@@ -4320,82 +4574,71 @@ function ThrellChannelDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{t('threll.editTitle')}</DialogTitle>
-          <DialogDescription>{t('threll.editDescription')}</DialogDescription>
-        </DialogHeader>
-        <form
-          className="mt-4 flex flex-col gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submit();
-          }}
-        >
-          <FormField label={t('nameLabel')} hint={t('threll.nameHint')}>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. main-threll"
-              maxLength={120}
+      <DialogContent className={channelDialogContentClass}>
+        <ChannelDialogShell
+          eyebrow={t('knowledge.eyebrow', { kind: t('kindVoice'), name: editChannel.name })}
+          title={t('threll.editTitle')}
+          description={t('threll.editDescription')}
+          tab={tab}
+          onTabChange={setTab}
+          knowledge={knowledge}
+          channelName={name}
+          onSubmit={() => void submit()}
+          submitError={submitError}
+          channelPanel={
+            <div className="flex flex-col gap-4 pt-5">
+              <FormField label={t('nameLabel')} hint={t('threll.nameHint')}>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. main-threll"
+                  maxLength={120}
+                />
+              </FormField>
+              <FormField label={t('threll.apiKeyLabel')} hint={t('threll.apiKeyHintEdit')}>
+                <Input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="••••"
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField
+                label={t('threll.workerLabel')}
+                hint={t('threll.workerHint')}
+                error={fieldErrors.workerId}
+              >
+                {workers.length > 0 ? (
+                  <NativeSelect value={workerId} onChange={(e) => setWorkerId(e.target.value)}>
+                    {!workers.some((w) => w.value === workerId) && workerId ? (
+                      <option value={workerId}>{workerId}</option>
+                    ) : null}
+                    {workers.map((worker) => (
+                      <option key={worker.value} value={worker.value}>
+                        {optionLabel(worker)}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                ) : (
+                  <Input
+                    value={workerId}
+                    onChange={(e) => setWorkerId(e.target.value)}
+                    maxLength={128}
+                  />
+                )}
+              </FormField>
+            </div>
+          }
+          actions={
+            <ChannelDialogActions
+              saving={saving}
+              label={tCommon('saveChanges')}
+              savingLabel={tCommon('saving')}
+              onCancel={() => onOpenChange(false)}
             />
-          </FormField>
-          <FormField label={t('threll.apiKeyLabel')} hint={t('threll.apiKeyHintEdit')}>
-            <Input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="••••"
-              autoComplete="off"
-            />
-          </FormField>
-          <FormField
-            label={t('threll.workerLabel')}
-            hint={t('threll.workerHint')}
-            error={fieldErrors.workerId}
-          >
-            {workers.length > 0 ? (
-              <NativeSelect value={workerId} onChange={(e) => setWorkerId(e.target.value)}>
-                {!workers.some((w) => w.value === workerId) && workerId ? (
-                  <option value={workerId}>{workerId}</option>
-                ) : null}
-                {workers.map((worker) => (
-                  <option key={worker.value} value={worker.value}>
-                    {optionLabel(worker)}
-                  </option>
-                ))}
-              </NativeSelect>
-            ) : (
-              <Input
-                value={workerId}
-                onChange={(e) => setWorkerId(e.target.value)}
-                maxLength={128}
-              />
-            )}
-          </FormField>
-          {submitError && <FormError detail={submitError} />}
-          <DialogFooter className={dialogFooterClass}>
-            <Button
-              type="button"
-              variant="outline"
-              className={dialogButtonClass}
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-            >
-              {tCommon('cancel')}
-            </Button>
-            <Button
-              type="submit"
-              variant="accent"
-              className={dialogButtonClass}
-              disabled={saving}
-              pending={saving}
-            >
-              {saving ? tCommon('saving') : tCommon('saveChanges')}
-              <span aria-hidden className="ml-1 font-mono">↵</span>
-            </Button>
-          </DialogFooter>
-        </form>
+          }
+        />
       </DialogContent>
     </Dialog>
   );

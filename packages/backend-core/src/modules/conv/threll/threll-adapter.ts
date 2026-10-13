@@ -236,6 +236,7 @@ export class ThrellAdapter implements ChannelAdapter {
 
     const conversationId = readConversationId(event);
     let endUserId: string | null = null;
+    let toolConversationId: string | undefined;
     if (conversationId) {
       const rows = await this.db
         .select({ endUserId: schema.convConversations.endUserId })
@@ -248,6 +249,7 @@ export class ThrellAdapter implements ChannelAdapter {
         )
         .limit(1);
       endUserId = rows[0]?.endUserId ?? null;
+      if (endUserId) toolConversationId = conversationId;
     }
     if (!endUserId && event.data?.callId) {
       const linked = await this.findConversationByThrellCallId(
@@ -256,6 +258,7 @@ export class ThrellAdapter implements ChannelAdapter {
         event.data.callId,
       );
       endUserId = linked?.endUserId ?? null;
+      if (endUserId) toolConversationId = linked?.id;
     }
     if (!endUserId) {
       return jsonResponse({ result: { error: 'voice channel has no associated end-user — tools unavailable' } });
@@ -264,6 +267,7 @@ export class ThrellAdapter implements ChannelAdapter {
     const dispatched = await this.tools.dispatch({
       orgId: channel.orgId,
       endUserId,
+      conversationId: toolConversationId,
       name,
       args: event.data?.arguments,
     });

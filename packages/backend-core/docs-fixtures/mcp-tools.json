@@ -4749,6 +4749,84 @@
     }
   },
   {
+    "name": "conv_get_channel_sources",
+    "title": "Conv: Get a channel’s knowledge and store sources",
+    "description": "Read which knowledge-base spaces and which commerce/bookings connections the support agent is limited to in conversations from one channel. Empty `kbSpaces` means every self-service document is searchable; an empty `connections` means connections resolve org-wide.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "The channel to read, from conv_list_channels."
+        }
+      },
+      "required": [
+        "channelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "conv_set_channel_sources",
+    "title": "Conv: Set a channel’s knowledge and store sources",
+    "description": "Limit what the support agent can draw on in conversations from one channel — for an org that runs several sites, each with its own widget. `kbSpaceIds` restricts knowledge-base search and reads to documents in those spaces; `connectionIds` pins the commerce and bookings connection used (at most one per domain), and a tool call naming any other connection is refused. Each list replaces the current one; an empty list removes that restriction and an omitted field is left unchanged. Applies to the support agent and to voice tool calls on that channel’s conversations; teammates and admin agents are never restricted. Returns the channel’s sources after the change.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "conv:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "kbSpaceIds": {
+          "description": "KB space ids the support agent may read in this channel’s conversations. Empty removes the restriction; omit to leave it unchanged.",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "connectionIds": {
+          "description": "Commerce and bookings connection ids pinned to this channel, at most one per domain. Empty removes the pins; omit to leave them unchanged.",
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "channelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "The channel to change, from conv_list_channels."
+        }
+      },
+      "required": [
+        "channelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "crm_list_contacts",
     "title": "CRM: List contacts",
     "description": "List contacts in your org, newest-updated first. Filter by company or tag.",

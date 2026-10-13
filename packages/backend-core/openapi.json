@@ -3274,6 +3274,98 @@
         ]
       }
     },
+    "/v1/conversations/channels/sources": {
+      "get": {
+        "operationId": "ConvChannelsController_listSources",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/conversations/channels/{id}/sources": {
+      "get": {
+        "operationId": "ConvChannelsController_getSources",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "ConvChannelsController_setSources",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetChannelSourcesBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ConvChannels"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/conversations/channels/{id}/send-test": {
       "post": {
         "operationId": "ConvChannelsController_sendTestChannel",
@@ -9691,6 +9783,31 @@
         "required": [
           "to"
         ]
+      },
+      "SetChannelSourcesBody": {
+        "type": "object",
+        "properties": {
+          "kbSpaceIds": {
+            "description": "KB space ids the support agent may read in this channel’s conversations. Empty removes the restriction; omit to leave it unchanged.",
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          "connectionIds": {
+            "description": "Commerce and bookings connection ids pinned to this channel, at most one per domain. Empty removes the pins; omit to leave them unchanged.",
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        }
       },
       "ChannelSendTestBody": {
         "type": "object",

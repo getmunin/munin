@@ -224,6 +224,7 @@ export interface ConversationQueueItem extends ConversationSummary {
 
 export interface ConversationDetail extends ConversationSummary {
   messages: MessageDto[];
+  channelName: string | null;
   assistantName: string | null;
   endUserLocale: string | null;
   contactEmail: string | null;
@@ -1033,6 +1034,7 @@ export class ConvService {
       .select({
         conv: schema.convConversations,
         channelType: schema.convChannels.type,
+        channelName: schema.convChannels.name,
         assistantName: schema.assistants.name,
         endUserLocale: sql<string | null>`(${schema.endUsers.metadata}->>'locale')`.as('end_user_locale'),
         endUserEmail: schema.endUsers.email,
@@ -1141,6 +1143,7 @@ export class ConvService {
           this.attachments.hydrateRaw(r.msg.orgId, r.msg.attachments),
         ),
       ),
+      channelName: row.channelName ?? null,
       assistantName: row.assistantName ?? null,
       endUserLocale: row.endUserLocale ?? null,
       contactEmail: row.contactEmail ?? row.endUserEmail ?? null,

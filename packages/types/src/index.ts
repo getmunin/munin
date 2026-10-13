@@ -17,6 +17,8 @@ export {
   type CreateWidgetBodyT,
   UpdateWidgetBody,
   type UpdateWidgetBodyT,
+  SetChannelSourcesBody,
+  type SetChannelSourcesBodyT,
   SetupEmailBody,
   type SetupEmailBodyT,
   SendEmailTestBody,

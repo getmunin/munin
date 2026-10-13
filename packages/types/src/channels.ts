@@ -90,6 +90,25 @@ export const UpdateWidgetBody = z.object({
 
 export type UpdateWidgetBodyT = z.infer<typeof UpdateWidgetBody>;
 
+export const SetChannelSourcesBody = z.object({
+  kbSpaceIds: z
+    .array(z.string().min(1).max(64))
+    .max(50)
+    .optional()
+    .describe(
+      'KB space ids the support agent may read in this channel’s conversations. Empty removes the restriction; omit to leave it unchanged.',
+    ),
+  connectionIds: z
+    .array(z.string().min(1).max(64))
+    .max(10)
+    .optional()
+    .describe(
+      'Commerce and bookings connection ids pinned to this channel, at most one per domain. Empty removes the pins; omit to leave them unchanged.',
+    ),
+});
+
+export type SetChannelSourcesBodyT = z.infer<typeof SetChannelSourcesBody>;
+
 export const SetupEmailBody = z.object({
   channelId: z.string().optional(),
   name: z.string().min(1).max(120),

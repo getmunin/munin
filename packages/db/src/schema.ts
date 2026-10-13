@@ -2662,6 +2662,52 @@ export const connectorConnections = pgTable(
   }),
 );
 
+export const convChannelKbSpaces = pgTable(
+  'conv_channel_kb_spaces',
+  {
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    channelId: text('channel_id')
+      .notNull()
+      .references(() => convChannels.id, { onDelete: 'cascade' }),
+    spaceId: text('space_id')
+      .notNull()
+      .references(() => kbSpaces.id, { onDelete: 'cascade' }),
+    createdAt,
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.channelId, t.spaceId] }),
+    orgIdx: index('conv_channel_kb_spaces_org_idx').on(t.orgId),
+  }),
+);
+
+export const convChannelConnections = pgTable(
+  'conv_channel_connections',
+  {
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    channelId: text('channel_id')
+      .notNull()
+      .references(() => convChannels.id, { onDelete: 'cascade' }),
+    connectionId: text('connection_id')
+      .notNull()
+      .references(() => connectorConnections.id),
+    domain: varchar('domain', { length: 32 }).notNull(),
+    createdAt,
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.channelId, t.connectionId] }),
+    channelDomainUq: uniqueIndex('conv_channel_connections_channel_domain_uq').on(
+      t.channelId,
+      t.domain,
+    ),
+    connectionIdx: index('conv_channel_connections_connection_idx').on(t.connectionId),
+    orgIdx: index('conv_channel_connections_org_idx').on(t.orgId),
+  }),
+);
+
 // One-time links for entering an integration's secret credentials out-of-band
 // (a dashboard form) instead of pasting them into an agent conversation.
 // target_type routes completion to the owning module's handler (connector,

@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -33,6 +34,10 @@ import { ThrellAdminService } from '../modules/conv/threll/threll-admin.service.
 import { ChannelAdminService } from '../modules/conv/channels/channel-admin.service.ts';
 import { ChannelCredentialService } from '../modules/conv/channels/channel-credential.service.ts';
 import {
+  ChannelSourcesService,
+  type ChannelSourcesDto,
+} from '../modules/conv/channels/channel-sources.service.ts';
+import {
   CreateWidgetBody as CreateWidgetSchema,
   UpdateWidgetBody as UpdateWidgetSchema,
   SetupEmailBody as SetupEmailSchema,
@@ -49,6 +54,7 @@ import {
   ConfigureChannelBody as ConfigureChannelSchema,
   ChannelVoiceCallBody as ChannelVoiceCallSchema,
   ChannelSendTestBody as ChannelSendTestSchema,
+  SetChannelSourcesBody as SetChannelSourcesSchema,
 } from '@getmunin/types';
 import { z } from 'zod';
 
@@ -63,6 +69,8 @@ class ApplyChannelCredentialsBody extends createZodDto(
 class ChannelVoiceCallBody extends createZodDto(ChannelVoiceCallSchema) {}
 
 class ChannelSendTestBody extends createZodDto(ChannelSendTestSchema) {}
+
+class SetChannelSourcesBody extends createZodDto(SetChannelSourcesSchema) {}
 
 class CreateWidgetBody extends createZodDto(CreateWidgetSchema) {}
 
@@ -110,6 +118,7 @@ export class ConvChannelsController {
     private readonly threllTools: ThrellAdminService,
     private readonly channelAdmin: ChannelAdminService,
     private readonly channelCredentials: ChannelCredentialService,
+    private readonly channelSources: ChannelSourcesService,
   ) {}
 
   @Get('vendors')
@@ -155,6 +164,25 @@ export class ConvChannelsController {
   @HttpCode(200)
   async callChannel(@Param('id') id: string, @Body() input: ChannelVoiceCallBody): Promise<unknown> {
     return this.channelAdmin.call({ channelId: id, to: input.to, customerName: input.customerName });
+  }
+
+  @Get('sources')
+  async listSources(): Promise<{ items: ChannelSourcesDto[] }> {
+    const items = await this.channelSources.list();
+    return { items };
+  }
+
+  @Get(':id/sources')
+  getSources(@Param('id') id: string): Promise<ChannelSourcesDto> {
+    return this.channelSources.get(id);
+  }
+
+  @Put(':id/sources')
+  setSources(
+    @Param('id') id: string,
+    @Body() input: SetChannelSourcesBody,
+  ): Promise<ChannelSourcesDto> {
+    return this.channelSources.set({ channelId: id, ...input });
   }
 
   @Post(':id/send-test')

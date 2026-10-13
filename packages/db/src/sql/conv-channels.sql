@@ -74,3 +74,28 @@ CREATE POLICY tenant_isolation ON conv_widget_email_fallbacks
     OR (org_id = app_org_id() AND app_end_user_id() = '')
   )
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
+-- Channel sources (KB spaces and connector connections a channel's
+-- self-service agent may draw on). Readable by every org caller, end-user
+-- agents included — the tenancy layer and resolveScope read them while acting
+-- for an end user, and which space or store a channel uses is not secret.
+-- Only org members write them.
+ALTER TABLE conv_channel_kb_spaces ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conv_channel_kb_spaces FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON conv_channel_kb_spaces;
+CREATE POLICY tenant_isolation ON conv_channel_kb_spaces
+  USING (app_bypass_rls() OR org_id = app_org_id())
+  WITH CHECK (
+    app_bypass_rls()
+    OR (org_id = app_org_id() AND app_end_user_id() = '')
+  );
+
+ALTER TABLE conv_channel_connections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conv_channel_connections FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON conv_channel_connections;
+CREATE POLICY tenant_isolation ON conv_channel_connections
+  USING (app_bypass_rls() OR org_id = app_org_id())
+  WITH CHECK (
+    app_bypass_rls()
+    OR (org_id = app_org_id() AND app_end_user_id() = '')
+  );

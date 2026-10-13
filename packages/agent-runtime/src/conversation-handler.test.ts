@@ -24,6 +24,7 @@ function buildPrompts(
   overrides: Partial<{
     system: string;
     channels: Record<string, string>;
+    channelInstances: Record<string, string>;
     companyContext: string;
     voiceSystem: string;
     voiceOpenerCold: string;
@@ -34,6 +35,8 @@ function buildPrompts(
   return {
     system: () => overrides.system ?? 'sys',
     channel: (kind: string) => channels[kind] ?? channels['default'] ?? '',
+    channelInstance: (channelId: string) =>
+      Promise.resolve(overrides.channelInstances?.[channelId] ?? ''),
     companyContext: () => overrides.companyContext ?? '',
     voiceSystem: () => overrides.voiceSystem ?? '',
     voiceOpener: (hasPriorAgentTurn: boolean) =>
@@ -2199,6 +2202,90 @@ describe('createConversationHandler', () => {
     const composed = captured[0] ?? '';
     expect(composed).toContain('BASE_SYSTEM');
     expect(composed).toContain('EMAIL_DESCRIPTOR');
+  });
+
+  it('adds the channel name, id and per-channel descriptor after the channel-type descriptor', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({
+            channelType: 'chat',
+            channelId: 'cch_acme',
+            channelName: 'Acme chat',
+          }),
+        ),
+      ),
+    });
+    const captured: string[] = [];
+    const stubProvider: Provider = ({ messages }) => {
+      captured.push(...messages.filter((m) => m.role === 'system').map((m) => m.content ?? ''));
+      return Promise.resolve({
+        message: { role: 'assistant', content: 'ok' },
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        finishReason: 'stop',
+      });
+    };
+
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts({
+        system: 'BASE_SYSTEM',
+        channels: { chat: 'CHAT_DESCRIPTOR' },
+        channelInstances: {
+          cch_acme: 'ACME_DESCRIPTOR',
+          cch_globex: 'GLOBEX_DESCRIPTOR',
+        },
+      }),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: stubProvider,
+    });
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    const composed = captured[0] ?? '';
+    expect(composed).toContain(
+      'CHAT_DESCRIPTOR\n\n[Channel]\nThis conversation arrived on the channel "Acme chat" (channelId: cch_acme).\n\nACME_DESCRIPTOR',
+    );
+    expect(composed).not.toContain('GLOBEX_DESCRIPTOR');
+  });
+
+  it('names the channel even when it has no per-channel descriptor', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() =>
+        Promise.resolve(
+          buildConversation({ channelType: 'chat', channelId: 'cch_plain', channelName: null }),
+        ),
+      ),
+    });
+    const captured: string[] = [];
+    const stubProvider: Provider = ({ messages }) => {
+      captured.push(...messages.filter((m) => m.role === 'system').map((m) => m.content ?? ''));
+      return Promise.resolve({
+        message: { role: 'assistant', content: 'ok' },
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        finishReason: 'stop',
+      });
+    };
+
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts({ system: 'BASE_SYSTEM' }),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: stubProvider,
+    });
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    const composed = captured[0] ?? '';
+    expect(composed).toMatch(/\[Channel\]\nThis conversation arrived on channelId: cch_plain\.$/m);
   });
 
   it('fences the company context so a poisoned website summary cannot add system-prompt directives', async () => {

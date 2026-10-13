@@ -34,7 +34,12 @@ import {
   type MessageReceivedBusEvent,
   type RealtimeBusSubscription,
 } from '@getmunin/backend-core';
-import { getCurrentContext, parseEnvBool, safeFetchCompat } from '@getmunin/core';
+import {
+  getCurrentContext,
+  isChannelInstancePromptSlug,
+  parseEnvBool,
+  safeFetchCompat,
+} from '@getmunin/core';
 import {
   composeToolHandles,
   createConversationHandler,
@@ -549,7 +554,7 @@ export class AgentHostRunner
           sweeper.sweep();
         },
         onKbDocumentChanged: (event: KbDocumentChangedBusEvent) => {
-          if (event.type === 'deleted') return;
+          if (event.type === 'deleted' && !isChannelInstancePromptSlug(event.slug)) return;
           if (!event.slug || !prompts.isPromptDocument(event.slug)) return;
           void prompts.refresh(event.slug);
         },

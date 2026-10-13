@@ -348,6 +348,7 @@ export class VapiAdapter implements ChannelAdapter {
 
     const binding = this.readVerifiedCallBinding(channel, msg);
     let endUserId: string | null = null;
+    let conversationId: string | undefined;
     if (binding?.endUserId) {
       const rows = await this.db
         .select({ endUserId: schema.convConversations.endUserId })
@@ -359,7 +360,10 @@ export class VapiAdapter implements ChannelAdapter {
           ),
         )
         .limit(1);
-      if (rows[0]?.endUserId === binding.endUserId) endUserId = binding.endUserId;
+      if (rows[0]?.endUserId === binding.endUserId) {
+        endUserId = binding.endUserId;
+        conversationId = binding.conversationId;
+      }
     }
     if (!endUserId) {
       const message = 'voice call has no verified end-user — tools unavailable';
@@ -374,6 +378,7 @@ export class VapiAdapter implements ChannelAdapter {
     const results = await this.tools.dispatch({
       orgId: channel.orgId,
       endUserId,
+      conversationId,
       toolCalls,
     });
     return jsonResponse({ results });

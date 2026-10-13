@@ -28,6 +28,8 @@ import {
 } from './channels/channel-admin.ts';
 import { ChannelAdminService } from './channels/channel-admin.service.ts';
 import { ChannelAdminTools } from './channels/channel-admin.tools.ts';
+import { ChannelSourcesService } from './channels/channel-sources.service.ts';
+import { ChannelSourcesTools } from './channels/channel-sources.tools.ts';
 import { ChannelCredentialService } from './channels/channel-credential.service.ts';
 import { ChannelReactivationService } from './channels/channel-reactivation.service.ts';
 import { ChannelCredentialTools } from './channels/channel-credential.tools.ts';
@@ -175,6 +177,8 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
     MessageBirdSmsAdminProvider,
     ChannelAdminService,
     ChannelAdminTools,
+    ChannelSourcesService,
+    ChannelSourcesTools,
     {
       provide: CHANNEL_ADMIN_PROVIDERS,
       useFactory: (
@@ -226,6 +230,8 @@ import { RedactBackfillService } from './redact-backfill.service.ts';
     ThrellAdminService,
     ChannelAdminService,
     ChannelAdminTools,
+    ChannelSourcesService,
+    ChannelSourcesTools,
     ChannelCredentialService,
     VoiceCallbackService,
     VoiceCallbackTools,

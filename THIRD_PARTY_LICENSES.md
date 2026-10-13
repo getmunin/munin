@@ -5663,7 +5663,7 @@ THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## @next/env@16.3.6
+## @next/env@16.3.8
 
 > Next.js dotenv file loading
 - Homepage: https://github.com/vercel/next.js#readme
@@ -13322,7 +13322,7 @@ SOFTWARE.
 
 ---
 
-## baseline-browser-mapping@2.11.26
+## baseline-browser-mapping@2.11.28
 
 > A library for obtaining browser versions with their maximum supported Baseline feature set and Widely Available status.
 - Homepage: https://github.com/web-platform-dx/baseline-browser-mapping#readme
@@ -13975,7 +13975,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## caniuse-lite@1.0.30001814
+## caniuse-lite@1.0.30001816
 
 > A smaller version of caniuse-db, with only the essentials!
 - Homepage: https://github.com/browserslist/caniuse-lite#readme
@@ -23853,7 +23853,7 @@ _No LICENSE file shipped in the package; refer to homepage above._
 
 ---
 
-## next@16.3.6
+## next@16.3.8
 
 > The React Framework
 - Homepage: https://nextjs.org
@@ -28162,7 +28162,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## set-cookie-parser@3.1.2
+## set-cookie-parser@3.1.2, 3.1.3
 
 > Parses set-cookie headers into objects
 - Homepage: https://github.com/nfriedly/set-cookie-parser
@@ -30019,7 +30019,7 @@ SOFTWARE.
 
 ---
 
-## tldts@7.4.16
+## tldts@7.4.18
 
 > Library to work against complex domain names, subdomains and URIs.
 - Homepage: https://github.com/remusao/tldts#readme
@@ -30044,7 +30044,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTH
 
 ---
 
-## tldts-core@7.4.16
+## tldts-core@7.4.18
 
 > tldts core primitives (internal module)
 - Homepage: https://github.com/remusao/tldts#readme

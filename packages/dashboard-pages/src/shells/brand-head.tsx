@@ -4,6 +4,7 @@ import Image from 'next/image';
 import type { ReactNode } from 'react';
 import { cn } from '@getmunin/ui';
 import { Link } from '../i18n-navigation';
+import { logoDarkClass } from '../lib/brand-logo';
 
 export function BrandMark({
   href,
@@ -56,7 +57,7 @@ export function BrandHead({
           aria-hidden
           width={logoSize}
           height={logoSize}
-          className={cn('block object-contain', logoClassName)}
+          className={cn('block object-contain', logoDarkClass(logoSrc), logoClassName)}
         />
       </BrandMark>
       {headSlot ? (

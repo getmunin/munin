@@ -248,12 +248,12 @@ function EditorialHeader({ flow, clientName, userName, resourceName }: Editorial
           {t('wrongAccount.eyebrow')}
         </div>
         <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em] min-w-0 [overflow-wrap:anywhere] [word-break:break-word]">
-          {t.rich('wrongAccount.title', { em: (chunks) => <em className="not-italic text-ink italic">{chunks}</em> })}
+          {t.rich('wrongAccount.title', { em: (chunks) => <em className="not-italic text-ink italic dark:text-foreground">{chunks}</em> })}
         </h1>
-        <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
+        <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft [overflow-wrap:anywhere] dark:text-foreground/80">
           {t.rich('wrongAccount.sub', {
-            client: () => <em className="not-italic font-medium text-ink italic">{clientName}</em>,
-            user: () => <em className="not-italic font-medium text-ink italic">{userName || '…'}</em>,
+            client: () => <em className="not-italic font-medium text-ink italic dark:text-foreground">{clientName}</em>,
+            user: () => <em className="not-italic font-medium text-ink italic dark:text-foreground">{userName || '…'}</em>,
           })}
         </p>
       </header>
@@ -266,11 +266,11 @@ function EditorialHeader({ flow, clientName, userName, resourceName }: Editorial
           {t('expired.eyebrow')}
         </div>
         <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em] min-w-0 [overflow-wrap:anywhere] [word-break:break-word]">
-          {t.rich('expired.title', { em: (chunks) => <em className="not-italic text-ink italic">{chunks}</em> })}
+          {t.rich('expired.title', { em: (chunks) => <em className="not-italic text-ink italic dark:text-foreground">{chunks}</em> })}
         </h1>
-        <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
+        <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft [overflow-wrap:anywhere] dark:text-foreground/80">
           {t.rich('expired.sub', {
-            client: () => <em className="not-italic font-medium text-ink italic">{clientName}</em>,
+            client: () => <em className="not-italic font-medium text-ink italic dark:text-foreground">{clientName}</em>,
           })}
         </p>
       </header>
@@ -283,12 +283,12 @@ function EditorialHeader({ flow, clientName, userName, resourceName }: Editorial
           {t('blocked.eyebrow')}
         </div>
         <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em] min-w-0 [overflow-wrap:anywhere] [word-break:break-word]">
-          {t.rich('blocked.title', { em: (chunks) => <em className="not-italic text-ink italic">{chunks}</em> })}
+          {t.rich('blocked.title', { em: (chunks) => <em className="not-italic text-ink italic dark:text-foreground">{chunks}</em> })}
         </h1>
-        <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
+        <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft [overflow-wrap:anywhere] dark:text-foreground/80">
           {t.rich('blocked.sub', {
-            client: () => <em className="not-italic font-medium text-ink italic">{clientName}</em>,
-            resource: () => <em className="not-italic font-medium text-ink italic">{resourceName}</em>,
+            client: () => <em className="not-italic font-medium text-ink italic dark:text-foreground">{clientName}</em>,
+            resource: () => <em className="not-italic font-medium text-ink italic dark:text-foreground">{resourceName}</em>,
           })}
         </p>
       </header>
@@ -298,16 +298,16 @@ function EditorialHeader({ flow, clientName, userName, resourceName }: Editorial
     return (
       <header className="mb-6">
         <div className="mb-4 flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-ink-mute">
-          <span className="text-cobalt">✓</span>
+          <span className="text-cobalt dark:text-cobalt-soft">✓</span>
           <span>{t('granted.eyebrow')}</span>
         </div>
         <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em] min-w-0 [overflow-wrap:anywhere] [word-break:break-word]">
-          {t.rich('granted.title', { em: (chunks) => <em className="not-italic text-cobalt italic">{chunks}</em> })}
+          {t.rich('granted.title', { em: (chunks) => <em className="not-italic text-cobalt italic dark:text-cobalt-soft">{chunks}</em> })}
         </h1>
-        <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
+        <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft [overflow-wrap:anywhere] dark:text-foreground/80">
           {t.rich('granted.sub', {
-            client: () => <em className="not-italic font-medium text-ink italic">{clientName}</em>,
-            strong: (chunks) => <strong className="font-medium text-ink">{chunks}</strong>,
+            client: () => <em className="not-italic font-medium text-ink italic dark:text-foreground">{clientName}</em>,
+            strong: (chunks) => <strong className="font-medium text-ink dark:text-foreground">{chunks}</strong>,
           })}
         </p>
       </header>
@@ -320,12 +320,12 @@ function EditorialHeader({ flow, clientName, userName, resourceName }: Editorial
           {t('denied.eyebrow')}
         </div>
         <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em] min-w-0 [overflow-wrap:anywhere] [word-break:break-word]">
-          {t.rich('denied.title', { em: (chunks) => <em className="not-italic text-ink italic">{chunks}</em> })}
+          {t.rich('denied.title', { em: (chunks) => <em className="not-italic text-ink italic dark:text-foreground">{chunks}</em> })}
         </h1>
-        <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
+        <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft [overflow-wrap:anywhere] dark:text-foreground/80">
           {t.rich('denied.sub', {
-            client: () => <em className="not-italic font-medium text-ink italic">{clientName}</em>,
-            strong: (chunks) => <strong className="font-medium text-ink">{chunks}</strong>,
+            client: () => <em className="not-italic font-medium text-ink italic dark:text-foreground">{clientName}</em>,
+            strong: (chunks) => <strong className="font-medium text-ink dark:text-foreground">{chunks}</strong>,
           })}
         </p>
       </header>
@@ -337,12 +337,12 @@ function EditorialHeader({ flow, clientName, userName, resourceName }: Editorial
         {t('eyebrow')}
       </div>
       <h1 className="font-serif text-[clamp(46px,6.6vw,72px)] font-normal leading-[0.98] tracking-[-0.02em] min-w-0 [overflow-wrap:anywhere] [word-break:break-word]">
-        {t.rich('title', { client: () => <em className="not-italic text-cobalt italic">{clientName}</em> })}
+        {t.rich('title', { client: () => <em className="not-italic text-cobalt italic dark:text-cobalt-soft">{clientName}</em> })}
       </h1>
-      <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft">
+      <p className="mt-4 max-w-[54ch] text-base leading-relaxed text-ink-soft dark:text-foreground/80">
         {t.rich(resourceName ? 'resourceLede' : 'lede', {
-          client: () => <em className="not-italic font-medium text-ink italic">{clientName}</em>,
-          resource: () => <em className="not-italic font-medium text-ink italic">{resourceName}</em>,
+          client: () => <em className="not-italic font-medium text-ink italic dark:text-foreground">{clientName}</em>,
+          resource: () => <em className="not-italic font-medium text-ink italic dark:text-foreground">{resourceName}</em>,
         })}
       </p>
     </header>
@@ -388,7 +388,7 @@ function RequestPane({
           <span className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-mute">
             {t('scopesLabel')}
           </span>
-          <span className="font-mono text-[11px] text-ink-soft">
+          <span className="font-mono text-[11px] text-ink-soft dark:text-foreground/80">
             {permissions
               ? t('resourceScopesCount', { scopes: permissions.length })
               : t('scopesCount', { modules: groupedScopes.length, scopes: totalScopeCount })}
@@ -397,7 +397,7 @@ function RequestPane({
 
         {permissions ? (
           permissions.length === 0 ? (
-            <p className="pb-4 text-sm text-ink-soft">{t('noResourcePermissions')}</p>
+            <p className="pb-4 text-sm text-ink-soft dark:text-foreground/80">{t('noResourcePermissions')}</p>
           ) : (
             <ul className="border-t-[1px] border-rule-soft dark:border-rule-on-dark">
               {permissions.map((permission) => (
@@ -406,7 +406,7 @@ function RequestPane({
             </ul>
           )
         ) : groupedScopes.length === 0 ? (
-          <p className="pb-4 text-sm text-ink-soft">{t('noModuleScopes')}</p>
+          <p className="pb-4 text-sm text-ink-soft dark:text-foreground/80">{t('noModuleScopes')}</p>
         ) : (
           <ul className="border-t-[1px] border-rule-soft dark:border-rule-on-dark">
             {groupedScopes.map((g) => (
@@ -491,7 +491,7 @@ function formatRegistered(iso: string | undefined): string | null {
 function TrustTimeline({ clientName }: { clientName: string }) {
   const t = useTranslations('dashboard.oauthConsent');
   return (
-    <div className="flex items-center gap-3 border-b-[1px] border-rule-soft bg-paper px-7 py-3 text-[13px] leading-snug text-ink-soft dark:border-rule-on-dark dark:bg-card">
+    <div className="flex items-center gap-3 border-b-[1px] border-rule-soft bg-paper px-7 py-3 text-[13px] leading-snug text-ink-soft dark:border-rule-on-dark dark:bg-card dark:text-foreground/80">
       <span className="text-ink-mute">
         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="9" />
@@ -500,7 +500,7 @@ function TrustTimeline({ clientName }: { clientName: string }) {
       </span>
       <span className="min-w-0 [overflow-wrap:anywhere]">
         {t.rich('trustFirst', {
-          client: () => <strong className="font-semibold text-ink">{clientName}</strong>,
+          client: () => <strong className="font-semibold text-ink dark:text-foreground">{clientName}</strong>,
         })}
       </span>
     </div>
@@ -519,8 +519,8 @@ function PermissionRow({ group }: { group: ConsentScopeGroup }) {
   return (
     <li className="grid grid-cols-[1fr_auto] items-center gap-x-4 border-t-[1px] border-rule-soft py-3.5 first:border-t-0 dark:border-rule-on-dark">
       <div className="min-w-0">
-        <div className="text-[15px] font-semibold text-ink [overflow-wrap:anywhere]">{title}</div>
-        <div className="mt-1 text-[13px] leading-snug text-ink-soft [overflow-wrap:anywhere]">
+        <div className="text-[15px] font-semibold text-ink [overflow-wrap:anywhere] dark:text-foreground">{title}</div>
+        <div className="mt-1 text-[13px] leading-snug text-ink-soft [overflow-wrap:anywhere] dark:text-foreground/80">
           {description}
         </div>
       </div>
@@ -537,9 +537,9 @@ function ResourcePermissionRow({ permission }: { permission: OAuthResourcePermis
   return (
     <li className="grid grid-cols-[1fr_auto] items-center gap-x-4 border-t-[1px] border-rule-soft py-3.5 first:border-t-0 dark:border-rule-on-dark">
       <div className="min-w-0">
-        <div className="text-[15px] font-semibold text-ink">{permission.label}</div>
+        <div className="text-[15px] font-semibold text-ink dark:text-foreground">{permission.label}</div>
         {permission.description && (
-          <div className="mt-1 text-[13px] leading-snug text-ink-soft">{permission.description}</div>
+          <div className="mt-1 text-[13px] leading-snug text-ink-soft dark:text-foreground/80">{permission.description}</div>
         )}
       </div>
       <div className="inline-flex shrink-0 items-center gap-1.5">
@@ -565,7 +565,7 @@ function ExpiredPane({ clientInfo, clientId, displayName }: ExpiredPaneProps) {
         <div className="font-serif text-[24px] tracking-[-0.01em] [overflow-wrap:anywhere]">
           {t('expired.panelTitle')}
         </div>
-        <div className="max-w-[52ch] text-sm leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
+        <div className="max-w-[52ch] text-sm leading-relaxed text-ink-soft [overflow-wrap:anywhere] dark:text-foreground/80">
           {t('expired.body')}
         </div>
       </div>
@@ -573,7 +573,7 @@ function ExpiredPane({ clientInfo, clientId, displayName }: ExpiredPaneProps) {
       <div className="flex flex-wrap items-center gap-3 border-t-[1px] border-rule-soft px-7 py-5 dark:border-rule-on-dark">
         <a
           href="/dashboard"
-          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-transparent px-6 font-sans text-[15px] font-medium text-ink no-underline transition hover:bg-ink hover:text-paper"
+          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-transparent px-6 font-sans text-[15px] font-medium text-ink no-underline transition hover:bg-ink hover:text-paper dark:border-paper dark:text-paper dark:hover:bg-paper dark:hover:text-ink"
         >
           {t('expired.dashboard')}
         </a>
@@ -617,10 +617,10 @@ function WrongAccountPane({
         <div className="font-serif text-[24px] tracking-[-0.01em] [overflow-wrap:anywhere]">
           {t('wrongAccount.panelTitle')}
         </div>
-        <div className="max-w-[52ch] text-sm leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
+        <div className="max-w-[52ch] text-sm leading-relaxed text-ink-soft [overflow-wrap:anywhere] dark:text-foreground/80">
           {t.rich('wrongAccount.body', {
-            org: () => <code className="font-mono text-[12.5px] text-ink">{orgId}</code>,
-            user: () => <b className="font-semibold text-ink">{userName || '…'}</b>,
+            org: () => <code className="font-mono text-[12.5px] text-ink dark:text-foreground">{orgId}</code>,
+            user: () => <b className="font-semibold text-ink dark:text-foreground">{userName || '…'}</b>,
           })}
         </div>
       </div>
@@ -636,7 +636,7 @@ function WrongAccountPane({
           type="button"
           onClick={onSwitchAccount}
           disabled={disabled}
-          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-ink px-6 font-sans text-[15px] font-medium text-paper transition hover:bg-cobalt hover:border-cobalt disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-ink px-6 font-sans text-[15px] font-medium text-paper transition hover:bg-cobalt hover:border-cobalt dark:border-paper dark:bg-paper dark:text-ink dark:hover:border-cobalt-soft dark:hover:bg-cobalt-soft dark:hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
         >
           {switching ? t('wrongAccount.switching') : t('wrongAccount.switch')}
         </button>
@@ -644,7 +644,7 @@ function WrongAccountPane({
           type="button"
           onClick={onCancel}
           disabled={disabled}
-          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-transparent px-6 font-sans text-[15px] font-medium text-ink transition hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-transparent px-6 font-sans text-[15px] font-medium text-ink transition hover:bg-ink hover:text-paper dark:border-paper dark:text-paper dark:hover:bg-paper dark:hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
         >
           {busy === 'deny' ? t('blocked.cancelling') : t('blocked.cancel')}
         </button>
@@ -683,7 +683,7 @@ function BlockedPane({
             resource: () => <em className="not-italic italic">{denial.resourceName}</em>,
           })}
         </div>
-        <div className="max-w-[52ch] text-sm leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
+        <div className="max-w-[52ch] text-sm leading-relaxed text-ink-soft [overflow-wrap:anywhere] dark:text-foreground/80">
           {t(`blocked.reasons.${denial.reason}`)}
         </div>
         <div className="max-w-[52ch] text-[13px] leading-relaxed text-ink-mute">
@@ -702,13 +702,13 @@ function BlockedPane({
           type="button"
           onClick={onCancel}
           disabled={busy !== null}
-          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-ink px-6 font-sans text-[15px] font-medium text-paper transition hover:bg-cobalt hover:border-cobalt disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-ink px-6 font-sans text-[15px] font-medium text-paper transition hover:bg-cobalt hover:border-cobalt dark:border-paper dark:bg-paper dark:text-ink dark:hover:border-cobalt-soft dark:hover:bg-cobalt-soft dark:hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
         >
           {busy === 'deny' ? t('blocked.cancelling') : t('blocked.cancel')}
         </button>
         <a
           href="/dashboard"
-          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-transparent px-6 font-sans text-[15px] font-medium text-ink no-underline transition hover:bg-ink hover:text-paper"
+          className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-transparent px-6 font-sans text-[15px] font-medium text-ink no-underline transition hover:bg-ink hover:text-paper dark:border-paper dark:text-paper dark:hover:bg-paper dark:hover:text-ink"
         >
           {t('blocked.dashboard')}
         </a>
@@ -720,8 +720,8 @@ function BlockedPane({
 function ScopePill({ kind, label }: { kind: 'read' | 'write'; label: string }) {
   const cls =
     kind === 'write'
-      ? 'border-cobalt text-cobalt bg-cobalt/5'
-      : 'border-rule-soft text-ink-soft';
+      ? 'border-cobalt text-cobalt bg-cobalt/5 dark:border-cobalt-soft dark:text-cobalt-soft dark:bg-cobalt-soft/10'
+      : 'border-rule-soft text-ink-soft dark:border-rule-on-dark dark:text-foreground/80';
   return (
     <span
       className={`whitespace-nowrap rounded-full border-[1px] px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.1em] ${cls}`}
@@ -734,13 +734,13 @@ function ScopePill({ kind, label }: { kind: 'read' | 'write'; label: string }) {
 function ReassuranceBlock({ displayName, userName }: { displayName: string; userName: string }) {
   const t = useTranslations('dashboard.oauthConsent');
   return (
-    <div className="mx-7 my-3 border-[1px] border-rule-soft bg-paper-deep px-4 py-3.5 text-[12.5px] leading-relaxed text-ink-soft [overflow-wrap:anywhere] [word-break:break-word] dark:border-rule-on-dark dark:bg-secondary">
-      <b className="font-semibold text-ink">{t('reassurance.lead')}</b>{' '}
+    <div className="mx-7 my-3 border-[1px] border-rule-soft bg-paper-deep px-4 py-3.5 text-[12.5px] leading-relaxed text-ink-soft [overflow-wrap:anywhere] [word-break:break-word] dark:border-rule-on-dark dark:bg-secondary dark:text-foreground/80">
+      <b className="font-semibold text-ink dark:text-foreground">{t('reassurance.lead')}</b>{' '}
       {t.rich('reassurance.body', {
-        client: () => <b className="font-semibold text-ink">{displayName}</b>,
-        user: () => <b className="font-semibold text-ink">{userName || '…'}</b>,
+        client: () => <b className="font-semibold text-ink dark:text-foreground">{displayName}</b>,
+        user: () => <b className="font-semibold text-ink dark:text-foreground">{userName || '…'}</b>,
         settings: (chunks) => (
-          <a className="text-cobalt no-underline hover:underline" href="/dashboard/settings/agents">
+          <a className="text-cobalt no-underline hover:underline dark:text-cobalt-soft" href="/dashboard/settings/agents">
             {chunks}
           </a>
         ),
@@ -765,7 +765,7 @@ function ActionsFooter({ userName, busy, onAuthorize, onDeny, onSwitchAccount }:
         type="button"
         onClick={onAuthorize}
         disabled={busy !== null}
-        className="inline-flex h-11 items-center justify-center gap-2 border-[1px] border-ink bg-ink px-6 font-sans text-[15px] font-medium text-paper transition hover:bg-cobalt hover:border-cobalt disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-11 items-center justify-center gap-2 border-[1px] border-ink bg-ink px-6 font-sans text-[15px] font-medium text-paper transition hover:bg-cobalt hover:border-cobalt dark:border-paper dark:bg-paper dark:text-ink dark:hover:border-cobalt-soft dark:hover:bg-cobalt-soft dark:hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
       >
         {busy === 'allow' ? t('authorizing') : t('authorize')}
         {busy !== 'allow' && (
@@ -778,7 +778,7 @@ function ActionsFooter({ userName, busy, onAuthorize, onDeny, onSwitchAccount }:
         type="button"
         onClick={onDeny}
         disabled={busy !== null}
-        className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-transparent px-6 font-sans text-[15px] font-medium text-ink transition hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-11 items-center justify-center border-[1px] border-ink bg-transparent px-6 font-sans text-[15px] font-medium text-ink transition hover:bg-ink hover:text-paper dark:border-paper dark:text-paper dark:hover:bg-paper dark:hover:text-ink disabled:cursor-not-allowed disabled:opacity-60"
       >
         {busy === 'deny' ? t('denying') : t('deny')}
       </button>
@@ -791,7 +791,7 @@ function ActionsFooter({ userName, busy, onAuthorize, onDeny, onSwitchAccount }:
           type="button"
           onClick={onSwitchAccount}
           disabled={busy !== null}
-          className="text-cobalt no-underline hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+          className="text-cobalt no-underline hover:underline disabled:cursor-not-allowed disabled:opacity-60 dark:text-cobalt-soft"
         >
           {t('switchAccount')}
         </button>
@@ -816,8 +816,8 @@ function ResultPane({
       <div
         className={`inline-flex h-11 w-11 items-center justify-center rounded-full border-[1px] ${
           isGranted
-            ? 'border-cobalt/40 bg-cobalt/10 text-cobalt-deep'
-            : 'border-rule-soft bg-paper-deep text-ink-soft'
+            ? 'border-cobalt/40 bg-cobalt/10 text-cobalt-deep dark:border-cobalt-soft/40 dark:bg-cobalt-soft/10 dark:text-cobalt-soft'
+            : 'border-rule-soft bg-paper-deep text-ink-soft dark:border-rule-on-dark dark:bg-secondary dark:text-foreground/80'
         }`}
       >
         {isGranted ? (
@@ -835,14 +835,14 @@ function ResultPane({
           ? t.rich('granted.panelTitle', { client: () => <em className="not-italic italic">{displayName}</em> })
           : t('denied.panelTitle')}
       </div>
-      <div className="max-w-[52ch] text-sm leading-relaxed text-ink-soft [overflow-wrap:anywhere]">
+      <div className="max-w-[52ch] text-sm leading-relaxed text-ink-soft [overflow-wrap:anywhere] dark:text-foreground/80">
         {isGranted
           ? t.rich('granted.panelBody', {
-              client: () => <em className="not-italic font-medium text-ink italic">{displayName}</em>,
-              strong: (chunks) => <strong className="font-medium text-ink">{chunks}</strong>,
+              client: () => <em className="not-italic font-medium text-ink italic dark:text-foreground">{displayName}</em>,
+              strong: (chunks) => <strong className="font-medium text-ink dark:text-foreground">{chunks}</strong>,
             })
           : t.rich('denied.panelBody', {
-              client: () => <em className="not-italic font-medium text-ink italic">{displayName}</em>,
+              client: () => <em className="not-italic font-medium text-ink italic dark:text-foreground">{displayName}</em>,
             })}
       </div>
       {redirectHost && (

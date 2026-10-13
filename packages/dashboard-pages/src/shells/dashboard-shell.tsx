@@ -10,6 +10,7 @@ import { usePathname } from '../i18n-navigation';
 import { useActiveMembership } from '../auth/use-active-role';
 import { useRouteOrgId } from '../org-route';
 import { OutsideOrg } from '../components/outside-org';
+import { MUNIN_LOGO_SRC } from '../lib/brand-logo';
 import { BrandHead } from './brand-head';
 import { ConsoleShell } from './console-shell';
 
@@ -35,7 +36,7 @@ export function DashboardShell(props: DashboardShellProps) {
 function HeadOnlyShell({
   brand,
   brandHref = '/dashboard',
-  logoSrc = '/munin-logo.png',
+  logoSrc = MUNIN_LOGO_SRC,
   leftSlot,
   children,
 }: DashboardShellProps) {
@@ -60,7 +61,7 @@ function HeadOnlyShell({
 function ConsoleDashboardShell({
   brand,
   brandHref,
-  logoSrc = '/munin-logo.png',
+  logoSrc = MUNIN_LOGO_SRC,
   leftSlot,
   withConfirmDialog = false,
   children,

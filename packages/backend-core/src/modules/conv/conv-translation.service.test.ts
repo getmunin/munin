@@ -19,6 +19,7 @@ import { stubAttachmentGateway } from './attachments/conv-attachments.test-stub.
 import { MessageTranslatorRegistry, type TranslateTextInput } from './message-translator.ts';
 import {
   deleteMessageTranslations,
+  deleteSubjectTranslations,
   normalizeLanguageTag,
   sameLanguage,
 } from './translation-helpers.ts';
@@ -49,6 +50,7 @@ const skipReason = TEST_URL
   let db: ReturnType<typeof createDb>;
   let appDb: ReturnType<typeof createDb>;
   let svc: ConvTranslationService;
+  let convSvc: ConvService;
   let orgId: string;
   let otherOrgId: string;
   let channelId: string;
@@ -102,6 +104,7 @@ const skipReason = TEST_URL
       },
     });
     svc = new ConvTranslationService(dispatcher, conv, registry);
+    convSvc = conv;
   });
 
   afterAll(async () => {
@@ -134,7 +137,10 @@ const skipReason = TEST_URL
     });
   }
 
-  async function seedConversation(customerLanguage: string | null = null) {
+  async function seedConversation(
+    customerLanguage: string | null = null,
+    subject: string | null = null,
+  ) {
     const [conv] = await db
       .insert(schema.convConversations)
       .values({
@@ -143,6 +149,7 @@ const skipReason = TEST_URL
         channelId,
         endUserId,
         customerLanguage,
+        subject,
       })
       .returning();
     const at = (s: number) => new Date(Date.UTC(2026, 8, 1, 12, 0, s));
@@ -246,6 +253,7 @@ const skipReason = TEST_URL
         [messages[0]!.id]: 'Hei, hvor er bestillingen min?',
         [messages[1]!.id]: 'Hva er ordrenummeret?',
       },
+      subject: null,
     });
     expect(await eventTypes()).toContain('conversation.translated');
     expect(await run(() => svc.requestTranslation(conv.id, 'nb'))).toEqual({ requested: false });
@@ -336,6 +344,109 @@ const skipReason = TEST_URL
     expect(await run(count, actor, endUserId)).toHaveLength(0);
     const outsider = new ActorIdentity('admin_agent', 'agt_other', otherOrgId, ['*'], ['admin']);
     expect(await run(count, outsider)).toHaveLength(0);
+  });
+
+  describe('the subject', () => {
+    const SUBJECT = 'Pedido 40412 sin entregar';
+
+    async function translateEverything(convId: string, messageIds: string[], subject: string) {
+      return run(() =>
+        svc.saveTranslations({
+          conversationId: convId,
+          targetLanguage: 'nb',
+          translations: messageIds.map((id) => ({ messageId: id, body: `nb ${id}` })),
+          subject: { source: subject, body: 'Ordre 40412 ikke levert' },
+        }),
+      );
+    }
+
+    it('is pending alongside the messages until it is translated', async () => {
+      const { conv, messages } = await seedConversation('es', SUBJECT);
+      const pending = await run(() => svc.pendingTranslations(conv.id, 'nb'));
+      expect(pending.subject).toBe(SUBJECT);
+
+      await translateEverything(conv.id, [messages[0]!.id, messages[1]!.id], SUBJECT);
+      const stored = await run(() => svc.translationsFor(conv.id, 'nb'));
+      expect(stored.subject).toBe('Ordre 40412 ikke levert');
+      const after = await run(() => svc.pendingTranslations(conv.id, 'nb'));
+      expect(after.subject).toBeNull();
+      expect(await run(() => svc.requestTranslation(conv.id, 'nb'))).toEqual({ requested: false });
+    });
+
+    it('is not pending when there is none or the customer writes the target language', async () => {
+      const untitled = await seedConversation('es');
+      expect((await run(() => svc.pendingTranslations(untitled.conv.id, 'nb'))).subject).toBeNull();
+      const local = await seedConversation('no', 'Pakken er ikke kommet');
+      expect((await run(() => svc.pendingTranslations(local.conv.id, 'nb'))).subject).toBeNull();
+    });
+
+    it('asks for a translation when only the subject is left, as when a title lands after the thread was translated', async () => {
+      const { conv, messages } = await seedConversation('es');
+      await translateEverything(conv.id, [messages[0]!.id, messages[1]!.id], SUBJECT);
+      await db
+        .update(schema.convConversations)
+        .set({ subject: SUBJECT })
+        .where(sql`id = ${conv.id}`);
+      const pending = await run(() => svc.pendingTranslations(conv.id, 'nb'));
+      expect(pending.messages).toEqual([]);
+      expect(pending.subject).toBe(SUBJECT);
+      expect(await run(() => svc.requestTranslation(conv.id, 'nb'))).toEqual({ requested: true });
+    });
+
+    it('stops applying once the conversation is retitled', async () => {
+      const { conv, messages } = await seedConversation('es', SUBJECT);
+      await translateEverything(conv.id, [messages[0]!.id, messages[1]!.id], SUBJECT);
+      await db
+        .update(schema.convConversations)
+        .set({ subject: 'Quiero devolver la chaqueta' })
+        .where(sql`id = ${conv.id}`);
+      expect((await run(() => svc.translationsFor(conv.id, 'nb'))).subject).toBeNull();
+      expect((await run(() => svc.pendingTranslations(conv.id, 'nb'))).subject).toBe(
+        'Quiero devolver la chaqueta',
+      );
+    });
+
+    it('ignores a translation of a subject the conversation no longer has', async () => {
+      const { conv } = await seedConversation('es', 'Quiero devolver la chaqueta');
+      await translateEverything(conv.id, [], SUBJECT);
+      expect((await run(() => svc.translationsFor(conv.id, 'nb'))).subject).toBeNull();
+    });
+
+    it('shows on the queue row for the language it was translated into', async () => {
+      const { conv, messages } = await seedConversation('es', SUBJECT);
+      await translateEverything(conv.id, [messages[0]!.id, messages[1]!.id], SUBJECT);
+      const row = async (translateTo?: string) =>
+        (await run(() => convSvc.listConversationQueuePage({ translateTo }))).items.find(
+          (i) => i.id === conv.id,
+        );
+      expect((await row('nb'))?.translatedSubject).toBe('Ordre 40412 ikke levert');
+      expect((await row('de'))?.translatedSubject).toBeNull();
+      expect(await row()).not.toHaveProperty('translatedSubject');
+    });
+
+    it('is dropped when the subject is rewritten in place', async () => {
+      const { conv } = await seedConversation('es', SUBJECT);
+      await translateEverything(conv.id, [], SUBJECT);
+      await run(() => deleteSubjectTranslations(getCurrentContext().db, conv.id));
+      const rows = await db
+        .select({ id: schema.convSubjectTranslations.id })
+        .from(schema.convSubjectTranslations)
+        .where(sql`conversation_id = ${conv.id}`);
+      expect(rows).toHaveLength(0);
+    });
+
+    it('is hidden from the customer and from other orgs', async () => {
+      const { conv } = await seedConversation('es', SUBJECT);
+      await translateEverything(conv.id, [], SUBJECT);
+      const count = () =>
+        getCurrentContext()
+          .db.select({ id: schema.convSubjectTranslations.id })
+          .from(schema.convSubjectTranslations);
+      expect(await run(count)).toHaveLength(1);
+      expect(await run(count, actor, endUserId)).toHaveLength(0);
+      const outsider = new ActorIdentity('admin_agent', 'agt_other', otherOrgId, ['*'], ['admin']);
+      expect(await run(count, outsider)).toHaveLength(0);
+    });
   });
 
   async function seedDraft(conversationId: string, body: string, metadata: Record<string, unknown> = {}) {

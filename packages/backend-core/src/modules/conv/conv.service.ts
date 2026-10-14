@@ -220,6 +220,7 @@ export interface ConversationQueueItem extends ConversationSummary {
   hasPendingDraft: boolean;
   endUserSpokeLast: boolean;
   agentWorking: boolean;
+  translatedSubject?: string | null;
 }
 
 export interface ConversationDetail extends ConversationSummary {
@@ -783,9 +784,11 @@ export class ConvService {
     search?: string;
     limit?: number;
     cursor?: { lastMessageAt: string | null; id: string; needsHumanAttention?: boolean };
+    translateTo?: string;
   }): Promise<{ items: ConversationQueueItem[]; nextCursor: { lastMessageAt: string | null; id: string } | null }> {
     const ctx = getCurrentContext();
     const limit = clampLimit(input.limit, 50, 200);
+    const translateTo = input.translateTo ? normalizeLanguageTag(input.translateTo) : null;
     const filters = this.buildConversationListFilters({
       ...input,
       cursor: input.cursor
@@ -835,6 +838,29 @@ export class ConvService {
       { holderId: string; holderName: string | null; expiresAt: string }
     >();
     const statsByConversation = new Map<string, { pendingDrafts: number }>();
+    const translatedSubjects = new Map<string, string>();
+    if (pageIds.length > 0 && translateTo) {
+      const subjectRows = await ctx.db
+        .select({
+          conversationId: schema.convSubjectTranslations.conversationId,
+          body: schema.convSubjectTranslations.body,
+        })
+        .from(schema.convSubjectTranslations)
+        .innerJoin(
+          schema.convConversations,
+          and(
+            eq(schema.convConversations.id, schema.convSubjectTranslations.conversationId),
+            eq(schema.convConversations.subject, schema.convSubjectTranslations.sourceSubject),
+          ),
+        )
+        .where(
+          and(
+            inArray(schema.convSubjectTranslations.conversationId, pageIds),
+            eq(schema.convSubjectTranslations.targetLanguage, translateTo),
+          ),
+        );
+      for (const row of subjectRows) translatedSubjects.set(row.conversationId, row.body);
+    }
     if (pageIds.length > 0) {
       const claimRows = await ctx.db
         .select({
@@ -900,6 +926,7 @@ export class ConvService {
         hasPendingDraft: (stats?.pendingDrafts ?? 0) > 0,
         endUserSpokeLast: row.endUserSpokeLast,
         agentWorking: row.agentWorking === true,
+        ...(translateTo ? { translatedSubject: translatedSubjects.get(row.conv.id) ?? null } : {}),
       };
     });
     const last = items[items.length - 1];

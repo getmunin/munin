@@ -1,0 +1,11 @@
+[Customer language already detected: es]
+
+[Conversation title]
+<data id="subject">
+Chaqueta azul en talla M
+</data>
+
+[Messages, oldest first]
+<data id="m1" from="customer">
+La M, por favor.
+</data>

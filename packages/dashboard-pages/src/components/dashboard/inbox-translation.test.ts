@@ -5,7 +5,9 @@ import {
   draftInViewerLanguage,
   languageLabel,
   sameLanguage,
+  subjectAwaitsTranslation,
   threadTranslations,
+  translatedSubject,
   untranslatedMessageIds,
 } from './inbox-translation';
 
@@ -43,6 +45,46 @@ describe('untranslatedMessageIds', () => {
   it('asks for nothing when the customer writes the viewer language', () => {
     const detail = makeDetail('c', { messages: thread, customerLanguage: 'no' });
     expect(untranslatedMessageIds(detail, 'nb')).toEqual([]);
+  });
+});
+
+describe('subject translation', () => {
+  const titled = (overrides: Parameters<typeof makeDetail>[1] = {}) =>
+    makeDetail('c', { messages: thread, subject: 'Pedido sin entregar', ...overrides });
+  const translated = (subject: string | null, targetLanguage = 'nb') => ({
+    customerLanguage: 'es',
+    targetLanguage,
+    messages: {},
+    subject,
+  });
+
+  it('awaits a translation until one arrives for the viewer language', () => {
+    expect(subjectAwaitsTranslation(titled(), 'nb')).toBe(true);
+    expect(subjectAwaitsTranslation(titled({ translations: translated(null) }), 'nb')).toBe(true);
+    expect(subjectAwaitsTranslation(titled({ translations: translated('Hei', 'en') }), 'nb')).toBe(
+      true,
+    );
+    expect(
+      subjectAwaitsTranslation(titled({ translations: translated('Ordre ikke levert') }), 'nb'),
+    ).toBe(false);
+  });
+
+  it('awaits nothing without a subject or when the customer writes the viewer language', () => {
+    expect(subjectAwaitsTranslation(titled({ subject: null }), 'nb')).toBe(false);
+    expect(subjectAwaitsTranslation(titled({ customerLanguage: 'no' }), 'nb')).toBe(false);
+  });
+
+  it('shows the translation only when it differs from the original', () => {
+    const spanish = { customerLanguage: 'es' };
+    expect(
+      translatedSubject(titled({ ...spanish, translations: translated('Ordre ikke levert') }), 'nb'),
+    ).toBe('Ordre ikke levert');
+    expect(
+      translatedSubject(titled({ ...spanish, translations: translated('Pedido sin entregar') }), 'nb'),
+    ).toBeNull();
+    expect(
+      translatedSubject(titled({ ...spanish, translations: translated('Order not delivered', 'en') }), 'nb'),
+    ).toBeNull();
   });
 });
 

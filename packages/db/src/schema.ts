@@ -1119,6 +1119,30 @@ export const convMessageTranslations = pgTable(
   }),
 );
 
+export const convSubjectTranslations = pgTable(
+  'conv_subject_translations',
+  {
+    id: id('csx'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => convConversations.id, { onDelete: 'cascade' }),
+    targetLanguage: varchar('target_language', { length: 16 }).notNull(),
+    sourceSubject: text('source_subject').notNull(),
+    body: text('body').notNull(),
+    createdAt,
+  },
+  (t) => ({
+    uq: uniqueIndex('conv_subject_translations_conv_target_uq').on(
+      t.conversationId,
+      t.targetLanguage,
+    ),
+    orgIdx: index('conv_subject_translations_org_idx').on(t.orgId),
+  }),
+);
+
 export const convMessageReads = pgTable(
   'conv_message_reads',
   {

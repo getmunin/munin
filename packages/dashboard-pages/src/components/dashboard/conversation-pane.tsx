@@ -49,6 +49,7 @@ import {
   languageLabel,
   sameLanguage,
   threadTranslations,
+  translatedSubject,
   viewerLanguageName,
 } from './inbox-translation';
 
@@ -374,7 +375,9 @@ export function ConversationPane({
   const customer = caller ?? t('anonymous');
   const customerEmail =
     detail.contactEmail && detail.contactEmail !== customer ? detail.contactEmail : null;
-  const composerTitle = detail.subject ?? customer;
+  const subjectTranslation = translatedSubject(detail, locale);
+  const subject = subjectTranslation && !showOriginal ? subjectTranslation : detail.subject;
+  const composerTitle = subject ?? customer;
   const composerMeta = [item?.topicName, detail.subject ? customer : null]
     .filter((v): v is string => !!v)
     .join(' · ');
@@ -382,7 +385,8 @@ export function ConversationPane({
   const claimHolderName = item?.claim?.holderName ?? null;
   const askedForDraft = !!controller.draftRequested[detail.id];
   const translations = threadTranslations(detail, locale);
-  const translatingThread = !translations && !!controller.translating[detail.id];
+  const translatingThread =
+    !translations && !subjectTranslation && !!controller.translating[detail.id];
   const customerLanguageName = detail.customerLanguage
     ? languageLabel(detail.customerLanguage, locale)
     : null;
@@ -517,7 +521,7 @@ export function ConversationPane({
     customerPhone === customer ? null : customerPhone,
   ].filter((v): v is string => !!v);
 
-  const translationStatus = translations ? (
+  const translationStatus = translations || subjectTranslation ? (
     <span className="flex min-w-0 items-center gap-2">
       <span className="truncate">
         {showOriginal
@@ -626,7 +630,7 @@ export function ConversationPane({
               </Pill>
             ) : null}
             <h2 className="min-w-0 truncate font-serif text-2xl font-normal leading-tight tracking-tight text-ink md:text-[32px] dark:text-foreground">
-              {detail.subject ?? customer}
+              {subject ?? customer}
             </h2>
           </div>
           {detail.subject || customerEmail ? (

@@ -75,6 +75,7 @@ export interface ConversationTranslations {
   customerLanguage: string | null;
   targetLanguage: string;
   messages: Record<string, string>;
+  subject?: string | null;
 }
 
 export interface ConversationDetail extends ConversationSummary {

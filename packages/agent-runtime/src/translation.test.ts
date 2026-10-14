@@ -59,6 +59,18 @@ describe('parseTranslationResponse', () => {
     expect(parsed).toEqual({ customerLanguage: null, translations: [] });
   });
 
+  it('reads the subject under its own id', () => {
+    const parsed = parseTranslationResponse(
+      '{"language":"es","translations":[{"id":"subject","text":" Ordre 40412 "},{"id":"m1","text":"Hei"}]}',
+      MESSAGES,
+    );
+    expect(parsed).toEqual({
+      customerLanguage: 'es',
+      translations: [{ messageId: 'cvm_1', body: 'Hei' }],
+      subject: 'Ordre 40412',
+    });
+  });
+
   it('returns null for a reply that holds no JSON', () => {
     expect(parseTranslationResponse('Sorry, I cannot help with that.', MESSAGES)).toBeNull();
   });
@@ -133,6 +145,83 @@ describe('translateMessages', () => {
     expect(prompt).toContain('<data from="assistant">\n¿Quiere la chaqueta azul o la roja?\n</data>');
     expect(prompt.indexOf('[Earlier messages')).toBeLessThan(prompt.indexOf('[Messages, oldest first]'));
     expect(prompt).toContain('<data id="m1" from="customer">');
+  });
+
+  it('translates the subject with the first batch only', async () => {
+    const long = (n: number): PendingTranslationMessage => ({
+      id: `cvm_${n}`,
+      authorType: 'end_user',
+      body: `${'x'.repeat(3500)} ${n}`,
+    });
+    const stub = createStubProvider({
+      responses: [
+        reply('{"language":"es","translations":[{"id":"subject","text":"Ordre 40412 ikke levert"}]}'),
+        reply('{"language":"es","translations":[]}'),
+      ],
+    });
+    const result = await translateMessages({
+      provider: PROVIDER,
+      model: 'fast',
+      targetLanguage: 'nb',
+      customerLanguage: null,
+      messages: [long(1), long(2)],
+      subject: 'Pedido 40412 sin entregar',
+      providerImpl: stub.provider,
+    });
+    expect(result.subject).toBe('Ordre 40412 ikke levert');
+    const first = stub.calls[0]!.messages[1]!.content!;
+    expect(first).toContain('[Conversation title]\n<data id="subject">\nPedido 40412 sin entregar\n</data>');
+    expect(stub.calls[0]!.messages[0]!.content).toContain('id "subject"');
+    expect(stub.calls[1]!.messages[1]!.content).not.toContain('Pedido 40412');
+    expect(stub.calls[1]!.messages[0]!.content).not.toContain('id "subject"');
+  });
+
+  it('translates a subject on its own when no message is pending', async () => {
+    const stub = createStubProvider({
+      responses: [reply('{"language":"es","translations":[{"id":"subject","text":"Ordre 40412"}]}')],
+    });
+    const result = await translateMessages({
+      provider: PROVIDER,
+      model: 'fast',
+      targetLanguage: 'nb',
+      customerLanguage: 'es',
+      messages: [],
+      subject: 'Pedido 40412',
+      providerImpl: stub.provider,
+    });
+    expect(stub.calls).toHaveLength(1);
+    expect(stub.calls[0]!.messages[1]!.content).not.toContain('[Messages, oldest first]');
+    expect(result).toEqual({ customerLanguage: 'es', translations: [], subject: 'Ordre 40412' });
+  });
+
+  it('keeps a subject the model returned nothing for as already readable', async () => {
+    const stub = createStubProvider({
+      responses: [reply('{"language":"es","translations":[{"id":"m1","text":"Hei"}]}')],
+    });
+    const result = await translateMessages({
+      provider: PROVIDER,
+      model: 'fast',
+      targetLanguage: 'nb',
+      customerLanguage: 'es',
+      messages: MESSAGES,
+      subject: 'Order 40412',
+      providerImpl: stub.provider,
+    });
+    expect(result.subject).toBe('Order 40412');
+  });
+
+  it('leaves the subject out when the reply cannot be read', async () => {
+    const stub = createStubProvider({ responses: [reply('Sorry, I cannot help with that.')] });
+    const result = await translateMessages({
+      provider: PROVIDER,
+      model: 'fast',
+      targetLanguage: 'nb',
+      customerLanguage: 'es',
+      messages: [],
+      subject: 'Pedido 40412',
+      providerImpl: stub.provider,
+    });
+    expect(result).not.toHaveProperty('subject');
   });
 
   it('carries the end of one batch into the next as context', async () => {
@@ -290,6 +379,38 @@ describe('createTranslationHandler', () => {
           targetLanguage: 'nb',
           customerLanguage: 'es',
           translations: [{ messageId: 'cvm_1', body: 'Hei' }],
+        },
+      },
+    ]);
+  });
+
+  it('saves the subject against its source, and never relabels the customer from a title alone', async () => {
+    const { rest, saved } = fakeRest({
+      conversationId: 'ccv_1',
+      customerLanguage: 'es',
+      targetLanguage: 'nb',
+      messages: [],
+      subject: 'Pedido 40412',
+    });
+    const stub = createStubProvider({
+      responses: [reply('{"language":"pt","translations":[{"id":"subject","text":"Ordre 40412"}]}')],
+    });
+    const handler = createTranslationHandler({
+      rest,
+      provider: PROVIDER,
+      model: 'fast',
+      providerImpl: stub.provider,
+    });
+    handler.request({ conversationId: 'ccv_1', targetLanguage: 'nb' });
+    await handler.idle();
+    expect(saved).toEqual([
+      {
+        conversationId: 'ccv_1',
+        input: {
+          targetLanguage: 'nb',
+          customerLanguage: 'es',
+          translations: [],
+          subject: { source: 'Pedido 40412', body: 'Ordre 40412' },
         },
       },
     ]);

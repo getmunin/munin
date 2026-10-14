@@ -7,7 +7,7 @@ import { getErrorCode, useTranslateError } from '../../i18n/translate-error';
 import { notify } from '../../lib/notify';
 import { useRealtime, type SubscriptionChannel } from '../../realtime';
 import type { ConversationDetail, MessageDto, Status } from './inbox-types';
-import { untranslatedMessageIds } from './inbox-translation';
+import { subjectAwaitsTranslation, untranslatedMessageIds } from './inbox-translation';
 
 const DRAFT_REQUEST_TIMEOUT_MS = 60_000;
 const TRANSLATION_TIMEOUT_MS = 60_000;
@@ -46,6 +46,7 @@ export interface QueueItemDto {
   hasPendingDraft: boolean;
   endUserSpokeLast?: boolean;
   agentWorking?: boolean;
+  translatedSubject?: string | null;
 }
 
 export const QUEUE_STATUS_FILTERS = ['any', 'open', 'snoozed', 'closed', 'spam'] as const;
@@ -158,10 +159,16 @@ const SEARCH_DEBOUNCE_MS = 250;
 const OPEN_QUERY = 'status=open';
 const FINISHED_QUERY = 'status=closed';
 
-function queueUrl(query: string, limit: number, cursor?: string | null): string {
+function queueUrl(
+  query: string,
+  limit: number,
+  cursor?: string | null,
+  translateTo?: string,
+): string {
   const params = new URLSearchParams(query);
   params.set('limit', String(limit));
   if (cursor) params.set('cursor', cursor);
+  if (translateTo) params.set('translateTo', translateTo);
   return `/v1/conversations/queue?${params.toString()}`;
 }
 
@@ -177,12 +184,13 @@ function dedupeById(items: QueueItemDto[]): QueueItemDto[] {
 export async function loadQueuePages(
   pages: number,
   query: string,
+  translateTo?: string,
 ): Promise<{ items: QueueItemDto[]; nextCursor: string | null }> {
   const items: QueueItemDto[] = [];
   let cursor: string | null = null;
   for (let i = 0; i < pages; i += 1) {
     const page: QueuePageResponse = await api<QueuePageResponse>(
-      queueUrl(query, OPEN_PAGE_LIMIT, cursor),
+      queueUrl(query, OPEN_PAGE_LIMIT, cursor, translateTo),
     );
     items.push(...page.items);
     cursor = page.nextCursor;
@@ -380,7 +388,10 @@ export function useConversationQueue(
 
   const syncTranslation = useCallback(
     (d: ConversationDetail) => {
-      const missing = untranslatedMessageIds(d, locale, pendingDraftOf(d));
+      const missing = [
+        ...untranslatedMessageIds(d, locale, pendingDraftOf(d)),
+        ...(subjectAwaitsTranslation(d, locale) ? [`subject:${d.subject}`] : []),
+      ];
       if (missing.length === 0) {
         stopTranslating(d.id);
         markTranslationStalled(d.id, false);
@@ -457,7 +468,7 @@ export function useConversationQueue(
     try {
       let loaded: QueueItemDto[];
       if (query) {
-        const page = await loadQueuePages(pagesRef.current, query);
+        const page = await loadQueuePages(pagesRef.current, query, locale);
         setResults(page.items);
         setCursor(page.nextCursor);
         setOpen([]);
@@ -466,9 +477,9 @@ export function useConversationQueue(
         loaded = page.items;
       } else {
         const [openPages, openCounts, finishedPage] = await Promise.all([
-          loadQueuePages(pagesRef.current, OPEN_QUERY),
+          loadQueuePages(pagesRef.current, OPEN_QUERY, locale),
           api<QueueCounts>('/v1/conversations/queue/counts'),
-          api<QueuePageResponse>(queueUrl(FINISHED_QUERY, FINISHED_FETCH_LIMIT)),
+          api<QueuePageResponse>(queueUrl(FINISHED_QUERY, FINISHED_FETCH_LIMIT, null, locale)),
         ]);
         setResults([]);
         setOpen(openPages.items);
@@ -487,7 +498,7 @@ export function useConversationQueue(
     } catch (err) {
       if (err instanceof ApiError) setLoadError(err);
     }
-  }, [clearDraftRequested, query]);
+  }, [clearDraftRequested, locale, query]);
 
   const loadMore = useCallback(async () => {
     const next = cursorRef.current;
@@ -497,7 +508,7 @@ export function useConversationQueue(
     try {
       const pageQuery = queryRef.current;
       const page = await api<QueuePageResponse>(
-        queueUrl(pageQuery || OPEN_QUERY, OPEN_PAGE_LIMIT, next),
+        queueUrl(pageQuery || OPEN_QUERY, OPEN_PAGE_LIMIT, next, locale),
       );
       pagesRef.current += 1;
       const append = (prev: QueueItemDto[]) => dedupeById([...prev, ...page.items]);
@@ -509,7 +520,7 @@ export function useConversationQueue(
     } finally {
       setLoadingMore(false);
     }
-  }, []);
+  }, [locale]);
 
   const retryLoad = useCallback(async () => {
     setRetrying(true);

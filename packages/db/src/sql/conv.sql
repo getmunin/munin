@@ -143,6 +143,14 @@ CREATE POLICY tenant_isolation ON conv_message_translations
   USING (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''))
   WITH CHECK (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''));
 
+-- Subject translations follow the same staff-only rule as message translations.
+ALTER TABLE conv_subject_translations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conv_subject_translations FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON conv_subject_translations;
+CREATE POLICY tenant_isolation ON conv_subject_translations
+  USING (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''))
+  WITH CHECK (app_bypass_rls() OR (org_id = app_org_id() AND app_end_user_id() = ''));
+
 -- Attachments: visibility inherits from the parent conversation, exactly as
 -- conv_messages does — an end-user audience may only reach rows on their own
 -- conversation. Attachments hanging off an internal message are additionally

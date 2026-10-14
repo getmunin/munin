@@ -260,6 +260,39 @@ const NO_SYNTHETIC = '01819012365';
     expect(after!.body).toContain('[fødselsnummer fjernet]');
   });
 
+  it('drops the translated subject of a conversation whose subject it scrubs', async () => {
+    await setPolicy(null);
+    await deliver(
+      rfc822({
+        from: 'Per Hansen <per@kunde.no>',
+        subject: `Sak for ${NO_SYNTHETIC}`,
+        messageId: `redaction-subject-${randomUUID()}@kunde.no`,
+        body: `Gammelt fnr: ${NO_SYNTHETIC}`,
+      }),
+    );
+    const message = await newestMessage();
+    const [conversation] = await db
+      .select({ subject: schema.convConversations.subject })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, message.conversationId));
+    await db.insert(schema.convSubjectTranslations).values({
+      orgId,
+      conversationId: message.conversationId,
+      targetLanguage: 'en',
+      sourceSubject: conversation!.subject!,
+      body: `Case for ${NO_SYNTHETIC}`,
+    });
+
+    await setPolicy({ detectors: ['no_fnr'], policy: 'remove', minConfidence: 'high' });
+    await runBackfill();
+
+    const left = await db
+      .select({ id: schema.convSubjectTranslations.id })
+      .from(schema.convSubjectTranslations)
+      .where(eq(schema.convSubjectTranslations.conversationId, message.conversationId));
+    expect(left).toHaveLength(0);
+  });
+
   it('refuses to backfill while the policy is off', async () => {
     await setPolicy(null);
     await expect(runBackfill()).rejects.toThrow(/conv_redaction_disabled/);

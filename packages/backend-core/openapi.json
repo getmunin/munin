@@ -4456,6 +4456,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "translateTo",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -11019,6 +11027,32 @@
               ]
             },
             "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "maxLength": 5000
+                  },
+                  "body": {
+                    "type": "string",
+                    "maxLength": 5000
+                  }
+                },
+                "required": [
+                  "source",
+                  "body"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
           }
         },
         "required": [

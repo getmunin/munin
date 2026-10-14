@@ -696,7 +696,7 @@ describe('ui: product list component', () => {
     controller.setView('chat');
   });
 
-  it('renders a card per product with image, title, price and a view link', () => {
+  it('renders each product as a card that links to its storefront page', () => {
     controller!.addMessages([
       productMsg([fjell, { ...fjell, productRef: 'p2', title: 'Storm Anorak', priceMin: '1450', priceMax: '1690' }]),
     ]);
@@ -707,10 +707,12 @@ describe('ui: product list component', () => {
     expect(img.tagName).toBe('IMG');
     expect(img.src).toBe('https://cdn.shopify.com/fjell.jpg');
     expect(img.getAttribute('loading')).toBe('lazy');
-    const link = $<HTMLAnchorElement>('.pcard-view');
+    const link = cards[0] as HTMLAnchorElement;
+    expect(link.tagName).toBe('A');
     expect(link.href).toBe('https://nordicsupply.test/p/fjell');
     expect(link.rel).toContain('noopener');
     expect(link.target).toBe('_blank');
+    expect(link.querySelector('.pcard-view')?.textContent).toContain(strings.productViewLabel);
   });
 
   it('renders a single price when min equals max and a range when they differ', () => {
@@ -736,8 +738,9 @@ describe('ui: product list component', () => {
     expect($$('.pcard-shot-empty')).toHaveLength(1);
   });
 
-  it('omits the view link when the product has no storefront url', () => {
+  it('renders a plain card without the view pill when the product has no storefront url', () => {
     controller!.addMessages([productMsg([{ ...fjell, url: null }])]);
+    expect($('.pcard').tagName).toBe('DIV');
     expect($$('.pcard-view')).toHaveLength(0);
   });
 

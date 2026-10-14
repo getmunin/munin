@@ -18,6 +18,9 @@ import { ConnectorVendorError, type ConnectorFetch, REQUEST_TIMEOUT_MS } from '.
 import { broadSearchLimit, rankByTokenCoverage } from './product-ranking.ts';
 import { stripTrailingSlashes } from '@getmunin/types';
 
+const PRODUCT_URL_PLACEHOLDER = /\{(?:urlKey|sku|id)\}/;
+const PRODUCT_URL_PLACEHOLDERS = /\{(?:urlKey|sku|id)\}/g;
+
 export const MagentoConfigInput = z.object({
   baseUrl: z
     .string()
@@ -35,12 +38,28 @@ export const MagentoConfigInput = z.object({
     )
     .optional()
     .transform((code) => code || undefined),
+  productUrlTemplate: z
+    .string()
+    .trim()
+    .max(500)
+    .refine((t) => !t || t.startsWith('https://'), 'productUrlTemplate must be https')
+    .refine(
+      (t) => !t || PRODUCT_URL_PLACEHOLDER.test(t),
+      'productUrlTemplate must contain {urlKey}, {sku} or {id}',
+    )
+    .refine(
+      (t) => !t || URL.canParse(t.replace(PRODUCT_URL_PLACEHOLDERS, 'x')),
+      'productUrlTemplate must be a valid URL',
+    )
+    .optional()
+    .transform((t) => t || undefined),
 });
 
 const StoredMagentoConfig = z.object({
   baseUrl: z.string(),
   encryptedAccessToken: z.string(),
   storeCode: z.string().optional(),
+  productUrlTemplate: z.string().optional(),
 });
 
 interface MagentoStoreConfig {
@@ -48,12 +67,14 @@ interface MagentoStoreConfig {
   code: string;
   website_id: number;
   base_currency_code?: string;
+  secure_base_link_url?: string;
 }
 
 interface MagentoStoreScope {
   currency: string;
   websiteId: number | null;
   storeIds: number[] | null;
+  linkBaseUrl: string | null;
 }
 
 interface MagentoOrderItem {
@@ -92,6 +113,7 @@ interface MagentoProduct {
   price?: number | null;
   status: number;
   type_id: string;
+  visibility?: number;
   custom_attributes?: Array<{ attribute_code: string; value: unknown }>;
   extension_attributes?: { website_ids?: number[] };
 }
@@ -126,6 +148,13 @@ export class MagentoAdapter implements CommerceAdapter {
       required: false,
       placeholder: 'default',
     },
+    {
+      key: 'productUrlTemplate',
+      label:
+        'Storefront product URL (optional; use {urlKey}, {sku} or {id} — needed when the shop runs on a different host than Magento)',
+      required: false,
+      placeholder: 'https://shop.example.com/products/{urlKey}',
+    },
   ];
 
   constructor(private readonly fetchImpl: ConnectorFetch = safeFetch) {}
@@ -149,6 +178,7 @@ export class MagentoAdapter implements CommerceAdapter {
       baseUrl: parsed.baseUrl,
       encryptedAccessToken,
       ...(parsed.storeCode ? { storeCode: parsed.storeCode } : {}),
+      ...(parsed.productUrlTemplate ? { productUrlTemplate: parsed.productUrlTemplate } : {}),
     };
   }
 
@@ -157,6 +187,7 @@ export class MagentoAdapter implements CommerceAdapter {
     return {
       baseUrl: parsed.baseUrl,
       ...(parsed.storeCode ? { storeCode: parsed.storeCode } : {}),
+      ...(parsed.productUrlTemplate ? { productUrlTemplate: parsed.productUrlTemplate } : {}),
     };
   }
 
@@ -248,7 +279,7 @@ export class MagentoAdapter implements CommerceAdapter {
       ctx,
       `/products?${params.toString()}`,
     );
-    return result.items.map((product) => this.toProductSummary(ctx, product, scope.currency));
+    return result.items.map((product) => this.toProductSummary(ctx, product, scope));
   }
 
   async getProduct(
@@ -270,7 +301,6 @@ export class MagentoAdapter implements CommerceAdapter {
     if (scope.websiteId !== null && websiteIds && !websiteIds.includes(scope.websiteId)) {
       return null;
     }
-    const { currency } = scope;
     const children =
       product.type_id === 'configurable' ? await this.configurableChildren(ctx, sku) : [product];
     const variants = await Promise.all(
@@ -283,7 +313,7 @@ export class MagentoAdapter implements CommerceAdapter {
         }),
       ),
     );
-    const summary = this.toProductSummary(ctx, product, currency);
+    const summary = this.toProductSummary(ctx, product, scope);
     const prices = variants
       .map((variant) => variant.price)
       .filter((price): price is string => price !== null)
@@ -329,10 +359,17 @@ export class MagentoAdapter implements CommerceAdapter {
     opts: { currency: boolean },
   ): Promise<MagentoStoreScope> {
     const { storeCode } = StoredMagentoConfig.parse(ctx.config);
-    if (!storeCode && !opts.currency) return { currency: '', websiteId: null, storeIds: null };
+    if (!storeCode && !opts.currency) {
+      return { currency: '', websiteId: null, storeIds: null, linkBaseUrl: null };
+    }
     const configs = await this.get<MagentoStoreConfig[]>(ctx, '/store/storeConfigs');
     if (!storeCode) {
-      return { currency: configs[0]?.base_currency_code ?? '', websiteId: null, storeIds: null };
+      return {
+        currency: configs[0]?.base_currency_code ?? '',
+        websiteId: null,
+        storeIds: null,
+        linkBaseUrl: configs[0]?.secure_base_link_url ?? null,
+      };
     }
     const match = configs.find((c) => c.code.toLowerCase() === storeCode.toLowerCase());
     if (!match) {
@@ -345,25 +382,26 @@ export class MagentoAdapter implements CommerceAdapter {
       currency: match.base_currency_code ?? '',
       websiteId: match.website_id,
       storeIds: configs.filter((c) => c.website_id === match.website_id).map((c) => c.id),
+      linkBaseUrl: match.secure_base_link_url ?? null,
     };
   }
 
   private toProductSummary(
     ctx: ConnectorConnectionContext,
     product: MagentoProduct,
-    currency: string,
+    scope: MagentoStoreScope,
   ): CommerceProductSummary {
-    const { baseUrl } = StoredMagentoConfig.parse(ctx.config);
+    const { baseUrl, productUrlTemplate } = StoredMagentoConfig.parse(ctx.config);
     const image = attributeValue(product, 'image');
     const price = product.price != null ? product.price.toFixed(2) : null;
     return {
       productRef: product.sku,
       title: product.name,
-      url: null,
+      url: storefrontUrl(product, productUrlTemplate, scope.linkBaseUrl ?? `${baseUrl}/`),
       imageUrl: image
         ? `${baseUrl}/media/catalog/product${image.startsWith('/') ? '' : '/'}${image}`
         : null,
-      currency,
+      currency: scope.currency,
       priceMin: price,
       priceMax: price,
     };
@@ -498,6 +536,30 @@ function setFilter(
 function attributeValue(product: MagentoProduct, code: string): string | null {
   const value = product.custom_attributes?.find((a) => a.attribute_code === code)?.value;
   return typeof value === 'string' && value ? value : null;
+}
+
+function storefrontUrl(
+  product: MagentoProduct,
+  template: string | undefined,
+  linkBaseUrl: string,
+): string | null {
+  if (product.visibility === 1) return null;
+  if (!template) {
+    const base = linkBaseUrl.endsWith('/') ? linkBaseUrl : `${linkBaseUrl}/`;
+    return `${base}catalog/product/view/id/${product.id}`;
+  }
+  const values: Record<string, string | null> = {
+    urlKey: attributeValue(product, 'url_key'),
+    sku: product.sku,
+    id: String(product.id),
+  };
+  let missing = false;
+  const url = template.replace(PRODUCT_URL_PLACEHOLDERS, (match) => {
+    const value = values[match.slice(1, -1)];
+    if (!value) missing = true;
+    return encodeURIComponent(value ?? '');
+  });
+  return missing ? null : url;
 }
 
 function inScope(order: MagentoOrder, scope: MagentoStoreScope): boolean {

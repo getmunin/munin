@@ -367,13 +367,62 @@ describe('MagentoAdapter', () => {
       {
         productRef: 'MUG-1',
         title: 'Mug',
-        url: null,
+        url: 'https://store.example.com/catalog/product/view/id/7',
         imageUrl: 'https://store.example.com/media/catalog/product/m/u/mug.jpg',
         currency: 'EUR',
         priceMin: '19.90',
         priceMax: '19.90',
       },
     ]);
+  });
+
+  describe('storefront urls', () => {
+    const search = async (
+      config: Record<string, unknown>,
+      over: Record<string, unknown> = {},
+      configs: unknown[] = storeConfigs,
+    ) => {
+      const { fetch } = stubRest((url) =>
+        url.includes('/rest/V1/store/storeConfigs')
+          ? { body: configs }
+          : { body: { items: [product(over)], total_count: 1 } },
+      );
+      const [first] = await new MagentoAdapter(fetch).searchProducts(ctx(config), {
+        query: 'mug',
+        limit: 10,
+      });
+      return first!.url;
+    };
+    const withUrlKey = {
+      custom_attributes: [{ attribute_code: 'url_key', value: 'blue mug' }],
+    };
+
+    it('links to the store view\'s own product route when no template is set', async () => {
+      expect(
+        await search({}, {}, [
+          { code: 'default', base_currency_code: 'EUR', secure_base_link_url: 'https://shop.example.com/no/' },
+        ]),
+      ).toBe('https://shop.example.com/no/catalog/product/view/id/7');
+    });
+
+    it('fills a storefront template with the encoded url key, sku and id', async () => {
+      expect(
+        await search(
+          { productUrlTemplate: 'https://shop.example.com/produkter/{urlKey}?sku={sku}&id={id}' },
+          withUrlKey,
+        ),
+      ).toBe('https://shop.example.com/produkter/blue%20mug?sku=MUG-1&id=7');
+    });
+
+    it('returns no url when the template needs a url key the product lacks', async () => {
+      expect(
+        await search({ productUrlTemplate: 'https://shop.example.com/produkter/{urlKey}' }),
+      ).toBeNull();
+    });
+
+    it('returns no url for a product that is not visible individually', async () => {
+      expect(await search({}, { visibility: 1 })).toBeNull();
+    });
   });
 
   it('fetches a simple product with a single variant and live stock', async () => {
@@ -471,6 +520,34 @@ describe('MagentoAdapter', () => {
         baseUrl: 'https://store.example.com',
         encryptedAccessToken: 'enc(integration_token)',
       });
+    });
+
+    it('stores a storefront product url template', async () => {
+      const stored = await adapter.buildStoredConfig(
+        {
+          baseUrl: 'https://store.example.com',
+          accessToken: 'integration_token',
+          productUrlTemplate: ' https://shop.example.com/produkter/{urlKey} ',
+        },
+        encrypt,
+      );
+      expect(stored.productUrlTemplate).toBe('https://shop.example.com/produkter/{urlKey}');
+      expect(adapter.publicConfig(stored).productUrlTemplate).toBe(
+        'https://shop.example.com/produkter/{urlKey}',
+      );
+    });
+
+    it.each([
+      ['http://shop.example.com/{urlKey}', /https/],
+      ['https://shop.example.com/products', /\{urlKey\}/],
+      ['https://shop example.com/{urlKey}', /valid URL/],
+    ])('rejects the product url template %s', async (productUrlTemplate, error) => {
+      await expect(
+        adapter.buildStoredConfig(
+          { baseUrl: 'https://store.example.com', accessToken: 'integration_token', productUrlTemplate },
+          encrypt,
+        ),
+      ).rejects.toThrow(error);
     });
 
     it('rejects plain-http base urls', async () => {

@@ -155,6 +155,7 @@ Two rules follow:
 
 - **Only mint delegated tokens with emails your system has actually authenticated** (login session, verified email link). If you mint tokens from unauthenticated visitor input, you are asserting an identity you haven't checked, and that visitor's agent can read that email's order and booking history.
 - End-user records without an email can't look up anything — the tools refuse rather than guess.
+- An email a visitor typed in chat is never upgraded by a mint. Minting by email alone skips any end user whose email was self-reported and binds the email to a fresh end user instead, releasing the visitor's unverified claim on it; minting for a named end user replaces a self-reported email rather than refusing.
 
 ### Pass `email` when you mint
 

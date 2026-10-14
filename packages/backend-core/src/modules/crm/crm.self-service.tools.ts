@@ -27,7 +27,7 @@ export class CrmSelfServiceTools {
     name: 'crm_get_my_contact',
     title: 'CRM: Read my contact',
     description:
-      'Read the CRM contact linked to the calling end-user. RLS restricts visibility to that single row.',
+      'Read the CRM contact linked to the calling end-user. RLS restricts visibility to that single row. Refused when the end-user\'s identity was self-reported in chat, or when the contact is keyed on an email or phone the end-user has not proven.',
     audiences: ['self_service'],
     scopes: ['crm:read'],
     input: EmptyInput,
@@ -35,14 +35,14 @@ export class CrmSelfServiceTools {
     destructiveHint: false,
   })
   getMyContact() {
-    return this.crm.getMyContact();
+    return this.crm.getMyVerifiedContact();
   }
 
   @McpTool({
     name: 'crm_update_my_contact',
     title: 'CRM: Update my contact',
     description:
-      'Update the calling end-user\'s own contact record. Only basic personal fields (name, phone, address) are editable from this surface — tags, ownership, custom fields, and AI fields are admin-only.',
+      'Update the calling end-user\'s own contact record. Only basic personal fields (name, phone, address) are editable from this surface — tags, ownership, custom fields, and AI fields are admin-only. Refused when the end-user\'s identity was self-reported in chat, or when the contact is keyed on an email or phone the end-user has not proven.',
     audiences: ['self_service'],
     scopes: ['crm:write'],
     input: UpdateMyContactInput,
@@ -50,7 +50,7 @@ export class CrmSelfServiceTools {
     destructiveHint: true,
   })
   async updateMyContact(args: z.infer<typeof UpdateMyContactInput>) {
-    const own = await this.crm.getMyContact();
+    const own = await this.crm.getMyVerifiedContact();
     return this.crm.updateContact({ id: own.id, patch: args });
   }
 

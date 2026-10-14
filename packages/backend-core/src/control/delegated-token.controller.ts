@@ -22,6 +22,7 @@ import { RequireActorType } from './role.decorator.ts';
 import {
   ATTESTED_EMAIL_METADATA_KEY,
   ORG_ATTESTED_EMAIL_SOURCE,
+  isSelfReportedIdentity,
 } from '../modules/connectors/identity-provenance.ts';
 
 export const SELF_SERVICE_SCOPES = [
@@ -67,14 +68,14 @@ interface MintResult {
   attestedEmail: string | null;
 }
 
-async function emailHeldByAnotherEndUser(
+async function freeEmailForAttestation(
   db: Db | Tx,
   orgId: string,
   email: string,
   endUserId: string | null,
 ): Promise<boolean> {
-  const rows = await db
-    .select({ id: schema.endUsers.id })
+  const [holder] = await db
+    .select({ id: schema.endUsers.id, metadata: schema.endUsers.metadata })
     .from(schema.endUsers)
     .where(
       and(
@@ -84,7 +85,17 @@ async function emailHeldByAnotherEndUser(
       ),
     )
     .limit(1);
-  return rows.length > 0;
+  if (!holder) return true;
+  if (!isSelfReportedIdentity(holder.metadata)) return false;
+  await db
+    .update(schema.endUsers)
+    .set({
+      email: null,
+      metadata: sql`COALESCE(${schema.endUsers.metadata}, '{}'::jsonb) - 'emailSource'`,
+      updatedAt: new Date(),
+    })
+    .where(eq(schema.endUsers.id, holder.id));
+  return true;
 }
 
 async function bindAttestedEmail(
@@ -94,17 +105,17 @@ async function bindAttestedEmail(
   email: string,
 ): Promise<void> {
   const [row] = await db
-    .select({ email: schema.endUsers.email })
+    .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
     .from(schema.endUsers)
     .where(eq(schema.endUsers.id, endUserId))
     .limit(1);
   const current = row?.email?.trim().toLowerCase() ?? null;
-  if (current && current !== email) {
+  if (current && current !== email && !isSelfReportedIdentity(row?.metadata)) {
     throw new BadRequestException(
       'delegated_email_mismatch: this end user already carries a different email; mint with the email on record, or omit email to mint a token that cannot change bookings',
     );
   }
-  if (!current && (await emailHeldByAnotherEndUser(db, orgId, email, endUserId))) {
+  if (current !== email && !(await freeEmailForAttestation(db, orgId, email, endUserId))) {
     throw new ConflictException(
       'delegated_email_conflict: another end user in this organization already carries this email; mint for that end user instead',
     );
@@ -112,7 +123,7 @@ async function bindAttestedEmail(
   await db
     .update(schema.endUsers)
     .set({
-      ...(current ? {} : { email }),
+      email,
       metadata: sql`COALESCE(${schema.endUsers.metadata}, '{}'::jsonb) || ${JSON.stringify({ emailSource: ORG_ATTESTED_EMAIL_SOURCE })}::jsonb`,
       updatedAt: new Date(),
     })
@@ -153,8 +164,8 @@ export class DelegatedTokenController {
           .limit(1);
         endUserId = found[0]?.id;
       } else if (attestedEmail) {
-        const found = await ctx.db
-          .select({ id: schema.endUsers.id })
+        const [found] = await ctx.db
+          .select({ id: schema.endUsers.id, metadata: schema.endUsers.metadata })
           .from(schema.endUsers)
           .where(
             and(
@@ -163,10 +174,10 @@ export class DelegatedTokenController {
             ),
           )
           .limit(1);
-        endUserId = found[0]?.id;
+        if (found && !isSelfReportedIdentity(found.metadata)) endUserId = found.id;
       }
       if (!endUserId) {
-        if (attestedEmail && (await emailHeldByAnotherEndUser(ctx.db, actor.orgId, attestedEmail, null))) {
+        if (attestedEmail && !(await freeEmailForAttestation(ctx.db, actor.orgId, attestedEmail, null))) {
           throw new ConflictException(
             'delegated_email_conflict: another end user in this organization already carries this email; mint for that end user instead',
           );

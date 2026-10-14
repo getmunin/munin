@@ -1,4 +1,10 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import {
   and,
@@ -25,6 +31,7 @@ import { newImportResult, resolveId } from '../../common/transfer/transfer.helpe
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 import { mergeFingerprint } from './merge-fingerprint.ts';
 import { CrmInvalidError } from './crm.errors.ts';
+import { judgeOwnContact } from './own-contact.ts';
 import { AddressDeliverabilityService } from './address-deliverability.service.ts';
 import { normalizeAddress, type AddressDeliverabilityDto } from './address-deliverability.ts';
 
@@ -358,6 +365,35 @@ export class CrmService {
       .limit(1);
     if (!rows[0]) throw new NotFoundException(`crm_not_found: no contact linked to your end-user record`);
     return this.hydrateContact(rows[0]);
+  }
+
+  async getMyVerifiedContact(): Promise<ContactDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    if (!actor.endUserId) throw new CrmInvalidError('end-user identity required');
+    const [endUser] = await ctx.db
+      .select({
+        email: schema.endUsers.email,
+        phone: schema.endUsers.phone,
+        metadata: schema.endUsers.metadata,
+      })
+      .from(schema.endUsers)
+      .where(eq(schema.endUsers.id, actor.endUserId))
+      .limit(1);
+    if (!endUser) throw new CrmInvalidError('end-user identity required');
+    const contact = await this.getMyContact();
+    const verdict = judgeOwnContact(endUser, contact);
+    if (verdict === 'self_reported') {
+      throw new BadRequestException(
+        'crm_unverified: this session\'s identity was self-reported in chat and is not verified, so the linked contact record is not available here',
+      );
+    }
+    if (verdict !== 'ok') {
+      throw new BadRequestException(
+        `crm_unverified: the linked contact carries ${verdict === 'email_unproven' ? 'an email address' : 'a phone number'} this session has not proven, so the contact record is not available here`,
+      );
+    }
+    return contact;
   }
 
   async findContact(input: { email?: string; phone?: string }): Promise<ContactDto | null> {

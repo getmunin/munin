@@ -1319,7 +1319,12 @@ const skipReason = TEST_URL
 
     it('does not stamp a signed email that another end user already holds', async () => {
       const taken = 'signed.taken@example.test';
-      await db.insert(schema.endUsers).values({ orgId, externalId: `email:${taken}`, email: taken });
+      await db.insert(schema.endUsers).values({
+        orgId,
+        externalId: `email:${taken}`,
+        email: taken,
+        metadata: { emailSource: 'channel' },
+      });
       const externalId = 'user_signed_taken_6';
       const res = await call('POST', '/v1/widget/messages', signed.widgetKey, {
         channelId: signed.id,
@@ -1332,6 +1337,41 @@ const skipReason = TEST_URL
       expect(res.status).toBe(201);
 
       expect(await latestEndUserMessageMetadata(externalId)).not.toHaveProperty('provenEmail');
+    });
+
+    it('takes a signed email back from an end user who only typed it as a visitor', async () => {
+      const typed = 'signed.typed@example.test';
+      const [squatter] = await db
+        .insert(schema.endUsers)
+        .values({
+          orgId,
+          externalId: 'user_typed_squatter_6b',
+          email: typed,
+          metadata: { emailSource: 'visitor' },
+        })
+        .returning();
+      const externalId = 'user_signed_owner_6b';
+      const res = await call('POST', '/v1/widget/messages', signed.widgetKey, {
+        channelId: signed.id,
+        sessionId: 'vis_signed_owner_6b',
+        verifiedExternalId: externalId,
+        verifiedEmail: typed,
+        userHash: signedEmailHash(externalId, typed),
+        messages: [{ role: 'end_user', body: 'hi' }],
+      });
+      expect(res.status).toBe(201);
+
+      const [owner] = await db
+        .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
+        .from(schema.endUsers)
+        .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.externalId, externalId)));
+      expect(owner!.email).toBe(typed);
+      expect(owner!.metadata).toMatchObject({ emailSource: 'org-attested' });
+      const [released] = await db
+        .select({ email: schema.endUsers.email })
+        .from(schema.endUsers)
+        .where(eq(schema.endUsers.id, squatter!.id));
+      expect(released!.email).toBeNull();
     });
   });
 

@@ -17,6 +17,7 @@ export class ApiError extends Error {
   readonly requestId: string | null;
   readonly fieldErrors: readonly ApiFieldError[];
   readonly code: string | null;
+  readonly params: Readonly<Record<string, string>>;
 
   constructor(opts: {
     status: number;
@@ -27,6 +28,7 @@ export class ApiError extends Error {
     message: string;
     fieldErrors?: readonly ApiFieldError[];
     code?: string | null;
+    params?: Readonly<Record<string, string>>;
   }) {
     super(opts.message);
     this.status = opts.status;
@@ -36,6 +38,7 @@ export class ApiError extends Error {
     this.requestId = opts.requestId;
     this.fieldErrors = opts.fieldErrors ?? [];
     this.code = opts.code ?? null;
+    this.params = opts.params ?? {};
   }
 }
 
@@ -83,6 +86,7 @@ export async function api<T>(path: string, init: ApiOptions = {}): Promise<T> {
       message: parsed.message || `${res.status} ${res.statusText}`,
       fieldErrors: parsed.fieldErrors,
       code: parsed.code,
+      params: parsed.params,
     });
   }
   if (res.status === 204) return undefined as T;
@@ -134,8 +138,9 @@ function parseErrorBody(body: string): {
   message: string | null;
   fieldErrors: ApiFieldError[];
   code: string | null;
+  params: Record<string, string>;
 } {
-  if (!body) return { message: null, fieldErrors: [], code: null };
+  if (!body) return { message: null, fieldErrors: [], code: null, params: {} };
   try {
     const parsed: unknown = JSON.parse(body);
     if (parsed && typeof parsed === 'object') {
@@ -148,12 +153,20 @@ function parseErrorBody(body: string): {
           ? obj.error
           : null;
       const code = typeof obj.code === 'string' ? obj.code : null;
-      return { message, fieldErrors, code };
+      return { message, fieldErrors, code, params: readParams(obj) };
     }
   } catch (err) {
     console.warn('[munin/api] error body was not JSON, returning raw text', err);
   }
-  return { message: body, fieldErrors: [], code: null };
+  return { message: body, fieldErrors: [], code: null, params: {} };
+}
+
+function readParams(obj: Record<string, unknown>): Record<string, string> {
+  const raw = obj.params;
+  if (!raw || typeof raw !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(raw).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+  );
 }
 
 function readFieldErrors(obj: Record<string, unknown>): ApiFieldError[] {

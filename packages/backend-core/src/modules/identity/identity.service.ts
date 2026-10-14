@@ -3,6 +3,7 @@ import { schema } from '@getmunin/db';
 import { and, countDistinct, desc, eq, isNull, max, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { normalizeIdentityEmail } from '../analytics/visitor-identity.ts';
+import { ORG_ATTESTED_EMAIL_SOURCE } from '../connectors/identity-provenance.ts';
 
 export interface EndUserDto {
   id: string;
@@ -233,7 +234,10 @@ export class IdentityService {
         email: input.email ?? null,
         phone: input.phone ?? null,
         name: input.name ?? null,
-        metadata: input.metadata ?? {},
+        metadata: {
+          ...(input.metadata ?? {}),
+          ...(input.email ? { emailSource: ORG_ATTESTED_EMAIL_SOURCE } : {}),
+        },
       })
       .returning();
     await this.webhooks.emit({

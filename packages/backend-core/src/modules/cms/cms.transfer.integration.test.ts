@@ -3,6 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
+import { createServer, type Server } from 'node:http';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -127,7 +128,13 @@ const ORIGINAL_PUBLISHED_AT = '2019-04-12T08:30:00.000Z';
       publishedAt: string | null;
       translationGroupId: string;
     }>;
-    assets: Array<{ id: string; name: string; base64Body: string | null }>;
+    assets: Array<{
+      id: string;
+      name: string;
+      storageKey: string;
+      sourceUrl: string | null;
+      base64Body: string | null;
+    }>;
   }
   interface ImportResult {
     created: number;
@@ -189,7 +196,9 @@ const ORIGINAL_PUBLISHED_AT = '2019-04-12T08:30:00.000Z';
         },
       });
 
-      const exported = firstJson((await c.callTool({ name: 'cms_export', arguments: {} }))) as CmsExportData;
+      const exported = firstJson(
+        await c.callTool({ name: 'cms_export', arguments: { includeAssetBytes: true } }),
+      ) as CmsExportData;
       return { asset, collection, exported };
     });
 
@@ -488,5 +497,214 @@ const ORIGINAL_PUBLISHED_AT = '2019-04-12T08:30:00.000Z';
     const stored = rows[0]!;
     expect(stored.storageKey).not.toBe(maliciousKey);
     expect(stored.storageKey.startsWith(`cms/${orgBId}/`)).toBe(true);
+  });
+
+  it('exports assets as a sourceUrl with no inline bytes unless includeAssetBytes is set', async () => {
+    const exported = await withClient(adminKeyA, async (c) =>
+      firstJson(await c.callTool({ name: 'cms_export', arguments: {} })) as CmsExportData,
+    );
+    const pixel = exported.assets.find((a) => a.name === 'pixel.png')!;
+    expect(pixel.base64Body).toBeNull();
+    expect(pixel.sourceUrl).toMatch(/^https?:\/\//);
+    expect(pixel.sourceUrl!.endsWith(pixel.storageKey)).toBe(true);
+  });
+
+  it('downloads asset bytes from sourceUrl on import, falls back to metadata only when the download fails, and fills the placeholder on re-run', async () => {
+    const png = Buffer.from(PNG_BASE64, 'base64');
+    let serveGone = false;
+    const server: Server = createServer((req, res) => {
+      if (req.url === '/remote-pixel.png' || (serveGone && req.url === '/gone.png')) {
+        res.writeHead(200, { 'content-type': 'image/png' });
+        res.end(png);
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const { port } = server.address() as AddressInfo;
+    const previous = process.env.MUNIN_SSRF_ALLOW_PRIVATE;
+    process.env.MUNIN_SSRF_ALLOW_PRIVATE = '1';
+
+    const records = {
+      locales: [],
+      collections: [
+        {
+          id: 'cmc_src_remote',
+          name: 'Remote',
+          slug: 'remote',
+          description: null,
+          fields: [
+            { name: 'title', type: 'text', required: true },
+            { name: 'hero', type: 'asset' },
+          ],
+          localized: false,
+          settings: {},
+        },
+      ],
+      entries: [
+        {
+          id: 'cme_src_remote',
+          collectionId: 'cmc_src_remote',
+          slug: 'remote-hero',
+          locale: 'en',
+          status: 'draft',
+          data: { title: 'Remote hero', hero: 'cma_src_remote' },
+          publishedAt: null,
+          scheduledAt: null,
+        },
+      ],
+      assets: [
+        {
+          id: 'cma_src_remote',
+          name: 'remote-pixel.png',
+          mime: 'image/png',
+          sizeBytes: png.length,
+          storageKey: 'cms/source-org/remote-pixel.png',
+          altText: 'One pixel',
+          metadata: {},
+          sourceUrl: `http://127.0.0.1:${port}/remote-pixel.png`,
+        },
+        {
+          id: 'cma_src_gone',
+          name: 'gone.png',
+          mime: 'image/png',
+          sizeBytes: png.length,
+          storageKey: 'cms/source-org/gone.png',
+          altText: null,
+          metadata: {},
+          sourceUrl: `http://127.0.0.1:${port}/gone.png`,
+        },
+      ],
+    };
+
+    let result: ImportResult;
+    let rerun: ImportResult;
+    let hero: unknown;
+    let goneUploadedBeforeRerun: boolean | undefined;
+    try {
+      ({ result, hero } = await withClient(adminKeyB, async (c) => {
+        const imported = firstJson(
+          await c.callTool({ name: 'cms_import', arguments: { records } }),
+        ) as ImportResult;
+        const entries = firstJson(
+          await c.callTool({ name: 'cms_list_entries', arguments: { collection: 'remote' } }),
+        ) as { entries: Array<{ data: Record<string, unknown> }> };
+        return { result: imported, hero: entries.entries[0]?.data.hero };
+      }));
+      const [placeholder] = await db
+        .select({ uploaded: schema.cmsAssets.uploaded })
+        .from(schema.cmsAssets)
+        .where(eq(schema.cmsAssets.id, result.idMap['cma_src_gone']!));
+      goneUploadedBeforeRerun = placeholder?.uploaded;
+      serveGone = true;
+      rerun = await withClient(adminKeyB, async (c) =>
+        firstJson(await c.callTool({ name: 'cms_import', arguments: { records } })) as ImportResult,
+      );
+    } finally {
+      if (previous === undefined) delete process.env.MUNIN_SSRF_ALLOW_PRIVATE;
+      else process.env.MUNIN_SSRF_ALLOW_PRIVATE = previous;
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+
+    const remoteId = result.idMap['cma_src_remote']!;
+    const goneId = result.idMap['cma_src_gone']!;
+    const [remote] = await db.select().from(schema.cmsAssets).where(eq(schema.cmsAssets.id, remoteId));
+    expect(remote!.uploaded).toBe(true);
+    expect(remote!.sizeBytes).toBe(png.length);
+    expect(remote!.altText).toBe('One pixel');
+    expect(goneUploadedBeforeRerun).toBe(false);
+    expect(
+      result.warnings.some((w) => w.includes('gone.png') && w.includes('metadata only')),
+    ).toBe(true);
+    const heroId = typeof hero === 'string' ? hero : (hero as { id?: string } | null)?.id;
+    expect(heroId).toBe(remoteId);
+
+    expect(rerun.warnings).toEqual([]);
+    expect(rerun.idMap['cma_src_gone']).toBe(goneId);
+    expect(rerun.idMap['cma_src_remote']).toBe(remoteId);
+    expect(rerun.updated).toBe(1);
+    const [filled] = await db.select().from(schema.cmsAssets).where(eq(schema.cmsAssets.id, goneId));
+    expect(filled!.uploaded).toBe(true);
+    expect(filled!.sizeBytes).toBe(png.length);
+  });
+
+  it('exports only the requested collections, the locales their entries use and the assets they reference', async () => {
+    const { articles, guides, unknown } = await withClient(adminKeyA, async (c) => {
+      await c.callTool({
+        name: 'cms_upload_asset_from_base64',
+        arguments: { name: 'unreferenced.png', mime: 'image/png', base64Body: PNG_BASE64 },
+      });
+      const articlesExport = firstJson(
+        await c.callTool({ name: 'cms_export', arguments: { collections: ['articles'] } }),
+      ) as CmsExportData;
+      const guidesExport = firstJson(
+        await c.callTool({ name: 'cms_export', arguments: { collections: ['guides'] } }),
+      ) as CmsExportData;
+      const unknownExport = (await c.callTool({
+        name: 'cms_export',
+        arguments: { collections: ['articles', 'no-such-collection'] },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      return { articles: articlesExport, guides: guidesExport, unknown: unknownExport };
+    });
+
+    expect(articles.collections.map((c) => c.slug)).toEqual(['articles']);
+    expect(articles.entries.map((e) => e.slug).sort()).toEqual(['onboarding', 'refund-policy']);
+    expect(articles.assets.map((a) => a.name)).toEqual(['pixel.png']);
+    expect(articles.locales.map((l) => l.code)).toEqual(['en']);
+
+    expect(guides.collections.map((c) => c.slug)).toEqual(['guides']);
+    expect(guides.assets).toEqual([]);
+    expect(guides.locales.map((l) => l.code).sort()).toEqual(['en', 'nb']);
+
+    expect(unknown.isError).toBe(true);
+    expect(unknown.content?.[0]?.text).toContain('no-such-collection');
+  });
+
+  it('round-trips through the REST transfer endpoints without losing translation groups', async () => {
+    const [orgC] = await db.insert(schema.orgs).values({ name: 'CMS Transfer REST Target Org' }).returning();
+    const adminKeyC = buildApiKey('admin');
+    await db.insert(schema.apiKeys).values({
+      orgId: orgC!.id,
+      type: 'admin',
+      name: 'cms-transfer-admin-c',
+      keyHash: hashSecret(adminKeyC),
+      keyPrefix: keyPrefix(adminKeyC),
+      scopes: ['*'],
+    });
+
+    try {
+      const exportRes = await fetch(`${baseUrl}/v1/cms/transfer/export?collections=guides`, {
+        headers: { Authorization: `Bearer ${adminKeyA}` },
+      });
+      expect(exportRes.status).toBe(200);
+      const exported = (await exportRes.json()) as CmsExportData;
+      expect(exported.collections.map((c) => c.slug)).toEqual(['guides']);
+      expect(exported.entries.every((e) => e.translationGroupId)).toBe(true);
+
+      const importRes = await fetch(`${baseUrl}/v1/cms/transfer/import`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${adminKeyC}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ records: exported }),
+      });
+      expect(importRes.status).toBe(200);
+      const result = (await importRes.json()) as ImportResult;
+      expect(result.warnings).toEqual([]);
+
+      const imported = await withClient(adminKeyC, async (c) =>
+        (firstJson(await c.callTool({ name: 'cms_list_entries', arguments: {} })) as {
+          entries: Array<{ slug: string; translationGroupId: string }>;
+        }).entries,
+      );
+      expect(imported.map((e) => e.slug).sort()).toEqual(['getting-started', 'kom-i-gang']);
+      expect(new Set(imported.map((e) => e.translationGroupId)).size).toBe(1);
+
+      const badQuery = await fetch(`${baseUrl}/v1/cms/transfer/export?includeAssetBytes=maybe`, {
+        headers: { Authorization: `Bearer ${adminKeyA}` },
+      });
+      expect(badQuery.status).toBe(400);
+    } finally {
+      await db.delete(schema.orgs).where(eq(schema.orgs.id, orgC!.id));
+    }
   });
 });

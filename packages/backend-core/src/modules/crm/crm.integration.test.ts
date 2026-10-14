@@ -57,7 +57,13 @@ const skipReason = TEST_URL
 
     const [eu] = await db
       .insert(schema.endUsers)
-      .values({ orgId, externalId: 'eu-1', name: 'Alice', email: 'alice@example.com' })
+      .values({
+        orgId,
+        externalId: 'eu-1',
+        name: 'Alice',
+        email: 'alice@example.com',
+        metadata: { emailSource: 'org-attested' },
+      })
       .returning();
     endUserId = eu!.id;
 
@@ -252,6 +258,87 @@ const skipReason = TEST_URL
       const text = result.content?.[0]?.text ?? '';
       expect(text).toMatch(/not.?found|no contact/i);
       expect(text).not.toMatch(/Alice/);
+    });
+  }, 30_000);
+
+  it('refuses the linked contact to an end user whose identity was self-reported in chat', async () => {
+    const [visitor] = await db
+      .insert(schema.endUsers)
+      .values({
+        orgId,
+        externalId: 'eu-visitor',
+        email: 'kari@example.com',
+        metadata: { emailSource: 'visitor' },
+      })
+      .returning();
+    await db.insert(schema.crmContacts).values({
+      orgId,
+      endUserId: visitor!.id,
+      email: 'kari@example.com',
+      name: 'Kari Nordmann',
+      phone: '+4712345678',
+    });
+    const visitorToken = buildApiKey('dlg');
+    await db.insert(schema.tokens).values({
+      orgId,
+      type: 'delegated_end_user',
+      tokenHash: hashSecret(visitorToken),
+      scopes: ['crm:read', 'crm:write'],
+      audiences: ['self_service'],
+      endUserId: visitor!.id,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+
+    await withClient(visitorToken, async (c) => {
+      for (const call of [
+        { name: 'crm_get_my_contact', arguments: {} },
+        { name: 'crm_update_my_contact', arguments: { name: 'Kari' } },
+      ]) {
+        const result = (await c.callTool(call)) as {
+          isError?: boolean;
+          content?: Array<{ text?: string }>;
+        };
+        expect(result.isError).toBe(true);
+        const text = result.content?.[0]?.text ?? '';
+        expect(text).toContain('crm_unverified');
+        expect(text).not.toContain('Nordmann');
+        expect(text).not.toContain('12345678');
+      }
+    });
+  }, 30_000);
+
+  it('refuses a linked contact keyed on an email the verified session never proved', async () => {
+    const [member] = await db
+      .insert(schema.endUsers)
+      .values({ orgId, externalId: 'eu-no-email', name: 'Ola' })
+      .returning();
+    await db.insert(schema.crmContacts).values({
+      orgId,
+      endUserId: member!.id,
+      email: 'kari.claimed@example.com',
+      name: 'Kari Nordmann',
+      phone: '+4701234567',
+    });
+    const memberToken = buildApiKey('dlg');
+    await db.insert(schema.tokens).values({
+      orgId,
+      type: 'delegated_end_user',
+      tokenHash: hashSecret(memberToken),
+      scopes: ['crm:read'],
+      audiences: ['self_service'],
+      endUserId: member!.id,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+
+    await withClient(memberToken, async (c) => {
+      const result = (await c.callTool({ name: 'crm_get_my_contact', arguments: {} })) as {
+        isError?: boolean;
+        content?: Array<{ text?: string }>;
+      };
+      expect(result.isError).toBe(true);
+      const text = result.content?.[0]?.text ?? '';
+      expect(text).toContain('crm_unverified');
+      expect(text).not.toContain('Nordmann');
     });
   }, 30_000);
 

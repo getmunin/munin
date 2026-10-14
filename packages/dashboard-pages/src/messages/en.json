@@ -611,11 +611,8 @@
         "onlyThis": "Only one",
         "allConnectionsHint": "The agent can use any of them: {names}.",
         "noneSelected": "Nothing picked yet, so the agent can still use any of them.",
-        "noneConnected": "None connected",
         "inactiveOption": "{name} (inactive)",
         "missingOption": "Removed connection",
-        "summarySpaces": "{count, plural, one {# space} other {# spaces}}",
-        "summaryAllSpaces": "All spaces",
         "cardSpaces": "Knowledge: {names}",
         "cardConnections": "Lookups: {names}"
       },
@@ -1238,7 +1235,9 @@
         "sent": "Sent",
         "expires": "Expires"
       },
+      "invitesExpired": "Expired {when}",
       "resend": "Resend",
+      "inviteResent": "New invitation sent to {email}.",
       "inviteModalTitle": "Invite teammate",
       "inviteModalSub": "Sends a sign-in link, expires in 7 days",
       "inviteModalRoleHint": "Members can read inbox + reply. Admins also manage channels and keys.",
@@ -1250,6 +1249,7 @@
         "load": "Could not load team.",
         "invite": "Could not send invite.",
         "revokeInvite": "Could not revoke invite.",
+        "resendInvite": "Could not resend invite.",
         "remove": "Could not remove member.",
         "changeRole": "Could not change role.",
         "rename": "Could not save name."
@@ -2446,7 +2446,7 @@
     "conv_attachment_upload_missing": "The upload did not finish. Try attaching the image again.",
     "conv_channel_config_invalid": "This channel's saved settings are incomplete, so it can't be used yet. Open its settings, fill in what's missing and save to repair it.",
     "conv_widget_voice_channel_invalid": "That voice channel no longer exists. Pick another one.",
-    "connectors_connection_bound": "This connection is pinned to a channel, so it can’t be deleted. Unpin it from the channel first.",
+    "connectors_connection_bound": "This connection is pinned to {channels}, so it can’t be deleted. Unpin it from the channel first.",
     "conv_delivery_channel_inactive": "The channel this message goes out on is switched off, so sending it again would fail too. Turn the channel back on in settings, then retry.",
     "conv_delivery_not_retryable": "This message is no longer waiting to be resent — it went out, or Munin is already retrying it. Reload the conversation to see where it stands.",
     "conv_draft_pending": "A draft is already waiting for review.",

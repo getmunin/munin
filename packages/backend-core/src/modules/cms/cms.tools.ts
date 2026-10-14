@@ -3,45 +3,10 @@ import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
 import { CmsService, ENTRY_RESPONSE_FORMATS, ENTRY_STATUSES } from './cms.service.ts';
 import { CmsSearchService } from './cms.search.ts';
-import { FIELD_TYPES, type FieldDef } from './cms.fields.ts';
-import { IdMapSchema } from '../../common/transfer/transfer.types.ts';
+import { CmsExportInput, CmsImportInput, FieldSchema, toCmsExportData } from './cms.schemas.ts';
 import { TEXT_REPLACEMENTS_MAX, TextReplacementSchema } from '../../common/text-replacements.ts';
 import { CMS_ASSET_TYPES_SUMMARY } from '../../common/storage/asset-validation.ts';
 import { INSPECTOR_APP_URI } from '../../mcp/inspector.resource.ts';
-
-const FieldSchema: z.ZodType<FieldDef> = z.lazy(() =>
-  z.object({
-    name: z.string().min(1).max(64),
-    type: z.enum(FIELD_TYPES),
-    required: z.boolean().optional(),
-    localized: z.boolean().optional(),
-    inlineRefs: z
-      .boolean()
-      .optional()
-      .describe(
-        'Read inline ref:// tokens from this field even though it is not markdown/rich_text. Only valid on text, rich_text, markdown, or an array of those. Without it a ref:// token in a text field is never resolved and is rejected on save.',
-      ),
-    description: z.string().max(500).optional(),
-    default: z.unknown().optional(),
-    options: z
-      .object({
-        choices: z.array(z.string()).optional(),
-        targetCollection: z.string().optional(),
-        items: z.lazy(() => FieldSchema).optional(),
-        blockTypes: z
-          .array(
-            z.object({
-              name: z.string().min(1).max(64),
-              label: z.string().max(120).optional(),
-              description: z.string().max(500).optional(),
-              fields: z.array(z.lazy(() => FieldSchema)).max(100),
-            }),
-          )
-          .optional(),
-      })
-      .optional(),
-  }),
-);
 
 const CreateCollectionInput = z.object({
   name: z.string().min(1).max(120),
@@ -313,56 +278,6 @@ const SearchInput = z.object({
 });
 
 const EmptyInput = z.object({});
-
-const CmsImportInput = z.object({
-  records: z.object({
-    locales: z.array(
-      z.object({
-        id: z.string(),
-        code: z.string().min(2).max(16),
-        name: z.string().min(1).max(120),
-        isDefault: z.boolean(),
-      }),
-    ),
-    collections: z.array(
-      z.object({
-        id: z.string(),
-        name: z.string().min(1).max(120),
-        slug: z.string().min(1).max(64),
-        description: z.string().nullable().optional(),
-        fields: z.array(FieldSchema).max(100),
-        localized: z.boolean(),
-        settings: z.record(z.string(), z.unknown()),
-      }),
-    ),
-    entries: z.array(
-      z.object({
-        id: z.string(),
-        collectionId: z.string(),
-        slug: z.string().min(1).max(200),
-        locale: z.string().min(1).max(16),
-        translationGroupId: z.string().optional(),
-        status: z.enum(ENTRY_STATUSES),
-        data: z.record(z.string(), z.unknown()),
-        publishedAt: z.string().nullable().optional(),
-        scheduledAt: z.string().nullable().optional(),
-      }),
-    ),
-    assets: z.array(
-      z.object({
-        id: z.string(),
-        name: z.string().min(1).max(255),
-        mime: z.string().min(1).max(120),
-        sizeBytes: z.number().int().nonnegative(),
-        storageKey: z.string(),
-        altText: z.string().nullable().optional(),
-        metadata: z.record(z.string(), z.unknown()),
-        base64Body: z.string().nullable().optional(),
-      }),
-    ),
-  }),
-  idMap: IdMapSchema.optional(),
-});
 
 @Injectable()
 export class CmsAdminTools {
@@ -858,22 +773,22 @@ export class CmsAdminTools {
     name: 'cms_export',
     title: 'CMS: Export data',
     description:
-      "Export this org's CMS (locales, collections, entries, and assets) as a portable JSON payload. Pair with `cms_import` on another Munin server to move content between self-hosted and cloud. Asset bytes are included base64-encoded (assets larger than 5MB are exported as metadata only). Entry embeddings are not included — they are regenerated on import. Feed the returned `records` straight into `cms_import`.",
+      "Export this org's CMS (locales, collections, entries, and assets) as a portable JSON payload, for moving content to another org or another Munin server (self-hosted ↔ cloud). Pass `collections` to export only some collections — the payload then holds just the locales their entries use and the assets their entries reference. Assets are exported as metadata plus a `sourceUrl` the importing server downloads from, so the payload stays small; set `includeAssetBytes` to inline base64 bytes instead (assets over 5MB stay metadata only) when the target cannot reach this server's asset URLs. Entry embeddings are not included — they are regenerated on import. The returned object is the `records` input of `cms_import`.",
     audiences: ['admin'],
     scopes: ['cms:read'],
-    input: EmptyInput,
+    input: CmsExportInput,
     readOnlyHint: true,
     destructiveHint: false,
   })
-  exportCms() {
-    return this.cms.exportCms();
+  exportCms(args: z.infer<typeof CmsExportInput>) {
+    return this.cms.exportCms(args);
   }
 
   @McpTool({
     name: 'cms_import',
     title: 'CMS: Import data',
     description:
-      'Import CMS `records` produced by `cms_export` (typically from another Munin server). Locales are upserted by code, collections by slug, entries by (collection, slug, locale), and assets by (name, size) — so re-running is idempotent. Entries that shared a `translationGroupId` on the source stay linked as locale variants here; payloads exported before translation groups existed fall back to grouping by (collection, slug). Asset bytes are re-uploaded to this server and entry references/asset ids are rewritten to local ids. Entry embeddings are regenerated here. Returns counts and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents.',
+      'Import CMS `records` produced by `cms_export` (from another org or another Munin server). Locales are upserted by code, collections by slug, entries by (collection, slug, locale), and assets by (name, size) — so re-running is idempotent. Entries that shared a `translationGroupId` on the source stay linked as locale variants here; payloads exported before translation groups existed fall back to grouping by (collection, slug). Asset bytes come from `base64Body` when present, otherwise this server downloads them from `sourceUrl`; an asset whose bytes cannot be obtained is imported as a metadata-only placeholder with a warning, and a later re-run fills that placeholder in place. Entry asset and reference ids are rewritten to local ids, and published entries keep their original `publishedAt`. Entry embeddings are regenerated here. Returns counts and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents.',
     audiences: ['admin'],
     scopes: ['cms:write'],
     input: CmsImportInput,
@@ -881,23 +796,6 @@ export class CmsAdminTools {
     destructiveHint: true,
   })
   importCms(args: z.infer<typeof CmsImportInput>) {
-    const records = {
-      locales: args.records.locales,
-      collections: args.records.collections.map((c) => ({
-        ...c,
-        description: c.description ?? null,
-      })),
-      entries: args.records.entries.map((e) => ({
-        ...e,
-        publishedAt: e.publishedAt ?? null,
-        scheduledAt: e.scheduledAt ?? null,
-      })),
-      assets: args.records.assets.map((a) => ({
-        ...a,
-        altText: a.altText ?? null,
-        base64Body: a.base64Body ?? null,
-      })),
-    };
-    return this.cms.importCms(records, args.idMap);
+    return this.cms.importCms(toCmsExportData(args.records), args.idMap);
   }
 }

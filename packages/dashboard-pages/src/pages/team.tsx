@@ -83,6 +83,7 @@ export function TeamPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [editing, setEditing] = useState<MemberDto | null>(null);
   const [pendingShare, setPendingShare] = useState<PendingShare | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [m, i] = await Promise.all([
@@ -111,6 +112,26 @@ export function TeamPage() {
       setPendingShare(null);
     }
     await tryLoad();
+  }
+
+  async function resendInvite(invite: InvitationDto) {
+    setResendingId(invite.id);
+    try {
+      const created = await api<CreatedInvitationDto>(
+        `/v1/orgs/me/invitations/${invite.id}/resend`,
+        { method: 'POST' },
+      );
+      if (!created.mailerConfigured) {
+        setPendingShare({ email: created.email, acceptUrl: created.acceptUrl });
+      } else {
+        notify.success(t('inviteResent', { email: created.email }));
+      }
+      await tryLoad();
+    } catch (err) {
+      notify.error(translate(err) || t('errors.resendInvite'));
+    } finally {
+      setResendingId(null);
+    }
   }
 
   async function revokeInvite(invite: InvitationDto) {
@@ -337,12 +358,16 @@ export function TeamPage() {
                     {format.relativeTime(new Date(inv.createdAt), now)}
                   </td>
                   <td className="py-4 pr-4 font-mono text-xs text-ink-mute">
-                    {format.relativeTime(new Date(inv.expiresAt), now)}
+                    <InviteExpiry expiresAt={inv.expiresAt} now={now} />
                   </td>
                   <td className="py-4 text-right">
-                    <Button variant="outline" size="sm" onClick={() => void revokeInvite(inv)}>
-                      {tCommon('revoke')}
-                    </Button>
+                    <InviteActions
+                      invite={inv}
+                      now={now}
+                      resending={resendingId === inv.id}
+                      onResend={resendInvite}
+                      onRevoke={revokeInvite}
+                    />
                   </td>
                 </tr>
               ))}
@@ -359,12 +384,19 @@ export function TeamPage() {
                   <p className="truncate font-mono text-sm font-medium text-ink dark:text-foreground">
                     {inv.email}
                   </p>
+                  <p className="font-mono text-xs text-ink-mute">
+                    <InviteExpiry expiresAt={inv.expiresAt} now={now} />
+                  </p>
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <RoleChip role={inv.role as MemberRole} t={t} />
-                  <Button variant="outline" size="sm" onClick={() => void revokeInvite(inv)}>
-                    {tCommon('revoke')}
-                  </Button>
+                  <InviteActions
+                    invite={inv}
+                    now={now}
+                    resending={resendingId === inv.id}
+                    onResend={resendInvite}
+                    onRevoke={revokeInvite}
+                  />
                 </div>
               </li>
             ))}
@@ -430,6 +462,51 @@ export function TeamPage() {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function isExpired(expiresAt: string, now: Date): boolean {
+  return new Date(expiresAt).getTime() <= now.getTime();
+}
+
+function InviteExpiry({ expiresAt, now }: { expiresAt: string; now: Date }) {
+  const t = useTranslations('dashboard.team');
+  const format = useFormatter();
+  const when = format.relativeTime(new Date(expiresAt), now);
+  if (!isExpired(expiresAt, now)) return <>{when}</>;
+  return <span className="text-destructive">{t('invitesExpired', { when })}</span>;
+}
+
+function InviteActions({
+  invite,
+  now,
+  resending,
+  onResend,
+  onRevoke,
+}: {
+  invite: InvitationDto;
+  now: Date;
+  resending: boolean;
+  onResend: (invite: InvitationDto) => Promise<void>;
+  onRevoke: (invite: InvitationDto) => Promise<void>;
+}) {
+  const t = useTranslations('dashboard.team');
+  const tCommon = useTranslations('common');
+  const expired = isExpired(invite.expiresAt, now);
+  return (
+    <div className="inline-flex items-center justify-end gap-2">
+      <Button
+        variant={expired ? 'accent' : 'outline'}
+        size="sm"
+        disabled={resending}
+        onClick={() => void onResend(invite)}
+      >
+        {resending ? t('sending') : t('resend')}
+      </Button>
+      <Button variant="outline" size="sm" onClick={() => void onRevoke(invite)}>
+        {tCommon('revoke')}
+      </Button>
+    </div>
   );
 }
 

@@ -14,18 +14,28 @@ Always call `bookings_check_availability` with the `date` (YYYY-MM-DD) and `part
 
 ## Self-service (the guest's own agent)
 
-Every self-service call is fixed to the calling end-user's own identity — you can never act on another guest's booking or book under a different email.
+Every self-service call is tied to the session you're answering in. You can never read another guest's bookings, or change or cancel a booking this session has no claim to.
 
-- `bookings_list_my_bookings` / `bookings_get_my_booking` — the guest's own bookings.
-- `bookings_create_my_booking` — book a table for the guest. The booking is made under their own email automatically. Pass `date`, `time` (HH:MM), `partySize`; optionally `name`, `phone`, `note`.
-- `bookings_update_my_booking` — change the guest's own booking (`date`, `time`, `partySize`, or `note`) by `bookingRef`.
-- `bookings_cancel_my_booking` — cancel the guest's own booking by `bookingRef`.
+- `bookings_list_my_bookings` / `bookings_get_my_booking`: the guest's own bookings. These need a verified email; without one they return an error.
+- `bookings_create_my_booking`: book a table. Pass `date`, `time` (HH:MM), `partySize`; optionally `name`, `phone`, `note`.
+- `bookings_update_my_booking`: change a booking (`date`, `time`, `partySize`, or `note`) by `bookingRef`.
+- `bookings_cancel_my_booking`: cancel a booking by `bookingRef`.
 
-If the session has no email identity, these return an error — tell the guest you can't manage bookings in this session and offer a human handover (`conv_request_human`).
+### Sessions with a verified email
+
+A signed-in chat, or an email from the guest's own address. Bookings are made under that email automatically, and passing a different `email` is refused. Update and cancel work on any of the guest's bookings.
+
+### Sessions without one
+
+An anonymous chat or a phone call. You can still take a booking:
+
+- **Ask for the guest's email and pass it as `email`.** The booking is filed under it and the confirmation goes there. Nothing about that address is looked up or shown to you; you only get back the booking you just made. On a call, `phone` defaults to the caller's number, so only ask for it if they want a different one.
+- **Up to 3 bookings per conversation.** The fourth returns `bookings_limit`.
+- **Changes are limited to bookings made in this conversation.** Update and cancel work only on those, so "make it 8 instead" right after booking is fine. They can't look up or change any earlier booking. That needs a verified session or a human handover (`conv_request_human`).
 
 ### Writes are refused when the message looks forged
 
-Creating, changing or cancelling a booking works on any session that carries the guest's email, the same sessions that can read. The one exception: when you're answering an **email** and a message in the guest's latest turn explicitly failed its DMARC check for the address it claims to come from, the three write tools return `connectors_sender_auth_failed`. That result means the receiving mail server saw the `From:` domain's own policy reject the sender, which is how a forged `From:` header shows up. It can also be a misconfigured mail relay, so don't accuse the guest of anything.
+For a session that carries the guest's email, creating, changing or cancelling a booking works on the same sessions that can read, with one exception: when you're answering an **email** and a message in the guest's latest turn explicitly failed its DMARC check for the address it claims to come from, the three write tools return `connectors_sender_auth_failed`. That result means the receiving mail server saw the `From:` domain's own policy reject the sender, which is how a forged `From:` header shows up. It can also be a misconfigured mail relay, so don't accuse the guest of anything.
 
 The write tools also return `connectors_sender_forwarded` when a message in the guest's latest turn was forwarded — someone sent it on to the support address with the guest's address inside the forwarded text. Munin takes the guest's address from that text, and no mail server has checked it, so it can't be used to change a booking. Forwarding is ordinary (a colleague passing a request along), so treat it like the DMARC case: no accusation.
 

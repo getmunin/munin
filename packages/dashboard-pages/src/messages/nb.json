@@ -611,11 +611,8 @@
         "onlyThis": "Bare én",
         "allConnectionsHint": "Agenten kan bruke hvilken som helst av dem: {names}.",
         "noneSelected": "Ingen er valgt ennå, så agenten kan fortsatt bruke hvilken som helst av dem.",
-        "noneConnected": "Ingen koblet til",
         "inactiveOption": "{name} (inaktiv)",
         "missingOption": "Slettet kobling",
-        "summarySpaces": "{count, plural, one {# område} other {# områder}}",
-        "summaryAllSpaces": "Alle områder",
         "cardSpaces": "Kunnskap: {names}",
         "cardConnections": "Oppslag: {names}"
       },
@@ -1238,7 +1235,9 @@
         "sent": "Sendt",
         "expires": "Utløper"
       },
+      "invitesExpired": "Utløpt {when}",
       "resend": "Send på nytt",
+      "inviteResent": "Ny invitasjon sendt til {email}.",
       "inviteModalTitle": "Inviter medarbeider",
       "inviteModalSub": "Sender en innloggingslenke, utløper om 7 dager",
       "inviteModalRoleHint": "Medlemmer kan lese innboksen og svare. Admins kan i tillegg styre kanaler og nøkler.",
@@ -1250,6 +1249,7 @@
         "load": "Kunne ikke laste medarbeidere.",
         "invite": "Kunne ikke sende invitasjon.",
         "revokeInvite": "Kunne ikke trekke tilbake invitasjonen.",
+        "resendInvite": "Kunne ikke sende invitasjonen på nytt.",
         "remove": "Kunne ikke fjerne medlem.",
         "changeRole": "Kunne ikke endre rolle.",
         "rename": "Kunne ikke lagre navn."
@@ -2446,7 +2446,7 @@
     "conv_attachment_upload_missing": "Opplastingen ble ikke fullført. Prøv å legge ved bildet på nytt.",
     "conv_channel_config_invalid": "Kanalen har ufullstendige innstillinger og kan ikke brukes ennå. Åpne innstillingene, fyll ut det som mangler og lagre for å reparere den.",
     "conv_widget_voice_channel_invalid": "Den stemmekanalen finnes ikke lenger. Velg en annen.",
-    "connectors_connection_bound": "Denne tilkoblingen er knyttet til en kanal og kan ikke slettes. Fjern koblingen til kanalen først.",
+    "connectors_connection_bound": "Denne tilkoblingen er knyttet til {channels} og kan ikke slettes. Fjern den fra kanalen først.",
     "conv_delivery_channel_inactive": "Kanalen denne meldingen skal ut på er slått av, så en ny sending ville feilet også. Slå kanalen på igjen i innstillingene, og prøv på nytt.",
     "conv_delivery_not_retryable": "Denne meldingen venter ikke lenger på å sendes på nytt — den gikk ut, eller Munin prøver allerede igjen. Last samtalen på nytt for å se hvor den står.",
     "conv_draft_pending": "Et utkast venter allerede på godkjenning.",

@@ -189,6 +189,58 @@ describe('ShopifyAdapter', () => {
     expect(foreign).toBeNull();
   });
 
+  describe('never returns an order to anyone but its customer', () => {
+    const caller = 'jane@example.com';
+    const foreign = [
+      orderNode({ id: 'gid://shopify/Order/2001', name: '#2001', customer: { id: 'gid://shopify/Customer/8', email: 'mallory@example.com' } }),
+      orderNode({ id: 'gid://shopify/Order/2002', name: '#2002', customer: null }),
+      orderNode({ id: 'gid://shopify/Order/2003', name: '#2003', customer: { id: 'gid://shopify/Customer/9', email: null } }),
+      orderNode({ id: 'gid://shopify/Order/2004', name: '#2004', customer: { id: 'gid://shopify/Customer/10', email: '' } }),
+      orderNode({ id: 'gid://shopify/Order/2005', name: '#2005', customer: { id: 'gid://shopify/Customer/11', email: 'jane@example.com.evil.test' } }),
+      orderNode({ id: 'gid://shopify/Order/2006', name: '#2006', customer: { id: 'gid://shopify/Customer/12', email: 'xjane@example.com' } }),
+    ];
+    const own = [
+      orderNode({ id: 'gid://shopify/Order/3001', name: '#3001' }),
+      orderNode({ id: 'gid://shopify/Order/3002', name: '#3002', customer: { id: 'gid://shopify/Customer/7', email: ' JANE@example.com ' } }),
+    ];
+    const vendorIgnoringFilters = () =>
+      stubGraphql((req) => {
+        if (req.body.query.includes('customers(')) {
+          return { data: { customers: { nodes: [{ id: 'gid://shopify/Customer/7', email: caller }] } } };
+        }
+        if (req.body.query.includes('order(id:')) {
+          const hit = [...foreign, ...own].find((o) => o.id === req.body.variables.id);
+          return { data: { order: hit ?? null } };
+        }
+        return { data: { orders: { nodes: [...foreign, ...own] } } };
+      });
+
+    it('lists only the caller\'s orders even when the vendor ignores the customer filter', async () => {
+      const adapter = new ShopifyAdapter(vendorIgnoringFilters().fetch);
+
+      const orders = await adapter.listOrdersForCustomer(ctx(), { email: caller, limit: 25 });
+
+      expect(orders.map((o) => o.orderRef).sort()).toEqual(['3001', '3002']);
+    });
+
+    it.each(foreign.map((o) => [o.name, o.id.split('/').pop()!]))(
+      'refuses order ref of foreign order %s',
+      async (_name, orderRef) => {
+        const adapter = new ShopifyAdapter(vendorIgnoringFilters().fetch);
+
+        await expect(adapter.getOrderForCustomer(ctx(), { email: caller, orderRef })).resolves.toBeNull();
+      },
+    );
+
+    it.each(foreign.map((o) => [o.name]))('refuses order number of foreign order %s', async (orderNumber) => {
+      const adapter = new ShopifyAdapter(vendorIgnoringFilters().fetch);
+
+      await expect(
+        adapter.getOrderForCustomer(ctx(), { email: caller, orderNumber }),
+      ).resolves.toBeNull();
+    });
+  });
+
   it('rejects a non-numeric orderRef without calling the vendor', async () => {
     const { fetch, requests } = stubGraphql(() => ({ data: {} }));
     const adapter = new ShopifyAdapter(fetch);

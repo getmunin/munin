@@ -99,6 +99,7 @@ Passing the signed `email` closes that gap in both directions:
 |---|---|
 | They emailed first, then signed in | The inbound mail created a **provisional** identity keyed `email:<address>`. `identify` finds it by address and promotes it in place — `external_id` becomes your customer id, the row id never changes, so every conversation, CRM contact and analytics event already attached to it stays attached. |
 | They signed in first, then emailed | `identify` created the identity with your customer id and stamped the address on it. The inbound mail resolves by address and reuses that same row instead of forking a provisional one. |
+| A chat visitor only typed the address into the widget | A typed address proves nothing, so `identify` does not adopt that row. It takes the address back from it and stamps it on your customer's own identity. The visitor's anonymous chats stay on their anonymous row. |
 | Both identities already exist with real ids | Nothing is merged. The address stays with whoever holds it, the caller's identity is kept separate, and the server logs `identify.email_conflict`. Merging two established people is a decision for an operator, not a side effect of a page load. |
 
 One address belongs to one identity per org — enforced by a unique index — so a shared mailbox (`post@firma.no`) resolves to a single `end_users` row no matter how many humans write from it. That is usually what you want for a support inbox, and it is worth knowing before you treat a journey as one person's browsing history.

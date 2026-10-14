@@ -22,7 +22,7 @@ Run modules in this order and carry one growing `idMap` through all of them:
 
 1. **KB** — `kb_export` → `kb_import`
 2. **CRM** — `crm_export` → `crm_import` (pass the idMap from KB; harmless, keeps one map)
-3. **CMS** — `cms_export` → `cms_import` (assets included as base64 ≤ 5 MB; re-uploaded to the target's storage; published entries keep their original `publishedAt`, archived entries stay archived, and a still-future `scheduledAt` carries over — a schedule whose time has already passed lands as a draft with a warning)
+3. **CMS** — `cms_export` → `cms_import` (assets travel as a `sourceUrl` the target downloads and re-uploads to its own storage — pass `includeAssetBytes: true` on export when the target cannot reach the source's asset URLs, e.g. a self-hosted source on a private network, to inline them as base64 ≤ 5 MB instead; published entries keep their original `publishedAt`, archived entries stay archived, and a still-future `scheduledAt` carries over — a schedule whose time has already passed lands as a draft with a warning)
 4. **Conversations** — `conv_export` → `conv_import`
 5. **Outreach** — `outreach_export` → `outreach_import` (**must** run after CRM and Conv: campaigns reference a CRM segment + conv channel, proposals reference CRM contacts/conversations — all resolved via the carried idMap; campaigns import **disabled**)
 6. **Analytics** — `analytics_export_config` → then page `analytics_export_events` → `analytics_import`

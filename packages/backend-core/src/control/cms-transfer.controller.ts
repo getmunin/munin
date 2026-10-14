@@ -1,9 +1,11 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   HttpCode,
   Post,
+  Query,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -14,58 +16,32 @@ import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
 import { TenancyInterceptor } from '../common/tenancy/tenancy.interceptor.ts';
 import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { CmsService, type CmsExportData } from '../modules/cms/cms.service.ts';
-import { IdMapSchema, type ImportResult } from '../common/transfer/transfer.types.ts';
+import {
+  CmsExportInput,
+  CmsImportBody,
+  toCmsExportData,
+} from '../modules/cms/cms.schemas.ts';
+import type { ImportResult } from '../common/transfer/transfer.types.ts';
 
-class ImportCmsBody extends createZodDto(
-  z.object({
-    records: z.object({
-      locales: z.array(
-        z.object({
-          id: z.string(),
-          code: z.string().min(2).max(16),
-          name: z.string().min(1).max(120),
-          isDefault: z.boolean(),
-        }),
-      ),
-      collections: z.array(
-        z.object({
-          id: z.string(),
-          name: z.string().min(1).max(120),
-          slug: z.string().min(1).max(64),
-          description: z.string().nullable().optional(),
-          fields: z.array(z.unknown()),
-          localized: z.boolean(),
-          settings: z.record(z.string(), z.unknown()),
-        }),
-      ),
-      entries: z.array(
-        z.object({
-          id: z.string(),
-          collectionId: z.string(),
-          slug: z.string().min(1).max(200),
-          locale: z.string().min(1).max(16),
-          status: z.enum(['draft', 'published', 'scheduled', 'archived']),
-          data: z.record(z.string(), z.unknown()),
-          publishedAt: z.string().nullable().optional(),
-          scheduledAt: z.string().nullable().optional(),
-        }),
-      ),
-      assets: z.array(
-        z.object({
-          id: z.string(),
-          name: z.string().min(1).max(255),
-          mime: z.string().min(1).max(120),
-          sizeBytes: z.number().int().nonnegative(),
-          storageKey: z.string(),
-          altText: z.string().nullable().optional(),
-          metadata: z.record(z.string(), z.unknown()),
-          base64Body: z.string().nullable().optional(),
-        }),
-      ),
-    }),
-    idMap: IdMapSchema.optional(),
-  }),
-) {}
+class ImportCmsBody extends createZodDto(CmsImportBody) {}
+
+const ExportCmsQuery = z.object({
+  collections: z
+    .union([z.string(), z.array(z.string())])
+    .optional()
+    .transform((v) =>
+      v === undefined
+        ? undefined
+        : (Array.isArray(v) ? v : [v])
+            .flatMap((s) => s.split(','))
+            .map((s) => s.trim())
+            .filter(Boolean),
+    ),
+  includeAssetBytes: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === 'true')),
+});
 
 @Controller('v1/cms/transfer')
 @UseGuards(AuthGuard, ControlPlaneGuard)
@@ -74,31 +50,16 @@ export class CmsTransferController {
   constructor(private readonly cms: CmsService) {}
 
   @Get('export')
-  export(): Promise<CmsExportData> {
-    return this.cms.exportCms();
+  export(@Query() query: unknown): Promise<CmsExportData> {
+    const raw = ExportCmsQuery.safeParse(query ?? {});
+    const parsed = raw.success ? CmsExportInput.safeParse(raw.data) : raw;
+    if (!parsed.success) throw new BadRequestException(parsed.error.message);
+    return this.cms.exportCms(parsed.data);
   }
 
   @Post('import')
   @HttpCode(200)
-  async import(@Body() input: ImportCmsBody): Promise<ImportResult> {
-    const records: CmsExportData = {
-      locales: input.records.locales,
-      collections: input.records.collections.map((c) => ({
-        ...c,
-        description: c.description ?? null,
-        fields: c.fields as CmsExportData['collections'][number]['fields'],
-      })),
-      entries: input.records.entries.map((e) => ({
-        ...e,
-        publishedAt: e.publishedAt ?? null,
-        scheduledAt: e.scheduledAt ?? null,
-      })),
-      assets: input.records.assets.map((a) => ({
-        ...a,
-        altText: a.altText ?? null,
-        base64Body: a.base64Body ?? null,
-      })),
-    };
-    return this.cms.importCms(records, input.idMap);
+  import(@Body() input: ImportCmsBody): Promise<ImportResult> {
+    return this.cms.importCms(toCmsExportData(input.records), input.idMap);
   }
 }

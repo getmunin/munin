@@ -2665,7 +2665,7 @@
   {
     "name": "cms_export",
     "title": "CMS: Export data",
-    "description": "Export this org's CMS (locales, collections, entries, and assets) as a portable JSON payload. Pair with `cms_import` on another Munin server to move content between self-hosted and cloud. Asset bytes are included base64-encoded (assets larger than 5MB are exported as metadata only). Entry embeddings are not included — they are regenerated on import. Feed the returned `records` straight into `cms_import`.",
+    "description": "Export this org's CMS (locales, collections, entries, and assets) as a portable JSON payload, for moving content to another org or another Munin server (self-hosted ↔ cloud). Pass `collections` to export only some collections — the payload then holds just the locales their entries use and the assets their entries reference. Assets are exported as metadata plus a `sourceUrl` the importing server downloads from, so the payload stays small; set `includeAssetBytes` to inline base64 bytes instead (assets over 5MB stay metadata only) when the target cannot reach this server's asset URLs. Entry embeddings are not included — they are regenerated on import. The returned object is the `records` input of `cms_import`.",
     "audiences": [
       "admin"
     ],
@@ -2677,14 +2677,30 @@
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
-      "properties": {},
+      "properties": {
+        "collections": {
+          "description": "Collection slugs to export. Only those collections, their entries, the locales those entries use, and the assets those entries reference are included. Omit to export the whole CMS.",
+          "minItems": 1,
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "includeAssetBytes": {
+          "description": "Inline each asset's bytes as `base64Body` (assets over 5MB stay metadata only). Defaults to false: assets carry a `sourceUrl` that `cms_import` fetches server-side instead. Set it only when the importing server cannot reach this server's asset URLs, such as a self-hosted server on a private network.",
+          "type": "boolean"
+        }
+      },
       "additionalProperties": false
     }
   },
   {
     "name": "cms_import",
     "title": "CMS: Import data",
-    "description": "Import CMS `records` produced by `cms_export` (typically from another Munin server). Locales are upserted by code, collections by slug, entries by (collection, slug, locale), and assets by (name, size) — so re-running is idempotent. Entries that shared a `translationGroupId` on the source stay linked as locale variants here; payloads exported before translation groups existed fall back to grouping by (collection, slug). Asset bytes are re-uploaded to this server and entry references/asset ids are rewritten to local ids. Entry embeddings are regenerated here. Returns counts and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents.",
+    "description": "Import CMS `records` produced by `cms_export` (from another org or another Munin server). Locales are upserted by code, collections by slug, entries by (collection, slug, locale), and assets by (name, size) — so re-running is idempotent. Entries that shared a `translationGroupId` on the source stay linked as locale variants here; payloads exported before translation groups existed fall back to grouping by (collection, slug). Asset bytes come from `base64Body` when present, otherwise this server downloads them from `sourceUrl`; an asset whose bytes cannot be obtained is imported as a metadata-only placeholder with a warning, and a later re-run fills that placeholder in place. Entry asset and reference ids are rewritten to local ids, and published entries keep their original `publishedAt`. Entry embeddings are regenerated here. Returns counts and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents.",
     "audiences": [
       "admin"
     ],
@@ -2886,6 +2902,18 @@
                       "type": "string"
                     },
                     "additionalProperties": {}
+                  },
+                  "sourceUrl": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 2048,
+                        "format": "uri"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "base64Body": {
                     "type": [

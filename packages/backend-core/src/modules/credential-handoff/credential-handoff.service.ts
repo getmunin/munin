@@ -24,6 +24,10 @@ export interface CredentialLink {
   expiresAt: string;
 }
 
+export interface CredentialSubmitResult extends CredentialApplyResult {
+  saved: boolean;
+}
+
 export interface PendingCredentialDto {
   label: string;
   vendor: string;
@@ -67,17 +71,38 @@ export class CredentialHandoffService {
     return description;
   }
 
-  async complete(token: string, secrets: Record<string, string>): Promise<CredentialApplyResult> {
+  async complete(token: string, secrets: Record<string, string>): Promise<CredentialSubmitResult> {
     const req = await this.resolve(token);
     const handler = this.registry.get(req.targetType);
     if (!handler) throw new NotFoundException('credential_handoff_not_found: link no longer valid');
     const applied = await this.inOrgContext(req.orgId, () => handler.apply(req.targetId, secrets));
+    if (!applied.ok) return { ...applied, saved: false };
+    const verified = handler.verify
+      ? await this.inOrgActor(req.orgId, () => handler.verify!(req.targetId))
+      : applied;
+    if (verified.ok) await this.markCompleted(req.id);
+    return { ...verified, saved: true };
+  }
+
+  async retest(token: string): Promise<CredentialSubmitResult> {
+    const req = await this.resolve(token);
+    const handler = this.registry.get(req.targetType);
+    if (!handler) throw new NotFoundException('credential_handoff_not_found: link no longer valid');
+    if (!handler.verify) {
+      throw new BadRequestException(
+        `credential_handoff_invalid: ${req.targetType} credentials cannot be re-tested`,
+      );
+    }
+    const verified = await this.inOrgActor(req.orgId, () => handler.verify!(req.targetId));
+    if (verified.ok) await this.markCompleted(req.id);
+    return { ...verified, saved: true };
+  }
+
+  private async markCompleted(id: string): Promise<void> {
     await this.db
       .update(schema.credentialRequests)
       .set({ completedAt: new Date() })
-      .where(eq(schema.credentialRequests.id, req.id));
-    if (!applied.ok || !handler.verify) return applied;
-    return this.inOrgActor(req.orgId, () => handler.verify!(req.targetId));
+      .where(eq(schema.credentialRequests.id, id));
   }
 
   private async resolve(token: string) {

@@ -225,6 +225,23 @@ const skipReason = TEST_URL
     expect(config.outbound.encryptedPassword.length).toBeGreaterThan(0);
   });
 
+  it('re-tests a stored password on the same link once the mailbox starts accepting it', async () => {
+    probeResult = { smtp: 'error: EAUTH 535 bad credentials', imap: 'ok' };
+    const link = await asAdmin(() => channels.requestLink(channelId));
+    const token = tokenFromUrl(link.url);
+    const first = await handoff.complete(token, {
+      smtpPassword: 'fresh_app_pw',
+      imapPassword: 'fresh_app_pw',
+    });
+    expect(first).toMatchObject({ ok: false, saved: true });
+
+    probeResult = { smtp: 'ok', imap: 'ok' };
+    const retested = await handoff.retest(token);
+    expect(retested).toEqual({ ok: true, saved: true, detail: 'SMTP ok; IMAP ok' });
+
+    await expect(handoff.retest(token)).rejects.toThrow(/invalid or expired/);
+  });
+
   it('does not activate the channel while a required password is still missing', async () => {
     const link = await asAdmin(() => channels.requestLink(channelId));
     await handoff.complete(tokenFromUrl(link.url), { smtpPassword: 'smtp_only' });
@@ -557,7 +574,7 @@ const skipReason = TEST_URL
       expect(described.fields).toEqual([{ key: 'apiToken', label: 'apiToken', required: true }]);
 
       const result = await handoff.complete(token, { apiToken: 'tok_secret' });
-      expect(result).toEqual({ ok: true, detail: 'credentials saved and verified' });
+      expect(result).toEqual({ ok: true, saved: true, detail: 'credentials saved and verified' });
 
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
       const rows = await db.select().from(schema.convChannels).where(sql`id = ${created.id}`);

@@ -16,7 +16,7 @@ For a system no vendor adapter covers — a proprietary CRM, a subscription data
 
 1. Have the human create a read-only API credential in the external system (per-vendor steps below).
 2. `connectors_create_connection` with `vendor`, a `name`, and the vendor's **non-secret** config fields. The vendor determines the domain. The response includes a one-time **credential link**.
-3. Share the credential link — the human opens it and enters the secret directly in the dashboard. The link expires after 24 hours and works once; mint a fresh one with `connectors_request_credentials` if it lapses.
+3. Share the credential link — the human opens it and enters the secret directly in the dashboard. The link expires after 24 hours and closes once the secret passes the connection test; until then the human can re-test or re-enter on the same page. Mint a fresh one with `connectors_request_credentials` if it lapses.
 4. `connectors_test_connection` — verifies the stored credential with a read-only probe.
 5. Mint delegated end-user tokens with `commerce:read` and/or `bookings:read` to enable customer self-service.
 

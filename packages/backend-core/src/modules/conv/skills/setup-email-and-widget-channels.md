@@ -51,7 +51,7 @@ Then:
 }
 ```
 
-The response includes a one-time `credentialLink` — share it so a human can enter the SMTP/IMAP passwords in the dashboard. The channel activates when they save (the passwords are verified against the servers).
+The response includes a one-time `credentialLink` — share it so a human can enter the SMTP/IMAP passwords in the dashboard. The channel activates when they save (the passwords are verified against the servers). If the test fails — a freshly created app password can take minutes to start working — the passwords stay saved and the page lets them test again or re-enter on the same link.
 
 The response includes the channel id. Passwords come back as `••••` — they're encrypted via pgcrypto and never re-emitted.
 

@@ -2321,10 +2321,15 @@
     "missingFields": "Missing from the saved settings: {fields}",
     "for": "Credentials for {vendor}",
     "submit": "Save credentials",
-    "reassurance": "Credentials are encrypted at rest and never shown again. This link works once.",
+    "reassurance": "Credentials are encrypted at rest and never shown again. This link stops working once they're verified.",
     "successBody": "Your credentials were saved and verified.",
     "savedButUntested": "Credentials saved, but the test call didn't succeed — check them and try again from the dashboard.",
     "failure": "Couldn't save.",
+    "savedButFailed": "Saved, but the connection test failed.",
+    "activationDelay": "A new password or app password can take a few minutes to start working. You can test again without retyping it, or enter different credentials.",
+    "testAgain": "Test again",
+    "testing": "Testing…",
+    "reenter": "Enter different credentials",
     "retry": "Try again"
   },
   "assistants": {

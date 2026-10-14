@@ -1,5 +1,14 @@
 # @getmunin/chat-widget
 
+## 5.46.0
+
+### Patch Changes
+
+- 20c5460: Redesign the product cards in the chat widget. The image now fills the top of the card edge to edge, the price sits on the image as a small label, and the card has its own surface (`--munin-paper-deep`) so it no longer blends into the conversation background in light or dark mode. The "View" pill is gone: the whole card was already the link, so a small ↗ arrow next to the product name now marks it as opening the store page, and on hover or keyboard focus the arrow darkens and nudges along with the card border. Long product names are capped at three lines so one title can't stretch the whole rail, and the now-unused `productViewLabel` string is removed from every locale.
+- 54fc26d: Stop the message box from changing width while the visitor types. The character counter shared a column with the send button and widened it every time the count gained a digit, which squeezed the message box at 10, 100 and 1000 characters. The counter is gone, and the message box now stops accepting text at the 1000-character limit, so it never reaches a state where send is silently disabled.
+- Updated dependencies [51ea7c0]
+  - @getmunin/types@5.46.0
+
 ## 5.45.0
 
 ### Patch Changes

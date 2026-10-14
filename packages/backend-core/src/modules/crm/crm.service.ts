@@ -1,4 +1,10 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import {
   and,
@@ -25,6 +31,7 @@ import { newImportResult, resolveId } from '../../common/transfer/transfer.helpe
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 import { mergeFingerprint } from './merge-fingerprint.ts';
 import { CrmInvalidError } from './crm.errors.ts';
+import { isSelfReportedIdentity } from '../connectors/identity-provenance.ts';
 import { AddressDeliverabilityService } from './address-deliverability.service.ts';
 import { normalizeAddress, type AddressDeliverabilityDto } from './address-deliverability.ts';
 
@@ -358,6 +365,23 @@ export class CrmService {
       .limit(1);
     if (!rows[0]) throw new NotFoundException(`crm_not_found: no contact linked to your end-user record`);
     return this.hydrateContact(rows[0]);
+  }
+
+  async getMyVerifiedContact(): Promise<ContactDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    if (!actor.endUserId) throw new CrmInvalidError('end-user identity required');
+    const [endUser] = await ctx.db
+      .select({ metadata: schema.endUsers.metadata })
+      .from(schema.endUsers)
+      .where(eq(schema.endUsers.id, actor.endUserId))
+      .limit(1);
+    if (isSelfReportedIdentity(endUser?.metadata)) {
+      throw new BadRequestException(
+        'crm_unverified: this session\'s identity was self-reported in chat and is not verified, so the linked contact record is not available here',
+      );
+    }
+    return this.getMyContact();
   }
 
   async findContact(input: { email?: string; phone?: string }): Promise<ContactDto | null> {

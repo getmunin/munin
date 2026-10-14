@@ -255,6 +255,52 @@ const skipReason = TEST_URL
     });
   }, 30_000);
 
+  it('refuses the linked contact to an end user whose identity was self-reported in chat', async () => {
+    const [visitor] = await db
+      .insert(schema.endUsers)
+      .values({
+        orgId,
+        externalId: 'eu-visitor',
+        email: 'kari@example.com',
+        metadata: { emailSource: 'visitor' },
+      })
+      .returning();
+    await db.insert(schema.crmContacts).values({
+      orgId,
+      endUserId: visitor!.id,
+      email: 'kari@example.com',
+      name: 'Kari Nordmann',
+      phone: '+4712345678',
+    });
+    const visitorToken = buildApiKey('dlg');
+    await db.insert(schema.tokens).values({
+      orgId,
+      type: 'delegated_end_user',
+      tokenHash: hashSecret(visitorToken),
+      scopes: ['crm:read', 'crm:write'],
+      audiences: ['self_service'],
+      endUserId: visitor!.id,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+
+    await withClient(visitorToken, async (c) => {
+      for (const call of [
+        { name: 'crm_get_my_contact', arguments: {} },
+        { name: 'crm_update_my_contact', arguments: { name: 'Kari' } },
+      ]) {
+        const result = (await c.callTool(call)) as {
+          isError?: boolean;
+          content?: Array<{ text?: string }>;
+        };
+        expect(result.isError).toBe(true);
+        const text = result.content?.[0]?.text ?? '';
+        expect(text).toContain('crm_unverified');
+        expect(text).not.toContain('Nordmann');
+        expect(text).not.toContain('12345678');
+      }
+    });
+  }, 30_000);
+
   it('createSegment returns an actionable conflict on a duplicate name (not a 500)', async () => {
     await withClient(adminKey, async (c) => {
       await c.callTool({

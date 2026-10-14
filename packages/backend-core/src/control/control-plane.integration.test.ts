@@ -715,6 +715,89 @@ interface OrgFixture {
       expect(await res.text()).toContain('delegated_email_mismatch');
     });
 
+    it('never adopts an end user whose email was typed by a visitor when minting by email alone', async () => {
+      const stamp = Date.now();
+      const email = `typed-${stamp}@example.test`;
+      const [squatter] = await db
+        .insert(schema.endUsers)
+        .values({
+          orgId: orgA.id,
+          externalId: `widget-verified-${stamp}`,
+          email,
+          metadata: { emailSource: 'visitor' },
+        })
+        .returning();
+
+      const res = await mintDelegated({ email });
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { endUserId: string };
+      expect(body.endUserId).not.toBe(squatter!.id);
+
+      const [minted] = await db
+        .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
+        .from(schema.endUsers)
+        .where(eq(schema.endUsers.id, body.endUserId));
+      expect(minted!.email).toBe(email);
+      expect(minted!.metadata).toMatchObject({ emailSource: 'org-attested' });
+
+      const [released] = await db
+        .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
+        .from(schema.endUsers)
+        .where(eq(schema.endUsers.id, squatter!.id));
+      expect(released!.email).toBeNull();
+      expect(released!.metadata).not.toHaveProperty('emailSource');
+    });
+
+    it('releases an anonymous visitor\'s claim on the email when attesting it for another end user', async () => {
+      const stamp = Date.now();
+      const email = `anon-claim-${stamp}@example.test`;
+      const [visitor] = await db
+        .insert(schema.endUsers)
+        .values({
+          orgId: orgA.id,
+          externalId: `anon:${stamp}`,
+          email,
+          metadata: { anonymous: true, emailSource: 'visitor' },
+        })
+        .returning();
+
+      const res = await mintDelegated({ externalId: `claimant-anon-${stamp}`, email });
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { endUserId: string };
+      expect(body.endUserId).not.toBe(visitor!.id);
+      const [released] = await db
+        .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
+        .from(schema.endUsers)
+        .where(eq(schema.endUsers.id, visitor!.id));
+      expect(released!.email).toBeNull();
+      expect(released!.metadata).toMatchObject({ anonymous: true });
+    });
+
+    it('replaces a visitor-typed email on the named end user instead of refusing the mint', async () => {
+      const stamp = Date.now();
+      const [existing] = await db
+        .insert(schema.endUsers)
+        .values({
+          orgId: orgA.id,
+          externalId: `typo-${stamp}`,
+          email: `typo-${stamp}@example.test`,
+          metadata: { emailSource: 'visitor' },
+        })
+        .returning();
+      const attested = `real-${stamp}@example.test`;
+
+      const res = await mintDelegated({ externalId: `typo-${stamp}`, email: attested });
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { endUserId: string };
+      expect(body.endUserId).toBe(existing!.id);
+      const [row] = await db
+        .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
+        .from(schema.endUsers)
+        .where(eq(schema.endUsers.id, existing!.id));
+      expect(row!.email).toBe(attested);
+      expect(row!.metadata).toMatchObject({ emailSource: 'org-attested' });
+    });
+
     it('409 when another end user already holds the attested email', async () => {
       const email = `held-${Date.now()}@example.test`;
       await db.insert(schema.endUsers).values({ orgId: orgA.id, externalId: `holder-${Date.now()}`, email });

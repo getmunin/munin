@@ -557,6 +557,27 @@ const skipReason = TEST_URL
     expect(endUsers.length).toBe(1);
   });
 
+  it('keeps CRM details matched by caller id out of the call instructions', async () => {
+    const callerNumber = '+14155550112';
+    await db.insert(schema.crmContacts).values({
+      orgId,
+      name: 'Kari Nordmann',
+      email: 'kari.nordmann@example.com',
+      phone: callerNumber,
+    });
+
+    const res = await postEvent({
+      type: 'call.worker_request',
+      data: { callId: 'call_threll_known_number', direction: 'inbound', customer: { number: callerNumber } },
+    });
+    expect(res.status).toBe(200);
+    const { instructions } = (await res.json()) as { instructions: string };
+
+    expect(instructions).toContain(callerNumber);
+    expect(instructions).not.toContain('Nordmann');
+    expect(instructions).not.toContain('kari.nordmann@example.com');
+  });
+
   it('worker_request for an in-browser (webrtc) call creates no conversation', async () => {
     const callId = 'call_threll_webrtc';
     const res = await postEvent({

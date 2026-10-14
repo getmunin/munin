@@ -352,6 +352,67 @@ const skipReason = TEST_URL
     expect(stored.ciphertext).not.toContain('rotated_pw');
   });
 
+  it('asks for a reply mode the moment an email channel starts receiving mail, and not before', async () => {
+    const email = new EmailService();
+    const smtp = {
+      provider: 'smtp' as const,
+      host: 'smtp.acme.test',
+      port: 587,
+      secure: false,
+      username: 'mode@acme.test',
+    };
+    const imap = {
+      provider: 'imap' as const,
+      host: 'imap.acme.test',
+      port: 993,
+      secure: true,
+      username: 'mode@acme.test',
+    };
+    const addressing = { fromAddress: 'mode@acme.test' };
+
+    await expect(
+      asAdmin(() =>
+        email.configureChannel({
+          name: 'Undecided inbox',
+          config: { addressing, outbound: smtp, inbound: imap },
+        }),
+      ),
+    ).rejects.toThrow(/conv_agent_mode_required/);
+
+    const outboundOnly = await asAdmin(() =>
+      email.configureChannel({ name: 'Sender only', config: { addressing, outbound: smtp } }),
+    );
+
+    await expect(
+      asAdmin(() =>
+        email.configureChannel({
+          channelId: outboundOnly.id,
+          name: 'Sender only',
+          config: { addressing, outbound: smtp, inbound: imap },
+        }),
+      ),
+    ).rejects.toThrow(/conv_agent_mode_required/);
+
+    const decided = await asAdmin(() =>
+      email.configureChannel({
+        channelId: outboundOnly.id,
+        name: 'Sender only',
+        defaultAgentMode: 'draft_only',
+        config: { addressing, outbound: smtp, inbound: imap },
+      }),
+    );
+    expect(decided.defaultAgentMode).toBe('draft_only');
+
+    const renamed = await asAdmin(() =>
+      email.configureChannel({
+        channelId: outboundOnly.id,
+        name: 'Sender renamed',
+        config: { addressing, outbound: smtp, inbound: imap },
+      }),
+    );
+    expect(renamed.defaultAgentMode).toBe('draft_only');
+  });
+
   it('deactivates a channel whose update leaves a required password missing, and reactivates it on entry', async () => {
     const email = new EmailService();
     const created = await asAdmin(() =>
@@ -376,6 +437,7 @@ const skipReason = TEST_URL
       email.configureChannel({
         channelId: created.id,
         name: 'Outbound only',
+        defaultAgentMode: 'auto',
         config: {
           addressing: { fromAddress: 'out@acme.test' },
           outbound: {
@@ -535,11 +597,22 @@ const skipReason = TEST_URL
       ).rejects.toThrow(/conv_invalid: secret fields \(apiToken\)/);
     });
 
+    it('refuses to create an SMS channel until someone has chosen how the agent replies', async () => {
+      await expect(
+        asAdmin(() =>
+          adminSvc.configure(
+            { vendor: 'fakesms', name: 'Undecided line', config: { sender: 'ACME' } },
+            { rejectSecrets: true },
+          ),
+        ),
+      ).rejects.toThrow(/conv_agent_mode_required/);
+    });
+
     it('rejects a pending create missing required non-secret config', async () => {
       await expect(
         asAdmin(() =>
           adminSvc.configure(
-            { vendor: 'fakesms', name: 'No sender', config: {} },
+            { vendor: 'fakesms', defaultAgentMode: 'auto', name: 'No sender', config: {} },
             { rejectSecrets: true },
           ),
         ),
@@ -549,7 +622,12 @@ const skipReason = TEST_URL
     it('creates a pending channel, blocks admin actions, then completes setup via the link', async () => {
       const created = await asAdmin(() =>
         adminSvc.configure(
-          { vendor: 'fakesms', name: 'Fake SMS line', config: { sender: 'ACME' } },
+          {
+            vendor: 'fakesms',
+            defaultAgentMode: 'auto',
+            name: 'Fake SMS line',
+            config: { sender: 'ACME' },
+          },
           { rejectSecrets: true },
         ),
       );
@@ -585,7 +663,12 @@ const skipReason = TEST_URL
     it('completes a pending vendor channel from the dashboard, with no link involved', async () => {
       const created = await asAdmin(() =>
         adminSvc.configure(
-          { vendor: 'fakesms', name: 'Dashboard line', config: { sender: 'ACME' } },
+          {
+            vendor: 'fakesms',
+            defaultAgentMode: 'auto',
+            name: 'Dashboard line',
+            config: { sender: 'ACME' },
+          },
           { rejectSecrets: true },
         ),
       );
@@ -603,7 +686,12 @@ const skipReason = TEST_URL
       fakeProvider.testResult = { ok: false, error: 'vendor rejected the token' };
       const created = await asAdmin(() =>
         adminSvc.configure(
-          { vendor: 'fakesms', name: 'Bad token line', config: { sender: 'ACME' } },
+          {
+            vendor: 'fakesms',
+            defaultAgentMode: 'auto',
+            name: 'Bad token line',
+            config: { sender: 'ACME' },
+          },
           { rejectSecrets: true },
         ),
       );

@@ -26,7 +26,9 @@ const SetupInput = z.object({
   channelId: z.string().optional(),
   name: z.string().min(1).max(120),
   config: EmailChannelConfigInput,
-  defaultAgentMode: AgentModeSchema.optional(),
+  defaultAgentMode: AgentModeSchema.optional().describe(
+    "How the agent handles inbound mail: 'auto' replies to the sender directly, 'draft_only' answers into an internal draft a person reviews and sends, 'off' keeps the agent out. Required when creating a channel with `config.inbound`, and when adding inbound to a channel that had none; omit on other updates to keep the current mode.",
+  ),
 });
 
 const TestInput = z.object({
@@ -53,7 +55,7 @@ export class EmailAdminTools {
     name: 'conv_configure_email_channel',
     title: 'Conv: Configure an email channel',
     description:
-      "Create or update an email channel's transport configuration with the non-secret fields only. SMTP / IMAP passwords are rejected here: the channel is created inactive and the response includes a one-time link for a human to enter the passwords in the dashboard — the channel activates once they are saved. Updating a channel that is currently deactivated (for example after repeated inbound polling failures) re-tests the stored credentials: the channel is reactivated when SMTP and IMAP both connect, and otherwise stays deactivated with the connection errors in the `probe` field of the response. IMAP inbound imports mail the server received from the moment the channel is activated, including anything that lands before the first poll; older mail already in the mailbox is not imported unless `inbound.backfillDays` (1–90) asks for that many days of it, which only applies to that first poll. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host (no password needed, channel is active immediately). Set `defaultAgentMode: 'draft_only'` so the agent answers into an internal draft that a human reviews and sends, instead of replying to the sender itself — use it to run an inbox with a human in the loop, or on an outreach-only inbox where a reply must never be auto-sent.",
+      "Create or update an email channel's transport configuration with the non-secret fields only. SMTP / IMAP passwords are rejected here: the channel is created inactive and the response includes a one-time link for a human to enter the passwords in the dashboard — the channel activates once they are saved. Updating a channel that is currently deactivated (for example after repeated inbound polling failures) re-tests the stored credentials: the channel is reactivated when SMTP and IMAP both connect, and otherwise stays deactivated with the connection errors in the `probe` field of the response. IMAP inbound imports mail the server received from the moment the channel is activated, including anything that lands before the first poll; older mail already in the mailbox is not imported unless `inbound.backfillDays` (1–90) asks for that many days of it, which only applies to that first poll. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host (no password needed, channel is active immediately). A channel that receives mail needs an explicit `defaultAgentMode` — there is no default: `auto` lets the agent reply to the sender itself, `draft_only` parks each answer as an internal draft that a human reviews and sends (a human-in-the-loop inbox, or an outreach-only inbox where a reply must never be auto-sent).",
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: SetupInput,

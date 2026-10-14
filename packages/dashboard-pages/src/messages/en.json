@@ -550,7 +550,10 @@
         "segmentOff": "Agent stays out",
         "segmentDraft": "Draft for approval",
         "segmentAuto": "Reply and send",
-        "hintShort": "Outreach replies are always drafted for approval."
+        "hintShort": "Outreach replies are always drafted for approval.",
+        "hintWidget": "What the agent does when a visitor writes in the chat. With drafts, the visitor waits until a teammate approves and sends the reply.",
+        "choose": "Choose how the agent replies…",
+        "required": "Choose how the agent replies — answer straight away, draft for approval, or stay out."
       },
       "eyebrow": "Workspace · Channels",
       "title": "Where the flock <em>fly</em>.",
@@ -1537,7 +1540,7 @@
       "automation": {
         "eyebrow": "Automation",
         "title": "Approve it until <em>you don't have to.</em>",
-        "lede": "Every topic starts in review. When the numbers hold, flip it to auto — and the queue gets quieter. That is the point.",
+        "lede": "Every topic follows its channel until you give it a rule. Where a channel drafts, flip a topic to auto once the numbers hold — and the queue gets quieter. That is the point.",
         "autoRateCaption": "of replies auto-sent · 7 days",
         "colTopic": "Topic",
         "colVolume": "Volume / window",
@@ -1739,7 +1742,7 @@
         "endpointCalls": "{count, plural, one {# tool call so far} other {# tool calls so far}}",
         "endpointIdle": "no agent has called it yet",
         "waitLabel": "While you wait",
-        "waitBody": "Every topic starts in manual review. Nothing is auto-sent — today or ever — until you flip one yourself in Automation, and you can't flip anything before there are numbers to look at.",
+        "waitBody": "Replies follow the mode you picked for each channel. Where a channel drafts, nothing reaches a customer until a teammate approves it, and a topic only moves to auto-send when you flip it yourself in Automation — once there are numbers to look at.",
         "noteListening": "Nothing to review until something arrives."
       },
       "conversations": {

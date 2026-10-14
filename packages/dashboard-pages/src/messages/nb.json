@@ -550,7 +550,10 @@
         "segmentOff": "Agenten holder seg unna",
         "segmentDraft": "Utkast til godkjenning",
         "segmentAuto": "Svar og send",
-        "hintShort": "Svar i utgående kampanjer blir alltid utkast til godkjenning."
+        "hintShort": "Svar i utgående kampanjer blir alltid utkast til godkjenning.",
+        "hintWidget": "Hva agenten gjør når en besøkende skriver i chatten. Med utkast venter den besøkende til en kollega har godkjent og sendt svaret.",
+        "choose": "Velg hvordan agenten svarer …",
+        "required": "Velg hvordan agenten skal svare: svare med en gang, lage utkast til godkjenning eller holde seg unna."
       },
       "eyebrow": "Arbeidsområde · Kanaler",
       "title": "Der flokken <em>flyr</em>.",
@@ -1537,7 +1540,7 @@
       "automation": {
         "eyebrow": "Automatisering",
         "title": "Godkjenn til <em>du slipper.</em>",
-        "lede": "Hvert tema starter til godkjenning. Når tallene holder, slår du på automatisk utsending — og køen blir stillere. Det er poenget.",
+        "lede": "Hvert tema følger kanalen sin til du gir det en egen regel. Der kanalen lager utkast, slår du på automatisk utsending når tallene holder — og køen blir stillere. Det er poenget.",
         "autoRateCaption": "av svarene sendt automatisk · 7 dager",
         "colTopic": "Tema",
         "colVolume": "Volum / vindu",
@@ -1739,7 +1742,7 @@
         "endpointCalls": "{count, plural, one {# verktøykall så langt} other {# verktøykall så langt}}",
         "endpointIdle": "ingen agent har kalt det ennå",
         "waitLabel": "Mens du venter",
-        "waitBody": "Hvert tema starter til manuell godkjenning. Ingenting sendes automatisk — verken i dag eller senere — før du slår det på selv under Automatisering, og du kan ikke slå på noe før det finnes tall å se på.",
+        "waitBody": "Svarene følger modusen du valgte for hver kanal. Der kanalen lager utkast, når ingenting kunden før en kollega har godkjent det, og et tema går bare over til automatisk utsending når du slår det på selv under Automatisering — når det finnes tall å se på.",
         "noteListening": "Ingenting å gå gjennom før noe kommer inn."
       },
       "conversations": {

@@ -820,6 +820,13 @@
       "when": 1792003331552,
       "tag": "0116_conv_subject_translations",
       "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1792003331553,
+      "tag": "0117_conv_topic_inherit_channel_mode",
+      "breakpoints": true
     }
   ]
 }

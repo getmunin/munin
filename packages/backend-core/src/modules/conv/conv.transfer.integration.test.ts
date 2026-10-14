@@ -177,7 +177,7 @@ const skipReason = TEST_URL
     const channel = await withClient(adminKeyA, async (c) => {
       const res = await c.callTool({
         name: 'conv_create_widget_channel',
-        arguments: { name: 'Website widget', originAllowlist: ['https://acme.test'] },
+        arguments: { defaultAgentMode: 'auto',name: 'Website widget', originAllowlist: ['https://acme.test'] },
       });
       return firstJson(res) as { id: string };
     });

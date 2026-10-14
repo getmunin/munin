@@ -25,6 +25,7 @@ import {
 } from '@getmunin/types';
 import { findOrCreateEndUserByEmail } from '../end-user-by-email.ts';
 import { parseStoredConfig, tryParseStoredConfig } from '../channels/stored-config.ts';
+import { requireChosenAgentMode } from '../channels/agent-mode-choice.ts';
 
 export { EmailChannelConfigInput };
 export type { EmailChannelConfigInputT };
@@ -386,6 +387,9 @@ export class EmailService {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     if (opts?.rejectSecrets) assertNoSecrets(input.config);
+    const defaultAgentMode = input.config.inbound
+      ? requireChosenAgentMode(input.defaultAgentMode, 'email')
+      : input.defaultAgentMode;
     const stored = await this.toStored(input.config);
     const [row] = await ctx.db
       .insert(schema.convChannels)
@@ -396,7 +400,7 @@ export class EmailService {
         name: input.name,
         config: storedToJsonb(stored),
         active: !needsCredentials(stored),
-        ...(input.defaultAgentMode ? { defaultAgentMode: input.defaultAgentMode } : {}),
+        ...(defaultAgentMode ? { defaultAgentMode } : {}),
       })
       .returning();
     return {
@@ -438,6 +442,9 @@ export class EmailService {
       throw new BadRequestException(`channel ${input.channelId} is not an email channel`);
     }
     const prev = tryJsonbToStored(channel.config);
+    if (input.config.inbound && !prev?.inbound) {
+      requireChosenAgentMode(input.defaultAgentMode, 'email');
+    }
     const merged = prev
       ? await this.mergeConfig(prev, input.config)
       : await this.toStored(input.config);

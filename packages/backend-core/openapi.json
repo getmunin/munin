@@ -9915,6 +9915,14 @@
             "minLength": 1,
             "maxLength": 120
           },
+          "defaultAgentMode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "draft_only",
+              "off"
+            ]
+          },
           "originAllowlist": {
             "default": [],
             "type": "array",
@@ -9937,12 +9945,22 @@
           }
         },
         "required": [
-          "name"
+          "name",
+          "defaultAgentMode"
         ]
       },
       "UpdateWidgetBody": {
         "type": "object",
         "properties": {
+          "defaultAgentMode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "draft_only",
+              "off"
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
           "originAllowlist": {
             "type": "array",
             "items": {

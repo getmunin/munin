@@ -11,6 +11,7 @@ import {
   jsonbToStored,
   type TwilioSmsChannelDto,
 } from './twilio-sms.service.ts';
+import { requireChosenAgentMode } from '../channels/agent-mode-choice.ts';
 
 export const ConfigureInput = z.object({
   channelId: z
@@ -87,6 +88,7 @@ export class TwilioSmsAdminService {
       });
     }
     if (!args.name) throw new BadRequestException('name is required when creating a channel');
+    const defaultAgentMode = requireChosenAgentMode(args.defaultAgentMode, 'sms');
     if (!args.accountSid) throw new BadRequestException('accountSid is required when creating a channel');
     if (!args.authToken) throw new BadRequestException('authToken is required when creating a channel');
     if (!args.fromNumber && !args.messagingServiceSid) {
@@ -94,7 +96,7 @@ export class TwilioSmsAdminService {
     }
     return this.svc.createChannel({
       name: args.name,
-      defaultAgentMode: args.defaultAgentMode,
+      defaultAgentMode,
       config: {
         accountSid: args.accountSid,
         authToken: args.authToken,

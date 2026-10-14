@@ -99,6 +99,7 @@ const skipReason = TEST_URL
         await c.callTool({
           name: 'conv_create_widget_channel',
           arguments: {
+            defaultAgentMode: 'auto',
             name: 'storefront-bot',
             originAllowlist: ['https://customer.example'],
           },
@@ -584,6 +585,55 @@ const skipReason = TEST_URL
     expect(disabled.config.requireVerifiedIdentity).toBe(false);
   });
 
+  it('refuses to create a widget until someone has chosen how the agent replies', async () => {
+    const result = await withClient(adminKey, (c) =>
+      c.callTool({
+        name: 'conv_create_widget_channel',
+        arguments: { name: 'undecided-widget', originAllowlist: ['https://customer.example'] },
+      }),
+    );
+    expect((result as { isError?: boolean }).isError).toBe(true);
+    expect(JSON.stringify(result)).toContain('defaultAgentMode');
+  });
+
+  it('opens new widget conversations in the reply mode the channel was given', async () => {
+    const drafted = await withClient(adminKey, async (c) =>
+      parseToolResult<{ defaultAgentMode: string }>(
+        await c.callTool({
+          name: 'conv_update_widget_channel',
+          arguments: { channelId, defaultAgentMode: 'draft_only' },
+        }),
+      ),
+    );
+    expect(drafted.defaultAgentMode).toBe('draft_only');
+
+    try {
+      const res = await call('POST', '/v1/widget/messages', widgetKey, {
+        channelId,
+        sessionId: 'vis_draft_mode',
+        messages: [
+          { role: 'end_user', body: 'Do you deliver on Sundays?', providerMessageId: 'evt_dm1' },
+        ],
+      });
+      expect(res.status).toBe(201);
+      const { conversationId } = res.json as { conversationId: string };
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const [conv] = await db
+        .select({ agentMode: schema.convConversations.agentMode })
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.id, conversationId));
+      expect(conv!.agentMode).toBe('draft_only');
+    } finally {
+      await withClient(adminKey, (c) =>
+        c.callTool({
+          name: 'conv_update_widget_channel',
+          arguments: { channelId, defaultAgentMode: 'auto' },
+        }),
+      );
+    }
+  });
+
   it('rotates the identity secret to a fresh distinct value', async () => {
     const oldSecret = identityVerificationSecret;
     const rotated = await withClient(adminKey, async (c) => {
@@ -798,6 +848,7 @@ const skipReason = TEST_URL
           c.callTool({
             name: 'conv_create_widget_channel',
             arguments: {
+              defaultAgentMode: 'auto',
               name: 'voice-linked-widget',
               originAllowlist: ['https://customer.example'],
               voiceChannelId: threllVoiceId,
@@ -812,6 +863,7 @@ const skipReason = TEST_URL
         c.callTool({
           name: 'conv_create_widget_channel',
           arguments: {
+            defaultAgentMode: 'auto',
             name: 'bad-voice-widget',
             originAllowlist: ['https://customer.example'],
             voiceChannelId: smsChannelId,
@@ -915,6 +967,7 @@ const skipReason = TEST_URL
         await c.callTool({
           name: 'conv_create_widget_channel',
           arguments: {
+            defaultAgentMode: 'auto',
             name: 'storefront-bot-2',
             originAllowlist: ['https://customer.example'],
           },
@@ -1190,7 +1243,7 @@ const skipReason = TEST_URL
         parseToolResult<{ id: string; widgetKey: string; identityVerificationSecret: string }>(
           await c.callTool({
             name: 'conv_create_widget_channel',
-            arguments: { name: 'storefront-signed-email', originAllowlist: ['https://customer.example'] },
+            arguments: { defaultAgentMode: 'auto',name: 'storefront-signed-email', originAllowlist: ['https://customer.example'] },
           }),
         ),
       );
@@ -1935,6 +1988,7 @@ const skipReason = TEST_URL
         await c.callTool({
           name: 'conv_create_widget_channel',
           arguments: {
+            defaultAgentMode: 'auto',
             name: 'storefront-bot-list-other',
             originAllowlist: ['https://customer.example'],
           },

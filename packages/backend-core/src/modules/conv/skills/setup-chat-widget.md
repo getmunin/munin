@@ -14,11 +14,20 @@ Call `conv_create_widget_channel`:
 ```jsonc
 {
   "name": "storefront-bot",
+  "defaultAgentMode": "auto",
   "originAllowlist": ["https://customer.example"]
 }
 ```
 
 Response includes `widgetKey: "mn_widget_…"` — shown once. Store it server-side.
+
+`defaultAgentMode` is required and has no default, because it decides whether Munin talks to visitors on its own. Ask the operator before you create the channel rather than picking for them:
+
+- `auto` — the agent answers visitors directly, and greets a first-time visitor when the widget opens.
+- `draft_only` — the agent writes each answer as an internal draft and flags the conversation; a teammate approves or edits it in the inbox, and only then does the visitor see a reply. No greeting. Live chat makes visitors wait, so this suits a cautious launch with someone watching the inbox.
+- `off` — the agent stays out; people answer every message.
+
+Change it later with `conv_update_widget_channel { channelId, defaultAgentMode }`; it applies to conversations that start after the change. A topic can still override it for the conversations it matches (`conv_set_topic_automation`).
 
 `originAllowlist` is required — the widget ingest endpoint rejects any request whose `Origin` header doesn't match one of the listed full origins (scheme + host + port, exact match). List every environment that should be allowed to ingest (`https://customer.example`, `https://staging.customer.example`, etc.).
 

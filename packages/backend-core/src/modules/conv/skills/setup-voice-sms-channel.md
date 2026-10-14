@@ -11,7 +11,7 @@ Use this when a customer wants Munin on a phone number — an AI voice line (Vap
 ## TL;DR
 
 1. `conv_list_voice_sms_vendors` — see the supported vendors and each one's config fields; fields marked `secret: true` are never passed by you.
-2. `conv_configure_voice_sms_channel` with `vendor`, a `name`, and the **non-secret** config fields. The channel is created inactive and the response includes a one-time **credential link**.
+2. `conv_configure_voice_sms_channel` with `vendor`, a `name`, and the **non-secret** config fields — plus `defaultAgentMode` for an SMS channel (see below). The channel is created inactive and the response includes a one-time **credential link**.
 3. Share the credential link — the human enters the vendor API keys in the dashboard. Saving completes the vendor-side setup (webhook registration where applicable), verifies the credentials, and activates the channel. The link works once and expires after 24 hours; mint a fresh one with `conv_request_channel_credentials`.
 4. `conv_test_voice_sms_channel` re-verifies stored credentials any time; on an SMS channel `conv_send_sms_channel_test` also sends a real message.
 
@@ -46,7 +46,7 @@ The widget never receives the webhook secret: in-browser calls start the stored 
 
 Replies thread. A second message from the same number on the same channel lands in that number's most recent open conversation rather than opening a new one; a snoozed conversation is reopened. A new conversation is started only when the previous one was closed.
 
-**Set `defaultAgentMode` per SMS channel.** `conv_configure_voice_sms_channel { channelId, vendor, defaultAgentMode }` decides what the agent does with texts arriving on that number: `auto` replies directly, `draft_only` files a draft for a human to approve, `off` does neither. Use `draft_only` on a number you only send campaigns from, so a reply is never auto-answered. It applies to SMS only — an inbound call is run by the vendor's assistant, not the Munin agent, so passing it on a voice channel is rejected.
+**Set `defaultAgentMode` per SMS channel.** It is required when you create an SMS channel — there is no default, so ask the operator — and `conv_configure_voice_sms_channel { channelId, vendor, defaultAgentMode }` changes it later. It decides what the agent does with texts arriving on that number: `auto` replies directly, `draft_only` files a draft for a human to approve, `off` does neither. Use `draft_only` on a number you only send campaigns from, so a reply is never auto-answered. It applies to SMS only — an inbound call is run by the vendor's assistant, not the Munin agent, so passing it on a voice channel is rejected.
 
 **Caller ID is not identity.** Caller ID can be forged, and on a call the answer is spoken to whoever is calling. So the voice assistant is told the calling number and the name the carrier sends with it, but nothing Munin holds about that number: no CRM name or email, and `crm_get_my_contact` / `crm_update_my_contact` are not offered on voice. A phone caller has no email identity either, so order and booking lookups refuse. A call started from the chat widget belongs to that widget session's identity, so a signed-in visitor keeps their lookups. Product search and table availability work on any call.
 

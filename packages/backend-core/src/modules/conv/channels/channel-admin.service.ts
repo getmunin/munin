@@ -17,6 +17,7 @@ import {
   type ChannelAdminProvider,
   type ChannelOptionsDto,
 } from './channel-admin.ts';
+import { requireChosenAgentMode } from './agent-mode-choice.ts';
 
 @Injectable()
 export class ChannelAdminService {
@@ -60,6 +61,9 @@ export class ChannelAdminService {
       );
     }
     if (input.channelId) await this.assertNotPending(input.channelId);
+    if (!input.channelId && provider.kind === 'sms') {
+      requireChosenAgentMode(input.defaultAgentMode, 'sms');
+    }
     if (opts?.rejectSecrets && !input.channelId) {
       const pending = await this.createPending(provider, {
         name: input.name,

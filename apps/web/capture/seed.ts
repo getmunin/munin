@@ -160,7 +160,7 @@ async function widgetChannel(cookie: string): Promise<WidgetChannel> {
   const res = await call('/v1/conversations/channels/widget', {
     method: 'POST',
     cookie,
-    body: { name: 'Website chat', originAllowlist: [WIDGET_ORIGIN] },
+    body: { name: 'Website chat', defaultAgentMode: 'auto', originAllowlist: [WIDGET_ORIGIN] },
   });
   return readJson<WidgetChannel>(res);
 }

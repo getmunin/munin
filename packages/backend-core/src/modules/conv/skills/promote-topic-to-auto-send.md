@@ -6,7 +6,7 @@ audiences: [admin]
 
 # Promote a topic to auto-send
 
-Every topic starts with its conversations in review: the agent drafts, a human approves, edits, or rejects. When a topic's drafts keep going out unedited, reviewing them adds latency without adding judgment — promote the topic and the queue goes quiet for it. Demotion is one call, so a promotion is never a one-way door.
+A new topic has no mode of its own: its conversations follow their channel's reply mode. On a channel set to `draft_only`, every reply goes through review — the agent drafts, a human approves, edits, or rejects. When a topic's drafts keep going out unedited, reviewing them adds latency without adding judgment — promote the topic and the queue goes quiet for it. Demotion is one call, so a promotion is never a one-way door.
 
 ## 1. Read the evidence
 

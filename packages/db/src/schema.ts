@@ -854,7 +854,7 @@ export const convTopics = pgTable(
     slug: varchar('slug', { length: 64 }).notNull(),
     description: text('description'),
     color: varchar('color', { length: 16 }),
-    agentMode: varchar('agent_mode', { length: 16 }).default('draft_only'),
+    agentMode: varchar('agent_mode', { length: 16 }),
     autoPromotedAt: timestamp('auto_promoted_at', { withTimezone: true }),
     promoteThresholdPct: integer('promote_threshold_pct').notNull().default(90),
     createdAt,

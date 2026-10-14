@@ -60,6 +60,7 @@ If the operator already minted keys, ask for those instead and skip the create s
   "name": "conv_create_widget_channel",
   "arguments": {
     "name": "<customer site name>",
+    "defaultAgentMode": "<the operator's choice: auto | draft_only | off>",
     "originAllowlist": [
       "https://abc123.lovable.app",
       "https://app.customer.example"
@@ -67,6 +68,8 @@ If the operator already minted keys, ask for those instead and skip the create s
   }
 }
 ```
+
+`defaultAgentMode` is required: ask the operator whether the agent should answer visitors directly (`auto`), draft replies for a teammate to send (`draft_only`), or stay out (`off`) — see `skill://conv/setup-chat-widget`.
 
 Response includes `channelId` and `widgetKey: "mn_widget_…"`. Both go into the script tag — neither is secret (the widget key is meant to be in browser source); the origin allowlist is the security boundary, not the key.
 

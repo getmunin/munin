@@ -134,7 +134,7 @@ const skipReason = TEST_URL
       return parseToolResult<{ id: string }>(
         await c.callTool({
           name: 'conv_create_widget_channel',
-          arguments: { name: 'Web chat', originAllowlist: ['https://acme.test'] },
+          arguments: { defaultAgentMode: 'auto',name: 'Web chat', originAllowlist: ['https://acme.test'] },
         }),
       );
     });
@@ -318,6 +318,41 @@ const skipReason = TEST_URL
         await c.callTool({ name: 'conv_get_conversation', arguments: { id: started.id } }),
       );
       expect(afterSend.messages.some((m) => m.body === 'We are open 10-16.')).toBe(true);
+    });
+  }, 30_000);
+
+  it('leaves an auto conversation sending when it is tagged with a freshly created topic', async () => {
+    const started = (
+      await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
+        body: 'Can I change my delivery address?',
+      })
+    ).body;
+
+    await withClient(adminKey, async (c) => {
+      const topic = parseToolResult<{ id: string }>(
+        await c.callTool({
+          name: 'conv_create_topic',
+          arguments: { name: 'Deliveries', slug: `deliveries-${Date.now()}` },
+        }),
+      );
+      await c.callTool({
+        name: 'conv_set_topic',
+        arguments: { conversationId: started.id, topicId: topic.id },
+      });
+
+      const sent = await c.callTool({
+        name: 'conv_send_message',
+        arguments: { conversationId: started.id, body: 'Yes, reply with the new address.' },
+      });
+      expect((sent as { isError?: boolean }).isError).toBeFalsy();
+
+      const detail = parseToolResult<{ messages: Array<{ body: string; internal: boolean }> }>(
+        await c.callTool({ name: 'conv_get_conversation', arguments: { id: started.id } }),
+      );
+      expect(detail.messages.some((m) => m.body === 'Yes, reply with the new address.')).toBe(true);
+      expect(detail.messages.some((m) => m.internal && m.body.startsWith('Topic set to'))).toBe(
+        false,
+      );
     });
   }, 30_000);
 

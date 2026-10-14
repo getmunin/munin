@@ -166,6 +166,7 @@ const RELAY_DOMAIN = 'in.getmunin.test';
         c.callTool({
           name: 'conv_configure_email_channel',
           arguments: {
+            defaultAgentMode: 'auto',
             name: 'Acme Support (forwarding)',
             config: {
               addressing: { fromAddress: 'support@acme.test', fromName: 'Acme Support' },

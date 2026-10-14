@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { schema } from '@getmunin/db';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { getCurrentContext, randomToken } from '@getmunin/core';
+import type { AgentMode } from '@getmunin/types';
 import { mintApiKey } from '../../../common/api-keys/api-key.helpers.ts';
 import { assertOriginAllowlistPopulated } from '../../../common/allowlist.ts';
 import { WIDGET_VOICE_VENDORS, WidgetChannelConfig } from './widget.types.ts';
@@ -18,6 +19,7 @@ export interface WidgetChannelDto {
   name: string;
   type: 'chat';
   active: boolean;
+  defaultAgentMode: AgentMode;
   config: SanitizedWidgetConfig;
 }
 
@@ -33,6 +35,7 @@ export interface RotateWidgetIdentitySecretResult {
 
 export interface CreateWidgetChannelInput {
   name: string;
+  defaultAgentMode: AgentMode;
   originAllowlist: string[];
   webhookOnEscalation?: string;
   requireVerifiedIdentity?: boolean;
@@ -41,6 +44,7 @@ export interface CreateWidgetChannelInput {
 
 export interface UpdateWidgetChannelInput {
   channelId: string;
+  defaultAgentMode?: AgentMode;
   originAllowlist?: string[];
   webhookOnEscalation?: string | null;
   requireVerifiedIdentity?: boolean;
@@ -114,6 +118,7 @@ export class WidgetChannelAdminService {
         vendor: 'munin',
         name: args.name,
         config: config,
+        defaultAgentMode: args.defaultAgentMode,
       })
       .returning();
 
@@ -131,6 +136,7 @@ export class WidgetChannelAdminService {
       name: channel!.name,
       type: 'chat',
       active: channel!.active,
+      defaultAgentMode: channel!.defaultAgentMode as AgentMode,
       config: sanitizeConfig(config),
       widgetKey: key.rawKey,
       identityVerificationSecret,
@@ -176,7 +182,11 @@ export class WidgetChannelAdminService {
 
     const [updated] = await ctx.db
       .update(schema.convChannels)
-      .set({ config: next, updatedAt: new Date() })
+      .set({
+        config: next,
+        ...(args.defaultAgentMode ? { defaultAgentMode: args.defaultAgentMode } : {}),
+        updatedAt: new Date(),
+      })
       .where(eq(schema.convChannels.id, args.channelId))
       .returning();
 
@@ -185,6 +195,7 @@ export class WidgetChannelAdminService {
       name: updated!.name,
       type: 'chat',
       active: updated!.active,
+      defaultAgentMode: updated!.defaultAgentMode as AgentMode,
       config: sanitizeConfig(next),
     };
   }

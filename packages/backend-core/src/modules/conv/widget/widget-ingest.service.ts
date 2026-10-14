@@ -601,6 +601,7 @@ export class WidgetIngestService {
         contactId: contact.id,
         endUserId: endUser.id,
         status: 'open',
+        agentMode: channel.defaultAgentMode,
         metadata: meta,
         lastMessageAt: new Date(),
       })
@@ -737,7 +738,7 @@ export class WidgetIngestService {
     const conv = await this.findOrCreateConversation(
       tx,
       orgId,
-      channel.id,
+      channel,
       contact.id,
       endUser.id,
       input,
@@ -1069,7 +1070,7 @@ export class WidgetIngestService {
   private async findOrCreateConversation(
     tx: Tx,
     orgId: string,
-    channelId: string,
+    channel: { id: string; defaultAgentMode: string },
     contactId: string,
     endUserId: string,
     input: WidgetIngestInputT,
@@ -1080,7 +1081,7 @@ export class WidgetIngestService {
       .where(
         and(
           eq(schema.convConversations.orgId, orgId),
-          eq(schema.convConversations.channelId, channelId),
+          eq(schema.convConversations.channelId, channel.id),
           sql`${schema.convConversations.metadata}->>'sessionId' = ${input.sessionId}`,
         ),
       )
@@ -1104,10 +1105,11 @@ export class WidgetIngestService {
       .values({
         orgId,
         displayId,
-        channelId,
+        channelId: channel.id,
         contactId,
         endUserId,
         status: 'open',
+        agentMode: channel.defaultAgentMode,
         metadata: { sessionId: input.sessionId, ...(input.providerThreadId ? { providerThreadId: input.providerThreadId } : {}) },
         lastMessageAt: new Date(),
       })
@@ -1118,7 +1120,7 @@ export class WidgetIngestService {
 
     await this.webhooks.emit({
       type: 'conversation.created',
-      payload: { conversationId: created!.id, displayId: created!.displayId, channelId },
+      payload: { conversationId: created!.id, displayId: created!.displayId, channelId: channel.id },
     });
     return created!;
   }

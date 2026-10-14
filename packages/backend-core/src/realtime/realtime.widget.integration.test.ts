@@ -82,6 +82,7 @@ const skipReason = TEST_URL
         await c.callTool({
           name: 'conv_create_widget_channel',
           arguments: {
+            defaultAgentMode: 'auto',
             name: 'rt-storefront-bot',
             originAllowlist: [ALLOWED_ORIGIN],
           },

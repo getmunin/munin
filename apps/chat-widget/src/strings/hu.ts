@@ -56,7 +56,6 @@ const hu: Strings = {
   voiceOnCallWithTemplate: 'Hívás: {who}',
   voiceTapToReturn: 'Koppintson a visszatéréshez',
   voiceFailed: 'A hanghívás nem sikerült',
-  productViewLabel: 'Megnézem',
   attachAriaLabel: 'Kép csatolása',
   attachDropHint: 'Húzza ide a képet',
   attachUploading: 'Feltöltés…',

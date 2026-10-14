@@ -56,7 +56,6 @@ const et: Strings = {
   voiceOnCallWithTemplate: 'Kõne: {who}',
   voiceTapToReturn: 'Puuduta naasmiseks',
   voiceFailed: 'Kõne ebaõnnestus',
-  productViewLabel: 'Vaata',
   attachAriaLabel: 'Lisa pilt',
   attachDropHint: 'Kukuta pilt siia',
   attachUploading: 'Laadin üles…',

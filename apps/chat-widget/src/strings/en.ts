@@ -56,7 +56,6 @@ const en: Strings = {
   voiceOnCallWithTemplate: 'On call with {who}',
   voiceTapToReturn: 'Tap to return',
   voiceFailed: 'Voice call failed',
-  productViewLabel: 'View',
   attachAriaLabel: 'Attach an image',
   attachDropHint: 'Drop the image here',
   attachUploading: 'Uploading…',

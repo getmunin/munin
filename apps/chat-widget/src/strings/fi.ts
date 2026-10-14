@@ -56,7 +56,6 @@ const fi: Strings = {
   voiceOnCallWithTemplate: 'Puhelussa: {who}',
   voiceTapToReturn: 'Palaa napauttamalla',
   voiceFailed: 'Äänipuhelu epäonnistui',
-  productViewLabel: 'Katso',
   attachAriaLabel: 'Liitä kuva',
   attachDropHint: 'Pudota kuva tähän',
   attachUploading: 'Lähetetään…',

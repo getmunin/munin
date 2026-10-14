@@ -56,7 +56,6 @@ const ro: Strings = {
   voiceOnCallWithTemplate: 'În apel cu {who}',
   voiceTapToReturn: 'Atingeți pentru a reveni',
   voiceFailed: 'Apelul vocal a eșuat',
-  productViewLabel: 'Vezi',
   attachAriaLabel: 'Atașează o imagine',
   attachDropHint: 'Trage imaginea aici',
   attachUploading: 'Se încarcă…',

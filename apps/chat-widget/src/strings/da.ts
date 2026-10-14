@@ -56,7 +56,6 @@ const da: Strings = {
   voiceOnCallWithTemplate: 'I opkald med {who}',
   voiceTapToReturn: 'Tryk for at vende tilbage',
   voiceFailed: 'Taleopkald mislykkedes',
-  productViewLabel: 'Se',
   attachAriaLabel: 'Vedhæft et billede',
   attachDropHint: 'Slip billedet her',
   attachUploading: 'Uploader…',

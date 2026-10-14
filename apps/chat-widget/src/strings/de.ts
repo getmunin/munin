@@ -56,7 +56,6 @@ const de: Strings = {
   voiceOnCallWithTemplate: 'Im Gespräch mit {who}',
   voiceTapToReturn: 'Tippen, um zurückzukehren',
   voiceFailed: 'Sprachanruf fehlgeschlagen',
-  productViewLabel: 'Ansehen',
   attachAriaLabel: 'Bild anhängen',
   attachDropHint: 'Bild hier ablegen',
   attachUploading: 'Wird hochgeladen…',

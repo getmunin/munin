@@ -56,7 +56,6 @@ const cs: Strings = {
   voiceOnCallWithTemplate: 'Hovor: {who}',
   voiceTapToReturn: 'Klepnutím se vrátíte',
   voiceFailed: 'Hlasový hovor se nezdařil',
-  productViewLabel: 'Zobrazit',
   attachAriaLabel: 'Přidat obrázek',
   attachDropHint: 'Přetáhněte obrázek sem',
   attachUploading: 'Nahrávání…',

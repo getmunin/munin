@@ -56,7 +56,6 @@ const nn: Strings = {
   voiceOnCallWithTemplate: 'I anrop med {who}',
   voiceTapToReturn: 'Trykk for å gå tilbake',
   voiceFailed: 'Taleanropet mislukka',
-  productViewLabel: 'Sjå',
   attachAriaLabel: 'Legg ved bilete',
   attachDropHint: 'Slepp biletet her',
   attachUploading: 'Lastar opp…',

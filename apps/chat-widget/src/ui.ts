@@ -1014,7 +1014,7 @@ function renderMessage(m: ListedMessage, strings: Strings, locale: string): HTML
     wrap.appendChild(renderAttachments(attachments, strings));
   }
   if (!mine) {
-    const appEls = renderMessageComponents(m.components, locale, strings);
+    const appEls = renderMessageComponents(m.components, locale);
     if (appEls.length > 0) wrap.classList.add('has-app');
     for (const el of appEls) {
       wrap.appendChild(el);

@@ -56,7 +56,6 @@ const nb: Strings = {
   voiceOnCallWithTemplate: 'I anrop med {who}',
   voiceTapToReturn: 'Trykk for å gå tilbake',
   voiceFailed: 'Taleanrop mislyktes',
-  productViewLabel: 'Se',
   attachAriaLabel: 'Legg ved bilde',
   attachDropHint: 'Slipp bildet her',
   attachUploading: 'Laster opp…',

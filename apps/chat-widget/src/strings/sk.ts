@@ -56,7 +56,6 @@ const sk: Strings = {
   voiceOnCallWithTemplate: 'Hovor: {who}',
   voiceTapToReturn: 'Ťuknutím sa vrátite',
   voiceFailed: 'Hlasový hovor sa nepodaril',
-  productViewLabel: 'Zobraziť',
   attachAriaLabel: 'Pridať obrázok',
   attachDropHint: 'Presuňte obrázok sem',
   attachUploading: 'Nahráva sa…',

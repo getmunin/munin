@@ -2732,6 +2732,32 @@ export const credentialRequests = pgTable(
   }),
 );
 
+export const bookingsGuestBookings = pgTable(
+  'bookings_guest_bookings',
+  {
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => convConversations.id, { onDelete: 'cascade' }),
+    connectionId: text('connection_id')
+      .notNull()
+      .references(() => connectorConnections.id, { onDelete: 'cascade' }),
+    bookingRef: text('booking_ref').notNull(),
+    email: text('email').notNull(),
+    createdAt,
+  },
+  (t) => ({
+    pk: primaryKey({
+      name: 'bookings_guest_bookings_pk',
+      columns: [t.conversationId, t.connectionId, t.bookingRef],
+    }),
+    orgIdx: index('bookings_guest_bookings_org_idx').on(t.orgId),
+    connectionIdx: index('bookings_guest_bookings_connection_idx').on(t.connectionId),
+  }),
+);
+
 export const connectorSigningKeys = pgTable(
   'connector_signing_keys',
   {

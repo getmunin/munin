@@ -632,46 +632,41 @@ export class ConnectorsService {
   }
 
   async requireEndUserEmail(): Promise<string> {
-    const ctx = getCurrentContext();
-    const endUserId = ctx.actor?.endUserId;
-    if (!endUserId) {
-      throw new BadRequestException('connectors_invalid: end-user identity required');
-    }
-    const rows = await ctx.db
-      .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
-      .from(schema.endUsers)
-      .where(eq(schema.endUsers.id, endUserId))
-      .limit(1);
-    const email = rows[0]?.email;
-    if (!email) {
-      throw new BadRequestException(
-        'connectors_invalid: your session has no email identity, which this lookup requires',
-      );
-    }
-    if (isSelfReportedIdentity({ email, metadata: rows[0]?.metadata })) {
-      throw new BadRequestException(
-        'connectors_unverified: this email was self-reported in chat and is not verified, so personal lookups are not allowed; ask the customer to write in from their email address or use a signed-in session',
-      );
-    }
-    return email;
+    return refuseUnlessVerified(await this.assessEndUserEmail({ forWrite: false }));
   }
 
   async requireEndUserEmailForWrite(): Promise<string> {
-    const email = await this.requireEndUserEmail();
+    return refuseUnlessVerified(await this.assessEndUserEmail({ forWrite: true }));
+  }
+
+  async optionalEndUserEmailForWrite(): Promise<string | null> {
+    const verdict = await this.assessEndUserEmail({ forWrite: true });
+    if (!verdict.ok && (verdict.refusal === 'no_email' || verdict.refusal === 'self_reported')) {
+      return null;
+    }
+    return refuseUnlessVerified(verdict);
+  }
+
+  private async assessEndUserEmail(opts: { forWrite: boolean }): Promise<EndUserEmailVerdict> {
     const ctx = getCurrentContext();
-    const actor = ctx.actor!;
-    const block = actor.conversationId ? await this.latestTurnSenderAuthBlock(ctx.db, actor) : null;
-    if (block === 'fail') {
-      throw new BadRequestException(
-        'connectors_sender_auth_failed: the latest customer message in this conversation failed its DMARC check for the address it claims to come from, so it may be forged and cannot be used to change a booking. Hand over to a human.',
-      );
+    const actor = ctx.actor;
+    if (!actor?.endUserId) return { ok: false, refusal: 'no_end_user' };
+    const rows = await ctx.db
+      .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
+      .from(schema.endUsers)
+      .where(eq(schema.endUsers.id, actor.endUserId))
+      .limit(1);
+    const email = rows[0]?.email;
+    if (!email) return { ok: false, refusal: 'no_email' };
+    if (isSelfReportedIdentity({ email, metadata: rows[0]?.metadata })) {
+      return { ok: false, refusal: 'self_reported' };
     }
-    if (block === 'forwarded') {
-      throw new BadRequestException(
-        'connectors_sender_forwarded: the latest customer message in this conversation was forwarded, so its original sender comes from the forwarded text rather than an authenticated address and cannot be used to change a booking. Hand over to a human.',
-      );
+    if (opts.forWrite && actor.conversationId) {
+      const block = await this.latestTurnSenderAuthBlock(ctx.db, actor);
+      if (block === 'fail') return { ok: false, refusal: 'sender_auth_failed' };
+      if (block === 'forwarded') return { ok: false, refusal: 'sender_forwarded' };
     }
-    return email;
+    return { ok: true, email };
   }
 
   private async latestTurnSenderAuthBlock(
@@ -856,4 +851,27 @@ async function decryptString(ciphertext: string): Promise<string> {
     throw new ConnectorVendorError('stored credential could not be decrypted');
   }
   return pt;
+}
+
+type EndUserEmailVerdict =
+  | { ok: true; email: string }
+  | {
+      ok: false;
+      refusal: 'no_end_user' | 'no_email' | 'self_reported' | 'sender_auth_failed' | 'sender_forwarded';
+    };
+
+const END_USER_EMAIL_REFUSALS: Record<Exclude<EndUserEmailVerdict, { ok: true }>['refusal'], string> = {
+  no_end_user: 'connectors_invalid: end-user identity required',
+  no_email: 'connectors_invalid: your session has no email identity, which this lookup requires',
+  self_reported:
+    'connectors_unverified: this email was self-reported in chat and is not verified, so personal lookups are not allowed; ask the customer to write in from their email address or use a signed-in session',
+  sender_auth_failed:
+    'connectors_sender_auth_failed: the latest customer message in this conversation failed its DMARC check for the address it claims to come from, so it may be forged and cannot be used to change a booking. Hand over to a human.',
+  sender_forwarded:
+    'connectors_sender_forwarded: the latest customer message in this conversation was forwarded, so its original sender comes from the forwarded text rather than an authenticated address and cannot be used to change a booking. Hand over to a human.',
+};
+
+function refuseUnlessVerified(verdict: EndUserEmailVerdict): string {
+  if (verdict.ok) return verdict.email;
+  throw new BadRequestException(END_USER_EMAIL_REFUSALS[verdict.refusal]);
 }

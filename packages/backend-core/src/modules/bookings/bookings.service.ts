@@ -1,4 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { schema } from '@getmunin/db';
+import { getCurrentContext } from '@getmunin/core';
+import { and, count, eq } from 'drizzle-orm';
 import { normalizeEmail } from '../connectors/connector.ts';
 import {
   ConnectorsService,
@@ -12,6 +15,8 @@ import type {
   BookingSummary,
   BookingUpdateInput,
 } from './booking-adapter.ts';
+
+const GUEST_BOOKINGS_PER_CONVERSATION = 3;
 
 @Injectable()
 export class BookingsService {
@@ -192,17 +197,24 @@ export class BookingsService {
     areaId?: number;
     name?: string;
     phone?: string;
+    email?: string;
     note?: string;
     connectionId?: string;
   }): Promise<{ connection: ConnectionSummary; bookingRef: string; booking: BookingDetail | null }> {
-    const email = await this.connectors.requireEndUserEmailForWrite();
-    return this.createBooking({ ...args, email });
+    const verified = await this.connectors.optionalEndUserEmailForWrite();
+    if (!verified) return this.createGuestBooking(args);
+    if (args.email && normalizeEmail(args.email) !== normalizeEmail(verified)) {
+      throw new BadRequestException(
+        'bookings_invalid: this session books under its own verified email and cannot book under another address',
+      );
+    }
+    return this.createBooking({ ...args, email: verified });
   }
 
   async updateMyBooking(
     args: { bookingRef: string; connectionId?: string } & BookingUpdateInput,
   ): Promise<{ connection: ConnectionSummary; updated: true; bookingRef: string }> {
-    const email = await this.connectors.requireEndUserEmailForWrite();
+    const email = await this.writeEmailFor(args.bookingRef, args.connectionId);
     return this.updateBooking({ ...args, email });
   }
 
@@ -210,8 +222,92 @@ export class BookingsService {
     bookingRef: string;
     connectionId?: string;
   }): Promise<{ connection: ConnectionSummary; cancelled: true; bookingRef: string }> {
-    const email = await this.connectors.requireEndUserEmailForWrite();
+    const email = await this.writeEmailFor(args.bookingRef, args.connectionId);
     return this.cancelBooking({ ...args, email });
+  }
+
+  private async createGuestBooking(args: {
+    date: string;
+    time: string;
+    partySize: number;
+    seatingTime?: number;
+    areaId?: number;
+    name?: string;
+    phone?: string;
+    email?: string;
+    note?: string;
+    connectionId?: string;
+  }): Promise<{ connection: ConnectionSummary; bookingRef: string; booking: BookingDetail | null }> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const conversationId = actor.conversationId;
+    if (!conversationId) {
+      throw new BadRequestException(
+        'bookings_invalid: this session has no verified email and no conversation to book from',
+      );
+    }
+    if (!args.email) {
+      throw new BadRequestException(
+        'bookings_invalid: this session has no verified email, so pass the guest\'s email to book under',
+      );
+    }
+    const [made] = await ctx.db
+      .select({ count: count() })
+      .from(schema.bookingsGuestBookings)
+      .where(eq(schema.bookingsGuestBookings.conversationId, conversationId));
+    if ((made?.count ?? 0) >= GUEST_BOOKINGS_PER_CONVERSATION) {
+      throw new BadRequestException(
+        `bookings_limit: this conversation has already made ${GUEST_BOOKINGS_PER_CONVERSATION} bookings without a verified email, which is the most it may make`,
+      );
+    }
+    const phone = args.phone ?? (await this.endUserPhone(actor.endUserId));
+    const email = normalizeEmail(args.email);
+    const created = await this.createBooking({ ...args, email, phone: phone ?? undefined });
+    await ctx.db
+      .insert(schema.bookingsGuestBookings)
+      .values({
+        orgId: actor.orgId,
+        conversationId,
+        connectionId: created.connection.id,
+        bookingRef: created.bookingRef,
+        email,
+      })
+      .onConflictDoNothing();
+    return created;
+  }
+
+  private async writeEmailFor(bookingRef: string, connectionId?: string): Promise<string> {
+    const guestEmail = await this.guestBookingEmail(bookingRef, connectionId);
+    return guestEmail ?? this.connectors.requireEndUserEmailForWrite();
+  }
+
+  private async guestBookingEmail(bookingRef: string, connectionId?: string): Promise<string | null> {
+    const ctx = getCurrentContext();
+    const conversationId = ctx.actor?.conversationId;
+    if (!conversationId) return null;
+    const scope = await this.connectors.resolveScope('bookings', connectionId);
+    const [row] = await ctx.db
+      .select({ email: schema.bookingsGuestBookings.email })
+      .from(schema.bookingsGuestBookings)
+      .where(
+        and(
+          eq(schema.bookingsGuestBookings.conversationId, conversationId),
+          eq(schema.bookingsGuestBookings.connectionId, scope.connection.id),
+          eq(schema.bookingsGuestBookings.bookingRef, bookingRef),
+        ),
+      )
+      .limit(1);
+    return row?.email ?? null;
+  }
+
+  private async endUserPhone(endUserId: string | null | undefined): Promise<string | null> {
+    if (!endUserId) return null;
+    const [row] = await getCurrentContext()
+      .db.select({ phone: schema.endUsers.phone })
+      .from(schema.endUsers)
+      .where(eq(schema.endUsers.id, endUserId))
+      .limit(1);
+    return row?.phone ?? null;
   }
 
   private async assertOwned(

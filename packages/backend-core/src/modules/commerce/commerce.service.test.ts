@@ -87,7 +87,7 @@ interface StubCall {
     orgId = org!.id;
     const [eu] = await db
       .insert(schema.endUsers)
-      .values({ orgId, email: 'jane@example.com', name: 'Jane' })
+      .values({ orgId, email: 'jane@example.com', name: 'Jane', metadata: { emailSource: 'org-attested' } })
       .returning();
 
     adminActor = new ActorIdentity('admin_agent', 'agt_commerce_test', orgId, ['*'], ['admin']);

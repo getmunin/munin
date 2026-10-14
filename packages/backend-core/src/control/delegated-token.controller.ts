@@ -11,7 +11,7 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { schema, type Db, type Tx } from '@getmunin/db';
-import { and, eq, ne, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { buildApiKey, getCurrentContext, hashSecret } from '@getmunin/core';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
 import { ControlPlaneGuard } from '../common/auth/control-plane.guard.ts';
@@ -24,6 +24,7 @@ import {
   ORG_ATTESTED_EMAIL_SOURCE,
   isSelfReportedIdentity,
 } from '../modules/connectors/identity-provenance.ts';
+import { freeEmailForAttestation } from '../modules/connectors/attested-email.ts';
 
 export const SELF_SERVICE_SCOPES = [
   'bookings:read',
@@ -68,36 +69,6 @@ interface MintResult {
   attestedEmail: string | null;
 }
 
-async function freeEmailForAttestation(
-  db: Db | Tx,
-  orgId: string,
-  email: string,
-  endUserId: string | null,
-): Promise<boolean> {
-  const [holder] = await db
-    .select({ id: schema.endUsers.id, metadata: schema.endUsers.metadata })
-    .from(schema.endUsers)
-    .where(
-      and(
-        eq(schema.endUsers.orgId, orgId),
-        sql`lower(${schema.endUsers.email}) = ${email}`,
-        ...(endUserId ? [ne(schema.endUsers.id, endUserId)] : []),
-      ),
-    )
-    .limit(1);
-  if (!holder) return true;
-  if (!isSelfReportedIdentity(holder.metadata)) return false;
-  await db
-    .update(schema.endUsers)
-    .set({
-      email: null,
-      metadata: sql`COALESCE(${schema.endUsers.metadata}, '{}'::jsonb) - 'emailSource'`,
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.endUsers.id, holder.id));
-  return true;
-}
-
 async function bindAttestedEmail(
   db: Db | Tx,
   orgId: string,
@@ -110,7 +81,7 @@ async function bindAttestedEmail(
     .where(eq(schema.endUsers.id, endUserId))
     .limit(1);
   const current = row?.email?.trim().toLowerCase() ?? null;
-  if (current && current !== email && !isSelfReportedIdentity(row?.metadata)) {
+  if (current && current !== email && !isSelfReportedIdentity({ email: current, metadata: row?.metadata })) {
     throw new BadRequestException(
       'delegated_email_mismatch: this end user already carries a different email; mint with the email on record, or omit email to mint a token that cannot change bookings',
     );
@@ -174,7 +145,9 @@ export class DelegatedTokenController {
             ),
           )
           .limit(1);
-        if (found && !isSelfReportedIdentity(found.metadata)) endUserId = found.id;
+        if (found && !isSelfReportedIdentity({ email: attestedEmail, metadata: found.metadata })) {
+          endUserId = found.id;
+        }
       }
       if (!endUserId) {
         if (attestedEmail && !(await freeEmailForAttestation(ctx.db, actor.orgId, attestedEmail, null))) {

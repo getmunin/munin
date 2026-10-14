@@ -16,8 +16,11 @@ import {
 } from '@getmunin/core';
 import {
   ORG_ATTESTED_EMAIL_SOURCE,
+  VISITOR_EMAIL_SOURCE,
+  isSelfReportedIdentity,
   provenSenderMetadata,
 } from '../../connectors/identity-provenance.ts';
+import { freeEmailForAttestation } from '../../connectors/attested-email.ts';
 import { parseMessageComponents, type MessageComponent } from '@getmunin/types';
 import { linkVisitorToEndUser } from '../../analytics/visitor-identity.ts';
 import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
@@ -506,7 +509,7 @@ export class WidgetIngestService {
       const email = patch.email as string | undefined;
       if (email && !(await emailBelongsToAnotherEndUser(tx, orgId, email, endUserId))) {
         identityPatch.email = email;
-        identityPatch.metadata = sql`COALESCE(${schema.endUsers.metadata}, '{}'::jsonb) || '{"emailSource":"visitor"}'::jsonb`;
+        identityPatch.metadata = sql`COALESCE(${schema.endUsers.metadata}, '{}'::jsonb) || ${JSON.stringify({ emailSource: VISITOR_EMAIL_SOURCE })}::jsonb`;
       }
       if (Object.keys(identityPatch).length > 0) {
         await tx
@@ -909,7 +912,7 @@ export class WidgetIngestService {
         !(await emailBelongsToAnotherEndUser(tx, orgId, visitorEmail, existing[0].id))
       ) {
         patch.email = visitorEmail;
-        metadataPatch.emailSource = 'visitor';
+        metadataPatch.emailSource = VISITOR_EMAIL_SOURCE;
       }
 
       if (Object.keys(metadataPatch).length > 0) {
@@ -936,7 +939,7 @@ export class WidgetIngestService {
             };
       if (input.locale) baseMetadata.locale = input.locale;
       const visitorEmail = input.visitor?.email?.trim().toLowerCase() ?? null;
-      if (visitorEmail) baseMetadata.emailSource = 'visitor';
+      if (visitorEmail) baseMetadata.emailSource = VISITOR_EMAIL_SOURCE;
       const [created] = await tx
         .insert(schema.endUsers)
         .values({
@@ -1271,10 +1274,10 @@ export class WidgetIngestService {
       .limit(1);
     if (!row) return null;
     const current = row.email?.trim().toLowerCase() ?? null;
-    const typedByVisitor =
-      (row.metadata as { emailSource?: unknown } | null)?.emailSource === 'visitor';
-    if (current && current !== email && !typedByVisitor) return null;
-    if (current !== email && (await emailBelongsToAnotherEndUser(tx, orgId, email, endUserId))) {
+    if (current && current !== email && !isSelfReportedIdentity({ email: current, metadata: row.metadata })) {
+      return null;
+    }
+    if (current !== email && !(await freeEmailForAttestation(tx, orgId, email, endUserId))) {
       return null;
     }
     await tx

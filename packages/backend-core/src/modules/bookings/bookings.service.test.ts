@@ -156,7 +156,7 @@ const skipReason = TEST_URL
         orgId,
         email: 'jane@example.com',
         name: 'Jane',
-        metadata: { source: 'email-inbound' },
+        metadata: { source: 'email-inbound', emailSource: 'channel' },
       })
       .returning();
     janeEndUserId = eu!.id;
@@ -171,7 +171,7 @@ const skipReason = TEST_URL
         orgId,
         externalId: 'email:ola@example.test',
         email: 'ola@example.test',
-        metadata: { source: 'email-inbound' },
+        metadata: { source: 'email-inbound', emailSource: 'channel' },
       })
       .returning();
     olaEndUserId = euAsserted!.id;

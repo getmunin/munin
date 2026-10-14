@@ -57,7 +57,13 @@ const skipReason = TEST_URL
 
     const [eu] = await db
       .insert(schema.endUsers)
-      .values({ orgId, externalId: 'eu-1', name: 'Alice', email: 'alice@example.com' })
+      .values({
+        orgId,
+        externalId: 'eu-1',
+        name: 'Alice',
+        email: 'alice@example.com',
+        metadata: { emailSource: 'org-attested' },
+      })
       .returning();
     endUserId = eu!.id;
 

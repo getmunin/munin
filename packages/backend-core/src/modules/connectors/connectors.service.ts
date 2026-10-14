@@ -648,7 +648,7 @@ export class ConnectorsService {
         'connectors_invalid: your session has no email identity, which this lookup requires',
       );
     }
-    if (isSelfReportedIdentity(rows[0]?.metadata)) {
+    if (isSelfReportedIdentity({ email, metadata: rows[0]?.metadata })) {
       throw new BadRequestException(
         'connectors_unverified: this email was self-reported in chat and is not verified, so personal lookups are not allowed; ask the customer to write in from their email address or use a signed-in session',
       );

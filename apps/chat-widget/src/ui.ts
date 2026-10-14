@@ -36,6 +36,7 @@ export interface UiHooks {
   onOpen?: () => void;
   onClose?: () => void;
   onStartConversation?: () => void;
+  onEnterNewChat?: () => void;
   onOpenConversation?: (summary: ConversationSummary) => void;
   onBackToWelcome?: () => void;
   onSetVisitorEmail?: (email: string) => void;
@@ -385,6 +386,7 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
     if (view === 'welcome' && !hasAnyConversation()) {
       setChatKind('new');
       setView('chat');
+      hooks.onEnterNewChat?.();
     }
     panelOpen = true;
     panel.el.hidden = false;

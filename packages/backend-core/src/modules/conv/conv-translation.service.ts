@@ -29,6 +29,7 @@ export interface PendingTranslations {
   targetLanguage: string;
   messages: PendingTranslationMessage[];
   context: PendingTranslationMessage[];
+  subject: string | null;
 }
 
 export interface LanguageDetectionSample {
@@ -41,6 +42,7 @@ export interface ConversationTranslations {
   customerLanguage: string | null;
   targetLanguage: string;
   messages: Record<string, string>;
+  subject: string | null;
 }
 
 export interface SaveTranslationsInput {
@@ -48,6 +50,7 @@ export interface SaveTranslationsInput {
   targetLanguage: string;
   customerLanguage?: string | null;
   translations: Array<{ messageId: string; body: string }>;
+  subject?: { source: string; body: string } | null;
 }
 
 export interface SendTranslatedReplyInput {
@@ -197,7 +200,7 @@ export class ConvTranslationService {
   ): Promise<{ requested: boolean }> {
     const target = normalizeLanguageTag(targetLanguage);
     const pending = await this.pendingTranslations(conversationId, target);
-    if (pending.messages.length === 0) return { requested: false };
+    if (pending.messages.length === 0 && pending.subject === null) return { requested: false };
     const conv = await this.loadConversation(conversationId);
     await this.webhooks.emit({
       type: 'conversation.translation_requested',
@@ -218,8 +221,10 @@ export class ConvTranslationService {
       targetLanguage: target,
       messages: [],
       context: [],
+      subject: null,
     };
     if (conv.customerLanguage && sameLanguage(conv.customerLanguage, target)) return base;
+    const subject = await this.subjectToTranslate(conversationId, target, conv.subject);
     const ctx = getCurrentContext();
     const rows = await ctx.db
       .select({
@@ -251,6 +256,7 @@ export class ConvTranslationService {
     return {
       ...base,
       context,
+      subject,
       messages: [
         ...rows.map((r) => ({
           id: r.id,
@@ -260,6 +266,37 @@ export class ConvTranslationService {
         ...(draft ? [draft] : []),
       ],
     };
+  }
+
+  private async subjectToTranslate(
+    conversationId: string,
+    target: string,
+    subject: string | null,
+  ): Promise<string | null> {
+    if (!subject?.trim()) return null;
+    const translated = await this.freshSubjectTranslation(conversationId, target, subject);
+    return translated === null ? subject : null;
+  }
+
+  private async freshSubjectTranslation(
+    conversationId: string,
+    target: string,
+    subject: string | null,
+  ): Promise<string | null> {
+    if (!subject?.trim()) return null;
+    const ctx = getCurrentContext();
+    const [row] = await ctx.db
+      .select({ body: schema.convSubjectTranslations.body })
+      .from(schema.convSubjectTranslations)
+      .where(
+        and(
+          eq(schema.convSubjectTranslations.conversationId, conversationId),
+          eq(schema.convSubjectTranslations.targetLanguage, target),
+          eq(schema.convSubjectTranslations.sourceSubject, subject),
+        ),
+      )
+      .limit(1);
+    return row?.body ?? null;
   }
 
   private async contextBefore(
@@ -424,6 +461,7 @@ export class ConvTranslationService {
       customerLanguage: conv.customerLanguage,
       targetLanguage: target,
       messages: Object.fromEntries(rows.map((r) => [r.messageId, r.body])),
+      subject: await this.freshSubjectTranslation(conversationId, target, conv.subject),
     };
   }
 
@@ -484,6 +522,25 @@ export class ConvTranslationService {
           set: { body: sql`excluded.body` },
         });
     }
+    const subject = input.subject;
+    if (subject && subject.body.trim() && conv.subject !== null && subject.source === conv.subject) {
+      await ctx.db
+        .insert(schema.convSubjectTranslations)
+        .values({
+          orgId: conv.orgId,
+          conversationId: input.conversationId,
+          targetLanguage: target,
+          sourceSubject: subject.source,
+          body: subject.body,
+        })
+        .onConflictDoUpdate({
+          target: [
+            schema.convSubjectTranslations.conversationId,
+            schema.convSubjectTranslations.targetLanguage,
+          ],
+          set: { sourceSubject: sql`excluded.source_subject`, body: sql`excluded.body` },
+        });
+    }
     await this.webhooks.emit({
       type: 'conversation.translated',
       payload: {
@@ -501,6 +558,7 @@ export class ConvTranslationService {
     orgId: string;
     endUserId: string | null;
     customerLanguage: string | null;
+    subject: string | null;
   }> {
     const ctx = getCurrentContext();
     const [conv] = await ctx.db
@@ -508,6 +566,7 @@ export class ConvTranslationService {
         orgId: schema.convConversations.orgId,
         endUserId: schema.convConversations.endUserId,
         customerLanguage: schema.convConversations.customerLanguage,
+        subject: schema.convConversations.subject,
       })
       .from(schema.convConversations)
       .where(eq(schema.convConversations.id, conversationId))

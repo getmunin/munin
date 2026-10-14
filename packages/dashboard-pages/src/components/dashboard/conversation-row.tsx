@@ -75,7 +75,7 @@ export function ConversationRow({
       title={`${customerLabel(
         { name: item.customerName, email: item.customerEmail, phone: item.customerPhone },
         t('anonymous'),
-      )}${item.subject ? ` — ${item.subject}` : ''}`}
+      )}${(item.translatedSubject ?? item.subject) ? ` — ${item.translatedSubject ?? item.subject}` : ''}`}
       meta={
         item.lastInboundPreview || (
           <span className="italic text-ink-mute/80 dark:text-foreground/40">{t('noMessage')}</span>

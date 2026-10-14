@@ -205,6 +205,10 @@ class SaveTranslationsBody extends createZodDto(
     translations: z
       .array(z.object({ messageId: z.string().min(1).max(64), body: z.string().max(50_000) }))
       .max(500),
+    subject: z
+      .object({ source: z.string().max(5_000), body: z.string().max(5_000) })
+      .nullable()
+      .optional(),
   }),
 ) {}
 
@@ -274,6 +278,7 @@ export class ConversationsController {
     @Query('q') q?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
+    @Query('translateTo') translateTo?: string,
   ): Promise<ConversationQueueResponse> {
     const query = parseListQuery({
       status,
@@ -286,7 +291,7 @@ export class ConversationsController {
       limit,
     });
     const page = await translate(() =>
-      this.conv.listConversationQueuePage({ ...query, assigneeUserId, topicId }),
+      this.conv.listConversationQueuePage({ ...query, assigneeUserId, topicId, translateTo }),
     );
     return {
       items: page.items,
@@ -662,6 +667,7 @@ export class ConversationsController {
       targetLanguage: input.targetLanguage,
       customerLanguage: input.customerLanguage,
       translations: input.translations,
+      subject: input.subject,
     });
   }
 

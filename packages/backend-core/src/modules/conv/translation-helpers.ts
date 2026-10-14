@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { schema, type Db, type Tx } from '@getmunin/db';
-import { inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 
 const LANGUAGE_TAG = /^[a-z]{2,3}(-[a-z0-9]{2,8})?$/;
 const NORWEGIAN = new Set(['nb', 'nn', 'no']);
@@ -30,4 +30,13 @@ export async function deleteMessageTranslations(
   await db
     .delete(schema.convMessageTranslations)
     .where(inArray(schema.convMessageTranslations.messageId, [...messageIds]));
+}
+
+export async function deleteSubjectTranslations(
+  db: Db | Tx,
+  conversationId: string,
+): Promise<void> {
+  await db
+    .delete(schema.convSubjectTranslations)
+    .where(eq(schema.convSubjectTranslations.conversationId, conversationId));
 }

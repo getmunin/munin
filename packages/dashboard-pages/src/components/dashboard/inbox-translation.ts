@@ -84,6 +84,22 @@ export function threadTranslations(
   return changed ? messages : null;
 }
 
+export function subjectAwaitsTranslation(detail: ConversationDetail, locale: string): boolean {
+  if (!detail.subject?.trim() || customerSpeaksViewerLanguage(detail, locale)) return false;
+  const translations = detail.translations;
+  if (!translations || !sameLanguage(translations.targetLanguage, locale)) return true;
+  return translations.subject == null;
+}
+
+export function translatedSubject(detail: ConversationDetail, locale: string): string | null {
+  if (!detail.subject || !detail.customerLanguage) return null;
+  if (customerSpeaksViewerLanguage(detail, locale)) return null;
+  const translations = detail.translations;
+  if (!translations || !sameLanguage(translations.targetLanguage, locale)) return null;
+  const subject = translations.subject;
+  return subject && subject.trim() !== detail.subject.trim() ? subject : null;
+}
+
 export function languageLabel(tag: string, locale: string): string {
   try {
     return new Intl.DisplayNames([locale], { type: 'language' }).of(tag) ?? tag;

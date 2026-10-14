@@ -107,7 +107,8 @@ export function ConversationsPage({ selectedId = null }: { selectedId?: string |
   const backAction = useMemo(() => {
     if (!routeSelectedId) return null;
     const customer = selectedItem?.customerName ?? null;
-    const title = selectedItem?.subject ?? customer ?? undefined;
+    const title =
+      selectedItem?.translatedSubject ?? selectedItem?.subject ?? customer ?? undefined;
     const meta = [selectedItem?.topicName, selectedItem?.subject ? customer : null]
       .filter((v): v is string => !!v)
       .join(' · ');

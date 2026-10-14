@@ -51,6 +51,20 @@ describe('internal prompts, exactly as sent to the model', () => {
     await expectPrompts(handle, 'translate-messages');
   });
 
+  it('translateMessages with a subject', async () => {
+    const handle = stub('{"language":"es","translations":[]}');
+    await translateMessages({
+      provider: PROVIDER,
+      model: 'm',
+      targetLanguage: 'nb',
+      customerLanguage: 'es',
+      messages: [{ id: 'cvm_3', authorType: 'end_user', body: 'La M, por favor.' }],
+      subject: 'Chaqueta azul en talla M',
+      providerImpl: handle.provider,
+    });
+    await expectPrompts(handle, 'translate-messages-with-subject');
+  });
+
   it('detectLanguage', async () => {
     const handle = stub('{"language":"es"}');
     await detectLanguage({

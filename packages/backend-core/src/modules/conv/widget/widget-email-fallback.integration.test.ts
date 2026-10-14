@@ -131,7 +131,7 @@ const REPLY_DOMAIN = 'reply.example.test';
 
   async function insertMsg(
     convId: string,
-    authorType: 'end_user' | 'agent' | 'user',
+    authorType: 'end_user' | 'agent' | 'user' | 'system',
     body: string,
     ageMs = 30_000,
     authorIdOverride?: string,
@@ -316,6 +316,39 @@ const REPLY_DOMAIN = 'reply.example.test';
     expect(body).not.toContain('— Maja Hansen');
 
     await db.delete(schema.users).where(eq(schema.users.id, opId));
+  });
+
+  it('does not fire for an unread system message with no unread reply, such as a voice call ending', async () => {
+    const convId = await newConv();
+    await insertMsg(convId, 'end_user', 'Hi.', 90_000);
+    await insertMsg(convId, 'system', 'Call ended · 00:29', 30_000, 'widget-voice');
+
+    const r = await worker.tick();
+    expect(r.scanned).toBe(0);
+    expect(r.sent).toBe(0);
+    expect(mailer.outbox).toHaveLength(0);
+  });
+
+  it('emails the unread agent reply and leaves a later system message out of the body and deliveries', async () => {
+    const convId = await newConv();
+    await insertMsg(convId, 'end_user', 'Hi.', 90_000);
+    const agentMsgId = await insertMsg(convId, 'agent', 'Here is your answer.', 60_000);
+    const systemMsgId = await insertMsg(convId, 'system', 'Call ended · 00:29', 30_000, 'widget-voice');
+
+    const r = await worker.tick();
+    expect(r.sent).toBe(1);
+
+    const body = mailer.outbox[0]!.text!;
+    const beforeSignoff = body.split('\n— ')[0]!;
+    expect(beforeSignoff).toContain('Here is your answer.');
+    expect(beforeSignoff).not.toContain('Call ended');
+
+    const deliveries = await db
+      .select()
+      .from(schema.convMessageDeliveries)
+      .where(eq(schema.convMessageDeliveries.channelId, emailChannelId));
+    expect(deliveries.map((d) => d.messageId)).toEqual([agentMsgId]);
+    expect(deliveries.map((d) => d.messageId)).not.toContain(systemMsgId);
   });
 
   it('fires again once the end-user engages (resetting the quiet period)', async () => {

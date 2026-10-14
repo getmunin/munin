@@ -25,6 +25,12 @@ const handoffStub = {
       new NotFoundException('credential_handoff_not_found: invalid or expired link'),
     );
   },
+  retest: (token: string) => {
+    reached.push(`retest:${token}`);
+    return Promise.reject(
+      new NotFoundException('credential_handoff_not_found: invalid or expired link'),
+    );
+  },
 };
 
 @Module({
@@ -74,5 +80,15 @@ describe('credential-handoff routes with AuthGuard registered as a global APP_GU
     });
     expect(res.status).toBe(404);
     expect(reached).toContain('complete:mncl_probe_complete');
+  });
+
+  it('lets an unauthenticated retest reach the handoff service', async () => {
+    const res = await fetch(`${baseUrl}/v1/credentials/retest`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: 'mncl_probe_retest' }),
+    });
+    expect(res.status).toBe(404);
+    expect(reached).toContain('retest:mncl_probe_retest');
   });
 });

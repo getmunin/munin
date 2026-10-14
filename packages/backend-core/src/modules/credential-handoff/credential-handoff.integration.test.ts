@@ -156,6 +156,50 @@ const skipReason = TEST_URL
     expect(listed[0]!.lastTestError).toMatch(/401|403/);
   });
 
+  it('keeps the link open after a failed probe so a re-test passes once the vendor accepts the secret', async () => {
+    const created = await asAdmin(() =>
+      connectors.createConnection({
+        vendor: 'shopify',
+        name: 'Main store',
+        config: { shopDomain: 'acme.myshopify.com' },
+      }),
+    );
+    const token = tokenFromUrl(created.credentialLink!.url);
+    respond = () => ({ status: 401, body: {} });
+
+    const first = await handoff.complete(token, { accessToken: 'shpat_not_yet_active' });
+    expect(first).toMatchObject({ ok: false, saved: true });
+
+    const stillFailing = await handoff.retest(token);
+    expect(stillFailing).toMatchObject({ ok: false, saved: true });
+
+    respond = () => ({ body: { data: { shop: { name: 'Acme', myshopifyDomain: 'acme.myshopify.com' } } } });
+    const retested = await handoff.retest(token);
+    expect(retested).toMatchObject({ ok: true, saved: true });
+
+    await expect(handoff.retest(token)).rejects.toThrow(/invalid or expired/);
+    await expect(handoff.complete(token, { accessToken: 'shpat_again' })).rejects.toThrow(
+      /invalid or expired/,
+    );
+  });
+
+  it('accepts a corrected secret on the same link after a failed probe', async () => {
+    const created = await asAdmin(() =>
+      connectors.createConnection({
+        vendor: 'shopify',
+        name: 'Main store',
+        config: { shopDomain: 'acme.myshopify.com' },
+      }),
+    );
+    const token = tokenFromUrl(created.credentialLink!.url);
+    respond = () => ({ status: 401, body: {} });
+    await handoff.complete(token, { accessToken: 'shpat_typo' });
+
+    respond = () => ({ body: { data: { shop: { name: 'Acme', myshopifyDomain: 'acme.myshopify.com' } } } });
+    const result = await handoff.complete(token, { accessToken: 'shpat_corrected' });
+    expect(result).toMatchObject({ ok: true, saved: true });
+  });
+
   it('rejects an expired link', async () => {
     const created = await asAdmin(() =>
       connectors.createConnection({

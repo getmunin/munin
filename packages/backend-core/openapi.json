@@ -8398,6 +8398,31 @@
         "security": []
       }
     },
+    "/v1/credentials/retest": {
+      "post": {
+        "operationId": "CredentialHandoffController_retest",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetestCredentialHandoffBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CredentialHandoff"
+        ],
+        "security": []
+      }
+    },
     "/v1/connectors/oauth/callback": {
       "get": {
         "operationId": "ConnectorOAuthController_callback",
@@ -13078,6 +13103,19 @@
         "required": [
           "token",
           "secrets"
+        ]
+      },
+      "RetestCredentialHandoffBody": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "token"
         ]
       },
       "CreateFeedbackBody": {

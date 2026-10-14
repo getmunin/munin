@@ -14,6 +14,13 @@ interface Field {
   placeholder?: string;
 }
 
+interface SubmitResult {
+  ok: boolean;
+  saved: boolean;
+  detail?: string;
+  error?: string;
+}
+
 interface Pending {
   label: string;
   vendor: string;
@@ -28,7 +35,7 @@ export function CredentialEntryPage() {
   const [loadError, setLoadError] = useState<{ message: string; fields: string[] } | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<{ ok: boolean; detail?: string; retryable?: boolean } | null>(
+  const [done, setDone] = useState<{ ok: boolean; saved: boolean; detail?: string } | null>(
     null,
   );
 
@@ -55,20 +62,21 @@ export function CredentialEntryPage() {
     void load();
   }, [load]);
 
-  async function submit() {
+  async function send(path: string, body: Record<string, unknown>) {
     setBusy(true);
     try {
-      const res = await api<{ ok: boolean; detail?: string; error?: string }>('/v1/credentials', {
+      const res = await api<SubmitResult>(path, {
         method: 'POST',
         anonymous: true,
-        body: JSON.stringify({ token, secrets: values }),
+        body: JSON.stringify({ token, ...body }),
       });
       setDone({
         ok: res.ok,
+        saved: res.saved,
         detail: res.ok ? res.detail : (res.error ?? t('savedButUntested')),
       });
     } catch (err) {
-      setDone({ ok: false, detail: translate(err), retryable: true });
+      setDone((prev) => ({ ok: false, saved: prev?.saved ?? false, detail: translate(err) }));
     } finally {
       setBusy(false);
     }
@@ -95,12 +103,31 @@ export function CredentialEntryPage() {
         ) : done ? (
           <CardContent className="space-y-4">
             <p className={`text-sm ${done.ok ? 'text-foreground' : 'text-destructive'}`}>
-              {done.ok ? t('successBody') : t('failure')}
+              {done.ok ? t('successBody') : done.saved ? t('savedButFailed') : t('failure')}
             </p>
             {done.detail && <p className="text-xs text-muted-foreground">{done.detail}</p>}
-            {!done.ok && done.retryable && (
-              <Button type="button" variant="outline" className="w-full" onClick={retry}>
-                {t('retry')}
+            {!done.ok && done.saved && (
+              <>
+                <p className="text-xs text-muted-foreground">{t('activationDelay')}</p>
+                <Button
+                  type="button"
+                  className="w-full"
+                  disabled={busy}
+                  onClick={() => void send('/v1/credentials/retest', {})}
+                >
+                  {busy ? t('testing') : t('testAgain')}
+                </Button>
+              </>
+            )}
+            {!done.ok && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={busy}
+                onClick={retry}
+              >
+                {done.saved ? t('reenter') : t('retry')}
               </Button>
             )}
           </CardContent>
@@ -130,7 +157,7 @@ export function CredentialEntryPage() {
               <Button
                 type="button"
                 className="w-full"
-                onClick={() => void submit()}
+                onClick={() => void send('/v1/credentials', { secrets: values })}
                 disabled={busy || pending.fields.some((f) => f.required && !values[f.key])}
               >
                 {t('submit')}

@@ -2321,10 +2321,15 @@
     "missingFields": "Mangler i de lagrede innstillingene: {fields}",
     "for": "Tilgang for {vendor}",
     "submit": "Lagre",
-    "reassurance": "Tilgangsnøklene krypteres i hvile og vises aldri igjen. Denne lenken virker én gang.",
+    "reassurance": "Tilgangsnøklene krypteres i hvile og vises aldri igjen. Lenken slutter å virke når de er verifisert.",
     "successBody": "Tilgangen ble lagret og verifisert.",
     "savedButUntested": "Tilgangen ble lagret, men testkallet lyktes ikke — sjekk den og prøv igjen fra dashbordet.",
     "failure": "Kunne ikke lagre.",
+    "savedButFailed": "Lagret, men tilkoblingstesten feilet.",
+    "activationDelay": "Et nytt passord eller app-passord kan bruke noen minutter på å bli aktivt. Du kan teste på nytt uten å skrive det inn igjen, eller legge inn andre tilgangsnøkler.",
+    "testAgain": "Test på nytt",
+    "testing": "Tester …",
+    "reenter": "Legg inn andre tilgangsnøkler",
     "retry": "Prøv igjen"
   },
   "assistants": {

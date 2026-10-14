@@ -493,6 +493,7 @@ export class ConnectorsService {
       throw new ConflictException({
         message: `connectors_connection_bound: connection ${row.name} is bound to channel(s) ${names}; remove it from those channels with conv_set_channel_sources first`,
         code: 'connectors_connection_bound',
+        params: { channels: names },
       });
     }
     if (this.requireAdapter(row.vendor).oauth) await this.requireOAuth().revoke(row);

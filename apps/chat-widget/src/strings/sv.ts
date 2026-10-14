@@ -56,7 +56,6 @@ const sv: Strings = {
   voiceOnCallWithTemplate: 'I samtal med {who}',
   voiceTapToReturn: 'Tryck för att återgå',
   voiceFailed: 'Röstsamtal misslyckades',
-  productViewLabel: 'Visa',
   attachAriaLabel: 'Bifoga en bild',
   attachDropHint: 'Släpp bilden här',
   attachUploading: 'Laddar upp…',

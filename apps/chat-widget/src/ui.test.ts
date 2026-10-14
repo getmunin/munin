@@ -710,7 +710,8 @@ describe('ui: product list component', () => {
     expect(link.href).toBe('https://nordicsupply.test/p/fjell');
     expect(link.rel).toContain('noopener');
     expect(link.target).toBe('_blank');
-    expect(link.querySelector('.pcard-view')?.textContent).toContain(strings.productViewLabel);
+    expect(link.querySelector('.pcard-arrow')?.getAttribute('aria-hidden')).toBe('true');
+    expect(link.textContent).not.toMatch(/↗/);
   });
 
   it('renders a single price when min equals max and a range when they differ', () => {
@@ -736,10 +737,36 @@ describe('ui: product list component', () => {
     expect($$('.pcard-shot-empty')).toHaveLength(1);
   });
 
-  it('renders a plain card without the view pill when the product has no storefront url', () => {
+  it('renders a plain card without the link arrow when the product has no storefront url', () => {
     controller!.addMessages([productMsg([{ ...fjell, url: null }])]);
     expect($('.pcard').tagName).toBe('DIV');
-    expect($$('.pcard-view')).toHaveLength(0);
+    expect($$('.pcard-arrow')).toHaveLength(0);
+  });
+
+  it('lays the price over the product image rather than under the name', () => {
+    controller!.addMessages([productMsg([fjell])]);
+    const price = $('.pcard-price');
+    expect(price.parentElement?.classList.contains('pcard-media')).toBe(true);
+    expect(price.previousElementSibling?.classList.contains('pcard-shot')).toBe(true);
+  });
+
+  it('keeps the price over the placeholder when the image is missing', () => {
+    controller!.addMessages([productMsg([{ ...fjell, imageUrl: null }])]);
+    expect($('.pcard-media .pcard-price').textContent).not.toBe('');
+  });
+
+  it('gives the card its own surface and darkens border and arrow together on hover', () => {
+    controller!.addMessages([productMsg([fjell])]);
+    const css = $('style').textContent ?? '';
+    expect(css).toMatch(/\.pcard \{[^}]*background:\s*var\(--munin-paper-deep\)/);
+    expect(css).toMatch(/a\.pcard:hover \{[^}]*border-color:\s*var\(--munin-ink\)/);
+    expect(css).toMatch(/a\.pcard:hover \.pcard-arrow,\s*a\.pcard:focus-visible \.pcard-arrow \{[^}]*stroke:\s*var\(--munin-ink\)/);
+  });
+
+  it('caps a long product name at three lines so one title cannot stretch the rail', () => {
+    controller!.addMessages([productMsg([fjell])]);
+    const css = $('style').textContent ?? '';
+    expect(css).toMatch(/\.pcard-name \{[^}]*-webkit-line-clamp:\s*3/);
   });
 
   it('omits the price line when the product has no price', () => {

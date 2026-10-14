@@ -56,7 +56,6 @@ const lt: Strings = {
   voiceOnCallWithTemplate: 'Skambutis: {who}',
   voiceTapToReturn: 'Palieskite, kad grįžtumėte',
   voiceFailed: 'Balso skambutis nepavyko',
-  productViewLabel: 'Žiūrėti',
   attachAriaLabel: 'Pridėti vaizdą',
   attachDropHint: 'Nuvilkite vaizdą čia',
   attachUploading: 'Įkeliama…',

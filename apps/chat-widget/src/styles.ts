@@ -1116,12 +1116,11 @@ const PRODUCT_LIST_CSS = String.raw`
   flex: 0 0 132px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
   scroll-snap-align: start;
   border: 1px solid var(--munin-rule);
   border-radius: var(--munin-r-surface);
-  background: var(--munin-paper);
-  padding: 7px;
+  background: var(--munin-paper-deep);
+  overflow: hidden;
   color: inherit;
   text-decoration: none;
 }
@@ -1129,12 +1128,17 @@ a.pcard { cursor: pointer; transition: border-color 120ms; }
 a.pcard:hover { border-color: var(--munin-ink); }
 a.pcard:focus-visible { outline: 2px solid var(--munin-ink); outline-offset: 2px; }
 
+.pcard-media {
+  position: relative;
+  display: block;
+  border-bottom: 1px solid var(--munin-rule);
+}
+
 .pcard-shot {
   display: block;
   width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: contain;
-  border-radius: var(--munin-r-control);
   background: var(--munin-shot);
 }
 .pcard-shot-empty {
@@ -1148,23 +1152,67 @@ a.pcard:focus-visible { outline: 2px solid var(--munin-ink); outline-offset: 2px
   );
 }
 
-.pcard-name { font-size: 12px; line-height: 1.3; color: var(--munin-ink); }
-.pcard-price { font-family: var(--munin-mono); font-size: 11.5px; color: var(--munin-ink-soft); }
-
-.pcard-view {
-  align-self: flex-start;
-  margin-top: 1px;
+.pcard-price {
+  position: absolute;
+  left: 7px;
+  bottom: 7px;
+  max-width: calc(100% - 14px);
+  box-sizing: border-box;
+  padding: 2px 7px;
   border: 1px solid var(--munin-rule);
   border-radius: var(--munin-r-pill);
-  padding: 3px 9px;
+  background: var(--munin-paper);
   font-family: var(--munin-mono);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--munin-ink-soft);
-  text-decoration: none;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--munin-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.pcard:hover .pcard-view { border-color: var(--munin-ink); color: var(--munin-ink); }
+
+.pcard-body {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 9px 9px 10px;
+}
+.pcard-name {
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.3;
+  font-weight: 500;
+  color: var(--munin-ink);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.pcard-arrow {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+  fill: none;
+  stroke: var(--munin-ink-mute);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 120ms, stroke 120ms;
+}
+a.pcard:hover .pcard-arrow,
+a.pcard:focus-visible .pcard-arrow {
+  stroke: var(--munin-ink);
+  transform: translate(1.5px, -1.5px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  a.pcard, .pcard-arrow { transition: none; }
+}
 
 .composer-main {
   flex: 1;

@@ -56,7 +56,6 @@ const it: Strings = {
   voiceOnCallWithTemplate: 'In chiamata con {who}',
   voiceTapToReturn: 'Tocca per tornare',
   voiceFailed: 'Chiamata vocale fallita',
-  productViewLabel: 'Vedi',
   attachAriaLabel: 'Allega un’immagine',
   attachDropHint: 'Trascina qui l’immagine',
   attachUploading: 'Caricamento…',

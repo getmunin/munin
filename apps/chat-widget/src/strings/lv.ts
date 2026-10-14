@@ -56,7 +56,6 @@ const lv: Strings = {
   voiceOnCallWithTemplate: 'Saruna: {who}',
   voiceTapToReturn: 'Pieskarieties, lai atgrieztos',
   voiceFailed: 'Balss zvans neizdevās',
-  productViewLabel: 'Skatīt',
   attachAriaLabel: 'Pievienot attēlu',
   attachDropHint: 'Nometiet attēlu šeit',
   attachUploading: 'Augšupielādē…',

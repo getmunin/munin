@@ -56,7 +56,6 @@ const nl: Strings = {
   voiceOnCallWithTemplate: 'In gesprek met {who}',
   voiceTapToReturn: 'Tik om terug te keren',
   voiceFailed: 'Spraakoproep mislukt',
-  productViewLabel: 'Bekijk',
   attachAriaLabel: 'Afbeelding toevoegen',
   attachDropHint: 'Laat de afbeelding hier vallen',
   attachUploading: 'Uploaden…',

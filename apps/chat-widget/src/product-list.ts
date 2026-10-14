@@ -1,39 +1,37 @@
 import { formatPriceRange } from '@getmunin/types/message-format';
 import type { MessageComponent, ProductListComponent, ProductListItem } from '@getmunin/types';
-import type { Strings } from './strings/index.ts';
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
 
 export function renderMessageComponents(
   components: MessageComponent[] | undefined,
   locale: string,
-  strings: Strings,
 ): HTMLElement[] {
   if (!components?.length) return [];
   const out: HTMLElement[] = [];
   for (const component of components) {
     if (component.type === 'product_list') {
-      out.push(renderProductList(component, locale, strings));
+      out.push(renderProductList(component, locale));
     }
   }
   return out;
 }
 
-function renderProductList(
-  component: ProductListComponent,
-  locale: string,
-  strings: Strings,
-): HTMLElement {
+function renderProductList(component: ProductListComponent, locale: string): HTMLElement {
   const rail = document.createElement('div');
   rail.className = 'plist-rail';
   for (const item of component.items) {
-    rail.appendChild(renderCard(item, locale, strings));
+    rail.appendChild(renderCard(item, locale));
   }
   return rail;
 }
 
-function renderCard(item: ProductListItem, locale: string, strings: Strings): HTMLElement {
+function renderCard(item: ProductListItem, locale: string): HTMLElement {
   const card = item.url ? linkCard(item.url) : document.createElement('div');
   card.className = 'pcard';
 
+  const media = document.createElement('span');
+  media.className = 'pcard-media';
   if (item.imageUrl) {
     const img = document.createElement('img');
     img.className = 'pcard-shot';
@@ -44,31 +42,28 @@ function renderCard(item: ProductListItem, locale: string, strings: Strings): HT
     img.addEventListener('error', () => {
       img.replaceWith(placeholderShot());
     });
-    card.appendChild(img);
+    media.appendChild(img);
   } else {
-    card.appendChild(placeholderShot());
+    media.appendChild(placeholderShot());
   }
-
-  const name = document.createElement('div');
-  name.className = 'pcard-name';
-  name.textContent = item.title;
-  card.appendChild(name);
 
   const price = formatPriceRange(item, locale);
   if (price) {
-    const priceEl = document.createElement('div');
+    const priceEl = document.createElement('span');
     priceEl.className = 'pcard-price';
     priceEl.textContent = price;
-    card.appendChild(priceEl);
+    media.appendChild(priceEl);
   }
+  card.appendChild(media);
 
-  if (item.url) {
-    const view = document.createElement('span');
-    view.className = 'pcard-view';
-    view.setAttribute('aria-hidden', 'true');
-    view.textContent = `${strings.productViewLabel} ↗`;
-    card.appendChild(view);
-  }
+  const body = document.createElement('span');
+  body.className = 'pcard-body';
+  const name = document.createElement('span');
+  name.className = 'pcard-name';
+  name.textContent = item.title;
+  body.appendChild(name);
+  if (item.url) body.appendChild(externalArrow());
+  card.appendChild(body);
 
   return card;
 }
@@ -86,4 +81,15 @@ function placeholderShot(): HTMLElement {
   el.className = 'pcard-shot pcard-shot-empty';
   el.setAttribute('aria-hidden', 'true');
   return el;
+}
+
+function externalArrow(): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('class', 'pcard-arrow');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', 'M7 17 17 7M8 7h9v9');
+  svg.appendChild(path);
+  return svg;
 }

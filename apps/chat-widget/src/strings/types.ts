@@ -65,7 +65,6 @@ export interface Strings {
   voiceOnCallWithTemplate: string;
   voiceTapToReturn: string;
   voiceFailed: string;
-  productViewLabel: string;
   attachAriaLabel: string;
   attachDropHint: string;
   attachUploading: string;

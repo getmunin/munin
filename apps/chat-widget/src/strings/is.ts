@@ -56,7 +56,6 @@ const is: Strings = {
   voiceOnCallWithTemplate: 'Í símtali við {who}',
   voiceTapToReturn: 'Pikkaðu til að snúa aftur',
   voiceFailed: 'Talsímtal mistókst',
-  productViewLabel: 'Sjá',
   attachAriaLabel: 'Hengja mynd við',
   attachDropHint: 'Slepptu myndinni hér',
   attachUploading: 'Hleð upp…',

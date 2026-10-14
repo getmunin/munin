@@ -1235,7 +1235,9 @@
         "sent": "Sent",
         "expires": "Expires"
       },
+      "invitesExpired": "Expired {when}",
       "resend": "Resend",
+      "inviteResent": "New invitation sent to {email}.",
       "inviteModalTitle": "Invite teammate",
       "inviteModalSub": "Sends a sign-in link, expires in 7 days",
       "inviteModalRoleHint": "Members can read inbox + reply. Admins also manage channels and keys.",
@@ -1247,6 +1249,7 @@
         "load": "Could not load team.",
         "invite": "Could not send invite.",
         "revokeInvite": "Could not revoke invite.",
+        "resendInvite": "Could not resend invite.",
         "remove": "Could not remove member.",
         "changeRole": "Could not change role.",
         "rename": "Could not save name."

@@ -47,6 +47,14 @@ export class InvitationsController {
     return this.invites.listPending();
   }
 
+  @Post(':id/resend')
+  @HttpCode(201)
+  @RequireActorType('user')
+  @RequireRole('owner')
+  resend(@Param('id') id: string) {
+    return this.invites.resend(id);
+  }
+
   @Delete(':id')
   @HttpCode(200)
   @RequireRole('owner')

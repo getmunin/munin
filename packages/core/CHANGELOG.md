@@ -1,5 +1,14 @@
 # @getmunin/core
 
+## 5.45.0
+
+### Patch Changes
+
+- Updated dependencies [c450995]
+- Updated dependencies [5260afc]
+  - @getmunin/db@5.45.0
+  - @getmunin/types@5.45.0
+
 ## 5.44.0
 
 ### Minor Changes

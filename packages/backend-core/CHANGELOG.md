@@ -1,5 +1,85 @@
 # @getmunin/backend-core
 
+## 5.45.0
+
+### Minor Changes
+
+- c533e86: CMS export/import now moves content between orgs without putting image bytes in the payload.
+
+  - `cms_export` returns each asset with a `sourceUrl` (its public URL) instead of base64 bytes by default, and `cms_import` downloads from that URL on the server, behind the same SSRF guard and 50MB cap as `cms_upload_asset_from_url`. The export result stays small however many images the entries carry, so an agent can move a blog through two MCP calls without an API key. Pass `includeAssetBytes: true` to inline bytes as before, for when the importing server cannot reach the source's asset URLs.
+  - `cms_export` takes an optional `collections` list of slugs. The payload then holds only those collections, the locales their entries use, and the assets their entries reference (asset fields, asset arrays, assets inside blocks, and inline `asset://` links). An unknown slug fails with `cms_not_found`. `GET /v1/cms/transfer/export` accepts the same options as `?collections=a,b&includeAssetBytes=true`.
+  - Re-running an import now fills an asset placeholder that an earlier run left without bytes. The asset keeps its id, so entries that point at it stay linked.
+  - `POST /v1/cms/transfer/import` no longer drops `translationGroupId`. Entries imported over REST stay linked as locale variants when their slugs differ, matching the MCP tool. The two now share one Zod schema.
+  - `skill://cms/migrate-content` gains a section on copying collections between Munin orgs, and `skill://playbooks/data-migration` describes the new asset transfer.
+
+- 4c1c679: Pending invitations can now be resent from the Team page. An invitation that ran past its seven days used to sit in the pending list with only a revoke action, so the owner had to revoke it and type the address and role again. `POST /v1/orgs/me/invitations/:id/resend` replaces the invitation with a fresh one for the same address and role: a new link, a new seven-day expiry and a new email. The old link stops working. Invite links are stored only as hashes, so the original link cannot be sent again. Like creating an invitation, resending requires an owner signed in with a session. When no mail provider is configured, the dashboard shows the new link to copy, just as it does for a new invite.
+
+  The pending list now marks expired invitations as expired instead of only showing a relative time in the past, and highlights the resend action on them.
+
+### Patch Changes
+
+- c450995: Take a table booking from a guest whose email isn't verified, such as an anonymous chat visitor or a phone caller.
+
+  `bookings_create_my_booking` used to refuse any session without a verified email, so phone callers and anonymous widget visitors could never book. Creating a booking reveals nothing about anyone, so such a session may now book under an email the guest gives in `email`. On a call, the phone defaults to the caller's number.
+
+  - **Limited reach.** The tool returns only the booking it just made, never another booking filed under that address.
+  - **Up to 3 such bookings per conversation**, refused with `bookings_limit` after that.
+  - **Same-conversation changes only.** `bookings_update_my_booking` and `bookings_cancel_my_booking` work on those bookings within the same conversation, after confirming with the vendor that each booking is still filed under the email it was made with. Every other booking still needs a verified email, so a guest session cannot look up, change or cancel anything it didn't make.
+  - **Verified sessions are unchanged**, except that passing a different `email` is now refused instead of ignored.
+  - **Forgery checks still apply.** A session whose email fails the DMARC or forwarded-sender check is still refused, rather than treated as a guest.
+
+  Bookings made this way are recorded in a new `bookings_guest_bookings` table (migration `0115_bookings_guest_bookings`). Its RLS policy lets an end user see only rows on their own conversations.
+
+- 99eb704: The channel dialog's Knowledge tab only shows the store and booking pickers when the org has a connection of that kind, instead of a "None connected" row for each. The space-count summary beside the tab label is gone.
+
+  Deleting a connection that is pinned to a channel now names those channels in the dashboard error. `connectors_connection_bound` carries a `params.channels` field, and the dashboard's error translator interpolates `params` from any error body into its message.
+
+- c40a8e7: Close two paths that let one chat customer read another customer's data.
+
+  - **Delegated tokens no longer launder a visitor-typed email.** A signed-in widget visitor could type someone else's address, which was stored as self-reported. When the org's backend later minted a delegated token for the real owner by email alone, the mint adopted the visitor's end user and stamped the email as org-attested, so that visitor's chat could then list the owner's store orders and bookings. A mint by email now skips any end user whose email was self-reported (anonymous, or typed by a visitor), releases that unverified claim, and binds the email to a fresh end user. Minting for a named end user replaces a self-reported email instead of refusing with `delegated_email_mismatch`.
+  - **`crm_get_my_contact` and `crm_update_my_contact` only return a contact the session has proven** and otherwise refuse with `crm_unverified`. Contact extraction matches existing contacts by email or phone, so a contact created from an address or number a visitor typed could later be backfilled with the real owner's name and phone from their own conversation, and the visitor's agent could read them back. The contact is returned only when the session's identity is not self-reported and the contact's email matches the end user's email, or, for a contact without an email, its phone matches the end user's phone.
+  - **Magento order-number lookups filter by customer email at the store.** Order numbers repeat across store views, so a lookup without a store code could fetch another customer's order first; the ownership check already discarded it, but the customer's own order then came back as not found.
+
+- 65f3da3: A credential link no longer burns when the connection test fails. The secret is still saved, but the link stays open until the test passes (or the link expires), and the page now says "Saved, but the connection test failed" instead of "Couldn't save". It offers **Test again**, which re-runs the test against the stored secret without retyping it (new `POST /v1/credentials/retest`), and **Enter different credentials**. This covers the common case of a freshly created mailbox or app password that takes a few minutes to become active.
+- 5260afc: Trust an end user's email for personal lookups only when its source is known.
+
+  Self-service store-order, booking and own-contact lookups used to refuse an email only when it was marked as typed by a visitor (or the session was anonymous). Any email written by a path that forgot to mark itself was trusted by default. The check is now an allow-list on `end_users.metadata.emailSource`:
+
+  - `org-attested`: a delegated-token mint with `email`, a signed widget email, a signed analytics `identify` email, or `/v1/end-users`.
+  - `channel`: the sender of an inbound email or channel webhook.
+  - `legacy`: an email that predates this change. Migration `0114_end_user_email_source_backfill` stamps it, so no existing lookup changes outcome.
+
+  Anything else, including no source at all, is treated as self-reported. Every path that writes an email now stamps its source. The three org-attested paths share one rule for a conflict: an email held only by a self-reported end user is taken back from it rather than blocking the owner.
+
+  Signed analytics `identify` no longer adopts an anonymous widget identity just because the visitor typed the same address. It takes the address back and keeps the customer's identity separate. External MCP identity assertions report an email from an unknown source as `self_reported`.
+
+- 75fff57: Product cards in the chat widget now link to the product page for Magento stores, and the whole card is clickable.
+
+  The Magento adapter always returned `url: null` for products, so the widget never rendered a link and the cards gave no sign they could be opened. Products now link to Magento's own product route on the store view's base URL by default. A new optional `productUrlTemplate` connection field (`{urlKey}`, `{sku}`, `{id}`) covers storefronts served from a different host than the Magento API, such as headless frontends, and lets a standard store use its pretty URLs. Products that are not visible individually get no link.
+
+  In the widget the whole product card is now the link, with a hover border and a focus ring, instead of only the small "View" pill.
+
+- 2f8ba18: Stop treating a voice caller's number as proof of who they are.
+
+  Caller ID can be forged, and on a call the answer is spoken to whoever placed it, unlike email or SMS, where a reply only reaches the real address or number.
+
+  - The Vapi and Threll assistants no longer get the name and email of the CRM contact matching the caller ID. They used to, so someone forging a customer's number was greeted by name and could ask for the email on file. The `[Caller]` block now holds only what the call itself carries: the number and any caller name the vendor sends.
+  - `crm_get_my_contact` and `crm_update_my_contact` are no longer offered on voice channels, since on a phone call the end user's phone _is_ the caller ID.
+
+  Order and booking tools are unchanged. Phone callers never had an email identity for them, and calls started from the chat widget keep the widget session's identity.
+
+  The Shopify and Gastroplanner adapters gain the same tests as Magento: a vendor that ignores every filter, checked so that no list, order-ref, order-number or booking-ref lookup ever returns another customer's record.
+
+- Updated dependencies [c450995]
+- Updated dependencies [5260afc]
+  - @getmunin/db@5.45.0
+  - @getmunin/core@5.45.0
+  - @getmunin/inspector-app@5.45.0
+  - @getmunin/agent-runtime@5.45.0
+  - @getmunin/mcp-toolkit@5.45.0
+  - @getmunin/emails@5.45.0
+  - @getmunin/types@5.45.0
+
 ## 5.44.0
 
 ### Minor Changes

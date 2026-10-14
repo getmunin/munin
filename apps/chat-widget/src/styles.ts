@@ -1129,7 +1129,12 @@ const PRODUCT_LIST_CSS = String.raw`
   border-radius: var(--munin-r-surface);
   background: var(--munin-paper);
   padding: 7px;
+  color: inherit;
+  text-decoration: none;
 }
+a.pcard { cursor: pointer; transition: border-color 120ms; }
+a.pcard:hover { border-color: var(--munin-ink); }
+a.pcard:focus-visible { outline: 2px solid var(--munin-ink); outline-offset: 2px; }
 
 .pcard-shot {
   display: block;
@@ -1166,7 +1171,7 @@ const PRODUCT_LIST_CSS = String.raw`
   color: var(--munin-ink-soft);
   text-decoration: none;
 }
-.pcard-view:hover { border-color: var(--munin-ink); color: var(--munin-ink); }
+.pcard:hover .pcard-view { border-color: var(--munin-ink); color: var(--munin-ink); }
 
 .composer-main {
   flex: 1;

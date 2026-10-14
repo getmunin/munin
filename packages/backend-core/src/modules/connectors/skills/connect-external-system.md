@@ -64,6 +64,23 @@ Create an integration token:
 
 The credential link asks for the access token. `baseUrl` must be https and publicly reachable (private/internal hosts are refused). Shipment tracking comes from the Sales → Shipments resource, so include it in the ACL.
 
+### Product links
+
+Product cards in the chat widget link to the product's page on the storefront. By default that link is Magento's own product route on the store view's base URL (`…/catalog/product/view/id/<id>`), which works on any standard Magento frontend. When customers shop on a different host than `baseUrl` — a headless or PWA storefront — or you want the pretty URL, set `productUrlTemplate` to the storefront's product URL with a placeholder:
+
+```json
+{
+  "vendor": "magento",
+  "name": "EU storefront",
+  "config": {
+    "baseUrl": "https://admin.store.example.com",
+    "productUrlTemplate": "https://store.example.com/products/{urlKey}"
+  }
+}
+```
+
+The placeholders are `{urlKey}` (the product's URL key in the connection's store view), `{sku}` and `{id}`. A standard Magento frontend's pretty URL is usually `https://store.example.com/{urlKey}.html`. A product with no URL key, or one set to *Not Visible Individually*, gets no link. The template can be added to an existing connection with `connectors_update_connection`.
+
 ### One Magento install, several sites
 
 When one Magento install runs several sites (Magento *websites*), create one connection per site and set `storeCode` to a store view code of that site:

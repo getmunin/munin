@@ -313,7 +313,13 @@ export interface CmsAssetExport {
   storageKey: string;
   altText: string | null;
   metadata: Record<string, unknown>;
+  sourceUrl: string | null;
   base64Body: string | null;
+}
+
+export interface CmsExportOptions {
+  collections?: string[];
+  includeAssetBytes?: boolean;
 }
 
 export interface CmsExportData {
@@ -1455,7 +1461,21 @@ export class CmsService {
     altText?: string;
     metadata?: Record<string, unknown>;
   }): Promise<AssetDto> {
-    const res = await safeFetch(input.sourceUrl, {
+    const { body, mime } = await this.fetchAssetBytes(input.sourceUrl, input.mime);
+    return this.persistAssetBytes({
+      name: input.name ?? deriveNameFromUrl(new URL(input.sourceUrl), mime),
+      mime,
+      body,
+      altText: input.altText,
+      metadata: { ...(input.metadata ?? {}), sourceUrl: input.sourceUrl },
+    });
+  }
+
+  private async fetchAssetBytes(
+    sourceUrl: string,
+    mimeOverride?: string,
+  ): Promise<{ body: Buffer; mime: string }> {
+    const res = await safeFetch(sourceUrl, {
       method: 'GET',
       headers: { 'user-agent': 'Munin-CMS/1.0 (+https://getmunin.com)' },
       signal: AbortSignal.timeout(15_000),
@@ -1469,7 +1489,7 @@ export class CmsService {
     if (!res.ok) throw new CmsInvalidError(`fetch failed with status ${res.status}`);
 
     const mime = normalizeMime(
-      input.mime ?? res.headers.get('content-type') ?? 'application/octet-stream',
+      mimeOverride ?? res.headers.get('content-type') ?? 'application/octet-stream',
     );
     if (!checkCmsAssetType('', mime).ok) {
       throw new CmsInvalidError(
@@ -1480,14 +1500,7 @@ export class CmsService {
 
     const body = await readBodyWithCap(res, FETCH_BYTES_MAX);
     if (body.length === 0) throw new CmsInvalidError('fetched body is empty');
-
-    return this.persistAssetBytes({
-      name: input.name ?? deriveNameFromUrl(new URL(input.sourceUrl), mime),
-      mime,
-      body,
-      altText: input.altText,
-      metadata: { ...(input.metadata ?? {}), sourceUrl: input.sourceUrl },
-    });
+    return { body, mime };
   }
 
   private async persistAssetBytes(input: {
@@ -1496,9 +1509,10 @@ export class CmsService {
     body: Buffer;
     altText?: string;
     metadata?: Record<string, unknown>;
+    replaceId?: string;
   }): Promise<AssetDto> {
     const { mime, ext } = assertCmsAssetType(input.name, input.mime);
-    await this.quotas.assertCanAdd('cms_assets');
+    if (!input.replaceId) await this.quotas.assertCanAdd('cms_assets');
 
     if (!this.storage.writeDirect) {
       throw new Error('storage backend does not support direct writes');
@@ -1509,20 +1523,31 @@ export class CmsService {
     await this.storage.writeDirect(key, input.body, { mime });
     const derived = await this.deriveVariantsOrDefer(mime, key, input.body);
 
+    const stored = {
+      mime,
+      sizeBytes: input.body.length,
+      ...derived,
+      storageProvider: this.storage.provider,
+      storageKey: key,
+      publicUrl: this.storage.publicUrlFor(key),
+      altText: input.altText ?? null,
+      metadata: input.metadata ?? {},
+      uploaded: true,
+    };
+    if (input.replaceId) {
+      const [row] = await ctx.db
+        .update(schema.cmsAssets)
+        .set({ ...stored, updatedAt: new Date() })
+        .where(eq(schema.cmsAssets.id, input.replaceId))
+        .returning();
+      return toAssetDto(row!);
+    }
     const [row] = await ctx.db
       .insert(schema.cmsAssets)
       .values({
         orgId: actor.orgId,
         name: input.name,
-        mime,
-        sizeBytes: input.body.length,
-        ...derived,
-        storageProvider: this.storage.provider,
-        storageKey: key,
-        publicUrl: this.storage.publicUrlFor(key),
-        altText: input.altText ?? null,
-        metadata: input.metadata ?? {},
-        uploaded: true,
+        ...stored,
         createdByType: actor.type === 'user' ? 'user' : 'agent',
         createdById: actor.id,
       })
@@ -1737,19 +1762,51 @@ export class CmsService {
     return rows;
   }
 
-  async exportCms(): Promise<CmsExportData> {
+  async exportCms(opts: CmsExportOptions = {}): Promise<CmsExportData> {
     const ctx = getCurrentContext();
-    const [locales, collections, entries, assets] = await Promise.all([
-      ctx.db.select().from(schema.cmsLocales).orderBy(asc(schema.cmsLocales.createdAt)),
-      ctx.db.select().from(schema.cmsCollections).orderBy(asc(schema.cmsCollections.createdAt)),
-      ctx.db.select().from(schema.cmsEntries).orderBy(asc(schema.cmsEntries.createdAt)),
-      ctx.db.select().from(schema.cmsAssets).orderBy(asc(schema.cmsAssets.createdAt)),
-    ]);
+    const collections = await this.loadCollectionsForExport(opts.collections);
+    const collectionIds = collections.map((c) => c.id);
+    const entries = opts.collections
+      ? collectionIds.length === 0
+        ? []
+        : await ctx.db
+            .select()
+            .from(schema.cmsEntries)
+            .where(inArray(schema.cmsEntries.collectionId, collectionIds))
+            .orderBy(asc(schema.cmsEntries.createdAt))
+      : await ctx.db.select().from(schema.cmsEntries).orderBy(asc(schema.cmsEntries.createdAt));
+
+    let locales = await ctx.db
+      .select()
+      .from(schema.cmsLocales)
+      .orderBy(asc(schema.cmsLocales.createdAt));
+    let assets: Array<typeof schema.cmsAssets.$inferSelect>;
+    if (opts.collections) {
+      const usedLocales = new Set(entries.map((e) => e.locale));
+      locales = locales.filter((l) => usedLocales.has(l.code));
+      const fieldsByCollection = new Map(collections.map((c) => [c.id, c.fields as FieldDef[]]));
+      const assetIds = new Set<string>();
+      for (const e of entries) {
+        for (const ref of extractAssetReferences(fieldsByCollection.get(e.collectionId) ?? [], e.data)) {
+          assetIds.add(ref.assetId);
+        }
+      }
+      assets =
+        assetIds.size === 0
+          ? []
+          : await ctx.db
+              .select()
+              .from(schema.cmsAssets)
+              .where(inArray(schema.cmsAssets.id, [...assetIds]))
+              .orderBy(asc(schema.cmsAssets.createdAt));
+    } else {
+      assets = await ctx.db.select().from(schema.cmsAssets).orderBy(asc(schema.cmsAssets.createdAt));
+    }
 
     const assetExports: CmsAssetExport[] = [];
     for (const a of assets) {
       let base64Body: string | null = null;
-      if (a.uploaded && a.sizeBytes <= EXPORT_ASSET_BYTES_MAX) {
+      if (opts.includeAssetBytes && a.uploaded && a.sizeBytes <= EXPORT_ASSET_BYTES_MAX) {
         const bytes = await this.storage.readBytes(a.storageKey).catch(() => null);
         if (bytes) base64Body = bytes.toString('base64');
       }
@@ -1761,6 +1818,7 @@ export class CmsService {
         storageKey: a.storageKey,
         altText: a.altText,
         metadata: a.metadata,
+        sourceUrl: a.uploaded ? a.publicUrl : null,
         base64Body,
       });
     }
@@ -1794,6 +1852,27 @@ export class CmsService {
       })),
       assets: assetExports,
     };
+  }
+
+  private async loadCollectionsForExport(
+    slugs: string[] | undefined,
+  ): Promise<Array<typeof schema.cmsCollections.$inferSelect>> {
+    const ctx = getCurrentContext();
+    if (!slugs) {
+      return ctx.db.select().from(schema.cmsCollections).orderBy(asc(schema.cmsCollections.createdAt));
+    }
+    const wanted = [...new Set(slugs)];
+    const rows = await ctx.db
+      .select()
+      .from(schema.cmsCollections)
+      .where(inArray(schema.cmsCollections.slug, wanted))
+      .orderBy(asc(schema.cmsCollections.createdAt));
+    const found = new Set(rows.map((r) => r.slug));
+    const missing = wanted.filter((slug) => !found.has(slug));
+    if (missing.length > 0) {
+      throw new NotFoundException(`cms_not_found: collection ${missing.join(', ')}`);
+    }
+    return rows;
   }
 
   async importCms(data: CmsExportData, priorIdMap: IdMap = {}): Promise<ImportResult> {
@@ -1839,37 +1918,56 @@ export class CmsService {
 
     for (const asset of data.assets) {
       const existing = await this.findAssetForImport(actor.orgId, asset.name, asset.sizeBytes);
-      if (existing) {
+      if (existing && (existing.uploaded || (!asset.base64Body && !asset.sourceUrl))) {
         result.idMap[asset.id] = existing.id;
         result.skipped++;
         continue;
       }
-      if (!asset.base64Body) {
-        result.warnings.push(
-          `asset "${asset.name}" imported without bytes: source did not include a body (too large or unreadable on export)`,
-        );
+      const recordPlaceholder = async (warning: string) => {
+        result.warnings.push(warning);
+        if (existing) {
+          result.idMap[asset.id] = existing.id;
+          result.skipped++;
+          return;
+        }
         const placeholder = await this.upsertAssetMetadataOnly(asset);
         result.idMap[asset.id] = placeholder.id;
         result.created++;
+      };
+      let body: Buffer;
+      if (asset.base64Body) {
+        body = Buffer.from(asset.base64Body, 'base64');
+      } else if (asset.sourceUrl) {
+        try {
+          body = (await this.fetchAssetBytes(asset.sourceUrl)).body;
+        } catch (err) {
+          await recordPlaceholder(
+            `asset "${asset.name}" bytes could not be downloaded from ${asset.sourceUrl} (${describeError(err)}); imported metadata only`,
+          );
+          continue;
+        }
+      } else {
+        await recordPlaceholder(
+          `asset "${asset.name}" imported without bytes: the export carried neither a body nor a sourceUrl (too large or not uploaded on the source)`,
+        );
         continue;
       }
       try {
-        const created = await this.persistAssetBytes({
+        const stored = await this.persistAssetBytes({
           name: asset.name,
           mime: asset.mime,
-          body: Buffer.from(asset.base64Body, 'base64'),
+          body,
           altText: asset.altText ?? undefined,
           metadata: asset.metadata,
+          replaceId: existing?.id,
         });
-        result.idMap[asset.id] = created.id;
-        result.created++;
+        result.idMap[asset.id] = stored.id;
+        if (existing) result.updated++;
+        else result.created++;
       } catch (err) {
-        result.warnings.push(
+        await recordPlaceholder(
           `asset "${asset.name}" bytes could not be re-uploaded (${describeError(err)}); imported metadata only`,
         );
-        const placeholder = await this.upsertAssetMetadataOnly(asset);
-        result.idMap[asset.id] = placeholder.id;
-        result.created++;
       }
     }
 
@@ -2051,10 +2149,10 @@ export class CmsService {
     orgId: string,
     name: string,
     sizeBytes: number,
-  ): Promise<{ id: string } | null> {
+  ): Promise<{ id: string; uploaded: boolean } | null> {
     const ctx = getCurrentContext();
     const rows = await ctx.db
-      .select({ id: schema.cmsAssets.id })
+      .select({ id: schema.cmsAssets.id, uploaded: schema.cmsAssets.uploaded })
       .from(schema.cmsAssets)
       .where(
         and(
@@ -2063,6 +2161,7 @@ export class CmsService {
           eq(schema.cmsAssets.sizeBytes, sizeBytes),
         ),
       )
+      .orderBy(desc(schema.cmsAssets.uploaded))
       .limit(1);
     return rows[0] ?? null;
   }

@@ -31,7 +31,7 @@ function renderProductList(
 }
 
 function renderCard(item: ProductListItem, locale: string, strings: Strings): HTMLElement {
-  const card = document.createElement('div');
+  const card = item.url ? linkCard(item.url) : document.createElement('div');
   card.className = 'pcard';
 
   if (item.imageUrl) {
@@ -63,16 +63,22 @@ function renderCard(item: ProductListItem, locale: string, strings: Strings): HT
   }
 
   if (item.url) {
-    const link = document.createElement('a');
-    link.className = 'pcard-view';
-    link.href = item.url;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.textContent = `${strings.productViewLabel} ↗`;
-    card.appendChild(link);
+    const view = document.createElement('span');
+    view.className = 'pcard-view';
+    view.setAttribute('aria-hidden', 'true');
+    view.textContent = `${strings.productViewLabel} ↗`;
+    card.appendChild(view);
   }
 
   return card;
+}
+
+function linkCard(url: string): HTMLAnchorElement {
+  const link = document.createElement('a');
+  link.href = url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  return link;
 }
 
 function placeholderShot(): HTMLElement {

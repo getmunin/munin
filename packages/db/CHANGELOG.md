@@ -1,5 +1,35 @@
 # @getmunin/db
 
+## 5.45.0
+
+### Patch Changes
+
+- c450995: Take a table booking from a guest whose email isn't verified, such as an anonymous chat visitor or a phone caller.
+
+  `bookings_create_my_booking` used to refuse any session without a verified email, so phone callers and anonymous widget visitors could never book. Creating a booking reveals nothing about anyone, so such a session may now book under an email the guest gives in `email`. On a call, the phone defaults to the caller's number.
+
+  - **Limited reach.** The tool returns only the booking it just made, never another booking filed under that address.
+  - **Up to 3 such bookings per conversation**, refused with `bookings_limit` after that.
+  - **Same-conversation changes only.** `bookings_update_my_booking` and `bookings_cancel_my_booking` work on those bookings within the same conversation, after confirming with the vendor that each booking is still filed under the email it was made with. Every other booking still needs a verified email, so a guest session cannot look up, change or cancel anything it didn't make.
+  - **Verified sessions are unchanged**, except that passing a different `email` is now refused instead of ignored.
+  - **Forgery checks still apply.** A session whose email fails the DMARC or forwarded-sender check is still refused, rather than treated as a guest.
+
+  Bookings made this way are recorded in a new `bookings_guest_bookings` table (migration `0115_bookings_guest_bookings`). Its RLS policy lets an end user see only rows on their own conversations.
+
+- 5260afc: Trust an end user's email for personal lookups only when its source is known.
+
+  Self-service store-order, booking and own-contact lookups used to refuse an email only when it was marked as typed by a visitor (or the session was anonymous). Any email written by a path that forgot to mark itself was trusted by default. The check is now an allow-list on `end_users.metadata.emailSource`:
+
+  - `org-attested`: a delegated-token mint with `email`, a signed widget email, a signed analytics `identify` email, or `/v1/end-users`.
+  - `channel`: the sender of an inbound email or channel webhook.
+  - `legacy`: an email that predates this change. Migration `0114_end_user_email_source_backfill` stamps it, so no existing lookup changes outcome.
+
+  Anything else, including no source at all, is treated as self-reported. Every path that writes an email now stamps its source. The three org-attested paths share one rule for a conflict: an email held only by a self-reported end user is taken back from it rather than blocking the owner.
+
+  Signed analytics `identify` no longer adopts an anonymous widget identity just because the visitor typed the same address. It takes the address back and keeps the customer's identity separate. External MCP identity assertions report an email from an unknown source as `self_reported`.
+
+- @getmunin/types@5.45.0
+
 ## 5.44.0
 
 ### Minor Changes

@@ -1,5 +1,24 @@
 # @getmunin/dashboard-pages
 
+## 5.45.0
+
+### Minor Changes
+
+- 4c1c679: Pending invitations can now be resent from the Team page. An invitation that ran past its seven days used to sit in the pending list with only a revoke action, so the owner had to revoke it and type the address and role again. `POST /v1/orgs/me/invitations/:id/resend` replaces the invitation with a fresh one for the same address and role: a new link, a new seven-day expiry and a new email. The old link stops working. Invite links are stored only as hashes, so the original link cannot be sent again. Like creating an invitation, resending requires an owner signed in with a session. When no mail provider is configured, the dashboard shows the new link to copy, just as it does for a new invite.
+
+  The pending list now marks expired invitations as expired instead of only showing a relative time in the past, and highlights the resend action on them.
+
+### Patch Changes
+
+- 99eb704: The channel dialog's Knowledge tab only shows the store and booking pickers when the org has a connection of that kind, instead of a "None connected" row for each. The space-count summary beside the tab label is gone.
+
+  Deleting a connection that is pinned to a channel now names those channels in the dashboard error. `connectors_connection_bound` carries a `params.channels` field, and the dashboard's error translator interpolates `params` from any error body into its message.
+
+- 63e6e98: The brand header on the OAuth consent screen now stays pinned to the top while the page scrolls, instead of scrolling away with a long permission list.
+- 65f3da3: A credential link no longer burns when the connection test fails. The secret is still saved, but the link stays open until the test passes (or the link expires), and the page now says "Saved, but the connection test failed" instead of "Couldn't save". It offers **Test again**, which re-runs the test against the stored secret without retyping it (new `POST /v1/credentials/retest`), and **Enter different credentials**. This covers the common case of a freshly created mailbox or app password that takes a few minutes to become active.
+- @getmunin/types@5.45.0
+  - @getmunin/ui@5.45.0
+
 ## 5.44.0
 
 ### Minor Changes

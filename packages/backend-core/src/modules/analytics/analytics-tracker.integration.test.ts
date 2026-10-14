@@ -1372,7 +1372,7 @@ const skipReason = TEST_URL
     expect(v1Res.status).toBe(204);
   }, 30_000);
 
-  it('adopts an anonymous widget identity that already carries the address', async () => {
+  it('does not adopt an anonymous widget identity whose address was only typed, and takes the address back', async () => {
     const minted = await mintIdentityTracker('anon-adopt tracker');
     const email = 'anon.holder@example.no';
 
@@ -1383,6 +1383,7 @@ const skipReason = TEST_URL
         externalId: `anon:${'sess-' + Math.abs(orgId.length * 7919)}`,
         email,
         name: 'Ola (widget session)',
+        metadata: { anonymous: true, emailSource: 'visitor' },
       })
       .returning({ id: schema.endUsers.id });
 
@@ -1413,8 +1414,15 @@ const skipReason = TEST_URL
       .from(schema.endUsers)
       .where(sql`org_id = ${orgId} AND lower(email) = ${email}`);
     expect(holders).toHaveLength(1);
-    expect(holders[0]!.id).toBe(anon!.id);
+    expect(holders[0]!.id).not.toBe(anon!.id);
     expect(holders[0]!.externalId).toBe(externalId);
+
+    const [released] = await db
+      .select({ email: schema.endUsers.email, externalId: schema.endUsers.externalId })
+      .from(schema.endUsers)
+      .where(sql`id = ${anon!.id}`);
+    expect(released!.email).toBeNull();
+    expect(released!.externalId).not.toBe(externalId);
   }, 30_000);
 
   it('identify with a signed email converges on the identity the email channel already created', async () => {
@@ -1423,7 +1431,13 @@ const skipReason = TEST_URL
 
     const [provisional] = await db
       .insert(schema.endUsers)
-      .values({ orgId, externalId: `email:${email}`, email, name: 'Kari Nordmann' })
+      .values({
+        orgId,
+        externalId: `email:${email}`,
+        email,
+        name: 'Kari Nordmann',
+        metadata: { emailSource: 'channel' },
+      })
       .returning({ id: schema.endUsers.id });
 
     const visitorId = 'visitor-email-trait-1';
@@ -1506,7 +1520,12 @@ const skipReason = TEST_URL
 
     const [rival] = await db
       .insert(schema.endUsers)
-      .values({ orgId, externalId: 'demo-owner-1', email })
+      .values({
+        orgId,
+        externalId: 'demo-owner-1',
+        email,
+        metadata: { emailSource: 'org-attested' },
+      })
       .returning({ id: schema.endUsers.id });
 
     const visitorId = 'visitor-email-trait-3';

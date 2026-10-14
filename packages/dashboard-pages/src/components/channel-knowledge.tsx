@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   DialogFooter,
@@ -185,15 +185,6 @@ export function useChannelKnowledge(
   };
 }
 
-function useKnowledgeSummary(knowledge: ChannelKnowledge) {
-  const t = useTranslations('dashboard.channels.knowledge');
-  return useMemo(() => {
-    return knowledge.limited && knowledge.selected.size > 0
-      ? t('summarySpaces', { count: knowledge.selected.size })
-      : t('summaryAllSpaces');
-  }, [knowledge.limited, knowledge.selected, t]);
-}
-
 export function Segmented<V extends string>({
   options,
   value,
@@ -264,6 +255,9 @@ export function ChannelKnowledgePanel({
   const allNames = knowledge.spaces
     .filter((s) => !HIDDEN_SPACE_SLUGS.has(s.slug))
     .map((s) => s.name);
+  const shownDomains = BINDABLE_DOMAINS.filter(
+    (d) => knowledge.pinned[d] !== '' || (knowledge.connections ?? []).some((c) => c.domain === d),
+  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -318,9 +312,9 @@ export function ChannelKnowledgePanel({
         )}
       </div>
 
-      <div className="h-px bg-rule-soft dark:bg-rule-on-dark" />
+      {shownDomains.length > 0 && <div className="h-px bg-rule-soft dark:bg-rule-on-dark" />}
 
-      {BINDABLE_DOMAINS.map((domain) => (
+      {shownDomains.map((domain) => (
         <ConnectionPicker key={domain} knowledge={knowledge} domain={domain} />
       ))}
     </div>
@@ -357,21 +351,17 @@ function ConnectionPicker({
           <div className="text-sm font-semibold text-ink dark:text-foreground">{label}</div>
           <div className="mt-0.5 text-[13px] text-ink-mute">{t(`domainHint.${domain}`)}</div>
         </div>
-        {rows.length > 0 ? (
-          <Segmented
-            label={label}
-            options={[
-              { value: 'all', label: t('allConnections') },
-              { value: 'one', label: t('onlyThis') },
-            ]}
-            value={restricted ? 'one' : 'all'}
-            onChange={(next) => knowledge.setRestricted(domain, next === 'one')}
-          />
-        ) : null}
+        <Segmented
+          label={label}
+          options={[
+            { value: 'all', label: t('allConnections') },
+            { value: 'one', label: t('onlyThis') },
+          ]}
+          value={restricted ? 'one' : 'all'}
+          onChange={(next) => knowledge.setRestricted(domain, next === 'one')}
+        />
       </div>
-      {rows.length === 0 ? (
-        <p className="text-[13px] leading-[1.5] text-ink-mute">{t('noneConnected')}</p>
-      ) : restricted ? (
+      {restricted ? (
         <>
           <div
             role="radiogroup"
@@ -447,7 +437,6 @@ export function ChannelDialogShell({
   actions: ReactNode;
 }) {
   const t = useTranslations('dashboard.channels.knowledge');
-  const spacesSummary = useKnowledgeSummary(knowledge);
   const formRef = useRef<HTMLFormElement>(null);
   const tabClass =
     'items-baseline gap-2 px-0 pt-0 pb-2.5 font-sans text-sm font-normal normal-case tracking-normal text-ink-mute data-[active]:border-ink dark:data-[active]:border-foreground';
@@ -470,9 +459,6 @@ export function ChannelDialogShell({
           </TabsTrigger>
           <TabsTrigger value="knowledge" className={tabClass}>
             {t('tabKnowledge')}
-            <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink-mute">
-              {spacesSummary}
-            </span>
           </TabsTrigger>
         </TabsList>
       </DialogHeader>

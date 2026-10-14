@@ -183,7 +183,99 @@ describe('MagentoAdapter', () => {
     expect(url.searchParams.get('searchCriteria[filter_groups][0][filters][0][value]')).toBe(
       '000000042',
     );
+    expect(url.searchParams.get('searchCriteria[filter_groups][1][filters][0][field]')).toBe(
+      'customer_email',
+    );
+    expect(url.searchParams.get('searchCriteria[filter_groups][1][filters][0][value]')).toBe(
+      'jane@example.com',
+    );
     expect(detail?.orderNumber).toBe('000000042');
+  });
+
+  it('returns null for an order number owned by someone else, without fetching shipments', async () => {
+    const { fetch, urls } = stubRest(() => ({
+      body: { items: [order({ customer_email: 'jane@example.com' })], total_count: 1 },
+    }));
+    const adapter = new MagentoAdapter(fetch);
+
+    const detail = await adapter.getOrderForCustomer(ctx(), {
+      email: 'mallory@example.com',
+      orderNumber: '000000042',
+    });
+
+    expect(detail).toBeNull();
+    expect(urls.some((u) => u.includes('/shipments'))).toBe(false);
+  });
+
+  describe('never returns an order to anyone but its customer', () => {
+    const caller = 'jane@example.com';
+    const foreign = [
+      order({ entity_id: 50, increment_id: '000000050', customer_email: 'mallory@example.com' }),
+      order({ entity_id: 51, increment_id: '000000051', customer_email: null }),
+      order({ entity_id: 52, increment_id: '000000052', customer_email: '' }),
+      order({ entity_id: 53, increment_id: '000000053', customer_email: 'jane@example.com.evil.test' }),
+      order({ entity_id: 54, increment_id: '000000054', customer_email: 'xjane@example.com' }),
+    ];
+    const own = [
+      order({ entity_id: 60, increment_id: '000000060', customer_email: 'jane@example.com' }),
+      order({ entity_id: 61, increment_id: '000000061', customer_email: ' JANE@Example.com ' }),
+    ];
+    const vendorIgnoringFilters = () =>
+      stubRest((url) => {
+        if (url.includes('/shipments')) return { body: { items: [], total_count: 0 } };
+        const byId = /\/orders\/(\d+)$/.exec(new URL(url).pathname);
+        if (byId) {
+          const hit = [...foreign, ...own].find((o) => String(o.entity_id) === byId[1]);
+          return hit ? { body: hit } : { status: 404, body: { message: 'not found' } };
+        }
+        return { body: { items: [...foreign, ...own], total_count: foreign.length + own.length } };
+      });
+
+    it('lists only the caller\'s orders even when the vendor ignores the email filter', async () => {
+      const adapter = new MagentoAdapter(vendorIgnoringFilters().fetch);
+
+      const orders = await adapter.listOrdersForCustomer(ctx(), { email: caller, limit: 25 });
+
+      expect(orders.map((o) => o.orderRef).sort()).toEqual(['60', '61']);
+    });
+
+    it.each(foreign.map((o) => [o.customer_email, String(o.entity_id)]))(
+      'refuses order ref of a %j order',
+      async (_email, orderRef) => {
+        const adapter = new MagentoAdapter(vendorIgnoringFilters().fetch);
+
+        await expect(adapter.getOrderForCustomer(ctx(), { email: caller, orderRef })).resolves.toBeNull();
+      },
+    );
+
+    it.each(foreign.map((o) => [o.customer_email, o.increment_id]))(
+      'refuses order number of a %j order',
+      async (_email, orderNumber) => {
+        const { fetch } = stubRest((url) =>
+          url.includes('/shipments')
+            ? { body: { items: [], total_count: 0 } }
+            : {
+                body: {
+                  items: [foreign.find((o) => o.increment_id === orderNumber)],
+                  total_count: 1,
+                },
+              },
+        );
+        const adapter = new MagentoAdapter(fetch);
+
+        await expect(
+          adapter.getOrderForCustomer(ctx(), { email: caller, orderNumber }),
+        ).resolves.toBeNull();
+      },
+    );
+
+    it('still finds the caller\'s own order by ref regardless of case and whitespace in the store', async () => {
+      const adapter = new MagentoAdapter(vendorIgnoringFilters().fetch);
+
+      const detail = await adapter.getOrderForCustomer(ctx(), { email: 'Jane@Example.com', orderRef: '61' });
+
+      expect(detail?.orderRef).toBe('61');
+    });
   });
 
 
@@ -571,7 +663,7 @@ describe('MagentoAdapter', () => {
       });
 
       const url = new URL(urls[1]!);
-      expect(url.searchParams.get('searchCriteria[filter_groups][1][filters][0][value]')).toBe(
+      expect(url.searchParams.get('searchCriteria[filter_groups][2][filters][0][value]')).toBe(
         '2,3',
       );
       expect(detail?.orderNumber).toBe('000000042');

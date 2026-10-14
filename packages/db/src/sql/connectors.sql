@@ -50,3 +50,40 @@ CREATE POLICY tenant_isolation ON connector_signing_keys
     app_bypass_rls()
     OR (org_id = app_org_id() AND app_end_user_id() = '')
   );
+
+-- Guest bookings: bookings a self-service session made without a verified
+-- email (an anonymous chat, a phone call), recorded against the conversation
+-- that made them so that conversation alone may change or cancel them. An
+-- end-user actor reads and writes only rows on a conversation it owns.
+ALTER TABLE bookings_guest_bookings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bookings_guest_bookings FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON bookings_guest_bookings;
+CREATE POLICY tenant_isolation ON bookings_guest_bookings
+  USING (
+    app_bypass_rls()
+    OR (
+      org_id = app_org_id()
+      AND (
+        app_end_user_id() = ''
+        OR EXISTS (
+          SELECT 1 FROM conv_conversations c
+          WHERE c.id = bookings_guest_bookings.conversation_id
+            AND c.end_user_id = app_end_user_id()
+        )
+      )
+    )
+  )
+  WITH CHECK (
+    app_bypass_rls()
+    OR (
+      org_id = app_org_id()
+      AND (
+        app_end_user_id() = ''
+        OR EXISTS (
+          SELECT 1 FROM conv_conversations c
+          WHERE c.id = bookings_guest_bookings.conversation_id
+            AND c.end_user_id = app_end_user_id()
+        )
+      )
+    )
+  );

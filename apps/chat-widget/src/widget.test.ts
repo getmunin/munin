@@ -37,6 +37,8 @@ const h = vi.hoisted(() => {
     })),
     setVoiceState: vi.fn(),
     setView: vi.fn(),
+    setSessionId: vi.fn(),
+    hooks: { onEnterNewChat: undefined as (() => void) | undefined },
   };
 });
 
@@ -64,7 +66,7 @@ vi.mock('./api.ts', () => ({
     voiceStart: h.voiceStart,
     voiceEvent: vi.fn(),
     identify: h.identify,
-    setSessionId: vi.fn(),
+    setSessionId: h.setSessionId,
   }),
 }));
 
@@ -87,7 +89,8 @@ vi.mock('./realtime.ts', () => ({
 }));
 
 vi.mock('./ui.ts', () => ({
-  mount: () => {
+  mount: (_config: unknown, _strings: unknown, hooks: typeof h.hooks) => {
+    h.hooks = hooks;
     let open = false;
     const stateful: Record<string, () => unknown> = {
       open: () => {
@@ -351,6 +354,24 @@ describe('voice call name', () => {
 
     await vi.waitFor(() => expect(h.setVoiceCallWho).toHaveBeenCalled());
     expect(h.setVoiceCallWho).toHaveBeenCalledWith('Maja');
+  });
+});
+
+describe('opening straight into a new chat', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.listeners.state = undefined;
+    document.body.innerHTML = '';
+    delete (window as Window & WindowWithMnWidget).mn;
+  });
+
+  it('starts the conversation on the current session so the agent greets', async () => {
+    start({ ...baseConfig });
+
+    h.hooks.onEnterNewChat!();
+
+    await vi.waitFor(() => expect(h.startConversation).toHaveBeenCalledTimes(1));
+    expect(h.setSessionId).not.toHaveBeenCalled();
   });
 });
 

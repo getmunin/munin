@@ -9,7 +9,16 @@ const CHANNEL_ASSERTED_KINDS = new Set(['email', 'sms', 'voice']);
 
 export const SENDER_AUTH_METADATA_KEY = 'senderAuth';
 export const PROVEN_EMAIL_METADATA_KEY = 'provenEmail';
+export const VISITOR_EMAIL_SOURCE = 'visitor';
 export const ORG_ATTESTED_EMAIL_SOURCE = 'org-attested';
+export const CHANNEL_EMAIL_SOURCE = 'channel';
+export const LEGACY_EMAIL_SOURCE = 'legacy';
+
+const TRUSTED_EMAIL_SOURCES: ReadonlySet<string> = new Set([
+  ORG_ATTESTED_EMAIL_SOURCE,
+  CHANNEL_EMAIL_SOURCE,
+  LEGACY_EMAIL_SOURCE,
+]);
 export const ATTESTED_EMAIL_METADATA_KEY = 'attestedEmail';
 
 export interface ConversationTurnMessage {
@@ -29,9 +38,18 @@ export function provenSenderMetadata(
     : { [SENDER_AUTH_METADATA_KEY]: verdict };
 }
 
-export function isSelfReportedIdentity(metadata: unknown): boolean {
-  const meta = metadata as EndUserProvenanceMetadata | null;
-  return meta?.anonymous === true || meta?.emailSource === 'visitor';
+export function isTrustedEmailSource(source: unknown): boolean {
+  return typeof source === 'string' && TRUSTED_EMAIL_SOURCES.has(source);
+}
+
+export function isSelfReportedIdentity(identity: {
+  email: string | null;
+  metadata: unknown;
+}): boolean {
+  const meta = identity.metadata as EndUserProvenanceMetadata | null;
+  if (meta?.anonymous === true) return true;
+  if (!identity.email?.trim()) return false;
+  return !isTrustedEmailSource(meta?.emailSource);
 }
 
 export function latestEndUserTurn<T extends { authorType: string }>(
@@ -61,9 +79,10 @@ export function latestTurnSenderAuthBlock(
 
 export function identityProvenance(args: {
   channelType?: string | null;
+  email: string | null;
   metadata: unknown;
 }): IdentityProvenance {
-  if (isSelfReportedIdentity(args.metadata)) return 'self_reported';
+  if (isSelfReportedIdentity(args)) return 'self_reported';
   const channel = args.channelType?.trim().toLowerCase();
   if (!channel) return 'channel_asserted';
   if (CHANNEL_ASSERTED_KINDS.has(channel)) return 'channel_asserted';

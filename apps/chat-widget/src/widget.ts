@@ -281,6 +281,10 @@ export function start(config: WidgetConfig): void {
   function startConversation(): void {
     ui.setChatKind('new');
     switchToSession(mintNewSession(config.channelId, config.cookieDomain));
+    ensureConversationInBackground();
+  }
+
+  function ensureConversationInBackground(): void {
     ensureConversation().catch((err) => {
       if (err instanceof WidgetApiError) {
         console.warn(`[munin-widget] start conversation failed: ${err.status}`);
@@ -480,6 +484,9 @@ export function start(config: WidgetConfig): void {
     },
     onStartConversation() {
       startConversation();
+    },
+    onEnterNewChat() {
+      ensureConversationInBackground();
     },
     onOpenConversation(summary) {
       openConversation(summary);

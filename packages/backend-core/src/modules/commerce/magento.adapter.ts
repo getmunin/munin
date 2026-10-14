@@ -226,7 +226,7 @@ export class MagentoAdapter implements CommerceAdapter {
     const order = args.orderRef
       ? await this.orderById(ctx, args.orderRef)
       : args.orderNumber
-        ? await this.orderByIncrementId(ctx, args.orderNumber, scope)
+        ? await this.orderByIncrementId(ctx, args.orderNumber, args.email, scope)
         : null;
     if (!order || !this.ownedBy(order, args.email) || !inScope(order, scope)) return null;
     const shipments = await this.shipmentsForOrder(ctx, order.entity_id);
@@ -423,13 +423,15 @@ export class MagentoAdapter implements CommerceAdapter {
   private async orderByIncrementId(
     ctx: ConnectorConnectionContext,
     orderNumber: string,
+    email: string,
     scope: MagentoStoreScope,
   ): Promise<MagentoOrder | null> {
     const normalized = orderNumber.trim().replace(/^#/, '');
     if (!normalized) return null;
     const params = new URLSearchParams();
     setFilter(params, 0, 'increment_id', normalized, 'eq');
-    if (scope.storeIds) setFilter(params, 1, 'store_id', scope.storeIds.join(','), 'in');
+    setFilter(params, 1, 'customer_email', normalizeEmail(email), 'eq');
+    if (scope.storeIds) setFilter(params, 2, 'store_id', scope.storeIds.join(','), 'in');
     params.set('searchCriteria[pageSize]', '1');
     const result = await this.get<MagentoSearchResult<MagentoOrder>>(
       ctx,

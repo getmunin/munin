@@ -2676,6 +2676,37 @@
         ]
       }
     },
+    "/v1/orgs/me/invitations/{id}/resend": {
+      "post": {
+        "operationId": "InvitationsController_resend",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Invitations"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/orgs/me/invitations/{id}": {
       "delete": {
         "operationId": "InvitationsController_revoke",
@@ -9421,6 +9452,7 @@
                       ]
                     },
                     "fields": {
+                      "maxItems": 100,
                       "type": "array",
                       "items": {}
                     },
@@ -9465,6 +9497,9 @@
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 16
+                    },
+                    "translationGroupId": {
+                      "type": "string"
                     },
                     "status": {
                       "type": "string",
@@ -9543,6 +9578,18 @@
                         "type": "string"
                       },
                       "additionalProperties": {}
+                    },
+                    "sourceUrl": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 2048,
+                          "format": "uri"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "base64Body": {
                       "type": [

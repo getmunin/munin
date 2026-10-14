@@ -83,6 +83,39 @@ describe('ui: mount + lifecycle', () => {
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
+  it('fires onEnterNewChat when the launcher opens straight into a new chat', () => {
+    const onEnterNewChat = vi.fn();
+    controller = mount(baseConfig, strings, {
+      onSend: () => {},
+      onTypingIntent: () => {},
+      onEnterNewChat,
+    });
+    ($('.launcher')).click();
+    expect(onEnterNewChat).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not fire onEnterNewChat when the visitor lands on the welcome screen', () => {
+    const onEnterNewChat = vi.fn();
+    controller = mount(baseConfig, strings, {
+      onSend: () => {},
+      onTypingIntent: () => {},
+      onEnterNewChat,
+    });
+    controller.setPastConversations([
+      {
+        id: 'ccv_a',
+        sessionId: 'sid_a',
+        title: 'Refund question',
+        preview: 'Thanks.',
+        status: 'closed',
+        handedOver: false,
+        lastMessageAt: new Date().toISOString(),
+      },
+    ]);
+    ($('.launcher')).click();
+    expect(onEnterNewChat).not.toHaveBeenCalled();
+  });
+
   it('lands on the welcome screen when the visitor has past conversations', () => {
     controller = mount(baseConfig, strings, { onSend: () => {}, onTypingIntent: () => {} });
     controller.setPastConversations([

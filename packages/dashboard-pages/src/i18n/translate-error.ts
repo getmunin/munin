@@ -16,6 +16,14 @@ export function getErrorCode(err: unknown): string | null {
   return null;
 }
 
+export function getErrorParams(err: unknown): Record<string, string> {
+  if (err && typeof err === 'object' && 'params' in err) {
+    const params = (err as { params?: unknown }).params;
+    if (params && typeof params === 'object') return params as Record<string, string>;
+  }
+  return {};
+}
+
 type ErrorsTranslator = ReturnType<typeof useTranslations<'errors'>>;
 type RootTranslator = ReturnType<typeof useTranslations>;
 
@@ -27,7 +35,7 @@ export function translateError(
   const code = getErrorCode(err);
   if (code) {
     try {
-      const tx = tErrors(code as never);
+      const tx = tErrors(code as never, getErrorParams(err) as never);
       if (typeof tx === 'string' && tx.length > 0) return tx;
     } catch (lookupErr) {
       console.debug(`[munin/translate-error] missing i18n key "errors.${code}"`, lookupErr);
@@ -63,7 +71,7 @@ export function useTranslateError() {
     (err: unknown, fallbackKey?: string): string => {
       const code = getErrorCode(err);
       if (code && knownCodes.has(code)) {
-        return tErrors(code as never);
+        return tErrors(code as never, getErrorParams(err) as never);
       }
       if (err && typeof err === 'object' && 'message' in err) {
         const msg = (err as ErrorLike).message;

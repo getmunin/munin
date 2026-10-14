@@ -457,11 +457,14 @@ const skipReason = TEST_URL
       return rows.map((r) => r.body);
     }
 
-    async function toolCall(metadata: Record<string, unknown>): Promise<Array<{ error?: string }>> {
+    async function toolCall(
+      metadata: Record<string, unknown>,
+      name = 'no_such_tool',
+    ): Promise<Array<{ error?: string }>> {
       const res = await postEvent({
         type: 'tool-calls',
         call: { id: `call_tools_${randomUUID()}`, assistantOverrides: { metadata } },
-        toolCallList: [{ id: 'tc_1', type: 'function', function: { name: 'no_such_tool', arguments: '{}' } }],
+        toolCallList: [{ id: 'tc_1', type: 'function', function: { name, arguments: '{}' } }],
       });
       expect(res.status).toBe(200);
       const body = (await res.json()) as { results: Array<{ error?: string }> };
@@ -500,6 +503,13 @@ const skipReason = TEST_URL
     it('dispatches tool calls carrying a valid token for the conversation', async () => {
       const results = await toolCall({ conversationId: victimConvId, callToken: tokenFor() });
       expect(results[0]!.error).toBe('unknown_tool:no_such_tool');
+    });
+
+    it('refuses to read or change the caller\'s CRM contact, since caller id can be forged', async () => {
+      for (const name of ['crm_get_my_contact', 'crm_update_my_contact']) {
+        const results = await toolCall({ conversationId: victimConvId, callToken: tokenFor() }, name);
+        expect(results[0]!.error).toBe(`tool_not_available:${name}`);
+      }
     });
 
     it('does not attach transcripts to a conversation named by unsigned metadata', async () => {

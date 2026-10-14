@@ -691,7 +691,12 @@ interface OrgFixture {
       const email = `reuse-${Date.now()}@example.test`;
       const [existing] = await db
         .insert(schema.endUsers)
-        .values({ orgId: orgA.id, externalId: `email:${email}`, email })
+        .values({
+          orgId: orgA.id,
+          externalId: `email:${email}`,
+          email,
+          metadata: { emailSource: 'channel' },
+        })
         .returning();
 
       const res = await mintDelegated({ email });
@@ -707,6 +712,7 @@ interface OrgFixture {
           orgId: orgA.id,
           externalId: `mismatch-${Date.now()}`,
           email: `on-record-${Date.now()}@example.test`,
+          metadata: { emailSource: 'org-attested' },
         })
         .returning();
 
@@ -715,9 +721,97 @@ interface OrgFixture {
       expect(await res.text()).toContain('delegated_email_mismatch');
     });
 
+    it('never adopts an end user whose email was typed by a visitor when minting by email alone', async () => {
+      const stamp = Date.now();
+      const email = `typed-${stamp}@example.test`;
+      const [squatter] = await db
+        .insert(schema.endUsers)
+        .values({
+          orgId: orgA.id,
+          externalId: `widget-verified-${stamp}`,
+          email,
+          metadata: { emailSource: 'visitor' },
+        })
+        .returning();
+
+      const res = await mintDelegated({ email });
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { endUserId: string };
+      expect(body.endUserId).not.toBe(squatter!.id);
+
+      const [minted] = await db
+        .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
+        .from(schema.endUsers)
+        .where(eq(schema.endUsers.id, body.endUserId));
+      expect(minted!.email).toBe(email);
+      expect(minted!.metadata).toMatchObject({ emailSource: 'org-attested' });
+
+      const [released] = await db
+        .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
+        .from(schema.endUsers)
+        .where(eq(schema.endUsers.id, squatter!.id));
+      expect(released!.email).toBeNull();
+      expect(released!.metadata).not.toHaveProperty('emailSource');
+    });
+
+    it('releases an anonymous visitor\'s claim on the email when attesting it for another end user', async () => {
+      const stamp = Date.now();
+      const email = `anon-claim-${stamp}@example.test`;
+      const [visitor] = await db
+        .insert(schema.endUsers)
+        .values({
+          orgId: orgA.id,
+          externalId: `anon:${stamp}`,
+          email,
+          metadata: { anonymous: true, emailSource: 'visitor' },
+        })
+        .returning();
+
+      const res = await mintDelegated({ externalId: `claimant-anon-${stamp}`, email });
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { endUserId: string };
+      expect(body.endUserId).not.toBe(visitor!.id);
+      const [released] = await db
+        .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
+        .from(schema.endUsers)
+        .where(eq(schema.endUsers.id, visitor!.id));
+      expect(released!.email).toBeNull();
+      expect(released!.metadata).toMatchObject({ anonymous: true });
+    });
+
+    it('replaces a visitor-typed email on the named end user instead of refusing the mint', async () => {
+      const stamp = Date.now();
+      const [existing] = await db
+        .insert(schema.endUsers)
+        .values({
+          orgId: orgA.id,
+          externalId: `typo-${stamp}`,
+          email: `typo-${stamp}@example.test`,
+          metadata: { emailSource: 'visitor' },
+        })
+        .returning();
+      const attested = `real-${stamp}@example.test`;
+
+      const res = await mintDelegated({ externalId: `typo-${stamp}`, email: attested });
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { endUserId: string };
+      expect(body.endUserId).toBe(existing!.id);
+      const [row] = await db
+        .select({ email: schema.endUsers.email, metadata: schema.endUsers.metadata })
+        .from(schema.endUsers)
+        .where(eq(schema.endUsers.id, existing!.id));
+      expect(row!.email).toBe(attested);
+      expect(row!.metadata).toMatchObject({ emailSource: 'org-attested' });
+    });
+
     it('409 when another end user already holds the attested email', async () => {
       const email = `held-${Date.now()}@example.test`;
-      await db.insert(schema.endUsers).values({ orgId: orgA.id, externalId: `holder-${Date.now()}`, email });
+      await db.insert(schema.endUsers).values({
+        orgId: orgA.id,
+        externalId: `holder-${Date.now()}`,
+        email,
+        metadata: { emailSource: 'org-attested' },
+      });
 
       const res = await mintDelegated({ externalId: `claimant-${Date.now()}`, email });
       expect(res.status).toBe(409);
@@ -983,6 +1077,62 @@ interface OrgFixture {
         headers: cookieHeaders(orgA.sessionToken),
       });
       expect(revoke.status).toBe(200);
+    });
+
+    it('resending an expired invitation replaces it with a fresh link and expiry', async () => {
+      const email = `resend-${Date.now()}@example.com`;
+      const create = await fetch(`${baseUrl}/v1/orgs/me/invitations`, {
+        method: 'POST',
+        headers: cookieHeaders(orgA.sessionToken),
+        body: JSON.stringify({ email, role: 'admin' }),
+      });
+      const old = (await create.json()) as { id: string; token: string };
+      await db
+        .update(schema.orgInvitations)
+        .set({ expiresAt: new Date(Date.now() - 60 * 1000) })
+        .where(eq(schema.orgInvitations.id, old.id));
+
+      const resend = await fetch(`${baseUrl}/v1/orgs/me/invitations/${old.id}/resend`, {
+        method: 'POST',
+        headers: cookieHeaders(orgA.sessionToken),
+      });
+      expect(resend.status).toBe(201);
+      const fresh = (await resend.json()) as {
+        id: string;
+        token: string;
+        email: string;
+        role: string;
+        expiresAt: string;
+      };
+      expect(fresh.id).not.toBe(old.id);
+      expect(fresh).toMatchObject({ email, role: 'admin' });
+      expect(new Date(fresh.expiresAt).getTime()).toBeGreaterThan(Date.now());
+
+      const list = await fetch(`${baseUrl}/v1/orgs/me/invitations`, {
+        headers: cookieHeaders(orgA.sessionToken),
+      });
+      const ids = ((await list.json()) as Array<{ id: string }>).map((i) => i.id);
+      expect(ids).toContain(fresh.id);
+      expect(ids).not.toContain(old.id);
+
+      const lookup = await fetch(
+        `${baseUrl}/v1/invitations/lookup?token=${encodeURIComponent(fresh.token)}`,
+      );
+      expect(lookup.status).toBe(200);
+
+      const again = await fetch(`${baseUrl}/v1/orgs/me/invitations/${old.id}/resend`, {
+        method: 'POST',
+        headers: cookieHeaders(orgA.sessionToken),
+      });
+      expect(again.status).toBe(404);
+    });
+
+    it('admin API key cannot resend invitations', async () => {
+      const res = await fetch(`${baseUrl}/v1/orgs/me/invitations/inv_missing/resend`, {
+        method: 'POST',
+        headers: authHeaders(orgA.adminKey),
+      });
+      expect(res.status).toBe(403);
     });
   });
 

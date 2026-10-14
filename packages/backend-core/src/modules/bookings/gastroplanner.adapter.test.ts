@@ -142,6 +142,39 @@ describe('GastroplannerAdapter', () => {
     expect(foreign).toBeNull();
   });
 
+  describe('never returns a booking to anyone but its guest', () => {
+    const caller = 'jane@example.com';
+    const foreign = [
+      booking({ id: 601, customer: { id: 8, email: 'mallory@example.com' } }),
+      booking({ id: 602, customer: null }),
+      booking({ id: 603, customer: { id: 9, email: null } }),
+      booking({ id: 604, customer: { id: 10, email: '' } }),
+      booking({ id: 605, customer: { id: 11, email: 'jane@example.com.evil.test' } }),
+      booking({ id: 606, customer: { id: 12, email: 'xjane@example.com' } }),
+    ];
+    const own = [
+      booking({ id: 701 }),
+      booking({ id: 702, customer: { id: 7, email: ' JANE@Example.com ' } }),
+    ];
+    const vendorIgnoringFilters = () => stubRest(() => ({ body: { data: [...foreign, ...own] } }));
+
+    it('lists only the caller\'s bookings even when the vendor ignores the email filter', async () => {
+      const adapter = new GastroplannerAdapter(vendorIgnoringFilters().fetch);
+
+      const bookings = await adapter.listBookingsForGuest(ctx(), { email: caller, limit: 25 });
+
+      expect(bookings.map((b) => b.bookingRef).sort()).toEqual(['701', '702']);
+    });
+
+    it.each(foreign.map((b) => [String(b.id)]))('refuses booking ref %s of another guest', async (bookingRef) => {
+      const adapter = new GastroplannerAdapter(vendorIgnoringFilters().fetch);
+
+      await expect(
+        adapter.getBookingForGuest(ctx(), { email: caller, bookingRef }),
+      ).resolves.toBeNull();
+    });
+  });
+
   it('returns null for a confirmation-code lookup (Gastroplanner issues no codes)', async () => {
     const { fetch, urls } = stubRest(() => ({ body: [booking()] }));
     const adapter = new GastroplannerAdapter(fetch);

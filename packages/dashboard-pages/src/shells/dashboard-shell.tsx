@@ -42,7 +42,7 @@ function HeadOnlyShell({
 }: DashboardShellProps) {
   return (
     <div className="flex min-h-dvh flex-col bg-background">
-      <header className="flex shrink-0 items-center gap-3 border-b border-ink bg-bone px-5 py-3 dark:border-rule-on-dark dark:bg-secondary">
+      <header className="sticky top-0 z-20 flex shrink-0 items-center gap-3 border-b border-ink bg-bone px-5 py-3 dark:border-rule-on-dark dark:bg-secondary">
         <BrandHead
           brand={brand}
           brandHref={brandHref}

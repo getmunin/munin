@@ -148,37 +148,15 @@ export class ThrellAdapter implements ChannelAdapter {
         return emptyBody;
       }
 
-      const { conversationId, endUserId, crmContact } = await this.runAsSystem(
-        channel,
-        async (tx) => {
-          const conversation = await this.findOrCreateConversation(
-            tx,
-            channel,
-            callId,
-            event.data?.customer,
-          );
-          const phone = event.data?.customer?.number;
-          let crm: { name: string | null; email: string | null } | null = null;
-          if (phone) {
-            const rows = await tx
-              .select({ name: schema.crmContacts.name, email: schema.crmContacts.email })
-              .from(schema.crmContacts)
-              .where(
-                and(
-                  eq(schema.crmContacts.orgId, channel.orgId),
-                  eq(schema.crmContacts.phone, phone),
-                ),
-              )
-              .limit(1);
-            crm = rows[0] ?? null;
-          }
-          return {
-            conversationId: conversation.id,
-            endUserId: conversation.endUserId,
-            crmContact: crm,
-          };
-        },
-      );
+      const { conversationId, endUserId } = await this.runAsSystem(channel, async (tx) => {
+        const conversation = await this.findOrCreateConversation(
+          tx,
+          channel,
+          callId,
+          event.data?.customer,
+        );
+        return { conversationId: conversation.id, endUserId: conversation.endUserId };
+      });
 
       const reader = new OrgScopedKbDocReader(this.db, channel.orgId);
       const prompts = await createPromptCache({
@@ -198,7 +176,7 @@ export class ThrellAdapter implements ChannelAdapter {
         },
       });
 
-      const callerContext = formatCallerContext(event.data?.customer, crmContact);
+      const callerContext = formatCallerContext(event.data?.customer);
       const systemPrompt = composeVoiceSystemPrompt(prompts, conversationId, callerContext);
       const opener = prompts.get(VOICE_OPENER_COLD_SLUG);
       const instructions = opener ? `${systemPrompt}\n\n${opener}` : systemPrompt;
@@ -219,7 +197,7 @@ export class ThrellAdapter implements ChannelAdapter {
       });
 
       this.logger.log(
-        `threll worker_request callId=${callId} convId=${conversationId} crmHit=${crmContact ? 'yes' : 'no'} tools=${tools.length}`,
+        `threll worker_request callId=${callId} convId=${conversationId} tools=${tools.length}`,
       );
       return { status: 200, contentType: 'application/json; charset=utf-8', body };
     } catch (err) {
@@ -568,16 +546,12 @@ function jsonResponse(body: unknown): WebhookResponse {
 
 function formatCallerContext(
   customer: ThrellCustomer | undefined,
-  crm: { name: string | null; email: string | null } | null,
 ): string | undefined {
   const phone = customer?.number;
-  const callerName = customer?.name ?? crm?.name ?? null;
-  const email = crm?.email ?? null;
-  if (!phone && !callerName && !email) return undefined;
+  const callerName = customer?.name ?? null;
+  if (!phone && !callerName) return undefined;
   const lines = ['[Caller]'];
   if (callerName) lines.push(`Name: ${callerName}`);
   if (phone) lines.push(`Phone: ${phone}`);
-  if (email) lines.push(`Email: ${email}`);
-  if (!crm) lines.push('Not in CRM yet — this is a first-time caller.');
   return lines.join('\n');
 }

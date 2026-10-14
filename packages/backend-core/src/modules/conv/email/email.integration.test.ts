@@ -175,6 +175,7 @@ class StubImapFetcher implements ImapFetcher {
       c.callTool({
         name: 'conv_configure_email_channel',
         arguments: {
+          defaultAgentMode: 'auto',
           name: 'Acme Support',
           config: {
             addressing: { fromAddress: 'support@acme.test', fromName: 'Acme Support' },

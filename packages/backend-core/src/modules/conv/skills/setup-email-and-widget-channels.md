@@ -34,6 +34,7 @@ Per `skill://conv/setup-email-channel`, gather:
 - `fromAddress` — the real mailbox the customer controls.
 - Outbound mode: `smtp` (host, port, secure, username — the password comes through the credential link, never the conversation) or `mailer` (Munin's configured Resend).
 - Inbound mode: `imap` (host, port, secure, username, mailbox — password via the credential link), or skip if the customer will forward to a `MUNIN_EMAIL_REPLY_DOMAIN` address.
+- Reply mode (`defaultAgentMode`) for each channel that receives messages — ask, don't assume. `auto` lets the agent answer on its own, `draft_only` has it draft every reply for a teammate to approve and send, `off` keeps it out. The two channels can differ: drafting email while the widget answers live is a common mix. There is no default; creating a receiving channel without it is refused with `conv_agent_mode_required`.
 
 Then:
 
@@ -42,6 +43,7 @@ Then:
   "name": "conv_configure_email_channel",
   "arguments": {
     "name": "Acme Support",
+    "defaultAgentMode": "draft_only",
     "config": {
       "addressing": { "fromAddress": "support@acme.com", "fromName": "Acme Support" },
       "outbound": { "provider": "smtp", "host": "smtp.acme.com", "port": 587, "secure": false, "username": "support@acme.com" },
@@ -72,6 +74,7 @@ Per `skill://conv/setup-chat-widget`:
   "name": "conv_create_widget_channel",
   "arguments": {
     "name": "acme-storefront-bot",
+    "defaultAgentMode": "auto",
     "originAllowlist": ["https://www.acme.com", "https://shop.acme.com"]
   }
 }

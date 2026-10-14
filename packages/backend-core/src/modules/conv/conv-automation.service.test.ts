@@ -121,7 +121,7 @@ const skipReason = TEST_URL
     expect(row!.rejected).toBe(1);
     expect(row!.autoSent).toBe(1);
     expect(row!.reviewedCount).toBe(4);
-    expect(row!.agentMode).toBe('draft_only');
+    expect(row!.agentMode).toBeNull();
     expect(summary.autoRate7d).toBe(0.25);
   });
 
@@ -194,11 +194,11 @@ const skipReason = TEST_URL
     expect(types.filter((r) => r.type === 'conversation.topic_automation_changed')).toHaveLength(4);
   });
 
-  it('starts a brand-new topic in draft_only rather than inheriting the conversation mode', async () => {
+  it('starts a brand-new topic inheriting the conversation mode rather than forcing drafts', async () => {
     const { topic } = await seedTopicWithHistory();
     const summary = await run(() => svc.listTopicAutomation());
     const row = summary.topics.find((t) => t.id === topic.id);
-    expect(row!.agentMode).toBe('draft_only');
+    expect(row!.agentMode).toBeNull();
   });
 
   it('carries the topic description so the policy editor can show what belongs in it', async () => {

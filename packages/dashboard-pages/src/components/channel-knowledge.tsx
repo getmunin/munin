@@ -193,7 +193,7 @@ export function Segmented<V extends string>({
   label,
 }: {
   options: ReadonlyArray<{ value: V; label: string }>;
-  value: V;
+  value: V | null;
   onChange: (next: V) => void;
   className?: string;
   label?: string;

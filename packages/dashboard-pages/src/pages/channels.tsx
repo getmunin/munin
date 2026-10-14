@@ -1152,6 +1152,33 @@ function useChannelDialogTab(open: boolean) {
   return [tab, setTab] as const;
 }
 
+function WidgetAgentModeField({
+  value,
+  onChange,
+  error,
+}: {
+  value: AgentMode | null;
+  onChange: (next: AgentMode) => void;
+  error?: string | null;
+}) {
+  const t = useTranslations('dashboard.channels');
+  return (
+    <FormField label={t('agentReplies.heading')} hint={t('agentReplies.hintWidget')} error={error}>
+      <Segmented<AgentMode>
+        label={t('agentReplies.heading')}
+        options={[
+          { value: 'off', label: t('agentReplies.segmentOff') },
+          { value: 'draft_only', label: t('agentReplies.segmentDraft') },
+          { value: 'auto', label: t('agentReplies.segmentAuto') },
+        ]}
+        value={value}
+        onChange={onChange}
+        className="[&>button]:py-2"
+      />
+    </FormField>
+  );
+}
+
 function CreateWidgetDialog({
   open,
   onOpenChange,
@@ -1170,6 +1197,8 @@ function CreateWidgetDialog({
   const [originAllowlist, setOriginAllowlist] = useState('');
   const [originsError, setOriginsError] = useState<string | null>(null);
   const [voiceChannelId, setVoiceChannelId] = useState('');
+  const [defaultAgentMode, setDefaultAgentMode] = useState<AgentMode | null>(null);
+  const [agentModeError, setAgentModeError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<CreatedWidget | null>(null);
   const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
@@ -1182,6 +1211,8 @@ function CreateWidgetDialog({
       setOriginAllowlist('');
       setOriginsError(null);
       setVoiceChannelId('');
+      setDefaultAgentMode(null);
+      setAgentModeError(null);
       setCreated(null);
       setSubmitError(null);
       setCreating(false);
@@ -1190,9 +1221,15 @@ function CreateWidgetDialog({
 
   async function submit() {
     if (!name.trim()) return;
+    if (!defaultAgentMode) {
+      setAgentModeError(t('agentReplies.required'));
+      setTab('channel');
+      return;
+    }
     const allowlist = parseOriginAllowlist(originAllowlist);
     const parsed = CreateWidgetBody.safeParse({
       name: name.trim(),
+      defaultAgentMode,
       originAllowlist: allowlist,
       voiceChannelId: voiceChannelId || undefined,
     });
@@ -1295,6 +1332,14 @@ function CreateWidgetDialog({
                     </p>
                   )}
                 </FormField>
+                <WidgetAgentModeField
+                  value={defaultAgentMode}
+                  onChange={(next) => {
+                    setDefaultAgentMode(next);
+                    setAgentModeError(null);
+                  }}
+                  error={agentModeError}
+                />
                 <WidgetVoiceChannelField
                   voiceChannels={voiceChannels}
                   value={voiceChannelId}
@@ -1351,6 +1396,9 @@ function EditWidgetDialog({
   );
   const [originsError, setOriginsError] = useState<string | null>(null);
   const [voiceChannelId, setVoiceChannelId] = useState(channel.config.voiceChannelId ?? '');
+  const [defaultAgentMode, setDefaultAgentMode] = useState<AgentMode | null>(
+    channel.defaultAgentMode ?? null,
+  );
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
   const [tab, setTab] = useChannelDialogTab(true);
@@ -1364,6 +1412,7 @@ function EditWidgetDialog({
     const parsed = UpdateWidgetBody.safeParse({
       originAllowlist: originsChanged ? allowlist : undefined,
       voiceChannelId: voiceChannelId || null,
+      defaultAgentMode: defaultAgentMode ?? undefined,
     });
     if (!parsed.success) {
       const issue = parsed.error.issues.find(
@@ -1433,6 +1482,7 @@ function EditWidgetDialog({
                   </p>
                 )}
               </FormField>
+              <WidgetAgentModeField value={defaultAgentMode} onChange={setDefaultAgentMode} />
               <WidgetVoiceChannelField
                 voiceChannels={voiceChannels}
                 value={voiceChannelId}
@@ -1657,7 +1707,7 @@ function EmailChannelDialog({
   const tCommon = useTranslations('common');
   const translate = useTranslateError();
   const [name, setName] = useState('');
-  const [defaultAgentMode, setDefaultAgentMode] = useState<AgentMode>('auto');
+  const [defaultAgentMode, setDefaultAgentMode] = useState<AgentMode | null>(null);
   const [fromAddress, setFromAddress] = useState('');
   const [fromName, setFromName] = useState('');
   const [smtpHost, setSmtpHost] = useState('');
@@ -1700,7 +1750,7 @@ function EmailChannelDialog({
     setIsEdit(editChannel !== null);
     const cfg = editChannel?.config;
     setName(editChannel?.name ?? '');
-    setDefaultAgentMode(editChannel?.defaultAgentMode ?? 'auto');
+    setDefaultAgentMode(cfg?.inbound ? (editChannel?.defaultAgentMode ?? null) : null);
     setFromAddress(cfg?.addressing?.fromAddress ?? '');
     setFromName(cfg?.addressing?.fromName ?? '');
     setSmtpHost(cfg?.outbound?.host ?? '');
@@ -1756,10 +1806,15 @@ function EmailChannelDialog({
   async function submit() {
     if (!name.trim() || !fromAddress.trim() || !smtpHost.trim()) return;
     if (!isEdit && !smtpPassword) return;
+    if (inboundMode !== 'none' && !defaultAgentMode) {
+      setFieldErrors((prev) => ({ ...prev, defaultAgentMode: t('agentReplies.required') }));
+      setTab('channel');
+      return;
+    }
     const payload = {
       ...(isEdit && editChannel ? { channelId: editChannel.id } : {}),
       name: name.trim(),
-      defaultAgentMode,
+      ...(defaultAgentMode ? { defaultAgentMode } : {}),
       config: {
         addressing: {
           fromAddress: fromAddress.trim(),
@@ -2174,9 +2229,17 @@ function EmailChannelDialog({
               { value: 'auto', label: t('agentReplies.segmentAuto') },
             ]}
             value={defaultAgentMode}
-            onChange={setDefaultAgentMode}
+            onChange={(next) => {
+              setDefaultAgentMode(next);
+              clearFieldError('defaultAgentMode');
+            }}
             className="[&>button]:py-2"
           />
+          {fieldErrors.defaultAgentMode ? (
+            <p className="text-sm text-destructive" role="alert">
+              {fieldErrors.defaultAgentMode}
+            </p>
+          ) : null}
           <p className="text-[13px] leading-[1.5] text-ink-mute">{t('agentReplies.hintShort')}</p>
         </DialogSection>
       )}
@@ -3403,7 +3466,7 @@ function AddSmsDialog({
   const [accessKey, setAccessKey] = useState('');
   const [signingKey, setSigningKey] = useState('');
   const [originator, setOriginator] = useState('');
-  const [defaultAgentMode, setDefaultAgentMode] = useState<'auto' | 'draft_only' | 'off'>('auto');
+  const [defaultAgentMode, setDefaultAgentMode] = useState<AgentMode | ''>('');
   const [sender, setSender] = useState<TwilioSender>('number');
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<FormErrorDetail | null>(null);
@@ -3414,7 +3477,7 @@ function AddSmsDialog({
   useEffect(() => {
     if (!open) return;
     setVendor('twilio');
-    setDefaultAgentMode('auto');
+    setDefaultAgentMode('');
     setSender('number');
     setName('');
     setAccountSid('');
@@ -3506,6 +3569,11 @@ function AddSmsDialog({
   }
 
   function submit(): void {
+    if (!defaultAgentMode) {
+      setFieldErrors({ defaultAgentMode: t('agentReplies.required') });
+      setTab('channel');
+      return;
+    }
     setFieldErrors({});
     if (vendor === 'twilio') void submitTwilio();
     else void submitMessageBird();
@@ -3657,13 +3725,19 @@ function AddSmsDialog({
                   </FormField>
                 </>
               )}
-              <FormField label={t('agentReplies.label')} hint={t('agentReplies.hintSms')}>
+              <FormField
+                label={t('agentReplies.label')}
+                hint={t('agentReplies.hintSms')}
+                error={fieldErrors.defaultAgentMode}
+              >
                 <NativeSelect
                   value={defaultAgentMode}
-                  onChange={(e) =>
-                    setDefaultAgentMode(e.target.value as 'auto' | 'draft_only' | 'off')
-                  }
+                  onChange={(e) => setDefaultAgentMode(e.target.value as AgentMode)}
+                  required
                 >
+                  <option value="" disabled>
+                    {t('agentReplies.choose')}
+                  </option>
                   <option value="auto">{t('agentReplies.auto')}</option>
                   <option value="draft_only">{t('agentReplies.draftOnly')}</option>
                   <option value="off">{t('agentReplies.off')}</option>

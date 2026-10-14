@@ -19,7 +19,7 @@ const ConfigureInput = z.object({
     .describe('Pass an existing channel id to update; omit to create a new channel.'),
   name: z.string().min(1).max(120).optional().describe('Channel display name. Required on create.'),
   defaultAgentMode: AgentModeSchema.optional().describe(
-    "How the agent handles inbound messages on this channel: 'auto' replies directly, 'draft_only' files a draft for a human, 'off' does neither. SMS channels only — an inbound call is run by the vendor's assistant. Set 'draft_only' on an outreach-only number so replies are never auto-sent.",
+    "How the agent handles inbound messages on this channel: 'auto' replies directly, 'draft_only' files a draft for a human, 'off' does neither. Required when creating an SMS channel; omit on update to keep the current mode. SMS channels only — an inbound call is run by the vendor's assistant. Set 'draft_only' on an outreach-only number so replies are never auto-sent.",
   ),
   config: sensitive(
     z
@@ -87,7 +87,7 @@ export class ChannelAdminTools {
     name: 'conv_configure_voice_sms_channel',
     title: 'Conv: Configure a voice/SMS channel',
     description:
-      'Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_voice_sms_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified. Pass `channelId` to update; omit to create. `defaultAgentMode` applies to SMS channels only.',
+      'Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_voice_sms_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified. Pass `channelId` to update; omit to create. `defaultAgentMode` applies to SMS channels only, and is required when creating one.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: ConfigureInput,

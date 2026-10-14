@@ -11,9 +11,10 @@ Use this when a customer wants Munin to send and receive email under one of thei
 
 1. Decide outbound: their own SMTP server, or send through Munin's configured Mailer (Resend).
 2. Decide inbound: poll IMAP, or rely on the customer forwarding to a `MUNIN_EMAIL_REPLY_DOMAIN` address.
-3. Call `conv_configure_email_channel` with the non-secret config — **never ask for or pass passwords**. The response includes a one-time **credential link**.
-4. Share the credential link — the human enters the SMTP/IMAP passwords in the dashboard; the channel activates and the passwords are verified against the servers on save. The link works once and expires after 24 hours; mint a fresh one with `conv_request_channel_credentials`.
-5. Confirm the channel appears in `conv_list_channels` with `active: true`; `conv_test_email_channel` re-verifies credentials any time.
+3. If the channel receives mail, ask the operator how the agent should reply (`defaultAgentMode`: `auto`, `draft_only` or `off` — Step 2b). It is required and has no default.
+4. Call `conv_configure_email_channel` with the non-secret config — **never ask for or pass passwords**. The response includes a one-time **credential link**.
+5. Share the credential link — the human enters the SMTP/IMAP passwords in the dashboard; the channel activates and the passwords are verified against the servers on save. The link works once and expires after 24 hours; mint a fresh one with `conv_request_channel_credentials`.
+6. Confirm the channel appears in `conv_list_channels` with `active: true`; `conv_test_email_channel` re-verifies credentials any time.
 
 A `mailer`-outbound channel with no IMAP inbound needs no secrets at all — it is active immediately, no link involved.
 
@@ -37,6 +38,7 @@ Call `conv_configure_email_channel` (admin):
 ```jsonc
 {
   "name": "Acme Support",
+  "defaultAgentMode": "draft_only",
   "config": {
     "addressing": {
       "fromAddress": "support@acme.com",
@@ -72,9 +74,9 @@ If the channel is currently deactivated, the update also re-tests the stored cre
 
 ## Step 2b — decide what the agent does with inbound mail
 
-`defaultAgentMode` on the channel sets the posture every new conversation inherits. A topic can override it for the conversations it matches (`conv_set_topic_automation`); a single conversation can be switched by a person in the dashboard, but no MCP tool does it — an agent changes the posture for a whole channel or a whole topic, never one thread:
+`defaultAgentMode` on the channel sets the posture every new conversation inherits. It is required whenever the channel receives mail — on a create with `config.inbound`, and on the update that adds inbound to an outbound-only channel — and there is no default: the call is refused with `conv_agent_mode_required` until someone has chosen. That choice belongs to the operator, so ask which posture they want instead of picking one. A topic can override it for the conversations it matches (`conv_set_topic_automation`); a single conversation can be switched by a person in the dashboard, but no MCP tool does it — an agent changes the posture for a whole channel or a whole topic, never one thread:
 
-- `auto` (default) — the agent answers the sender directly.
+- `auto` — the agent answers the sender directly.
 - `draft_only` — the agent does the same work (knowledge-base lookups, CRM, connectors, the audit pass) but writes the answer to an **internal draft** and flags the conversation for human attention instead of sending. The draft appears in the dashboard inbox, pre-filled in an editable composer; a teammate edits and sends it. The sender sees nothing until a human sends — no reply, no typing indicator.
 - `off` — the agent does nothing on this channel.
 

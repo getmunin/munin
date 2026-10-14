@@ -1,10 +1,15 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
+import { AgentModeSchema } from '@getmunin/types';
 import { WidgetChannelAdminService } from './widget-channel-admin.service.ts';
+
+const WIDGET_AGENT_MODE_DESCRIPTION =
+  "How the agent handles messages on this widget: 'auto' replies directly, 'draft_only' files each reply as a draft a person reviews and sends (the visitor sees nothing until then), 'off' keeps the agent out.";
 
 const CreateInput = z.object({
   name: z.string().min(1).max(120),
+  defaultAgentMode: AgentModeSchema.describe(WIDGET_AGENT_MODE_DESCRIPTION),
   originAllowlist: z.array(z.string().url()).default([]),
   webhookOnEscalation: z.string().url().optional(),
   requireVerifiedIdentity: z.boolean().optional(),
@@ -20,6 +25,9 @@ const CreateInput = z.object({
 
 const UpdateInput = z.object({
   channelId: z.string(),
+  defaultAgentMode: AgentModeSchema.optional().describe(
+    `${WIDGET_AGENT_MODE_DESCRIPTION} Omit to keep the current mode.`,
+  ),
   originAllowlist: z.array(z.string().url()).optional(),
   webhookOnEscalation: z.string().url().nullable().optional(),
   requireVerifiedIdentity: z.boolean().optional(),
@@ -46,7 +54,7 @@ export class WidgetAdminTools {
     name: 'conv_create_widget_channel',
     title: 'Conv: Create chat-widget channel',
     description:
-      'Create a chat-widget channel and mint a widget API key (`mn_widget_*`) bound to it. Returns the plaintext key once; store it server-side and pass it as `Authorization: Bearer` when calling POST /v1/widget/messages from the external agent. Scaffolding a frontend from Lovable/Bolt/v0/Replit/Cursor? Read `skill://playbooks/frontend-integration` first — it covers the widget + tracker + CMS wiring end-to-end.',
+      'Create a chat-widget channel and mint a widget API key (`mn_widget_*`) bound to it. `defaultAgentMode` is required and sets whether the agent answers visitors directly or drafts replies for a person to send. Returns the plaintext key once; store it server-side and pass it as `Authorization: Bearer` when calling POST /v1/widget/messages from the external agent. Scaffolding a frontend from Lovable/Bolt/v0/Replit/Cursor? Read `skill://playbooks/frontend-integration` first — it covers the widget + tracker + CMS wiring end-to-end.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: CreateInput,
@@ -61,7 +69,7 @@ export class WidgetAdminTools {
     name: 'conv_update_widget_channel',
     title: 'Conv: Update chat-widget channel',
     description:
-      'Update a chat-widget channel\'s originAllowlist, webhookOnEscalation, requireVerifiedIdentity, or the voice channel its call button uses (voiceChannelId). Omitted fields keep their current value; pass null to clear webhookOnEscalation or voiceChannelId. The widget API key is unchanged.',
+      'Update a chat-widget channel\'s originAllowlist, webhookOnEscalation, requireVerifiedIdentity, defaultAgentMode, or the voice channel its call button uses (voiceChannelId). Omitted fields keep their current value; pass null to clear webhookOnEscalation or voiceChannelId. The widget API key is unchanged.',
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: UpdateInput,

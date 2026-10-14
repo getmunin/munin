@@ -88,7 +88,7 @@ const PRESIGN_HOST = 'http://127.0.0.1:1';
       parseToolResult<{ id: string; widgetKey: string }>(
         await c.callTool({
           name: 'conv_create_widget_channel',
-          arguments: { name: 'att-bot', originAllowlist: [ORIGIN] },
+          arguments: { defaultAgentMode: 'auto',name: 'att-bot', originAllowlist: [ORIGIN] },
         }),
       ),
     );

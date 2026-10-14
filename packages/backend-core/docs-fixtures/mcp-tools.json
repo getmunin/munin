@@ -4110,7 +4110,7 @@
   {
     "name": "conv_configure_email_channel",
     "title": "Conv: Configure an email channel",
-    "description": "Create or update an email channel's transport configuration with the non-secret fields only. SMTP / IMAP passwords are rejected here: the channel is created inactive and the response includes a one-time link for a human to enter the passwords in the dashboard — the channel activates once they are saved. Updating a channel that is currently deactivated (for example after repeated inbound polling failures) re-tests the stored credentials: the channel is reactivated when SMTP and IMAP both connect, and otherwise stays deactivated with the connection errors in the `probe` field of the response. IMAP inbound imports mail the server received from the moment the channel is activated, including anything that lands before the first poll; older mail already in the mailbox is not imported unless `inbound.backfillDays` (1–90) asks for that many days of it, which only applies to that first poll. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host (no password needed, channel is active immediately). Set `defaultAgentMode: 'draft_only'` so the agent answers into an internal draft that a human reviews and sends, instead of replying to the sender itself — use it to run an inbox with a human in the loop, or on an outreach-only inbox where a reply must never be auto-sent.",
+    "description": "Create or update an email channel's transport configuration with the non-secret fields only. SMTP / IMAP passwords are rejected here: the channel is created inactive and the response includes a one-time link for a human to enter the passwords in the dashboard — the channel activates once they are saved. Updating a channel that is currently deactivated (for example after repeated inbound polling failures) re-tests the stored credentials: the channel is reactivated when SMTP and IMAP both connect, and otherwise stays deactivated with the connection errors in the `probe` field of the response. IMAP inbound imports mail the server received from the moment the channel is activated, including anything that lands before the first poll; older mail already in the mailbox is not imported unless `inbound.backfillDays` (1–90) asks for that many days of it, which only applies to that first poll. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host (no password needed, channel is active immediately). A channel that receives mail needs an explicit `defaultAgentMode` — there is no default: `auto` lets the agent reply to the sender itself, `draft_only` parks each answer as an internal draft that a human reviews and sends (a human-in-the-loop inbox, or an outreach-only inbox where a reply must never be auto-sent).",
     "audiences": [
       "admin"
     ],
@@ -4317,6 +4317,7 @@
           "additionalProperties": false
         },
         "defaultAgentMode": {
+          "description": "How the agent handles inbound mail: 'auto' replies to the sender directly, 'draft_only' answers into an internal draft a person reviews and sends, 'off' keeps the agent out. Required when creating a channel with `config.inbound`, and when adding inbound to a channel that had none; omit on other updates to keep the current mode.",
           "type": "string",
           "enum": [
             "auto",
@@ -4451,7 +4452,7 @@
   {
     "name": "conv_create_widget_channel",
     "title": "Conv: Create chat-widget channel",
-    "description": "Create a chat-widget channel and mint a widget API key (`mn_widget_*`) bound to it. Returns the plaintext key once; store it server-side and pass it as `Authorization: Bearer` when calling POST /v1/widget/messages from the external agent. Scaffolding a frontend from Lovable/Bolt/v0/Replit/Cursor? Read `skill://playbooks/frontend-integration` first — it covers the widget + tracker + CMS wiring end-to-end.",
+    "description": "Create a chat-widget channel and mint a widget API key (`mn_widget_*`) bound to it. `defaultAgentMode` is required and sets whether the agent answers visitors directly or drafts replies for a person to send. Returns the plaintext key once; store it server-side and pass it as `Authorization: Bearer` when calling POST /v1/widget/messages from the external agent. Scaffolding a frontend from Lovable/Bolt/v0/Replit/Cursor? Read `skill://playbooks/frontend-integration` first — it covers the widget + tracker + CMS wiring end-to-end.",
     "audiences": [
       "admin"
     ],
@@ -4468,6 +4469,15 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 120
+        },
+        "defaultAgentMode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "draft_only",
+            "off"
+          ],
+          "description": "How the agent handles messages on this widget: 'auto' replies directly, 'draft_only' files each reply as a draft a person reviews and sends (the visitor sees nothing until then), 'off' keeps the agent out."
         },
         "originAllowlist": {
           "default": [],
@@ -4493,6 +4503,7 @@
       },
       "required": [
         "name",
+        "defaultAgentMode",
         "originAllowlist"
       ],
       "additionalProperties": false
@@ -4501,7 +4512,7 @@
   {
     "name": "conv_update_widget_channel",
     "title": "Conv: Update chat-widget channel",
-    "description": "Update a chat-widget channel's originAllowlist, webhookOnEscalation, requireVerifiedIdentity, or the voice channel its call button uses (voiceChannelId). Omitted fields keep their current value; pass null to clear webhookOnEscalation or voiceChannelId. The widget API key is unchanged.",
+    "description": "Update a chat-widget channel's originAllowlist, webhookOnEscalation, requireVerifiedIdentity, defaultAgentMode, or the voice channel its call button uses (voiceChannelId). Omitted fields keep their current value; pass null to clear webhookOnEscalation or voiceChannelId. The widget API key is unchanged.",
     "audiences": [
       "admin"
     ],
@@ -4516,6 +4527,15 @@
       "properties": {
         "channelId": {
           "type": "string"
+        },
+        "defaultAgentMode": {
+          "description": "How the agent handles messages on this widget: 'auto' replies directly, 'draft_only' files each reply as a draft a person reviews and sends (the visitor sees nothing until then), 'off' keeps the agent out. Omit to keep the current mode.",
+          "type": "string",
+          "enum": [
+            "auto",
+            "draft_only",
+            "off"
+          ]
         },
         "originAllowlist": {
           "type": "array",
@@ -4659,7 +4679,7 @@
   {
     "name": "conv_configure_voice_sms_channel",
     "title": "Conv: Configure a voice/SMS channel",
-    "description": "Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_voice_sms_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified. Pass `channelId` to update; omit to create. `defaultAgentMode` applies to SMS channels only.",
+    "description": "Create or update a voice or SMS channel for any supported vendor. Pass `vendor` + the vendor’s non-secret `config` fields (see conv_list_voice_sms_vendors). Secret fields are rejected here: creating returns a pending channel plus a one-time link for a human to enter the secrets in the dashboard — the channel activates once they are saved and verified. Pass `channelId` to update; omit to create. `defaultAgentMode` applies to SMS channels only, and is required when creating one.",
     "audiences": [
       "admin"
     ],
@@ -4689,7 +4709,7 @@
           "maxLength": 120
         },
         "defaultAgentMode": {
-          "description": "How the agent handles inbound messages on this channel: 'auto' replies directly, 'draft_only' files a draft for a human, 'off' does neither. SMS channels only — an inbound call is run by the vendor's assistant. Set 'draft_only' on an outreach-only number so replies are never auto-sent.",
+          "description": "How the agent handles inbound messages on this channel: 'auto' replies directly, 'draft_only' files a draft for a human, 'off' does neither. Required when creating an SMS channel; omit on update to keep the current mode. SMS channels only — an inbound call is run by the vendor's assistant. Set 'draft_only' on an outreach-only number so replies are never auto-sent.",
           "type": "string",
           "enum": [
             "auto",

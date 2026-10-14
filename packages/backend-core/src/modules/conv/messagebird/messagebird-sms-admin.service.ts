@@ -10,6 +10,7 @@ import {
   jsonbToStored,
   type MessageBirdSmsChannelDto,
 } from './messagebird-sms.service.ts';
+import { requireChosenAgentMode } from '../channels/agent-mode-choice.ts';
 
 export const ConfigureInput = z.object({
   channelId: z
@@ -78,12 +79,13 @@ export class MessageBirdSmsAdminService {
       });
     }
     if (!args.name) throw new BadRequestException('name is required when creating a channel');
+    const defaultAgentMode = requireChosenAgentMode(args.defaultAgentMode, 'sms');
     if (!args.accessKey) throw new BadRequestException('accessKey is required when creating');
     if (!args.signingKey) throw new BadRequestException('signingKey is required when creating');
     if (!args.originator) throw new BadRequestException('originator is required when creating');
     return this.svc.createChannel({
       name: args.name,
-      defaultAgentMode: args.defaultAgentMode,
+      defaultAgentMode,
       config: {
         accessKey: args.accessKey,
         signingKey: args.signingKey,

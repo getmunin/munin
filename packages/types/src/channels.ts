@@ -73,6 +73,7 @@ export type EmailChannelConfigInputT = z.infer<typeof EmailChannelConfigInput>;
 
 export const CreateWidgetBody = z.object({
   name: z.string().min(1).max(120),
+  defaultAgentMode: AgentModeSchema,
   originAllowlist: z.array(z.string().url()).default([]),
   webhookOnEscalation: z.string().url().optional(),
   requireVerifiedIdentity: z.boolean().optional(),
@@ -82,6 +83,7 @@ export const CreateWidgetBody = z.object({
 export type CreateWidgetBodyT = z.infer<typeof CreateWidgetBody>;
 
 export const UpdateWidgetBody = z.object({
+  defaultAgentMode: AgentModeSchema.optional(),
   originAllowlist: z.array(z.string().url()).optional(),
   webhookOnEscalation: z.string().url().nullable().optional(),
   requireVerifiedIdentity: z.boolean().optional(),

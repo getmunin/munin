@@ -50,7 +50,13 @@ describe('slugifyConnectionName', () => {
     orgId = org!.id;
     const [verified] = await db
       .insert(schema.endUsers)
-      .values({ orgId, email: 'jane@example.com', phone: '+4712345678', name: 'Jane' })
+      .values({
+        orgId,
+        email: 'jane@example.com',
+        phone: '+4712345678',
+        name: 'Jane',
+        metadata: { emailSource: 'org-attested' },
+      })
       .returning();
     verifiedEndUserId = verified!.id;
     const [visitor] = await db

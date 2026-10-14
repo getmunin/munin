@@ -14,7 +14,7 @@ export interface OwnContactKeys {
 export type OwnContactVerdict = 'ok' | 'self_reported' | 'email_unproven' | 'phone_unproven';
 
 export function judgeOwnContact(endUser: OwnContactIdentity, contact: OwnContactKeys): OwnContactVerdict {
-  if (isSelfReportedIdentity(endUser.metadata)) return 'self_reported';
+  if (isSelfReportedIdentity(endUser)) return 'self_reported';
   const contactEmail = normalizeEmailKey(contact.email);
   if (contactEmail) {
     return contactEmail === normalizeEmailKey(endUser.email) ? 'ok' : 'email_unproven';

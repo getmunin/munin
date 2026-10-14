@@ -691,7 +691,12 @@ interface OrgFixture {
       const email = `reuse-${Date.now()}@example.test`;
       const [existing] = await db
         .insert(schema.endUsers)
-        .values({ orgId: orgA.id, externalId: `email:${email}`, email })
+        .values({
+          orgId: orgA.id,
+          externalId: `email:${email}`,
+          email,
+          metadata: { emailSource: 'channel' },
+        })
         .returning();
 
       const res = await mintDelegated({ email });
@@ -707,6 +712,7 @@ interface OrgFixture {
           orgId: orgA.id,
           externalId: `mismatch-${Date.now()}`,
           email: `on-record-${Date.now()}@example.test`,
+          metadata: { emailSource: 'org-attested' },
         })
         .returning();
 
@@ -800,7 +806,12 @@ interface OrgFixture {
 
     it('409 when another end user already holds the attested email', async () => {
       const email = `held-${Date.now()}@example.test`;
-      await db.insert(schema.endUsers).values({ orgId: orgA.id, externalId: `holder-${Date.now()}`, email });
+      await db.insert(schema.endUsers).values({
+        orgId: orgA.id,
+        externalId: `holder-${Date.now()}`,
+        email,
+        metadata: { emailSource: 'org-attested' },
+      });
 
       const res = await mintDelegated({ externalId: `claimant-${Date.now()}`, email });
       expect(res.status).toBe(409);

@@ -608,7 +608,7 @@ class StubImapFetcher implements ImapFetcher {
       .select({ metadata: schema.endUsers.metadata })
       .from(schema.endUsers)
       .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.email, 'ola@proven.test')));
-    expect(endUser!.metadata).not.toHaveProperty('emailSource');
+    expect(endUser!.metadata).toMatchObject({ emailSource: 'channel' });
   }, 30_000);
 
   it('keeps a genuine message verified when a later forgery of the same address fails', async () => {

@@ -184,7 +184,7 @@ export async function readIdentityClaims(
     email: row.email,
     phone: row.phone,
     name: row.name,
-    provenance: identityProvenance({ channelType, metadata: row.metadata }),
+    provenance: identityProvenance({ channelType, email: row.email, metadata: row.metadata }),
   };
 }
 

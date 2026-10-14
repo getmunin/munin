@@ -97,7 +97,7 @@ class FakeAdapter implements ConnectorAdapter {
     orgId = org!.id;
     const [eu] = await db
       .insert(schema.endUsers)
-      .values({ orgId, email: 'jane@example.com', name: 'Jane' })
+      .values({ orgId, email: 'jane@example.com', name: 'Jane', metadata: { emailSource: 'org-attested' } })
       .returning();
     endUserId = eu!.id;
     const [euNoEmail] = await db

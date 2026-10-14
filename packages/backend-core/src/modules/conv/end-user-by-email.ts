@@ -1,5 +1,6 @@
 import { schema, type Db, type Tx } from '@getmunin/db';
 import { and, eq, sql } from 'drizzle-orm';
+import { CHANNEL_EMAIL_SOURCE } from '../connectors/identity-provenance.ts';
 
 export function provisionalEmailExternalId(email: string): string {
   return `email:${email}`;
@@ -38,7 +39,7 @@ export async function findOrCreateEndUserByEmail(
       externalId,
       email: normalized,
       name,
-      metadata: { source },
+      metadata: { source, emailSource: CHANNEL_EMAIL_SOURCE },
     })
     .onConflictDoUpdate({
       target: [schema.endUsers.orgId, schema.endUsers.externalId],

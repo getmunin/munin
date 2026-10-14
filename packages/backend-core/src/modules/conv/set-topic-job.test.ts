@@ -20,6 +20,7 @@ describe('buildSetTopicAndTitleJob', () => {
     const job = buildSetTopicAndTitleJob({ conversationId: 'ccv_123', channelType: 'chat' });
     expect(job.jobUri).toBe(SET_TOPIC_AND_TITLE_SKILL_URI);
     expect(job.userPrompt).toContain('ccv_123');
+    expect(job.userPrompt).toContain('in the language the customer wrote in');
     expect(job.dedupeKey).toBe('conv-set-topic:conv:ccv_123');
     expect(job.sourceEventPayload).toEqual({ conversationId: 'ccv_123', channelType: 'chat' });
   });

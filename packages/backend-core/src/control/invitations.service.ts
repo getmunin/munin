@@ -156,6 +156,24 @@ export class InvitationsService {
     return { revoked: true };
   }
 
+  async resend(invitationId: string): Promise<CreatedInvitation> {
+    const ctx = getCurrentContext();
+    const [invitation] = await ctx.db
+      .select({ email: schema.orgInvitations.email, role: schema.orgInvitations.role })
+      .from(schema.orgInvitations)
+      .where(
+        and(
+          eq(schema.orgInvitations.id, invitationId),
+          eq(schema.orgInvitations.orgId, ctx.actor!.orgId),
+          isNull(schema.orgInvitations.acceptedAt),
+          isNull(schema.orgInvitations.revokedAt),
+        ),
+      )
+      .limit(1);
+    if (!invitation) throw new NotFoundException(`invitation ${invitationId} not found`);
+    return this.create({ email: invitation.email, role: invitation.role });
+  }
+
   async lookupByToken(token: string): Promise<InvitationLookupDto | null> {
     if (!token) return null;
     const tokenHash = hashSecret(token);

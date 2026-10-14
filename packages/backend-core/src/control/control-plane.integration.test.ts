@@ -984,6 +984,62 @@ interface OrgFixture {
       });
       expect(revoke.status).toBe(200);
     });
+
+    it('resending an expired invitation replaces it with a fresh link and expiry', async () => {
+      const email = `resend-${Date.now()}@example.com`;
+      const create = await fetch(`${baseUrl}/v1/orgs/me/invitations`, {
+        method: 'POST',
+        headers: cookieHeaders(orgA.sessionToken),
+        body: JSON.stringify({ email, role: 'admin' }),
+      });
+      const old = (await create.json()) as { id: string; token: string };
+      await db
+        .update(schema.orgInvitations)
+        .set({ expiresAt: new Date(Date.now() - 60 * 1000) })
+        .where(eq(schema.orgInvitations.id, old.id));
+
+      const resend = await fetch(`${baseUrl}/v1/orgs/me/invitations/${old.id}/resend`, {
+        method: 'POST',
+        headers: cookieHeaders(orgA.sessionToken),
+      });
+      expect(resend.status).toBe(201);
+      const fresh = (await resend.json()) as {
+        id: string;
+        token: string;
+        email: string;
+        role: string;
+        expiresAt: string;
+      };
+      expect(fresh.id).not.toBe(old.id);
+      expect(fresh).toMatchObject({ email, role: 'admin' });
+      expect(new Date(fresh.expiresAt).getTime()).toBeGreaterThan(Date.now());
+
+      const list = await fetch(`${baseUrl}/v1/orgs/me/invitations`, {
+        headers: cookieHeaders(orgA.sessionToken),
+      });
+      const ids = ((await list.json()) as Array<{ id: string }>).map((i) => i.id);
+      expect(ids).toContain(fresh.id);
+      expect(ids).not.toContain(old.id);
+
+      const lookup = await fetch(
+        `${baseUrl}/v1/invitations/lookup?token=${encodeURIComponent(fresh.token)}`,
+      );
+      expect(lookup.status).toBe(200);
+
+      const again = await fetch(`${baseUrl}/v1/orgs/me/invitations/${old.id}/resend`, {
+        method: 'POST',
+        headers: cookieHeaders(orgA.sessionToken),
+      });
+      expect(again.status).toBe(404);
+    });
+
+    it('admin API key cannot resend invitations', async () => {
+      const res = await fetch(`${baseUrl}/v1/orgs/me/invitations/inv_missing/resend`, {
+        method: 'POST',
+        headers: authHeaders(orgA.adminKey),
+      });
+      expect(res.status).toBe(403);
+    });
   });
 
 

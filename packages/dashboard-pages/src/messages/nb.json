@@ -1238,7 +1238,9 @@
         "sent": "Sendt",
         "expires": "Utløper"
       },
+      "invitesExpired": "Utløpt {when}",
       "resend": "Send på nytt",
+      "inviteResent": "Ny invitasjon sendt til {email}.",
       "inviteModalTitle": "Inviter medarbeider",
       "inviteModalSub": "Sender en innloggingslenke, utløper om 7 dager",
       "inviteModalRoleHint": "Medlemmer kan lese innboksen og svare. Admins kan i tillegg styre kanaler og nøkler.",
@@ -1250,6 +1252,7 @@
         "load": "Kunne ikke laste medarbeidere.",
         "invite": "Kunne ikke sende invitasjon.",
         "revokeInvite": "Kunne ikke trekke tilbake invitasjonen.",
+        "resendInvite": "Kunne ikke sende invitasjonen på nytt.",
         "remove": "Kunne ikke fjerne medlem.",
         "changeRole": "Kunne ikke endre rolle.",
         "rename": "Kunne ikke lagre navn."

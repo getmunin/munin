@@ -164,40 +164,15 @@ export class VapiAdapter implements ChannelAdapter {
       const callId = msg.call?.id;
       if (!callId) throw new Error('assistant_request_missing_call_id');
 
-      const { conversationId, endUserId, crmContact } = await this.runAsSystem(
-        channel,
-        async (tx) => {
-          const conversation = await this.findOrCreateConversation(
-            tx,
-            channel,
-            callId,
-            msg.call?.customer,
-          );
-          const phone = msg.call?.customer?.number;
-          let crm: { name: string | null; email: string | null } | null = null;
-          if (phone) {
-            const rows = await tx
-              .select({
-                name: schema.crmContacts.name,
-                email: schema.crmContacts.email,
-              })
-              .from(schema.crmContacts)
-              .where(
-                and(
-                  eq(schema.crmContacts.orgId, channel.orgId),
-                  eq(schema.crmContacts.phone, phone),
-                ),
-              )
-              .limit(1);
-            crm = rows[0] ?? null;
-          }
-          return {
-            conversationId: conversation.id,
-            endUserId: conversation.endUserId,
-            crmContact: crm,
-          };
-        },
-      );
+      const { conversationId, endUserId } = await this.runAsSystem(channel, async (tx) => {
+        const conversation = await this.findOrCreateConversation(
+          tx,
+          channel,
+          callId,
+          msg.call?.customer,
+        );
+        return { conversationId: conversation.id, endUserId: conversation.endUserId };
+      });
 
       const config = jsonbToStored(channel.config);
       const apiKey = await this.client.loadSecret(config.encryptedApiKey);
@@ -231,7 +206,7 @@ export class VapiAdapter implements ChannelAdapter {
         },
       });
 
-      const callerContext = formatCallerContext(msg.call?.customer, crmContact);
+      const callerContext = formatCallerContext(msg.call?.customer);
       const systemPrompt = composeVoiceSystemPrompt(prompts, conversationId, callerContext);
       const opener = prompts.get(VOICE_OPENER_COLD_SLUG);
 
@@ -262,11 +237,7 @@ export class VapiAdapter implements ChannelAdapter {
         },
       });
 
-      this.logger.log(
-        `vapi assistant-request callId=${callId} convId=${conversationId} crmHit=${
-          crmContact ? 'yes' : 'no'
-        }`,
-      );
+      this.logger.log(`vapi assistant-request callId=${callId} convId=${conversationId}`);
 
       return { status: 200, contentType: 'application/json; charset=utf-8', body };
     } catch (err) {
@@ -710,16 +681,14 @@ function formatCallerContext(
       ? X
       : undefined
     : undefined,
-  crm: { name: string | null; email: string | null } | null,
 ): string | undefined {
   const phone = customer?.number;
-  const callerName = customer?.name ?? crm?.name ?? null;
-  const email = customer?.email ?? crm?.email ?? null;
+  const callerName = customer?.name ?? null;
+  const email = customer?.email ?? null;
   if (!phone && !callerName && !email) return undefined;
   const lines = ['[Caller]'];
   if (callerName) lines.push(`Name: ${callerName}`);
   if (phone) lines.push(`Phone: ${phone}`);
   if (email) lines.push(`Email: ${email}`);
-  if (!crm) lines.push('Not in CRM yet — this is a first-time caller.');
   return lines.join('\n');
 }

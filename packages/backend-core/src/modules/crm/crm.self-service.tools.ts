@@ -33,6 +33,7 @@ export class CrmSelfServiceTools {
     input: EmptyInput,
     readOnlyHint: true,
     destructiveHint: false,
+    excludeChannelKinds: ['voice'],
   })
   getMyContact() {
     return this.crm.getMyContact();
@@ -48,6 +49,7 @@ export class CrmSelfServiceTools {
     input: UpdateMyContactInput,
     readOnlyHint: false,
     destructiveHint: true,
+    excludeChannelKinds: ['voice'],
   })
   async updateMyContact(args: z.infer<typeof UpdateMyContactInput>) {
     const own = await this.crm.getMyContact();

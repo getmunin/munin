@@ -31,7 +31,7 @@ import { newImportResult, resolveId } from '../../common/transfer/transfer.helpe
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 import { mergeFingerprint } from './merge-fingerprint.ts';
 import { CrmInvalidError } from './crm.errors.ts';
-import { isSelfReportedIdentity } from '../connectors/identity-provenance.ts';
+import { judgeOwnContact } from './own-contact.ts';
 import { AddressDeliverabilityService } from './address-deliverability.service.ts';
 import { normalizeAddress, type AddressDeliverabilityDto } from './address-deliverability.ts';
 
@@ -372,16 +372,28 @@ export class CrmService {
     const actor = ctx.actor!;
     if (!actor.endUserId) throw new CrmInvalidError('end-user identity required');
     const [endUser] = await ctx.db
-      .select({ metadata: schema.endUsers.metadata })
+      .select({
+        email: schema.endUsers.email,
+        phone: schema.endUsers.phone,
+        metadata: schema.endUsers.metadata,
+      })
       .from(schema.endUsers)
       .where(eq(schema.endUsers.id, actor.endUserId))
       .limit(1);
-    if (isSelfReportedIdentity(endUser?.metadata)) {
+    if (!endUser) throw new CrmInvalidError('end-user identity required');
+    const contact = await this.getMyContact();
+    const verdict = judgeOwnContact(endUser, contact);
+    if (verdict === 'self_reported') {
       throw new BadRequestException(
         'crm_unverified: this session\'s identity was self-reported in chat and is not verified, so the linked contact record is not available here',
       );
     }
-    return this.getMyContact();
+    if (verdict !== 'ok') {
+      throw new BadRequestException(
+        `crm_unverified: the linked contact carries ${verdict === 'email_unproven' ? 'an email address' : 'a phone number'} this session has not proven, so the contact record is not available here`,
+      );
+    }
+    return contact;
   }
 
   async findContact(input: { email?: string; phone?: string }): Promise<ContactDto | null> {

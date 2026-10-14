@@ -301,6 +301,41 @@ const skipReason = TEST_URL
     });
   }, 30_000);
 
+  it('refuses a linked contact keyed on an email the verified session never proved', async () => {
+    const [member] = await db
+      .insert(schema.endUsers)
+      .values({ orgId, externalId: 'eu-no-email', name: 'Ola' })
+      .returning();
+    await db.insert(schema.crmContacts).values({
+      orgId,
+      endUserId: member!.id,
+      email: 'kari.claimed@example.com',
+      name: 'Kari Nordmann',
+      phone: '+4701234567',
+    });
+    const memberToken = buildApiKey('dlg');
+    await db.insert(schema.tokens).values({
+      orgId,
+      type: 'delegated_end_user',
+      tokenHash: hashSecret(memberToken),
+      scopes: ['crm:read'],
+      audiences: ['self_service'],
+      endUserId: member!.id,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+
+    await withClient(memberToken, async (c) => {
+      const result = (await c.callTool({ name: 'crm_get_my_contact', arguments: {} })) as {
+        isError?: boolean;
+        content?: Array<{ text?: string }>;
+      };
+      expect(result.isError).toBe(true);
+      const text = result.content?.[0]?.text ?? '';
+      expect(text).toContain('crm_unverified');
+      expect(text).not.toContain('Nordmann');
+    });
+  }, 30_000);
+
   it('createSegment returns an actionable conflict on a duplicate name (not a 500)', async () => {
     await withClient(adminKey, async (c) => {
       await c.callTool({

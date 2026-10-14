@@ -811,13 +811,6 @@ button {
   justify-content: flex-end;
   gap: 4px;
 }
-.counter {
-  font-family: var(--munin-mono);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  color: var(--munin-ink-mute);
-}
-.counter.over { color: var(--munin-danger); }
 .send {
   width: 38px;
   height: 38px;

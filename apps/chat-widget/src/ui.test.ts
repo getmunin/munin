@@ -551,17 +551,15 @@ describe('ui: composer', () => {
     ta.dispatchEvent(new Event('input'));
   }
 
-  it('updates the counter as the user types and disables send when empty', () => {
+  it('enables send once the user types and disables it when empty', () => {
     expect($<HTMLButtonElement>('.send').disabled).toBe(true);
-    expect($('.counter').textContent).toBe('0/1000');
     setText('hello');
-    expect($('.counter').textContent).toBe('5/1000');
     expect($<HTMLButtonElement>('.send').disabled).toBe(false);
   });
 
-  it('disables send and adds .over when over the 1000-char limit', () => {
+  it('caps typing at the 1000-char limit and disables send for a longer programmatic value', () => {
+    expect($<HTMLTextAreaElement>('textarea').maxLength).toBe(1000);
     setText('x'.repeat(1001));
-    expect($('.counter').classList.contains('over')).toBe(true);
     expect($<HTMLButtonElement>('.send').disabled).toBe(true);
   });
 

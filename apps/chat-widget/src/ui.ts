@@ -565,9 +565,6 @@ export function mount(config: WidgetConfig, strings: Strings, hooks: UiHooks): U
   }
 
   function refreshComposerState(): void {
-    const len = panel.textarea.value.length;
-    panel.counterEl.textContent = `${len}/${WIDGET_END_USER_BODY_MAX_CHARS}`;
-    panel.counterEl.classList.toggle('over', len > WIDGET_END_USER_BODY_MAX_CHARS);
     const composerLocked = connectionDisabled || sendingNow;
     panel.textarea.disabled = composerLocked;
     panel.attachBtn.disabled =
@@ -1278,7 +1275,6 @@ interface PanelHandles {
   typingEl: HTMLDivElement;
   form: HTMLFormElement;
   textarea: HTMLTextAreaElement;
-  counterEl: HTMLSpanElement;
   sendBtn: HTMLButtonElement;
   attachBtn: HTMLButtonElement;
   attachInput: HTMLInputElement;
@@ -1438,7 +1434,6 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
         <button type="button" class="attach" aria-label="${escapeAttr(strings.attachAriaLabel)}" title="${escapeAttr(strings.attachAriaLabel)}">
           ${paperclipIconSvg()}
         </button>
-        <span class="counter"></span>
       </div>
       <input type="file" class="attach-input" accept="${escapeAttr(ATTACHMENT_MIME_ALLOWLIST.join(','))}" multiple hidden />
     </form>
@@ -1482,8 +1477,7 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
   const messagesEl = chatEl.querySelector('.messages') as HTMLDivElement;
   const form = chatEl.querySelector('form') as HTMLFormElement;
   const textarea = form.querySelector('textarea') as HTMLTextAreaElement;
-  textarea.maxLength = WIDGET_END_USER_BODY_MAX_CHARS + 200;
-  const counterEl = chatEl.querySelector('.counter') as HTMLSpanElement;
+  textarea.maxLength = WIDGET_END_USER_BODY_MAX_CHARS;
   const sendBtn = chatEl.querySelector('.send') as HTMLButtonElement;
   const attachBtn = chatEl.querySelector('.attach') as HTMLButtonElement;
   const attachInput = chatEl.querySelector('.attach-input') as HTMLInputElement;
@@ -1543,7 +1537,6 @@ function renderPanel(config: WidgetConfig, strings: Strings): PanelHandles {
     typingEl,
     form,
     textarea,
-    counterEl,
     sendBtn,
     attachBtn,
     attachInput,

@@ -16,7 +16,8 @@ export function buildSetTopicAndTitleJob(input: {
       `of other conversations and go straight to conv_get_conversation(${conversationId}). Pick the ` +
       `best-fitting existing topic (or create one only when you're confident none fit), set it via ` +
       `conv_set_topic, and — only if the conversation has no subject yet — set a short title via ` +
-      `conv_set_subject. At most one conv_set_topic and one conv_set_subject call, then stop.`,
+      `conv_set_subject, written in the language the customer wrote in (the customer sees it too). ` +
+      `At most one conv_set_topic and one conv_set_subject call, then stop.`,
     sourceEventType: input.sourceEventType ?? 'conversation.created',
     sourceEventPayload: { conversationId, channelType: input.channelType ?? null },
     dedupeKey: `conv-set-topic:conv:${conversationId}`,

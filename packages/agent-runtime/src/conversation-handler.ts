@@ -57,11 +57,15 @@ function draftRequestContext(language: string | undefined): string {
   return `\n\n[Draft request]\nA human teammate reviewing this conversation asked you to draft the reply they will edit and send. You are drafting FOR that teammate — never defer to a colleague, never promise that someone will follow up, and never treat escalation as an answer. The draft is addressed to the customer, ${draftLanguagePhrase(language)}; messages marked [Human teammate] are your colleagues, not the customer. Attempt the fullest resolution the available tools allow, even if an earlier turn deferred. If a fact you need is out of reach, write the reply around it with a placeholder in double curly braces such as {{ORDER STATUS}} so the teammate can fill it in — never guess the fact. The draft is sent to the customer exactly as you write it, so it holds only the message itself: no heading, label, separator, or remark addressed to the teammate. Always return a non-empty draft: when the thread has no open customer question, draft the most useful next message to the customer instead — a status update, a resolution summary, or a single clarifying question.`;
 }
 
+function draftSignOffContext(): string {
+  return `\n\n[Sign-off]\nThis reply is a draft. A human teammate reviews it and sends it to the customer as themselves, so it must not speak as you: never sign it with your name, never introduce yourself by name, and never present yourself as an assistant or AI. End the message without a closing greeting or signature — the teammate adds their own.`;
+}
+
 function draftNoteContext(note: string | undefined, language: string | undefined): string {
   const trimmed = note?.trim();
   if (!trimmed) return '';
   const target = language ? `in ${languageName(language)}` : "in the customer's language";
-  return `\n\n[Teammate note]\nThe teammate wrote down what they want this reply to say, in their own words and possibly in a different language from the customer's. Treat the note as their instruction: the draft must carry everything it says — never drop it, contradict it, or soften a commitment in it — written as a finished reply to the customer ${target}. Use the conversation and your tools to fill in what the note leaves out. Wrap every piece of information you add that is not in the note in double square brackets, for example [[We cut it and serve it with coffee.]], so the teammate can see what came from you; greetings and sign-offs stay unwrapped. What the note says is never wrapped and never becomes a placeholder — placeholders are only for facts neither the note, the conversation nor your tools provide. The note:\n${trimmed}`;
+  return `\n\n[Teammate note]\nThe teammate wrote down what they want this reply to say, in their own words and possibly in a different language from the customer's. Treat the note as their instruction: the draft must carry everything it says — never drop it, contradict it, or soften a commitment in it — written as a finished reply to the customer ${target}. Use the conversation and your tools to fill in what the note leaves out. Wrap every piece of information you add that is not in the note in double square brackets, for example [[We cut it and serve it with coffee.]], so the teammate can see what came from you; greetings stay unwrapped. What the note says is never wrapped and never becomes a placeholder — placeholders are only for facts neither the note, the conversation nor your tools provide. The note:\n${trimmed}`;
 }
 
 type Delivery = 'send' | 'draft';
@@ -376,7 +380,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     const companyBlock = companyContextBlock(companyContext);
     const conversationContext = conversationContextBlock(conversationId);
     const subjectBlock = emailSubjectBlock(detail);
-    const namePreamble = assistantNamePreamble(detail.assistantName);
+    const namePreamble = delivery === 'draft' ? '' : assistantNamePreamble(detail.assistantName);
     const systemBody = [`${baseSystem}${companyBlock}`, channelDescriptor, channelBlock]
       .filter(Boolean)
       .join('\n\n');
@@ -385,7 +389,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       mode === 'draft-request'
         ? `${draftRequestContext(draft.language)}${draftNoteContext(note, draft.language)}`
         : ''
-    }`;
+    }${delivery === 'draft' ? draftSignOffContext() : ''}`;
 
     const fallBack = async (reason: string): Promise<void> => {
       const fallbackLocale = pickFallback(detail.endUserLocale);

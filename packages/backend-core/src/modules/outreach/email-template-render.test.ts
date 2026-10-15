@@ -177,7 +177,7 @@ describe('personalizeEmail', () => {
     });
     expect(forKari.html).toContain('Hi Kari &lt;Nordmann&gt;!');
     expect(forKari.html).toContain('Acme &amp; Co');
-    expect(forKari.html).toContain(`href="${UNSUBSCRIBE_URL.replace('&', '&amp;')}"`);
+    expect(forKari.html).toContain(`href="${UNSUBSCRIBE_URL.replaceAll('&', '&amp;')}"`);
     expect(forKari.html).toContain('<title>What is new</title>');
     expect(forKari.html).not.toMatch(/\{\{/);
     expect(forKari.text).toContain('Hi Kari <Nordmann>!');

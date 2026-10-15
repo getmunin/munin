@@ -6747,6 +6747,189 @@
         ]
       }
     },
+    "/v1/outreach/email-templates": {
+      "get": {
+        "operationId": "OutreachEmailTemplatesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OutreachEmailTemplates"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "OutreachEmailTemplatesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTemplateBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OutreachEmailTemplates"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/outreach/email-templates/preview": {
+      "post": {
+        "operationId": "OutreachEmailTemplatesController_preview",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewTemplateBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OutreachEmailTemplates"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/outreach/email-templates/{id}": {
+      "get": {
+        "operationId": "OutreachEmailTemplatesController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OutreachEmailTemplates"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "OutreachEmailTemplatesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTemplateBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OutreachEmailTemplates"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "OutreachEmailTemplatesController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OutreachEmailTemplates"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/curator/jobs": {
       "get": {
         "operationId": "CuratorJobsController_list",
@@ -11398,6 +11581,160 @@
           "reason": {
             "type": "string",
             "maxLength": 500
+          }
+        }
+      },
+      "PreviewTemplateBody": {
+        "type": "object",
+        "properties": {
+          "templateId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "mjml": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200000,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "content": {
+            "type": "object",
+            "properties": {
+              "format": {
+                "type": "string",
+                "enum": [
+                  "markdown",
+                  "mjml"
+                ]
+              },
+              "body": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100000
+              }
+            },
+            "required": [
+              "format",
+              "body"
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-self-required": true
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          },
+          "preheader": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          }
+        },
+        "required": [
+          "content"
+        ]
+      },
+      "CreateTemplateBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          },
+          "mjml": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200000,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "isDefault": {
+            "type": "boolean",
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          }
+        },
+        "required": [
+          "name",
+          "mjml"
+        ]
+      },
+      "UpdateTemplateBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-empty-type": true
+          },
+          "mjml": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200000,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "isDefault": {
+            "type": "boolean",
+            "x-nestjs_zod-uses-3-point-1-syntax": true
           }
         }
       },

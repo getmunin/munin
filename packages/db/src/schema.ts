@@ -2144,6 +2144,33 @@ export const outreachProposals = pgTable(
   }),
 );
 
+export const outreachEmailTemplates = pgTable(
+  'outreach_email_templates',
+  {
+    id: id('oetp'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    mjml: text('mjml').notNull(),
+    isDefault: boolean('is_default').notNull().default(false),
+    createdByActorType: varchar('created_by_actor_type', { length: 16 }).notNull(),
+    createdByActorId: text('created_by_actor_id').notNull(),
+    updatedByActorType: varchar('updated_by_actor_type', { length: 16 }),
+    updatedByActorId: text('updated_by_actor_id'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgIdx: index('outreach_email_templates_org_idx').on(t.orgId),
+    nameUq: uniqueIndex('outreach_email_templates_org_name_uq').on(t.orgId, t.name),
+    defaultUq: uniqueIndex('outreach_email_templates_org_default_uq')
+      .on(t.orgId)
+      .where(sql`is_default = true`),
+  }),
+);
+
 // Deployment-wide singleton config. Not org-scoped: rows here describe the
 // Munin install itself (e.g. `instance_id`, future phone-home flags). Access
 // goes through the bypass-RLS path; never accessed in tenant-scoped requests.

@@ -9400,6 +9400,278 @@
     }
   },
   {
+    "name": "outreach_list_email_templates",
+    "title": "Outreach: List email templates",
+    "description": "List this org's outreach email templates: id, name, description and whether it is the default. The default template comes first. The MJML source is left out of the list.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "outreach:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_get_email_template",
+    "title": "Outreach: Read email template",
+    "description": "Read one email template, including its MJML source and `warnings` from compiling it now (for example images without alt text, or a layout heavy enough that Gmail may clip it).",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "outreach:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_create_email_template",
+    "title": "Outreach: Create email template",
+    "description": "Store an MJML email template that wraps outreach email content in the org's branded layout. The template is validated before it is saved: it must compile under strict MJML validation, contain {{content}} exactly once where sections may go, and link to {{unsubscribe_url}}. Scripts, forms, iframes, inline event handlers, javascript:/data: URLs, CSS @import and <mj-include> are refused. Validation errors name the template line. Images must be hosted at a public https URL. Returns the template with `warnings` that do not block saving. Names are unique per org.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "outreach:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mjml": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200000,
+          "description": "Complete MJML document (<mjml><mj-head>…</mj-head><mj-body>…</mj-body></mjml>). Must contain {{content}} exactly once, directly inside <mj-body> or <mj-wrapper>, and link to {{unsubscribe_url}} in an href. May also use {{subject}}, {{preheader}}, {{org_name}} and {{name}} / {{name|fallback}}."
+        },
+        "isDefault": {
+          "description": "Make this the org default template. The previous default, if any, stops being the default.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "mjml"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_update_email_template",
+    "title": "Outreach: Update email template",
+    "description": "Change an email template's name, description, MJML source or default flag. New MJML is validated with the same rules as on create, and nothing is saved if it fails. Returns the updated template with `warnings`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "outreach:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mjml": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200000,
+          "description": "Complete MJML document (<mjml><mj-head>…</mj-head><mj-body>…</mj-body></mjml>). Must contain {{content}} exactly once, directly inside <mj-body> or <mj-wrapper>, and link to {{unsubscribe_url}} in an href. May also use {{subject}}, {{preheader}}, {{org_name}} and {{name}} / {{name|fallback}}."
+        },
+        "isDefault": {
+          "description": "true makes this the org default (the previous default stops being one); false clears it.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_delete_email_template",
+    "title": "Outreach: Delete email template",
+    "description": "Delete an email template permanently. Returns `{ deleted: true, id }`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "outreach:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_preview_email_template",
+    "title": "Outreach: Preview email template",
+    "description": "Render sample content through an email template without sending anything: a saved template by `templateId`, unsaved MJML passed as `mjml`, or the org default when both are left out. Returns the final `html` and plain-text `text` exactly as a recipient would get them, `htmlBytes`, and `warnings`. The unsubscribe link in a preview is a placeholder that does not unsubscribe anyone. Fails with the same validation messages as saving would.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "outreach:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "templateId": {
+          "description": "Saved template to render. Leave out both templateId and mjml to use the org default template.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "mjml": {
+          "description": "Unsaved MJML to render instead of a saved template, so a design can be checked before it is stored. Same rules as a saved template.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200000
+        },
+        "content": {
+          "type": "object",
+          "properties": {
+            "format": {
+              "type": "string",
+              "enum": [
+                "markdown",
+                "mjml"
+              ],
+              "description": "`markdown` renders as one text section styled by the template; `mjml` is a fragment of <mj-section>/<mj-wrapper> elements for richer layouts such as cards, images and buttons."
+            },
+            "body": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100000,
+              "description": "The message content. May use {{name}} / {{name|fallback}}, {{org_name}} and {{subject}}."
+            }
+          },
+          "required": [
+            "format",
+            "body"
+          ],
+          "additionalProperties": false
+        },
+        "name": {
+          "description": "Recipient name to fill {{name}} with.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "subject": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "preheader": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "webhooks_list",
     "title": "Webhooks: List",
     "description": "List all webhook subscriptions for your org. Secrets are not returned — they are only shown once at creation. Use webhooks_rotate_secret if you lost it.",

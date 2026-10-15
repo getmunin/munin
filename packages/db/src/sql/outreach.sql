@@ -25,3 +25,15 @@ CREATE POLICY tenant_isolation ON outreach_proposals
     OR (org_id = app_org_id() AND app_end_user_id() = '')
   )
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
+-- Email templates: org-scoped, admin-only. Operator-authored layout; end-user
+-- audiences have no reason to read it.
+ALTER TABLE outreach_email_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE outreach_email_templates FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON outreach_email_templates;
+CREATE POLICY tenant_isolation ON outreach_email_templates
+  USING (
+    app_bypass_rls()
+    OR (org_id = app_org_id() AND app_end_user_id() = '')
+  )
+  WITH CHECK (app_bypass_rls() OR org_id = app_org_id());

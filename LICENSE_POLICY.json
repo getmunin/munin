@@ -19,6 +19,11 @@
       "package": "@sentry/cli",
       "license": "FSL-1.1-MIT",
       "reason": "Build-time CLI only (not shipped in runtime artifacts). FSL-1.1-MIT converts to MIT after two years."
+    },
+    {
+      "package": "slick",
+      "license": "MIT (http://mootools.net/license.txt)",
+      "reason": "MIT. The package declares its license as MIT followed by a link to the MooTools MIT text, which the SPDX parser does not accept as an identifier. Runtime dependency of juice, the CSS inliner mjml-core uses to compile outreach email templates."
     }
   ]
 }

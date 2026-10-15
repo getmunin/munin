@@ -890,6 +890,72 @@ class StubImapFetcher implements ImapFetcher {
       .toBe('auto-replied');
   }, 30_000);
 
+  it('advertises one-click unsubscribe only on a message that carries an https unsubscribe URL', async () => {
+    const channel = await imapChannel();
+
+    fetcher.push(rfc822({
+      from: 'List Tester <list@customer.test>',
+      to: 'support@acme.test',
+      subject: 'Tell me more',
+      messageId: 'list-inbound-1@customer.test',
+      body: 'Send me the details.',
+    }));
+    await inboundWorker.tick();
+
+    const [contact] = await db
+      .select()
+      .from(schema.convContacts)
+      .where(
+        and(
+          eq(schema.convContacts.orgId, orgId),
+          eq(schema.convContacts.email, 'list@customer.test'),
+        ),
+      );
+    const [conv] = await db
+      .select()
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.contactId, contact!.id));
+
+    const send = async (metadata: Record<string, unknown>) => {
+      const [msg] = await db
+        .insert(schema.convMessages)
+        .values({
+          orgId,
+          conversationId: conv!.id,
+          authorType: 'user',
+          authorId: 'user:test',
+          body: 'Here are the details.',
+          internal: false,
+          metadata,
+        })
+        .returning();
+      await db.insert(schema.convMessageDeliveries).values({
+        orgId,
+        messageId: msg!.id,
+        channelId: channel.id,
+        status: 'queued',
+        attempt: 0,
+        nextAttemptAt: new Date(),
+      });
+      mailer.clear();
+      await outboundWorker.tick();
+      expect(mailer.outbox).toHaveLength(1);
+      return mailer.outbox[0]!.headers ?? {};
+    };
+
+    const url = 'https://api.acme.test/v1/outreach/unsubscribe?token=v1.org_a.cct_b.cmp_c.1.sig';
+    expect(await send({ listUnsubscribeUrl: url })).toMatchObject({
+      'List-Unsubscribe': `<${url}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    });
+    expect((await send({}))['List-Unsubscribe']).toBeUndefined();
+    expect(
+      (await send({ listUnsubscribeUrl: 'http://api.acme.test/v1/outreach/unsubscribe?token=x' }))[
+        'List-Unsubscribe'
+      ],
+    ).toBeUndefined();
+  }, 30_000);
+
   it('reconstructs the quoted history of an Apple Mail reply, which quotes without a header block', async () => {
     fetcher.push(rfc822({
       from: 'Quoter <quoter@customer.test>',

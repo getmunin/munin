@@ -1277,6 +1277,9 @@ export class OutreachService {
       contactId: convContact.id,
       endUserId: contact.endUserId ?? undefined,
       outreachCampaignId: campaign.id,
+      messageMetadata: campaign.unsubscribeRequired
+        ? { listUnsubscribeUrl: unsubscribeUrl }
+        : undefined,
       agentMode: 'draft_only',
       authorType: 'agent',
       authorId: sender.id,

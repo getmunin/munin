@@ -4,6 +4,7 @@ import { ConvModule } from '../conv/conv.module.ts';
 import { CrmModule } from '../crm/crm.module.ts';
 import { CuratorModule } from '../curator/curator.module.ts';
 import { OutreachService } from './outreach.service.ts';
+import { OutreachUnsubscribeService } from './outreach-unsubscribe.service.ts';
 import { OutreachAdminTools } from './outreach.tools.ts';
 import { OutreachSendWorker } from './outreach.send.worker.ts';
 import { OutreachOutcomeSink } from './outreach-outcome.sink.ts';
@@ -12,11 +13,12 @@ import { OutreachOutcomeSink } from './outreach-outcome.sink.ts';
   imports: [ConvModule, CrmModule, CuratorModule],
   providers: [
     OutreachService,
+    OutreachUnsubscribeService,
     OutreachAdminTools,
     OutreachSendWorker,
     OutreachOutcomeSink,
   ],
-  exports: [OutreachService],
+  exports: [OutreachService, OutreachUnsubscribeService],
 })
 export class OutreachModule implements OnModuleInit {
   constructor(

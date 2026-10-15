@@ -242,10 +242,13 @@ describe('securityHeadersMiddleware', () => {
     }
   });
 
-  it('lets the auth error page keep its inline styles while still blocking script and framing', () => {
-    expect(headersFor('/auth/error').get('content-security-policy')).toBe(
-      "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
-    );
+  it('lets the auth error and unsubscribe pages keep their inline styles while still blocking script and framing', () => {
+    for (const path of ['/auth/error', '/v1/outreach/unsubscribe']) {
+      expect(headersFor(path).get('content-security-policy'), path).toBe(
+        "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+      );
+      expect(headersFor(path).get('x-frame-options'), path).toBe('DENY');
+    }
   });
 
   it('never adds CSP or X-Frame-Options to resources customer sites embed or open directly', () => {

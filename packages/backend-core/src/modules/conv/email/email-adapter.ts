@@ -35,6 +35,7 @@ import {
   stripMessageIdBrackets,
   parseMessageIdHeader,
   AUTO_SUBMITTED_HEADERS,
+  listUnsubscribeHeaders,
   type BuiltMessage,
   type OutboundAttachment,
 } from './mime.ts';
@@ -284,6 +285,7 @@ export class EmailAdapter implements ChannelAdapter {
     const outboundAttachments = await this.loadOutboundAttachments(ctx);
     const embedInMime = config.outbound.provider === 'smtp';
     const autoSubmitted = ctx.message.authorType === 'agent';
+    const listUnsubscribeUrl = extractListUnsubscribeUrl(ctx.message.metadata);
 
     const built: BuiltMessage = buildOutbound({
       from: composeFrom(config.addressing.fromName, config.addressing.fromAddress),
@@ -297,6 +299,7 @@ export class EmailAdapter implements ChannelAdapter {
       references: ctx.delivery.inReplyToHeader ? [ctx.delivery.inReplyToHeader] : undefined,
       trackerUrl,
       autoSubmitted,
+      listUnsubscribeUrl: listUnsubscribeUrl ?? undefined,
       attachments: embedInMime ? outboundAttachments : undefined,
     });
 
@@ -332,6 +335,7 @@ export class EmailAdapter implements ChannelAdapter {
         headers: {
           'Message-ID': `<${built.messageId}>`,
           ...(autoSubmitted ? AUTO_SUBMITTED_HEADERS : {}),
+          ...(listUnsubscribeUrl ? listUnsubscribeHeaders(listUnsubscribeUrl) : {}),
         },
         attachments: outboundAttachments.length
           ? outboundAttachments.map((a) => ({
@@ -1046,6 +1050,11 @@ function composeFrom(name: string | undefined, address: string): string {
   if (!name) return address;
   const clean = name.replace(/[",\r\n]/g, '').trim();
   return `${clean} <${address}>`;
+}
+
+function extractListUnsubscribeUrl(metadata: Record<string, unknown>): string | null {
+  const v = (metadata as { listUnsubscribeUrl?: unknown }).listUnsubscribeUrl;
+  return typeof v === 'string' && v.startsWith('https://') ? v : null;
 }
 
 function extractToFromMetadata(metadata: Record<string, unknown>): string | null {

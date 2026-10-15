@@ -6319,6 +6319,28 @@
     },
     "/v1/outreach/unsubscribe": {
       "get": {
+        "operationId": "OutreachUnsubscribeController_page",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OutreachUnsubscribe"
+        ],
+        "security": []
+      },
+      "post": {
         "operationId": "OutreachUnsubscribeController_unsubscribe",
         "parameters": [
           {

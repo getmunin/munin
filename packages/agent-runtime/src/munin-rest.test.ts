@@ -289,3 +289,30 @@ describe('toRuntimeHistory quoted history', () => {
     expect(history[0]?.quotedHistory).toBeUndefined();
   });
 });
+
+describe('postAgentMessage', () => {
+  it('always asks the backend to keep a pending handover open, so a runner reply never resolves it', async () => {
+    const requests: Array<{ url: string; body: unknown }> = [];
+    const client = createMuninRestClient({
+      baseUrl: 'http://munin.test',
+      adminApiKey: 'mn_admin_test',
+      fetch: (input, init) => {
+        const url = input instanceof Request ? input.url : input.toString();
+        const raw = typeof init?.body === 'string' ? init.body : '';
+        requests.push({ url, body: JSON.parse(raw) as unknown });
+        return Promise.resolve(
+          new Response('{}', { status: 201, headers: { 'content-type': 'application/json' } }),
+        );
+      },
+    });
+
+    await client.postAgentMessage('conv_1', 'Yes, you can stay in the chat.');
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.url).toBe('http://munin.test/v1/conversations/conv_1/messages');
+    expect(requests[0]!.body).toMatchObject({
+      body: 'Yes, you can stay in the chat.',
+      preserveAttention: true,
+    });
+  });
+});

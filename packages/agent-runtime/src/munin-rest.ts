@@ -142,7 +142,6 @@ export interface MuninRestClient {
     conversationId: string,
     body: string,
     opts?: {
-      preserveAttention?: boolean;
       sinceMessageId?: string;
       totalTokens?: number;
       components?: MessageComponent[];
@@ -335,7 +334,6 @@ export function createMuninRestClient(
       conversationId: string,
       body: string,
       opts: {
-        preserveAttention?: boolean;
         sinceMessageId?: string;
         totalTokens?: number;
         components?: MessageComponent[];
@@ -345,7 +343,7 @@ export function createMuninRestClient(
         method: 'POST',
         body: JSON.stringify({
           body,
-          ...(opts.preserveAttention ? { preserveAttention: true } : {}),
+          preserveAttention: true,
           ...(opts.sinceMessageId ? { sinceMessageId: opts.sinceMessageId } : {}),
           ...(opts.totalTokens !== undefined ? { totalTokens: opts.totalTokens } : {}),
           ...(opts.components?.length ? { components: opts.components } : {}),

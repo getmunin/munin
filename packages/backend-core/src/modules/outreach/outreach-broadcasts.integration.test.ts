@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import {
   ActorIdentity,
   WebhookDispatcher,
@@ -127,6 +127,10 @@ class StubSender implements BulkEmailSender {
       })
       .returning();
     segmentId = segment!.id;
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   function runAs<T>(as: ActorIdentity, fn: () => Promise<T>): Promise<T> {
@@ -318,8 +322,8 @@ class StubSender implements BulkEmailSender {
       .where(eq(schema.crmContacts.id, per.id));
     sender.failFor.add('ola@example.com');
 
-    process.env.MUNIN_OUTREACH_BROADCAST_MAX_PER_MINUTE = '2';
-    process.env.MUNIN_OUTREACH_BROADCAST_POLL_MS = '60000';
+    vi.stubEnv('MUNIN_OUTREACH_BROADCAST_MAX_PER_MINUTE', '2');
+    vi.stubEnv('MUNIN_OUTREACH_BROADCAST_POLL_MS', '60000');
     const worker = new OutreachBroadcastWorker(db, svc, sender);
 
     const first = await worker.tick();
@@ -418,7 +422,7 @@ class StubSender implements BulkEmailSender {
     await asPerson(async () =>
       svc.approveBroadcast({ id: b.id, fingerprint: (await svc.getBroadcast(b.id)).contentFingerprint }),
     );
-    process.env.MUNIN_OUTREACH_BROADCAST_MAX_PER_MINUTE = '1';
+    vi.stubEnv('MUNIN_OUTREACH_BROADCAST_MAX_PER_MINUTE', '1');
     const worker = new OutreachBroadcastWorker(db, svc, sender);
     await worker.tick();
     expect(sender.sent).toHaveLength(1);

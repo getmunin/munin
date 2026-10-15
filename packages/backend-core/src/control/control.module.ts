@@ -46,6 +46,7 @@ import { ConvAttachmentsController } from './conv-attachments.controller.ts';
 import { EmailOpensController } from './email-opens.controller.ts';
 import { OutreachProposalsController } from './outreach-proposals.controller.ts';
 import { OutreachEmailTemplatesController } from './outreach-email-templates.controller.ts';
+import { OutreachBroadcastsController } from './outreach-broadcasts.controller.ts';
 import { OutreachModule } from '../modules/outreach/outreach.module.ts';
 import { WebhooksModule } from '../modules/webhooks/webhooks.module.ts';
 import { PublicSkillsController } from './public-skills.controller.ts';
@@ -131,6 +132,7 @@ import { ReviewModule } from '../modules/review/review.module.ts';
     EmailOpensController,
     OutreachProposalsController,
     OutreachEmailTemplatesController,
+    OutreachBroadcastsController,
     CuratorJobsController,
     KbCandidatesController,
     KbCurationDecisionsController,

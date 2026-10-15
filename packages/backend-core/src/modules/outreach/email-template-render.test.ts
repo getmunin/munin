@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  BUILT_IN_EMAIL_TEMPLATE,
   compileEmail,
   personalizeEmail,
   renderEmail,
@@ -218,5 +219,26 @@ describe('design-email-template skill examples', () => {
     );
     expect(rendered.html).toContain('Hi Kari, three things shipped this month.');
     expect(rendered.warnings).toEqual([]);
+  });
+});
+
+describe('draft-changelog-broadcast skill example', () => {
+  it('compiles as mjml content inside the built-in template', async () => {
+    const skill = readFileSync(new URL('./skills/draft-changelog-broadcast.md', import.meta.url), 'utf8');
+    const [card] = [...skill.matchAll(/```xml\n([\s\S]*?)```/g)].map((m) => m[1]!);
+    const rendered = await renderEmail(
+      BUILT_IN_EMAIL_TEMPLATE,
+      { format: 'mjml', body: card! },
+      { name: 'Kari', orgName: 'Acme', unsubscribeUrl: UNSUBSCRIBE_URL },
+    );
+    expect(rendered.html).toContain('Hi Kari, here is what changed for you this month.');
+    expect(rendered.warnings).toEqual([]);
+  });
+});
+
+describe('BUILT_IN_EMAIL_TEMPLATE', () => {
+  it('is a valid template with no warnings', async () => {
+    const compiled = await validateEmailTemplate(BUILT_IN_EMAIL_TEMPLATE);
+    expect(compiled.warnings).toEqual([]);
   });
 });

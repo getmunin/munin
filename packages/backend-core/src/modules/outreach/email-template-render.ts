@@ -42,6 +42,28 @@ export const TEMPLATE_PLACEHOLDERS = [
 
 const CONTENT_PLACEHOLDERS = ['subject', 'org_name', 'name'] as const;
 
+export const BUILT_IN_EMAIL_TEMPLATE = `<mjml>
+  <mj-head>
+    <mj-title>{{subject}}</mj-title>
+    <mj-preview>{{preheader}}</mj-preview>
+    <mj-attributes>
+      <mj-all font-family="Helvetica, Arial, sans-serif" />
+      <mj-text font-size="16px" line-height="1.6" color="#1c1b19" />
+      <mj-button background-color="#1c1b19" color="#ffffff" border-radius="6px" font-weight="600" />
+    </mj-attributes>
+  </mj-head>
+  <mj-body background-color="#f6f5f2">
+    <mj-wrapper background-color="#ffffff" padding="16px 0">
+      {{content}}
+    </mj-wrapper>
+    <mj-section>
+      <mj-column>
+        <mj-text font-size="12px" color="#6b6862" align="center">{{org_name}} · <a href="{{unsubscribe_url}}" style="color:#6b6862">Unsubscribe</a></mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>`;
+
 export const GMAIL_CLIP_WARNING_BYTES = 90_000;
 
 const PLACEHOLDER = /\{\{\s*([^{}|\s]+)\s*(?:\|([^{}]*))?\}\}/g;

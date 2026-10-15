@@ -22,6 +22,8 @@ import type {
   KbCandidateDto,
   OutreachProposalDetailDto,
   OutreachProposalDto,
+  BroadcastDetailDto,
+  BroadcastSummaryDto,
   QueueItem,
   ScheduledItem,
   SocialDraftDto,
@@ -100,7 +102,7 @@ export type LiveSummary = ConversationSummary & {
   claim: ConversationDetail['claim'];
 };
 
-export type ReviewKind = 'kb' | 'crm' | 'outreach' | 'cms' | 'feedback' | 'social';
+export type ReviewKind = 'kb' | 'crm' | 'outreach' | 'broadcast' | 'cms' | 'feedback' | 'social';
 
 export interface CurationDecisionDto {
   id: string;
@@ -136,6 +138,7 @@ export type ReviewWireItem =
   | Wire<'kb', KbCandidateDto>
   | Wire<'crm', CrmMergeProposalDto>
   | Wire<'outreach', OutreachProposalDto>
+  | Wire<'broadcast', BroadcastSummaryDto>
   | Wire<'cms', CmsDraftSummaryDto | CmsScheduledSummaryDto>
   | Wire<'feedback', FeedbackOutboxDto>
   | Wire<'social', SocialDraftDto>;
@@ -144,6 +147,7 @@ export type ReviewDecidedWireItem =
   | Wire<'kb', CurationDecisionDto, ReviewDecidedFields>
   | Wire<'crm', CrmMergeProposalDto, ReviewDecidedFields>
   | Wire<'outreach', OutreachProposalDto, ReviewDecidedFields>
+  | Wire<'broadcast', BroadcastSummaryDto, ReviewDecidedFields>
   | Wire<'cms', CmsDraftSummaryDto, ReviewDecidedFields>
   | Wire<'feedback', FeedbackOutboxDto, ReviewDecidedFields>
   | Wire<'social', SocialDraftDto, ReviewDecidedFields>;
@@ -182,6 +186,9 @@ export interface InboxController {
   setCancelTarget: (next: ScheduledItem | null) => void;
   cmsDetails: Record<string, CmsDraftDetailDto>;
   outreachDetails: Record<string, OutreachProposalDetailDto>;
+  broadcastDetails: Record<string, BroadcastDetailDto>;
+  reloadBroadcastDetail: (id: string) => Promise<void>;
+  sendBroadcastTest: (id: string) => Promise<string | null>;
   cmsPreviewLinks: Record<string, CmsPreviewLink>;
   reloadCmsPreviewLink: (id: string) => Promise<void>;
   queueDetailErrors: Record<string, string>;
@@ -193,6 +200,7 @@ export interface InboxController {
   scheduled: ScheduledItem[];
   cancelScheduledSend: (id: string, reason: string) => Promise<void>;
   cancelScheduledPublish: (id: string) => Promise<void>;
+  cancelScheduledBroadcast: (id: string, reason: string) => Promise<void>;
   saveQueue: (item: QueueItem, body: string) => Promise<void>;
   saveSocialDraft: (item: QueueItem, edit: SocialDraftEdit) => Promise<void>;
   saveCmsDraft: (item: QueueItem, data: Record<string, unknown>) => Promise<void>;

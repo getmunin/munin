@@ -140,6 +140,11 @@ export function useReviewDecided(): ReviewDecidedController {
       event.type === 'outreach.proposal.dismissed' ||
       event.type === 'outreach.proposal.withdrawn' ||
       event.type === 'outreach.proposal.send_failed' ||
+      event.type === 'outreach.broadcast.approved' ||
+      event.type === 'outreach.broadcast.started' ||
+      event.type === 'outreach.broadcast.dismissed' ||
+      event.type === 'outreach.broadcast.canceled' ||
+      event.type === 'outreach.broadcast.completed' ||
       event.type === 'cms.entry.published' ||
       event.type === 'cms.entry.archived' ||
       event.type.startsWith('feedback.item.');

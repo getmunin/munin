@@ -8,6 +8,7 @@ import {
   isEmptyList,
   isFunnel,
   isJourneyList,
+  isBroadcast,
   isMergeProposalList,
   isProductSearchResult,
   isProposalList,
@@ -17,6 +18,7 @@ import {
 import { Chrome } from './chrome';
 import { createT, resolveLocale, I18nProvider } from './i18n';
 import { ProposalsView } from './views/proposals';
+import { BroadcastView } from './views/broadcast';
 import { MergeProposalsView } from './views/merge-proposals';
 import { CurationView } from './views/curation';
 import { AnalyticsView, type AnalyticsPayload } from './views/analytics';
@@ -87,6 +89,8 @@ export function InspectorApp() {
             <p className="status">{t('connect.connecting')}</p>
           </div>
         </Chrome>
+      ) : isBroadcast(payload) ? (
+        <BroadcastView app={mcpApp} initial={payload} />
       ) : isMergeProposalList(payload) ? (
         <MergeProposalsView app={mcpApp} initial={payload} />
       ) : isProposalList(payload) ? (

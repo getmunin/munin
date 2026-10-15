@@ -4,8 +4,10 @@ import type { SenderClassification } from './classify-sender.ts';
 import type { InboundEmailAttachment } from './inbound-attachments.ts';
 import {
   extractPlusAddressedConvId,
+  extractPlusAddressedKey,
   parseMessageIdHeader,
 } from './mime.ts';
+import { BULK_REPLY_PREFIX } from './bulk-reply.ts';
 
 export interface ParsedInboundEmail {
   recipients: string[];
@@ -28,7 +30,13 @@ export interface ParsedInboundEmail {
 
 export interface ThreadResolution {
   conversationId: string;
-  via: 'plus-address' | 'in-reply-to';
+  via: 'plus-address' | 'in-reply-to' | 'broadcast';
+}
+
+export interface BroadcastReplyMatch {
+  recipientId: string;
+  broadcastId: string;
+  conversationId: string | null;
 }
 
 export async function resolveInbound(
@@ -76,6 +84,51 @@ export async function resolveInbound(
   }
 
   return null;
+}
+
+export async function resolveBroadcastReply(
+  db: Db | Tx,
+  orgId: string,
+  parsed: ParsedInboundEmail,
+  replyDomain: string | null,
+): Promise<BroadcastReplyMatch | null> {
+  const columns = {
+    recipientId: schema.outreachBroadcastRecipients.id,
+    broadcastId: schema.outreachBroadcastRecipients.broadcastId,
+    conversationId: schema.outreachBroadcastRecipients.conversationId,
+  };
+  if (replyDomain) {
+    const recipientId = extractPlusAddressedKey(parsed.recipients, replyDomain, BULK_REPLY_PREFIX);
+    if (recipientId) {
+      const [row] = await db
+        .select(columns)
+        .from(schema.outreachBroadcastRecipients)
+        .where(
+          and(
+            eq(schema.outreachBroadcastRecipients.id, recipientId),
+            eq(schema.outreachBroadcastRecipients.orgId, orgId),
+          ),
+        )
+        .limit(1);
+      if (row) return row;
+    }
+  }
+
+  const candidateIds = [parsed.inReplyTo, ...parsed.references].filter(
+    (id): id is string => Boolean(id),
+  );
+  if (candidateIds.length === 0) return null;
+  const [row] = await db
+    .select(columns)
+    .from(schema.outreachBroadcastRecipients)
+    .where(
+      and(
+        eq(schema.outreachBroadcastRecipients.orgId, orgId),
+        inArray(schema.outreachBroadcastRecipients.messageIdHeader, candidateIds),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
 }
 
 export { extractPlusAddressedConvId, parseMessageIdHeader };

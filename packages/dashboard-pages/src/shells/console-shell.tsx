@@ -47,6 +47,7 @@ const REFRESH_PREFIXES = [
   'kb.',
   'crm.merge_proposal.',
   'outreach.proposal.',
+  'outreach.broadcast.',
   'cms.entry.',
 ];
 

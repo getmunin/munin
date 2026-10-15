@@ -244,7 +244,16 @@ export function extractPlusAddressedConvId(
   addresses: readonly string[],
   replyDomain: string,
 ): string | null {
+  return extractPlusAddressedKey(addresses, replyDomain, 'conv-');
+}
+
+export function extractPlusAddressedKey(
+  addresses: readonly string[],
+  replyDomain: string,
+  prefix: string,
+): string | null {
   const dom = replyDomain.replace(/^@/, '').toLowerCase();
+  const pattern = new RegExp(`(?:^|\\+)${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([A-Za-z0-9_-]+)$`);
   for (const raw of addresses) {
     const addr = extractEmail(raw)?.toLowerCase();
     if (!addr) continue;
@@ -253,7 +262,7 @@ export function extractPlusAddressedConvId(
     const local = addr.slice(0, at);
     const host = addr.slice(at + 1);
     if (host !== dom) continue;
-    const m = local.match(/(?:^|\+)conv-([A-Za-z0-9_-]+)$/);
+    const m = local.match(pattern);
     if (m) return m[1] ?? null;
   }
   return null;

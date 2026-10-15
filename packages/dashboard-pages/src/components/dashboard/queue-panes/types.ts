@@ -59,6 +59,95 @@ export interface CrmMergeProposalDto {
   createdAt: string;
 }
 
+export interface BroadcastCountsDto {
+  queued: number;
+  sent: number;
+  skipped: number;
+  failed: number;
+  replied: number;
+  unsubscribed: number;
+  bounced: number;
+}
+
+export type BroadcastStatus =
+  | 'pending'
+  | 'approved'
+  | 'sending'
+  | 'sent'
+  | 'cancelled'
+  | 'dismissed'
+  | 'failed';
+
+export interface BroadcastSummaryDto {
+  id: string;
+  name: string;
+  status: BroadcastStatus;
+  segmentId: string;
+  channelId: string;
+  emailTemplateId: string | null;
+  subject: string;
+  scheduledSendAt: string | null;
+  approvedAudienceCount: number | null;
+  counts: BroadcastCountsDto;
+  createdAt: string;
+  updatedAt: string;
+  decidedAt: string | null;
+}
+
+export const BROADCAST_EXCLUSION_REASONS = [
+  'unsubscribed',
+  'do_not_contact',
+  'no_lawful_basis',
+  'no_email',
+  'undeliverable',
+  'duplicate_address',
+] as const;
+
+export type BroadcastExclusionReason = (typeof BROADCAST_EXCLUSION_REASONS)[number];
+
+export interface BroadcastDetailDto extends BroadcastSummaryDto {
+  preheader: string | null;
+  content: { format: 'markdown' | 'mjml'; body: string };
+  maxPerHour: number | null;
+  contentFingerprint: string;
+  audience: {
+    eligible: number;
+    excluded: Record<BroadcastExclusionReason, number>;
+    sample: { contactId: string; name: string | null; address: string }[];
+    frozen: boolean;
+  };
+  preview: {
+    html: string;
+    text: string;
+    htmlBytes: number;
+    warnings: string[];
+    recipient: { contactId: string | null; name: string | null; address: string | null };
+  };
+  proposedByActorType: string;
+  proposedByActorId: string;
+  decidedByActorType: string | null;
+  decidedByActorId: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  dismissReason: string | null;
+  cancelReason: string | null;
+  failureReason: string | null;
+}
+
+export interface BroadcastRecipientDto {
+  id: string;
+  contactId: string | null;
+  address: string;
+  status: 'queued' | 'sending' | 'sent' | 'skipped' | 'failed';
+  skipReason: string | null;
+  failureReason: string | null;
+  attempts: number;
+  sentAt: string | null;
+  repliedAt: string | null;
+  unsubscribedAt: string | null;
+  conversationId: string | null;
+}
+
 export interface OutreachProposalDto {
   id: string;
   campaignId: string;
@@ -305,11 +394,20 @@ export type QueueItem =
   | { kind: 'kb'; id: string; title: string; snippet: string; createdAt: string; raw: KbCandidateDto }
   | { kind: 'crm'; id: string; title: string; snippet: string; createdAt: string; raw: CrmMergeProposalDto }
   | { kind: 'outreach'; id: string; title: string; snippet: string; createdAt: string; raw: OutreachProposalDto }
+  | { kind: 'broadcast'; id: string; title: string; snippet: string; createdAt: string; raw: BroadcastSummaryDto }
   | { kind: 'cms'; id: string; title: string; snippet: string; createdAt: string; raw: CmsDraftSummaryDto }
   | { kind: 'feedback'; id: string; title: string; snippet: string; createdAt: string; raw: FeedbackOutboxDto }
   | { kind: 'social'; id: string; title: string; snippet: string; createdAt: string; raw: SocialDraftDto };
 
 export type ScheduledItem =
+  | {
+      kind: 'broadcast';
+      id: string;
+      title: string;
+      snippet: string;
+      at: string;
+      raw: BroadcastSummaryDto;
+    }
   | {
       kind: 'outreach';
       id: string;
@@ -331,12 +429,14 @@ export type QueueCodeKey =
   | 'codeKb'
   | 'codeCrm'
   | 'codeOutreach'
+  | 'codeBroadcast'
   | 'codeFeedback'
   | 'codeCms'
   | 'codeSocial';
 
 export function queueCodeKey(kind: QueueItem['kind']): QueueCodeKey {
   if (kind === 'outreach') return 'codeOutreach';
+  if (kind === 'broadcast') return 'codeBroadcast';
   if (kind === 'kb') return 'codeKb';
   if (kind === 'feedback') return 'codeFeedback';
   if (kind === 'cms') return 'codeCms';

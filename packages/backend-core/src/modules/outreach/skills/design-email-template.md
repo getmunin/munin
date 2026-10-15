@@ -8,7 +8,7 @@ audiences: [admin]
 
 An email template is the org's branded layout for outreach email: the logo at the top, the colours and fonts, and a footer with the organization's name and the unsubscribe link. Each message's own content is poured into it at one marked spot. Templates are written in MJML, an open-source markup language that compiles to the table-based, inline-styled HTML that Outlook, Gmail, Apple Mail and dark mode all render consistently. Hand-written email HTML rarely survives those clients; MJML does the hard part.
 
-Templates are stored data, not code. Each org can keep several, for example "Newsletter" and "Changelog", and mark one as the default.
+Templates are stored data, not code. Each org can keep several, for example "Newsletter" and "Changelog", and mark one as the default. A broadcast (`skill://outreach/send-broadcast`) renders through the template it names, else the org default, else a plain built-in layout.
 
 ## The contract
 

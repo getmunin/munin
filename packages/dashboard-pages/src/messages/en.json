@@ -293,7 +293,10 @@
         "kindSocial": "SOCIAL",
         "codeSocial": "SOC",
         "socialUntitled": "Untitled draft",
-        "socialSnippet": "{platform} · {label} · {chars}/{max} characters"
+        "socialSnippet": "{platform} · {label} · {chars}/{max} characters",
+        "codeBroadcast": "BCST",
+        "broadcastSnippet": "Broadcast · {name}",
+        "kindBroadcast": "BROADCAST"
       },
       "scheduled": {
         "outreachUntitled": "Outreach draft",
@@ -307,7 +310,11 @@
         "cancelDismiss": "Keep it scheduled",
         "cancelCmsTitle": "Call off this publish",
         "cancelCmsDescription": "Nothing goes live. The entry goes back for review as a draft, and publishing it later takes a fresh approval.",
-        "cancelCmsConfirm": "Call off publish"
+        "cancelCmsConfirm": "Call off publish",
+        "broadcastDestination": "sends to {count, plural, =1 {# recipient} other {# recipients}}",
+        "cancelBroadcastTitle": "Call off this broadcast",
+        "cancelBroadcastDescription": "Nothing is sent. The broadcast goes back to the queue, and sending it later needs a new approval.",
+        "cancelBroadcastConfirm": "Call off broadcast"
       },
       "drawer": {
         "close": "close ×",
@@ -486,7 +493,11 @@
         "socialPreviewNoteNoPageImage": "The linked page advertises no picture, so the post goes out without one.",
         "socialPreviewNoteFacebookCard": "The linked page advertises no picture, so Facebook builds its own card from the link.",
         "socialPreviewNoteUnreadable": "The linked page couldn't be read just now. Munin tries again when the post goes out, and posts it without a picture if it still can't.",
-        "draftNoteLabel": "Note"
+        "draftNoteLabel": "Note",
+        "metaBroadcast": "{name} · {count, plural, =1 {# recipient} other {# recipients}}",
+        "scheduledBroadcastHeadline": "Sends {when}",
+        "scheduledBroadcastDetail": "{count, plural, =1 {Goes to # person automatically.} other {Goes to # people automatically.}} Unsubscribes, consent and bounces are checked again for each person at the moment of sending.",
+        "scheduledBroadcastCancel": "Call off broadcast"
       },
       "relative": {
         "justNow": "just now",
@@ -1385,7 +1396,8 @@
           "outreach": "Dismissed",
           "cms": "Discarded",
           "feedback": "Dismissed",
-          "social": "Dismissed"
+          "social": "Dismissed",
+          "broadcast": "Dismissed"
         },
         "decidedByAgent": "Agent",
         "decidedByUnknown": "Unknown",
@@ -1479,7 +1491,8 @@
           "outreach": "Sent",
           "cms": "Published",
           "feedback": "Forwarded",
-          "social": "Posted"
+          "social": "Posted",
+          "broadcast": "Approved"
         },
         "outcomeFailed": "Send failed",
         "decidedUntitled": "Untitled",
@@ -1514,6 +1527,11 @@
             "approved": "The draft was posted, and the set it belongs to is settled.",
             "dismissed": "Nobody published this variant. The rest of its set is untouched.",
             "failed": "The post could not be published."
+          },
+          "broadcast": {
+            "approved": "The broadcast was approved for sending to its segment.",
+            "dismissed": "The broadcast was dismissed and never sent.",
+            "failed": "The broadcast could not be sent to anyone."
           }
         },
         "decidedSocialVariant": "Social post · {label}",
@@ -1534,7 +1552,80 @@
           "crmKept": "Kept",
           "crmArchived": "Archived",
           "crmProposedKeeper": "Proposed keeper",
-          "crmProposedDuplicate": "Proposed duplicate"
+          "crmProposedDuplicate": "Proposed duplicate",
+          "broadcastLabel": "Delivery",
+          "broadcastAudience": "{count, plural, =1 {# recipient} other {# recipients}}",
+          "broadcastSent": "Sent",
+          "broadcastQueued": "Waiting to send",
+          "broadcastSkipped": "Skipped",
+          "broadcastFailed": "Failed",
+          "broadcastReplied": "Replied",
+          "broadcastUnsubscribed": "Unsubscribed",
+          "broadcastBounced": "Bounced",
+          "broadcastStatus": {
+            "approved": "Scheduled",
+            "sending": "Sending",
+            "sent": "Sent",
+            "cancelled": "Stopped",
+            "dismissed": "Dismissed",
+            "failed": "Failed",
+            "pending": "Waiting for review"
+          },
+          "broadcastStarts": "Starts {when}",
+          "broadcastStarted": "Started {when}",
+          "broadcastFinished": "Finished {when}",
+          "broadcastRecipientsHint": "For each recipient's delivery status, ask your agent.",
+          "broadcastUnavailable": "The email couldn't be loaded.",
+          "broadcastStop": "Stop sending",
+          "broadcastStopTitle": "Stop this broadcast?",
+          "broadcastStopBody": "{sent, plural, =0 {Nothing has been sent yet, and nobody will get it.} =1 {# email has already gone out and can't be recalled. Nobody else will get it.} other {# emails have already gone out and can't be recalled. Nobody else will get it.}}",
+          "broadcastStopReason": "Why are you stopping it?",
+          "broadcastStopKeep": "Keep sending",
+          "broadcastOfTotal": "of {total} sent",
+          "broadcastProgressLabel": "{sent} of {total} sent",
+          "broadcastRateOfSent": "{rate} of sent"
+        },
+        "codeBroadcast": "BCST",
+        "broadcast": {
+          "eyebrow": "Broadcast",
+          "loadFailed": "Couldn't load the broadcast",
+          "retry": "Try again",
+          "changedHeading": "Changed since you opened it",
+          "changedDetail": "The content, template or audience changed, so nothing was sent. Load the latest version and review it again.",
+          "loadLatest": "Load latest version",
+          "audienceHeading": "Who gets it",
+          "audienceEligible": "{count, plural, =1 {Goes to # person} other {Goes to # people}}",
+          "audienceNone": "Nobody in the segment can receive it right now.",
+          "sample": "Including {names}",
+          "warning": "Check before sending",
+          "whenItGoes": "When it goes",
+          "sendScheduled": "As planned · {when}",
+          "sendNow": "Start sending now",
+          "sendPick": "Pick a time",
+          "irreversible": "Sent email can't be recalled. Sending is spread out over time, and you can stop the rest from the Decided tab.",
+          "testSentHeading": "Test sent",
+          "testSentDetail": "A copy is on its way to {to}.",
+          "draftedByUser": "Drafted by a teammate",
+          "draftedByAgent": "Drafted by an agent",
+          "htmlSize": "{kb} KB",
+          "sendTest": "Send me a test",
+          "sendingTest": "Sending test…",
+          "dismiss": "Dismiss",
+          "approveNow": "{count, plural, =1 {Send to # person} other {Send to # people}}",
+          "approveScheduled": "{count, plural, =1 {Schedule for # person} other {Schedule for # people}}",
+          "shortcutApprove": "⌘↵ approve · sending is final",
+          "previewFor": "As {name} sees it",
+          "previewHeading": "Preview",
+          "previewTitle": "Email preview",
+          "view": {
+            "desktop": "Desktop",
+            "mobile": "Mobile",
+            "text": "Plain text"
+          },
+          "audienceLeftOut": "{count} left out",
+          "previewViewLabel": "Preview as",
+          "calledOffHeading": "Called off before it went out",
+          "calledOffDetail": "Reason given: {reason}"
         }
       },
       "automation": {
@@ -2476,7 +2567,10 @@
     "social_target_unavailable": "That Page is no longer one you can post to. Choose another, or connect again.",
     "social_authorization_expired": "This authorisation is no longer open. Start connecting again.",
     "slack_not_channel_member": "Another Munin org already routes into that Slack channel, so only someone in the channel can add a route to it. Join the channel in Slack with the account that uses your Munin email address, then try again.",
-    "social_no_targets": "This account administers no Page Munin may post to. Give the app access to a Page and connect again."
+    "social_no_targets": "This account administers no Page Munin may post to. Give the app access to a Page and connect again.",
+    "outreach_broadcast_changed": "This broadcast changed after you opened it, so nothing was sent. Load the latest version and review it again.",
+    "outreach_broadcast_empty_audience": "Nobody in the segment can receive this broadcast, so there's nothing to approve.",
+    "outreach_broadcast_state": "Someone already decided on this broadcast. Refresh to see where it stands."
   },
   "footer": {
     "privacy": "Privacy",
@@ -2684,6 +2778,38 @@
       "subline": "{count} live matches from {source}.",
       "view": "View ↗",
       "foot": "Live prices and availability from {vendor} — nothing is stored in Munin."
+    },
+    "broadcast": {
+      "status": {
+        "pending": "Awaiting approval",
+        "approved": "Scheduled",
+        "sending": "Sending",
+        "sent": "Sent",
+        "cancelled": "Stopped",
+        "dismissed": "Dismissed",
+        "failed": "Failed"
+      },
+      "showText": "Plain text",
+      "showEmail": "Email",
+      "audience": "Recipients: {count}.",
+      "audienceNone": "Nobody in the segment can receive it right now.",
+      "excluded": "Left out: {list}.",
+      "reason": {
+        "unsubscribed": "unsubscribed earlier",
+        "do_not_contact": "do not contact",
+        "no_lawful_basis": "no lawful basis",
+        "no_email": "no email",
+        "undeliverable": "bounced before",
+        "duplicate_address": "shared address"
+      },
+      "progress": "Sent: {sent} · replied: {replied} · unsubscribed: {unsubscribed}.",
+      "scheduled": "Starts sending {when} once approved.",
+      "previewTitle": "Email preview",
+      "approve": "Approve & send to {count}",
+      "approving": "Approving…",
+      "dismiss": "Dismiss",
+      "dismissing": "Dismissing…",
+      "foot": "Sent email cannot be recalled. Only a signed-in person can approve."
     }
   },
   "legal": {

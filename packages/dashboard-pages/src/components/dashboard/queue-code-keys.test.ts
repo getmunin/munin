@@ -4,7 +4,7 @@ import nb from '../../messages/nb.json';
 import { queueCodeKey } from './queue-panes/types';
 import type { QueueItem } from './queue-panes/types';
 
-const KINDS: QueueItem['kind'][] = ['kb', 'crm', 'outreach', 'cms', 'feedback', 'social'];
+const KINDS: QueueItem['kind'][] = ['kb', 'crm', 'outreach', 'broadcast', 'cms', 'feedback', 'social'];
 
 const NAMESPACES: Array<{
   path: string;

@@ -112,6 +112,16 @@ export class OutreachEmailTemplatesService {
   async deleteTemplate(id: string): Promise<{ deleted: true; id: string }> {
     const ctx = getCurrentContext();
     const existing = await this.loadTemplate(id);
+    const [used] = await ctx.db
+      .select({ id: schema.outreachBroadcasts.id, name: schema.outreachBroadcasts.name })
+      .from(schema.outreachBroadcasts)
+      .where(eq(schema.outreachBroadcasts.emailTemplateId, existing.id))
+      .limit(1);
+    if (used) {
+      throw new ConflictException(
+        `outreach_conflict: email template ${existing.id} is used by broadcast "${used.name}" (${used.id}); point that broadcast at another template before deleting this one`,
+      );
+    }
     await ctx.db
       .delete(schema.outreachEmailTemplates)
       .where(eq(schema.outreachEmailTemplates.id, existing.id));

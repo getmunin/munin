@@ -5,6 +5,7 @@ import type { QueueItem } from './queue-panes/types';
 import type { InboxController } from './inbox-types';
 import { ReviewOutreachPane } from './review-outreach-pane';
 import { ReviewCrmPane } from './review-crm-pane';
+import { ReviewBroadcastPane } from './review-broadcast-pane';
 import type { ReviewDecisionOutcome } from './review-queue';
 
 export function ReviewBlockingPane({
@@ -22,6 +23,9 @@ export function ReviewBlockingPane({
     cmsPreviewLinks,
     reloadCmsPreviewLink,
     outreachDetails,
+    broadcastDetails,
+    reloadBroadcastDetail,
+    sendBroadcastTest,
     queueDetailErrors,
     reloadQueueDetail,
     queueActionError,
@@ -63,6 +67,27 @@ export function ReviewBlockingPane({
         onApprove={approve}
         onDismiss={dismiss}
         onSave={(body) => saveQueue(item, body)}
+      />
+    );
+  }
+
+  if (item.kind === 'broadcast') {
+    return (
+      <ReviewBroadcastPane
+        item={item}
+        detail={broadcastDetails[item.id]}
+        loadError={queueDetailErrors[item.id]}
+        pending={pending}
+        actionError={queueActionError}
+        onClearActionError={clearQueueActionError}
+        onRetry={() => reloadQueueDetail(item.id)}
+        onReload={() => {
+          clearQueueActionError();
+          void reloadBroadcastDetail(item.id);
+        }}
+        onApprove={approve}
+        onDismiss={dismiss}
+        onSendTest={() => sendBroadcastTest(item.id)}
       />
     );
   }

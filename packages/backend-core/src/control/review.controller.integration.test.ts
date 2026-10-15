@@ -307,6 +307,50 @@ interface ReviewResponse {
       .returning();
     seeded['outreachSent'] = sentProposal!.id;
 
+    const broadcastBase = {
+      orgId,
+      segmentId: campaign!.segmentId,
+      channelId: campaign!.channelId,
+      subject: 'What is new',
+      contentFormat: 'markdown',
+      body: 'Three things shipped.',
+      proposedByActorType: 'admin_agent',
+      proposedByActorId: 'agent:test',
+    };
+    const [pendingBroadcast] = await db
+      .insert(schema.outreachBroadcasts)
+      .values({ ...broadcastBase, name: 'Pending changelog' })
+      .returning();
+    seeded['broadcast'] = pendingBroadcast!.id;
+    const [cancelledBroadcast] = await db
+      .insert(schema.outreachBroadcasts)
+      .values({
+        ...broadcastBase,
+        name: 'Cancelled changelog',
+        status: 'cancelled',
+        cancelReason: 'Wrong date in the copy',
+        approvedAudienceCount: 3,
+        decidedByActorType: 'user',
+        decidedByActorId: userId,
+        decidedAt: new Date(Date.now() - 5 * HOUR),
+      })
+      .returning();
+    seeded['broadcastDecided'] = cancelledBroadcast!.id;
+    const [scheduledBroadcast] = await db
+      .insert(schema.outreachBroadcasts)
+      .values({
+        ...broadcastBase,
+        name: 'Scheduled changelog',
+        status: 'approved',
+        approvedAudienceCount: 3,
+        scheduledSendAt: new Date(Date.now() + 26 * HOUR),
+        decidedByActorType: 'user',
+        decidedByActorId: userId,
+        decidedAt: new Date(Date.now() - 1 * HOUR),
+      })
+      .returning();
+    seeded['broadcastScheduled'] = scheduledBroadcast!.id;
+
     const [archivedEntry] = await db
       .insert(schema.cmsEntries)
       .values({
@@ -415,6 +459,7 @@ interface ReviewResponse {
     expect(byKind.get('kb')).toBe(seeded['kb']);
     expect(byKind.get('crm')).toBe(seeded['crm']);
     expect(byKind.get('outreach')).toBe(seeded['outreach']);
+    expect(byKind.get('broadcast')).toBe(seeded['broadcast']);
     expect(byKind.get('cms')).toBe(seeded['cms']);
     expect(byKind.get('social')).toBe(seeded['social']);
     expect(body.items.every((i) => i.state === 'waiting')).toBe(true);
@@ -446,12 +491,23 @@ interface ReviewResponse {
     expect(waiting.items.map((i) => i.id)).not.toContain(seeded['outreachApprovedUnscheduled']);
   });
 
+  it('keeps an approved broadcast in scheduled until it starts sending', async () => {
+    const scheduled = await review('scheduled');
+    const item = scheduled.items.find((i) => i.id === seeded['broadcastScheduled']);
+    expect(item?.kind).toBe('broadcast');
+    expect(item?.state).toBe('scheduled');
+    const decided = await review('decided');
+    expect(decided.items.map((i) => i.id)).not.toContain(seeded['broadcastScheduled']);
+    expect(decided.items.map((i) => i.id)).toContain(seeded['broadcastDecided']);
+  });
+
   it('returns a decided item for every kind, newest first', async () => {
     const body = await review('decided');
     const byKind = new Map(body.items.map((i) => [i.kind, i]));
     expect(byKind.get('kb')?.id).toBe(seeded['kbDecision']);
     expect(byKind.get('crm')?.id).toBe(seeded['crmDecided']);
     expect(byKind.get('outreach')?.id).toBe(seeded['outreachSent']);
+    expect(byKind.get('broadcast')?.id).toBe(seeded['broadcastDecided']);
     expect(byKind.get('cms')?.id).toBe(seeded['cmsArchived']);
     expect(body.items.find((i) => i.kind === 'social')?.id).toBe(seeded['socialDecided']);
     expect(body.items.every((i) => i.state === 'decided')).toBe(true);
@@ -476,6 +532,11 @@ interface ReviewResponse {
 
     const outreach = byKind.get('outreach');
     expect(outreach?.outcome).toBe('approved');
+
+    const broadcast = byKind.get('broadcast');
+    expect(broadcast?.outcome).toBe('approved');
+    expect(broadcast?.reason).toBe('Wrong date in the copy');
+    expect(broadcast?.decidedBy?.name).toBe('Owner User');
 
     const cms = byKind.get('cms');
     expect(cms?.outcome).toBe('dismissed');

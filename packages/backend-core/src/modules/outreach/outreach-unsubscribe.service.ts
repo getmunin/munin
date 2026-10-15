@@ -8,6 +8,8 @@ import {
 } from '@getmunin/core';
 import { DB } from '../../common/db/db.module.ts';
 
+const BROADCAST_ID_PREFIX = 'obc_';
+
 export type UnsubscribeState = 'invalid' | 'not_found' | 'subscribed' | 'unsubscribed';
 
 export type UnsubscribeMethod = 'one_click' | 'page';
@@ -66,11 +68,24 @@ export class OutreachUnsubscribeService {
           eq(schema.crmContacts.orgId, payload.orgId),
         ),
       );
+    const fromBroadcast = payload.campaignId.startsWith(BROADCAST_ID_PREFIX);
+    if (fromBroadcast) {
+      await this.db
+        .update(schema.outreachBroadcastRecipients)
+        .set({ unsubscribedAt: now, updatedAt: now })
+        .where(
+          and(
+            eq(schema.outreachBroadcastRecipients.orgId, payload.orgId),
+            eq(schema.outreachBroadcastRecipients.broadcastId, payload.campaignId),
+            eq(schema.outreachBroadcastRecipients.contactId, payload.contactId),
+          ),
+        );
+    }
     await this.db.insert(schema.crmActivities).values({
       orgId: payload.orgId,
       type: 'note',
       subject: 'Unsubscribed',
-      body: `Unsubscribed via outreach link for campaign ${payload.campaignId}`,
+      body: `Unsubscribed via outreach link for ${fromBroadcast ? 'broadcast' : 'campaign'} ${payload.campaignId}`,
       contactId: payload.contactId,
       actorType: 'agent',
       actorId: 'outreach-unsubscribe',

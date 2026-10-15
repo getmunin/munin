@@ -17,6 +17,7 @@ import type {
   SocialDraftDto,
 } from './queue-panes/types';
 import { MetaArrow } from './meta-arrow';
+import { BroadcastDecidedContent } from './review-decided-broadcast';
 import type {
   PublishedDocument,
   ReviewDecidedController,
@@ -115,6 +116,8 @@ export function ReviewDecidedContent({
       return <SocialContent draft={item.raw} />;
     case 'outreach':
       return <OutreachContent proposal={item.raw} />;
+    case 'broadcast':
+      return <BroadcastDecidedContent broadcast={item.raw} onChanged={controller.reload} />;
     case 'feedback':
       return <FeedbackContent feedback={item.raw} />;
     case 'crm':

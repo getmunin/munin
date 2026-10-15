@@ -139,13 +139,22 @@ const skipReason = TEST_URL
     return null;
   }
 
-  it('discovers all 23 outreach tools on tools/list', async () => {
+  it('discovers all 32 outreach tools on tools/list', async () => {
     await withClient(adminKey, async (c) => {
       const { tools } = await c.listTools();
       const names = tools.map((t) => t.name).filter((n) => n.startsWith('outreach_')).sort();
       expect(names).toEqual(
         [
+          'outreach_approve_broadcast',
           'outreach_approve_proposal',
+          'outreach_cancel_broadcast',
+          'outreach_create_broadcast',
+          'outreach_dismiss_broadcast',
+          'outreach_get_broadcast',
+          'outreach_list_broadcast_recipients',
+          'outreach_list_broadcasts',
+          'outreach_send_broadcast_test',
+          'outreach_update_broadcast',
           'outreach_cancel_scheduled_send',
           'outreach_create_campaign',
           'outreach_create_email_template',
@@ -492,6 +501,72 @@ const skipReason = TEST_URL
       });
       expect(missing.isError).toBe(true);
       expect(errorText(missing)).toContain('outreach_not_found');
+    });
+  });
+
+  it('drafts a broadcast over /mcp but refuses to let an API key approve it', async () => {
+    const errorText = (result: Awaited<ReturnType<Client['callTool']>>) =>
+      (result.content as { type: string; text: string }[]).map((c) => c.text).join(' ');
+    await withClient(adminKey, async (c) => {
+      const created = await c.callTool({
+        name: 'outreach_create_broadcast',
+        arguments: {
+          name: 'MCP broadcast',
+          segmentId,
+          channelId,
+          subject: 'What is new',
+          content: { format: 'markdown', body: 'Hi {{name|there}}, three things shipped.' },
+        },
+      });
+      expect(created.isError).toBeFalsy();
+      const broadcast = firstJson(created) as {
+        id: string;
+        status: string;
+        contentFingerprint: string;
+        preview: { html: string };
+        audience: { eligible: number };
+      };
+      expect(broadcast.status).toBe('pending');
+      expect(broadcast.preview.html).toContain('three things shipped');
+
+      const approve = await c.callTool({
+        name: 'outreach_approve_broadcast',
+        arguments: { id: broadcast.id, fingerprint: broadcast.contentFingerprint },
+      });
+      expect(approve.isError).toBe(true);
+      expect(errorText(approve)).toContain('signed-in person');
+
+      const badContent = await c.callTool({
+        name: 'outreach_update_broadcast',
+        arguments: { id: broadcast.id, content: { format: 'mjml', body: '<mj-text>loose</mj-text>' } },
+      });
+      expect(badContent.isError).toBe(true);
+      expect(errorText(badContent)).toContain('outreach_invalid');
+
+      const duplicate = await c.callTool({
+        name: 'outreach_create_broadcast',
+        arguments: {
+          name: 'MCP broadcast',
+          segmentId,
+          channelId,
+          subject: 'Again',
+          content: { format: 'markdown', body: 'Again' },
+        },
+      });
+      expect(duplicate.isError).toBe(true);
+      expect(errorText(duplicate)).toContain('outreach_conflict');
+
+      const dismissed = await c.callTool({
+        name: 'outreach_dismiss_broadcast',
+        arguments: { id: broadcast.id, reason: 'test run' },
+      });
+      expect((firstJson(dismissed) as { status: string }).status).toBe('dismissed');
+
+      const recipients = await c.callTool({
+        name: 'outreach_list_broadcast_recipients',
+        arguments: { id: broadcast.id },
+      });
+      expect(firstJson(recipients)).toEqual({ items: [], nextCursor: null });
     });
   });
 

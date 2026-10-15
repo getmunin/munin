@@ -328,6 +328,12 @@ export function PaneHeader({
 const MODULE_GLYPHS: Record<QueueItem['kind'], React.ReactNode> = {
   cms: <rect x="1.4" y="1.4" width="7.2" height="7.2" />,
   outreach: <circle cx="5" cy="5" r="3.9" />,
+  broadcast: (
+    <>
+      <circle cx="5" cy="5" r="1.7" />
+      <circle cx="5" cy="5" r="3.9" fill="none" stroke="currentColor" strokeWidth="1.2" />
+    </>
+  ),
   kb: <circle cx="5" cy="5" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.5" />,
   crm: <path d="M5 0.7 9.3 5 5 9.3 0.7 5Z" />,
   feedback: <path d="M5 0.9 9.4 8.7 0.6 8.7Z" />,

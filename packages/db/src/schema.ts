@@ -946,6 +946,10 @@ export const convConversations = pgTable(
       (): AnyPgColumn => outreachCampaigns.id,
       { onDelete: 'set null' },
     ),
+    outreachBroadcastId: text('outreach_broadcast_id').references(
+      (): AnyPgColumn => outreachBroadcasts.id,
+      { onDelete: 'set null' },
+    ),
     agentMode: varchar('agent_mode', { length: 16 }).notNull().default('auto'),
     // 'auto' | 'draft_only' | 'off'
     customerLanguage: varchar('customer_language', { length: 16 }),
@@ -967,6 +971,9 @@ export const convConversations = pgTable(
       .on(t.orgId, t.handoverResolvedAt)
       .where(sql`handover_resolved_at IS NOT NULL`),
     outreachCampaignIdx: index('conv_conversations_outreach_campaign_idx').on(t.outreachCampaignId),
+    outreachBroadcastIdx: index('conv_conversations_outreach_broadcast_idx')
+      .on(t.outreachBroadcastId)
+      .where(sql`outreach_broadcast_id IS NOT NULL`),
     suppressedIdx: index('conv_conversations_suppressed_idx')
       .on(t.orgId, t.suppressedReason)
       .where(sql`suppressed_reason IS NOT NULL`),
@@ -2168,6 +2175,97 @@ export const outreachEmailTemplates = pgTable(
     defaultUq: uniqueIndex('outreach_email_templates_org_default_uq')
       .on(t.orgId)
       .where(sql`is_default = true`),
+  }),
+);
+
+export const outreachBroadcasts = pgTable(
+  'outreach_broadcasts',
+  {
+    id: id('obc'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    segmentId: text('segment_id')
+      .notNull()
+      .references(() => crmSegments.id, { onDelete: 'restrict' }),
+    channelId: text('channel_id')
+      .notNull()
+      .references(() => convChannels.id, { onDelete: 'restrict' }),
+    emailTemplateId: text('email_template_id').references(() => outreachEmailTemplates.id, {
+      onDelete: 'restrict',
+    }),
+    subject: text('subject').notNull(),
+    preheader: text('preheader'),
+    contentFormat: varchar('content_format', { length: 16 }).notNull(),
+    body: text('body').notNull(),
+    status: varchar('status', { length: 16 }).notNull().default('pending'),
+    scheduledSendAt: timestamp('scheduled_send_at', { withTimezone: true }),
+    maxPerHour: integer('max_per_hour'),
+    approvedHtml: text('approved_html'),
+    approvedFingerprint: varchar('approved_fingerprint', { length: 64 }),
+    approvedAudienceCount: integer('approved_audience_count'),
+    proposedByActorType: varchar('proposed_by_actor_type', { length: 16 }).notNull(),
+    proposedByActorId: text('proposed_by_actor_id').notNull(),
+    decidedByActorType: varchar('decided_by_actor_type', { length: 16 }),
+    decidedByActorId: text('decided_by_actor_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    dismissReason: text('dismiss_reason'),
+    cancelReason: text('cancel_reason'),
+    failureReason: text('failure_reason'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    orgStatusIdx: index('outreach_broadcasts_org_status_idx').on(t.orgId, t.status),
+    nameUq: uniqueIndex('outreach_broadcasts_org_name_uq').on(t.orgId, t.name),
+    dueIdx: index('outreach_broadcasts_due_idx')
+      .on(t.scheduledSendAt)
+      .where(sql`status IN ('approved', 'sending')`),
+  }),
+);
+
+export const outreachBroadcastRecipients = pgTable(
+  'outreach_broadcast_recipients',
+  {
+    id: id('obr'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    broadcastId: text('broadcast_id')
+      .notNull()
+      .references(() => outreachBroadcasts.id, { onDelete: 'cascade' }),
+    contactId: text('contact_id').references(() => crmContacts.id, { onDelete: 'set null' }),
+    address: text('address').notNull(),
+    status: varchar('status', { length: 16 }).notNull().default('queued'),
+    skipReason: varchar('skip_reason', { length: 32 }),
+    failureReason: text('failure_reason'),
+    attempts: integer('attempts').notNull().default(0),
+    messageIdHeader: text('message_id_header'),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    conversationId: text('conversation_id').references(() => convConversations.id, {
+      onDelete: 'set null',
+    }),
+    repliedAt: timestamp('replied_at', { withTimezone: true }),
+    unsubscribedAt: timestamp('unsubscribed_at', { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    broadcastAddressUq: uniqueIndex('outreach_broadcast_recipients_address_uq').on(
+      t.broadcastId,
+      t.address,
+    ),
+    broadcastStatusIdx: index('outreach_broadcast_recipients_status_idx').on(
+      t.broadcastId,
+      t.status,
+    ),
+    messageIdIdx: index('outreach_broadcast_recipients_message_id_idx')
+      .on(t.orgId, t.messageIdHeader)
+      .where(sql`message_id_header IS NOT NULL`),
+    contactIdx: index('outreach_broadcast_recipients_contact_idx').on(t.contactId),
   }),
 );
 

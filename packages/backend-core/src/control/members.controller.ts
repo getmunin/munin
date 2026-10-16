@@ -40,6 +40,8 @@ class PatchMemberBody extends createZodDto(
     }),
 ) {}
 
+const ADMIN_KEY_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
+
 interface MemberDto {
   userId: string;
   email: string;
@@ -120,6 +122,9 @@ export class MembersController {
         .returning();
       if (result.length === 0)
         throw new NotFoundException(`member ${userId} not found in this org`);
+      if (!ADMIN_KEY_ROLES.has(input.role)) {
+        await revokeAdminKeysCreatedBy(ctx.db, userId, actor.orgId);
+      }
     }
 
     if (input.name !== undefined) {

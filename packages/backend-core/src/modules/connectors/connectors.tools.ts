@@ -111,7 +111,7 @@ export class ConnectorAdminTools {
     name: 'connectors_update_connection',
     title: 'Connectors: Update a connection',
     description:
-      'Rename, activate/deactivate, or reconfigure a connection. When passing `config`, supply the full non-secret vendor config; the stored secret values are kept. Secret fields are rejected here — to rotate a secret, delete the connection and create it again, entering the new secret through the credential link.',
+      'Rename, activate/deactivate, or reconfigure a connection. When passing `config`, supply the full non-secret vendor config; the stored secret values are kept while the connection stays on the same host, and a change that points it at a different host is refused because the stored secret is never sent to a new host. Secret fields are rejected here — to rotate a secret, delete the connection and create it again, entering the new secret through the credential link.',
     audiences: ['admin'],
     scopes: ['connectors:write'],
     input: UpdateConnectionInput,

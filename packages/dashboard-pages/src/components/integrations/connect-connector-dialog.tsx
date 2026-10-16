@@ -32,6 +32,16 @@ function initialValues(
   return out;
 }
 
+function destinationOf(value: string | undefined): string {
+  const trimmed = (value ?? '').trim().toLowerCase();
+  if (!trimmed) return '';
+  try {
+    return new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`).origin;
+  } catch {
+    return trimmed;
+  }
+}
+
 export type ConnectorAudience = 'customer' | 'team' | 'both';
 
 export interface ConnectVendor {
@@ -66,16 +76,21 @@ export function ConnectConnectorDialog({
   const translate = useTranslateError();
   const present = vendorPresentation(vendor.vendor, vendor.domain);
   const [name, setName] = useState(existing?.name ?? '');
-  const [values, setValues] = useState<Record<string, string>>(() =>
+  const [initial] = useState<Record<string, string>>(() =>
     initialValues(vendor.configFields, existing?.settings),
   );
+  const [values, setValues] = useState<Record<string, string>>(initial);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
   const fields = vendor.configFields.filter((f) => !f.postConnect);
   const isEdit = existing !== undefined;
+  const endpointMoved =
+    isEdit &&
+    fields.some((f) => f.endpoint && destinationOf(values[f.key]) !== destinationOf(initial[f.key]));
+  const keepsSecret = isEdit && !endpointMoved;
   const missingRequired = fields.some(
-    (f) => f.required && !values[f.key] && !(isEdit && f.secret),
+    (f) => f.required && !values[f.key] && !(keepsSecret && f.secret),
   );
 
   async function submit() {
@@ -152,7 +167,9 @@ export function ConnectConnectorDialog({
                 key={f.key}
                 vendor={vendor.vendor}
                 field={f}
-                keepHint={isEdit && f.secret ? t('keepSecret') : undefined}
+                keepHint={
+                  isEdit && f.secret ? t(endpointMoved ? 'reenterSecret' : 'keepSecret') : undefined
+                }
                 value={values[f.key] ?? ''}
                 onChange={(val) => {
                   setValues((v) => ({ ...v, [f.key]: val }));

@@ -35,7 +35,7 @@ The server implements standard MCP over **streamable HTTP** (single endpoint, JS
 
 ### 1. Authenticate Munin with the bearer token
 
-Every request carries `Authorization: Bearer <token>` — the token the org minted and entered through the credential link. Reject requests without it. Rotate by deleting and recreating the connection.
+Every request carries `Authorization: Bearer <token>` — the token the org minted and entered through the credential link. Reject requests without it. Rotate by deleting and recreating the connection. Pointing an existing connection at a different host needs the token again: `connectors_update_connection` refuses a `url` on a new host with `connectors_secret_required`, so a person changes it on the Integrations page together with the token, or you recreate the connection.
 
 ### 2. Identity arrives out-of-band — tools take no identity parameters
 

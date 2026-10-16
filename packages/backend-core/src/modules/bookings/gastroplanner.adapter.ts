@@ -78,6 +78,7 @@ export class GastroplannerAdapter implements BookingAdapter {
       key: 'baseUrl',
       label: `API base URL (default ${DEFAULT_BASE_URL})`,
       required: false,
+      endpoint: true,
       placeholder: DEFAULT_BASE_URL,
     },
   ];

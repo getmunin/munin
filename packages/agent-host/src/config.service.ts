@@ -58,6 +58,7 @@ export class AgentConfigService {
   async upsertForCurrentActor(input: AgentConfigPatch): Promise<AgentConfigDto> {
     const id = this.repo.resolveCurrentId();
     const before = await this.repo.read(id);
+    assertKeyFollowsBaseUrl(before, input);
 
     const credentialsTouched =
       input.providerBaseUrl !== undefined || input.providerApiKey !== undefined;
@@ -171,6 +172,26 @@ export class AgentConfigService {
     });
     if (!listed?.supported || listed.models.length === 0) return null;
     return new Set(listed.models.map((m) => m.id));
+  }
+}
+
+export const PROVIDER_KEY_REQUIRED_CODE = 'agent_config_key_required';
+
+function assertKeyFollowsBaseUrl(before: AgentConfigRow, input: AgentConfigPatch): void {
+  if (input.providerBaseUrl === undefined || input.providerApiKey !== undefined) return;
+  if (!before.providerApiKeySet) return;
+  if (originOf(input.providerBaseUrl) === originOf(before.providerBaseUrl)) return;
+  throw new BadRequestException({
+    message: `${PROVIDER_KEY_REQUIRED_CODE}: the provider base URL now points at ${originOf(input.providerBaseUrl)}, a different host from the one the stored API key was entered for, so that key will not be sent there — supply the API key for the new provider in the same change`,
+    code: PROVIDER_KEY_REQUIRED_CODE,
+  });
+}
+
+function originOf(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return url.trim().toLowerCase();
   }
 }
 

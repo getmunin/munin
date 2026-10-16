@@ -148,6 +148,12 @@ export function mintRelayAddress(domain: string): string {
 }
 
 
+const MAIL_SECRET_REQUIRED_CODE = 'conv_secret_required';
+
+function sameMailHost(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
 @Injectable()
 export class EmailService {
   async toStored(input: EmailChannelConfigInputT): Promise<StoredEmailChannelConfig> {
@@ -475,12 +481,18 @@ export class EmailService {
     next: EmailChannelConfigInputT,
   ): Promise<StoredEmailChannelConfig> {
     const merged = await this.toStored(next);
+    const moved: string[] = [];
     if (
       merged.outbound.provider === 'smtp' &&
       merged.outbound.encryptedPassword === '' &&
-      prev.outbound.provider === 'smtp'
+      prev.outbound.provider === 'smtp' &&
+      prev.outbound.encryptedPassword
     ) {
-      merged.outbound.encryptedPassword = prev.outbound.encryptedPassword;
+      if (sameMailHost(prev.outbound.host, merged.outbound.host)) {
+        merged.outbound.encryptedPassword = prev.outbound.encryptedPassword;
+      } else {
+        moved.push('outbound.host (SMTP)');
+      }
     }
     if (
       merged.inbound?.provider === 'imap' &&
@@ -488,7 +500,17 @@ export class EmailService {
       prev.inbound?.provider === 'imap' &&
       prev.inbound.encryptedPassword
     ) {
-      merged.inbound.encryptedPassword = prev.inbound.encryptedPassword;
+      if (sameMailHost(prev.inbound.host, merged.inbound.host)) {
+        merged.inbound.encryptedPassword = prev.inbound.encryptedPassword;
+      } else {
+        moved.push('inbound.host (IMAP)');
+      }
+    }
+    if (moved.length > 0) {
+      throw new BadRequestException({
+        message: `${MAIL_SECRET_REQUIRED_CODE}: changing ${moved.join(' and ')} points this channel at a different mail server, so the stored password will not be sent there — supply the password again in the same change (a person does this in the dashboard)`,
+        code: MAIL_SECRET_REQUIRED_CODE,
+      });
     }
     if (merged.inbound?.provider === 'relay' && prev.inbound?.provider === 'relay') {
       merged.inbound.address = prev.inbound.address;

@@ -161,6 +161,8 @@ Connections are org-scoped and names must be unique. Within a domain: with one a
 
 `connectors_update_connection` handles renames, non-secret config changes, and activation — the stored secret is kept, and secret fields are rejected the same way as at create time. To rotate a credential, delete the connection and create it again, entering the new secret through the fresh credential link (or use the dashboard's Integrations page).
 
+The stored secret only goes to the host it was entered for. An update that moves the connection to a different host — a new custom MCP `url`, Magento or Gastroplanner `baseUrl`, or Shopify `shopDomain` — is refused with `connectors_secret_required` unless the secret is supplied in the same change. Changes on the same host, such as a different path, keep the secret. To move a connection, either have a person edit it on the dashboard's Integrations page, where the secret field becomes required once the address changes, or delete the connection and create it again with the new address and a fresh credential link. Never ask for the secret in the conversation to get around this.
+
 ## The identity model — read before enabling self-service
 
 Self-service lookups trust **the email on the end-user record**, and end-user records are created by *your* backend when it mints delegated tokens (`POST /v1/tokens/delegated`). The chain is:

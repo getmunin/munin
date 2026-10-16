@@ -22,15 +22,17 @@ async function readMembershipsForUser(
 
 export { readMembershipsForUser };
 
-async function isOrgMember(db: Db, orgId: string, userId: string): Promise<boolean> {
+const MCP_ADMIN_ELIGIBLE_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
+
+async function readOrgRole(db: Db, orgId: string, userId: string): Promise<string | null> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
     const rows = await tx
-      .select({ userId: schema.orgMembers.userId })
+      .select({ role: schema.orgMembers.role })
       .from(schema.orgMembers)
       .where(and(eq(schema.orgMembers.orgId, orgId), eq(schema.orgMembers.userId, userId)))
       .limit(1);
-    return rows.length > 0;
+    return rows[0]?.role ?? null;
   });
 }
 
@@ -195,8 +197,9 @@ export class CredentialResolver {
     let audiences: readonly Audience[];
     let scopes: readonly string[];
     if (row.type === 'admin') {
-      if (row.createdByUserId && !(await isOrgMember(this.db, orgId, row.createdByUserId))) {
-        return null;
+      if (row.createdByUserId) {
+        const creatorRole = await readOrgRole(this.db, orgId, row.createdByUserId);
+        if (!creatorRole || !MCP_ADMIN_ELIGIBLE_ROLES.has(creatorRole)) return null;
       }
       actorType = 'admin_agent';
       audiences = (row.audiences as Audience[] | null | undefined) ?? ['admin'];
@@ -277,8 +280,6 @@ export function deriveAudiencesFromScopes(scopes: string[]): Audience[] {
   }
   return Array.from(set);
 }
-
-const MCP_ADMIN_ELIGIBLE_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
 
 export function gateOauthGrantsByRole(
   scopes: readonly string[],

@@ -1,6 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import * as core from '@getmunin/core';
 import { WebhookDispatcher } from '@getmunin/core';
+import { BadRequestException } from '@nestjs/common';
 import { AgentConfigService } from './config.service.ts';
 import type { AgentHealthRecorder } from './agent-health.service.ts';
 import type { ProviderModelLister } from './models.service.ts';
@@ -205,10 +206,14 @@ describe('AgentConfigService provider/model reconciliation', () => {
       makeModels(['some-vendor-model', 'another-model']),
     );
 
-    await svc.upsertForCurrentActor({ providerBaseUrl: 'https://llm.internal.example/v1' });
+    await svc.upsertForCurrentActor({
+      providerBaseUrl: 'https://llm.internal.example/v1',
+      providerApiKey: 'sk-x',
+    });
 
     expect(repo.update).toHaveBeenCalledWith('singleton', {
       providerBaseUrl: 'https://llm.internal.example/v1',
+      providerApiKey: 'sk-x',
       fastModel: 'some-vendor-model',
     });
   });
@@ -222,9 +227,12 @@ describe('AgentConfigService provider/model reconciliation', () => {
       makeModels([openRouterRow.fastModel, 'anthropic/claude-opus-5']),
     );
 
-    await svc.upsertForCurrentActor({ providerBaseUrl: ANTHROPIC });
+    await svc.upsertForCurrentActor({ providerBaseUrl: ANTHROPIC, providerApiKey: 'sk-x' });
 
-    expect(repo.update).toHaveBeenCalledWith('singleton', { providerBaseUrl: ANTHROPIC });
+    expect(repo.update).toHaveBeenCalledWith('singleton', {
+      providerBaseUrl: ANTHROPIC,
+      providerApiKey: 'sk-x',
+    });
   });
 
   it('clears a smart model the new provider does not offer', async () => {
@@ -237,10 +245,11 @@ describe('AgentConfigService provider/model reconciliation', () => {
       makeModels(['claude-haiku-4-5']),
     );
 
-    await svc.upsertForCurrentActor({ providerBaseUrl: ANTHROPIC });
+    await svc.upsertForCurrentActor({ providerBaseUrl: ANTHROPIC, providerApiKey: 'sk-ant' });
 
     expect(repo.update).toHaveBeenCalledWith('singleton', {
       providerBaseUrl: ANTHROPIC,
+      providerApiKey: 'sk-ant',
       fastModel: 'claude-haiku-4-5',
       smartModel: null,
     });
@@ -265,10 +274,15 @@ describe('AgentConfigService provider/model reconciliation', () => {
     const repo = makeRepo({ before: openRouterRow, after: openRouterRow, apiKey: 'sk-x' });
     const svc = new AgentConfigService(repo, makeWebhooks(), makeHealthStub(), makeModels([]));
 
-    await svc.upsertForCurrentActor({ providerBaseUrl: ANTHROPIC, fastModel: 'whatever-they-call-it' });
+    await svc.upsertForCurrentActor({
+      providerBaseUrl: ANTHROPIC,
+      providerApiKey: 'sk-x',
+      fastModel: 'whatever-they-call-it',
+    });
 
     expect(repo.update).toHaveBeenCalledWith('singleton', {
       providerBaseUrl: ANTHROPIC,
+      providerApiKey: 'sk-x',
       fastModel: 'whatever-they-call-it',
     });
   });
@@ -392,5 +406,110 @@ describe('AgentConfigService with a managed built-in provider', () => {
     await svc.upsertForCurrentActor({ fastModel: 'whatever-they-call-it' });
 
     expect(repo.update).toHaveBeenCalledWith('singleton', { fastModel: 'whatever-they-call-it' });
+  });
+});
+
+describe('AgentConfigService provider base URL and stored key', () => {
+  const storedKeyRow: AgentConfigRow = {
+    ...baseRow,
+    providerBaseUrl: 'https://llm.example.com/v1',
+    providerApiKeySet: true,
+  };
+  let fetchSpy: MockInstance<typeof core.safeFetch>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(core, 'safeFetch').mockImplementation(
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ data: [] }),
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ['another provider', 'https://api.anthropic.com/v1'],
+    ['a host the org controls', 'https://collector.example.net/v1'],
+    ['another port on the same host', 'https://llm.example.com:8443/v1'],
+  ])(
+    'refuses to send the stored key to %s without contacting it',
+    async (_label, providerBaseUrl) => {
+      const repo = makeRepo({ before: storedKeyRow, after: storedKeyRow, apiKey: 'sk-stored' });
+      const models = makeModels(['anthropic/claude-haiku-4.5']);
+      const webhooks = makeWebhooks();
+      const svc = new AgentConfigService(repo, webhooks, makeHealthStub(), models);
+
+      const err = await svc.upsertForCurrentActor({ providerBaseUrl }).catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(BadRequestException);
+      const body = (err as BadRequestException).getResponse() as { code: string; message: string };
+      expect(body.code).toBe('agent_config_key_required');
+      expect(body.message).toMatch(/^agent_config_key_required: /);
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(models.listForProvider).not.toHaveBeenCalled();
+      expect(repo.readDecryptedProviderKey).not.toHaveBeenCalled();
+      expect(repo.update).not.toHaveBeenCalled();
+      expect(webhooks.emit).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps and re-validates the stored key when only the path changes', async () => {
+    const repo = makeRepo({ before: storedKeyRow, after: storedKeyRow, apiKey: 'sk-stored' });
+    const svc = new AgentConfigService(repo, makeWebhooks(), makeHealthStub(), makeModels());
+
+    await svc.upsertForCurrentActor({ providerBaseUrl: 'https://llm.example.com/v2' });
+
+    expect(repo.update).toHaveBeenCalledWith('singleton', {
+      providerBaseUrl: 'https://llm.example.com/v2',
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(String(fetchSpy.mock.calls[0]![0])).toMatch(/^https:\/\/llm\.example\.com\/v2\//);
+  });
+
+  it('moves to the new host when its API key comes in the same change', async () => {
+    const repo = makeRepo({ before: storedKeyRow, after: storedKeyRow, apiKey: 'sk-stored' });
+    const svc = new AgentConfigService(repo, makeWebhooks(), makeHealthStub(), makeModels());
+
+    await svc.upsertForCurrentActor({
+      providerBaseUrl: 'https://api.anthropic.com/v1',
+      providerApiKey: 'sk-ant-new',
+    });
+
+    expect(repo.update).toHaveBeenCalledWith('singleton', {
+      providerBaseUrl: 'https://api.anthropic.com/v1',
+      providerApiKey: 'sk-ant-new',
+    });
+    const hosts = fetchSpy.mock.calls.map((c) => new URL(String(c[0])).host);
+    expect(hosts.length).toBeGreaterThan(0);
+    expect(hosts.every((h) => h === 'api.anthropic.com')).toBe(true);
+    const sent = fetchSpy.mock.calls.map((c) => JSON.stringify(c[1]));
+    expect(sent.some((h) => h.includes('sk-stored'))).toBe(false);
+  });
+
+  it('lets an org without a stored key change the base URL freely', async () => {
+    const repo = makeRepo({ before: baseRow, after: baseRow });
+    const svc = new AgentConfigService(repo, makeWebhooks(), makeHealthStub(), makeModels());
+
+    await svc.upsertForCurrentActor({ providerBaseUrl: 'https://collector.example.net/v1' });
+
+    expect(repo.update).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('lets a move that clears the stored key through without contacting anyone', async () => {
+    const repo = makeRepo({ before: storedKeyRow, after: storedKeyRow, apiKey: 'sk-stored' });
+    const svc = new AgentConfigService(repo, makeWebhooks(), makeHealthStub(), makeModels());
+
+    await svc.upsertForCurrentActor({
+      providerBaseUrl: 'https://api.anthropic.com/v1',
+      providerApiKey: null,
+    });
+
+    expect(repo.update).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

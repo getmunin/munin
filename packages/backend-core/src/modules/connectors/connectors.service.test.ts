@@ -21,6 +21,10 @@ import {
   type ConnectorTestResult,
 } from './connector.ts';
 import { ConnectorVendorError } from './http.ts';
+import { CustomMcpAdapter } from './custom-mcp.adapter.ts';
+import { MagentoAdapter } from '../commerce/magento.adapter.ts';
+import { ShopifyAdapter } from '../commerce/shopify.adapter.ts';
+import { GastroplannerAdapter } from '../bookings/gastroplanner.adapter.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -34,10 +38,12 @@ class FakeAdapter implements ConnectorAdapter {
   readonly displayName: string;
   readonly configInput = z.object({
     host: z.string().min(1),
+    url: z.string().url().optional(),
     apiToken: z.string().min(1).optional(),
   });
   readonly configFields = [
     { key: 'host', label: 'Host', required: true },
+    { key: 'url', label: 'Endpoint URL', required: false, endpoint: true },
     { key: 'apiToken', label: 'API token', required: true, secret: true },
   ];
 
@@ -59,6 +65,7 @@ class FakeAdapter implements ConnectorAdapter {
     }
     return {
       host: input.host,
+      ...(input.url ? { url: input.url } : {}),
       encryptedApiToken: token ? await encryptSecret(token) : previous!.encryptedApiToken,
     };
   }
@@ -296,6 +303,148 @@ class FakeAdapter implements ConnectorAdapter {
       expect(updated.settings.host).toBe('eu.example.com');
       const after = await db.select().from(schema.connectorConnections);
       expect((after[0]!.config as { encryptedApiToken: string }).encryptedApiToken).toBe(ctBefore);
+    });
+
+    describe('when an update points the connection at a different host', () => {
+      async function storedConfig(id: string): Promise<Record<string, unknown>> {
+        await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+        const rows = await db
+          .select({ config: schema.connectorConnections.config })
+          .from(schema.connectorConnections)
+          .where(sql`id = ${id}`);
+        return rows[0]!.config;
+      }
+
+      async function connectionAt(url: string) {
+        return run(() =>
+          connectors.createConnection({
+            vendor: 'fakeshop',
+            name: 'Endpoint store',
+            config: { host: 'store.example.com', url, apiToken: 'tok_plaintext_secret' },
+          }),
+        );
+      }
+
+      it.each([
+        ['from the dashboard', undefined],
+        ['from an agent', { rejectSecrets: true }],
+      ])(
+        'refuses to reuse the stored secret %s, so it is never sent to the new host',
+        async (_label, opts) => {
+          const dto = await connectionAt('https://mcp.example.com/mcp');
+          const before = await storedConfig(dto.id);
+
+          const err = await run(() =>
+            connectors.updateConnection(
+              {
+                connectionId: dto.id,
+                config: { host: 'store.example.com', url: 'https://collector.example.net/mcp' },
+              },
+              opts,
+            ),
+          ).catch((e: unknown) => e);
+
+          expect(err).toBeInstanceOf(BadRequestException);
+          const body = (err as BadRequestException).getResponse() as { code: string; message: string };
+          expect(body.code).toBe('connectors_secret_required');
+          expect(body.message).toMatch(/^connectors_secret_required: changing url/);
+          expect(await storedConfig(dto.id)).toEqual(before);
+        },
+      );
+
+      it('accepts the move when the secret is supplied in the same change', async () => {
+        const dto = await connectionAt('https://mcp.example.com/mcp');
+        const before = await storedConfig(dto.id);
+
+        const updated = await run(() =>
+          connectors.updateConnection({
+            connectionId: dto.id,
+            config: {
+              host: 'store.example.com',
+              url: 'https://mcp2.example.com/mcp',
+              apiToken: 'tok_new_secret',
+            },
+          }),
+        );
+
+        expect(updated.id).toBe(dto.id);
+        const after = await storedConfig(dto.id);
+        expect(after.url).toBe('https://mcp2.example.com/mcp');
+        expect(after.encryptedApiToken).not.toBe(before.encryptedApiToken);
+      });
+
+      it('keeps the stored secret when only the path or letter case changes', async () => {
+        const dto = await connectionAt('https://mcp.example.com/mcp');
+        const before = await storedConfig(dto.id);
+
+        await run(() =>
+          connectors.updateConnection(
+            {
+              connectionId: dto.id,
+              config: { host: 'store.example.com', url: 'https://MCP.example.com/v2/mcp' },
+            },
+            { rejectSecrets: true },
+          ),
+        );
+
+        const after = await storedConfig(dto.id);
+        expect(after.url).toBe('https://MCP.example.com/v2/mcp');
+        expect(after.encryptedApiToken).toBe(before.encryptedApiToken);
+      });
+
+      it('refuses a move to another port on the same host name', async () => {
+        const dto = await connectionAt('https://mcp.example.com/mcp');
+        await expect(
+          run(() =>
+            connectors.updateConnection({
+              connectionId: dto.id,
+              config: { host: 'store.example.com', url: 'https://mcp.example.com:8443/mcp' },
+            }),
+          ),
+        ).rejects.toThrow(/connectors_secret_required/);
+      });
+
+      it.each([
+        [
+          'custom-mcp',
+          { url: 'https://mcp.example.com/mcp', bearerToken: 'tok_plaintext_secret' },
+          { url: 'https://collector.example.net/mcp' },
+        ],
+        [
+          'magento',
+          { baseUrl: 'https://store.example.com', accessToken: 'tok_plaintext_secret' },
+          { baseUrl: 'https://store.example.net' },
+        ],
+        [
+          'shopify',
+          { shopDomain: 'acme.myshopify.com', accessToken: 'tok_plaintext_secret' },
+          { shopDomain: 'globex.myshopify.com' },
+        ],
+        [
+          'gastroplanner',
+          {
+            baseUrl: 'https://staging.example.com',
+            restaurantUri: 'acme',
+            apiToken: 'tok_plaintext_secret',
+          },
+          { restaurantUri: 'acme' },
+        ],
+      ])('marks the %s endpoint so a host change needs the secret', async (vendor, initial, moved) => {
+        const svc = new ConnectorsService(
+          new ConnectorRegistry([
+            new CustomMcpAdapter(),
+            new MagentoAdapter(),
+            new ShopifyAdapter(),
+            new GastroplannerAdapter(),
+          ]),
+        );
+        const dto = await run(() =>
+          svc.createConnection({ vendor, name: `Real ${vendor}`, config: initial }),
+        );
+        await expect(
+          run(() => svc.updateConnection({ connectionId: dto.id, config: moved })),
+        ).rejects.toThrow(/connectors_secret_required/);
+      });
     });
 
     it('decrypts the stored secret back to the plaintext inside adapter calls', async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveModelTiers } from './runner.service.ts';
+import { providerBaseUrlFor, resolveModelTiers } from './runner.service.ts';
 
 describe('resolveModelTiers', () => {
   it('keeps the org config models when the provider offers no list of its own', () => {
@@ -20,7 +20,7 @@ describe('resolveModelTiers', () => {
 
   it('pins both tiers when the managed provider offers exactly one model', () => {
     const tiers = resolveModelTiers(
-      { apiKey: 'sk-x', models: ['gpt-oss-120b'], managed: true },
+      { apiKey: 'sk-x', baseUrl: 'https://managed.example/v1', models: ['gpt-oss-120b'], managed: true },
       { fastModel: 'claude-haiku-4-5', smartModel: 'claude-opus-5' },
     );
     expect(tiers).toEqual({ fastModel: 'gpt-oss-120b', smartModel: 'gpt-oss-120b' });
@@ -30,6 +30,7 @@ describe('resolveModelTiers', () => {
     const tiers = resolveModelTiers(
       {
         apiKey: 'sk-x',
+        baseUrl: 'https://managed.example/v1',
         models: ['gpt-oss-120b', 'gemma-4-26b-a4b-it', 'qwen3.5-397b-a17b'],
         managed: true,
       },
@@ -43,7 +44,7 @@ describe('resolveModelTiers', () => {
 
   it('falls back to the first offered model when the org picked one no longer offered', () => {
     const tiers = resolveModelTiers(
-      { apiKey: 'sk-x', models: ['gpt-oss-120b', 'gemma-4-26b-a4b-it'], managed: true },
+      { apiKey: 'sk-x', baseUrl: 'https://managed.example/v1', models: ['gpt-oss-120b', 'gemma-4-26b-a4b-it'], managed: true },
       { fastModel: 'retired-model', smartModel: null },
     );
     expect(tiers).toEqual({ fastModel: 'gpt-oss-120b', smartModel: 'gpt-oss-120b' });
@@ -51,12 +52,38 @@ describe('resolveModelTiers', () => {
 
   it('drops a smart model outside the offered list back onto the fast tier', () => {
     const tiers = resolveModelTiers(
-      { apiKey: 'sk-x', models: ['gpt-oss-120b', 'gemma-4-26b-a4b-it'], managed: true },
+      { apiKey: 'sk-x', baseUrl: 'https://managed.example/v1', models: ['gpt-oss-120b', 'gemma-4-26b-a4b-it'], managed: true },
       { fastModel: 'gemma-4-26b-a4b-it', smartModel: 'qwen3.5-397b-a17b' },
     );
     expect(tiers).toEqual({
       fastModel: 'gemma-4-26b-a4b-it',
       smartModel: 'gemma-4-26b-a4b-it',
     });
+  });
+});
+
+describe('providerBaseUrlFor', () => {
+  const config = { providerBaseUrl: 'https://collector.example.net/v1' };
+
+  it("sends an org's own key to the org's own base URL", () => {
+    expect(providerBaseUrlFor({ apiKey: 'sk-org', managed: false }, config)).toBe(
+      'https://collector.example.net/v1',
+    );
+  });
+
+  it('sends a managed key only to the base URL that came with it', () => {
+    expect(
+      providerBaseUrlFor(
+        { apiKey: 'sk-platform', baseUrl: 'https://managed.example/v1', managed: true },
+        config,
+      ),
+    ).toBe('https://managed.example/v1');
+  });
+
+  it("never falls back to the org's base URL for a managed key", () => {
+    const untyped = JSON.parse('{"apiKey":"sk-platform","managed":true}') as Parameters<
+      typeof providerBaseUrlFor
+    >[0];
+    expect(providerBaseUrlFor(untyped, config)).toBeNull();
   });
 });

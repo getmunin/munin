@@ -126,6 +126,7 @@ export class ShopifyAdapter implements CommerceAdapter {
       key: 'shopDomain',
       label: 'Shop domain (your-store.myshopify.com)',
       required: true,
+      endpoint: true,
       placeholder: 'your-store.myshopify.com',
     },
     {

@@ -1366,6 +1366,67 @@ interface OrgFixture {
       expect(afterReinvite.status).toBe(401);
     });
 
+    it('demoting an admin to member revokes their admin keys', async () => {
+      const admin = await seedMember('admin');
+      const { id, key } = await mintKeyAs(admin.cookie);
+
+      const demote = await fetch(`${baseUrl}/v1/orgs/me/members/${admin.userId}`, {
+        method: 'PATCH',
+        headers: cookieHeaders(orgA.sessionToken),
+        body: JSON.stringify({ role: 'member' }),
+      });
+      expect(demote.status).toBe(200);
+
+      const [row] = await db
+        .select({ revokedAt: schema.apiKeys.revokedAt })
+        .from(schema.apiKeys)
+        .where(eq(schema.apiKeys.id, id));
+      expect(row!.revokedAt).not.toBeNull();
+
+      await db
+        .update(schema.orgMembers)
+        .set({ role: 'admin' })
+        .where(sql`${schema.orgMembers.orgId} = ${orgA.id} AND ${schema.orgMembers.userId} = ${admin.userId}`);
+      const afterPromotion = await fetch(`${baseUrl}/v1/orgs/me/members`, {
+        headers: authHeaders(key),
+      });
+      expect(afterPromotion.status).toBe(401);
+    });
+
+    it('demoting an owner to admin keeps their admin keys', async () => {
+      const owner = await seedMember('owner');
+      const { id, key } = await mintKeyAs(owner.cookie);
+
+      const demote = await fetch(`${baseUrl}/v1/orgs/me/members/${owner.userId}`, {
+        method: 'PATCH',
+        headers: cookieHeaders(orgA.sessionToken),
+        body: JSON.stringify({ role: 'admin' }),
+      });
+      expect(demote.status).toBe(200);
+
+      const [row] = await db
+        .select({ revokedAt: schema.apiKeys.revokedAt })
+        .from(schema.apiKeys)
+        .where(eq(schema.apiKeys.id, id));
+      expect(row!.revokedAt).toBeNull();
+      const res = await fetch(`${baseUrl}/v1/orgs/me/members`, { headers: authHeaders(key) });
+      expect(res.status).toBe(200);
+    });
+
+    it('a key stops resolving once its creator is a plain member, even if never revoked', async () => {
+      const admin = await seedMember('admin');
+      const { key } = await mintKeyAs(admin.cookie);
+      await db
+        .update(schema.orgMembers)
+        .set({ role: 'member' })
+        .where(sql`${schema.orgMembers.orgId} = ${orgA.id} AND ${schema.orgMembers.userId} = ${admin.userId}`);
+
+      const members = await fetch(`${baseUrl}/v1/orgs/me/members`, { headers: authHeaders(key) });
+      expect(members.status).toBe(401);
+      const exported = await fetch(`${baseUrl}/v1/crm/export`, { headers: authHeaders(key) });
+      expect(exported.status).toBe(401);
+    });
+
     it('a key stops resolving once its creator is no longer a member, even if never revoked', async () => {
       const admin = await seedMember('admin');
       const { id, key } = await mintKeyAs(admin.cookie);

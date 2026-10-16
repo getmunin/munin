@@ -117,7 +117,7 @@ read time. Nothing time-limited is written into `body_html`.
   service already guards conversation existence, mime, size, ownership, and per-message count.
 - Errors carry `{message, code}` where a dashboard user can trigger them, so
   `translate-error.ts` can localize. Codes in use: `conv_attachment_invalid`,
-  `conv_attachment_too_large`, `conv_attachment_too_many`, `conv_attachment_mime_rejected`,
+  `conv_attachment_too_large`, `conv_attachment_too_many_pixels`, `conv_attachment_too_many`, `conv_attachment_mime_rejected`,
   `conv_attachment_upload_missing`, `conv_attachment_size_mismatch`, `conv_attachment_conflict`,
   `conv_attachment_deleted`. Add an `errors.<code>` entry to **both** `messages/en.json` and
   `messages/nb.json` when you surface one in the UI.

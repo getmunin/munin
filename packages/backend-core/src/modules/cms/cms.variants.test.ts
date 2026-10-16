@@ -2,10 +2,13 @@ import { describe, it, expect } from 'vitest';
 import sharp from 'sharp';
 import type { AssetStorage, PresignedUploadHandle } from '@getmunin/core';
 import {
+  ImagePixelLimitError,
+  MAX_IMAGE_PIXELS,
   NO_VARIANTS,
   UndecodableImageError,
   VARIANT_LADDER_VERSION,
   deriveVariantColumns,
+  exceedsPixelLimit,
   isVariantableMime,
   probeMaster,
   renderVariants,
@@ -49,6 +52,14 @@ class MemoryStorage implements AssetStorage {
   statBytes(key: string): Promise<number | null> {
     return Promise.resolve(this.written.get(key)?.length ?? null);
   }
+}
+
+const ONE_MEGABYTE = 1024 * 1024;
+
+function bomb(): Promise<Buffer> {
+  return sharp({ create: { width: 9000, height: 9000, channels: 3, background: '#ffffff' } })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
 }
 
 function master(width: number, height: number): Promise<Buffer> {
@@ -240,6 +251,46 @@ describe('deriveVariantColumns', () => {
         body: Buffer.from('definitely not a png'),
       }),
     ).rejects.toBeInstanceOf(UndecodableImageError);
+  });
+});
+
+describe('pixel limit', () => {
+  it('sits at 8192x8192', () => {
+    expect(exceedsPixelLimit({ width: 8192, height: 8192 })).toBe(false);
+    expect(exceedsPixelLimit({ width: 8193, height: 8192 })).toBe(true);
+    expect(MAX_IMAGE_PIXELS).toBe(8192 * 8192);
+  });
+
+  it('reads the dimensions of a decompression bomb from its header without decoding it', async () => {
+    const image = await bomb();
+    expect(image.length).toBeLessThan(ONE_MEGABYTE);
+    await expect(probeMaster(image)).resolves.toEqual({ width: 9000, height: 9000 });
+  });
+
+  it('refuses to render variants for an image over the limit', async () => {
+    const image = await bomb();
+    await expect(renderVariants(image, { width: 9000, height: 9000 })).rejects.toBeInstanceOf(
+      ImagePixelLimitError,
+    );
+  });
+
+  it('refuses to render even when the caller understates the dimensions', async () => {
+    const image = await bomb();
+    await expect(renderVariants(image, { width: 320, height: 320 })).rejects.toThrow(
+      /pixel limit/,
+    );
+  });
+
+  it('reports an oversized master as undecodable so the variant worker settles it without variants', async () => {
+    const storage = new MemoryStorage();
+    const image = await bomb();
+    const err = await deriveVariantColumns(storage, {
+      mime: 'image/png',
+      storageKey: 'cms/o/bomb.png',
+      body: image,
+    }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UndecodableImageError);
+    expect(storage.written.size).toBe(0);
   });
 });
 

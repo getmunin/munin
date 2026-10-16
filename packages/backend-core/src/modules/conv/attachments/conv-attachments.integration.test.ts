@@ -3,7 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { INestApplication } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import sharp from 'sharp';
@@ -247,6 +247,47 @@ const skipReason = TEST_URL
         /conv_attachment_upload_missing/,
       );
     });
+  });
+
+  async function decompressionBomb(): Promise<Buffer> {
+    return sharp({ create: { width: 9000, height: 9000, channels: 3, background: '#ffffff' } })
+      .png({ compressionLevel: 9 })
+      .toBuffer();
+  }
+
+  async function storedFileCount(): Promise<number> {
+    const entries = await readdir(storageDir, { recursive: true, withFileTypes: true });
+    return entries.filter((e) => e.isFile()).length;
+  }
+
+  it('rejects an uploaded image over the pixel limit and purges its object', async () => {
+    const body = await decompressionBomb();
+    await asAdmin(orgA, async () => {
+      const handle = await service.requestUpload({
+        conversationId: convA,
+        name: 'bomb.png',
+        mime: 'image/png',
+        sizeBytes: body.length,
+      });
+      const res = await uploadThroughPresignedUrl(handle.uploadUrl, body);
+      expect(res.status).toBe(204);
+      const before = await storedFileCount();
+      await expect(service.completeUpload({ id: handle.id })).rejects.toMatchObject({
+        response: { code: 'conv_attachment_too_many_pixels' },
+      });
+      expect(await storedFileCount()).toBe(before - 1);
+    });
+  });
+
+  it('refuses to store an image over the pixel limit without writing it', async () => {
+    const body = await decompressionBomb();
+    const before = await storedFileCount();
+    await expect(
+      asAdmin(orgA, () =>
+        service.storeBytes({ conversationId: convA, name: 'bomb.png', mime: 'image/png', body }),
+      ),
+    ).rejects.toThrow(/conv_attachment_too_many_pixels: image is 9000x9000 pixels/);
+    expect(await storedFileCount()).toBe(before);
   });
 
   it('rejects svg at the boundary', async () => {

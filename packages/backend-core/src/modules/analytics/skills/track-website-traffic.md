@@ -126,7 +126,7 @@ It applies from the next event with no site redeploy — which is why this lives
 The first argument is `subjectId`, the second an optional attribute bag:
 - `subjectType` — defaults to `data-subject-type` on the script tag (typically `'page'`). Override per call if a single tracker handles multiple surfaces (e.g. `'funnel'`, `'cta'`, `'docs'`).
 - `path`, `referrer` — default to the current location and the initial document referrer; pass to override.
-- `dwellMs`, `readDepth`, `metadata` — pass through unchanged.
+- `dwellMs`, `readDepth`, `metadata` — pass through unchanged. `metadata` that serializes to more than 4 KB is dropped (the view is still recorded), so keep it to a few small keys.
 - `utm` — falls back to URL `?utm_*` params if not provided.
 
 The full API on `window.mn.analytics`:

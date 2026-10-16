@@ -69,6 +69,13 @@ export {
 } from './crypto/primitives.ts';
 export { buildApiKey, keyPrefix, isWellFormedKey, type KeyKind } from './crypto/keys.ts';
 export {
+  MIN_PRODUCTION_KEY_LENGTH,
+  isPlaceholderSecret,
+  assertProductionSecret,
+  assertProductionKeySecrets,
+  readKeyPepper,
+} from './crypto/production-secrets.ts';
+export {
   type UnsubscribeTokenPayload,
   UnsubscribeTokenError,
   signUnsubscribeToken,

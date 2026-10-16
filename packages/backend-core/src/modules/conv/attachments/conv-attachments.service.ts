@@ -24,7 +24,13 @@ import {
   normalizeMime,
   randomKeySegment,
 } from '../../../common/storage/asset-validation.ts';
-import { deriveVariantColumns } from '../../cms/cms.variants.ts';
+import {
+  MAX_IMAGE_PIXELS,
+  deriveVariantColumns,
+  exceedsPixelLimit,
+  isVariantableMime,
+  probeMaster,
+} from '../../cms/cms.variants.ts';
 import { parseMessageAttachmentProjection } from './conv-attachments.projection.ts';
 import {
   CONV_ATTACHMENT_BYTES_MAX,
@@ -130,6 +136,15 @@ export class ConvAttachmentsService {
     }
 
     const body = await this.storage.readBytes(existing.storageKey);
+    if (body) {
+      try {
+        await this.assertWithinPixelLimit(existing.mime, body);
+      } catch (err) {
+        await this.purgeObjects(existing);
+        await ctx.db.delete(schema.convAttachments).where(eq(schema.convAttachments.id, input.id));
+        throw err;
+      }
+    }
     const derived = body
       ? await this.deriveVariantsOrDefer(existing.mime, existing.storageKey, body)
       : {};
@@ -151,6 +166,7 @@ export class ConvAttachmentsService {
   }): Promise<StoredAttachmentBytes> {
     this.assertMime(input.mime, input.name);
     this.assertSize(input.body.length);
+    await this.assertWithinPixelLimit(input.mime, input.body);
     await this.quotas.assertCanAdd('conv_attachments');
     if (!this.storage.writeDirect) {
       throw new Error('storage backend does not support direct writes');
@@ -458,6 +474,16 @@ export class ConvAttachmentsService {
         code: 'conv_attachment_too_large',
       });
     }
+  }
+
+  private async assertWithinPixelLimit(mime: string, body: Buffer): Promise<void> {
+    if (!isVariantableMime(normalizeMime(mime))) return;
+    const dimensions = await probeMaster(body).catch(() => null);
+    if (!dimensions || !exceedsPixelLimit(dimensions)) return;
+    throw new BadRequestException({
+      message: `conv_attachment_too_many_pixels: image is ${dimensions.width}x${dimensions.height} pixels; the limit is ${Math.floor(MAX_IMAGE_PIXELS / 1_000_000)} megapixels`,
+      code: 'conv_attachment_too_many_pixels',
+    });
   }
 
   private async assertConversationExists(conversationId: string): Promise<void> {

@@ -32,7 +32,7 @@ import { DB } from '../common/db/db.module.ts';
 import { AnalyticsService } from '../modules/analytics/analytics.service.ts';
 import { canonicalizeSubjectId } from '../modules/analytics/canonical-subject.ts';
 import { GeoIpService } from '../modules/analytics/geoip.service.ts';
-import { truncatedString } from '../modules/analytics/ingest-fields.ts';
+import { ingestMetadata, truncatedString } from '../modules/analytics/ingest-fields.ts';
 import {
   linkVisitorToEndUser,
   normalizeIdentityEmail,
@@ -77,7 +77,7 @@ const BeaconBodySchema = z.object({
     })
     .nullable()
     .optional(),
-  metadata: z.record(z.string(), z.unknown()).nullable().optional(),
+  metadata: ingestMetadata().nullable().optional(),
 });
 
 const SearchBodySchema = z.object({

@@ -141,6 +141,17 @@ describe('transcodeImage', () => {
       }),
     ).rejects.toBeInstanceOf(SocialMediaError);
   });
+
+  it('refuses a source over the pixel limit instead of decoding it', async () => {
+    const bomb = await sharp({
+      create: { width: 9000, height: 9000, channels: 3, background: '#ffffff' },
+    })
+      .webp({ lossless: true })
+      .toBuffer();
+    await expect(
+      transcodeImage(bomb, { sourceType: 'image/webp', imageContentTypes: LIMITS.imageContentTypes }),
+    ).rejects.toThrow(/could not be decoded: .*pixel limit/);
+  });
 });
 
 describe('fetchMedia', () => {

@@ -14,7 +14,7 @@ import { z } from 'zod';
 import { ViewTokenError, looksLikeBot, verifyViewToken } from '@getmunin/core';
 import { PublicController } from '../common/auth/auth.guard.ts';
 import { AnalyticsService } from '../modules/analytics/analytics.service.ts';
-import { truncatedString } from '../modules/analytics/ingest-fields.ts';
+import { ingestMetadata, truncatedString } from '../modules/analytics/ingest-fields.ts';
 
 const TRANSPARENT_GIF = Buffer.from(
   'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
@@ -37,7 +37,7 @@ const BeaconBodySchema = z.object({
       campaign: truncatedString(128).optional(),
     })
     .optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  metadata: ingestMetadata().optional(),
 });
 
 @PublicController('v1/a/v', { throttle: true })

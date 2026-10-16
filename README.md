@@ -174,7 +174,7 @@ cp .env.example .env
 docker compose up
 ```
 
-Secrets left at their `.env.example` placeholders are auto-generated on first boot and persisted in the `munin-data` volume — fine for local self-hosting. For shared or production deployments, set strong `MUNIN_AUTH_SECRET` + `MUNIN_KEY_PEPPER` + `MUNIN_ENCRYPTION_KEY` values (`openssl rand -base64 48`) in `.env` instead.
+Secrets left at their `.env.example` placeholders are auto-generated on first boot and persisted in the `munin-data` volume — fine for local self-hosting. For shared or production deployments, set strong `MUNIN_AUTH_SECRET` + `MUNIN_KEY_PEPPER` + `MUNIN_ENCRYPTION_KEY` values (`openssl rand -base64 48`) in `.env` instead. Outside Docker, a backend started with `NODE_ENV=production` refuses to boot while any of the three is missing, too short or still a placeholder. Set a deployment's existing pepper and encryption key rather than new ones: a new pepper invalidates every API key and signed link, and a new encryption key makes stored channel and connector secrets unreadable.
 
 Postgres is published on `127.0.0.1` only, so it isn't reachable from other machines. Its default passwords (`munin` for the superuser, `munin_app` for the app role) are still known to anyone on the host itself: on a shared machine, set `POSTGRES_PASSWORD` and `MUNIN_APP_PASSWORD` in `.env`. `POSTGRES_PASSWORD` only takes effect when the `munin-pg` volume is first created; `MUNIN_APP_PASSWORD` is applied on every boot.
 

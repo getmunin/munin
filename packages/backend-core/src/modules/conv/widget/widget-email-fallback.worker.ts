@@ -149,7 +149,7 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
         AND EXISTS (
           SELECT 1 FROM conv_messages m
           WHERE m.conversation_id = c.id
-            AND m.author_type <> 'end_user'
+            AND m.author_type NOT IN ('end_user', 'system')
             AND m.internal = false
             AND m.created_at <= ${cutoff.toISOString()}::timestamptz
             AND NOT EXISTS (
@@ -319,7 +319,7 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
       SELECT m.id, m.body, m.body_html, m.author_type, m.author_id, m.created_at
       FROM conv_messages m
       WHERE m.conversation_id = ${conversationId}
-        AND m.author_type <> 'end_user'
+        AND m.author_type NOT IN ('end_user', 'system')
         AND m.internal = false
         AND m.created_at <= ${cutoff.toISOString()}::timestamptz
         AND NOT EXISTS (

@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication, NestApplicationOptions, Type } from '@nestjs/common';
-import type { NestExpressApplication } from '@nestjs/platform-express';
+import { ExpressAdapter, type NestExpressApplication } from '@nestjs/platform-express';
 import { LocalFsStorage, readApiBaseUrl, type AssetStorage } from '@getmunin/core';
 import { createReadStream, existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
@@ -48,6 +48,12 @@ export function readTrustProxySetting(): boolean | number | string | null {
   return raw;
 }
 
+export function createCaseSensitiveExpress(): express.Express {
+  const server = express();
+  server.set('case sensitive routing', true);
+  return server;
+}
+
 export interface CreateAppOptions extends NestApplicationOptions {
   widgetAssetDir?: string;
   trackerAssetDir?: string;
@@ -59,10 +65,11 @@ export async function createApp(
   opts: CreateAppOptions = {},
 ): Promise<INestApplication> {
   const { widgetAssetDir, trackerAssetDir, iconAssetDir, ...nestOpts } = opts;
-  const app = await NestFactory.create<NestExpressApplication>(appModule, {
-    rawBody: true,
-    ...nestOpts,
-  });
+  const app = await NestFactory.create<NestExpressApplication>(
+    appModule,
+    new ExpressAdapter(createCaseSensitiveExpress()),
+    { rawBody: true, ...nestOpts },
+  );
   (app.getHttpAdapter().getInstance() as { disable: (k: string) => void }).disable('x-powered-by');
   app.use(securityHeadersMiddleware({ hsts: readApiBaseUrl().startsWith('https://') }));
   app.use(EMAIL_RELAY_PATH, emailRelaySignatureGateMiddleware, emailRelayBodyParser());

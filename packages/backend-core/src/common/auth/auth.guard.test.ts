@@ -72,6 +72,17 @@ describe('AuthGuard cookie fallback', () => {
     await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
     expect(resolveSessionToken).not.toHaveBeenCalled();
   });
+
+  it.each(['/MCP', '/Mcp', '/mCp/o/org_x', '/MCP/session/abc'])(
+    'rejects session cookie on %s, since Express routes it to the MCP controller regardless of case',
+    async (url) => {
+      const resolveSessionToken = vi.fn();
+      const guard = makeGuard({ resolveSessionToken });
+      const ctx = makeContext({ headers: { cookie: SESSION_COOKIE }, url, path: url });
+      await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(resolveSessionToken).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe('AuthGuard per-request org selection', () => {

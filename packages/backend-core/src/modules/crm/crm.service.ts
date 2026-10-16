@@ -33,6 +33,7 @@ import { mergeFingerprint } from './merge-fingerprint.ts';
 import { CrmInvalidError } from './crm.errors.ts';
 import { OUTREACH_ELIGIBILITY_FLOOR, segmentMatchFilters } from './segment-filter.ts';
 import { judgeOwnContact } from './own-contact.ts';
+import { readLatestTurnSenderAuthBlock } from '../connectors/latest-turn-sender-auth.ts';
 import { AddressDeliverabilityService } from './address-deliverability.service.ts';
 import { normalizeAddress, type AddressDeliverabilityDto } from './address-deliverability.ts';
 
@@ -392,6 +393,17 @@ export class CrmService {
     if (verdict !== 'ok') {
       throw new BadRequestException(
         `crm_unverified: the linked contact carries ${verdict === 'email_unproven' ? 'an email address' : 'a phone number'} this session has not proven, so the contact record is not available here`,
+      );
+    }
+    const block = await readLatestTurnSenderAuthBlock(ctx.db, actor);
+    if (block === 'fail') {
+      throw new BadRequestException(
+        'crm_sender_auth_failed: the latest customer message in this conversation failed its DMARC check for the address it claims to come from, so it may be forged and the contact record is not available here. Hand over to a human.',
+      );
+    }
+    if (block === 'forwarded') {
+      throw new BadRequestException(
+        'crm_sender_forwarded: the latest customer message in this conversation was forwarded, so its sender comes from the forwarded text rather than an authenticated address and the contact record is not available here. Hand over to a human.',
       );
     }
     return contact;

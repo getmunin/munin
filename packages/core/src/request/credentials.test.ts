@@ -219,7 +219,9 @@ const skipReason = TEST_URL
   let otherOrgId: string;
   let strangerOrgId: string;
   let userId: string;
+  let memberUserId: string;
   const token = `session-org-scope-${Date.now()}`;
+  const memberToken = `session-org-scope-member-${Date.now()}`;
 
   beforeAll(async () => {
     await runMigrations(TEST_URL!);
@@ -242,21 +244,27 @@ const skipReason = TEST_URL
       .returning();
     userId = user!.id;
 
+    const [member] = await db
+      .insert(schema.users)
+      .values({ email: `session-org-scope-member-${Date.now()}@example.com`, emailVerified: true })
+      .returning();
+    memberUserId = member!.id;
+
     await db.insert(schema.orgMembers).values([
       { orgId: defaultOrgId, userId, role: 'owner', isDefault: true },
       { orgId: otherOrgId, userId, role: 'admin', isDefault: false },
+      { orgId: strangerOrgId, userId: memberUserId, role: 'member', isDefault: true },
     ]);
 
-    await db.insert(schema.sessions).values({
-      userId,
-      token,
-      expiresAt: new Date(Date.now() + 3_600_000),
-    });
+    await db.insert(schema.sessions).values([
+      { userId, token, expiresAt: new Date(Date.now() + 3_600_000) },
+      { userId: memberUserId, token: memberToken, expiresAt: new Date(Date.now() + 3_600_000) },
+    ]);
   });
 
   afterAll(async () => {
     if (db) {
-      await db.delete(schema.users).where(sql`id = ${userId}`);
+      await db.delete(schema.users).where(sql`id in (${userId}, ${memberUserId})`);
       await db
         .delete(schema.orgs)
         .where(sql`id in (${defaultOrgId}, ${otherOrgId}, ${strangerOrgId})`);
@@ -285,6 +293,20 @@ const skipReason = TEST_URL
     await expect(
       new CredentialResolver(db).resolveSessionToken(token, 'org_does_not_exist'),
     ).rejects.toBeInstanceOf(OrgAccessDeniedError);
+  });
+
+  it('grants the admin audience to an owner or admin session', async () => {
+    const owner = await new CredentialResolver(db).resolveSessionToken(token);
+    const admin = await new CredentialResolver(db).resolveSessionToken(token, otherOrgId);
+    expect(owner!.actor.audiences).toEqual(['admin']);
+    expect(admin!.actor.audiences).toEqual(['admin']);
+  });
+
+  it('withholds the admin audience from a member session', async () => {
+    const out = await new CredentialResolver(db).resolveSessionToken(memberToken);
+    expect(out!.actor.orgId).toBe(strangerOrgId);
+    expect(out!.actor.orgRole).toBe('member');
+    expect(out!.actor.audiences).toEqual([]);
   });
 
   it('returns null for an expired session even when an org is requested', async () => {

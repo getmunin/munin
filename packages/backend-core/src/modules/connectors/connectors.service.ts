@@ -6,7 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, desc, eq, inArray, ne } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { schema, type Db, type Tx } from '@getmunin/db';
 import {
@@ -15,7 +15,6 @@ import {
   getCurrentContext,
   setEncryptionKeySql,
   SsrfBlockedError,
-  type ActorIdentity,
 } from '@getmunin/core';
 import {
   ConnectorRegistry,
@@ -31,11 +30,8 @@ import {
 } from './connector.ts';
 import { SecretCipherError } from '../../common/outbound-oauth/grant-store.ts';
 import { ConnectorVendorError } from './http.ts';
-import {
-  isSelfReportedIdentity,
-  latestTurnSenderAuthBlock,
-  type SenderAuthBlock,
-} from './identity-provenance.ts';
+import { isSelfReportedIdentity } from './identity-provenance.ts';
+import { readLatestTurnSenderAuthBlock } from './latest-turn-sender-auth.ts';
 import { ConnectorOAuthService, OAUTH_CONFIG_KEY } from './connector-oauth.service.ts';
 import { DB } from '../../common/db/db.module.ts';
 import { CredentialHandoffService, type CredentialLink } from '../credential-handoff/credential-handoff.service.ts';
@@ -45,8 +41,6 @@ import type {
 } from '../credential-handoff/credential-target.ts';
 
 export type ConnectionRow = typeof schema.connectorConnections.$inferSelect;
-
-const LATEST_TURN_LOOKBACK = 50;
 
 export type CredentialState = 'active' | 'pending' | 'expired' | 'revoked';
 
@@ -633,22 +627,18 @@ export class ConnectorsService {
   }
 
   async requireEndUserEmail(): Promise<string> {
-    return refuseUnlessVerified(await this.assessEndUserEmail({ forWrite: false }));
+    return refuseUnlessVerified(await this.assessEndUserEmail());
   }
 
-  async requireEndUserEmailForWrite(): Promise<string> {
-    return refuseUnlessVerified(await this.assessEndUserEmail({ forWrite: true }));
-  }
-
-  async optionalEndUserEmailForWrite(): Promise<string | null> {
-    const verdict = await this.assessEndUserEmail({ forWrite: true });
+  async optionalEndUserEmail(): Promise<string | null> {
+    const verdict = await this.assessEndUserEmail();
     if (!verdict.ok && (verdict.refusal === 'no_email' || verdict.refusal === 'self_reported')) {
       return null;
     }
     return refuseUnlessVerified(verdict);
   }
 
-  private async assessEndUserEmail(opts: { forWrite: boolean }): Promise<EndUserEmailVerdict> {
+  private async assessEndUserEmail(): Promise<EndUserEmailVerdict> {
     const ctx = getCurrentContext();
     const actor = ctx.actor;
     if (!actor?.endUserId) return { ok: false, refusal: 'no_end_user' };
@@ -662,40 +652,10 @@ export class ConnectorsService {
     if (isSelfReportedIdentity({ email, metadata: rows[0]?.metadata })) {
       return { ok: false, refusal: 'self_reported' };
     }
-    if (opts.forWrite && actor.conversationId) {
-      const block = await this.latestTurnSenderAuthBlock(ctx.db, actor);
-      if (block === 'fail') return { ok: false, refusal: 'sender_auth_failed' };
-      if (block === 'forwarded') return { ok: false, refusal: 'sender_forwarded' };
-    }
+    const block = await readLatestTurnSenderAuthBlock(ctx.db, actor);
+    if (block === 'fail') return { ok: false, refusal: 'sender_auth_failed' };
+    if (block === 'forwarded') return { ok: false, refusal: 'sender_forwarded' };
     return { ok: true, email };
-  }
-
-  private async latestTurnSenderAuthBlock(
-    db: Db | Tx,
-    actor: ActorIdentity,
-  ): Promise<SenderAuthBlock | null> {
-    const messages = await db
-      .select({
-        authorType: schema.convMessages.authorType,
-        metadata: schema.convMessages.metadata,
-      })
-      .from(schema.convMessages)
-      .innerJoin(
-        schema.convConversations,
-        eq(schema.convConversations.id, schema.convMessages.conversationId),
-      )
-      .where(
-        and(
-          eq(schema.convMessages.conversationId, actor.conversationId!),
-          eq(schema.convConversations.orgId, actor.orgId),
-          eq(schema.convConversations.endUserId, actor.endUserId!),
-          eq(schema.convMessages.internal, false),
-          ne(schema.convMessages.authorType, 'system'),
-        ),
-      )
-      .orderBy(desc(schema.convMessages.createdAt), desc(schema.convMessages.ingestedAt))
-      .limit(LATEST_TURN_LOOKBACK);
-    return latestTurnSenderAuthBlock(messages);
   }
 
   connectionContext(row: ConnectionRow): ConnectorConnectionContext {
@@ -867,9 +827,9 @@ const END_USER_EMAIL_REFUSALS: Record<Exclude<EndUserEmailVerdict, { ok: true }>
   self_reported:
     'connectors_unverified: this email was self-reported in chat and is not verified, so personal lookups are not allowed; ask the customer to write in from their email address or use a signed-in session',
   sender_auth_failed:
-    'connectors_sender_auth_failed: the latest customer message in this conversation failed its DMARC check for the address it claims to come from, so it may be forged and cannot be used to change a booking. Hand over to a human.',
+    "connectors_sender_auth_failed: the latest customer message in this conversation failed its DMARC check for the address it claims to come from, so it may be forged and cannot be used to look up or change that address's orders or bookings. Hand over to a human.",
   sender_forwarded:
-    'connectors_sender_forwarded: the latest customer message in this conversation was forwarded, so its original sender comes from the forwarded text rather than an authenticated address and cannot be used to change a booking. Hand over to a human.',
+    "connectors_sender_forwarded: the latest customer message in this conversation was forwarded, so its original sender comes from the forwarded text rather than an authenticated address and cannot be used to look up or change that address's orders or bookings. Hand over to a human.",
 };
 
 function refuseUnlessVerified(verdict: EndUserEmailVerdict): string {

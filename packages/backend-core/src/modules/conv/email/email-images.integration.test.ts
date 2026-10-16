@@ -24,6 +24,7 @@ import { ConvAttachmentsService } from '../attachments/conv-attachments.service.
 import { OutboundDeliveryWorker } from '../channels/outbound-delivery.worker.ts';
 import type { ChannelRow } from '../channels/adapter.ts';
 import { EmailAdapter, parseMessage } from './email-adapter.ts';
+import { APPROVED_OUTREACH_PROPOSAL_KEY } from '../human-review.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -376,6 +377,55 @@ function buildEml(input: {
     expect(sent.attachments![0]!.content.equals(label)).toBe(true);
     expect(sent.text ?? '').not.toContain('/v1/c/a/');
     expect(sent.html ?? '').not.toContain('/v1/c/a/');
+  });
+
+  it('lets outside images through only on messages a person wrote or approved', async () => {
+    mailer.clear();
+    const conversations = await db
+      .select()
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.orgId, orgId));
+    const conversationId = conversations[0]!.id;
+    const image = (tag: string) => `${tag} ![banner](https://cdn.example.com/${tag}.png)`;
+
+    const rows = await db
+      .insert(schema.convMessages)
+      .values([
+        { orgId, conversationId, authorType: 'agent', authorId: 'agt_auto', body: image('auto-reply') },
+        { orgId, conversationId, authorType: 'user', authorId: 'usr_teammate', body: image('teammate') },
+        {
+          orgId,
+          conversationId,
+          authorType: 'agent',
+          authorId: 'agt_outreach',
+          body: image('outreach'),
+          metadata: { [APPROVED_OUTREACH_PROPOSAL_KEY]: 'prop_approved' },
+        },
+      ])
+      .returning();
+    await db.insert(schema.convMessageDeliveries).values(
+      rows.map((row) => ({
+        orgId,
+        messageId: row.id,
+        channelId: channel.id,
+        status: 'queued' as const,
+        attempt: 0,
+        nextAttemptAt: new Date(),
+      })),
+    );
+
+    const drain = await outboundWorker.tick();
+    expect(drain.sent).toBe(3);
+    const mimeFor = (tag: string) => {
+      const mime = mailer.outbox.find((m) => (m.text ?? '').includes(`\n${tag} ![banner]`))?.text;
+      if (!mime) throw new Error(`no outbound message for ${tag}`);
+      return mime;
+    };
+
+    expect(mimeFor('auto-reply')).not.toContain('<img src="https://cdn.example.com/auto-reply.png"');
+    expect(mimeFor('teammate')).toContain('<img src="https://cdn.example.com/teammate.png"');
+    expect(mimeFor('outreach')).toContain('<img src="https://cdn.example.com/outreach.png"');
+    expect(mimeFor('teammate')).not.toContain('<img src="https://cdn.example.com/auto-reply.png"');
   });
 
   it('omits a tombstoned attachment from the outbound message rather than failing the send', async () => {

@@ -201,7 +201,7 @@ export class BookingsService {
     note?: string;
     connectionId?: string;
   }): Promise<{ connection: ConnectionSummary; bookingRef: string; booking: BookingDetail | null }> {
-    const verified = await this.connectors.optionalEndUserEmailForWrite();
+    const verified = await this.connectors.optionalEndUserEmail();
     if (!verified) return this.createGuestBooking(args);
     if (args.email && normalizeEmail(args.email) !== normalizeEmail(verified)) {
       throw new BadRequestException(
@@ -278,7 +278,7 @@ export class BookingsService {
 
   private async writeEmailFor(bookingRef: string, connectionId?: string): Promise<string> {
     const guestEmail = await this.guestBookingEmail(bookingRef, connectionId);
-    return guestEmail ?? this.connectors.requireEndUserEmailForWrite();
+    return guestEmail ?? this.connectors.requireEndUserEmail();
   }
 
   private async guestBookingEmail(bookingRef: string, connectionId?: string): Promise<string | null> {

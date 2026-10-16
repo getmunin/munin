@@ -764,7 +764,7 @@ const skipReason = TEST_URL
           status: 'published',
         },
       });
-      await c.callTool({
+      const refused = (await c.callTool({
         name: 'cms_create_entry',
         arguments: {
           collection: 'pages',
@@ -777,8 +777,24 @@ const skipReason = TEST_URL
           },
           status: 'published',
         },
+      })) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(refused.isError).toBe(true);
+      expect(refused.content?.[0]?.text).toContain('cms_invalid_reference');
+      await c.callTool({
+        name: 'cms_create_entry',
+        arguments: {
+          collection: 'pages',
+          slug: 'with-missing-hero',
+          data: { title: 'Missing', slug: 'with-missing-hero', body: 'b' },
+          status: 'published',
+        },
       });
     });
+    await db.execute(sql`
+      UPDATE cms_entries
+      SET data = data || '{"hero_image": "cma_nope_does_not_exist"}'::jsonb
+      WHERE org_id = ${orgId} AND slug = 'with-missing-hero'
+    `);
 
     const pendingRes = await fetchUntil(
       `${baseUrl}/v1/cms/${orgId}/pages/with-pending-hero`,

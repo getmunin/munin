@@ -870,3 +870,74 @@ export function applyBlockEdits(
 
   return { ok: true, value: blocks };
 }
+
+export interface IdReference {
+  fieldName: string;
+  target: 'asset' | 'entry';
+  id: string;
+  inline: boolean;
+}
+
+function* extractInlineReferences(
+  fields: FieldDef[],
+  data: Record<string, unknown>,
+): Generator<{ fieldName: string; toEntryId: string }> {
+  for (const field of fields) {
+    const value = data[field.name];
+    if (value === undefined || value === null) continue;
+    if (carriesInlineRefs(field)) {
+      for (const id of inlineRefIdsIn(value)) yield { fieldName: field.name, toEntryId: id };
+    } else if (field.type === 'blocks' && Array.isArray(value)) {
+      const types = blockTypesOf(field);
+      for (const raw of value as unknown[]) {
+        const resolved = resolveBlock(types, raw);
+        if (!resolved) continue;
+        for (const ref of extractInlineReferences(resolved.blockType.fields, resolved.block.props)) {
+          yield { fieldName: field.name, toEntryId: ref.toEntryId };
+        }
+      }
+    }
+  }
+}
+
+export function listIdReferences(
+  fields: FieldDef[],
+  data: Record<string, unknown>,
+): IdReference[] {
+  const out: IdReference[] = [];
+  for (const ref of extractAssetReferences(fields, data)) {
+    out.push({ fieldName: ref.fieldName, target: 'asset', id: ref.assetId, inline: ref.kind === 'inline' });
+  }
+  for (const ref of extractReferences(fields, data)) {
+    out.push({ fieldName: ref.fieldName, target: 'entry', id: ref.toEntryId, inline: false });
+  }
+  for (const ref of extractInlineReferences(fields, data)) {
+    out.push({ fieldName: ref.fieldName, target: 'entry', id: ref.toEntryId, inline: true });
+  }
+  return out;
+}
+
+export function dropFieldReferences(
+  fields: FieldDef[],
+  data: Record<string, unknown>,
+  missing: { assets: ReadonlySet<string>; entries: ReadonlySet<string> },
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...data };
+  for (const field of fields) {
+    const value = out[field.name];
+    if (value === undefined || value === null) continue;
+    const itemType = field.type === 'array' ? field.options?.items?.type : field.type;
+    const gone =
+      itemType === 'asset' ? missing.assets : itemType === 'reference' ? missing.entries : null;
+    if (gone && field.type !== 'array' && typeof value === 'string') {
+      if (gone.has(value)) out[field.name] = null;
+    } else if (gone && field.type === 'array' && Array.isArray(value)) {
+      out[field.name] = value.filter((v) => typeof v !== 'string' || !gone.has(v));
+    } else if (field.type === 'blocks' && Array.isArray(value)) {
+      out[field.name] = mapBlocks(field, value, (bf, props) =>
+        dropFieldReferences(bf, props, missing),
+      );
+    }
+  }
+  return out;
+}

@@ -274,6 +274,7 @@ export class EmailAdapter implements ChannelAdapter {
 
     const channelFromName = config.addressing.fromName?.trim() || 'Support';
     const prior = await loadPriorMessagesForQuote(this.db, {
+      orgId: ctx.conversation.orgId,
       conversationId: ctx.conversation.id,
       excludeMessageId: ctx.message.id,
       contactName: ctx.contact?.name?.trim() || null,

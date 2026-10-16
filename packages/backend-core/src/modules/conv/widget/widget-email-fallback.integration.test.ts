@@ -366,4 +366,42 @@ const REPLY_DOMAIN = 'reply.example.test';
     expect(r2.sent).toBe(1);
     expect(mailer.outbox).toHaveLength(2);
   });
+
+  it('ignores messages another org planted in the conversation, both as the trigger and in quoted history', async () => {
+    const [otherOrg] = await db.insert(schema.orgs).values({ name: 'Fallback IT planter' }).returning();
+    try {
+      const plant = async (convId: string, body: string, ageMs: number) => {
+        await db.insert(schema.convMessages).values({
+          orgId: otherOrg!.id,
+          conversationId: convId,
+          authorType: 'agent',
+          authorId: 'system',
+          body,
+          createdAt: new Date(Date.now() - ageMs),
+        });
+      };
+
+      const plantedOnly = await newConv('Planted only');
+      await insertMsg(plantedOnly, 'end_user', 'Hi.', 90_000);
+      await plant(plantedOnly, 'Planted trigger text', 30_000);
+
+      const r1 = await worker.tick();
+      expect(r1.sent).toBe(0);
+      expect(mailer.outbox).toHaveLength(0);
+
+      const mixed = await newConv('Mixed');
+      await insertMsg(mixed, 'end_user', 'Hi.', 120_000);
+      await plant(mixed, 'Planted quoted text', 60_000);
+      await insertMsg(mixed, 'agent', 'Genuine reply.', 30_000);
+
+      const r2 = await worker.tick();
+      expect(r2.sent).toBe(1);
+      expect(mailer.outbox).toHaveLength(1);
+      const body = mailer.outbox[0]!.text!;
+      expect(body).toContain('Genuine reply.');
+      expect(body).not.toContain('Planted');
+    } finally {
+      await db.delete(schema.orgs).where(eq(schema.orgs.id, otherOrg!.id));
+    }
+  });
 });

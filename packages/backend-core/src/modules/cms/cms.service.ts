@@ -54,9 +54,11 @@ import {
   collectAssetIds,
   collectInlineReferenceIds,
   collectReferenceIds,
+  dropFieldReferences,
   extractAssetReferences,
   extractReferences,
   FIELD_TYPES,
+  listIdReferences,
   projectData,
   remapInlineAssetUris,
   replaceFieldText,
@@ -67,6 +69,7 @@ import {
   type BlockEdit,
   type ExpandedEntry,
   type FieldDef,
+  type IdReference,
 } from './cms.fields.ts';
 import {
   fitWithinBudget,
@@ -84,8 +87,16 @@ import { entryTitle, readLiveUrlTemplate, renderLiveUrl } from './cms.live-url.t
 import { deriveVariantColumns, type VariantColumns } from './cms.variants.ts';
 import { loadEntryMap } from './cms.entry-loader.ts';
 import { EmbeddingProviderHolder } from '../kb/embedding.provider.ts';
-import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
+import {
+  assertPriorTargetsInOrg,
+  newImportResult,
+  resolveId,
+} from '../../common/transfer/transfer.helpers.ts';
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
+
+interface ReferenceCheckOptions {
+  checkEntryReferences?: boolean;
+}
 
 export class CmsInvalidError extends Error {
   readonly code: string;
@@ -949,7 +960,7 @@ export class CmsService {
     data: Record<string, unknown>;
     status?: 'draft' | 'published';
     publishedAt?: string;
-  }): Promise<EntryDto> {
+  }, opts: ReferenceCheckOptions = {}): Promise<EntryDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const collection = await this.getCollection(input.collection);
@@ -963,6 +974,7 @@ export class CmsService {
       );
     }
     await this.assertAssetsExist(actor.orgId, collection.fields, input.data);
+    await this.assertReferencesInOrg(actor.orgId, collection.fields, input.data, null, opts);
     await this.assertEntrySlugFree(actor.orgId, collection.id, input.slug, locale);
 
     const translationGroupId = input.translationOf
@@ -1036,7 +1048,7 @@ export class CmsService {
     slug?: string;
     locale?: string;
     include?: string[];
-  }): Promise<EntryDto> {
+  }, opts: ReferenceCheckOptions = {}): Promise<EntryDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const existing = await this.loadEntryRow(input.id);
@@ -1074,6 +1086,7 @@ export class CmsService {
         );
       }
       await this.assertAssetsExist(actor.orgId, collection.fields, newData);
+      await this.assertReferencesInOrg(actor.orgId, collection.fields, newData, existingData, opts);
     }
     const newSlug = input.slug ?? existing.slug;
     const newLocale = input.locale ?? existing.locale;
@@ -1971,6 +1984,45 @@ export class CmsService {
       }
     }
 
+    const remappedInThisImport = new Set([
+      ...data.collections.map((c) => c.id),
+      ...data.assets.map((a) => a.id),
+      ...data.entries.map((e) => e.id),
+    ]);
+    const sourceFields = new Map(data.collections.map((c) => [c.id, c.fields]));
+    const sourceRefs = data.entries
+      .flatMap((e) => listIdReferences(sourceFields.get(e.collectionId) ?? [], e.data))
+      .filter((r) => !remappedInThisImport.has(r.id));
+    await assertPriorTargetsInOrg('cms_import_invalid', result.idMap, priorIdMap, [
+      {
+        kind: 'collection',
+        sourceIds: data.entries.map((e) => e.collectionId).filter((id) => !remappedInThisImport.has(id)),
+        findInOrg: (ids) =>
+          ctx.db
+            .select({ id: schema.cmsCollections.id })
+            .from(schema.cmsCollections)
+            .where(and(eq(schema.cmsCollections.orgId, actor.orgId), inArray(schema.cmsCollections.id, ids))),
+      },
+      {
+        kind: 'asset',
+        sourceIds: sourceRefs.filter((r) => r.target === 'asset').map((r) => r.id),
+        findInOrg: (ids) =>
+          ctx.db
+            .select({ id: schema.cmsAssets.id })
+            .from(schema.cmsAssets)
+            .where(and(eq(schema.cmsAssets.orgId, actor.orgId), inArray(schema.cmsAssets.id, ids))),
+      },
+      {
+        kind: 'entry',
+        sourceIds: sourceRefs.filter((r) => r.target === 'entry').map((r) => r.id),
+        findInOrg: (ids) =>
+          ctx.db
+            .select({ id: schema.cmsEntries.id })
+            .from(schema.cmsEntries)
+            .where(and(eq(schema.cmsEntries.orgId, actor.orgId), inArray(schema.cmsEntries.id, ids))),
+      },
+    ]);
+
     const translationAnchors = new Map<string, { entryId: string; groupId: string }>();
     for (const entry of data.entries) {
       const targetCollectionId = resolveId(result.idMap, entry.collectionId);
@@ -1982,7 +2034,13 @@ export class CmsService {
         continue;
       }
       const collection = await this.getCollectionById(targetCollectionId);
-      const remappedData = remapEntryData(collection.fields, entry.data, result.idMap);
+      const remappedData = await this.dropUnresolvedImportReferences(
+        actor.orgId,
+        collection.fields,
+        entry,
+        remapEntryData(collection.fields, entry.data, result.idMap),
+        result,
+      );
 
       const sourceGroup = entry.translationGroupId ?? `${entry.collectionId}:${entry.slug}`;
       const existing = await this.findEntryForImport(
@@ -2003,11 +2061,14 @@ export class CmsService {
           `${entry.slug}|${entry.locale}|${existing.status}`,
           JSON.stringify(remappedData),
         )) {
-          await this.updateEntry({
-            id: existing.id,
-            ifVersion: existing.version,
-            data: remappedData,
-          });
+          await this.updateEntry(
+            {
+              id: existing.id,
+              ifVersion: existing.version,
+              data: remappedData,
+            },
+            { checkEntryReferences: false },
+          );
           result.updated++;
         } else {
           result.skipped++;
@@ -2030,15 +2091,18 @@ export class CmsService {
           }
         }
         const published = entry.status === 'published';
-        const created = await this.createEntry({
-          collection: targetCollectionId,
-          slug: entry.slug,
-          locale: entry.locale,
-          translationOf,
-          data: remappedData,
-          status: published ? 'published' : 'draft',
-          publishedAt: published ? entry.publishedAt ?? undefined : undefined,
-        });
+        const created = await this.createEntry(
+          {
+            collection: targetCollectionId,
+            slug: entry.slug,
+            locale: entry.locale,
+            translationOf,
+            data: remappedData,
+            status: published ? 'published' : 'draft',
+            publishedAt: published ? entry.publishedAt ?? undefined : undefined,
+          },
+          { checkEntryReferences: false },
+        );
         result.idMap[entry.id] = created.id;
         if (!translationAnchors.has(sourceGroup)) {
           translationAnchors.set(sourceGroup, {
@@ -2052,6 +2116,27 @@ export class CmsService {
     }
 
     return result;
+  }
+
+  private async dropUnresolvedImportReferences(
+    orgId: string,
+    fields: FieldDef[],
+    entry: CmsEntryExport,
+    data: Record<string, unknown>,
+    result: ImportResult,
+  ): Promise<Record<string, unknown>> {
+    const refs = listIdReferences(fields, data).filter((r) => !(r.target === 'asset' && r.inline));
+    const missing = await this.findMissingReferences(orgId, refs);
+    if (missing.assets.size === 0 && missing.entries.size === 0) return data;
+    for (const ref of refs) {
+      if (!(ref.target === 'asset' ? missing.assets : missing.entries).has(ref.id)) continue;
+      result.warnings.push(
+        ref.inline
+          ? `entry "${entry.slug}" (${entry.locale}): inline ref://${ref.id} in field "${ref.fieldName}" names no entry in this organization or this import, so it is left unresolved`
+          : `entry "${entry.slug}" (${entry.locale}): dropped the ${ref.target} reference ${ref.id} in field "${ref.fieldName}", which is neither part of this import nor in this organization`,
+      );
+    }
+    return dropFieldReferences(fields, data, missing);
   }
 
   private async restoreImportedStatus(
@@ -2337,8 +2422,18 @@ export class CmsService {
       .where(eq(schema.cmsReferences.fromEntryId, entryId));
     const refs = [...extractReferences(fields, data)];
     if (refs.length === 0) return;
+    const referencedIds = [...new Set(refs.map((r) => r.toEntryId))];
+    const existing = await ctx.db
+      .select({ id: schema.cmsEntries.id })
+      .from(schema.cmsEntries)
+      .where(
+        and(eq(schema.cmsEntries.orgId, orgId), inArray(schema.cmsEntries.id, referencedIds)),
+      );
+    const known = new Set(existing.map((r) => r.id));
+    const trackable = refs.filter((r) => known.has(r.toEntryId));
+    if (trackable.length === 0) return;
     await ctx.db.insert(schema.cmsReferences).values(
-      refs.map((r) => ({
+      trackable.map((r) => ({
         orgId,
         fromEntryId: entryId,
         toEntryId: r.toEntryId,
@@ -2382,6 +2477,62 @@ export class CmsService {
         position: r.position,
       })),
     );
+  }
+
+  private async assertReferencesInOrg(
+    orgId: string,
+    fields: FieldDef[],
+    data: Record<string, unknown>,
+    previous: Record<string, unknown> | null,
+    opts: ReferenceCheckOptions,
+  ): Promise<void> {
+    const keyOf = (r: IdReference) => `${r.target}:${r.id}`;
+    const kept = new Set(previous ? listIdReferences(fields, previous).map(keyOf) : []);
+    const introduced = listIdReferences(fields, data).filter(
+      (r) =>
+        !kept.has(keyOf(r)) &&
+        !(r.target === 'asset' && r.inline) &&
+        (r.target === 'asset' || opts.checkEntryReferences !== false),
+    );
+    const missing = await this.findMissingReferences(orgId, introduced);
+    const bad = introduced.find((r) =>
+      (r.target === 'asset' ? missing.assets : missing.entries).has(r.id),
+    );
+    if (!bad) return;
+    const message = `field "${bad.fieldName}" points at ${bad.target} ${bad.id}, which does not exist in this organization`;
+    throw new CmsInvalidError(message, {
+      code: 'cms_invalid_reference',
+      fieldErrors: [{ field: bad.fieldName, message }],
+    });
+  }
+
+  private async findMissingReferences(
+    orgId: string,
+    refs: readonly IdReference[],
+  ): Promise<{ assets: Set<string>; entries: Set<string> }> {
+    const ctx = getCurrentContext();
+    const assetIds = [...new Set(refs.filter((r) => r.target === 'asset').map((r) => r.id))];
+    const entryIds = [...new Set(refs.filter((r) => r.target === 'entry').map((r) => r.id))];
+    const assetRows =
+      assetIds.length === 0
+        ? []
+        : await ctx.db
+            .select({ id: schema.cmsAssets.id })
+            .from(schema.cmsAssets)
+            .where(and(eq(schema.cmsAssets.orgId, orgId), inArray(schema.cmsAssets.id, assetIds)));
+    const entryRows =
+      entryIds.length === 0
+        ? []
+        : await ctx.db
+            .select({ id: schema.cmsEntries.id })
+            .from(schema.cmsEntries)
+            .where(and(eq(schema.cmsEntries.orgId, orgId), inArray(schema.cmsEntries.id, entryIds)));
+    const foundAssets = new Set(assetRows.map((r) => r.id));
+    const foundEntries = new Set(entryRows.map((r) => r.id));
+    return {
+      assets: new Set(assetIds.filter((id) => !foundAssets.has(id))),
+      entries: new Set(entryIds.filter((id) => !foundEntries.has(id))),
+    };
   }
 
   private async assertAssetsExist(

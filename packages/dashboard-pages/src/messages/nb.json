@@ -2531,6 +2531,7 @@
     "cms_asset_too_large": "Filen er for stor til å lastes opp. Maksstørrelsen er 50 MB.",
     "cms_asset_type_not_allowed": "Denne filtypen kan ikke lastes opp. Bruk et PNG-, JPEG-, GIF-, WebP- eller AVIF-bilde – SVG støttes ikke.",
     "cms_asset_upload_failed": "Opplastingen ble ikke fullført. Sjekk tilkoblingen og prøv igjen.",
+    "cms_invalid_reference": "Et bilde, en fil eller en oppføring som er koblet til, finnes ikke lenger. Velg på nytt eller fjern koblingen, og lagre igjen.",
     "cms_version_conflict": "Oppføringen ble endret et annet sted mens du redigerte. Last den inn på nytt og prøv igjen.",
     "conv_translation_failed": "Svaret kunne ikke oversettes, så ingenting ble sendt. Prøv igjen, eller fjern haken for oversettelse for å sende det slik du skrev det.",
     "conv_translation_unavailable": "Vi vet ikke hvilket språk kunden skriver ennå, så svaret kan ikke oversettes. Fjern haken for oversettelse for å sende det slik du skrev det.",

@@ -150,6 +150,7 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
         AND EXISTS (
           SELECT 1 FROM conv_messages m
           WHERE m.conversation_id = c.id
+            AND m.org_id = c.org_id
             AND m.author_type NOT IN ('end_user', 'system')
             AND m.internal = false
             AND m.created_at <= ${cutoff.toISOString()}::timestamptz
@@ -170,7 +171,7 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
 
   private async processOne(cand: CandidateRow): Promise<'sent' | 'skipped' | 'failed'> {
     const engagement = await this.computeLastEngagement(cand);
-    const unread = await this.loadUnread(cand.conversation_id, cand.end_user_id);
+    const unread = await this.loadUnread(cand);
     if (unread.length === 0) return 'skipped';
     const trigger = unread[0]!;
 
@@ -196,13 +197,13 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
     const fallbackId = claimed[0]?.id;
     if (!fallbackId) return 'skipped';
 
-    const stillUnread = await this.loadUnread(cand.conversation_id, cand.end_user_id);
+    const stillUnread = await this.loadUnread(cand);
     if (stillUnread.length === 0) {
       await this.markStatus(fallbackId, 'cancelled', null);
       return 'skipped';
     }
 
-    const channel = await this.loadEmailChannel(cand.email_channel_id);
+    const channel = await this.loadEmailChannel(cand.org_id, cand.email_channel_id);
     if (!channel) {
       await this.markStatus(fallbackId, 'failed', 'email channel missing');
       return 'failed';
@@ -221,6 +222,7 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
     let prior: QuotedPriorMessage[];
     try {
       prior = await loadPriorMessagesForQuote(this.db, {
+        orgId: cand.org_id,
         conversationId: cand.conversation_id,
         excludeMessageId: latestUnread.id,
         contactName: cand.end_user_name,
@@ -300,11 +302,13 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
         COALESCE((
           SELECT MAX(m.created_at) FROM conv_messages m
           WHERE m.conversation_id = ${cand.conversation_id}
+            AND m.org_id = ${cand.org_id}
             AND m.author_type = 'end_user'
         ), ${asTimestamp(cand.conv_created_at)}),
         COALESCE((
           SELECT MAX(r.read_at) FROM conv_message_reads r
           WHERE r.conversation_id = ${cand.conversation_id}
+            AND r.org_id = ${cand.org_id}
             AND r.end_user_id = ${cand.end_user_id}
         ), ${asTimestamp(cand.conv_created_at)})
       ) AS engagement_at
@@ -314,18 +318,19 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
     return toDate(row.engagement_at);
   }
 
-  private async loadUnread(conversationId: string, endUserId: string): Promise<UnreadRow[]> {
+  private async loadUnread(cand: CandidateRow): Promise<UnreadRow[]> {
     const cutoff = new Date(Date.now() - this.thresholdMs);
     const rows = await this.db.execute<UnreadRow>(sql`
       SELECT m.id, m.body, m.body_html, m.author_type, m.author_id, m.created_at
       FROM conv_messages m
-      WHERE m.conversation_id = ${conversationId}
+      WHERE m.conversation_id = ${cand.conversation_id}
+        AND m.org_id = ${cand.org_id}
         AND m.author_type NOT IN ('end_user', 'system')
         AND m.internal = false
         AND m.created_at <= ${cutoff.toISOString()}::timestamptz
         AND NOT EXISTS (
           SELECT 1 FROM conv_message_reads r
-          WHERE r.message_id = m.id AND r.end_user_id = ${endUserId}
+          WHERE r.message_id = m.id AND r.end_user_id = ${cand.end_user_id}
         )
         AND NOT EXISTS (
           SELECT 1 FROM conv_message_deliveries d
@@ -337,6 +342,7 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
   }
 
   private async loadEmailChannel(
+    orgId: string,
     channelId: string,
   ): Promise<typeof schema.convChannels.$inferSelect | null> {
     const rows = await this.db
@@ -345,6 +351,7 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
       .where(
         and(
           eq(schema.convChannels.id, channelId),
+          eq(schema.convChannels.orgId, orgId),
           eq(schema.convChannels.active, true),
         ),
       )

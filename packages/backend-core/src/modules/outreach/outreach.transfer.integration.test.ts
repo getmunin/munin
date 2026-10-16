@@ -257,4 +257,73 @@ const skipReason = TEST_URL
     expect(migrated.reimport.created).toBe(0);
     expect(migrated.reimport.skipped).toBe(4);
   });
+
+  it('refuses an idMap that points proposals or campaigns at another org, and writes nothing', async () => {
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const [victimContact] = await db
+      .insert(schema.crmContacts)
+      .values({ orgId: orgAId, name: 'Kari Nordmann', email: 'kari@victim.example' })
+      .returning();
+    const [victimSegment] = await db
+      .insert(schema.crmSegments)
+      .values({ orgId: orgAId, name: 'Victim segment', createdByActorType: 'system', createdByActorId: 'test' })
+      .returning();
+
+    const countRows = async () => {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const rows = await db.execute<{ proposals: number; campaigns: number }>(sql`
+        SELECT
+          (SELECT count(*)::int FROM outreach_proposals WHERE org_id = ${orgBId}) AS proposals,
+          (SELECT count(*)::int FROM outreach_campaigns WHERE org_id = ${orgBId}) AS campaigns
+      `);
+      return rows[0]!;
+    };
+    const before = await countRows();
+
+    const payloads = [
+      {
+        records: {
+          campaigns: [],
+          proposals: [
+            {
+              id: 'src_prop',
+              campaignId: 'src_campaign',
+              contactId: 'src_victim',
+              kind: 'initial',
+              draftBody: 'Hello',
+              status: 'pending',
+            },
+          ],
+        },
+        idMap: { src_victim: victimContact!.id },
+      },
+      {
+        records: {
+          campaigns: [
+            {
+              id: 'src_campaign',
+              name: 'Planted campaign',
+              brief: 'Planted',
+              segmentId: 'src_victim',
+              channelId: 'src_channel',
+              unsubscribeRequired: true,
+            },
+          ],
+          proposals: [],
+        },
+        idMap: { src_victim: victimSegment!.id },
+      },
+    ];
+
+    for (const args of payloads) {
+      const res = (await withClient(adminKeyB, (c) =>
+        c.callTool({ name: 'outreach_import', arguments: args }),
+      )) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(res.isError).toBe(true);
+      expect(res.content?.[0]?.text).toContain('outreach_import_invalid');
+      expect(res.content?.[0]?.text).toContain('src_victim');
+    }
+
+    expect(await countRows()).toEqual(before);
+  });
 });

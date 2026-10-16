@@ -32,7 +32,11 @@ import { readPendingSetup } from './channels/channel-admin.ts';
 import { publicChannelConfig } from './channels/public-config.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { toIsoString } from '../../common/iso.ts';
-import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
+import {
+  assertPriorTargetsInOrg,
+  newImportResult,
+  resolveId,
+} from '../../common/transfer/transfer.helpers.ts';
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 
 export const TEST_CONVERSATION_FLAG = 'setupTest';
@@ -2579,6 +2583,18 @@ export class ConvService {
       }
     }
 
+    await assertPriorTargetsInOrg('conv_import_invalid', result.idMap, priorIdMap, [
+      {
+        kind: 'channel',
+        sourceIds: data.conversations.map((c) => c.channelId),
+        findInOrg: (ids) =>
+          ctx.db
+            .select({ id: schema.convChannels.id })
+            .from(schema.convChannels)
+            .where(and(eq(schema.convChannels.orgId, actor.orgId), inArray(schema.convChannels.id, ids))),
+      },
+    ]);
+
     const topicIdBySlug = await this.loadTopicIdsBySlug();
 
     for (const conv of data.conversations) {
@@ -2612,6 +2628,32 @@ export class ConvService {
       result.idMap[conv.id] = created.id;
       result.created++;
     }
+
+    await assertPriorTargetsInOrg('conv_import_invalid', result.idMap, priorIdMap, [
+      {
+        kind: 'conversation',
+        sourceIds: data.messages.map((m) => m.conversationId),
+        findInOrg: (ids) =>
+          ctx.db
+            .select({ id: schema.convConversations.id })
+            .from(schema.convConversations)
+            .where(
+              and(
+                eq(schema.convConversations.orgId, actor.orgId),
+                inArray(schema.convConversations.id, ids),
+              ),
+            ),
+      },
+      {
+        kind: 'message',
+        sourceIds: data.messages.map((m) => m.inReplyToId),
+        findInOrg: (ids) =>
+          ctx.db
+            .select({ id: schema.convMessages.id })
+            .from(schema.convMessages)
+            .where(and(eq(schema.convMessages.orgId, actor.orgId), inArray(schema.convMessages.id, ids))),
+      },
+    ]);
 
     const lastMessageAtByConv = new Map<string, Date>();
     for (const msg of data.messages) {

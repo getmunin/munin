@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   EXPIRY_WARNING_MS,
   expiresSoon,
+  isSafeReturnTo,
   signSocialState,
   toAccountDto,
   verifySocialState,
@@ -68,6 +69,29 @@ describe('social authorize state', () => {
     expect(verifySocialState(`${forged}.${signed.split('.')[1]}`)).toBeNull();
   });
 
+  it('carries a return path through the round trip', () => {
+    const exp = Date.now() + 60_000;
+    const signed = signSocialState({
+      orgId: 'org_1',
+      userId: 'usr_1',
+      platform: 'linkedin',
+      exp,
+      returnTo: '/dashboard/review/qi_1',
+    });
+    expect(verifySocialState(signed)?.returnTo).toBe('/dashboard/review/qi_1');
+  });
+
+  it('drops a signed return path that points off the dashboard', () => {
+    const signed = signSocialState({
+      orgId: 'org_1',
+      userId: 'usr_1',
+      platform: 'linkedin',
+      exp: Date.now() + 60_000,
+      returnTo: '//evil.example/phish',
+    });
+    expect(verifySocialState(signed)?.returnTo).toBeUndefined();
+  });
+
   it('rejects an unknown platform rather than trusting the callback to name one', () => {
     const signed = signSocialState({
       orgId: 'org_1',
@@ -104,5 +128,28 @@ describe('toAccountDto', () => {
   it('reports canRefresh false for a self-serve grant, which is what the dashboard warns on', () => {
     expect(toAccountDto(row()).canRefresh).toBe(false);
     expect(toAccountDto(row({ encryptedRefreshToken: 'ct-refresh' })).canRefresh).toBe(true);
+  });
+});
+
+describe('isSafeReturnTo', () => {
+  it('accepts a dashboard path, with or without a query', () => {
+    expect(isSafeReturnTo('/dashboard/review/qi_1')).toBe(true);
+    expect(isSafeReturnTo('/nb/o/org_1/dashboard/review/qi_1?tab=waiting')).toBe(true);
+  });
+
+  it('refuses anything a browser could resolve to another origin', () => {
+    expect(isSafeReturnTo('https://evil.example/')).toBe(false);
+    expect(isSafeReturnTo('//evil.example/')).toBe(false);
+    expect(isSafeReturnTo('/\\evil.example/')).toBe(false);
+    expect(isSafeReturnTo('dashboard/review')).toBe(false);
+  });
+
+  it('refuses a fragment or whitespace, which would swallow the outcome params appended after it', () => {
+    expect(isSafeReturnTo('/dashboard/review#top')).toBe(false);
+    expect(isSafeReturnTo('/dashboard/review\nSet-Cookie: x')).toBe(false);
+  });
+
+  it('refuses an overlong path', () => {
+    expect(isSafeReturnTo(`/${'a'.repeat(600)}`)).toBe(false);
   });
 });

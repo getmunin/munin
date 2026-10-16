@@ -33,12 +33,16 @@ export class SocialOAuthController {
 
   @Get('callback')
   async callback(@Query() query: unknown, @Res() res: Response): Promise<void> {
-    const target = `${readWebBaseUrl()}/dashboard/settings/integrations`;
+    const webBase = readWebBaseUrl();
+    const integrations = `${webBase}/dashboard/settings/integrations`;
     const parsed = CallbackQuery.safeParse(query);
     const q = parsed.success ? parsed.data : null;
+    const returnTo = this.accounts.returnToFromState(q?.state);
+    const back = (params: string) =>
+      returnTo ? withParams(`${webBase}${returnTo}`, params) : withParams(integrations, params);
     if (!q || q.error || !q.code || !q.state) {
       const denied = q?.error === 'user_cancelled_authorize' || q?.error === 'access_denied';
-      res.redirect(`${target}?social=${denied ? 'denied' : 'error'}${reasonParam(q?.error_description)}`);
+      res.redirect(back(`social=${denied ? 'denied' : 'error'}${reasonParam(q?.error_description)}`));
       return;
     }
     try {
@@ -49,13 +53,22 @@ export class SocialOAuthController {
       const params = `platform=${encodeURIComponent(platform)}`;
       res.redirect(
         pendingId
-          ? `${target}?social=choose_target&${params}&pending=${encodeURIComponent(pendingId)}`
-          : `${target}?social=connected&${params}`,
+          ? withParams(
+              integrations,
+              `social=choose_target&${params}&pending=${encodeURIComponent(pendingId)}${
+                returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''
+              }`,
+            )
+          : back(`social=connected&${params}`),
       );
     } catch (err) {
-      res.redirect(`${target}?social=error${reasonParam(err instanceof Error ? err.message : undefined)}`);
+      res.redirect(back(`social=error${reasonParam(err instanceof Error ? err.message : undefined)}`));
     }
   }
+}
+
+export function withParams(url: string, params: string): string {
+  return `${url}${url.includes('?') ? '&' : '?'}${params}`;
 }
 
 function reasonParam(raw: string | undefined): string {

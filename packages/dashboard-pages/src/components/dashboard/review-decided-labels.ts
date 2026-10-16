@@ -11,6 +11,8 @@ export function decidedTitle(item: ReviewDecidedItem, t: Translate): string {
       return `${contactLabel(item.raw.contactA)} ↔ ${contactLabel(item.raw.contactB)}`;
     case 'outreach':
       return item.raw.draftSubject ?? item.raw.campaign?.name ?? t('decidedUntitled');
+    case 'broadcast':
+      return item.raw.subject;
     case 'cms':
       return item.raw.title ?? t('decidedUntitled');
     case 'feedback':

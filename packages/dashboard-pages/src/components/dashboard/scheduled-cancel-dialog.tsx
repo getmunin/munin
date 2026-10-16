@@ -15,10 +15,17 @@ import type { InboxController } from './inbox-types';
 
 export function ScheduledCancelDialog({ controller }: { controller: InboxController }) {
   const t = useTranslations('dashboard.overview.scheduled');
-  const { cancelTarget, setCancelTarget, pending, cancelScheduledSend, cancelScheduledPublish } =
-    controller;
+  const {
+    cancelTarget,
+    setCancelTarget,
+    pending,
+    cancelScheduledSend,
+    cancelScheduledPublish,
+    cancelScheduledBroadcast,
+  } = controller;
   const [reason, setReason] = useState('');
-  const needsReason = cancelTarget?.kind === 'outreach';
+  const isBroadcast = cancelTarget?.kind === 'broadcast';
+  const needsReason = cancelTarget?.kind === 'outreach' || isBroadcast;
   const isCms = cancelTarget?.kind === 'cms';
 
   useEffect(() => {
@@ -31,6 +38,8 @@ export function ScheduledCancelDialog({ controller }: { controller: InboxControl
     try {
       if (cancelTarget.kind === 'outreach') {
         await cancelScheduledSend(cancelTarget.id, reason.trim());
+      } else if (cancelTarget.kind === 'broadcast') {
+        await cancelScheduledBroadcast(cancelTarget.id, reason.trim());
       } else {
         await cancelScheduledPublish(cancelTarget.id);
       }
@@ -48,9 +57,15 @@ export function ScheduledCancelDialog({ controller }: { controller: InboxControl
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isCms ? t('cancelCmsTitle') : t('cancelTitle')}</DialogTitle>
+          <DialogTitle>
+            {isCms ? t('cancelCmsTitle') : isBroadcast ? t('cancelBroadcastTitle') : t('cancelTitle')}
+          </DialogTitle>
           <DialogDescription>
-            {isCms ? t('cancelCmsDescription') : t('cancelDescription')}
+            {isCms
+              ? t('cancelCmsDescription')
+              : isBroadcast
+                ? t('cancelBroadcastDescription')
+                : t('cancelDescription')}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -83,7 +98,11 @@ export function ScheduledCancelDialog({ controller }: { controller: InboxControl
               variant="accent"
               disabled={pending || (needsReason && !reason.trim())}
             >
-              {isCms ? t('cancelCmsConfirm') : t('cancelConfirm')}
+              {isCms
+                ? t('cancelCmsConfirm')
+                : isBroadcast
+                  ? t('cancelBroadcastConfirm')
+                  : t('cancelConfirm')}
             </Button>
           </DialogFooter>
         </form>

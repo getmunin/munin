@@ -331,6 +331,7 @@ const skipReason = TEST_URL
       const { tools } = await c.listTools();
       const panelWired = [
         'outreach_list_proposals',
+        'outreach_get_broadcast',
         'crm_list_merge_proposals',
         'kb_list_curation_candidates',
         'analytics_get_views_over_time',
@@ -358,6 +359,7 @@ const skipReason = TEST_URL
       const appOnly = [
         'outreach_approve_proposal',
         'outreach_dismiss_proposal',
+        'outreach_approve_broadcast',
         'crm_apply_merge_proposal',
         'crm_dismiss_merge_proposal',
         'kb_publish_curation_candidate',

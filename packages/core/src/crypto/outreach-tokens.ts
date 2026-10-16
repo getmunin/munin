@@ -2,7 +2,6 @@ import { signHmac, timingSafeEqual } from './primitives.ts';
 
 const VERSION = 'v1';
 
-const DEFAULT_MAX_AGE_SECONDS = 2 * 365 * 24 * 60 * 60;
 const FUTURE_SKEW_SECONDS = 5 * 60;
 
 export interface UnsubscribeTokenPayload {
@@ -39,7 +38,7 @@ export function signUnsubscribeToken(
 export function verifyUnsubscribeToken(
   token: string,
   pepper?: string,
-  maxAgeSeconds: number = DEFAULT_MAX_AGE_SECONDS,
+  maxAgeSeconds?: number,
 ): UnsubscribeTokenPayload {
   const secret = pepper ?? process.env.MUNIN_KEY_PEPPER ?? '';
   if (!secret) throw new UnsubscribeTokenError('server pepper not configured');
@@ -54,6 +53,6 @@ export function verifyUnsubscribeToken(
   if (!Number.isFinite(issuedAt)) throw new UnsubscribeTokenError('issuedAt not numeric');
   const now = Math.floor(Date.now() / 1000);
   if (issuedAt > now + FUTURE_SKEW_SECONDS) throw new UnsubscribeTokenError('issuedAt in the future');
-  if (now - issuedAt > maxAgeSeconds) throw new UnsubscribeTokenError('token expired');
+  if (maxAgeSeconds !== undefined && now - issuedAt > maxAgeSeconds) throw new UnsubscribeTokenError('token expired');
   return { orgId: orgId!, contactId: contactId!, campaignId: campaignId!, issuedAt };
 }

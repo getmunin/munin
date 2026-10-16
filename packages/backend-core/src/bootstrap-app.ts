@@ -101,8 +101,8 @@ export async function createApp(
 }
 
 const API_DOCUMENT_CSP = "default-src 'none'; frame-ancestors 'none'";
-const AUTH_ERROR_PAGE_CSP = "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'";
-const AUTH_ERROR_PAGE_PATH = '/auth/error';
+const HTML_PAGE_CSP = "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'";
+const HTML_PAGE_PATHS = new Set(['/auth/error', '/v1/outreach/unsubscribe']);
 const HSTS_VALUE = 'max-age=31536000';
 
 const EMBEDDABLE_RESOURCE_PATHS = new Set(['/widget.js', '/tracker.js']);
@@ -129,7 +129,7 @@ export function securityHeadersMiddleware(opts: { hsts: boolean }) {
       res.setHeader('X-Frame-Options', 'DENY');
       res.setHeader(
         'Content-Security-Policy',
-        req.path === AUTH_ERROR_PAGE_PATH ? AUTH_ERROR_PAGE_CSP : API_DOCUMENT_CSP,
+        HTML_PAGE_PATHS.has(req.path) ? HTML_PAGE_CSP : API_DOCUMENT_CSP,
       );
     }
     next();

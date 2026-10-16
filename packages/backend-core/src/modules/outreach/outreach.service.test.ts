@@ -271,10 +271,13 @@ const skipReason = TEST_URL
       );
       expect(convRows[0]!.outreach_campaign_id).toBe(c.id);
 
-      const msgRows = await db.execute<{ body: string }>(
-        sql`SELECT body FROM conv_messages WHERE id = ${approved.sentMessageId!}`,
+      const msgRows = await db.execute<{ body: string; metadata: { listUnsubscribeUrl?: string } }>(
+        sql`SELECT body, metadata FROM conv_messages WHERE id = ${approved.sentMessageId!}`,
       );
       expect(msgRows[0]!.body).toContain('[Unsubscribe](https://test.local/v1/outreach/unsubscribe?token=');
+      const listUnsubscribeUrl = msgRows[0]!.metadata.listUnsubscribeUrl;
+      expect(listUnsubscribeUrl).toMatch(/^https:\/\/test\.local\/v1\/outreach\/unsubscribe\?token=/);
+      expect(msgRows[0]!.body).toContain(`[Unsubscribe](${listUnsubscribeUrl})`);
 
       const delivery = await db.execute<{ count: number }>(
         sql`SELECT COUNT(*)::int AS count FROM conv_message_deliveries WHERE message_id = ${approved.sentMessageId!}`,

@@ -1,11 +1,13 @@
-import { Get, Inject, Query, BadRequestException } from '@nestjs/common';
-import { eq, and } from 'drizzle-orm';
-import { schema, type Db } from '@getmunin/db';
-import { UnsubscribeTokenError, verifyUnsubscribeToken } from '@getmunin/core';
+import { BadRequestException, Body, Get, Headers, HttpCode, Inject, Post, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { PublicController } from '../common/auth/auth.guard.ts';
-import { DB } from '../common/db/db.module.ts';
+import {
+  OutreachUnsubscribeService,
+  type UnsubscribeMethod,
+} from '../modules/outreach/outreach-unsubscribe.service.ts';
+import { pickUnsubscribeLocale, renderUnsubscribePage } from './outreach-unsubscribe.page.ts';
 
-interface UnsubscribeResult {
+interface UnsubscribeJson {
   ok: boolean;
   alreadyUnsubscribed: boolean;
   contactFound: boolean;
@@ -13,60 +15,72 @@ interface UnsubscribeResult {
 
 @PublicController('v1/outreach/unsubscribe')
 export class OutreachUnsubscribeController {
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(OutreachUnsubscribeService) private readonly unsubscribes: OutreachUnsubscribeService,
+  ) {}
 
   @Get()
-  async unsubscribe(@Query('token') token?: string): Promise<UnsubscribeResult> {
-    if (!token) throw new BadRequestException('token required');
-    let payload;
-    try {
-      payload = verifyUnsubscribeToken(token);
-    } catch (err) {
-      if (err instanceof UnsubscribeTokenError) throw new BadRequestException(err.message);
-      throw err;
-    }
-    const rows = await this.db
-      .select({
-        id: schema.crmContacts.id,
-        unsubscribedAt: schema.crmContacts.unsubscribedAt,
-        doNotContact: schema.crmContacts.doNotContact,
-      })
-      .from(schema.crmContacts)
-      .where(
-        and(
-          eq(schema.crmContacts.id, payload.contactId),
-          eq(schema.crmContacts.orgId, payload.orgId),
-        ),
-      )
-      .limit(1);
-    const contact = rows[0];
-    if (!contact) {
-      return { ok: true, alreadyUnsubscribed: false, contactFound: false };
-    }
-    const alreadyUnsubscribed = contact.unsubscribedAt !== null && contact.doNotContact;
-    if (alreadyUnsubscribed) {
-      return { ok: true, alreadyUnsubscribed: true, contactFound: true };
-    }
-    const now = new Date();
-    await this.db
-      .update(schema.crmContacts)
-      .set({ unsubscribedAt: now, doNotContact: true, updatedAt: now })
-      .where(
-        and(
-          eq(schema.crmContacts.id, payload.contactId),
-          eq(schema.crmContacts.orgId, payload.orgId),
-        ),
-      );
-    await this.db.insert(schema.crmActivities).values({
-      orgId: payload.orgId,
-      type: 'note',
-      subject: 'Unsubscribed',
-      body: `Unsubscribed via outreach link for campaign ${payload.campaignId}`,
-      contactId: payload.contactId,
-      actorType: 'agent',
-      actorId: 'outreach-unsubscribe',
-      metadata: { unsubscribe: { campaignId: payload.campaignId, issuedAt: payload.issuedAt } },
+  async page(
+    @Headers('accept-language') acceptLanguage: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+    @Query('token') token?: string,
+  ): Promise<string> {
+    const view = await this.unsubscribes.inspect(token);
+    sendAsPage(res, view.state === 'invalid' ? 400 : 200);
+    return renderUnsubscribePage({
+      view: view.state,
+      locale: pickUnsubscribeLocale(acceptLanguage),
+      orgName: view.orgName,
+      token: token ?? null,
     });
-    return { ok: true, alreadyUnsubscribed: false, contactFound: true };
   }
+
+  @Post()
+  @HttpCode(200)
+  async unsubscribe(
+    @Body() body: Record<string, unknown> | undefined,
+    @Headers('accept') accept: string | undefined,
+    @Headers('accept-language') acceptLanguage: string | undefined,
+    @Headers('content-type') contentType: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+    @Query('token') queryToken?: string,
+  ): Promise<string | UnsubscribeJson> {
+    const bodyToken = typeof body?.['token'] === 'string' ? body['token'] : undefined;
+    const token = queryToken ?? bodyToken;
+    const result = await this.unsubscribes.unsubscribe(token, unsubscribeMethod(body, contentType));
+
+    if (!accept?.includes('text/html')) {
+      if (result.state === 'invalid') {
+        throw new BadRequestException('unsubscribe_token_invalid: missing or invalid token');
+      }
+      return {
+        ok: true,
+        alreadyUnsubscribed: result.alreadyUnsubscribed,
+        contactFound: result.state !== 'not_found',
+      };
+    }
+
+    sendAsPage(res, result.state === 'invalid' ? 400 : 200);
+    return renderUnsubscribePage({
+      view: result.state === 'unsubscribed' && !result.alreadyUnsubscribed ? 'done' : result.state,
+      locale: pickUnsubscribeLocale(acceptLanguage),
+      orgName: result.orgName,
+      token: null,
+    });
+  }
+}
+
+function sendAsPage(res: Response, status: number): void {
+  res.status(status);
+  res.type('html');
+  res.setHeader('Cache-Control', 'no-store');
+}
+
+function unsubscribeMethod(
+  body: Record<string, unknown> | undefined,
+  contentType: string | undefined,
+): UnsubscribeMethod {
+  if (body?.['List-Unsubscribe'] === 'One-Click') return 'one_click';
+  if (contentType?.toLowerCase().startsWith('multipart/form-data')) return 'one_click';
+  return 'page';
 }

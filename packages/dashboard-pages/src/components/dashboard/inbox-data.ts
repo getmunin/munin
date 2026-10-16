@@ -15,6 +15,7 @@ import type {
   CmsAssetExpanded,
   CmsDraftDetailDto,
   CmsPreviewLink,
+  BroadcastDetailDto,
   OutreachProposalDetailDto,
   QueueItem,
   ScheduledItem,
@@ -90,6 +91,19 @@ function useQueueBuilder() {
             },
           ];
         }
+        if (item.kind === 'broadcast') {
+          const b = item.raw;
+          return [
+            {
+              kind: 'broadcast',
+              id: item.id,
+              title: b.subject,
+              snippet: tQueue('broadcastSnippet', { name: b.name }),
+              createdAt: item.at,
+              raw: b,
+            },
+          ];
+        }
         if (item.kind === 'cms') {
           const c = item.raw;
           return [
@@ -162,6 +176,19 @@ function useScheduledBuilder() {
             },
           ];
         }
+        if (item.kind === 'broadcast') {
+          const b = item.raw;
+          return [
+            {
+              kind: 'broadcast',
+              id: item.id,
+              title: b.subject,
+              snippet: tSched('broadcastDestination', { count: b.approvedAudienceCount ?? 0 }),
+              at: item.at,
+              raw: b,
+            },
+          ];
+        }
         if (item.kind === 'cms') {
           const c = item.raw;
           return [
@@ -193,6 +220,7 @@ export function useInboxData(): InboxController {
   const [outreachDetails, setOutreachDetails] = useState<
     Record<string, OutreachProposalDetailDto>
   >({});
+  const [broadcastDetails, setBroadcastDetails] = useState<Record<string, BroadcastDetailDto>>({});
   const [cmsPreviewLinks, setCmsPreviewLinks] = useState<Record<string, CmsPreviewLink>>({});
   const [activeQueueItem, setActiveQueueItem] = useState<QueueItem | null>(null);
   const [activeScheduledItem, setActiveScheduledItem] = useState<ScheduledItem | null>(null);
@@ -262,6 +290,41 @@ export function useInboxData(): InboxController {
     }
   }, [translateErr]);
 
+  const loadBroadcastDetail = useCallback(async (id: string) => {
+    try {
+      const broadcast = await api<BroadcastDetailDto>(`/v1/outreach/broadcasts/${id}`);
+      setBroadcastDetails((prev) => ({ ...prev, [id]: broadcast }));
+      setQueueDetailErrors((prev) => clearKey(prev, id));
+    } catch (err) {
+      setQueueDetailErrors((prev) => ({ ...prev, [id]: translateErr(err) }));
+    }
+  }, [translateErr]);
+
+  const reloadBroadcastDetail = useCallback(
+    async (id: string) => {
+      setBroadcastDetails((prev) => clearKey(prev, id));
+      setQueueDetailErrors((prev) => clearKey(prev, id));
+      await loadBroadcastDetail(id);
+    },
+    [loadBroadcastDetail],
+  );
+
+  const sendBroadcastTest = useCallback(
+    async (id: string): Promise<string | null> => {
+      try {
+        const result = await api<{ sent: true; to: string }>(
+          `/v1/outreach/broadcasts/${id}/test`,
+          { method: 'POST', body: '{}' },
+        );
+        return result.to;
+      } catch (err) {
+        notify.error(translateErr(err));
+        return null;
+      }
+    },
+    [translateErr],
+  );
+
   const loadCmsPreviewLink = useCallback(async (id: string) => {
     try {
       const link = await api<CmsPreviewLink>(`/v1/cms/drafts/${id}/preview-link`, {
@@ -319,6 +382,14 @@ export function useInboxData(): InboxController {
   }, [activeQueueItem, outreachDetails, queueDetailErrors, loadOutreachDetail]);
 
   useEffect(() => {
+    if (!activeQueueItem || activeQueueItem.kind !== 'broadcast') return;
+    const id = activeQueueItem.id;
+    if (broadcastDetails[id] !== undefined) return;
+    if (queueDetailErrors[id]) return;
+    void loadBroadcastDetail(id);
+  }, [activeQueueItem, broadcastDetails, queueDetailErrors, loadBroadcastDetail]);
+
+  useEffect(() => {
     if (!activeQueueItem || activeQueueItem.kind !== 'cms') return;
     const id = activeQueueItem.id;
     const link = cmsPreviewLinks[id];
@@ -344,6 +415,7 @@ export function useInboxData(): InboxController {
       event.type.startsWith('kb.') ||
       event.type.startsWith('crm.merge_proposal.') ||
       event.type.startsWith('outreach.proposal.') ||
+      event.type.startsWith('outreach.broadcast.') ||
       event.type.startsWith('cms.entry.') ||
       event.type.startsWith('feedback.item.');
     if (matches) void loadInbox();
@@ -390,6 +462,17 @@ export function useInboxData(): InboxController {
           await api(`/v1/cms/drafts/${item.id}/approve`, { method: 'POST', body: '{}' });
         } else if (item.kind === 'social') {
           await api(`/v1/social/drafts/${item.id}/approve`, { method: 'POST', body: '{}' });
+        } else if (item.kind === 'broadcast') {
+          const reviewed = broadcastDetails[item.id];
+          if (!reviewed) throw new Error('broadcast_not_loaded');
+          await api(`/v1/outreach/broadcasts/${item.id}/approve`, {
+            method: 'POST',
+            body: JSON.stringify({
+              fingerprint: reviewed.contentFingerprint,
+              ...(sendAt === undefined ? {} : { sendAt }),
+            }),
+          });
+          setBroadcastDetails((prev) => clearKey(prev, item.id));
         } else {
           await api(`/v1/outreach/proposals/${item.id}/approve`, {
             method: 'POST',
@@ -419,7 +502,7 @@ export function useInboxData(): InboxController {
         setPending(false);
       }
     },
-    [loadInbox, translateErr],
+    [loadInbox, translateErr, broadcastDetails],
   );
 
   const publishQueue = useCallback(
@@ -586,6 +669,11 @@ export function useInboxData(): InboxController {
           await api(`/v1/cms/drafts/${item.id}/dismiss`, { method: 'POST', body: '{}' });
         } else if (item.kind === 'social') {
           await api(`/v1/social/drafts/${item.id}/dismiss`, { method: 'POST', body: '{}' });
+        } else if (item.kind === 'broadcast') {
+          await api(`/v1/outreach/broadcasts/${item.id}/dismiss`, {
+            method: 'POST',
+            body: JSON.stringify({}),
+          });
         } else {
           await api(`/v1/outreach/proposals/${item.id}/dismiss`, {
             method: 'POST',
@@ -620,6 +708,27 @@ export function useInboxData(): InboxController {
       setPending(true);
       try {
         await api(`/v1/outreach/proposals/${id}/cancel-scheduled-send`, {
+          method: 'POST',
+          body: JSON.stringify({ reason }),
+        });
+        setActiveScheduledItem(null);
+        setCancelTarget(null);
+        await loadInbox();
+      } catch (err) {
+        notify.error(translateErr(err));
+        throw err;
+      } finally {
+        setPending(false);
+      }
+    },
+    [loadInbox, translateErr],
+  );
+
+  const cancelScheduledBroadcast = useCallback(
+    async (id: string, reason: string) => {
+      setPending(true);
+      try {
+        await api(`/v1/outreach/broadcasts/${id}/cancel`, {
           method: 'POST',
           body: JSON.stringify({ reason }),
         });
@@ -693,6 +802,9 @@ export function useInboxData(): InboxController {
     setCancelTarget,
     cmsDetails,
     outreachDetails,
+    broadcastDetails,
+    reloadBroadcastDetail,
+    sendBroadcastTest,
     cmsPreviewLinks,
     reloadCmsPreviewLink,
     queueDetailErrors,
@@ -704,6 +816,7 @@ export function useInboxData(): InboxController {
     scheduled,
     cancelScheduledSend,
     cancelScheduledPublish,
+    cancelScheduledBroadcast,
     saveQueue,
     saveSocialDraft,
     saveCmsDraft,

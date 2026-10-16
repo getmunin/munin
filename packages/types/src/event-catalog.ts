@@ -66,6 +66,12 @@ export const OUTREACH_EVENT_TYPES = [
   'outreach.proposal.send_failed',
   'outreach.proposal.dismissed',
   'outreach.proposal.withdrawn',
+  'outreach.broadcast.created',
+  'outreach.broadcast.approved',
+  'outreach.broadcast.started',
+  'outreach.broadcast.dismissed',
+  'outreach.broadcast.canceled',
+  'outreach.broadcast.completed',
 ] as const;
 
 export const SOCIAL_EVENT_TYPES = [

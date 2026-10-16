@@ -577,7 +577,7 @@ export class OutreachAdminTools {
   }
 }
 
-async function translateInvalid<T>(fn: () => Promise<T>): Promise<T> {
+export async function translateInvalid<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err) {

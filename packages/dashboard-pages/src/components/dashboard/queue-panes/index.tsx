@@ -38,6 +38,7 @@ export function ScheduledItemPane({
   hideHeaderOnMobile?: boolean;
   onClose?: () => void;
 }) {
+  if (item.kind === 'broadcast') return null;
   if (item.kind === 'outreach') {
     return (
       <OutreachQueuePane
@@ -158,6 +159,8 @@ export function QueueItemPane({
           onClose={onClose}
         />
       );
+    case 'broadcast':
+      return null;
     case 'social':
       return (
         <SocialQueuePane

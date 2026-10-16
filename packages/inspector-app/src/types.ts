@@ -183,6 +183,34 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+export interface Broadcast {
+  id: string;
+  name: string;
+  status: 'pending' | 'approved' | 'sending' | 'sent' | 'cancelled' | 'dismissed' | 'failed';
+  subject: string;
+  preheader: string | null;
+  scheduledSendAt: string | null;
+  contentFingerprint: string;
+  approvedAudienceCount: number | null;
+  audience: {
+    eligible: number;
+    excluded: Record<string, number>;
+    frozen: boolean;
+  };
+  preview: { html: string; text: string; warnings: string[] };
+  counts: Record<string, number>;
+}
+
+export function isBroadcast(value: unknown): value is Broadcast {
+  return (
+    isRecord(value) &&
+    'contentFingerprint' in value &&
+    'audience' in value &&
+    'preview' in value &&
+    'subject' in value
+  );
+}
+
 export function isProposal(value: unknown): value is Proposal {
   return isRecord(value) && 'draftBody' in value && 'campaignId' in value && 'status' in value;
 }

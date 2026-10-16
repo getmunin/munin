@@ -827,6 +827,20 @@
       "when": 1792003331553,
       "tag": "0117_conv_topic_inherit_channel_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1792057551509,
+      "tag": "0118_outreach_email_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1792060434254,
+      "tag": "0119_outreach_broadcasts",
+      "breakpoints": true
     }
   ]
 }

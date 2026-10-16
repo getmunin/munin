@@ -6,6 +6,13 @@ export const AUTO_SUBMITTED_HEADERS: Readonly<Record<string, string>> = Object.f
   'Auto-Submitted': AUTO_SUBMITTED_VALUE,
 });
 
+export function listUnsubscribeHeaders(url: string): Record<string, string> {
+  return {
+    'List-Unsubscribe': `<${url}>`,
+    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+  };
+}
+
 export interface OutboundAttachment {
   filename: string;
   contentType: string;
@@ -26,6 +33,7 @@ export interface BuildOutboundInput {
   references?: string[];
   trackerUrl?: string;
   autoSubmitted?: boolean;
+  listUnsubscribeUrl?: string;
   attachments?: readonly OutboundAttachment[];
 }
 
@@ -58,6 +66,9 @@ export function buildOutbound(input: BuildOutboundInput): BuiltMessage {
   ];
   if (input.replyTo) headers.push(['Reply-To', input.replyTo]);
   if (input.autoSubmitted) headers.push(['Auto-Submitted', AUTO_SUBMITTED_VALUE]);
+  if (input.listUnsubscribeUrl) {
+    headers.push(...Object.entries(listUnsubscribeHeaders(input.listUnsubscribeUrl)));
+  }
   if (input.inReplyTo) headers.push(['In-Reply-To', `<${input.inReplyTo}>`]);
   if (input.references?.length) {
     headers.push(['References', input.references.map((r) => `<${r}>`).join(' ')]);
@@ -233,7 +244,16 @@ export function extractPlusAddressedConvId(
   addresses: readonly string[],
   replyDomain: string,
 ): string | null {
+  return extractPlusAddressedKey(addresses, replyDomain, 'conv-');
+}
+
+export function extractPlusAddressedKey(
+  addresses: readonly string[],
+  replyDomain: string,
+  prefix: string,
+): string | null {
   const dom = replyDomain.replace(/^@/, '').toLowerCase();
+  const pattern = new RegExp(`(?:^|\\+)${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([A-Za-z0-9_-]+)$`);
   for (const raw of addresses) {
     const addr = extractEmail(raw)?.toLowerCase();
     if (!addr) continue;
@@ -242,7 +262,7 @@ export function extractPlusAddressedConvId(
     const local = addr.slice(0, at);
     const host = addr.slice(at + 1);
     if (host !== dom) continue;
-    const m = local.match(/(?:^|\+)conv-([A-Za-z0-9_-]+)$/);
+    const m = local.match(pattern);
     if (m) return m[1] ?? null;
   }
   return null;

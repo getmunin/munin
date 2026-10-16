@@ -42,6 +42,24 @@ describe('unsubscribe tokens', () => {
     expect(() => verifyUnsubscribeToken('a.b.c', PEPPER)).toThrow(UnsubscribeTokenError);
   });
 
+  it('still verifies a token issued years ago', () => {
+    const fiveYearsAgo = Math.floor(Date.now() / 1000) - 5 * 365 * 24 * 60 * 60;
+    const token = signUnsubscribeToken(
+      { orgId: 'org_a', contactId: 'cct_b', campaignId: 'cmp_c', issuedAt: fiveYearsAgo },
+      PEPPER,
+    );
+    expect(verifyUnsubscribeToken(token, PEPPER).issuedAt).toBe(fiveYearsAgo);
+  });
+
+  it('honours an explicit max age', () => {
+    const anHourAgo = Math.floor(Date.now() / 1000) - 3600;
+    const token = signUnsubscribeToken(
+      { orgId: 'org_a', contactId: 'cct_b', campaignId: 'cmp_c', issuedAt: anHourAgo },
+      PEPPER,
+    );
+    expect(() => verifyUnsubscribeToken(token, PEPPER, 60)).toThrow(UnsubscribeTokenError);
+  });
+
   it('rejects field values containing dots', () => {
     expect(() =>
       signUnsubscribeToken({ orgId: 'org.a', contactId: 'cct_b', campaignId: 'cmp_c' }, PEPPER),

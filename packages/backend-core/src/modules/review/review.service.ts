@@ -7,6 +7,10 @@ import {
 import { CrmService, type MergeProposalDto } from '../crm/crm.service.ts';
 import { OutreachService, type ProposalSummaryDto } from '../outreach/outreach.service.ts';
 import {
+  OutreachBroadcastsService,
+  type BroadcastSummaryDto,
+} from '../outreach/outreach-broadcasts.service.ts';
+import {
   CmsService,
   type CmsDraftEntrySummary,
   type CmsScheduledEntrySummary,
@@ -22,7 +26,7 @@ import {
 
 export const REVIEW_DEFAULT_LIMIT = 50;
 
-export type ReviewKind = 'kb' | 'crm' | 'outreach' | 'cms' | 'feedback' | 'social';
+export type ReviewKind = 'kb' | 'crm' | 'outreach' | 'broadcast' | 'cms' | 'feedback' | 'social';
 export type ReviewState = 'waiting' | 'scheduled' | 'decided';
 
 export interface ReviewDecidedFields {
@@ -44,6 +48,7 @@ export type ReviewItem =
   | Item<'kb', CurationCandidateSummary | CurationDecisionDto>
   | Item<'crm', MergeProposalDto>
   | Item<'outreach', ProposalSummaryDto>
+  | Item<'broadcast', BroadcastSummaryDto>
   | Item<'cms', CmsDraftEntrySummary>
   | Item<'feedback', FeedbackOutboxDto>
   | Item<'social', SocialDraftDto>;
@@ -58,6 +63,8 @@ export interface ReviewSnapshot {
   crm: MergeProposalDto[];
   outreach: ProposalSummaryDto[];
   outreachScheduled: ProposalSummaryDto[];
+  broadcast: BroadcastSummaryDto[];
+  broadcastScheduled: BroadcastSummaryDto[];
   cms: CmsDraftEntrySummary[];
   cmsScheduled: CmsScheduledEntrySummary[];
   feedback?: FeedbackOutboxDto[];
@@ -75,18 +82,31 @@ export class ReviewService {
     private readonly kb: KbService,
     private readonly crm: CrmService,
     private readonly outreach: OutreachService,
+    private readonly broadcasts: OutreachBroadcastsService,
     private readonly cms: CmsService,
     private readonly social: SocialService,
     @Optional() @Inject(FeedbackService) private readonly feedback: FeedbackService | null = null,
   ) {}
 
   async readSnapshot(limit: number = REVIEW_DEFAULT_LIMIT): Promise<ReviewSnapshot> {
-    const [kb, crm, outreach, outreachScheduled, cms, cmsScheduled, social, feedback] =
-      await Promise.all([
+    const [
+      kb,
+      crm,
+      outreach,
+      outreachScheduled,
+      broadcast,
+      broadcastScheduled,
+      cms,
+      cmsScheduled,
+      social,
+      feedback,
+    ] = await Promise.all([
         this.kb.listCurationCandidates(limit),
         this.crm.listMergeProposals({ status: 'pending', limit }),
         this.outreach.listProposals({ status: 'pending', limit }),
         this.outreach.listProposals({ status: 'approved', limit }),
+        this.broadcasts.listBroadcasts({ status: 'pending', limit }),
+        this.broadcasts.listBroadcasts({ status: 'approved', limit }),
         this.cms.listDraftEntries(limit),
         this.cms.listScheduledEntries(limit),
         this.social.listDrafts({ status: 'pending', limit }),
@@ -98,6 +118,8 @@ export class ReviewService {
       crm,
       outreach,
       outreachScheduled,
+      broadcast,
+      broadcastScheduled,
       cms,
       cmsScheduled,
       social,
@@ -110,6 +132,8 @@ export class ReviewService {
       snapshot.kb.length > 0 ||
       snapshot.crm.length > 0 ||
       snapshot.outreach.length > 0 ||
+      snapshot.broadcast.length > 0 ||
+      snapshot.broadcastScheduled.length > 0 ||
       snapshot.cms.length > 0 ||
       snapshot.cmsScheduled.length > 0 ||
       snapshot.social.length > 0 ||
@@ -149,6 +173,13 @@ export class ReviewService {
         at: raw.createdAt,
         raw,
       })),
+      ...snapshot.broadcast.map<ReviewItem>((raw) => ({
+        kind: 'broadcast',
+        state: 'waiting',
+        id: raw.id,
+        at: raw.updatedAt,
+        raw,
+      })),
       ...snapshot.cms.map<ReviewItem>((raw) => ({
         kind: 'cms',
         state: 'waiting',
@@ -181,10 +212,11 @@ export class ReviewService {
     const limit = Math.min(Math.max(input.limit ?? REVIEW_DEFAULT_LIMIT, 1), 200);
     const query = { ...(input.cursor ? { cursor: input.cursor } : {}), limit: limit + 1 };
 
-    const [kb, crm, outreach, cms, social, feedback] = await Promise.all([
+    const [kb, crm, outreach, broadcast, cms, social, feedback] = await Promise.all([
       this.kb.listDecided(query),
       this.crm.listDecided(query),
       this.outreach.listDecided(query),
+      this.broadcasts.listDecided(query),
       this.cms.listDecided(query),
       this.social.listDecided(query),
       this.feedback ? this.feedback.listDecided(query) : Promise.resolve([]),
@@ -194,6 +226,7 @@ export class ReviewService {
       ...kb.map((d) => decidedItem('kb', d)),
       ...crm.map((d) => decidedItem('crm', d)),
       ...outreach.map((d) => decidedItem('outreach', d)),
+      ...broadcast.map((d) => decidedItem('broadcast', d)),
       ...cms.map((d) => decidedItem('cms', d)),
       ...social.map((d) => decidedItem('social', d)),
       ...feedback.map((d) => decidedItem('feedback', d)),
@@ -215,6 +248,13 @@ export class ReviewService {
           ? [{ kind: 'outreach', state: 'scheduled', id: raw.id, at: raw.scheduledSendAt, raw }]
           : [],
       ),
+      ...snapshot.broadcastScheduled.map<ReviewItem>((raw) => ({
+        kind: 'broadcast',
+        state: 'scheduled',
+        id: raw.id,
+        at: raw.scheduledSendAt ?? raw.decidedAt ?? raw.updatedAt,
+        raw,
+      })),
       ...snapshot.cmsScheduled.map<ReviewItem>((raw) => ({
         kind: 'cms',
         state: 'scheduled',

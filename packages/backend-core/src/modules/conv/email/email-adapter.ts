@@ -35,12 +35,14 @@ import {
   stripMessageIdBrackets,
   parseMessageIdHeader,
   AUTO_SUBMITTED_HEADERS,
+  listUnsubscribeHeaders,
   type BuiltMessage,
   type OutboundAttachment,
 } from './mime.ts';
 import { renderEmailHtml } from './markdown.ts';
 import { senderDisplayName } from './sender-name.ts';
-import { resolveInbound, type ParsedInboundEmail } from './threading.ts';
+import { resolveBroadcastReply, resolveInbound, type ParsedInboundEmail } from './threading.ts';
+import { BULK_REPLY_PREFIX } from './bulk-reply.ts';
 import {
   filterInboundAttachments,
   normalizeCidReferences,
@@ -284,6 +286,7 @@ export class EmailAdapter implements ChannelAdapter {
     const outboundAttachments = await this.loadOutboundAttachments(ctx);
     const embedInMime = config.outbound.provider === 'smtp';
     const autoSubmitted = ctx.message.authorType === 'agent';
+    const listUnsubscribeUrl = extractListUnsubscribeUrl(ctx.message.metadata);
 
     const built: BuiltMessage = buildOutbound({
       from: composeFrom(config.addressing.fromName, config.addressing.fromAddress),
@@ -297,6 +300,7 @@ export class EmailAdapter implements ChannelAdapter {
       references: ctx.delivery.inReplyToHeader ? [ctx.delivery.inReplyToHeader] : undefined,
       trackerUrl,
       autoSubmitted,
+      listUnsubscribeUrl: listUnsubscribeUrl ?? undefined,
       attachments: embedInMime ? outboundAttachments : undefined,
     });
 
@@ -332,6 +336,7 @@ export class EmailAdapter implements ChannelAdapter {
         headers: {
           'Message-ID': `<${built.messageId}>`,
           ...(autoSubmitted ? AUTO_SUBMITTED_HEADERS : {}),
+          ...(listUnsubscribeUrl ? listUnsubscribeHeaders(listUnsubscribeUrl) : {}),
         },
         attachments: outboundAttachments.length
           ? outboundAttachments.map((a) => ({
@@ -344,6 +349,82 @@ export class EmailAdapter implements ChannelAdapter {
     }
 
     return { providerMessageId: built.messageId };
+  }
+
+  async sendBulk(channel: ChannelRow, messages: readonly BulkEmail[]): Promise<BulkEmailResult[]> {
+    if (messages.length === 0) return [];
+    const config = jsonbToStored(channel.config);
+    const from = composeFrom(config.addressing.fromName, config.addressing.fromAddress);
+    const built = messages.map((m) => ({
+      message: { ...m, listUnsubscribeUrl: httpsOnly(m.listUnsubscribeUrl) },
+      built: buildOutbound({
+        from,
+        to: m.to,
+        replyTo: this.composeBulkReplyTo(config, m.replyKey),
+        subject: m.subject,
+        text: m.text,
+        html: m.html,
+        messageIdDomain: config.addressing.fromAddress,
+        listUnsubscribeUrl: httpsOnly(m.listUnsubscribeUrl),
+      }),
+    }));
+
+    const results: BulkEmailResult[] = [];
+    if (config.outbound.provider === 'smtp') {
+      const resolved = await resolvePublicHost(config.outbound.host);
+      const password = await this.db.transaction(async (tx) =>
+        this.emailService.decryptSmtpPassword(
+          tx,
+          config.outbound.provider === 'smtp' ? config.outbound.encryptedPassword : '',
+        ),
+      );
+      const transport: Transporter = createTransport(
+        smtpTransportOptions(
+          config.outbound.host,
+          config.outbound.port,
+          config.outbound.secure,
+          { user: config.outbound.username, pass: password },
+          resolved?.address,
+        ),
+      );
+      try {
+        for (const { message, built: b } of built) {
+          try {
+            await transport.sendMail({
+              envelope: { from: config.addressing.fromAddress, to: message.to },
+              raw: b.raw,
+            });
+            results.push({ key: message.key, messageId: b.messageId, error: null });
+          } catch (err) {
+            results.push({ key: message.key, messageId: null, error: describeSendError(err) });
+          }
+        }
+      } finally {
+        transport.close();
+      }
+      return results;
+    }
+
+    for (const { message, built: b } of built) {
+      try {
+        await this.mailer.send({
+          from,
+          to: message.to,
+          subject: message.subject,
+          text: message.text,
+          html: message.html,
+          replyTo: this.composeBulkReplyTo(config, message.replyKey),
+          headers: {
+            'Message-ID': `<${b.messageId}>`,
+            ...(message.listUnsubscribeUrl ? listUnsubscribeHeaders(message.listUnsubscribeUrl) : {}),
+          },
+        });
+        results.push({ key: message.key, messageId: b.messageId, error: null });
+      } catch (err) {
+        results.push({ key: message.key, messageId: null, error: describeSendError(err) });
+      }
+    }
+    return results;
   }
 
   private async pollOne(channel: ChannelRow): Promise<PollTickResult> {
@@ -493,8 +574,27 @@ export class EmailAdapter implements ChannelAdapter {
             )
             .limit(1);
           if (ownSend[0]) return;
+          const ownBroadcast = await tx
+            .select({ id: schema.outreachBroadcastRecipients.id })
+            .from(schema.outreachBroadcastRecipients)
+            .where(
+              and(
+                eq(schema.outreachBroadcastRecipients.orgId, orgId),
+                eq(schema.outreachBroadcastRecipients.messageIdHeader, parsed.messageId),
+              ),
+            )
+            .limit(1);
+          if (ownBroadcast[0]) return;
         }
-        const resolution = await resolveInbound(tx, orgId, parsed, replyDomain);
+        const threaded = await resolveInbound(tx, orgId, parsed, replyDomain);
+        const broadcastReply = threaded
+          ? null
+          : await resolveBroadcastReply(tx, orgId, parsed, replyDomain);
+        const resolution =
+          threaded ??
+          (broadcastReply?.conversationId
+            ? { conversationId: broadcastReply.conversationId, via: 'broadcast' as const }
+            : null);
         const emailAuth = inboundSenderAuth(parsed, sender);
         const contact = await this.emailService.findOrCreateContactByEmail(
           tx,
@@ -578,8 +678,15 @@ export class EmailAdapter implements ChannelAdapter {
             suppressedReason: suppressed,
             subject: parsed.subject || null,
             agentMode: channel.defaultAgentMode,
+            outreachBroadcastId: broadcastReply?.broadcastId ?? null,
             lastMessageAt: new Date(),
           });
+          if (broadcastReply) {
+            await tx
+              .update(schema.outreachBroadcastRecipients)
+              .set({ conversationId, updatedAt: new Date() })
+              .where(eq(schema.outreachBroadcastRecipients.id, broadcastReply.recipientId));
+          }
         }
 
         const stored = await this.recordInboundAttachments(conversationId, prepared.stored);
@@ -898,6 +1005,15 @@ export class EmailAdapter implements ChannelAdapter {
     });
   }
 
+  private composeBulkReplyTo(config: StoredEmailChannelConfig, replyKey: string): string | undefined {
+    const template = config.addressing.replyToTemplate;
+    if (template && !template.includes('{conversationId}')) return template;
+    const replyDomain = process.env.MUNIN_EMAIL_REPLY_DOMAIN;
+    if (!replyDomain) return undefined;
+    const local = config.addressing.fromAddress.split('@')[0] ?? 'support';
+    return `${local}+${BULK_REPLY_PREFIX}${replyKey}@${replyDomain}`;
+  }
+
   private composeReplyTo(config: StoredEmailChannelConfig, conversationId: string): string | undefined {
     if (config.addressing.replyToTemplate) {
       return config.addressing.replyToTemplate.replace('{conversationId}', conversationId);
@@ -1046,6 +1162,36 @@ function composeFrom(name: string | undefined, address: string): string {
   if (!name) return address;
   const clean = name.replace(/[",\r\n]/g, '').trim();
   return `${clean} <${address}>`;
+}
+
+export interface BulkEmail {
+  key: string;
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+  replyKey: string;
+  listUnsubscribeUrl?: string;
+}
+
+export interface BulkEmailResult {
+  key: string;
+  messageId: string | null;
+  error: string | null;
+}
+
+function httpsOnly(url: string | undefined): string | undefined {
+  return url?.startsWith('https://') ? url : undefined;
+}
+
+function describeSendError(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.slice(0, 500);
+}
+
+function extractListUnsubscribeUrl(metadata: Record<string, unknown>): string | null {
+  const v = (metadata as { listUnsubscribeUrl?: unknown }).listUnsubscribeUrl;
+  return typeof v === 'string' ? (httpsOnly(v) ?? null) : null;
 }
 
 function extractToFromMetadata(metadata: Record<string, unknown>): string | null {

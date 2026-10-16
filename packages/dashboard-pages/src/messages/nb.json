@@ -293,7 +293,10 @@
         "kindSocial": "SOSIALT",
         "codeSocial": "SOME",
         "socialUntitled": "Utkast uten tekst",
-        "socialSnippet": "{platform} · {label} · {chars}/{max} tegn"
+        "socialSnippet": "{platform} · {label} · {chars}/{max} tegn",
+        "codeBroadcast": "UTS",
+        "broadcastSnippet": "Utsendelse · {name}",
+        "kindBroadcast": "UTSENDELSE"
       },
       "scheduled": {
         "outreachUntitled": "Utkast til utsending",
@@ -307,7 +310,11 @@
         "cancelDismiss": "La den stå planlagt",
         "cancelCmsTitle": "Avlys denne publiseringen",
         "cancelCmsDescription": "Ingenting går live. Oppføringen går tilbake i køen som utkast, og å publisere den senere krever ny godkjenning.",
-        "cancelCmsConfirm": "Avlys publisering"
+        "cancelCmsConfirm": "Avlys publisering",
+        "broadcastDestination": "sendes til {count, plural, =1 {# mottaker} other {# mottakere}}",
+        "cancelBroadcastTitle": "Avlys denne utsendelsen",
+        "cancelBroadcastDescription": "Ingenting sendes. Utsendelsen går tilbake i køen, og å sende den senere krever ny godkjenning.",
+        "cancelBroadcastConfirm": "Avlys utsendelsen"
       },
       "drawer": {
         "close": "lukk ×",
@@ -486,7 +493,11 @@
         "socialPreviewNoteNoPageImage": "Siden det lenkes til deler ikke noe bilde, så innlegget går ut uten.",
         "socialPreviewNoteFacebookCard": "Siden det lenkes til deler ikke noe bilde, så Facebook lager sitt eget kort fra lenken.",
         "socialPreviewNoteUnreadable": "Siden det lenkes til kunne ikke leses akkurat nå. Munin prøver igjen når innlegget går ut, og legger det ut uten bilde hvis det fortsatt ikke går.",
-        "draftNoteLabel": "Notat"
+        "draftNoteLabel": "Notat",
+        "metaBroadcast": "{name} · {count, plural, =1 {# mottaker} other {# mottakere}}",
+        "scheduledBroadcastHeadline": "Sendes {when}",
+        "scheduledBroadcastDetail": "{count, plural, =1 {Går til # person automatisk.} other {Går til # personer automatisk.}} Avmeldinger, samtykke og returnerte adresser sjekkes på nytt for hver person i sendeøyeblikket.",
+        "scheduledBroadcastCancel": "Avlys utsendelsen"
       },
       "relative": {
         "justNow": "akkurat nå",
@@ -1385,7 +1396,8 @@
           "outreach": "Forkastet",
           "cms": "Forkastet",
           "feedback": "Avvist",
-          "social": "Forkastet"
+          "social": "Forkastet",
+          "broadcast": "Forkastet"
         },
         "decidedByAgent": "Agenten",
         "decidedByUnknown": "Ukjent",
@@ -1479,7 +1491,8 @@
           "outreach": "Sendt",
           "cms": "Publisert",
           "feedback": "Videresendt",
-          "social": "Lagt ut"
+          "social": "Lagt ut",
+          "broadcast": "Godkjent"
         },
         "outcomeFailed": "Sending feilet",
         "decidedUntitled": "Uten tittel",
@@ -1514,6 +1527,11 @@
             "approved": "Utkastet ble lagt ut, og settet det hører til er avgjort.",
             "dismissed": "Ingen publiserte denne varianten. Resten av settet er urørt.",
             "failed": "Innlegget kunne ikke publiseres."
+          },
+          "broadcast": {
+            "approved": "Utsendelsen ble godkjent for sending til segmentet.",
+            "dismissed": "Utsendelsen ble forkastet og aldri sendt.",
+            "failed": "Utsendelsen kunne ikke sendes til noen."
           }
         },
         "decidedSocialVariant": "Sosialt innlegg · {label}",
@@ -1534,7 +1552,80 @@
           "crmKept": "Beholdt",
           "crmArchived": "Arkivert",
           "crmProposedKeeper": "Foreslått beholdt",
-          "crmProposedDuplicate": "Foreslått duplikat"
+          "crmProposedDuplicate": "Foreslått duplikat",
+          "broadcastLabel": "Levering",
+          "broadcastAudience": "{count, plural, =1 {# mottaker} other {# mottakere}}",
+          "broadcastSent": "Sendt",
+          "broadcastQueued": "Venter på sending",
+          "broadcastSkipped": "Hoppet over",
+          "broadcastFailed": "Feilet",
+          "broadcastReplied": "Svarte",
+          "broadcastUnsubscribed": "Meldte seg av",
+          "broadcastBounced": "Returnert",
+          "broadcastStatus": {
+            "approved": "Planlagt",
+            "sending": "Sender",
+            "sent": "Sendt",
+            "cancelled": "Stoppet",
+            "dismissed": "Forkastet",
+            "failed": "Feilet",
+            "pending": "Venter på godkjenning"
+          },
+          "broadcastStarts": "Starter {when}",
+          "broadcastStarted": "Startet {when}",
+          "broadcastFinished": "Ferdig {when}",
+          "broadcastRecipientsHint": "Spør agenten din om leveringsstatus for hver mottaker.",
+          "broadcastUnavailable": "E-posten kunne ikke lastes.",
+          "broadcastStop": "Stopp sendingen",
+          "broadcastStopTitle": "Stoppe utsendelsen?",
+          "broadcastStopBody": "{sent, plural, =0 {Ingenting er sendt ennå, og ingen vil få den.} =1 {# e-post er allerede sendt og kan ikke hentes tilbake. Ingen andre vil få den.} other {# e-poster er allerede sendt og kan ikke hentes tilbake. Ingen andre vil få den.}}",
+          "broadcastStopReason": "Hvorfor stopper du den?",
+          "broadcastStopKeep": "Fortsett sendingen",
+          "broadcastOfTotal": "av {total} sendt",
+          "broadcastProgressLabel": "{sent} av {total} sendt",
+          "broadcastRateOfSent": "{rate} av sendte"
+        },
+        "codeBroadcast": "UTS",
+        "broadcast": {
+          "eyebrow": "Utsendelse",
+          "loadFailed": "Kunne ikke laste utsendelsen",
+          "retry": "Prøv igjen",
+          "changedHeading": "Endret siden du åpnet den",
+          "changedDetail": "Innholdet, malen eller mottakerne er endret, så ingenting ble sendt. Last inn siste versjon og se gjennom den på nytt.",
+          "loadLatest": "Last inn siste versjon",
+          "audienceHeading": "Hvem får den",
+          "audienceEligible": "{count, plural, =1 {Går til # person} other {Går til # personer}}",
+          "audienceNone": "Ingen i segmentet kan motta den akkurat nå.",
+          "sample": "Blant annet {names}",
+          "warning": "Sjekk før sending",
+          "whenItGoes": "Når den sendes",
+          "sendScheduled": "Som planlagt · {when}",
+          "sendNow": "Start sendingen nå",
+          "sendPick": "Velg tidspunkt",
+          "irreversible": "Sendte e-poster kan ikke hentes tilbake. Sendingen spres utover tid, og du kan stoppe resten fra fanen Avgjort.",
+          "testSentHeading": "Test sendt",
+          "testSentDetail": "En kopi er på vei til {to}.",
+          "draftedByUser": "Skrevet av en kollega",
+          "draftedByAgent": "Skrevet av en agent",
+          "htmlSize": "{kb} KB",
+          "sendTest": "Send meg en test",
+          "sendingTest": "Sender test…",
+          "dismiss": "Forkast",
+          "approveNow": "{count, plural, =1 {Send til # person} other {Send til # personer}}",
+          "approveScheduled": "{count, plural, =1 {Planlegg for # person} other {Planlegg for # personer}}",
+          "shortcutApprove": "⌘↵ godkjenn · sending er endelig",
+          "previewFor": "Slik {name} ser den",
+          "previewHeading": "Forhåndsvisning",
+          "previewTitle": "Forhåndsvisning av e-posten",
+          "view": {
+            "desktop": "Stor skjerm",
+            "mobile": "Mobil",
+            "text": "Ren tekst"
+          },
+          "audienceLeftOut": "{count} utelatt",
+          "previewViewLabel": "Vis som",
+          "calledOffHeading": "Avlyst før utsending",
+          "calledOffDetail": "Begrunnelse: {reason}"
         }
       },
       "automation": {
@@ -2476,7 +2567,10 @@
     "social_target_unavailable": "Den siden kan du ikke lenger publisere på. Velg en annen, eller koble til på nytt.",
     "social_authorization_expired": "Denne autoriseringen er ikke åpen lenger. Start tilkoblingen på nytt.",
     "slack_not_channel_member": "En annen Munin-organisasjon ruter allerede inn i den Slack-kanalen, så bare noen som er med i kanalen kan legge til en rute dit. Bli med i kanalen i Slack med kontoen som bruker e-postadressen din i Munin, og prøv igjen.",
-    "social_no_targets": "Denne kontoen administrerer ingen side Munin kan publisere på. Gi appen tilgang til en side og koble til på nytt."
+    "social_no_targets": "Denne kontoen administrerer ingen side Munin kan publisere på. Gi appen tilgang til en side og koble til på nytt.",
+    "outreach_broadcast_changed": "Utsendelsen ble endret etter at du åpnet den, så ingenting ble sendt. Last inn siste versjon og se gjennom den på nytt.",
+    "outreach_broadcast_empty_audience": "Ingen i segmentet kan motta denne utsendelsen, så det er ingenting å godkjenne.",
+    "outreach_broadcast_state": "Noen har allerede tatt stilling til denne utsendelsen. Oppdater for å se status."
   },
   "footer": {
     "privacy": "Personvern",
@@ -2684,6 +2778,38 @@
       "subline": "{count} treff live fra {source}.",
       "view": "Se ↗",
       "foot": "Priser og lager hentes live fra {vendor} — ingenting lagres i Munin."
+    },
+    "broadcast": {
+      "status": {
+        "pending": "Venter på godkjenning",
+        "approved": "Planlagt",
+        "sending": "Sender",
+        "sent": "Sendt",
+        "cancelled": "Stoppet",
+        "dismissed": "Forkastet",
+        "failed": "Feilet"
+      },
+      "showText": "Ren tekst",
+      "showEmail": "E-post",
+      "audience": "Mottakere: {count}.",
+      "audienceNone": "Ingen i segmentet kan motta den akkurat nå.",
+      "excluded": "Utelatt: {list}.",
+      "reason": {
+        "unsubscribed": "meldt av tidligere",
+        "do_not_contact": "ikke kontakt",
+        "no_lawful_basis": "uten behandlingsgrunnlag",
+        "no_email": "uten e-post",
+        "undeliverable": "returnert før",
+        "duplicate_address": "delt adresse"
+      },
+      "progress": "Sendt: {sent} · svar: {replied} · meldt av: {unsubscribed}.",
+      "scheduled": "Starter sendingen {when} når den er godkjent.",
+      "previewTitle": "Forhåndsvisning av e-posten",
+      "approve": "Godkjenn og send til {count}",
+      "approving": "Godkjenner…",
+      "dismiss": "Forkast",
+      "dismissing": "Forkaster…",
+      "foot": "Sendt e-post kan ikke hentes tilbake. Bare en innlogget person kan godkjenne."
     }
   },
   "legal": {

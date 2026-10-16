@@ -1301,6 +1301,7 @@ export class ConvService {
     outreachCampaignId?: string;
     agentMode?: AgentMode;
     metadata?: Record<string, unknown>;
+    messageMetadata?: Record<string, unknown>;
     authorType: 'user' | 'agent' | 'end_user' | 'system';
     authorId: string;
   }): Promise<ConversationDetail> {
@@ -1343,6 +1344,7 @@ export class ConvService {
         authorId: input.authorId,
         body: input.body,
         internal: false,
+        metadata: input.messageMetadata ?? {},
       })
       .returning();
     await ctx.db

@@ -890,6 +890,222 @@ class StubImapFetcher implements ImapFetcher {
       .toBe('auto-replied');
   }, 30_000);
 
+  it('advertises one-click unsubscribe only on a message that carries an https unsubscribe URL', async () => {
+    const channel = await imapChannel();
+
+    fetcher.push(rfc822({
+      from: 'List Tester <list@customer.test>',
+      to: 'support@acme.test',
+      subject: 'Tell me more',
+      messageId: 'list-inbound-1@customer.test',
+      body: 'Send me the details.',
+    }));
+    await inboundWorker.tick();
+
+    const [contact] = await db
+      .select()
+      .from(schema.convContacts)
+      .where(
+        and(
+          eq(schema.convContacts.orgId, orgId),
+          eq(schema.convContacts.email, 'list@customer.test'),
+        ),
+      );
+    const [conv] = await db
+      .select()
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.contactId, contact!.id));
+
+    const send = async (metadata: Record<string, unknown>) => {
+      const [msg] = await db
+        .insert(schema.convMessages)
+        .values({
+          orgId,
+          conversationId: conv!.id,
+          authorType: 'user',
+          authorId: 'user:test',
+          body: 'Here are the details.',
+          internal: false,
+          metadata,
+        })
+        .returning();
+      await db.insert(schema.convMessageDeliveries).values({
+        orgId,
+        messageId: msg!.id,
+        channelId: channel.id,
+        status: 'queued',
+        attempt: 0,
+        nextAttemptAt: new Date(),
+      });
+      mailer.clear();
+      await outboundWorker.tick();
+      expect(mailer.outbox).toHaveLength(1);
+      return mailer.outbox[0]!.headers ?? {};
+    };
+
+    const url = 'https://api.acme.test/v1/outreach/unsubscribe?token=v1.org_a.cct_b.cmp_c.1.sig';
+    expect(await send({ listUnsubscribeUrl: url })).toMatchObject({
+      'List-Unsubscribe': `<${url}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    });
+    expect((await send({}))['List-Unsubscribe']).toBeUndefined();
+    expect(
+      (await send({ listUnsubscribeUrl: 'http://api.acme.test/v1/outreach/unsubscribe?token=x' }))[
+        'List-Unsubscribe'
+      ],
+    ).toBeUndefined();
+  }, 30_000);
+
+  it('sends bulk mail with its HTML part and one-click unsubscribe headers on the mailer path', async () => {
+    const channel = await imapChannel();
+    mailer.clear();
+    const url = 'https://api.acme.test/v1/outreach/unsubscribe?token=v1.org_a.cct_b.obc_c.1.sig';
+    const results = await emailAdapter.sendBulk(channel, [
+      {
+        key: 'obr_one',
+        to: 'reader@customer.test',
+        subject: 'What is new',
+        html: '<html><body><h1>October</h1></body></html>',
+        text: 'October',
+        replyKey: 'obr_one',
+        listUnsubscribeUrl: url,
+      },
+      {
+        key: 'obr_two',
+        to: 'other@customer.test',
+        subject: 'What is new',
+        html: '<html><body><h1>October</h1></body></html>',
+        text: 'October',
+        replyKey: 'obr_two',
+        listUnsubscribeUrl: 'http://localhost:3001/v1/outreach/unsubscribe?token=x',
+      },
+    ]);
+    expect(results.map((r) => [r.key, r.error])).toEqual([
+      ['obr_one', null],
+      ['obr_two', null],
+    ]);
+    expect(mailer.outbox).toHaveLength(2);
+    const [first, second] = mailer.outbox;
+    expect(first!.html).toContain('<h1>October</h1>');
+    expect(first!.text).toBe('October');
+    expect(first!.headers).toMatchObject({
+      'Message-ID': `<${results[0]!.messageId}>`,
+      'List-Unsubscribe': `<${url}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    });
+    expect(second!.headers?.['List-Unsubscribe']).toBeUndefined();
+  }, 30_000);
+
+  it('turns a reply to a broadcast into one conversation seeded with the broadcast, and ignores our own copy', async () => {
+    const channel = await imapChannel();
+    const [segment] = await db
+      .insert(schema.crmSegments)
+      .values({
+        orgId,
+        name: `broadcast-reply-${channel.id}`,
+        filterDefinition: { tagsAny: ['customer'] },
+        createdByActorType: 'user',
+        createdByActorId: 'usr_test',
+      })
+      .returning();
+    const [crmContact] = await db
+      .insert(schema.crmContacts)
+      .values({ orgId, name: 'Kari Nordmann', email: 'reader@customer.test', consentLawfulBasis: 'contract' })
+      .returning();
+    const [broadcast] = await db
+      .insert(schema.outreachBroadcasts)
+      .values({
+        orgId,
+        name: `Reply test ${channel.id}`,
+        segmentId: segment!.id,
+        channelId: channel.id,
+        subject: 'What is new',
+        contentFormat: 'markdown',
+        body: 'Hi {{name|there}}, news.',
+        status: 'sent',
+        approvedHtml: '<html><body><p>Hi {{name|there}}, three things shipped.</p></body></html>',
+        proposedByActorType: 'admin_agent',
+        proposedByActorId: 'agt_test',
+      })
+      .returning();
+    const sentAt = new Date(Date.now() - 60 * 60 * 1000);
+    const [recipient] = await db
+      .insert(schema.outreachBroadcastRecipients)
+      .values({
+        orgId,
+        broadcastId: broadcast!.id,
+        contactId: crmContact!.id,
+        address: 'reader@customer.test',
+        status: 'sent',
+        messageIdHeader: 'broadcast-out-1@acme.test',
+        sentAt,
+      })
+      .returning();
+
+    fetcher.push(rfc822({
+      from: 'Our Newsletter <support@acme.test>',
+      to: 'support@acme.test',
+      subject: 'What is new',
+      messageId: 'broadcast-out-1@acme.test',
+      body: 'Our own copy, delivered back to the shared inbox.',
+    }));
+    fetcher.push(rfc822({
+      from: 'Kari Nordmann <reader@customer.test>',
+      to: 'support@acme.test',
+      subject: 'Re: What is new',
+      messageId: 'broadcast-reply-1@customer.test',
+      inReplyTo: 'broadcast-out-1@acme.test',
+      references: ['broadcast-out-1@acme.test'],
+      body: 'Does the voice note feature work on mobile?',
+    }));
+    await inboundWorker.tick();
+
+    const conversations = await db
+      .select()
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.outreachBroadcastId, broadcast!.id));
+    expect(conversations).toHaveLength(1);
+    const conversationId = conversations[0]!.id;
+
+    const [linked] = await db
+      .select()
+      .from(schema.outreachBroadcastRecipients)
+      .where(eq(schema.outreachBroadcastRecipients.id, recipient!.id));
+    expect(linked!.conversationId).toBe(conversationId);
+    expect(linked!.repliedAt).not.toBeNull();
+
+    const messages = await db
+      .select()
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.conversationId, conversationId))
+      .orderBy(asc(schema.convMessages.createdAt));
+    expect(messages.map((m) => m.authorType)).toEqual(['agent', 'end_user']);
+    expect(messages[0]!.body).toContain('Hi Kari Nordmann, three things shipped.');
+    expect(messages[0]!.createdAt.toISOString()).toBe(sentAt.toISOString());
+    expect(messages[1]!.body).toContain('voice note');
+
+    fetcher.push(rfc822({
+      from: 'Kari Nordmann <reader@customer.test>',
+      to: 'support@acme.test',
+      subject: 'Re: What is new',
+      messageId: 'broadcast-reply-2@customer.test',
+      inReplyTo: 'broadcast-out-1@acme.test',
+      body: 'One more question about pricing.',
+    }));
+    await inboundWorker.tick();
+    const after = await db
+      .select({ id: schema.convMessages.id })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.conversationId, conversationId));
+    expect(after).toHaveLength(3);
+    expect(
+      await db
+        .select({ id: schema.convConversations.id })
+        .from(schema.convConversations)
+        .where(eq(schema.convConversations.outreachBroadcastId, broadcast!.id)),
+    ).toHaveLength(1);
+  }, 30_000);
+
   it('reconstructs the quoted history of an Apple Mail reply, which quotes without a header block', async () => {
     fetcher.push(rfc822({
       from: 'Quoter <quoter@customer.test>',

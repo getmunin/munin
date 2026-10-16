@@ -31,6 +31,7 @@ import { newImportResult, resolveId } from '../../common/transfer/transfer.helpe
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 import { mergeFingerprint } from './merge-fingerprint.ts';
 import { CrmInvalidError } from './crm.errors.ts';
+import { OUTREACH_ELIGIBILITY_FLOOR, segmentMatchFilters } from './segment-filter.ts';
 import { judgeOwnContact } from './own-contact.ts';
 import { AddressDeliverabilityService } from './address-deliverability.service.ts';
 import { normalizeAddress, type AddressDeliverabilityDto } from './address-deliverability.ts';
@@ -725,38 +726,9 @@ export class CrmService {
     const limit = clampLimit(input.limit, 100, 500);
     const ctx = getCurrentContext();
     const filters: SQL[] = [
-      eq(schema.crmContacts.doNotContact, false),
-      sql`${schema.crmContacts.unsubscribedAt} IS NULL`,
-      sql`${schema.crmContacts.consentLawfulBasis} IS NOT NULL`,
+      ...OUTREACH_ELIGIBILITY_FLOOR,
+      ...segmentMatchFilters(segment.filterDefinition),
     ];
-    const f = segment.filterDefinition;
-    if (f.companyId) filters.push(eq(schema.crmContacts.companyId, f.companyId));
-    if (f.tagsAny && f.tagsAny.length > 0) {
-      const anyChecks = f.tagsAny.map(
-        (t) => sql`${schema.crmContacts.tags} @> ${JSON.stringify([t])}::jsonb`,
-      );
-      filters.push(or(...anyChecks)!);
-    }
-    if (f.tagsAll && f.tagsAll.length > 0) {
-      filters.push(sql`${schema.crmContacts.tags} @> ${JSON.stringify(f.tagsAll)}::jsonb`);
-    }
-    if (f.contactedSince) {
-      const since = new Date(f.contactedSince);
-      if (Number.isNaN(since.valueOf())) {
-        throw new CrmInvalidError('filter.contactedSince must be ISO timestamp');
-      }
-      filters.push(sql`(${schema.crmContacts.lastContactedAt} IS NULL OR ${schema.crmContacts.lastContactedAt} < ${since})`);
-    }
-    if (f.searchQuery) {
-      const q = `%${f.searchQuery}%`;
-      filters.push(
-        or(
-          ilike(schema.crmContacts.name, q),
-          ilike(schema.crmContacts.email, q),
-          ilike(schema.crmContacts.title, q),
-        )!,
-      );
-    }
     const rows = await ctx.db
       .select()
       .from(schema.crmContacts)

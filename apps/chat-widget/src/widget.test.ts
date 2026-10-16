@@ -38,16 +38,37 @@ const h = vi.hoisted(() => {
     setVoiceState: vi.fn(),
     setView: vi.fn(),
     setSessionId: vi.fn(),
-    hooks: { onEnterNewChat: undefined as (() => void) | undefined },
+    postMessage: vi.fn(() => Promise.resolve({})),
+    reconnect: vi.fn(),
+    session: { owner: undefined as string | null | undefined, current: 'sess_1' },
+    adoptSessionOwner: vi.fn(),
+    hooks: {
+      onEnterNewChat: undefined as (() => void) | undefined,
+      onSend: undefined as ((text: string, attachmentIds: string[]) => void) | undefined,
+    },
   };
 });
 
 vi.mock('./session.ts', () => ({
-  getSessionId: () => 'sess_1',
+  getSessionId: () => h.session.current,
   getVisitorId: () => 'vis_1',
-  getRecentSessionIds: () => ['sess_1'],
-  mintNewSession: () => 'sess_2',
+  getRecentSessionIds: () => [h.session.current],
+  mintNewSession: () => {
+    h.session.current = 'sess_minted';
+    return h.session.current;
+  },
   setCurrentSession: () => {},
+  getSessionOwner: () => h.session.owner,
+  adoptSessionOwner: (_channelId: string, owner: string | null) => {
+    h.adoptSessionOwner(owner);
+    const previous = h.session.owner;
+    h.session.owner = owner;
+    if (typeof previous === 'string' && previous !== owner) {
+      h.session.current = 'sess_fresh';
+      return true;
+    }
+    return false;
+  },
 }));
 
 vi.mock('./api.ts', () => ({
@@ -56,8 +77,9 @@ vi.mock('./api.ts', () => ({
       super(`status ${status}`);
     }
   },
+  isForeignSessionError: (err: unknown) => (err as { foreign?: boolean } | null)?.foreign === true,
   createApiClient: () => ({
-    postMessage: vi.fn(),
+    postMessage: h.postMessage,
     backfillSince: h.backfillSince,
     listConversations: h.listConversations,
     setVisitorEmail: vi.fn(),
@@ -74,7 +96,7 @@ vi.mock('./realtime.ts', () => ({
   createRealtimeClient: () => ({
     connect: vi.fn(),
     close: vi.fn(),
-    reconnect: vi.fn(),
+    reconnect: h.reconnect,
     state: () => 'connected',
     sendTyping: vi.fn(),
     sendRead: vi.fn(),
@@ -205,6 +227,7 @@ interface MnWidgetApi {
   toggle: () => void;
   isOpen: () => boolean;
   identify: (externalId: string, userHash: string, options?: { email?: string }) => Promise<void>;
+  logout: () => void;
   call: () => Promise<{ started: boolean; reason?: string }>;
   endCall: () => Promise<void>;
   ready: boolean;
@@ -372,6 +395,75 @@ describe('opening straight into a new chat', () => {
 
     await vi.waitFor(() => expect(h.startConversation).toHaveBeenCalledTimes(1));
     expect(h.setSessionId).not.toHaveBeenCalled();
+  });
+});
+
+describe('session ownership on a shared browser', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.listeners.state = undefined;
+    h.session.owner = undefined;
+    h.session.current = 'sess_1';
+    document.body.innerHTML = '';
+    delete (window as Window & WindowWithMnWidget).mn;
+  });
+
+  it('stamps the configured identity as the session owner before reading the session', () => {
+    start({ ...baseConfig, externalId: 'user_42', userHash: HASH });
+    expect(h.adoptSessionOwner).toHaveBeenCalledWith('user_42');
+  });
+
+  it('boots a signed-out page onto a fresh session when the stored one belonged to a user', () => {
+    h.session.owner = 'user_42';
+    start({ ...baseConfig });
+    expect(h.adoptSessionOwner).toHaveBeenCalledWith(null);
+    expect(h.session.current).toBe('sess_fresh');
+  });
+
+  it('moves to a fresh session before claiming it for a different user', async () => {
+    h.session.owner = 'user_a';
+    start({ ...baseConfig, externalId: 'user_a', userHash: HASH });
+
+    await getMnWidget().identify('user_b', HASH);
+
+    expect(h.setSessionId).toHaveBeenCalledWith('sess_fresh');
+    expect(h.setSessionId.mock.invocationCallOrder[0]!).toBeLessThan(
+      h.identify.mock.invocationCallOrder[0]!,
+    );
+    expect(h.session.owner).toBe('user_b');
+  });
+
+  it('keeps the anonymous session when the visitor signs in, so the claim carries it over', async () => {
+    h.session.owner = null;
+    start({ ...baseConfig });
+
+    await getMnWidget().identify('user_42', HASH);
+
+    expect(h.setSessionId).not.toHaveBeenCalled();
+    expect(h.identify).toHaveBeenCalledWith('user_42', HASH, undefined);
+    expect(h.session.owner).toBe('user_42');
+  });
+
+  it('logout() drops the identity, rotates the session and reconnects without it', () => {
+    start({ ...baseConfig, externalId: 'user_42', userHash: HASH });
+
+    getMnWidget().logout();
+
+    expect(h.session.owner).toBeNull();
+    expect(h.setSessionId).toHaveBeenCalledWith('sess_fresh');
+    expect(h.reconnect).toHaveBeenCalled();
+  });
+
+  it('retries a send on a new session when the server says the session belongs to someone else', async () => {
+    h.postMessage.mockImplementationOnce(() =>
+      Promise.reject(Object.assign(new Error('foreign session'), { foreign: true })),
+    );
+    start({ ...baseConfig });
+
+    h.hooks.onSend!('hello', []);
+
+    await vi.waitFor(() => expect(h.postMessage).toHaveBeenCalledTimes(2));
+    expect(h.setSessionId).toHaveBeenCalledWith('sess_minted');
   });
 });
 

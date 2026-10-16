@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createApiClient, WidgetApiError } from './api.ts';
+import { createApiClient, isForeignSessionError, WidgetApiError } from './api.ts';
 
 interface CapturedCall {
   url: string;
@@ -344,5 +344,20 @@ describe('api: clients are not polling', () => {
     await client.backfillSince(undefined);
     expect(setIntervalSpy).not.toHaveBeenCalled();
     setIntervalSpy.mockRestore();
+  });
+});
+
+describe('isForeignSessionError', () => {
+  it.each(['conversation_identity_mismatch', 'session_already_claimed', 'session_not_owned'])(
+    'recognises a 403 %s as a session owned by someone else',
+    (code) => {
+      expect(isForeignSessionError(new WidgetApiError(403, { message: code }))).toBe(true);
+    },
+  );
+
+  it('ignores other failures', () => {
+    expect(isForeignSessionError(new WidgetApiError(403, { message: 'origin_not_allowed' }))).toBe(false);
+    expect(isForeignSessionError(new WidgetApiError(500, { message: 'session_not_owned' }))).toBe(false);
+    expect(isForeignSessionError(new Error('network'))).toBe(false);
   });
 });

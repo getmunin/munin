@@ -71,7 +71,8 @@ export default function AudiencesAndTokens() {
           Channel-bound public key for the chat widget. Audience <code>self_service</code>, plus
           channel-scoped origin allowlist and optional identity HMAC. Safe to embed in the page
           source: the key only authorizes calls to the one channel it was minted for, and only
-          from origins on its allowlist.
+          from origins on its allowlist. It is refused on <code>/mcp</code>; an agent acting for a
+          customer uses a delegated token instead.
         </dd>
         <dt>mn_dlg_…</dt>
         <dd>

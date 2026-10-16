@@ -9,6 +9,7 @@ const COOKIE_MAX_AGE_S = 60 * 60 * 24 * 365;
 interface SessionState {
   current: string;
   recent: string[];
+  owner?: string | null;
 }
 
 const memory = new Map<string, SessionState>();
@@ -26,9 +27,27 @@ export function mintNewSession(channelId: string, cookieDomain?: string): string
   const state = loadState(channelId, cookieDomain);
   const fresh = randomId();
   const recent = [state.current, ...state.recent].filter((s) => s !== fresh).slice(0, RECENT_CAP);
-  const next: SessionState = { current: fresh, recent };
-  saveState(channelId, next, cookieDomain);
+  saveState(channelId, { ...state, current: fresh, recent }, cookieDomain);
   return fresh;
+}
+
+export function getSessionOwner(channelId: string, cookieDomain?: string): string | null | undefined {
+  return loadState(channelId, cookieDomain).owner;
+}
+
+export function adoptSessionOwner(
+  channelId: string,
+  owner: string | null,
+  cookieDomain?: string,
+): boolean {
+  const state = loadState(channelId, cookieDomain);
+  if (state.owner === owner) return false;
+  if (typeof state.owner !== 'string') {
+    saveState(channelId, { ...state, owner }, cookieDomain);
+    return false;
+  }
+  saveState(channelId, { current: randomId(), recent: [], owner }, cookieDomain);
+  return true;
 }
 
 export function setCurrentSession(
@@ -39,7 +58,7 @@ export function setCurrentSession(
   const state = loadState(channelId, cookieDomain);
   if (state.current === sessionId) return;
   const recent = [state.current, ...state.recent].filter((s) => s !== sessionId).slice(0, RECENT_CAP);
-  saveState(channelId, { current: sessionId, recent }, cookieDomain);
+  saveState(channelId, { ...state, current: sessionId, recent }, cookieDomain);
 }
 
 export function clearSessionId(channelId: string, cookieDomain?: string): void {
@@ -134,6 +153,9 @@ function parseState(raw: string | null): SessionState | null {
     const recent = Array.isArray(obj.recent)
       ? obj.recent.filter((s): s is string => typeof s === 'string' && s.length > 0).slice(0, RECENT_CAP)
       : [];
+    if (typeof obj.owner === 'string' || obj.owner === null) {
+      return { current: obj.current, recent, owner: obj.owner };
+    }
     return { current: obj.current, recent };
   } catch (err) {
     console.warn('[munin-widget] session parse:', err);

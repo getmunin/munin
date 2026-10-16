@@ -530,6 +530,70 @@ const skipReason = TEST_URL
     }
   }, 30_000);
 
+  it('rejects a public widget key so it cannot spend the org MCP quota', async () => {
+    const [wOrg] = await db
+      .insert(schema.orgs)
+      .values({ name: 'Widget Quota Org', settings: { rateLimits: { perDay: 1 } } })
+      .returning();
+    const [wChannel] = await db
+      .insert(schema.convChannels)
+      .values({ orgId: wOrg!.id, type: 'chat', vendor: 'widget', name: 'widget-quota', config: {} })
+      .returning();
+    const widgetKey = buildApiKey('widget');
+    await db.insert(schema.apiKeys).values({
+      orgId: wOrg!.id,
+      type: 'widget',
+      name: 'widget-quota',
+      channelId: wChannel!.id,
+      keyHash: hashSecret(widgetKey),
+      keyPrefix: keyPrefix(widgetKey),
+      scopes: ['conv:widget:write'],
+      audiences: ['self_service'],
+    });
+    const wAdminKey = buildApiKey('admin');
+    await db.insert(schema.apiKeys).values({
+      orgId: wOrg!.id,
+      type: 'admin',
+      name: 'widget-quota-admin',
+      keyHash: hashSecret(wAdminKey),
+      keyPrefix: keyPrefix(wAdminKey),
+      scopes: ['*'],
+    });
+
+    try {
+      const res = await fetch(`${baseUrl}/mcp`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${widgetKey}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'ping', arguments: { message: 'spend' } },
+        }),
+      });
+      expect(res.status).toBe(403);
+      expect(await res.text()).toContain('mcp_widget_key_rejected');
+
+      await expect(
+        withClient(widgetKey, (c) => c.callTool({ name: 'ping', arguments: { message: 'x' } })),
+      ).rejects.toThrow();
+
+      await withClient(wAdminKey, async (c) => {
+        const ping = parseToolResult<{ message: string }>(
+          await c.callTool({ name: 'ping', arguments: { message: 'admin' } }),
+        );
+        expect(ping.message).toBe('admin');
+      });
+    } finally {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      await db.delete(schema.orgs).where(sql`id = ${wOrg!.id}`);
+    }
+  }, 30_000);
+
   it('expired bearer token is rejected at connect (401)', async () => {
     const expired = buildApiKey('dlg');
     await db.insert(schema.tokens).values({

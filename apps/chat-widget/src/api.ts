@@ -98,6 +98,18 @@ export class WidgetApiError extends Error {
   }
 }
 
+const FOREIGN_SESSION_CODES: ReadonlySet<string> = new Set([
+  'conversation_identity_mismatch',
+  'session_already_claimed',
+  'session_not_owned',
+]);
+
+export function isForeignSessionError(err: unknown): boolean {
+  if (!(err instanceof WidgetApiError) || err.status !== 403) return false;
+  const message = (err.body as { message?: unknown } | null)?.message;
+  return typeof message === 'string' && FOREIGN_SESSION_CODES.has(message);
+}
+
 export type VoiceStartResult =
   | { available: false; reason: string }
   | {

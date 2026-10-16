@@ -492,6 +492,63 @@ const skipReason = TEST_URL
     }
   });
 
+  it('does not deliver a signed-in visitor\'s events or typing to an anonymous socket reusing the session', async () => {
+    const ownerExt = 'user_shared_browser';
+    const ownerHash = signHmac(ownerExt, identitySecret);
+    const sessionId = 'rt_anon_on_claimed';
+
+    const firstRes = await fetch(`${baseUrl}/v1/widget/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${widgetKey}`,
+        Origin: ALLOWED_ORIGIN,
+      },
+      body: JSON.stringify({
+        channelId,
+        sessionId,
+        verifiedExternalId: ownerExt,
+        userHash: ownerHash,
+        messages: [{ role: 'end_user', body: 'first' }],
+      }),
+    });
+    const conversationId = ((await firstRes.json()) as { conversationId: string }).conversationId;
+
+    const wsAnon = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
+    const wsOperator = new WebSocket(`${wsBase}/v1/realtime`, ['bearer', adminKey]);
+    await Promise.all([waitForOpen(wsAnon), waitForOpen(wsOperator)]);
+    try {
+      wsAnon.send(JSON.stringify({ type: 'subscribe', channel: 'widget', channelId, sessionId }));
+      await new Promise((r) => setTimeout(r, 50));
+
+      const noEventP = expectNoEvent(
+        wsAnon,
+        (m) =>
+          (m.type === 'event' || m.type === 'typing') &&
+          m.channel === `widget:${channelId}:${sessionId}`,
+        1000,
+      );
+      await ingest(
+        widgetKey,
+        {
+          channelId,
+          sessionId,
+          verifiedExternalId: ownerExt,
+          userHash: ownerHash,
+          messages: [{ role: 'end_user', body: 'should not leak' }],
+        },
+        ALLOWED_ORIGIN,
+      );
+      wsOperator.send(
+        JSON.stringify({ type: 'typing', channel: 'conversation', id: conversationId, isTyping: true }),
+      );
+      await noEventP;
+    } finally {
+      wsAnon.terminate();
+      wsOperator.terminate();
+    }
+  });
+
   it('rejects upgrade with no auth at all', async () => {
     const ws = new WebSocket(`${wsBase}/v1/realtime`, ['bearer', 'mn_widget_garbage_xxxxx'], {
       headers: { Origin: ALLOWED_ORIGIN },

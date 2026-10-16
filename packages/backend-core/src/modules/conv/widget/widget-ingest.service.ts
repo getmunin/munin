@@ -235,12 +235,10 @@ export class WidgetIngestService {
         )[0]
       : null;
 
-    if (identity.mode === 'verified') {
-      const contactExternalId = (contactRow?.metadata as { externalId?: string } | undefined)
-        ?.externalId;
-      if (contactExternalId !== identity.externalId) {
-        return { messages: [], hasMore: false, cursor: null, conversation: null };
-      }
+    if (
+      !identityOwnsContact(contactExternalIdOf(contactRow?.metadata), verifiedExternalIdOf(identity))
+    ) {
+      return { messages: [], hasMore: false, cursor: null, conversation: null };
     }
 
     const sinceFilter = query.since
@@ -355,6 +353,7 @@ export class WidgetIngestService {
       assigneeUserId: string | null;
       lastMessageAt: Date | null;
       sessionId: string | null;
+      contactExternalId: string | null;
     }> = [];
 
     if (identity.mode === 'verified') {
@@ -368,6 +367,9 @@ export class WidgetIngestService {
           sessionId: sql<
             string | null
           >`${schema.convConversations.metadata}->>'sessionId'`.as('session_id'),
+          contactExternalId: sql<
+            string | null
+          >`${schema.convContacts.metadata}->>'externalId'`.as('contact_external_id'),
         })
         .from(schema.convConversations)
         .innerJoin(
@@ -394,8 +396,15 @@ export class WidgetIngestService {
           sessionId: sql<
             string | null
           >`${schema.convConversations.metadata}->>'sessionId'`.as('session_id'),
+          contactExternalId: sql<
+            string | null
+          >`${schema.convContacts.metadata}->>'externalId'`.as('contact_external_id'),
         })
         .from(schema.convConversations)
+        .leftJoin(
+          schema.convContacts,
+          eq(schema.convConversations.contactId, schema.convContacts.id),
+        )
         .where(
           and(
             eq(schema.convConversations.orgId, orgId),
@@ -411,6 +420,9 @@ export class WidgetIngestService {
     } else {
       return { conversations: [] };
     }
+
+    const verifiedExternalId = verifiedExternalIdOf(identity);
+    convRows = convRows.filter((r) => identityOwnsContact(r.contactExternalId, verifiedExternalId));
 
     const convIds = convRows.map((r) => r.id);
     const previews =
@@ -546,6 +558,7 @@ export class WidgetIngestService {
     if (identity.mode === 'verified') {
       await this.claimAnonymousIdentityInTx(tx, orgId, input.sessionId, input.visitorId, identity);
     }
+    await this.assertSessionOwnedBy(tx, orgId, channel.id, input.sessionId, identity);
 
     const ingestShape: WidgetIngestInputT = {
       channelId: input.channelId,
@@ -628,6 +641,34 @@ export class WidgetIngestService {
       displayId: created!.displayId,
       contactId: contact.id,
     };
+  }
+
+  private async assertSessionOwnedBy(
+    tx: Tx,
+    orgId: string,
+    channelId: string,
+    sessionId: string,
+    identity: IdentityResolution,
+  ): Promise<void> {
+    const [conv] = await tx
+      .select({ contactId: schema.convConversations.contactId })
+      .from(schema.convConversations)
+      .where(
+        and(
+          eq(schema.convConversations.orgId, orgId),
+          eq(schema.convConversations.channelId, channelId),
+          sql`${schema.convConversations.metadata}->>'sessionId' = ${sessionId}`,
+        ),
+      )
+      .limit(1);
+    if (conv?.contactId) {
+      await assertContactIdentityOwnership(
+        tx,
+        conv.contactId,
+        identity,
+        'conversation_identity_mismatch',
+      );
+    }
   }
 
   private async loadAssistantName(tx: Tx, orgId: string): Promise<string | null> {
@@ -728,6 +769,7 @@ export class WidgetIngestService {
     if (identity.mode === 'verified') {
       await this.claimAnonymousIdentityInTx(tx, orgId, input.sessionId, input.visitorId, identity);
     }
+    await this.assertSessionOwnedBy(tx, orgId, channel.id, input.sessionId, identity);
     const endUser = await this.findOrCreateEndUser(tx, orgId, input, identity);
     const signedEmail =
       identity.mode === 'verified' && identity.email
@@ -939,7 +981,11 @@ export class WidgetIngestService {
               ...(input.visitorId ? { visitorId: input.visitorId } : {}),
             };
       if (input.locale) baseMetadata.locale = input.locale;
-      const visitorEmail = input.visitor?.email?.trim().toLowerCase() ?? null;
+      const offeredEmail = input.visitor?.email?.trim().toLowerCase() ?? null;
+      const visitorEmail =
+        offeredEmail && !(await emailBelongsToAnotherEndUser(tx, orgId, offeredEmail, ''))
+          ? offeredEmail
+          : null;
       if (visitorEmail) baseMetadata.emailSource = VISITOR_EMAIL_SOURCE;
       const [created] = await tx
         .insert(schema.endUsers)
@@ -1001,9 +1047,9 @@ export class WidgetIngestService {
           email: lowerEmailV ?? null,
           name: input.visitor?.name ?? null,
           metadata: {
+            ...withoutIdentityClaim(input.visitor?.metadata),
             sessionId: input.sessionId,
             externalId: identity.externalId,
-            ...(input.visitor?.metadata ?? {}),
           },
         })
         .returning();
@@ -1017,7 +1063,7 @@ export class WidgetIngestService {
         .from(schema.convContacts)
         .where(and(eq(schema.convContacts.orgId, orgId), eq(schema.convContacts.email, lowerEmail)))
         .limit(1);
-      if (existing[0]) {
+      if (existing[0] && identityOwnsContact(contactExternalIdOf(existing[0].metadata), undefined)) {
         const patch: Record<string, unknown> = {};
         if (input.visitor?.name && !existing[0].name) patch.name = input.visitor.name;
         if (!existing[0].endUserId) patch.endUserId = endUserId;
@@ -1041,6 +1087,9 @@ export class WidgetIngestService {
       )
       .limit(1);
     if (sessionRows[0]) {
+      if (!identityOwnsContact(contactExternalIdOf(sessionRows[0].metadata), undefined)) {
+        throw new ForbiddenException('conversation_identity_mismatch');
+      }
       const patch: Record<string, unknown> = {};
       if (input.visitor?.name && !sessionRows[0].name) patch.name = input.visitor.name;
       if (lowerEmail && !sessionRows[0].email) patch.email = lowerEmail;
@@ -1061,7 +1110,7 @@ export class WidgetIngestService {
         endUserId,
         email: lowerEmail ?? null,
         name: input.visitor?.name ?? null,
-        metadata: { sessionId: input.sessionId, ...(input.visitor?.metadata ?? {}) },
+        metadata: { ...withoutIdentityClaim(input.visitor?.metadata), sessionId: input.sessionId },
       })
       .returning();
     return created!;
@@ -1463,17 +1512,39 @@ export async function assertContactIdentityOwnership(
     .from(schema.convContacts)
     .where(eq(schema.convContacts.id, contactId))
     .limit(1);
-  const externalId = (row?.metadata as { externalId?: unknown } | null)?.externalId;
-  const claimedBy =
-    typeof externalId === 'string' && externalId.length > 0 && !externalId.startsWith('anon:')
-      ? externalId
-      : null;
-
-  if (identity.mode === 'verified') {
-    if (claimedBy !== identity.externalId) throw new ForbiddenException(errorCode);
-    return;
+  if (!identityOwnsContact(contactExternalIdOf(row?.metadata), verifiedExternalIdOf(identity))) {
+    throw new ForbiddenException(errorCode);
   }
-  if (claimedBy) throw new ForbiddenException(errorCode);
+}
+
+export function identityOwnsContact(
+  contactExternalId: unknown,
+  verifiedExternalId: string | undefined,
+): boolean {
+  const claimedBy =
+    typeof contactExternalId === 'string' &&
+    contactExternalId.length > 0 &&
+    !contactExternalId.startsWith('anon:')
+      ? contactExternalId
+      : null;
+  return verifiedExternalId ? claimedBy === verifiedExternalId : claimedBy === null;
+}
+
+export function verifiedExternalIdOf(identity: IdentityResolution): string | undefined {
+  return identity.mode === 'verified' ? identity.externalId : undefined;
+}
+
+function contactExternalIdOf(metadata: unknown): unknown {
+  return (metadata as { externalId?: unknown } | null | undefined)?.externalId;
+}
+
+function withoutIdentityClaim(
+  metadata: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  if (!metadata) return {};
+  const rest = { ...metadata };
+  delete rest.externalId;
+  return rest;
 }
 
 export function verifyIdentity(

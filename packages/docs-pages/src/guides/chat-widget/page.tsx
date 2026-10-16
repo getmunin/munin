@@ -275,8 +275,15 @@ window.mn?.widget?.ready
         two never share a call. Idempotent — calling it twice with the
         same <code>externalId</code> is a no-op. Calling it with a
         different <code>externalId</code>{' '}
-        on a session that&rsquo;s already verified returns 403; mint a fresh session if you genuinely
-        need to swap identities mid-flight.
+        than the session already belongs to starts a fresh chat for the new user rather than
+        reusing the old one.
+      </p>
+      <p className="tag-blurb" style={{ marginTop: 16 }}>
+        A session a signed-in user has used stays theirs: Munin refuses to show, list, stream or
+        extend it for an anonymous visitor or a different user. When sign-out is a route change,
+        call <code>window.mn.widget.logout()</code> so the next person at that browser starts with an
+        empty chat; after a full reload without <code>data-external-id</code> the widget does this
+        on its own.
       </p>
 
       <h2 className="tag-h" id="programmatic" style={{ marginTop: 56 }}>

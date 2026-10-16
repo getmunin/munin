@@ -30,7 +30,11 @@ function outcomeOfProposal(status: string): ReviewDecisionOutcome {
   if (status === 'failed') return 'failed';
   return 'dismissed';
 }
-import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
+import {
+  assertPriorTargetsInOrg,
+  newImportResult,
+  resolveId,
+} from '../../common/transfer/transfer.helpers.ts';
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 import {
   redactQueryParams,
@@ -2132,6 +2136,27 @@ export class OutreachService {
     const result = newImportResult();
     result.idMap = { ...priorIdMap };
 
+    await assertPriorTargetsInOrg('outreach_import_invalid', result.idMap, priorIdMap, [
+      {
+        kind: 'segment',
+        sourceIds: data.campaigns.map((c) => c.segmentId),
+        findInOrg: (ids) =>
+          ctx.db
+            .select({ id: schema.crmSegments.id })
+            .from(schema.crmSegments)
+            .where(and(eq(schema.crmSegments.orgId, actor.orgId), inArray(schema.crmSegments.id, ids))),
+      },
+      {
+        kind: 'channel',
+        sourceIds: data.campaigns.map((c) => c.channelId),
+        findInOrg: (ids) =>
+          ctx.db
+            .select({ id: schema.convChannels.id })
+            .from(schema.convChannels)
+            .where(and(eq(schema.convChannels.orgId, actor.orgId), inArray(schema.convChannels.id, ids))),
+      },
+    ]);
+
     for (const campaign of data.campaigns) {
       const segmentId = resolveId(result.idMap, campaign.segmentId);
       const channelId = resolveId(result.idMap, campaign.channelId);
@@ -2169,6 +2194,46 @@ export class OutreachService {
         `campaign "${campaign.name}" imported disabled — re-enable it once the channel credentials are re-entered on this server`,
       );
     }
+
+    await assertPriorTargetsInOrg('outreach_import_invalid', result.idMap, priorIdMap, [
+      {
+        kind: 'campaign',
+        sourceIds: data.proposals.map((p) => p.campaignId),
+        findInOrg: (ids) =>
+          ctx.db
+            .select({ id: schema.outreachCampaigns.id })
+            .from(schema.outreachCampaigns)
+            .where(
+              and(
+                eq(schema.outreachCampaigns.orgId, actor.orgId),
+                inArray(schema.outreachCampaigns.id, ids),
+              ),
+            ),
+      },
+      {
+        kind: 'contact',
+        sourceIds: data.proposals.map((p) => p.contactId),
+        findInOrg: (ids) =>
+          ctx.db
+            .select({ id: schema.crmContacts.id })
+            .from(schema.crmContacts)
+            .where(and(eq(schema.crmContacts.orgId, actor.orgId), inArray(schema.crmContacts.id, ids))),
+      },
+      {
+        kind: 'conversation',
+        sourceIds: data.proposals.map((p) => p.conversationId),
+        findInOrg: (ids) =>
+          ctx.db
+            .select({ id: schema.convConversations.id })
+            .from(schema.convConversations)
+            .where(
+              and(
+                eq(schema.convConversations.orgId, actor.orgId),
+                inArray(schema.convConversations.id, ids),
+              ),
+            ),
+      },
+    ]);
 
     for (const proposal of data.proposals) {
       const campaignId = resolveId(result.idMap, proposal.campaignId);

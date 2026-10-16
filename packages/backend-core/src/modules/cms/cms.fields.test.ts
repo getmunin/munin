@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
+  dropFieldReferences,
+  listIdReferences,
   applyAssetExpansion,
   applyBlockEdits,
   applyReferenceExpansion,
@@ -729,5 +731,67 @@ describe('applyBlockEdits', () => {
     expect(notList.ok).toBe(false);
     if (notList.ok) return;
     expect(notList.failure.message).toContain('does not hold a list of blocks');
+  });
+});
+
+describe('listIdReferences / dropFieldReferences', () => {
+  const fields: FieldDef[] = [
+    { name: 'hero', type: 'asset' },
+    { name: 'gallery', type: 'array', options: { items: { name: 'item', type: 'asset' } } },
+    { name: 'related', type: 'reference' },
+    { name: 'body', type: 'markdown' },
+    {
+      name: 'content',
+      type: 'blocks',
+      options: {
+        blockTypes: [
+          {
+            name: 'card',
+            fields: [
+              { name: 'image', type: 'asset' },
+              { name: 'link', type: 'reference' },
+              { name: 'text', type: 'markdown' },
+            ],
+          },
+        ],
+      },
+    },
+  ];
+  const data = {
+    hero: 'cma_a',
+    gallery: ['cma_b', 'cma_c'],
+    related: 'cme_a',
+    body: 'see ![x](asset://cma_d) and [y](ref://cme_b)',
+    content: [{ type: 'card', props: { image: 'cma_e', link: 'cme_c', text: 'go [z](ref://cme_d)' } }],
+  };
+
+  it('lists every asset and entry id a write would store, naming the top-level field', () => {
+    expect(listIdReferences(fields, data)).toEqual(
+      expect.arrayContaining([
+        { fieldName: 'hero', target: 'asset', id: 'cma_a', inline: false },
+        { fieldName: 'gallery', target: 'asset', id: 'cma_c', inline: false },
+        { fieldName: 'body', target: 'asset', id: 'cma_d', inline: true },
+        { fieldName: 'content', target: 'asset', id: 'cma_e', inline: false },
+        { fieldName: 'related', target: 'entry', id: 'cme_a', inline: false },
+        { fieldName: 'content', target: 'entry', id: 'cme_c', inline: false },
+        { fieldName: 'body', target: 'entry', id: 'cme_b', inline: true },
+        { fieldName: 'content', target: 'entry', id: 'cme_d', inline: true },
+      ]),
+    );
+    expect(listIdReferences(fields, data)).toHaveLength(9);
+  });
+
+  it('drops only the field-level ids it is told are missing, inside blocks too', () => {
+    const out = dropFieldReferences(fields, data, {
+      assets: new Set(['cma_a', 'cma_c', 'cma_e']),
+      entries: new Set(['cme_c']),
+    });
+    expect(out.hero).toBeNull();
+    expect(out.gallery).toEqual(['cma_b']);
+    expect(out.related).toBe('cme_a');
+    expect(out.body).toBe(data.body);
+    expect(out.content).toEqual([
+      { type: 'card', props: { image: null, link: null, text: 'go [z](ref://cme_d)' } },
+    ]);
   });
 });

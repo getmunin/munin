@@ -248,4 +248,38 @@ const skipReason = TEST_URL
     expect(result).toEqual({ sent: 0, deferred: 0, failed: 0 });
     expect(await statusOf(id)).toBe('pending');
   });
+
+  it('does not send a due proposal whose contact belongs to another org', async () => {
+    const id = await scheduleFirstTouch('due-foreign-contact', new Date(Date.now() - 60_000));
+    const [otherOrg] = await db.insert(schema.orgs).values({ name: 'Send Worker Other Org' }).returning();
+    try {
+      const [foreign] = await db
+        .insert(schema.crmContacts)
+        .values({
+          orgId: otherOrg!.id,
+          name: 'Kari Nordmann',
+          email: 'kari@other.example',
+          consentLawfulBasis: 'legitimate_interest',
+          consentGivenAt: new Date(),
+          consentSource: 'imported-test',
+        })
+        .returning();
+      await db
+        .update(schema.outreachProposals)
+        .set({ contactId: foreign!.id })
+        .where(eq(schema.outreachProposals.id, id));
+
+      const result = await worker.tick();
+
+      expect(result.sent).toBe(0);
+      expect(result.failed).toBe(1);
+      expect(await statusOf(id)).not.toBe('sent');
+      const messages = await db.execute<{ count: number }>(
+        sql`SELECT COUNT(*)::int AS count FROM conv_messages WHERE org_id IN (${orgId}, ${otherOrg!.id})`,
+      );
+      expect(messages[0]!.count).toBe(0);
+    } finally {
+      await db.delete(schema.orgs).where(eq(schema.orgs.id, otherOrg!.id));
+    }
+  });
 });

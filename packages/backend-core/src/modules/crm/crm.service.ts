@@ -27,7 +27,12 @@ import {
 } from '../../common/review-decision.ts';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { QUOTAS_SERVICE, type QuotasService } from '../../common/quotas/quotas.service.ts';
-import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
+import {
+  assertPriorTargetsInOrg,
+  newImportResult,
+  resolveId,
+  type ImportTargetCheck,
+} from '../../common/transfer/transfer.helpers.ts';
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 import { mergeFingerprint } from './merge-fingerprint.ts';
 import { CrmInvalidError } from './crm.errors.ts';
@@ -1687,6 +1692,13 @@ export class CrmService {
   async importCrm(data: CrmExportData, priorIdMap: IdMap = {}): Promise<ImportResult> {
     const result = newImportResult();
     result.idMap = { ...priorIdMap };
+    const assertTargets = (checks: ImportTargetCheck[]) =>
+      assertPriorTargetsInOrg('crm_import_invalid', result.idMap, priorIdMap, checks);
+    const endpointIds = (type: RelationshipEntityType) =>
+      data.relationships.flatMap((r) => [
+        r.fromType === type ? r.fromId : null,
+        r.toType === type ? r.toId : null,
+      ]);
 
     for (const pipeline of data.pipelines) {
       const existing = await this.findPipelineForImport(pipeline.slug);
@@ -1746,6 +1758,10 @@ export class CrmService {
       }
     }
 
+    await assertTargets([
+      this.importTargetCheck('company', data.contacts.map((c) => c.companyId)),
+    ]);
+
     for (const contact of data.contacts) {
       const existing = await this.findContactForImport(contact.email);
       if (existing) {
@@ -1766,6 +1782,13 @@ export class CrmService {
         result.created++;
       }
     }
+
+    await assertTargets([
+      this.importTargetCheck('pipeline', data.deals.map((d) => d.pipelineId)),
+      this.importTargetCheck('stage', data.deals.map((d) => d.stageId)),
+      this.importTargetCheck('contact', data.deals.map((d) => d.primaryContactId)),
+      this.importTargetCheck('company', data.deals.map((d) => d.companyId)),
+    ]);
 
     for (const deal of data.deals) {
       const targetPipelineId = resolveId(result.idMap, deal.pipelineId);
@@ -1799,6 +1822,21 @@ export class CrmService {
       result.idMap[deal.id] = created.id;
       result.created++;
     }
+
+    await assertTargets([
+      this.importTargetCheck('contact', [
+        ...data.activities.map((a) => a.contactId),
+        ...endpointIds('contact'),
+      ]),
+      this.importTargetCheck('company', [
+        ...data.activities.map((a) => a.companyId),
+        ...endpointIds('company'),
+      ]),
+      this.importTargetCheck('deal', [
+        ...data.activities.map((a) => a.dealId),
+        ...endpointIds('deal'),
+      ]),
+    ]);
 
     for (const activity of data.activities) {
       if (result.idMap[activity.id]) {
@@ -1876,6 +1914,30 @@ export class CrmService {
     }
 
     return result;
+  }
+
+  private importTargetCheck(
+    kind: 'company' | 'contact' | 'deal' | 'pipeline' | 'stage',
+    sourceIds: (string | null | undefined)[],
+  ): ImportTargetCheck {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor!.orgId;
+    const table = {
+      company: schema.crmCompanies,
+      contact: schema.crmContacts,
+      deal: schema.crmDeals,
+      pipeline: schema.crmPipelines,
+      stage: schema.crmStages,
+    }[kind];
+    return {
+      kind,
+      sourceIds,
+      findInOrg: (ids) =>
+        ctx.db
+          .select({ id: table.id })
+          .from(table)
+          .where(and(eq(table.orgId, orgId), inArray(table.id, ids))),
+    };
   }
 
   private async findPipelineForImport(slug: string): Promise<{ id: string } | null> {

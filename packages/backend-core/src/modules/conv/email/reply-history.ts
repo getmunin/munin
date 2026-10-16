@@ -310,6 +310,7 @@ export interface QuotedPriorMessage {
 export async function loadPriorMessagesForQuote(
   db: Db,
   args: {
+    orgId: string;
     conversationId: string;
     excludeMessageId: string;
     contactName: string | null;
@@ -330,6 +331,7 @@ export async function loadPriorMessagesForQuote(
       .where(
         and(
           eq(schema.convMessages.conversationId, args.conversationId),
+          eq(schema.convMessages.orgId, args.orgId),
           eq(schema.convMessages.internal, false),
           sql`${schema.convMessages.id} <> ${args.excludeMessageId}`,
         ),

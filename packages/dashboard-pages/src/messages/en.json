@@ -2531,6 +2531,7 @@
     "cms_asset_too_large": "This file is too large to upload. The maximum size is 50 MB.",
     "cms_asset_type_not_allowed": "This file type can't be uploaded. Use a PNG, JPEG, GIF, WebP or AVIF image — SVG isn't supported.",
     "cms_asset_upload_failed": "The file upload didn't finish. Check your connection and try again.",
+    "cms_invalid_reference": "A linked image, file or entry no longer exists. Pick it again or remove the link, then save.",
     "cms_version_conflict": "This entry was changed elsewhere while you were editing. Reload it and try again.",
     "conv_translation_failed": "The reply couldn't be translated, so nothing was sent. Try again, or untick translation to send it as typed.",
     "conv_translation_unavailable": "The customer's language isn't known yet, so the reply can't be translated. Untick translation to send it as typed.",

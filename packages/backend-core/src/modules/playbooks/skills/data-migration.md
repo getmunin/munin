@@ -14,6 +14,7 @@ This is a **playbook** — it composes per-module transfer tools. You run it as 
 
 - **Export** tools return portable JSON `records` (no embeddings, no secrets, no api keys). **Import** tools upsert those records and return `{ created, updated, skipped, idMap, warnings }`.
 - The **`idMap`** maps a source record id to the id it got on the target. Records reference their parents by *source* id; import rewrites those to target ids using the idMap. **Thread the idMap forward**: pass the idMap returned by one import into the `idMap` argument of every subsequent import, so children resolve parents that were created earlier — even across modules.
+- Every id you pass in an `idMap` must belong to the org you are importing into. Conversations, CRM, outreach and analytics imports check this before writing anything; if an entry points at a record that doesn't exist in this org, the whole import is refused with `<module>_import_invalid`, and the error names the offending idMap key. Only pass idMaps returned by imports into this same target org.
 - Imports are **idempotent** where a natural key exists (slugs, emails, locale codes, `(collection, slug, locale)`): re-running reports `updated`/`skipped` instead of duplicating. Append-only rows (conversation messages, analytics events) dedupe only within a run via the idMap.
 
 ## Order

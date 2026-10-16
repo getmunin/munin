@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
+import { sensitive } from '@getmunin/types';
 import { AnalyticsService } from './analytics.service.ts';
 import { CursorInputSchema, IdMapSchema } from '../../common/transfer/transfer.types.ts';
 import { INSPECTOR_APP_URI } from '../../mcp/inspector.resource.ts';
@@ -16,7 +17,7 @@ const AnalyticsImportInput = z.object({
           allowedOrigins: z.array(z.string()).default([]),
           requireVerifiedIdentity: z.boolean().default(false),
           canonicalLocales: z.array(z.string()).optional(),
-          identityVerificationSecret: z.string().nullable().optional(),
+          identityVerificationSecret: sensitive(z.string().nullable().optional()),
         }),
       ),
       visitorIdentities: z.array(

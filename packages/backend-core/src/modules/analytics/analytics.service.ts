@@ -1,13 +1,15 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
-import { and, asc, eq, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, randomToken } from '@getmunin/core';
 import { DB } from '../../common/db/db.module.ts';
 import { mintApiKey } from '../../common/api-keys/api-key.helpers.ts';
 import { assertOriginAllowlistPopulated } from '../../common/allowlist.ts';
 import {
+  assertPriorTargetsInOrg,
   decodeCursor,
   encodeCursor,
+  type ImportTargetCheck,
   newImportResult,
   redactSecrets,
   resolveId,
@@ -495,6 +497,19 @@ export class AnalyticsService {
       }
     }
 
+    const endUserCheck = (sourceIds: (string | null | undefined)[]): ImportTargetCheck => ({
+      kind: 'end-user',
+      sourceIds,
+      findInOrg: (ids) =>
+        ctx.db
+          .select({ id: schema.endUsers.id })
+          .from(schema.endUsers)
+          .where(and(eq(schema.endUsers.orgId, actor.orgId), inArray(schema.endUsers.id, ids))),
+    });
+    await assertPriorTargetsInOrg('analytics_import_invalid', result.idMap, priorIdMap, [
+      endUserCheck(config.visitorIdentities.map((i) => i.endUserId)),
+    ]);
+
     for (const identity of config.visitorIdentities) {
       const targetEndUserId = resolveId(result.idMap, identity.endUserId);
       if (!targetEndUserId) {
@@ -532,6 +547,24 @@ export class AnalyticsService {
     }
 
     const events = data.events ?? { viewEvents: [], searchEvents: [] };
+    const allEvents = [...events.viewEvents, ...events.searchEvents];
+    await assertPriorTargetsInOrg('analytics_import_invalid', result.idMap, priorIdMap, [
+      {
+        kind: 'tracker',
+        sourceIds: allEvents.map((e) => e.trackerId),
+        findInOrg: (ids) =>
+          ctx.db
+            .select({ id: schema.analyticsTrackers.id })
+            .from(schema.analyticsTrackers)
+            .where(
+              and(
+                eq(schema.analyticsTrackers.orgId, actor.orgId),
+                inArray(schema.analyticsTrackers.id, ids),
+              ),
+            ),
+      },
+      endUserCheck(allEvents.map((e) => e.endUserId)),
+    ]);
     let warnedDedup = false;
     for (const event of events.viewEvents) {
       if (result.idMap[event.id]) {

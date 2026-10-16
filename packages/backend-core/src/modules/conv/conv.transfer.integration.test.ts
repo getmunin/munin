@@ -319,4 +319,82 @@ const skipReason = TEST_URL
     );
     expect(userMsg!.internal).toBe(false);
   });
+
+  it('refuses an idMap that points messages or conversations at another org, and writes nothing', async () => {
+    const victimChannel = await withClient(adminKeyA, async (c) => {
+      const res = await c.callTool({
+        name: 'conv_create_widget_channel',
+        arguments: { defaultAgentMode: 'auto', name: 'Victim widget', originAllowlist: ['https://acme.test'] },
+      });
+      return firstJson(res) as { id: string };
+    });
+    const victim = await seedConversationInOrgA(victimChannel.id);
+
+    const countMessages = async () => {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const rows = await db.execute<{ n: number }>(
+        sql`SELECT count(*)::int AS n FROM conv_messages WHERE org_id = ${orgBId}`,
+      );
+      return rows[0]!.n;
+    };
+    const before = await countMessages();
+
+    const injectedMessage: ConvExportData = {
+      channels: [],
+      conversations: [],
+      messages: [
+        {
+          id: 'src_msg_planted',
+          conversationId: 'src_conv_victim',
+          authorType: 'agent',
+          authorId: 'agent_planted',
+          body: 'Your order details are attached.',
+          internal: false,
+          inReplyToId: null,
+        },
+      ],
+    };
+    const messageRes = (await withClient(adminKeyB, (c) =>
+      c.callTool({
+        name: 'conv_import',
+        arguments: { records: injectedMessage, idMap: { src_conv_victim: victim.convId } },
+      }),
+    )) as { isError?: boolean; content?: Array<{ text?: string }> };
+    expect(messageRes.isError).toBe(true);
+    expect(messageRes.content?.[0]?.text).toContain('conv_import_invalid');
+    expect(messageRes.content?.[0]?.text).toContain('src_conv_victim');
+
+    const injectedConversation: ConvExportData = {
+      channels: [],
+      conversations: [
+        {
+          id: 'src_conv_planted',
+          channelId: 'src_ch_victim',
+          subject: 'Planted',
+          status: 'open',
+          topicSlug: null,
+          agentMode: 'auto',
+        },
+      ],
+      messages: [],
+    };
+    const conversationRes = (await withClient(adminKeyB, (c) =>
+      c.callTool({
+        name: 'conv_import',
+        arguments: { records: injectedConversation, idMap: { src_ch_victim: victimChannel.id } },
+      }),
+    )) as { isError?: boolean; content?: Array<{ text?: string }> };
+    expect(conversationRes.isError).toBe(true);
+    expect(conversationRes.content?.[0]?.text).toContain('src_ch_victim');
+
+    expect(await countMessages()).toBe(before);
+    const victimMessages = await db.execute<{ n: number }>(
+      sql`SELECT count(*)::int AS n FROM conv_messages WHERE conversation_id = ${victim.convId}`,
+    );
+    expect(victimMessages[0]!.n).toBe(2);
+    const planted = await db.execute<{ n: number }>(
+      sql`SELECT count(*)::int AS n FROM conv_conversations WHERE org_id = ${orgBId} AND subject = 'Planted'`,
+    );
+    expect(planted[0]!.n).toBe(0);
+  });
 });

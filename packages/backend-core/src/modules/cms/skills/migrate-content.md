@@ -174,7 +174,7 @@ The target server downloads every `sourceUrl` itself and re-uploads it to its ow
 
 **Re-running is safe.** Collections match by slug, entries by (collection, slug, locale), assets by (name, size) — a second run updates changed entries, fills asset placeholders a previous run left without bytes, and skips the rest. That also means an existing collection on the target keeps *its* schema; the import does not overwrite field definitions. Reconcile schema first with `cms_update_collection` if the two have drifted.
 
-**Cross-collection references.** A `reference` field pointing at an entry in a collection you left out of `collections` keeps the source entry id, which resolves to nothing on the target. Export the referenced collection too, or pass the `idMap` from an earlier import that brought those entries across.
+**Cross-collection references.** A `reference` or `asset` field pointing at something that is neither part of this import nor already in the target organization is dropped, with a warning naming the entry, field and id. An inline `ref://` token naming such an entry is left in place, with a warning, and resolves to nothing. The same applies to an entry that comes later in the same import, so export referenced collections first or re-run the import with the returned `idMap`. An `idMap` entry that points at a record outside the target organization refuses the whole import with `cms_import_invalid`.
 
 ## What NOT to do
 

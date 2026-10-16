@@ -12,6 +12,7 @@ import {
 } from '@getmunin/core';
 import { DB } from '../../common/db/db.module.ts';
 import { withSchedulerLock } from '../../common/scheduler-lock/index.ts';
+import { applyTenancyGUCs } from '../../common/tenancy/tenancy.interceptor.ts';
 import {
   MAX_SEND_ATTEMPTS,
   OutreachInvalidError,
@@ -143,7 +144,7 @@ export class OutreachSendWorker implements OnModuleInit, OnModuleDestroy {
   private inOrgContext<T>(orgId: string, fn: () => Promise<T>): Promise<T> {
     const actor = new ActorIdentity('system', SEND_WORKER_ACTOR_ID, orgId, ['*'], ['admin']);
     return this.db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      await applyTenancyGUCs(tx, actor);
       const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
       return await withContext(ctx, fn);
     });

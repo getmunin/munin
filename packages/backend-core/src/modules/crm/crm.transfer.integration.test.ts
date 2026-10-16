@@ -248,4 +248,79 @@ const skipReason = TEST_URL
     expect(secondImport.contactCount).toBe(1);
     expect(secondImport.dealCount).toBe(1);
   });
+
+  it('refuses an idMap that points activities, deals or relationships at another org, and writes nothing', async () => {
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const [victimContact] = await db
+      .insert(schema.crmContacts)
+      .values({ orgId: orgAId, name: 'Kari Nordmann', email: 'kari@victim.example' })
+      .returning();
+    const [victimPipeline] = await db
+      .insert(schema.crmPipelines)
+      .values({ orgId: orgAId, name: 'Victim pipeline', slug: 'victim-pipeline' })
+      .returning();
+
+    const countRows = async () => {
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const rows = await db.execute<{ activities: number; deals: number; relationships: number }>(sql`
+        SELECT
+          (SELECT count(*)::int FROM crm_activities WHERE contact_id = ${victimContact!.id}) AS activities,
+          (SELECT count(*)::int FROM crm_deals WHERE pipeline_id = ${victimPipeline!.id}) AS deals,
+          (SELECT count(*)::int FROM crm_relationships WHERE from_id = ${victimContact!.id} OR to_id = ${victimContact!.id}) AS relationships
+      `);
+      return rows[0]!;
+    };
+    const before = await countRows();
+
+    const empty = { pipelines: [], segments: [], companies: [], contacts: [], deals: [], activities: [], relationships: [] };
+    const payloads = [
+      {
+        records: {
+          ...empty,
+          activities: [{ id: 'src_act', type: 'note', subject: 'Planted', contactId: 'src_victim', metadata: {} }],
+        },
+        idMap: { src_victim: victimContact!.id },
+      },
+      {
+        records: {
+          ...empty,
+          deals: [{ id: 'src_deal', name: 'Planted deal', pipelineId: 'src_victim', stageId: 'src_stage' }],
+        },
+        idMap: { src_victim: victimPipeline!.id },
+      },
+      {
+        records: {
+          ...empty,
+          contacts: [{ id: 'src_own', name: 'Ola Nordmann', email: 'ola@importer.example', tags: [], customFields: {} }],
+          relationships: [
+            {
+              id: 'src_rel',
+              fromType: 'contact',
+              fromId: 'src_own',
+              toType: 'contact',
+              toId: 'src_victim',
+              role: 'colleague',
+              metadata: {},
+            },
+          ],
+        },
+        idMap: { src_victim: victimContact!.id },
+      },
+    ];
+
+    for (const args of payloads) {
+      const res = (await withClient(adminKeyB, (c) =>
+        c.callTool({ name: 'crm_import', arguments: args }),
+      )) as { isError?: boolean; content?: Array<{ text?: string }> };
+      expect(res.isError).toBe(true);
+      expect(res.content?.[0]?.text).toContain('crm_import_invalid');
+      expect(res.content?.[0]?.text).toContain('src_victim');
+    }
+
+    expect(await countRows()).toEqual(before);
+    const importerContacts = await db.execute<{ n: number }>(
+      sql`SELECT count(*)::int AS n FROM crm_contacts WHERE org_id = ${orgBId} AND email = 'ola@importer.example'`,
+    );
+    expect(importerContacts[0]!.n).toBe(0);
+  });
 });

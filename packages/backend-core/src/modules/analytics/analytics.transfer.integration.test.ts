@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
-import { sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { AppModule } from '../../app.module.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
@@ -264,6 +264,96 @@ const skipReason = TEST_URL
       });
       expect(secondImport.created).toBe(0);
       expect(secondImport.skipped).toBe(1);
+    });
+
+    it('refuses an idMap that points identities or events at another org, and writes nothing', async () => {
+      const victimTracker = await withClient(adminKeyA, async (c) => {
+        const res = await c.callTool({
+          name: 'analytics_create_tracker',
+          arguments: { name: 'Victim tracker', allowedOrigins: ['https://victim.example'] },
+        });
+        return firstJson(res) as { id: string };
+      });
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const [victimEndUser] = await db
+        .insert(schema.endUsers)
+        .values({ orgId: orgAId, externalId: 'victim-visitor', email: 'kari@victim.example' })
+        .returning();
+
+      const countRows = async () => {
+        await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+        const rows = await db.execute<{ identities: number; searches: number }>(sql`
+          SELECT
+            (SELECT count(*)::int FROM analytics_visitor_identities WHERE org_id = ${orgBId}) AS identities,
+            (SELECT count(*)::int FROM analytics_search_events WHERE org_id = ${orgBId}) AS searches
+        `);
+        return rows[0]!;
+      };
+      const before = await countRows();
+
+      const payloads = [
+        {
+          config: {
+            trackers: [],
+            visitorIdentities: [{ id: 'src_identity', visitorId: 'v-planted', endUserId: 'src_victim' }],
+          },
+          idMap: { src_victim: victimEndUser!.id },
+        },
+        {
+          events: {
+            viewEvents: [],
+            searchEvents: [
+              {
+                id: 'src_search',
+                subjectType: 'kb',
+                query: 'planted',
+                trackerId: 'src_victim',
+                resultCount: 0,
+                createdAt: new Date().toISOString(),
+              },
+            ],
+          },
+          idMap: { src_victim: victimTracker.id },
+        },
+      ];
+
+      for (const args of payloads) {
+        const res = (await withClient(adminKeyB, (c) =>
+          c.callTool({ name: 'analytics_import', arguments: args }),
+        )) as { isError?: boolean; content?: Array<{ text?: string }> };
+        expect(res.isError).toBe(true);
+        expect(res.content?.[0]?.text).toContain('analytics_import_invalid');
+        expect(res.content?.[0]?.text).toContain('src_victim');
+      }
+
+      expect(await countRows()).toEqual(before);
+    });
+
+    it('keeps an identity-verification secret passed to analytics_import out of the audit log', async () => {
+      await withClient(adminKeyB, (c) =>
+        c.callTool({
+          name: 'analytics_import',
+          arguments: {
+            config: {
+              trackers: [
+                {
+                  id: 'src_secret_tracker',
+                  name: 'Tracker with plaintext secret',
+                  identityVerificationSecret: 'plaintext-identity-secret-value',
+                },
+              ],
+              visitorIdentities: [],
+            },
+          },
+        }),
+      );
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const audit = await db
+        .select({ args: schema.auditLog.args })
+        .from(schema.auditLog)
+        .where(and(eq(schema.auditLog.orgId, orgBId), eq(schema.auditLog.tool, 'analytics_import')));
+      expect(audit.length).toBeGreaterThan(0);
+      expect(JSON.stringify(audit.map((a) => a.args))).not.toContain('plaintext-identity-secret-value');
     });
   },
 );

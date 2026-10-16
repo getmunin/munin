@@ -11,7 +11,6 @@ import {
   decryptSecretSql,
   encryptSecretSql,
   getCurrentContext,
-  setEncryptionKeySql,
   SsrfBlockedError,
 } from '@getmunin/core';
 import { randomBytes } from 'node:crypto';
@@ -656,7 +655,6 @@ export function tryJsonbToStored(json: Record<string, unknown>): StoredEmailChan
 }
 
 async function decryptString(tx: Db | Tx, ciphertext: string): Promise<string> {
-  await tx.execute(setEncryptionKeySql());
   const rows = await tx.execute<{ pt: string } & Record<string, unknown>>(
     sql`SELECT ${decryptSecretSql(ciphertext)} AS pt`,
   );

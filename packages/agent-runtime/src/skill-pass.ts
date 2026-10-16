@@ -1,3 +1,4 @@
+import { redactQueryParams } from '@getmunin/core';
 import { assistantNamePreamble } from './conversation-handler.ts';
 import { classifyProviderError, type ProviderErrorCode } from './providers/transport.ts';
 import { runAgent } from './runtime.ts';
@@ -62,9 +63,9 @@ export async function runSkillPass(opts: SkillPassOptions): Promise<SkillPassRes
   const log =
     opts.logger ??
     {
-      info: (m: string) => console.log(`[skill-pass] ${m}`),
-      warn: (m: string) => console.warn(`[skill-pass] ${m}`),
-      error: (m: string) => console.error(`[skill-pass] ${m}`),
+      info: (m: string) => console.log(`[skill-pass] ${redactQueryParams(m)}`),
+      warn: (m: string) => console.warn(`[skill-pass] ${redactQueryParams(m)}`),
+      error: (m: string) => console.error(`[skill-pass] ${redactQueryParams(m)}`),
     };
 
   if (!opts.providerApiKey) return { ok: false, skipped: 'no_provider_key' };

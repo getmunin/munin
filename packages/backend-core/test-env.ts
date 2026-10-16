@@ -22,3 +22,4 @@ if (root) {
 
 process.env.MUNIN_MCP_BURST_PER_MIN ??= '0';
 process.env.MUNIN_WIDGET_REQUIRE_ALLOWLIST ??= '0';
+process.env.MUNIN_ENCRYPTION_KEY ??= 'integration-test-encryption-key';

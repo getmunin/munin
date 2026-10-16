@@ -10,6 +10,7 @@ import {
 import { and, desc, eq, inArray, isNotNull, ne } from 'drizzle-orm';
 import { makeId, schema, type Db, type Tx } from '@getmunin/db';
 import {
+  errorMessage,
   WebhookDispatcher,
   getCurrentContext,
   withContext,
@@ -607,7 +608,7 @@ export class SocialService {
         await this.settleSiblings(tx, updated!, emit);
         return { published: updated! };
       } catch (err) {
-        const reason = err instanceof Error ? err.message : 'the platform refused the post';
+        const reason = err instanceof Error ? errorMessage(err) : 'the platform refused the post';
         this.logger.warn(`publish refused platform=${locked.platform} draft=${id} reason=${reason}`);
         const [updated] = await tx
           .update(schema.socialPostDrafts)

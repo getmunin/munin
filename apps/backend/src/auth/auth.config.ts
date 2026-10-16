@@ -7,7 +7,7 @@ import {
   type SignupHookUser,
 } from '@getmunin/backend-core';
 import { schema, type Db } from '@getmunin/db';
-import { parseEnvInt, type Mailer } from '@getmunin/core';
+import { parseEnvInt, redactLogValue, type Mailer } from '@getmunin/core';
 import { renderResetPasswordEmail, renderVerifyEmail } from '@getmunin/emails';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 
@@ -218,7 +218,7 @@ export function sentryForwardingLogger(
     log(level, message, ...args) {
       const safeArgs = args as unknown[];
       const out = level === 'error' || level === 'warn' ? console.error : console.log;
-      out(`[Better Auth] [${level}] ${message}`, ...safeArgs);
+      out(redactLogValue(`[Better Auth] [${level}] ${message}`), ...safeArgs.map(redactLogValue));
       if (level !== 'error') return;
       const err = safeArgs.find((a): a is Error => a instanceof Error);
       captureException(err ?? new Error(`[BetterAuth] ${message}`), {

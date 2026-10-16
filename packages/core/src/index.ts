@@ -63,7 +63,6 @@ export {
   legacyIdentityHashPayload,
   timingSafeEqual,
   readEncryptionKey,
-  setEncryptionKeySql,
   encryptSecretSql,
   decryptSecretSql,
 } from './crypto/primitives.ts';
@@ -154,7 +153,18 @@ export {
   type SafeFetchOptions,
 } from './net/safe-fetch.ts';
 
-export { describeError } from './errors.ts';
+export {
+  auditErrorText,
+  describeError,
+  errorClassName,
+  errorMessage,
+  internalErrorKind,
+  isInternalError,
+  redactLogValue,
+  redactQueryParams,
+  redactQueryParamsDeep,
+  sqlStateOf,
+} from './errors.ts';
 
 export { normalizeForCompare, sameAfterNormalizing } from './text.ts';
 

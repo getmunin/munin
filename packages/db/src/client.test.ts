@@ -1,9 +1,39 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_IDLE_TIMEOUT_SECONDS,
+  resolveConnectionParameters,
   resolveIdleTimeoutSeconds,
   resolvePoolMax,
 } from './client.ts';
+
+describe('resolveConnectionParameters', () => {
+  const original = process.env.MUNIN_ENCRYPTION_KEY;
+
+  afterEach(() => {
+    if (original === undefined) delete process.env.MUNIN_ENCRYPTION_KEY;
+    else process.env.MUNIN_ENCRYPTION_KEY = original;
+  });
+
+  it('sends the encryption key as a connection startup parameter, never as query text', () => {
+    process.env.MUNIN_ENCRYPTION_KEY = 'env-key';
+    expect(resolveConnectionParameters({ serviceRole: true })).toEqual({
+      options: '-c app.bypass_rls=on',
+      'app.crypt_key': 'env-key',
+    });
+  });
+
+  it('prefers an explicit key over the environment', () => {
+    process.env.MUNIN_ENCRYPTION_KEY = 'env-key';
+    expect(resolveConnectionParameters({ encryptionKey: 'explicit' })).toEqual({
+      'app.crypt_key': 'explicit',
+    });
+  });
+
+  it('sends no parameters when there is no key and no service role', () => {
+    delete process.env.MUNIN_ENCRYPTION_KEY;
+    expect(resolveConnectionParameters({})).toBeUndefined();
+  });
+});
 
 describe('resolvePoolMax', () => {
   const original = process.env.MUNIN_DB_POOL_MAX;

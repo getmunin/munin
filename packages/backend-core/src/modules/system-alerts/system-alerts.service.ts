@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, desc, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import { schema, makeId } from '@getmunin/db';
-import { getCurrentContext, parseEnvInt, WebhookDispatcher } from '@getmunin/core';
+import { redactQueryParams, getCurrentContext, parseEnvInt, WebhookDispatcher } from '@getmunin/core';
 
 export const ALERT_SOURCES = [
   'llm_provider',
@@ -374,7 +374,8 @@ function visibleTo(viewerUserId: string | undefined) {
 
 function truncate(message: string | null | undefined): string | null {
   if (!message) return null;
-  return message.length > MAX_DETAIL_CHARS ? `${message.slice(0, MAX_DETAIL_CHARS)}…` : message;
+  const redacted = redactQueryParams(message);
+  return redacted.length > MAX_DETAIL_CHARS ? `${redacted.slice(0, MAX_DETAIL_CHARS)}…` : redacted;
 }
 
 function toDto(row: typeof schema.orgAlerts.$inferSelect): AlertDto {

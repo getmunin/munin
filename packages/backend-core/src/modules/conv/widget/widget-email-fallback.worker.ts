@@ -3,6 +3,7 @@ import { schema, type Db } from '@getmunin/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { createTransport, type Transporter } from 'nodemailer';
 import {
+  redactQueryParams,
   parseEnvDisableFlag,
   parseEnvInt,
   resolvePublicHost,
@@ -358,7 +359,7 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
   ): Promise<void> {
     await this.db
       .update(schema.convWidgetEmailFallbacks)
-      .set({ status, error, updatedAt: new Date() })
+      .set({ status, error: error === null ? null : redactQueryParams(error), updatedAt: new Date() })
       .where(eq(schema.convWidgetEmailFallbacks.id, fallbackId));
   }
 

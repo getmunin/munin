@@ -3,6 +3,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   AuditLogger,
   RequestContextStore,
+  auditErrorText,
   buildAdminAgentActor,
   type ActorIdentity,
   type RequestContext,
@@ -105,7 +106,7 @@ function buildClient(opts: BuildOptions): AgentRestClient {
         await opts.audit.record({
           method,
           result: 'error',
-          error: err instanceof Error ? err.message : String(err),
+          error: auditErrorText(err),
           durationMs: Date.now() - startedAt,
           totalTokens: extra.totalTokens,
           userAgent: 'in-process:agent-host',

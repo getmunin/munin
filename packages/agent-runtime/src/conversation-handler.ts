@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { redactQueryParams } from '@getmunin/core';
 import { auditConversation, type AuditAction, type AuditTopic } from './audit.ts';
 import { deriveMessageComponents } from './message-components.ts';
 import { deriveRetrievedDocumentIds } from './kb-citations.ts';
@@ -195,9 +196,9 @@ export interface ConversationHandler {
 
 export function createConversationHandler(deps: ConversationHandlerDeps): ConversationHandler {
   const log = deps.logger ?? {
-    info: (m) => console.log(`[handler] ${m}`),
-    warn: (m) => console.warn(`[handler] ${m}`),
-    error: (m) => console.error(`[handler] ${m}`),
+    info: (m) => console.log(`[handler] ${redactQueryParams(m)}`),
+    warn: (m) => console.warn(`[handler] ${redactQueryParams(m)}`),
+    error: (m) => console.error(`[handler] ${redactQueryParams(m)}`),
   };
   const scheduler = deps.scheduler ?? defaultScheduler;
   const inFlight = new Map<string, InFlight>();

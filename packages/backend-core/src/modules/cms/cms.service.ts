@@ -1573,7 +1573,7 @@ export class CmsService {
     if (actualBytes !== existing.sizeBytes) {
       await this.storage.delete(existing.storageKey).catch((err) => {
         console.warn(
-          `[cms] failed to delete oversized upload ${existing.storageKey}: ${err instanceof Error ? err.message : String(err)}`,
+          `[cms] failed to delete oversized upload ${existing.storageKey}: ${describeError(err)}`,
         );
       });
       throw new BadRequestException(

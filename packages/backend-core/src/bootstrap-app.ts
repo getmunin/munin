@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { STORAGE } from './common/storage/storage.token.ts';
+import { RedactingConsoleLogger } from './common/redacting-logger.ts';
 import { ORG_HEADER, stripTrailingSlashes } from '@getmunin/types';
 import {
   EMAIL_RELAY_BODY_LIMIT_BYTES,
@@ -76,7 +77,7 @@ export async function createApp(
   const app = await NestFactory.create<NestExpressApplication>(
     appModule,
     new ExpressAdapter(createCaseSensitiveExpress()),
-    { rawBody: true, ...nestOpts },
+    { rawBody: true, logger: new RedactingConsoleLogger(), ...nestOpts },
   );
   (app.getHttpAdapter().getInstance() as { disable: (k: string) => void }).disable('x-powered-by');
   app.use(securityHeadersMiddleware({ hsts: readApiBaseUrl().startsWith('https://') }));

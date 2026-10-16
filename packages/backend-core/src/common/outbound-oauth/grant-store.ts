@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 import type { Db, Tx } from '@getmunin/db';
-import { decryptSecretSql, encryptSecretSql, setEncryptionKeySql } from '@getmunin/core';
+import { decryptSecretSql, encryptSecretSql } from '@getmunin/core';
 import { DB } from '../db/db.module.ts';
 
 export class SecretCipherError extends Error {}
@@ -22,7 +22,6 @@ export class OutboundOAuthStore {
   }
 
   async encrypt(tx: Tx, plaintext: string): Promise<string> {
-    await tx.execute(setEncryptionKeySql());
     const rows = await tx.execute<{ ct: string } & Record<string, unknown>>(
       sql`SELECT ${encryptSecretSql(plaintext)} AS ct`,
     );
@@ -32,7 +31,6 @@ export class OutboundOAuthStore {
   }
 
   async decrypt(tx: Tx, ciphertext: string): Promise<string> {
-    await tx.execute(setEncryptionKeySql());
     const rows = await tx.execute<{ pt: string } & Record<string, unknown>>(
       sql`SELECT ${decryptSecretSql(ciphertext)} AS pt`,
     );

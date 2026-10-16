@@ -55,10 +55,6 @@ export function readEncryptionKey(): string {
   return raw;
 }
 
-export function setEncryptionKeySql(): SQL {
-  return sql`SELECT set_config('app.crypt_key', ${readEncryptionKey()}, true)`;
-}
-
 export function encryptSecretSql(plaintext: string | SQL): SQL {
   return sql`encode(pgp_sym_encrypt(${plaintext}, current_setting('app.crypt_key')), 'base64')`;
 }

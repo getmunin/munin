@@ -1,4 +1,5 @@
 import {
+  redactQueryParams,
   AGENT_RUNTIME_PROMPT_SPACE_SLUG,
   CHANNEL_DEFAULT_SLUG,
   CHANNEL_PROMPT_PREFIX,
@@ -56,9 +57,9 @@ export async function createPromptResolver(
   opts: CreatePromptResolverOptions,
 ): Promise<PromptResolver> {
   const log = opts.logger ?? {
-    info: (m) => console.log(`[prompts] ${m}`),
-    warn: (m) => console.warn(`[prompts] ${m}`),
-    error: (m) => console.error(`[prompts] ${m}`),
+    info: (m) => console.log(`[prompts] ${redactQueryParams(m)}`),
+    warn: (m) => console.warn(`[prompts] ${redactQueryParams(m)}`),
+    error: (m) => console.error(`[prompts] ${redactQueryParams(m)}`),
   };
 
   await ensureSpace(opts.mcp, AGENT_RUNTIME_PROMPT_SPACE_SLUG, log);

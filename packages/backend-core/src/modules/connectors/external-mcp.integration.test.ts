@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { createLocalJWKSet, importPKCS8, jwtVerify } from 'jose';
-import { encryptSecretSql, setEncryptionKeySql } from '@getmunin/core';
+import { encryptSecretSql } from '@getmunin/core';
 import {
   getOrCreateSigningKey,
   listExternalMcpEndpoints,
@@ -141,7 +141,6 @@ describe('slugifyConnectionName', () => {
 
   it('lists active custom-mcp connections with decrypted tokens and per-connection assertions', async () => {
     const encrypted = await appDb.transaction(async (tx) => {
-      await tx.execute(setEncryptionKeySql());
       const rows = await tx.execute<{ ct: string } & Record<string, unknown>>(
         sql`SELECT ${encryptSecretSql('secret_token_123')} AS ct`,
       );
@@ -218,7 +217,6 @@ describe('slugifyConnectionName', () => {
 
   it('skips a connected server that has no allow-listed tools, so a misconnected admin MCP reaches no customer', async () => {
     const encrypted = await appDb.transaction(async (tx) => {
-      await tx.execute(setEncryptionKeySql());
       const rows = await tx.execute<{ ct: string } & Record<string, unknown>>(
         sql`SELECT ${encryptSecretSql('secret_token_456')} AS ct`,
       );

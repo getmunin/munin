@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { and, eq, lt } from 'drizzle-orm';
 import { makeId, schema, type Tx } from '@getmunin/db';
 import {
+  redactQueryParams,
   ActorIdentity,
   RequestContextStore,
   getCurrentContext,
@@ -586,7 +587,7 @@ export class SocialAccountsService {
     await this.store.inRootTransaction(async (tx) => {
       await tx
         .update(schema.socialAccounts)
-        .set({ status: 'expired', lastError: reason, updatedAt: new Date() })
+        .set({ status: 'expired', lastError: redactQueryParams(reason), updatedAt: new Date() })
         .where(
           and(
             eq(schema.socialAccounts.orgId, args.orgId),

@@ -1,7 +1,7 @@
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { decryptSecretSql, readApiBaseUrl, setEncryptionKeySql } from '@getmunin/core';
+import { errorMessage, decryptSecretSql, readApiBaseUrl } from '@getmunin/core';
 import type { Db, Tx } from '@getmunin/db';
 import { DB } from '../../../common/db/db.module.ts';
 import { asRecord, toRows } from '../channels/json-shape.ts';
@@ -83,7 +83,6 @@ export class ThrellClientService {
   constructor(@Inject(DB) private readonly db: Db) {}
 
   async decryptString(tx: Db | Tx, ciphertext: string): Promise<string> {
-    await tx.execute(setEncryptionKeySql());
     const rows = await tx.execute<{ pt: string } & Record<string, unknown>>(
       sql`SELECT ${decryptSecretSql(ciphertext)} AS pt`,
     );
@@ -129,7 +128,7 @@ export class ThrellClientService {
       }
       return { ok: true, json };
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      return { ok: false, error: errorMessage(err) };
     }
   }
 

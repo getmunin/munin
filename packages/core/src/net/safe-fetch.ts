@@ -8,6 +8,7 @@ import { isIP as isIp } from 'node:net';
 import { Agent, fetch as undiciFetch, Response as UndiciResponse } from 'undici';
 import type { Dispatcher, RequestInit as UndiciRequestInit } from 'undici';
 import { parseEnvBool } from '../env/index.ts';
+import { describeError } from '../errors.ts';
 
 const dnsLookup = promisify((hostname: string, cb: (err: NodeJS.ErrnoException | null, addrs: LookupAddress[]) => void) =>
   dnsLookupCallback(hostname, { all: true, verbatim: true }, cb),
@@ -285,14 +286,14 @@ const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]
 
 function closeAgent(agent: Dispatcher): void {
   void agent.close().catch((err: unknown) => {
-    console.warn('[safe-fetch] agent close failed', err);
+    console.warn(`[safe-fetch] agent close failed: ${describeError(err)}`);
   });
 }
 
 function discardBody(res: UndiciResponse): Promise<void> {
   if (!res.body) return Promise.resolve();
   return res.body.cancel().catch((err: unknown) => {
-    console.warn('[safe-fetch] body cancel failed', err);
+    console.warn(`[safe-fetch] body cancel failed: ${describeError(err)}`);
   });
 }
 

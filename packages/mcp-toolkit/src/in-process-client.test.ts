@@ -279,6 +279,157 @@ describe('openInProcessMcpClient', () => {
     });
   });
 
+  class DrizzleQueryError extends Error {
+    constructor(
+      readonly query: string,
+      readonly params: unknown[],
+      cause?: unknown,
+    ) {
+      super(`Failed query: ${query}\nparams: ${params.join(',')}`, { cause });
+    }
+  }
+
+  class ConflictLikeException extends Error {}
+
+  function failingRegistry(thrown: () => unknown): McpToolRegistry {
+    const r = new McpToolRegistry();
+    r.register(
+      { name: 'fails', description: 'throws', audiences: ['admin', 'self_service'], scopes: [], input: z.object({}) },
+      () => {
+        throw thrown();
+      },
+    );
+    return r;
+  }
+
+  function endUserActor(): ActorIdentity {
+    return new ActorIdentity('end_user_agent', 'agent:eu_1', 'org_test', [], ['self_service'], 'eu_1');
+  }
+
+  it('hides a database error and its bound parameters from the caller and the audit row', async () => {
+    fakeAudit.record.mockClear();
+    const captureException = vi.fn<CaptureExceptionFn>();
+    const pgError = Object.assign(new Error('duplicate key value violates unique constraint'), {
+      code: '23505',
+      severity: 'ERROR',
+    });
+    const client = openInProcessMcpClient({
+      registry: failingRegistry(
+        () =>
+          new DrizzleQueryError(
+            "SELECT set_config('app.crypt_key', $1, true)",
+            ['super-secret-key'],
+            pgError,
+          ),
+      ),
+      actor: endUserActor(),
+      audience: 'self_service',
+      audit: fakeAudit,
+      captureException,
+    });
+    const out = await runInCtx(endUserActor(), () => client.callTool('fails', {}));
+    expect(out.isError).toBe(true);
+    const text = out.content[0]!.text;
+    expect(text).toMatch(/^internal_error: /);
+    expect(text).toContain('ref test-corr');
+    expect(text).not.toContain('super-secret-key');
+    expect(text).not.toContain('set_config');
+    expect(fakeAudit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tool: 'fails',
+        result: 'error',
+        error: 'internal_error[DrizzleQueryError:23505] ref test-corr',
+      }),
+    );
+    expect(captureException).toHaveBeenCalledWith(
+      expect.any(DrizzleQueryError),
+      expect.objectContaining({ tool: 'fails', ref: 'test-corr' }),
+    );
+  });
+
+  it('logs the failed query for the operator with its bound parameters redacted', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const client = openInProcessMcpClient({
+        registry: failingRegistry(
+          () => new DrizzleQueryError("SELECT set_config('app.crypt_key', $1, true)", ['super-secret-key']),
+        ),
+        actor: adminActor(),
+        audience: 'admin',
+        audit: fakeAudit,
+      });
+      await runInCtx(adminActor(), () => client.callTool('fails', {}));
+      const line = logged.mock.calls.map((c) => c.join(' ')).join('\n');
+      expect(line).toContain('tool fails failed (ref test-corr)');
+      expect(line).toContain("Failed query: SELECT set_config('app.crypt_key', $1, true)");
+      expect(line).toContain('params: [redacted]');
+      expect(line).not.toContain('super-secret-key');
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it.each([
+    ['a runtime TypeError', () => new TypeError("Cannot read properties of undefined (reading 'id')")],
+    ['a socket error', () => Object.assign(new Error('connect ECONNREFUSED 10.0.0.5:5432'), { errno: -61, syscall: 'connect' })],
+    ['a thrown string', () => 'raw failure text'],
+    ['a plain error wrapping a failed query', () => new Error('allocate failed: Failed query: select 1\nparams: secret')],
+  ])('replaces %s with the generic internal error', async (_label, thrown) => {
+    const client = openInProcessMcpClient({
+      registry: failingRegistry(thrown),
+      actor: adminActor(),
+      audience: 'admin',
+      audit: fakeAudit,
+    });
+    const out = await runInCtx(adminActor(), () => client.callTool('fails', {}));
+    expect(out.content[0]!.text).toMatch(/^internal_error: .*ref test-corr/);
+  });
+
+  it('passes a deliberate exception message through unchanged so agents keep the error code', async () => {
+    fakeAudit.record.mockClear();
+    const message = 'crm_conflict: a contact with this email already exists';
+    const client = openInProcessMcpClient({
+      registry: failingRegistry(() => new ConflictLikeException(message)),
+      actor: adminActor(),
+      audience: 'admin',
+      audit: fakeAudit,
+    });
+    const out = await runInCtx(adminActor(), () => client.callTool('fails', {}));
+    expect(out.content[0]!.text).toBe(message);
+    expect(fakeAudit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ result: 'error', error: message }),
+    );
+  });
+
+  it('hides a database error raised while recording the rate limit', async () => {
+    const client = openInProcessMcpClient({
+      registry: buildRegistry(),
+      actor: adminActor(),
+      audience: 'admin',
+      audit: fakeAudit,
+      rateLimit: () => {
+        throw new DrizzleQueryError('insert into usage_counters values ($1)', ['org_test']);
+      },
+    });
+    const out = await runInCtx(adminActor(), () => client.callTool('echo', { msg: 'hi' }));
+    expect(out.content[0]!.text).toMatch(/^internal_error: /);
+    expect(out.content[0]!.text).not.toContain('usage_counters');
+  });
+
+  it('keeps a rate-limit refusal message intact', async () => {
+    const client = openInProcessMcpClient({
+      registry: buildRegistry(),
+      actor: adminActor(),
+      audience: 'admin',
+      audit: fakeAudit,
+      rateLimit: () => {
+        throw new ConflictLikeException('rate_limited: too many calls, retry in 30s');
+      },
+    });
+    const out = await runInCtx(adminActor(), () => client.callTool('echo', { msg: 'hi' }));
+    expect(out.content[0]!.text).toBe('rate_limited: too many calls, retry in 30s');
+  });
+
   it('audits args on invalid_input and does not call captureException', async () => {
     fakeAudit.record.mockClear();
     const captureException = vi.fn<CaptureExceptionFn>();

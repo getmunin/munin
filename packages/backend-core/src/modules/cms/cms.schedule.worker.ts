@@ -4,6 +4,7 @@ import { and, eq, lt, lte, sql } from 'drizzle-orm';
 import {
   ActorIdentity,
   WebhookDispatcher,
+  describeError,
   parseEnvDisableFlag,
   parseEnvInt,
   withContext,
@@ -93,7 +94,7 @@ export class CmsScheduleWorker implements OnModuleInit, OnModuleDestroy {
           await this.settleWithoutVariants(asset);
           continue;
         }
-        console.error('[cms.variants] deferred asset', asset.id, err);
+        console.error(`[cms.variants] deferred asset ${asset.id}: ${describeError(err)}`);
       }
     }
     return { reconciled };
@@ -164,7 +165,7 @@ export class CmsScheduleWorker implements OnModuleInit, OnModuleDestroy {
         await this.promoteOne(entry);
         promoted += 1;
       } catch (err) {
-        console.error('[cms.schedule] failed to promote entry', entry.id, err);
+        console.error(`[cms.schedule] failed to promote entry ${entry.id}: ${describeError(err)}`);
       }
     }
     return { promoted };

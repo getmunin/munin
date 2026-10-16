@@ -210,7 +210,7 @@ export async function fetchImage(
     });
   } catch (err) {
     if (err instanceof SsrfBlockedError) {
-      console.warn(`[oauth-client-icon] ssrf blocked for ${url}: ${err.message}`);
+      console.warn(`[oauth-client-icon] ssrf blocked for ${url}: ${describeError(err)}`);
     } else {
       console.warn(`[oauth-client-icon] fetch failed for ${url}: ${describeError(err)}`);
     }

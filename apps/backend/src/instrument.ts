@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/nestjs';
 import { nodeProfilingIntegration } from '@sentry/profiling-node';
+import { redactQueryParamsDeep } from '@getmunin/core/errors';
 
 const dsn = process.env.SENTRY_DSN;
 
@@ -14,7 +15,10 @@ if (dsn) {
     beforeSend(event) {
       const url = event.request?.url ?? '';
       if (url.includes('/health')) return null;
-      return event;
+      return redactQueryParamsDeep(event);
+    },
+    beforeBreadcrumb(breadcrumb) {
+      return redactQueryParamsDeep(breadcrumb);
     },
   });
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createDb, type Db } from '@getmunin/db';
+import { createDb, type Db, type Tx } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import {
   hashSecret,
@@ -9,7 +9,6 @@ import {
   signHmac,
   verifyHmac,
   timingSafeEqual,
-  setEncryptionKeySql,
   encryptSecretSql,
   decryptSecretSql,
 } from './primitives.ts';
@@ -90,23 +89,26 @@ const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipPgcrypto = TEST_URL ? null : 'Set TEST_DATABASE_URL to run pgcrypto tests';
 
 (skipPgcrypto ? describe.skip : describe)('pgcrypto secret encryption', () => {
+  const KEY = 'test-encryption-key-do-not-use-in-prod';
   let db: Db;
+  let otherKeyDb: Db;
 
   beforeAll(async () => {
-    process.env.MUNIN_ENCRYPTION_KEY ??= 'test-encryption-key-do-not-use-in-prod';
-    db = createDb(TEST_URL!, { serviceRole: true });
+    db = createDb(TEST_URL!, { serviceRole: true, encryptionKey: KEY });
+    otherKeyDb = createDb(TEST_URL!, {
+      serviceRole: true,
+      encryptionKey: 'a-completely-different-key',
+    });
     await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
   });
 
   afterAll(() => {
     void db?.$client.end();
+    void otherKeyDb?.$client.end();
   });
 
-  function inTx<T>(fn: (tx: Db) => Promise<T>): Promise<T> {
-    return db.transaction(async (tx) => {
-      await tx.execute(setEncryptionKeySql());
-      return fn(tx as unknown as Db);
-    });
+  function inTx<T>(fn: (tx: Tx) => Promise<T>, pool: Db = db): Promise<T> {
+    return pool.transaction(fn);
   }
 
   it('encrypts and decrypts a string round-trip', async () => {
@@ -151,17 +153,49 @@ const skipPgcrypto = TEST_URL ? null : 'Set TEST_DATABASE_URL to run pgcrypto te
       const r = await tx.execute<{ ct: string }>(sql`SELECT ${encryptSecretSql(value)} AS ct`);
       return r[0]!.ct;
     });
-    const before = process.env.MUNIN_ENCRYPTION_KEY;
-    process.env.MUNIN_ENCRYPTION_KEY = 'a-completely-different-key';
+    await expect(
+      inTx(async (tx) => {
+        await tx.execute(sql`SELECT ${decryptSecretSql(ct)} AS pt`);
+      }, otherKeyDb),
+    ).rejects.toBeTruthy();
+  });
+
+  it('round-trips through a fresh pool without any statement carrying the key', async () => {
+    const fresh = createDb(TEST_URL!, { encryptionKey: KEY });
     try {
-      await expect(
-        inTx(async (tx) => {
-          await tx.execute(sql`SELECT ${decryptSecretSql(ct)} AS pt`);
-        }),
-      ).rejects.toBeTruthy();
+      const ct = await inTx(async (tx) => {
+        const r = await tx.execute<{ ct: string }>(sql`SELECT ${encryptSecretSql('fresh')} AS ct`);
+        return r[0]!.ct;
+      }, fresh);
+      const pt = await fresh.execute<{ pt: string }>(sql`SELECT ${decryptSecretSql(ct)} AS pt`);
+      expect(pt[0]!.pt).toBe('fresh');
     } finally {
-      process.env.MUNIN_ENCRYPTION_KEY = before;
+      await fresh.$client.end();
     }
+  });
+
+  it('keeps the key out of a failing query, its parameters and pg_stat_activity', async () => {
+    const failure = await db
+      .execute(sql`SELECT ${decryptSecretSql('not-base64-ciphertext!')} AS pt`)
+      .then(
+        () => null,
+        (err: unknown) => err,
+      );
+    expect(failure).toBeInstanceOf(Error);
+    const err = failure as Error & { params?: unknown; cause?: unknown };
+    const surface = JSON.stringify({
+      message: err.message,
+      stack: err.stack,
+      params: err.params,
+      cause: Object.getOwnPropertyNames(err.cause ?? {}).map((k) =>
+        String((err.cause as Record<string, unknown>)[k]),
+      ),
+    });
+    expect(surface).not.toContain(KEY);
+    const activity = await db.execute<{ n: string }>(
+      sql`SELECT count(*)::text AS n FROM pg_stat_activity WHERE query LIKE ${'%' + KEY + '%'} AND pid <> pg_backend_pid()`,
+    );
+    expect(activity[0]!.n).toBe('0');
   });
 });
 

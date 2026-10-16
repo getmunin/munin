@@ -33,6 +33,7 @@ function outcomeOfProposal(status: string): ReviewDecisionOutcome {
 import { newImportResult, resolveId } from '../../common/transfer/transfer.helpers.ts';
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 import {
+  redactQueryParams,
   ActorIdentity,
   getCurrentContext,
   sameAfterNormalizing,
@@ -1099,7 +1100,7 @@ export class OutreachService {
       .update(schema.outreachProposals)
       .set({
         sendAttempts: attempts,
-        ...(giveUp ? { status: 'failed' as const, failureReason: reason } : {}),
+        ...(giveUp ? { status: 'failed' as const, failureReason: redactQueryParams(reason) } : {}),
         updatedAt: new Date(),
       })
       .where(eq(schema.outreachProposals.id, id))

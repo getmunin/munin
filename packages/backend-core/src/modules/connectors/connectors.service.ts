@@ -13,7 +13,6 @@ import {
   decryptSecretSql,
   encryptSecretSql,
   getCurrentContext,
-  setEncryptionKeySql,
   SsrfBlockedError,
 } from '@getmunin/core';
 import {
@@ -356,7 +355,6 @@ export class ConnectorsService {
 
   private async decryptDetached(ciphertext: string): Promise<string> {
     return this.requireRootDb().transaction(async (tx) => {
-      await tx.execute(setEncryptionKeySql());
       const rows = await tx.execute<{ pt: string } & Record<string, unknown>>(
         sql`SELECT ${decryptSecretSql(ciphertext)} AS pt`,
       );
@@ -824,7 +822,6 @@ function destinationOf(value: unknown): string | null {
 
 async function encryptString(plaintext: string): Promise<string> {
   const ctx = getCurrentContext();
-  await ctx.db.execute(setEncryptionKeySql());
   const rows = await ctx.db.execute<{ ct: string } & Record<string, unknown>>(
     sql`SELECT ${encryptSecretSql(plaintext)} AS ct`,
   );
@@ -835,7 +832,6 @@ async function encryptString(plaintext: string): Promise<string> {
 
 async function decryptString(ciphertext: string): Promise<string> {
   const ctx = getCurrentContext();
-  await ctx.db.execute(setEncryptionKeySql());
   const rows = await ctx.db.execute<{ pt: string } & Record<string, unknown>>(
     sql`SELECT ${decryptSecretSql(ciphertext)} AS pt`,
   );

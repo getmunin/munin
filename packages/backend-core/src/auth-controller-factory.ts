@@ -1,5 +1,6 @@
 import type { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import {
+  describeError,
   MCP_BASE_PATH,
   type McpOrgScopeInput,
   type OrgScopedResourcePath,
@@ -48,7 +49,7 @@ export async function resolveMcpOrgScope(req: ExpressRequest): Promise<McpOrgSco
       try {
         await store.remember(keys!, requested.orgId, requested.basePath);
       } catch (err) {
-        console.warn('[auth] could not carry the requested org across the consent step', { err });
+        console.warn(`[auth] could not carry the requested org across the consent step: ${describeError(err)}`);
       }
     }
     return { resource: orgScopedResourceUrl(requested.basePath, requested.orgId) };
@@ -59,7 +60,7 @@ export async function resolveMcpOrgScope(req: ExpressRequest): Promise<McpOrgSco
       const recalled = await store.recall(keys!);
       if (recalled) return { resource: orgScopedResourceUrl(recalled.basePath, recalled.orgId) };
     } catch (err) {
-      console.warn('[auth] could not recall the org this authorization was started for', { err });
+      console.warn(`[auth] could not recall the org this authorization was started for: ${describeError(err)}`);
     }
   }
   return { resource: null };

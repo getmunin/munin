@@ -1,4 +1,5 @@
 import { WebSocket } from 'ws';
+import { redactQueryParams } from '@getmunin/core';
 import { stripTrailingSlashes } from '@getmunin/types';
 
 export interface MessageReceivedEvent {
@@ -77,9 +78,9 @@ const PING_INTERVAL_MS = 30_000;
 
 export function createRealtimeClient(opts: RealtimeClientOptions): RealtimeClient {
   const log = opts.logger ?? {
-    info: (m) => console.log(`[realtime] ${m}`),
-    warn: (m) => console.warn(`[realtime] ${m}`),
-    error: (m) => console.error(`[realtime] ${m}`),
+    info: (m) => console.log(`[realtime] ${redactQueryParams(m)}`),
+    warn: (m) => console.warn(`[realtime] ${redactQueryParams(m)}`),
+    error: (m) => console.error(`[realtime] ${redactQueryParams(m)}`),
   };
 
   let ws: WebSocket | null = null;

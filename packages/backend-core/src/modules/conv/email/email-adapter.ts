@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { makeId, schema, type Db, type Tx } from '@getmunin/db';
 import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
 import {
+  errorMessage,
   ActorIdentity,
   WebhookDispatcher,
   parseEnvInt,
@@ -499,7 +500,7 @@ export class EmailAdapter implements ChannelAdapter {
       try {
         parsed = await parseMessage(msg.source);
       } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err);
+        const errMsg = errorMessage(err);
         lastError = errMsg;
         this.logger.warn(`parse failed uid=${msg.uid} channel=${channel.id}: ${errMsg}`);
         if (msg.uid > highWater) highWater = msg.uid;
@@ -511,7 +512,7 @@ export class EmailAdapter implements ChannelAdapter {
         ingested += 1;
         if (msg.uid > highWater) highWater = msg.uid;
       } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err);
+        const errMsg = errorMessage(err);
         lastError = errMsg;
         stalled = true;
         this.logger.error(

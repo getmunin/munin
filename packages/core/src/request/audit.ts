@@ -1,5 +1,6 @@
 import { schema } from '@getmunin/db';
 import { getCurrentContext } from './context.ts';
+import { describeError, redactQueryParams } from '../errors.ts';
 
 export interface AuditEventInput {
   tool?: string;
@@ -31,14 +32,14 @@ export class AuditLogger {
         args: input.args ?? null,
         correlationId: ctx.correlationId,
         result: input.result ?? 'ok',
-        error: input.error ?? null,
+        error: input.error === undefined ? null : redactQueryParams(input.error),
         durationMs: input.durationMs ?? null,
         totalTokens: input.totalTokens ?? null,
         userAgent: input.userAgent ?? null,
         origin: input.origin ?? null,
       });
     } catch (err) {
-      console.error('[audit] failed to record:', err);
+      console.error(`[audit] failed to record: ${describeError(err)}`);
     }
   }
 }

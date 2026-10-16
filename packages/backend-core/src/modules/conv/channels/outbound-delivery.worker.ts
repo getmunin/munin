@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nest
 import { schema, type Db } from '@getmunin/db';
 import { and, eq, isNotNull, lt, lte, sql } from 'drizzle-orm';
 import {
+  errorMessage,
   ActorIdentity,
   WebhookDispatcher,
   parseEnvDisableFlag,
@@ -383,10 +384,6 @@ function readRecipient(metadata: unknown): string | null {
   if (!metadata || typeof metadata !== 'object') return null;
   const value = (metadata as { recipient?: unknown }).recipient;
   return typeof value === 'string' && value.length > 0 ? value : null;
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
 
 function extractSendLimits(config: unknown): SendLimits | null {

@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
 import { and, asc, eq, isNull, lt, lte, sql } from 'drizzle-orm';
-import { parseEnvDisableFlag, parseEnvInt, type Mailer } from '@getmunin/core';
+import { redactQueryParams, parseEnvDisableFlag, parseEnvInt, type Mailer } from '@getmunin/core';
 import { renderSystemAlertEmail } from '@getmunin/emails';
 import { DB } from '../../common/db/db.module.ts';
 import { MAILER } from '../../common/mail/mail.module.ts';
@@ -172,7 +172,7 @@ export class AlertNotificationWorker implements OnModuleInit, OnModuleDestroy {
       .update(schema.alertNotifications)
       .set({
         attempt: nextAttempt,
-        error,
+        error: error === null ? null : redactQueryParams(error),
         deliveredAt: final ? sql`now()` : null,
         nextAttemptAt: final
           ? sql`now()`

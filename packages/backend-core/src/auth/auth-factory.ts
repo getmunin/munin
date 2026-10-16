@@ -4,7 +4,11 @@ import { jwt, captcha } from 'better-auth/plugins';
 import { oauthProvider } from '@better-auth/oauth-provider';
 import { APIError } from 'better-auth/api';
 import { schema, type Db } from '@getmunin/db';
-import { currentOrgScopedMcpResource, readMembershipsForUser } from '@getmunin/core';
+import {
+  currentOrgScopedMcpResource,
+  describeError,
+  readMembershipsForUser,
+} from '@getmunin/core';
 import {
   STANDARD_OIDC_SCOPES,
   SUPPORTED_AUTH_SCOPES,
@@ -286,10 +290,7 @@ function addUrlVariants(variants: Set<string>, url: string): void {
     variants.add(origin);
     variants.add(`${origin}/`);
   } catch (err) {
-    console.warn('[auth-factory] computeValidAudiences: url is not a parseable URL', {
-      url,
-      err,
-    });
+    console.warn(`[auth-factory] computeValidAudiences: ${url} is not a parseable URL: ${describeError(err)}`);
   }
 }
 

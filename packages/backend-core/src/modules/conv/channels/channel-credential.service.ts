@@ -2,9 +2,9 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import {
+  errorMessage,
   ActorIdentity,
   getCurrentContext,
-  setEncryptionKeySql,
   withContext,
   type RequestContext,
 } from '@getmunin/core';
@@ -148,7 +148,6 @@ export class ChannelCredentialService implements CredentialTargetHandler {
     try {
       const result = await this.db.transaction(async (tx) => {
         await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
-        await tx.execute(setEncryptionKeySql());
         const actor = new ActorIdentity('system', 'credential-handoff', row.orgId, ['*'], ['admin']);
         const ctx: RequestContext = { db: tx, actor, correlationId: randomUUID() };
         return withContext(ctx, () => provider.test(targetId));
@@ -159,7 +158,7 @@ export class ChannelCredentialService implements CredentialTargetHandler {
       }
       return { ok: true, detail: 'credentials saved and verified' };
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      return { ok: false, error: errorMessage(err) };
     }
   }
 }

@@ -1,4 +1,4 @@
-import { safeFetch } from '@getmunin/core';
+import { redactQueryParams, safeFetch } from '@getmunin/core';
 
 const RATE_LIMIT_MAX_RETRIES = 4;
 const RATE_LIMIT_BASE_DELAY_MS = 500;
@@ -118,9 +118,9 @@ export function classifyProviderError(err: unknown): ProviderErrorClassification
     return { code: err.code, message: err.message, status: err.status };
   }
   if (err instanceof Error) {
-    return { code: 'provider_other', message: err.message };
+    return { code: 'provider_other', message: redactQueryParams(err.message) };
   }
-  return { code: 'provider_other', message: String(err) };
+  return { code: 'provider_other', message: redactQueryParams(String(err)) };
 }
 
 export async function throwProviderError(

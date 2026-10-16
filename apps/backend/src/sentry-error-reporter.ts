@@ -9,6 +9,7 @@ export class SentryErrorReporter extends ErrorReporter {
       if (context?.tool) scope.setTag('mcp.tool', context.tool);
       if (context?.actor?.type) scope.setTag('mcp.actor_type', context.actor.type);
       if (context?.actor?.orgId) scope.setTag('mcp.org_id', context.actor.orgId);
+      if (context?.ref) scope.setTag('correlation_id', context.ref);
       if (context?.actor?.id) scope.setUser({ id: context.actor.id });
       if (context?.args) scope.setContext('mcp_args', context.args);
       Sentry.captureException(toError(error));

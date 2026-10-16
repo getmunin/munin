@@ -2,8 +2,8 @@ import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { timingSafeEqual } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import {
+  errorMessage,
   decryptSecretSql,
-  setEncryptionKeySql,
 } from '@getmunin/core';
 import type { Db, Tx } from '@getmunin/db';
 import { DB } from '../../../common/db/db.module.ts';
@@ -35,7 +35,6 @@ export class VapiClientService {
   constructor(@Inject(DB) private readonly db: Db) {}
 
   async decryptString(tx: Db | Tx, ciphertext: string): Promise<string> {
-    await tx.execute(setEncryptionKeySql());
     const rows = await tx.execute<{ pt: string } & Record<string, unknown>>(
       sql`SELECT ${decryptSecretSql(ciphertext)} AS pt`,
     );
@@ -101,7 +100,7 @@ export class VapiClientService {
       }
       return { ok: true, json };
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      return { ok: false, error: errorMessage(err) };
     }
   }
 

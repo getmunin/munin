@@ -6,7 +6,6 @@ import {
   decryptSecretSql,
   encryptSecretSql,
   readApiBaseUrl,
-  setEncryptionKeySql,
 } from '@getmunin/core';
 import { CUSTOM_MCP_VENDOR } from './custom-mcp.adapter.ts';
 import { identityProvenance, type IdentityProvenance } from './identity-provenance.ts';
@@ -207,7 +206,6 @@ export async function getOrCreateSigningKey(
 
   await db.transaction(async (tx) => {
     await bypassRls(tx);
-    await tx.execute(setEncryptionKeySql());
     const encrypted = await tx.execute<{ ct: string } & Record<string, unknown>>(
       sql`SELECT ${encryptSecretSql(privateKeyPem)} AS ct`,
     );
@@ -237,7 +235,6 @@ async function loadSigningKey(
       .limit(1);
     const row = rows[0];
     if (!row) return null;
-    await tx.execute(setEncryptionKeySql());
     const decrypted = await tx.execute<{ pt: string } & Record<string, unknown>>(
       sql`SELECT ${decryptSecretSql(row.privateKeyPem)} AS pt`,
     );
@@ -249,7 +246,6 @@ async function loadSigningKey(
 
 async function decryptDetached(db: Db, ciphertext: string): Promise<string | null> {
   return db.transaction(async (tx) => {
-    await tx.execute(setEncryptionKeySql());
     const rows = await tx.execute<{ pt: string } & Record<string, unknown>>(
       sql`SELECT ${decryptSecretSql(ciphertext)} AS pt`,
     );

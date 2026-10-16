@@ -1,5 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import {
+  describeError,
   getCurrentContext,
+  internalErrorKind,
+  isInternalError,
+  redactQueryParams,
+  RequestContextStore,
   type AuditLogger,
   type ActorIdentity,
   type Audience,
@@ -13,6 +19,7 @@ export interface CaptureExceptionContext {
   tool?: string;
   actor?: { type?: string | null; id?: string | null; orgId?: string | null } | null;
   args?: Record<string, unknown> | null;
+  ref?: string;
 }
 
 export type CaptureExceptionFn = (
@@ -156,14 +163,15 @@ export async function callTool(
     try {
       await ctx.rateLimit(tool.meta.name);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
       await ctx.audit.record({
         tool: tool.meta.name,
         args: redactedArgs,
         result: 'denied',
         error: 'rate_limited',
       });
-      return errorResult(message);
+      const failure = describeToolFailure(err);
+      if (failure.ref) logInternalFailure(tool.meta.name, failure.ref, err);
+      return errorResult(failure.caller);
     }
   }
 
@@ -177,25 +185,22 @@ export async function callTool(
     thrown = err;
   }
   if (thrown !== null) {
-    const message =
-      thrown instanceof Error
-        ? thrown.message
-        : typeof thrown === 'string'
-          ? thrown
-          : JSON.stringify(thrown);
+    const failure = describeToolFailure(thrown);
     await ctx.audit.record({
       tool: tool.meta.name,
       args: redactedArgs,
       result: 'error',
-      error: message,
+      error: failure.audit,
       durationMs: Date.now() - startedAt,
     });
+    if (failure.ref) logInternalFailure(tool.meta.name, failure.ref, thrown);
     safeReportException(ctx.captureException, thrown, {
       tool: tool.meta.name,
       actor: { type: ctx.actor.type, id: ctx.actor.id, orgId: ctx.actor.orgId },
       args: redactedArgs,
+      ...(failure.ref ? { ref: failure.ref } : {}),
     });
-    return errorResult(message);
+    return errorResult(failure.caller);
   }
   await ctx.audit.record({
     tool: tool.meta.name,
@@ -311,6 +316,39 @@ export function readResource(ctx: DispatchContext, uri: string): ResourceContent
   };
 }
 
+interface ToolFailure {
+  caller: string;
+  audit: string;
+  ref: string | null;
+}
+
+const INTERNAL_ERROR_CODE = 'internal_error';
+
+function describeToolFailure(thrown: unknown): ToolFailure {
+  if (!isInternalError(thrown) && thrown instanceof Error) {
+    return { caller: thrown.message, audit: thrown.message, ref: null };
+  }
+  const ref = currentCorrelationId();
+  const kind = internalErrorKind(thrown);
+  return {
+    caller: `${INTERNAL_ERROR_CODE}: the tool failed on the server. Retrying the same call is unlikely to help; quote ref ${ref} when reporting it.`,
+    audit: `${INTERNAL_ERROR_CODE}[${kind}] ref ${ref}`,
+    ref,
+  };
+}
+
+function logInternalFailure(toolName: string, ref: string, thrown: unknown): void {
+  const detail =
+    thrown instanceof Error && thrown.stack
+      ? redactQueryParams(thrown.stack)
+      : describeError(thrown);
+  console.error(`[mcp-toolkit] tool ${toolName} failed (ref ${ref}): ${detail}`);
+}
+
+function currentCorrelationId(): string {
+  return RequestContextStore.getStore()?.correlationId ?? randomUUID();
+}
+
 function errorResult(message: string): ToolCallResult {
   return {
     isError: true,
@@ -341,6 +379,6 @@ function safeReportException(
   try {
     capture(error, context);
   } catch (reportErr) {
-    console.error('[mcp-toolkit] error reporter failed:', reportErr);
+    console.error(`[mcp-toolkit] error reporter failed: ${describeError(reportErr)}`);
   }
 }

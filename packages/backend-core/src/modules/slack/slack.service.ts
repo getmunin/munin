@@ -13,7 +13,6 @@ import {
   encryptSecretSql,
   getCurrentContext,
   randomToken,
-  setEncryptionKeySql,
   signHmac,
   verifyHmac,
 } from '@getmunin/core';
@@ -100,7 +99,6 @@ export function slackOAuthRedirectUri(): string {
 
 export async function encryptSecretValue(db: Db | Tx, plaintext: string): Promise<string> {
   return await db.transaction(async (tx) => {
-    await tx.execute(setEncryptionKeySql());
     const rows = await tx.execute<{ ct: string } & Record<string, unknown>>(
       sql`SELECT ${encryptSecretSql(plaintext)} AS ct`,
     );
@@ -112,7 +110,6 @@ export async function encryptSecretValue(db: Db | Tx, plaintext: string): Promis
 
 export async function decryptSecretValue(db: Db | Tx, ciphertext: string): Promise<string> {
   return await db.transaction(async (tx) => {
-    await tx.execute(setEncryptionKeySql());
     const rows = await tx.execute<{ pt: string } & Record<string, unknown>>(
       sql`SELECT ${decryptSecretSql(ciphertext)} AS pt`,
     );

@@ -1,5 +1,6 @@
 import { stripTrailingSlashes } from '@getmunin/types';
 import { parseOrgScopedMcpResource } from './mcp-org-scope.ts';
+import { describeError } from '../errors.ts';
 
 const registeredPaths = new Set<string>();
 
@@ -41,7 +42,7 @@ function mcpResourceOriginOrNull(): string | null {
   try {
     return new URL(mcpResourceBase()).origin;
   } catch (err) {
-    console.warn('[mcp-resources] NEXT_PUBLIC_MCP_URL is not a parseable URL', { err });
+    console.warn(`[mcp-resources] NEXT_PUBLIC_MCP_URL is not a parseable URL: ${describeError(err)}`);
     return null;
   }
 }

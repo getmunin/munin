@@ -11,6 +11,7 @@ export interface CreateDbOptions {
   serviceRole?: boolean;
   poolMax?: number;
   idleTimeoutSeconds?: number;
+  encryptionKey?: string;
 }
 
 export const DEFAULT_IDLE_TIMEOUT_SECONDS = 60;
@@ -34,18 +35,28 @@ export function resolveIdleTimeoutSeconds(explicit: number | undefined): number 
   return chosen === 0 ? undefined : chosen;
 }
 
+const ENCRYPTION_KEY_SETTING = 'app.crypt_key';
+
+export function resolveConnectionParameters(
+  options: Pick<CreateDbOptions, 'serviceRole' | 'encryptionKey'>,
+): Record<string, string> | undefined {
+  const key = options.encryptionKey ?? process.env.MUNIN_ENCRYPTION_KEY;
+  const params: Record<string, string> = {
+    ...(options.serviceRole && { options: '-c app.bypass_rls=on' }),
+    ...(key && { [ENCRYPTION_KEY_SETTING]: key }),
+  };
+  return Object.keys(params).length > 0 ? params : undefined;
+}
+
 export function createDb(connectionString: string, options: CreateDbOptions = {}) {
   const max = resolvePoolMax(options.poolMax);
   const idleTimeout = resolveIdleTimeoutSeconds(options.idleTimeoutSeconds);
+  const connection = resolveConnectionParameters(options);
   const client = postgres(connectionString, {
     prepare: false,
     ...(max !== undefined && { max }),
     ...(idleTimeout !== undefined && { idle_timeout: idleTimeout }),
-    ...(options.serviceRole && {
-      connection: {
-        options: '-c app.bypass_rls=on',
-      },
-    }),
+    ...(connection && { connection }),
   });
   return drizzle(client, { schema });
 }

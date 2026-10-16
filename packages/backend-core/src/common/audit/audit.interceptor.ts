@@ -6,7 +6,7 @@ import {
   NestInterceptor,
 } from '@nestjs/common';
 import { Observable, catchError, from, mergeMap, switchMap, throwError } from 'rxjs';
-import { AuditLogger, getCurrentContext } from '@getmunin/core';
+import { AuditLogger, auditErrorText, describeError, getCurrentContext } from '@getmunin/core';
 import { RateLimitService } from '../rate-limit/rate-limit.service.ts';
 import { QUOTAS_SERVICE, type QuotasService } from '../quotas/quotas.service.ts';
 
@@ -114,7 +114,7 @@ export class AuditInterceptor implements NestInterceptor {
       try {
         await this.rateLimit.record('api_calls_day');
       } catch (err) {
-        console.error('[audit] failed to bump api_calls_day:', err);
+        console.error(`[audit] failed to bump api_calls_day: ${describeError(err)}`);
       }
     };
 
@@ -137,7 +137,7 @@ export class AuditInterceptor implements NestInterceptor {
             await this.audit.record({
               method,
               result: 'error',
-              error: err instanceof Error ? err.message : String(err),
+              error: auditErrorText(err),
               durationMs: Date.now() - startedAt,
               totalTokens: getCurrentContext().aiTokens,
               userAgent,

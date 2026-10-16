@@ -2,8 +2,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import {
+  errorMessage,
   decryptSecretSql,
-  setEncryptionKeySql,
 } from '@getmunin/core';
 import type { Db, Tx } from '@getmunin/db';
 import { DB } from '../../../common/db/db.module.ts';
@@ -37,7 +37,6 @@ export class TwilioClientService {
   constructor(@Inject(DB) private readonly db: Db) {}
 
   async decryptAuthToken(tx: Db | Tx, ciphertext: string): Promise<string> {
-    await tx.execute(setEncryptionKeySql());
     const rows = await tx.execute<{ pt: string } & Record<string, unknown>>(
       sql`SELECT ${decryptSecretSql(ciphertext)} AS pt`,
     );
@@ -69,7 +68,7 @@ export class TwilioClientService {
         status: typeof json.status === 'string' ? json.status : '',
       };
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      return { ok: false, error: errorMessage(err) };
     }
   }
 

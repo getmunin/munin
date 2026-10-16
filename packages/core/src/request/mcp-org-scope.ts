@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { isOrgId, ORG_SCOPE_SEGMENT, stripTrailingSlashes } from '@getmunin/types';
+import { describeError } from '../errors.ts';
 
 export const MCP_BASE_PATH = '/mcp';
 
@@ -138,7 +139,7 @@ function mcpOrigin(): string | null {
   try {
     return new URL(raw).origin;
   } catch (err) {
-    console.warn('[mcp-org-scope] NEXT_PUBLIC_MCP_URL is not a parseable URL', { err });
+    console.warn(`[mcp-org-scope] NEXT_PUBLIC_MCP_URL is not a parseable URL: ${describeError(err)}`);
     return null;
   }
 }

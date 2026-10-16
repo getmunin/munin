@@ -3,6 +3,7 @@ import { schema } from '@getmunin/db';
 import { eq } from 'drizzle-orm';
 import { decodeProtectedHeader, importJWK, jwtVerify, type JWTPayload } from 'jose';
 import { ActorIdentity } from './context.ts';
+import { describeError } from '../errors.ts';
 import {
   gateOauthGrantsByRole,
   readMembershipsForUser,
@@ -54,7 +55,7 @@ export async function resolveOauthJwtAccessToken(
   try {
     header = decodeProtectedHeader(rawToken);
   } catch (err) {
-    console.warn('[credentials] JWT header decode failed', { err });
+    console.warn(`[credentials] JWT header decode failed: ${describeError(err)}`);
     return null;
   }
   if (!header.kid) return null;
@@ -70,7 +71,7 @@ export async function resolveOauthJwtAccessToken(
     });
     payload = verified.payload;
   } catch (err) {
-    console.warn('[credentials] JWT verification failed', { err });
+    console.warn(`[credentials] JWT verification failed: ${describeError(err)}`);
     return null;
   }
 
@@ -137,7 +138,7 @@ async function loadVerificationKey(db: Db, kid: string): Promise<VerificationKey
   try {
     jwk = JSON.parse(row.publicKey) as Record<string, unknown>;
   } catch (err) {
-    console.warn('[credentials] jwks row has invalid JSON public_key', { kid, err });
+    console.warn(`[credentials] jwks row ${kid} has invalid JSON public_key: ${describeError(err)}`);
     return null;
   }
   const alg = (jwk['alg'] as string | undefined) ?? 'EdDSA';
@@ -173,7 +174,7 @@ export function acceptedJwtAudiences(): Set<string> {
     set.add(origin);
     set.add(`${origin}/`);
   } catch (err) {
-    console.warn('[credentials] publicUrl is not a parseable URL', { err });
+    console.warn(`[credentials] publicUrl is not a parseable URL: ${describeError(err)}`);
   }
   for (const url of mcpResourceUrls()) {
     set.add(url);

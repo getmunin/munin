@@ -1,5 +1,5 @@
 import { createDb, schema } from '@getmunin/db';
-import { buildApiKey, hashSecret, keyPrefix } from '@getmunin/core';
+import { buildApiKey, describeError, hashSecret, keyPrefix } from '@getmunin/core';
 import { sql } from 'drizzle-orm';
 
 async function main() {
@@ -39,6 +39,6 @@ async function main() {
 }
 
 void main().catch((err) => {
-  console.error(err);
+  console.error(describeError(err));
   process.exit(1);
 });

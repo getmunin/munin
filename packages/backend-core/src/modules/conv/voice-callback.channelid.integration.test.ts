@@ -167,7 +167,7 @@ const skipReason = TEST_URL
         arguments: { conversationId },
       });
       const text = firstText(res);
-      expect(text, text).toMatch(/vapi_|fetch failed|placeCall|TypeError|invalid|pgp_sym_decrypt/i);
+      expect(text, text).toMatch(/vapi_|fetch failed|placeCall|invalid|internal_error/i);
     });
   });
 
@@ -190,7 +190,7 @@ const skipReason = TEST_URL
         arguments: { conversationId, channelId: channelBId },
       });
       const text = firstText(res);
-      expect(text, text).toMatch(/vapi_|fetch failed|placeCall|TypeError|invalid|pgp_sym_decrypt/i);
+      expect(text, text).toMatch(/vapi_|fetch failed|placeCall|invalid|internal_error/i);
     });
   });
 

@@ -18,7 +18,6 @@ interface RequestWithAuth {
 }
 
 export async function applyTenancyGUCs(tx: Db | Tx, actor: ActorIdentity): Promise<void> {
-  await applyEncryptionKeyGUC(tx);
   if (actor.type === 'partner') {
     await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
     return;
@@ -49,12 +48,6 @@ async function applyKbSpaceScopeGUC(tx: Db | Tx, conversationId: string): Promis
       true
     )
   `);
-}
-
-async function applyEncryptionKeyGUC(tx: Db | Tx): Promise<void> {
-  const key = process.env.MUNIN_ENCRYPTION_KEY;
-  if (!key) return;
-  await tx.execute(sql`SELECT set_config('app.crypt_key', ${key}, true)`);
 }
 
 function awaitNextHandler(next: CallHandler): Promise<unknown> {

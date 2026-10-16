@@ -6,6 +6,7 @@ export interface ErrorReporterContext {
   tool?: string;
   actor?: { type?: string | null; id?: string | null; orgId?: string | null } | null;
   args?: Record<string, unknown> | null;
+  ref?: string;
 }
 
 export abstract class ErrorReporter {

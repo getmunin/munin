@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { schema, type Db } from '@getmunin/db';
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm';
 import {
+  redactQueryParams,
   assertPublicHost,
   getCurrentContext,
   SsrfBlockedError,
@@ -271,7 +272,7 @@ export class CuratorJobsService {
         nextAttemptAt: nextAt,
         leaseExpiresAt: null,
         leaseHolder: null,
-        lastError: input.error.slice(0, 4000),
+        lastError: redactQueryParams(input.error).slice(0, 4000),
         lastErrorCode: input.code ?? null,
         failedStep: input.failedStep ?? null,
         updatedAt: new Date(),

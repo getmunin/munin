@@ -132,7 +132,7 @@ window.addEventListener('pagehide', () => {
 });
 ```
 
-The beacon accepts the same `path`, `referrer`, `visitorId`, `locale`, `dwellMs`, `readDepth`, `viewId`, `utm`, `metadata` fields as the website tracker. Sending the same `viewId` twice enriches one row (fill-if-null attribution, max-wins dwell/read-depth) rather than writing two; omit it and every post is its own row.
+The beacon accepts the same `path`, `referrer`, `visitorId`, `locale`, `dwellMs`, `readDepth`, `viewId`, `utm`, `metadata` fields as the website tracker, with the same limits: `metadata` over 4 KB serialized is dropped and a body over 64 KB is refused with a 413. Sending the same `viewId` twice enriches one row (fill-if-null attribution, max-wins dwell/read-depth) rather than writing two; omit it and every post is its own row.
 
 If `tracker.js` is on the page, `mn.analytics.trackEntry` already does all of this — including reading the visitor id it shares with the chat widget under the `mn.vid` key.
 

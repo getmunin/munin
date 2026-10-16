@@ -2,7 +2,12 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication, NestApplicationOptions, Type } from '@nestjs/common';
 import { ExpressAdapter, type NestExpressApplication } from '@nestjs/platform-express';
-import { LocalFsStorage, readApiBaseUrl, type AssetStorage } from '@getmunin/core';
+import {
+  LocalFsStorage,
+  assertProductionKeySecrets,
+  readApiBaseUrl,
+  type AssetStorage,
+} from '@getmunin/core';
 import { createReadStream, existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
@@ -18,6 +23,8 @@ import {
 } from './modules/conv/email/email-relay.constants.ts';
 
 const JSON_BODY_LIMIT = '4mb';
+const ANALYTICS_INGEST_PATH = '/v1/a';
+const ANALYTICS_INGEST_BODY_LIMIT = '64kb';
 const EMAIL_RELAY_BODY_LIMIT = EMAIL_RELAY_BODY_LIMIT_BYTES;
 
 const DEFAULT_DEV_WEB_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000'];
@@ -65,6 +72,7 @@ export async function createApp(
   opts: CreateAppOptions = {},
 ): Promise<INestApplication> {
   const { widgetAssetDir, trackerAssetDir, iconAssetDir, ...nestOpts } = opts;
+  assertProductionKeySecrets();
   const app = await NestFactory.create<NestExpressApplication>(
     appModule,
     new ExpressAdapter(createCaseSensitiveExpress()),
@@ -73,6 +81,10 @@ export async function createApp(
   (app.getHttpAdapter().getInstance() as { disable: (k: string) => void }).disable('x-powered-by');
   app.use(securityHeadersMiddleware({ hsts: readApiBaseUrl().startsWith('https://') }));
   app.use(EMAIL_RELAY_PATH, emailRelaySignatureGateMiddleware, emailRelayBodyParser());
+  app.use(
+    ANALYTICS_INGEST_PATH,
+    express.json({ limit: ANALYTICS_INGEST_BODY_LIMIT, type: ['application/json', 'text/plain'] }),
+  );
   app.useBodyParser('json', { limit: JSON_BODY_LIMIT, type: ['application/json', 'text/plain'] });
   app.useBodyParser('urlencoded', { extended: true, limit: JSON_BODY_LIMIT });
   const trustProxy = readTrustProxySetting();

@@ -8,6 +8,7 @@ import {
   resourceUrlForPath,
   splitOrgScopeMarker,
   withOrgScopedMcpResource,
+  isPlaceholderSecret,
 } from '@getmunin/core';
 import { mcpResourceUrl } from './oauth/oauth.constants.ts';
 import { hasOrgScopeAssociationKey, orgScopeStore } from './auth/org-scope-store.ts';
@@ -207,19 +208,6 @@ export function assertProductionAuthSecret(secret: string): void {
       'MUNIN_AUTH_SECRET looks like a placeholder/dev value. Generate a real secret with `openssl rand -base64 48`.',
     );
   }
-}
-
-const PLACEHOLDER_PATTERNS: readonly RegExp[] = [
-  /^replace[-_]?me/i,
-  /^dev[-_]?secret/i,
-  /^test[-_]?secret/i,
-  /^changeme/i,
-  /do[-_]?not[-_]?use/i,
-  /^(?:[a-z]+|x+|0+)$/i,
-];
-
-function isPlaceholderSecret(secret: string): boolean {
-  return PLACEHOLDER_PATTERNS.some((p) => p.test(secret));
 }
 
 function expressRequestToFetch(

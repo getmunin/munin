@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   ANALYTICS_VIEW_SOURCES,
   MAX_INGEST_FIELD_LENGTH,
+  MAX_INGEST_METADATA_BYTES,
   analyticsReadDepth,
   analyticsViewSource,
+  ingestMetadata,
   truncatedString,
 } from './ingest-fields.ts';
 
@@ -58,5 +60,23 @@ describe('analyticsReadDepth', () => {
   it('rejects a depth outside 0-100 rather than letting Postgres raise a 500', () => {
     expect(analyticsReadDepth.safeParse(-1).success).toBe(false);
     expect(analyticsReadDepth.safeParse(101).success).toBe(false);
+  });
+});
+
+describe('ingestMetadata', () => {
+  it('keeps metadata that fits in the cap', () => {
+    expect(ingestMetadata().parse({ plan: 'pro', amount: 49 })).toEqual({ plan: 'pro', amount: 49 });
+  });
+
+  it('drops oversized metadata instead of the event, so a public key cannot store megabytes per view', () => {
+    const big = { blob: 'x'.repeat(MAX_INGEST_METADATA_BYTES) };
+    const parsed = ingestMetadata().safeParse(big);
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toBeNull();
+  });
+
+  it('measures the serialized size in bytes, not characters', () => {
+    const chars = MAX_INGEST_METADATA_BYTES / 2;
+    expect(ingestMetadata().parse({ v: 'æ'.repeat(chars) })).toBeNull();
   });
 });

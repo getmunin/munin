@@ -2541,6 +2541,7 @@
     "conv_attachment_size_mismatch": "Opplastingen ble ikke fullført. Prøv å legge ved bildet på nytt.",
     "conv_attachment_too_large": "Bildet er for stort. Velg et som er under 10 MB.",
     "conv_attachment_too_many": "For mange bilder i én melding. Fjern ett og prøv igjen.",
+    "conv_attachment_too_many_pixels": "Bildet har for høy oppløsning. Skaler det ned og prøv igjen.",
     "conv_attachment_upload_missing": "Opplastingen ble ikke fullført. Prøv å legge ved bildet på nytt.",
     "conv_channel_config_invalid": "Kanalen har ufullstendige innstillinger og kan ikke brukes ennå. Åpne innstillingene, fyll ut det som mangler og lagre for å reparere den.",
     "conv_widget_voice_channel_invalid": "Den stemmekanalen finnes ikke lenger. Velg en annen.",

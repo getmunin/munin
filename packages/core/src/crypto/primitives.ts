@@ -1,8 +1,9 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual as nodeTimingSafeEqual } from 'node:crypto';
 import { sql, type SQL } from 'drizzle-orm';
+import { readKeyPepper } from './production-secrets.ts';
 
 export function hashSecret(secret: string, pepper?: string): string {
-  const p = pepper ?? process.env.MUNIN_KEY_PEPPER ?? '';
+  const p = pepper ?? readKeyPepper();
   return createHash('sha256').update(p).update(secret).digest('hex');
 }
 

@@ -1,5 +1,5 @@
 import { normalizeMime } from '../../../common/storage/asset-validation.ts';
-import { probeMaster } from '../../cms/cms.variants.ts';
+import { exceedsPixelLimit, probeMaster } from '../../cms/cms.variants.ts';
 import {
   CONV_ATTACHMENT_BYTES_MAX,
   CONV_ATTACHMENT_INBOUND_BYTES_MIN,
@@ -23,6 +23,7 @@ export type InboundAttachmentDropReason =
   | 'too_small'
   | 'unreferenced_cid'
   | 'undecodable'
+  | 'too_many_pixels'
   | 'edge_too_small'
   | 'per_message_max';
 
@@ -160,6 +161,10 @@ export async function filterInboundAttachments(
     const dimensions = await probe(part.content);
     if (!dimensions) {
       drop('undecodable');
+      continue;
+    }
+    if (exceedsPixelLimit(dimensions)) {
+      drop('too_many_pixels');
       continue;
     }
     if (

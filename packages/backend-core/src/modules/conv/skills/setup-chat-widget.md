@@ -213,7 +213,7 @@ A message with `attachmentIds` may leave `body` empty; a message with neither bo
 
 `GET /v1/widget/messages` returns an `attachments` array on every message that has one — inbound visitor images and outbound agent/human images alike — each with `url`, `thumbnailUrl` (a smaller webp variant), `width`, `height` and `deleted`. Both URLs are short-lived signed links, valid for an hour, and the serve route re-checks the row on every request, so refetch rather than caching them. A deleted attachment comes back as `deleted: true` with `url` and `thumbnailUrl` set to `null` while keeping its `name` — render a placeholder, never a broken image.
 
-Errors carry a machine-readable `code`: `conv_attachment_mime_rejected`, `conv_attachment_too_large`, `conv_attachment_too_many`, `conv_attachment_upload_missing`, `conv_attachment_size_mismatch`, `conv_attachment_conflict`, `conv_attachment_deleted`.
+Errors carry a machine-readable `code`: `conv_attachment_mime_rejected`, `conv_attachment_too_large`, `conv_attachment_too_many_pixels` (an image over 67 megapixels), `conv_attachment_too_many`, `conv_attachment_upload_missing`, `conv_attachment_size_mismatch`, `conv_attachment_conflict`, `conv_attachment_deleted`.
 
 ## 3. Receive replies from a human / Munin agent
 

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { safeFetch, SsrfBlockedError } from '@getmunin/core';
 import sharp from 'sharp';
 import type { SocialMediaKind } from './social-platform.ts';
+import { MAX_IMAGE_PIXELS } from '../cms/cms.variants.ts';
 
 export interface FetchedMedia {
   kind: SocialMediaKind;
@@ -223,7 +224,7 @@ export async function transcodeImage(
   bytes: Buffer,
   args: { sourceType: string; imageContentTypes: readonly string[] },
 ): Promise<{ bytes: Buffer; contentType: string }> {
-  const stats = await sharp(bytes)
+  const stats = await sharp(bytes, { limitInputPixels: MAX_IMAGE_PIXELS })
     .stats()
     .catch((err: unknown) => {
       throw new SocialMediaError(
@@ -234,8 +235,8 @@ export async function transcodeImage(
   const takesPng = args.imageContentTypes.includes('image/png');
   const toPng = takesPng && (!stats.isOpaque || !takesJpeg);
   const encoded = await (toPng
-    ? sharp(bytes).png({ compressionLevel: 9 }).toBuffer()
-    : sharp(bytes)
+    ? sharp(bytes, { limitInputPixels: MAX_IMAGE_PIXELS }).png({ compressionLevel: 9 }).toBuffer()
+    : sharp(bytes, { limitInputPixels: MAX_IMAGE_PIXELS })
         .flatten({ background: '#ffffff' })
         .jpeg({ quality: JPEG_QUALITY, mozjpeg: true })
         .toBuffer()

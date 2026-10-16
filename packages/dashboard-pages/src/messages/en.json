@@ -2541,6 +2541,7 @@
     "conv_attachment_size_mismatch": "The upload did not complete correctly. Try attaching the image again.",
     "conv_attachment_too_large": "That image is too large. Pick one under 10 MB.",
     "conv_attachment_too_many": "Too many images on one message. Remove one and try again.",
+    "conv_attachment_too_many_pixels": "That image has too many pixels. Scale it down and try again.",
     "conv_attachment_upload_missing": "The upload did not finish. Try attaching the image again.",
     "conv_channel_config_invalid": "This channel's saved settings are incomplete, so it can't be used yet. Open its settings, fill in what's missing and save to repair it.",
     "conv_widget_voice_channel_invalid": "That voice channel no longer exists. Pick another one.",

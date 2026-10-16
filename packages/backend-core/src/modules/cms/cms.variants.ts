@@ -9,6 +9,9 @@ const FULL_WIDTH_CAP = 2560;
 const WEBP_QUALITY = 80;
 const VARIANTABLE_MIME = /^image\/(jpeg|png|webp|gif|tiff)$/;
 
+export const MAX_IMAGE_PIXELS = 8192 * 8192;
+const DECODE_OPTIONS = { limitInputPixels: MAX_IMAGE_PIXELS };
+
 export interface MasterDimensions {
   width: number;
   height: number;
@@ -20,6 +23,22 @@ export interface RenderedVariant extends MasterDimensions {
 }
 
 export class UndecodableImageError extends Error {}
+
+export class ImagePixelLimitError extends UndecodableImageError {
+  constructor(readonly dimensions: MasterDimensions) {
+    super(
+      `image is ${dimensions.width}x${dimensions.height} pixels, over the ${MAX_IMAGE_PIXELS} pixel limit`,
+    );
+  }
+}
+
+export function exceedsPixelLimit(dimensions: MasterDimensions): boolean {
+  return dimensions.width * dimensions.height > MAX_IMAGE_PIXELS;
+}
+
+export function assertWithinPixelLimit(dimensions: MasterDimensions): void {
+  if (exceedsPixelLimit(dimensions)) throw new ImagePixelLimitError(dimensions);
+}
 
 export function isVariantableMime(mime: string): boolean {
   return VARIANTABLE_MIME.test(mime.toLowerCase());
@@ -33,7 +52,7 @@ export function variantWidthsFor(sourceWidth: number): number[] {
 }
 
 export async function probeMaster(body: Buffer): Promise<MasterDimensions> {
-  const meta = await sharp(body)
+  const meta = await sharp(body, { limitInputPixels: false })
     .metadata()
     .catch((err: unknown) => {
       throw new UndecodableImageError(describeSharpError(err));
@@ -48,9 +67,10 @@ export async function renderVariants(
   body: Buffer,
   source: MasterDimensions,
 ): Promise<RenderedVariant[]> {
+  assertWithinPixelLimit(source);
   const out: RenderedVariant[] = [];
   for (const width of variantWidthsFor(source.width)) {
-    const rendered = await sharp(body)
+    const rendered = await sharp(body, DECODE_OPTIONS)
       .resize({ width, withoutEnlargement: true })
       .webp({ quality: WEBP_QUALITY })
       .toBuffer({ resolveWithObject: true })

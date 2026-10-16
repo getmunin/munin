@@ -109,6 +109,15 @@ describe('filterInboundAttachments', () => {
     expect(result.dropped[0]).toMatchObject({ reason: 'edge_too_small' });
   });
 
+  it('drops an image over the pixel limit before anything decodes it', async () => {
+    const result = await filterInboundAttachments([part({ filename: 'bomb.png' })], {
+      html: '<p>hi</p>',
+      probe: () => Promise.resolve({ width: 9000, height: 9000 }),
+    });
+    expect(result.kept).toHaveLength(0);
+    expect(result.dropped[0]).toMatchObject({ name: 'bomb.png', reason: 'too_many_pixels' });
+  });
+
   it('drops a part sharp cannot decode', async () => {
     const result = await filterInboundAttachments([part({ filename: 'broken.png' })], {
       html: '<p>hi</p>',

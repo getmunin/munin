@@ -541,6 +541,63 @@ describe('createConversationHandler', () => {
     expect(toolNames).not.toContain('conv_request_human');
   });
 
+  it.each([
+    ['a teammate asks for a draft', 'auto', true],
+    ['the channel only drafts', 'draft_only', false],
+  ] as const)(
+    'tells the agent not to sign a draft with its own name when %s',
+    async (_label, agentMode, requested) => {
+      const seen: Array<{ config: { systemPrompt: string; volatileSystemPrompt?: string } }> = [];
+      const provider: Provider = (args) => {
+        seen.push(args);
+        return Promise.resolve(assistantStop('We open at 10am.'));
+      };
+      const rest = buildRest({
+        getConversation: vi.fn(() =>
+          Promise.resolve(buildConversation({ agentMode, channelType: 'email', assistantName: 'Ada' })),
+        ),
+      });
+      const handler = createConversationHandler({
+        config: { ...baseConfig, auditEnabled: false },
+        rest,
+        prompts: buildPrompts(),
+        openMcp: () => Promise.resolve(buildMcp()),
+        logger: silentLogger,
+        scheduler: noDelayScheduler,
+        provider,
+      });
+      if (requested) handler.requestDraft({ conversationId: 'conv_1' });
+      else handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+      await handler.flush();
+      expect(seen[0]!.config.volatileSystemPrompt).toContain('[Sign-off]');
+      expect(seen[0]!.config.volatileSystemPrompt).toContain('never sign it with your name');
+      expect(seen[0]!.config.systemPrompt).not.toContain('Your name is Ada');
+    },
+  );
+
+  it('leaves the sign-off to the agent on a reply it sends itself', async () => {
+    const seen: Array<{ config: { systemPrompt: string; volatileSystemPrompt?: string } }> = [];
+    const provider: Provider = (args) => {
+      seen.push(args);
+      return Promise.resolve(assistantStop('We open at 10am.'));
+    };
+    const handler = createConversationHandler({
+      config: { ...baseConfig, auditEnabled: false },
+      rest: buildRest({
+        getConversation: vi.fn(() => Promise.resolve(buildConversation({ assistantName: 'Ada' }))),
+      }),
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider,
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    expect(seen[0]!.config.systemPrompt).toContain('Your name is Ada');
+    expect(seen[0]!.config.volatileSystemPrompt ?? '').not.toContain('[Sign-off]');
+  });
+
   it('draft-request without a note asks for curly-brace slots but not for note markup', async () => {
     const seen: Array<{ config: { volatileSystemPrompt?: string } }> = [];
     const provider: Provider = (args) => {

@@ -5190,7 +5190,7 @@ the full license text.
 
 ---
 
-## @modelcontextprotocol/sdk@1.30.0
+## @modelcontextprotocol/sdk@1.32.1
 
 > Model Context Protocol implementation for TypeScript
 - Homepage: https://modelcontextprotocol.io
@@ -19791,7 +19791,7 @@ SOFTWARE.
 
 ---
 
-## hono@4.13.5
+## hono@4.13.13
 
 > Web framework built on Web Standards
 - Homepage: https://hono.dev
@@ -28573,7 +28573,7 @@ _No LICENSE file shipped in the package; refer to homepage above._
 
 ---
 
-## postcss-selector-parser@7.1.5
+## postcss-selector-parser@7.1.6
 
 > Selector parser with built in methods for working with selector strings.
 - Homepage: https://github.com/postcss/postcss-selector-parser
@@ -29097,7 +29097,7 @@ IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
-## proxy-addr@2.0.7
+## proxy-addr@2.0.8
 
 > Determine address of proxied request
 - Homepage: https://github.com/jshttp/proxy-addr#readme
@@ -31998,7 +31998,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ---
 
-## source-map-js@1.2.1
+## source-map-js@1.2.2
 
 > Generates and consumes source maps
 - Homepage: https://github.com/7rulnik/source-map-js

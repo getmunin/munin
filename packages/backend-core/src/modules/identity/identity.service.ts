@@ -134,6 +134,7 @@ export class IdentityService {
         and(
           eq(schema.convConversations.orgId, orgId),
           eq(schema.convConversations.endUserId, endUserId),
+          eq(schema.convConversations.unengaged, false),
         ),
       );
 

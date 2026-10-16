@@ -41,6 +41,7 @@ import { findOrCreateContactByPhone } from '../contact-by-phone.ts';
 import { jsonbToStored } from './threll.service.ts';
 import { ThrellToolBridge } from './threll-tool-bridge.ts';
 import { ConvService } from '../conv.service.ts';
+import { markConversationEngaged } from '../conversation-engagement.ts';
 
 interface ThrellCustomer {
   number?: string;
@@ -350,6 +351,7 @@ export class ThrellAdapter implements ChannelAdapter {
       .update(schema.convConversations)
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
       .where(eq(schema.convConversations.id, conversation.id));
+    if (authorType === 'end_user') await markConversationEngaged(tx, conversation.id);
     await this.webhooks.emit({
       type: 'conversation.message.received',
       payload: {

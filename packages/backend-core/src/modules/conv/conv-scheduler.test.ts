@@ -7,6 +7,7 @@ describe('ConvSchedulerService.onModuleInit', () => {
     process.env.NODE_ENV = 'development';
     delete process.env.MUNIN_CONV_AUTO_CLOSE_DISABLED;
     delete process.env.MUNIN_CONV_AUTO_CLOSE_CRON;
+    delete process.env.MUNIN_CONV_UNENGAGED_CLEANUP_CRON;
   });
   afterEach(() => {
     process.env.NODE_ENV = 'test';
@@ -20,7 +21,17 @@ describe('ConvSchedulerService.onModuleInit', () => {
     return { svc, registry };
   }
 
-  it('registers the auto-close cron job when not disabled', () => {
+  it('registers the auto-close and unengaged-cleanup cron jobs when not disabled', () => {
+    const { svc, registry } = build();
+    svc.onModuleInit();
+    expect([...registry.getCronJobs().keys()]).toEqual([
+      'conv-auto-close',
+      'conv-unengaged-cleanup',
+    ]);
+  });
+
+  it('turns off only the unengaged cleanup when its cron env var is "off"', () => {
+    process.env.MUNIN_CONV_UNENGAGED_CLEANUP_CRON = 'off';
     const { svc, registry } = build();
     svc.onModuleInit();
     expect([...registry.getCronJobs().keys()]).toEqual(['conv-auto-close']);
@@ -35,11 +46,11 @@ describe('ConvSchedulerService.onModuleInit', () => {
     expect(String(job.cronTime.source)).toBe('*/15 * * * *');
   });
 
-  it('registers nothing when the cron env var is "off"', () => {
+  it('turns off only auto-close when its cron env var is "off"', () => {
     process.env.MUNIN_CONV_AUTO_CLOSE_CRON = 'off';
     const { svc, registry } = build();
     svc.onModuleInit();
-    expect([...registry.getCronJobs().keys()]).toHaveLength(0);
+    expect([...registry.getCronJobs().keys()]).toEqual(['conv-unengaged-cleanup']);
   });
 
   it('registers nothing when MUNIN_CONV_AUTO_CLOSE_DISABLED=1', () => {

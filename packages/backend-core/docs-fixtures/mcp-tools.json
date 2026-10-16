@@ -3132,7 +3132,7 @@
   {
     "name": "conv_list_conversations",
     "title": "Conv: List conversations",
-    "description": "List conversations for your org, newest activity first. Filter by status (open / snoozed / closed / spam), assignee, topic, handover state (`active` / `resolved` / `never`), or `since` an ISO timestamp, and narrow to a `search` term matched against subject, customer, topic and message text. `handover: \"resolved\"` plus `since` is the set a knowledge-curation pass works from: questions a human answered inside the window.",
+    "description": "List conversations for your org, newest activity first. Filter by status (open / snoozed / closed / spam), assignee, topic, handover state (`active` / `resolved` / `never`), or `since` an ISO timestamp, and narrow to a `search` term matched against subject, customer, topic and message text. `handover: \"resolved\"` plus `since` is the set a knowledge-curation pass works from: questions a human answered inside the window. A chat-widget conversation is listed once the visitor or a teammate has written in it; one that holds only the greeting is not.",
     "audiences": [
       "admin"
     ],

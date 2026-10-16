@@ -29,6 +29,8 @@ Response includes `widgetKey: "mn_widget_…"` — shown once. Store it server-s
 
 Change it later with `conv_update_widget_channel { channelId, defaultAgentMode }`; it applies to conversations that start after the change. A topic can still override it for the conversations it matches (`conv_set_topic_automation`).
 
+Opening the widget starts the conversation before the visitor types anything. Until the visitor writes, starts a voice call, or a teammate replies, that conversation stays out of `conv_list_conversations`, the inbox, the queue counts and usage, and nothing about it reaches Slack. Once someone writes, it appears everywhere with its full history, the greeting included. A conversation nobody wrote in is deleted after 24 hours without activity, so an operator who asks why the inbox has fewer conversations than the widget had visitors is seeing this, not lost data.
+
 `originAllowlist` is required — the widget ingest endpoint rejects any request whose `Origin` header doesn't match one of the listed full origins (scheme + host + port, exact match). List every environment that should be allowed to ingest (`https://customer.example`, `https://staging.customer.example`, etc.).
 
 The widget key is bound to this channel via `api_keys.channel_id`. Rotate with `conv_rotate_widget_key`; update origins with `conv_update_widget_channel`.

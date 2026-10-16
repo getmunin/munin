@@ -32,6 +32,7 @@ import { VapiToolBridge } from '../vapi/vapi-tool-bridge.ts';
 import { jsonbToStored as threllJsonbToStored } from '../threll/threll.service.ts';
 import { ThrellClientService } from '../threll/threll-client.service.ts';
 import { ThrellToolBridge } from '../threll/threll-tool-bridge.ts';
+import { markConversationEngaged } from '../conversation-engagement.ts';
 import {
   OrgScopedKbDocReader,
   buildBrowserAssistantOverrides,
@@ -499,6 +500,7 @@ export class WidgetVoiceService implements OnModuleInit, OnModuleDestroy {
         .update(schema.convConversations)
         .set({ metadata: updatedMetadata, lastMessageAt: new Date(), updatedAt: new Date() })
         .where(eq(schema.convConversations.id, conv.id));
+      if (input.kind === 'started') await markConversationEngaged(tx, conv.id);
 
       return inserts[0]!.id;
     });

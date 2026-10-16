@@ -26,6 +26,7 @@ import { linkVisitorToEndUser } from '../../analytics/visitor-identity.ts';
 import { CuratorJobsService } from '../../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from '../set-topic-job.ts';
 import { reopenClosedConversation } from '../conversation-reopen.ts';
+import { markConversationEngaged } from '../conversation-engagement.ts';
 import { raiseAttentionWhenAgentIsOff } from '../unanswerable-handover.ts';
 import { ConvAttachmentsService } from '../attachments/conv-attachments.service.ts';
 import type { AttachmentDto } from '../attachments/conv-attachments.types.ts';
@@ -615,6 +616,7 @@ export class WidgetIngestService {
         endUserId: endUser.id,
         status: 'open',
         agentMode: channel.defaultAgentMode,
+        unengaged: true,
         metadata: meta,
         lastMessageAt: new Date(),
       })
@@ -874,6 +876,7 @@ export class WidgetIngestService {
         .where(eq(schema.convConversations.id, conv.id));
 
       const hasVisitorMessage = events.some((e) => e.authorType === 'end_user');
+      if (hasVisitorMessage) await markConversationEngaged(tx, conv.id);
       if (hasVisitorMessage && (await reopenClosedConversation(tx, conv.id))) {
         await this.webhooks.emit({
           type: 'conversation.status_changed',

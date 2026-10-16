@@ -54,7 +54,7 @@ export class SetupStateService {
     const [channels, conversationCount, topicCount, knowledgeDocumentCount, mcp] =
       await Promise.all([
         this.conv.listChannels(),
-        countRows(schema.convConversations),
+        this.conv.countConversations({}),
         countRows(schema.convTopics),
         this.countKnowledgeDocuments(),
         this.readExternalMcpActivity(),

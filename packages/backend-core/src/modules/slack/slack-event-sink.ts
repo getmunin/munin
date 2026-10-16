@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { schema } from '@getmunin/db';
 import { getCurrentContext, type EmittedEvent, type EventSink } from '@getmunin/core';
 import {
@@ -40,6 +40,7 @@ export class SlackEventSink implements EventSink {
         ? event.payload.conversationId
         : null;
     const order = await this.messageOrder(event);
+    const held = conversationId ? await this.holdUntilEngaged(conversationId) : false;
     const subjectKeys = subjects.length
       ? subjects.map((subject) => `${subject.subjectType}:${subject.subjectId}`)
       : [null];
@@ -51,10 +52,31 @@ export class SlackEventSink implements EventSink {
         eventType: event.type,
         conversationId,
         subjectKey,
-        nextAttemptAt: new Date(),
+        nextAttemptAt: held ? null : new Date(),
         ...(order ? { orderAt: order.orderAt, orderSeq: order.orderSeq } : {}),
       })),
     );
+  }
+
+  private async holdUntilEngaged(conversationId: string): Promise<boolean> {
+    const ctx = getCurrentContext();
+    const [conversation] = await ctx.db
+      .select({ unengaged: schema.convConversations.unengaged })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, conversationId))
+      .limit(1);
+    if (conversation?.unengaged) return true;
+    await ctx.db
+      .update(schema.slackDeliveries)
+      .set({ nextAttemptAt: new Date() })
+      .where(
+        and(
+          eq(schema.slackDeliveries.conversationId, conversationId),
+          isNull(schema.slackDeliveries.deliveredAt),
+          isNull(schema.slackDeliveries.nextAttemptAt),
+        ),
+      );
+    return false;
   }
 
   private async messageOrder(

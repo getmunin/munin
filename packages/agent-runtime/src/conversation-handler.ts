@@ -561,7 +561,6 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
           const handoverThisTurn = handoverReason !== null && handoverReason !== undefined;
           try {
             await deps.rest.postAgentMessage(conversationId, reply.body, {
-              preserveAttention: handoverThisTurn,
               sinceMessageId,
               totalTokens: reply.usage.totalTokens,
               components: deriveMessageComponents(reply.toolCalls),

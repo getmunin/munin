@@ -162,7 +162,6 @@ function buildClient(opts: BuildOptions): AgentRestClient {
       conversationId: string,
       body: string,
       messageOpts: {
-        preserveAttention?: boolean;
         sinceMessageId?: string;
         totalTokens?: number;
         components?: MessageComponent[];
@@ -176,7 +175,7 @@ function buildClient(opts: BuildOptions): AgentRestClient {
             body,
             authorType: 'agent',
             authorId: opts.actor.id,
-            preserveAttention: messageOpts.preserveAttention,
+            preserveAttention: true,
             sinceMessageId: messageOpts.sinceMessageId,
             components: messageOpts.components,
           });

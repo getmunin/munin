@@ -319,4 +319,62 @@ const skipReason = TEST_URL
     const posted = rows.find((r) => r.body === 'Plain prose reply.');
     expect(posted!.metadata.components).toBeUndefined();
   });
+
+  it('leaves a pending handover open when the runner replies, so only a teammate resolves it', async () => {
+    const dispatcher = new WebhookDispatcher();
+    const claims = new ConversationClaimsService(dispatcher);
+    const conv = new ConvService(
+      dispatcher,
+      claims,
+      new CuratorJobsService(dispatcher),
+      new AlertsService(dispatcher),
+      stubAttachmentGateway(),
+    );
+    const factory = new InProcessMuninRestClientFactoryService(
+      db,
+      conv,
+      claims,
+      new CuratorJobsService(dispatcher),
+      new ConvTranslationService(dispatcher, conv, new MessageTranslatorRegistry()),
+    );
+    const client = factory.forOrg(orgId);
+
+    const target = await freshConversation(108);
+    const raisedAt = new Date();
+    await db
+      .update(schema.convConversations)
+      .set({ needsHumanAttention: true, needsHumanAttentionAt: raisedAt })
+      .where(sql`id = ${target}`);
+
+    await client.postAgentMessage(target, 'Yes, you can stay in the chat.');
+
+    await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    const [after] = await db
+      .select({
+        needsHumanAttention: schema.convConversations.needsHumanAttention,
+        needsHumanAttentionAt: schema.convConversations.needsHumanAttentionAt,
+        handoverResolvedAt: schema.convConversations.handoverResolvedAt,
+      })
+      .from(schema.convConversations)
+      .where(sql`id = ${target}`);
+    expect(after!.needsHumanAttention).toBe(true);
+    expect(after!.needsHumanAttentionAt).not.toBeNull();
+    expect(after!.handoverResolvedAt).toBeNull();
+
+    const resolvedEvents = await db
+      .select({ id: schema.events.id })
+      .from(schema.events)
+      .where(
+        sql`org_id = ${orgId} AND type = 'conversation.handover_resolved' AND payload->>'conversationId' = ${target}`,
+      );
+    expect(resolvedEvents).toHaveLength(0);
+
+    const curationJobs = await db
+      .select({ id: schema.curatorJobs.id })
+      .from(schema.curatorJobs)
+      .where(
+        sql`org_id = ${orgId} AND source_event_type = 'conversation.handover_resolved' AND source_event_payload->>'conversationId' = ${target}`,
+      );
+    expect(curationJobs).toHaveLength(0);
+  });
 });

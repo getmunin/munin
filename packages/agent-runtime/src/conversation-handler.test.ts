@@ -2001,12 +2001,6 @@ describe('createConversationHandler', () => {
     await handler.flush();
 
     expect(postSpy).toHaveBeenCalledTimes(1);
-    const [, , options] = postSpy.mock.calls[0] as unknown as [
-      string,
-      string,
-      { preserveAttention?: boolean },
-    ];
-    expect(options.preserveAttention).toBe(true);
     expect(clearSpy).not.toHaveBeenCalled();
   });
 

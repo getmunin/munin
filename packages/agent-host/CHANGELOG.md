@@ -1,5 +1,64 @@
 # @getmunin/agent-host
 
+## 5.47.0
+
+### Patch Changes
+
+- e29ed5c: Stop returning raw internal errors from MCP tools, and take the at-rest encryption key out of SQL parameters.
+
+  A tool that failed on a database or runtime error used to hand the caller the error's own message. For a failed query that message is drizzle's `Failed query: … params: …`, so the SQL and every bound parameter reached the calling agent (end-user agents included), the audit log, stored job and delivery errors, and the server log. Until now the at-rest encryption key was itself a bound parameter: every request transaction ran `set_config('app.crypt_key', $1, true)`.
+
+  **The encryption key travels once per connection, never with a query**
+
+  - `createDb` sends `MUNIN_ENCRYPTION_KEY` as the `app.crypt_key` startup parameter when it opens each pooled connection. It reads the key when the pool is created, or takes it from the new `encryptionKey` option. `current_setting('app.crypt_key')` works for the whole session, including for the non-superuser `munin_app` role, and survives `RESET ALL` and `DISCARD ALL`.
+  - The per-transaction `set_config('app.crypt_key', …)` is gone from the tenancy interceptor, the agent-host service context and every decrypt/encrypt helper. No statement carries the key any more, so it cannot appear in a failed query's text, its parameters or `pg_stat_activity`.
+  - `setEncryptionKeySql` is removed from `@getmunin/core`. A pool created through `createDb` already has the key, so drop any call to it. Code that opens its own `postgres` client needs to pass `app.crypt_key` as a connection parameter.
+  - Set `MUNIN_ENCRYPTION_KEY` before the database pool is created. Changing it now takes a process restart, since existing connections keep the key they opened with.
+  - A pooler that multiplexes transactions across server connections (PgBouncer in transaction mode) does not forward custom startup parameters, and it already did not forward `app.bypass_rls`. Connect the backend to Postgres directly, or use session pooling.
+
+  **Internal errors stay on the server**
+
+  - MCP tools now return `internal_error: … quote ref <correlationId>` for database errors, socket errors, built-in runtime errors (`TypeError`, `RangeError`, …), thrown non-errors, and any message that embeds a failed query. The audit row records `internal_error[<ErrorClass>:<SQLSTATE>] ref <correlationId>`. The full error is logged on the server under the same ref and passed to the error reporter with a `ref` field.
+  - Deliberate errors keep their message unchanged, so agents still get the `<code>: …` prefix they act on. That covers Nest `HttpException`s, the modules' own error classes, and plain `Error`s thrown with a coded message. Rate-limit and quota failures follow the same rule.
+  - `/v1` audit rows use the same rule.
+  - Stored error text has `params: …` replaced with `params: [redacted]` before it is written. That covers `audit_log.error`, `curator_jobs.last_error`, outreach `failure_reason`, social post and account `last_error`, alert details, and alert-notification and widget-fallback errors. Channel test results returned to admins are redacted the same way.
+  - `createApp` installs a console logger that redacts `params: …` in logged messages and stacks and keeps the SQL text; pass your own `logger` to opt out. The direct `console.*` calls in core, backend-core, mcp-toolkit and the agent runtime now log through `describeError`, which redacts. A test fails the build if one logs a raw error object or `err.message` again.
+  - `@getmunin/core` exports `isInternalError`, `internalErrorKind`, `auditErrorText`, `errorMessage`, `errorClassName`, `sqlStateOf`, `redactQueryParams`, `redactQueryParamsDeep` and `redactLogValue`. It also has a dependency-free `@getmunin/core/errors` entry point for code that loads before the rest of the app, such as an error-reporter init.
+
+- a481097: A stored connector secret, mail password or LLM provider key is no longer sent to a host it was not entered for. Before, an update that changed a connection's address kept the stored secret, so the next call sent it to the new host. That turned "agents never see credentials" into two tool calls for a prompt-injected agent.
+
+  - `connectors_update_connection` and `PATCH /v1/connectors/:id` refuse a change that moves a connection to a different origin unless the secret is supplied in the same change. The error is `connectors_secret_required`. This covers a custom MCP `url`, Magento and Gastroplanner `baseUrl`, and Shopify `shopDomain`. Adapters mark these fields with the new `endpoint` flag on `ConnectorConfigFieldInfo`, which `/v1/connectors/vendors` now returns. A different path or letter case on the same origin keeps the secret.
+  - `conv_configure_email_channel` refuses a changed SMTP or IMAP `host` unless that transport's password comes with the change. The error is `conv_secret_required`.
+  - `PUT /v1/agent-config` refuses a `providerBaseUrl` on a different origin when an org key is stored and no new `providerApiKey` comes with it. The error is `agent_config_key_required`. The check runs before the key is decrypted, so neither the credential probe nor the model list ever reaches the new host. A path change on the same origin keeps the key, and an org with no stored key, or one clearing its key in the same change, can change the URL freely. Before, switching provider presets re-sent the old key to the new provider to validate it.
+  - The dashboard asks for the secret again once the address changes: in the connector dialog, the email channel dialog, and the AI provider card on the setup wizard and AI settings page. All three error codes have English and Norwegian messages.
+
+  The agent path is unchanged in one respect: secrets are still rejected there. An agent moves a connection by deleting it and creating it again, which returns a fresh credential link, or leaves the change to a person in the dashboard.
+
+  `ResolvedProviderAuth` is now a union: a `managed: true` result must carry its own `baseUrl`. The runner no longer falls back to the org's `providerBaseUrl` for a managed key. If a host's `resolveProviderAuth` returns a managed key without a base URL, the runner logs an error and does not start, instead of sending a deployment-supplied key to an address the tenant chose. **Hosts that pass `resolveProviderAuth`** must include `baseUrl` on every managed result. TypeScript callers get a compile error until they do.
+
+- Updated dependencies [a481097]
+- Updated dependencies [0a40a23]
+- Updated dependencies [47c7301]
+- Updated dependencies [e29ed5c]
+- Updated dependencies [76f98ce]
+- Updated dependencies [773fa18]
+- Updated dependencies [47c7301]
+- Updated dependencies [9e80684]
+- Updated dependencies [9e80684]
+- Updated dependencies [9e80684]
+- Updated dependencies [76f98ce]
+- Updated dependencies [fcc6699]
+- Updated dependencies [47c7301]
+- Updated dependencies [a481097]
+- Updated dependencies [36a0190]
+- Updated dependencies [fdc79d3]
+- Updated dependencies [2e47422]
+  - @getmunin/backend-core@5.47.0
+  - @getmunin/core@5.47.0
+  - @getmunin/agent-runtime@5.47.0
+  - @getmunin/db@5.47.0
+  - @getmunin/types@5.47.0
+
 ## 5.46.0
 
 ### Patch Changes

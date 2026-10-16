@@ -1,5 +1,74 @@
 # @getmunin/core
 
+## 5.47.0
+
+### Minor Changes
+
+- e29ed5c: Stop returning raw internal errors from MCP tools, and take the at-rest encryption key out of SQL parameters.
+
+  A tool that failed on a database or runtime error used to hand the caller the error's own message. For a failed query that message is drizzle's `Failed query: … params: …`, so the SQL and every bound parameter reached the calling agent (end-user agents included), the audit log, stored job and delivery errors, and the server log. Until now the at-rest encryption key was itself a bound parameter: every request transaction ran `set_config('app.crypt_key', $1, true)`.
+
+  **The encryption key travels once per connection, never with a query**
+
+  - `createDb` sends `MUNIN_ENCRYPTION_KEY` as the `app.crypt_key` startup parameter when it opens each pooled connection. It reads the key when the pool is created, or takes it from the new `encryptionKey` option. `current_setting('app.crypt_key')` works for the whole session, including for the non-superuser `munin_app` role, and survives `RESET ALL` and `DISCARD ALL`.
+  - The per-transaction `set_config('app.crypt_key', …)` is gone from the tenancy interceptor, the agent-host service context and every decrypt/encrypt helper. No statement carries the key any more, so it cannot appear in a failed query's text, its parameters or `pg_stat_activity`.
+  - `setEncryptionKeySql` is removed from `@getmunin/core`. A pool created through `createDb` already has the key, so drop any call to it. Code that opens its own `postgres` client needs to pass `app.crypt_key` as a connection parameter.
+  - Set `MUNIN_ENCRYPTION_KEY` before the database pool is created. Changing it now takes a process restart, since existing connections keep the key they opened with.
+  - A pooler that multiplexes transactions across server connections (PgBouncer in transaction mode) does not forward custom startup parameters, and it already did not forward `app.bypass_rls`. Connect the backend to Postgres directly, or use session pooling.
+
+  **Internal errors stay on the server**
+
+  - MCP tools now return `internal_error: … quote ref <correlationId>` for database errors, socket errors, built-in runtime errors (`TypeError`, `RangeError`, …), thrown non-errors, and any message that embeds a failed query. The audit row records `internal_error[<ErrorClass>:<SQLSTATE>] ref <correlationId>`. The full error is logged on the server under the same ref and passed to the error reporter with a `ref` field.
+  - Deliberate errors keep their message unchanged, so agents still get the `<code>: …` prefix they act on. That covers Nest `HttpException`s, the modules' own error classes, and plain `Error`s thrown with a coded message. Rate-limit and quota failures follow the same rule.
+  - `/v1` audit rows use the same rule.
+  - Stored error text has `params: …` replaced with `params: [redacted]` before it is written. That covers `audit_log.error`, `curator_jobs.last_error`, outreach `failure_reason`, social post and account `last_error`, alert details, and alert-notification and widget-fallback errors. Channel test results returned to admins are redacted the same way.
+  - `createApp` installs a console logger that redacts `params: …` in logged messages and stacks and keeps the SQL text; pass your own `logger` to opt out. The direct `console.*` calls in core, backend-core, mcp-toolkit and the agent runtime now log through `describeError`, which redacts. A test fails the build if one logs a raw error object or `err.message` again.
+  - `@getmunin/core` exports `isInternalError`, `internalErrorKind`, `auditErrorText`, `errorMessage`, `errorClassName`, `sqlStateOf`, `redactQueryParams`, `redactQueryParamsDeep` and `redactLogValue`. It also has a dependency-free `@getmunin/core/errors` entry point for code that loads before the rest of the app, such as an error-reporter init.
+
+### Patch Changes
+
+- a481097: Demoting an owner or admin to member now revokes the `mn_admin_*` API keys they created, the same way removing them from the organization already did. A revoked key stays dead if the person is promoted again.
+
+  Admin keys also stop resolving as soon as the person who created them is no longer an owner or admin, even if the key was never revoked. This covers keys left over from demotions made before this change: they could still call admin MCP tools and the `/v1` export and import routes.
+
+- 47c7301: A dashboard session can no longer reach `/mcp` by changing the case of the path.
+
+  `/mcp` refuses session cookies so that a signed-in dashboard user can't use the MCP surface, which is restricted to owners and admins, without going through OAuth. That check compared the path case-sensitively, but Express matched routes case-insensitively, so a request to `/MCP` reached the MCP controller with the cookie accepted. A session carries every scope, and it carried the `admin` audience whatever the user's role, so a `member` could call every admin tool this way.
+
+  Three changes close it:
+
+  - `createApp` now builds its Express instance with case-sensitive routing, so `/MCP` is a 404 and every path-prefix check sees the same path the router dispatches on. A deployment that addressed a route with different casing from its declaration will now get a 404 for it.
+  - The auth guard's MCP check ignores case as well, for apps that build their Express instance some other way.
+  - A session only carries the `admin` audience when the user is an owner or admin of the org it resolved to. Control-plane routes never read the audience for sessions, so the dashboard is unaffected.
+
+- 9e80684: Opening an outreach unsubscribe link no longer unsubscribes anyone by itself. It now shows a confirmation page, and the unsubscribe happens when the recipient presses the button.
+
+  Before this change, `GET /v1/outreach/unsubscribe?token=…` unsubscribed the contact on the spot and answered with raw JSON. Corporate mail security scanners open every link in an incoming email before the recipient sees it, so a scanner could unsubscribe a contact who never clicked anything. The same URL now behaves like this:
+
+  - `GET` renders a small confirmation page in English or Norwegian (picked from `Accept-Language`) that names the organization and changes nothing. A tampered or missing token gets a 400 page that tells the recipient to reply and ask to be removed instead.
+  - `POST` performs the unsubscribe and is idempotent. It takes the token from the query string, or from a `token` field in the body. A browser posting the confirmation form gets a page back; any other caller gets `{ ok, alreadyUnsubscribed, contactFound }`. The CRM activity it logs now records whether the request came from the page or from a mail client's one-click button.
+
+  Outreach first-touch emails now carry RFC 8058 one-click unsubscribe headers (`List-Unsubscribe` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click`) pointing at the same URL whenever the campaign requires unsubscribe, so Gmail, Yahoo and Outlook can show their built-in unsubscribe button. They require these headers from bulk senders. The headers are only added when the API base URL is `https`, because the RFC requires an https target. A deployment served over plain http gets the footer link only.
+
+  Unsubscribe tokens no longer expire. They were rejected two years after they were issued, so an old email's opt-out link stopped working. `verifyUnsubscribeToken` still takes an explicit `maxAgeSeconds` for callers that want a limit. Rotating `MUNIN_KEY_PEPPER` still invalidates every unsubscribe link already sent; the page then tells the recipient to reply and ask to be removed.
+
+- 76f98ce: Refuse to boot in production without a real API-key pepper and encryption key.
+
+  `createApp` now checks `MUNIN_KEY_PEPPER` and `MUNIN_ENCRYPTION_KEY` when `NODE_ENV=production`, the way `MUNIN_AUTH_SECRET` was already checked. Startup fails when either is missing, shorter than 16 characters, or looks like a placeholder or dev value (the same patterns the auth secret check uses, including the `.env.example` defaults). An empty pepper used to fall back to `''` silently, which let anyone sign preview, attachment, unsubscribe, email-open and voice-call tokens; `hashSecret` now throws in production when no pepper is set.
+
+  The minimum is 16 characters rather than the auth secret's 32 because neither value can be rotated cheaply: a new pepper invalidates every API key, widget key and signed link, and a new encryption key makes stored channel, connector and LLM secrets unreadable. The error message says so, so an operator sets the existing value instead of generating a new one.
+
+  The Docker image is unaffected: its entrypoint already generates and persists both values when they are unset or left at their placeholders.
+
+  New exports from `@getmunin/core`: `assertProductionKeySecrets`, `assertProductionSecret`, `isPlaceholderSecret`, `readKeyPepper` and `MIN_PRODUCTION_KEY_LENGTH`.
+
+- Updated dependencies [e29ed5c]
+- Updated dependencies [9e80684]
+- Updated dependencies [9e80684]
+- Updated dependencies [36a0190]
+  - @getmunin/db@5.47.0
+  - @getmunin/types@5.47.0
+
 ## 5.46.0
 
 ### Patch Changes

@@ -1,5 +1,44 @@
 # @getmunin/agent-runtime
 
+## 5.47.0
+
+### Patch Changes
+
+- 0a40a23: Drafted replies no longer sign off with the assistant's name. A draft is sent by a human teammate as themselves, so a closing like "Mvh <AI name>" put the wrong name under their message. Every draft — one a teammate asks for, or a reply on a channel that only drafts — now leaves the configured AI name out of the system prompt, and tells the agent not to sign, introduce itself by name or present itself as an AI, ending without a closing so the teammate adds their own.
+- e29ed5c: Stop returning raw internal errors from MCP tools, and take the at-rest encryption key out of SQL parameters.
+
+  A tool that failed on a database or runtime error used to hand the caller the error's own message. For a failed query that message is drizzle's `Failed query: … params: …`, so the SQL and every bound parameter reached the calling agent (end-user agents included), the audit log, stored job and delivery errors, and the server log. Until now the at-rest encryption key was itself a bound parameter: every request transaction ran `set_config('app.crypt_key', $1, true)`.
+
+  **The encryption key travels once per connection, never with a query**
+
+  - `createDb` sends `MUNIN_ENCRYPTION_KEY` as the `app.crypt_key` startup parameter when it opens each pooled connection. It reads the key when the pool is created, or takes it from the new `encryptionKey` option. `current_setting('app.crypt_key')` works for the whole session, including for the non-superuser `munin_app` role, and survives `RESET ALL` and `DISCARD ALL`.
+  - The per-transaction `set_config('app.crypt_key', …)` is gone from the tenancy interceptor, the agent-host service context and every decrypt/encrypt helper. No statement carries the key any more, so it cannot appear in a failed query's text, its parameters or `pg_stat_activity`.
+  - `setEncryptionKeySql` is removed from `@getmunin/core`. A pool created through `createDb` already has the key, so drop any call to it. Code that opens its own `postgres` client needs to pass `app.crypt_key` as a connection parameter.
+  - Set `MUNIN_ENCRYPTION_KEY` before the database pool is created. Changing it now takes a process restart, since existing connections keep the key they opened with.
+  - A pooler that multiplexes transactions across server connections (PgBouncer in transaction mode) does not forward custom startup parameters, and it already did not forward `app.bypass_rls`. Connect the backend to Postgres directly, or use session pooling.
+
+  **Internal errors stay on the server**
+
+  - MCP tools now return `internal_error: … quote ref <correlationId>` for database errors, socket errors, built-in runtime errors (`TypeError`, `RangeError`, …), thrown non-errors, and any message that embeds a failed query. The audit row records `internal_error[<ErrorClass>:<SQLSTATE>] ref <correlationId>`. The full error is logged on the server under the same ref and passed to the error reporter with a `ref` field.
+  - Deliberate errors keep their message unchanged, so agents still get the `<code>: …` prefix they act on. That covers Nest `HttpException`s, the modules' own error classes, and plain `Error`s thrown with a coded message. Rate-limit and quota failures follow the same rule.
+  - `/v1` audit rows use the same rule.
+  - Stored error text has `params: …` replaced with `params: [redacted]` before it is written. That covers `audit_log.error`, `curator_jobs.last_error`, outreach `failure_reason`, social post and account `last_error`, alert details, and alert-notification and widget-fallback errors. Channel test results returned to admins are redacted the same way.
+  - `createApp` installs a console logger that redacts `params: …` in logged messages and stacks and keeps the SQL text; pass your own `logger` to opt out. The direct `console.*` calls in core, backend-core, mcp-toolkit and the agent runtime now log through `describeError`, which redacts. A test fails the build if one logs a raw error object or `err.message` again.
+  - `@getmunin/core` exports `isInternalError`, `internalErrorKind`, `auditErrorText`, `errorMessage`, `errorClassName`, `sqlStateOf`, `redactQueryParams`, `redactQueryParamsDeep` and `redactLogValue`. It also has a dependency-free `@getmunin/core/errors` entry point for code that loads before the rest of the app, such as an error-reporter init.
+
+- fcc6699: The support agent's own replies no longer resolve a pending handover. Before, only the turn that raised the handover kept the flag up; when the customer wrote again ("should I stay in the chat?") the agent's next reply cleared `needsHumanAttention`, emitted `conversation.handover_resolved` (shown in Slack as "Handover resolved — a human replied"), dropped the conversation from the needs-you queue, and queued a knowledge-base gap-curation pass that treated the agent's holding reply as a teammate's answer.
+
+  Both runner REST clients (`createMuninRestClient` and the in-process client) now always send runner replies with `preserveAttention: true`, and `postAgentMessage` no longer takes a `preserveAttention` option. A handover is resolved by a teammate replying, an operator's agent replying through `conv_send_message` or the control plane, or by closing the conversation.
+
+- Updated dependencies [a481097]
+- Updated dependencies [e29ed5c]
+- Updated dependencies [47c7301]
+- Updated dependencies [9e80684]
+- Updated dependencies [9e80684]
+- Updated dependencies [76f98ce]
+  - @getmunin/core@5.47.0
+  - @getmunin/types@5.47.0
+
 ## 5.46.0
 
 ### Minor Changes

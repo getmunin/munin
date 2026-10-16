@@ -69,7 +69,7 @@ function sessionCredential(
     session.userId,
     orgId,
     ['*'],
-    ['admin'],
+    MCP_ADMIN_ELIGIBLE_ROLES.has(orgRole) ? ['admin'] : [],
     undefined,
     session.id,
     undefined,

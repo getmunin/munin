@@ -17,6 +17,8 @@ Typical flow for "where is my order?": get the most recent orders, and if one is
 
 If the session has no email identity, the tools return an error instead of results — tell the customer you can't access order history in this session and offer a human handover (`conv_request_human`) rather than asking them to type an email; a typed email cannot be used for lookup.
 
+When you're answering an email, the tools also refuse with `connectors_sender_auth_failed` if a message in the customer's latest turn failed its DMARC check, and with `connectors_sender_forwarded` if it was forwarded. Either way the sender's address can't be trusted for a lookup. Don't accuse the customer of anything (a misconfigured relay causes the same result); say you can't look up orders from this message and offer `conv_request_human`.
+
 ## Admin (support agent working a conversation)
 
 - `commerce_list_customer_orders` / `commerce_lookup_order` — same data, but take an `email`. Use the verified email of the contact whose conversation you're handling; don't look up unrelated addresses on a customer's behalf.

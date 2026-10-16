@@ -21,8 +21,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-munin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-munin}
       POSTGRES_DB: ${POSTGRES_DB:-munin}
+    # Published on loopback only: Docker-published ports bypass host firewalls
+    # (ufw/iptables INPUT), so 0.0.0.0 would expose the superuser to the internet.
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - munin-pg:/var/lib/postgresql/data
     healthcheck:
@@ -44,7 +46,8 @@ services:
       NODE_ENV: production
       PORT: 3001
       MUNIN_MIGRATE_URL: postgres://${POSTGRES_USER:-munin}:${POSTGRES_PASSWORD:-munin}@postgres:5432/${POSTGRES_DB:-munin}
-      DATABASE_URL: postgres://munin_app:munin_app@postgres:5432/${POSTGRES_DB:-munin}
+      MUNIN_APP_PASSWORD: ${MUNIN_APP_PASSWORD:-munin_app}
+      DATABASE_URL: postgres://munin_app:${MUNIN_APP_PASSWORD:-munin_app}@postgres:5432/${POSTGRES_DB:-munin}
     command: ["sh", "-c", "node dist/migrate.js && node dist/main.js"]
     volumes:
       - munin-data:/var/munin

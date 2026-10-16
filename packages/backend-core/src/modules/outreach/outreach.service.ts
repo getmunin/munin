@@ -1280,6 +1280,7 @@ export class OutreachService {
       messageMetadata: campaign.unsubscribeRequired
         ? { listUnsubscribeUrl: unsubscribeUrl }
         : undefined,
+      approvedOutreachProposalId: proposal.id,
       agentMode: 'draft_only',
       authorType: 'agent',
       authorId: sender.id,
@@ -1354,6 +1355,7 @@ export class OutreachService {
       contactId: convContact.id,
       endUserId: contact.endUserId ?? undefined,
       outreachCampaignId: campaign.id,
+      approvedOutreachProposalId: proposal.id,
       agentMode: 'draft_only',
       authorType: 'agent',
       authorId: sender.id,
@@ -1573,6 +1575,7 @@ export class OutreachService {
     const sent = await this.conv.sendMessage({
       conversationId: proposal.conversationId,
       body: proposal.draftBody,
+      approvedOutreachProposalId: proposal.id,
       authorType: 'agent',
       authorId: sender.id,
     });
@@ -1647,6 +1650,7 @@ export class OutreachService {
     const sent = await this.conv.sendMessage({
       conversationId: proposal.conversationId,
       body: proposal.draftBody,
+      approvedOutreachProposalId: proposal.id,
       authorType: 'agent',
       authorId: sender.id,
     });

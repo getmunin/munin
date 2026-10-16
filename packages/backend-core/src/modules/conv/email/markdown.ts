@@ -4,44 +4,87 @@ import type { QuotedPriorMessage } from './reply-history.ts';
 const SAFE_LINK_PROTOCOL = /^(https?|mailto)$/i;
 const SAFE_IMAGE_PROTOCOL = /^(https?|cid)$/i;
 
-const emailMarked = new Marked({
-  gfm: true,
-  breaks: true,
-  renderer: {
-    html(token: Tokens.HTML | Tokens.Tag): string {
-      const escaped = escapeHtml(token.text);
-      if (!token.block) return escaped;
-      const trimmed = escaped.replace(/\n+$/, '');
-      return trimmed ? `<p>${trimmed.replace(/\n/g, '<br>')}</p>\n` : '';
-    },
-    link(token: Tokens.Link): string {
-      const inner = this.parser.parseInline(token.tokens);
-      const href = safeUrl(token.href, SAFE_LINK_PROTOCOL);
-      if (href === null) return inner;
-      const title = token.title ? ` title="${escapeHtml(token.title)}"` : '';
-      return `<a href="${escapeHtml(href)}"${title}>${inner}</a>`;
-    },
-    image(token: Tokens.Image): string {
-      const alt = escapeHtml(token.text);
-      const src = safeUrl(token.href, SAFE_IMAGE_PROTOCOL);
-      if (src === null) return alt;
-      const title = token.title ? ` title="${escapeHtml(token.title)}"` : '';
-      return `<img src="${escapeHtml(src)}" alt="${alt}"${title}>`;
-    },
-  },
-});
+export interface EmailRenderOptions {
+  imageOrigins?: readonly string[];
+}
 
-export function renderMarkdownToHtml(markdown: string): string {
-  return emailMarked.parse(markdown, { async: false });
+export interface EmailHtmlOptions {
+  body?: EmailRenderOptions;
+  quoted?: EmailRenderOptions;
+}
+
+const ANY_IMAGE_ORIGIN = '*';
+const markedByOrigins = new Map<string, Marked>();
+
+function emailMarkedFor(opts: EmailRenderOptions): Marked {
+  const origins = opts.imageOrigins
+    ? [...new Set(opts.imageOrigins.map(originOf).filter((o): o is string => o !== null))].sort()
+    : null;
+  const cacheKey = origins ? origins.join(' ') : ANY_IMAGE_ORIGIN;
+  const cached = markedByOrigins.get(cacheKey);
+  if (cached) return cached;
+  const marked = buildEmailMarked(origins ? new Set(origins) : null);
+  markedByOrigins.set(cacheKey, marked);
+  return marked;
+}
+
+function buildEmailMarked(imageOrigins: ReadonlySet<string> | null): Marked {
+  return new Marked({
+    gfm: true,
+    breaks: true,
+    renderer: {
+      html(token: Tokens.HTML | Tokens.Tag): string {
+        const escaped = escapeHtml(token.text);
+        if (!token.block) return escaped;
+        const trimmed = escaped.replace(/\n+$/, '');
+        return trimmed ? `<p>${trimmed.replace(/\n/g, '<br>')}</p>\n` : '';
+      },
+      link(token: Tokens.Link): string {
+        const inner = this.parser.parseInline(token.tokens);
+        const href = safeUrl(token.href, SAFE_LINK_PROTOCOL);
+        if (href === null) return inner;
+        const title = token.title ? ` title="${escapeHtml(token.title)}"` : '';
+        return `<a href="${escapeHtml(href)}"${title}>${inner}</a>`;
+      },
+      image(token: Tokens.Image): string {
+        const alt = escapeHtml(token.text);
+        const src = safeUrl(token.href, SAFE_IMAGE_PROTOCOL);
+        if (src === null || !isAllowedImageSrc(src, imageOrigins)) return alt;
+        const title = token.title ? ` title="${escapeHtml(token.title)}"` : '';
+        return `<img src="${escapeHtml(src)}" alt="${alt}"${title}>`;
+      },
+    },
+  });
+}
+
+function isAllowedImageSrc(src: string, imageOrigins: ReadonlySet<string> | null): boolean {
+  if (/^cid:/i.test(src)) return true;
+  const origin = originOf(src);
+  if (origin === null) return false;
+  return imageOrigins === null || imageOrigins.has(origin);
+}
+
+function originOf(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+export function renderMarkdownToHtml(markdown: string, opts: EmailRenderOptions = {}): string {
+  return emailMarkedFor(opts).parse(markdown, { async: false });
 }
 
 export function renderEmailHtml(
   bodyMarkdown: string,
   prior: QuotedPriorMessage[],
   limit = 3,
+  opts: EmailHtmlOptions = {},
 ): string {
-  const bodyHtml = renderMarkdownToHtml(bodyMarkdown);
-  const quotedHtml = renderQuotedHistoryHtml(prior, limit);
+  const bodyHtml = renderMarkdownToHtml(bodyMarkdown, opts.body);
+  const quotedHtml = renderQuotedHistoryHtml(prior, limit, opts.quoted);
   const inner = quotedHtml ? `${bodyHtml}\n${quotedHtml}` : bodyHtml;
   return [
     '<!doctype html>',
@@ -54,6 +97,7 @@ export function renderEmailHtml(
 export function renderQuotedHistoryHtml(
   prior: QuotedPriorMessage[],
   limit = 3,
+  opts: EmailRenderOptions = {},
 ): string {
   if (prior.length === 0) return '';
   const slice = prior.slice(0, limit);
@@ -64,7 +108,7 @@ export function renderQuotedHistoryHtml(
     const who = m.authorEmail
       ? `${escapeHtml(m.authorName)} &lt;${escapeHtml(m.authorEmail)}&gt;`
       : escapeHtml(m.authorName);
-    const inner = renderMarkdownToHtml(m.body || '');
+    const inner = renderMarkdownToHtml(m.body || '', opts);
     html +=
       `<blockquote style="margin:0 0 0 .8ex;border-left:1px solid #ccc;padding-left:1ex;color:#555;">` +
       `<div>On ${when}, ${who} wrote:</div>${inner}`;

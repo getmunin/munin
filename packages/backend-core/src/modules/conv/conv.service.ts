@@ -17,6 +17,7 @@ import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { buildSetTopicAndTitleJob } from './set-topic-job.ts';
 import { openDraftSlots, parseDraftMarkup } from './draft-markup.ts';
 import { raiseAttentionWhenAgentIsOff } from './unanswerable-handover.ts';
+import { APPROVED_OUTREACH_PROPOSAL_KEY } from './human-review.ts';
 import { effectiveAgentModeSql, topicUneditedPctSql } from './topic-auto-gate.ts';
 import { buildDeltaCurationPrompt, buildGapCurationPrompt } from './curation-job.ts';
 import { applyTenancyGUCs } from '../../common/tenancy/tenancy.interceptor.ts';
@@ -1299,6 +1300,7 @@ export class ConvService {
     contactId?: string;
     topicId?: string;
     outreachCampaignId?: string;
+    approvedOutreachProposalId?: string;
     agentMode?: AgentMode;
     metadata?: Record<string, unknown>;
     messageMetadata?: Record<string, unknown>;
@@ -1344,7 +1346,12 @@ export class ConvService {
         authorId: input.authorId,
         body: input.body,
         internal: false,
-        metadata: input.messageMetadata ?? {},
+        metadata: {
+          ...(input.messageMetadata ?? {}),
+          ...(input.approvedOutreachProposalId
+            ? { [APPROVED_OUTREACH_PROPOSAL_KEY]: input.approvedOutreachProposalId }
+            : {}),
+        },
       })
       .returning();
     await ctx.db
@@ -1449,6 +1456,7 @@ export class ConvService {
     components?: MessageComponent[];
     fromDraftId?: string;
     approvalBody?: string;
+    approvedOutreachProposalId?: string;
     attachmentIds?: string[];
   }): Promise<MessageDto> {
     const ctx = getCurrentContext();
@@ -1523,6 +1531,9 @@ export class ConvService {
     const metadata = {
       ...(attachComponents ? { components: input.components } : {}),
       ...(approvedDraft ? { approvedDraft: approvedDraft.stamp } : {}),
+      ...(input.approvedOutreachProposalId
+        ? { [APPROVED_OUTREACH_PROPOSAL_KEY]: input.approvedOutreachProposalId }
+        : {}),
       ...(isNote ? { kind: 'internal_note' } : {}),
     };
 

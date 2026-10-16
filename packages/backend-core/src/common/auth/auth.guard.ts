@@ -213,7 +213,7 @@ function readRequestedOrgId(request: AuthenticatedRequest): string | null {
 }
 
 function isMcpRequest(request: AuthenticatedRequest): boolean {
-  return requestPath(request).startsWith('/mcp');
+  return requestPath(request).toLowerCase().startsWith('/mcp');
 }
 
 function requestPath(request: AuthenticatedRequest): string {

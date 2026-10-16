@@ -40,6 +40,7 @@ import {
   type OutboundAttachment,
 } from './mime.ts';
 import { renderEmailHtml } from './markdown.ts';
+import { isWrittenOrApprovedByPerson } from '../human-review.ts';
 import { senderDisplayName } from './sender-name.ts';
 import { resolveBroadcastReply, resolveInbound, type ParsedInboundEmail } from './threading.ts';
 import { BULK_REPLY_PREFIX } from './bulk-reply.ts';
@@ -254,6 +255,10 @@ export class EmailAdapter implements ChannelAdapter {
     this.fetcher = f;
   }
 
+  private ownImageOrigins(): string[] {
+    return [this.storage.publicUrlFor('_'), readApiBaseUrl()];
+  }
+
   readonly inbound: Extract<InboundMode, { mode: 'poll' }> = {
     mode: 'poll',
     intervalMs: POLL_INTERVAL_MS,
@@ -277,7 +282,13 @@ export class EmailAdapter implements ChannelAdapter {
     });
     const quoted = formatQuotedHistory(prior, 3);
     const body = quoted ? `${ctx.message.body}\n\n${quoted}` : ctx.message.body;
-    const html = ctx.message.bodyHtml ?? renderEmailHtml(ctx.message.body, prior, 3);
+    const ownImages = { imageOrigins: this.ownImageOrigins() };
+    const html =
+      ctx.message.bodyHtml ??
+      renderEmailHtml(ctx.message.body, prior, 3, {
+        body: isWrittenOrApprovedByPerson(ctx.message) ? {} : ownImages,
+        quoted: ownImages,
+      });
 
     const rawSubject = ctx.conversation.subject?.trim() || null;
     const isReply = prior.length > 0 || ctx.delivery.inReplyToHeader != null;

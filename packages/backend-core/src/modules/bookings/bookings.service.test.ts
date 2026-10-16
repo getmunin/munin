@@ -348,7 +348,7 @@ const skipReason = TEST_URL
     expect(calls.some((u) => u.includes('/cancel'))).toBe(false);
   });
 
-  it('still allows reads on a channel-asserted identity, whose reply can only reach the real mailbox', async () => {
+  it('refuses reads when the latest message failed DMARC, since the reply can carry the data to whoever forged it', async () => {
     await createConnection();
     respond = () => ({
       body: [
@@ -359,9 +359,28 @@ const skipReason = TEST_URL
       ],
     });
 
-    const result = await run(() => bookings.getMyBookings({ limit: 5 }), assertedEndUserActor);
+    await expect(
+      run(() => bookings.getMyBookings({ limit: 5 }), assertedEndUserActor),
+    ).rejects.toThrow(/connectors_sender_auth_failed/);
+    expect(calls).toHaveLength(0);
+  });
 
-    expect(result.bookings).toHaveLength(1);
+  it('refuses reads when the latest message was forwarded', async () => {
+    await createConnection();
+    const forwardedConversationId = await seedConversation({
+      channelId: emailChannelId,
+      endUserId: janeEndUserId,
+      contactId: janeContactId,
+      messages: [{ author: 'end_user', contactId: janeContactId, senderAuth: 'forwarded' }],
+    });
+
+    await expect(
+      run(
+        () => bookings.getMyBookings({ limit: 5 }),
+        writerFor(janeEndUserId, forwardedConversationId),
+      ),
+    ).rejects.toThrow(/connectors_sender_forwarded/);
+    expect(calls).toHaveLength(0);
   });
 
   const cancelResponds = (url: string) =>

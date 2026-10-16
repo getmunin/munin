@@ -18,6 +18,7 @@ import { buildSetTopicAndTitleJob } from './set-topic-job.ts';
 import { openDraftSlots, parseDraftMarkup } from './draft-markup.ts';
 import { raiseAttentionWhenAgentIsOff } from './unanswerable-handover.ts';
 import { APPROVED_OUTREACH_PROPOSAL_KEY } from './human-review.ts';
+import { markConversationEngaged } from './conversation-engagement.ts';
 import { effectiveAgentModeSql, topicUneditedPctSql } from './topic-auto-gate.ts';
 import { buildDeltaCurationPrompt, buildGapCurationPrompt } from './curation-job.ts';
 import { applyTenancyGUCs } from '../../common/tenancy/tenancy.interceptor.ts';
@@ -110,6 +111,7 @@ export type AgentMode = (typeof AGENT_MODES)[number];
 
 const AWAITING_REPLY_LOOKBACK_MINUTES = 60;
 const AUTO_CLOSE_THRESHOLD_DAYS = 2;
+const UNENGAGED_IDLE_HOURS = 24;
 
 export interface ChannelDto {
   id: string;
@@ -594,7 +596,7 @@ export class ConvService {
     const [row] = await ctx.db
       .select({ count: sql<number>`count(*)::int` })
       .from(schema.convConversations)
-      .where(filters.length === 0 ? undefined : and(...filters));
+      .where(and(...filters));
     return row?.count ?? 0;
   }
 
@@ -612,7 +614,7 @@ export class ConvService {
     search?: string;
     cursor?: { lastMessageAt: string | null; id: string; needsHumanAttention?: boolean };
   }): SQL[] {
-    const filters: SQL[] = [];
+    const filters: SQL[] = [eq(schema.convConversations.unengaged, false)];
     if (input.status) filters.push(eq(schema.convConversations.status, input.status));
     if (input.excludeStatuses && input.excludeStatuses.length > 0) {
       filters.push(notInArray(schema.convConversations.status, [...input.excludeStatuses]));
@@ -752,7 +754,7 @@ export class ConvService {
         lastInboundPreview: this.lastInboundPreviewSql(),
       })
       .from(schema.convConversations)
-      .where(filters.length === 0 ? undefined : and(...filters))
+      .where(and(...filters))
       .orderBy(
         desc(schema.convConversations.needsHumanAttention),
         desc(schema.convConversations.lastMessageAt),
@@ -828,7 +830,7 @@ export class ConvService {
       .leftJoin(schema.convContacts, eq(schema.convContacts.id, schema.convConversations.contactId))
       .leftJoin(schema.endUsers, eq(schema.endUsers.id, schema.convConversations.endUserId))
       .leftJoin(schema.convTopics, eq(schema.convTopics.id, schema.convConversations.topicId))
-      .where(filters.length === 0 ? undefined : and(...filters))
+      .where(and(...filters))
       .orderBy(
         desc(schema.convConversations.lastMessageAt),
         desc(schema.convConversations.id),
@@ -971,7 +973,7 @@ export class ConvService {
         )::int`,
       })
       .from(schema.convConversations)
-      .where(filters.length === 0 ? undefined : and(...filters));
+      .where(and(...filters));
     const total = row?.total ?? 0;
     const needsYou = row?.needsYou ?? 0;
     return { needsYou, inProgress: total - needsYou, total };
@@ -1036,6 +1038,7 @@ export class ConvService {
           eq(schema.convConversations.status, 'open'),
           isNotNull(schema.convConversations.endUserId),
           eq(schema.convConversations.needsHumanAttention, false),
+          eq(schema.convConversations.unengaged, false),
           sql`${schema.convChannels.type} <> 'voice'`,
           sql`${schema.convConversations.lastMessageAt} < now() - make_interval(days => ${thresholdDays})`,
           sql`(
@@ -1058,6 +1061,25 @@ export class ConvService {
       await this.changeStatus({ id, status: 'closed' });
     }
     return stale.length;
+  }
+
+  async deleteUnengagedConversations(input?: { idleHours?: number }): Promise<number> {
+    const ctx = getCurrentContext();
+    const idleHours = input?.idleHours ?? UNENGAGED_IDLE_HOURS;
+    const deleted = await ctx.db
+      .delete(schema.convConversations)
+      .where(
+        and(
+          eq(schema.convConversations.unengaged, true),
+          sql`coalesce(${schema.convConversations.lastMessageAt}, ${schema.convConversations.createdAt}) < now() - make_interval(hours => ${idleHours})`,
+          sql`NOT EXISTS (
+            SELECT 1 FROM conv_attachments a
+            WHERE a.conversation_id = ${schema.convConversations.id}
+          )`,
+        ),
+      )
+      .returning({ id: schema.convConversations.id });
+    return deleted.length;
   }
 
   async getConversation(id: string): Promise<ConversationDetail> {
@@ -1603,6 +1625,10 @@ export class ConvService {
           : {}),
       })
       .where(eq(schema.convConversations.id, input.conversationId));
+
+    if (input.authorType === 'end_user' || input.authorType === 'user') {
+      await markConversationEngaged(ctx.db, input.conversationId);
+    }
 
     if (input.authorType === 'end_user' && !input.internal) {
       await raiseAttentionWhenAgentIsOff(ctx.db, input.conversationId);

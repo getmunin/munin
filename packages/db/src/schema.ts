@@ -953,6 +953,7 @@ export const convConversations = pgTable(
     agentMode: varchar('agent_mode', { length: 16 }).notNull().default('auto'),
     // 'auto' | 'draft_only' | 'off'
     customerLanguage: varchar('customer_language', { length: 16 }),
+    unengaged: boolean('unengaged').notNull().default(false),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
     createdAt,
     updatedAt,
@@ -977,6 +978,9 @@ export const convConversations = pgTable(
     suppressedIdx: index('conv_conversations_suppressed_idx')
       .on(t.orgId, t.suppressedReason)
       .where(sql`suppressed_reason IS NOT NULL`),
+    unengagedIdx: index('conv_conversations_unengaged_idx')
+      .on(t.orgId, t.lastMessageAt)
+      .where(sql`unengaged = true`),
   }),
 );
 

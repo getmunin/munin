@@ -222,6 +222,7 @@ export class UsageController {
              count(*)::int AS value
       FROM conv_conversations
       WHERE org_id = ${orgId}
+        AND unengaged = false
         AND created_at >= ${prevMonthStart.toISOString()}::timestamptz
       GROUP BY 1
     `);

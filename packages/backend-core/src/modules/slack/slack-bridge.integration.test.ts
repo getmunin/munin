@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import {
   ActorIdentity,
+  getCurrentContext,
   signHmac,
   WebhookDispatcher,
   withContext,
@@ -19,6 +20,7 @@ import { SlackApiError, SlackApiClient } from './slack-api.client.ts';
 import { SlackBridgeWorker } from './slack-bridge.worker.ts';
 import { SlackEventSink } from './slack-event-sink.ts';
 import { SlackService, encryptSecretValue } from './slack.service.ts';
+import { markConversationEngaged } from '../conv/conversation-engagement.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -233,7 +235,7 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     });
   }
 
-  async function seedConversation(): Promise<string> {
+  async function seedConversation(options: { unengaged?: boolean } = {}): Promise<string> {
     displayIdSeq += 1;
     const [conversation] = await db
       .insert(schema.convConversations)
@@ -243,6 +245,7 @@ function actionIds(blocks: unknown[] | undefined): string[] {
         channelId,
         contactId,
         subject: 'Password reset',
+        unengaged: options.unengaged ?? false,
       })
       .returning();
     return conversation!.id;
@@ -1015,6 +1018,64 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     expect(rows).toHaveLength(1);
     expect(rows[0]!.eventType).toBe('conversation.message.received');
     expect(rows[0]!.conversationId).toBe(conversationId);
+  });
+
+  it('holds an unengaged conversation out of Slack until the visitor writes, then mirrors it in order', async () => {
+    const api = new FakeSlackApi();
+    const worker = new SlackBridgeWorker(db, api);
+    const dispatcher = new WebhookDispatcher();
+    dispatcher.registerSink(new SlackEventSink());
+    const conversationId = await seedConversation({ unengaged: true });
+    const [greeting] = await db
+      .insert(schema.convMessages)
+      .values({
+        orgId,
+        conversationId,
+        authorType: 'agent',
+        authorId: 'agent',
+        body: 'Hi! How can I help?',
+        createdAt: new Date(ORDERED_AT[0]),
+      })
+      .returning();
+
+    await run(async () => {
+      await dispatcher.emit({ type: 'conversation.created', payload: { conversationId } });
+      await dispatcher.emit({
+        type: 'conversation.message.sent',
+        payload: { conversationId, messageId: greeting!.id, authorType: 'agent', internal: false },
+      });
+    });
+
+    expect((await worker.tick()).attempted).toBe(0);
+    expect(api.posted).toHaveLength(0);
+
+    const visitorMessageId = await seedMessage(
+      conversationId,
+      'Do you ship to Bergen?',
+      false,
+      new Date(ORDERED_AT[1]),
+    );
+    await run(async () => {
+      expect(await markConversationEngaged(getCurrentContext().db, conversationId)).toBe(true);
+      await dispatcher.emit({
+        type: 'conversation.message.received',
+        payload: {
+          conversationId,
+          messageId: visitorMessageId,
+          authorType: 'end_user',
+          internal: false,
+        },
+      });
+    });
+
+    expect((await worker.tick()).delivered).toBe(3);
+    const [parent, ...replies] = api.posted;
+    expect(parent!.threadTs).toBeUndefined();
+    expect(replies.map((r) => r.threadTs)).toEqual([parent!.ts, parent!.ts]);
+    expect(replies.map((r) => r.text)).toEqual([
+      expect.stringContaining('Hi! How can I help?'),
+      expect.stringContaining('Do you ship to Bergen?'),
+    ]);
   });
 
   it('does not enqueue when the org has no active integration', async () => {

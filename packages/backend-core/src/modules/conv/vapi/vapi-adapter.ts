@@ -36,6 +36,7 @@ import {
 } from './vapi-client.service.ts';
 import { findOrCreateContactByPhone } from '../contact-by-phone.ts';
 import { ConvService } from '../conv.service.ts';
+import { markConversationEngaged } from '../conversation-engagement.ts';
 import { jsonbToStored } from './vapi.service.ts';
 import { VapiToolBridge, type VapiToolCall } from './vapi-tool-bridge.ts';
 import {
@@ -391,6 +392,9 @@ export class VapiAdapter implements ChannelAdapter {
       .update(schema.convConversations)
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
       .where(eq(schema.convConversations.id, conversation.id));
+    if (stored && authorType === 'end_user') {
+      await markConversationEngaged(tx, conversation.id);
+    }
     if (stored) {
       await this.webhooks.emit({
         type: 'conversation.message.received',

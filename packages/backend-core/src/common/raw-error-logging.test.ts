@@ -24,7 +24,7 @@ function rawErrorLogCalls(source: string): string[] {
   const hits: string[] = [];
   for (const match of source.matchAll(CONSOLE_CALL)) {
     const args = match[1]!;
-    const withoutTemplates = args.replace(/`(?:\\.|\$\{[^}]*\}|[^`\\])*`/g, '``');
+    const withoutTemplates = args.replace(/`(?:\\.|\$\{[^}]*\}|\$(?!\{)|[^`\\$])*`/g, '``');
     if (
       BARE_ERROR_ARGUMENT.test(withoutTemplates) ||
       ERROR_IN_OBJECT.test(withoutTemplates) ||

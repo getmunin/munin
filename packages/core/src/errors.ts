@@ -28,11 +28,21 @@ function stringifyNonError(value: unknown): string {
   }
 }
 
-const QUERY_PARAMS_SEGMENT = /\nparams: [\s\S]*?(?=\n {4}at |$)/g;
+const QUERY_PARAMS_MARKER = '\nparams: ';
+const STACK_FRAME_MARKER = '\n    at ';
 const REDACTED_PARAMS = '\nparams: [redacted]';
 
 export function redactQueryParams(text: string): string {
-  return text.replace(QUERY_PARAMS_SEGMENT, REDACTED_PARAMS);
+  let redacted = '';
+  let from = 0;
+  for (;;) {
+    const start = text.indexOf(QUERY_PARAMS_MARKER, from);
+    if (start === -1) return redacted + text.slice(from);
+    redacted += text.slice(from, start) + REDACTED_PARAMS;
+    const end = text.indexOf(STACK_FRAME_MARKER, start + QUERY_PARAMS_MARKER.length);
+    if (end === -1) return redacted;
+    from = end;
+  }
 }
 
 export function redactLogValue(value: unknown): unknown {

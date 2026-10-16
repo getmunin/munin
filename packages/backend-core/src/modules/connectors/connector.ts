@@ -88,6 +88,7 @@ export interface ConnectorConfigFieldInfo {
   label: string;
   required: boolean;
   secret?: boolean;
+  endpoint?: boolean;
   placeholder?: string;
   postConnect?: boolean;
 }

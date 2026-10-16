@@ -134,6 +134,7 @@ export class MagentoAdapter implements CommerceAdapter {
       key: 'baseUrl',
       label: 'Store base URL (https, no /rest suffix)',
       required: true,
+      endpoint: true,
       placeholder: 'https://store.example.com',
     },
     {

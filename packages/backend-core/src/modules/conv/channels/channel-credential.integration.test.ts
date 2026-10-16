@@ -352,6 +352,117 @@ const skipReason = TEST_URL
     expect(stored.ciphertext).not.toContain('rotated_pw');
   });
 
+  describe('when an update points the channel at a different mail server', () => {
+    const config = (opts: {
+      smtpHost?: string;
+      smtpPassword?: string;
+      imapHost?: string;
+      imapPassword?: string;
+    }) => ({
+      addressing: { fromAddress: 'dash@acme.test' },
+      outbound: {
+        provider: 'smtp' as const,
+        host: opts.smtpHost ?? 'smtp.acme.test',
+        port: 587,
+        secure: false,
+        username: 'dash@acme.test',
+        ...(opts.smtpPassword ? { password: opts.smtpPassword } : {}),
+      },
+      inbound: {
+        provider: 'imap' as const,
+        host: opts.imapHost ?? 'imap.acme.test',
+        port: 993,
+        secure: true,
+        username: 'dash@acme.test',
+        ...(opts.imapPassword ? { password: opts.imapPassword } : {}),
+      },
+    });
+
+    async function storedPasswords(email: EmailService, id: string) {
+      return asAdmin(async () => {
+        const ctx = getCurrentContext();
+        const rows = await ctx.db
+          .select()
+          .from(schema.convChannels)
+          .where(eq(schema.convChannels.id, id))
+          .limit(1);
+        const stored = jsonbToStored(rows[0]!.config);
+        return {
+          smtp:
+            stored.outbound.provider === 'smtp'
+              ? await email.decryptSmtpPassword(ctx.db, stored.outbound.encryptedPassword)
+              : '',
+          imap:
+            stored.inbound?.provider === 'imap'
+              ? await email.decryptImapPassword(ctx.db, stored.inbound.encryptedPassword)
+              : '',
+        };
+      });
+    }
+
+    async function channelWithPasswords(email: EmailService): Promise<string> {
+      const created = await asAdmin(() =>
+        email.configureChannel({
+          name: 'Moving inbox',
+          defaultAgentMode: 'draft_only',
+          config: config({ smtpPassword: 'smtp_pw', imapPassword: 'imap_pw' }),
+        }),
+      );
+      return created.id;
+    }
+
+    it.each([
+      ['SMTP', { smtpHost: 'smtp.globex.test' }, /outbound\.host \(SMTP\)/],
+      ['IMAP', { imapHost: 'imap.globex.test' }, /inbound\.host \(IMAP\)/],
+    ])(
+      'refuses to reuse the stored %s password, so it is never sent to the new server',
+      async (_label, hosts, named) => {
+        const email = new EmailService();
+        const id = await channelWithPasswords(email);
+
+        const err = await asAdmin(() =>
+          email.configureChannel({ channelId: id, name: 'Moving inbox', config: config(hosts) }),
+        ).catch((e: unknown) => e);
+
+        expect(err).toBeInstanceOf(BadRequestException);
+        const body = (err as BadRequestException).getResponse() as { code: string; message: string };
+        expect(body.code).toBe('conv_secret_required');
+        expect(body.message).toMatch(named);
+        expect(await storedPasswords(email, id)).toEqual({ smtp: 'smtp_pw', imap: 'imap_pw' });
+      },
+    );
+
+    it('moves to the new server when the password comes with the change', async () => {
+      const email = new EmailService();
+      const id = await channelWithPasswords(email);
+
+      await asAdmin(() =>
+        email.configureChannel({
+          channelId: id,
+          name: 'Moving inbox',
+          config: config({ smtpHost: 'smtp.globex.test', smtpPassword: 'globex_pw' }),
+        }),
+      );
+
+      expect(await storedPasswords(email, id)).toEqual({ smtp: 'globex_pw', imap: 'imap_pw' });
+    });
+
+    it('keeps the stored passwords when the host only changes letter case', async () => {
+      const email = new EmailService();
+      const id = await channelWithPasswords(email);
+
+      await asAdmin(() =>
+        email.configureChannel({
+          channelId: id,
+          name: 'Moving inbox',
+          config: config({ smtpHost: 'SMTP.acme.test', imapHost: 'IMAP.acme.test' }),
+        }),
+      );
+
+      expect(await storedPasswords(email, id)).toEqual({ smtp: 'smtp_pw', imap: 'imap_pw' });
+    });
+  });
+
   it('asks for a reply mode the moment an email channel starts receiving mail, and not before', async () => {
     const email = new EmailService();
     const smtp = {

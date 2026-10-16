@@ -133,11 +133,16 @@ export function endUserScopesForConnectorDomains(
 
 export type GenerateTrigger = 'chat' | 'scheduled';
 
-export interface ResolvedProviderAuth {
-  apiKey: string;
-  baseUrl?: string;
-  models?: readonly string[];
-  managed: boolean;
+export type ResolvedProviderAuth =
+  | { apiKey: string; baseUrl?: string; models?: readonly string[]; managed: false }
+  | { apiKey: string; baseUrl: string; models?: readonly string[]; managed: true };
+
+export function providerBaseUrlFor(
+  auth: ResolvedProviderAuth,
+  config: { providerBaseUrl: string },
+): string | null {
+  if (auth.managed) return auth.baseUrl ? auth.baseUrl : null;
+  return auth.baseUrl ?? config.providerBaseUrl;
 }
 
 export function conversationIdOf(job: { sourceEventPayload: unknown }): string | null {
@@ -456,8 +461,14 @@ export class AgentHostRunner
       return null;
     }
 
+    const providerBaseUrl = providerBaseUrlFor(auth, config);
+    if (!providerBaseUrl) {
+      this.logger.error(
+        `${id}: the managed provider key came without its base URL; refusing to send it to the org's own providerBaseUrl`,
+      );
+      return null;
+    }
     const providerApiKey = auth.apiKey;
-    const providerBaseUrl = auth.baseUrl ?? config.providerBaseUrl;
     const { fastModel, smartModel } = resolveModelTiers(auth, config);
     const managed = auth.managed;
     const provider =

@@ -147,8 +147,11 @@ export function ProviderCard({
     }
   }
 
+  const baseUrlMoved =
+    config.providerApiKeySet && originOf(providerBaseUrl) !== originOf(config.providerBaseUrl);
+  const keyRequired = !config.providerApiKeySet || baseUrlMoved;
   const saveDisabled =
-    testing || providerBaseUrl.length === 0 || (!config.providerApiKeySet && apiKey.length === 0);
+    testing || providerBaseUrl.length === 0 || (keyRequired && apiKey.length === 0);
 
   function presetDescription(p: ProviderPreset): ReactNode {
     if (p.description != null) return p.description;
@@ -211,7 +214,11 @@ export function ProviderCard({
           type="password"
           value={apiKey}
           placeholder={
-            config.providerApiKeySet ? t('apiKey.placeholderStored') : t('apiKey.ledeMissing')
+            baseUrlMoved
+              ? t('apiKey.placeholderAgain')
+              : config.providerApiKeySet
+                ? t('apiKey.placeholderStored')
+                : t('apiKey.ledeMissing')
           }
           onChange={(e) => {
             setApiKey(e.target.value);
@@ -334,4 +341,12 @@ export function ProviderCard({
       <CardContent className={bare ? 'px-0' : undefined}>{body}</CardContent>
     </Card>
   );
+}
+
+function originOf(url: string): string {
+  try {
+    return new URL(url.trim()).origin;
+  } catch {
+    return url.trim().toLowerCase();
+  }
 }

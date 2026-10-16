@@ -43,6 +43,7 @@ const skipReason = TEST_URL
     scopes?: string[];
     audiences?: string[];
     revoked?: boolean;
+    createdByUserId?: string;
   }): Promise<string> {
     const rawKey = args.rawKey ?? buildApiKey(args.type === 'widget' ? 'widget' : 'admin');
     let channelId: string | null = null;
@@ -68,6 +69,7 @@ const skipReason = TEST_URL
       audiences: args.audiences ?? ['admin'],
       channelId,
       revokedAt: args.revoked ? new Date() : null,
+      createdByUserId: args.createdByUserId ?? null,
     });
     return rawKey;
   }
@@ -124,6 +126,26 @@ const skipReason = TEST_URL
     const r = new CredentialResolver(db);
     const out = await r.resolveApiKey(raw);
     expect(out).toBeNull();
+  });
+
+  it.each([
+    ['owner', true],
+    ['admin', true],
+    ['member', false],
+  ])('resolves an admin key whose creator is now %s: %s', async (role, resolves) => {
+    const [user] = await db
+      .insert(schema.users)
+      .values({ email: `cred-creator-${role}-${Date.now()}@example.com`, name: 'Ola Nordmann' })
+      .returning();
+    try {
+      await db.insert(schema.orgMembers).values({ orgId, userId: user!.id, role });
+      const raw = await insertKey({ type: 'admin', createdByUserId: user!.id });
+      const out = await new CredentialResolver(db).resolveApiKey(raw);
+      expect(out !== null).toBe(resolves);
+    } finally {
+      await db.delete(schema.apiKeys).where(sql`created_by_user_id = ${user!.id}`);
+      await db.delete(schema.users).where(sql`id = ${user!.id}`);
+    }
   });
 
   it('returns null for a revoked key', async () => {

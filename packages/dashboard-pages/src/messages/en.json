@@ -762,6 +762,7 @@
         "securityTls": "TLS",
         "securityStarttls": "STARTTLS",
         "passwordStored": "Stored — type to replace",
+        "passwordAgain": "New server — enter the password again",
         "imapHost": "IMAP host",
         "delivery": {
           "label": "Delivery options",
@@ -2044,7 +2045,8 @@
       "title": "API key",
       "ledeMissing": "Paste your provider API key. Stored encrypted at rest.",
       "label": "Key",
-      "placeholderStored": "•••••••• (stored)"
+      "placeholderStored": "•••••••• (stored)",
+      "placeholderAgain": "Paste the key for this provider"
     },
     "connection": {
       "test": "Save & test",
@@ -2223,7 +2225,8 @@
       "editVendor": "Edit {vendor}",
       "saveChanges": "Save changes",
       "updated": "Connection updated.",
-      "keepSecret": "Leave blank to keep the current value."
+      "keepSecret": "Leave blank to keep the current value.",
+      "reenterSecret": "The address changed. Enter this again so it’s sent to the new address."
     },
     "slack": {
       "title": "Slack",
@@ -2523,6 +2526,7 @@
     "VALIDATION_ERROR": "The data you submitted didn't validate.",
     "WEBHOOK_DISABLED": "This webhook is disabled.",
     "agent_config_invalid_model": "Your AI provider no longer offers that model. Reload the page to refresh the list, then pick a model and save again.",
+    "agent_config_key_required": "The provider address changed, so the saved API key won’t be sent to the new one. Paste the key for this provider to save.",
     "claim_held_by_other": "Another teammate already holds this conversation.",
     "cms_asset_too_large": "This file is too large to upload. The maximum size is 50 MB.",
     "cms_asset_type_not_allowed": "This file type can't be uploaded. Use a PNG, JPEG, GIF, WebP or AVIF image — SVG isn't supported.",
@@ -2541,6 +2545,8 @@
     "conv_channel_config_invalid": "This channel's saved settings are incomplete, so it can't be used yet. Open its settings, fill in what's missing and save to repair it.",
     "conv_widget_voice_channel_invalid": "That voice channel no longer exists. Pick another one.",
     "connectors_connection_bound": "This connection is pinned to {channels}, so it can’t be deleted. Unpin it from the channel first.",
+    "connectors_secret_required": "The address changed, so the saved credential won’t be sent to the new one. Enter the credential again to save.",
+    "conv_secret_required": "The mail server changed, so the saved password won’t be sent to the new one. Enter the password again to save.",
     "conv_delivery_channel_inactive": "The channel this message goes out on is switched off, so sending it again would fail too. Turn the channel back on in settings, then retry.",
     "conv_delivery_not_retryable": "This message is no longer waiting to be resent — it went out, or Munin is already retrying it. Reload the conversation to see where it stands.",
     "conv_draft_pending": "A draft is already waiting for review.",

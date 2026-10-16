@@ -368,6 +368,25 @@ export class ConnectorsService {
     });
   }
 
+  private assertSecretFollowsEndpoint(
+    adapter: ConnectorAdapter,
+    input: Record<string, unknown>,
+    previous: Record<string, unknown> | null,
+    next: Record<string, unknown>,
+  ): void {
+    const secrets = this.secretKeys(adapter);
+    if (secrets.length === 0 || secrets.some((k) => input[k] !== undefined)) return;
+    const moved = adapter.configFields
+      .filter((f) => f.endpoint)
+      .map((f) => f.key)
+      .filter((k) => destinationOf(previous?.[k]) !== destinationOf(next[k]));
+    if (moved.length === 0) return;
+    throw new BadRequestException({
+      message: `${SECRET_REQUIRED_CODE}: changing ${moved.join(', ')} points this connection at a different host, so the stored ${secrets.join(', ')} will not be sent there — supply the credential again in the same change (a person does this in the dashboard), or delete the connection and create it again to get a fresh credential link`,
+      code: SECRET_REQUIRED_CODE,
+    });
+  }
+
   private secretKeys(adapter: ConnectorAdapter): string[] {
     return adapter.configFields.filter((f) => f.secret).map((f) => f.key);
   }
@@ -422,6 +441,7 @@ export class ConnectorsService {
     if (args.active !== undefined) patch.active = args.active;
     if (args.config !== undefined) {
       patch.config = await this.buildStored(adapter, args.config, row.config);
+      this.assertSecretFollowsEndpoint(adapter, args.config, row.config, patch.config);
     }
     const [updated] = await ctx.db
       .update(schema.connectorConnections)
@@ -788,6 +808,18 @@ function withoutGrant(config: Record<string, unknown>): Record<string, unknown> 
   const rest = { ...config };
   delete rest[OAUTH_CONFIG_KEY];
   return rest;
+}
+
+const SECRET_REQUIRED_CODE = 'connectors_secret_required';
+
+function destinationOf(value: unknown): string | null {
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  const trimmed = value.trim().toLowerCase();
+  try {
+    return new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`).origin;
+  } catch {
+    return trimmed;
+  }
 }
 
 async function encryptString(plaintext: string): Promise<string> {

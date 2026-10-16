@@ -9,6 +9,7 @@ export interface VendorField {
   label: string;
   required: boolean;
   secret?: boolean;
+  endpoint?: boolean;
   postConnect?: boolean;
   placeholder?: string;
 }

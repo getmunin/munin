@@ -147,6 +147,7 @@ export class CustomMcpAdapter implements ConnectorAdapter, ToolCatalogAdapter {
       key: 'url',
       label: 'MCP endpoint URL (streamable HTTP)',
       required: true,
+      endpoint: true,
       placeholder: 'https://api.example.com/mcp',
     },
     {

@@ -1592,6 +1592,11 @@ function stripProbeErrorPrefix(value: string): string {
   return value.startsWith('error: ') ? value.slice('error: '.length) : value;
 }
 
+function hostMoved(stored: string | undefined, current: string): boolean {
+  if (!stored) return false;
+  return stored.trim().toLowerCase() !== current.trim().toLowerCase();
+}
+
 function parsePositiveInt(raw: string): number | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
@@ -1803,9 +1808,25 @@ function EmailChannelDialog({
     };
   }, [open]);
 
+  const storedImap = editChannel?.config.inbound?.provider === 'imap' ? editChannel.config.inbound : null;
+  const smtpHostMoved =
+    isEdit && hostMoved(editChannel?.config.outbound?.host, smtpHost);
+  const imapHostMoved =
+    isEdit && inboundMode === 'imap' && storedImap !== null && hostMoved(storedImap.host, imapHost);
+
   async function submit() {
     if (!name.trim() || !fromAddress.trim() || !smtpHost.trim()) return;
     if (!isEdit && !smtpPassword) return;
+    if ((smtpHostMoved && !smtpPassword) || (imapHostMoved && !imapPassword)) {
+      setFieldErrors((prev) => ({
+        ...prev,
+        ...(smtpHostMoved && !smtpPassword ? { password: t('email.passwordAgain') } : {}),
+        ...(imapHostMoved && !imapPassword ? { imapPassword: t('email.passwordAgain') } : {}),
+      }));
+      if (smtpHostMoved && !smtpPassword) setSmtpOpen(true);
+      setTab('channel');
+      return;
+    }
     if (inboundMode !== 'none' && !defaultAgentMode) {
       setFieldErrors((prev) => ({ ...prev, defaultAgentMode: t('agentReplies.required') }));
       setTab('channel');
@@ -2044,13 +2065,17 @@ function EmailChannelDialog({
                   required
                 />
               </FormField>
-              <FormField label={t('email.password')}>
+              <FormField label={t('email.password')} error={fieldErrors.password}>
                 <Input
                   type="password"
                   value={smtpPassword}
-                  onChange={(e) => setSmtpPassword(e.target.value)}
-                  placeholder={storedPasswordPlaceholder}
-                  required={!isEdit}
+                  onChange={(e) => {
+                    setSmtpPassword(e.target.value);
+                    clearFieldError('password');
+                  }}
+                  placeholder={smtpHostMoved ? t('email.passwordAgain') : storedPasswordPlaceholder}
+                  required={!isEdit || smtpHostMoved}
+                  aria-invalid={fieldErrors.password ? true : undefined}
                 />
               </FormField>
             </div>
@@ -2191,17 +2216,23 @@ function EmailChannelDialog({
                   required
                 />
               </FormField>
-              <FormField label={t('email.password')}>
+              <FormField label={t('email.password')} error={fieldErrors.imapPassword}>
                 <Input
                   type="password"
                   value={imapPassword}
-                  onChange={(e) => setImapPassword(e.target.value)}
+                  onChange={(e) => {
+                    setImapPassword(e.target.value);
+                    clearFieldError('imapPassword');
+                  }}
                   placeholder={
-                    isEdit && editChannel?.config.inbound?.provider === 'imap'
-                      ? t('email.passwordStored')
-                      : '••••••••'
+                    imapHostMoved
+                      ? t('email.passwordAgain')
+                      : isEdit && storedImap
+                        ? t('email.passwordStored')
+                        : '••••••••'
                   }
-                  required={!isEdit || editChannel?.config.inbound?.provider !== 'imap'}
+                  required={!isEdit || !storedImap || imapHostMoved}
+                  aria-invalid={fieldErrors.imapPassword ? true : undefined}
                 />
               </FormField>
             </div>

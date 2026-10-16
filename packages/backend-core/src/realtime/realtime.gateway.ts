@@ -35,6 +35,7 @@ import { DbListenerService, type EventRow } from './db-listener.service.ts';
 import { RealtimeEventBus, type AgentTypingBusEvent } from './realtime-event-bus.ts';
 import {
   enforceOriginAllowlist,
+  identityOwnsContact,
   verifyIdentity,
 } from '../modules/conv/widget/widget-ingest.service.ts';
 import { WidgetChannelConfig } from '../modules/conv/widget/widget.types.ts';
@@ -405,10 +406,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       if (msg.channelId !== entry.widgetCtx!.channelId) return;
       const meta = await this.resolveWidgetSession(msg.channelId, msg.sessionId);
       if (!meta) return;
-      if (
-        entry.widgetCtx!.verifiedExternalId &&
-        meta.contactExternalId !== entry.widgetCtx!.verifiedExternalId
-      ) {
+      if (!identityOwnsContact(meta.contactExternalId, entry.widgetCtx!.verifiedExternalId)) {
         return;
       }
       conversationId = meta.conversationId;
@@ -473,10 +471,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
 
     const meta = await this.resolveWidgetSession(msg.channelId, msg.sessionId);
     if (!meta) return;
-    if (
-      entry.widgetCtx.verifiedExternalId &&
-      meta.contactExternalId !== entry.widgetCtx.verifiedExternalId
-    ) {
+    if (!identityOwnsContact(meta.contactExternalId, entry.widgetCtx.verifiedExternalId)) {
       return;
     }
     const conversationId = meta.conversationId;
@@ -612,24 +607,34 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     for (const sub of subs) {
       if (excludeEntry && sub === excludeEntry) continue;
       if (sub.orgId !== orgId) continue;
-      if (sub.widgetCtx?.verifiedExternalId) {
+      const widgetCtx = sub.widgetCtx;
+      if (widgetCtx) {
         const cached = sub.conversationMetaCache.get(conversationId);
-        if (
-          !cached ||
-          !cached.meta ||
-          cached.meta.contactExternalId !== sub.widgetCtx.verifiedExternalId
-        ) {
+        if (!cached) {
           void this.resolveConversationMeta(conversationId).then((meta) => {
             sub.conversationMetaCache.set(conversationId, { meta });
+            if (meta && identityOwnsContact(meta.contactExternalId, widgetCtx.verifiedExternalId)) {
+              this.sendTyping(sub, payload);
+            }
           });
           continue;
         }
+        if (
+          !cached.meta ||
+          !identityOwnsContact(cached.meta.contactExternalId, widgetCtx.verifiedExternalId)
+        ) {
+          continue;
+        }
       }
-      try {
-        sub.ws.send(payload);
-      } catch (err) {
-        this.logger.debug?.(`typing send failed (socket likely mid-close): ${describeError(err)}`);
-      }
+      this.sendTyping(sub, payload);
+    }
+  }
+
+  private sendTyping(sub: ConnectionEntry, payload: string): void {
+    try {
+      sub.ws.send(payload);
+    } catch (err) {
+      this.logger.debug?.(`typing send failed (socket likely mid-close): ${describeError(err)}`);
     }
   }
 
@@ -683,10 +688,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     if (!meta) return false;
     if (meta.channelId !== subChannelId) return false;
     if (meta.sessionId !== subSessionId) return false;
-    if (widgetCtx.verifiedExternalId) {
-      if (meta.contactExternalId !== widgetCtx.verifiedExternalId) return false;
-    }
-    return true;
+    return identityOwnsContact(meta.contactExternalId, widgetCtx.verifiedExternalId);
   }
 
   private async resolveConversationMeta(

@@ -1,13 +1,16 @@
 import { parseConfig, type WidgetConfig } from './config.ts';
 import {
+  adoptSessionOwner,
   getRecentSessionIds,
   getSessionId,
+  getSessionOwner,
   getVisitorId,
   mintNewSession,
   setCurrentSession,
 } from './session.ts';
 import {
   createApiClient,
+  isForeignSessionError,
   WidgetApiError,
   type ApiIdentity,
   type ConversationEnvelope,
@@ -44,8 +47,6 @@ function bootstrap(): void {
 }
 
 export function start(config: WidgetConfig): void {
-  let sessionId = getSessionId(config.channelId, config.cookieDomain);
-  const visitorId = getVisitorId(config.channelId, config.cookieDomain);
   let identity: ApiIdentity | undefined =
     config.externalId && config.userHash
       ? {
@@ -54,6 +55,9 @@ export function start(config: WidgetConfig): void {
           ...(config.verifiedEmail ? { email: config.verifiedEmail } : {}),
         }
       : undefined;
+  adoptSessionOwner(config.channelId, identity?.externalId ?? null, config.cookieDomain);
+  let sessionId = getSessionId(config.channelId, config.cookieDomain);
+  const visitorId = getVisitorId(config.channelId, config.cookieDomain);
   const getIdentity = (): ApiIdentity | undefined => identity;
   let identityClaimed = false;
   const api = createApiClient({
@@ -84,13 +88,44 @@ export function start(config: WidgetConfig): void {
       return;
     }
     const email = options?.email || undefined;
+    const owner = getSessionOwner(config.channelId, config.cookieDomain);
+    if (typeof owner === 'string' && owner !== externalId) {
+      resetToAnonymousSession();
+    }
     try {
       await api.identify(externalId, userHash, email);
+      adoptSessionOwner(config.channelId, externalId, config.cookieDomain);
       identity = { externalId, userHash, ...(email ? { email } : {}) };
       identityClaimed = true;
       realtime.reconnect();
     } catch (err) {
       console.warn('[munin-widget] identify failed:', err);
+    }
+  }
+
+  function logoutVisitor(): void {
+    identity = undefined;
+    identityClaimed = false;
+    resetToAnonymousSession();
+    realtime.reconnect();
+  }
+
+  function resetToAnonymousSession(): void {
+    if (!adoptSessionOwner(config.channelId, null, config.cookieDomain)) return;
+    messagesById.clear();
+    locallyRead.clear();
+    refreshUnreadBadge();
+    ui.setPastConversations([]);
+    switchToSession(getSessionId(config.channelId, config.cookieDomain));
+  }
+
+  async function withOwnSession<T>(call: () => Promise<T>): Promise<T> {
+    try {
+      return await call();
+    } catch (err) {
+      if (!isForeignSessionError(err)) throw err;
+      switchToSession(mintNewSession(config.channelId, config.cookieDomain));
+      return call();
     }
   }
 
@@ -116,6 +151,7 @@ export function start(config: WidgetConfig): void {
           userHash: string,
           options?: { email?: string },
         ) => Promise<void>;
+        logout: () => void;
         call: () => Promise<CallResult>;
         endCall: () => Promise<void>;
         ready: boolean;
@@ -533,6 +569,7 @@ export function start(config: WidgetConfig): void {
       toggle: () => (ui.isOpen() ? ui.close() : ui.open()),
       isOpen: () => ui.isOpen(),
       identify: identifyVisitor,
+      logout: logoutVisitor,
       call: callFromPage,
       endCall: endVoice,
       ready: true,
@@ -569,8 +606,7 @@ export function start(config: WidgetConfig): void {
   async function ensureConversation(): Promise<string> {
     if (currentConversationId) return currentConversationId;
     if (!startConversationInFlight) {
-      startConversationInFlight = api
-        .startConversation()
+      startConversationInFlight = withOwnSession(() => api.startConversation())
         .then((res) => res.conversationId)
         .finally(() => {
           startConversationInFlight = null;
@@ -584,7 +620,7 @@ export function start(config: WidgetConfig): void {
   async function sendMessage(text: string, attachmentIds: string[]): Promise<void> {
     ui.setSending(true);
     try {
-      await api.postMessage(text, attachmentIds);
+      await withOwnSession(() => api.postMessage(text, attachmentIds));
     } catch (err) {
       if (err instanceof WidgetApiError) {
         console.warn(`[munin-widget] send failed: ${err.status}`);

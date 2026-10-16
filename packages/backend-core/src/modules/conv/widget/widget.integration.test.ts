@@ -2274,6 +2274,192 @@ const skipReason = TEST_URL
     expect((res.json as { email: string | null }).email).toBe('anon-ok@example.com');
   });
 
+  describe('a signed-in session reused by an anonymous visitor on the same browser', () => {
+    let channelId: string;
+    let widgetKey: string;
+    let identityVerificationSecret: string;
+
+    beforeAll(async () => {
+      const created = await withClient(adminKey, async (c) =>
+        parseToolResult<{ id: string; widgetKey: string; identityVerificationSecret: string }>(
+          await c.callTool({
+            name: 'conv_create_widget_channel',
+            arguments: {
+              defaultAgentMode: 'auto',
+              name: 'shared-browser-bot',
+              originAllowlist: ['https://customer.example'],
+            },
+          }),
+        ),
+      );
+      channelId = created.id;
+      widgetKey = created.widgetKey;
+      identityVerificationSecret = created.identityVerificationSecret;
+    });
+
+    async function claimedSession(tag: string): Promise<{ sid: string; externalId: string }> {
+      const sid = `vis_shared_${tag}_${Date.now()}`;
+      const externalId = `user_shared_${tag}_${Date.now()}`;
+      const res = await call('POST', '/v1/widget/messages', widgetKey, {
+        channelId,
+        sessionId: sid,
+        verifiedExternalId: externalId,
+        userHash: signHmac(externalId, identityVerificationSecret),
+        messages: [{ role: 'end_user', body: 'my order number is 1234' }],
+      });
+      expect(res.status).toBe(201);
+      return { sid, externalId };
+    }
+
+    it('hides the messages from GET /messages', async () => {
+      const { sid } = await claimedSession('get');
+      const res = await call('GET', `/v1/widget/messages?${qs({ channelId, sessionId: sid })}`, widgetKey);
+      expect(res.status).toBe(200);
+      expect(res.json).toEqual({ messages: [], hasMore: false, cursor: null, conversation: null });
+    });
+
+    it('leaves the claimed session out of GET /conversations while still listing anonymous ones', async () => {
+      const { sid } = await claimedSession('list');
+      const anonSid = `vis_shared_anon_${Date.now()}`;
+      await call('POST', '/v1/widget/messages', widgetKey, {
+        channelId,
+        sessionId: anonSid,
+        messages: [{ role: 'end_user', body: 'anonymous question' }],
+      });
+      const res = await call(
+        'GET',
+        `/v1/widget/conversations?${qs({ channelId, sessionIds: `${sid},${anonSid}` })}`,
+        widgetKey,
+      );
+      expect(res.status).toBe(200);
+      const sessionIds = (res.json as { conversations: Array<{ sessionId: string }> }).conversations.map(
+        (c) => c.sessionId,
+      );
+      expect(sessionIds).toEqual([anonSid]);
+    });
+
+    it('refuses to post into it, so nobody writes as the signed-in contact', async () => {
+      const { sid } = await claimedSession('post');
+      const res = await call('POST', '/v1/widget/messages', widgetKey, {
+        channelId,
+        sessionId: sid,
+        messages: [{ role: 'end_user', body: 'injected' }],
+      });
+      expect(res.status).toBe(403);
+      expect((res.json as { message: string }).message).toBe('conversation_identity_mismatch');
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const bodies = await db
+        .select({ body: schema.convMessages.body })
+        .from(schema.convMessages)
+        .innerJoin(
+          schema.convConversations,
+          eq(schema.convConversations.id, schema.convMessages.conversationId),
+        )
+        .where(sql`${schema.convConversations.metadata}->>'sessionId' = ${sid}`);
+      expect(bodies.map((b) => b.body)).not.toContain('injected');
+    });
+
+    it('refuses to reopen it through POST /conversations', async () => {
+      const { sid } = await claimedSession('start');
+      const res = await call('POST', '/v1/widget/conversations', widgetKey, {
+        channelId,
+        sessionId: sid,
+      });
+      expect(res.status).toBe(403);
+      expect((res.json as { message: string }).message).toBe('conversation_identity_mismatch');
+    });
+
+    it('still lets the signed-in owner read the session', async () => {
+      const { sid, externalId } = await claimedSession('owner');
+      const res = await call(
+        'GET',
+        `/v1/widget/messages?${qs({
+          channelId,
+          sessionId: sid,
+          verifiedExternalId: externalId,
+          userHash: signHmac(externalId, identityVerificationSecret),
+        })}`,
+        widgetKey,
+      );
+      expect((res.json as { messages: Array<{ body: string }> }).messages.map((m) => m.body)).toEqual([
+        'my order number is 1234',
+      ]);
+    });
+
+    it('ignores an externalId an anonymous visitor puts in visitor.metadata', async () => {
+      const victim = `user_forged_${Date.now()}`;
+      const sid = `vis_forged_${Date.now()}`;
+      const res = await call('POST', '/v1/widget/messages', widgetKey, {
+        channelId,
+        sessionId: sid,
+        visitor: { metadata: { externalId: victim, plan: 'pro' } },
+        messages: [{ role: 'end_user', body: 'pretending' }],
+      });
+      expect(res.status).toBe(201);
+
+      await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+      const [contact] = await db
+        .select({ metadata: schema.convContacts.metadata })
+        .from(schema.convContacts)
+        .where(
+          and(
+            eq(schema.convContacts.orgId, orgId),
+            sql`${schema.convContacts.metadata}->>'sessionId' = ${sid}`,
+          ),
+        );
+      expect(contact?.metadata).toMatchObject({ sessionId: sid, plan: 'pro' });
+      expect((contact?.metadata as { externalId?: string }).externalId).toBeUndefined();
+
+      const victimList = await call(
+        'GET',
+        `/v1/widget/conversations?${qs({
+          channelId,
+          verifiedExternalId: victim,
+          userHash: signHmac(victim, identityVerificationSecret),
+        })}`,
+        widgetKey,
+      );
+      expect((victimList.json as { conversations: unknown[] }).conversations).toEqual([]);
+    });
+
+    it('gives an anonymous visitor its own contact when it types a signed-in contact\'s email', async () => {
+      const externalId = `user_email_owner_${Date.now()}`;
+      const email = `owner-${Date.now()}@example.com`;
+      await call('POST', '/v1/widget/messages', widgetKey, {
+        channelId,
+        sessionId: `vis_email_owner_${Date.now()}`,
+        verifiedExternalId: externalId,
+        userHash: signHmac(externalId, identityVerificationSecret),
+        visitor: { email },
+        messages: [{ role: 'end_user', body: 'owner' }],
+      });
+
+      const anonSid = `vis_email_anon_${Date.now()}`;
+      const res = await call('POST', '/v1/widget/messages', widgetKey, {
+        channelId,
+        sessionId: anonSid,
+        visitor: { email },
+        messages: [{ role: 'end_user', body: 'same email, not signed in' }],
+      });
+      expect(res.status).toBe(201);
+      const ownerContact = await db
+        .select({ id: schema.convContacts.id })
+        .from(schema.convContacts)
+        .where(sql`${schema.convContacts.metadata}->>'externalId' = ${externalId}`);
+      expect((res.json as { contactId: string }).contactId).not.toBe(ownerContact[0]!.id);
+
+      const own = await call(
+        'GET',
+        `/v1/widget/messages?${qs({ channelId, sessionId: anonSid })}`,
+        widgetKey,
+      );
+      expect((own.json as { messages: Array<{ body: string }> }).messages.map((m) => m.body)).toEqual([
+        'same email, not signed in',
+      ]);
+    });
+  });
+
   it('rejects PATCH /visitor with mismatched channelId', async () => {
     const res = await call('PATCH', '/v1/widget/visitor', widgetKey, {
       channelId: 'cch_nonexistent',

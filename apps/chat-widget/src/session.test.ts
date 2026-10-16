@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
+  adoptSessionOwner,
   clearSessionId,
   getRecentSessionIds,
   getSessionId,
+  getSessionOwner,
   getVisitorId,
   mintNewSession,
   setCurrentSession,
@@ -120,5 +122,46 @@ describe('session', () => {
     } finally {
       proto.setItem = original;
     }
+  });
+
+  it('keeps the session when an anonymous visitor signs in, so the claim carries their chat over', () => {
+    const ch = freshChannel();
+    const anon = getSessionId(ch);
+    expect(adoptSessionOwner(ch, null)).toBe(false);
+    expect(adoptSessionOwner(ch, 'user-a')).toBe(false);
+    expect(getSessionId(ch)).toBe(anon);
+    expect(getSessionOwner(ch)).toBe('user-a');
+  });
+
+  it('starts a fresh session with no history when the signed-in user signs out', () => {
+    const ch = freshChannel();
+    adoptSessionOwner(ch, 'user-a');
+    const first = getSessionId(ch);
+    mintNewSession(ch);
+    expect(adoptSessionOwner(ch, null)).toBe(true);
+    expect(getSessionId(ch)).not.toBe(first);
+    expect(getRecentSessionIds(ch)).toEqual([getSessionId(ch)]);
+    expect(getSessionOwner(ch)).toBeNull();
+  });
+
+  it('starts a fresh session when a different user signs in on the same browser', () => {
+    const ch = freshChannel();
+    adoptSessionOwner(ch, 'user-a');
+    const first = getSessionId(ch);
+    expect(adoptSessionOwner(ch, 'user-b')).toBe(true);
+    expect(getRecentSessionIds(ch)).not.toContain(first);
+    expect(getSessionOwner(ch)).toBe('user-b');
+  });
+
+  it('keeps the owner across new chats and persists it to storage', () => {
+    const ch = freshChannel();
+    adoptSessionOwner(ch, 'user-a');
+    mintNewSession(ch);
+    setCurrentSession(ch, getRecentSessionIds(ch)[1]!);
+    expect(getSessionOwner(ch)).toBe('user-a');
+    const stored = JSON.parse(localStorage.getItem(`munin-widget-session:${ch}`)!) as {
+      owner?: string;
+    };
+    expect(stored.owner).toBe('user-a');
   });
 });

@@ -22,6 +22,7 @@ import { AuditInterceptor } from '../common/audit/audit.interceptor.ts';
 import { McpRegistryService } from './mcp.registry.ts';
 import { McpSkillRegistryService } from './mcp.skill-registry.service.ts';
 import { McpBurstGuard } from './mcp-burst.guard.ts';
+import { McpCallerGuard } from './mcp-caller.guard.ts';
 import { RateLimitService } from '../common/rate-limit/rate-limit.service.ts';
 import { QUOTAS_SERVICE, type QuotasService } from '../common/quotas/quotas.service.ts';
 import {
@@ -32,7 +33,7 @@ import { deriveMcpAudience } from './mcp.audience.ts';
 import { OrgScopedMcpDocs } from './mcp.org-scoped.docs.ts';
 
 @Controller('mcp')
-@UseGuards(AuthGuard, McpBurstGuard)
+@UseGuards(AuthGuard, McpCallerGuard, McpBurstGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class McpController {
   private readonly audit = new AuditLogger();

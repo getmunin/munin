@@ -97,6 +97,7 @@ window.mn.widget.toggle();   // flips it
 window.mn.widget.isOpen();   // current state, boolean
 window.mn.widget.ready;      // true once the namespace is installed
 await window.mn.widget.identify(externalId, userHash);  // see §4
+window.mn.widget.logout();   // forgets the signed-in user and starts a fresh chat, see §4
 await window.mn.widget.call();     // opens the panel and starts a voice call
 await window.mn.widget.endCall();  // hangs up the active call
 ```
@@ -288,6 +289,12 @@ Render it with `data-verified-email` next to the pair, or pass it to `window.mn.
 The email and the hash travel together: a hash computed over the `externalId` alone does not verify once an email is attached, and a hash signed for one email does not verify with another (`identity_verification_failed`). `data-verified-email` without the pair is rejected as `identity_partial`. On browser-direct calls the field is `verifiedEmail`, or the `x-munin-verified-email` header on GETs.
 
 Munin binds the signed email to the signed-in user's end-user record, replacing an email the visitor had typed. It leaves the record alone when another end user already holds that address, so that session gets no email until you merge the two in the dashboard. A leaked hash lets someone act as that user until you rotate the secret, and with a signed email that includes reading their orders and changing their bookings, so keep the hash out of logs and caches like any session credential.
+
+### Signing out on a shared browser
+
+A session that a signed-in user has used belongs to that user. Munin will not show its messages, list it, stream its events or accept new messages into it for anyone else: an anonymous caller, or a different `externalId`, gets an empty history and `403 conversation_identity_mismatch` on a send. Anonymous sessions are unaffected and are claimed as before when the visitor signs in.
+
+The bundled widget remembers which user its stored session belongs to. When a page loads without `data-external-id` after a signed-in user, or `identify` is called with a different `externalId`, it starts a fresh session with no history instead of reusing the old one. If sign-out in your app is a route change rather than a full reload, call `window.mn.widget.logout()` at sign-out so the next person at that browser starts clean straight away. Drive the browser API yourself and you get the same refusals, so mint a new `sessionId` when the signed-in user changes.
 
 Set `requireVerifiedIdentity: true` on the channel (`conv_create_widget_channel` / `conv_update_widget_channel`) to reject unverified sessions outright; the default (`false`) allows anonymous ingest alongside verified ones.
 

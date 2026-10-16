@@ -1,5 +1,80 @@
 # @getmunin/db
 
+## 5.47.0
+
+### Minor Changes
+
+- e29ed5c: Stop returning raw internal errors from MCP tools, and take the at-rest encryption key out of SQL parameters.
+
+  A tool that failed on a database or runtime error used to hand the caller the error's own message. For a failed query that message is drizzle's `Failed query: … params: …`, so the SQL and every bound parameter reached the calling agent (end-user agents included), the audit log, stored job and delivery errors, and the server log. Until now the at-rest encryption key was itself a bound parameter: every request transaction ran `set_config('app.crypt_key', $1, true)`.
+
+  **The encryption key travels once per connection, never with a query**
+
+  - `createDb` sends `MUNIN_ENCRYPTION_KEY` as the `app.crypt_key` startup parameter when it opens each pooled connection. It reads the key when the pool is created, or takes it from the new `encryptionKey` option. `current_setting('app.crypt_key')` works for the whole session, including for the non-superuser `munin_app` role, and survives `RESET ALL` and `DISCARD ALL`.
+  - The per-transaction `set_config('app.crypt_key', …)` is gone from the tenancy interceptor, the agent-host service context and every decrypt/encrypt helper. No statement carries the key any more, so it cannot appear in a failed query's text, its parameters or `pg_stat_activity`.
+  - `setEncryptionKeySql` is removed from `@getmunin/core`. A pool created through `createDb` already has the key, so drop any call to it. Code that opens its own `postgres` client needs to pass `app.crypt_key` as a connection parameter.
+  - Set `MUNIN_ENCRYPTION_KEY` before the database pool is created. Changing it now takes a process restart, since existing connections keep the key they opened with.
+  - A pooler that multiplexes transactions across server connections (PgBouncer in transaction mode) does not forward custom startup parameters, and it already did not forward `app.bypass_rls`. Connect the backend to Postgres directly, or use session pooling.
+
+  **Internal errors stay on the server**
+
+  - MCP tools now return `internal_error: … quote ref <correlationId>` for database errors, socket errors, built-in runtime errors (`TypeError`, `RangeError`, …), thrown non-errors, and any message that embeds a failed query. The audit row records `internal_error[<ErrorClass>:<SQLSTATE>] ref <correlationId>`. The full error is logged on the server under the same ref and passed to the error reporter with a `ref` field.
+  - Deliberate errors keep their message unchanged, so agents still get the `<code>: …` prefix they act on. That covers Nest `HttpException`s, the modules' own error classes, and plain `Error`s thrown with a coded message. Rate-limit and quota failures follow the same rule.
+  - `/v1` audit rows use the same rule.
+  - Stored error text has `params: …` replaced with `params: [redacted]` before it is written. That covers `audit_log.error`, `curator_jobs.last_error`, outreach `failure_reason`, social post and account `last_error`, alert details, and alert-notification and widget-fallback errors. Channel test results returned to admins are redacted the same way.
+  - `createApp` installs a console logger that redacts `params: …` in logged messages and stacks and keeps the SQL text; pass your own `logger` to opt out. The direct `console.*` calls in core, backend-core, mcp-toolkit and the agent runtime now log through `describeError`, which redacts. A test fails the build if one logs a raw error object or `err.message` again.
+  - `@getmunin/core` exports `isInternalError`, `internalErrorKind`, `auditErrorText`, `errorMessage`, `errorClassName`, `sqlStateOf`, `redactQueryParams`, `redactQueryParamsDeep` and `redactLogValue`. It also has a dependency-free `@getmunin/core/errors` entry point for code that loads before the rest of the app, such as an error-reporter init.
+
+- 9e80684: Outreach can now send one approved email to a whole CRM segment — a broadcast — with an unsubscribe link and one-click unsubscribe headers on every message.
+
+  A broadcast is drafted by an agent or a teammate and sent only after a signed-in person approves it; agents and API keys cannot approve one. While it is pending, the broadcast reports its audience live: how many contacts in the segment will receive it, and how many are excluded because they unsubscribed, are marked do-not-contact, have no recorded lawful basis, have no usable email address, bounced before, or share an address with another contact. It also carries the email rendered for a sample recipient through the chosen email template (or the org default, or a plain built-in layout), and a `contentFingerprint`. Approval is bound to that fingerprint, which covers the rendered email and the audience size, so a broadcast whose content, template or audience changed after it was reviewed is refused with `outreach_broadcast_changed` instead of being sent.
+
+  Approving freezes the recipient list and the rendered email. A background worker then sends at a throttled rate — `MUNIN_OUTREACH_BROADCAST_MAX_PER_MINUTE` per channel (default 60), plus an optional per-broadcast hourly cap — starting at the scheduled time. Just before each email goes out it re-checks that person, and skips anyone who unsubscribed, was blocked, lost their lawful basis or became undeliverable since approval. Failed sends are retried up to three times; a send interrupted mid-batch is marked failed rather than repeated, so nobody gets the message twice. `MUNIN_OUTREACH_BROADCAST_MAX_AUDIENCE` (default 50,000) caps a single broadcast, and `MUNIN_OUTREACH_BROADCAST_WORKER_DISABLED` turns the worker off.
+
+  Recipients who don't reply never appear in the inbox. A reply — matched by its `In-Reply-To`/`References` headers, or by a plus-addressed reply address when `MUNIN_EMAIL_REPLY_DOMAIN` is set — opens a conversation linked to the broadcast (`conv_conversations.outreach_broadcast_id`), with the broadcast the person received placed at the top, dated when it was sent. Auto-replies and bounces don't count as replies, and a copy of the broadcast that loops back into the org's own inbox is ignored.
+
+  New admin tools, with matching endpoints under `/v1/outreach/broadcasts`: `outreach_create_broadcast`, `outreach_update_broadcast`, `outreach_get_broadcast`, `outreach_list_broadcasts`, `outreach_list_broadcast_recipients`, `outreach_send_broadcast_test` (to members of the organization only), `outreach_approve_broadcast` (callable only from the Munin panel by MCP Apps hosts), `outreach_dismiss_broadcast` and `outreach_cancel_broadcast`. Broadcasts report `counts` of queued, sent, skipped, failed, replied, unsubscribed and bounced recipients. New webhook events: `outreach.broadcast.created`, `.approved`, `.started`, `.dismissed`, `.canceled` and `.completed`.
+
+  In the dashboard, pending broadcasts appear in the Review queue next to proposals and drafts. The review pane shows who the broadcast reaches and why others are excluded, the email exactly as the first recipient will see it (desktop, mobile and plain-text views, rendered in a sandboxed frame with scripts disabled), a choice of when sending starts, and a "Send me a test" button. If the broadcast changed after the pane was opened, approving is refused and the pane offers the latest version. Once approved, a broadcast waits in the Scheduled tab — with when it starts, how many people it goes to and the email as it will go out — until the worker starts sending. Calling it off there sends nothing and puts it back in the review queue with the reason attached: its frozen recipient list is dropped, and it can be edited and must be approved again, the same as a scheduled outreach email. From then on it is in the Decided tab, which shows a delivery bar (sent, waiting, skipped, failed out of the approved audience), replies, unsubscribes and bounces as a share of what was sent, when it started and finished, and the email as it went out; the numbers refresh while it is still sending, and it can be stopped from there: everyone not yet sent to is skipped, and what already went out stays sent. Per-recipient delivery status is available to agents through `outreach_list_broadcast_recipients`; there is no separate broadcasts page. In MCP Apps hosts, `outreach_get_broadcast` opens the Munin panel with the same preview and approve/dismiss buttons.
+
+  Unsubscribing from a broadcast link is attributed to that broadcast. Email templates that a broadcast uses can no longer be deleted out from under it. New skills: `skill://outreach/send-broadcast` and `skill://outreach/draft-changelog-broadcast`.
+
+  Migration `0119_outreach_broadcasts` adds `outreach_broadcasts` and `outreach_broadcast_recipients`, with tenant isolation policies, and the nullable `conv_conversations.outreach_broadcast_id` column.
+
+- 9e80684: Organizations can now keep branded email templates for outreach, written in MJML.
+
+  A template is a complete MJML document holding the org's layout: logo, colours, fonts, and a footer with the organization's name and the unsubscribe link. Each message's content goes in at one marked spot. Templates are stored per organization in the new `outreach_email_templates` table (migration `0118_outreach_email_templates`), and one of them can be the org default. They are compiled with MJML 5 into the table-based, inline-styled HTML that Outlook, Gmail and Apple Mail render consistently.
+
+  New admin tools, with matching endpoints under `/v1/outreach/email-templates`:
+
+  - `outreach_create_email_template`, `outreach_update_email_template`, `outreach_get_email_template`, `outreach_list_email_templates` and `outreach_delete_email_template` manage templates. Names are unique per org, and marking a template as default clears the previous one.
+  - `outreach_preview_email_template` renders sample content through a saved template, through unsaved MJML, or through the org default. It sends nothing and returns the final HTML, a plain-text part, the size in bytes, and warnings.
+
+  Templates use a fixed set of placeholders: `{{content}}` (required, exactly once, where sections may go), `{{unsubscribe_url}}` (required, in an `href`), and optionally `{{subject}}`, `{{preheader}}`, `{{org_name}}` and `{{name}}` / `{{name|fallback}}`. Unknown placeholders are refused. Content comes as markdown, which the template styles as one text section, or as an MJML fragment of sections for richer layouts such as release cards. Values are HTML-escaped when they are filled in.
+
+  Validation runs MJML in strict mode and reports the template or content line an error is on, without exposing server paths. Templates and MJML content that contain scripts, iframes, forms and other form controls, `<base>`, `<meta>`, `<link>`, inline event handlers, `javascript:`, `vbscript:` or `data:` URLs, CSS `@import` or `expression()`, or `<mj-include>` are refused. File includes are switched off. Warnings flag images without alt text, and HTML above 90KB, since Gmail clips messages above 102KB and the cut hides the unsubscribe footer.
+
+  A new skill, `skill://outreach/design-email-template`, walks an agent through collecting the brand, drafting the MJML, previewing it with both content formats, and saving it.
+
+  Nothing is sent through a template yet. This lays the groundwork for sending one approved message to a whole segment.
+
+- 36a0190: Keep chat-widget conversations that no one wrote in out of the inbox and out of Slack. Opening the widget starts a conversation and the agent greets straight away, so every visitor who closed the panel without asking anything used to leave an open conversation in the inbox, a Slack thread, and a "resolved" reply in that thread when auto-close reached it two days later.
+
+  A new `conv_conversations.unengaged` flag marks a conversation the widget opened. It clears on the first visitor message, when a voice call starts in the widget, or when a teammate writes in the conversation. While it is set:
+
+  - the conversation is left out of `conv_list_conversations`, the inbox queue and its counts, the usage tile, the first-run setup state and the identity profile's conversation count;
+  - the Slack bridge records its deliveries but holds them back. They are released when the flag clears, so the thread then appears with the full history, greeting included, in the original order;
+  - auto-close skips it.
+
+  A new hourly sweep deletes unengaged conversations after 24 hours without activity. It skips any conversation that still has attachment rows; the attachment GC removes those uploads first, and a later sweep deletes the conversation. A visitor who comes back to a swept session gets a new conversation when they write. Configure it with `MUNIN_CONV_UNENGAGED_CLEANUP_CRON` (`off` disables it) and `MUNIN_CONV_UNENGAGED_IDLE_HOURS`. The sweep shares `MUNIN_CONV_AUTO_CLOSE_DISABLED` with auto-close.
+
+  Migration `0120_conv_unengaged_conversations` adds the column and a partial index. It also flags existing widget-opened conversations that hold no visitor or teammate message, so the first sweep clears the backlog. Slack threads already posted for those conversations stay in Slack.
+
+### Patch Changes
+
+- Updated dependencies [9e80684]
+  - @getmunin/types@5.47.0
+
 ## 5.46.0
 
 ### Minor Changes

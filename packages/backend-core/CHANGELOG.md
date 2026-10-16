@@ -1,5 +1,215 @@
 # @getmunin/backend-core
 
+## 5.47.0
+
+### Minor Changes
+
+- 9e80684: Outreach can now send one approved email to a whole CRM segment — a broadcast — with an unsubscribe link and one-click unsubscribe headers on every message.
+
+  A broadcast is drafted by an agent or a teammate and sent only after a signed-in person approves it; agents and API keys cannot approve one. While it is pending, the broadcast reports its audience live: how many contacts in the segment will receive it, and how many are excluded because they unsubscribed, are marked do-not-contact, have no recorded lawful basis, have no usable email address, bounced before, or share an address with another contact. It also carries the email rendered for a sample recipient through the chosen email template (or the org default, or a plain built-in layout), and a `contentFingerprint`. Approval is bound to that fingerprint, which covers the rendered email and the audience size, so a broadcast whose content, template or audience changed after it was reviewed is refused with `outreach_broadcast_changed` instead of being sent.
+
+  Approving freezes the recipient list and the rendered email. A background worker then sends at a throttled rate — `MUNIN_OUTREACH_BROADCAST_MAX_PER_MINUTE` per channel (default 60), plus an optional per-broadcast hourly cap — starting at the scheduled time. Just before each email goes out it re-checks that person, and skips anyone who unsubscribed, was blocked, lost their lawful basis or became undeliverable since approval. Failed sends are retried up to three times; a send interrupted mid-batch is marked failed rather than repeated, so nobody gets the message twice. `MUNIN_OUTREACH_BROADCAST_MAX_AUDIENCE` (default 50,000) caps a single broadcast, and `MUNIN_OUTREACH_BROADCAST_WORKER_DISABLED` turns the worker off.
+
+  Recipients who don't reply never appear in the inbox. A reply — matched by its `In-Reply-To`/`References` headers, or by a plus-addressed reply address when `MUNIN_EMAIL_REPLY_DOMAIN` is set — opens a conversation linked to the broadcast (`conv_conversations.outreach_broadcast_id`), with the broadcast the person received placed at the top, dated when it was sent. Auto-replies and bounces don't count as replies, and a copy of the broadcast that loops back into the org's own inbox is ignored.
+
+  New admin tools, with matching endpoints under `/v1/outreach/broadcasts`: `outreach_create_broadcast`, `outreach_update_broadcast`, `outreach_get_broadcast`, `outreach_list_broadcasts`, `outreach_list_broadcast_recipients`, `outreach_send_broadcast_test` (to members of the organization only), `outreach_approve_broadcast` (callable only from the Munin panel by MCP Apps hosts), `outreach_dismiss_broadcast` and `outreach_cancel_broadcast`. Broadcasts report `counts` of queued, sent, skipped, failed, replied, unsubscribed and bounced recipients. New webhook events: `outreach.broadcast.created`, `.approved`, `.started`, `.dismissed`, `.canceled` and `.completed`.
+
+  In the dashboard, pending broadcasts appear in the Review queue next to proposals and drafts. The review pane shows who the broadcast reaches and why others are excluded, the email exactly as the first recipient will see it (desktop, mobile and plain-text views, rendered in a sandboxed frame with scripts disabled), a choice of when sending starts, and a "Send me a test" button. If the broadcast changed after the pane was opened, approving is refused and the pane offers the latest version. Once approved, a broadcast waits in the Scheduled tab — with when it starts, how many people it goes to and the email as it will go out — until the worker starts sending. Calling it off there sends nothing and puts it back in the review queue with the reason attached: its frozen recipient list is dropped, and it can be edited and must be approved again, the same as a scheduled outreach email. From then on it is in the Decided tab, which shows a delivery bar (sent, waiting, skipped, failed out of the approved audience), replies, unsubscribes and bounces as a share of what was sent, when it started and finished, and the email as it went out; the numbers refresh while it is still sending, and it can be stopped from there: everyone not yet sent to is skipped, and what already went out stays sent. Per-recipient delivery status is available to agents through `outreach_list_broadcast_recipients`; there is no separate broadcasts page. In MCP Apps hosts, `outreach_get_broadcast` opens the Munin panel with the same preview and approve/dismiss buttons.
+
+  Unsubscribing from a broadcast link is attributed to that broadcast. Email templates that a broadcast uses can no longer be deleted out from under it. New skills: `skill://outreach/send-broadcast` and `skill://outreach/draft-changelog-broadcast`.
+
+  Migration `0119_outreach_broadcasts` adds `outreach_broadcasts` and `outreach_broadcast_recipients`, with tenant isolation policies, and the nullable `conv_conversations.outreach_broadcast_id` column.
+
+- 9e80684: Organizations can now keep branded email templates for outreach, written in MJML.
+
+  A template is a complete MJML document holding the org's layout: logo, colours, fonts, and a footer with the organization's name and the unsubscribe link. Each message's content goes in at one marked spot. Templates are stored per organization in the new `outreach_email_templates` table (migration `0118_outreach_email_templates`), and one of them can be the org default. They are compiled with MJML 5 into the table-based, inline-styled HTML that Outlook, Gmail and Apple Mail render consistently.
+
+  New admin tools, with matching endpoints under `/v1/outreach/email-templates`:
+
+  - `outreach_create_email_template`, `outreach_update_email_template`, `outreach_get_email_template`, `outreach_list_email_templates` and `outreach_delete_email_template` manage templates. Names are unique per org, and marking a template as default clears the previous one.
+  - `outreach_preview_email_template` renders sample content through a saved template, through unsaved MJML, or through the org default. It sends nothing and returns the final HTML, a plain-text part, the size in bytes, and warnings.
+
+  Templates use a fixed set of placeholders: `{{content}}` (required, exactly once, where sections may go), `{{unsubscribe_url}}` (required, in an `href`), and optionally `{{subject}}`, `{{preheader}}`, `{{org_name}}` and `{{name}}` / `{{name|fallback}}`. Unknown placeholders are refused. Content comes as markdown, which the template styles as one text section, or as an MJML fragment of sections for richer layouts such as release cards. Values are HTML-escaped when they are filled in.
+
+  Validation runs MJML in strict mode and reports the template or content line an error is on, without exposing server paths. Templates and MJML content that contain scripts, iframes, forms and other form controls, `<base>`, `<meta>`, `<link>`, inline event handlers, `javascript:`, `vbscript:` or `data:` URLs, CSS `@import` or `expression()`, or `<mj-include>` are refused. File includes are switched off. Warnings flag images without alt text, and HTML above 90KB, since Gmail clips messages above 102KB and the cut hides the unsubscribe footer.
+
+  A new skill, `skill://outreach/design-email-template`, walks an agent through collecting the brand, drafting the MJML, previewing it with both content formats, and saving it.
+
+  Nothing is sent through a template yet. This lays the groundwork for sending one approved message to a whole segment.
+
+- 9e80684: Opening an outreach unsubscribe link no longer unsubscribes anyone by itself. It now shows a confirmation page, and the unsubscribe happens when the recipient presses the button.
+
+  Before this change, `GET /v1/outreach/unsubscribe?token=…` unsubscribed the contact on the spot and answered with raw JSON. Corporate mail security scanners open every link in an incoming email before the recipient sees it, so a scanner could unsubscribe a contact who never clicked anything. The same URL now behaves like this:
+
+  - `GET` renders a small confirmation page in English or Norwegian (picked from `Accept-Language`) that names the organization and changes nothing. A tampered or missing token gets a 400 page that tells the recipient to reply and ask to be removed instead.
+  - `POST` performs the unsubscribe and is idempotent. It takes the token from the query string, or from a `token` field in the body. A browser posting the confirmation form gets a page back; any other caller gets `{ ok, alreadyUnsubscribed, contactFound }`. The CRM activity it logs now records whether the request came from the page or from a mail client's one-click button.
+
+  Outreach first-touch emails now carry RFC 8058 one-click unsubscribe headers (`List-Unsubscribe` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click`) pointing at the same URL whenever the campaign requires unsubscribe, so Gmail, Yahoo and Outlook can show their built-in unsubscribe button. They require these headers from bulk senders. The headers are only added when the API base URL is `https`, because the RFC requires an https target. A deployment served over plain http gets the footer link only.
+
+  Unsubscribe tokens no longer expire. They were rejected two years after they were issued, so an old email's opt-out link stopped working. `verifyUnsubscribeToken` still takes an explicit `maxAgeSeconds` for callers that want a limit. Rotating `MUNIN_KEY_PEPPER` still invalidates every unsubscribe link already sent; the page then tells the recipient to reply and ask to be removed.
+
+- 36a0190: Keep chat-widget conversations that no one wrote in out of the inbox and out of Slack. Opening the widget starts a conversation and the agent greets straight away, so every visitor who closed the panel without asking anything used to leave an open conversation in the inbox, a Slack thread, and a "resolved" reply in that thread when auto-close reached it two days later.
+
+  A new `conv_conversations.unengaged` flag marks a conversation the widget opened. It clears on the first visitor message, when a voice call starts in the widget, or when a teammate writes in the conversation. While it is set:
+
+  - the conversation is left out of `conv_list_conversations`, the inbox queue and its counts, the usage tile, the first-run setup state and the identity profile's conversation count;
+  - the Slack bridge records its deliveries but holds them back. They are released when the flag clears, so the thread then appears with the full history, greeting included, in the original order;
+  - auto-close skips it.
+
+  A new hourly sweep deletes unengaged conversations after 24 hours without activity. It skips any conversation that still has attachment rows; the attachment GC removes those uploads first, and a later sweep deletes the conversation. A visitor who comes back to a swept session gets a new conversation when they write. Configure it with `MUNIN_CONV_UNENGAGED_CLEANUP_CRON` (`off` disables it) and `MUNIN_CONV_UNENGAGED_IDLE_HOURS`. The sweep shares `MUNIN_CONV_AUTO_CLOSE_DISABLED` with auto-close.
+
+  Migration `0120_conv_unengaged_conversations` adds the column and a partial index. It also flags existing widget-opened conversations that hold no visitor or teammate message, so the first sweep clears the backlog. Slack threads already posted for those conversations stay in Slack.
+
+### Patch Changes
+
+- a481097: Demoting an owner or admin to member now revokes the `mn_admin_*` API keys they created, the same way removing them from the organization already did. A revoked key stays dead if the person is promoted again.
+
+  Admin keys also stop resolving as soon as the person who created them is no longer an owner or admin, even if the key was never revoked. This covers keys left over from demotions made before this change: they could still call admin MCP tools and the `/v1` export and import routes.
+
+- 47c7301: An email the agent sends without a person approving it now only embeds images hosted by the deployment itself.
+
+  A markdown image in an outbound reply used to become an `<img>` for any `https` URL. The recipient's mail client loads images on open, so an auto-reply could carry data to any host named in an image URL — for instance when a forged message asks the agent to put the customer's order details into one. The email adapter now decides per message:
+
+  - **Written or approved by a person** — a teammate's reply, a draft a teammate sent from the dashboard (both stored with `authorType: 'user'`), or an outreach proposal a person approved: images from any absolute `https` host render as before.
+  - **Everything else**, including auto-replies, handover fallback messages and replies an API key sends from a draft: only images from the API base URL and the asset storage's public origin render, plus `cid:` attachments. Any other image is reduced to its alt text.
+
+  Quoted history always uses the restricted rule, so a teammate's reply can't re-send an image from an earlier auto-reply. Relative and protocol-relative image URLs no longer render in any email. Links are unchanged, and images customers send in are unaffected — they are stored as attachments, not rendered from markdown.
+
+  Outreach sends now stamp the message with `metadata.approvedOutreachProposalId`, which is how the adapter recognises them. `renderEmailHtml` takes `{ body, quoted }` options; each accepts `{ imageOrigins }`, and leaving `imageOrigins` out allows any absolute `https` image.
+
+- e29ed5c: Stop returning raw internal errors from MCP tools, and take the at-rest encryption key out of SQL parameters.
+
+  A tool that failed on a database or runtime error used to hand the caller the error's own message. For a failed query that message is drizzle's `Failed query: … params: …`, so the SQL and every bound parameter reached the calling agent (end-user agents included), the audit log, stored job and delivery errors, and the server log. Until now the at-rest encryption key was itself a bound parameter: every request transaction ran `set_config('app.crypt_key', $1, true)`.
+
+  **The encryption key travels once per connection, never with a query**
+
+  - `createDb` sends `MUNIN_ENCRYPTION_KEY` as the `app.crypt_key` startup parameter when it opens each pooled connection. It reads the key when the pool is created, or takes it from the new `encryptionKey` option. `current_setting('app.crypt_key')` works for the whole session, including for the non-superuser `munin_app` role, and survives `RESET ALL` and `DISCARD ALL`.
+  - The per-transaction `set_config('app.crypt_key', …)` is gone from the tenancy interceptor, the agent-host service context and every decrypt/encrypt helper. No statement carries the key any more, so it cannot appear in a failed query's text, its parameters or `pg_stat_activity`.
+  - `setEncryptionKeySql` is removed from `@getmunin/core`. A pool created through `createDb` already has the key, so drop any call to it. Code that opens its own `postgres` client needs to pass `app.crypt_key` as a connection parameter.
+  - Set `MUNIN_ENCRYPTION_KEY` before the database pool is created. Changing it now takes a process restart, since existing connections keep the key they opened with.
+  - A pooler that multiplexes transactions across server connections (PgBouncer in transaction mode) does not forward custom startup parameters, and it already did not forward `app.bypass_rls`. Connect the backend to Postgres directly, or use session pooling.
+
+  **Internal errors stay on the server**
+
+  - MCP tools now return `internal_error: … quote ref <correlationId>` for database errors, socket errors, built-in runtime errors (`TypeError`, `RangeError`, …), thrown non-errors, and any message that embeds a failed query. The audit row records `internal_error[<ErrorClass>:<SQLSTATE>] ref <correlationId>`. The full error is logged on the server under the same ref and passed to the error reporter with a `ref` field.
+  - Deliberate errors keep their message unchanged, so agents still get the `<code>: …` prefix they act on. That covers Nest `HttpException`s, the modules' own error classes, and plain `Error`s thrown with a coded message. Rate-limit and quota failures follow the same rule.
+  - `/v1` audit rows use the same rule.
+  - Stored error text has `params: …` replaced with `params: [redacted]` before it is written. That covers `audit_log.error`, `curator_jobs.last_error`, outreach `failure_reason`, social post and account `last_error`, alert details, and alert-notification and widget-fallback errors. Channel test results returned to admins are redacted the same way.
+  - `createApp` installs a console logger that redacts `params: …` in logged messages and stacks and keeps the SQL text; pass your own `logger` to opt out. The direct `console.*` calls in core, backend-core, mcp-toolkit and the agent runtime now log through `describeError`, which redacts. A test fails the build if one logs a raw error object or `err.message` again.
+  - `@getmunin/core` exports `isInternalError`, `internalErrorKind`, `auditErrorText`, `errorMessage`, `errorClassName`, `sqlStateOf`, `redactQueryParams`, `redactQueryParamsDeep` and `redactLogValue`. It also has a dependency-free `@getmunin/core/errors` entry point for code that loads before the rest of the app, such as an error-reporter init.
+
+- 76f98ce: Cap how many pixels an uploaded image may decode to, and how much a public analytics beacon may store.
+
+  A small, highly compressed PNG can decode to hundreds of megapixels, so an anonymous widget upload or an inbound email could make the server allocate gigabytes. Images over 8192×8192 pixels (about 67 megapixels, comfortably above a 50-megapixel phone photo) are now handled without being decoded:
+
+  - Widget and dashboard attachment uploads are rejected with `conv_attachment_too_many_pixels`, translated in the dashboard. An uploaded object is purged, and `storeBytes` refuses before writing.
+  - Inbound email images are dropped with the reason `too_many_pixels`.
+  - CMS assets keep the upload but get no variants; the variant worker settles them as undecodable.
+  - Social media transcoding reports the image as undecodable.
+
+  Dimensions are read from the image header without decoding it, and every decoding `sharp` call also sets `limitInputPixels` as a backstop.
+
+  Analytics beacons (`POST /v1/a/t` and `POST /v1/a/v`) used to accept up to 4 MB of `metadata` per event through the public tracker key. Metadata that serializes to more than 4 KB is now dropped and the view is still recorded, the same way over-long fields are truncated rather than losing the event. Request bodies under `/v1/a` are capped at 64 KB, which is what `navigator.sendBeacon` can send anyway; larger bodies get a 413.
+
+- 773fa18: Imports and CMS entry writes now refuse ids that belong to another organization.
+
+  **Imports.** `conv_import`, `crm_import`, `outreach_import`, `analytics_import` and `cms_import`, plus their `/v1` transfer endpoints, used every id in a caller-supplied `idMap` as-is. A foreign key only proves the row exists, not that it belongs to the caller's organization, and row-level security checks the new row's own `org_id`, not the rows it references. That let an import attach records to another org's data: messages to its conversation, activities and deals to its contacts and pipelines, proposals to its contacts, analytics identities to its end users. The widget email-fallback worker then emailed such a planted message to the other org's customer.
+
+  Before writing, each import now does one batched lookup per reference kind. Every target that came from the caller's `idMap` and wasn't remapped by the import itself must exist in the caller's organization. Otherwise the whole import is refused with `<module>_import_invalid`, and the message names the offending idMap key. `kb_import` already resolved its parent space through a row-level-security-scoped lookup and is unchanged.
+
+  **CMS entries.** `cms_create_entry`, `cms_update_entry` (and the dashboard draft editor that uses it), `cms_restore_version` and `cms_import` used to accept any string in an `asset` or `reference` field, in an array of either, inside blocks, and in an inline `ref://` token. Now every asset or entry id a write introduces must exist in the caller's organization, checked with one batched lookup per write. Otherwise the write is refused with `cms_invalid_reference: field "<name>" points at <asset|entry> <id>, which does not exist in this organization`, with a matching `fieldErrors` entry. The dashboard shows a translated message for it (`errors.cms_invalid_reference`, en and nb).
+
+  - Ids already stored on the entry aren't re-checked, so an entry whose own reference was later deleted still saves.
+  - Inline `asset://` tokens keep their existing check.
+  - `cms_import` drops an `asset`/`reference` field value that is neither part of the import nor in the target organization, with a warning naming the entry, field and id. Before, the source id was stored and resolved to nothing. An unresolvable inline `ref://` token is left in place, with a warning.
+
+  No foreign data was exposed by planted CMS ids. Delivery, `cms_get_entry`/`cms_search_entries` expansion and asset-reference tracking already looked assets and entries up within the entry's own organization, so a foreign id resolved to `null`.
+
+  - Entry-reference tracking (`cms_references`) still recorded the cross-org link. It now records only references to entries in the same organization, as asset-reference tracking already did.
+  - This also fixes a 500 when saving an entry whose referenced entry had been deleted: the tracking insert used to hit the foreign key.
+
+  **Defense in depth:**
+
+  - The widget email-fallback worker only selects, quotes and counts messages whose `org_id` matches the conversation's.
+  - `loadPriorMessagesForQuote` now takes an `orgId`, so the email adapter's quoted history is filtered the same way.
+  - The outreach scheduled-send worker now sends each proposal in an RLS-scoped transaction for that proposal's organization, instead of with RLS bypassed. A proposal that references another org's contact can no longer be delivered.
+
+  **Audit log.** `analytics_import` marks a tracker's `identityVerificationSecret` input as sensitive, so a plaintext secret passed to it is redacted in the audit log. The import never stored it.
+
+- 47c7301: A dashboard session can no longer reach `/mcp` by changing the case of the path.
+
+  `/mcp` refuses session cookies so that a signed-in dashboard user can't use the MCP surface, which is restricted to owners and admins, without going through OAuth. That check compared the path case-sensitively, but Express matched routes case-insensitively, so a request to `/MCP` reached the MCP controller with the cookie accepted. A session carries every scope, and it carried the `admin` audience whatever the user's role, so a `member` could call every admin tool this way.
+
+  Three changes close it:
+
+  - `createApp` now builds its Express instance with case-sensitive routing, so `/MCP` is a 404 and every path-prefix check sees the same path the router dispatches on. A deployment that addressed a route with different casing from its declaration will now get a 404 for it.
+  - The auth guard's MCP check ignores case as well, for apps that build their Express instance some other way.
+  - A session only carries the `admin` audience when the user is an owner or admin of the org it resolved to. Control-plane routes never read the audience for sessions, so the dashboard is unaffected.
+
+- 76f98ce: Refuse to boot in production without a real API-key pepper and encryption key.
+
+  `createApp` now checks `MUNIN_KEY_PEPPER` and `MUNIN_ENCRYPTION_KEY` when `NODE_ENV=production`, the way `MUNIN_AUTH_SECRET` was already checked. Startup fails when either is missing, shorter than 16 characters, or looks like a placeholder or dev value (the same patterns the auth secret check uses, including the `.env.example` defaults). An empty pepper used to fall back to `''` silently, which let anyone sign preview, attachment, unsubscribe, email-open and voice-call tokens; `hashSecret` now throws in production when no pepper is set.
+
+  The minimum is 16 characters rather than the auth secret's 32 because neither value can be rotated cheaply: a new pepper invalidates every API key, widget key and signed link, and a new encryption key makes stored channel, connector and LLM secrets unreadable. The error message says so, so an operator sets the existing value instead of generating a new one.
+
+  The Docker image is unaffected: its entrypoint already generates and persists both values when they are unset or left at their placeholders.
+
+  New exports from `@getmunin/core`: `assertProductionKeySecrets`, `assertProductionSecret`, `isPlaceholderSecret`, `readKeyPepper` and `MIN_PRODUCTION_KEY_LENGTH`.
+
+- fcc6699: The support agent's own replies no longer resolve a pending handover. Before, only the turn that raised the handover kept the flag up; when the customer wrote again ("should I stay in the chat?") the agent's next reply cleared `needsHumanAttention`, emitted `conversation.handover_resolved` (shown in Slack as "Handover resolved — a human replied"), dropped the conversation from the needs-you queue, and queued a knowledge-base gap-curation pass that treated the agent's holding reply as a teammate's answer.
+
+  Both runner REST clients (`createMuninRestClient` and the in-process client) now always send runner replies with `preserveAttention: true`, and `postAgentMessage` no longer takes a `preserveAttention` option. A handover is resolved by a teammate replying, an operator's agent replying through `conv_send_message` or the control plane, or by closing the conversation.
+
+- 47c7301: On an email conversation, a forged or forwarded message can no longer read the customer's orders, bookings or CRM contact.
+
+  The self-service booking writes already refused when the latest customer message failed DMARC for its `From` address or was forwarded. Reads were left open on the reasoning that the reply goes to the real owner of the address. That reasoning breaks once the reply can carry data elsewhere: a forged message could ask the agent to put the answer into an image URL, which the recipient's mail client then fetches.
+
+  - `commerce_list_my_orders`, `commerce_get_my_order`, `bookings_list_my_bookings` and `bookings_get_my_booking` now refuse with `connectors_sender_auth_failed` / `connectors_sender_forwarded` under the same conditions as the writes.
+  - `crm_get_my_contact` and `crm_update_my_contact` refuse with `crm_sender_auth_failed` / `crm_sender_forwarded`.
+  - `ConnectorsService.requireEndUserEmailForWrite` and `optionalEndUserEmailForWrite` are gone, since reads and writes now share one check: use `requireEndUserEmail` and `optionalEndUserEmail`.
+
+  Messages with no DMARC result are treated as before.
+
+- a481097: A stored connector secret, mail password or LLM provider key is no longer sent to a host it was not entered for. Before, an update that changed a connection's address kept the stored secret, so the next call sent it to the new host. That turned "agents never see credentials" into two tool calls for a prompt-injected agent.
+
+  - `connectors_update_connection` and `PATCH /v1/connectors/:id` refuse a change that moves a connection to a different origin unless the secret is supplied in the same change. The error is `connectors_secret_required`. This covers a custom MCP `url`, Magento and Gastroplanner `baseUrl`, and Shopify `shopDomain`. Adapters mark these fields with the new `endpoint` flag on `ConnectorConfigFieldInfo`, which `/v1/connectors/vendors` now returns. A different path or letter case on the same origin keeps the secret.
+  - `conv_configure_email_channel` refuses a changed SMTP or IMAP `host` unless that transport's password comes with the change. The error is `conv_secret_required`.
+  - `PUT /v1/agent-config` refuses a `providerBaseUrl` on a different origin when an org key is stored and no new `providerApiKey` comes with it. The error is `agent_config_key_required`. The check runs before the key is decrypted, so neither the credential probe nor the model list ever reaches the new host. A path change on the same origin keeps the key, and an org with no stored key, or one clearing its key in the same change, can change the URL freely. Before, switching provider presets re-sent the old key to the new provider to validate it.
+  - The dashboard asks for the secret again once the address changes: in the connector dialog, the email channel dialog, and the AI provider card on the setup wizard and AI settings page. All three error codes have English and Norwegian messages.
+
+  The agent path is unchanged in one respect: secrets are still rejected there. An agent moves a connection by deleting it and creating it again, which returns a fresh credential link, or leaves the change to a person in the dashboard.
+
+  `ResolvedProviderAuth` is now a union: a `managed: true` result must carry its own `baseUrl`. The runner no longer falls back to the org's `providerBaseUrl` for a managed key. If a host's `resolveProviderAuth` returns a managed key without a base URL, the runner logs an error and does not start, instead of sending a deployment-supplied key to an address the tenant chose. **Hosts that pass `resolveProviderAuth`** must include `baseUrl` on every managed result. TypeScript callers get a compile error until they do.
+
+- fdc79d3: The widget email fallback no longer emails a visitor because of a system message. A voice call that ended in the widget adds a "Call ended" line to the conversation, and a visitor who closed the tab before it rendered got that line emailed to them ten minutes later, with the call transcript quoted under it, although nobody had written to them. Only unread replies from a person or the AI agent now count as something to email about. System messages still appear in the quoted history when a real reply triggers the email.
+- 2e47422: fix(widget): keep a signed-in visitor's chats away from the next person on the same browser, and refuse widget keys on `/mcp`
+
+  A widget session that a signed-in user has used now belongs to that user everywhere, not only on attachment uploads and `PATCH /v1/widget/visitor`. An anonymous caller, or one verified as a different `externalId`, gets an empty `GET /v1/widget/messages`, does not see the session in `GET /v1/widget/conversations`, receives none of its realtime events or typing indicators, and gets `403 conversation_identity_mismatch` from `POST /v1/widget/messages` and `POST /v1/widget/conversations`. Previously the reads and the realtime socket only checked ownership for verified callers, so after a sign-out on a shared browser the next anonymous visitor reused the stored session id and saw the previous user's conversation. All paths now share one ownership check.
+
+  Anonymous widget traffic can no longer attach itself to a signed-in contact: an anonymous visitor who types an email a signed-in contact already uses gets a contact of its own, and an `externalId` placed in `visitor.metadata` is dropped instead of being stored as an identity claim. A new anonymous visitor whose email another end user already holds no longer fails with a 500; the email is left off their record, as it already was for returning visitors.
+
+  The chat widget records which user its stored session belongs to. A page that loads without `data-external-id` after a signed-in user, or an `identify` call with a different `externalId`, starts a fresh session with no history. `window.mn.widget.logout()` does the same on demand for sign-outs that don't reload the page. If the server reports that a session belongs to someone else, the widget moves to a new session and resends.
+
+  `mn_widget_*` keys are refused on `/mcp` with `403 mcp_widget_key_rejected`, before the per-org burst limiter and daily quota run. No MCP tool accepts the widget's only scope, so the key had no use there, but every call it made counted against the organization's MCP limits and let anyone holding a site's public key throttle its admin clients.
+
+- Updated dependencies [a481097]
+- Updated dependencies [0a40a23]
+- Updated dependencies [e29ed5c]
+- Updated dependencies [47c7301]
+- Updated dependencies [9e80684]
+- Updated dependencies [9e80684]
+- Updated dependencies [9e80684]
+- Updated dependencies [76f98ce]
+- Updated dependencies [fcc6699]
+- Updated dependencies [36a0190]
+  - @getmunin/core@5.47.0
+  - @getmunin/agent-runtime@5.47.0
+  - @getmunin/db@5.47.0
+  - @getmunin/mcp-toolkit@5.47.0
+  - @getmunin/types@5.47.0
+  - @getmunin/inspector-app@5.47.0
+  - @getmunin/emails@5.47.0
+
 ## 5.46.0
 
 ### Minor Changes

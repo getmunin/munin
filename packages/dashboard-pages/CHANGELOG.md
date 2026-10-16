@@ -1,5 +1,80 @@
 # @getmunin/dashboard-pages
 
+## 5.47.0
+
+### Minor Changes
+
+- 9e80684: Outreach can now send one approved email to a whole CRM segment — a broadcast — with an unsubscribe link and one-click unsubscribe headers on every message.
+
+  A broadcast is drafted by an agent or a teammate and sent only after a signed-in person approves it; agents and API keys cannot approve one. While it is pending, the broadcast reports its audience live: how many contacts in the segment will receive it, and how many are excluded because they unsubscribed, are marked do-not-contact, have no recorded lawful basis, have no usable email address, bounced before, or share an address with another contact. It also carries the email rendered for a sample recipient through the chosen email template (or the org default, or a plain built-in layout), and a `contentFingerprint`. Approval is bound to that fingerprint, which covers the rendered email and the audience size, so a broadcast whose content, template or audience changed after it was reviewed is refused with `outreach_broadcast_changed` instead of being sent.
+
+  Approving freezes the recipient list and the rendered email. A background worker then sends at a throttled rate — `MUNIN_OUTREACH_BROADCAST_MAX_PER_MINUTE` per channel (default 60), plus an optional per-broadcast hourly cap — starting at the scheduled time. Just before each email goes out it re-checks that person, and skips anyone who unsubscribed, was blocked, lost their lawful basis or became undeliverable since approval. Failed sends are retried up to three times; a send interrupted mid-batch is marked failed rather than repeated, so nobody gets the message twice. `MUNIN_OUTREACH_BROADCAST_MAX_AUDIENCE` (default 50,000) caps a single broadcast, and `MUNIN_OUTREACH_BROADCAST_WORKER_DISABLED` turns the worker off.
+
+  Recipients who don't reply never appear in the inbox. A reply — matched by its `In-Reply-To`/`References` headers, or by a plus-addressed reply address when `MUNIN_EMAIL_REPLY_DOMAIN` is set — opens a conversation linked to the broadcast (`conv_conversations.outreach_broadcast_id`), with the broadcast the person received placed at the top, dated when it was sent. Auto-replies and bounces don't count as replies, and a copy of the broadcast that loops back into the org's own inbox is ignored.
+
+  New admin tools, with matching endpoints under `/v1/outreach/broadcasts`: `outreach_create_broadcast`, `outreach_update_broadcast`, `outreach_get_broadcast`, `outreach_list_broadcasts`, `outreach_list_broadcast_recipients`, `outreach_send_broadcast_test` (to members of the organization only), `outreach_approve_broadcast` (callable only from the Munin panel by MCP Apps hosts), `outreach_dismiss_broadcast` and `outreach_cancel_broadcast`. Broadcasts report `counts` of queued, sent, skipped, failed, replied, unsubscribed and bounced recipients. New webhook events: `outreach.broadcast.created`, `.approved`, `.started`, `.dismissed`, `.canceled` and `.completed`.
+
+  In the dashboard, pending broadcasts appear in the Review queue next to proposals and drafts. The review pane shows who the broadcast reaches and why others are excluded, the email exactly as the first recipient will see it (desktop, mobile and plain-text views, rendered in a sandboxed frame with scripts disabled), a choice of when sending starts, and a "Send me a test" button. If the broadcast changed after the pane was opened, approving is refused and the pane offers the latest version. Once approved, a broadcast waits in the Scheduled tab — with when it starts, how many people it goes to and the email as it will go out — until the worker starts sending. Calling it off there sends nothing and puts it back in the review queue with the reason attached: its frozen recipient list is dropped, and it can be edited and must be approved again, the same as a scheduled outreach email. From then on it is in the Decided tab, which shows a delivery bar (sent, waiting, skipped, failed out of the approved audience), replies, unsubscribes and bounces as a share of what was sent, when it started and finished, and the email as it went out; the numbers refresh while it is still sending, and it can be stopped from there: everyone not yet sent to is skipped, and what already went out stays sent. Per-recipient delivery status is available to agents through `outreach_list_broadcast_recipients`; there is no separate broadcasts page. In MCP Apps hosts, `outreach_get_broadcast` opens the Munin panel with the same preview and approve/dismiss buttons.
+
+  Unsubscribing from a broadcast link is attributed to that broadcast. Email templates that a broadcast uses can no longer be deleted out from under it. New skills: `skill://outreach/send-broadcast` and `skill://outreach/draft-changelog-broadcast`.
+
+  Migration `0119_outreach_broadcasts` adds `outreach_broadcasts` and `outreach_broadcast_recipients`, with tenant isolation policies, and the nullable `conv_conversations.outreach_broadcast_id` column.
+
+### Patch Changes
+
+- 76f98ce: Cap how many pixels an uploaded image may decode to, and how much a public analytics beacon may store.
+
+  A small, highly compressed PNG can decode to hundreds of megapixels, so an anonymous widget upload or an inbound email could make the server allocate gigabytes. Images over 8192×8192 pixels (about 67 megapixels, comfortably above a 50-megapixel phone photo) are now handled without being decoded:
+
+  - Widget and dashboard attachment uploads are rejected with `conv_attachment_too_many_pixels`, translated in the dashboard. An uploaded object is purged, and `storeBytes` refuses before writing.
+  - Inbound email images are dropped with the reason `too_many_pixels`.
+  - CMS assets keep the upload but get no variants; the variant worker settles them as undecodable.
+  - Social media transcoding reports the image as undecodable.
+
+  Dimensions are read from the image header without decoding it, and every decoding `sharp` call also sets `limitInputPixels` as a backstop.
+
+  Analytics beacons (`POST /v1/a/t` and `POST /v1/a/v`) used to accept up to 4 MB of `metadata` per event through the public tracker key. Metadata that serializes to more than 4 KB is now dropped and the view is still recorded, the same way over-long fields are truncated rather than losing the event. Request bodies under `/v1/a` are capped at 64 KB, which is what `navigator.sendBeacon` can send anyway; larger bodies get a 413.
+
+- 773fa18: Imports and CMS entry writes now refuse ids that belong to another organization.
+
+  **Imports.** `conv_import`, `crm_import`, `outreach_import`, `analytics_import` and `cms_import`, plus their `/v1` transfer endpoints, used every id in a caller-supplied `idMap` as-is. A foreign key only proves the row exists, not that it belongs to the caller's organization, and row-level security checks the new row's own `org_id`, not the rows it references. That let an import attach records to another org's data: messages to its conversation, activities and deals to its contacts and pipelines, proposals to its contacts, analytics identities to its end users. The widget email-fallback worker then emailed such a planted message to the other org's customer.
+
+  Before writing, each import now does one batched lookup per reference kind. Every target that came from the caller's `idMap` and wasn't remapped by the import itself must exist in the caller's organization. Otherwise the whole import is refused with `<module>_import_invalid`, and the message names the offending idMap key. `kb_import` already resolved its parent space through a row-level-security-scoped lookup and is unchanged.
+
+  **CMS entries.** `cms_create_entry`, `cms_update_entry` (and the dashboard draft editor that uses it), `cms_restore_version` and `cms_import` used to accept any string in an `asset` or `reference` field, in an array of either, inside blocks, and in an inline `ref://` token. Now every asset or entry id a write introduces must exist in the caller's organization, checked with one batched lookup per write. Otherwise the write is refused with `cms_invalid_reference: field "<name>" points at <asset|entry> <id>, which does not exist in this organization`, with a matching `fieldErrors` entry. The dashboard shows a translated message for it (`errors.cms_invalid_reference`, en and nb).
+
+  - Ids already stored on the entry aren't re-checked, so an entry whose own reference was later deleted still saves.
+  - Inline `asset://` tokens keep their existing check.
+  - `cms_import` drops an `asset`/`reference` field value that is neither part of the import nor in the target organization, with a warning naming the entry, field and id. Before, the source id was stored and resolved to nothing. An unresolvable inline `ref://` token is left in place, with a warning.
+
+  No foreign data was exposed by planted CMS ids. Delivery, `cms_get_entry`/`cms_search_entries` expansion and asset-reference tracking already looked assets and entries up within the entry's own organization, so a foreign id resolved to `null`.
+
+  - Entry-reference tracking (`cms_references`) still recorded the cross-org link. It now records only references to entries in the same organization, as asset-reference tracking already did.
+  - This also fixes a 500 when saving an entry whose referenced entry had been deleted: the tracking insert used to hit the foreign key.
+
+  **Defense in depth:**
+
+  - The widget email-fallback worker only selects, quotes and counts messages whose `org_id` matches the conversation's.
+  - `loadPriorMessagesForQuote` now takes an `orgId`, so the email adapter's quoted history is filtered the same way.
+  - The outreach scheduled-send worker now sends each proposal in an RLS-scoped transaction for that proposal's organization, instead of with RLS bypassed. A proposal that references another org's contact can no longer be delivered.
+
+  **Audit log.** `analytics_import` marks a tracker's `identityVerificationSecret` input as sensitive, so a plaintext secret passed to it is redacted in the audit log. The import never stored it.
+
+- a481097: A stored connector secret, mail password or LLM provider key is no longer sent to a host it was not entered for. Before, an update that changed a connection's address kept the stored secret, so the next call sent it to the new host. That turned "agents never see credentials" into two tool calls for a prompt-injected agent.
+
+  - `connectors_update_connection` and `PATCH /v1/connectors/:id` refuse a change that moves a connection to a different origin unless the secret is supplied in the same change. The error is `connectors_secret_required`. This covers a custom MCP `url`, Magento and Gastroplanner `baseUrl`, and Shopify `shopDomain`. Adapters mark these fields with the new `endpoint` flag on `ConnectorConfigFieldInfo`, which `/v1/connectors/vendors` now returns. A different path or letter case on the same origin keeps the secret.
+  - `conv_configure_email_channel` refuses a changed SMTP or IMAP `host` unless that transport's password comes with the change. The error is `conv_secret_required`.
+  - `PUT /v1/agent-config` refuses a `providerBaseUrl` on a different origin when an org key is stored and no new `providerApiKey` comes with it. The error is `agent_config_key_required`. The check runs before the key is decrypted, so neither the credential probe nor the model list ever reaches the new host. A path change on the same origin keeps the key, and an org with no stored key, or one clearing its key in the same change, can change the URL freely. Before, switching provider presets re-sent the old key to the new provider to validate it.
+  - The dashboard asks for the secret again once the address changes: in the connector dialog, the email channel dialog, and the AI provider card on the setup wizard and AI settings page. All three error codes have English and Norwegian messages.
+
+  The agent path is unchanged in one respect: secrets are still rejected there. An agent moves a connection by deleting it and creating it again, which returns a fresh credential link, or leaves the change to a person in the dashboard.
+
+  `ResolvedProviderAuth` is now a union: a `managed: true` result must carry its own `baseUrl`. The runner no longer falls back to the org's `providerBaseUrl` for a managed key. If a host's `resolveProviderAuth` returns a managed key without a base URL, the runner logs an error and does not start, instead of sending a deployment-supplied key to an address the tenant chose. **Hosts that pass `resolveProviderAuth`** must include `baseUrl` on every managed result. TypeScript callers get a compile error until they do.
+
+- Updated dependencies [9e80684]
+  - @getmunin/types@5.47.0
+  - @getmunin/ui@5.47.0
+
 ## 5.46.0
 
 ### Minor Changes

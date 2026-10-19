@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -25,6 +26,8 @@ import {
 import { findOrCreateEndUserByEmail } from '../end-user-by-email.ts';
 import { parseStoredConfig, tryParseStoredConfig } from '../channels/stored-config.ts';
 import { requireChosenAgentMode } from '../channels/agent-mode-choice.ts';
+import { MAILER } from '../../../common/mail/mail.module.ts';
+import { channelSender, ORG_FROM_DOMAINS_ENV, type MailerIdentity } from './shared-sender.ts';
 
 export { EmailChannelConfigInput };
 export type { EmailChannelConfigInputT };
@@ -65,6 +68,22 @@ export interface EmailChannelConfigDto {
         allowedForwarders?: string[];
       };
   sendLimits?: SendLimits;
+}
+
+export interface EffectiveSenderDto {
+  from: string;
+  usesDeploymentSender: boolean;
+  note?: string;
+}
+
+export interface EmailChannelResult {
+  id: string;
+  name: string;
+  type: 'email';
+  active: boolean;
+  config: EmailChannelConfigDto;
+  effectiveSender: EffectiveSenderDto;
+  defaultAgentMode: AgentMode;
 }
 
 const StoredSmtpOutboundSchema = z.object({
@@ -155,6 +174,20 @@ function sameMailHost(a: string, b: string): boolean {
 
 @Injectable()
 export class EmailService {
+  constructor(@Inject(MAILER) private readonly mailer: MailerIdentity) {}
+
+  effectiveSender(stored: StoredEmailChannelConfig): EffectiveSenderDto {
+    const sender = channelSender(stored, this.mailer.from);
+    if (!sender.usesDeploymentSender) {
+      return { from: sender.from, usesDeploymentSender: false };
+    }
+    return {
+      from: sender.from,
+      usesDeploymentSender: true,
+      note: `${stored.addressing.fromAddress} is not on a domain this deployment lets organizations send from through its shared mailer (${ORG_FROM_DOMAINS_ENV}), so mail goes out from ${sender.address} with your channel name as the sender name and ${stored.addressing.fromAddress} as the Reply-To. To send as ${stored.addressing.fromAddress} itself, use your own SMTP server (outbound.provider 'smtp').`,
+    };
+  }
+
   async toStored(input: EmailChannelConfigInputT): Promise<StoredEmailChannelConfig> {
     if (input.outbound.provider === 'smtp') {
       await assertReachableMailHost('SMTP', input.outbound.host);
@@ -345,14 +378,7 @@ export class EmailService {
       defaultAgentMode?: AgentMode;
     },
     opts?: { rejectSecrets?: boolean },
-  ): Promise<{
-    id: string;
-    name: string;
-    type: 'email';
-    active: boolean;
-    config: EmailChannelConfigDto;
-    defaultAgentMode: AgentMode;
-  }> {
+  ): Promise<EmailChannelResult> {
     if (input.channelId) {
       return this.updateChannel(
         {
@@ -381,14 +407,7 @@ export class EmailService {
       defaultAgentMode?: AgentMode;
     },
     opts?: { rejectSecrets?: boolean },
-  ): Promise<{
-    id: string;
-    name: string;
-    type: 'email';
-    active: boolean;
-    config: EmailChannelConfigDto;
-    defaultAgentMode: AgentMode;
-  }> {
+  ): Promise<EmailChannelResult> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     if (opts?.rejectSecrets) assertNoSecrets(input.config);
@@ -414,6 +433,7 @@ export class EmailService {
       type: 'email',
       active: row!.active,
       config: this.toDto(stored),
+      effectiveSender: this.effectiveSender(stored),
       defaultAgentMode: row!.defaultAgentMode as AgentMode,
     };
   }
@@ -426,14 +446,7 @@ export class EmailService {
       defaultAgentMode?: AgentMode;
     },
     opts?: { rejectSecrets?: boolean },
-  ): Promise<{
-    id: string;
-    name: string;
-    type: 'email';
-    active: boolean;
-    config: EmailChannelConfigDto;
-    defaultAgentMode: AgentMode;
-  }> {
+  ): Promise<EmailChannelResult> {
     const ctx = getCurrentContext();
     if (opts?.rejectSecrets) assertNoSecrets(input.config);
     const existing = await ctx.db
@@ -471,6 +484,7 @@ export class EmailService {
       type: 'email',
       active: row!.active,
       config: this.toDto(merged),
+      effectiveSender: this.effectiveSender(merged),
       defaultAgentMode: row!.defaultAgentMode as AgentMode,
     };
   }

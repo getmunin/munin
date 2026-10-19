@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import {
   ActorIdentity,
+  StubMailer,
   WebhookDispatcher,
   withContext,
   type RequestContext,
@@ -83,7 +84,7 @@ const skipReason = TEST_URL
       new AlertsService(dispatcher),
       stubAttachmentGateway(),
     );
-    const email = new EmailService();
+    const email = new EmailService(new StubMailer());
     const vapiCaller = new VapiOutreachCaller(new VapiClientService(db));
     const threllCaller = new ThrellOutreachCaller(new ThrellClientService(db));
     svc = new OutreachService(

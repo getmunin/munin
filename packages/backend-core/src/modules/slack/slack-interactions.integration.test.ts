@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll, afterEach } from 'vitest';
 import { and, eq, sql } from 'drizzle-orm';
-import { StubEmbeddingProvider, WebhookDispatcher } from '@getmunin/core';
+import { StubEmbeddingProvider, StubMailer, WebhookDispatcher } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { ConvService } from '../conv/conv.service.ts';
 import { ConversationClaimsService } from '../conv/conv.claims.service.ts';
@@ -200,7 +200,7 @@ class FakeSlackApi extends SlackApiClient {
       dispatcher,
       conv,
       crm,
-      new EmailService(),
+      new EmailService(new StubMailer()),
       [new VapiOutreachCaller(new VapiClientService(db))],
       db,
       new CuratorJobsService(dispatcher),

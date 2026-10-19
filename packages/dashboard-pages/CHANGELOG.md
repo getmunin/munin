@@ -1,5 +1,28 @@
 # @getmunin/dashboard-pages
 
+## 5.48.0
+
+### Patch Changes
+
+- f9f30fc: fix(auth): stop trusting GitHub for email-based account linking, and show where an OAuth client sends you before you consent
+
+  Signing in with GitHub no longer attaches the GitHub account to an existing Munin user unless GitHub reports the email as verified. GitHub was on the account-linking trusted list, which skips the check on whether the provider verified the email, so anyone could add another person's address to a GitHub account without confirming it and then sign in to that person's Munin account. Google stays trusted, since it only returns addresses it has verified. GitHub users whose primary email is verified are linked exactly as before.
+
+  The OAuth consent screen now shows the host the authorization code will be sent to ("You'll be sent back to …") next to the client's name, before you approve, instead of only after. That host is read from the signed authorization request, so it is the address actually used.
+
+  Client registration is open to anyone, so a client can call itself anything. When a client's name claims a well-known product (Claude, ChatGPT, Cursor, Grok or Copilot, or the vendor behind it) but one of its registered redirect addresses is a remote host that product does not own, `GET /v1/oauth/clients/:clientId` returns `impersonates: "<product>"`. The consent screen then names the client by its redirect host, drops the client-supplied logo, and shows a warning telling you to deny the request unless you trust that host. The icon endpoint serves the generic icon for such clients. Redirects to the local machine (`localhost`, loopback addresses and custom app schemes) do not trigger the warning, so local tools that register under a product name keep their normal screen.
+
+- 9e2c63e: Slack installs and Slack user mapping are tightened so another organization can no longer attach your Slack workspace to itself, or act as one of your members from a shared channel.
+
+  - `slack_get_install_url` (and the dashboard's Connect Slack button) now hand out a Munin link instead of a Slack authorize link. It only continues to Slack in a browser signed in to Munin as an owner or admin of the organization the link was made for, and the install must come back to that same browser and person. Each approval round trip completes at most once, and the link expires after 10 minutes. Previously a link minted through MCP could be completed by anyone who opened it, so a workspace admin tricked into approving one connected their workspace to the wrong organization.
+  - The Integrations page now explains why an install did not go through (not signed in, not an owner or admin, link expired or already used, declined in Slack).
+  - Slack users are linked to members by profile email only when they are full members of the connected workspace. Guests, deactivated accounts and people from another workspace sharing a channel over Slack Connect are never matched by email; link a guest by hand with `slack_link_user` when needed.
+  - Replies and button clicks from a user whose home workspace is not the connected one are refused even when that Slack user is already linked, so links created before this change cannot be used from outside the workspace.
+
+- Updated dependencies [e676699]
+  - @getmunin/types@5.48.0
+  - @getmunin/ui@5.48.0
+
 ## 5.47.0
 
 ### Minor Changes

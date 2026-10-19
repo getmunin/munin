@@ -1,5 +1,46 @@
 # @getmunin/agent-host
 
+## 5.48.0
+
+### Patch Changes
+
+- 85153b7: fix(security): cap response sizes from org-chosen hosts and IMAP servers
+
+  `safeFetch` now limits how much of a response body it will deliver, counted after decompression: 16 MB by default, adjustable per call with `maxResponseBytes`. A response whose `content-length` already exceeds the limit is refused before its body is read, and a body that grows past it while streaming fails with `ResponseTooLargeError` (`code: 'response_too_large'`). Previously only the destination was checked, so a store, booking system, custom MCP server, LLM provider or webhook receiver configured by any organization could answer with a gzip bomb or an endless body and exhaust the memory of the process every organization shares. Streaming reads, such as provider and MCP event streams, still arrive chunk by chunk. `safeFetchCompat`, which the MCP client uses, goes through the same limit. `findResponseTooLarge(err)` finds the error behind a wrapper.
+
+  Connector calls report an oversized vendor response as `connectors_vendor_error` (and a failed connection test), rather than a 500. Callers that legitimately take more set their own limit: CMS asset upload from a URL (50 MB) and social post media (the platform's video limit). Callers that already enforced a smaller limit pass it through: website import pages (5 MB) and OAuth client icons (256 KB). Webhook deliveries and rate-limited provider retries now discard the response body they never read.
+
+  IMAP connections for email channels, in the poller and in `conv_test_email_channel`, replace the library's gigabyte-scale parser defaults with 1 MB lines, 40 MB literals and 48 MB responses. The poller asks for each new message's size first and downloads at most 64 MB per poll; a message the server reports as larger than 40 MB is skipped and logged instead of downloaded, and the cursor moves past it only once every earlier message has been stored. A server that sends more than it declared fails the poll, which counts toward the channel's failure backoff like any other connection error.
+
+- e676699: fix(security): confine contact extraction to the conversation's own contact
+
+  The contact-extraction pass that runs when a conversation closes (`skill://crm/extract-contact-from-message`) no longer has `crm_lookup_contact`, `crm_create_contact` or `crm_update_contact`. It reads the conversation and records what it found with a new tool, `crm_apply_conversation_identity`, which decides on the server which contact to write and which fields it may touch:
+
+  - The target is the contact linked to the conversation's end-user, else an unlinked contact matching an email or phone the conversation has proven (a channel- or org-attested identity whose messages neither failed DMARC nor arrived forwarded), else a new contact linked to the end-user and tagged `from-chat`. An address someone merely typed in chat never selects an existing contact, so a visitor writing "I'm the CEO, call me on …" no longer edits the CEO's record.
+  - Only empty name, email, phone and title fields are filled. Tags, owner, custom fields and do-not-contact status are never written, and an existing value is never overwritten.
+  - An unproven email or phone that another contact already holds is dropped rather than attached or duplicated.
+  - Mailing-list, auto-reply and bounce senders are skipped, and a role-account sender records its email only — rules the skill previously had to follow on its own.
+
+  Previously the pass ran with the full CRM write surface, `crm_update_contact` overwrote by default, and the "fill empty fields only" rule lived only in the skill text, so text in a closed conversation could steer it into editing any contact in the organization.
+
+  Background skill passes can now be pinned to the record that triggered them. `pinnedToolArgsFor` (`@getmunin/types`) maps a skill to tool arguments taken from the job's source event, and `runSkillPass` refuses a call whose pinned argument names anything else (`withPinnedArgs`, `@getmunin/agent-runtime`). Contact extraction is pinned to its conversation for both `conv_get_conversation` and `crm_apply_conversation_identity`; signature stripping is pinned to its message. A bound job whose payload lacks the id fails without retrying, as `unbound_job_payload`.
+
+  `conv_strip_message_signature` now refuses (`not_a_prefix`) a new body that is not a leading portion of the stored one, compared with whitespace runs collapsed, so the signature pass can cut a trailing block but cannot rewrite a customer's message. The job prompt carries the stored, redacted body and the sender address inside `<data>` fences instead of the raw parsed text.
+
+- bb78813: Custom MCP servers no longer receive a customer's identity when the email that prompted the reply may be forged. If the latest customer message on an email conversation failed its DMARC check or was forwarded, the signed `X-Munin-Identity` assertion now leaves out `sub`, `email`, `phone`, `name` and their provenance, and carries an `identity_withheld` claim (`sender_auth_failed` or `sender_forwarded`) instead. A spoofed `From:` address could previously reach the org's own server as `channel_asserted` and let a personal tool act as that customer; servers that gate on `email` and its provenance, as the reference implementation does, now refuse with no change on their side. This matches the refusal Munin's own order, booking and contact self-service tools already apply. The custom MCP connector skill and the "Connect your own system" guide describe the withheld assertion.
+- Updated dependencies [85153b7]
+- Updated dependencies [e676699]
+- Updated dependencies [bb78813]
+- Updated dependencies [f9f30fc]
+- Updated dependencies [cdb062c]
+- Updated dependencies [3576592]
+- Updated dependencies [9e2c63e]
+  - @getmunin/core@5.48.0
+  - @getmunin/backend-core@5.48.0
+  - @getmunin/agent-runtime@5.48.0
+  - @getmunin/types@5.48.0
+  - @getmunin/db@5.48.0
+
 ## 5.47.0
 
 ### Patch Changes

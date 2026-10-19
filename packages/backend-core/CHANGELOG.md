@@ -1,5 +1,76 @@
 # @getmunin/backend-core
 
+## 5.48.0
+
+### Minor Changes
+
+- 3576592: fix(conv): keep organizations' email off the shared sender's own domains, and stop emailing widget addresses nobody verified
+
+  An email channel with `outbound.provider: 'mailer'` sends through the deployment's shared mailer, and its `fromAddress` only had to be a valid email address. Any organization could therefore send mail that passed the shared sender's DKIM as the deployment's own addresses, or as another organization whose domain is verified on the same mail account.
+
+  The shared mailer now sends as a channel's `fromAddress` only when the address's domain is listed in the new `MUNIN_MAIL_ORG_FROM_DOMAINS` setting (comma-separated, exact domain match). When the setting is unset, no domain is listed. A channel on any other domain keeps working: its mail goes out from the address in `MUNIN_MAIL_FROM`, with the channel's `fromName` as the display name and its `fromAddress` as the Reply-To, so replies still reach the organization's mailbox. A `replyToTemplate` or a reply-domain address still takes precedence as the Reply-To, and the Message-ID uses the domain the mail is actually sent from. A single-organization deployment can set `MUNIN_MAIL_ORG_FROM_DOMAINS=*` to allow any address, but that lets every organization pick any From address on the shared sender. Channels that send through their own SMTP server are unaffected.
+
+  The rule covers every path that sends through a channel on the shared mailer: conversation replies, outreach sends and broadcasts, `conv_send_email_channel_test`, and the chat widget's email follow-ups. `conv_configure_email_channel` and `POST /v1/conversations/channels/email` now return `effectiveSender` (`from`, `usesDeploymentSender`, and a `note` when the deployment sender is used), so the caller can see what recipients will get. On the shared mailer, a `replyToTemplate` containing `{conversationId}` is now filled in, where it used to be sent as written.
+
+  The chat widget's email follow-up, which emails an unread reply to the visitor after about ten minutes, now only goes to an address Munin can trust: one signed through widget identity verification, attested by the organization, or received through an email channel. An address the visitor typed into the widget (`visitor.email`, `PATCH /v1/widget/visitor`) or that sits on an anonymous session no longer gets follow-ups. Previously an anonymous visitor could make the organization's mailbox email any address, quoting the visitor's own messages.
+
+### Patch Changes
+
+- 85153b7: fix(security): cap response sizes from org-chosen hosts and IMAP servers
+
+  `safeFetch` now limits how much of a response body it will deliver, counted after decompression: 16 MB by default, adjustable per call with `maxResponseBytes`. A response whose `content-length` already exceeds the limit is refused before its body is read, and a body that grows past it while streaming fails with `ResponseTooLargeError` (`code: 'response_too_large'`). Previously only the destination was checked, so a store, booking system, custom MCP server, LLM provider or webhook receiver configured by any organization could answer with a gzip bomb or an endless body and exhaust the memory of the process every organization shares. Streaming reads, such as provider and MCP event streams, still arrive chunk by chunk. `safeFetchCompat`, which the MCP client uses, goes through the same limit. `findResponseTooLarge(err)` finds the error behind a wrapper.
+
+  Connector calls report an oversized vendor response as `connectors_vendor_error` (and a failed connection test), rather than a 500. Callers that legitimately take more set their own limit: CMS asset upload from a URL (50 MB) and social post media (the platform's video limit). Callers that already enforced a smaller limit pass it through: website import pages (5 MB) and OAuth client icons (256 KB). Webhook deliveries and rate-limited provider retries now discard the response body they never read.
+
+  IMAP connections for email channels, in the poller and in `conv_test_email_channel`, replace the library's gigabyte-scale parser defaults with 1 MB lines, 40 MB literals and 48 MB responses. The poller asks for each new message's size first and downloads at most 64 MB per poll; a message the server reports as larger than 40 MB is skipped and logged instead of downloaded, and the cursor moves past it only once every earlier message has been stored. A server that sends more than it declared fails the poll, which counts toward the channel's failure backoff like any other connection error.
+
+- e676699: fix(security): confine contact extraction to the conversation's own contact
+
+  The contact-extraction pass that runs when a conversation closes (`skill://crm/extract-contact-from-message`) no longer has `crm_lookup_contact`, `crm_create_contact` or `crm_update_contact`. It reads the conversation and records what it found with a new tool, `crm_apply_conversation_identity`, which decides on the server which contact to write and which fields it may touch:
+
+  - The target is the contact linked to the conversation's end-user, else an unlinked contact matching an email or phone the conversation has proven (a channel- or org-attested identity whose messages neither failed DMARC nor arrived forwarded), else a new contact linked to the end-user and tagged `from-chat`. An address someone merely typed in chat never selects an existing contact, so a visitor writing "I'm the CEO, call me on …" no longer edits the CEO's record.
+  - Only empty name, email, phone and title fields are filled. Tags, owner, custom fields and do-not-contact status are never written, and an existing value is never overwritten.
+  - An unproven email or phone that another contact already holds is dropped rather than attached or duplicated.
+  - Mailing-list, auto-reply and bounce senders are skipped, and a role-account sender records its email only — rules the skill previously had to follow on its own.
+
+  Previously the pass ran with the full CRM write surface, `crm_update_contact` overwrote by default, and the "fill empty fields only" rule lived only in the skill text, so text in a closed conversation could steer it into editing any contact in the organization.
+
+  Background skill passes can now be pinned to the record that triggered them. `pinnedToolArgsFor` (`@getmunin/types`) maps a skill to tool arguments taken from the job's source event, and `runSkillPass` refuses a call whose pinned argument names anything else (`withPinnedArgs`, `@getmunin/agent-runtime`). Contact extraction is pinned to its conversation for both `conv_get_conversation` and `crm_apply_conversation_identity`; signature stripping is pinned to its message. A bound job whose payload lacks the id fails without retrying, as `unbound_job_payload`.
+
+  `conv_strip_message_signature` now refuses (`not_a_prefix`) a new body that is not a leading portion of the stored one, compared with whitespace runs collapsed, so the signature pass can cut a trailing block but cannot rewrite a customer's message. The job prompt carries the stored, redacted body and the sender address inside `<data>` fences instead of the raw parsed text.
+
+- bb78813: Custom MCP servers no longer receive a customer's identity when the email that prompted the reply may be forged. If the latest customer message on an email conversation failed its DMARC check or was forwarded, the signed `X-Munin-Identity` assertion now leaves out `sub`, `email`, `phone`, `name` and their provenance, and carries an `identity_withheld` claim (`sender_auth_failed` or `sender_forwarded`) instead. A spoofed `From:` address could previously reach the org's own server as `channel_asserted` and let a personal tool act as that customer; servers that gate on `email` and its provenance, as the reference implementation does, now refuse with no change on their side. This matches the refusal Munin's own order, booking and contact self-service tools already apply. The custom MCP connector skill and the "Connect your own system" guide describe the withheld assertion.
+- f9f30fc: fix(auth): stop trusting GitHub for email-based account linking, and show where an OAuth client sends you before you consent
+
+  Signing in with GitHub no longer attaches the GitHub account to an existing Munin user unless GitHub reports the email as verified. GitHub was on the account-linking trusted list, which skips the check on whether the provider verified the email, so anyone could add another person's address to a GitHub account without confirming it and then sign in to that person's Munin account. Google stays trusted, since it only returns addresses it has verified. GitHub users whose primary email is verified are linked exactly as before.
+
+  The OAuth consent screen now shows the host the authorization code will be sent to ("You'll be sent back to …") next to the client's name, before you approve, instead of only after. That host is read from the signed authorization request, so it is the address actually used.
+
+  Client registration is open to anyone, so a client can call itself anything. When a client's name claims a well-known product (Claude, ChatGPT, Cursor, Grok or Copilot, or the vendor behind it) but one of its registered redirect addresses is a remote host that product does not own, `GET /v1/oauth/clients/:clientId` returns `impersonates: "<product>"`. The consent screen then names the client by its redirect host, drops the client-supplied logo, and shows a warning telling you to deny the request unless you trust that host. The icon endpoint serves the generic icon for such clients. Redirects to the local machine (`localhost`, loopback addresses and custom app schemes) do not trigger the warning, so local tools that register under a product name keep their normal screen.
+
+- cdb062c: fix(realtime): the `/v1/realtime` socket now applies the same access rules as the HTTP control plane
+
+  - OAuth access tokens issued for `/mcp` are refused on the handshake (`401`), and admin API keys need scope `*` and the admin audience (`403 realtime_forbidden` otherwise).
+  - Members receive conversation events only, on the `org` and `conversation` channels; owners and admins keep the full org stream.
+  - Chat widget and end-user sockets receive only visitor-facing conversation events, reduced to the ids needed to refetch (`conversationId`, plus `messageId` / `authorType` on messages and `status` on a status change). Internal notes, drafting instructions, hand-over reasons, operator ids and internal messages are no longer sent to them.
+
+- 9e2c63e: Slack installs and Slack user mapping are tightened so another organization can no longer attach your Slack workspace to itself, or act as one of your members from a shared channel.
+
+  - `slack_get_install_url` (and the dashboard's Connect Slack button) now hand out a Munin link instead of a Slack authorize link. It only continues to Slack in a browser signed in to Munin as an owner or admin of the organization the link was made for, and the install must come back to that same browser and person. Each approval round trip completes at most once, and the link expires after 10 minutes. Previously a link minted through MCP could be completed by anyone who opened it, so a workspace admin tricked into approving one connected their workspace to the wrong organization.
+  - The Integrations page now explains why an install did not go through (not signed in, not an owner or admin, link expired or already used, declined in Slack).
+  - Slack users are linked to members by profile email only when they are full members of the connected workspace. Guests, deactivated accounts and people from another workspace sharing a channel over Slack Connect are never matched by email; link a guest by hand with `slack_link_user` when needed.
+  - Replies and button clicks from a user whose home workspace is not the connected one are refused even when that Slack user is already linked, so links created before this change cannot be used from outside the workspace.
+
+- Updated dependencies [85153b7]
+- Updated dependencies [e676699]
+  - @getmunin/core@5.48.0
+  - @getmunin/agent-runtime@5.48.0
+  - @getmunin/types@5.48.0
+  - @getmunin/mcp-toolkit@5.48.0
+  - @getmunin/db@5.48.0
+  - @getmunin/inspector-app@5.48.0
+  - @getmunin/emails@5.48.0
+
 ## 5.47.0
 
 ### Minor Changes

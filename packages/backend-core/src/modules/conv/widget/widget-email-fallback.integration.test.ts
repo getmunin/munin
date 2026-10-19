@@ -15,6 +15,7 @@ const skipReason = TEST_URL
   : 'Set TEST_DATABASE_URL to a Postgres URL to run widget fallback integration tests.';
 
 const REPLY_DOMAIN = 'reply.example.test';
+const DEPLOYMENT_FROM = 'Munin <no-reply@munin.example.test>';
 
 (skipReason ? describe.skip : describe)('Widget → email fallback worker', () => {
   let app: INestApplication;
@@ -26,8 +27,14 @@ const REPLY_DOMAIN = 'reply.example.test';
   let contactId: string;
   let worker: WidgetEmailFallbackWorker;
   let mailer: StubMailer;
+  let previousOrgFromDomains: string | undefined;
+  let previousMailFrom: string | undefined;
 
   beforeAll(async () => {
+    previousOrgFromDomains = process.env.MUNIN_MAIL_ORG_FROM_DOMAINS;
+    previousMailFrom = process.env.MUNIN_MAIL_FROM;
+    process.env.MUNIN_MAIL_ORG_FROM_DOMAINS = 'acme.test';
+    process.env.MUNIN_MAIL_FROM = DEPLOYMENT_FROM;
     process.env.MUNIN_AUTH_SECRET ??= 'test-secret-do-not-use-in-prod';
     process.env.MUNIN_KEY_PEPPER ??= 'test-pepper';
     process.env.MUNIN_EMBEDDING_PROVIDER = 'stub';
@@ -74,7 +81,12 @@ const REPLY_DOMAIN = 'reply.example.test';
 
     const [eu] = await db
       .insert(schema.endUsers)
-      .values({ orgId, email: 'visitor@customer.test', name: 'Visitor One' })
+      .values({
+        orgId,
+        email: 'visitor@customer.test',
+        name: 'Visitor One',
+        metadata: { emailSource: 'org-attested' },
+      })
       .returning();
     endUserId = eu!.id;
 
@@ -92,6 +104,8 @@ const REPLY_DOMAIN = 'reply.example.test';
   });
 
   afterAll(async () => {
+    restoreEnv('MUNIN_MAIL_ORG_FROM_DOMAINS', previousOrgFromDomains);
+    restoreEnv('MUNIN_MAIL_FROM', previousMailFrom);
     if (app) await app.close();
     if (db) {
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
@@ -107,6 +121,10 @@ const REPLY_DOMAIN = 'reply.example.test';
     await db.delete(schema.convMessages).where(eq(schema.convMessages.orgId, orgId));
     await db.delete(schema.convConversations).where(eq(schema.convConversations.orgId, orgId));
   });
+
+  async function setEmailSource(metadata: Record<string, unknown>): Promise<void> {
+    await db.update(schema.endUsers).set({ metadata }).where(eq(schema.endUsers.id, endUserId));
+  }
 
   async function newConv(subject = 'Hello'): Promise<string> {
     const rows = await db.execute<{ next: number } & Record<string, unknown>>(
@@ -404,4 +422,69 @@ const REPLY_DOMAIN = 'reply.example.test';
       await db.delete(schema.orgs).where(eq(schema.orgs.id, otherOrg!.id));
     }
   });
+
+  it('does not email a visitor-typed address, an unstamped one, or an anonymous session', async () => {
+    const convId = await newConv('Typed address');
+    await insertMsg(convId, 'end_user', 'Hi.', 90_000);
+    await insertMsg(convId, 'agent', 'Reply.', 30_000);
+
+    try {
+      for (const metadata of [
+        { emailSource: 'visitor' },
+        {},
+        { emailSource: 'org-attested', anonymous: true },
+      ]) {
+        await setEmailSource(metadata);
+        const r = await worker.tick();
+        expect(r.scanned).toBe(0);
+        expect(r.sent).toBe(0);
+        expect(mailer.outbox).toHaveLength(0);
+      }
+      const claims = await db
+        .select()
+        .from(schema.convWidgetEmailFallbacks)
+        .where(eq(schema.convWidgetEmailFallbacks.conversationId, convId));
+      expect(claims).toHaveLength(0);
+    } finally {
+      await setEmailSource({ emailSource: 'org-attested' });
+    }
+  });
+
+  it('emails an address that arrived through an email channel', async () => {
+    const convId = await newConv('Channel address');
+    await insertMsg(convId, 'end_user', 'Hi.', 90_000);
+    await insertMsg(convId, 'agent', 'Reply.', 30_000);
+
+    try {
+      await setEmailSource({ emailSource: 'channel' });
+      const r = await worker.tick();
+      expect(r.sent).toBe(1);
+      expect(mailer.outbox[0]!.to).toBe('visitor@customer.test');
+    } finally {
+      await setEmailSource({ emailSource: 'org-attested' });
+    }
+  });
+
+  it('sends from the deployment sender, keeping the threading Reply-To, when the channel domain is not allowed', async () => {
+    const convId = await newConv('Disallowed domain');
+    await insertMsg(convId, 'end_user', 'Hi.', 90_000);
+    await insertMsg(convId, 'agent', 'Reply.', 30_000);
+
+    process.env.MUNIN_MAIL_ORG_FROM_DOMAINS = 'other.example.test';
+    try {
+      const r = await worker.tick();
+      expect(r.sent).toBe(1);
+      const sent = mailer.outbox[0]!;
+      expect(sent.from).toBe('Acme Support <no-reply@munin.example.test>');
+      expect(sent.replyTo).toBe(`support+conv-${convId}@${REPLY_DOMAIN}`);
+      expect(sent.headers?.['Message-ID']).toMatch(/^<[^<>]+@munin\.example\.test>$/);
+    } finally {
+      process.env.MUNIN_MAIL_ORG_FROM_DOMAINS = 'acme.test';
+    }
+  });
 });
+
+function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+}

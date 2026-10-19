@@ -94,6 +94,7 @@ import {
   stampDetections,
 } from '../inbound-redaction.service.ts';
 import { htmlToText } from './html-text.ts';
+import { channelSender } from './shared-sender.ts';
 import type {
   ChannelAdapter,
   ChannelRow,
@@ -301,14 +302,16 @@ export class EmailAdapter implements ChannelAdapter {
     const autoSubmitted = ctx.message.authorType === 'agent';
     const listUnsubscribeUrl = extractListUnsubscribeUrl(ctx.message.metadata);
 
+    const sender = channelSender(config, this.mailer.from);
+    const replyTo = this.composeReplyTo(config, ctx.conversation.id) ?? sender.fallbackReplyTo;
     const built: BuiltMessage = buildOutbound({
-      from: composeFrom(config.addressing.fromName, config.addressing.fromAddress),
+      from: sender.from,
       to: recipient,
-      replyTo: this.composeReplyTo(config, ctx.conversation.id),
+      replyTo,
       subject,
       text: body,
       html,
-      messageIdDomain: config.addressing.fromAddress,
+      messageIdDomain: sender.address,
       inReplyTo: ctx.delivery.inReplyToHeader ?? undefined,
       references: ctx.delivery.inReplyToHeader ? [ctx.delivery.inReplyToHeader] : undefined,
       trackerUrl,
@@ -341,11 +344,13 @@ export class EmailAdapter implements ChannelAdapter {
       transport.close();
     } else {
       await this.mailer.send({
-        from: composeFrom(config.addressing.fromName, config.addressing.fromAddress),
+        from: sender.from,
         to: recipient,
         subject: extractSubject(built.raw) ?? 'Munin message',
         text: extractTextBody(built.raw),
-        replyTo: config.addressing.replyToTemplate ?? undefined,
+        replyTo:
+          config.addressing.replyToTemplate?.replace('{conversationId}', ctx.conversation.id) ??
+          sender.fallbackReplyTo,
         headers: {
           'Message-ID': `<${built.messageId}>`,
           ...(autoSubmitted ? AUTO_SUBMITTED_HEADERS : {}),
@@ -367,17 +372,18 @@ export class EmailAdapter implements ChannelAdapter {
   async sendBulk(channel: ChannelRow, messages: readonly BulkEmail[]): Promise<BulkEmailResult[]> {
     if (messages.length === 0) return [];
     const config = jsonbToStored(channel.config);
-    const from = composeFrom(config.addressing.fromName, config.addressing.fromAddress);
+    const sender = channelSender(config, this.mailer.from);
+    const from = sender.from;
     const built = messages.map((m) => ({
       message: { ...m, listUnsubscribeUrl: httpsOnly(m.listUnsubscribeUrl) },
       built: buildOutbound({
         from,
         to: m.to,
-        replyTo: this.composeBulkReplyTo(config, m.replyKey),
+        replyTo: this.composeBulkReplyTo(config, m.replyKey) ?? sender.fallbackReplyTo,
         subject: m.subject,
         text: m.text,
         html: m.html,
-        messageIdDomain: config.addressing.fromAddress,
+        messageIdDomain: sender.address,
         listUnsubscribeUrl: httpsOnly(m.listUnsubscribeUrl),
       }),
     }));
@@ -426,7 +432,7 @@ export class EmailAdapter implements ChannelAdapter {
           subject: message.subject,
           text: message.text,
           html: message.html,
-          replyTo: this.composeBulkReplyTo(config, message.replyKey),
+          replyTo: this.composeBulkReplyTo(config, message.replyKey) ?? sender.fallbackReplyTo,
           headers: {
             'Message-ID': `<${b.messageId}>`,
             ...(message.listUnsubscribeUrl ? listUnsubscribeHeaders(message.listUnsubscribeUrl) : {}),
@@ -1169,12 +1175,6 @@ function collectAddresses(field: AddressObject | AddressObject[] | undefined): s
     .flatMap((obj) => obj.value)
     .map((a) => (a.name ? `${a.name} <${a.address ?? ''}>` : (a.address ?? '')))
     .filter(Boolean);
-}
-
-function composeFrom(name: string | undefined, address: string): string {
-  if (!name) return address;
-  const clean = name.replace(/[",\r\n]/g, '').trim();
-  return `${clean} <${address}>`;
 }
 
 export interface BulkEmail {

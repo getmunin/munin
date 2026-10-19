@@ -309,6 +309,54 @@ const skipReason = TEST_URL
       ws.terminate();
     }
   });
+
+  it('withholds staff-only events on the end-user\'s own conversation and strips operator fields', async () => {
+    const ws = connectWs(tokenA);
+    await waitForOpen(ws);
+    try {
+      ws.send(
+        JSON.stringify({ type: 'subscribe', channel: 'conversation', id: conversationAId }),
+      );
+      await new Promise((r) => setTimeout(r, 150));
+
+      const noStaffEventP = expectNoEvent(
+        ws,
+        (m) => {
+          const type = (m as { event?: { type?: string } }).event?.type;
+          return (
+            m.type === 'event' &&
+            (type === 'conversation.draft_requested' || type === 'conversation.note_added')
+          );
+        },
+        600,
+      );
+      const evP = nextEvent(
+        ws,
+        (m) => m.type === 'event' && m.event?.type === 'conversation.handover_requested',
+      );
+      await emit('conversation.draft_requested', {
+        conversationId: conversationAId,
+        requestedByUserId: 'usr_operator',
+        note: 'mention the loyalty discount',
+      });
+      await emit('conversation.note_added', {
+        conversationId: conversationAId,
+        messageId: 'msg_note',
+        authorType: 'user',
+      });
+      await emit('conversation.handover_requested', {
+        conversationId: conversationAId,
+        reason: 'agent error: quota exhausted',
+      });
+      const ev = (await evP) as { event?: Record<string, unknown> & { payload?: unknown } };
+      expect(ev.event!.payload).toEqual({ conversationId: conversationAId });
+      expect(ev.event).not.toHaveProperty('actor_id');
+      expect(ev.event).not.toHaveProperty('org_id');
+      await noStaffEventP;
+    } finally {
+      ws.terminate();
+    }
+  });
 });
 
 function decodeWsData(data: WebSocket.RawData): string {

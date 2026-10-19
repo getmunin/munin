@@ -134,6 +134,20 @@ const skipReason = TEST_URL
     return res.status;
   }
 
+  async function emitEvent(type: string, payload: Record<string, unknown>): Promise<void> {
+    const json = JSON.stringify({
+      id: `evt_${Math.random().toString(36).slice(2)}`,
+      org_id: orgId,
+      type,
+      actor_id: 'usr_operator',
+      correlation_id: 'corr_operator',
+      hop_count: 0,
+      payload,
+      created_at: new Date().toISOString(),
+    });
+    await db.execute(sql`SELECT pg_notify('munin_events', ${json})`);
+  }
+
   function connectWs(
     token: string,
     opts: {
@@ -173,7 +187,11 @@ const skipReason = TEST_URL
 
   function nextEvent(
     ws: WebSocket,
-    predicate: (msg: { type: string; channel?: string; event?: { type: string } }) => boolean,
+    predicate: (msg: {
+      type: string;
+      channel?: string;
+      event?: { type: string; payload?: Record<string, unknown> };
+    }) => boolean,
     timeoutMs = 2000,
   ): Promise<{ type: string; channel?: string; event?: { type: string; payload?: Record<string, unknown> } }> {
     return new Promise((resolve, reject) => {
@@ -279,6 +297,106 @@ const skipReason = TEST_URL
           m.event?.type?.startsWith('conversation.') === true,
       );
       expect(ev.event!.type).toMatch(/^conversation\./);
+    } finally {
+      ws.terminate();
+    }
+  });
+
+  it('forwards only customer-safe event types to the widget, stripped of staff-only fields', async () => {
+    const sessionId = `rt_projection_${Date.now()}`;
+    const ingestRes = await fetch(`${baseUrl}/v1/widget/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${widgetKey}`,
+        Origin: ALLOWED_ORIGIN,
+      },
+      body: JSON.stringify({
+        channelId,
+        sessionId,
+        messages: [{ role: 'end_user', body: 'projection check' }],
+      }),
+    });
+    const conversationId = ((await ingestRes.json()) as { conversationId: string }).conversationId;
+
+    const ws = connectWs(widgetKey, { origin: ALLOWED_ORIGIN });
+    await waitForOpen(ws);
+    try {
+      ws.send(JSON.stringify({ type: 'subscribe', channel: 'widget', channelId, sessionId }));
+      await new Promise((r) => setTimeout(r, 50));
+
+      const frames: string[] = [];
+      ws.on('message', (data) => {
+        const text = decodeWsData(data);
+        if ((JSON.parse(text) as { type?: string }).type === 'event') frames.push(text);
+      });
+
+      const handoverP = nextEvent(
+        ws,
+        (m) => m.type === 'event' && m.event?.type === 'conversation.handover_requested',
+      );
+      const sentP = nextEvent(
+        ws,
+        (m) =>
+          m.type === 'event' &&
+          m.event?.type === 'conversation.message.sent' &&
+          m.event.payload?.['messageId'] === 'msg_projection_reply',
+      );
+
+      await emitEvent('conversation.draft_requested', {
+        conversationId,
+        requestedByUserId: 'usr_operator',
+        note: 'offer the goodwill refund',
+      });
+      await emitEvent('conversation.note_added', {
+        conversationId,
+        messageId: 'msg_internal_note',
+        authorType: 'user',
+      });
+      await emitEvent('conversation.taken_over', {
+        conversationId,
+        holderType: 'user',
+        holderId: 'usr_operator',
+        expiresAt: new Date().toISOString(),
+      });
+      await emitEvent('conversation.handover_requested', {
+        conversationId,
+        reason: 'tool failed: upstream refused the request',
+      });
+      await emitEvent('crm.activity.logged', { conversationId, contactId: 'ctc_other' });
+      await emitEvent('conversation.message.sent', {
+        conversationId,
+        messageId: 'msg_projection_reply',
+        authorType: 'agent',
+        internal: false,
+      });
+
+      const handover = await handoverP;
+      expect(handover.event!.payload).toEqual({ conversationId });
+      const sent = await sentP;
+      expect(sent.event!.payload).toEqual({
+        conversationId,
+        messageId: 'msg_projection_reply',
+        authorType: 'agent',
+      });
+      await new Promise((r) => setTimeout(r, 300));
+
+      const types = frames.map((f) => (JSON.parse(f) as { event: { type: string } }).event.type);
+      expect(types).not.toContain('conversation.draft_requested');
+      expect(types).not.toContain('conversation.note_added');
+      expect(types).not.toContain('crm.activity.logged');
+      const wire = frames.join('\n');
+      for (const leaked of [
+        'goodwill refund',
+        'upstream refused',
+        'usr_operator',
+        'holderId',
+        'actor_id',
+        'correlation_id',
+        'org_id',
+      ]) {
+        expect(wire).not.toContain(leaked);
+      }
     } finally {
       ws.terminate();
     }

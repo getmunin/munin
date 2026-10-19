@@ -18,6 +18,7 @@ import {
   OrgAccessDeniedError,
   WebhookDispatcher,
   parseEnvDisableFlag,
+  readMembershipsForUser,
   withContext,
   type RequestContext,
   type ResolvedCredential,
@@ -33,6 +34,13 @@ import {
 import { sessionCookieNames } from '../auth/auth-cookies.ts';
 import { DbListenerService, type EventRow } from './db-listener.service.ts';
 import { RealtimeEventBus, type AgentTypingBusEvent } from './realtime-event-bus.ts';
+import {
+  eventForAccess,
+  mayRelayOperatorTyping,
+  memberMaySubscribe,
+  realtimeAccessFor,
+  type RealtimeAccess,
+} from './realtime-access.ts';
 import {
   enforceOriginAllowlist,
   identityOwnsContact,
@@ -64,6 +72,7 @@ interface ConversationMetaCache {
 
 interface ConnectionEntry {
   ws: WebSocket;
+  access: RealtimeAccess;
   widgetCtx: WidgetConnectionContext | null;
   orgId: string;
   conversationMetaCache: Map<string, ConversationMetaCache>;
@@ -191,6 +200,12 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       return;
     }
 
+    const access = widgetCtx ? 'widget' : await this.resolveAccess(credential);
+    if (!access) {
+      rejectUpgrade(socket, 403, 'Forbidden', 'realtime_forbidden');
+      return;
+    }
+
     if (!this.wss) {
       socket.destroy();
       return;
@@ -198,8 +213,20 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     const resolvedCredential = credential;
     const widgetContext = widgetCtx;
     this.wss.handleUpgrade(req, socket, head, (ws) => {
-      this.handleConnection(ws, resolvedCredential, widgetContext);
+      this.handleConnection(ws, resolvedCredential, access, widgetContext);
     });
+  }
+
+  private async resolveAccess(credential: ResolvedCredential): Promise<RealtimeAccess | null> {
+    const actor = credential.actor;
+    if (actor.type !== 'user') return realtimeAccessFor(actor, null);
+    const role = actor.orgRole ?? (await this.readOrgRole(actor.orgId, actor.userId ?? actor.id));
+    return realtimeAccessFor(actor, role);
+  }
+
+  private async readOrgRole(orgId: string, userId: string): Promise<string | null> {
+    const memberships = await readMembershipsForUser(this.db, userId);
+    return memberships.find((m) => m.orgId === orgId)?.role ?? null;
   }
 
   private async gateWidgetUpgrade(
@@ -249,6 +276,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
   private handleConnection(
     ws: WebSocket,
     credential: ResolvedCredential,
+    access: RealtimeAccess,
     widgetCtx: WidgetConnectionContext | null,
   ): void {
     const actor = credential.actor;
@@ -257,13 +285,14 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     const isWidget = !!widgetCtx;
     const entry: ConnectionEntry = {
       ws,
+      access,
       widgetCtx,
       orgId: actor.orgId,
       conversationMetaCache,
       typingLastFiredAt: new Map(),
       typingAutoClearTimers: new Map(),
     };
-    const isSelfServiceAgent = !isWidget && actor.type !== 'end_user_agent';
+    const isSelfServiceAgent = access === 'staff' || access === 'member';
     if (isSelfServiceAgent) {
       let set = this.selfServiceSubscribersByOrg.get(actor.orgId);
       if (!set) {
@@ -313,15 +342,17 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
 
     const unsubscribe = this.listener.subscribe((event) => {
       if (event.org_id !== actor.orgId) return;
+      const outgoing = eventForAccess(access, event);
+      if (!outgoing) return;
       for (const channel of subscriptions) {
         if (isWidget) {
           void this.matchWidgetEvent(channel, event, conversationMetaCache, widgetCtx).then(
             (matched) => {
-              if (matched) ws.send(JSON.stringify({ type: 'event', channel, event }));
+              if (matched) ws.send(JSON.stringify({ type: 'event', channel, event: outgoing }));
             },
           );
         } else if (channelMatches(channel, event)) {
-          ws.send(JSON.stringify({ type: 'event', channel, event }));
+          ws.send(JSON.stringify({ type: 'event', channel, event: outgoing }));
         }
       }
     });
@@ -363,7 +394,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
         if (isWidget) {
           addChannelSubscription(key);
         } else {
-          this.allowSubscription(actor, key)
+          this.allowSubscription(access, actor, key)
             .then((allowed) => {
               if (allowed) addChannelSubscription(key);
             })
@@ -413,7 +444,7 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       outboundChannel = `conversation:${conversationId}`;
       authorType = 'visitor';
     } else if (msg.channel === 'conversation') {
-      if (isWidget) return;
+      if (!mayRelayOperatorTyping(entry.access)) return;
       if (!msg.id) return;
       const meta = await this.resolveConversationMeta(msg.id);
       if (!meta || meta.sessionId === null) return;
@@ -717,9 +748,14 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     };
   }
 
-  private async allowSubscription(actor: ActorIdentity, key: string): Promise<boolean> {
-    if (actor.type !== 'end_user_agent') return true;
-    if (!actor.endUserId) return false;
+  private async allowSubscription(
+    access: RealtimeAccess,
+    actor: ActorIdentity,
+    key: string,
+  ): Promise<boolean> {
+    if (access === 'staff') return true;
+    if (access === 'member') return memberMaySubscribe(key);
+    if (access !== 'end_user' || !actor.endUserId) return false;
     if (key.startsWith('conversation:')) {
       const conversationId = key.slice('conversation:'.length);
       const rows = await this.db
@@ -747,12 +783,12 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     const headerToken = readBearerToken(readHeader(req, 'authorization'));
     if (headerToken) {
       const credential = await this.resolveToken(headerToken);
-      return credential ? { credential, fromCookie: false } : null;
+      return credential && !credential.audience ? { credential, fromCookie: false } : null;
     }
     const subprotocolToken = readBearerSubprotocol(readHeader(req, 'sec-websocket-protocol'));
     if (subprotocolToken) {
       const credential = await this.resolveToken(subprotocolToken);
-      return credential ? { credential, fromCookie: false } : null;
+      return credential && !credential.audience ? { credential, fromCookie: false } : null;
     }
     const cookieValue = readHeader(req, 'cookie');
     const sessionToken = readSessionCookie(cookieValue);

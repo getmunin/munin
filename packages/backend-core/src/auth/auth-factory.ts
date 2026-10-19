@@ -104,6 +104,8 @@ export function revokeKeysThen(
 
 const asMuninAuth = (instance: unknown): MuninAuthInstance => instance as MuninAuthInstance;
 
+export const ACCOUNT_LINKING_TRUSTED_PROVIDERS: readonly string[] = ['google'];
+
 export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstance {
   const origins = uniqueOrigins([opts.baseUrl, ...(opts.trustedOrigins ?? [])]);
   const ipAddress = opts.ipAddress ?? readAuthIpAddressFromEnv();
@@ -220,7 +222,7 @@ export function createMuninAuthCore(opts: MuninAuthCoreOptions): MuninAuthInstan
         encryptOAuthTokens: true,
         accountLinking: {
           enabled: true,
-          trustedProviders: ['google', 'github'],
+          trustedProviders: [...ACCOUNT_LINKING_TRUSTED_PROVIDERS],
         },
       },
       user: opts.deleteUser

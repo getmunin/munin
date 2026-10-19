@@ -14,6 +14,7 @@ import {
   groupConsentScopes,
   type ConsentScopeGroup,
 } from '../auth/consent-scopes';
+import { resolveConsentIdentity, type ConsentIdentity } from '../auth/consent-identity';
 
 export interface OAuthClientInfo {
   client_id: string;
@@ -21,6 +22,7 @@ export interface OAuthClientInfo {
   uri: string | null;
   icon_url: string;
   redirect_uri_host: string | null;
+  impersonates?: string | null;
   created_at: string;
 }
 
@@ -131,9 +133,16 @@ export function OAuthConsentPage({
     );
   }
 
-  const displayName = clientInfo?.name?.trim() ? clientInfo.name : clientId;
+  const identity = resolveConsentIdentity({
+    clientId,
+    clientName: clientInfo?.name,
+    impersonates: clientInfo?.impersonates,
+    registeredRedirectHost: clientInfo?.redirect_uri_host,
+    requestedRedirectUri: search?.get('redirect_uri'),
+  });
+  const displayName = identity.displayName;
   const userName = session.user?.name?.trim() || session.user?.email || '';
-  const redirectHost = clientInfo?.redirect_uri_host ?? '';
+  const redirectHost = identity.redirectHost ?? '';
 
   async function submit(accept: boolean) {
     setBusy(accept ? 'allow' : 'deny');
@@ -181,12 +190,11 @@ export function OAuthConsentPage({
 
         <section className="mt-8 border-[1px] border-ink bg-paper dark:border-rule-on-dark dark:bg-card">
           {stale ? (
-            <ExpiredPane clientInfo={clientInfo} clientId={clientId} displayName={displayName} />
+            <ExpiredPane clientInfo={clientInfo} identity={identity} />
           ) : wrongAccount ? (
             <WrongAccountPane
               clientInfo={clientInfo}
-              clientId={clientId}
-              displayName={displayName}
+              identity={identity}
               userName={userName}
               orgId={foreignOrgId}
               busy={busy}
@@ -198,8 +206,7 @@ export function OAuthConsentPage({
           ) : blocked ? (
             <BlockedPane
               clientInfo={clientInfo}
-              clientId={clientId}
-              displayName={displayName}
+              identity={identity}
               denial={denial}
               busy={busy}
               error={error}
@@ -208,8 +215,7 @@ export function OAuthConsentPage({
           ) : flow === 'new' ? (
             <RequestPane
               clientInfo={clientInfo}
-              clientId={clientId}
-              displayName={displayName}
+              identity={identity}
               userName={userName}
               resourceInfo={resourceInfo}
               groupedScopes={groupedScopes}
@@ -351,8 +357,7 @@ function EditorialHeader({ flow, clientName, userName, resourceName }: Editorial
 
 interface RequestPaneProps {
   clientInfo: OAuthClientInfo | null;
-  clientId: string;
-  displayName: string;
+  identity: ConsentIdentity;
   userName: string;
   resourceInfo: OAuthResourceInfo | null;
   groupedScopes: ConsentScopeGroup[];
@@ -365,8 +370,7 @@ interface RequestPaneProps {
 
 function RequestPane({
   clientInfo,
-  clientId,
-  displayName,
+  identity,
   userName,
   resourceInfo,
   groupedScopes,
@@ -378,9 +382,13 @@ function RequestPane({
 }: RequestPaneProps) {
   const t = useTranslations('dashboard.oauthConsent');
   const permissions = resourceInfo?.permissions ?? null;
+  const displayName = identity.displayName;
   return (
     <>
-      <IdentityCard clientInfo={clientInfo} clientId={clientId} displayName={displayName} />
+      <IdentityCard clientInfo={clientInfo} identity={identity} />
+      {identity.impersonates && (
+        <ImpersonationWarning product={identity.impersonates} host={identity.redirectHost} />
+      )}
       <TrustTimeline clientName={displayName} />
 
       <div className="px-7 pt-2 pb-1">
@@ -437,22 +445,22 @@ function RequestPane({
 
 interface IdentityCardProps {
   clientInfo: OAuthClientInfo | null;
-  clientId: string;
-  displayName: string;
+  identity: ConsentIdentity;
 }
 
-function IdentityCard({ clientInfo, clientId, displayName }: IdentityCardProps) {
+function IdentityCard({ clientInfo, identity }: IdentityCardProps) {
   const t = useTranslations('dashboard.oauthConsent');
-  const firstChar = (clientInfo?.name?.trim() ?? clientId).slice(0, 1).toUpperCase();
+  const { displayName, redirectHost } = identity;
+  const firstChar = displayName.slice(0, 1).toUpperCase();
   const registeredLabel = formatRegistered(clientInfo?.created_at);
   return (
     <div
       className={`flex gap-4 border-b-[1px] border-rule-soft px-7 py-5 dark:border-rule-on-dark ${
-        registeredLabel ? 'items-start' : 'items-center'
+        registeredLabel || redirectHost ? 'items-start' : 'items-center'
       }`}
     >
       <div className="flex h-[50px] w-[50px] shrink-0 items-center justify-center overflow-hidden rounded-xl border-[1px] border-ink bg-white font-serif text-[28px] leading-none text-ink dark:border-rule-on-dark">
-        {clientInfo?.icon_url ? (
+        {identity.showClientIcon && clientInfo?.icon_url ? (
           <img
             src={clientInfo.icon_url}
             alt=""
@@ -471,12 +479,39 @@ function IdentityCard({ clientInfo, clientId, displayName }: IdentityCardProps) 
             {displayName}
           </span>
         </div>
+        {redirectHost && (
+          <div className="mt-0.5 text-[13px] leading-snug text-ink-soft [overflow-wrap:anywhere] dark:text-foreground/80">
+            {t.rich('redirectsTo', {
+              host: () => (
+                <span className="font-mono text-[12.5px] font-medium text-ink dark:text-foreground">
+                  {redirectHost}
+                </span>
+              ),
+            })}
+          </div>
+        )}
         {registeredLabel && (
           <div className="font-mono text-[11px] tracking-[0.02em] text-ink-mute">
             {t('registered', { date: registeredLabel })}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function ImpersonationWarning({ product, host }: { product: string; host: string | null }) {
+  const t = useTranslations('dashboard.oauthConsent');
+  return (
+    <div
+      role="alert"
+      className="mx-7 mt-4 border-[1px] border-destructive/40 bg-destructive/5 px-4 py-3.5 text-[13px] leading-relaxed text-ink-soft [overflow-wrap:anywhere] dark:bg-destructive/10 dark:text-foreground/80"
+    >
+      <b className="font-semibold text-destructive">{t('impersonation.lead')}</b>{' '}
+      {t.rich(host ? 'impersonation.body' : 'impersonation.bodyNoHost', {
+        product: () => <b className="font-semibold text-ink dark:text-foreground">{product}</b>,
+        host: () => <span className="font-mono text-[12.5px] font-medium text-ink dark:text-foreground">{host}</span>,
+      })}
     </div>
   );
 }
@@ -551,15 +586,14 @@ function ResourcePermissionRow({ permission }: { permission: OAuthResourcePermis
 
 interface ExpiredPaneProps {
   clientInfo: OAuthClientInfo | null;
-  clientId: string;
-  displayName: string;
+  identity: ConsentIdentity;
 }
 
-function ExpiredPane({ clientInfo, clientId, displayName }: ExpiredPaneProps) {
+function ExpiredPane({ clientInfo, identity }: ExpiredPaneProps) {
   const t = useTranslations('dashboard.oauthConsent');
   return (
     <>
-      <IdentityCard clientInfo={clientInfo} clientId={clientId} displayName={displayName} />
+      <IdentityCard clientInfo={clientInfo} identity={identity} />
 
       <div className="flex flex-col gap-4 px-7 py-8">
         <div className="font-serif text-[24px] tracking-[-0.01em] [overflow-wrap:anywhere]">
@@ -584,8 +618,7 @@ function ExpiredPane({ clientInfo, clientId, displayName }: ExpiredPaneProps) {
 
 interface WrongAccountPaneProps {
   clientInfo: OAuthClientInfo | null;
-  clientId: string;
-  displayName: string;
+  identity: ConsentIdentity;
   userName: string;
   orgId: string;
   busy: 'allow' | 'deny' | null;
@@ -597,8 +630,7 @@ interface WrongAccountPaneProps {
 
 function WrongAccountPane({
   clientInfo,
-  clientId,
-  displayName,
+  identity,
   userName,
   orgId,
   busy,
@@ -611,7 +643,7 @@ function WrongAccountPane({
   const disabled = busy !== null || switching;
   return (
     <>
-      <IdentityCard clientInfo={clientInfo} clientId={clientId} displayName={displayName} />
+      <IdentityCard clientInfo={clientInfo} identity={identity} />
 
       <div className="flex flex-col gap-4 px-7 py-8">
         <div className="font-serif text-[24px] tracking-[-0.01em] [overflow-wrap:anywhere]">
@@ -655,8 +687,7 @@ function WrongAccountPane({
 
 interface BlockedPaneProps {
   clientInfo: OAuthClientInfo | null;
-  clientId: string;
-  displayName: string;
+  identity: ConsentIdentity;
   denial: OAuthConsentDenial;
   busy: 'allow' | 'deny' | null;
   error: string | null;
@@ -665,8 +696,7 @@ interface BlockedPaneProps {
 
 function BlockedPane({
   clientInfo,
-  clientId,
-  displayName,
+  identity,
   denial,
   busy,
   error,
@@ -675,7 +705,7 @@ function BlockedPane({
   const t = useTranslations('dashboard.oauthConsent');
   return (
     <>
-      <IdentityCard clientInfo={clientInfo} clientId={clientId} displayName={displayName} />
+      <IdentityCard clientInfo={clientInfo} identity={identity} />
 
       <div className="flex flex-col gap-4 px-7 py-8">
         <div className="font-serif text-[24px] tracking-[-0.01em] [overflow-wrap:anywhere]">

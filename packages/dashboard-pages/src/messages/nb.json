@@ -1061,6 +1061,12 @@
       "lede": "<client></client> vil koble seg til Munin og bruke verktøyene der på dine vegne. Se hva applikasjonen får tilgang til før du bestemmer deg.",
       "resourceLede": "<client></client> vil koble seg til <resource></resource> og handle på dine vegne. Se hva applikasjonen får tilgang til før du bestemmer deg.",
       "registered": "Registrert {date}",
+      "redirectsTo": "Du blir sendt tilbake til <host></host>",
+      "impersonation": {
+        "lead": "Sjekk før du gir tilgang.",
+        "body": "Applikasjonen kaller seg <product></product>, men tilgangen går til <host></host>, som ikke hører til <product></product>. Avslå forespørselen hvis du ikke stoler på <host></host>.",
+        "bodyNoHost": "Applikasjonen kaller seg <product></product>, men sender deg ikke tilbake til en adresse som hører til <product></product>. Avslå forespørselen hvis du ikke har satt opp denne tilkoblingen selv."
+      },
       "trustFirst": "Første gang du kobler <client></client> til denne kontoen. Ingenting er delt med den ennå.",
       "scopesLabel": "Forespurt tilgang",
       "scopesCount": "{modules, plural, =0 {0 moduler} =1 {1 modul} other {# moduler}} · {scopes, plural, =0 {0 tillatelser} =1 {1 tillatelse} other {# tillatelser}}",

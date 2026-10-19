@@ -1,13 +1,18 @@
 import { and, desc, eq, ne } from 'drizzle-orm';
 import { schema, type Db, type Tx } from '@getmunin/db';
-import type { ActorIdentity } from '@getmunin/core';
 import { latestTurnSenderAuthBlock, type SenderAuthBlock } from './identity-provenance.ts';
 
 const LATEST_TURN_LOOKBACK = 50;
 
+export interface LatestTurnScope {
+  orgId: string;
+  endUserId?: string | null;
+  conversationId?: string | null;
+}
+
 export async function readLatestTurnSenderAuthBlock(
   db: Db | Tx,
-  actor: ActorIdentity,
+  actor: LatestTurnScope,
 ): Promise<SenderAuthBlock | null> {
   if (!actor.conversationId || !actor.endUserId) return null;
   const messages = await db

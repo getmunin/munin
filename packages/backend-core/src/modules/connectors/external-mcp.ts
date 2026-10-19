@@ -8,7 +8,12 @@ import {
   readApiBaseUrl,
 } from '@getmunin/core';
 import { CUSTOM_MCP_VENDOR } from './custom-mcp.adapter.ts';
-import { identityProvenance, type IdentityProvenance } from './identity-provenance.ts';
+import {
+  identityProvenance,
+  type IdentityProvenance,
+  type SenderAuthBlock,
+} from './identity-provenance.ts';
+import { readLatestTurnSenderAuthBlock } from './latest-turn-sender-auth.ts';
 
 export const IDENTITY_ASSERTION_HEADER = 'x-munin-identity';
 export const DEFAULT_ASSERTION_TTL_SECONDS = 300;
@@ -24,14 +29,22 @@ export interface ExternalMcpEndpoint {
   allowedTools: string[];
 }
 
+export type IdentityWithheldReason = 'sender_auth_failed' | 'sender_forwarded';
+
 export interface IdentityAssertionClaims {
   orgId: string;
-  endUserId: string;
+  endUserId: string | null;
   email: string | null;
   phone: string | null;
   name: string | null;
   provenance: IdentityProvenance;
+  withheld: IdentityWithheldReason | null;
 }
+
+const WITHHELD_REASON: Record<SenderAuthBlock, IdentityWithheldReason> = {
+  fail: 'sender_auth_failed',
+  forwarded: 'sender_forwarded',
+};
 
 export function slugifyConnectionName(name: string): string {
   const collapsed = name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
@@ -63,7 +76,13 @@ export async function readOrgConnectorJwks(
 
 export async function listExternalMcpEndpoints(
   db: Db,
-  args: { orgId: string; endUserId: string; channelType?: string | null; ttlSeconds?: number },
+  args: {
+    orgId: string;
+    endUserId: string;
+    conversationId: string | null;
+    channelType?: string | null;
+    ttlSeconds?: number;
+  },
 ): Promise<ExternalMcpEndpoint[]> {
   const connections = await db.transaction(async (tx) => {
     await bypassRls(tx);
@@ -83,7 +102,7 @@ export async function listExternalMcpEndpoints(
   });
   if (connections.length === 0) return [];
 
-  const claims = await readIdentityClaims(db, args.orgId, args.endUserId, args.channelType);
+  const claims = await readIdentityClaims(db, args);
   if (!claims) return [];
   const key = await getOrCreateSigningKey(db, args.orgId);
   const privateKey = await importPKCS8(key.privateKeyPem, 'ES256');
@@ -136,6 +155,7 @@ export async function signIdentityAssertion(args: {
 }): Promise<string> {
   const { claims } = args;
   const payload: Record<string, unknown> = { org_id: claims.orgId };
+  if (claims.withheld) payload.identity_withheld = claims.withheld;
   if (claims.email) {
     payload.email = claims.email;
     payload.email_provenance = claims.provenance;
@@ -145,26 +165,30 @@ export async function signIdentityAssertion(args: {
     payload.phone_provenance = claims.provenance;
   }
   if (claims.name) payload.name = claims.name;
-  return new SignJWT(payload)
+  const jwt = new SignJWT(payload)
     .setProtectedHeader({ alg: 'ES256', kid: args.kid })
     .setIssuer(readApiBaseUrl())
-    .setSubject(claims.endUserId)
     .setAudience(args.audience)
     .setIssuedAt()
     .setExpirationTime(Math.floor(Date.now() / 1000) + args.ttlSeconds)
-    .setJti(randomUUID())
-    .sign(args.privateKey);
+    .setJti(randomUUID());
+  if (claims.endUserId) jwt.setSubject(claims.endUserId);
+  return jwt.sign(args.privateKey);
 }
 
 export async function readIdentityClaims(
   db: Db,
-  orgId: string,
-  endUserId: string,
-  channelType?: string | null,
+  args: {
+    orgId: string;
+    endUserId: string;
+    conversationId: string | null;
+    channelType?: string | null;
+  },
 ): Promise<IdentityAssertionClaims | null> {
-  const rows = await db.transaction(async (tx) => {
+  const { orgId, endUserId } = args;
+  const found = await db.transaction(async (tx) => {
     await bypassRls(tx);
-    return tx
+    const rows = await tx
       .select({
         email: schema.endUsers.email,
         phone: schema.endUsers.phone,
@@ -174,16 +198,40 @@ export async function readIdentityClaims(
       .from(schema.endUsers)
       .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.id, endUserId)))
       .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    const block = await readLatestTurnSenderAuthBlock(tx, {
+      orgId,
+      endUserId,
+      conversationId: args.conversationId,
+    });
+    return { row, block };
   });
-  const row = rows[0];
-  if (!row) return null;
+  if (!found) return null;
+  const { row, block } = found;
+  if (block) {
+    return {
+      orgId,
+      endUserId: null,
+      email: null,
+      phone: null,
+      name: null,
+      provenance: 'self_reported',
+      withheld: WITHHELD_REASON[block],
+    };
+  }
   return {
     orgId,
     endUserId,
     email: row.email,
     phone: row.phone,
     name: row.name,
-    provenance: identityProvenance({ channelType, email: row.email, metadata: row.metadata }),
+    provenance: identityProvenance({
+      channelType: args.channelType,
+      email: row.email,
+      metadata: row.metadata,
+    }),
+    withheld: null,
   };
 }
 

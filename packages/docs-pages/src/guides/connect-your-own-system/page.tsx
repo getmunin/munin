@@ -163,6 +163,13 @@ export default function ConnectYourOwnSystem() {
             <code>authenticated</code>. Decide per tool what the minimum is and enforce it
             server-side; for anything sensitive, do your own step-up first.
           </p>
+          <p className="tag-blurb">
+            When the latest message on an email conversation fails its DMARC check or was
+            forwarded, the sender may be forged, so Munin names nobody: the assertion carries no{' '}
+            <code>email</code>, <code>phone</code> or <code>sub</code>, and an{' '}
+            <code>identity_withheld</code> claim says why. Treat it like a request with no identity
+            and refuse personal lookups.
+          </p>
 
           <h2 className="tag-h" id="next" style={{ marginTop: 56 }}>
             The full contract <span className="ct">with a server you can fork</span>

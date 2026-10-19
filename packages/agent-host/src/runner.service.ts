@@ -592,7 +592,7 @@ export class AgentHostRunner
         });
         const extLog = this.scopedLogger(id, 'ext-mcp');
         const externals = await this.openExternalMcpHandles(
-          { orgId, endUserId, channelType },
+          { orgId, endUserId, conversationId, channelType },
           extLog,
         );
         if (externals.length === 0) return inner;
@@ -974,7 +974,7 @@ export class AgentHostRunner
   }
 
   private async openExternalMcpHandles(
-    args: { orgId: string; endUserId: string; channelType?: string | null },
+    args: { orgId: string; endUserId: string; conversationId: string; channelType?: string | null },
     log: { warn: (m: string) => void },
   ): Promise<Array<ExternalToolSource & { close(): Promise<void> }>> {
     let endpoints: ExternalMcpEndpoint[];

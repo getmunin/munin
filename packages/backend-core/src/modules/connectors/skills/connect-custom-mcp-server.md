@@ -64,7 +64,25 @@ Verify it against the org's JWKS document — public, no auth:
 
 Check the signature, `iss`, `aud` (must be the server's own URL), and `exp`, then scope every answer to the identified person.
 
-A request with no valid `X-Munin-Identity` header should still answer tools that need no identity (product catalogs, opening hours) and refuse personal lookups.
+A request with no valid `X-Munin-Identity` header should still answer tools that need no identity (product catalogs, opening hours) and refuse personal lookups. Treat a valid assertion that carries no `email` or `phone` the same way.
+
+### When Munin withholds the identity
+
+If the latest customer message on an email conversation **failed its DMARC check** or **was forwarded**, the `From:` address may be forged, so Munin does not name anyone. The assertion is still signed and still carries `org_id`, but `sub`, `email`, `phone`, `name` and both `*_provenance` claims are left out, and an `identity_withheld` claim says why:
+
+```json
+{
+  "iss": "{{API_URL}}",
+  "aud": "https://api.example.com/mcp",
+  "org_id": "{{ORG_ID}}",
+  "identity_withheld": "sender_auth_failed",
+  "iat": 1755772800,
+  "exp": 1755773100,
+  "jti": "…"
+}
+```
+
+`identity_withheld` is `sender_auth_failed` (DMARC fail) or `sender_forwarded` (a forwarded message, whose sender comes from the forwarded text). A server that reads `email` and gates on provenance — the reference implementation below — already refuses personal tools here with no extra code. Use the reason only to word the refusal, for example asking the customer to write in again from their own mailbox.
 
 ### Provenance is not proof — read this before returning anything sensitive
 
@@ -76,7 +94,7 @@ There is no `verified: true` in the assertion, deliberately. Munin tells you **w
 | `channel_asserted` | Taken from the channel envelope: an email `From:` header, an SMS sender number, or voice caller ID. | **Spoofable.** None of these are authenticated. Anyone can send mail claiming to be `jane@example.com`, and caller/sender ID is forgeable. |
 | `self_reported` | Typed into a chat by an unauthenticated visitor. | Worthless as identity. |
 
-Provenance describes **the turn that is happening right now**, not the person's history: if Jane once signed in through the widget and someone later emails pretending to be her, that email turn arrives as `channel_asserted`, never `authenticated`.
+Provenance describes **the turn that is happening right now**, not the person's history: if Jane once signed in through the widget and someone later emails pretending to be her, that email turn arrives as `channel_asserted`, never `authenticated` — and if that email fails DMARC or was forwarded, it arrives with no identity at all.
 
 So:
 
@@ -205,10 +223,11 @@ The pattern to copy: authenticate the bearer token, verify the identity assertio
 | Chat widget, delegated token your backend minted after logging them in | `authenticated` |
 | Chat widget, anonymous visitor who typed an address | `self_reported` |
 | Inbound email | `channel_asserted` — the `From:` header, unauthenticated |
+| Inbound email whose latest message failed DMARC or was forwarded | Neither — no `email`, `phone` or `sub`; `identity_withheld` gives the reason |
 | Inbound SMS | `channel_asserted` — the sender number, unauthenticated |
 | Voice call | `channel_asserted` — caller ID, unauthenticated |
 
-Munin parses `Authentication-Results` on inbound mail into a per-message DMARC verdict, and uses an explicit failure to refuse its own self-service booking writes, but the verdict is **not** reflected in `email_provenance`: a DMARC-failing message and a passing one both arrive as `channel_asserted`. Treat `channel_asserted` on email as "someone typed this address into a From line."
+Munin parses `Authentication-Results` on inbound mail into a per-message DMARC verdict. An explicit failure, or a forwarded message, withholds the identity from your server entirely, just as it refuses Munin's own self-service order, booking and contact lookups. A passing verdict does **not** upgrade the email: it still arrives as `channel_asserted`, and so does mail whose domain publishes no DMARC policy. Treat `channel_asserted` on email as "someone typed this address into a From line."
 
 If the org wants a strong identity on the widget, the route is the identity-verification secret or a delegated token — see `skill://connectors/connect-external-system` for that chain.
 

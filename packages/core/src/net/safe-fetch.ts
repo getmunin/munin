@@ -16,6 +16,8 @@ const dnsLookup = promisify((hostname: string, cb: (err: NodeJS.ErrnoException |
 
 const MAX_REDIRECTS = 5;
 
+export const DEFAULT_MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
+
 const BLOCKED_HOSTNAMES = new Set([
   'localhost',
   'localhost.',
@@ -150,6 +152,30 @@ export class SsrfBlockedError extends Error {
   }
 }
 
+export class ResponseTooLargeError extends Error {
+  readonly code = 'response_too_large';
+  readonly limitBytes: number;
+
+  constructor(limitBytes: number, declaredBytes?: number) {
+    super(
+      declaredBytes === undefined
+        ? `response_too_large: response body exceeds the ${limitBytes}-byte limit`
+        : `response_too_large: declared length of ${declaredBytes} bytes exceeds the ${limitBytes}-byte limit`,
+    );
+    this.name = 'ResponseTooLargeError';
+    this.limitBytes = limitBytes;
+  }
+}
+
+export function findResponseTooLarge(err: unknown): ResponseTooLargeError | null {
+  let cur: unknown = err;
+  for (let depth = 0; cur && depth < 8; depth++) {
+    if (cur instanceof ResponseTooLargeError) return cur;
+    cur = (cur as { cause?: unknown }).cause;
+  }
+  return null;
+}
+
 function unreachableHost(hostname: string, detail: string): SsrfBlockedError {
   console.warn(`[safe-fetch] blocked ${hostname}: ${detail}`);
   return new SsrfBlockedError(`host ${hostname} is not reachable as a public address`, detail);
@@ -278,6 +304,7 @@ function isBannedHostname(host: string): boolean {
 export interface SafeFetchOptions extends Omit<UndiciRequestInit, 'redirect' | 'dispatcher'> {
   resolver?: (hostname: string) => Promise<{ address: string; family: number }[]>;
   maxRedirects?: number;
+  maxResponseBytes?: number;
   __connectLookup?: ConnectLookup;
   __dispatcher?: Dispatcher;
 }
@@ -334,7 +361,17 @@ export const safeFetchCompat: GlobalFetchLike = async (url, init) => {
 };
 
 export async function safeFetch(input: string, init: SafeFetchOptions = {}): Promise<UndiciResponse> {
-  const { resolver, maxRedirects = MAX_REDIRECTS, __connectLookup, __dispatcher, ...rest } = init;
+  const {
+    resolver,
+    maxRedirects = MAX_REDIRECTS,
+    maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
+    __connectLookup,
+    __dispatcher,
+    ...rest
+  } = init;
+  if (!Number.isFinite(maxResponseBytes) || maxResponseBytes <= 0) {
+    throw new RangeError('maxResponseBytes must be a positive finite number');
+  }
   const agent = __dispatcher ?? makeBlockingAgent(__connectLookup ?? defaultConnectLookup);
   let currentUrl = input;
   let hops = 0;
@@ -348,7 +385,10 @@ export async function safeFetch(input: string, init: SafeFetchOptions = {}): Pro
         dispatcher: agent,
       });
       const nextUrl = redirectTarget(res, currentUrl);
-      if (!nextUrl) return attachAgentLifetime(res, agent, currentUrl);
+      if (!nextUrl) {
+        if (rest.method?.toUpperCase() !== 'HEAD') await assertDeclaredLengthWithin(res, maxResponseBytes);
+        return attachAgentLifetime(res, agent, currentUrl, maxResponseBytes);
+      }
       await discardBody(res);
       if (++hops > maxRedirects) {
         throw new SsrfBlockedError(`too many redirects (>${maxRedirects})`);
@@ -366,22 +406,48 @@ function withFinalUrl(res: UndiciResponse, url: string): UndiciResponse {
   return res;
 }
 
-function attachAgentLifetime(res: UndiciResponse, agent: Dispatcher, finalUrl: string): UndiciResponse {
+async function assertDeclaredLengthWithin(res: UndiciResponse, maxBytes: number): Promise<void> {
+  const raw = res.headers.get('content-length');
+  if (raw === null) return;
+  const declared = Number(raw);
+  if (!Number.isFinite(declared) || declared <= maxBytes) return;
+  await discardBody(res);
+  throw new ResponseTooLargeError(maxBytes, declared);
+}
+
+function attachAgentLifetime(
+  res: UndiciResponse,
+  agent: Dispatcher,
+  finalUrl: string,
+  maxBytes: number,
+): UndiciResponse {
   if (!res.body) {
     closeAgent(agent);
     return withFinalUrl(res, finalUrl);
   }
   const upstream: ReadableStreamDefaultReader<Uint8Array> = res.body.getReader();
+  let received = 0;
   const wrapped = new ReadableStream<Uint8Array>({
     async pull(controller) {
       try {
-        const next = await upstream.read();
-        if (next.done) {
-          controller.close();
-          closeAgent(agent);
+        for (;;) {
+          const next = await upstream.read();
+          if (next.done) {
+            controller.close();
+            closeAgent(agent);
+            return;
+          }
+          if (!next.value || next.value.byteLength === 0) continue;
+          received += next.value.byteLength;
+          if (received > maxBytes) {
+            await upstream.cancel().catch(() => undefined);
+            controller.error(new ResponseTooLargeError(maxBytes));
+            closeAgent(agent);
+            return;
+          }
+          controller.enqueue(next.value);
           return;
         }
-        if (next.value) controller.enqueue(next.value);
       } catch (err) {
         controller.error(err);
         closeAgent(agent);

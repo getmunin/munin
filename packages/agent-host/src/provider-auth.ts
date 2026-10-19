@@ -1,5 +1,5 @@
 import { BadGatewayException, HttpStatus, UnauthorizedException } from '@nestjs/common';
-import { describeError, safeFetch } from '@getmunin/core';
+import { describeError, findResponseTooLarge, safeFetch } from '@getmunin/core';
 import { stripTrailingSlashes } from '@getmunin/types';
 
 export async function validateProviderCredentials(baseUrl: string, apiKey: string): Promise<void> {
@@ -38,6 +38,12 @@ async function probe(url: string, headers: Record<string, string>): Promise<unkn
   try {
     return await res.json();
   } catch (err) {
+    const tooLarge = findResponseTooLarge(err);
+    if (tooLarge) {
+      throw new BadGatewayException(
+        `provider response exceeded the ${tooLarge.limitBytes}-byte limit (response_too_large)`,
+      );
+    }
     throw new BadGatewayException(`provider returned a non-JSON response (${describeError(err)})`);
   }
 }

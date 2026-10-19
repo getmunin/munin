@@ -28,7 +28,7 @@ import {
   type ToolCatalogAdapter,
 } from './connector.ts';
 import { SecretCipherError } from '../../common/outbound-oauth/grant-store.ts';
-import { ConnectorVendorError } from './http.ts';
+import { asVendorError, ConnectorVendorError } from './http.ts';
 import { isSelfReportedIdentity } from './identity-provenance.ts';
 import { readLatestTurnSenderAuthBlock } from './latest-turn-sender-auth.ts';
 import { ConnectorOAuthService, OAUTH_CONFIG_KEY } from './connector-oauth.service.ts';
@@ -345,7 +345,8 @@ export class ConnectorsService {
         decryptSecret: (ciphertext) => this.decryptDetached(ciphertext),
       });
       return { ok: true, detail: result.detail };
-    } catch (err) {
+    } catch (caught) {
+      const err = asVendorError(caught);
       if (err instanceof ConnectorVendorError || err instanceof SsrfBlockedError) {
         return { ok: false, error: err.message };
       }
@@ -533,7 +534,8 @@ export class ConnectorsService {
         .set({ lastTestedAt: new Date(), lastTestError: null, updatedAt: new Date() })
         .where(eq(schema.connectorConnections.id, row.id));
       return { ok: true, detail: result.detail, summary: result.summary };
-    } catch (err) {
+    } catch (caught) {
+      const err = asVendorError(caught);
       if (!(err instanceof ConnectorVendorError) && !(err instanceof SsrfBlockedError)) throw err;
       const message = err.message;
       await ctx.db
@@ -688,7 +690,8 @@ export class ConnectorsService {
   async vendorCall<T>(fn: () => Promise<T>): Promise<T> {
     try {
       return await fn();
-    } catch (err) {
+    } catch (caught) {
+      const err = asVendorError(caught);
       if (err instanceof SsrfBlockedError) {
         throw new BadRequestException(`connectors_invalid: vendor host blocked: ${err.message}`);
       }

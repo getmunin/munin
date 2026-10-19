@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { computeValidAudiences } from './auth-factory.ts';
+import { ACCOUNT_LINKING_TRUSTED_PROVIDERS, computeValidAudiences } from './auth-factory.ts';
+
+describe('ACCOUNT_LINKING_TRUSTED_PROVIDERS', () => {
+  it('trusts only google, so github must report an email verified before it links to an existing user', () => {
+    expect(ACCOUNT_LINKING_TRUSTED_PROVIDERS).toEqual(['google']);
+  });
+});
 
 describe('computeValidAudiences', () => {
   it('returns canonical URL plus trailing-slash variant when baseUrl has a path', () => {

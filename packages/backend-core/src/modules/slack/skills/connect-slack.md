@@ -11,7 +11,7 @@ Use this when the operator wants their team to triage Munin conversations from S
 ## TL;DR
 
 1. Confirm the deployment has a Slack app (`slack_get_status` → `appConfigured`). If it doesn't, create the app from the manifest below and set the env vars.
-2. Call `slack_get_install_url` and have the operator open and approve the link in a browser (workspace admin required).
+2. Call `slack_get_install_url` and have an owner or admin of this org open the link in a browser where they are signed in to Munin, then approve it in Slack (Slack workspace admin required).
 3. Call `slack_set_routing` with the channel ID conversations should mirror into; have the operator `/invite` the bot to that channel.
 4. Optionally route escalations to a second channel: `slack_set_routing` with `purpose: "escalations"` and a `mention` like `<!here>`; approvals and CMS publish announcements take their own channels the same way (`purpose: "approvals"` / `"content"`).
 5. Verify with `slack_send_test_message`, then confirm `slack_get_status` shows `connected: true`.
@@ -64,7 +64,16 @@ Workspaces installed before the `channels:history` scope was added must reinstal
 
 ## Step 1 — install into the workspace
 
-Call `slack_get_install_url` and give the operator the returned URL. They open it in a browser, pick the Slack workspace, and approve. The link expires after 10 minutes — mint a fresh one if they were slow. On success the browser lands back on the dashboard's Integrations page with `slack=connected`.
+Call `slack_get_install_url` and give the operator the returned URL. It points at Munin, not at Slack: Munin checks that the browser opening it is signed in to Munin as an owner or admin of this org, and only then forwards it to Slack's approval screen, where they pick the workspace and approve. The install has to come back to the same browser and the same signed-in person — Slack's approval screen does not name the Munin org, so this is what stops a link minted for one org from connecting somebody else's workspace to it. The link expires after 10 minutes, and each trip through Slack's approval screen can complete only once; mint a fresh link if they were slow or something went wrong.
+
+The browser always lands back on the dashboard's Integrations page, with the outcome in the `slack` query parameter (the page shows it as a notice):
+
+- `connected` — done.
+- `signin_required` — the link was opened without a Munin session. Sign in as an owner or admin and connect from the Integrations page, or open a fresh link.
+- `forbidden` — the signed-in person is not an owner or admin of the org the link was made for, or a different person finished the install than started it.
+- `expired` — the link was too old or malformed; mint a fresh one.
+- `denied` — the operator declined in Slack.
+- `error` — anything else, including a Slack approval that was already used (a reloaded or replayed callback).
 
 One workspace can serve multiple Munin orgs, and several of them may route into the same Slack channel — see [Sharing a channel between orgs](#sharing-a-channel-between-orgs).
 
@@ -169,7 +178,8 @@ Translations of one article group into a thread: the locale that publishes first
 
 A reply in a mirrored thread is sent to the customer over the conversation's original channel and recorded in Munin as that teammate's message. Replying does not take over the conversation — the AI stays in the loop; use the *Take over* button on the thread parent to take control (and *Release* to hand back):
 
-- **Attribution is by email match**: the Slack profile email must belong to a member of the Munin org. The first reply creates the mapping; later replies use it. When emails differ, link manually: `slack_link_user` with the Slack member ID (profile → *Copy member ID*) and the Munin user ID; inspect with `slack_list_user_links`, revoke with `slack_unlink_user`.
+- **Attribution is by email match**: the Slack profile email must belong to a member of the Munin org. The first reply creates the mapping; later replies use it. Only full members of the connected Slack workspace are matched this way — guests, deactivated accounts, and people from another workspace who share the channel over Slack Connect are never linked by email, because their profile email is not something the connected workspace vouches for. When emails differ, or to let a workspace guest act, link manually: `slack_link_user` with the Slack member ID (profile → *Copy member ID*) and the Munin user ID; inspect with `slack_list_user_links`, revoke with `slack_unlink_user`.
+- **Only the connected workspace acts**: a reply or click from a user whose home workspace is not the connected one is rejected even when that Slack user is linked, so a shared Slack Connect channel never lets an outside workspace act as an org member.
 - **Unmapped users are rejected** — the reply is *not* sent, and only the sender sees an ephemeral notice in the thread. Fix by inviting them to the org with their Slack email, or link them manually with `slack_link_user`.
 - **Internal notes**: start the reply with `!` to keep it team-only (`!checking with billing`) — recorded as an internal note, never sent to the customer.
 - **Assign from the thread**: `!assign @teammate` assigns the conversation to that (linked) teammate; `!assign me` assigns yourself. The assignment mirrors back into the thread and the parent status line.
@@ -180,6 +190,7 @@ A reply in a mirrored thread is sent to the customer over the conversation's ori
 ## Troubleshooting
 
 - `slack_not_configured` — deployment env vars missing (step 0).
+- Install lands on `slack=signin_required` or `slack=forbidden` — the link was opened by someone who is not signed in to Munin as an owner or admin of this org. Have an owner or admin open a fresh `slack_get_install_url` link, or connect from Settings → Integrations.
 - `slack_bot_not_in_channel` / parent messages missing — the bot was never invited to the routed channel.
 - `slack_conflict` on routing — that channel is already one of this org's other routes; every route of an org needs its own channel. (Another org using the channel is not a conflict.)
 - `slack_not_channel_member` on routing — another org already routes into that channel, and the caller's Slack account (found by their Munin email address) is not in it. Join the channel in Slack with that account, or have someone who is in it set the route.

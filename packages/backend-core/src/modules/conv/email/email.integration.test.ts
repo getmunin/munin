@@ -79,8 +79,11 @@ class StubImapFetcher implements ImapFetcher {
   let emailAdapter: EmailAdapter;
   let mailer: StubMailer;
   let fetcher: StubImapFetcher;
+  let previousOrgFromDomains: string | undefined;
 
   beforeAll(async () => {
+    previousOrgFromDomains = process.env.MUNIN_MAIL_ORG_FROM_DOMAINS;
+    process.env.MUNIN_MAIL_ORG_FROM_DOMAINS = 'acme.test';
     process.env.MUNIN_AUTH_SECRET ??= 'test-secret-do-not-use-in-prod';
     process.env.MUNIN_KEY_PEPPER ??= 'test-pepper';
     process.env.MUNIN_EMBEDDING_PROVIDER = 'stub';
@@ -129,6 +132,8 @@ class StubImapFetcher implements ImapFetcher {
   });
 
   afterAll(async () => {
+    if (previousOrgFromDomains === undefined) delete process.env.MUNIN_MAIL_ORG_FROM_DOMAINS;
+    else process.env.MUNIN_MAIL_ORG_FROM_DOMAINS = previousOrgFromDomains;
     if (app) await app.close();
     if (db) {
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);

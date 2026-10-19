@@ -25,11 +25,22 @@ Required from the operator:
 - **Addressing**: `fromAddress` (must be a real mailbox they control), optional `fromName` (e.g. "Acme Support").
 - **Outbound mode**:
   - `smtp` — host, port, secure (TLS yes/no), username. Most providers: port 587 with `secure: false` (STARTTLS) or 465 with `secure: true`. The password is entered through the credential link, never in the conversation.
-  - `mailer` — no extra config; uses the Munin instance's configured Mailer. Best when you have no separate SMTP relay.
+  - `mailer` — no extra config; uses the Munin instance's configured Mailer. Best when you have no separate SMTP relay. Read *Sending through the shared mailer* below first: the shared mailer sends as `fromAddress` only on domains the deployment allows.
 - **Inbound (optional)**: IMAP host, port, secure, username, mailbox name (defaults to `INBOX`). The password comes through the credential link.
 - **History (optional)**: by default only mail the server receives from the moment the channel is activated is imported (a test email sent right after saving the passwords is picked up on the first poll) — years of existing mail would otherwise open as fresh conversations and wake the agent on every one. If the operator wants recent threads in the inbox, set `inbound.backfillDays` (1–90) to import that many days of existing mail on the first poll. Ask before setting it: every backfilled message is treated as new inbound mail, so in `auto` mode the agent will answer them.
 
 Passwords are stored encrypted via pgcrypto and only enter Munin through the credential link. Re-calling `conv_configure_email_channel` for updates keeps the stored passwords — non-secret fields can be changed freely.
+
+### Sending through the shared mailer
+
+The `mailer` transport is one sender shared by every organization on the deployment, so it will not send as just any address — otherwise one organization could send as another, or as the deployment's own addresses. The deployment lists the domains organizations may use as their From address (`MUNIN_MAIL_ORG_FROM_DOMAINS`, exact domain match):
+
+- **`fromAddress` on an allowed domain** — mail goes out as configured: `Acme Support <support@acme.com>`.
+- **Any other `fromAddress`** — the channel still works, but mail goes out from the deployment's own sender address, with the channel's `fromName` as the display name (`Acme Support <no-reply@…>`) and `fromAddress` as the Reply-To, so replies still reach the customer's mailbox. A `replyToTemplate` still takes precedence as the Reply-To.
+
+The default allows no domains, so on most deployments a `mailer` channel sends from the deployment's sender. A single-organization deployment may allow every address (`*`).
+
+`conv_configure_email_channel` returns `effectiveSender` — `from` is the From header recipients will see, and `usesDeploymentSender: true` (with a `note`) means the address was not allowed. Tell the operator what recipients will see. If they need mail to come from their own address and their domain is not allowed, set up `smtp` with their own mail server instead; that transport always sends as `fromAddress`. `conv_send_email_channel_test` and the chat widget's email follow-ups use the same sender.
 
 ## Step 2 — create the channel
 
@@ -64,7 +75,7 @@ Call `conv_configure_email_channel` (admin):
 }
 ```
 
-Returns the channel ID, type `'email'`, the redacted DTO (passwords show as `••••`), and — when SMTP or IMAP is configured — a `credentialLink` with a one-time URL. The channel stays `active: false` until the human opens the link and saves the passwords; saving verifies them against the SMTP/IMAP servers and activates the channel.
+Returns the channel ID, type `'email'`, the redacted DTO (passwords show as `••••`), `effectiveSender` (the From header recipients will see — see *Sending through the shared mailer*), and — when SMTP or IMAP is configured — a `credentialLink` with a one-time URL. The channel stays `active: false` until the human opens the link and saves the passwords; saving verifies them against the SMTP/IMAP servers and activates the channel.
 
 To **update** an existing channel, pass `channelId` and only the fields you want to change. Stored passwords are preserved as long as the server stays the same. Changing the SMTP or IMAP `host` is refused with `conv_secret_required`, because the stored password is never sent to a different server; a person makes that change in the channel's edit dialog in the dashboard, which asks for the password again once the host changes. To rotate a password on the same server, mint a link with `conv_request_channel_credentials` — or tell the human they can retype it directly in the channel's edit dialog in the dashboard, which accepts passwords because a person is typing them.
 

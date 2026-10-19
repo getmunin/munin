@@ -14,11 +14,12 @@ export const ORG_ATTESTED_EMAIL_SOURCE = 'org-attested';
 export const CHANNEL_EMAIL_SOURCE = 'channel';
 export const LEGACY_EMAIL_SOURCE = 'legacy';
 
-const TRUSTED_EMAIL_SOURCES: ReadonlySet<string> = new Set([
+export const TRUSTED_EMAIL_SOURCE_VALUES: readonly string[] = [
   ORG_ATTESTED_EMAIL_SOURCE,
   CHANNEL_EMAIL_SOURCE,
   LEGACY_EMAIL_SOURCE,
-]);
+];
+const TRUSTED_EMAIL_SOURCES: ReadonlySet<string> = new Set(TRUSTED_EMAIL_SOURCE_VALUES);
 export const ATTESTED_EMAIL_METADATA_KEY = 'attestedEmail';
 
 export interface ConversationTurnMessage {

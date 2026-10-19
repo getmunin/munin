@@ -4110,7 +4110,7 @@
   {
     "name": "conv_configure_email_channel",
     "title": "Conv: Configure an email channel",
-    "description": "Create or update an email channel's transport configuration with the non-secret fields only. SMTP / IMAP passwords are rejected here: the channel is created inactive and the response includes a one-time link for a human to enter the passwords in the dashboard — the channel activates once they are saved. Updates keep the stored passwords, except that changing the SMTP or IMAP host is refused: a stored password is never sent to a different server, so that change is made in the dashboard together with the password. Updating a channel that is currently deactivated (for example after repeated inbound polling failures) re-tests the stored credentials: the channel is reactivated when SMTP and IMAP both connect, and otherwise stays deactivated with the connection errors in the `probe` field of the response. IMAP inbound imports mail the server received from the moment the channel is activated, including anything that lands before the first poll; older mail already in the mailbox is not imported unless `inbound.backfillDays` (1–90) asks for that many days of it, which only applies to that first poll. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host (no password needed, channel is active immediately). A channel that receives mail needs an explicit `defaultAgentMode` — there is no default: `auto` lets the agent reply to the sender itself, `draft_only` parks each answer as an internal draft that a human reviews and sends (a human-in-the-loop inbox, or an outreach-only inbox where a reply must never be auto-sent).",
+    "description": "Create or update an email channel's transport configuration with the non-secret fields only. SMTP / IMAP passwords are rejected here: the channel is created inactive and the response includes a one-time link for a human to enter the passwords in the dashboard — the channel activates once they are saved. Updates keep the stored passwords, except that changing the SMTP or IMAP host is refused: a stored password is never sent to a different server, so that change is made in the dashboard together with the password. Updating a channel that is currently deactivated (for example after repeated inbound polling failures) re-tests the stored credentials: the channel is reactivated when SMTP and IMAP both connect, and otherwise stays deactivated with the connection errors in the `probe` field of the response. IMAP inbound imports mail the server received from the moment the channel is activated, including anything that lands before the first poll; older mail already in the mailbox is not imported unless `inbound.backfillDays` (1–90) asks for that many days of it, which only applies to that first poll. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host (no password needed, channel is active immediately). The shared mailer sends as `fromAddress` only when the deployment allows that address's domain; otherwise mail goes out from the deployment's own sender address, with `fromName` as the display name and `fromAddress` as the Reply-To. `effectiveSender` in the response shows the From header recipients will see. A channel that receives mail needs an explicit `defaultAgentMode` — there is no default: `auto` lets the agent reply to the sender itself, `draft_only` parks each answer as an internal draft that a human reviews and sends (a human-in-the-loop inbox, or an outreach-only inbox where a reply must never be auto-sent).",
     "audiences": [
       "admin"
     ],
@@ -10406,7 +10406,7 @@
   {
     "name": "slack_get_install_url",
     "title": "Slack: Get install link",
-    "description": "Return the Slack OAuth link that connects a Slack workspace to this org. The link must be opened and approved in a browser by a workspace admin; it expires after 10 minutes (call again for a fresh one). After installing, pick a channel with slack_set_routing. Fails when the deployment has no Slack app configured (SLACK_CLIENT_ID / SLACK_CLIENT_SECRET).",
+    "description": "Return a link that connects a Slack workspace to this org. The link opens Munin first: it only continues to Slack's approval screen in a browser signed in to Munin as an owner or admin of this org, and the install must finish in that same browser and session; anyone else is sent back to the dashboard and nothing is connected. Approving in Slack additionally needs a Slack workspace admin. Each approval round trip completes at most once, and the link expires after 10 minutes (call again for a fresh one). After installing, pick a channel with slack_set_routing. Fails when the deployment has no Slack app configured (SLACK_CLIENT_ID / SLACK_CLIENT_SECRET).",
     "audiences": [
       "admin"
     ],
@@ -10531,7 +10531,7 @@
   {
     "name": "slack_list_user_links",
     "title": "Slack: List user links",
-    "description": "List the Slack-user ↔ Munin-member links used to attribute thread replies and button clicks. Links are created automatically by profile-email match on first use, or manually with slack_link_user.",
+    "description": "List the Slack-user ↔ Munin-member links used to attribute thread replies and button clicks. Links are created automatically on first use when a full member of the connected workspace has a Slack profile email that matches an org member (guests and users from other workspaces are never matched), or manually with slack_link_user.",
     "audiences": [
       "admin"
     ],
@@ -10550,7 +10550,7 @@
   {
     "name": "slack_link_user",
     "title": "Slack: Link a user",
-    "description": "Manually link a Slack user (U… member ID) to a Munin org member so their thread replies and button clicks are attributed to that member. Use when the Slack profile email does not match the member email. Linking again replaces the previous mapping for that Slack user.",
+    "description": "Manually link a Slack user (U… member ID) to a Munin org member so their thread replies and button clicks are attributed to that member. Use when the Slack profile email does not match the member email, or to let a workspace guest act. A linked user from another Slack workspace (Slack Connect) is still refused. Linking again replaces the previous mapping for that Slack user.",
     "audiences": [
       "admin"
     ],

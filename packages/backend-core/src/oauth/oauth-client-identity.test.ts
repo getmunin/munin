@@ -62,6 +62,49 @@ describe('impersonatedClientName', () => {
     expect(impersonatedClientName('Claude', ['not a url'])).toBe('Claude');
   });
 
+  it('flags a client that calls itself Grok but redirects off the Grok hosts', () => {
+    expect(impersonatedClientName('Grok', ['https://attacker.example/cb'])).toBe('Grok');
+    expect(
+      impersonatedClientName('Grok', ['https://grok.com/connectors-oauth-exchange-code/']),
+    ).toBeNull();
+  });
+
+  it('does not read a short vendor host as a claim on that product', () => {
+    expect(impersonatedClientName('Xero Exporter', ['https://acme.example/cb'])).toBeNull();
+    expect(impersonatedClientName('Tax AI helper', ['https://acme.example/cb'])).toBeNull();
+  });
+
+  it('flags Copilot claims that redirect off the Microsoft and GitHub hosts', () => {
+    expect(impersonatedClientName('Copilot', ['https://attacker.example/cb'])).toBe('Copilot');
+    expect(impersonatedClientName('GitHub Copilot', ['https://attacker.example/cb'])).toBe(
+      'Copilot',
+    );
+    expect(impersonatedClientName('Microsoft Copilot', ['https://attacker.example/cb'])).toBe(
+      'Copilot',
+    );
+    expect(impersonatedClientName('Copilot Studio', ['https://attacker.example/cb'])).toBe(
+      'Copilot',
+    );
+  });
+
+  it('trusts Copilot clients that redirect to the VS Code relay or the Copilot Studio consent host', () => {
+    expect(
+      impersonatedClientName('GitHub Copilot', [
+        'http://127.0.0.1:33418',
+        'https://vscode.dev/redirect',
+      ]),
+    ).toBeNull();
+    expect(
+      impersonatedClientName('Copilot Studio', [
+        'https://global.consent.azure-apim.net/redirect/acme-5fconnector',
+      ]),
+    ).toBeNull();
+  });
+
+  it('leaves third-party tools that merely use copilot in their name alone', () => {
+    expect(impersonatedClientName('Acme Sales Copilot', ['https://acme.example/cb'])).toBeNull();
+  });
+
   it('leaves clients that claim no known product alone', () => {
     expect(impersonatedClientName('Acme Agent', ['https://attacker.example/cb'])).toBeNull();
     expect(impersonatedClientName(null, ['https://attacker.example/cb'])).toBeNull();
@@ -73,6 +116,12 @@ describe('knownClientNameForHost', () => {
   it('names hosts that belong to a known product', () => {
     expect(knownClientNameForHost('claude.ai')).toBe('Claude');
     expect(knownClientNameForHost('openai.com')).toBe('ChatGPT');
+    expect(knownClientNameForHost('grok.com')).toBe('Grok');
+    expect(knownClientNameForHost('vscode.dev')).toBe('Copilot');
+  });
+
+  it('does not name a client after a host other vendors also redirect through', () => {
+    expect(knownClientNameForHost('global.consent.azure-apim.net')).toBeNull();
   });
 
   it('returns null for unknown or missing hosts', () => {

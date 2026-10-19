@@ -25,6 +25,13 @@ describe('curatorFailureDisposition', () => {
     });
   });
 
+  it('does not retry a bound job whose payload lacks the record it is pinned to', () => {
+    expect(curatorFailureDisposition({ ok: false, skipped: 'unbound_job_payload' })).toEqual({
+      retryable: false,
+      providerHealthFailure: false,
+    });
+  });
+
   it('retries an agent error without blaming the provider', () => {
     expect(curatorFailureDisposition({ ok: false, skipped: 'agent_error' })).toEqual({
       retryable: true,

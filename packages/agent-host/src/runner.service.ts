@@ -67,6 +67,7 @@ import {
   jobKindOf,
   tierFor,
   allowedToolsFor,
+  pinnedToolArgsFor,
   WEB_SCRAPE_SITE_TASK_URI,
   type WebImportProgress,
 } from '@getmunin/types';
@@ -785,22 +786,32 @@ export class AgentHostRunner
             result = await handler(ctx);
           }
         } else if (kind === 'skill') {
-          result = await runSkillPass({
-            mcp: jobMcp,
-            skills,
-            providerBaseUrl: opts.providerBaseUrl,
-            providerApiKey: opts.providerApiKey,
-            model,
-            skillUri: job.jobUri,
-            userPrompt: job.userPrompt,
-            userPromptAttachments: await conversationAttachmentsFor(job, opts.rest, log),
-            assistantName: job.assistantName,
-            maxToolIterations: CURATOR_MAX_TOOL_ITERATIONS,
-            maxHistoryChars: opts.config.maxHistoryChars,
-            providerImpl: opts.provider,
-            allowedTools: allowedToolsFor(job.jobUri),
-            logger: log,
-          });
+          const pinning = pinnedToolArgsFor(job.jobUri, job.sourceEventPayload);
+          if (!pinning.ok) {
+            result = {
+              ok: false,
+              skipped: 'unbound_job_payload',
+              error: `${job.jobUri} needs ${pinning.missing} in its source event payload`,
+            };
+          } else {
+            result = await runSkillPass({
+              mcp: jobMcp,
+              skills,
+              providerBaseUrl: opts.providerBaseUrl,
+              providerApiKey: opts.providerApiKey,
+              model,
+              skillUri: job.jobUri,
+              userPrompt: job.userPrompt,
+              userPromptAttachments: await conversationAttachmentsFor(job, opts.rest, log),
+              assistantName: job.assistantName,
+              maxToolIterations: CURATOR_MAX_TOOL_ITERATIONS,
+              maxHistoryChars: opts.config.maxHistoryChars,
+              providerImpl: opts.provider,
+              allowedTools: allowedToolsFor(job.jobUri),
+              pinnedArgs: pinning.pinned,
+              logger: log,
+            });
+          }
         } else {
           result = { ok: false, skipped: 'agent_error', error: `unknown job uri scheme: ${job.jobUri}` };
         }

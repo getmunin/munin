@@ -62,7 +62,7 @@ export const TOOLS_BY_URI: ReadonlyMap<string, readonly string[]> = new Map([
   ],
   [
     'skill://crm/extract-contact-from-message',
-    ['conv_get_conversation', 'crm_lookup_contact', 'crm_create_contact', 'crm_update_contact'],
+    ['conv_get_conversation', 'crm_apply_conversation_identity'],
   ],
   [
     'skill://outreach/draft-first-touch-email',
@@ -111,4 +111,42 @@ export const TOOLS_BY_URI: ReadonlyMap<string, readonly string[]> = new Map([
 
 export function allowedToolsFor(uri: string): readonly string[] | undefined {
   return TOOLS_BY_URI.get(uri);
+}
+
+export type PinnedToolArgs = Readonly<Record<string, Readonly<Record<string, string>>>>;
+
+export const PAYLOAD_BOUND_ARGS_BY_URI: ReadonlyMap<string, PinnedToolArgs> = new Map<string, PinnedToolArgs>([
+  [
+    'skill://crm/extract-contact-from-message',
+    {
+      conv_get_conversation: { id: 'conversationId' },
+      crm_apply_conversation_identity: { conversationId: 'conversationId' },
+    },
+  ],
+  [
+    'skill://conv/strip-email-signature',
+    { conv_strip_message_signature: { messageId: 'messageId' } },
+  ],
+]);
+
+export type PinnedToolArgsResolution =
+  | { ok: true; pinned: PinnedToolArgs | undefined }
+  | { ok: false; missing: string };
+
+export function pinnedToolArgsFor(uri: string, payload: unknown): PinnedToolArgsResolution {
+  const bindings = PAYLOAD_BOUND_ARGS_BY_URI.get(uri);
+  if (!bindings) return { ok: true, pinned: undefined };
+  const source: Record<string, unknown> =
+    payload !== null && typeof payload === 'object' ? { ...payload } : {};
+  const pinned: Record<string, Record<string, string>> = {};
+  for (const [tool, args] of Object.entries(bindings)) {
+    const values: Record<string, string> = {};
+    for (const [arg, payloadKey] of Object.entries(args)) {
+      const value = source[payloadKey];
+      if (typeof value !== 'string' || value.length === 0) return { ok: false, missing: payloadKey };
+      values[arg] = value;
+    }
+    pinned[tool] = values;
+  }
+  return { ok: true, pinned };
 }

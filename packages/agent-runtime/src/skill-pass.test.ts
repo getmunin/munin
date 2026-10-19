@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { runSkillPass, withAllowedTools, type SkillReader } from './skill-pass.ts';
+import { runSkillPass, withAllowedTools, withPinnedArgs, type SkillReader } from './skill-pass.ts';
 import type {
   ChatMessage,
   McpTool,
@@ -102,6 +102,81 @@ describe('runSkillPass', () => {
     );
     expect(await handle.listTools()).toEqual([]);
     expect((await handle.callTool('cms_list_collections', {})).isError).toBe(true);
+    expect(callSpy).not.toHaveBeenCalled();
+  });
+
+  it('withPinnedArgs refuses a call whose pinned argument names another record', async () => {
+    const callSpy = vi.fn((): Promise<McpToolResult> => Promise.resolve({ content: [] }));
+    const handle = withPinnedArgs(
+      { listTools: () => Promise.resolve([]), callTool: callSpy },
+      { conv_get_conversation: { id: 'ccv_own' } },
+    );
+
+    const elsewhere = await handle.callTool('conv_get_conversation', { id: 'ccv_other' });
+    expect(elsewhere.isError).toBe(true);
+    const omitted = await handle.callTool('conv_get_conversation', {});
+    expect(omitted.isError).toBe(true);
+    expect(callSpy).not.toHaveBeenCalled();
+
+    await handle.callTool('conv_get_conversation', { id: 'ccv_own' });
+    await handle.callTool('kb_search', { q: 'x' });
+    expect(callSpy).toHaveBeenNthCalledWith(1, 'conv_get_conversation', { id: 'ccv_own' });
+    expect(callSpy).toHaveBeenNthCalledWith(2, 'kb_search', { q: 'x' });
+  });
+
+  it('withPinnedArgs does not treat inherited object keys as pinned tools', async () => {
+    const callSpy = vi.fn((): Promise<McpToolResult> => Promise.resolve({ content: [] }));
+    const handle = withPinnedArgs(
+      { listTools: () => Promise.resolve([]), callTool: callSpy },
+      { conv_get_conversation: { id: 'ccv_own' } },
+    );
+    await handle.callTool('toString', { id: 'x' });
+    expect(callSpy).toHaveBeenCalledWith('toString', { id: 'x' });
+  });
+
+  it('keeps a skill pass on its pinned record even when the model asks for another one', async () => {
+    const callSpy = vi.fn((): Promise<McpToolResult> => Promise.resolve({ content: [] }));
+    let turn = 0;
+    const provider = (): Promise<ProviderResponse> => {
+      turn += 1;
+      if (turn === 1) {
+        return Promise.resolve({
+          message: {
+            role: 'assistant',
+            content: null,
+            tool_calls: [
+              {
+                id: 'c1',
+                type: 'function',
+                function: { name: 'conv_get_conversation', arguments: JSON.stringify({ id: 'ccv_other' }) },
+              },
+            ],
+          },
+          finishReason: 'tool_calls',
+        });
+      }
+      return Promise.resolve({ message: { role: 'assistant', content: 'done' }, finishReason: 'stop' });
+    };
+    const result = await runSkillPass({
+      mcp: {
+        listTools: () =>
+          Promise.resolve([
+            { name: 'conv_get_conversation', description: 'c', inputSchema: { type: 'object', properties: {} } },
+          ]),
+        callTool: callSpy,
+      },
+      skills: { readSkill: () => Promise.resolve('# skill body') },
+      providerBaseUrl: 'https://api.anthropic.com',
+      providerApiKey: 'k',
+      model: 'm',
+      skillUri: 'skill://crm/extract-contact-from-message',
+      userPrompt: 'go',
+      providerImpl: provider,
+      allowedTools: ['conv_get_conversation'],
+      pinnedArgs: { conv_get_conversation: { id: 'ccv_own' } },
+      logger: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+    expect(result.ok).toBe(true);
     expect(callSpy).not.toHaveBeenCalled();
   });
 

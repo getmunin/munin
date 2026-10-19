@@ -10,7 +10,7 @@ Munin stores the same human in more than one place, and the places are not equiv
 
 **`end_users` is the spine.** A row appears the first time someone reaches the org on any channel — an inbound email, a first widget chat, an analytics `identify` call. It is created deterministically, immediately, for everyone.
 
-**`crm_contacts` is derived from it, and it is lossy.** A CRM contact is written by a curator pass (`skill://crm/extract-contact-from-message`) that runs only when a conversation *closes*, and that pass is instructed to decline: it skips mailing lists, auto-replies and bounces, it skips conversations where the person volunteered nothing identifying, and it skips rows that are already fully populated. It also needs a working curator runner.
+**`crm_contacts` is derived from it, and it is lossy.** A CRM contact is written by a curator pass (`skill://crm/extract-contact-from-message`) that runs only when a conversation *closes*, and that pass declines often: it skips mailing lists, auto-replies and bounces, it skips conversations where the person volunteered nothing identifying, and it only fills empty fields on the conversation's own contact — never one matched by an email or phone the person merely typed in chat. It also needs a working curator runner.
 
 So `crm_lookup_contact` returning `null` tells you very little. It could mean nobody has ever contacted this org from that address — or it could mean they emailed twenty minutes ago and the conversation is still open. Those are completely different situations and you should not conflate them when you answer someone.
 

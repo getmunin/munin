@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   KNOWN_SKILL_URIS,
+  PAYLOAD_BOUND_ARGS_BY_URI,
   TOOLS_BY_URI,
   allowedToolsFor,
   jobKindOf,
+  pinnedToolArgsFor,
   priorityFor,
   tierFor,
 } from './job-catalog.ts';
@@ -72,6 +74,65 @@ describe('allowedToolsFor', () => {
       .flat()
       .filter((name) => !/^[a-z]+(_[a-z0-9]+)+$/.test(name) || name.endsWith('_'));
     expect(prefixLike).toEqual([]);
+  });
+});
+
+describe('pinnedToolArgsFor', () => {
+  it('gives contact extraction only the conversation reader and the conversation-scoped writer', () => {
+    expect(allowedToolsFor('skill://crm/extract-contact-from-message')).toEqual([
+      'conv_get_conversation',
+      'crm_apply_conversation_identity',
+    ]);
+  });
+
+  it('pins contact extraction to the conversation named in its source event', () => {
+    expect(
+      pinnedToolArgsFor('skill://crm/extract-contact-from-message', {
+        conversationId: 'ccv_1',
+        status: 'closed',
+      }),
+    ).toEqual({
+      ok: true,
+      pinned: {
+        conv_get_conversation: { id: 'ccv_1' },
+        crm_apply_conversation_identity: { conversationId: 'ccv_1' },
+      },
+    });
+  });
+
+  it('pins signature stripping to the message named in its source event', () => {
+    expect(
+      pinnedToolArgsFor('skill://conv/strip-email-signature', {
+        conversationId: 'ccv_1',
+        messageId: 'ccm_1',
+      }),
+    ).toEqual({ ok: true, pinned: { conv_strip_message_signature: { messageId: 'ccm_1' } } });
+  });
+
+  it('reports the missing payload key instead of running a bound skill unpinned', () => {
+    expect(pinnedToolArgsFor('skill://crm/extract-contact-from-message', null)).toEqual({
+      ok: false,
+      missing: 'conversationId',
+    });
+    expect(
+      pinnedToolArgsFor('skill://conv/strip-email-signature', { conversationId: 'ccv_1', messageId: '' }),
+    ).toEqual({ ok: false, missing: 'messageId' });
+  });
+
+  it('leaves unbound skills unpinned', () => {
+    expect(pinnedToolArgsFor('skill://kb/review-content', { conversationId: 'ccv_1' })).toEqual({
+      ok: true,
+      pinned: undefined,
+    });
+  });
+
+  it('only pins tools that the same skill is allowed to call', () => {
+    const stray = [...PAYLOAD_BOUND_ARGS_BY_URI].flatMap(([uri, bindings]) =>
+      Object.keys(bindings)
+        .filter((tool) => !(allowedToolsFor(uri) ?? []).includes(tool))
+        .map((tool) => `${uri} -> ${tool}`),
+    );
+    expect(stray).toEqual([]);
   });
 });
 

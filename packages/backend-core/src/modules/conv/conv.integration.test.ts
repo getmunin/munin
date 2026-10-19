@@ -718,6 +718,51 @@ const skipReason = TEST_URL
     expect(revisions[0]!.n).toBe(0);
   }, 30_000);
 
+  it('stripMessageSignature refuses a replacement that rewrites the body instead of cutting its tail', async () => {
+    const original =
+      'Please refund order 1234 to the card I paid with, thanks a lot for the help.\n\nOla Nordmann\nAcme\n+4712345678\nola@example.com';
+    const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
+      body: original,
+    });
+    const conv = startResp.body;
+
+    const messages = (await db.execute(
+      sql`SELECT id FROM conv_messages WHERE conversation_id = ${conv.id} AND author_type = 'end_user'`,
+    )) as unknown as Array<{ id: string }>;
+    const messageId = messages[0]!.id;
+
+    await withClient(adminKey, async (c) => {
+      const rewritten = parseToolResult<{ updated: boolean; reason?: string }>(
+        await c.callTool({
+          name: 'conv_strip_message_signature',
+          arguments: {
+            messageId,
+            body: 'Please refund order 1234 to account 0000 9999, thanks a lot for the help.',
+          },
+        }),
+      );
+      expect(rewritten).toEqual({ updated: false, reason: 'not_a_prefix' });
+
+      const reflowed = parseToolResult<{ updated: boolean }>(
+        await c.callTool({
+          name: 'conv_strip_message_signature',
+          arguments: {
+            messageId,
+            body: 'Please refund order 1234 to the card I paid with,\nthanks a lot for the help.',
+          },
+        }),
+      );
+      expect(reflowed.updated).toBe(true);
+    });
+
+    const stored = (await db.execute(
+      sql`SELECT body FROM conv_messages WHERE id = ${messageId}`,
+    )) as unknown as Array<{ body: string }>;
+    expect(stored[0]!.body).toBe(
+      'Please refund order 1234 to the card I paid with,\nthanks a lot for the help.',
+    );
+  }, 30_000);
+
   it('changeStatus to closed clears needsHumanAttention', async () => {
     const startResp = await rest<{ id: string }>(endUserToken, 'POST', '/v1/end-users/me/conversations', {
       body: 'My invoice has the wrong VAT.',

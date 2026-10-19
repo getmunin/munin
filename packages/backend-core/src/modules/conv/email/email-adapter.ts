@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { makeId, schema, type Db, type Tx } from '@getmunin/db';
+import { fenceUntrusted } from '@getmunin/agent-runtime';
 import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
 import {
   errorMessage,
@@ -873,9 +874,9 @@ export class EmailAdapter implements ChannelAdapter {
             jobUri: 'skill://conv/strip-email-signature',
             userPrompt:
               `Run the signature-stripping skill on this inbound email message.\n\n` +
-              `Message ID: ${msg!.id}\n` +
-              `Sender: ${parsed.fromAddress}\n\n` +
-              `Body:\n${cleanText}`,
+              `Message ID: ${msg!.id}\n\n` +
+              `Sender:\n${fenceUntrusted('data', parsed.fromAddress)}\n\n` +
+              `Body:\n${fenceUntrusted('data', msg!.body)}`,
             sourceEventType: 'conversation.message.received',
             sourceEventPayload: {
               conversationId,

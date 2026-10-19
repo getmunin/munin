@@ -64,8 +64,12 @@ export {
   TOOLS_BY_URI,
   allowedToolsFor,
   priorityFor,
+  PAYLOAD_BOUND_ARGS_BY_URI,
+  pinnedToolArgsFor,
   type JobKind,
   type ModelTier,
+  type PinnedToolArgs,
+  type PinnedToolArgsResolution,
 } from './job-catalog.ts';
 export {
   CMS_EVENT_TYPES,

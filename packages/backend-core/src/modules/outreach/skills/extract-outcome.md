@@ -10,7 +10,7 @@ An outreach touch got an answer. Somewhere in it the prospect said which operato
 
 The campaign decides *which* fields; you decide *what the person said*. The field list is in the prompt that started this job — `key`, `type`, and a description of what to listen for. You do not invent fields, and you do not skip declared ones because they seem unimportant.
 
-**Sibling pass, different lane.** `skill://crm/extract-contact-from-message` also runs when the conversation closes. It owns identity — name, email, phone, title, company. You own outcome — the campaign's declared fields plus the reserved keys below. Do not write `name`, `email`, `phone`, `title` or `companyId`, even if the prospect signed off with their full title. If identity came up, the other pass has it.
+**Sibling pass, different lane.** `skill://crm/extract-contact-from-message` also runs when the conversation closes. It owns identity — name, email, phone, title. You own outcome — the campaign's declared fields plus the reserved keys below. Do not write `name`, `email`, `phone`, `title` or `companyId`, even if the prospect signed off with their full title. If identity came up, the other pass has it.
 
 ## Which channel you are reading
 

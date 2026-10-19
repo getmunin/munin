@@ -1,4 +1,5 @@
 import { redactQueryParams } from '@getmunin/core';
+import type { PinnedToolArgs } from '@getmunin/types';
 import { assistantNamePreamble } from './conversation-handler.ts';
 import { classifyProviderError, type ProviderErrorCode } from './providers/transport.ts';
 import { runAgent } from './runtime.ts';
@@ -28,6 +29,7 @@ export interface SkillPassOptions {
   maxHistoryChars?: number;
   providerImpl?: Provider;
   allowedTools?: readonly string[];
+  pinnedArgs?: PinnedToolArgs;
   logger?: {
     info: (msg: string) => void;
     warn: (msg: string) => void;
@@ -50,6 +52,7 @@ export type SkillPassResult =
         | 'no_provider_key'
         | 'skill_missing'
         | 'no_tool_allowlist'
+        | 'unbound_job_payload'
         | 'mcp_connect_failed'
         | 'agent_error'
         | 'provider_error'
@@ -86,7 +89,8 @@ export async function runSkillPass(opts: SkillPassOptions): Promise<SkillPassRes
     log.warn(`${opts.skillUri} has no tool allow-list; refusing to run it with the full tool surface`);
     return { ok: false, skipped: 'no_tool_allowlist' };
   }
-  const mcp = withAllowedTools(opts.mcp, opts.allowedTools);
+  const allowed = withAllowedTools(opts.mcp, opts.allowedTools);
+  const mcp = opts.pinnedArgs ? withPinnedArgs(allowed, opts.pinnedArgs) : allowed;
 
   try {
     const reply = await runAgent({
@@ -155,6 +159,29 @@ export function withAllowedTools(
           ],
           isError: true,
         };
+      }
+      return handle.callTool(name, args);
+    },
+  };
+}
+
+export function withPinnedArgs(handle: McpToolHandle, pinned: PinnedToolArgs): McpToolHandle {
+  return {
+    listTools: () => handle.listTools(),
+    async callTool(name: string, args: Record<string, unknown>): Promise<McpToolResult> {
+      const fixed = Object.hasOwn(pinned, name) ? pinned[name] : undefined;
+      for (const [key, value] of Object.entries(fixed ?? {})) {
+        if (args[key] !== value) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `argument '${key}' of tool '${name}' is fixed to '${value}' for this skill pass`,
+              },
+            ],
+            isError: true,
+          };
+        }
       }
       return handle.callTool(name, args);
     },

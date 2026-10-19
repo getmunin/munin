@@ -100,6 +100,7 @@ export {
 export {
   runSkillPass,
   withAllowedTools,
+  withPinnedArgs,
   type SkillPassOptions,
   type SkillPassResult,
   type SkillReader,

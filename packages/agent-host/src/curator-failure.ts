@@ -5,6 +5,7 @@ type FailedSkillPass = Extract<SkillPassResult, { ok: false }>;
 const NON_RETRYABLE_SKIPS: ReadonlySet<FailedSkillPass['skipped']> = new Set([
   'skill_missing',
   'no_tool_allowlist',
+  'unbound_job_payload',
   'no_admin_key',
   'no_provider_key',
   'quota_exceeded',

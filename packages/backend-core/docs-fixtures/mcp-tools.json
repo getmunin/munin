@@ -3735,7 +3735,7 @@
   {
     "name": "conv_strip_message_signature",
     "title": "Conv: Strip the signature from an inbound message",
-    "description": "Replace an inbound message's body with a signature-stripped version. Used by the strip-email-signature curator skill — runs after the regex quote-stripper to clean up the trailing sign-off / contact block. The original body is kept in `metadata.preStripBody` for audit; the removed signature (if provided) is stored in `metadata.signatureText`. Refuses if the new body is empty or if the message isn't an end-user inbound in the caller's org. A cut that removes more than half the body is allowed only when `signatureText` is supplied, matches the removed trailing portion, and carries multiple contact-info hints (email, phone, address, URL) — this is what lets a one-line reply followed by a large contact block be cleaned. An applied cut emits `conversation.message.body_revised`, which re-syncs the message's mirrored copy in connected operator bridges (Slack) so the signature disappears there too.",
+    "description": "Replace an inbound message's body with a signature-stripped version. Used by the strip-email-signature curator skill — runs after the regex quote-stripper to clean up the trailing sign-off / contact block. The original body is kept in `metadata.preStripBody` for audit; the removed signature (if provided) is stored in `metadata.signatureText`. Refuses if the new body is empty, if the message isn't an end-user inbound in the caller's org, or if the new body is not a leading portion of the stored body (compared with runs of whitespace collapsed) — only a trailing block can be removed, nothing can be rewritten. A cut that removes more than half the body is allowed only when `signatureText` is supplied, matches the removed trailing portion, and carries multiple contact-info hints (email, phone, address, URL) — this is what lets a one-line reply followed by a large contact block be cleaned. An applied cut emits `conversation.message.body_revised`, which re-syncs the message's mirrored copy in connected operator bridges (Slack) so the signature disappears there too.",
     "audiences": [
       "admin"
     ],
@@ -5113,6 +5113,54 @@
       "required": [
         "id",
         "patch"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_apply_conversation_identity",
+    "title": "CRM: Apply conversation identity",
+    "description": "Record identity details an end-user volunteered in one conversation (name, email, phone, title) onto that conversation's own CRM contact. The contact is resolved server-side: the one already linked to the conversation's end-user, else an unlinked contact matching an email or phone the conversation has proven (a channel- or org-attested identity whose messages neither failed DMARC nor arrived forwarded), else a new contact linked to the end-user and tagged `from-chat`. Only empty fields are filled; existing values, tags, owner, custom fields and do-not-contact status are never changed. An email or phone the conversation has not proven is dropped when another contact already holds it. Mailing-list, auto-reply and bounce senders are skipped, and a role-account sender records its email only. Returns the action taken, the contact id, and the fields written.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 320,
+          "format": "email",
+          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 40,
+          "pattern": "^\\+?[0-9 ().-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        }
+      },
+      "required": [
+        "conversationId"
       ],
       "additionalProperties": false
     }

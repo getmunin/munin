@@ -1901,6 +1901,9 @@ export class ConvService {
     ) {
       return { updated: false, reason: 'too_aggressive' };
     }
+    if (!isLeadingCut(originalBody, newBody)) {
+      return { updated: false, reason: 'not_a_prefix' };
+    }
 
     const existingMeta = row.metadata ?? {};
     const redactionPolicy = await readRedactionPolicy(ctx.db, actor.orgId);
@@ -2076,10 +2079,9 @@ export class ConvService {
         jobUri: 'skill://crm/extract-contact-from-message',
         userPrompt:
           `Run a CRM contact-extraction pass for conversation ${input.id}. ` +
-          `Follow the skill exactly: read the conversation, extract identifying info ` +
-          `from end-user messages, dedupe via crm_lookup_contact, then either create ` +
-          `(crm_create_contact) or backfill empty fields (crm_update_contact). ` +
-          `Skip silently if nothing identifying was volunteered.`,
+          `Follow the skill exactly: read the conversation, extract the identity the ` +
+          `end-user volunteered about themselves, and record it once with ` +
+          `crm_apply_conversation_identity. Skip silently if nothing identifying was volunteered.`,
         sourceEventType: 'conversation.status_changed',
         sourceEventPayload: { conversationId: input.id, status: 'closed' },
         dedupeKey: `crm-contact-extract:conv:${input.id}`,
@@ -2970,6 +2972,11 @@ function isOverAggressiveCut(original: string, next: string): boolean {
     next.length < original.length * MAX_SIGNATURE_CUT_RATIO &&
     !looksLikeCompleteProse(next)
   );
+}
+
+function isLeadingCut(original: string, next: string): boolean {
+  const collapse = (text: string): string => text.replace(/\s+/g, ' ').trim();
+  return collapse(original).startsWith(collapse(next));
 }
 
 function removedTailIsSignature(

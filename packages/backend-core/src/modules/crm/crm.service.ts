@@ -38,6 +38,10 @@ import { mergeFingerprint } from './merge-fingerprint.ts';
 import { CrmInvalidError } from './crm.errors.ts';
 import { OUTREACH_ELIGIBILITY_FLOOR, segmentMatchFilters } from './segment-filter.ts';
 import { judgeOwnContact } from './own-contact.ts';
+import {
+  isSelfReportedIdentity,
+  SENDER_AUTH_METADATA_KEY,
+} from '../connectors/identity-provenance.ts';
 import { readLatestTurnSenderAuthBlock } from '../connectors/latest-turn-sender-auth.ts';
 import { AddressDeliverabilityService } from './address-deliverability.service.ts';
 import { normalizeAddress, type AddressDeliverabilityDto } from './address-deliverability.ts';
@@ -76,6 +80,21 @@ export interface ContactDto {
   deliverability: AddressDeliverabilityDto | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ConversationIdentityInput {
+  conversationId: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  title?: string;
+}
+
+export interface ConversationIdentityResult {
+  action: 'created' | 'filled' | 'unchanged' | 'skipped';
+  contactId: string | null;
+  fields: string[];
+  reason?: 'no_end_user' | 'automated_sender' | 'nothing_to_record';
 }
 
 export const CONSENT_LAWFUL_BASES = ['consent', 'legitimate_interest', 'contract'] as const;
@@ -429,6 +448,178 @@ export class CrmService {
       .orderBy(MERGED_AWAY_LAST, desc(schema.crmContacts.updatedAt))
       .limit(1);
     return rows[0] ? this.hydrateContact(rows[0]) : null;
+  }
+
+  async applyConversationIdentity(
+    input: ConversationIdentityInput,
+  ): Promise<ConversationIdentityResult> {
+    const ctx = getCurrentContext();
+    const [conversation] = await ctx.db
+      .select({ id: schema.convConversations.id, endUserId: schema.convConversations.endUserId })
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, input.conversationId))
+      .limit(1);
+    if (!conversation) {
+      throw new NotFoundException(`crm_not_found: conversation ${input.conversationId}`);
+    }
+    const endUserId = conversation.endUserId;
+    if (!endUserId) {
+      return { action: 'skipped', contactId: null, fields: [], reason: 'no_end_user' };
+    }
+    const sender = await this.conversationSenderFacts(conversation.id, endUserId);
+    if (sender.automated) {
+      return { action: 'skipped', contactId: null, fields: [], reason: 'automated_sender' };
+    }
+
+    const target = await this.conversationContactTarget(endUserId, sender);
+    const email = await this.recordableEmail(input.email ?? sender.provenEmail, sender, target);
+    const phone = sender.roleAccount
+      ? null
+      : await this.recordablePhone(input.phone ?? null, sender, target);
+    const candidate: Record<string, string> = {};
+    if (email) candidate.email = email;
+    if (phone) candidate.phone = phone;
+    const name = input.name?.trim();
+    const title = input.title?.trim();
+    if (name && !sender.roleAccount) candidate.name = name;
+    if (title && !sender.roleAccount) candidate.title = title;
+
+    if (target) {
+      const fill = computeBackfillPatch(target, candidate).apply;
+      const fields = Object.keys(fill);
+      if (fields.length === 0) {
+        return { action: 'unchanged', contactId: target.id, fields: [] };
+      }
+      await this.updateContact({ id: target.id, patch: fill, mode: 'fill-null' });
+      return { action: 'filled', contactId: target.id, fields };
+    }
+
+    if (!candidate.email && !candidate.phone && !candidate.name) {
+      return { action: 'skipped', contactId: null, fields: [], reason: 'nothing_to_record' };
+    }
+    const created = await this.createContact({
+      ...candidate,
+      endUserId,
+      tags: sender.roleAccount ? ['from-chat', 'role-account'] : ['from-chat'],
+    });
+    return { action: 'created', contactId: created.id, fields: Object.keys(candidate) };
+  }
+
+  private async conversationSenderFacts(
+    conversationId: string,
+    endUserId: string,
+  ): Promise<ConversationSenderFacts> {
+    const ctx = getCurrentContext();
+    const [endUser] = await ctx.db
+      .select({
+        email: schema.endUsers.email,
+        phone: schema.endUsers.phone,
+        metadata: schema.endUsers.metadata,
+      })
+      .from(schema.endUsers)
+      .where(eq(schema.endUsers.id, endUserId))
+      .limit(1);
+    const messages = await ctx.db
+      .select({ metadata: schema.convMessages.metadata })
+      .from(schema.convMessages)
+      .where(
+        and(
+          eq(schema.convMessages.conversationId, conversationId),
+          eq(schema.convMessages.authorType, 'end_user'),
+          eq(schema.convMessages.internal, false),
+        ),
+      )
+      .orderBy(asc(schema.convMessages.createdAt));
+    const metas = messages.map((m) => m.metadata ?? {});
+    const classification = (metas[0]?.senderClassification ?? {}) as Record<string, unknown>;
+    const senderAuthBlocked = metas.some((m) => {
+      const verdict = m[SENDER_AUTH_METADATA_KEY];
+      return verdict === 'fail' || verdict === 'forwarded';
+    });
+    const proven = !!endUser && !isSelfReportedIdentity(endUser) && !senderAuthBlocked;
+    return {
+      provenEmail: proven ? normalizeEmailKey(endUser.email) : null,
+      provenPhone: proven ? endUser.phone?.trim() || null : null,
+      automated:
+        classification.isMailingList === true ||
+        classification.isAutoReply === true ||
+        classification.isBounce === true,
+      roleAccount: classification.isRoleAccount === true,
+    };
+  }
+
+  private async conversationContactTarget(
+    endUserId: string,
+    sender: ConversationSenderFacts,
+  ): Promise<ContactRow | null> {
+    const ctx = getCurrentContext();
+    const candidates: SQL[] = [eq(schema.crmContacts.endUserId, endUserId)];
+    if (sender.provenEmail) {
+      candidates.push(
+        sql`${schema.crmContacts.endUserId} IS NULL AND ${CONTACT_EMAIL_KEY} = ${sender.provenEmail}`,
+      );
+    }
+    const provenDigits = phoneDigits(sender.provenPhone);
+    if (provenDigits) {
+      candidates.push(
+        sql`${schema.crmContacts.endUserId} IS NULL AND ${CONTACT_PHONE_DIGITS} = ${provenDigits}`,
+      );
+    }
+    for (const where of candidates) {
+      const [row] = await ctx.db
+        .select()
+        .from(schema.crmContacts)
+        .where(where)
+        .orderBy(MERGED_AWAY_LAST, desc(schema.crmContacts.updatedAt))
+        .limit(1);
+      if (row) return row;
+    }
+    return null;
+  }
+
+  private async recordableEmail(
+    value: string | null,
+    sender: ConversationSenderFacts,
+    target: ContactRow | null,
+  ): Promise<string | null> {
+    const key = normalizeEmailKey(value);
+    if (!key) return null;
+    if (key === sender.provenEmail) return key;
+    const ctx = getCurrentContext();
+    const [held] = await ctx.db
+      .select({ id: schema.crmContacts.id })
+      .from(schema.crmContacts)
+      .where(
+        and(
+          sql`${CONTACT_EMAIL_KEY} = ${key}`,
+          target ? ne(schema.crmContacts.id, target.id) : undefined,
+        ),
+      )
+      .limit(1);
+    return held ? null : key;
+  }
+
+  private async recordablePhone(
+    value: string | null,
+    sender: ConversationSenderFacts,
+    target: ContactRow | null,
+  ): Promise<string | null> {
+    const phone = value?.trim();
+    const digits = phoneDigits(phone);
+    if (!phone || !digits) return null;
+    if (digits === phoneDigits(sender.provenPhone)) return phone;
+    const ctx = getCurrentContext();
+    const [held] = await ctx.db
+      .select({ id: schema.crmContacts.id })
+      .from(schema.crmContacts)
+      .where(
+        and(
+          sql`${CONTACT_PHONE_DIGITS} = ${digits}`,
+          target ? ne(schema.crmContacts.id, target.id) : undefined,
+        ),
+      )
+      .limit(1);
+    return held ? null : phone;
   }
 
   async createContact(input: {
@@ -2160,6 +2351,23 @@ export function computeBackfillPatch(
 
 type ContactRow = typeof schema.crmContacts.$inferSelect;
 
+interface ConversationSenderFacts {
+  provenEmail: string | null;
+  provenPhone: string | null;
+  automated: boolean;
+  roleAccount: boolean;
+}
+
+function normalizeEmailKey(email: string | null | undefined): string | null {
+  const trimmed = email?.trim().toLowerCase();
+  return trimmed ? trimmed : null;
+}
+
+function phoneDigits(phone: string | null | undefined): string | null {
+  const digits = phone?.replace(/\D/g, '');
+  return digits ? digits : null;
+}
+
 function toContactDto(
   row: ContactRow,
   deliverability: AddressDeliverabilityDto | null = null,
@@ -2324,6 +2532,10 @@ type MergeProposalEventType =
   | 'crm.merge_proposal.dismissed';
 
 const MERGED_AWAY_LAST = sql`(${schema.crmContacts.customFields} ? 'mergedInto') asc`;
+
+const CONTACT_EMAIL_KEY = sql`lower(trim(${schema.crmContacts.email}))`;
+
+const CONTACT_PHONE_DIGITS = sql`regexp_replace(${schema.crmContacts.phone}, '[^0-9]', '', 'g')`;
 
 export function mergedIntoId(customFields: Record<string, unknown>): string | null {
   const value = customFields['mergedInto'];

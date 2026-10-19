@@ -81,6 +81,18 @@ const UpdateContactInput = z.object({
     ),
 });
 
+const ApplyConversationIdentityInput = z.object({
+  conversationId: z.string().min(1),
+  name: z.string().min(1).max(200).optional(),
+  email: z.string().email().max(320).optional(),
+  phone: z
+    .string()
+    .max(40)
+    .regex(/^\+?[0-9 ().-]+$/, 'phone may only contain digits, spaces, and + ( ) . -')
+    .optional(),
+  title: z.string().min(1).max(120).optional(),
+});
+
 const BulkCreateInput = z.object({
   contacts: z.array(CreateContactInput).max(500),
 });
@@ -413,6 +425,21 @@ export class CrmAdminTools {
   })
   updateContact(args: z.infer<typeof UpdateContactInput>) {
     return this.crm.updateContact(args);
+  }
+
+  @McpTool({
+    name: 'crm_apply_conversation_identity',
+    title: 'CRM: Apply conversation identity',
+    description:
+      "Record identity details an end-user volunteered in one conversation (name, email, phone, title) onto that conversation's own CRM contact. The contact is resolved server-side: the one already linked to the conversation's end-user, else an unlinked contact matching an email or phone the conversation has proven (a channel- or org-attested identity whose messages neither failed DMARC nor arrived forwarded), else a new contact linked to the end-user and tagged `from-chat`. Only empty fields are filled; existing values, tags, owner, custom fields and do-not-contact status are never changed. An email or phone the conversation has not proven is dropped when another contact already holds it. Mailing-list, auto-reply and bounce senders are skipped, and a role-account sender records its email only. Returns the action taken, the contact id, and the fields written.",
+    audiences: ['admin'],
+    scopes: ['crm:write'],
+    input: ApplyConversationIdentityInput,
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  applyConversationIdentity(args: z.infer<typeof ApplyConversationIdentityInput>) {
+    return this.crm.applyConversationIdentity(args);
   }
 
   @McpTool({

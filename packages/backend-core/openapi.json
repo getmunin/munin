@@ -9009,6 +9009,21 @@
         "security": []
       }
     },
+    "/v1/slack/oauth/start": {
+      "get": {
+        "operationId": "SlackOAuthController_start",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "SlackOAuth"
+        ],
+        "security": []
+      }
+    },
     "/v1/slack/oauth/callback": {
       "get": {
         "operationId": "SlackOAuthController_callback",

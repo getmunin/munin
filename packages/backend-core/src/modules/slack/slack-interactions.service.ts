@@ -23,7 +23,7 @@ import {
 } from '../outreach/outreach.service.ts';
 import { SocialService } from '../social/social.service.ts';
 import { SlackApiClient } from './slack-api.client.ts';
-import { SlackUserMappingService } from './slack-user-mapping.service.ts';
+import { SlackUserMappingService, type SlackActingUser } from './slack-user-mapping.service.ts';
 import { SlackService, decryptSecretValue } from './slack.service.ts';
 import {
   APPROVAL_APPROVE_ACTION_ID,
@@ -67,7 +67,7 @@ export interface SocialDraftDecider {
 
 const BlockActionsSchema = z.object({
   type: z.literal('block_actions'),
-  user: z.object({ id: z.string().min(1) }),
+  user: z.object({ id: z.string().min(1), team_id: z.string().optional() }),
   channel: z.object({ id: z.string().min(1) }).optional(),
   message: z
     .object({
@@ -122,6 +122,13 @@ function routePurpose(actionId: string): 'default' | 'escalations' {
   return actionId === ROUTE_ESCALATIONS_ACTION_ID ? 'escalations' : 'default';
 }
 
+function actingUser(input: {
+  slackUserId: string;
+  slackUserTeamId: string | null;
+}): SlackActingUser {
+  return { id: input.slackUserId, teamId: input.slackUserTeamId };
+}
+
 function unlinkedText(sharedOrgName: string | null): string {
   const org = sharedOrgName ? `*${escapeSlackText(sharedOrgName)}*` : 'the org';
   return `:no_entry: That action needs a linked Munin account — ask an admin to add you to ${org} with your Slack email.`;
@@ -154,6 +161,7 @@ export class SlackInteractionsService {
         actionId: routeAction.action_id,
         slackChannelId: parsed.data.channel.id,
         slackUserId: parsed.data.user.id,
+        slackUserTeamId: parsed.data.user.team_id ?? null,
         promptTs: parsed.data.message?.ts ?? null,
       };
       const teamId = parseWorkspaceRouteValue(routeAction.value);
@@ -181,6 +189,7 @@ export class SlackInteractionsService {
         value: approvalAction.value,
         slackChannelId: parsed.data.channel?.id ?? null,
         slackUserId: parsed.data.user.id,
+        slackUserTeamId: parsed.data.user.team_id ?? null,
       });
       return;
     }
@@ -188,6 +197,7 @@ export class SlackInteractionsService {
     if (!action?.value) return;
     const conversationId = action.value;
     const slackUserId = parsed.data.user.id;
+    const slackUser = { id: slackUserId, teamId: parsed.data.user.team_id ?? null };
 
     const [link] = await this.db
       .select()
@@ -205,7 +215,7 @@ export class SlackInteractionsService {
     if (!integration || !integration.active) return;
 
     const token = await decryptSecretValue(this.db, integration.encryptedBotToken);
-    const userId = await this.mapping.resolveMuninUser(integration, slackUserId, token);
+    const userId = await this.mapping.resolveMuninUser(integration, slackUser, token);
     if (!userId) {
       await this.notify(
         token,
@@ -273,6 +283,7 @@ export class SlackInteractionsService {
     value: string;
     slackChannelId: string | null;
     slackUserId: string;
+    slackUserTeamId: string | null;
   }): Promise<void> {
     const subject = parseApprovalValue(input.value);
     if (!subject) return;
@@ -303,7 +314,7 @@ export class SlackInteractionsService {
         .postEphemeral({ token, channel: link.slackChannelId, user: input.slackUserId, text })
         .catch((err: unknown) => this.logger.warn(`ephemeral notice failed: ${describeError(err)}`));
 
-    const userId = await this.mapping.resolveMuninUser(integration, input.slackUserId, token);
+    const userId = await this.mapping.resolveMuninUser(integration, actingUser(input), token);
     if (!userId) {
       await ephemeral(
         unlinkedText(await sharedChannelOrgName(this.db, integration, link.slackChannelId)),
@@ -430,6 +441,7 @@ export class SlackInteractionsService {
     integrationId: string;
     slackChannelId: string;
     slackUserId: string;
+    slackUserTeamId: string | null;
     promptTs: string | null;
   }): Promise<void> {
     const [integration] = await this.db
@@ -456,7 +468,7 @@ export class SlackInteractionsService {
     };
 
     if (input.actionId === ROUTE_DISMISS_ACTION_ID) {
-      const userId = await this.mapping.resolveMuninUser(integration, input.slackUserId, token);
+      const userId = await this.mapping.resolveMuninUser(integration, actingUser(input), token);
       if (!userId) {
         await ephemeral(unlinkedText(promptOrgName));
         return;
@@ -472,6 +484,7 @@ export class SlackInteractionsService {
       orgName: promptOrgName,
       slackChannelId: input.slackChannelId,
       slackUserId: input.slackUserId,
+      slackUserTeamId: input.slackUserTeamId,
       purpose,
     });
     if (refusal) {
@@ -486,6 +499,7 @@ export class SlackInteractionsService {
     pickedOrg: string | null;
     slackChannelId: string;
     slackUserId: string;
+    slackUserTeamId: string | null;
     promptTs: string | null;
     promptBlocks: SlackBlock[] | null;
   }): Promise<void> {
@@ -504,7 +518,7 @@ export class SlackInteractionsService {
     const ephemeral = this.ephemeralTo(token, input.slackChannelId, input.slackUserId);
 
     if (input.actionId === ROUTE_DISMISS_ACTION_ID) {
-      if (!(await this.isLinkedToAny(integrations, input.slackUserId))) {
+      if (!(await this.isLinkedToAny(integrations, actingUser(input)))) {
         await ephemeral(unlinkedText(null));
         return;
       }
@@ -540,6 +554,7 @@ export class SlackInteractionsService {
         orgName: name,
         slackChannelId: input.slackChannelId,
         slackUserId: input.slackUserId,
+        slackUserTeamId: input.slackUserTeamId,
         purpose,
       });
       if (refusal) {
@@ -569,6 +584,7 @@ export class SlackInteractionsService {
     teamId: string;
     slackChannelId: string;
     slackUserId: string;
+    slackUserTeamId: string | null;
     promptTs: string | null;
     promptBlocks: SlackBlock[] | null;
   }): Promise<void> {
@@ -601,7 +617,7 @@ export class SlackInteractionsService {
     let linked = false;
     const administered: SlackIntegration[] = [];
     for (const integration of integrations) {
-      const userId = await this.mapping.resolveMuninUser(integration, input.slackUserId, token);
+      const userId = await this.mapping.resolveMuninUser(integration, actingUser(input), token);
       if (!userId) continue;
       linked = true;
       if (!routedIds.has(integration.id) && (await this.isOrgAdmin(integration.orgId, userId))) {
@@ -657,6 +673,7 @@ export class SlackInteractionsService {
       orgName: name,
       slackChannelId: input.slackChannelId,
       slackUserId: input.slackUserId,
+      slackUserTeamId: input.slackUserTeamId,
       purpose,
     });
     if (refusal) {
@@ -676,11 +693,11 @@ export class SlackInteractionsService {
 
   private async isLinkedToAny(
     integrations: SlackIntegration[],
-    slackUserId: string,
+    slackUser: SlackActingUser,
   ): Promise<boolean> {
     for (const integration of integrations) {
       const token = await decryptSecretValue(this.db, integration.encryptedBotToken);
-      if (await this.mapping.resolveMuninUser(integration, slackUserId, token)) return true;
+      if (await this.mapping.resolveMuninUser(integration, slackUser, token)) return true;
     }
     return false;
   }
@@ -700,10 +717,11 @@ export class SlackInteractionsService {
     orgName: string | null;
     slackChannelId: string;
     slackUserId: string;
+    slackUserTeamId: string | null;
     purpose: 'default' | 'escalations';
   }): Promise<string | null> {
     const { integration } = input;
-    const userId = await this.mapping.resolveMuninUser(integration, input.slackUserId, input.token);
+    const userId = await this.mapping.resolveMuninUser(integration, actingUser(input), input.token);
     if (!userId) return unlinkedText(input.orgName);
 
     if (!(await this.isOrgAdmin(integration.orgId, userId))) {

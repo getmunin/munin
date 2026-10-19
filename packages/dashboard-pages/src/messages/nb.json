@@ -2255,7 +2255,15 @@
       "disconnectConfirm": "Koble fra Slack? Trådkoblinger og ruting slettes; samtalene i Munin påvirkes ikke.",
       "failedDeliveries": "{count} speilinger feilet siste 24 timer.",
       "configure": "Konfigurer",
-      "notConfiguredShort": "Slack-app ikke konfigurert"
+      "notConfiguredShort": "Slack-app ikke konfigurert",
+      "outcome": {
+        "connected": "Slack er koblet til.",
+        "denied": "Slack ble ikke koblet til — installasjonen ble avvist i Slack.",
+        "signin_required": "Logg inn som eier eller administrator i denne organisasjonen for å koble til Slack, og prøv igjen.",
+        "forbidden": "Bare en eier eller administrator i organisasjonen lenken ble laget for, kan koble til Slack, og den som starter installasjonen må også fullføre den.",
+        "expired": "Installasjonslenken til Slack er utløpt. Koble til Slack på nytt for å få en ny.",
+        "error": "Kunne ikke koble til Slack. Koble til Slack på nytt for å starte en ny installasjon."
+      }
     },
     "catalog": {
       "category": {

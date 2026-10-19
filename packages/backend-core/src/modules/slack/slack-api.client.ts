@@ -38,6 +38,19 @@ export interface SlackUserInfo {
   email: string | null;
   displayName: string | null;
   isBot: boolean;
+  teamId: string | null;
+  enterpriseTeamIds: string[];
+  deleted: boolean;
+  isStranger: boolean;
+  isRestricted: boolean;
+  isUltraRestricted: boolean;
+}
+
+function enterpriseTeamIds(raw: unknown): string[] {
+  if (!raw || typeof raw !== 'object') return [];
+  const teams = (raw as Record<string, unknown>).teams;
+  if (!Array.isArray(teams)) return [];
+  return teams.filter((team): team is string => typeof team === 'string');
 }
 
 @Injectable()
@@ -117,6 +130,12 @@ export class SlackApiClient {
       email: typeof profile?.email === 'string' ? profile.email : null,
       displayName,
       isBot: user?.is_bot === true,
+      teamId: typeof user?.team_id === 'string' ? user.team_id : null,
+      enterpriseTeamIds: enterpriseTeamIds(user?.enterprise_user),
+      deleted: user?.deleted === true,
+      isStranger: user?.is_stranger === true,
+      isRestricted: user?.is_restricted === true,
+      isUltraRestricted: user?.is_ultra_restricted === true,
     };
   }
 

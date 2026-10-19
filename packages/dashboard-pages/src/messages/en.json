@@ -2249,7 +2249,15 @@
       "disconnectConfirm": "Disconnect Slack? Thread links and routing are deleted; conversations in Munin are unaffected.",
       "failedDeliveries": "{count} mirror deliveries failed in the last 24 hours.",
       "configure": "Configure",
-      "notConfiguredShort": "Slack app not configured"
+      "notConfiguredShort": "Slack app not configured",
+      "outcome": {
+        "connected": "Slack is connected.",
+        "denied": "Slack was not connected — the install was declined in Slack.",
+        "signin_required": "Sign in as an owner or admin of this organization to connect Slack, then try again.",
+        "forbidden": "Only an owner or admin of the organization the link was made for can connect Slack, and the person who starts the install must also finish it.",
+        "expired": "That Slack install link has expired. Connect Slack again to get a fresh one.",
+        "error": "Slack could not be connected. Connect Slack again to start a fresh install."
+      }
     },
     "catalog": {
       "category": {

@@ -6,11 +6,9 @@ import {
   HttpCode,
   Post,
   Put,
-  Res,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import type { Response } from 'express';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { AuthGuard } from '../common/auth/auth.guard.ts';
@@ -21,12 +19,10 @@ import { RoleGuard } from './role.guard.ts';
 import { RequireRole } from './role.decorator.ts';
 import {
   SlackService,
-  SLACK_INSTALL_NONCE_COOKIE,
+  type InstallUrlResult,
   type SlackRoutingResult,
   type SlackStatusDto,
 } from '../modules/slack/slack.service.ts';
-
-const INSTALL_NONCE_MAX_AGE_MS = 10 * 60 * 1000;
 
 class SetSlackRoutingBody extends createZodDto(
   z.object({
@@ -50,18 +46,8 @@ export class SlackController {
   }
 
   @Get('install-url')
-  installUrl(@Res({ passthrough: true }) res: Response): { url: string; expiresAt: string } {
-    const result = this.slack.installUrl({ bindToSession: true });
-    if (result.sessionNonce) {
-      res.cookie(SLACK_INSTALL_NONCE_COOKIE, result.sessionNonce, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'lax',
-        path: '/v1/slack/oauth',
-        maxAge: INSTALL_NONCE_MAX_AGE_MS,
-      });
-    }
-    return { url: result.url, expiresAt: result.expiresAt };
+  installUrl(): InstallUrlResult {
+    return this.slack.installUrl();
   }
 
   @Get('channels')

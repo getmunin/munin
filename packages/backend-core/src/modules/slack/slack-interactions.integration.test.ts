@@ -26,7 +26,7 @@ import {
   StubTokenSource,
   StubMediaReader,
 } from '../social/social-test-doubles.ts';
-import { SlackApiClient } from './slack-api.client.ts';
+import { SlackApiClient, type SlackUserInfo } from './slack-api.client.ts';
 import { SlackEventSink } from './slack-event-sink.ts';
 import { SlackInteractionsService } from './slack-interactions.service.ts';
 import { SlackUserMappingService } from './slack-user-mapping.service.ts';
@@ -44,18 +44,24 @@ const THREAD_TS = '1750000000.000200';
 const CHANNEL = 'C_ACTIONS';
 
 class FakeSlackApi extends SlackApiClient {
-  usersById = new Map<string, { email: string | null }>();
+  usersById = new Map<string, Partial<SlackUserInfo>>();
   channelMembers = new Map<string, string[]>();
   ephemerals: { user: string; text: string }[] = [];
   updated: { channel: string; ts: string; text: string; blocks?: unknown[] }[] = [];
 
-  override usersInfo(input: { token: string; user: string }) {
-    const entry = this.usersById.get(input.user);
+  override usersInfo(input: { token: string; user: string }): Promise<SlackUserInfo> {
     return Promise.resolve({
       id: input.user,
-      email: entry?.email ?? null,
+      email: null,
       displayName: 'Fake User',
       isBot: false,
+      teamId: 'T_ACTIONS',
+      enterpriseTeamIds: [],
+      deleted: false,
+      isStranger: false,
+      isRestricted: false,
+      isUltraRestricted: false,
+      ...this.usersById.get(input.user),
     });
   }
 
@@ -306,6 +312,40 @@ class FakeSlackApi extends SlackApiClient {
     expect((await conversation()).status).toBe('open');
     expect(api.ephemerals).toHaveLength(1);
     expect(api.ephemerals[0]!.text).toContain('add you to the org');
+  });
+
+  it('does not let a Slack Connect user whose profile email matches a member click as that member', async () => {
+    api.usersById.set('U_PARTNER', { email: memberEmail, teamId: 'T_PARTNER' });
+    await interactions.processBlockActions(
+      actionPayload('munin_close', { user: { id: 'U_PARTNER', team_id: 'T_PARTNER' } }),
+    );
+
+    expect((await conversation()).status).toBe('open');
+    const links = await db
+      .select()
+      .from(schema.slackUserLinks)
+      .where(eq(schema.slackUserLinks.slackUserId, 'U_PARTNER'));
+    expect(links).toHaveLength(0);
+  });
+
+  it('refuses a click from another workspace even when that Slack user was linked earlier', async () => {
+    await db.insert(schema.slackUserLinks).values({
+      orgId,
+      integrationId,
+      slackUserId: 'U_PARTNER',
+      userId: memberUserId,
+    });
+    api.usersById.set('U_PARTNER', { email: memberEmail, teamId: 'T_PARTNER' });
+
+    await interactions.processBlockActions(
+      actionPayload('munin_close', { user: { id: 'U_PARTNER', team_id: 'T_PARTNER' } }),
+    );
+    expect((await conversation()).status).toBe('open');
+
+    await interactions.processBlockActions(
+      actionPayload('munin_close', { user: { id: 'U_BELLA', team_id: 'T_ACTIONS' } }),
+    );
+    expect((await conversation()).status).toBe('closed');
   });
 
   it('names the org when rejecting an unmapped clicker in a channel another org shares', async () => {

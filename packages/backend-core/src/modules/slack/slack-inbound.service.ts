@@ -33,6 +33,8 @@ const MessageEventSchema = z.object({
   subtype: z.string().optional(),
   channel: z.string().min(1),
   user: z.string().optional(),
+  user_team: z.string().optional(),
+  team: z.string().optional(),
   bot_id: z.string().optional(),
   text: z.string().optional(),
   ts: z.string().min(1),
@@ -131,7 +133,11 @@ export class SlackInboundService {
     if (integration.botUserId && event.user === integration.botUserId) return;
 
     const token = await decryptSecretValue(this.db, integration.encryptedBotToken);
-    const userId = await this.mapping.resolveMuninUser(integration, event.user, token);
+    const userId = await this.mapping.resolveMuninUser(
+      integration,
+      { id: event.user, teamId: event.user_team ?? event.team ?? null },
+      token,
+    );
     if (!userId) {
       const sharedOrgName = await sharedChannelOrgName(this.db, integration, event.channel);
       await this.rejectReply(token, event, sharedOrgName);
@@ -312,7 +318,11 @@ export class SlackInboundService {
     const { integration, conversationId, event, actorUserId, mentionedSlackUserId, token } = input;
     let assigneeUserId = actorUserId;
     if (mentionedSlackUserId) {
-      const mapped = await this.mapping.resolveMuninUser(integration, mentionedSlackUserId, token);
+      const mapped = await this.mapping.resolveMuninUser(
+        integration,
+        { id: mentionedSlackUserId },
+        token,
+      );
       if (!mapped) {
         await this.notify(
           token,

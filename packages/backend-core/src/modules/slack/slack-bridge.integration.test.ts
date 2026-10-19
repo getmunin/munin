@@ -10,7 +10,6 @@ import {
 import {
   ActorIdentity,
   getCurrentContext,
-  signHmac,
   WebhookDispatcher,
   withContext,
   type RequestContext,
@@ -19,7 +18,13 @@ import { createDb, runMigrations, schema } from '@getmunin/db';
 import { SlackApiError, SlackApiClient } from './slack-api.client.ts';
 import { SlackBridgeWorker } from './slack-bridge.worker.ts';
 import { SlackEventSink } from './slack-event-sink.ts';
-import { SlackService, encryptSecretValue } from './slack.service.ts';
+import {
+  SlackInstallRefusedError,
+  SlackService,
+  encryptSecretValue,
+  signInstallState,
+  signInstallTicket,
+} from './slack.service.ts';
 import { markConversationEngaged } from '../conv/conversation-engagement.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
@@ -1375,27 +1380,68 @@ function actionIds(blocks: unknown[] | undefined): string[] {
     await expect(run(() => service.listChannels())).rejects.toThrow(/slack_api_error/);
   });
 
-  describe('completeInstall', () => {
+  describe('install', () => {
     const CLIENT_SECRET = 'test-slack-client-secret';
     let priorId: string | undefined;
     let priorSecret: string | undefined;
+    let attackerOrgId: string;
+    const userIds: string[] = [];
+    const sessions = { admin: '', member: '', outsider: '' };
+    let adminUserId: string;
 
-    beforeAll(() => {
+    async function seedUser(label: string, memberOf: string, role: string): Promise<string> {
+      const [user] = await db
+        .insert(schema.users)
+        .values({ email: `slack-install-${label}-${randomUUID()}@example.com`, name: `Install ${label}` })
+        .returning();
+      userIds.push(user!.id);
+      await db.insert(schema.orgMembers).values({ orgId: memberOf, userId: user!.id, role });
+      const token = `slack-install-session-${randomUUID()}`;
+      await db.insert(schema.sessions).values({
+        userId: user!.id,
+        token,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      });
+      sessions[label as keyof typeof sessions] = token;
+      return user!.id;
+    }
+
+    beforeAll(async () => {
       priorId = process.env.SLACK_CLIENT_ID;
       priorSecret = process.env.SLACK_CLIENT_SECRET;
       process.env.SLACK_CLIENT_ID = 'test-client-id';
       process.env.SLACK_CLIENT_SECRET = CLIENT_SECRET;
+
+      const [attackerOrg] = await db
+        .insert(schema.orgs)
+        .values({ name: 'Globex Install Attacker' })
+        .returning();
+      attackerOrgId = attackerOrg!.id;
+      adminUserId = await seedUser('admin', orgId, 'admin');
+      await seedUser('member', orgId, 'member');
+      await seedUser('outsider', attackerOrgId, 'owner');
     });
-    afterAll(() => {
+
+    afterAll(async () => {
       if (priorId === undefined) delete process.env.SLACK_CLIENT_ID;
       else process.env.SLACK_CLIENT_ID = priorId;
       if (priorSecret === undefined) delete process.env.SLACK_CLIENT_SECRET;
       else process.env.SLACK_CLIENT_SECRET = priorSecret;
+      await db.delete(schema.orgs).where(eq(schema.orgs.id, attackerOrgId));
+      for (const id of userIds) await db.delete(schema.users).where(eq(schema.users.id, id));
     });
 
-    function makeState(fields: { orgId: string; userId: string | null; exp: number; nonce?: string }) {
-      const payload = Buffer.from(JSON.stringify(fields)).toString('base64url');
-      return `${payload}.${signHmac(payload, CLIENT_SECRET)}`;
+    async function mintTicket(service: SlackService): Promise<string> {
+      const { url } = await run(() => Promise.resolve(service.installUrl()));
+      const parsed = new URL(url);
+      expect(parsed.pathname).toBe('/v1/slack/oauth/start');
+      return parsed.searchParams.get('ticket')!;
+    }
+
+    async function begin(service: SlackService, sessionToken: string | null) {
+      const begun = await service.beginInstall({ ticket: await mintTicket(service), sessionToken });
+      const state = new URL(begun.url).searchParams.get('state')!;
+      return { state, nonce: begun.sessionNonce };
     }
 
     async function integrationTeam(): Promise<string | undefined> {
@@ -1406,49 +1452,183 @@ function actionIds(blocks: unknown[] | undefined): string[] {
       return row?.teamId;
     }
 
-    it('rejects a session-bound state without the matching cookie nonce', async () => {
+    it('hands out a Munin start link rather than a Slack authorize link', async () => {
+      const service = new SlackService(db, new FakeSlackApi());
+      const { url } = await run(() => Promise.resolve(service.installUrl()));
+      expect(url).not.toContain('slack.com');
+      expect(new URL(url).searchParams.get('ticket')).toBeTruthy();
+    });
+
+    it('sends a link opened without a Munin session to sign in instead of to Slack', async () => {
+      const service = new SlackService(db, new FakeSlackApi());
+      const ticket = await mintTicket(service);
+      await expect(service.beginInstall({ ticket, sessionToken: null })).rejects.toMatchObject({
+        reason: 'signin_required',
+      });
+      await expect(
+        service.beginInstall({ ticket, sessionToken: 'not-a-session' }),
+      ).rejects.toMatchObject({ reason: 'signin_required' });
+    });
+
+    it('refuses to start an install for an org the signed-in person does not administer', async () => {
+      const service = new SlackService(db, new FakeSlackApi());
+      const ticket = await mintTicket(service);
+      await expect(
+        service.beginInstall({ ticket, sessionToken: sessions.outsider }),
+      ).rejects.toBeInstanceOf(SlackInstallRefusedError);
+      await expect(
+        service.beginInstall({ ticket, sessionToken: sessions.outsider }),
+      ).rejects.toMatchObject({ reason: 'forbidden' });
+      await expect(
+        service.beginInstall({ ticket, sessionToken: sessions.member }),
+      ).rejects.toMatchObject({ reason: 'forbidden' });
+    });
+
+    it('rejects a forged or expired start ticket', async () => {
+      const service = new SlackService(db, new FakeSlackApi());
+      await expect(
+        service.beginInstall({ ticket: 'garbage', sessionToken: sessions.admin }),
+      ).rejects.toMatchObject({ reason: 'expired' });
+      const expired = signInstallTicket({ orgId, exp: Date.now() - 1 }, CLIENT_SECRET);
+      await expect(
+        service.beginInstall({ ticket: expired, sessionToken: sessions.admin }),
+      ).rejects.toMatchObject({ reason: 'expired' });
+    });
+
+    it('completes an install started and finished by the org admin in the same browser', async () => {
       const api = new FakeSlackApi();
       api.oauthTeamId = 'T_TEST';
       const service = new SlackService(db, api);
-      const state = makeState({ orgId, userId: null, exp: Date.now() + 60_000, nonce: 'good' });
+      const { state, nonce } = await begin(service, sessions.admin);
 
-      await expect(service.completeInstall({ code: 'c', state })).rejects.toThrow(
-        BadRequestException,
-      );
+      const result = await service.completeInstall({
+        code: 'c',
+        state,
+        sessionNonce: nonce,
+        sessionToken: sessions.admin,
+      });
+      expect(result.orgId).toBe(orgId);
+      const [row] = await db
+        .select({ installedBy: schema.slackIntegrations.installedByUserId })
+        .from(schema.slackIntegrations)
+        .where(eq(schema.slackIntegrations.orgId, orgId));
+      expect(row?.installedBy).toBe(adminUserId);
+    });
+
+    it('refuses a callback without the cookie nonce from the browser that started it', async () => {
+      const service = new SlackService(db, new FakeSlackApi());
+      const { state, nonce } = await begin(service, sessions.admin);
+
       await expect(
-        service.completeInstall({ code: 'c', state, sessionNonce: 'wrong' }),
+        service.completeInstall({ code: 'c', state, sessionNonce: null, sessionToken: sessions.admin }),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.completeInstall({
+          code: 'c',
+          state,
+          sessionNonce: `${nonce}x`,
+          sessionToken: sessions.admin,
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('accepts a session-bound state with the matching cookie nonce', async () => {
+    it('refuses to finish under another person’s session even with the right cookie', async () => {
       const api = new FakeSlackApi();
-      api.oauthTeamId = 'T_TEST';
+      api.oauthTeamId = 'T_ATTACKER_WORKSPACE';
       const service = new SlackService(db, api);
-      const state = makeState({ orgId, userId: null, exp: Date.now() + 60_000, nonce: 'good' });
+      const { state, nonce } = await begin(service, sessions.admin);
 
-      const result = await service.completeInstall({ code: 'c', state, sessionNonce: 'good' });
-      expect(result.orgId).toBe(orgId);
+      await expect(
+        service.completeInstall({
+          code: 'c',
+          state,
+          sessionNonce: nonce,
+          sessionToken: sessions.outsider,
+        }),
+      ).rejects.toMatchObject({ reason: 'forbidden' });
+      expect(await integrationTeam()).toBe('T_TEST');
     });
 
-    it('accepts an MCP-minted state (no nonce) without a cookie', async () => {
+    it('refuses to finish when the installer lost their admin role mid-flow', async () => {
+      const service = new SlackService(db, new FakeSlackApi());
+      const { state, nonce } = await begin(service, sessions.admin);
+      await db
+        .update(schema.orgMembers)
+        .set({ role: 'member' })
+        .where(and(eq(schema.orgMembers.orgId, orgId), eq(schema.orgMembers.userId, adminUserId)));
+      try {
+        await expect(
+          service.completeInstall({
+            code: 'c',
+            state,
+            sessionNonce: nonce,
+            sessionToken: sessions.admin,
+          }),
+        ).rejects.toMatchObject({ reason: 'forbidden' });
+      } finally {
+        await db
+          .update(schema.orgMembers)
+          .set({ role: 'admin' })
+          .where(
+            and(eq(schema.orgMembers.orgId, orgId), eq(schema.orgMembers.userId, adminUserId)),
+          );
+      }
+    });
+
+    it('accepts each install state once', async () => {
       const api = new FakeSlackApi();
       api.oauthTeamId = 'T_TEST';
       const service = new SlackService(db, api);
-      const state = makeState({ orgId, userId: null, exp: Date.now() + 60_000 });
+      const { state, nonce } = await begin(service, sessions.admin);
+      const callback = { code: 'c', state, sessionNonce: nonce, sessionToken: sessions.admin };
 
-      const result = await service.completeInstall({ code: 'c', state });
-      expect(result.orgId).toBe(orgId);
+      await expect(service.completeInstall(callback)).resolves.toEqual({ orgId });
+      await expect(service.completeInstall(callback)).rejects.toThrow(/already used/);
+    });
+
+    it('rejects a correctly signed state that no start recorded', async () => {
+      const service = new SlackService(db, new FakeSlackApi());
+      const state = signInstallState(
+        { orgId, userId: adminUserId, exp: Date.now() + 60_000, nonce: 'forged-nonce' },
+        CLIENT_SECRET,
+      );
+      await expect(
+        service.completeInstall({
+          code: 'c',
+          state,
+          sessionNonce: 'forged-nonce',
+          sessionToken: sessions.admin,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('does not accept a start ticket in place of a callback state', async () => {
+      const service = new SlackService(db, new FakeSlackApi());
+      const ticket = await mintTicket(service);
+      await expect(
+        service.completeInstall({
+          code: 'c',
+          state: ticket,
+          sessionNonce: null,
+          sessionToken: sessions.admin,
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('refuses to repoint an existing org to a different workspace', async () => {
       const api = new FakeSlackApi();
       api.oauthTeamId = 'T_ATTACKER';
       const service = new SlackService(db, api);
-      const state = makeState({ orgId, userId: null, exp: Date.now() + 60_000 });
+      const { state, nonce } = await begin(service, sessions.admin);
 
-      await expect(service.completeInstall({ code: 'c', state })).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.completeInstall({
+          code: 'c',
+          state,
+          sessionNonce: nonce,
+          sessionToken: sessions.admin,
+        }),
+      ).rejects.toThrow(ConflictException);
       expect(await integrationTeam()).toBe('T_TEST');
     });
   });

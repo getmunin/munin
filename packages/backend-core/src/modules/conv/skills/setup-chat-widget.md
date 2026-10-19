@@ -262,6 +262,8 @@ The widget hash covers `externalId` **only** — no visitor binding. That's a de
 
 `data-munin-visitor-email` is a claim the page makes, so Munin treats it as self-reported: the agent may show it but won't use it to look up the customer's orders or bookings. If your backend knows the signed-in user's email, sign it into the hash instead and the email becomes as trustworthy as the `externalId`. That is what lets the agent look up the customer's orders and bookings, and book, change or cancel on their behalf, from the widget.
 
+The same line decides email follow-ups. When a reply in a widget conversation goes unread for about ten minutes and the org has an active email channel, Munin emails that reply to the visitor so it isn't lost when they close the tab. It only does so for an address it can trust — a signed email, one the org attested through the API, or one that arrived through an email channel. A typed `data-munin-visitor-email` (or `visitor.email` on a push) never gets a follow-up, because anyone can type any address into a chat box.
+
 The signed payload is length-prefixed so no value can be shifted across a field boundary: each of `['mn.widget-identity.v1', externalId, email]` is written as its UTF-8 byte length, a colon, then the value, and the three are concatenated. Lowercase and trim the email before signing.
 
 ```ts

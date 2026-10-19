@@ -6,17 +6,19 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq, gt, isNotNull, isNull, sql } from 'drizzle-orm';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { and, eq, gt, isNotNull, isNull, like, lt, sql } from 'drizzle-orm';
 import { schema, type Db, type Tx } from '@getmunin/db';
 import {
+  CredentialResolver,
   decryptSecretSql,
   encryptSecretSql,
   getCurrentContext,
+  OrgAccessDeniedError,
   randomToken,
-  signHmac,
-  verifyHmac,
 } from '@getmunin/core';
 import { DB } from '../../common/db/db.module.ts';
+import { readSignedState, signSignedState } from '../../common/outbound-oauth/signed-state.ts';
 import { authorizationServerUrl } from '../../oauth/oauth.constants.ts';
 import { SlackApiClient, SlackApiError } from './slack-api.client.ts';
 import { testMessageText } from './slack-projection.ts';
@@ -24,6 +26,14 @@ import { isChannelShared, sharedChannelIds } from './slack-shared-channel.ts';
 import { readSlackAppConfig, SLACK_BOT_SCOPES } from './slack.constants.ts';
 
 const INSTALL_STATE_TTL_MS = 10 * 60 * 1000;
+const INSTALL_TICKET_KIND = 'slack_install_ticket';
+const INSTALL_STATE_KIND = 'slack_install_state';
+const INSTALL_RECORD_PREFIX = 'slack-install:';
+const INSTALL_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
+const SIGNIN_REQUIRED_MESSAGE =
+  'slack_install_signin_required: sign in to Munin as an owner or admin of this organization, then connect Slack again';
+const FORBIDDEN_MESSAGE =
+  'slack_install_forbidden: only an owner or admin of the organization this link was made for can connect Slack to it';
 
 export interface SlackRouteDto {
   id: string;
@@ -78,23 +88,50 @@ export interface SetRoutingOptions {
   verifiedSlackUserId?: string;
 }
 
+interface InstallTicket {
+  orgId: string;
+  exp: number;
+}
+
 interface InstallState {
   orgId: string;
-  userId: string | null;
+  userId: string;
   exp: number;
-  nonce?: string;
+  nonce: string;
 }
 
 export const SLACK_INSTALL_NONCE_COOKIE = 'slack_install_nonce';
+export const SLACK_INSTALL_NONCE_MAX_AGE_MS = INSTALL_STATE_TTL_MS;
 
 export interface InstallUrlResult {
   url: string;
   expiresAt: string;
-  sessionNonce?: string;
+}
+
+export interface BeginInstallResult {
+  orgId: string;
+  url: string;
+  sessionNonce: string;
+}
+
+export type SlackInstallRefusal = 'signin_required' | 'forbidden' | 'expired';
+
+export class SlackInstallRefusedError extends Error {
+  constructor(
+    readonly reason: SlackInstallRefusal,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'SlackInstallRefusedError';
+  }
 }
 
 export function slackOAuthRedirectUri(): string {
   return `${authorizationServerUrl()}/v1/slack/oauth/callback`;
+}
+
+export function slackInstallStartUri(): string {
+  return `${authorizationServerUrl()}/v1/slack/oauth/start`;
 }
 
 export async function encryptSecretValue(db: Db | Tx, plaintext: string): Promise<string> {
@@ -119,33 +156,41 @@ export async function decryptSecretValue(db: Db | Tx, ciphertext: string): Promi
   });
 }
 
-function signInstallState(state: InstallState, secret: string): string {
-  const payload = Buffer.from(JSON.stringify(state)).toString('base64url');
-  return `${payload}.${signHmac(payload, secret)}`;
+export function signInstallTicket(ticket: InstallTicket, secret: string): string {
+  return signSignedState({ kind: INSTALL_TICKET_KIND, ...ticket }, secret);
+}
+
+export function verifyInstallTicket(raw: unknown, secret: string): InstallTicket | null {
+  const ticket = readSignedState(raw, secret);
+  if (!ticket || ticket['kind'] !== INSTALL_TICKET_KIND) return null;
+  const orgId = ticket['orgId'];
+  const exp = ticket['exp'];
+  if (typeof orgId !== 'string' || typeof exp !== 'number') return null;
+  return { orgId, exp };
+}
+
+export function signInstallState(state: InstallState, secret: string): string {
+  return signSignedState({ kind: INSTALL_STATE_KIND, ...state }, secret);
 }
 
 export function verifyInstallState(raw: unknown, secret: string): InstallState | null {
-  if (typeof raw !== 'string' || raw.length === 0 || raw.length > 4096) return null;
-  const dot = raw.lastIndexOf('.');
-  if (dot <= 0) return null;
-  const payload = raw.slice(0, dot);
-  const signature = raw.slice(dot + 1);
-  if (!verifyHmac(payload, secret, signature)) return null;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-  } catch {
-    return null;
-  }
-  const state = parsed as Partial<InstallState>;
-  if (typeof state.orgId !== 'string' || typeof state.exp !== 'number') return null;
-  if (state.exp < Date.now()) return null;
-  return {
-    orgId: state.orgId,
-    userId: typeof state.userId === 'string' ? state.userId : null,
-    exp: state.exp,
-    nonce: typeof state.nonce === 'string' ? state.nonce : undefined,
-  };
+  const state = readSignedState(raw, secret);
+  if (!state || state['kind'] !== INSTALL_STATE_KIND) return null;
+  const { orgId, userId, exp, nonce } = state;
+  if (typeof orgId !== 'string' || typeof userId !== 'string') return null;
+  if (typeof exp !== 'number' || typeof nonce !== 'string' || nonce.length === 0) return null;
+  return { orgId, userId, exp, nonce };
+}
+
+function installRecordIdentifier(nonce: string): string {
+  return `${INSTALL_RECORD_PREFIX}${createHash('sha256').update(nonce).digest('base64url')}`;
+}
+
+function sameNonce(expected: string, presented: string | null | undefined): boolean {
+  if (!presented) return false;
+  const a = Buffer.from(expected);
+  const b = Buffer.from(presented);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 function toRouteDto(
@@ -247,20 +292,47 @@ export class SlackService {
     };
   }
 
-  installUrl(options: { bindToSession?: boolean } = {}): InstallUrlResult {
-    const config = readSlackAppConfig();
-    if (!config) {
-      throw new BadRequestException(
-        'slack_not_configured: this deployment has no Slack app. Set SLACK_CLIENT_ID and SLACK_CLIENT_SECRET (see skill://slack/connect-slack).',
+  installUrl(): InstallUrlResult {
+    const config = this.requireAppConfig();
+    const orgId = getCurrentContext().actor!.orgId;
+    const exp = Date.now() + INSTALL_STATE_TTL_MS;
+    const url = new URL(slackInstallStartUri());
+    url.searchParams.set('ticket', signInstallTicket({ orgId, exp }, config.clientSecret));
+    return { url: url.toString(), expiresAt: new Date(exp).toISOString() };
+  }
+
+  async beginInstall(input: {
+    ticket: unknown;
+    sessionToken: string | null;
+  }): Promise<BeginInstallResult> {
+    const config = this.requireAppConfig();
+    const ticket = verifyInstallTicket(input.ticket, config.clientSecret);
+    if (!ticket) {
+      throw new SlackInstallRefusedError(
+        'expired',
+        'slack_install_link_expired: this install link is invalid or has expired — get a fresh one',
       );
     }
-    const ctx = getCurrentContext();
-    const actor = ctx.actor!;
-    const userId = actor.type === 'user' ? actor.id : (actor.userId ?? null);
+    const userId = await this.sessionInstaller(input.sessionToken, ticket.orgId);
+
+    const sessionNonce = randomToken(24);
     const exp = Date.now() + INSTALL_STATE_TTL_MS;
-    const sessionNonce = options.bindToSession ? randomToken(24) : undefined;
+    await this.db
+      .delete(schema.verifications)
+      .where(
+        and(
+          like(schema.verifications.identifier, `${INSTALL_RECORD_PREFIX}%`),
+          lt(schema.verifications.expiresAt, new Date()),
+        ),
+      );
+    await this.db.insert(schema.verifications).values({
+      identifier: installRecordIdentifier(sessionNonce),
+      value: JSON.stringify({ orgId: ticket.orgId, userId }),
+      expiresAt: new Date(exp),
+    });
+
     const state = signInstallState(
-      { orgId: actor.orgId, userId, exp, nonce: sessionNonce },
+      { orgId: ticket.orgId, userId, exp, nonce: sessionNonce },
       config.clientSecret,
     );
     const url = new URL('https://slack.com/oauth/v2/authorize');
@@ -268,21 +340,29 @@ export class SlackService {
     url.searchParams.set('scope', SLACK_BOT_SCOPES.join(','));
     url.searchParams.set('redirect_uri', slackOAuthRedirectUri());
     url.searchParams.set('state', state);
-    return { url: url.toString(), expiresAt: new Date(exp).toISOString(), sessionNonce };
+    return { orgId: ticket.orgId, url: url.toString(), sessionNonce };
   }
 
   async completeInstall(input: {
     code: string;
     state: string;
-    sessionNonce?: string | null;
+    sessionNonce: string | null;
+    sessionToken: string | null;
   }): Promise<{ orgId: string }> {
-    const config = readSlackAppConfig();
-    if (!config) throw new BadRequestException('slack_not_configured');
+    const config = this.requireAppConfig();
     const state = verifyInstallState(input.state, config.clientSecret);
-    if (!state) throw new BadRequestException('slack_invalid_state');
-
-    if (state.nonce && state.nonce !== input.sessionNonce) {
+    if (!state || !sameNonce(state.nonce, input.sessionNonce)) {
       throw new BadRequestException('slack_invalid_state');
+    }
+    if (!(await this.consumeInstallRecord(state))) {
+      throw new BadRequestException('slack_invalid_state: this install link was already used');
+    }
+    const userId = await this.sessionInstaller(input.sessionToken, state.orgId);
+    if (userId !== state.userId) {
+      throw new SlackInstallRefusedError(
+        'forbidden',
+        'slack_install_forbidden: finish the install signed in as the person who started it',
+      );
     }
 
     const install = await this.api.oauthAccess({
@@ -331,6 +411,60 @@ export class SlackService {
       });
     }
     return { orgId: state.orgId };
+  }
+
+  private requireAppConfig(): NonNullable<ReturnType<typeof readSlackAppConfig>> {
+    const config = readSlackAppConfig();
+    if (!config) {
+      throw new BadRequestException(
+        'slack_not_configured: this deployment has no Slack app. Set SLACK_CLIENT_ID and SLACK_CLIENT_SECRET (see skill://slack/connect-slack).',
+      );
+    }
+    return config;
+  }
+
+  private async sessionInstaller(sessionToken: string | null, orgId: string): Promise<string> {
+    if (!sessionToken) {
+      throw new SlackInstallRefusedError('signin_required', SIGNIN_REQUIRED_MESSAGE);
+    }
+    const resolver = new CredentialResolver(this.db);
+    if (!(await resolver.resolveSessionUserId(sessionToken))) {
+      throw new SlackInstallRefusedError('signin_required', SIGNIN_REQUIRED_MESSAGE);
+    }
+    let credential;
+    try {
+      credential = await resolver.resolveSessionToken(sessionToken, orgId);
+    } catch (err) {
+      if (err instanceof OrgAccessDeniedError) {
+        throw new SlackInstallRefusedError('forbidden', FORBIDDEN_MESSAGE);
+      }
+      throw err;
+    }
+    const role = credential?.actor.orgRole ?? null;
+    if (!credential || !role || !INSTALL_ROLES.has(role)) {
+      throw new SlackInstallRefusedError('forbidden', FORBIDDEN_MESSAGE);
+    }
+    return credential.actor.userId ?? credential.actor.id;
+  }
+
+  private async consumeInstallRecord(state: InstallState): Promise<boolean> {
+    const rows = await this.db
+      .delete(schema.verifications)
+      .where(
+        and(
+          eq(schema.verifications.identifier, installRecordIdentifier(state.nonce)),
+          gt(schema.verifications.expiresAt, new Date()),
+        ),
+      )
+      .returning({ value: schema.verifications.value });
+    const value = rows[0]?.value;
+    if (!value) return false;
+    try {
+      const record = JSON.parse(value) as { orgId?: unknown; userId?: unknown };
+      return record.orgId === state.orgId && record.userId === state.userId;
+    } catch {
+      return false;
+    }
   }
 
   async setRouting(

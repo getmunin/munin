@@ -1061,6 +1061,12 @@
       "lede": "<client></client> wants to connect to Munin and act through the MCP toolset on your behalf. Review what it can reach before you decide.",
       "resourceLede": "<client></client> wants to connect to <resource></resource> and act on your behalf. Review what it can reach before you decide.",
       "registered": "Registered {date}",
+      "redirectsTo": "You'll be sent back to <host></host>",
+      "impersonation": {
+        "lead": "Check before you authorize.",
+        "body": "This app calls itself <product></product>, but authorizing sends access to <host></host>, which doesn't belong to <product></product>. Unless you trust <host></host>, deny this request.",
+        "bodyNoHost": "This app calls itself <product></product>, but it doesn't send you back to a <product></product> address. Unless you set up this connection yourself, deny this request."
+      },
       "trustFirst": "First time you're connecting <client></client> to this account. Nothing has been shared with it yet.",
       "scopesLabel": "Requested access",
       "scopesCount": "{modules, plural, =0 {0 modules} =1 {1 module} other {# modules}} · {scopes, plural, =0 {0 permissions} =1 {1 permission} other {# permissions}}",
@@ -2249,7 +2255,15 @@
       "disconnectConfirm": "Disconnect Slack? Thread links and routing are deleted; conversations in Munin are unaffected.",
       "failedDeliveries": "{count} mirror deliveries failed in the last 24 hours.",
       "configure": "Configure",
-      "notConfiguredShort": "Slack app not configured"
+      "notConfiguredShort": "Slack app not configured",
+      "outcome": {
+        "connected": "Slack is connected.",
+        "denied": "Slack was not connected — the install was declined in Slack.",
+        "signin_required": "Sign in as an owner or admin of this organization to connect Slack, then try again.",
+        "forbidden": "Only an owner or admin of the organization the link was made for can connect Slack, and the person who starts the install must also finish it.",
+        "expired": "That Slack install link has expired. Connect Slack again to get a fresh one.",
+        "error": "Slack could not be connected. Connect Slack again to start a fresh install."
+      }
     },
     "catalog": {
       "category": {

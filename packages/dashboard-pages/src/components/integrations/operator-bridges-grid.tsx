@@ -62,6 +62,25 @@ export function OperatorBridgesSection() {
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const outcome = params.get('slack');
+    if (!outcome) return;
+    if (outcome === 'connected') notify.success(t('outcome.connected'));
+    else if (outcome === 'denied') notify.error(t('outcome.denied'));
+    else if (outcome === 'signin_required') notify.error(t('outcome.signin_required'));
+    else if (outcome === 'forbidden') notify.error(t('outcome.forbidden'));
+    else if (outcome === 'expired') notify.error(t('outcome.expired'));
+    else notify.error(t('outcome.error'));
+    params.delete('slack');
+    const query = params.toString();
+    window.history.replaceState(
+      null,
+      '',
+      `${window.location.pathname}${query ? `?${query}` : ''}`,
+    );
+  }, [t]);
+
   function connect() {
     setBusy(true);
     void (async () => {

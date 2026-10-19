@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
-import { ActorIdentity, withContext, type RequestContext } from '@getmunin/core';
+import { ActorIdentity, StubMailer, withContext, type RequestContext } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
 import { sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
@@ -106,7 +106,7 @@ const skipReason = TEST_URL
 
     const targets = new CredentialTargetRegistry();
     handoff = new CredentialHandoffService(db, targets);
-    const email = new EmailService();
+    const email = new EmailService(new StubMailer());
     const probe: EmailChannelTester = {
       test: () => Promise.resolve(probeResult),
     };
@@ -252,7 +252,7 @@ const skipReason = TEST_URL
   });
 
   it('rejects passwords passed through the setup tool path', async () => {
-    const email = new EmailService();
+    const email = new EmailService(new StubMailer());
     await expect(
       asAdmin(() =>
         email.createChannel(
@@ -277,7 +277,7 @@ const skipReason = TEST_URL
   });
 
   it('rejects passwords passed through the setup tool path when updating', async () => {
-    const email = new EmailService();
+    const email = new EmailService(new StubMailer());
     await expect(
       asAdmin(() =>
         email.configureChannel(
@@ -310,7 +310,7 @@ const skipReason = TEST_URL
   });
 
   it('accepts a password from the dashboard path and rotates one on an active channel', async () => {
-    const email = new EmailService();
+    const email = new EmailService(new StubMailer());
     const smtpConfig = (password?: string) => ({
       addressing: { fromAddress: 'dash@acme.test' },
       outbound: {
@@ -417,7 +417,7 @@ const skipReason = TEST_URL
     ])(
       'refuses to reuse the stored %s password, so it is never sent to the new server',
       async (_label, hosts, named) => {
-        const email = new EmailService();
+        const email = new EmailService(new StubMailer());
         const id = await channelWithPasswords(email);
 
         const err = await asAdmin(() =>
@@ -433,7 +433,7 @@ const skipReason = TEST_URL
     );
 
     it('moves to the new server when the password comes with the change', async () => {
-      const email = new EmailService();
+      const email = new EmailService(new StubMailer());
       const id = await channelWithPasswords(email);
 
       await asAdmin(() =>
@@ -448,7 +448,7 @@ const skipReason = TEST_URL
     });
 
     it('keeps the stored passwords when the host only changes letter case', async () => {
-      const email = new EmailService();
+      const email = new EmailService(new StubMailer());
       const id = await channelWithPasswords(email);
 
       await asAdmin(() =>
@@ -464,7 +464,7 @@ const skipReason = TEST_URL
   });
 
   it('asks for a reply mode the moment an email channel starts receiving mail, and not before', async () => {
-    const email = new EmailService();
+    const email = new EmailService(new StubMailer());
     const smtp = {
       provider: 'smtp' as const,
       host: 'smtp.acme.test',
@@ -525,7 +525,7 @@ const skipReason = TEST_URL
   });
 
   it('deactivates a channel whose update leaves a required password missing, and reactivates it on entry', async () => {
-    const email = new EmailService();
+    const email = new EmailService(new StubMailer());
     const created = await asAdmin(() =>
       email.configureChannel({
         name: 'Outbound only',
@@ -579,7 +579,7 @@ const skipReason = TEST_URL
   });
 
   it('leaves a paused channel paused when its config is updated', async () => {
-    const email = new EmailService();
+    const email = new EmailService(new StubMailer());
     const config = {
       addressing: { fromAddress: 'paused@acme.test' },
       outbound: {
@@ -608,7 +608,7 @@ const skipReason = TEST_URL
   });
 
   it('creates a secretless smtp channel inactive, and a mailer channel active', async () => {
-    const email = new EmailService();
+    const email = new EmailService(new StubMailer());
     const smtp = await asAdmin(() =>
       email.createChannel(
         {

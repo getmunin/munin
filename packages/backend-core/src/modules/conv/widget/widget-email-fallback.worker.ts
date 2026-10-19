@@ -14,6 +14,8 @@ import { MAILER } from '../../../common/mail/mail.module.ts';
 import { EmailService, jsonbToStored, type StoredEmailChannelConfig } from '../email/email.service.ts';
 import { smtpTransportOptions } from '../email/email-probe.service.ts';
 import { buildOutbound, AUTO_SUBMITTED_HEADERS, type BuiltMessage } from '../email/mime.ts';
+import { channelSender, composeFrom, type OutboundSender } from '../email/shared-sender.ts';
+import { TRUSTED_EMAIL_SOURCE_VALUES } from '../../connectors/identity-provenance.ts';
 import {
   formatQuotedHistory,
   loadPriorMessagesForQuote,
@@ -147,6 +149,11 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
         AND c.end_user_id IS NOT NULL
         AND eu.email IS NOT NULL
         AND eu.email <> ''
+        AND eu.metadata->>'emailSource' IN (${sql.join(
+          TRUSTED_EMAIL_SOURCE_VALUES.map((source) => sql`${source}`),
+          sql`, `,
+        )})
+        AND (eu.metadata->'anonymous') IS DISTINCT FROM 'true'::jsonb
         AND EXISTS (
           SELECT 1 FROM conv_messages m
           WHERE m.conversation_id = c.id
@@ -216,7 +223,8 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
       return 'failed';
     }
 
-    const replyTo = this.composeReplyTo(config, cand.conversation_id);
+    const sender = channelSender(config, this.mailer.from);
+    const replyTo = this.composeReplyTo(config, cand.conversation_id) ?? sender.fallbackReplyTo;
     const latestUnread = stillUnread[stillUnread.length - 1]!;
     const channelFromName = (config.addressing.fromName ?? '').trim() || 'Support';
     let prior: QuotedPriorMessage[];
@@ -247,6 +255,7 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
     try {
       built = this.buildDigest({
         config,
+        sender,
         replyTo,
         subject: cand.conv_subject,
         recipientEmail: cand.end_user_email,
@@ -261,7 +270,7 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
     }
 
     try {
-      await this.send(config, cand.end_user_email, replyTo, built);
+      await this.send(config, sender, cand.end_user_email, replyTo, built);
     } catch (err) {
       await this.markStatus(fallbackId, 'failed', describeError(err));
       return 'failed';
@@ -400,6 +409,7 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
 
   private buildDigest(params: {
     config: StoredEmailChannelConfig;
+    sender: OutboundSender;
     replyTo: string | undefined;
     subject: string | null;
     recipientEmail: string;
@@ -408,7 +418,8 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
     prior: QuotedPriorMessage[];
     signoffName: string;
   }): BuiltMessage {
-    const { config, replyTo, recipientEmail, recipientName, latest, prior, signoffName } = params;
+    const { config, sender, replyTo, recipientEmail, recipientName, latest, prior, signoffName } =
+      params;
     const fromName = (config.addressing.fromName ?? '').trim() || 'Support';
     const subject = params.subject?.trim() || `New message from ${fromName}`;
 
@@ -419,12 +430,12 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
     const text = sections.join('\n\n');
 
     return buildOutbound({
-      from: composeFrom(config.addressing.fromName, config.addressing.fromAddress),
+      from: sender.from,
       to: composeFrom(recipientName ?? undefined, recipientEmail),
       replyTo,
       subject,
       text,
-      messageIdDomain: config.addressing.fromAddress,
+      messageIdDomain: sender.address,
       autoSubmitted: true,
     });
   }
@@ -444,6 +455,7 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
 
   private async send(
     config: StoredEmailChannelConfig,
+    sender: OutboundSender,
     recipient: string,
     replyTo: string | undefined,
     built: BuiltMessage,
@@ -467,7 +479,7 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
       );
       try {
         await transport.sendMail({
-          envelope: { from: config.addressing.fromAddress, to: recipient },
+          envelope: { from: sender.address, to: recipient },
           raw: built.raw,
         });
       } finally {
@@ -475,7 +487,7 @@ export class WidgetEmailFallbackWorker implements OnModuleInit, OnModuleDestroy 
       }
     } else {
       await this.mailer.send({
-        from: composeFrom(config.addressing.fromName, config.addressing.fromAddress),
+        from: sender.from,
         to: recipient,
         subject: extractSubject(built.raw) ?? 'New message',
         text: extractTextBody(built.raw),
@@ -490,12 +502,6 @@ function firstWord(name: string | null | undefined): string | null {
   const trimmed = name?.trim();
   if (!trimmed) return null;
   return trimmed.split(/\s+/)[0]!;
-}
-
-function composeFrom(name: string | undefined, address: string): string {
-  if (!name) return address;
-  const clean = name.replace(/[",\r\n]/g, '').trim();
-  return `${clean} <${address}>`;
 }
 
 function stripHtml(input: string): string {

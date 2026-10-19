@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  describeClientIdentity,
   FAVICON_MAX_BYTES,
   fetchImage,
   ICON_RESPONSE_HEADERS,
@@ -153,5 +154,38 @@ describe('sendIcon', () => {
     );
     expect(res.headers.get('content-disposition')).toBe('inline; filename="icon"');
     expect(res.body?.toString('utf8')).toContain('<svg');
+  });
+});
+
+describe('describeClientIdentity', () => {
+  it('keeps the registered name and flags nothing for an ordinary client', () => {
+    expect(
+      describeClientIdentity({ name: 'Acme Agent', redirectUris: ['https://acme.example/cb'] }),
+    ).toEqual({ name: 'Acme Agent', redirectHost: 'acme.example', impersonates: null });
+  });
+
+  it('flags a client that registers a known product name with a foreign redirect', () => {
+    expect(
+      describeClientIdentity({ name: 'Claude', redirectUris: ['https://attacker.example/cb'] })
+        .impersonates,
+    ).toBe('Claude');
+  });
+
+  it('flags a nameless client whose fallback name comes from a genuine first redirect but which also redirects elsewhere', () => {
+    const identity = describeClientIdentity({
+      name: null,
+      redirectUris: ['https://claude.ai/api/mcp/auth_callback', 'https://attacker.example/cb'],
+    });
+    expect(identity.name).toBe('Claude');
+    expect(identity.impersonates).toBe('Claude');
+  });
+
+  it('trusts a nameless client whose only redirect is the product it is named after', () => {
+    expect(
+      describeClientIdentity({
+        name: '  ',
+        redirectUris: ['https://claude.ai/api/mcp/auth_callback'],
+      }),
+    ).toEqual({ name: 'Claude', redirectHost: 'claude.ai', impersonates: null });
   });
 });

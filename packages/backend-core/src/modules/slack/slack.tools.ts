@@ -54,7 +54,7 @@ export class SlackAdminTools {
     name: 'slack_get_install_url',
     title: 'Slack: Get install link',
     description:
-      'Return the Slack OAuth link that connects a Slack workspace to this org. The link must be opened and approved in a browser by a workspace admin; it expires after 10 minutes (call again for a fresh one). After installing, pick a channel with slack_set_routing. Fails when the deployment has no Slack app configured (SLACK_CLIENT_ID / SLACK_CLIENT_SECRET).',
+      "Return a link that connects a Slack workspace to this org. The link opens Munin first: it only continues to Slack's approval screen in a browser signed in to Munin as an owner or admin of this org, and the install must finish in that same browser and session; anyone else is sent back to the dashboard and nothing is connected. Approving in Slack additionally needs a Slack workspace admin. Each approval round trip completes at most once, and the link expires after 10 minutes (call again for a fresh one). After installing, pick a channel with slack_set_routing. Fails when the deployment has no Slack app configured (SLACK_CLIENT_ID / SLACK_CLIENT_SECRET).",
     audiences: ['admin'],
     scopes: ['slack:read'],
     input: EmptyInput,
@@ -129,7 +129,7 @@ export class SlackAdminTools {
     name: 'slack_list_user_links',
     title: 'Slack: List user links',
     description:
-      'List the Slack-user ↔ Munin-member links used to attribute thread replies and button clicks. Links are created automatically by profile-email match on first use, or manually with slack_link_user.',
+      'List the Slack-user ↔ Munin-member links used to attribute thread replies and button clicks. Links are created automatically on first use when a full member of the connected workspace has a Slack profile email that matches an org member (guests and users from other workspaces are never matched), or manually with slack_link_user.',
     audiences: ['admin'],
     scopes: ['slack:read'],
     input: EmptyInput,
@@ -144,7 +144,7 @@ export class SlackAdminTools {
     name: 'slack_link_user',
     title: 'Slack: Link a user',
     description:
-      'Manually link a Slack user (U… member ID) to a Munin org member so their thread replies and button clicks are attributed to that member. Use when the Slack profile email does not match the member email. Linking again replaces the previous mapping for that Slack user.',
+      'Manually link a Slack user (U… member ID) to a Munin org member so their thread replies and button clicks are attributed to that member. Use when the Slack profile email does not match the member email, or to let a workspace guest act. A linked user from another Slack workspace (Slack Connect) is still refused. Linking again replaces the previous mapping for that Slack user.',
     audiences: ['admin'],
     scopes: ['slack:write'],
     input: LinkUserInput,

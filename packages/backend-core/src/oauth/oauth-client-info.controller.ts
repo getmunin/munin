@@ -13,6 +13,7 @@ import { describeError, safeFetch, SsrfBlockedError } from '@getmunin/core';
 import { PublicController } from '../common/auth/auth.guard.ts';
 import { DB } from '../common/db/db.module.ts';
 import { authorizationServerUrl } from './oauth.constants.ts';
+import { impersonatedClientName, knownClientNameForHost } from './oauth-client-identity.ts';
 
 interface OAuthClientInfo {
   client_id: string;
@@ -20,16 +21,9 @@ interface OAuthClientInfo {
   uri: string | null;
   icon_url: string;
   redirect_uri_host: string | null;
+  impersonates: string | null;
   created_at: string;
 }
-
-const KNOWN_HOST_NAMES: Record<string, string> = {
-  'claude.ai': 'Claude',
-  'chatgpt.com': 'ChatGPT',
-  'openai.com': 'ChatGPT',
-  'cursor.sh': 'Cursor',
-  'cursor.com': 'Cursor',
-};
 
 const FAVICON_MIME_ALLOWLIST = new Set([
   'image/x-icon',
@@ -80,14 +74,14 @@ export class OAuthClientInfoController {
   @Header('cache-control', 'public, max-age=60')
   async lookup(@Param('clientId') clientId: string): Promise<OAuthClientInfo> {
     const row = await this.loadRow(clientId);
-    const redirectHost = firstRedirectHost(row.redirectUris);
-    const name = row.name?.trim() ? row.name : deriveFallbackName(redirectHost);
+    const identity = describeClientIdentity(row);
     return {
       client_id: row.clientId,
-      name,
+      name: identity.name,
       uri: row.uri ?? null,
       icon_url: `${authorizationServerUrl()}/v1/oauth/clients/${encodeURIComponent(row.clientId)}/icon`,
-      redirect_uri_host: redirectHost,
+      redirect_uri_host: identity.redirectHost,
+      impersonates: identity.impersonates,
       created_at: row.createdAt.toISOString(),
     };
   }
@@ -132,9 +126,11 @@ export class OAuthClientInfoController {
   }
 
   private async resolveIcon(row: {
+    name: string | null;
     icon: string | null;
     redirectUris: string[];
   }): Promise<{ body: Buffer; mime: string } | null> {
+    if (describeClientIdentity(row).impersonates) return null;
     const fromUri = row.icon?.trim() ? row.icon.trim() : null;
     if (fromUri) {
       const fetched = await fetchImage(fromUri);
@@ -144,6 +140,25 @@ export class OAuthClientInfoController {
     if (!host) return null;
     return fetchImage(`https://${host}/favicon.ico`);
   }
+}
+
+export interface ClientIdentity {
+  name: string | null;
+  redirectHost: string | null;
+  impersonates: string | null;
+}
+
+export function describeClientIdentity(row: {
+  name: string | null;
+  redirectUris: string[];
+}): ClientIdentity {
+  const redirectHost = firstRedirectHost(row.redirectUris);
+  const name = row.name?.trim() ? row.name : deriveFallbackName(redirectHost);
+  return {
+    name,
+    redirectHost,
+    impersonates: impersonatedClientName(name, row.redirectUris),
+  };
 }
 
 function firstRedirectHost(redirectUris: string[] | null | undefined): string | null {
@@ -158,7 +173,7 @@ function firstRedirectHost(redirectUris: string[] | null | undefined): string | 
 
 function deriveFallbackName(host: string | null): string | null {
   if (!host) return null;
-  const known = KNOWN_HOST_NAMES[host];
+  const known = knownClientNameForHost(host);
   if (known) return known;
   return host.replace(/^www\./, '');
 }

@@ -21,6 +21,7 @@ import {
 } from './email-probe.service.ts';
 import { EmailService, EmailChannelConfigInput, jsonbToStored } from './email.service.ts';
 import { AUTO_SUBMITTED_HEADERS } from './mime.ts';
+import { channelSender } from './shared-sender.ts';
 
 const SetupInput = z.object({
   channelId: z.string().optional(),
@@ -55,7 +56,7 @@ export class EmailAdminTools {
     name: 'conv_configure_email_channel',
     title: 'Conv: Configure an email channel',
     description:
-      "Create or update an email channel's transport configuration with the non-secret fields only. SMTP / IMAP passwords are rejected here: the channel is created inactive and the response includes a one-time link for a human to enter the passwords in the dashboard — the channel activates once they are saved. Updates keep the stored passwords, except that changing the SMTP or IMAP host is refused: a stored password is never sent to a different server, so that change is made in the dashboard together with the password. Updating a channel that is currently deactivated (for example after repeated inbound polling failures) re-tests the stored credentials: the channel is reactivated when SMTP and IMAP both connect, and otherwise stays deactivated with the connection errors in the `probe` field of the response. IMAP inbound imports mail the server received from the moment the channel is activated, including anything that lands before the first poll; older mail already in the mailbox is not imported unless `inbound.backfillDays` (1–90) asks for that many days of it, which only applies to that first poll. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host (no password needed, channel is active immediately). A channel that receives mail needs an explicit `defaultAgentMode` — there is no default: `auto` lets the agent reply to the sender itself, `draft_only` parks each answer as an internal draft that a human reviews and sends (a human-in-the-loop inbox, or an outreach-only inbox where a reply must never be auto-sent).",
+      "Create or update an email channel's transport configuration with the non-secret fields only. SMTP / IMAP passwords are rejected here: the channel is created inactive and the response includes a one-time link for a human to enter the passwords in the dashboard — the channel activates once they are saved. Updates keep the stored passwords, except that changing the SMTP or IMAP host is refused: a stored password is never sent to a different server, so that change is made in the dashboard together with the password. Updating a channel that is currently deactivated (for example after repeated inbound polling failures) re-tests the stored credentials: the channel is reactivated when SMTP and IMAP both connect, and otherwise stays deactivated with the connection errors in the `probe` field of the response. IMAP inbound imports mail the server received from the moment the channel is activated, including anything that lands before the first poll; older mail already in the mailbox is not imported unless `inbound.backfillDays` (1–90) asks for that many days of it, which only applies to that first poll. Set `outbound.provider: 'mailer'` to send via Munin's configured Resend mailer instead of a custom SMTP host (no password needed, channel is active immediately). The shared mailer sends as `fromAddress` only when the deployment allows that address's domain; otherwise mail goes out from the deployment's own sender address, with `fromName` as the display name and `fromAddress` as the Reply-To. `effectiveSender` in the response shows the From header recipients will see. A channel that receives mail needs an explicit `defaultAgentMode` — there is no default: `auto` lets the agent reply to the sender itself, `draft_only` parks each answer as an internal draft that a human reviews and sends (a human-in-the-loop inbox, or an outreach-only inbox where a reply must never be auto-sent).",
     audiences: ['admin'],
     scopes: ['conv:write'],
     input: SetupInput,
@@ -132,8 +133,7 @@ export class EmailAdminTools {
         code: 'conv_test_self_addressed',
       });
     }
-    const fromName = config.addressing.fromName;
-    const from = fromName ? `${fromName} <${fromAddress}>` : fromAddress;
+    const sender = channelSender(config, this.mailer.from);
     const tpl = await renderChannelTestEmail({
       channelName: channel.name,
       channelAddress: fromAddress,
@@ -156,7 +156,7 @@ export class EmailAdminTools {
         );
         try {
           await transport.sendMail({
-            from,
+            from: sender.from,
             to: args.to,
             subject: tpl.subject,
             text: tpl.text,
@@ -169,11 +169,12 @@ export class EmailAdminTools {
         }
       } else {
         await this.mailer.send({
-          from,
+          from: sender.from,
           to: args.to,
           subject: tpl.subject,
           text: tpl.text,
           html: tpl.html,
+          replyTo: sender.fallbackReplyTo,
           headers: { ...AUTO_SUBMITTED_HEADERS },
         });
       }

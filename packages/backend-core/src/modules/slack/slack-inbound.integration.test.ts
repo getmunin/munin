@@ -6,7 +6,7 @@ import { ConvService } from '../conv/conv.service.ts';
 import { ConversationClaimsService } from '../conv/conv.claims.service.ts';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
-import { SlackApiClient } from './slack-api.client.ts';
+import { SlackApiClient, type SlackUserInfo } from './slack-api.client.ts';
 import { SlackEventSink } from './slack-event-sink.ts';
 import { SlackInboundService } from './slack-inbound.service.ts';
 import { SlackUserMappingService } from './slack-user-mapping.service.ts';
@@ -23,21 +23,27 @@ const THREAD_TS = '1750000000.000100';
 const CHANNEL = 'C_INBOUND';
 
 class FakeSlackApi extends SlackApiClient {
-  usersById = new Map<string, { email: string | null; isBot?: boolean }>();
+  usersById = new Map<string, Partial<SlackUserInfo>>();
   usersInfoCalls = 0;
   ephemerals: { channel: string; user: string; text: string }[] = [];
   posted: { channel: string; text: string; blocks?: unknown[]; threadTs?: string; ts: string }[] =
     [];
   private counter = 0;
 
-  override usersInfo(input: { token: string; user: string }) {
+  override usersInfo(input: { token: string; user: string }): Promise<SlackUserInfo> {
     this.usersInfoCalls += 1;
-    const entry = this.usersById.get(input.user);
     return Promise.resolve({
       id: input.user,
-      email: entry?.email ?? null,
+      email: null,
       displayName: 'Fake User',
-      isBot: entry?.isBot === true,
+      isBot: false,
+      teamId: 'T_INBOUND',
+      enterpriseTeamIds: [],
+      deleted: false,
+      isStranger: false,
+      isRestricted: false,
+      isUltraRestricted: false,
+      ...this.usersById.get(input.user),
     });
   }
 
@@ -322,6 +328,64 @@ class FakeSlackApi extends SlackApiClient {
     expect(api.ephemerals).toHaveLength(1);
     expect(api.ephemerals[0]).toMatchObject({ channel: CHANNEL, user: 'U_OPERATOR' });
     expect(api.ephemerals[0]!.text).toContain('this Munin org');
+  });
+
+  async function memberEmail(): Promise<string> {
+    const [member] = await db
+      .select({ email: schema.users.email })
+      .from(schema.users)
+      .where(eq(schema.users.id, memberUserId));
+    return member!.email;
+  }
+
+  async function userLinks() {
+    return db
+      .select()
+      .from(schema.slackUserLinks)
+      .where(eq(schema.slackUserLinks.integrationId, integrationId));
+  }
+
+  it('does not map a Slack user from another workspace by a matching profile email', async () => {
+    api.usersById.set('U_OPERATOR', { email: await memberEmail(), teamId: 'T_PARTNER' });
+
+    await inbound.processEventCallback(replyPayload({ user_team: 'T_PARTNER' }));
+
+    expect(await messages()).toHaveLength(0);
+    expect(await userLinks()).toHaveLength(0);
+    expect(api.ephemerals).toHaveLength(1);
+  });
+
+  it('does not map strangers, guests or deactivated accounts by email', async () => {
+    const email = await memberEmail();
+    for (const flags of [
+      { isStranger: true },
+      { isRestricted: true },
+      { isUltraRestricted: true },
+      { deleted: true },
+    ]) {
+      api.usersById.set('U_OPERATOR', { email, ...flags });
+      await inbound.processEventCallback(replyPayload());
+    }
+
+    expect(await messages()).toHaveLength(0);
+    expect(await userLinks()).toHaveLength(0);
+  });
+
+  it('refuses a reply from another workspace even through an existing link', async () => {
+    await db.insert(schema.slackUserLinks).values({
+      orgId,
+      integrationId,
+      slackUserId: 'U_OPERATOR',
+      userId: memberUserId,
+    });
+    api.usersById.set('U_OPERATOR', { email: await memberEmail(), teamId: 'T_PARTNER' });
+
+    await inbound.processEventCallback(replyPayload({ user_team: 'T_PARTNER' }));
+    expect(await messages()).toHaveLength(0);
+
+    api.usersById.set('U_OPERATOR', { email: await memberEmail(), teamId: 'T_INBOUND' });
+    await inbound.processEventCallback(replyPayload({ user_team: 'T_INBOUND' }));
+    expect(await messages()).toHaveLength(1);
   });
 
   it('names the org when rejecting an unmapped reply in a channel another org shares', async () => {

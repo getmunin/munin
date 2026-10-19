@@ -5,6 +5,7 @@ import { resolvePublicHost } from '@getmunin/core';
 import type { Db } from '@getmunin/db';
 import { DB } from '../../../common/db/db.module.ts';
 import { EmailService, imapInbound, type StoredEmailChannelConfig } from './email.service.ts';
+import { IMAP_PARSER_LIMITS } from './imap-limits.ts';
 
 export interface EmailProbeResult {
   smtp: string;
@@ -75,6 +76,7 @@ export class EmailChannelProbe {
         secure: inbound.secure,
         auth: { user: inbound.username, pass: password },
         logger: false,
+        ...IMAP_PARSER_LIMITS,
         ...(resolved && resolved.address !== inbound.host
           ? { tls: { servername: inbound.host } }
           : {}),

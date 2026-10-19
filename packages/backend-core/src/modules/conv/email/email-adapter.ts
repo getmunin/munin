@@ -81,6 +81,13 @@ import {
 } from './classify-sender.ts';
 import { extractFailedRecipients } from './failed-recipients.ts';
 import { classifyImapError } from './imap-errors.ts';
+import {
+  IMAP_MAX_BATCH_BYTES,
+  IMAP_MAX_MESSAGE_BYTES,
+  IMAP_PARSER_LIMITS,
+  planImapDownloads,
+  type ImapSizedUid,
+} from './imap-limits.ts';
 import { AddressDeliverabilityService } from '../../crm/address-deliverability.service.ts';
 import {
   dropRecordedTurns,
@@ -138,6 +145,7 @@ export interface ImapAnchor {
 export interface ImapFetchResult {
   uidValidity: string;
   messages: ImapMessageMin[];
+  oversized?: ImapSizedUid[];
 }
 
 export interface ImapFetcher {
@@ -151,7 +159,7 @@ export interface ImapFetcher {
   ): Promise<ImapFetchResult>;
 }
 
-class ImapFlowFetcher implements ImapFetcher {
+export class ImapFlowFetcher implements ImapFetcher {
   private static readonly logger = new Logger(ImapFlowFetcher.name);
 
   async anchor(opts: ImapConnectOptions & { from: Date | null }): Promise<ImapAnchor> {
@@ -181,13 +189,40 @@ class ImapFlowFetcher implements ImapFetcher {
         return { uidValidity, messages: [] };
       }
       const range = `${opts.sinceUid + 1}:*`;
-      const messages: ImapMessageMin[] = [];
-      for await (const msg of client.fetch(range, { uid: true, source: true }, { uid: true })) {
-        if (!msg.source || msg.uid <= opts.sinceUid) continue;
-        messages.push({ uid: msg.uid, source: msg.source });
-        if (messages.length >= opts.limit) break;
+      const sized: ImapSizedUid[] = [];
+      for await (const msg of client.fetch(range, { uid: true, size: true }, { uid: true })) {
+        sized.push({ uid: msg.uid, size: typeof msg.size === 'number' ? msg.size : null });
       }
-      return { uidValidity, messages };
+      const plan = planImapDownloads(sized, {
+        sinceUid: opts.sinceUid,
+        limit: opts.limit,
+        maxMessageBytes: IMAP_MAX_MESSAGE_BYTES,
+        maxBatchBytes: IMAP_MAX_BATCH_BYTES,
+      });
+      const oversized = [...plan.oversized];
+      const messages: ImapMessageMin[] = [];
+      if (plan.fetch.length > 0) {
+        const wanted = new Set(plan.fetch.map((entry) => entry.uid));
+        let received = 0;
+        const uidSet = plan.fetch.map((entry) => entry.uid).join(',');
+        for await (const msg of client.fetch(uidSet, { uid: true, source: true }, { uid: true })) {
+          if (!msg.source || !wanted.has(msg.uid)) continue;
+          wanted.delete(msg.uid);
+          received += msg.source.length;
+          if (received > IMAP_MAX_BATCH_BYTES + IMAP_MAX_MESSAGE_BYTES) {
+            throw new Error(
+              `imap_batch_too_large: the server sent more than ${IMAP_MAX_BATCH_BYTES + IMAP_MAX_MESSAGE_BYTES} bytes for messages it declared smaller`,
+            );
+          }
+          if (msg.source.length > IMAP_MAX_MESSAGE_BYTES) {
+            oversized.push({ uid: msg.uid, size: msg.source.length });
+            continue;
+          }
+          messages.push({ uid: msg.uid, source: msg.source });
+        }
+      }
+      messages.sort((a, b) => a.uid - b.uid);
+      return { uidValidity, messages, oversized };
     });
   }
 
@@ -202,6 +237,7 @@ class ImapFlowFetcher implements ImapFetcher {
       secure: opts.secure,
       auth: { user: opts.username, pass: opts.password },
       logger: false,
+      ...IMAP_PARSER_LIMITS,
       ...(resolved && resolved.address !== opts.host
         ? { tls: { servername: opts.host } }
         : {}),
@@ -217,17 +253,21 @@ class ImapFlowFetcher implements ImapFetcher {
       client.close();
       throw err;
     }
+    let result: T;
     try {
       const mailbox = await client.mailboxOpen(opts.mailbox);
-      return await fn(client, mailbox);
-    } finally {
-      await client.logout().catch((err) => {
-        ImapFlowFetcher.logger.warn(
-          `imap logout failed host=${opts.host}: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        client.close();
-      });
+      result = await fn(client, mailbox);
+    } catch (err) {
+      client.close();
+      throw err;
     }
+    await client.logout().catch((err) => {
+      ImapFlowFetcher.logger.warn(
+        `imap logout failed host=${opts.host}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      client.close();
+    });
+    return result;
   }
 }
 
@@ -492,8 +532,11 @@ export class EmailAdapter implements ChannelAdapter {
       return { messagesIngested: 0 };
     }
 
-    const messages = fetched.messages;
-    if (messages.length === 0) {
+    const entries = [
+      ...fetched.messages.map((msg) => ({ uid: msg.uid, msg, size: null })),
+      ...(fetched.oversized ?? []).map((skip) => ({ uid: skip.uid, msg: null, size: skip.size })),
+    ].sort((a, b) => a.uid - b.uid);
+    if (entries.length === 0) {
       await this.writeCursor(channel.id, { lastUid: sinceUid, uidValidity: fetched.uidValidity });
       return { messagesIngested: 0 };
     }
@@ -502,7 +545,14 @@ export class EmailAdapter implements ChannelAdapter {
     let ingested = 0;
     let lastError: string | null = null;
     let stalled = false;
-    for (const msg of messages) {
+    for (const entry of entries) {
+      const msg = entry.msg;
+      if (!msg) {
+        lastError = `skipped uid=${entry.uid}: message of ${entry.size ?? 'unknown'} bytes exceeds the ${IMAP_MAX_MESSAGE_BYTES}-byte inbound limit`;
+        this.logger.warn(`${lastError} channel=${channel.id}`);
+        if (entry.uid > highWater) highWater = entry.uid;
+        continue;
+      }
       let parsed: ParsedInboundEmail;
       try {
         parsed = await parseMessage(msg.source);

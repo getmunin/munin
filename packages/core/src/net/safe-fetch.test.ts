@@ -2,11 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { createServer, type Server, type RequestListener } from 'node:http';
 import type { LookupAddress } from 'node:dns';
 import type { AddressInfo } from 'node:net';
+import { Readable } from 'node:stream';
+import { createGzip, gzipSync } from 'node:zlib';
 import { MockAgent } from 'undici';
 import {
   assertPublicHost,
+  DEFAULT_MAX_RESPONSE_BYTES,
+  findResponseTooLarge,
   isPrivateIp,
+  ResponseTooLargeError,
   safeFetch,
+  safeFetchCompat,
   SsrfBlockedError,
 } from './safe-fetch.ts';
 
@@ -330,5 +336,180 @@ describe('safeFetch', () => {
       delete process.env.MUNIN_SSRF_ALLOW_PRIVATE;
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
+  });
+});
+
+describe('safeFetch response size cap', () => {
+  async function withLocalServer(
+    handler: RequestListener,
+    run: (base: string) => Promise<void>,
+  ): Promise<void> {
+    const server = createServer(handler);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+    const localPort = (server.address() as AddressInfo).port;
+    process.env.MUNIN_SSRF_ALLOW_PRIVATE = 'true';
+    try {
+      await run(`http://127.0.0.1:${localPort}`);
+    } finally {
+      delete process.env.MUNIN_SSRF_ALLOW_PRIVATE;
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  }
+
+  function endlessZeros(): Readable {
+    const chunk = Buffer.alloc(64 * 1024);
+    return new Readable({
+      read() {
+        this.push(chunk);
+      },
+    });
+  }
+
+  const gzipBomb: RequestListener = (_req, res) => {
+    res.statusCode = 200;
+    res.setHeader('content-type', 'application/json');
+    res.setHeader('content-encoding', 'gzip');
+    const source = endlessZeros();
+    const gzip = createGzip();
+    res.on('close', () => {
+      source.destroy();
+      gzip.destroy();
+    });
+    source.pipe(gzip).pipe(res);
+  };
+
+  it('rejects a never-ending gzip bomb with a coded error once the decompressed body passes the cap', async () => {
+    await withLocalServer(gzipBomb, async (base) => {
+      const res = await safeFetch(`${base}/bomb`, { maxResponseBytes: 1024 * 1024 });
+      const caught = await res.json().catch((err: unknown) => err);
+      const tooLarge = findResponseTooLarge(caught);
+      expect(tooLarge).toBeInstanceOf(ResponseTooLargeError);
+      expect(tooLarge?.code).toBe('response_too_large');
+      expect(tooLarge?.limitBytes).toBe(1024 * 1024);
+    });
+  });
+
+  it('applies the default cap when the caller sets none', async () => {
+    await withLocalServer(gzipBomb, async (base) => {
+      const res = await safeFetch(`${base}/bomb`);
+      const caught = await res.arrayBuffer().catch((err: unknown) => err);
+      expect(findResponseTooLarge(caught)?.limitBytes).toBe(DEFAULT_MAX_RESPONSE_BYTES);
+    });
+  });
+
+  it('caps bodies read through the global-fetch shim the MCP client uses', async () => {
+    await withLocalServer(gzipBomb, async (base) => {
+      const res = await safeFetchCompat(`${base}/bomb`);
+      const caught = await res.text().catch((err: unknown) => err);
+      expect(findResponseTooLarge(caught)).toBeInstanceOf(ResponseTooLargeError);
+    });
+  });
+
+  it('decompresses and returns a body under the cap unchanged', async () => {
+    const payload = { orders: Array.from({ length: 200 }, (_, i) => ({ id: i, note: 'Acme' })) };
+    const compressed = gzipSync(JSON.stringify(payload));
+    await withLocalServer(
+      (_req, res) => {
+        res.statusCode = 200;
+        res.setHeader('content-type', 'application/json');
+        res.setHeader('content-encoding', 'gzip');
+        res.setHeader('content-length', String(compressed.length));
+        res.end(compressed);
+      },
+      async (base) => {
+        const res = await safeFetch(`${base}/ok`, { maxResponseBytes: 64 * 1024 });
+        expect(await res.json()).toEqual(payload);
+      },
+    );
+  });
+
+  it('refuses before reading the body when content-length already exceeds the cap', async () => {
+    let bodyBytesSent = 0;
+    await withLocalServer(
+      (_req, res) => {
+        res.statusCode = 200;
+        res.setHeader('content-length', String(10 * 1024 * 1024));
+        res.write(Buffer.alloc(1024));
+        bodyBytesSent += 1024;
+      },
+      async (base) => {
+        const caught = await safeFetch(`${base}/declared`, { maxResponseBytes: 1024 * 1024 }).catch(
+          (err: unknown) => err,
+        );
+        expect(caught).toBeInstanceOf(ResponseTooLargeError);
+        expect((caught as Error).message).toMatch(/^response_too_large: declared length of 10485760 bytes/);
+      },
+    );
+    expect(bodyBytesSent).toBe(1024);
+  });
+
+  it('does not judge a HEAD response by the length of the body it describes', async () => {
+    await withLocalServer(
+      (_req, res) => {
+        res.statusCode = 200;
+        res.setHeader('content-length', String(10 * 1024 * 1024));
+        res.end();
+      },
+      async (base) => {
+        const res = await safeFetch(`${base}/head`, { method: 'HEAD', maxResponseBytes: 1024 });
+        expect(res.status).toBe(200);
+      },
+    );
+  });
+
+  it('still delivers a streamed body chunk by chunk, before the upstream has finished', async () => {
+    let releaseSecond: () => void = () => undefined;
+    const secondReleased = new Promise<void>((resolve) => {
+      releaseSecond = resolve;
+    });
+    await withLocalServer(
+      (_req, res) => {
+        res.statusCode = 200;
+        res.setHeader('content-type', 'text/event-stream');
+        res.write('data: first\n\n');
+        void secondReleased.then(() => res.end('data: second\n\n'));
+      },
+      async (base) => {
+        const res = await safeFetch(`${base}/sse`, { maxResponseBytes: 1024 });
+        const reader: ReadableStreamDefaultReader<Uint8Array> = res.body!.getReader();
+        const first = await reader.read();
+        expect(new TextDecoder().decode(first.value)).toBe('data: first\n\n');
+        releaseSecond();
+        let rest = '';
+        for (;;) {
+          const next = await reader.read();
+          if (next.done) break;
+          rest += new TextDecoder().decode(next.value);
+        }
+        expect(rest).toBe('data: second\n\n');
+      },
+    );
+  });
+
+  it('cuts a stream off mid-flight once the running total passes the cap', async () => {
+    await withLocalServer(
+      (_req, res) => {
+        res.statusCode = 200;
+        res.setHeader('content-type', 'text/event-stream');
+        const source = endlessZeros();
+        res.on('close', () => source.destroy());
+        source.pipe(res);
+      },
+      async (base) => {
+        const res = await safeFetch(`${base}/endless`, { maxResponseBytes: 256 * 1024 });
+        const reader: ReadableStreamDefaultReader<Uint8Array> = res.body!.getReader();
+        let received = 0;
+        const caught = await (async () => {
+          for (;;) {
+            const next = await reader.read();
+            if (next.done) return null;
+            received += next.value.byteLength;
+          }
+        })().catch((err: unknown) => err);
+        expect(caught).toBeInstanceOf(ResponseTooLargeError);
+        expect(received).toBeLessThanOrEqual(256 * 1024);
+      },
+    );
   });
 });

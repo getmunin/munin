@@ -11,6 +11,7 @@ import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import {
   contentHash,
   describeError,
+  findResponseTooLarge,
   getCurrentContext,
   PREVIEW_TOKEN_MAX_AGE_SECONDS,
   readApiBaseUrl,
@@ -1492,11 +1493,14 @@ export class CmsService {
       method: 'GET',
       headers: { 'user-agent': 'Munin-CMS/1.0 (+https://getmunin.com)' },
       signal: AbortSignal.timeout(15_000),
+      maxResponseBytes: FETCH_BYTES_MAX,
     }).catch((err) => {
       throw new CmsInvalidError(
         err instanceof SsrfBlockedError
           ? `sourceUrl blocked: ${err.message}`
-          : `fetch failed: ${describeError(err)}`,
+          : findResponseTooLarge(err)
+            ? `fetched body exceeds ${FETCH_BYTES_MAX} bytes`
+            : `fetch failed: ${describeError(err)}`,
       );
     });
     if (!res.ok) throw new CmsInvalidError(`fetch failed with status ${res.status}`);
@@ -2980,7 +2984,10 @@ async function readBodyWithCap(
   const chunks: Buffer[] = [];
   let total = 0;
   while (true) {
-    const { value, done } = await reader.read();
+    const { value, done } = await reader.read().catch((err: unknown) => {
+      if (findResponseTooLarge(err)) throw new CmsInvalidError(`fetched body exceeds ${cap} bytes`);
+      throw err;
+    });
     if (done) break;
     if (!value) continue;
     total += value.byteLength;

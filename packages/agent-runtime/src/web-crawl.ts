@@ -610,6 +610,7 @@ const defaultFetcher: HtmlFetcher = async (url) => {
         'accept-language': 'en;q=0.9,*;q=0.5',
         'accept-encoding': 'gzip, deflate, br',
       },
+      maxResponseBytes: MAX_RESPONSE_BYTES,
     });
     const declared = Number(res.headers.get('content-length') ?? '');
     if (Number.isFinite(declared) && declared > MAX_RESPONSE_BYTES) {

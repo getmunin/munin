@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { safeFetch, SsrfBlockedError } from '@getmunin/core';
+import { findResponseTooLarge, safeFetch, SsrfBlockedError } from '@getmunin/core';
 import sharp from 'sharp';
 import type { SocialMediaKind } from './social-platform.ts';
 import { MAX_IMAGE_PIXELS } from '../cms/cms.variants.ts';
@@ -93,7 +93,7 @@ export interface SocialFetchResponse {
 
 export type SocialFetch = (
   url: string,
-  init: { signal: AbortSignal; headers: Record<string, string> },
+  init: { signal: AbortSignal; headers: Record<string, string>; maxResponseBytes: number },
 ) => Promise<SocialFetchResponse>;
 
 const defaultSocialFetch: SocialFetch = (url, init) => safeFetch(url, init);
@@ -108,9 +108,14 @@ function isSsrfBlock(err: unknown): boolean {
   return false;
 }
 
+function overLimit(what: string, maxBytes: number): SocialMediaError {
+  return new SocialMediaError(`${what} is over the ${Math.round(maxBytes / 1024 / 1024)}MB limit`);
+}
+
 async function fetchPublic(
   rawUrl: string,
   timeoutMs: number,
+  maxBytes: number,
   fetcher: SocialFetch,
 ): Promise<SocialFetchResponse> {
   let parsed: URL;
@@ -126,11 +131,13 @@ async function fetchPublic(
     return await fetcher(parsed.toString(), {
       signal: AbortSignal.timeout(timeoutMs),
       headers: { 'user-agent': 'Munin/1.0 (+https://getmunin.com)' },
+      maxResponseBytes: maxBytes,
     });
   } catch (err) {
     if (isSsrfBlock(err)) {
       throw new SocialMediaError(`${rawUrl} is not an allowed destination`);
     }
+    if (findResponseTooLarge(err)) throw overLimit(rawUrl, maxBytes);
     throw new SocialMediaError(`could not fetch ${rawUrl}`);
   }
 }
@@ -158,16 +165,15 @@ async function readCapped(
   let total = 0;
   try {
     while (true) {
-      const next = await reader.read().catch(() => {
+      const next = await reader.read().catch((err: unknown) => {
+        if (findResponseTooLarge(err)) throw overLimit(what, maxBytes);
         throw new SocialMediaError(`${what} could not be read`);
       });
       if (next.done) break;
       total += next.value.byteLength;
       if (total > maxBytes) {
         await reader.cancel().catch(() => undefined);
-        throw new SocialMediaError(
-          `${what} is over the ${Math.round(maxBytes / 1024 / 1024)}MB limit`,
-        );
+        throw overLimit(what, maxBytes);
       }
       chunks.push(Buffer.from(next.value));
     }
@@ -181,7 +187,7 @@ export async function fetchOpenGraph(
   pageUrl: string,
   fetcher: SocialFetch = defaultSocialFetch,
 ): Promise<OpenGraphSummary> {
-  const res = await fetchPublic(pageUrl, PAGE_TIMEOUT_MS, fetcher);
+  const res = await fetchPublic(pageUrl, PAGE_TIMEOUT_MS, MAX_PAGE_BYTES, fetcher);
   if (!res.ok) {
     await refuse(res, `${pageUrl} answered ${res.status}`);
   }
@@ -261,7 +267,12 @@ export async function fetchMedia(
   },
   fetcher: SocialFetch = defaultSocialFetch,
 ): Promise<FetchedMedia> {
-  const res = await fetchPublic(mediaUrl, MEDIA_TIMEOUT_MS, fetcher);
+  const res = await fetchPublic(
+    mediaUrl,
+    MEDIA_TIMEOUT_MS,
+    Math.max(args.limits.maxImageBytes, args.limits.maxVideoBytes),
+    fetcher,
+  );
   if (!res.ok) {
     await refuse(res, `${mediaUrl} answered ${res.status}`);
   }

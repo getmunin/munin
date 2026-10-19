@@ -1627,6 +1627,71 @@ class StubImapFetcher implements ImapFetcher {
     expect(stored.some((m) => m.body.includes(`this one is fine ${run}`))).toBe(true);
   }, 30_000);
 
+  it('steps over a message the server reports as too large, but never past an earlier one that failed to ingest', async () => {
+    const channel = await imapChannel();
+    const run = Math.random().toString(36).slice(2, 8);
+    await resetCursor(db, channel.id);
+
+    const source = (n: number) =>
+      rfc822({
+        from: 'Size Tester <size@example.com>',
+        to: 'support@acme.test',
+        subject: `size ${n}`,
+        messageId: `size-${n}-${run}@example.com`,
+        body: `size body ${n} ${run}`,
+      });
+    const oversizeFetcher: ImapFetcher = {
+      anchor: () => Promise.resolve({ uidValidity: '1', lastUid: 0 }),
+      fetchSince: (opts) =>
+        Promise.resolve({
+          uidValidity: '1',
+          messages: [
+            { uid: 1, source: source(1) },
+            { uid: 3, source: source(3) },
+          ].filter((m) => m.uid > opts.sinceUid),
+          oversized: [{ uid: 2, size: 900 * 1024 * 1024 }].filter((m) => m.uid > opts.sinceUid),
+        }),
+    };
+    const originalFetcher = emailAdapter['fetcher'];
+    const originalIngest = emailAdapter.ingest.bind(emailAdapter);
+    emailAdapter.setFetcher(oversizeFetcher);
+
+    async function cursorUid(): Promise<number | null> {
+      const [row] = await db
+        .select({ cursor: schema.convInboundState.cursor })
+        .from(schema.convInboundState)
+        .where(eq(schema.convInboundState.channelId, channel.id));
+      const value = (row?.cursor as { lastUid?: unknown } | undefined)?.lastUid;
+      return typeof value === 'number' ? value : null;
+    }
+
+    emailAdapter.ingest = () => Promise.reject(new Error('storage unavailable'));
+    try {
+      const stalled = await emailAdapter.inbound.tick(channel);
+      expect(stalled.stalled).toBe(true);
+      expect(await cursorUid()).toBe(0);
+    } finally {
+      emailAdapter.ingest = originalIngest;
+    }
+
+    try {
+      const result = await emailAdapter.inbound.tick(channel);
+      expect(result.stalled).toBe(false);
+      expect(result.messagesIngested).toBe(2);
+      expect(result.lastError).toMatch(/^skipped uid=2: message of 943718400 bytes exceeds/);
+      expect(await cursorUid()).toBe(3);
+    } finally {
+      emailAdapter.setFetcher(originalFetcher);
+    }
+
+    const stored = await db
+      .select({ body: schema.convMessages.body })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.orgId, orgId));
+    expect(stored.some((m) => m.body.includes(`size body 1 ${run}`))).toBe(true);
+    expect(stored.some((m) => m.body.includes(`size body 3 ${run}`))).toBe(true);
+  }, 30_000);
+
 });
 
 async function waitFor(check: () => Promise<boolean>, timeoutMs = 2000): Promise<void> {

@@ -133,6 +133,7 @@ export class WebhookWorker implements OnModuleInit, OnModuleDestroy {
         signal: AbortSignal.timeout(15_000),
       });
       statusCode = res.status;
+      await res.body?.cancel().catch(() => undefined);
       if (!res.ok) error = `non-2xx: ${res.status}`;
     } catch (err) {
       error = describeError(err);

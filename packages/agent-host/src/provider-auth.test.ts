@@ -77,6 +77,19 @@ describe('validateProviderCredentials', () => {
     );
   });
 
+  it('names the size cap when the provider streams back more than it allows', async () => {
+    vi.spyOn(core, 'safeFetch').mockImplementation(
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.reject(new core.ResponseTooLargeError(1024)),
+      }),
+    );
+    await expect(validateProviderCredentials(CUSTOM, 'sk-test')).rejects.toThrow(
+      /exceeded the 1024-byte limit \(response_too_large\)/,
+    );
+  });
+
   it('rejects a 200 response that parses but is the wrong shape', async () => {
     mockSafeFetch({ status: 200, body: { unexpected: 'shape' } });
     await expect(validateProviderCredentials(CUSTOM, 'sk-test')).rejects.toBeInstanceOf(

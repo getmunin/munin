@@ -210,7 +210,8 @@ export async function readCappedBody(
   return Buffer.concat(chunks, total);
 }
 
-const defaultIconFetcher: IconFetcher = (url, init) => safeFetch(url, init);
+const defaultIconFetcher: IconFetcher = (url, init) =>
+  safeFetch(url, { ...init, maxResponseBytes: FAVICON_MAX_BYTES });
 
 export async function fetchImage(
   url: string,

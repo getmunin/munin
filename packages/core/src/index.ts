@@ -144,8 +144,11 @@ export {
 
 export {
   assertPublicHost,
+  DEFAULT_MAX_RESPONSE_BYTES,
+  findResponseTooLarge,
   isPrivateIp,
   resolvePublicHost,
+  ResponseTooLargeError,
   safeFetch,
   safeFetchCompat,
   SsrfBlockedError,

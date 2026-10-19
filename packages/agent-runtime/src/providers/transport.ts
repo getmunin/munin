@@ -19,6 +19,7 @@ export async function postJsonWithRateLimitRetry(args: {
     });
     if (res.status !== 429 || attempt >= RATE_LIMIT_MAX_RETRIES) return res;
     const retryAfter = res.headers.get('retry-after');
+    await res.body?.cancel().catch(() => undefined);
     await sleep(rateLimitRetryDelayMs(retryAfter, attempt), args.abortSignal);
   }
 }

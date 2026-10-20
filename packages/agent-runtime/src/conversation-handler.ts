@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { auditConversation, type AuditAction, type AuditTopic } from './audit.ts';
-import { deriveMessageComponents } from './message-components.ts';
+import { deriveMessageComponents, withProductCards } from './message-components.ts';
 import { deriveRetrievedDocumentIds } from './kb-citations.ts';
 import {
   affectsProviderHealth,
@@ -453,14 +453,15 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
         conversationId,
         channelType: detail.channelType ?? null,
       });
-      const agentMcp: McpToolHandle =
+      const agentMcp: McpToolHandle = withProductCards(
         mode === 'draft-request' || heldByHuman
           ? {
               listTools: () =>
                 mcp.listTools().then((tools) => tools.filter((t) => t.name !== HANDOVER_TOOL_NAME)),
               callTool: (name, args) => mcp.callTool(name, args),
             }
-          : mcp;
+          : mcp,
+      );
       if (delivery === 'send') startTyping();
       try {
         const rawReply = await runAgent({

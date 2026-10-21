@@ -51,6 +51,7 @@ import {
   AgentReplyRaceError,
   AgentSendNotAutoError,
   AGENT_MODES,
+  GreetSupersededError,
   HandoverActiveError,
   STATUSES,
   SUPPRESSED_REASON_FILTERS,
@@ -86,6 +87,7 @@ class SendReplyBody extends createZodDto(
     inReplyToId: z.string().optional(),
     preserveAttention: z.boolean().optional(),
     sinceMessageId: z.string().optional(),
+    greeting: z.boolean().optional(),
     claim: z.boolean().optional(),
     totalTokens: z.number().int().nonnegative().optional(),
     components: MessageComponentsSchema.optional(),
@@ -451,6 +453,7 @@ export class ConversationsController {
         inReplyToId: input.inReplyToId,
         preserveAttention: input.preserveAttention,
         sinceMessageId: input.sinceMessageId,
+        greeting: input.greeting,
         claim: input.claim,
         components: input.components,
         fromDraftId: input.fromDraftId,
@@ -712,6 +715,9 @@ async function translate<T>(fn: () => Promise<T>): Promise<T> {
       throw new ConflictException({ message: err.message, code: err.code });
     }
     if (err instanceof AgentReplyRaceError) {
+      throw new ConflictException({ message: err.message, code: err.code });
+    }
+    if (err instanceof GreetSupersededError) {
       throw new ConflictException({ message: err.message, code: err.code });
     }
     if (err instanceof AgentSendNotAutoError) {

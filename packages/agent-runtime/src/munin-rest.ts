@@ -143,6 +143,7 @@ export interface MuninRestClient {
     body: string,
     opts?: {
       sinceMessageId?: string;
+      greeting?: boolean;
       totalTokens?: number;
       components?: MessageComponent[];
     },
@@ -335,6 +336,7 @@ export function createMuninRestClient(
       body: string,
       opts: {
         sinceMessageId?: string;
+        greeting?: boolean;
         totalTokens?: number;
         components?: MessageComponent[];
       } = {},
@@ -345,6 +347,7 @@ export function createMuninRestClient(
           body,
           preserveAttention: true,
           ...(opts.sinceMessageId ? { sinceMessageId: opts.sinceMessageId } : {}),
+          ...(opts.greeting ? { greeting: true } : {}),
           ...(opts.totalTokens !== undefined ? { totalTokens: opts.totalTokens } : {}),
           ...(opts.components?.length ? { components: opts.components } : {}),
         }),

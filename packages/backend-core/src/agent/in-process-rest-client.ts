@@ -164,6 +164,7 @@ function buildClient(opts: BuildOptions): AgentRestClient {
       body: string,
       messageOpts: {
         sinceMessageId?: string;
+        greeting?: boolean;
         totalTokens?: number;
         components?: MessageComponent[];
       } = {},
@@ -178,6 +179,7 @@ function buildClient(opts: BuildOptions): AgentRestClient {
             authorId: opts.actor.id,
             preserveAttention: true,
             sinceMessageId: messageOpts.sinceMessageId,
+            greeting: messageOpts.greeting,
             components: messageOpts.components,
           });
         },

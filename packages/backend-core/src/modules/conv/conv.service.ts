@@ -79,6 +79,15 @@ export class AgentReplyRaceError extends Error {
   }
 }
 
+export class GreetSupersededError extends Error {
+  readonly code = 'greet_superseded';
+  constructor(public readonly conversationId: string) {
+    super(
+      `greet_superseded: the end user already wrote in conversation ${conversationId}, so the opening greeting is no longer posted`,
+    );
+  }
+}
+
 export const CHANNEL_TYPES = ['email', 'voice', 'chat', 'sms'] as const;
 export const STATUSES = ['open', 'snoozed', 'closed', 'spam'] as const;
 
@@ -1478,6 +1487,7 @@ export class ConvService {
     authorId: string;
     preserveAttention?: boolean;
     sinceMessageId?: string;
+    greeting?: boolean;
     claim?: boolean;
     components?: MessageComponent[];
     fromDraftId?: string;
@@ -1510,6 +1520,22 @@ export class ConvService {
       throw new HandoverActiveError(input.conversationId);
     }
 
+    const isGreeting = isPublicAgentReply && input.greeting === true;
+
+    if (isGreeting) {
+      const endUserRows = await ctx.db
+        .select({ id: schema.convMessages.id })
+        .from(schema.convMessages)
+        .where(
+          and(
+            eq(schema.convMessages.conversationId, input.conversationId),
+            eq(schema.convMessages.authorType, 'end_user'),
+          ),
+        )
+        .limit(1);
+      if (endUserRows[0]) throw new GreetSupersededError(input.conversationId);
+    }
+
     if (isPublicAgentReply && input.sinceMessageId) {
       const conflictRows = await ctx.db
         .select({ id: schema.convMessages.id })
@@ -1519,6 +1545,7 @@ export class ConvService {
             eq(schema.convMessages.conversationId, input.conversationId),
             eq(schema.convMessages.authorType, 'agent'),
             eq(schema.convMessages.internal, false),
+            sql`coalesce(${schema.convMessages.metadata} ->> 'kind', '') <> 'greeting'`,
             sql`${schema.convMessages.createdAt} > (
               SELECT created_at FROM conv_messages WHERE id = ${input.sinceMessageId}
             )`,
@@ -1561,6 +1588,7 @@ export class ConvService {
         ? { [APPROVED_OUTREACH_PROPOSAL_KEY]: input.approvedOutreachProposalId }
         : {}),
       ...(isNote ? { kind: 'internal_note' } : {}),
+      ...(isGreeting ? { kind: 'greeting' } : {}),
     };
 
     const [row] = await ctx.db

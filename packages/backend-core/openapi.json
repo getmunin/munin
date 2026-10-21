@@ -11197,6 +11197,10 @@
             "type": "string",
             "x-nestjs_zod-uses-3-point-1-syntax": true
           },
+          "greeting": {
+            "type": "boolean",
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
           "claim": {
             "type": "boolean",
             "x-nestjs_zod-uses-3-point-1-syntax": true

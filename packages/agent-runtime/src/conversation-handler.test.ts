@@ -2665,6 +2665,102 @@ describe('createConversationHandler', () => {
       '[Visitor opened the chat. Greet them briefly and ask how you can help.]',
     );
   });
+
+  it('greets without an audit pass and flags the post as a greeting', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() => Promise.resolve(buildConversation({ messages: [] }))),
+    });
+    const postSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    const provider = vi.fn<Provider>(() =>
+      Promise.resolve({
+        message: { role: 'assistant', content: 'Hi! How can I help?' },
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        finishReason: 'stop',
+      }),
+    );
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider,
+    });
+    handler.greet({ conversationId: 'conv_1' });
+    await handler.flush();
+
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    const call = postSpy.mock.calls[0] as unknown as [string, string, { greeting?: boolean }];
+    expect(call[2]?.greeting).toBe(true);
+  });
+
+  it('treats greet_superseded as a terminal skip without falling back', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() => Promise.resolve(buildConversation({ messages: [] }))),
+    });
+    const superseded = Object.assign(new Error('greet_superseded: end user already wrote'), {
+      code: 'greet_superseded',
+    });
+    const postSpy = vi.fn(() => Promise.reject(superseded));
+    rest.postAgentMessage = postSpy;
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: () =>
+        Promise.resolve({
+          message: { role: 'assistant', content: 'Hi! How can I help?' },
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+          finishReason: 'stop',
+        }),
+    });
+    handler.greet({ conversationId: 'conv_1' });
+    await handler.flush();
+
+    expect(postSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('a reply superseded by a newer message during its audit pass does not post', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() => Promise.resolve(buildConversation())),
+    });
+    const postSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    let calls = 0;
+    let handler: ReturnType<typeof createConversationHandler> | null = null;
+    const provider: Provider = () => {
+      calls += 1;
+      if (calls === 2) {
+        handler!.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+      }
+      return Promise.resolve({
+        message: { role: 'assistant', content: calls % 2 === 1 ? 'sure thing' : '{}' },
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        finishReason: 'stop',
+      });
+    };
+    handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider,
+    });
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+    await handler.flush();
+
+    expect(calls).toBeGreaterThanOrEqual(3);
+    expect(postSpy).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('greetSeedBody', () => {

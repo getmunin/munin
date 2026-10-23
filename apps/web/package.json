@@ -21,7 +21,7 @@
     "@getmunin/sdk": "workspace:*",
     "@getmunin/types": "workspace:*",
     "@getmunin/ui": "workspace:*",
-    "@sentry/nextjs": "^10.73.0",
+    "@sentry/nextjs": "^10.75.2",
     "better-auth": "^1.7.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

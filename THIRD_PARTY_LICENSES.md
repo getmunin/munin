@@ -3839,7 +3839,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/confirm@6.3.3
+## @inquirer/confirm@6.3.4
 
 > Inquirer confirm prompt
 - Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/confirm/README.md
@@ -3873,7 +3873,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/core@12.0.4
+## @inquirer/core@12.0.5
 
 > Core Inquirer prompt API
 - Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/core/README.md
@@ -5893,7 +5893,7 @@ SOFTWARE.
 
 ---
 
-## @opentelemetry/api@1.9.1
+## @opentelemetry/api@1.9.1, 1.10.0
 
 > Public API for OpenTelemetry
 - Homepage: https://github.com/open-telemetry/opentelemetry-js/tree/main/api
@@ -6319,7 +6319,7 @@ Apache License
 
 ---
 
-## @opentelemetry/core@2.11.0
+## @opentelemetry/core@2.11.0, 2.12.0
 
 > OpenTelemetry Core provides constants and utilities shared by all OpenTelemetry SDK packages.
 - Homepage: https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-core
@@ -6745,7 +6745,7 @@ Apache License
 
 ---
 
-## @opentelemetry/resources@2.11.0
+## @opentelemetry/resources@2.11.0, 2.12.0
 
 > OpenTelemetry SDK resources
 - Homepage: https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-resources
@@ -6958,7 +6958,7 @@ Apache License
 
 ---
 
-## @opentelemetry/sdk-trace@2.11.0
+## @opentelemetry/sdk-trace@2.11.0, 2.12.0
 
 > OpenTelemetry Tracing
 - Homepage: https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/sdk-trace
@@ -7171,7 +7171,7 @@ Apache License
 
 ---
 
-## @opentelemetry/sdk-trace-base@2.11.0
+## @opentelemetry/sdk-trace-base@2.11.0, 2.12.0
 
 > OpenTelemetry Tracing
 - Homepage: https://github.com/open-telemetry/opentelemetry-js/tree/main/packages/opentelemetry-sdk-trace-base
@@ -8497,7 +8497,7 @@ THE SOFTWARE.
 
 ---
 
-## @rollup/pluginutils@5.4.0
+## @rollup/pluginutils@5.5.1
 
 > A set of utility functions commonly used by Rollup plugins
 - Homepage: https://github.com/rollup/plugins/tree/master/packages/pluginutils#readme
@@ -8960,7 +8960,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ---
 
-## @sentry/browser@8.55.2, 10.73.0
+## @sentry/browser@8.55.2, 10.75.2
 
 > Official Sentry SDK for browsers
 - Homepage: https://github.com/getsentry/sentry-javascript/tree/master/packages/browser
@@ -8993,7 +8993,7 @@ SOFTWARE.
 
 ---
 
-## @sentry/browser-utils@10.73.0
+## @sentry/browser-utils@10.75.2
 
 > Browser Utilities for all Sentry JavaScript SDKs
 - Homepage: https://github.com/getsentry/sentry-javascript/tree/master/packages/browser-utils
@@ -9067,7 +9067,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ---
 
-## @sentry/bundler-plugins@10.73.0
+## @sentry/bundler-plugins@10.76.2
 
 > Sentry Bundler Plugins
 - Homepage: https://github.com/getsentry/sentry-javascript/tree/main/packages/bundler-plugins
@@ -9261,7 +9261,7 @@ SOFTWARE.
 
 ---
 
-## @sentry/core@8.55.2, 10.73.0
+## @sentry/core@8.55.2, 10.73.0, 10.75.2, 10.76.2
 
 > Base implementation for all Sentry JavaScript SDKs
 - Homepage: https://github.com/getsentry/sentry-javascript/tree/master/packages/core
@@ -9294,7 +9294,7 @@ SOFTWARE.
 
 ---
 
-## @sentry/feedback@10.73.0
+## @sentry/feedback@10.75.2
 
 > Sentry SDK integration for user feedback
 - Homepage: https://github.com/getsentry/sentry-javascript/tree/master/packages/feedback
@@ -9360,7 +9360,7 @@ SOFTWARE.
 
 ---
 
-## @sentry/nextjs@10.73.0
+## @sentry/nextjs@10.75.2
 
 > Official Sentry SDK for Next.js
 - Homepage: https://github.com/getsentry/sentry-javascript/tree/master/packages/nextjs
@@ -9393,7 +9393,7 @@ SOFTWARE.
 
 ---
 
-## @sentry/node@10.73.0
+## @sentry/node@10.73.0, 10.75.2
 
 > Sentry Node SDK using OpenTelemetry for performance instrumentation
 - Homepage: https://github.com/getsentry/sentry-javascript/tree/master/packages/node
@@ -9426,7 +9426,7 @@ SOFTWARE.
 
 ---
 
-## @sentry/node-core@10.73.0
+## @sentry/node-core@10.73.0, 10.75.2
 
 > Sentry Node-Core SDK
 - Homepage: https://github.com/getsentry/sentry-javascript/tree/master/packages/node-core
@@ -9492,7 +9492,7 @@ SOFTWARE.
 
 ---
 
-## @sentry/opentelemetry@10.73.0
+## @sentry/opentelemetry@10.73.0, 10.75.2
 
 > Official Sentry utilities for OpenTelemetry
 - Homepage: https://github.com/getsentry/sentry-javascript/tree/master/packages/opentelemetry
@@ -9558,7 +9558,7 @@ SOFTWARE.
 
 ---
 
-## @sentry/react@10.73.0
+## @sentry/react@10.75.2
 
 > Official Sentry SDK for React.js
 - Homepage: https://github.com/getsentry/sentry-javascript/tree/master/packages/react
@@ -9591,7 +9591,7 @@ SOFTWARE.
 
 ---
 
-## @sentry/replay@10.73.0
+## @sentry/replay@10.75.2
 
 > User replays for Sentry
 - Homepage: https://docs.sentry.io/platforms/javascript/session-replay/
@@ -9624,7 +9624,7 @@ SOFTWARE.
 
 ---
 
-## @sentry/replay-canvas@10.73.0
+## @sentry/replay-canvas@10.75.2
 
 > Replay canvas integration
 - Homepage: https://docs.sentry.io/platforms/javascript/session-replay/
@@ -9657,7 +9657,7 @@ SOFTWARE.
 
 ---
 
-## @sentry/server-utils@10.73.0
+## @sentry/server-utils@10.73.0, 10.75.2
 
 > Server Utilities for all Sentry JavaScript SDKs
 - Homepage: https://github.com/getsentry/sentry-javascript/tree/master/packages/server-utils
@@ -9668,7 +9668,7 @@ _No LICENSE file shipped in the package; refer to homepage above._
 
 ---
 
-## @sentry/vercel-edge@10.73.0
+## @sentry/vercel-edge@10.75.2
 
 > Official Sentry SDK for the Vercel Edge Runtime
 - Homepage: https://github.com/getsentry/sentry-javascript/tree/master/packages/vercel-edge
@@ -9701,7 +9701,7 @@ SOFTWARE.
 
 ---
 
-## @sentry/webpack-plugin@5.4.0
+## @sentry/webpack-plugin@5.4.1
 
 > Official Sentry Webpack plugin
 - Homepage: https://github.com/getsentry/sentry-javascript-bundler-plugins/tree/main/packages/webpack-plugin
@@ -14948,7 +14948,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## cjs-module-lexer@2.2.1
+## cjs-module-lexer@2.2.1, 2.3.0
 
 > Lexes CommonJS modules, returning their named exports metadata
 - Homepage: https://github.com/nodejs/cjs-module-lexer#readme
@@ -17324,7 +17324,7 @@ SOFTWARE.
 
 ---
 
-## es-module-lexer@2.3.2
+## es-module-lexer@2.3.2, 3.0.4
 
 > Lexes ES modules returning their import/export metadata
 - Homepage: https://github.com/guybedford/es-module-lexer#readme
@@ -20290,7 +20290,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## import-in-the-middle@3.4.0
+## import-in-the-middle@3.4.0, 3.5.2
 
 > Intercept imports in Node.js
 - Homepage: https://github.com/nodejs/import-in-the-middle#readme
@@ -29987,7 +29987,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## rollup@4.63.1
+## rollup@4.63.1, 4.65.0
 
 > Next-generation ES module bundler
 - Homepage: https://rollupjs.org/
@@ -31330,7 +31330,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## set-cookie-parser@3.1.2, 3.1.3
+## set-cookie-parser@3.1.2, 3.2.1
 
 > Parses set-cookie headers into objects
 - Homepage: https://github.com/nfriedly/set-cookie-parser
@@ -33242,7 +33242,7 @@ SOFTWARE.
 
 ---
 
-## tldts@7.4.18
+## tldts@7.4.19
 
 > Library to work against complex domain names, subdomains and URIs.
 - Homepage: https://github.com/remusao/tldts#readme
@@ -33267,7 +33267,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTH
 
 ---
 
-## tldts-core@7.4.18
+## tldts-core@7.4.19
 
 > tldts core primitives (internal module)
 - Homepage: https://github.com/remusao/tldts#readme

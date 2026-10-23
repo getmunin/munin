@@ -3839,7 +3839,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/confirm@6.3.3
+## @inquirer/confirm@6.3.4
 
 > Inquirer confirm prompt
 - Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/confirm/README.md
@@ -3873,7 +3873,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/core@12.0.4
+## @inquirer/core@12.0.5
 
 > Core Inquirer prompt API
 - Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/core/README.md
@@ -5696,7 +5696,7 @@ THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## @next/env@16.3.8
+## @next/env@16.4.1
 
 > Next.js dotenv file loading
 - Homepage: https://github.com/vercel/next.js#readme
@@ -13510,7 +13510,7 @@ SOFTWARE.
 
 ---
 
-## baseline-browser-mapping@2.11.28
+## baseline-browser-mapping@2.11.32
 
 > A library for obtaining browser versions with their maximum supported Baseline feature set and Widely Available status.
 - Homepage: https://github.com/web-platform-dx/baseline-browser-mapping#readme
@@ -14195,7 +14195,7 @@ SOFTWARE.
 
 ---
 
-## caniuse-lite@1.0.30001816
+## caniuse-lite@1.0.30001819
 
 > A smaller version of caniuse-db, with only the essentials!
 - Homepage: https://github.com/browserslist/caniuse-lite#readme
@@ -26081,7 +26081,7 @@ IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
-## nanoid@3.3.18
+## nanoid@3.3.18, 3.3.20
 
 > A tiny (116 bytes), secure URL-friendly unique string ID generator
 - Homepage: https://github.com/ai/nanoid#readme
@@ -26235,7 +26235,7 @@ _No LICENSE file shipped in the package; refer to homepage above._
 
 ---
 
-## next@16.3.8
+## next@16.4.1
 
 > The React Framework
 - Homepage: https://nextjs.org
@@ -28159,7 +28159,7 @@ SOFTWARE.
 
 ---
 
-## postcss@8.5.26
+## postcss@8.5.26, 8.5.31
 
 > Tool for transforming styles with JS plugins
 - Homepage: https://postcss.org/
@@ -31330,7 +31330,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## set-cookie-parser@3.1.2, 3.1.3
+## set-cookie-parser@3.1.2, 3.2.1
 
 > Parses set-cookie headers into objects
 - Homepage: https://github.com/nfriedly/set-cookie-parser
@@ -33242,7 +33242,7 @@ SOFTWARE.
 
 ---
 
-## tldts@7.4.18
+## tldts@7.4.19
 
 > Library to work against complex domain names, subdomains and URIs.
 - Homepage: https://github.com/remusao/tldts#readme
@@ -33267,7 +33267,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTH
 
 ---
 
-## tldts-core@7.4.18
+## tldts-core@7.4.19
 
 > tldts core primitives (internal module)
 - Homepage: https://github.com/remusao/tldts#readme

@@ -46,7 +46,7 @@
     "nestjs-zod": "^5.5.0",
     "postgres": "^3.4.9",
     "reflect-metadata": "^0.2.2",
-    "zod": "^4.5.4"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@getmunin/eslint-config": "workspace:*",

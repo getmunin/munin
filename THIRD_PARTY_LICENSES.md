@@ -3839,7 +3839,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/confirm@6.3.3
+## @inquirer/confirm@6.3.4
 
 > Inquirer confirm prompt
 - Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/confirm/README.md
@@ -3873,7 +3873,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/core@12.0.4
+## @inquirer/core@12.0.5
 
 > Core Inquirer prompt API
 - Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/core/README.md
@@ -31330,7 +31330,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## set-cookie-parser@3.1.2, 3.1.3
+## set-cookie-parser@3.1.2, 3.2.1
 
 > Parses set-cookie headers into objects
 - Homepage: https://github.com/nfriedly/set-cookie-parser
@@ -33242,7 +33242,7 @@ SOFTWARE.
 
 ---
 
-## tldts@7.4.18
+## tldts@7.4.19
 
 > Library to work against complex domain names, subdomains and URIs.
 - Homepage: https://github.com/remusao/tldts#readme
@@ -33267,7 +33267,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTH
 
 ---
 
-## tldts-core@7.4.18
+## tldts-core@7.4.19
 
 > tldts core primitives (internal module)
 - Homepage: https://github.com/remusao/tldts#readme
@@ -38683,7 +38683,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## zod@4.5.4
+## zod@4.5.4, 4.6.7
 
 > TypeScript-first schema declaration and validation library with static type inference
 - Homepage: https://zod.dev

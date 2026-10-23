@@ -1,5 +1,7 @@
 # @getmunin/types
 
+## 5.48.1
+
 ## 5.48.0
 
 ### Patch Changes

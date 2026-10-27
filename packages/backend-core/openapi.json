@@ -2379,6 +2379,37 @@
         ]
       }
     },
+    "/v1/journeys/{id}/review-stats": {
+      "get": {
+        "operationId": "JourneysController_reviewStats",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Journeys"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/journeys/{id}/report": {
       "get": {
         "operationId": "JourneysController_report",

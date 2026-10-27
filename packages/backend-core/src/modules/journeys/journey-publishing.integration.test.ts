@@ -79,6 +79,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       'journey_enrollments',
       'journey_versions',
       'journeys',
+      'outreach_proposals',
       'outreach_campaigns',
       'crm_contacts',
       'crm_segments',
@@ -230,6 +231,73 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       journeys.create({ name: 'Trial', outreachCampaignId: campaignId, spec: spec({ goal: undefined }) }),
     );
     await expect(asAgent(() => publishing.requestPublish(journey.id))).rejects.toThrow(BadRequestException);
+  });
+
+  it('lets an agent-drafted step send without review only after it earned it', async () => {
+    const draftedWelcome = (approval: string) => ({
+      id: 'welcome',
+      type: 'message',
+      channel: 'email',
+      approval,
+      draftBy: 'agent',
+      brief: 'Welcome them',
+      content: { subject: 'Velkommen', body: 'Hei {{name}}!' },
+      next: 'done',
+    });
+    const journey = await asAgent(() =>
+      journeys.create({
+        name: 'Drafted',
+        outreachCampaignId: campaignId,
+        spec: spec({ start: 'welcome', nodes: [draftedWelcome('draft_only'), { id: 'done', type: 'exit' }] }),
+      }),
+    );
+    const first = await asAgent(() => publishing.requestPublish(journey.id));
+    await asPerson(() => publishing.confirmPublish(journey.id, 1, first.fingerprint));
+
+    async function reviewed(count: number, edited: boolean) {
+      for (let i = 0; i < count; i++) {
+        const c = await contact(`Kunde${randomUUID().slice(0, 6)}`, ['trial']);
+        const [run] = await db
+          .insert(schema.journeyEnrollments)
+          .values({ orgId, journeyId: journey.id, version: 1, contactId: c.id, subjectKey: `c:${c.id}`, state: 'done' })
+          .returning();
+        const [step] = await db
+          .insert(schema.journeyStepRuns)
+          .values({ orgId, enrollmentId: run!.id, nodeId: 'welcome', nodeType: 'message', visit: 1, status: 'completed' })
+          .returning();
+        await db.insert(schema.outreachProposals).values({
+          orgId,
+          campaignId,
+          contactId: c.id,
+          kind: 'journey',
+          journeyEnrollmentId: run!.id,
+          journeyStepRunId: step!.id,
+          draftSubject: 'Velkommen',
+          draftBody: 'Hei!',
+          originalDraftBody: edited ? 'Hei der!' : null,
+          status: 'sent',
+          decidedByActorType: 'user',
+          decidedByActorId: userId,
+          proposedByActorType: 'system',
+          proposedByActorId: 'journey-runtime',
+        });
+      }
+    }
+
+    await reviewed(27, false);
+    await reviewed(2, true);
+    await asAgent(() => journeys.updateNode(journey.id, draftedWelcome('auto')));
+    let stats = await asAgent(() => publishing.nodeReviewStats(journey.id));
+    expect(stats[0]).toMatchObject({ nodeId: 'welcome', reviewed: 29, readyForAuto: false });
+    await expect(asAgent(() => publishing.requestPublish(journey.id))).rejects.toThrow(/30 reviewed drafts/);
+
+    await reviewed(1, false);
+    stats = await asAgent(() => publishing.nodeReviewStats(journey.id));
+    expect(stats[0]).toMatchObject({ reviewed: 30, approvedUnedited: 28, readyForAuto: true });
+    const request = await asAgent(() => publishing.requestPublish(journey.id));
+    expect(request.diff.autoNodes).toEqual(['welcome']);
+    expect(request.reviewStats[0]!.readyForAuto).toBe(true);
+    await db.execute(sql`DELETE FROM outreach_proposals WHERE org_id = ${orgId}`);
   });
 
   it('reports enrollments, exits, node edges and goal lift', async () => {

@@ -24,6 +24,22 @@ export interface JourneyDiff {
   autoNodes: string[];
 }
 
+export const AUTO_PROMOTION_MIN_REVIEWED = 30;
+export const AUTO_PROMOTION_MIN_UNEDITED_RATE = 0.9;
+export const REVIEW_STATS_WINDOW_DAYS = 30;
+
+export interface NodeReviewStatsDto {
+  nodeId: string;
+  approvedUnedited: number;
+  edited: number;
+  dismissed: number;
+  pending: number;
+  sentWithoutReview: number;
+  reviewed: number;
+  uneditedRate: number | null;
+  readyForAuto: boolean;
+}
+
 export interface PublishRequestDto {
   journeyId: string;
   version: number;
@@ -31,6 +47,7 @@ export interface PublishRequestDto {
   diff: JourneyDiff;
   validation: JourneyValidation;
   simulation: SimulationResult;
+  reviewStats: NodeReviewStatsDto[];
   reviewPath: string;
 }
 
@@ -91,6 +108,21 @@ export class JourneyPublishingService {
     const spec = JourneySpecSchema.parse(draft.spec);
     const live = journey.live ? JourneySpecSchema.parse(journey.live.spec) : null;
     const diff = diffSpecs(spec, live, journey.live?.number ?? null);
+    const reviewStats = await this.nodeReviewStats(journeyId);
+    const notEarned = spec.nodes
+      .filter((n) => n.type === 'message' && n.draftBy === 'agent' && n.approval === 'auto')
+      .filter((n) => !reviewStats.find((s) => s.nodeId === n.id)?.readyForAuto);
+    if (notEarned.length > 0) {
+      const detail = notEarned
+        .map((n) => {
+          const stats = reviewStats.find((s) => s.nodeId === n.id);
+          return `"${n.id}" has ${stats?.reviewed ?? 0} reviewed drafts at ${Math.round((stats?.uneditedRate ?? 0) * 100)}% approved unedited`;
+        })
+        .join('; ');
+      throw new BadRequestException(
+        `journeys_invalid: an agent-drafted step can send without review only after ${AUTO_PROMOTION_MIN_REVIEWED} reviewed drafts in ${REVIEW_STATS_WINDOW_DAYS} days with at least ${AUTO_PROMOTION_MIN_UNEDITED_RATE * 100}% approved unedited — ${detail}`,
+      );
+    }
     const simulation = await this.simulator.simulate({ journeyId, spec, limit: 50, renderSamples: 2 });
     const fingerprint = publishFingerprint(journeyId, draft.number, draft.specHash, diff.autoNodes);
     await ctx.db
@@ -114,6 +146,7 @@ export class JourneyPublishingService {
       diff,
       validation,
       simulation,
+      reviewStats,
       reviewPath: `/dashboard/journeys/${journeyId}?publish=${draft.number}`,
     };
   }
@@ -283,6 +316,51 @@ export class JourneyPublishingService {
       nodes: [...nodes.values()].sort((a, b) => b.arrived - a.arrived),
       messages,
     };
+  }
+
+  async nodeReviewStats(journeyId: string): Promise<NodeReviewStatsDto[]> {
+    const ctx = getCurrentContext();
+    await this.journeys.get(journeyId);
+    const rows = rowsOf(
+      await ctx.db.execute(sql`
+        SELECT s.node_id,
+               count(*) FILTER (WHERE p.status = 'sent' AND p.decided_by_actor_type = 'user' AND p.original_draft_body IS NULL)::int AS approved_unedited,
+               count(*) FILTER (WHERE p.status = 'sent' AND p.decided_by_actor_type = 'user' AND p.original_draft_body IS NOT NULL)::int AS edited,
+               count(*) FILTER (WHERE p.status = 'dismissed')::int AS dismissed,
+               count(*) FILTER (WHERE p.status IN ('pending', 'approved'))::int AS pending,
+               count(*) FILTER (WHERE p.status = 'sent' AND p.decided_by_actor_type IS DISTINCT FROM 'user')::int AS sent_without_review
+          FROM outreach_proposals p
+          JOIN journey_step_runs s ON s.id = p.journey_step_run_id
+          JOIN journey_enrollments en ON en.id = s.enrollment_id
+         WHERE en.journey_id = ${journeyId}
+           AND p.created_at > now() - make_interval(days => ${REVIEW_STATS_WINDOW_DAYS})
+         GROUP BY s.node_id
+         ORDER BY s.node_id
+      `),
+    ) as {
+      node_id: string;
+      approved_unedited: number;
+      edited: number;
+      dismissed: number;
+      pending: number;
+      sent_without_review: number;
+    }[];
+    return rows.map((r) => {
+      const reviewed = r.approved_unedited + r.edited + r.dismissed;
+      const uneditedRate = reviewed > 0 ? r.approved_unedited / reviewed : null;
+      return {
+        nodeId: r.node_id,
+        approvedUnedited: r.approved_unedited,
+        edited: r.edited,
+        dismissed: r.dismissed,
+        pending: r.pending,
+        sentWithoutReview: r.sent_without_review,
+        reviewed,
+        uneditedRate,
+        readyForAuto:
+          reviewed >= AUTO_PROMOTION_MIN_REVIEWED && (uneditedRate ?? 0) >= AUTO_PROMOTION_MIN_UNEDITED_RATE,
+      };
+    });
   }
 
   private async parsedVersion(journeyId: string, number?: number): Promise<{ version: number; spec: JourneySpec }> {

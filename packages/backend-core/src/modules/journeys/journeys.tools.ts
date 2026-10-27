@@ -124,6 +124,21 @@ export class JourneysTools {
   }
 
   @McpTool({
+    name: 'journeys_get_node_review_stats',
+    title: 'Journeys: Get email review stats per step',
+    description:
+      'How reviewers treated each email step of a journey over the last 30 days: approved unedited, edited, dismissed, still pending and sent without review, the unedited share, and whether the step has earned sending without review (30 reviewed drafts at 90% or more approved unedited). Only a person can then publish a version with that step set to auto.',
+    audiences: ['admin'],
+    scopes: ['journeys:read'],
+    input: JourneyIdInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getNodeReviewStats(args: z.infer<typeof JourneyIdInput>) {
+    return this.publishing.nodeReviewStats(args.journeyId);
+  }
+
+  @McpTool({
     name: 'journeys_get_report',
     title: 'Journeys: Get a journey report',
     description:

@@ -35,6 +35,7 @@ import type {
   JourneyReportDto,
   JourneyStatus,
   JourneyVersionSummaryDto,
+  NodeReviewStatsDto,
   TraceDto,
 } from '../components/journeys/journey-types';
 
@@ -131,18 +132,21 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
   const [versions, setVersions] = useState<JourneyVersionSummaryDto[]>([]);
   const [enrollments, setEnrollments] = useState<EnrollmentDto[]>([]);
   const [report, setReport] = useState<JourneyReportDto | null>(null);
+  const [reviewStats, setReviewStats] = useState<NodeReviewStatsDto[]>([]);
   const [graphOf, setGraphOf] = useState<'live' | 'draft'>('live');
   const [publishing, setPublishing] = useState<number | null>(publishVersion ?? null);
   const [traceId, setTraceId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const [detail, versionList, people, results] = await Promise.all([
+    const [detail, versionList, people, results, stats] = await Promise.all([
       api<JourneyDetailDto>(`/v1/journeys/${id}`),
       api<{ items: JourneyVersionSummaryDto[] }>(`/v1/journeys/${id}/versions`),
       api<{ items: EnrollmentDto[] }>(`/v1/journeys/${id}/enrollments?limit=100`),
       api<JourneyReportDto>(`/v1/journeys/${id}/report`),
+      api<{ items: NodeReviewStatsDto[] }>(`/v1/journeys/${id}/review-stats`),
     ]);
+    setReviewStats(stats.items);
     setJourney(detail);
     setVersions(versionList.items);
     setEnrollments(people.items);
@@ -271,7 +275,7 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
           )}
         </TabsPanel>
 
-        <TabsPanel value="report">{report && <ReportView report={report} />}</TabsPanel>
+        <TabsPanel value="report">{report && <ReportView report={report} reviewStats={reviewStats} />}</TabsPanel>
 
         <TabsPanel value="versions">
           <VersionList versions={versions} onPublish={(n) => setPublishing(n)} />
@@ -404,7 +408,7 @@ function TraceSheet({ enrollmentId, onClose }: { enrollmentId: string | null; on
   );
 }
 
-function ReportView({ report }: { report: JourneyReportDto }) {
+function ReportView({ report, reviewStats }: { report: JourneyReportDto; reviewStats: NodeReviewStatsDto[] }) {
   const t = useTranslations('dashboard.journeys.report');
   const pct = (v: number | null) => (v === null ? '—' : `${(v * 100).toFixed(1)} %`);
   return (
@@ -441,6 +445,37 @@ function ReportView({ report }: { report: JourneyReportDto }) {
           ))}
         </dl>
       </section>
+      {reviewStats.length > 0 && (
+        <section className="md:col-span-2">
+          <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('reviews')}</h3>
+          <table className="mt-2 w-full text-sm">
+            <thead>
+              <tr className="border-b-[1px] border-rule-soft text-left dark:border-rule-on-dark">
+                <Th>{t('node')}</Th>
+                <Th className="text-right">{t('unedited')}</Th>
+                <Th className="text-right">{t('edited')}</Th>
+                <Th className="text-right">{t('dismissed')}</Th>
+                <Th className="text-right">{t('uneditedRate')}</Th>
+                <Th />
+              </tr>
+            </thead>
+            <tbody>
+              {reviewStats.map((s) => (
+                <tr key={s.nodeId} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
+                  <td className="py-2 pr-4 font-mono text-xs">{s.nodeId}</td>
+                  <td className="py-2 pr-4 text-right font-mono text-xs">{s.approvedUnedited}</td>
+                  <td className="py-2 pr-4 text-right font-mono text-xs">{s.edited}</td>
+                  <td className="py-2 pr-4 text-right font-mono text-xs">{s.dismissed}</td>
+                  <td className="py-2 pr-4 text-right font-mono text-xs">{pct(s.uneditedRate)}</td>
+                  <td className="py-2 pr-4 text-right">
+                    {s.readyForAuto && <Pill tone="live">{t('readyForAuto')}</Pill>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
       <section className="md:col-span-2">
         <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('nodes')}</h3>
         <table className="mt-2 w-full text-sm">

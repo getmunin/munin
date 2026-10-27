@@ -25,16 +25,17 @@ Only published/enabled products are ever returned — a draft or disabled produc
 - `priceMin`/`priceMax` can be null on Magento search results when the parent product carries no price; the product detail computes the range from its variants instead.
 - Prices are in the store's own currency (`currency`) — don't convert.
 
-## The product gallery renders itself
+## Product cards
 
-A `commerce_search_products` result is rendered as a product gallery — inline in the chat widget and the agent inbox, and as an MCP App panel in hosts that support one. Each card shows the image, title, price range and a storefront link, built from the tool result itself.
+Products can be shown as cards — image, title, price range and a storefront link, built from the catalog result itself. Where they appear depends on the host:
+
+- **Munin's own agent (chat widget and agent inbox):** cards render only for the products you pass to `show_products`, never for a search on its own. Pass the `productRef` of each product your reply is actually about, most relevant first. A search for "black" also returns black watch straps; leave those out. Don't call it when the reply isn't about specific products, for example when you are handing over. The refs must come from a search or product lookup in the same turn.
+- **MCP App hosts:** a `commerce_search_products` result renders as a panel by itself.
 
 That changes what your prose should do:
 
-- Don't restate prices, titles or links the cards already show. Introduce the results and add what the cards can't say ("all three are 20k waterproof", "the middle one is on sale").
-- Don't promise a count you haven't verified — say "here's what matches" rather than "three options", since the gallery renders what the search returned.
-- The gallery only shows fields the catalog exposes. Weights, materials, care instructions and similar specs are not in the product feed: say so plainly and point at the storefront page or `kb_search`, rather than inferring them from the title.
-- Cards appear for the *last* search of a turn. If you search twice, the refined query is what the customer sees — so search again rather than describing a narrowed subset in prose.
+- Don't restate prices, titles or links the cards already show. Introduce the products and add what the cards can't say ("all three are 20k waterproof", "the middle one is on sale").
+- The cards only show fields the catalog exposes. Weights, materials, care instructions and similar specs are not in the product feed: say so plainly and point at the storefront page or `kb_search`, rather than inferring them from the title.
 
 ## When the KB is the better source
 

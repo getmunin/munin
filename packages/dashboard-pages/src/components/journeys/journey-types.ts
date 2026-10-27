@@ -188,5 +188,6 @@ export interface PublishRequestDto {
   validation: JourneyValidation;
   simulation: SimulationDto;
   reviewStats: NodeReviewStatsDto[];
+  autoMessages?: { nodeId: string; channel: string; class: string; subject: string | null; preview: string; draftBy: string | null }[];
   reviewPath: string;
 }

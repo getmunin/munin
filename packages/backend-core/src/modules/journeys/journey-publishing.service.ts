@@ -14,6 +14,7 @@ import { JourneySpecSchema, tierFor, type JourneyNode, type JourneySpec } from '
 import { JourneysService, hashSpec } from './journeys.service.ts';
 import { DECIDE_STEP_JOB_URI, DRAFT_STEP_JOB_URI, ENRICH_STEP_JOB_URI, nextScheduledEntry } from './journey-runtime.service.ts';
 import { JourneySimulator, type SimulationResult } from './journey-simulator.ts';
+import { emailTemplateHash } from '../outreach/email-template-hash.ts';
 import type { JourneyValidation } from './journey-validator.ts';
 
 export interface JourneyDiff {
@@ -111,6 +112,7 @@ export interface PublishRequestDto {
   validation: JourneyValidation;
   simulation: SimulationResult;
   reviewStats: NodeReviewStatsDto[];
+  autoMessages: { nodeId: string; channel: string; class: string; subject: string | null; preview: string; draftBy: string | null }[];
   reviewPath: string;
 }
 
@@ -305,11 +307,13 @@ export class JourneyPublishingService {
       );
     }
     const simulation = await this.simulator.simulate({ journeyId, spec, limit: 50, renderSamples: 2 });
-    const fingerprint = publishFingerprint(journeyId, draft.number, draft.specHash, diff.autoNodes);
+    const pinnedTemplates = await autoTemplateHashes(spec);
+    const fingerprint = publishFingerprint(journeyId, draft.number, draft.specHash, diff.autoNodes, pinnedTemplates);
     await ctx.db
       .update(schema.journeyVersions)
       .set({
         publishFingerprint: fingerprint,
+        pinnedTemplates,
         publishRequestedAt: new Date(),
         publishRequestedByActorType: actor.type,
         publishRequestedByActorId: actor.id,
@@ -328,6 +332,7 @@ export class JourneyPublishingService {
       validation,
       simulation,
       reviewStats,
+      autoMessages: autoMessagesOf(spec),
       reviewPath: `/dashboard/journeys/${journeyId}?publish=${draft.number}`,
     };
   }
@@ -355,6 +360,12 @@ export class JourneyPublishingService {
       );
     }
     const spec = JourneySpecSchema.parse(row.spec);
+    const pinned = await autoTemplateHashes(spec);
+    if (JSON.stringify(pinned) !== JSON.stringify(row.pinnedTemplates)) {
+      throw new ConflictException(
+        `journeys_conflict: an email template used by an auto step changed after the publish review was prepared — request publish again and review it`,
+      );
+    }
     const now = new Date();
     await ctx.db
       .update(schema.journeyVersions)
@@ -675,9 +686,45 @@ export class JourneyPublishingService {
   }
 }
 
-export function publishFingerprint(journeyId: string, version: number, specHash: string, autoNodes: string[]): string {
-  const canonical = JSON.stringify([journeyId, version, specHash, [...autoNodes].sort()]);
+export function publishFingerprint(
+  journeyId: string,
+  version: number,
+  specHash: string,
+  autoNodes: string[],
+  templates: Record<string, string> = {},
+): string {
+  const canonical = JSON.stringify([
+    journeyId,
+    version,
+    specHash,
+    [...autoNodes].sort(),
+    Object.entries(templates).sort(([a], [b]) => a.localeCompare(b)),
+  ]);
   return createHash('sha256').update(canonical, 'utf8').digest('hex').slice(0, 32);
+}
+
+async function autoTemplateHashes(spec: JourneySpec): Promise<Record<string, string>> {
+  const pinned: Record<string, string> = {};
+  for (const node of spec.nodes) {
+    if (node.type !== 'message' || node.channel !== 'email' || node.approval !== 'auto') continue;
+    const hash = await emailTemplateHash(node.content.templateId ?? null);
+    if (!hash) throw new BadRequestException(`journeys_invalid: email template ${node.content.templateId} used by "${node.id}" does not exist`);
+    pinned[node.id] = hash;
+  }
+  return pinned;
+}
+
+function autoMessagesOf(spec: JourneySpec): PublishRequestDto['autoMessages'] {
+  return spec.nodes
+    .filter((n): n is Extract<JourneyNode, { type: 'message' }> => n.type === 'message' && n.approval === 'auto')
+    .map((n) => ({
+      nodeId: n.id,
+      channel: n.channel,
+      class: n.class,
+      subject: n.content.subject ?? null,
+      preview: n.content.body.slice(0, 600),
+      draftBy: n.draftBy ?? null,
+    }));
 }
 
 export function diffSpecs(next: JourneySpec, live: JourneySpec | null, liveVersion: number | null): JourneyDiff {

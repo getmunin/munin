@@ -2181,7 +2181,7 @@ export const outreachProposals = pgTable(
       .where(sql`status = 'approved'`),
     openPairUq: uniqueIndex('outreach_proposals_open_pair_uq')
       .on(t.campaignId, t.contactId, t.kind)
-      .where(sql`status IN ('pending', 'approved')`),
+      .where(sql`status IN ('pending', 'approved') AND kind <> 'journey'`),
     journeyStepUq: uniqueIndex('outreach_proposals_journey_step_uq')
       .on(t.journeyStepRunId)
       .where(sql`journey_step_run_id IS NOT NULL`),
@@ -2243,6 +2243,7 @@ export const journeyVersions = pgTable(
     parentVersion: integer('parent_version'),
     changeSummary: text('change_summary'),
     proposal: jsonb('proposal').$type<Record<string, unknown>>(),
+    pinnedTemplates: jsonb('pinned_templates').$type<Record<string, string>>().notNull().default({}),
     validation: jsonb('validation').$type<Record<string, unknown>>(),
     createdByActorType: varchar('created_by_actor_type', { length: 16 }).notNull(),
     createdByActorId: text('created_by_actor_id').notNull(),

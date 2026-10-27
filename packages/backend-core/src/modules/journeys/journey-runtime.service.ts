@@ -678,6 +678,7 @@ export class JourneyRuntimeService {
         body: content.body,
         format: content.format,
         templateId: node.content.templateId,
+        templateHash: node.approval === 'auto' ? await this.pinnedTemplateHash(step, node.id) : null,
         preheader: node.content.preheader,
         auto: !sms && node.approval === 'auto',
         policy: {
@@ -1310,6 +1311,7 @@ export class JourneyRuntimeService {
       const reply = { conversationId, messageId: row.payload.messageId ?? null, eventId: row.eventId };
       if (node?.type === 'message' && node.onReply) {
         await this.cancelWaits(enrollment.id);
+        await this.outreach.withdrawJourneyProposals(enrollment.id, 'the contact replied');
         const visits = { ...enrollment.visits, [node.onReply]: (enrollment.visits[node.onReply] ?? 0) + 1 };
         await ctx.db
           .update(schema.journeyEnrollments)
@@ -1736,6 +1738,16 @@ export class JourneyRuntimeService {
     return { contactId: null, endUserId: null };
   }
 
+  private async pinnedTemplateHash(step: StepContext, nodeId: string): Promise<string | null> {
+    const ctx = getCurrentContext();
+    const [row] = await ctx.db
+      .select({ pinned: schema.journeyVersions.pinnedTemplates })
+      .from(schema.journeyVersions)
+      .where(and(eq(schema.journeyVersions.journeyId, step.enrollment.journeyId), eq(schema.journeyVersions.number, step.enrollment.version)))
+      .limit(1);
+    return row?.pinned[nodeId] ?? null;
+  }
+
   private inSavepoint<T>(fn: () => Promise<T>): Promise<T> {
     const ctx = getCurrentContext();
     return ctx.db.transaction((tx) => withContext({ ...ctx, db: tx }, fn));
@@ -2127,6 +2139,7 @@ export class JourneyRuntimeService {
       .update(schema.journeyWaits)
       .set({ resolvedAt: now, resolution: 'cancelled' })
       .where(and(eq(schema.journeyWaits.enrollmentId, enrollment.id), isNull(schema.journeyWaits.resolvedAt)));
+    await this.outreach.withdrawJourneyProposals(enrollment.id, `the journey run ended (${reason})`);
     await this.webhooks.emit({
       type: 'journey.exited',
       payload: {

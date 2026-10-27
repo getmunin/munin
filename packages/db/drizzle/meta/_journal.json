@@ -960,6 +960,13 @@
       "when": 1793134110267,
       "tag": "0136_journey_company_subjects",
       "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "7",
+      "when": 1793134170267,
+      "tag": "0137_journey_company_recipients",
+      "breakpoints": true
     }
   ]
 }

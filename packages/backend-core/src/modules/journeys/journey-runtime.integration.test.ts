@@ -619,7 +619,7 @@ const DAY = 86_400_000;
       }),
     );
     const codes = (await asAgent(() => journeys.validate(draft.id))).errors.map((e) => e.code);
-    expect(codes).toEqual(expect.arrayContaining(['company_message', 'company_action']));
+    expect(codes).toEqual(expect.arrayContaining(['company_recipients', 'company_action']));
   });
 
   it('enrolls segment members on schedule', async () => {

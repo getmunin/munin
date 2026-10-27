@@ -374,6 +374,7 @@ export class JourneysService {
     edit: (spec: RawSpec) => RawSpec,
     summary: string,
   ): Promise<JourneyVersionDto> {
+    await getCurrentContext().db.execute(sql`SELECT id FROM journeys WHERE id = ${id} FOR UPDATE`);
     const journey = await this.load(id);
     if (journey.status === 'archived') {
       throw new ConflictException(`journeys_conflict: journey ${id} is archived`);

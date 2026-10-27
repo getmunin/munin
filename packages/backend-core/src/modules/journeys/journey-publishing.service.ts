@@ -12,7 +12,7 @@ import { and, count, eq, sql } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { JourneySpecSchema, tierFor, type JourneyNode, type JourneySpec } from '@getmunin/types';
 import { JourneysService, hashSpec } from './journeys.service.ts';
-import { DECIDE_STEP_JOB_URI, DRAFT_STEP_JOB_URI, ENRICH_STEP_JOB_URI } from './journey-runtime.service.ts';
+import { DECIDE_STEP_JOB_URI, DRAFT_STEP_JOB_URI, ENRICH_STEP_JOB_URI, nextScheduledEntry } from './journey-runtime.service.ts';
 import { JourneySimulator, type SimulationResult } from './journey-simulator.ts';
 import type { JourneyValidation } from './journey-validator.ts';
 
@@ -365,7 +365,12 @@ export class JourneyPublishingService {
       .set({
         liveVersion: number,
         status: journey.status === 'paused' ? 'paused' : 'live',
-        nextEntryAt: spec.entry.trigger.type === 'segment' ? now : null,
+        nextEntryAt:
+          spec.entry.trigger.type === 'segment'
+            ? spec.entry.trigger.schedule === 'once'
+              ? now
+              : nextScheduledEntry(spec.entry.trigger, now, spec.settings.timezone)
+            : null,
         updatedAt: now,
       })
       .where(eq(schema.journeys.id, journeyId));

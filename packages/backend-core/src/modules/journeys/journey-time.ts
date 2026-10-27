@@ -50,3 +50,24 @@ export const MAX_ACTION_ATTEMPTS = RETRY_DELAYS_MS.length;
 export function retryDelayMs(attempt: number): number | null {
   return RETRY_DELAYS_MS[attempt - 1] ?? null;
 }
+
+export function nextLocalOccurrence(now: Date, at: string, timezone: string, weekday: Weekday | null): Date {
+  const [h, m] = at.split(':').map(Number);
+  const target = h! * 60 + m!;
+  const base = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
+  const local = localClock(base, timezone).minutes;
+  let delta = (target - local + 1440) % 1440;
+  if (delta === 0) delta = 1440;
+  let candidate = new Date(base.getTime() + delta * 60_000);
+  for (let day = 0; day < 8; day++) {
+    const clock = localClock(candidate, timezone);
+    if (clock.minutes !== target) {
+      candidate = new Date(candidate.getTime() + (target - clock.minutes) * 60_000);
+    }
+    if (candidate.getTime() > now.getTime() && (!weekday || localClock(candidate, timezone).weekday === weekday)) {
+      return candidate;
+    }
+    candidate = new Date(candidate.getTime() + 86_400_000);
+  }
+  return candidate;
+}

@@ -1176,6 +1176,7 @@ export class CrmService {
         pipelineId: row!.pipelineId,
         stageId: row!.stageId,
         amountCents: row!.amountCents,
+        contactId: row!.primaryContactId ?? null,
       },
     });
     return toDealDto(row!);
@@ -1209,6 +1210,7 @@ export class CrmService {
         stageId: input.stageId,
         winLoss: stage.winLoss,
         closedAt: result[0].closedAt?.toISOString() ?? null,
+        contactId: result[0].primaryContactId ?? null,
       },
     });
     return toDealDto(result[0]);

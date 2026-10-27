@@ -10,6 +10,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { JourneysService } from './journeys.service.ts';
+import { JourneyTemplatesService } from './journey-templates.service.ts';
 import { CrmService } from '../crm/crm.service.ts';
 import { AddressDeliverabilityService } from '../crm/address-deliverability.service.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
@@ -51,7 +52,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
   afterAll(async () => {
     if (db) {
       await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
-      for (const table of ['journey_versions', 'journeys', 'outreach_campaigns', 'crm_segments', 'conv_channels']) {
+      for (const table of ['journey_templates', 'journey_versions', 'journeys', 'outreach_campaigns', 'crm_segments', 'conv_channels']) {
         await db.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE org_id IN (${orgId}, ${otherOrgId})`);
       }
       await db.delete(schema.orgs).where(sql`id IN (${orgId}, ${otherOrgId})`);
@@ -60,7 +61,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
 
   beforeEach(async () => {
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
-    for (const table of ['journey_versions', 'journeys', 'outreach_campaigns', 'crm_segments', 'conv_channels', 'events']) {
+    for (const table of ['journey_templates', 'journey_versions', 'journeys', 'outreach_campaigns', 'crm_segments', 'conv_channels', 'events']) {
       await db.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE org_id = ${orgId}`);
     }
     const [segment] = await db
@@ -208,6 +209,49 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     await expect(asAgent(() => crm.deleteSegment(entrySegment!.id))).rejects.toThrow(/journey/);
     await asAgent(() => svc.archive(journey.id));
     await expect(asAgent(() => crm.deleteSegment(entrySegment!.id))).resolves.toEqual({ deleted: true });
+  });
+
+  it('creates a journey from a template and saves a journey back as a parameterised template', async () => {
+    const templates = new JourneyTemplatesService(svc);
+    const listed = await asAgent(() => templates.list('nb'));
+    expect(listed.map((t) => t.slug)).toContain('trial-onboarding');
+    await expect(
+      asAgent(() =>
+        templates.instantiate({ slug: 'trial-onboarding', locale: 'nb', name: 'Prøve', outreachCampaignId: emailCampaignId, params: {} }),
+      ),
+    ).rejects.toThrow(BadRequestException);
+    const created = await asAgent(() =>
+      templates.instantiate({
+        slug: 'trial-onboarding',
+        locale: 'nb',
+        name: 'Prøve',
+        outreachCampaignId: emailCampaignId,
+        params: { segmentId },
+      }),
+    );
+    expect(created.validation.errors).toEqual([]);
+    expect(created.draft?.spec).toMatchObject({ entry: { segmentId } });
+
+    const saved = await asAgent(() =>
+      templates.saveAsTemplate({
+        journeyId: created.id,
+        slug: 'our-trial',
+        locale: 'nb',
+        title: 'Vår prøveperiode',
+        description: 'Tilpasset utgave',
+        params: [{ key: 'segmentId', description: 'Segment', required: true }],
+        replace: { [segmentId]: 'segmentId' },
+      }),
+    );
+    expect(saved).toMatchObject({ slug: 'our-trial', builtIn: false });
+    const own = await asAgent(() => templates.get('our-trial', 'nb'));
+    expect(JSON.stringify(own.spec)).toContain('{{param:segmentId}}');
+    expect(JSON.stringify(own.spec)).not.toContain(segmentId);
+    await expect(
+      asAgent(() =>
+        templates.saveAsTemplate({ journeyId: created.id, slug: 'trial-onboarding', locale: 'nb', title: 'x', description: 'x' }),
+      ),
+    ).rejects.toThrow(ConflictException);
   });
 
   it('keeps journeys invisible to other organizations', async () => {

@@ -2395,6 +2395,33 @@ export const journeyEventInbox = pgTable(
   }),
 );
 
+// Org-saved journey templates: a parameterised spec (`{{param:key}}`
+// placeholders) the Architect instantiates from a brief. Built-in starter
+// templates live in code; these are the org's own, saved from a journey.
+export const journeyTemplates = pgTable(
+  'journey_templates',
+  {
+    id: id('jtpl'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    slug: varchar('slug', { length: 64 }).notNull(),
+    locale: varchar('locale', { length: 10 }).notNull(),
+    title: text('title').notNull(),
+    description: text('description').notNull(),
+    tags: jsonb('tags').$type<string[]>().notNull().default([]),
+    params: jsonb('params').$type<{ key: string; description: string; required: boolean }[]>().notNull().default([]),
+    spec: jsonb('spec').$type<Record<string, unknown>>().notNull(),
+    createdByActorType: varchar('created_by_actor_type', { length: 16 }).notNull(),
+    createdByActorId: text('created_by_actor_id').notNull(),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    slugUq: uniqueIndex('journey_templates_slug_uq').on(t.orgId, t.slug, t.locale),
+  }),
+);
+
 export const outreachEmailTemplates = pgTable(
   'outreach_email_templates',
   {

@@ -10,6 +10,7 @@ import {
 import { JOURNEY_STATUSES, JourneysService } from './journeys.service.ts';
 import { ENROLLMENT_STATES, JourneyRuntimeService, type EnrollmentState } from './journey-runtime.service.ts';
 import { JourneyPublishingService } from './journey-publishing.service.ts';
+import { JourneyTemplatesService } from './journey-templates.service.ts';
 
 const Id = z.string().min(1).max(64);
 const NodeIdInput = z.string().regex(/^[a-z][a-z0-9_]{0,47}$/);
@@ -78,7 +79,95 @@ export class JourneysTools {
     @Inject(JourneysService) private readonly journeys: JourneysService,
     @Inject(JourneyRuntimeService) private readonly runtime: JourneyRuntimeService,
     @Inject(JourneyPublishingService) private readonly publishing: JourneyPublishingService,
+    @Inject(JourneyTemplatesService) private readonly templates: JourneyTemplatesService,
   ) {}
+
+  @McpTool({
+    name: 'journeys_list_templates',
+    title: 'Journeys: List templates',
+    description:
+      'Starter journey templates (inbound lead, trial onboarding, webinar, win-back, satisfaction after a conversation, sunset unengaged — each in nb, sv and en) and the org\'s own saved templates, with the parameters each needs. Filter by locale.',
+    audiences: ['admin'],
+    scopes: ['journeys:read'],
+    input: z.object({ locale: z.string().min(2).max(10).optional() }),
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  listTemplates(args: { locale?: string }) {
+    return this.templates.list(args.locale);
+  }
+
+  @McpTool({
+    name: 'journeys_get_template',
+    title: 'Journeys: Get a template',
+    description: 'One template with its full spec, so you can adapt it before instantiating.',
+    audiences: ['admin'],
+    scopes: ['journeys:read'],
+    input: z.object({ slug: z.string().min(1).max(64), locale: z.string().min(2).max(10) }),
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getTemplate(args: { slug: string; locale: string }) {
+    return this.templates.get(args.slug, args.locale);
+  }
+
+  @McpTool({
+    name: 'journeys_instantiate_template',
+    title: 'Journeys: Create a journey from a template',
+    description:
+      'Create a draft journey on an email outreach campaign from a template, filling its parameters (for example segmentId). Returns the journey and its validation result; edit the draft afterwards like any other.',
+    audiences: ['admin'],
+    scopes: ['journeys:write'],
+    input: z.object({
+      slug: z.string().min(1).max(64),
+      locale: z.string().min(2).max(10),
+      name: z.string().min(1).max(120),
+      outreachCampaignId: Id,
+      params: z.record(z.string(), z.string().max(200)).default({}),
+    }),
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  instantiateTemplate(args: { slug: string; locale: string; name: string; outreachCampaignId: string; params: Record<string, string> }) {
+    return this.templates.instantiate(args);
+  }
+
+  @McpTool({
+    name: 'journeys_save_as_template',
+    title: 'Journeys: Save a journey as a template',
+    description:
+      'Save a journey version (live by default) as an org template. Use replace to turn concrete values into parameters, for example { "<segment id>": "segmentId" }, and declare each parameter in params. Saving the same slug and locale again replaces it.',
+    audiences: ['admin'],
+    scopes: ['journeys:write'],
+    input: JourneyIdInput.extend({
+      version: z.number().int().min(1).optional(),
+      slug: z.string().regex(/^[a-z][a-z0-9-]{0,63}$/),
+      locale: z.string().min(2).max(10),
+      title: z.string().min(1).max(120),
+      description: z.string().min(1).max(1000),
+      tags: z.array(z.string().min(1).max(32)).max(10).optional(),
+      params: z
+        .array(z.object({ key: z.string().regex(/^[a-zA-Z0-9_]+$/), description: z.string().max(300), required: z.boolean() }))
+        .max(10)
+        .optional(),
+      replace: z.record(z.string().min(1).max(200), z.string().regex(/^[a-zA-Z0-9_]+$/)).optional(),
+    }),
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  saveAsTemplate(args: {
+    journeyId: string;
+    version?: number;
+    slug: string;
+    locale: string;
+    title: string;
+    description: string;
+    tags?: string[];
+    params?: { key: string; description: string; required: boolean }[];
+    replace?: Record<string, string>;
+  }) {
+    return this.templates.saveAsTemplate(args);
+  }
 
   @McpTool({
     name: 'journeys_simulate',

@@ -10355,6 +10355,226 @@
     }
   },
   {
+    "name": "journeys_list_templates",
+    "title": "Journeys: List templates",
+    "description": "Starter journey templates (inbound lead, trial onboarding, webinar, win-back, satisfaction after a conversation, sunset unengaged — each in nb, sv and en) and the org's own saved templates, with the parameters each needs. Filter by locale.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "locale": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 10
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_get_template",
+    "title": "Journeys: Get a template",
+    "description": "One template with its full spec, so you can adapt it before instantiating.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "locale": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 10
+        }
+      },
+      "required": [
+        "slug",
+        "locale"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_instantiate_template",
+    "title": "Journeys: Create a journey from a template",
+    "description": "Create a draft journey on an email outreach campaign from a template, filling its parameters (for example segmentId). Returns the journey and its validation result; edit the draft afterwards like any other.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "locale": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 10
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "outreachCampaignId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "params": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 200
+          }
+        }
+      },
+      "required": [
+        "slug",
+        "locale",
+        "name",
+        "outreachCampaignId",
+        "params"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_save_as_template",
+    "title": "Journeys: Save a journey as a template",
+    "description": "Save a journey version (live by default) as an org template. Use replace to turn concrete values into parameters, for example { \"<segment id>\": \"segmentId\" }, and declare each parameter in params. Saving the same slug and locale again replaces it.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        },
+        "locale": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 10
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "tags": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        },
+        "params": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_]+$"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "required": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "key",
+              "description",
+              "required"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "replace": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_]+$"
+          }
+        }
+      },
+      "required": [
+        "journeyId",
+        "slug",
+        "locale",
+        "title",
+        "description"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "journeys_simulate",
     "title": "Journeys: Simulate a version",
     "description": "Dry-run a journey version (the open draft by default) over sample contacts — given ids, a segment, the entry segment, or the most recently updated contacts — without writing or sending anything. Returns who would enter or be excluded and why, arrivals per node, edges taken, exits by reason, the send decision for each email (send, defer or skip with the reason) and rendered samples, plus the assumptions the dry run made (waits elapse, awaited events do not arrive, reviewers approve).",

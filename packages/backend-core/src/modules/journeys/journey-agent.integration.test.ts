@@ -220,6 +220,67 @@ const NO_SYNTHETIC_FNR = '01819012365';
     ).rejects.toThrow(ConflictException);
   });
 
+  it('ends every other journey for the person when an agent chooses stop', async () => {
+    const stopSpec = {
+      ...spec,
+      nodes: [
+        { ...spec.nodes[0], edges: { likely: 'flag', stop: 'done' }, fallback: 'stop' },
+        spec.nodes[1],
+        spec.nodes[2],
+      ],
+    };
+    const { kari, step, enrollmentId } = await liveJourneyWithKari();
+    const [otherCampaign] = await db
+      .insert(schema.outreachCampaigns)
+      .values({
+        orgId,
+        name: `Other ${randomUUID()}`,
+        brief: 'Other',
+        segmentId: (await db.select().from(schema.crmSegments).where(eq(schema.crmSegments.orgId, orgId)))[0]!.id,
+        channelId: (await db.select().from(schema.convChannels).where(eq(schema.convChannels.orgId, orgId)))[0]!.id,
+        createdByActorType: 'admin_agent',
+        createdByActorId: 'agt_agent_test',
+      })
+      .returning();
+    const nurture = await asAgent(() =>
+      journeys.create({
+        name: 'Nurture',
+        outreachCampaignId: otherCampaign!.id,
+        spec: {
+          entry: { trigger: { type: 'manual' } },
+          goal: { event: 'subscription.started', windowDays: 30 },
+          start: 'wait',
+          nodes: [
+            { id: 'wait', type: 'wait', duration: 'P30D', next: 'done' },
+            { id: 'done', type: 'exit' },
+          ],
+        },
+      }),
+    );
+    await db
+      .update(schema.journeyVersions)
+      .set({ publishedAt: new Date(), publishedByActorId: 'usr_1' })
+      .where(eq(schema.journeyVersions.journeyId, nurture.id));
+    await db.update(schema.journeys).set({ status: 'live', liveVersion: 1 }).where(eq(schema.journeys.id, nurture.id));
+    const nurtureRun = await asAgent(() =>
+      runtime.enroll({ journeyId: nurture.id, subject: { contactId: kari.id, endUserId: null }, source: { type: 'manual' } }),
+    );
+    await worker.tick();
+
+    await db
+      .update(schema.journeyVersions)
+      .set({ spec: stopSpec })
+      .where(and(eq(schema.journeyVersions.journeyId, (await db.select().from(schema.journeyEnrollments).where(eq(schema.journeyEnrollments.id, enrollmentId)))[0]!.journeyId), eq(schema.journeyVersions.number, 1)));
+    const freshRuntime = new JourneyRuntimeService(new WebhookDispatcher(), {} as never, {} as never, new CuratorJobsService(new WebhookDispatcher()));
+    await runAs(curator, () => freshRuntime.submitDecision({ stepRunId: step.id, edge: 'stop', reason: 'Asked us to stop' }));
+    await new JourneyRuntimeWorker(appDb, freshRuntime).tick();
+
+    const [other] = await db.select().from(schema.journeyEnrollments).where(eq(schema.journeyEnrollments.id, nurtureRun.enrollmentId!));
+    expect(other).toMatchObject({ state: 'exited', exitReason: 'conversation_stop' });
+    const [own] = await db.select().from(schema.journeyEnrollments).where(eq(schema.journeyEnrollments.id, enrollmentId));
+    expect(own).toMatchObject({ state: 'done', exitReason: 'reached_end' });
+  });
+
   it('simulates agent nodes along their fallback and says so', async () => {
     const { journeyId } = await liveJourneyWithKari();
     const parsed = (await asAgent(() => journeys.get(journeyId))).live!.spec;

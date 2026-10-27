@@ -60,6 +60,7 @@ vi.mock('../components/dashboard/inbox-data', () => ({
       loadError: null,
       retrying: false,
       retryLoad: () => Promise.resolve(),
+      isPending: () => false,
       setActiveQueueItem: () => undefined,
       setActiveScheduledItem: () => undefined,
     } as Partial<InboxController> as InboxController;

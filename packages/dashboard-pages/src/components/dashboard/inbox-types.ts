@@ -173,7 +173,7 @@ export interface InboxController {
   items: LiveSummary[];
   itemsTotal: number;
   queue: QueueItem[];
-  pending: boolean;
+  isPending: (id: string) => boolean;
   loadError: ApiError | null;
   hasLoadedOnce: boolean;
   retrying: boolean;

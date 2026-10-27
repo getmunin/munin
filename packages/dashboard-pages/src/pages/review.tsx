@@ -473,7 +473,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
         ) : (
           <ReviewKbPane
             item={selectedCandidate}
-            pending={inbox.pending}
+            pending={selectedCandidate ? inbox.isPending(selectedCandidate.id) : false}
             actionError={inbox.queueActionError}
             onClearActionError={inbox.clearQueueActionError}
             onPublish={() => {

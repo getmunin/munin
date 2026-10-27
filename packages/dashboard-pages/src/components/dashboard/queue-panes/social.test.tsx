@@ -1,7 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { renderWithProviders } from '../../../test/render';
+import { api as apiCall, ApiError } from '../../../api';
+import type * as ApiModule from '../../../api';
 import { SocialQueuePane } from './social';
+import type { SocialPublishTarget } from './social-actions';
 import type { SocialDraftDto, SocialDraftEdit } from './types';
 
 vi.mock('../../../auth/use-active-role', () => ({
@@ -11,6 +14,24 @@ vi.mock('../../../auth/use-active-role', () => ({
 vi.mock('../../../lib/use-social-link-preview', () => ({
   useSocialLinkPreview: () => null,
 }));
+
+vi.mock('../../../i18n-navigation', () => ({
+  Link: ({ href, ...rest }: { href: string } & React.ComponentProps<'a'>) => (
+    <a href={href} {...rest} />
+  ),
+}));
+
+const publishTargets = vi.hoisted(() => ({ current: [] as SocialPublishTarget[] }));
+vi.mock('../../../lib/use-publish-target', () => ({
+  useSocialPublishTargets: () => publishTargets.current,
+}));
+
+vi.mock('../../../api', async (importOriginal) => ({
+  ...(await importOriginal<typeof ApiModule>()),
+  api: vi.fn(),
+}));
+
+const api = vi.mocked(apiCall);
 
 const BODY = 'We rebuilt our support desk around one idea.';
 
@@ -165,5 +186,93 @@ describe('SocialQueuePane editing', () => {
     await Promise.resolve();
 
     expect(bodyBox().value).toBe('A shorter post.');
+  });
+});
+
+function publishablePane(onPublish: () => void) {
+  const raw = draft({ canPublish: true });
+  return (
+    <SocialQueuePane
+      item={{ id: raw.id, title: 'Social draft', createdAt: raw.createdAt, raw }}
+      pending={false}
+      onApprove={() => {}}
+      onPublish={onPublish}
+      onDismiss={() => {}}
+      onSave={() => Promise.resolve()}
+    />
+  );
+}
+
+describe('SocialQueuePane publishing without a connected account', () => {
+  beforeEach(() => {
+    publishTargets.current = [];
+    api.mockReset();
+  });
+
+  it('keeps Publish clickable and asks to connect instead of publishing', () => {
+    const onPublish = vi.fn();
+    renderWithProviders(publishablePane(onPublish));
+
+    const publish = screen.getByRole('button', { name: /^Publish/ });
+    expect(publish.hasAttribute('disabled')).toBe(false);
+    fireEvent.click(publish);
+
+    expect(onPublish).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Connect LinkedIn to publish' })).toBeTruthy();
+  });
+
+  it('starts the connection with a return path back to the draft', async () => {
+    window.history.replaceState(null, '', '/dashboard/review/sod_1');
+    api.mockResolvedValue({ url: 'about:blank' });
+    renderWithProviders(publishablePane(() => {}));
+
+    fireEvent.click(screen.getByRole('button', { name: /^Publish/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect LinkedIn' }));
+
+    await waitFor(() => expect(api).toHaveBeenCalled());
+    expect(api).toHaveBeenCalledWith('/v1/social/accounts/authorize-url', {
+      method: 'POST',
+      body: JSON.stringify({ platform: 'linkedin', returnTo: '/dashboard/review/sod_1' }),
+    });
+  });
+
+  it('points to Integrations when the organisation has no app to connect through', async () => {
+    api.mockRejectedValue(
+      new ApiError({
+        status: 400,
+        statusText: 'Bad Request',
+        endpoint: '/v1/social/accounts/authorize-url',
+        method: 'POST',
+        requestId: null,
+        message: 'social_app_missing: no app',
+        code: 'social_app_missing',
+      }),
+    );
+    renderWithProviders(publishablePane(() => {}));
+
+    fireEvent.click(screen.getByRole('button', { name: /^Publish/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect LinkedIn' }));
+
+    expect(await screen.findByRole('link', { name: 'Open Integrations' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Connect LinkedIn' }).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('publishes straight away once an account is connected', () => {
+    publishTargets.current = [
+      {
+        userId: 'usr_1',
+        platform: 'linkedin',
+        authorKind: 'member',
+        externalAccountId: 'member-1',
+        displayName: 'Ola Nordmann',
+      },
+    ];
+    const onPublish = vi.fn();
+    renderWithProviders(publishablePane(onPublish));
+
+    fireEvent.click(screen.getByRole('button', { name: /^Publish as/ }));
+
+    expect(onPublish).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

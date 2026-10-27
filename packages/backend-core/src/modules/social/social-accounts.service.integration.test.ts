@@ -169,6 +169,20 @@ class FakeFacebook implements SocialOAuthAdapter {
     return result.accountId!;
   }
 
+  it('signs the return path into the state so the callback can send the person back to the draft', async () => {
+    const { url } = await asOrg(ola, () =>
+      service.authorizeUrl({ platform: 'linkedin', returnTo: '/dashboard/review/qi_1' }),
+    );
+    const state = new URL(url).searchParams.get('state')!;
+    expect(service.returnToFromState(state)).toBe('/dashboard/review/qi_1');
+  });
+
+  it('refuses a return path that leaves the dashboard before minting any state', async () => {
+    await expect(
+      asOrg(ola, () => service.authorizeUrl({ platform: 'linkedin', returnTo: '//evil.example/' })),
+    ).rejects.toThrow(/social_invalid: returnTo/);
+  });
+
   it('stores a grant that has no refresh token, which is all a self-serve LinkedIn app returns', async () => {
     const accountId = await connect(ola);
     const [row] = await svcDb

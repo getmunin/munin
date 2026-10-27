@@ -13,7 +13,10 @@ import {
 } from '../modules/social/social-accounts.service.ts';
 import { SocialService, type SocialPublishTarget } from '../modules/social/social.service.ts';
 
-const PlatformBody = z.object({ platform: z.enum(SOCIAL_PLATFORMS) });
+const AuthorizeBody = z.object({
+  platform: z.enum(SOCIAL_PLATFORMS),
+  returnTo: z.string().max(512).optional(),
+});
 
 const SelectTargetBody = z.object({ externalAccountId: z.string().min(1).max(200) });
 
@@ -54,7 +57,7 @@ export class SocialAccountsController {
 
   @Post('authorize-url')
   authorizeUrl(@Body() body: unknown): Promise<{ url: string; expiresAt: string }> {
-    return this.accounts.authorizeUrl(PlatformBody.parse(body));
+    return this.accounts.authorizeUrl(AuthorizeBody.parse(body));
   }
 
   @Get('pending/:id')

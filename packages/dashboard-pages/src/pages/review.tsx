@@ -29,6 +29,7 @@ import { ReviewScheduledRow } from '../components/dashboard/review-scheduled-row
 import { ReviewScheduledPane } from '../components/dashboard/review-scheduled-pane';
 import { DECIDED_WINDOW_DAYS, useReviewDecided } from '../components/dashboard/review-decided';
 import { useProvideMobileBack } from '../shells/mobile-back';
+import { useSocialConnectOutcome } from '../lib/social-connect';
 import { ConsoleSectionLabel } from '../components/console-section-label';
 import { ConsoleListEmpty } from '../components/console-empty';
 import { ConsoleRowsSkeleton, ConsoleSplitSkeleton } from '../components/console-skeleton';
@@ -49,6 +50,7 @@ export function ReviewPage({ selectedId = null }: { selectedId?: string | null }
   const buildLoadFailedProps = useInboxLoadFailedProps();
   const toHref = useOrgHref();
   const { setActiveQueueItem, setActiveScheduledItem } = inbox;
+  useSocialConnectOutcome();
 
   const isDesktop = useIsDesktopSplit();
 

@@ -1437,6 +1437,68 @@
         "confirm": "Publish v{version}",
         "published": "Version {version} is live.",
         "publishFailed": "Publishing failed."
+      },
+      "editDraft": "Edit draft",
+      "doneEditing": "Done editing",
+      "editor": {
+        "graphInvalid": "The draft cannot be drawn yet. Fix it in the advanced editor or ask the agent.",
+        "valid": "The draft is valid. Publish it from the Versions tab.",
+        "pickStep": "Select a step in the graph to edit it.",
+        "label": "Label",
+        "subject": "Subject",
+        "body": "Text",
+        "referenceBody": "Reference text (sent if the agent does not answer)",
+        "brief": "Brief for the agent",
+        "approval": "Approval",
+        "approvalMode": {
+          "draft_only": "A person reviews each message",
+          "auto": "Send without review once published",
+          "off": "Skip this step"
+        },
+        "duration": "Wait for (ISO duration, e.g. P2D)",
+        "event": "Event",
+        "timeout": "Give up after (ISO duration)",
+        "edge": {
+          "next": "Then go to",
+          "onReply": "On reply, go to",
+          "onUnseen": "If not seen, go to",
+          "onTimeout": "On timeout, go to",
+          "onReject": "If rejected, go to",
+          "onGoal": "If the goal is reached, go to",
+          "default": "Otherwise go to",
+          "to": "Jump to"
+        },
+        "noEdge": "— none —",
+        "save": "Save step",
+        "remove": "Remove step",
+        "cancel": "Cancel",
+        "removeTitle": "Remove the step \"{id}\"?",
+        "removeBody": "Edges that pointed to it are left dangling until you point them elsewhere.",
+        "advanced": "Advanced (JSON)",
+        "saveJson": "Save JSON",
+        "jsonError": {
+          "json": "That is not valid JSON.",
+          "shape": "The JSON must be one step with an id and a type.",
+          "id": "Keep the step id unchanged; add a new step to use another id."
+        },
+        "addAfter": "Add a step after \"{id}\"",
+        "addLoose": "Add a step",
+        "stepKind": "Kind of step",
+        "newId": "Step id",
+        "badId": "A step id starts with a lowercase letter and uses only a–z, 0–9 and _.",
+        "add": "Add step",
+        "kind": {
+          "email": "Email",
+          "sms": "SMS",
+          "chat": "Chat message",
+          "voice": "Phone call",
+          "wait": "Wait",
+          "wait_for": "Wait for an event",
+          "action": "Action",
+          "goal": "Goal",
+          "approval": "Approval by a person",
+          "exit": "Exit"
+        }
       }
     },
     "endUsers": {

@@ -98,6 +98,7 @@ export interface JourneyReportDto {
   };
   nodes: { nodeId: string; nodeType: string; arrived: number; waitingNow: number; failed: number; edges: Record<string, number> }[];
   messages: Record<string, Record<string, number>>;
+  integrity: { duplicateSends: number; enrollmentsWithoutTrace: number };
 }
 
 export interface SimulationDto {
@@ -117,7 +118,7 @@ export interface SimulationDto {
     html?: string;
   }[];
   messageDecisions: Record<string, Record<string, number>>;
-  assumptions: string[];
+  assumptions: { code: string; nodeId: string; event?: string; timeout?: string }[];
 }
 
 export interface PublishRequestDto {

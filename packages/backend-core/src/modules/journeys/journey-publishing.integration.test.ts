@@ -261,5 +261,6 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect(report.nodes.find((n) => n.nodeId === 'is_cto')).toMatchObject({ arrived: 3, edges: { default: 3 } });
     expect(report.goal.treated).toEqual({ entered: 3, converted: 0, rate: 0 });
     expect(report.goal.lift).toBeNull();
+    expect(report.integrity).toEqual({ duplicateSends: 0, enrollmentsWithoutTrace: 0 });
   });
 });

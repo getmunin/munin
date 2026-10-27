@@ -139,7 +139,13 @@ export function PublishDialog({
               {sim.assumptions.length > 0 && (
                 <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-ink-mute">
                   {sim.assumptions.map((a) => (
-                    <li key={a}>{t('assumes', { assumption: a })}</li>
+                    <li key={`${a.code}-${a.nodeId}`}>
+                      {a.code === 'reviewer_approves'
+                        ? t('assumeApproved', { node: a.nodeId })
+                        : a.code === 'no_reply'
+                          ? t('assumeNoReply', { node: a.nodeId })
+                          : t('assumeNoEvent', { node: a.nodeId, event: a.event ?? '', timeout: a.timeout ?? '' })}
+                    </li>
                   ))}
                 </ul>
               )}

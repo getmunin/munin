@@ -2756,7 +2756,9 @@
     "social_no_targets": "This account administers no Page Munin may post to. Give the app access to a Page and connect again.",
     "outreach_broadcast_changed": "This broadcast changed after you opened it, so nothing was sent. Load the latest version and review it again.",
     "outreach_broadcast_empty_audience": "Nobody in the segment can receive this broadcast, so there's nothing to approve.",
-    "outreach_broadcast_state": "Someone already decided on this broadcast. Refresh to see where it stands."
+    "outreach_broadcast_state": "Someone already decided on this broadcast. Refresh to see where it stands.",
+    "journeys_draft_changed": "This journey changed while you were editing it. Reload to see the latest draft, then make your change again.",
+    "journeys_node_exists": "A step with that id already exists. Choose another id."
   },
   "footer": {
     "privacy": "Privacy",

@@ -2756,7 +2756,9 @@
     "social_no_targets": "Denne kontoen administrerer ingen side Munin kan publisere på. Gi appen tilgang til en side og koble til på nytt.",
     "outreach_broadcast_changed": "Utsendelsen ble endret etter at du åpnet den, så ingenting ble sendt. Last inn siste versjon og se gjennom den på nytt.",
     "outreach_broadcast_empty_audience": "Ingen i segmentet kan motta denne utsendelsen, så det er ingenting å godkjenne.",
-    "outreach_broadcast_state": "Noen har allerede tatt stilling til denne utsendelsen. Oppdater for å se status."
+    "outreach_broadcast_state": "Noen har allerede tatt stilling til denne utsendelsen. Oppdater for å se status.",
+    "journeys_draft_changed": "Journeyen ble endret mens du redigerte den. Last inn på nytt for å se siste utkast, og gjør endringen igjen.",
+    "journeys_node_exists": "Et steg med den id-en finnes allerede. Velg en annen id."
   },
   "footer": {
     "privacy": "Personvern",

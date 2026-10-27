@@ -53,6 +53,10 @@ export interface JourneyVersionDto {
   createdAt: string;
 }
 
+export interface DraftGuard {
+  ifSpecHash?: string;
+}
+
 export type JourneyVersionSummaryDto = Omit<JourneyVersionDto, 'spec'>;
 
 export interface JourneyDetailDto extends JourneyDto {
@@ -181,17 +185,25 @@ export class JourneysService {
     return this.get(journey!.id);
   }
 
-  async replaceDraft(id: string, spec: RawSpec, changeSummary?: string): Promise<JourneyVersionDto> {
-    return this.editDraft(id, () => spec, changeSummary ?? 'Replaced spec');
+  async replaceDraft(id: string, spec: RawSpec, changeSummary?: string, guard?: DraftGuard): Promise<JourneyVersionDto> {
+    return this.editDraft(id, () => spec, changeSummary ?? 'Replaced spec', guard);
   }
 
-  async addNode(id: string, node: RawNode, after?: { nodeId: string; edge?: string }): Promise<JourneyVersionDto> {
+  async addNode(
+    id: string,
+    node: RawNode,
+    after?: { nodeId: string; edge?: string },
+    guard?: DraftGuard,
+  ): Promise<JourneyVersionDto> {
     return this.editDraft(
       id,
       (spec) => {
         const nodes = specNodes(spec);
         if (nodes.some((n) => n.id === node.id)) {
-          throw new ConflictException(`journeys_conflict: node "${node.id}" already exists`);
+          throw new ConflictException({
+            message: `journeys_node_exists: node "${node.id}" already exists`,
+            code: 'journeys_node_exists',
+          });
         }
         const next = { ...spec, nodes: [...nodes, node] };
         if (after) {
@@ -206,10 +218,11 @@ export class JourneysService {
         return next;
       },
       `Added node ${node.id}`,
+      guard,
     );
   }
 
-  async updateNode(id: string, node: RawNode): Promise<JourneyVersionDto> {
+  async updateNode(id: string, node: RawNode, guard?: DraftGuard): Promise<JourneyVersionDto> {
     return this.editDraft(
       id,
       (spec) => {
@@ -220,10 +233,11 @@ export class JourneysService {
         return { ...spec, nodes: nodes.map((n) => (n.id === node.id ? node : n)) };
       },
       `Updated node ${node.id}`,
+      guard,
     );
   }
 
-  async removeNode(id: string, nodeId: string): Promise<JourneyVersionDto> {
+  async removeNode(id: string, nodeId: string, guard?: DraftGuard): Promise<JourneyVersionDto> {
     return this.editDraft(
       id,
       (spec) => {
@@ -234,12 +248,14 @@ export class JourneysService {
         return { ...spec, nodes: nodes.filter((n) => n.id !== nodeId) };
       },
       `Removed node ${nodeId}`,
+      guard,
     );
   }
 
   async updateSettings(
     id: string,
     patch: { start?: string; entry?: unknown; exit?: unknown; goal?: unknown; settings?: unknown },
+    guard?: DraftGuard,
   ): Promise<JourneyVersionDto> {
     return this.editDraft(
       id,
@@ -251,6 +267,7 @@ export class JourneysService {
         return next;
       },
       `Updated ${Object.keys(patch).join(', ')}`,
+      guard,
     );
   }
 
@@ -378,6 +395,7 @@ export class JourneysService {
     id: string,
     edit: (spec: RawSpec) => RawSpec,
     summary: string,
+    guard?: DraftGuard,
   ): Promise<JourneyVersionDto> {
     await getCurrentContext().db.execute(sql`SELECT id FROM journeys WHERE id = ${id} FOR UPDATE`);
     const journey = await this.load(id);
@@ -385,6 +403,12 @@ export class JourneysService {
       throw new ConflictException(`journeys_conflict: journey ${id} is archived`);
     }
     const latest = await this.latestVersion(id);
+    if (guard?.ifSpecHash && latest?.specHash !== guard.ifSpecHash) {
+      throw new ConflictException({
+        message: `journeys_draft_changed: journey ${id} changed since you loaded it; reload and apply your edit again`,
+        code: 'journeys_draft_changed',
+      });
+    }
     const ctx = getCurrentContext();
     if (latest && !latest.publishedAt) {
       const spec = edit(latest.spec);

@@ -468,12 +468,16 @@ class StubSender implements BulkEmailSender {
     await new OutreachBroadcastWorker(db, svc, sender).tick();
 
     const token = new URL(broadcastUnsubscribeUrl(orgId, kari.id, b.id)).searchParams.get('token')!;
-    const unsub = new OutreachUnsubscribeService(db);
+    const unsub = new OutreachUnsubscribeService(db, new WebhookDispatcher());
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     expect(await unsub.unsubscribe(token, 'one_click')).toMatchObject({ state: 'unsubscribed' });
 
     const after = await asAgent(() => svc.getBroadcast(b.id));
-    expect(after.counts.unsubscribed).toBe(1);
+    expect(after.counts.unsubscribed).toBe(1);    const [event] = await db
+      .select({ payload: schema.events.payload })
+      .from(schema.events)
+      .where(and(eq(schema.events.orgId, orgId), eq(schema.events.type, 'crm.contact.unsubscribed')));
+    expect(event!.payload).toEqual({ contactId: kari.id, broadcastId: b.id, method: 'one_click' });
   });
 
   it('seeds the broadcast into the reply conversation once, dated when it was sent', async () => {

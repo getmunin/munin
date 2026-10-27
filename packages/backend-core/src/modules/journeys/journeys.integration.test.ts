@@ -277,6 +277,48 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     ).rejects.toThrow(ConflictException);
   });
 
+  it('warns that agent steps fall back when the org has no model, and tells when an outreach outcome lands', async () => {
+    const withoutModel = new JourneysService(new WebhookDispatcher(), { providerConfigured: () => Promise.resolve(false) });
+    const journey = await asAgent(() =>
+      withoutModel.create({
+        name: 'Agent triage',
+        outreachCampaignId: emailCampaignId,
+        spec: {
+          ...validSpec(),
+          start: 'triage',
+          nodes: [
+            {
+              id: 'triage',
+              type: 'agent',
+              mode: 'decide',
+              instructions: 'Likely to buy?',
+              edges: { yes: 'done', no: 'done' },
+              fallback: 'no',
+              inputs: ['contact'],
+            },
+            { id: 'done', type: 'exit' },
+          ],
+        },
+      }),
+    );
+    const validation = await asAgent(() => withoutModel.validate(journey.id));
+    expect(validation.warnings.map((w) => w.code)).toContain('agent_without_model');
+    expect((await asAgent(() => svc.validate(journey.id))).warnings.map((w) => w.code)).not.toContain('agent_without_model');
+
+    const contact = await asAgent(() => crm.createContact({ name: 'Ola Nordmann', email: 'ola@kunde.test' }));
+    await asAgent(() =>
+      crm.updateContact({
+        id: contact.id,
+        patch: { customFields: { outreachOutcome: 'reached', outreachOutcomeConversationId: 'ccv_call', budget: 'Q1' } },
+      }),
+    );
+    const [event] = await db
+      .select({ payload: schema.events.payload })
+      .from(schema.events)
+      .where(and(eq(schema.events.orgId, orgId), eq(schema.events.type, 'outreach.outcome.recorded')));
+    expect(event!.payload).toEqual({ contactId: contact.id, outcome: 'reached', conversationId: 'ccv_call', fields: ['budget'] });
+  });
+
   it('keeps journeys invisible to other organizations', async () => {
     const journey = await asAgent(() => svc.create({ name: 'Trial onboarding', outreachCampaignId: emailCampaignId }));
     await expect(runAs(outsider, () => svc.get(journey.id))).rejects.toThrow(NotFoundException);

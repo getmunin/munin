@@ -12,6 +12,8 @@ import {
   AlertsService,
   DB,
   DbModule,
+  LLM_AVAILABILITY,
+  type LlmAvailability,
   McpModule,
   RealtimeModule,
 } from '@getmunin/backend-core';
@@ -92,6 +94,7 @@ function buildModule(args: {
   } = args;
   return {
     module: AgentHostModule,
+    global: true,
     imports: [DbModule, McpModule, RealtimeModule, AgentRunnerSupportModule, ...extraImports],
     providers: [
       { provide: AGENT_CONFIG_REPOSITORY, useClass: configRepository },
@@ -108,9 +111,17 @@ function buildModule(args: {
       AgentModelsService,
       AgentHealthService,
       AgentHostRunner,
+      {
+        provide: LLM_AVAILABILITY,
+        useFactory: (config: AgentConfigService): LlmAvailability => ({
+          providerConfigured: async () => (await config.getForCurrentActor()).providerConfigured,
+        }),
+        inject: [AgentConfigService],
+      },
     ],
     controllers: [AgentConfigController],
     exports: [
+      LLM_AVAILABILITY,
       AgentConfigService,
       AgentModelsService,
       AgentHealthService,

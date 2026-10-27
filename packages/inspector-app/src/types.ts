@@ -26,7 +26,7 @@ export interface Proposal {
   campaignId: string;
   contactId: string;
   conversationId: string | null;
-  kind: 'initial' | 'reply' | 'followup';
+  kind: 'initial' | 'reply' | 'followup' | 'journey';
   draftSubject: string | null;
   draftBody: string;
   draftFingerprint: string;

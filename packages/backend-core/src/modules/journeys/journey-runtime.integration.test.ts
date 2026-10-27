@@ -49,7 +49,7 @@ const DAY = 86_400_000;
     webhooks.registerSink(new JourneyEventSink());
     crm = new CrmService(webhooks, new DefaultQuotasService(), new AddressDeliverabilityService());
     journeys = new JourneysService(webhooks);
-    runtime = new JourneyRuntimeService(webhooks, crm);
+    runtime = new JourneyRuntimeService(webhooks, crm, {} as never);
     worker = new JourneyRuntimeWorker(appDb, runtime);
     events = new ProductEventsService(webhooks, new IdentityService(webhooks));
   });

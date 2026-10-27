@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, asc, desc, eq, inArray, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
-import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
+import { and, asc, desc, eq, inArray, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
+import { getCurrentContext, readApiBaseUrl, WebhookDispatcher } from '@getmunin/core';
 import {
   JourneySpecSchema,
   parseIsoDurationMs,
@@ -9,6 +9,7 @@ import {
   type JourneySpec,
 } from '@getmunin/types';
 import { CrmService } from '../crm/crm.service.ts';
+import { OutreachService } from '../outreach/outreach.service.ts';
 import { OUTREACH_ELIGIBILITY_FLOOR, segmentMatchFilters } from '../crm/segment-filter.ts';
 import { collectConditionNeeds, evaluateCondition, type ConditionFacts } from './journey-conditions.ts';
 import { JOURNEY_RUNTIME_ACTOR_ID, journeyEventKey } from './journey-event.sink.ts';
@@ -19,6 +20,14 @@ export type EnrollmentState = (typeof ENROLLMENT_STATES)[number];
 
 const MAX_NODES_PER_RUN = 50;
 const COMPLETED_REASONS: ReadonlySet<string> = new Set(['reached_end', 'goal_reached']);
+const APPROVAL_TIMEOUT_MS = 7 * 86_400_000;
+const REPLY_HOLD_MS = 14 * 86_400_000;
+const PROPOSAL_RESOLUTIONS: Record<string, string> = {
+  'outreach.proposal.sent': 'proposal_sent',
+  'outreach.proposal.dismissed': 'proposal_dismissed',
+  'outreach.proposal.withdrawn': 'proposal_withdrawn',
+  'outreach.proposal.send_failed': 'proposal_failed',
+};
 
 type EnrollmentRow = typeof schema.journeyEnrollments.$inferSelect;
 type InboxRow = typeof schema.journeyEventInbox.$inferSelect;
@@ -88,6 +97,7 @@ interface WaitSpec {
 }
 
 interface StepContext {
+  stepRunId: string;
   enrollment: EnrollmentRow;
   spec: JourneySpec;
   node: JourneyNode;
@@ -105,6 +115,7 @@ export class JourneyRuntimeService {
   constructor(
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(CrmService) private readonly crm: CrmService,
+    @Inject(OutreachService) private readonly outreach: OutreachService,
   ) {}
 
 
@@ -262,8 +273,11 @@ export class JourneyRuntimeService {
       }
     }
 
+    if (row.type.startsWith('outreach.proposal.')) await this.handleProposalEvent(row);
+
     const enrollments = await this.subjectEnrollments(subject, payload);
     if (enrollments.length === 0) return;
+    if (row.type === 'conversation.message.received') await this.handleReply(row, enrollments);
 
     const w = schema.journeyWaits;
     const openWaits = await ctx.db
@@ -387,7 +401,7 @@ export class JourneyRuntimeService {
         stepRunId =
           existing?.id ??
           (await this.insertStepRun(enrollment, node, visit, { enteredAt: now.toISOString() }));
-        outcome = await this.execute({ enrollment, spec, node, visit, attempt, resumed, now, hop: 1 });
+        outcome = await this.execute({ stepRunId, enrollment, spec, node, visit, attempt, resumed, now, hop: 1 });
         if (outcome.kind === 'retry') {
           await this.updateStepRun(stepRunId, { status: 'retrying', attempt, reason: outcome.reason });
           await ctx.db.update(e).set({ nextRunAt: outcome.at, updatedAt: new Date() }).where(eq(e.id, enrollment.id));
@@ -484,10 +498,190 @@ export class JourneyRuntimeService {
       case 'action':
         return this.executeAction(step, node);
       case 'message':
-        return { kind: 'exit', reason: 'message_unavailable' };
+        return this.executeMessage(step, node);
       default:
         return { kind: 'exit', reason: 'node_type_unavailable' };
     }
+  }
+
+  private async executeMessage(
+    step: StepContext,
+    node: Extract<JourneyNode, { type: 'message' }>,
+  ): Promise<Outcome> {
+    if (step.resumed) {
+      switch (step.resumed.resolution) {
+        case 'proposal_sent':
+        case 'proposal_withdrawn':
+          return { kind: 'advance', edge: 'next', to: node.next, reason: step.resumed.resolution };
+        case 'proposal_dismissed':
+          return { kind: 'exit', reason: 'proposal_dismissed' };
+        case 'proposal_failed':
+          return { kind: 'exit', reason: 'message_failed' };
+        default:
+          return { kind: 'exit', reason: 'approval_timeout' };
+      }
+    }
+    if (node.approval === 'off') return { kind: 'advance', edge: 'next', to: node.next, reason: 'approval off' };
+    const contactId = step.enrollment.contactId;
+    if (!contactId) return { kind: 'exit', reason: 'no_contact' };
+    const ctx = getCurrentContext();
+    const [journey] = await ctx.db
+      .select({ campaignId: schema.journeys.outreachCampaignId })
+      .from(schema.journeys)
+      .where(eq(schema.journeys.id, step.enrollment.journeyId))
+      .limit(1);
+    const settings = step.spec.settings;
+    const proposal = await this.outreach.proposeJourneyMessage(
+      {
+        campaignId: journey!.campaignId,
+        contactId,
+        enrollmentId: step.enrollment.id,
+        stepRunId: step.stepRunId,
+        subject: node.content.subject,
+        body: node.content.body,
+        format: node.content.format,
+        templateId: node.content.templateId,
+        preheader: node.content.preheader,
+        auto: node.approval === 'auto',
+        policy: {
+          class: node.class,
+          timezone: settings.timezone,
+          quietHours: settings.quietHours,
+          validDays: settings.validDays,
+          frequencyCapPerWeek: settings.frequencyCapPerWeek,
+          cooldownHoursAfterConversation: settings.cooldownHoursAfterConversation,
+        },
+        evidence: {
+          journeyId: step.enrollment.journeyId,
+          version: step.enrollment.version,
+          nodeId: node.id,
+        },
+      },
+      { publicBaseUrl: readApiBaseUrl() },
+    );
+    await ctx.db
+      .update(schema.journeyStepRuns)
+      .set({ proposalId: proposal.id })
+      .where(eq(schema.journeyStepRuns.id, step.stepRunId));
+    if (proposal.status === 'sent') {
+      await this.rememberThread(step.enrollment.id, proposal.conversationId);
+      return { kind: 'advance', edge: 'next', to: node.next, output: { proposalId: proposal.id }, reason: 'sent' };
+    }
+    if (proposal.status === 'failed') {
+      return { kind: 'exit', reason: 'message_blocked', output: { proposalId: proposal.id, error: proposal.failureReason } };
+    }
+    const base = proposal.scheduledSendAt ? new Date(proposal.scheduledSendAt) : step.now;
+    return {
+      kind: 'wait',
+      wait: {
+        kind: 'proposal',
+        match: { proposalId: proposal.id },
+        timeoutAt: new Date(base.getTime() + APPROVAL_TIMEOUT_MS),
+      },
+      output: { proposalId: proposal.id, status: proposal.status },
+      reason: proposal.status === 'approved' ? 'scheduled' : 'awaiting review',
+    };
+  }
+
+  private async rememberThread(enrollmentId: string, conversationId: string | null): Promise<void> {
+    if (!conversationId) return;
+    const ctx = getCurrentContext();
+    await ctx.db
+      .update(schema.journeyEnrollments)
+      .set({ conversationId, updatedAt: new Date() })
+      .where(and(eq(schema.journeyEnrollments.id, enrollmentId), isNull(schema.journeyEnrollments.conversationId)));
+  }
+
+  private async handleProposalEvent(row: InboxRow): Promise<void> {
+    const resolution = PROPOSAL_RESOLUTIONS[row.type];
+    const proposalId = row.payload.proposalId;
+    if (!resolution || typeof proposalId !== 'string') return;
+    const ctx = getCurrentContext();
+    const w = schema.journeyWaits;
+    const [wait] = await ctx.db
+      .select()
+      .from(w)
+      .where(and(eq(w.orgId, row.orgId), eq(w.kind, 'proposal'), isNull(w.resolvedAt), sql`${w.match}->>'proposalId' = ${proposalId}`))
+      .limit(1);
+    if (!wait) return;
+    if (resolution === 'proposal_sent' && typeof row.payload.conversationId === 'string') {
+      await this.rememberThread(wait.enrollmentId, row.payload.conversationId);
+    }
+    await this.resolveWait(wait, resolution);
+  }
+
+  private async handleReply(row: InboxRow, enrollments: EnrollmentRow[]): Promise<void> {
+    const conversationId = row.payload.conversationId;
+    if (typeof conversationId !== 'string' || row.payload.authorType !== 'end_user') return;
+    if (row.payload.autoReply === true) return;
+    const ctx = getCurrentContext();
+    for (const enrollment of enrollments) {
+      if (enrollment.conversationId !== conversationId || !isOpen(enrollment.state)) continue;
+      const spec = await this.spec(enrollment.journeyId, enrollment.version);
+      const [lastMessage] = await ctx.db
+        .select({ nodeId: schema.journeyStepRuns.nodeId, id: schema.journeyStepRuns.id })
+        .from(schema.journeyStepRuns)
+        .where(and(eq(schema.journeyStepRuns.enrollmentId, enrollment.id), eq(schema.journeyStepRuns.nodeType, 'message')))
+        .orderBy(desc(schema.journeyStepRuns.startedAt))
+        .limit(1);
+      if (!lastMessage) continue;
+      const node = spec.nodes.find((n) => n.id === lastMessage.nodeId);
+      const reply = { conversationId, messageId: row.payload.messageId ?? null, eventId: row.eventId };
+      if (node?.type === 'message' && node.onReply) {
+        await this.cancelWaits(enrollment.id);
+        const visits = { ...enrollment.visits, [node.onReply]: (enrollment.visits[node.onReply] ?? 0) + 1 };
+        await ctx.db
+          .update(schema.journeyEnrollments)
+          .set({
+            state: 'active',
+            currentNode: node.onReply,
+            visits,
+            nextRunAt: new Date(),
+            context: { ...enrollment.context, lastReply: reply },
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.journeyEnrollments.id, enrollment.id));
+        continue;
+      }
+      const [held] = await ctx.db
+        .select({ id: schema.journeyWaits.id })
+        .from(schema.journeyWaits)
+        .where(
+          and(
+            eq(schema.journeyWaits.enrollmentId, enrollment.id),
+            eq(schema.journeyWaits.kind, 'conversation_close'),
+            isNull(schema.journeyWaits.resolvedAt),
+          ),
+        )
+        .limit(1);
+      if (held) continue;
+      await ctx.db.insert(schema.journeyWaits).values({
+        orgId: enrollment.orgId,
+        enrollmentId: enrollment.id,
+        stepRunId: lastMessage.id,
+        kind: 'conversation_close',
+        eventKey: 'conversation.status_changed',
+        match: { conversationId, status: 'closed' },
+        timeoutAt: new Date(Date.now() + REPLY_HOLD_MS),
+      });
+      await ctx.db
+        .update(schema.journeyEnrollments)
+        .set({
+          state: 'waiting',
+          nextRunAt: null,
+          context: { ...enrollment.context, lastReply: reply },
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.journeyEnrollments.id, enrollment.id));
+    }
+  }
+
+  private async cancelWaits(enrollmentId: string): Promise<void> {
+    const ctx = getCurrentContext();
+    await ctx.db
+      .update(schema.journeyWaits)
+      .set({ resolvedAt: new Date(), resolution: 'cancelled' })
+      .where(and(eq(schema.journeyWaits.enrollmentId, enrollmentId), isNull(schema.journeyWaits.resolvedAt)));
   }
 
   private async executeWait(step: StepContext, node: Extract<JourneyNode, { type: 'wait' }>): Promise<Outcome> {
@@ -963,6 +1157,21 @@ export class JourneyRuntimeService {
     const e = schema.journeyEnrollments;
     const [enrollment] = await ctx.db.select().from(e).where(eq(e.id, wait.enrollmentId)).limit(1);
     if (!enrollment || enrollment.state !== 'waiting') return;
+    const open = await ctx.db
+      .select({ kind: schema.journeyWaits.kind })
+      .from(schema.journeyWaits)
+      .where(and(eq(schema.journeyWaits.enrollmentId, enrollment.id), isNull(schema.journeyWaits.resolvedAt)));
+    const held = open.some((o) => o.kind === 'conversation_close');
+    const stillWaiting = wait.kind === 'conversation_close' ? open.length > 0 : held;
+    if (stillWaiting) {
+      if (context) {
+        await ctx.db
+          .update(e)
+          .set({ context: { ...enrollment.context, ...context }, updatedAt: new Date() })
+          .where(eq(e.id, enrollment.id));
+      }
+      return;
+    }
     await ctx.db
       .update(e)
       .set({
@@ -979,7 +1188,7 @@ export class JourneyRuntimeService {
     const [row] = await ctx.db
       .select()
       .from(schema.journeyWaits)
-      .where(eq(schema.journeyWaits.stepRunId, stepRunId))
+      .where(and(eq(schema.journeyWaits.stepRunId, stepRunId), ne(schema.journeyWaits.kind, 'conversation_close')))
       .orderBy(desc(schema.journeyWaits.createdAt))
       .limit(1);
     return row?.resolvedAt ? row : null;

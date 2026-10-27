@@ -23,6 +23,8 @@ A separate `skill://crm/clean-contact-data` runs weekly to merge any duplicate c
 
 ## Step 1 — list enabled campaigns
 
+A campaign that has a journey (`journeys_list`) is run by that journey: `outreach_propose_first_touch` refuses it with `outreach_journey_managed`. Skip those campaigns.
+
 ```jsonc
 { "name": "outreach_list_campaigns", "arguments": {} }
 ```

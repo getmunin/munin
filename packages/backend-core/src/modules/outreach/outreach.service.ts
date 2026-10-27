@@ -61,6 +61,7 @@ import {
   type OutreachVoiceCaller,
 } from '../conv/channels/outreach-voice.ts';
 import { draftFingerprint } from './proposal-fingerprint.ts';
+import { checkSendPolicy, type SendDecision, type SendPolicy } from './send-policy.ts';
 import { buildProposalDeltaCurationPrompt } from './curation-job.ts';
 import {
   CuratorJobsService,
@@ -89,7 +90,7 @@ export interface CuratorJobEnqueuer {
   enqueue(input: EnqueueInput): Promise<EnqueueResult>;
 }
 
-export const PROPOSAL_KINDS = ['initial', 'reply', 'followup'] as const;
+export const PROPOSAL_KINDS = ['initial', 'reply', 'followup', 'journey'] as const;
 export type ProposalKind = (typeof PROPOSAL_KINDS)[number];
 
 export const CHANNELS_REQUIRING_HUMAN_APPROVAL: readonly string[] = ['voice', 'sms'];
@@ -671,6 +672,7 @@ export class OutreachService {
     const actor = ctx.actor!;
     if (!input.draftBody.trim()) throw new OutreachInvalidError('draftBody must be non-empty');
     const campaign = await this.getCampaign(input.campaignId);
+    await this.assertNotJourneyManaged(campaign.id);
     const channel = await this.loadOutreachChannel(campaign.channelId);
     if (channel.type === 'email') {
       if (!input.draftSubject?.trim()) {
@@ -886,6 +888,7 @@ export class OutreachService {
       );
     }
     const campaign = await this.getCampaign(conv.outreachCampaignId);
+    await this.assertNotJourneyManaged(campaign.id);
     const channel = await this.loadOutreachChannel(campaign.channelId);
     if (channel.type !== 'email') {
       throw new OutreachInvalidError(
@@ -1044,7 +1047,17 @@ export class OutreachService {
       );
     }
     this.assertHumanApprovalAllowed(proposal, actor);
-    const sendAt = resolveAuthorizedSendAt(proposal, opts.sendAt);
+    let sendAt = resolveAuthorizedSendAt(proposal, opts.sendAt);
+    if (proposal.kind === 'journey') {
+      const decision = await this.journeySendDecision(proposal, sendAt ?? new Date());
+      if (decision.decision === 'skip') {
+        throw new OutreachInvalidError(
+          `this journey email cannot be sent: ${decision.reason}`,
+          'outreach_journey_blocked',
+        );
+      }
+      if (decision.decision === 'defer' && (!sendAt || decision.until > sendAt)) sendAt = decision.until;
+    }
     if (!sendAt) {
       await this.assertSendWindowOpen(proposal);
       const decided = await this.stampApproval(proposal, actor, null);
@@ -1078,6 +1091,28 @@ export class OutreachService {
     const closed = await this.sendWindowClosedReason(proposal);
     if (closed) {
       return { outcome: 'deferred', proposal, reason: closed };
+    }
+    if (proposal.kind === 'journey') {
+      const decision = await this.journeySendDecision(proposal, new Date());
+      if (decision.decision === 'skip') {
+        throw new OutreachInvalidError(
+          `this journey email cannot be sent: ${decision.reason}`,
+          'outreach_journey_blocked',
+        );
+      }
+      if (decision.decision === 'defer') {
+        const ctx = getCurrentContext();
+        const [deferred] = await ctx.db
+          .update(schema.outreachProposals)
+          .set({ scheduledSendAt: decision.until, updatedAt: new Date() })
+          .where(eq(schema.outreachProposals.id, proposal.id))
+          .returning();
+        return {
+          outcome: 'deferred',
+          proposal: toProposalDto(deferred!, proposal.contact, proposal.campaign, proposal.delivery),
+          reason: decision.reason,
+        };
+      }
     }
     const sent = await this.deliverProposal(
       proposal,
@@ -1220,6 +1255,9 @@ export class OutreachService {
     }
     if (proposal.kind === 'followup') {
       return this.deliverFollowup(proposal, sender);
+    }
+    if (proposal.kind === 'journey') {
+      return this.deliverJourneyMessage(proposal, sender, publicBaseUrl);
     }
     return this.deliverReply(proposal, sender);
   }
@@ -1691,6 +1729,270 @@ export class OutreachService {
     return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
   }
 
+  async proposeJourneyMessage(
+    input: {
+      campaignId: string;
+      contactId: string;
+      enrollmentId: string;
+      stepRunId: string;
+      subject: string;
+      body: string;
+      format: 'markdown' | 'mjml';
+      templateId?: string;
+      preheader?: string;
+      policy: SendPolicy;
+      auto: boolean;
+      evidence: Record<string, unknown>;
+    },
+    opts: { publicBaseUrl: string },
+  ): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const p = schema.outreachProposals;
+    const [existing] = await ctx.db
+      .select({ id: p.id })
+      .from(p)
+      .where(eq(p.journeyStepRunId, input.stepRunId))
+      .limit(1);
+    if (existing) return this.getProposal(existing.id);
+
+    const [row] = await ctx.db
+      .insert(p)
+      .values({
+        orgId: actor.orgId,
+        campaignId: input.campaignId,
+        contactId: input.contactId,
+        kind: 'journey',
+        journeyEnrollmentId: input.enrollmentId,
+        journeyStepRunId: input.stepRunId,
+        draftSubject: input.subject,
+        draftBody: input.body,
+        evidence: {
+          ...input.evidence,
+          enrollmentId: input.enrollmentId,
+          stepRunId: input.stepRunId,
+          journeyMessage: {
+            format: input.format,
+            templateId: input.templateId ?? null,
+            preheader: input.preheader ?? null,
+            policy: input.policy,
+            auto: input.auto,
+          },
+        },
+        status: 'pending',
+        proposedByActorType: actor.type,
+        proposedByActorId: actor.id,
+      })
+      .returning();
+    await this.webhooks.emit({
+      type: 'outreach.proposal.created',
+      payload: {
+        proposalId: row!.id,
+        campaignId: row!.campaignId,
+        contactId: row!.contactId,
+        kind: 'journey',
+        journeyEnrollmentId: input.enrollmentId,
+        ...(input.auto ? { autoApproved: true } : {}),
+      },
+    });
+    const proposal = await this.getProposal(row!.id);
+    if (!input.auto) return proposal;
+
+    const decision = await this.journeySendDecision(proposal, new Date());
+    if (decision.decision === 'skip') {
+      return this.recordScheduledSendFailure(proposal.id, `journey email blocked: ${decision.reason}`, {
+        terminal: true,
+      });
+    }
+    if (decision.decision === 'defer') {
+      const scheduled = await this.stampApproval(proposal, actor, decision.until);
+      await this.webhooks.emit({
+        type: 'outreach.proposal.scheduled',
+        payload: {
+          proposalId: proposal.id,
+          campaignId: proposal.campaignId,
+          contactId: proposal.contactId,
+          kind: 'journey',
+          scheduledSendAt: decision.until.toISOString(),
+          autoApproved: true,
+        },
+      });
+      return scheduled;
+    }
+    const decided = await this.stampApproval(proposal, actor, null);
+    return this.deliverProposal(decided, senderFor(actor), opts.publicBaseUrl);
+  }
+
+  private async journeySendDecision(proposal: ProposalDto, at: Date): Promise<SendDecision> {
+    const meta = journeyMessageMeta(proposal);
+    return checkSendPolicy({ contactId: proposal.contactId, policy: meta.policy, now: at });
+  }
+
+  private async assertNotJourneyManaged(campaignId: string): Promise<void> {
+    const ctx = getCurrentContext();
+    const [journey] = await ctx.db
+      .select({ id: schema.journeys.id })
+      .from(schema.journeys)
+      .where(and(eq(schema.journeys.outreachCampaignId, campaignId), ne(schema.journeys.status, 'archived')))
+      .limit(1);
+    if (journey) {
+      throw new OutreachInvalidError(
+        `campaign ${campaignId} is run by journey ${journey.id}; its emails are drafted by the journey, so propose nothing here`,
+        'outreach_journey_managed',
+      );
+    }
+  }
+
+  private async deliverJourneyMessage(
+    proposal: ProposalDto,
+    sender: ProposalSender,
+    publicBaseUrl: string,
+  ): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const meta = journeyMessageMeta(proposal);
+    const campaign = await this.getCampaign(proposal.campaignId);
+    const channel = await this.loadOutreachChannel(campaign.channelId);
+    if (channel.type !== 'email') {
+      throw new OutreachInvalidError(
+        `journey emails need an email channel; campaign ${campaign.id} uses ${channel.type}`,
+      );
+    }
+    const contact = await this.crm.getContact(proposal.contactId);
+    const marketing = meta.policy.class === 'marketing';
+    if (contact.doNotContact || (marketing && (contact.unsubscribedAt || !contact.consentLawfulBasis))) {
+      throw new OutreachInvalidError(
+        `contact ${contact.id} is no longer eligible (suppression or consent withdrawn)`,
+      );
+    }
+    assertDeliverable(contact, 'email');
+    if (!contact.email) {
+      throw new OutreachInvalidError(`contact ${contact.id} has no email — cannot send`);
+    }
+
+    const unsubscribeUrl = marketing
+      ? buildUnsubscribeUrl({
+          publicBaseUrl,
+          orgId: actor.orgId,
+          contactId: contact.id,
+          campaignId: campaign.id,
+        })
+      : null;
+    const { renderEmail, BUILT_IN_EMAIL_TEMPLATE } = await import('./email-template-render.ts');
+    const mjml = await this.journeyTemplateMjml(meta.templateId, BUILT_IN_EMAIL_TEMPLATE);
+    const [org] = await ctx.db
+      .select({ name: schema.orgs.name })
+      .from(schema.orgs)
+      .where(eq(schema.orgs.id, actor.orgId))
+      .limit(1);
+    const rendered = await renderEmail(
+      mjml,
+      { format: meta.format, body: proposal.draftBody },
+      {
+        subject: proposal.draftSubject,
+        preheader: meta.preheader,
+        orgName: org?.name ?? null,
+        name: contact.name,
+        unsubscribeUrl,
+      },
+    );
+    const enrollmentId = (proposal.evidence.enrollmentId as string | undefined) ?? null;
+    const messageMetadata = {
+      journeyStepRunId: (proposal.evidence.stepRunId as string | undefined) ?? null,
+      ...(unsubscribeUrl ? { listUnsubscribeUrl: unsubscribeUrl } : {}),
+    };
+    const approvedByPerson = proposal.decidedByActorType === 'user' ? proposal.id : undefined;
+
+    const threadId = enrollmentId ? await this.journeyThread(enrollmentId) : null;
+    let conversationId: string;
+    let messageId: string | null;
+    if (threadId) {
+      const sent = await this.conv.sendMessage({
+        conversationId: threadId,
+        body: rendered.text,
+        bodyHtml: rendered.html,
+        messageMetadata,
+        approvedOutreachProposalId: approvedByPerson,
+        authorType: 'agent',
+        authorId: sender.id,
+      });
+      conversationId = threadId;
+      messageId = sent.id;
+    } else {
+      const convContact = await ctx.db.transaction(async (tx) =>
+        this.email.findOrCreateContactByEmail(tx, actor.orgId, contact.email!, contact.name ?? undefined),
+      );
+      const conversation = await this.conv.createConversation({
+        channelId: campaign.channelId,
+        body: rendered.text,
+        bodyHtml: rendered.html,
+        subject: proposal.draftSubject ?? undefined,
+        contactId: convContact.id,
+        endUserId: contact.endUserId ?? undefined,
+        outreachCampaignId: campaign.id,
+        messageMetadata,
+        approvedOutreachProposalId: approvedByPerson,
+        agentMode: 'draft_only',
+        authorType: 'agent',
+        authorId: sender.id,
+      });
+      conversationId = conversation.id;
+      messageId = conversation.messages[0]?.id ?? null;
+    }
+
+    const [updated] = await ctx.db
+      .update(schema.outreachProposals)
+      .set({
+        status: 'sent',
+        conversationId,
+        sentMessageId: messageId,
+        sentAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.outreachProposals.id, proposal.id))
+      .returning();
+    await ctx.db
+      .update(schema.crmContacts)
+      .set({ lastContactedAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.crmContacts.id, contact.id));
+    await this.webhooks.emit({
+      type: 'outreach.proposal.sent',
+      payload: {
+        proposalId: proposal.id,
+        campaignId: campaign.id,
+        contactId: contact.id,
+        conversationId,
+        messageId,
+        kind: 'journey',
+        journeyEnrollmentId: enrollmentId,
+        ...(meta.auto ? { autoApproved: true } : {}),
+      },
+    });
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+  }
+
+  private async journeyThread(enrollmentId: string): Promise<string | null> {
+    const ctx = getCurrentContext();
+    const [row] = await ctx.db
+      .select({ conversationId: schema.journeyEnrollments.conversationId })
+      .from(schema.journeyEnrollments)
+      .where(eq(schema.journeyEnrollments.id, enrollmentId))
+      .limit(1);
+    return row?.conversationId ?? null;
+  }
+
+  private async journeyTemplateMjml(templateId: string | null, builtIn: string): Promise<string> {
+    const ctx = getCurrentContext();
+    const t = schema.outreachEmailTemplates;
+    const [row] = await ctx.db
+      .select({ mjml: t.mjml })
+      .from(t)
+      .where(templateId ? eq(t.id, templateId) : eq(t.isDefault, true))
+      .limit(1);
+    if (templateId && !row) throw new OutreachInvalidError(`email template ${templateId} no longer exists`);
+    return row?.mjml ?? builtIn;
+  }
+
   async markProposalViewed(id: string): Promise<ProposalDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -1907,6 +2209,10 @@ export class OutreachService {
         ON c.id = a.campaign_id
        AND c.enabled = true
        AND jsonb_array_length(c.sequence_steps) > a.last_step
+       AND NOT EXISTS (
+         SELECT 1 FROM journeys j
+          WHERE j.outreach_campaign_id = c.id AND j.status <> 'archived'
+       )
       JOIN conv_conversations cv
         ON cv.id = a.conversation_id
        AND cv.status = 'open'
@@ -2096,7 +2402,11 @@ export class OutreachService {
     const ctx = getCurrentContext();
     const [campaigns, proposals] = await Promise.all([
       ctx.db.select().from(schema.outreachCampaigns).orderBy(asc(schema.outreachCampaigns.createdAt)),
-      ctx.db.select().from(schema.outreachProposals).orderBy(asc(schema.outreachProposals.createdAt)),
+      ctx.db
+        .select()
+        .from(schema.outreachProposals)
+        .where(ne(schema.outreachProposals.kind, 'journey'))
+        .orderBy(asc(schema.outreachProposals.createdAt)),
     ]);
     return {
       campaigns: campaigns.map((c) => ({
@@ -2673,4 +2983,23 @@ function assertDeliverable(contact: ContactDto, channelType: string): void {
     `mail cannot reach ${state.address} (${state.reason ?? 'no reason recorded'}, since ${state.stateChangedAt}) — ` +
       `correct contact ${contact.id}'s address, or clear the address's deliverability state if it works again`,
   );
+}
+
+interface JourneyMessageMeta {
+  format: 'markdown' | 'mjml';
+  templateId: string | null;
+  preheader: string | null;
+  policy: SendPolicy;
+  auto: boolean;
+}
+
+function journeyMessageMeta(proposal: ProposalDto): JourneyMessageMeta {
+  const meta = proposal.evidence.journeyMessage as Partial<JourneyMessageMeta> | undefined;
+  return {
+    format: meta?.format === 'mjml' ? 'mjml' : 'markdown',
+    templateId: meta?.templateId ?? null,
+    preheader: meta?.preheader ?? null,
+    policy: meta?.policy ?? { class: 'marketing', cooldownHoursAfterConversation: 24 },
+    auto: meta?.auto === true,
+  };
 }

@@ -10,8 +10,9 @@ import { createHash } from 'node:crypto';
 import { schema } from '@getmunin/db';
 import { and, count, eq, sql } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
-import { JourneySpecSchema, type JourneyNode, type JourneySpec } from '@getmunin/types';
+import { JourneySpecSchema, tierFor, type JourneyNode, type JourneySpec } from '@getmunin/types';
 import { JourneysService, hashSpec } from './journeys.service.ts';
+import { DECIDE_STEP_JOB_URI, DRAFT_STEP_JOB_URI, ENRICH_STEP_JOB_URI } from './journey-runtime.service.ts';
 import { JourneySimulator, type SimulationResult } from './journey-simulator.ts';
 import type { JourneyValidation } from './journey-validator.ts';
 
@@ -27,6 +28,39 @@ export interface JourneyDiff {
 export const AUTO_PROMOTION_MIN_REVIEWED = 30;
 export const AUTO_PROMOTION_MIN_UNEDITED_RATE = 0.9;
 export const REVIEW_STATS_WINDOW_DAYS = 30;
+export const DEFAULT_TOKENS_PER_AGENT_RUN: Record<AgentStepKind, number> = { decide: 2500, enrich: 2500, draft: 7000 };
+export const ASSUMED_USD_PER_MILLION_TOKENS = { fast: 1, smart: 5 } as const;
+
+export type AgentStepKind = 'decide' | 'enrich' | 'draft';
+
+export interface AgentNodeStatsDto {
+  nodeId: string;
+  kind: AgentStepKind;
+  tier: 'fast' | 'smart';
+  runs: number;
+  fallbacks: number;
+  fallbackRate: number | null;
+  totalTokens: number;
+  avgTokens: number | null;
+  edges: Record<string, number>;
+  daily: { day: string; runs: number; fallbacks: number; edges: Record<string, number> }[];
+  review: { reviewed: number; editRate: number | null; rejectionRate: number | null } | null;
+}
+
+export interface AgentCostEstimate {
+  runs: number;
+  estimatedTokens: number;
+  estimatedUsd: number;
+  assumedUsdPerMillionTokens: typeof ASSUMED_USD_PER_MILLION_TOKENS;
+  byNode: {
+    nodeId: string;
+    kind: AgentStepKind;
+    tier: 'fast' | 'smart';
+    runs: number;
+    tokensPerRun: number;
+    basis: 'history' | 'default';
+  }[];
+}
 
 export interface NodeReviewStatsDto {
   nodeId: string;
@@ -80,10 +114,128 @@ export class JourneyPublishingService {
     segmentId?: string;
     limit?: number;
     renderSamples?: number;
-  }): Promise<SimulationResult & { version: number }> {
+  }): Promise<SimulationResult & { version: number; agentCost: AgentCostEstimate }> {
     const { version, spec } = await this.parsedVersion(input.journeyId, input.version);
     const result = await this.simulator.simulate({ ...input, spec });
-    return { version, ...result };
+    const history = new Map((await this.agentStats(input.journeyId)).map((s) => [s.nodeId, s]));
+    const byNode: AgentCostEstimate['byNode'] = [];
+    for (const node of spec.nodes) {
+      const kind = agentKindOf(node);
+      if (!kind) continue;
+      const runs = result.arrivals[node.id] ?? 0;
+      const past = history.get(node.id);
+      const fromHistory = past?.avgTokens ?? null;
+      byNode.push({
+        nodeId: node.id,
+        kind,
+        tier: tierFor(AGENT_JOB_URI[kind]),
+        runs,
+        tokensPerRun: fromHistory ?? DEFAULT_TOKENS_PER_AGENT_RUN[kind],
+        basis: fromHistory === null ? 'default' : 'history',
+      });
+    }
+    const estimatedTokens = byNode.reduce((sum, n) => sum + n.runs * n.tokensPerRun, 0);
+    const estimatedUsd = byNode.reduce(
+      (sum, n) => sum + (n.runs * n.tokensPerRun * ASSUMED_USD_PER_MILLION_TOKENS[n.tier]) / 1_000_000,
+      0,
+    );
+    return {
+      version,
+      ...result,
+      agentCost: {
+        runs: byNode.reduce((sum, n) => sum + n.runs, 0),
+        estimatedTokens,
+        estimatedUsd: Math.round(estimatedUsd * 10_000) / 10_000,
+        assumedUsdPerMillionTokens: ASSUMED_USD_PER_MILLION_TOKENS,
+        byNode,
+      },
+    };
+  }
+
+  async agentStats(journeyId: string, days = REVIEW_STATS_WINDOW_DAYS): Promise<AgentNodeStatsDto[]> {
+    const ctx = getCurrentContext();
+    const journey = await this.journeys.get(journeyId);
+    const spec = JourneySpecSchema.safeParse((journey.live ?? journey.draft)?.spec);
+    const kinds = new Map<string, AgentStepKind>();
+    for (const node of spec.success ? spec.data.nodes : []) {
+      const kind = agentKindOf(node);
+      if (kind) kinds.set(node.id, kind);
+    }
+    const rows = rowsOf(
+      await ctx.db.execute(sql`
+        SELECT s.node_id,
+               s.node_type,
+               to_char(date_trunc('day', s.started_at), 'YYYY-MM-DD') AS day,
+               s.edge_taken,
+               CASE
+                 WHEN s.node_type = 'message' THEN NOT (s.output ? 'draft')
+                 WHEN s.output ? 'decision' THEN coalesce((s.output->'decision'->>'fallback')::boolean, false)
+                 ELSE NOT (s.output ? 'fields')
+               END AS fallback,
+               coalesce(cj.last_total_tokens, 0)::int AS tokens
+          FROM journey_step_runs s
+          JOIN journey_enrollments en ON en.id = s.enrollment_id
+          LEFT JOIN curator_jobs cj ON cj.id = s.output->>'curatorJobId'
+         WHERE en.journey_id = ${journeyId}
+           AND s.started_at > now() - make_interval(days => ${days})
+           AND (
+             (s.node_type = 'agent' AND s.finished_at IS NOT NULL)
+             OR (s.node_type = 'message' AND s.output ? 'draftRequested' AND s.output ? 'proposalId')
+           )
+         ORDER BY day
+      `),
+    ) as { node_id: string; node_type: string; day: string; edge_taken: string | null; fallback: boolean; tokens: number }[];
+
+    const review = new Map((await this.nodeReviewStats(journeyId)).map((r) => [r.nodeId, r]));
+    const stats = new Map<string, AgentNodeStatsDto>();
+    for (const row of rows) {
+      const kind = kinds.get(row.node_id) ?? (row.node_type === 'message' ? 'draft' : 'decide');
+      let entry = stats.get(row.node_id);
+      if (!entry) {
+        const reviewed = review.get(row.node_id);
+        entry = {
+          nodeId: row.node_id,
+          kind,
+          tier: tierFor(AGENT_JOB_URI[kind]),
+          runs: 0,
+          fallbacks: 0,
+          fallbackRate: null,
+          totalTokens: 0,
+          avgTokens: null,
+          edges: {},
+          daily: [],
+          review:
+            kind === 'draft' && reviewed
+              ? {
+                  reviewed: reviewed.reviewed,
+                  editRate: reviewed.reviewed > 0 ? reviewed.edited / reviewed.reviewed : null,
+                  rejectionRate: reviewed.reviewed > 0 ? reviewed.dismissed / reviewed.reviewed : null,
+                }
+              : null,
+        };
+        stats.set(row.node_id, entry);
+      }
+      entry.runs += 1;
+      if (row.fallback) entry.fallbacks += 1;
+      entry.totalTokens += row.tokens;
+      let day = entry.daily.at(-1);
+      if (day?.day !== row.day) {
+        day = { day: row.day, runs: 0, fallbacks: 0, edges: {} };
+        entry.daily.push(day);
+      }
+      day.runs += 1;
+      if (row.fallback) day.fallbacks += 1;
+      if (kind === 'decide' && row.edge_taken) {
+        entry.edges[row.edge_taken] = (entry.edges[row.edge_taken] ?? 0) + 1;
+        day.edges[row.edge_taken] = (day.edges[row.edge_taken] ?? 0) + 1;
+      }
+    }
+    for (const entry of stats.values()) {
+      entry.fallbackRate = entry.runs > 0 ? entry.fallbacks / entry.runs : null;
+      const withTokens = rows.filter((r) => r.node_id === entry.nodeId && r.tokens > 0).length;
+      entry.avgTokens = withTokens > 0 ? Math.round(entry.totalTokens / withTokens) : null;
+    }
+    return [...stats.values()].sort((a, b) => a.nodeId.localeCompare(b.nodeId));
   }
 
   async requestPublish(journeyId: string, number?: number): Promise<PublishRequestDto> {
@@ -414,4 +566,16 @@ function rowsOf(result: unknown): unknown[] {
   if (Array.isArray(result)) return result;
   const rows = (result as { rows?: unknown[] }).rows;
   return Array.isArray(rows) ? rows : [];
+}
+
+const AGENT_JOB_URI: Record<AgentStepKind, string> = {
+  decide: DECIDE_STEP_JOB_URI,
+  enrich: ENRICH_STEP_JOB_URI,
+  draft: DRAFT_STEP_JOB_URI,
+};
+
+function agentKindOf(node: JourneyNode): AgentStepKind | null {
+  if (node.type === 'agent') return node.mode === 'enrich' ? 'enrich' : 'decide';
+  if (node.type === 'message' && node.draftBy === 'agent') return 'draft';
+  return null;
 }

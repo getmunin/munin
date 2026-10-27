@@ -34,6 +34,7 @@ import type { JourneyValidation } from '../modules/journeys/journey-validator.ts
 import {
   JourneyPublishingService,
   type JourneyReportDto,
+  type AgentNodeStatsDto,
   type NodeReviewStatsDto,
   type PublishRequestDto,
 } from '../modules/journeys/journey-publishing.service.ts';
@@ -61,6 +62,12 @@ export class JourneysController {
     private readonly runtime: JourneyRuntimeService,
     private readonly publishing: JourneyPublishingService,
   ) {}
+
+  @Get(':id/agent-stats')
+  async agentStats(@Param('id') id: string, @Query('days') days?: string): Promise<{ items: AgentNodeStatsDto[] }> {
+    const window = days ? Math.min(90, Math.max(1, Number.parseInt(days, 10) || 30)) : 30;
+    return { items: await this.publishing.agentStats(id, window) };
+  }
 
   @Get(':id/review-stats')
   async reviewStats(@Param('id') id: string): Promise<{ items: NodeReviewStatsDto[] }> {

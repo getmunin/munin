@@ -140,6 +140,22 @@ export function validateJourneySpec(spec: JourneySpec, refs: JourneyReferences):
     }
   }
 
+  if (spec.entry.reentry === 'concurrent') {
+    if (spec.entry.trigger.type !== 'event') {
+      errors.push({
+        code: 'concurrent_trigger',
+        message: 'concurrent re-entry starts one run per event, so it needs an event trigger',
+      });
+    }
+    const messages = spec.nodes.filter((n) => n.type === 'message').map((n) => n.id);
+    if (messages.length > 0) {
+      errors.push({
+        code: 'concurrent_messages',
+        message: `concurrent runs cannot send messages (${messages.join(', ')}): parallel runs would message the same person several times; use once_at_a_time`,
+      });
+    }
+  }
+
   if (!spec.goal) {
     errors.push({ code: 'missing_goal', message: 'every journey needs a goal event and attribution window' });
   }

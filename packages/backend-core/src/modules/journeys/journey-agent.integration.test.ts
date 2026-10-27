@@ -15,6 +15,7 @@ import { DECIDE_STEP_JOB_URI, JourneyRuntimeService } from './journey-runtime.se
 import { JourneyRuntimeWorker } from './journey-runtime.worker.ts';
 import { JourneyEventSink } from './journey-event.sink.ts';
 import { JourneySimulator } from './journey-simulator.ts';
+import { DEFAULT_TOKENS_PER_AGENT_RUN, JourneyPublishingService } from './journey-publishing.service.ts';
 import { CrmService } from '../crm/crm.service.ts';
 import { AddressDeliverabilityService } from '../crm/address-deliverability.service.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
@@ -31,6 +32,7 @@ const NO_SYNTHETIC_FNR = '01819012365';
   let runtime: JourneyRuntimeService;
   let worker: JourneyRuntimeWorker;
   let simulator: JourneySimulator;
+  let publishing: JourneyPublishingService;
   let orgId: string;
   let agent: ActorIdentity;
   let curator: ActorIdentity;
@@ -54,6 +56,7 @@ const NO_SYNTHETIC_FNR = '01819012365';
     runtime = new JourneyRuntimeService(webhooks, crm, {} as never, new CuratorJobsService(webhooks));
     worker = new JourneyRuntimeWorker(appDb, runtime);
     simulator = new JourneySimulator(runtime);
+    publishing = new JourneyPublishingService(webhooks, journeys, simulator);
   });
 
   afterAll(async () => {
@@ -356,5 +359,46 @@ const NO_SYNTHETIC_FNR = '01819012365';
     const result = await asAgent(() => simulator.simulate({ journeyId, spec: JourneySpecSchema.parse(parsed), limit: 5 }));
     expect(result.edges['triage.unlikely']).toBe(result.entered);
     expect(result.assumptions).toContainEqual({ code: 'agent_fallback', nodeId: 'triage', event: 'unlikely' });
+  });
+
+  it('reports how each agent step decided and fell back, and prices agent runs in a dry run', async () => {
+    const { journeyId, step } = await liveJourneyWithKari();
+    const before = await asAgent(() => publishing.simulate({ journeyId, limit: 5 }));
+    expect(before.agentCost.byNode).toEqual([
+      expect.objectContaining({ nodeId: 'triage', kind: 'decide', tier: 'fast', basis: 'default', tokensPerRun: DEFAULT_TOKENS_PER_AGENT_RUN.decide }),
+    ]);
+    expect(before.agentCost.estimatedTokens).toBe(before.agentCost.runs * DEFAULT_TOKENS_PER_AGENT_RUN.decide);
+
+    await runAs(curator, () => runtime.submitDecision({ stepRunId: step.id, edge: 'likely', reason: 'CTO' }));
+    await db.update(schema.curatorJobs).set({ lastTotalTokens: 1800 }).where(eq(schema.curatorJobs.orgId, orgId));
+    const [ola] = await db
+      .insert(schema.crmContacts)
+      .values({ orgId, name: 'Ola Nordmann', email: 'ola@kunde.test', consentLawfulBasis: 'contract' })
+      .returning();
+    await asAgent(() =>
+      runtime.enroll({ journeyId, subject: { contactId: ola!.id, endUserId: null }, source: { type: 'manual' } }),
+    );
+    await worker.tick();
+    const later = new Date(Date.now() + 11 * 60_000);
+    await worker.tick(later);
+    await worker.tick(later);
+
+    const [triage] = await asAgent(() => publishing.agentStats(journeyId));
+    expect(triage).toMatchObject({
+      nodeId: 'triage',
+      kind: 'decide',
+      runs: 2,
+      fallbacks: 1,
+      fallbackRate: 0.5,
+      totalTokens: 1800,
+      avgTokens: 1800,
+      edges: { likely: 1, unlikely: 1 },
+      review: null,
+    });
+    expect(triage!.daily).toHaveLength(1);
+    expect(triage!.daily[0]).toMatchObject({ runs: 2, fallbacks: 1 });
+
+    const after = await asAgent(() => publishing.simulate({ journeyId, limit: 5 }));
+    expect(after.agentCost.byNode[0]).toMatchObject({ basis: 'history', tokensPerRun: 1800 });
   });
 });

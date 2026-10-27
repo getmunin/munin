@@ -28,6 +28,8 @@ import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 import { notify } from '../lib/notify';
 import { JourneyGraph } from '../components/journeys/journey-graph';
 import { PublishDialog } from '../components/journeys/publish-dialog';
+import { DraftEditor } from '../components/journeys/draft-editor';
+import type { DraftEdit } from '../components/journeys/draft-edit';
 import { useConfirm } from '../components/confirm-dialog';
 import type {
   EnrollmentDto,
@@ -35,6 +37,8 @@ import type {
   JourneyDto,
   JourneyReportDto,
   JourneyStatus,
+  JourneyValidation,
+  JourneyVersionDto,
   JourneyVersionSummaryDto,
   AgentNodeStatsDto,
   JourneyApprovalDto,
@@ -141,6 +145,7 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
   const [graphOf, setGraphOf] = useState<'live' | 'draft'>('live');
   const [publishing, setPublishing] = useState<number | null>(publishVersion ?? null);
   const [traceId, setTraceId] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const confirm = useConfirm();
 
@@ -168,6 +173,30 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
   useEffect(() => {
     void tryLoad();
   }, [tryLoad]);
+
+  function editDraft(change: DraftEdit, ifSpecHash: string): Promise<JourneyVersionDto> {
+    const base = `/v1/journeys/${id}/draft/nodes`;
+    if (change.kind === 'updateNode') {
+      return api<JourneyVersionDto>(`${base}/${encodeURIComponent(change.node.id)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ node: change.node, ifSpecHash }),
+      });
+    }
+    if (change.kind === 'addNode') {
+      return api<JourneyVersionDto>(base, {
+        method: 'POST',
+        body: JSON.stringify({ node: change.node, after: change.after, ifSpecHash }),
+      });
+    }
+    return api<JourneyVersionDto>(
+      `${base}/${encodeURIComponent(change.nodeId)}?ifSpecHash=${encodeURIComponent(ifSpecHash)}`,
+      { method: 'DELETE' },
+    );
+  }
+
+  function validateVersion(versionNumber: number): Promise<JourneyValidation> {
+    return api<JourneyValidation>(`/v1/journeys/${id}/versions/${versionNumber}/validate`, { method: 'POST' });
+  }
 
   async function lifecycle(action: 'pause' | 'resume') {
     setBusy(true);
@@ -336,6 +365,29 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
         </TabsList>
 
         <TabsPanel value="graph">
+          {journey.status !== 'archived' && (journey.draft ?? journey.live) && (
+            <div className="mb-3 flex justify-end">
+              <Button
+                size="sm"
+                variant={editing ? 'accent' : 'outline'}
+                onClick={() => {
+                  if (editing) void load();
+                  setEditing(!editing);
+                }}
+              >
+                {t(editing ? 'doneEditing' : 'editDraft')}
+              </Button>
+            </div>
+          )}
+          {editing && (journey.draft ?? journey.live) ? (
+            <DraftEditor
+              version={(journey.draft ?? journey.live)!}
+              edit={editDraft}
+              validate={validateVersion}
+              onStale={() => void load()}
+            />
+          ) : (
+          <>
           {journey.live && journey.draft && (
             <div className="mb-3 flex gap-2">
               {(['live', 'draft'] as const).map((which) => (
@@ -369,6 +421,8 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
                 </li>
               ))}
             </ul>
+          )}
+          </>
           )}
         </TabsPanel>
 

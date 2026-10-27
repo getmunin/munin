@@ -235,8 +235,13 @@ const skipReason = TEST_URL
       }),
     );
 
-    expect(result).toEqual({ action: 'filled', contactId: existing.id, fields: ['name', 'title'] });
+    expect(result).toEqual({
+      action: 'filled',
+      contactId: existing.id,
+      fields: ['endUserId', 'name', 'title'],
+    });
     const after = await reload(existing.id);
+    expect(after.endUserId).toBe(sender);
     expect(after.name).toBe('Ola Nordmann');
     expect(after.title).toBe('CTO');
     expect(after.phone).toBe('+4701110000');

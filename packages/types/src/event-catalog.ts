@@ -94,6 +94,8 @@ export const SYSTEM_EVENT_TYPES = [
   'curator_job.pending',
 ] as const;
 
+export const ANALYTICS_EVENT_TYPES = ['analytics.product_event.recorded'] as const;
+
 export const EVENT_TYPES_BY_MODULE = {
   cms: CMS_EVENT_TYPES,
   crm: CRM_EVENT_TYPES,
@@ -103,6 +105,7 @@ export const EVENT_TYPES_BY_MODULE = {
   social: SOCIAL_EVENT_TYPES,
   feedback: FEEDBACK_EVENT_TYPES,
   system: SYSTEM_EVENT_TYPES,
+  analytics: ANALYTICS_EVENT_TYPES,
 } as const;
 
 export const KNOWN_EVENT_TYPES = [
@@ -114,6 +117,7 @@ export const KNOWN_EVENT_TYPES = [
   ...SOCIAL_EVENT_TYPES,
   ...FEEDBACK_EVENT_TYPES,
   ...SYSTEM_EVENT_TYPES,
+  ...ANALYTICS_EVENT_TYPES,
 ] as const;
 
 export type KnownEventType = (typeof KNOWN_EVENT_TYPES)[number];

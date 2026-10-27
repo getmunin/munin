@@ -38,11 +38,11 @@
   "dependencies": {
     "@getmunin/core": "workspace:*",
     "@getmunin/types": "workspace:*",
-    "@modelcontextprotocol/client": "2.2.0",
+    "@modelcontextprotocol/client": "2.3.0",
     "defuddle": "^0.19.3",
     "jsdom": "^24.1.3",
     "ws": "^8.21.3",
-    "zod": "^4.5.4"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@getmunin/eslint-config": "workspace:*",
@@ -51,6 +51,6 @@
     "@types/ws": "^8.18.1",
     "eslint": "^9.39.5",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   }
 }

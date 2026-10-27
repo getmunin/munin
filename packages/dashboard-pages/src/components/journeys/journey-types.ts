@@ -113,7 +113,9 @@ export interface SimulationDto {
     nodeId: string;
     contactId: string;
     contactName: string | null;
-    subject: string;
+    channel?: 'email' | 'sms';
+    subject: string | null;
+    body?: string;
     decision: string;
     reason: string | null;
     html?: string;

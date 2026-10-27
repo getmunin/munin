@@ -1396,6 +1396,7 @@
         "assumeNoEvent": "Antar at {event} ikke kommer innen {timeout} ved «{node}».",
         "sample": "Eksempel: {subject} — til {name}",
         "sampleFrame": "Rendret eksempel-e-post",
+        "smsSample": "SMS-eksempel — til {name}",
         "cancel": "Avbryt",
         "confirm": "Publiser v{version}",
         "published": "Versjon {version} er aktiv.",

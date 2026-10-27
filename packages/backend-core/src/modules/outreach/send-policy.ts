@@ -7,6 +7,7 @@ import { nextValidTime } from '../journeys/journey-time.ts';
 export type MessageClass = (typeof MESSAGE_CLASSES)[number];
 
 export interface SendPolicy {
+  channel?: 'email' | 'sms';
   class: MessageClass;
   timezone?: string;
   quietHours?: string;
@@ -37,6 +38,7 @@ export async function checkSendPolicy(input: {
     .select({
       id: c.id,
       email: c.email,
+      phone: c.phone,
       endUserId: c.endUserId,
       doNotContact: c.doNotContact,
       unsubscribedAt: c.unsubscribedAt,
@@ -48,23 +50,26 @@ export async function checkSendPolicy(input: {
     .limit(1);
   if (!contact) return { decision: 'skip', reason: 'contact_missing' };
   if (contact.doNotContact) return { decision: 'skip', reason: 'do_not_contact' };
-  if (!contact.email) return { decision: 'skip', reason: 'no_email' };
+  const sms = policy.channel === 'sms';
+  if (sms ? !contact.phone : !contact.email) return { decision: 'skip', reason: sms ? 'no_phone' : 'no_email' };
   if (policy.class === 'marketing') {
     if (contact.unsubscribedAt) return { decision: 'skip', reason: 'unsubscribed' };
     if (!contact.consentLawfulBasis) return { decision: 'skip', reason: 'no_lawful_basis' };
   }
 
-  const [deliverability] = await ctx.db
-    .select({ state: schema.crmAddressDeliverability.state })
-    .from(schema.crmAddressDeliverability)
-    .where(
-      and(
-        eq(schema.crmAddressDeliverability.orgId, orgId),
-        sql`lower(${schema.crmAddressDeliverability.address}) = ${contact.email.toLowerCase()}`,
-      ),
-    )
-    .limit(1);
-  if (deliverability?.state === 'undeliverable') return { decision: 'skip', reason: 'undeliverable' };
+  if (contact.email && !sms) {
+    const [deliverability] = await ctx.db
+      .select({ state: schema.crmAddressDeliverability.state })
+      .from(schema.crmAddressDeliverability)
+      .where(
+        and(
+          eq(schema.crmAddressDeliverability.orgId, orgId),
+          sql`lower(${schema.crmAddressDeliverability.address}) = ${contact.email.toLowerCase()}`,
+        ),
+      )
+      .limit(1);
+    if (deliverability?.state === 'undeliverable') return { decision: 'skip', reason: 'undeliverable' };
+  }
 
   if (policy.class === 'marketing') {
     const cap = await frequencyCapUntil(contact.id, policy.frequencyCapPerWeek, now);

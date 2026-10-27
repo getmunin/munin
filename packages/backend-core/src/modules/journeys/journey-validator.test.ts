@@ -5,6 +5,7 @@ import { parseJourneySpec, validateJourneySpec, type JourneyReferences } from '.
 const refs: JourneyReferences = {
   segmentIds: new Set(['seg_trial']),
   emailTemplateIds: new Set(['tpl_brand']),
+  smsChannelIds: new Set(['ch_sms']),
   webhookIds: new Set(['whk_crm']),
 };
 
@@ -145,5 +146,31 @@ describe('journey validator', () => {
     expect(parseIsoDurationMs('PT2H30M')).toBe(150 * 60_000);
     expect(parseIsoDurationMs('P1W')).toBe(7 * 86_400_000);
     expect(parseIsoDurationMs('5 days')).toBeNull();
+  });
+
+  it('keeps SMS steps short, plain and approved by a person, with an SMS channel to send from', () => {
+    const sms = (extra: Record<string, unknown> = {}) =>
+      ({ id: 'sms', type: 'message', channel: 'sms', content: { body: 'Hei!' }, next: 'done', ...extra });
+    const spec = (node: Record<string, unknown>, smsChannelId?: string) =>
+      parseJourneySpec({
+        entry: { trigger: { type: 'manual' } },
+        goal: { event: 'subscription.started', windowDays: 30 },
+        settings: smsChannelId ? { smsChannelId } : {},
+        start: 'sms',
+        nodes: [node, { id: 'done', type: 'exit' }],
+      }).spec!;
+    const codes = (node: Record<string, unknown>, smsChannelId?: string) =>
+      validateJourneySpec(spec(node, smsChannelId), refs).errors.map((e) => e.code);
+
+    expect(codes(sms(), 'ch_sms')).toEqual([]);
+    expect(codes(sms())).toEqual(['sms_channel']);
+    expect(codes(sms(), 'ch_mail')).toEqual(['sms_channel']);
+    expect(codes(sms({ approval: 'auto' }), 'ch_sms')).toEqual(['sms_auto']);
+    expect(codes(sms({ content: { subject: 'Hei', body: 'Hei!' } }), 'ch_sms')).toEqual(['sms_content']);
+    expect(codes(sms({ content: { body: 'x'.repeat(481) } }), 'ch_sms')).toEqual(['sms_length']);
+    expect(codes(sms({ draftBy: 'agent', brief: 'remind' }), 'ch_sms')).toEqual(['sms_agent_draft']);
+    expect(codes({ id: 'sms', type: 'message', channel: 'email', content: { body: 'Hei!' }, next: 'done' })).toEqual([
+      'missing_subject',
+    ]);
   });
 });

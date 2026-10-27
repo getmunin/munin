@@ -71,3 +71,38 @@ export function nextLocalOccurrence(now: Date, at: string, timezone: string, wee
   }
   return candidate;
 }
+
+const NAIVE_LOCAL_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/;
+
+export function parseZonedDate(value: unknown, timezone: string): Date | null {
+  if (value instanceof Date) return value;
+  if (typeof value !== 'string') return null;
+  if (!NAIVE_LOCAL_TIME.test(value)) {
+    const t = Date.parse(value);
+    return Number.isNaN(t) ? null : new Date(t);
+  }
+  const asUtc = Date.parse(`${value}Z`);
+  if (Number.isNaN(asUtc)) return null;
+  const first = asUtc - zoneOffsetMs(asUtc, timezone);
+  return new Date(asUtc - zoneOffsetMs(first, timezone));
+}
+
+function zoneOffsetMs(at: number, timezone: string): number {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+      .formatToParts(new Date(at))
+      .map((p) => [p.type, p.value]),
+  );
+  const wall = Date.UTC(+parts.year!, +parts.month! - 1, +parts.day!, +parts.hour!, +parts.minute!, +parts.second!);
+  return wall - Math.floor(at / 1000) * 1000;
+}
+

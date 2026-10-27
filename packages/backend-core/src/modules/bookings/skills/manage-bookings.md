@@ -50,3 +50,5 @@ When you hit `connectors_sender_auth_failed` or `connectors_sender_forwarded`, d
 ## Care with writes
 
 Creating, modifying, and cancelling change the restaurant's live reservation system and (cancel especially) cannot be undone. Confirm the specifics with the guest — date, time, party size, which booking — before you call a write tool, and read back the result.
+
+Every successful create, change or cancel that knows the guest's email is also recorded as a `booking.created`, `booking.updated` or `booking.cancelled` event on the guest's contact, so journeys can send a reminder or a thank-you. An admin change or cancel without `email` is carried out but recorded as no event, because there is no guest to attach it to — pass the guest's email when you have it.

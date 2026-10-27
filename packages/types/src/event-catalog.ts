@@ -101,6 +101,10 @@ export const JOURNEY_EVENT_TYPES = [
   'journey.paused',
   'journey.resumed',
   'journey.archived',
+  'journey.enrolled',
+  'journey.goal.reached',
+  'journey.exited',
+  'journey.action.webhook',
 ] as const;
 
 export const ANALYTICS_EVENT_TYPES = ['analytics.product_event.recorded'] as const;

@@ -43,6 +43,8 @@ const TITLE_WORDS_BY_VERB: Record<string, readonly string[]> = {
   delete: ['delete'],
   disconnect: ['disconnect'],
   dismiss: ['dismiss'],
+  eject: ['eject'],
+  enroll: ['enroll'],
   export: ['export'],
   get: ['get', 'read'],
   import: ['import'],

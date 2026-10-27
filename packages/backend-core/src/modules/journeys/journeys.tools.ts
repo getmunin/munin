@@ -8,6 +8,7 @@ import {
   RESERVED_JOURNEY_NODE_TYPES,
 } from '@getmunin/types';
 import { JOURNEY_STATUSES, JourneysService } from './journeys.service.ts';
+import { ENROLLMENT_STATES, JourneyRuntimeService, type EnrollmentState } from './journey-runtime.service.ts';
 
 const Id = z.string().min(1).max(64);
 const NodeIdInput = z.string().regex(/^[a-z][a-z0-9_]{0,47}$/);
@@ -67,7 +68,88 @@ const JourneyIdInput = z.object({ journeyId: Id });
 
 @Injectable()
 export class JourneysTools {
-  constructor(@Inject(JourneysService) private readonly journeys: JourneysService) {}
+  constructor(
+    @Inject(JourneysService) private readonly journeys: JourneysService,
+    @Inject(JourneyRuntimeService) private readonly runtime: JourneyRuntimeService,
+  ) {}
+
+  @McpTool({
+    name: 'journeys_list_enrollments',
+    title: 'Journeys: List enrollments',
+    description:
+      'List the people in a journey, newest first: which version they entered, where they are now, whether they are in the holdout, and why they left if they did. Filter by state or contact.',
+    audiences: ['admin'],
+    scopes: ['journeys:read'],
+    input: JourneyIdInput.extend({
+      state: z.enum(ENROLLMENT_STATES).optional(),
+      contactId: Id.optional(),
+      limit: z.number().int().min(1).max(200).optional(),
+    }),
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  listEnrollments(args: { journeyId: string; state?: EnrollmentState; contactId?: string; limit?: number }) {
+    return this.runtime.listEnrollments(args);
+  }
+
+  @McpTool({
+    name: 'journeys_get_trace',
+    title: 'Journeys: Get an enrollment trace',
+    description:
+      'The full step log for one person in one journey: every node visited, the edge taken and why, action results, retries, and what the run is waiting for now.',
+    audiences: ['admin'],
+    scopes: ['journeys:read'],
+    input: z.object({ enrollmentId: Id }),
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getTrace(args: { enrollmentId: string }) {
+    return this.runtime.getTrace(args.enrollmentId);
+  }
+
+  @McpTool({
+    name: 'journeys_enroll',
+    title: 'Journeys: Enroll a person',
+    description:
+      'Put one contact or end user into a live journey now, as if its trigger fired. The entry segment, re-entry policy and holdout still apply; the result says whether they entered and, if not, why.',
+    audiences: ['admin'],
+    scopes: ['journeys:write'],
+    input: JourneyIdInput.extend({
+      contactId: Id.optional(),
+      endUserId: Id.optional(),
+      context: z.record(z.string(), z.unknown()).optional(),
+    }),
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  enroll(args: { journeyId: string; contactId?: string; endUserId?: string; context?: Record<string, unknown> }) {
+    if (!args.contactId && !args.endUserId) {
+      throw new BadRequestException('journeys_invalid: pass contactId or endUserId');
+    }
+    return this.runtime.enroll({
+      journeyId: args.journeyId,
+      subject: { contactId: args.contactId ?? null, endUserId: args.endUserId ?? null },
+      source: { type: 'manual' },
+      context: args.context,
+    });
+  }
+
+  @McpTool({
+    name: 'journeys_eject',
+    title: 'Journeys: Eject a person from a journey',
+    description: 'End one person\'s run in a journey now. Their open waits are cancelled and the exit is logged with the reason.',
+    audiences: ['admin'],
+    scopes: ['journeys:write'],
+    input: z.object({
+      enrollmentId: Id,
+      reason: z.string().regex(/^[a-z][a-z0-9_]{0,47}$/).optional(),
+    }),
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  eject(args: { enrollmentId: string; reason?: string }) {
+    return this.runtime.eject(args.enrollmentId, args.reason ?? 'ejected');
+  }
 
   @McpTool({
     name: 'journeys_list_node_types',

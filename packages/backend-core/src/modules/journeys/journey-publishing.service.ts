@@ -45,6 +45,7 @@ export interface JourneyReportDto {
   };
   nodes: { nodeId: string; nodeType: string; arrived: number; waitingNow: number; failed: number; edges: Record<string, number> }[];
   messages: Record<string, Record<string, number>>;
+  integrity: { duplicateSends: number; enrollmentsWithoutTrace: number };
 }
 
 @Injectable()
@@ -241,9 +242,37 @@ export class JourneyPublishingService {
       (messages[row.node_id] ??= {})[row.status] = Number(row.n);
     }
 
+    const [duplicates] = rowsOf(
+      await ctx.db.execute(sql`
+        SELECT count(*)::int AS n FROM (
+          SELECT m.metadata->>'journeyStepRunId' AS step_run_id
+            FROM conv_messages m
+            JOIN journey_step_runs s ON s.id = m.metadata->>'journeyStepRunId'
+            JOIN journey_enrollments en ON en.id = s.enrollment_id
+           WHERE en.journey_id = ${journeyId} ${version ? sql`AND en.version = ${version}` : sql``}
+           GROUP BY 1
+          HAVING count(*) > 1
+        ) d
+      `),
+    ) as { n: number }[];
+    const [untraced] = rowsOf(
+      await ctx.db.execute(sql`
+        SELECT count(*)::int AS n
+          FROM journey_enrollments en
+         WHERE en.journey_id = ${journeyId} ${versionFilter}
+           AND en.holdout = false
+           AND en.entered_at < now() - interval '5 minutes'
+           AND NOT EXISTS (SELECT 1 FROM journey_step_runs s WHERE s.enrollment_id = en.id)
+      `),
+    ) as { n: number }[];
+
     return {
       journeyId,
       version: version ?? journey.liveVersion,
+      integrity: {
+        duplicateSends: Number(duplicates?.n ?? 0),
+        enrollmentsWithoutTrace: Number(untraced?.n ?? 0),
+      },
       enrollments: { total, byState, exitReasons },
       goal: {
         treated,

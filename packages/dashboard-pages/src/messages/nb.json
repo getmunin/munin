@@ -1349,7 +1349,10 @@
         "node": "Steg",
         "arrived": "Ankommet",
         "waiting": "Venter",
-        "edges": "Veier og e-poster"
+        "edges": "Veier og e-poster",
+        "integrity": "Kjøreintegritet",
+        "duplicateSends": "Steg som sendte to ganger",
+        "untraced": "Personer uten loggført steg"
       },
       "versions": {
         "published": "Publisert {at}",
@@ -1378,7 +1381,9 @@
         "excluded": "holdt utenfor · {reason}",
         "exit": "avslutning · {reason}",
         "email": "{node} · {decision}",
-        "assumes": "Forutsetning: {assumption}.",
+        "assumeApproved": "Antar at en person godkjenner «{node}».",
+        "assumeNoReply": "Antar at ingen svarer på «{node}».",
+        "assumeNoEvent": "Antar at {event} ikke kommer innen {timeout} ved «{node}».",
         "sample": "Eksempel: {subject} — til {name}",
         "sampleFrame": "Rendret eksempel-e-post",
         "cancel": "Avbryt",

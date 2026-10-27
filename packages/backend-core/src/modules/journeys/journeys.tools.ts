@@ -122,7 +122,7 @@ export class JourneysTools {
     name: 'journeys_get_report',
     title: 'Journeys: Get a journey report',
     description:
-      'Results for a journey (the live version by default, or one version): enrollments by state and exit reason, goal conversion for the treated group against the holdout and the difference between them, arrivals, waiting counts and edge distribution per node, and the outcome of each email step.',
+      'Results for a journey (the live version by default, or one version): enrollments by state and exit reason, goal conversion for the treated group against the holdout and the difference between them, arrivals, waiting counts and edge distribution per node, and the outcome of each email step, plus run integrity: steps that sent more than one email and people with no logged step (both should stay at zero).',
     audiences: ['admin'],
     scopes: ['journeys:read'],
     input: JourneyIdInput.extend({ version: z.number().int().min(1).optional() }),

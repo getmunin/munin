@@ -424,6 +424,13 @@ function ReportView({ report }: { report: JourneyReportDto }) {
         </dl>
       </section>
       <section>
+        <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('integrity')}</h3>
+        <dl className="mt-2 grid grid-cols-2 gap-y-1 text-sm">
+          <StatRow label={t('duplicateSends')} value={report.integrity.duplicateSends} />
+          <StatRow label={t('untraced')} value={report.integrity.enrollmentsWithoutTrace} />
+        </dl>
+      </section>
+      <section>
         <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">
           {t('enrollments', { total: report.enrollments.total })}
         </h3>

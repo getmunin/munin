@@ -53,7 +53,7 @@ const NO_SYNTHETIC_FNR = '01819012365';
     webhooks.registerSink(new JourneyEventSink());
     const crm = new CrmService(webhooks, new DefaultQuotasService(), new AddressDeliverabilityService());
     journeys = new JourneysService(webhooks);
-    runtime = new JourneyRuntimeService(webhooks, crm, {} as never, new CuratorJobsService(webhooks));
+    runtime = new JourneyRuntimeService(webhooks, crm, { withdrawJourneyProposals: () => Promise.resolve(0) } as never, new CuratorJobsService(webhooks));
     worker = new JourneyRuntimeWorker(appDb, runtime);
     simulator = new JourneySimulator(runtime);
     publishing = new JourneyPublishingService(webhooks, journeys, simulator);
@@ -274,7 +274,7 @@ const NO_SYNTHETIC_FNR = '01819012365';
       .update(schema.journeyVersions)
       .set({ spec: stopSpec })
       .where(and(eq(schema.journeyVersions.journeyId, (await db.select().from(schema.journeyEnrollments).where(eq(schema.journeyEnrollments.id, enrollmentId)))[0]!.journeyId), eq(schema.journeyVersions.number, 1)));
-    const freshRuntime = new JourneyRuntimeService(new WebhookDispatcher(), {} as never, {} as never, new CuratorJobsService(new WebhookDispatcher()));
+    const freshRuntime = new JourneyRuntimeService(new WebhookDispatcher(), {} as never, { withdrawJourneyProposals: () => Promise.resolve(0) } as never, new CuratorJobsService(new WebhookDispatcher()));
     await runAs(curator, () => freshRuntime.submitDecision({ stepRunId: step.id, edge: 'stop', reason: 'Asked us to stop' }));
     await new JourneyRuntimeWorker(appDb, freshRuntime).tick();
 

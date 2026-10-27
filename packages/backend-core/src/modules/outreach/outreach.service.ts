@@ -61,6 +61,7 @@ import {
   type OutreachVoiceCaller,
 } from '../conv/channels/outreach-voice.ts';
 import { draftFingerprint } from './proposal-fingerprint.ts';
+import { emailTemplateHash } from './email-template-hash.ts';
 import { checkSendPolicy, type SendDecision, type SendPolicy } from './send-policy.ts';
 import { buildProposalDeltaCurationPrompt } from './curation-job.ts';
 import {
@@ -1055,6 +1056,7 @@ export class OutreachService {
     this.assertHumanApprovalAllowed(proposal, actor);
     let sendAt = resolveAuthorizedSendAt(proposal, opts.sendAt);
     if (proposal.kind === 'journey') {
+      await this.assertJourneyRunOpen(proposal);
       const decision = await this.journeySendDecision(proposal, sendAt ?? new Date());
       if (decision.decision === 'skip') {
         throw new OutreachInvalidError(
@@ -1099,6 +1101,10 @@ export class OutreachService {
       return { outcome: 'deferred', proposal, reason: closed };
     }
     if (proposal.kind === 'journey') {
+      await this.assertJourneyRunOpen(proposal);
+      if (proposal.decidedByActorType !== 'user' && (await this.journeyTemplateDrifted(proposal))) {
+        return { outcome: 'skipped', proposal: await this.backToReview(proposal) };
+      }
       const decision = await this.journeySendDecision(proposal, new Date());
       if (decision.decision === 'skip') {
         throw new OutreachInvalidError(
@@ -1750,6 +1756,7 @@ export class OutreachService {
       body: string;
       format: 'markdown' | 'mjml';
       templateId?: string;
+      templateHash?: string | null;
       preheader?: string;
       policy: SendPolicy;
       auto: boolean;
@@ -1801,6 +1808,7 @@ export class OutreachService {
             channel: input.channel,
             format: input.format,
             templateId: input.templateId ?? null,
+            templateHash: input.templateHash ?? null,
             preheader: input.preheader ?? null,
             policy: input.policy,
             auto: input.auto,
@@ -1825,6 +1833,7 @@ export class OutreachService {
     });
     const proposal = await this.getProposal(row!.id);
     if (!input.auto) return proposal;
+    if (await this.journeyTemplateDrifted(proposal)) return proposal;
 
     const decision = await this.journeySendDecision(proposal, new Date());
     if (decision.decision === 'skip') {
@@ -1849,6 +1858,70 @@ export class OutreachService {
     }
     const decided = await this.stampApproval(proposal, actor, null);
     return this.deliverProposal(decided, senderFor(actor), opts.publicBaseUrl);
+  }
+
+  async withdrawJourneyProposals(enrollmentId: string, reason: string): Promise<number> {
+    const ctx = getCurrentContext();
+    const p = schema.outreachProposals;
+    const rows = await ctx.db
+      .update(p)
+      .set({ status: 'withdrawn', withdrawReason: reason, scheduledSendAt: null, updatedAt: new Date() })
+      .where(and(eq(p.journeyEnrollmentId, enrollmentId), inArray(p.status, ['pending', 'approved'])))
+      .returning({ id: p.id, campaignId: p.campaignId, contactId: p.contactId });
+    for (const row of rows) {
+      await this.webhooks.emit({
+        type: 'outreach.proposal.withdrawn',
+        payload: { proposalId: row.id, campaignId: row.campaignId, contactId: row.contactId, kind: 'journey', reason },
+      });
+    }
+    return rows.length;
+  }
+
+  private async assertJourneyRunOpen(proposal: ProposalDto): Promise<void> {
+    const enrollmentId = typeof proposal.evidence.enrollmentId === 'string' ? proposal.evidence.enrollmentId : null;
+    const ctx = getCurrentContext();
+    const [run] = enrollmentId
+      ? await ctx.db
+          .select({ state: schema.journeyEnrollments.state, journeyStatus: schema.journeys.status })
+          .from(schema.journeyEnrollments)
+          .innerJoin(schema.journeys, eq(schema.journeys.id, schema.journeyEnrollments.journeyId))
+          .where(eq(schema.journeyEnrollments.id, enrollmentId))
+          .limit(1)
+      : [];
+    if (!run || !['active', 'waiting'].includes(run.state) || run.journeyStatus !== 'live') {
+      throw new OutreachInvalidError(
+        `proposal ${proposal.id} belongs to a journey run that is no longer running, so it cannot be sent`,
+        'outreach_journey_ended',
+      );
+    }
+  }
+
+  private async journeyTemplateDrifted(proposal: ProposalDto): Promise<boolean> {
+    const meta = journeyMessageMeta(proposal);
+    if (meta.channel !== 'email') return false;
+    const pinned = (proposal.evidence.journeyMessage as { templateHash?: unknown } | undefined)?.templateHash;
+    if (typeof pinned !== 'string') return true;
+    return (await emailTemplateHash(meta.templateId)) !== pinned;
+  }
+
+  private async backToReview(proposal: ProposalDto): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    await ctx.db
+      .update(schema.outreachProposals)
+      .set({
+        status: 'pending',
+        decidedAt: null,
+        decidedByActorId: null,
+        decidedByActorType: null,
+        scheduledSendAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.outreachProposals.id, proposal.id));
+    await this.webhooks.emit({
+      type: 'outreach.proposal.updated',
+      payload: { proposalId: proposal.id, campaignId: proposal.campaignId, contactId: proposal.contactId, kind: 'journey', reason: 'template_changed' },
+    });
+    return this.getProposal(proposal.id);
   }
 
   private async journeySendDecision(proposal: ProposalDto, at: Date): Promise<SendDecision> {
@@ -1900,14 +1973,12 @@ export class OutreachService {
       throw new OutreachInvalidError(`contact ${contact.id} has no email — cannot send`);
     }
 
-    const unsubscribeUrl = marketing
-      ? buildUnsubscribeUrl({
-          publicBaseUrl,
-          orgId: actor.orgId,
-          contactId: contact.id,
-          campaignId: campaign.id,
-        })
-      : null;
+    const unsubscribeUrl = buildUnsubscribeUrl({
+      publicBaseUrl,
+      orgId: actor.orgId,
+      contactId: contact.id,
+      campaignId: campaign.id,
+    });
     const { renderEmail, BUILT_IN_EMAIL_TEMPLATE } = await import('./email-template-render.ts');
     const mjml = await this.journeyTemplateMjml(meta.templateId, BUILT_IN_EMAIL_TEMPLATE);
     const [org] = await ctx.db
@@ -1929,7 +2000,7 @@ export class OutreachService {
     const enrollmentId = (proposal.evidence.enrollmentId as string | undefined) ?? null;
     const messageMetadata = {
       journeyStepRunId: (proposal.evidence.stepRunId as string | undefined) ?? null,
-      ...(unsubscribeUrl ? { listUnsubscribeUrl: unsubscribeUrl } : {}),
+      ...(marketing ? { listUnsubscribeUrl: unsubscribeUrl } : {}),
     };
     const approvedByPerson = proposal.decidedByActorType === 'user' ? proposal.id : undefined;
 
@@ -2032,7 +2103,7 @@ export class OutreachService {
     });
     const enrollmentId = (proposal.evidence.enrollmentId as string | undefined) ?? null;
     const messageMetadata = { journeyStepRunId: (proposal.evidence.stepRunId as string | undefined) ?? null };
-    const threadId = enrollmentId ? await this.journeySmsThread(enrollmentId, channelId) : null;
+    const threadId = await this.journeySmsThread(proposal.contactId, channelId);
     let conversationId: string;
     let messageId: string | null;
     if (threadId) {
@@ -2119,7 +2190,7 @@ export class OutreachService {
     return this.deliverInitialVoice(proposal, campaign, contact, channel);
   }
 
-  private async journeySmsThread(enrollmentId: string, channelId: string): Promise<string | null> {
+  private async journeySmsThread(contactId: string, channelId: string): Promise<string | null> {
     const ctx = getCurrentContext();
     const p = schema.outreachProposals;
     const [row] = await ctx.db
@@ -2127,7 +2198,8 @@ export class OutreachService {
       .from(p)
       .where(
         and(
-          eq(p.journeyEnrollmentId, enrollmentId),
+          eq(p.contactId, contactId),
+          eq(p.kind, 'journey'),
           eq(p.channelId, channelId),
           eq(p.status, 'sent'),
           isNotNull(p.conversationId),
@@ -2713,6 +2785,11 @@ export class OutreachService {
     ]);
 
     for (const proposal of data.proposals) {
+      if (proposal.kind === 'journey') {
+        result.warnings.push(`proposal ${proposal.id} skipped: journey proposals belong to a journey run and are never imported`);
+        result.skipped++;
+        continue;
+      }
       const campaignId = resolveId(result.idMap, proposal.campaignId);
       const contactId = resolveId(result.idMap, proposal.contactId);
       if (!campaignId || !contactId) {

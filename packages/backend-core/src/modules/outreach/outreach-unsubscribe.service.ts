@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { schema, type Db } from '@getmunin/db';
@@ -34,6 +34,7 @@ interface ContactRow {
 
 @Injectable()
 export class OutreachUnsubscribeService {
+  private readonly logger = new Logger(OutreachUnsubscribeService.name);
   constructor(
     @Inject(DB) private readonly db: Db,
     @Inject(WebhookDispatcher) private readonly webhooks: Pick<WebhookDispatcher, 'emit'>,
@@ -101,7 +102,8 @@ export class OutreachUnsubscribeService {
       },
     });
     const actor = new ActorIdentity('system', 'outreach-unsubscribe', payload.orgId, ['*'], ['admin']);
-    await this.db.transaction(async (tx) => {
+    await this.db
+      .transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
       await withContext({ db: tx, actor, correlationId: randomUUID() }, () =>
         this.webhooks.emit({
@@ -113,7 +115,10 @@ export class OutreachUnsubscribeService {
           },
         }),
       );
-    });
+      })
+      .catch((err: unknown) => {
+        this.logger.warn(`unsubscribe event for contact ${payload.contactId} not emitted: ${err instanceof Error ? err.message : String(err)}`);
+      });
     return { state: 'unsubscribed', orgName, alreadyUnsubscribed: false };
   }
 

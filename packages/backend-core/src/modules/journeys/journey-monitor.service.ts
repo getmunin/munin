@@ -147,10 +147,12 @@ export class JourneyMonitorService {
       WITH sent AS (
         SELECT p.contact_id,
                p.conversation_id,
+               lower(btrim(c.email)) AS email,
                p.sent_at,
                s.node_id,
                lead(p.sent_at) OVER (PARTITION BY p.contact_id ORDER BY p.sent_at) AS next_sent_at
           FROM outreach_proposals p
+          LEFT JOIN crm_contacts c ON c.id = p.contact_id
           JOIN journey_step_runs s ON s.id = p.journey_step_run_id
           JOIN journey_enrollments en ON en.id = s.enrollment_id
          WHERE en.journey_id = ${journeyId}
@@ -164,7 +166,7 @@ export class JourneyMonitorService {
                  SELECT 1 FROM events ev
                   WHERE ev.org_id = ${orgId}
                     AND ev.type = 'conversation.message.bounced'
-                    AND ev.payload->>'conversationId' = sent.conversation_id
+                    AND (ev.payload->>'conversationId' = sent.conversation_id OR ev.payload->>'address' = sent.email)
                     AND ev.created_at >= sent.sent_at
                     AND (sent.next_sent_at IS NULL OR ev.created_at < sent.next_sent_at)
                ))::int AS bounces,

@@ -15,12 +15,18 @@ import type {
   BookingSummary,
   BookingUpdateInput,
 } from './booking-adapter.ts';
+import { BookingEventsService } from './booking-events.service.ts';
+
+type BookingEventRecorder = Pick<BookingEventsService, 'record'>;
 
 const GUEST_BOOKINGS_PER_CONVERSATION = 3;
 
 @Injectable()
 export class BookingsService {
-  constructor(@Inject(ConnectorsService) private readonly connectors: ConnectorsService) {}
+  constructor(
+    @Inject(ConnectorsService) private readonly connectors: ConnectorsService,
+    @Inject(BookingEventsService) private readonly events: BookingEventRecorder,
+  ) {}
 
   private async bookingScope(connectionId?: string) {
     const scope = await this.connectors.resolveScope('bookings', connectionId);
@@ -144,7 +150,9 @@ export class BookingsService {
           adapter.getBookingForGuest(ctx, { email, bookingRef }),
         )
       : null;
-    return { connection: connectionSummary(scope.connection), bookingRef, booking };
+    const connection = connectionSummary(scope.connection);
+    await this.events.record({ name: 'booking.created', email, connectionId: connection.id, vendor: connection.vendor, bookingRef, booking });
+    return { connection, bookingRef, booking };
   }
 
   async updateBooking(args: {
@@ -168,7 +176,22 @@ export class BookingsService {
         note: args.note,
       }),
     );
-    return { connection: connectionSummary(scope.connection), updated: true, bookingRef: args.bookingRef };
+    const connection = connectionSummary(scope.connection);
+    if (args.email) {
+      const email = normalizeEmail(args.email);
+      const booking = await this.connectors
+        .vendorCall(() => adapter.getBookingForGuest(ctx, { email, bookingRef: args.bookingRef }))
+        .catch(() => null);
+      await this.events.record({
+        name: 'booking.updated',
+        email,
+        connectionId: connection.id,
+        vendor: connection.vendor,
+        bookingRef: args.bookingRef,
+        booking,
+      });
+    }
+    return { connection, updated: true, bookingRef: args.bookingRef };
   }
 
   async cancelBooking(args: {
@@ -182,11 +205,22 @@ export class BookingsService {
         'bookings_invalid: this connection does not support cancelling bookings',
       );
     }
-    if (args.email) await this.assertOwned(adapter, ctx, args.email, args.bookingRef);
+    const before = args.email ? await this.assertOwned(adapter, ctx, args.email, args.bookingRef) : null;
     await this.connectors.vendorCall(() =>
       adapter.cancelBooking!(ctx, { bookingRef: args.bookingRef }),
     );
-    return { connection: connectionSummary(scope.connection), cancelled: true, bookingRef: args.bookingRef };
+    const connection = connectionSummary(scope.connection);
+    if (args.email) {
+      await this.events.record({
+        name: 'booking.cancelled',
+        email: normalizeEmail(args.email),
+        connectionId: connection.id,
+        vendor: connection.vendor,
+        bookingRef: args.bookingRef,
+        booking: before,
+      });
+    }
+    return { connection, cancelled: true, bookingRef: args.bookingRef };
   }
 
   async createMyBooking(args: {
@@ -315,12 +349,13 @@ export class BookingsService {
     ctx: ReturnType<ConnectorsService['connectionContext']>,
     email: string,
     bookingRef: string,
-  ): Promise<void> {
+  ): Promise<BookingDetail> {
     const booking = await this.connectors.vendorCall(() =>
       adapter.getBookingForGuest(ctx, { email: normalizeEmail(email), bookingRef }),
     );
     if (!booking) {
       throw new NotFoundException('bookings_not_found: no such booking for that guest');
     }
+    return booking;
   }
 }

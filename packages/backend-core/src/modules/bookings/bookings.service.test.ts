@@ -9,6 +9,7 @@ import { ConnectorRegistry } from '../connectors/connector.ts';
 import type { ConnectorFetch } from '../connectors/http.ts';
 import { GastroplannerAdapter } from './gastroplanner.adapter.ts';
 import { BookingsService } from './bookings.service.ts';
+import type { BookingEventInput } from './booking-events.service.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -32,6 +33,7 @@ const skipReason = TEST_URL
   let emailChannelId: string;
   let voiceChannelId: string;
   let displayId = 0;
+  const recorded: BookingEventInput[] = [];
 
   type SeedMessage =
     | { author: 'end_user'; contactId: string; senderAuth?: string; provenEmail?: string }
@@ -216,7 +218,7 @@ const skipReason = TEST_URL
     assertedEndUserActor = writerFor(olaEndUserId, olaForgedConversationId);
 
     connectors = new ConnectorsService(new ConnectorRegistry([new GastroplannerAdapter(stubFetch)]));
-    bookings = new BookingsService(connectors);
+    bookings = new BookingsService(connectors, { record: (event) => Promise.resolve(void recorded.push(event)) });
   });
 
   afterAll(async () => {
@@ -229,6 +231,7 @@ const skipReason = TEST_URL
   beforeEach(async () => {
     calls.length = 0;
     bodies.length = 0;
+    recorded.length = 0;
     respond = () => ({ body: [gastroplannerBooking] });
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
     await db.execute(sql`DELETE FROM connector_connections WHERE org_id = ${orgId}`);
@@ -333,6 +336,9 @@ const skipReason = TEST_URL
 
     expect(result.cancelled).toBe(true);
     expect(calls.some((u) => u.includes('/booking/v1/bookings/512/cancel'))).toBe(true);
+     expect(recorded).toEqual([
+      expect.objectContaining({ name: 'booking.cancelled', email: 'jane@example.com', bookingRef: '512', vendor: 'gastroplanner' }),
+    ]);
   });
 
   it("refuses to cancel another guest's booking and never calls cancel", async () => {
@@ -583,7 +589,7 @@ const skipReason = TEST_URL
         .select()
         .from(schema.bookingsGuestBookings)
         .where(sql`conversation_id = ${conversationId}`);
-      expect(rows.map((r) => [r.bookingRef, r.email])).toEqual([[ref, guestEmail]]);
+      expect(rows.map((r) => [r.bookingRef, r.email])).toEqual([[ref, guestEmail]]);      expect(recorded).toEqual([expect.objectContaining({ name: 'booking.created', email: guestEmail, bookingRef: ref })]);
     });
 
     it('refuses without a guest email, and never reaches the vendor', async () => {

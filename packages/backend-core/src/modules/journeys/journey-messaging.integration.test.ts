@@ -14,6 +14,8 @@ import { JourneyRuntimeService } from './journey-runtime.service.ts';
 import { JourneyRuntimeWorker } from './journey-runtime.worker.ts';
 import { JourneyEventSink } from './journey-event.sink.ts';
 import { JourneyMonitorService } from './journey-monitor.service.ts';
+import { JourneyPublishingService } from './journey-publishing.service.ts';
+import { JourneySimulator } from './journey-simulator.ts';
 import { OutreachService } from '../outreach/outreach.service.ts';
 import { CrmService } from '../crm/crm.service.ts';
 import { AddressDeliverabilityService } from '../crm/address-deliverability.service.ts';
@@ -44,6 +46,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
   let worker: JourneyRuntimeWorker;
   let outreach: OutreachService;
   let monitor: JourneyMonitorService;
+  let publishing: JourneyPublishingService;
   let alerts: AlertsService;
   let orgId: string;
   let userId: string;
@@ -105,6 +108,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     journeys = new JourneysService(webhooks);
     runtime = new JourneyRuntimeService(webhooks, crm, outreach, new CuratorJobsService(webhooks));
     alerts = new AlertsService(webhooks);
+    publishing = new JourneyPublishingService(webhooks, journeys, new JourneySimulator(runtime));
     monitor = new JourneyMonitorService(journeys, alerts);
     worker = new JourneyRuntimeWorker(appDb, runtime, monitor);
   });
@@ -531,6 +535,97 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect(olaProposal).toMatchObject({ status: 'pending', draftSubject: 'Velkommen til Acme' });
     expect(olaProposal!.evidence).toMatchObject({ draftedBy: 'fallback_content' });
     expect((await enrollment(olaRun)).state).toBe('waiting');
+  });
+
+  it('lets the agent write an SMS within its limit, still approved by a person, and refuses a subject on it', async () => {
+    const [sms] = await db
+      .insert(schema.convChannels)
+      .values({
+        orgId,
+        type: 'sms',
+        vendor: 'twilio',
+        name: 'journey-sms-drafts',
+        active: true,
+        config: { accountSid: 'AC_test', encryptedAuthToken: 'fake', fromNumber: '+15550001111' },
+      })
+      .returning();
+    const journeyId = await publish(
+      [
+        {
+          id: 'welcome',
+          type: 'message',
+          channel: 'sms',
+          draftBy: 'agent',
+          brief: 'Remind them of tomorrow\'s webinar in one friendly line.',
+          content: { body: 'Hei {{name|der}}, webinaret starter i morgen kl. 10.' },
+          next: 'done',
+        },
+        done,
+      ],
+      { smsChannelId: sms!.id },
+    );
+    const ola = await contact({ phone: '+4712345670' });
+    const run = await enroll(journeyId, ola.id);
+    await worker.tick();
+    const [job] = await db.select().from(schema.curatorJobs).where(eq(schema.curatorJobs.orgId, orgId));
+    expect(job!.userPrompt).toContain('Channel: SMS');
+    expect(job!.userPrompt).not.toContain('Subject:');
+    const [step] = await db.select().from(schema.journeyStepRuns).where(eq(schema.journeyStepRuns.enrollmentId, run));
+    const curator = new ActorIdentity('admin_agent', 'curator-runner', orgId, ['*'], ['admin']);
+    await expect(
+      runAs(curator, () => runtime.submitDraft({ stepRunId: step!.id, subject: 'Hei', body: 'Hei Ola!' })),
+    ).rejects.toThrow(/has no subject/);
+    await expect(
+      runAs(curator, () => runtime.submitDraft({ stepRunId: step!.id, body: 'x'.repeat(481) })),
+    ).rejects.toThrow(/limit is 480/);
+    await runAs(curator, () =>
+      runtime.submitDraft({ stepRunId: step!.id, body: 'Hei Ola, vi ses på webinaret i morgen kl. 10!' }),
+    );
+    await worker.tick();
+    const [proposal] = await proposalsFor(ola.id);
+    expect(proposal).toMatchObject({
+      status: 'pending',
+      channelId: sms!.id,
+      draftSubject: null,
+      draftBody: 'Hei Ola, vi ses på webinaret i morgen kl. 10!',
+    });
+    expect(proposal!.evidence).toMatchObject({ draftedBy: 'agent' });
+  });
+
+  it('lets the agent write a chat message and refuses publishing it as auto before it has earned that', async () => {
+    const [chat] = await db
+      .insert(schema.convChannels)
+      .values({ orgId, type: 'chat', vendor: 'munin', name: 'journey-chat-drafts', active: true, config: {} })
+      .returning();
+    const node = {
+      id: 'welcome',
+      type: 'message',
+      channel: 'chat',
+      draftBy: 'agent',
+      brief: 'Point them to the report that fits their plan.',
+      content: { body: 'Hei {{name|der}}! Rapporten din er klar.' },
+      next: 'done',
+    };
+    const journeyId = await publish([node, done], { chatChannelId: chat!.id });
+    const ola = await contact();
+    await db.update(schema.endUsers).set({ externalId: `user-${randomUUID()}` }).where(eq(schema.endUsers.id, ola.endUserId!));
+    const run = await enroll(journeyId, ola.id);
+    await worker.tick();
+    const [step] = await db.select().from(schema.journeyStepRuns).where(eq(schema.journeyStepRuns.enrollmentId, run));
+    const curator = new ActorIdentity('admin_agent', 'curator-runner', orgId, ['*'], ['admin']);
+    await runAs(curator, () => runtime.submitDraft({ stepRunId: step!.id, body: 'Hei Ola! **Pro-rapporten** din er klar.' }));
+    await worker.tick();
+    const [proposal] = await proposalsFor(ola.id);
+    expect(proposal).toMatchObject({ status: 'pending', channelId: chat!.id, draftBody: 'Hei Ola! **Pro-rapporten** din er klar.' });
+
+    await asAgent(() => journeys.replaceDraft(journeyId, {
+      entry: { trigger: { type: 'manual' } },
+      goal: { event: 'subscription.started', windowDays: 30 },
+      settings: { chatChannelId: chat!.id },
+      start: 'welcome',
+      nodes: [{ ...node, approval: 'auto' }, done],
+    }));
+    await expect(asAgent(() => publishing.requestPublish(journeyId))).rejects.toThrow(/only after 30 reviewed drafts/);
   });
 
   it('mixes email and SMS in one journey, with every SMS approved by a person and replies followed on its own thread', async () => {

@@ -2379,6 +2379,45 @@
         ]
       }
     },
+    "/v1/journeys/{id}/agent-stats": {
+      "get": {
+        "operationId": "JourneysController_agentStats",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "days",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Journeys"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/journeys/{id}/review-stats": {
       "get": {
         "operationId": "JourneysController_reviewStats",

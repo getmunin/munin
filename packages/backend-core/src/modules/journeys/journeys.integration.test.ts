@@ -254,6 +254,29 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     ).rejects.toThrow(ConflictException);
   });
 
+  it('converts a campaign sequence into a draft journey that runs the campaign from then on', async () => {
+    await db
+      .update(schema.outreachCampaigns)
+      .set({ sequenceSteps: [{ waitDays: 4, brief: 'Follow up with the case study' }] })
+      .where(eq(schema.outreachCampaigns.id, emailCampaignId));
+    const templates = new JourneyTemplatesService(svc);
+    const created = await asAgent(() =>
+      templates.createFromCampaign({ campaignId: emailCampaignId, goal: { event: 'deal.won', windowDays: 60 } }),
+    );
+    expect(created.validation.errors).toEqual([]);
+    expect(created.notes.length).toBeGreaterThan(0);
+    expect((created.draft?.spec as { nodes: { id: string }[] }).nodes.map((n) => n.id)).toEqual([
+      'first_touch',
+      'wait_1',
+      'followup_1',
+      'replied',
+      'done',
+    ]);
+    await expect(
+      asAgent(() => templates.createFromCampaign({ campaignId: emailCampaignId, goal: { event: 'deal.won', windowDays: 60 } })),
+    ).rejects.toThrow(ConflictException);
+  });
+
   it('keeps journeys invisible to other organizations', async () => {
     const journey = await asAgent(() => svc.create({ name: 'Trial onboarding', outreachCampaignId: emailCampaignId }));
     await expect(runAs(outsider, () => svc.get(journey.id))).rejects.toThrow(NotFoundException);

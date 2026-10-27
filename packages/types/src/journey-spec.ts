@@ -39,7 +39,8 @@ export const MESSAGE_APPROVAL_MODES = ['draft_only', 'auto', 'off'] as const;
 export const MESSAGE_CLASSES = ['marketing', 'transactional'] as const;
 export const MESSAGE_CHANNELS = ['email', 'sms'] as const;
 export const JOURNEY_SMS_MAX_CHARS = 480;
-export const REENTRY_POLICIES = ['once', 'once_at_a_time'] as const;
+export const REENTRY_POLICIES = ['once', 'once_at_a_time', 'concurrent'] as const;
+export const MAX_CONCURRENT_ENROLLMENTS = 20;
 export const CONDITION_OPERATORS = [
   'eq',
   'neq',

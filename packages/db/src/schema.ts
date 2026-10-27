@@ -2273,6 +2273,7 @@ export const journeyEnrollments = pgTable(
     contactId: text('contact_id').references(() => crmContacts.id, { onDelete: 'set null' }),
     endUserId: text('end_user_id').references(() => endUsers.id, { onDelete: 'set null' }),
     subjectKey: varchar('subject_key', { length: 80 }).notNull(),
+    entryKey: text('entry_key').notNull().default(''),
     state: varchar('state', { length: 16 }).notNull().default('active'),
     currentNode: varchar('current_node', { length: 48 }),
     visits: jsonb('visits').$type<Record<string, number>>().notNull().default({}),
@@ -2291,7 +2292,7 @@ export const journeyEnrollments = pgTable(
   },
   (t) => ({
     openSubjectUq: uniqueIndex('journey_enrollments_open_subject_uq')
-      .on(t.journeyId, t.subjectKey)
+      .on(t.journeyId, t.subjectKey, t.entryKey)
       .where(sql`state IN ('active', 'waiting')`),
     claimIdx: index('journey_enrollments_claim_idx')
       .on(t.nextRunAt)

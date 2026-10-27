@@ -1,5 +1,7 @@
 # @getmunin/sdk
 
+## 5.48.3
+
 ## 5.48.2
 
 ### Patch Changes

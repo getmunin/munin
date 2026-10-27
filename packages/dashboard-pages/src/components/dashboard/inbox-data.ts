@@ -225,17 +225,33 @@ export function useInboxData(): InboxController {
   const [activeQueueItem, setActiveQueueItem] = useState<QueueItem | null>(null);
   const [activeScheduledItem, setActiveScheduledItem] = useState<ScheduledItem | null>(null);
   const [cancelTarget, setCancelTarget] = useState<ScheduledItem | null>(null);
-  const [pending, setPending] = useState(false);
+  const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [queueDetailErrors, setQueueDetailErrors] = useState<Record<string, string>>({});
   const [queueActionError, setQueueActionError] = useState<QueueActionError>(null);
   const viewedProposals = useRef<Set<string>>(new Set());
+  const loadSeqRef = useRef(0);
+
+  const beginPending = useCallback((id: string) => {
+    setPendingCounts((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
+  }, []);
+
+  const endPending = useCallback((id: string) => {
+    setPendingCounts((prev) => {
+      const left = (prev[id] ?? 0) - 1;
+      return left > 0 ? { ...prev, [id]: left } : clearKey(prev, id);
+    });
+  }, []);
+
+  const isPending = useCallback((id: string) => (pendingCounts[id] ?? 0) > 0, [pendingCounts]);
 
   const loadInbox = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     try {
       const res = await api<InboxQueueResponse>('/v1/inbox');
+      if (seq !== loadSeqRef.current) return;
       setItems(res.live);
       setItemsTotal(res.liveTotal);
       setQueue(buildQueue(res.waiting));
@@ -243,6 +259,7 @@ export function useInboxData(): InboxController {
       setLoadError(null);
       setHasLoadedOnce(true);
     } catch (err) {
+      if (seq !== loadSeqRef.current) return;
       if (err instanceof ApiError) setLoadError(err);
     }
   }, [buildQueue, buildScheduled]);
@@ -435,7 +452,7 @@ export function useInboxData(): InboxController {
 
   const approveQueue = useCallback(
     async (item: QueueItem, sendAt?: string | null) => {
-      setPending(true);
+      beginPending(item.id);
       try {
         if (item.kind === 'kb' && item.raw.revisesDocumentId) {
           await api(`/v1/kb/curation/candidates/${item.id}/publish-revision`, {
@@ -499,16 +516,16 @@ export function useInboxData(): InboxController {
         }));
         return false;
       } finally {
-        setPending(false);
+        endPending(item.id);
       }
     },
-    [loadInbox, translateErr, broadcastDetails],
+    [loadInbox, translateErr, beginPending, endPending, broadcastDetails],
   );
 
   const publishQueue = useCallback(
     async (item: QueueItem) => {
       if (item.kind !== 'social') return false;
-      setPending(true);
+      beginPending(item.id);
       try {
         await api(`/v1/social/drafts/${item.id}/publish`, { method: 'POST', body: '{}' });
         setQueueActionError(null);
@@ -528,15 +545,15 @@ export function useInboxData(): InboxController {
         }));
         return false;
       } finally {
-        setPending(false);
+        endPending(item.id);
       }
     },
-    [loadInbox, translateErr],
+    [loadInbox, translateErr, beginPending, endPending],
   );
 
   const saveQueue = useCallback(
     async (item: QueueItem, body: string) => {
-      setPending(true);
+      beginPending(item.id);
       try {
         if (item.kind === 'kb') {
           await api(`/v1/kb/curation/candidates/${item.id}`, {
@@ -554,10 +571,10 @@ export function useInboxData(): InboxController {
         notify.error(translateErr(err));
         throw err;
       } finally {
-        setPending(false);
+        endPending(item.id);
       }
     },
-    [loadInbox, translateErr],
+    [loadInbox, translateErr, beginPending, endPending],
   );
 
   const saveSocialDraft = useCallback(
@@ -565,7 +582,7 @@ export function useInboxData(): InboxController {
       if (item.kind !== 'social') {
         throw new Error(`saveSocialDraft called for non-social item: ${item.kind}`);
       }
-      setPending(true);
+      beginPending(item.id);
       try {
         if (edit.body !== undefined) {
           await api(`/v1/social/drafts/${item.id}`, {
@@ -587,10 +604,10 @@ export function useInboxData(): InboxController {
         notify.error(translateErr(err));
         throw err;
       } finally {
-        setPending(false);
+        endPending(item.id);
       }
     },
-    [loadInbox, translateErr],
+    [loadInbox, translateErr, beginPending, endPending],
   );
 
   const saveCmsDraft = useCallback(
@@ -598,7 +615,7 @@ export function useInboxData(): InboxController {
       if (item.kind !== 'cms') {
         throw new Error(`saveCmsDraft called for non-cms item: ${item.kind}`);
       }
-      setPending(true);
+      beginPending(item.id);
       try {
         const updated = await api<CmsDraftDetailDto>(`/v1/cms/drafts/${item.id}`, {
           method: 'PATCH',
@@ -612,10 +629,10 @@ export function useInboxData(): InboxController {
         }
         throw err;
       } finally {
-        setPending(false);
+        endPending(item.id);
       }
     },
-    [loadInbox, translateErr],
+    [loadInbox, translateErr, beginPending, endPending],
   );
 
   const uploadCmsAsset = useCallback(
@@ -623,7 +640,7 @@ export function useInboxData(): InboxController {
       if (item.kind !== 'cms') {
         throw new Error(`uploadCmsAsset called for non-cms item: ${item.kind}`);
       }
-      setPending(true);
+      beginPending(item.id);
       try {
         const prepared = await prepareImageForUpload(file);
         const handle = await api<
@@ -646,15 +663,15 @@ export function useInboxData(): InboxController {
         notify.error(translateErr(err));
         throw err;
       } finally {
-        setPending(false);
+        endPending(item.id);
       }
     },
-    [translateErr],
+    [translateErr, beginPending, endPending],
   );
 
   const dismissQueue = useCallback(
     async (item: QueueItem) => {
-      setPending(true);
+      beginPending(item.id);
       try {
         if (item.kind === 'kb') {
           await api(`/v1/kb/curation/candidates/${item.id}/dismiss`, { method: 'POST' });
@@ -697,15 +714,15 @@ export function useInboxData(): InboxController {
         }));
         return false;
       } finally {
-        setPending(false);
+        endPending(item.id);
       }
     },
-    [loadInbox, translateErr],
+    [loadInbox, translateErr, beginPending, endPending],
   );
 
   const cancelScheduledSend = useCallback(
     async (id: string, reason: string) => {
-      setPending(true);
+      beginPending(id);
       try {
         await api(`/v1/outreach/proposals/${id}/cancel-scheduled-send`, {
           method: 'POST',
@@ -718,15 +735,15 @@ export function useInboxData(): InboxController {
         notify.error(translateErr(err));
         throw err;
       } finally {
-        setPending(false);
+        endPending(id);
       }
     },
-    [loadInbox, translateErr],
+    [loadInbox, translateErr, beginPending, endPending],
   );
 
   const cancelScheduledBroadcast = useCallback(
     async (id: string, reason: string) => {
-      setPending(true);
+      beginPending(id);
       try {
         await api(`/v1/outreach/broadcasts/${id}/cancel`, {
           method: 'POST',
@@ -739,15 +756,15 @@ export function useInboxData(): InboxController {
         notify.error(translateErr(err));
         throw err;
       } finally {
-        setPending(false);
+        endPending(id);
       }
     },
-    [loadInbox, translateErr],
+    [loadInbox, translateErr, beginPending, endPending],
   );
 
   const cancelScheduledPublish = useCallback(
     async (id: string) => {
-      setPending(true);
+      beginPending(id);
       try {
         await api(`/v1/cms/drafts/${id}/unschedule`, { method: 'POST', body: '{}' });
         setCmsDetails((prev) => clearKey(prev, id));
@@ -758,16 +775,16 @@ export function useInboxData(): InboxController {
         notify.error(translateErr(err));
         throw err;
       } finally {
-        setPending(false);
+        endPending(id);
       }
     },
-    [loadInbox, translateErr],
+    [loadInbox, translateErr, beginPending, endPending],
   );
 
   const scheduleQueue = useCallback(
     async (item: QueueItem, scheduledAt: string) => {
       if (item.kind !== 'cms') return;
-      setPending(true);
+      beginPending(item.id);
       try {
         await api(`/v1/cms/drafts/${item.id}/schedule`, {
           method: 'POST',
@@ -779,17 +796,17 @@ export function useInboxData(): InboxController {
         notify.error(translateErr(err));
         throw err;
       } finally {
-        setPending(false);
+        endPending(item.id);
       }
     },
-    [loadInbox, translateErr],
+    [loadInbox, translateErr, beginPending, endPending],
   );
 
   return {
     items,
     itemsTotal,
     queue,
-    pending,
+    isPending,
     loadError,
     hasLoadedOnce,
     retrying,

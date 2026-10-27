@@ -18,12 +18,13 @@ export function ScheduledCancelDialog({ controller }: { controller: InboxControl
   const {
     cancelTarget,
     setCancelTarget,
-    pending,
+    isPending,
     cancelScheduledSend,
     cancelScheduledPublish,
     cancelScheduledBroadcast,
   } = controller;
   const [reason, setReason] = useState('');
+  const pending = cancelTarget ? isPending(cancelTarget.id) : false;
   const isBroadcast = cancelTarget?.kind === 'broadcast';
   const needsReason = cancelTarget?.kind === 'outreach' || isBroadcast;
   const isCms = cancelTarget?.kind === 'cms';

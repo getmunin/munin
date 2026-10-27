@@ -18,7 +18,7 @@ export function ReviewBlockingPane({
   decide?: (outcome: ReviewDecisionOutcome, run: () => Promise<boolean>) => Promise<boolean>;
 }) {
   const {
-    pending,
+    isPending,
     cmsDetails,
     cmsPreviewLinks,
     reloadCmsPreviewLink,
@@ -39,6 +39,7 @@ export function ReviewBlockingPane({
     uploadCmsAsset,
     scheduleQueue,
   } = controller;
+  const pending = isPending(item.id);
   const approve = (sendAt?: string | null) =>
     void decide(sendAt ? 'scheduled' : 'approved', () => approveQueue(item, sendAt));
   const dismiss = () => void decide('dismissed', () => dismissQueue(item));

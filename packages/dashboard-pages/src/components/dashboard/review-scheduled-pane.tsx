@@ -12,7 +12,8 @@ export function ReviewScheduledPane({
   item: ScheduledItem;
   controller: InboxController;
 }) {
-  const { pending, cmsDetails, queueDetailErrors, reloadQueueDetail, setCancelTarget } = controller;
+  const { isPending, cmsDetails, queueDetailErrors, reloadQueueDetail, setCancelTarget } = controller;
+  const pending = isPending(item.id);
 
   if (item.kind === 'broadcast') {
     return (

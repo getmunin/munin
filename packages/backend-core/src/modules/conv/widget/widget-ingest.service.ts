@@ -430,6 +430,7 @@ export class WidgetIngestService {
       convIds.length > 0
         ? await this.loadLatestVisiblePreviews(tx, convIds)
         : new Map<string, { lastBody: string; firstUserBody: string | null }>();
+    const unread = await this.loadUnreadCounts(tx, convIds);
 
     const summaries: WidgetConversationSummary[] = convRows
       .filter((r) => !!r.sessionId)
@@ -443,6 +444,7 @@ export class WidgetIngestService {
           status: r.status,
           handedOver: !!r.assigneeUserId,
           lastMessageAt: r.lastMessageAt ? r.lastMessageAt.toISOString() : null,
+          unreadCount: unread.get(r.id) ?? 0,
         };
       });
 
@@ -719,6 +721,24 @@ export class WidgetIngestService {
       out.set(r.id, display);
     }
     return out;
+  }
+
+  private async loadUnreadCounts(tx: Tx, conversationIds: string[]): Promise<Map<string, number>> {
+    if (conversationIds.length === 0) return new Map();
+    const m = schema.convMessages;
+    const rows = await tx
+      .select({ conversationId: m.conversationId, unread: sql<number>`count(*)::int` })
+      .from(m)
+      .where(
+        and(
+          inArray(m.conversationId, conversationIds),
+          inArray(m.authorType, ['agent', 'user']),
+          eq(m.internal, false),
+          sql`NOT EXISTS (SELECT 1 FROM conv_message_reads r WHERE r.message_id = ${m.id})`,
+        ),
+      )
+      .groupBy(m.conversationId);
+    return new Map(rows.map((r) => [r.conversationId, r.unread]));
   }
 
   private async loadLatestVisiblePreviews(

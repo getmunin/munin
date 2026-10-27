@@ -245,6 +245,7 @@ export interface WidgetConversationSummary {
   status: string;
   handedOver: boolean;
   lastMessageAt: string | null;
+  unreadCount: number;
 }
 
 export interface WidgetListConversationsResult {

@@ -11,6 +11,7 @@ import { readRedactionPolicy } from './redaction-policy.ts';
 import { deleteMessageTranslations, normalizeLanguageTag } from './translation-helpers.ts';
 import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import { getCurrentContext, sameAfterNormalizing, WebhookDispatcher } from '@getmunin/core';
 import type { MessageComponent } from '@getmunin/types';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
@@ -1329,6 +1330,68 @@ export class ConvService {
       }
     }
     return out;
+  }
+
+  async startWidgetConversation(input: {
+    channelId: string;
+    endUserId: string;
+    body: string;
+    agentMode?: AgentMode;
+    outreachCampaignId?: string;
+    approvedOutreachProposalId?: string;
+    messageMetadata?: Record<string, unknown>;
+    authorType: 'user' | 'agent' | 'system';
+    authorId: string;
+  }): Promise<ConversationDetail> {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor!.orgId;
+    const [channel] = await ctx.db
+      .select({ type: schema.convChannels.type })
+      .from(schema.convChannels)
+      .where(and(eq(schema.convChannels.orgId, orgId), eq(schema.convChannels.id, input.channelId)))
+      .limit(1);
+    if (!channel) throw new NotFoundException(`conv_not_found: channel ${input.channelId}`);
+    if (channel.type !== 'chat') {
+      throw new ConvInvalidError(`channel ${input.channelId} is ${channel.type}, not a chat widget channel`);
+    }
+    const [endUser] = await ctx.db
+      .select({ externalId: schema.endUsers.externalId })
+      .from(schema.endUsers)
+      .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.id, input.endUserId)))
+      .limit(1);
+    const externalId = endUser?.externalId ?? null;
+    if (!externalId || externalId.startsWith('anon:')) {
+      throw new ConvInvalidError(
+        `end user ${input.endUserId} has no verified widget identity, so a widget conversation cannot reach them`,
+      );
+    }
+    const c = schema.convContacts;
+    const [existing] = await ctx.db
+      .select({ id: c.id })
+      .from(c)
+      .where(and(eq(c.orgId, orgId), sql`${c.metadata}->>'externalId' = ${externalId}`))
+      .limit(1);
+    const contactId =
+      existing?.id ??
+      (
+        await ctx.db
+          .insert(c)
+          .values({ orgId, endUserId: input.endUserId, metadata: { externalId } })
+          .returning({ id: c.id })
+      )[0]!.id;
+    return this.createConversation({
+      channelId: input.channelId,
+      body: input.body,
+      contactId,
+      endUserId: input.endUserId,
+      agentMode: input.agentMode,
+      outreachCampaignId: input.outreachCampaignId,
+      approvedOutreachProposalId: input.approvedOutreachProposalId,
+      metadata: { sessionId: `srv_${randomUUID()}`, origin: 'server' },
+      messageMetadata: input.messageMetadata,
+      authorType: input.authorType,
+      authorId: input.authorId,
+    });
   }
 
   async createConversation(input: {

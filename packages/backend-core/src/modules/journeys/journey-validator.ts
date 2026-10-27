@@ -150,6 +150,18 @@ function checkNode(
 ): void {
   switch (node.type) {
     case 'message':
+      if (node.draftBy === 'agent') {
+        if (!node.brief) {
+          errors.push({ code: 'agent_draft_brief', nodeId: node.id, message: 'an agent-drafted email needs a brief' });
+        }
+        if (node.approval === 'auto') {
+          errors.push({
+            code: 'agent_draft_auto',
+            nodeId: node.id,
+            message: 'agent-drafted emails are reviewed until the step has earned auto; keep approval draft_only',
+          });
+        }
+      }
       if (node.content.templateId && !refs.emailTemplateIds.has(node.content.templateId)) {
         errors.push({
           code: 'unknown_template',
@@ -189,12 +201,33 @@ function checkNode(
       checkAction(node, refs, errors);
       break;
     case 'agent':
-      if (!(node.fallback in node.edges)) {
-        errors.push({
-          code: 'agent_fallback',
-          nodeId: node.id,
-          message: `fallback "${node.fallback}" must be one of the declared edges (${Object.keys(node.edges).join(', ')})`,
-        });
+      if (node.mode === 'decide') {
+        const edges = Object.keys(node.edges ?? {});
+        if (edges.length < 2 || edges.length > 10) {
+          errors.push({ code: 'agent_edges', nodeId: node.id, message: 'a decide step declares between 2 and 10 edges' });
+        }
+        if (!node.fallback || !edges.includes(node.fallback)) {
+          errors.push({
+            code: 'agent_fallback',
+            nodeId: node.id,
+            message: `fallback "${node.fallback ?? ''}" must be one of the declared edges (${edges.join(', ')})`,
+          });
+        }
+        if (node.next || node.fields) {
+          errors.push({ code: 'agent_mode_fields', nodeId: node.id, message: 'a decide step uses edges and fallback, not next or fields' });
+        }
+      } else {
+        if (!node.fields?.length) {
+          errors.push({ code: 'agent_fields', nodeId: node.id, message: 'an enrich step declares at least one field' });
+        }
+        if (node.edges || node.fallback) {
+          errors.push({ code: 'agent_mode_fields', nodeId: node.id, message: 'an enrich step uses fields and next, not edges' });
+        }
+        for (const field of node.fields ?? []) {
+          if (field.type === 'enum' && !field.options?.length) {
+            errors.push({ code: 'agent_fields', nodeId: node.id, message: `enum field "${field.key}" needs options` });
+          }
+        }
       }
       if (refs.llmConfigured === false) {
         warnings.push({

@@ -144,7 +144,9 @@ export function PublishDialog({
                         ? t('assumeApproved', { node: a.nodeId })
                         : a.code === 'no_reply'
                           ? t('assumeNoReply', { node: a.nodeId })
-                          : a.code === 'agent_fallback'
+                          : a.code === 'agent_draft'
+                            ? t('assumeAgentDraft', { node: a.nodeId })
+                            : a.code === 'agent_fallback'
                             ? t('assumeAgentFallback', { node: a.nodeId, edge: a.event ?? '' })
                             : t('assumeNoEvent', { node: a.nodeId, event: a.event ?? '', timeout: a.timeout ?? '' })}
                     </li>

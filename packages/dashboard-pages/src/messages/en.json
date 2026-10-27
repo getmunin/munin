@@ -1384,6 +1384,7 @@
         "email": "{node} · {decision}",
         "assumeApproved": "Assumes a reviewer approves \"{node}\".",
         "assumeNoReply": "Assumes nobody replies to \"{node}\".",
+        "assumeAgentDraft": "The agent rewrites \"{node}\" per person; the sample shows the reference version.",
         "assumeAgentFallback": "The agent at \"{node}\" is not run in a dry run; everyone follows its fallback \"{edge}\".",
         "assumeNoEvent": "Assumes {event} does not arrive within {timeout} at \"{node}\".",
         "sample": "Sample: {subject} — to {name}",

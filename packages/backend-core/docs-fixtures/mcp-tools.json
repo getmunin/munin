@@ -10525,6 +10525,106 @@
     }
   },
   {
+    "name": "journeys_submit_draft",
+    "title": "Journeys: Submit an agent email draft",
+    "description": "Answer a waiting agent-drafted email step: the subject and markdown body written for this person, with the knowledge-base sources each factual claim rests on. The draft goes to the review inbox like any journey email. Used by the curator pass skill://journeys/draft-step; refused once the step was answered or timed out to the reference version.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "stepRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "citations": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "source": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "title",
+              "source"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "stepRunId",
+        "subject",
+        "body"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_submit_fields",
+    "title": "Journeys: Submit agent-filled fields",
+    "description": "Answer a waiting agent enrich step: values for the step's declared fields, written to the contact's custom fields and the journey context so later branches can use them. Leave out fields the facts do not support. Used by the curator pass skill://journeys/enrich-step.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "stepRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "fields": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "stepRunId",
+        "fields"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "journeys_list_enrollments",
     "title": "Journeys: List enrollments",
     "description": "List the people in a journey, newest first: which version they entered, where they are now, whether they are in the holdout, and why they left if they did. Filter by state or contact.",

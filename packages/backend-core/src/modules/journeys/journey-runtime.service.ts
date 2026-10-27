@@ -11,7 +11,7 @@ import {
 import { CrmService } from '../crm/crm.service.ts';
 import { OutreachService } from '../outreach/outreach.service.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
-import { buildAgentInputs, buildDecidePrompt } from './journey-agent-inputs.ts';
+import { buildAgentInputs, buildDecidePrompt, buildDraftPrompt, buildEnrichPrompt } from './journey-agent-inputs.ts';
 import { OUTREACH_ELIGIBILITY_FLOOR, segmentMatchFilters } from '../crm/segment-filter.ts';
 import { collectConditionNeeds, evaluateCondition, type ConditionFacts } from './journey-conditions.ts';
 import { JOURNEY_RUNTIME_ACTOR_ID, journeyEventKey } from './journey-event.sink.ts';
@@ -25,6 +25,8 @@ const COMPLETED_REASONS: ReadonlySet<string> = new Set(['reached_end', 'goal_rea
 const APPROVAL_TIMEOUT_MS = 7 * 86_400_000;
 export const DECIDE_STEP_JOB_URI = 'skill://journeys/decide-step';
 export const STOP_EDGE = 'stop';
+export const DRAFT_STEP_JOB_URI = 'skill://journeys/draft-step';
+export const ENRICH_STEP_JOB_URI = 'skill://journeys/enrich-step';
 const REPLY_HOLD_MS = 14 * 86_400_000;
 const PROPOSAL_RESOLUTIONS: Record<string, string> = {
   'outreach.proposal.sent': 'proposal_sent',
@@ -518,7 +520,31 @@ export class JourneyRuntimeService {
     step: StepContext,
     node: Extract<JourneyNode, { type: 'message' }>,
   ): Promise<Outcome> {
-    if (step.resumed) {
+    const previous = await this.stepOutput(step.stepRunId);
+    let content: { subject: string; body: string; format: 'markdown' | 'mjml' } = {
+      subject: node.content.subject,
+      body: node.content.body,
+      format: node.content.format,
+    };
+    let citations: unknown[] | undefined;
+    if (node.draftBy === 'agent' && !previous.proposalId) {
+      if (!step.resumed) {
+        if (node.approval === 'off') return { kind: 'advance', edge: 'next', to: node.next, reason: 'approval off' };
+        const inputs = await buildAgentInputs(node.draftInputs ?? ['contact', 'events'], this.agentSubject(step));
+        return this.requestAgent(step, {
+          jobUri: DRAFT_STEP_JOB_URI,
+          prompt: buildDraftPrompt({ node, journeyName: await this.journeyName(step.enrollment.journeyId), inputs }),
+          timeout: node.draftTimeout,
+          output: { draftRequested: true, inputs: node.draftInputs ?? ['contact', 'events'] },
+          reason: 'waiting for the agent to draft',
+        });
+      }
+      const draft = previous.draft as { subject?: string; body?: string; citations?: unknown[] } | undefined;
+      if (step.resumed.resolution === 'agent_drafted' && draft?.subject && draft.body) {
+        content = { subject: draft.subject, body: draft.body, format: 'markdown' };
+        citations = draft.citations;
+      }
+    } else if (step.resumed) {
       switch (step.resumed.resolution) {
         case 'proposal_sent':
         case 'proposal_withdrawn':
@@ -547,12 +573,12 @@ export class JourneyRuntimeService {
         contactId,
         enrollmentId: step.enrollment.id,
         stepRunId: step.stepRunId,
-        subject: node.content.subject,
-        body: node.content.body,
-        format: node.content.format,
+        subject: content.subject,
+        body: content.body,
+        format: content.format,
         templateId: node.content.templateId,
         preheader: node.content.preheader,
-        auto: node.approval === 'auto',
+        auto: node.approval === 'auto' && node.draftBy !== 'agent',
         policy: {
           class: node.class,
           timezone: settings.timezone,
@@ -565,6 +591,9 @@ export class JourneyRuntimeService {
           journeyId: step.enrollment.journeyId,
           version: step.enrollment.version,
           nodeId: node.id,
+          ...(node.draftBy === 'agent'
+            ? { draftedBy: previous.draft ? 'agent' : 'fallback_content', brief: node.brief, citations: citations ?? [] }
+            : {}),
         },
       },
       { publicBaseUrl: readApiBaseUrl() },
@@ -575,10 +604,14 @@ export class JourneyRuntimeService {
       .where(eq(schema.journeyStepRuns.id, step.stepRunId));
     if (proposal.status === 'sent') {
       await this.rememberThread(step.enrollment.id, proposal.conversationId);
-      return { kind: 'advance', edge: 'next', to: node.next, output: { proposalId: proposal.id }, reason: 'sent' };
+      return { kind: 'advance', edge: 'next', to: node.next, output: { ...previous, proposalId: proposal.id }, reason: 'sent' };
     }
     if (proposal.status === 'failed') {
-      return { kind: 'exit', reason: 'message_blocked', output: { proposalId: proposal.id, error: proposal.failureReason } };
+      return {
+        kind: 'exit',
+        reason: 'message_blocked',
+        output: { ...previous, proposalId: proposal.id, error: proposal.failureReason },
+      };
     }
     const base = proposal.scheduledSendAt ? new Date(proposal.scheduledSendAt) : step.now;
     return {
@@ -588,8 +621,62 @@ export class JourneyRuntimeService {
         match: { proposalId: proposal.id },
         timeoutAt: new Date(base.getTime() + APPROVAL_TIMEOUT_MS),
       },
-      output: { proposalId: proposal.id, status: proposal.status },
+      output: { ...previous, proposalId: proposal.id, status: proposal.status },
       reason: proposal.status === 'approved' ? 'scheduled' : 'awaiting review',
+    };
+  }
+
+  private async stepOutput(stepRunId: string): Promise<Record<string, unknown>> {
+    const ctx = getCurrentContext();
+    const [run] = await ctx.db
+      .select({ output: schema.journeyStepRuns.output })
+      .from(schema.journeyStepRuns)
+      .where(eq(schema.journeyStepRuns.id, stepRunId))
+      .limit(1);
+    return run?.output ?? {};
+  }
+
+  private async requestAgent(
+    step: StepContext,
+    input: { jobUri: string; prompt: string; timeout: string; output: Record<string, unknown>; reason: string },
+  ): Promise<Outcome> {
+    const job = await this.curatorJobs.enqueue({
+      jobUri: input.jobUri,
+      userPrompt: input.prompt,
+      sourceEventType: 'journey.agent.step',
+      sourceEventPayload: {
+        stepRunId: step.stepRunId,
+        enrollmentId: step.enrollment.id,
+        journeyId: step.enrollment.journeyId,
+        nodeId: step.node.id,
+      },
+      dedupeKey: `journey-agent:${step.stepRunId}`,
+    });
+    const timeoutMs = parseIsoDurationMs(input.timeout) ?? 600_000;
+    return {
+      kind: 'wait',
+      wait: { kind: 'agent', timeoutAt: new Date(step.now.getTime() + timeoutMs) },
+      output: { ...input.output, curatorJobId: job.job.id },
+      reason: input.reason,
+    };
+  }
+
+  private async journeyName(journeyId: string): Promise<string> {
+    const ctx = getCurrentContext();
+    const [journey] = await ctx.db
+      .select({ name: schema.journeys.name })
+      .from(schema.journeys)
+      .where(eq(schema.journeys.id, journeyId))
+      .limit(1);
+    return journey?.name ?? 'journey';
+  }
+
+  private agentSubject(step: StepContext) {
+    return {
+      contactId: step.enrollment.contactId,
+      endUserId: step.enrollment.endUserId,
+      conversationId: step.enrollment.conversationId,
+      context: step.enrollment.context,
     };
   }
 
@@ -597,63 +684,57 @@ export class JourneyRuntimeService {
     step: StepContext,
     node: Extract<JourneyNode, { type: 'agent' }>,
   ): Promise<Outcome> {
-    const ctx = getCurrentContext();
-    const [run] = await ctx.db
-      .select({ output: schema.journeyStepRuns.output })
-      .from(schema.journeyStepRuns)
-      .where(eq(schema.journeyStepRuns.id, step.stepRunId))
-      .limit(1);
-    const previous = run?.output ?? {};
+    const previous = await this.stepOutput(step.stepRunId);
+    if (node.mode === 'enrich') {
+      if (step.resumed) {
+        const enriched = step.resumed.resolution === 'agent_enriched';
+        return {
+          kind: 'advance',
+          edge: 'next',
+          to: node.next,
+          output: previous,
+          reason: enriched ? 'fields filled' : 'no fields in time',
+        };
+      }
+      const inputs = await buildAgentInputs(node.inputs, this.agentSubject(step));
+      return this.requestAgent(step, {
+        jobUri: ENRICH_STEP_JOB_URI,
+        prompt: buildEnrichPrompt({ node, journeyName: await this.journeyName(step.enrollment.journeyId), inputs }),
+        timeout: node.timeout,
+        output: { inputs: node.inputs },
+        reason: 'waiting for the agent to fill fields',
+      });
+    }
+    const edges = node.edges ?? {};
+    const fallback = node.fallback ?? Object.keys(edges)[0]!;
     if (step.resumed) {
       const decision = previous.decision as { edge?: string; reason?: string } | undefined;
-      if (step.resumed.resolution === 'agent_decided' && decision?.edge && decision.edge in node.edges) {
+      if (step.resumed.resolution === 'agent_decided' && decision?.edge && decision.edge in edges) {
         if (decision.edge === STOP_EDGE) await this.exitOtherJourneys(step.enrollment, 'conversation_stop');
         return {
           kind: 'advance',
           edge: decision.edge,
-          to: node.edges[decision.edge],
+          to: edges[decision.edge],
           output: previous,
           reason: decision.reason ?? 'agent decided',
         };
       }
       return {
         kind: 'advance',
-        edge: node.fallback,
-        to: node.edges[node.fallback],
-        output: { ...previous, decision: { edge: node.fallback, fallback: true, reason: 'no decision in time' } },
+        edge: fallback,
+        to: edges[fallback],
+        output: { ...previous, decision: { edge: fallback, fallback: true, reason: 'no decision in time' } },
         reason: 'fallback: no decision in time',
       };
     }
-    const [journey] = await ctx.db
-      .select({ name: schema.journeys.name })
-      .from(schema.journeys)
-      .where(eq(schema.journeys.id, step.enrollment.journeyId))
-      .limit(1);
-    const inputs = await buildAgentInputs(node, {
-      contactId: step.enrollment.contactId,
-      endUserId: step.enrollment.endUserId,
-      conversationId: step.enrollment.conversationId,
-      context: step.enrollment.context,
-    });
-    const job = await this.curatorJobs.enqueue({
+    const inputs = await buildAgentInputs(node.inputs, this.agentSubject(step));
+    return this.requestAgent(step, {
       jobUri: DECIDE_STEP_JOB_URI,
-      userPrompt: buildDecidePrompt({ node, journeyName: journey?.name ?? 'journey', inputs }),
-      sourceEventType: 'journey.agent.decide',
-      sourceEventPayload: {
-        stepRunId: step.stepRunId,
-        enrollmentId: step.enrollment.id,
-        journeyId: step.enrollment.journeyId,
-        nodeId: node.id,
-      },
-      dedupeKey: `journey-decide:${step.stepRunId}`,
-    });
-    const timeoutMs = parseIsoDurationMs(node.timeout) ?? 600_000;
-    return {
-      kind: 'wait',
-      wait: { kind: 'agent', timeoutAt: new Date(step.now.getTime() + timeoutMs) },
-      output: { curatorJobId: job.job.id, inputs: node.inputs },
+      prompt: buildDecidePrompt({ node, journeyName: await this.journeyName(step.enrollment.journeyId), inputs }),
+      timeout: node.timeout,
+      output: { inputs: node.inputs },
       reason: 'waiting for the agent to decide',
-    };
+    });
   }
 
   private async exitOtherJourneys(enrollment: EnrollmentRow, reason: string): Promise<number> {
@@ -714,11 +795,13 @@ export class JourneyRuntimeService {
     const enrollment = await this.loadEnrollment(run.enrollmentId);
     const spec = await this.spec(enrollment.journeyId, enrollment.version);
     const node = spec.nodes.find((n) => n.id === run.nodeId);
-    if (node?.type !== 'agent') throw new NotFoundException(`journeys_not_found: agent node ${run.nodeId}`);
-    const nextNode = node.edges[input.edge];
+    if (node?.type !== 'agent' || node.mode !== 'decide') {
+      throw new NotFoundException(`journeys_not_found: agent decide node ${run.nodeId}`);
+    }
+    const nextNode = node.edges?.[input.edge];
     if (!nextNode) {
       throw new BadRequestException(
-        `journeys_invalid: "${input.edge}" is not an edge of this step; choose one of ${Object.keys(node.edges).join(', ')}`,
+        `journeys_invalid: "${input.edge}" is not an edge of this step; choose one of ${Object.keys(node.edges ?? {}).join(', ')}`,
       );
     }
     await ctx.db
@@ -738,6 +821,111 @@ export class JourneyRuntimeService {
       .where(eq(sr.id, run.id));
     await this.resolveWait(wait, 'agent_decided');
     return { accepted: true, edge: input.edge, nextNode };
+  }
+
+  private async waitingAgentStep(stepRunId: string, nodeType: 'message' | 'agent') {
+    const ctx = getCurrentContext();
+    const sr = schema.journeyStepRuns;
+    const [run] = await ctx.db
+      .select()
+      .from(sr)
+      .where(and(eq(sr.orgId, ctx.actor!.orgId), eq(sr.id, stepRunId)))
+      .limit(1);
+    if (!run || run.nodeType !== nodeType) {
+      throw new NotFoundException(`journeys_not_found: agent step ${stepRunId}`);
+    }
+    const [wait] = await ctx.db
+      .select()
+      .from(schema.journeyWaits)
+      .where(
+        and(
+          eq(schema.journeyWaits.stepRunId, run.id),
+          eq(schema.journeyWaits.kind, 'agent'),
+          isNull(schema.journeyWaits.resolvedAt),
+        ),
+      )
+      .limit(1);
+    if (!wait || run.status !== 'waiting') {
+      throw new ConflictException(
+        `journeys_conflict: step ${stepRunId} is no longer waiting for the agent (it was answered or timed out)`,
+      );
+    }
+    const enrollment = await this.loadEnrollment(run.enrollmentId);
+    const spec = await this.spec(enrollment.journeyId, enrollment.version);
+    const node = spec.nodes.find((n) => n.id === run.nodeId);
+    return { run, wait, enrollment, node };
+  }
+
+  async submitDraft(input: {
+    stepRunId: string;
+    subject: string;
+    body: string;
+    citations?: { title: string; source: string }[];
+  }): Promise<{ accepted: true }> {
+    const ctx = getCurrentContext();
+    const { run, wait, node } = await this.waitingAgentStep(input.stepRunId, 'message');
+    if (node?.type !== 'message' || node.draftBy !== 'agent') {
+      throw new NotFoundException(`journeys_not_found: agent-drafted email step ${input.stepRunId}`);
+    }
+    await ctx.db
+      .update(schema.journeyStepRuns)
+      .set({
+        output: {
+          ...run.output,
+          draft: {
+            subject: input.subject,
+            body: input.body,
+            citations: input.citations ?? [],
+            draftedBy: ctx.actor!.id,
+            draftedAt: new Date().toISOString(),
+          },
+        },
+      })
+      .where(eq(schema.journeyStepRuns.id, run.id));
+    await this.resolveWait(wait, 'agent_drafted');
+    return { accepted: true };
+  }
+
+  async submitFields(input: { stepRunId: string; fields: Record<string, unknown> }): Promise<{ accepted: true; written: string[] }> {
+    const ctx = getCurrentContext();
+    const { run, wait, enrollment, node } = await this.waitingAgentStep(input.stepRunId, 'agent');
+    if (node?.type !== 'agent' || node.mode !== 'enrich') {
+      throw new NotFoundException(`journeys_not_found: agent enrich step ${input.stepRunId}`);
+    }
+    const values: Record<string, unknown> = {};
+    for (const field of node.fields ?? []) {
+      if (!(field.key in input.fields)) continue;
+      const value = coerceField(field, input.fields[field.key]);
+      if (value === undefined) {
+        throw new BadRequestException(`journeys_invalid: "${field.key}" is not a valid ${field.type}`);
+      }
+      values[field.key] = value;
+    }
+    const unknown = Object.keys(input.fields).filter((k) => !(node.fields ?? []).some((f) => f.key === k));
+    if (unknown.length) {
+      throw new BadRequestException(`journeys_invalid: ${unknown.join(', ')} are not fields of this step`);
+    }
+    if (enrollment.contactId && Object.keys(values).length) {
+      const [contact] = await ctx.db
+        .select({ customFields: schema.crmContacts.customFields })
+        .from(schema.crmContacts)
+        .where(eq(schema.crmContacts.id, enrollment.contactId))
+        .limit(1);
+      await this.crm.updateContact({
+        id: enrollment.contactId,
+        patch: { customFields: { ...(contact?.customFields ?? {}), ...values } },
+      });
+    }
+    await ctx.db
+      .update(schema.journeyEnrollments)
+      .set({ context: { ...enrollment.context, enriched: { ...(enrollment.context.enriched as object), ...values } } })
+      .where(eq(schema.journeyEnrollments.id, enrollment.id));
+    await ctx.db
+      .update(schema.journeyStepRuns)
+      .set({ output: { ...run.output, fields: values, filledBy: ctx.actor!.id } })
+      .where(eq(schema.journeyStepRuns.id, run.id));
+    await this.resolveWait(wait, 'agent_enriched');
+    return { accepted: true, written: Object.keys(values) };
   }
 
   private async rememberThread(enrollmentId: string, conversationId: string | null): Promise<void> {
@@ -1567,4 +1755,25 @@ function toEnrollmentDto(row: EnrollmentRow): EnrollmentDto {
     exitedAt: row.exitedAt?.toISOString() ?? null,
     exitReason: row.exitReason,
   };
+}
+
+function coerceField(
+  field: { type: string; options?: string[] },
+  value: unknown,
+): string | number | boolean | null | undefined {
+  if (value === null) return null;
+  switch (field.type) {
+    case 'string':
+      return typeof value === 'string' && value.length <= 500 ? value : undefined;
+    case 'number':
+      return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+    case 'boolean':
+      return typeof value === 'boolean' ? value : undefined;
+    case 'date':
+      return typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? value : undefined;
+    case 'enum':
+      return typeof value === 'string' && (field.options ?? []).includes(value) ? value : undefined;
+    default:
+      return undefined;
+  }
 }

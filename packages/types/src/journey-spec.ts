@@ -18,7 +18,8 @@ export type JourneyNodeType = (typeof JOURNEY_NODE_TYPES)[number];
 
 export const RESERVED_JOURNEY_NODE_TYPES = ['approval', 'sub_journey'] as const;
 
-export const AGENT_NODE_MODES = ['decide'] as const;
+export const AGENT_NODE_MODES = ['decide', 'enrich'] as const;
+export const ENRICH_FIELD_TYPES = ['string', 'number', 'boolean', 'date', 'enum'] as const;
 export const AGENT_INPUTS = ['contact', 'company', 'reply', 'thread', 'events', 'context'] as const;
 export type AgentInput = (typeof AGENT_INPUTS)[number];
 
@@ -132,6 +133,12 @@ export const MessageNodeSchema = z.strictObject({
     templateId: z.string().min(1).max(64).optional(),
   }),
   approval: z.enum(MESSAGE_APPROVAL_MODES).default('draft_only'),
+  draftBy: z.literal('agent').optional(),
+  brief: z.string().min(1).max(2000).optional(),
+  grounding: z.array(z.string().min(1).max(64)).max(5).optional(),
+  locale: z.string().min(2).max(10).optional(),
+  draftInputs: z.array(z.enum(AGENT_INPUTS)).max(AGENT_INPUTS.length).optional(),
+  draftTimeout: IsoDuration.default('PT30M'),
   next: NodeId.optional(),
   onReply: NodeId.optional(),
 });
@@ -222,14 +229,22 @@ export const AgentNodeSchema = z.strictObject({
   type: z.literal('agent'),
   mode: z.enum(AGENT_NODE_MODES),
   instructions: z.string().min(1).max(2000),
-  edges: z
-    .record(z.string().regex(NODE_ID_PATTERN), NodeId)
-    .refine((edges) => Object.keys(edges).length >= 2 && Object.keys(edges).length <= 10, {
-      message: 'an agent node declares between 2 and 10 edges',
-    }),
-  fallback: z.string().regex(NODE_ID_PATTERN),
+  edges: z.record(z.string().regex(NODE_ID_PATTERN), NodeId).optional(),
+  fallback: z.string().regex(NODE_ID_PATTERN).optional(),
+  fields: z
+    .array(
+      z.strictObject({
+        key: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]{0,47}$/),
+        type: z.enum(ENRICH_FIELD_TYPES),
+        description: z.string().min(1).max(300),
+        options: z.array(z.string().min(1).max(64)).max(20).optional(),
+      }),
+    )
+    .max(12)
+    .optional(),
   inputs: z.array(z.enum(AGENT_INPUTS)).min(1).max(AGENT_INPUTS.length),
   timeout: IsoDuration.default('PT10M'),
+  next: NodeId.optional(),
 });
 
 export const ReservedNodeSchema = z.looseObject({
@@ -368,7 +383,8 @@ export function journeyNodeEdges(node: JourneyNode): { label: string; to: string
       add('jump', node.to);
       break;
     case 'agent':
-      for (const [label, to] of Object.entries(node.edges)) add(label, to);
+      for (const [label, to] of Object.entries(node.edges ?? {})) add(label, to);
+      add('next', node.next);
       break;
     default:
       break;

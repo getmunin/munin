@@ -10478,6 +10478,53 @@
     }
   },
   {
+    "name": "journeys_submit_decision",
+    "title": "Journeys: Submit an agent step decision",
+    "description": "Answer a waiting agent decide step in a live journey: choose one of the step's declared edges for that person, with a short reason a reviewer can check. Used by the curator pass skill://journeys/decide-step; refused once the step was decided or has timed out to its fallback edge.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "stepRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "edge": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,47}$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "confidence": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        }
+      },
+      "required": [
+        "stepRunId",
+        "edge",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "journeys_list_enrollments",
     "title": "Journeys: List enrollments",
     "description": "List the people in a journey, newest first: which version they entered, where they are now, whether they are in the holdout, and why they left if they did. Filter by state or contact.",

@@ -76,6 +76,7 @@ export interface StepRunDto {
   reason: string | null;
   output: Record<string, unknown>;
   proposalId: string | null;
+  agent?: { jobId: string; status: string; totalTokens: number | null; tier: string } | null;
   startedAt: string;
   finishedAt: string | null;
 }

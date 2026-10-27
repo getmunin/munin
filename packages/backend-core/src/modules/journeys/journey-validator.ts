@@ -24,6 +24,7 @@ export interface JourneyReferences {
   segmentIds: ReadonlySet<string>;
   emailTemplateIds: ReadonlySet<string>;
   webhookIds: ReadonlySet<string>;
+  llmConfigured?: boolean;
 }
 
 export interface ParsedJourneySpec {
@@ -31,7 +32,7 @@ export interface ParsedJourneySpec {
   validation: JourneyValidation;
 }
 
-const WAITING_NODE_TYPES: ReadonlySet<string> = new Set(['wait', 'wait_for', 'message']);
+const WAITING_NODE_TYPES: ReadonlySet<string> = new Set(['wait', 'wait_for', 'message', 'agent']);
 const RESERVED: ReadonlySet<string> = new Set(RESERVED_JOURNEY_NODE_TYPES);
 
 export function parseJourneySpec(input: unknown): ParsedJourneySpec {
@@ -186,6 +187,29 @@ function checkNode(
     }
     case 'action':
       checkAction(node, refs, errors);
+      break;
+    case 'agent':
+      if (!(node.fallback in node.edges)) {
+        errors.push({
+          code: 'agent_fallback',
+          nodeId: node.id,
+          message: `fallback "${node.fallback}" must be one of the declared edges (${Object.keys(node.edges).join(', ')})`,
+        });
+      }
+      if (refs.llmConfigured === false) {
+        warnings.push({
+          code: 'agent_without_model',
+          nodeId: node.id,
+          message: 'no LLM provider is configured, so every contact takes the fallback edge after the timeout',
+        });
+      }
+      if (node.inputs.includes('reply') || node.inputs.includes('thread')) {
+        warnings.push({
+          code: 'agent_reads_conversation',
+          nodeId: node.id,
+          message: 'reply and thread inputs are empty until the contact has a journey conversation',
+        });
+      }
       break;
     default:
       break;

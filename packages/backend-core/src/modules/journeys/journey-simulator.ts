@@ -23,7 +23,7 @@ export interface SimulatedMessage {
   nodeId: string;
   contactId: string;
   contactName: string | null;
-  channel: 'email' | 'sms' | 'voice';
+  channel: 'email' | 'sms' | 'voice' | 'chat';
   subject: string | null;
   body?: string;
   decision: string;
@@ -32,7 +32,7 @@ export interface SimulatedMessage {
 }
 
 export interface SimulationAssumption {
-  code: 'reviewer_approves' | 'no_reply' | 'event_missing' | 'agent_fallback' | 'agent_draft' | 'call_reached' | 'approval_granted' | 'sub_journey_passed';
+  code: 'reviewer_approves' | 'no_reply' | 'event_missing' | 'agent_fallback' | 'agent_draft' | 'call_reached' | 'chat_seen' | 'approval_granted' | 'sub_journey_passed';
   nodeId: string;
   event?: string;
   timeout?: string;
@@ -149,7 +149,7 @@ export class JourneySimulator {
           contactName: contact.name,
           channel: node.channel,
           subject: node.content.subject ?? null,
-          ...(node.channel === 'sms' ? { body: node.content.body } : {}),
+          ...(node.channel === 'sms' || node.channel === 'chat' ? { body: node.content.body } : {}),
           decision: decision.decision,
           reason: decision.decision === 'send' ? null : decision.reason,
         };
@@ -165,6 +165,7 @@ export class JourneySimulator {
           const reached = node.onOutcome?.reached;
           return reached ? { edge: 'outcome_reached', to: reached, message } : { edge: 'next', to: node.next, message };
         }
+        if (node.channel === 'chat') assumptions.set(`seen:${node.id}`, { code: 'chat_seen', nodeId: node.id });
         if (node.onReply) assumptions.set(`reply:${node.id}`, { code: 'no_reply', nodeId: node.id });
         return { edge: 'next', to: node.next, message };
       }

@@ -1425,6 +1425,7 @@
         "assumeAgentDraft": "The agent rewrites \"{node}\" per person; the sample shows the reference version.",
         "assumeAgentFallback": "The agent at \"{node}\" is not run in a dry run; everyone follows its fallback \"{edge}\".",
         "assumeCallReached": "Assumes the call at \"{node}\" reaches the person.",
+        "assumeChatSeen": "Assumes the chat message at \"{node}\" is seen in time.",
         "assumeApprovalGranted": "Assumes a person approves \"{node}\".",
         "assumeSubJourney": "\"{node}\" enters {journey}; the dry run does not follow it there.",
         "assumeNoEvent": "Assumes {event} does not arrive within {timeout} at \"{node}\".",

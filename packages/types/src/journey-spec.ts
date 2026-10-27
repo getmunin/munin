@@ -38,7 +38,8 @@ export type Weekday = (typeof WEEKDAYS)[number];
 
 export const MESSAGE_APPROVAL_MODES = ['draft_only', 'auto', 'off'] as const;
 export const MESSAGE_CLASSES = ['marketing', 'transactional'] as const;
-export const MESSAGE_CHANNELS = ['email', 'sms', 'voice'] as const;
+export const MESSAGE_CHANNELS = ['email', 'sms', 'voice', 'chat'] as const;
+export const JOURNEY_CHAT_MAX_CHARS = 2000;
 export const JOURNEY_SMS_MAX_CHARS = 480;
 export const JOURNEY_CALL_OPENING_MAX_CHARS = 1000;
 export const CALL_OUTCOMES = ['reached', 'no_contact', 'refused', 'wrong_contact'] as const;
@@ -165,6 +166,8 @@ export const MessageNodeSchema = z.strictObject({
     })
     .optional(),
   outcomeTimeout: IsoDuration.optional(),
+  onUnseen: NodeId.optional(),
+  seenTimeout: IsoDuration.optional(),
 });
 
 export const ActionNodeSchema = z.strictObject({
@@ -359,6 +362,7 @@ export const JourneySettingsSchema = z.strictObject({
   maxVisitsPerNode: z.number().int().min(1).max(20).default(3),
   smsChannelId: z.string().min(1).max(64).optional(),
   voiceChannelId: z.string().min(1).max(64).optional(),
+  chatChannelId: z.string().min(1).max(64).optional(),
   optimiser: z.enum(['off', 'weekly']).optional(),
   traceRetentionDays: z.number().int().min(30).max(3650).optional(),
   guardrails: z
@@ -422,6 +426,7 @@ export function journeyNodeEdges(node: JourneyNode): { label: string; to: string
       add('next', node.next);
       add('on_reply', node.onReply);
       for (const [outcome, to] of Object.entries(node.onOutcome ?? {})) add(`outcome_${outcome}`, to);
+      add('on_unseen', node.onUnseen);
       break;
     case 'action':
     case 'wait':

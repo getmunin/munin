@@ -44,7 +44,7 @@
     "drizzle-orm": "^0.45.2",
     "jose": "^6.2.10",
     "nodemailer": "^10.0.13",
-    "undici": "^7.29.1",
+    "undici": "^7.30.1",
     "zod": "^4.6.6"
   },
   "devDependencies": {

@@ -53,10 +53,10 @@
     "@getmunin/inspector-app": "workspace:*",
     "@getmunin/mcp-toolkit": "workspace:*",
     "@getmunin/types": "workspace:*",
-    "@modelcontextprotocol/client": "2.2.0",
+    "@modelcontextprotocol/client": "2.3.0",
     "@modelcontextprotocol/core": "2.0.0",
     "@modelcontextprotocol/node": "2.0.0",
-    "@modelcontextprotocol/server": "2.0.0",
+    "@modelcontextprotocol/server": "2.3.0",
     "@nestjs/common": "^12.0.1",
     "@nestjs/core": "^12.0.1",
     "@nestjs/platform-express": "^12.0.1",
@@ -81,7 +81,7 @@
     "rxjs": "^7.8.2",
     "sharp": "^0.35.5",
     "ws": "^8.21.3",
-    "zod": "^4.5.4"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@getmunin/eslint-config": "workspace:*",
@@ -96,6 +96,6 @@
     "eslint": "^9.39.5",
     "typescript": "^5.9.3",
     "unplugin-swc": "^1.5.11",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   }
 }

@@ -39,13 +39,13 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "zod": "^4.5.4"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@getmunin/eslint-config": "workspace:*",
     "@getmunin/tsconfig": "workspace:*",
     "eslint": "^9.39.5",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   }
 }

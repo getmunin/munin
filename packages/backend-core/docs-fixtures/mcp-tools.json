@@ -13139,6 +13139,25 @@
     }
   },
   {
+    "name": "commerce_get_order_event_setup",
+    "title": "Commerce: Get order event setup",
+    "description": "For each Shopify connection, the webhook URL to add in Shopify (Settings → Notifications → Webhooks, JSON format), the order topics Munin turns into events (order.created, order.paid, order.fulfilled, order.cancelled) and whether the webhook signing secret is stored. Order events carry no order data beyond number, total and status; journeys and segments can use them.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "commerce:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "commerce_list_customer_orders",
     "title": "Commerce: List a customer’s orders",
     "description": "List a customer’s recent store orders by email (newest first), e.g. while handling their support conversation. `connectionId` is only needed when multiple commerce connections are active.",

@@ -562,7 +562,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       ],
       { smsChannelId: sms!.id },
     );
-    const ola = await contact({ phone: '+4791234567' });
+    const ola = await contact({ phone: '+4712345670' });
     const id = await enroll(journeyId, ola.id);
     await worker.tick();
     await worker.tick();
@@ -571,7 +571,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     const text = proposals.find((p) => p.channelId === sms!.id)!;
     expect(text).toMatchObject({ kind: 'journey', status: 'pending', draftSubject: null });
     const pending = await asAgent(() => outreach.getProposal(text.id));
-    expect(pending.delivery).toMatchObject({ channelType: 'sms', destination: '+4791234567' });
+    expect(pending.delivery).toMatchObject({ channelType: 'sms', destination: '+4712345670' });
     await expect(
       asAgent(() =>
         outreach.approveProposal(text.id, { fingerprint: pending.draftFingerprint, publicBaseUrl: 'https://api.acme.test' }),

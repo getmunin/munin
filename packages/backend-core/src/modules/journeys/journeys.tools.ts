@@ -634,6 +634,32 @@ export class JourneysTools {
   }
 
   @McpTool({
+    name: 'journeys_move_enrollments',
+    title: 'Journeys: Move enrollments to another version',
+    description:
+      'Move open runs from older versions onto a published version. Each run continues at the node with the same id, or where nodeMap sends it ({ "old_node": "new_node" }). Call it first without fingerprint for a preview — how many runs move from which node, and which are skipped and why — then again with the preview fingerprint to move them. A run that stays on the same step keeps its wait; one that moves to another step starts that step fresh. Runs waiting on a proposal, an agent or an approval only move when they stay on the same step.',
+    audiences: ['admin'],
+    scopes: ['journeys:write'],
+    input: JourneyIdInput.extend({
+      toVersion: z.number().int().min(1),
+      nodeMap: z.record(z.string().min(1).max(48), z.string().min(1).max(48)).optional(),
+      fromVersions: z.array(z.number().int().min(1)).max(50).optional(),
+      fingerprint: z.string().length(32).optional(),
+    }),
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  moveEnrollments(args: {
+    journeyId: string;
+    toVersion: number;
+    nodeMap?: Record<string, string>;
+    fromVersions?: number[];
+    fingerprint?: string;
+  }) {
+    return this.runtime.moveEnrollments(args);
+  }
+
+  @McpTool({
     name: 'journeys_list_approvals',
     title: 'Journeys: List approval requests',
     description:

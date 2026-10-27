@@ -28,6 +28,7 @@ import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 import { notify } from '../lib/notify';
 import { JourneyGraph } from '../components/journeys/journey-graph';
 import { PublishDialog } from '../components/journeys/publish-dialog';
+import { useConfirm } from '../components/confirm-dialog';
 import type {
   EnrollmentDto,
   JourneyDetailDto,
@@ -141,6 +142,7 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
   const [publishing, setPublishing] = useState<number | null>(publishVersion ?? null);
   const [traceId, setTraceId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const confirm = useConfirm();
 
   const load = useCallback(async () => {
     const [detail, versionList, people, results, stats, agents, pendingApprovals] = await Promise.all([
@@ -185,6 +187,37 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
     try {
       await api(`/v1/journey-approvals/${approvalId}/decide`, { method: 'POST', body: JSON.stringify({ decision }) });
       notify.success(t(decision === 'approve' ? 'approvalApproved' : 'approvalRejected'));
+      await load();
+    } catch (err) {
+      notify.error(translate(err) || t('actionFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function moveRuns(toVersion: number) {
+    setBusy(true);
+    try {
+      const preview = await api<{ fingerprint: string; movable: number; skipped: unknown[] }>(
+        `/v1/journeys/${id}/move-enrollments`,
+        { method: 'POST', body: JSON.stringify({ toVersion }) },
+      );
+      if (preview.movable === 0) {
+        notify.success(t('moveNothing'));
+        return;
+      }
+      const ok = await confirm({
+        title: t('moveTitle', { version: toVersion }),
+        message: t('moveBody', { count: preview.movable, skipped: preview.skipped.length }),
+        confirmLabel: t('moveConfirm'),
+        cancelLabel: t('moveCancel'),
+      });
+      if (!ok) return;
+      await api(`/v1/journeys/${id}/move-enrollments`, {
+        method: 'POST',
+        body: JSON.stringify({ toVersion, fingerprint: preview.fingerprint }),
+      });
+      notify.success(t('moved', { count: preview.movable, version: toVersion }));
       await load();
     } catch (err) {
       notify.error(translate(err) || t('actionFailed'));
@@ -350,7 +383,12 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
         <TabsPanel value="report">{report && <ReportView report={report} reviewStats={reviewStats} agentStats={agentStats} />}</TabsPanel>
 
         <TabsPanel value="versions">
-          <VersionList versions={versions} onPublish={(n) => setPublishing(n)} />
+          <VersionList
+            versions={versions}
+            liveVersion={journey.liveVersion}
+            onPublish={(n) => setPublishing(n)}
+            onMove={(n) => void moveRuns(n)}
+          />
         </TabsPanel>
       </Tabs>
 
@@ -630,10 +668,14 @@ function ReportView({
 
 function VersionList({
   versions,
+  liveVersion,
   onPublish,
+  onMove,
 }: {
   versions: JourneyVersionSummaryDto[];
+  liveVersion: number | null;
   onPublish: (n: number) => void;
+  onMove: (n: number) => void;
 }) {
   const t = useTranslations('dashboard.journeys.versions');
   const format = useFormatter();
@@ -656,6 +698,11 @@ function VersionList({
             {!v.publishedAt && (
               <Button size="sm" variant="outline" className="ml-auto" onClick={() => onPublish(v.number)}>
                 {t('review')}
+              </Button>
+            )}
+            {v.number === liveVersion && v.number > 1 && (
+              <Button size="sm" variant="outline" className="ml-auto" onClick={() => onMove(v.number)}>
+                {t('moveHere')}
               </Button>
             )}
           </div>

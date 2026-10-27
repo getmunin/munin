@@ -1315,6 +1315,12 @@
       "reject": "Avvis",
       "approvalApproved": "Godkjent. Løpet fortsetter.",
       "approvalRejected": "Avvist.",
+      "moveTitle": "Flytte løp til v{version}?",
+      "moveBody": "{count, plural, one {# åpent løp flyttes} other {# åpne løp flyttes}} til denne versjonen og fortsetter på tilsvarende steg. {skipped, plural, =0 {} one {# løp blir der det er.} other {# løp blir der de er.}}",
+      "moveConfirm": "Flytt løp",
+      "moveCancel": "Avbryt",
+      "moveNothing": "Ingen åpne løp på eldre versjoner kan flyttes hit.",
+      "moved": "{count, plural, one {# løp} other {# løp}} flyttet til v{version}.",
       "nodePaused": "Steg pauset",
       "nodePausedGuardrail": "{node} ble pauset av monitoren: {metric} nådde {rate} %. Løpene venter der til steget gjenopptas.",
       "nodePausedManual": "{node} er pauset. Løpene venter der til steget gjenopptas.",
@@ -1389,6 +1395,7 @@
         "draft": "Utkast",
         "errors": "{count, plural, one {# feil} other {# feil}}",
         "proposed": "Foreslått av optimizeren",
+        "moveHere": "Flytt eldre løp hit",
         "review": "Se over og publiser"
       },
       "publish": {

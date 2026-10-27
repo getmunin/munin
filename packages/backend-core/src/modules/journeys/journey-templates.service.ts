@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Inject, Injectable, NotFoundExc
 import { schema } from '@getmunin/db';
 import { and, asc, eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
+import { JourneySpecSchema } from '@getmunin/types';
 import { JourneysService, type JourneyDetailDto } from './journeys.service.ts';
 import type { JourneyValidation } from './journey-validator.ts';
 import { specFromCampaign } from './journey-campaign-conversion.ts';
@@ -111,11 +112,11 @@ export class JourneyTemplatesService {
       ? await this.journeys.getVersion(input.journeyId, input.version)
       : (journey.live ?? journey.draft);
     if (!version) throw new NotFoundException(`journeys_not_found: journey ${input.journeyId} has no version`);
-    let specText = JSON.stringify(version.spec);
-    for (const [value, key] of Object.entries(input.replace ?? {})) {
-      specText = specText.split(JSON.stringify(value).slice(1, -1)).join(`{{param:${key}}}`);
+    const replace = new Map(Object.entries(input.replace ?? {}));
+    const spec = replaceValues(version.spec, replace) as Record<string, unknown>;
+    if (JourneySpecSchema.safeParse(fillTemplate(spec, Object.fromEntries([...replace.values()].map((k) => [k, 'x'])))).success === false) {
+      throw new BadRequestException('journeys_invalid: the template would not parse once its parameters are filled; replace whole values only');
     }
-    const spec = JSON.parse(specText) as Record<string, unknown>;
     const declared = new Set((input.params ?? []).map((p) => p.key));
     const undeclared = missingParams(spec).filter((k) => !declared.has(k));
     if (undeclared.length) {
@@ -174,4 +175,16 @@ function toTemplate(row: typeof schema.journeyTemplates.$inferSelect): JourneyTe
     spec: row.spec,
     builtIn: false,
   };
+}
+
+function replaceValues(value: unknown, replace: ReadonlyMap<string, string>): unknown {
+  if (typeof value === 'string') {
+    const key = replace.get(value);
+    return key ? `{{param:${key}}}` : value;
+  }
+  if (Array.isArray(value)) return value.map((v) => replaceValues(v, replace));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, replaceValues(v, replace)]));
+  }
+  return value;
 }

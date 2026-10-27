@@ -1934,7 +1934,7 @@ export class OutreachService {
     const [journey] = await ctx.db
       .select({ id: schema.journeys.id })
       .from(schema.journeys)
-      .where(and(eq(schema.journeys.outreachCampaignId, campaignId), ne(schema.journeys.status, 'archived')))
+      .where(and(eq(schema.journeys.outreachCampaignId, campaignId), inArray(schema.journeys.status, ['live', 'paused'])))
       .limit(1);
     if (journey) {
       throw new OutreachInvalidError(
@@ -2450,7 +2450,7 @@ export class OutreachService {
        AND jsonb_array_length(c.sequence_steps) > a.last_step
        AND NOT EXISTS (
          SELECT 1 FROM journeys j
-          WHERE j.outreach_campaign_id = c.id AND j.status <> 'archived'
+          WHERE j.outreach_campaign_id = c.id AND j.status IN ('live', 'paused')
        )
       JOIN conv_conversations cv
         ON cv.id = a.conversation_id

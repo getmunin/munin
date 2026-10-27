@@ -37,6 +37,8 @@ export interface ParsedJourneySpec {
   validation: JourneyValidation;
 }
 
+const RESERVED_FIELD_KEYS: ReadonlySet<string> = new Set(['timezone', 'locale', 'language']);
+
 const WAITING_NODE_TYPES: ReadonlySet<string> = new Set(['wait', 'wait_for', 'message', 'agent', 'approval', 'sub_journey']);
 
 export function parseJourneySpec(input: unknown): ParsedJourneySpec {
@@ -296,6 +298,9 @@ function checkNode(
           errors.push({ code: 'agent_mode_fields', nodeId: node.id, message: 'an enrich step uses fields and next, not edges' });
         }
         for (const field of node.fields ?? []) {
+          if (RESERVED_FIELD_KEYS.has(field.key) || field.key.startsWith('outreachOutcome')) {
+            errors.push({ code: 'agent_fields', nodeId: node.id, message: `"${field.key}" is set by Munin itself; choose another key` });
+          }
           if (field.type === 'enum' && !field.options?.length) {
             errors.push({ code: 'agent_fields', nodeId: node.id, message: `enum field "${field.key}" needs options` });
           }

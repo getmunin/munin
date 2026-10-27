@@ -543,6 +543,79 @@ const DAY = 86_400_000;
     expect(journey!.nextEntryAt!.getTime()).toBeGreaterThan(Date.now());
   });
 
+  it('enrolls a whole segment across scheduled passes and waits for the configured time of day', async () => {
+    const journeyId = await publish(
+      {
+        entry: { trigger: { type: 'segment', segmentId, schedule: 'once' } },
+        goal: { event: 'subscription.started', windowDays: 30 },
+        start: 'done',
+        nodes: [{ id: 'done', type: 'exit' }],
+      },
+      { nextEntryAt: new Date(Date.now() - 1000) },
+    );
+    for (const name of ['Kari', 'Ola', 'Per', 'Anne', 'Lars']) await contact(name);
+    const runEntries = () =>
+      appDb.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
+        await tx.execute(sql`SELECT set_config('app.org_id', ${orgId}, true)`);
+        return withContext({ db: tx, actor: agent, correlationId: randomUUID() }, () => runtime.runScheduledEntries(new Date(), 2));
+      });
+    expect(await runEntries()).toBe(2);
+    expect(await runEntries()).toBe(2);
+    expect(await runEntries()).toBe(1);
+    expect(await enrollmentsOf(journeyId)).toHaveLength(5);
+    const [journey] = await db.select().from(schema.journeys).where(eq(schema.journeys.id, journeyId));
+    expect(journey!.nextEntryAt).toBeNull();
+  });
+
+  it('does not count the triggering event as the goal, and 404s an unknown contact', async () => {
+    const journeyId = await publish({
+      entry: { trigger: { type: 'event', event: 'order.placed' }, segmentId },
+      goal: { event: 'order.placed', windowDays: 30 },
+      start: 'wait',
+      nodes: [
+        { id: 'wait', type: 'wait', duration: 'P1D', next: 'done' },
+        { id: 'done', type: 'exit' },
+      ],
+    });
+    const kari = await contact('Kari');
+    await record(kari.id, 'order.placed');
+    await worker.tick();
+    let [run] = await enrollmentsOf(journeyId);
+    expect(run).toMatchObject({ state: 'waiting', goalReachedAt: null });
+    await record(kari.id, 'order.placed');
+    await worker.tick();
+    [run] = await enrollmentsOf(journeyId);
+    expect(run).toMatchObject({ exitReason: 'goal_reached' });
+    await expect(
+      asAgent(() =>
+        runtime.enroll({ journeyId, subject: { contactId: 'cct_missing', endUserId: null }, source: { type: 'manual' } }),
+      ),
+    ).rejects.toThrow(/journeys_not_found/);
+  });
+
+  it('retries an inbox row that failed instead of dropping it', async () => {
+    const [row] = await db
+      .insert(schema.journeyEventInbox)
+      .values({ orgId, eventId: 'evt_retry', type: 'crm.contact.updated', payload: { contactId: 'cct_x' } })
+      .returning();
+    const original = runtime.processInboxRow.bind(runtime);
+    let calls = 0;
+    runtime.processInboxRow = () => {
+      calls += 1;
+      return Promise.reject(new Error('boom'));
+    };
+    try {
+      await worker.tick();
+    } finally {
+      runtime.processInboxRow = original;
+    }
+    expect(calls).toBeGreaterThan(0);
+    const [after] = await db.select().from(schema.journeyEventInbox).where(eq(schema.journeyEventInbox.id, row!.id));
+    expect(after).toMatchObject({ processedAt: null, attempts: 1, lastError: 'boom' });
+    expect(after!.nextAttemptAt!.getTime()).toBeGreaterThan(Date.now());
+  });
+
   it('accepts events emitted inside an end-user request', async () => {
     const [endUser] = await db.insert(schema.endUsers).values({ orgId, externalId: 'kari' }).returning();
     await appDb.transaction(async (tx) => {

@@ -2393,6 +2393,9 @@ export const journeyEventInbox = pgTable(
     hopCount: integer('hop_count').notNull().default(0),
     payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
     processedAt: timestamp('processed_at', { withTimezone: true }),
+    attempts: integer('attempts').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+    lastError: text('last_error'),
     createdAt,
   },
   (t) => ({

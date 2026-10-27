@@ -495,10 +495,10 @@ export class JourneysTools {
     description:
       'Check a journey version (the open draft by default) for schema errors, missing or unreachable nodes, dangling edges, loops without a wait, unknown segments, templates or webhooks, and a missing goal. Errors block publishing; warnings do not.',
     audiences: ['admin'],
-    scopes: ['journeys:read'],
+    scopes: ['journeys:write'],
     input: JourneyIdInput.extend({ version: z.number().int().min(1).optional() }),
-    readOnlyHint: true,
-    destructiveHint: false,
+    readOnlyHint: false,
+    destructiveHint: true,
   })
   validate(args: { journeyId: string; version?: number }) {
     return this.journeys.validate(args.journeyId, args.version);

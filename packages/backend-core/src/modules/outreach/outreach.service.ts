@@ -579,7 +579,10 @@ export class OutreachService {
         schema.outreachCampaigns,
         eq(schema.outreachCampaigns.id, schema.outreachProposals.campaignId),
       )
-      .leftJoin(schema.convChannels, eq(schema.convChannels.id, schema.outreachCampaigns.channelId))
+      .leftJoin(
+        schema.convChannels,
+        eq(schema.convChannels.id, sql`coalesce(${schema.outreachProposals.channelId}, ${schema.outreachCampaigns.channelId})`),
+      )
       .leftJoin(
         schema.crmAddressDeliverability,
         sql`${schema.crmAddressDeliverability.orgId} = ${schema.crmContacts.orgId}
@@ -643,7 +646,10 @@ export class OutreachService {
         schema.outreachCampaigns,
         eq(schema.outreachCampaigns.id, schema.outreachProposals.campaignId),
       )
-      .leftJoin(schema.convChannels, eq(schema.convChannels.id, schema.outreachCampaigns.channelId))
+      .leftJoin(
+        schema.convChannels,
+        eq(schema.convChannels.id, sql`coalesce(${schema.outreachProposals.channelId}, ${schema.outreachCampaigns.channelId})`),
+      )
       .leftJoin(
         schema.crmAddressDeliverability,
         sql`${schema.crmAddressDeliverability.orgId} = ${schema.crmContacts.orgId}
@@ -1732,10 +1738,12 @@ export class OutreachService {
   async proposeJourneyMessage(
     input: {
       campaignId: string;
+      channel: 'email' | 'sms';
+      channelId: string | null;
       contactId: string;
       enrollmentId: string;
       stepRunId: string;
-      subject: string;
+      subject: string | null;
       body: string;
       format: 'markdown' | 'mjml';
       templateId?: string;
@@ -1755,12 +1763,27 @@ export class OutreachService {
       .where(eq(p.journeyStepRunId, input.stepRunId))
       .limit(1);
     if (existing) return this.getProposal(existing.id);
+    const sms = input.channel === 'sms';
+    if (sms) {
+      if (input.auto) {
+        throw new OutreachInvalidError('journey SMS is always approved by a person; it cannot be sent automatically');
+      }
+      if (!input.channelId) throw new OutreachInvalidError('a journey SMS step needs an SMS channel');
+      const channel = await this.loadOutreachChannel(input.channelId);
+      if (channel.type !== 'sms') {
+        throw new OutreachInvalidError(`channel ${input.channelId} is ${channel.type}, not sms`);
+      }
+      if (input.body.length > SMS_DRAFT_MAX_CHARS) {
+        throw new OutreachInvalidError(`SMS text is ${input.body.length} characters; the limit is ${SMS_DRAFT_MAX_CHARS}`);
+      }
+    }
 
     const [row] = await ctx.db
       .insert(p)
       .values({
         orgId: actor.orgId,
         campaignId: input.campaignId,
+        channelId: sms ? input.channelId : null,
         contactId: input.contactId,
         kind: 'journey',
         journeyEnrollmentId: input.enrollmentId,
@@ -1772,6 +1795,7 @@ export class OutreachService {
           enrollmentId: input.enrollmentId,
           stepRunId: input.stepRunId,
           journeyMessage: {
+            channel: input.channel,
             format: input.format,
             templateId: input.templateId ?? null,
             preheader: input.preheader ?? null,
@@ -1791,6 +1815,7 @@ export class OutreachService {
         campaignId: row!.campaignId,
         contactId: row!.contactId,
         kind: 'journey',
+        channel: input.channel,
         journeyEnrollmentId: input.enrollmentId,
         ...(input.auto ? { autoApproved: true } : {}),
       },
@@ -1851,6 +1876,7 @@ export class OutreachService {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     const meta = journeyMessageMeta(proposal);
+    if (meta.channel === 'sms') return this.deliverJourneySms(proposal, meta, sender);
     const campaign = await this.getCampaign(proposal.campaignId);
     const channel = await this.loadOutreachChannel(campaign.channelId);
     if (channel.type !== 'email') {
@@ -1969,6 +1995,123 @@ export class OutreachService {
       },
     });
     return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+  }
+
+  private async deliverJourneySms(
+    proposal: ProposalDto,
+    meta: JourneyMessageMeta,
+    sender: ProposalSender,
+  ): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    if (proposal.decidedByActorType !== 'user') {
+      throw new OutreachInvalidError('journey SMS is sent only after a person approves it');
+    }
+    const channelId = proposal.delivery?.channelId;
+    if (!channelId || proposal.delivery?.channelType !== 'sms') {
+      throw new OutreachInvalidError(`proposal ${proposal.id} has no SMS channel to send from`);
+    }
+    const contact = await this.crm.getContact(proposal.contactId);
+    const marketing = meta.policy.class === 'marketing';
+    if (contact.doNotContact || (marketing && (contact.unsubscribedAt || !contact.consentLawfulBasis))) {
+      throw new OutreachInvalidError(
+        `contact ${contact.id} is no longer eligible (suppression or consent withdrawn)`,
+      );
+    }
+    assertDeliverable(contact, 'sms');
+    if (!contact.phone) throw new OutreachInvalidError(`contact ${contact.id} has no phone — cannot send`);
+
+    const body = composeSmsOutreachBody({
+      draftBody: personalizeSms(proposal.draftBody, contact.name),
+      ctaUrl: null,
+      unsubscribeRequired: marketing,
+    });
+    const enrollmentId = (proposal.evidence.enrollmentId as string | undefined) ?? null;
+    const messageMetadata = { journeyStepRunId: (proposal.evidence.stepRunId as string | undefined) ?? null };
+    const threadId = enrollmentId ? await this.journeySmsThread(enrollmentId, channelId) : null;
+    let conversationId: string;
+    let messageId: string | null;
+    if (threadId) {
+      const sent = await this.conv.sendMessage({
+        conversationId: threadId,
+        body,
+        messageMetadata,
+        approvedOutreachProposalId: proposal.id,
+        authorType: 'agent',
+        authorId: sender.id,
+      });
+      conversationId = threadId;
+      messageId = sent.id;
+    } else {
+      const convContact = await ctx.db.transaction(async (tx) => {
+        const found = await findOrCreateContactByPhone(
+          tx,
+          actor.orgId,
+          contact.phone!,
+          contact.name ?? undefined,
+          'outreach-sms',
+        );
+        if (!found) throw new OutreachInvalidError(`could not resolve a contact for ${contact.phone}`);
+        return found;
+      });
+      const conversation = await this.conv.createConversation({
+        channelId,
+        body,
+        contactId: convContact.id,
+        endUserId: contact.endUserId ?? undefined,
+        outreachCampaignId: proposal.campaignId,
+        messageMetadata,
+        approvedOutreachProposalId: proposal.id,
+        agentMode: 'draft_only',
+        authorType: 'agent',
+        authorId: sender.id,
+      });
+      conversationId = conversation.id;
+      messageId = conversation.messages[0]?.id ?? null;
+    }
+
+    const [updated] = await ctx.db
+      .update(schema.outreachProposals)
+      .set({ status: 'sent', conversationId, sentMessageId: messageId, sentAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.outreachProposals.id, proposal.id))
+      .returning();
+    await ctx.db
+      .update(schema.crmContacts)
+      .set({ lastContactedAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.crmContacts.id, contact.id));
+    await this.webhooks.emit({
+      type: 'outreach.proposal.sent',
+      payload: {
+        proposalId: proposal.id,
+        campaignId: proposal.campaignId,
+        contactId: contact.id,
+        conversationId,
+        messageId,
+        kind: 'journey',
+        channel: 'sms',
+        journeyEnrollmentId: enrollmentId,
+      },
+    });
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+  }
+
+  private async journeySmsThread(enrollmentId: string, channelId: string): Promise<string | null> {
+    const ctx = getCurrentContext();
+    const p = schema.outreachProposals;
+    const [row] = await ctx.db
+      .select({ conversationId: p.conversationId })
+      .from(p)
+      .where(
+        and(
+          eq(p.journeyEnrollmentId, enrollmentId),
+          eq(p.channelId, channelId),
+          eq(p.status, 'sent'),
+          isNotNull(p.conversationId),
+        ),
+      )
+      .orderBy(desc(p.sentAt))
+      .limit(1);
+    return row?.conversationId ?? null;
   }
 
   private async journeyThread(enrollmentId: string): Promise<string | null> {
@@ -2986,6 +3129,7 @@ function assertDeliverable(contact: ContactDto, channelType: string): void {
 }
 
 interface JourneyMessageMeta {
+  channel: 'email' | 'sms';
   format: 'markdown' | 'mjml';
   templateId: string | null;
   preheader: string | null;
@@ -2996,10 +3140,18 @@ interface JourneyMessageMeta {
 function journeyMessageMeta(proposal: ProposalDto): JourneyMessageMeta {
   const meta = proposal.evidence.journeyMessage as Partial<JourneyMessageMeta> | undefined;
   return {
+    channel: meta?.channel === 'sms' ? 'sms' : 'email',
     format: meta?.format === 'mjml' ? 'mjml' : 'markdown',
     templateId: meta?.templateId ?? null,
     preheader: meta?.preheader ?? null,
     policy: meta?.policy ?? { class: 'marketing', cooldownHoursAfterConversation: 24 },
     auto: meta?.auto === true,
   };
+}
+
+function personalizeSms(text: string, name: string | null): string {
+  return text.replace(/\{\{\s*([^{}|\s]+)\s*(?:\|([^{}]*))?\}\}/g, (_match, field: string, fallback?: string) => {
+    const value = field === 'name' ? name?.trim() : '';
+    return value || (fallback ?? '').trim();
+  });
 }

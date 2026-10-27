@@ -426,18 +426,23 @@ export class JourneysService {
   private async loadReferences(): Promise<JourneyReferences> {
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
-    const [segments, templates, webhooks] = await Promise.all([
+    const [segments, templates, webhooks, smsChannels] = await Promise.all([
       ctx.db.select({ id: schema.crmSegments.id }).from(schema.crmSegments).where(eq(schema.crmSegments.orgId, orgId)),
       ctx.db
         .select({ id: schema.outreachEmailTemplates.id })
         .from(schema.outreachEmailTemplates)
         .where(eq(schema.outreachEmailTemplates.orgId, orgId)),
       ctx.db.select({ id: schema.webhooks.id }).from(schema.webhooks).where(eq(schema.webhooks.orgId, orgId)),
+      ctx.db
+        .select({ id: schema.convChannels.id })
+        .from(schema.convChannels)
+        .where(and(eq(schema.convChannels.orgId, orgId), eq(schema.convChannels.type, 'sms'))),
     ]);
     return {
       segmentIds: new Set(segments.map((r) => r.id)),
       emailTemplateIds: new Set(templates.map((r) => r.id)),
       webhookIds: new Set(webhooks.map((r) => r.id)),
+      smsChannelIds: new Set(smsChannels.map((r) => r.id)),
     };
   }
 }

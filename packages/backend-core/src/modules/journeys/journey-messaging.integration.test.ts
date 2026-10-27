@@ -430,6 +430,81 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect((await enrollment(olaRun)).state).toBe('waiting');
   });
 
+  it('mixes email and SMS in one journey, with every SMS approved by a person and replies followed on its own thread', async () => {
+    const [sms] = await db
+      .insert(schema.convChannels)
+      .values({
+        orgId,
+        type: 'sms',
+        vendor: 'twilio',
+        name: 'journey-sms',
+        active: true,
+        config: { accountSid: 'AC_test', encryptedAuthToken: 'fake', fromNumber: '+15550001111' },
+      })
+      .returning();
+    const journeyId = await publish(
+      [
+        welcome({ approval: 'auto', next: 'remind' }),
+        {
+          id: 'remind',
+          type: 'message',
+          channel: 'sms',
+          content: { body: 'Hei {{name|der}}, webinaret starter i morgen kl. 10.' },
+          next: 'wait',
+          onReply: 'replied',
+        },
+        { id: 'wait', type: 'wait', duration: 'P1D', next: 'done' },
+        { id: 'replied', type: 'exit', reason: 'replied' },
+        done,
+      ],
+      { smsChannelId: sms!.id },
+    );
+    const ola = await contact({ phone: '+4791234567' });
+    const id = await enroll(journeyId, ola.id);
+    await worker.tick();
+    await worker.tick();
+
+    const proposals = await proposalsFor(ola.id);
+    const text = proposals.find((p) => p.channelId === sms!.id)!;
+    expect(text).toMatchObject({ kind: 'journey', status: 'pending', draftSubject: null });
+    const pending = await asAgent(() => outreach.getProposal(text.id));
+    expect(pending.delivery).toMatchObject({ channelType: 'sms', destination: '+4791234567' });
+    await expect(
+      asAgent(() =>
+        outreach.approveProposal(text.id, { fingerprint: pending.draftFingerprint, publicBaseUrl: 'https://api.acme.test' }),
+      ),
+    ).rejects.toThrow(/signed-in person/);
+
+    await runAs(person, () =>
+      outreach.approveProposal(text.id, { fingerprint: pending.draftFingerprint, publicBaseUrl: 'https://api.acme.test' }),
+    );
+    await worker.tick();
+    const [sent] = await db.select().from(schema.outreachProposals).where(eq(schema.outreachProposals.id, text.id));
+    const [thread] = await db
+      .select()
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, sent!.conversationId!));
+    expect(thread!.channelId).toBe(sms!.id);
+    const [message] = await db
+      .select({ body: schema.convMessages.body })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.conversationId, thread!.id));
+    expect(message!.body).toBe('Hei Ola Nordmann, webinaret starter i morgen kl. 10. Reply STOP to opt out.');
+    const run = await enrollment(id);
+    expect(run.conversationId).not.toBe(thread!.id);
+    expect(run.currentNode).toBe('wait');
+
+    await asAgent(() =>
+      webhooks.emit({
+        type: 'conversation.message.received',
+        payload: { conversationId: thread!.id, messageId: randomUUID(), authorType: 'end_user' },
+      }),
+    );
+    await worker.tick(new Date(Date.now() + 5 * 60_000));
+    await worker.tick(new Date(Date.now() + 5 * 60_000));
+    expect(await enrollment(id)).toMatchObject({ exitReason: 'replied' });
+  });
+
   it('keeps legacy outreach off a journey-run campaign and journey emails out of exports', async () => {
     const journeyId = await publish([welcome({ approval: 'auto' }), done]);
     const ola = await contact();

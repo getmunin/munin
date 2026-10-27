@@ -23,7 +23,9 @@ export interface SimulatedMessage {
   nodeId: string;
   contactId: string;
   contactName: string | null;
-  subject: string;
+  channel: 'email' | 'sms';
+  subject: string | null;
+  body?: string;
   decision: string;
   reason: string | null;
   html?: string;
@@ -97,7 +99,7 @@ export class JourneySimulator {
         if (step.message) {
           const decisions = (result.messageDecisions[node.id] ??= {});
           bump(decisions, step.message.decision);
-          if (node.type === 'message' && rendered < (input.renderSamples ?? 3) && step.message.decision !== 'skip') {
+          if (node.type === 'message' && node.channel === 'email' && rendered < (input.renderSamples ?? 3) && step.message.decision !== 'skip') {
             step.message.html = await this.renderSample(node, contact);
             rendered += 1;
           }
@@ -132,6 +134,7 @@ export class JourneySimulator {
           contactId: contact.id,
           now,
           policy: {
+            channel: node.channel,
             class: node.class,
             timezone: settings.timezone,
             quietHours: settings.quietHours,
@@ -144,7 +147,9 @@ export class JourneySimulator {
           nodeId: node.id,
           contactId: contact.id,
           contactName: contact.name,
-          subject: node.content.subject,
+          channel: node.channel,
+          subject: node.content.subject ?? null,
+          ...(node.channel === 'sms' ? { body: node.content.body } : {}),
           decision: decision.decision,
           reason: decision.decision === 'send' ? null : decision.reason,
         };
@@ -269,7 +274,7 @@ export class JourneySimulator {
       template?.mjml ?? BUILT_IN_EMAIL_TEMPLATE,
       { format: node.content.format, body: node.content.body },
       {
-        subject: node.content.subject,
+        subject: node.content.subject ?? '',
         preheader: node.content.preheader ?? null,
         name: contact.name,
         orgName: org?.name ?? null,

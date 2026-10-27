@@ -29,6 +29,7 @@ Rules that keep a journey safe and readable:
 
 - **Name a goal.** `goal.event` and `goal.windowDays` are required. Success is measured as goal conversion, not opens.
 - **Keep emails in `draft_only`.** Each email is then filed for review in the outreach inbox before it is sent. Only the person publishing a version decides that a fixed-content email may use `auto`.
+- **Text messages go through a person every time.** A `message` node with `channel: "sms"` sends from the SMS channel in `settings.smsChannelId` (find it with `conv_list_channels`), so one journey can mix email and SMS. It carries only `content.body` (at most 480 characters, `{{name|fallback}}` allowed, an opt-out line is added to marketing texts), cannot use `auto` or an agent draft, and goes to a signed-in reviewer before it is sent. Use it for short, timely nudges — a reminder the day before a webinar — not as a second copy of every email.
 - **Mark transactional email honestly.** `class: "transactional"` reaches unsubscribed contacts, so use it only for messages the contact needs to use the product (receipts, password or account notices), never for promotion.
 - **Give every `wait_for` an `onTimeout`.** Without it, contacts whose event never comes simply leave.
 - **Use `onReply` on emails that invite an answer.** A reply always pauses the contact's run; Conversations answers it, and the journey continues on `onReply`, or at the same point once the thread closes.

@@ -196,8 +196,11 @@ export function JourneyGraph({
 
 function nodeTitle(node: JourneyNode): string {
   switch (node.type) {
-    case 'message':
-      return node.draftBy === 'agent' ? `✎ ${node.content.subject}` : node.content.subject;
+    case 'message': {
+      if (node.channel === 'sms') return `SMS · ${node.content.body.length > 40 ? `${node.content.body.slice(0, 39)}…` : node.content.body}`;
+      const subject = node.content.subject ?? node.id;
+      return node.draftBy === 'agent' ? `✎ ${subject}` : subject;
+    }
     case 'action':
       return node.action;
     case 'wait':

@@ -2944,6 +2944,47 @@
         ]
       }
     },
+    "/v1/journeys/{id}/move-enrollments": {
+      "post": {
+        "operationId": "JourneysController_moveEnrollments",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveEnrollmentsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Journeys"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/journeys/{id}/split-results": {
       "get": {
         "operationId": "JourneysController_splitResults",
@@ -11235,6 +11276,51 @@
         },
         "required": [
           "fingerprint"
+        ]
+      },
+      "MoveEnrollmentsBody": {
+        "type": "object",
+        "properties": {
+          "toVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "nodeMap": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 48
+            },
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 48
+            },
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-self-required": false
+          },
+          "fromVersions": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "fingerprint": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 32,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          }
+        },
+        "required": [
+          "toVersion"
         ]
       },
       "DecideApprovalBody": {

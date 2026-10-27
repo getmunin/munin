@@ -105,6 +105,7 @@ export const JOURNEY_EVENT_TYPES = [
   'journey.change.proposed',
   'journey.approval.requested',
   'journey.approval.decided',
+  'journey.enrollments.moved',
   'journey.paused',
   'journey.resumed',
   'journey.node.paused',

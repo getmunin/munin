@@ -10,6 +10,7 @@ import { JourneyRuntimeWorker } from './journey-runtime.worker.ts';
 import { JourneyEventSink } from './journey-event.sink.ts';
 import { JourneySimulator } from './journey-simulator.ts';
 import { JourneyPublishingService } from './journey-publishing.service.ts';
+import { JourneyTemplatesService } from './journey-templates.service.ts';
 
 @Module({
   imports: [CrmModule, OutreachModule, CuratorModule],
@@ -21,6 +22,7 @@ import { JourneyPublishingService } from './journey-publishing.service.ts';
     JourneyEventSink,
     JourneySimulator,
     JourneyPublishingService,
+    JourneyTemplatesService,
   ],
   exports: [JourneysService, JourneyRuntimeService, JourneyPublishingService],
 })

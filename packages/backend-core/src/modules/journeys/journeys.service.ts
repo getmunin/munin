@@ -264,7 +264,7 @@ export class JourneysService {
     await this.load(id);
     const row = number ? await this.versionRow(id, number) : await this.latestVersion(id);
     if (!row) throw new NotFoundException(`journeys_not_found: journey ${id} has no version ${number}`);
-    const validation = await this.validateSpec(row.spec);
+    const validation = await this.validateSpec(row.spec, id);
     if (!row.publishedAt) {
       const ctx = getCurrentContext();
       await ctx.db
@@ -275,10 +275,10 @@ export class JourneysService {
     return { version: row.number, ...validation };
   }
 
-  async validateSpec(spec: unknown): Promise<JourneyValidation> {
+  async validateSpec(spec: unknown, journeyId?: string): Promise<JourneyValidation> {
     const parsed = parseJourneySpec(spec);
     if (!parsed.spec) return parsed.validation;
-    return validateJourneySpec(parsed.spec, await this.loadReferences());
+    return validateJourneySpec(parsed.spec, { ...(await this.loadReferences()), selfJourneyId: journeyId });
   }
 
   async pause(id: string, reason?: Record<string, unknown>): Promise<JourneyDto> {
@@ -485,7 +485,7 @@ export class JourneysService {
   private async loadReferences(): Promise<JourneyReferences> {
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
-    const [segments, templates, webhooks, smsChannels, voiceChannels] = await Promise.all([
+    const [segments, templates, webhooks, smsChannels, voiceChannels, journeyRows] = await Promise.all([
       ctx.db.select({ id: schema.crmSegments.id }).from(schema.crmSegments).where(eq(schema.crmSegments.orgId, orgId)),
       ctx.db
         .select({ id: schema.outreachEmailTemplates.id })
@@ -500,6 +500,17 @@ export class JourneysService {
         .select({ id: schema.convChannels.id })
         .from(schema.convChannels)
         .where(and(eq(schema.convChannels.orgId, orgId), eq(schema.convChannels.type, 'voice'))),
+      ctx.db
+        .select({ id: schema.journeys.id, status: schema.journeys.status, spec: schema.journeyVersions.spec })
+        .from(schema.journeys)
+        .leftJoin(
+          schema.journeyVersions,
+          and(
+            eq(schema.journeyVersions.journeyId, schema.journeys.id),
+            eq(schema.journeyVersions.number, schema.journeys.liveVersion),
+          ),
+        )
+        .where(eq(schema.journeys.orgId, orgId)),
     ]);
     return {
       segmentIds: new Set(segments.map((r) => r.id)),
@@ -507,6 +518,9 @@ export class JourneysService {
       webhookIds: new Set(webhooks.map((r) => r.id)),
       smsChannelIds: new Set(smsChannels.map((r) => r.id)),
       voiceChannelIds: new Set(voiceChannels.map((r) => r.id)),
+      journeys: new Map(
+        journeyRows.map((r) => [r.id, { status: r.status, calls: subJourneyTargets(r.spec) }] as const),
+      ),
       llmConfigured: this.llm ? await this.llm.providerConfigured().catch(() => undefined) : undefined,
     };
   }
@@ -571,4 +585,14 @@ function toVersionDto(row: VersionRow): JourneyVersionDto {
     publishedByActorId: row.publishedByActorId,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+function subJourneyTargets(spec: unknown): string[] {
+  const nodes = (spec as { nodes?: unknown } | null)?.nodes;
+  if (!Array.isArray(nodes)) return [];
+  return nodes
+    .filter((n): n is { type: string; journeyId: string } =>
+      typeof n === 'object' && n !== null && (n as { type?: unknown }).type === 'sub_journey' && typeof (n as { journeyId?: unknown }).journeyId === 'string',
+    )
+    .map((n) => n.journeyId);
 }

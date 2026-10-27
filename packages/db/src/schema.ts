@@ -2429,6 +2429,38 @@ export const journeyTemplates = pgTable(
   }),
 );
 
+export const journeyApprovals = pgTable(
+  'journey_approvals',
+  {
+    id: id('japr'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    journeyId: text('journey_id')
+      .notNull()
+      .references(() => journeys.id, { onDelete: 'cascade' }),
+    enrollmentId: text('enrollment_id')
+      .notNull()
+      .references(() => journeyEnrollments.id, { onDelete: 'cascade' }),
+    stepRunId: text('step_run_id').notNull(),
+    nodeId: varchar('node_id', { length: 48 }).notNull(),
+    contactId: text('contact_id'),
+    title: text('title').notNull(),
+    instructions: text('instructions'),
+    status: varchar('status', { length: 16 }).notNull().default('pending'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    decidedByActorId: text('decided_by_actor_id'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    note: text('note'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    stepRunUq: uniqueIndex('journey_approvals_step_run_uq').on(t.stepRunId),
+    pendingIdx: index('journey_approvals_pending_idx').on(t.orgId, t.status),
+  }),
+);
+
 export const outreachEmailTemplates = pgTable(
   'outreach_email_templates',
   {

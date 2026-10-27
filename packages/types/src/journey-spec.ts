@@ -16,7 +16,7 @@ export const JOURNEY_NODE_TYPES = [
 ] as const;
 export type JourneyNodeType = (typeof JOURNEY_NODE_TYPES)[number];
 
-export const RESERVED_JOURNEY_NODE_TYPES = ['approval', 'sub_journey'] as const;
+export const MAX_SUB_JOURNEY_DEPTH = 3;
 
 export const AGENT_NODE_MODES = ['decide', 'enrich'] as const;
 export const ENRICH_FIELD_TYPES = ['string', 'number', 'boolean', 'date', 'enum'] as const;
@@ -272,9 +272,25 @@ export const AgentNodeSchema = z.strictObject({
   next: NodeId.optional(),
 });
 
-export const ReservedNodeSchema = z.looseObject({
+export const ApprovalNodeSchema = z.strictObject({
   ...NodeBase,
-  type: z.enum(RESERVED_JOURNEY_NODE_TYPES),
+  type: z.literal('approval'),
+  title: z.string().min(1).max(200),
+  instructions: z.string().min(1).max(2000).optional(),
+  timeout: IsoDuration.default('P3D'),
+  next: NodeId.optional(),
+  onReject: NodeId.optional(),
+  onTimeout: NodeId.optional(),
+});
+
+export const SubJourneyNodeSchema = z.strictObject({
+  ...NodeBase,
+  type: z.literal('sub_journey'),
+  journeyId: z.string().min(1).max(64),
+  await: z.boolean().default(false),
+  timeout: IsoDuration.default('P30D'),
+  next: NodeId.optional(),
+  onGoal: NodeId.optional(),
 });
 
 export const JourneyNodeSchema = z.discriminatedUnion('type', [
@@ -288,7 +304,8 @@ export const JourneyNodeSchema = z.discriminatedUnion('type', [
   JumpNodeSchema,
   ExitNodeSchema,
   AgentNodeSchema,
-  ReservedNodeSchema,
+  ApprovalNodeSchema,
+  SubJourneyNodeSchema,
 ]);
 
 export const JourneyTriggerSchema = z.discriminatedUnion('type', [
@@ -373,6 +390,8 @@ export type JourneyNode = z.infer<typeof JourneyNodeSchema>;
 export type JourneyNodeInput = z.input<typeof JourneyNodeSchema>;
 export type JourneyTrigger = z.infer<typeof JourneyTriggerSchema>;
 export type MessageNode = z.infer<typeof MessageNodeSchema>;
+export type ApprovalNode = z.infer<typeof ApprovalNodeSchema>;
+export type SubJourneyNode = z.infer<typeof SubJourneyNodeSchema>;
 export type ActionNode = z.infer<typeof ActionNodeSchema>;
 export type WaitNode = z.infer<typeof WaitNodeSchema>;
 export type WaitForNode = z.infer<typeof WaitForNodeSchema>;
@@ -424,6 +443,15 @@ export function journeyNodeEdges(node: JourneyNode): { label: string; to: string
     case 'agent':
       for (const [label, to] of Object.entries(node.edges ?? {})) add(label, to);
       add('next', node.next);
+      break;
+    case 'approval':
+      add('next', node.next);
+      add('on_reject', node.onReject);
+      add('on_timeout', node.onTimeout);
+      break;
+    case 'sub_journey':
+      add('next', node.next);
+      add('on_goal', node.onGoal);
       break;
     default:
       break;

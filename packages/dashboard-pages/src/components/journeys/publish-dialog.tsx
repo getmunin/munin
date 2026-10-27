@@ -169,7 +169,13 @@ export function PublishDialog({
                             ? t('assumeAgentDraft', { node: a.nodeId })
                             : a.code === 'agent_fallback'
                             ? t('assumeAgentFallback', { node: a.nodeId, edge: a.event ?? '' })
-                            : t('assumeNoEvent', { node: a.nodeId, event: a.event ?? '', timeout: a.timeout ?? '' })}
+                            : a.code === 'call_reached'
+                              ? t('assumeCallReached', { node: a.nodeId })
+                              : a.code === 'approval_granted'
+                                ? t('assumeApprovalGranted', { node: a.nodeId })
+                                : a.code === 'sub_journey_passed'
+                                  ? t('assumeSubJourney', { node: a.nodeId, journey: a.event ?? '' })
+                                  : t('assumeNoEvent', { node: a.nodeId, event: a.event ?? '', timeout: a.timeout ?? '' })}
                     </li>
                   ))}
                 </ul>

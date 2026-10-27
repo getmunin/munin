@@ -36,6 +36,7 @@ import type {
   JourneyStatus,
   JourneyVersionSummaryDto,
   AgentNodeStatsDto,
+  JourneyApprovalDto,
   NodeReviewStatsDto,
   TraceDto,
 } from '../components/journeys/journey-types';
@@ -135,20 +136,23 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
   const [report, setReport] = useState<JourneyReportDto | null>(null);
   const [reviewStats, setReviewStats] = useState<NodeReviewStatsDto[]>([]);
   const [agentStats, setAgentStats] = useState<AgentNodeStatsDto[]>([]);
+  const [approvals, setApprovals] = useState<JourneyApprovalDto[]>([]);
   const [graphOf, setGraphOf] = useState<'live' | 'draft'>('live');
   const [publishing, setPublishing] = useState<number | null>(publishVersion ?? null);
   const [traceId, setTraceId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const [detail, versionList, people, results, stats, agents] = await Promise.all([
+    const [detail, versionList, people, results, stats, agents, pendingApprovals] = await Promise.all([
       api<JourneyDetailDto>(`/v1/journeys/${id}`),
       api<{ items: JourneyVersionSummaryDto[] }>(`/v1/journeys/${id}/versions`),
       api<{ items: EnrollmentDto[] }>(`/v1/journeys/${id}/enrollments?limit=100`),
       api<JourneyReportDto>(`/v1/journeys/${id}/report`),
       api<{ items: NodeReviewStatsDto[] }>(`/v1/journeys/${id}/review-stats`),
       api<{ items: AgentNodeStatsDto[] }>(`/v1/journeys/${id}/agent-stats`),
+      api<{ items: JourneyApprovalDto[] }>(`/v1/journey-approvals?status=pending&journeyId=${encodeURIComponent(id)}`),
     ]);
+    setApprovals(pendingApprovals.items);
     setReviewStats(stats.items);
     setAgentStats(agents.items);
     setJourney(detail);
@@ -168,6 +172,19 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
     try {
       await api(`/v1/journeys/${id}/${action}`, { method: 'POST' });
       notify.success(t(action === 'pause' ? 'paused' : 'resumed'));
+      await load();
+    } catch (err) {
+      notify.error(translate(err) || t('actionFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function decide(approvalId: string, decision: 'approve' | 'reject') {
+    setBusy(true);
+    try {
+      await api(`/v1/journey-approvals/${approvalId}/decide`, { method: 'POST', body: JSON.stringify({ decision }) });
+      notify.success(t(decision === 'approve' ? 'approvalApproved' : 'approvalRejected'));
       await load();
     } catch (err) {
       notify.error(translate(err) || t('actionFailed'));
@@ -238,6 +255,27 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
           )}
         </div>
       </div>
+
+      {approvals.map((approval) => (
+        <div
+          key={approval.id}
+          className="mb-4 flex flex-wrap items-center gap-3 rounded-card border-[1px] border-rule-soft px-4 py-3 text-sm dark:border-rule-on-dark"
+        >
+          <Pill tone="review">{t('approvalPending')}</Pill>
+          <div className="min-w-0 flex-1">
+            <p className="text-ink dark:text-foreground">
+              {approval.title} · {approval.contactName ?? approval.contactId ?? '—'}
+            </p>
+            {approval.instructions && <p className="text-xs text-ink-mute">{approval.instructions}</p>}
+          </div>
+          <Button variant="outline" size="sm" pending={busy} onClick={() => void decide(approval.id, 'reject')}>
+            {t('reject')}
+          </Button>
+          <Button variant="accent" size="sm" pending={busy} onClick={() => void decide(approval.id, 'approve')}>
+            {t('approve')}
+          </Button>
+        </div>
+      ))}
 
       {Object.entries(journey.pausedNodes ?? {}).map(([nodeId, info]) => (
         <div

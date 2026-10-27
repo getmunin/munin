@@ -1353,7 +1353,13 @@
         "edges": "Veier og e-poster",
         "integrity": "Kjøreintegritet",
         "duplicateSends": "Steg som sendte to ganger",
-        "untraced": "Personer uten loggført steg"
+        "untraced": "Personer uten loggført steg",
+        "reviews": "Gjennomgang av e-post · siste 30 dager",
+        "unedited": "Godkjent uendret",
+        "edited": "Redigert",
+        "dismissed": "Avvist",
+        "uneditedRate": "Andel uendret",
+        "readyForAuto": "Klar for auto"
       },
       "versions": {
         "published": "Publisert {at}",
@@ -1376,6 +1382,7 @@
         "blocks": "Endrede innstillinger: {blocks}",
         "autoTitle": "Sendes uten gjennomgang",
         "autoBody": "Disse e-postene sendes uten at noen leser hver enkelt: {nodes}. Bekrefter du, publiseres de slik.",
+        "autoEvidence": "{node}: {reviewed} gjennomgåtte utkast, {rate} godkjent uendret",
         "warnings": "Advarsler",
         "simulation": "Prøvekjøring",
         "simulationSummary": "{entered} av {size} eksempelkontakter ville startet.",

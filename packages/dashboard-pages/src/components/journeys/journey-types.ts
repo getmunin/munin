@@ -122,6 +122,18 @@ export interface SimulationDto {
   assumptions: { code: string; nodeId: string; event?: string; timeout?: string }[];
 }
 
+export interface NodeReviewStatsDto {
+  nodeId: string;
+  approvedUnedited: number;
+  edited: number;
+  dismissed: number;
+  pending: number;
+  sentWithoutReview: number;
+  reviewed: number;
+  uneditedRate: number | null;
+  readyForAuto: boolean;
+}
+
 export interface PublishRequestDto {
   journeyId: string;
   version: number;
@@ -136,5 +148,6 @@ export interface PublishRequestDto {
   };
   validation: JourneyValidation;
   simulation: SimulationDto;
+  reviewStats: NodeReviewStatsDto[];
   reviewPath: string;
 }

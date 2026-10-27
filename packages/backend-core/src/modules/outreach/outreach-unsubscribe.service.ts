@@ -1,7 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import { schema, type Db } from '@getmunin/db';
 import {
+  ActorIdentity,
+  WebhookDispatcher,
+  withContext,
   UnsubscribeTokenError,
   verifyUnsubscribeToken,
   type UnsubscribeTokenPayload,
@@ -30,7 +34,10 @@ interface ContactRow {
 
 @Injectable()
 export class OutreachUnsubscribeService {
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    @Inject(WebhookDispatcher) private readonly webhooks: Pick<WebhookDispatcher, 'emit'>,
+  ) {}
 
   async inspect(token: string | undefined): Promise<UnsubscribeView> {
     const payload = verify(token);
@@ -92,6 +99,20 @@ export class OutreachUnsubscribeService {
       metadata: {
         unsubscribe: { campaignId: payload.campaignId, issuedAt: payload.issuedAt, method },
       },
+    });
+    const actor = new ActorIdentity('system', 'outreach-unsubscribe', payload.orgId, ['*'], ['admin']);
+    await this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      await withContext({ db: tx, actor, correlationId: randomUUID() }, () =>
+        this.webhooks.emit({
+          type: 'crm.contact.unsubscribed',
+          payload: {
+            contactId: payload.contactId,
+            ...(fromBroadcast ? { broadcastId: payload.campaignId } : { campaignId: payload.campaignId }),
+            method,
+          },
+        }),
+      );
     });
     return { state: 'unsubscribed', orgName, alreadyUnsubscribed: false };
   }

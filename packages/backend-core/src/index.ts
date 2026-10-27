@@ -31,6 +31,7 @@ export {
 } from './modules/feedback/feedback.service.ts';
 
 export { SystemAlertsModule } from './modules/system-alerts/system-alerts.module.ts';
+export { LLM_AVAILABILITY, type LlmAvailability } from './modules/journeys/llm-availability.ts';
 export {
   AlertsService,
   AlertNotFoundError,

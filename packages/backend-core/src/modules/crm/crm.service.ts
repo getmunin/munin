@@ -782,6 +782,20 @@ export class CrmService {
         fields: Object.keys(effectivePatch),
       },
     });
+    const outcome = (effectivePatch.customFields as Record<string, unknown> | undefined)?.outreachOutcome;
+    if (typeof outcome === 'string') {
+      const written = effectivePatch.customFields as Record<string, unknown>;
+      await this.webhooks.emit({
+        type: 'outreach.outcome.recorded',
+        payload: {
+          contactId: result[0].id,
+          outcome,
+          conversationId:
+            typeof written.outreachOutcomeConversationId === 'string' ? written.outreachOutcomeConversationId : null,
+          fields: Object.keys(written).filter((k) => !k.startsWith('outreachOutcome')),
+        },
+      });
+    }
     return this.hydrateContact(result[0]);
   }
 

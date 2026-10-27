@@ -8806,7 +8806,8 @@
                     "enum": [
                       "initial",
                       "reply",
-                      "followup"
+                      "followup",
+                      "journey"
                     ]
                   },
                   "sequenceStep": {
@@ -9128,7 +9129,8 @@
           "enum": [
             "initial",
             "reply",
-            "followup"
+            "followup",
+            "journey"
           ]
         },
         "contactId": {

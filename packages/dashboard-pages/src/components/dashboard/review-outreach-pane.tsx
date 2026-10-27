@@ -144,7 +144,9 @@ export function ReviewOutreachPane({
       ? t('kindReply')
       : proposal.kind === 'followup'
         ? t('kindFollowup', { step: proposal.sequenceStep ?? 1 })
-        : t('kindInitial');
+        : proposal.kind === 'journey'
+          ? t('kindJourney')
+          : t('kindInitial');
   const segments = Math.max(1, Math.ceil(editedBody.length / SMS_SEGMENT_LENGTH));
   const pickInvalid =
     choice === 'pick' &&

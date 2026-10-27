@@ -118,7 +118,9 @@ export function OutreachQueuePane({
       ? t('outreachKindReply')
       : item.raw.kind === 'followup'
         ? t('outreachKindFollowup', { step: item.raw.sequenceStep ?? 1 })
-        : t('outreachKindInitial');
+        : item.raw.kind === 'journey'
+          ? t('outreachKindJourney')
+          : t('outreachKindInitial');
   const delivery = item.raw.delivery;
   const handle =
     delivery?.destination ??

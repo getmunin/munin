@@ -1330,6 +1330,7 @@ export class ConvService {
     agentMode?: AgentMode;
     metadata?: Record<string, unknown>;
     messageMetadata?: Record<string, unknown>;
+    bodyHtml?: string;
     authorType: 'user' | 'agent' | 'end_user' | 'system';
     authorId: string;
   }): Promise<ConversationDetail> {
@@ -1371,6 +1372,7 @@ export class ConvService {
         authorType: input.authorType,
         authorId: input.authorId,
         body: input.body,
+        bodyHtml: input.bodyHtml ?? null,
         internal: false,
         metadata: {
           ...(input.messageMetadata ?? {}),
@@ -1484,6 +1486,8 @@ export class ConvService {
     approvalBody?: string;
     approvedOutreachProposalId?: string;
     attachmentIds?: string[];
+    bodyHtml?: string;
+    messageMetadata?: Record<string, unknown>;
   }): Promise<MessageDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -1555,6 +1559,7 @@ export class ConvService {
       (input.authorType === 'user' || input.authorType === 'agent');
 
     const metadata = {
+      ...(input.messageMetadata ?? {}),
       ...(attachComponents ? { components: input.components } : {}),
       ...(approvedDraft ? { approvedDraft: approvedDraft.stamp } : {}),
       ...(input.approvedOutreachProposalId
@@ -1571,6 +1576,7 @@ export class ConvService {
         authorType: input.authorType,
         authorId: input.authorId,
         body: input.body,
+        ...(input.bodyHtml ? { bodyHtml: input.bodyHtml } : {}),
         internal: input.internal ?? false,
         inReplyToId: input.inReplyToId ?? null,
         ...(Object.keys(metadata).length > 0 ? { metadata } : {}),

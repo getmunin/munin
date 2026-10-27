@@ -714,7 +714,7 @@ SOFTWARE.
 
 ---
 
-## @better-auth/core@1.7.2
+## @better-auth/core@1.7.14
 
 > The most comprehensive authentication framework for TypeScript.
 - Homepage: https://www.better-auth.com
@@ -745,7 +745,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/drizzle-adapter@1.7.2
+## @better-auth/drizzle-adapter@1.7.14
 
 > Drizzle adapter for Better Auth
 - Homepage: https://www.better-auth.com/docs/adapters/drizzle
@@ -776,7 +776,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/kysely-adapter@1.7.2
+## @better-auth/kysely-adapter@1.7.14
 
 > Kysely adapter for Better Auth
 - Homepage: https://www.better-auth.com/docs/adapters/kysely
@@ -807,7 +807,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/memory-adapter@1.7.2
+## @better-auth/memory-adapter@1.7.14
 
 > Memory adapter for Better Auth
 - Homepage: https://www.better-auth.com
@@ -838,7 +838,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/mongo-adapter@1.7.2
+## @better-auth/mongo-adapter@1.7.14
 
 > Mongo adapter for Better Auth
 - Homepage: https://www.better-auth.com/docs/adapters/mongodb
@@ -869,7 +869,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/oauth-provider@1.7.2
+## @better-auth/oauth-provider@1.7.14
 
 > An oauth provider plugin for Better Auth
 - Homepage: https://www.better-auth.com/docs/plugins/oauth-provider
@@ -900,7 +900,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/prisma-adapter@1.7.2
+## @better-auth/prisma-adapter@1.7.14
 
 > Prisma adapter for Better Auth
 - Homepage: https://www.better-auth.com/docs/adapters/prisma
@@ -931,7 +931,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/telemetry@1.7.2
+## @better-auth/telemetry@1.7.14
 
 > Telemetry package for Better Auth
 - Homepage: https://www.better-auth.com
@@ -962,18 +962,40 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @better-auth/utils@0.5.0
+## @better-auth/utils@0.5.1
 
 > A collection of utilities for better-auth
 - Homepage: https://github.com/better-auth/utils#readme
 - Author: Bereket Engida
 - License: MIT
 
-_No LICENSE file shipped in the package; refer to homepage above._
+```
+MIT License
+
+Copyright (c) 2024 - present, Bereket Engida
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ---
 
-## @better-fetch/fetch@1.3.1
+## @better-fetch/fetch@1.3.3
 
 - Homepage: https://github.com/better-auth/better-fetch#readme
 - License: MIT
@@ -5190,12 +5212,12 @@ the full license text.
 
 ---
 
-## @modelcontextprotocol/node@2.0.0
+## @modelcontextprotocol/node@2.1.1
 
 > Model Context Protocol implementation for TypeScript - Node.js middleware
 - Homepage: https://modelcontextprotocol.io
 - Author: Anthropic, PBC
-- License: MIT
+- License: Apache-2.0
 
 ```
 The MCP project is undergoing a licensing transition from the MIT License to the Apache License, Version 2.0 ("Apache-2.0"). All new code and specification contributions to the project are licensed under Apache-2.0. Documentation contributions (excluding specifications) are licensed under CC-BY-4.0.
@@ -13868,7 +13890,7 @@ Apache License
 
 ---
 
-## better-auth@1.7.2
+## better-auth@1.7.14
 
 > The most comprehensive authentication framework for TypeScript.
 - Homepage: https://better-auth.com
@@ -13899,7 +13921,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## better-call@1.4.0
+## better-call@1.4.4
 
 - Homepage: https://github.com/better-auth/better-call#readme
 - License: MIT
@@ -13930,7 +13952,7 @@ SOFTWARE.
 
 ---
 
-## body-parser@2.3.0
+## body-parser@2.4.0
 
 > Node.js body parsing middleware
 - Homepage: https://github.com/expressjs/body-parser#readme
@@ -18897,7 +18919,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---
 
-## fast-uri@3.1.8
+## fast-uri@3.1.9
 
 > Dependency-free RFC 3986 URI toolbox
 - Homepage: https://github.com/fastify/fast-uri
@@ -19620,7 +19642,7 @@ SOFTWARE.
 
 ---
 
-## happy-dom@20.12.0
+## happy-dom@21.0.4
 
 > Happy DOM is a JavaScript implementation of a web browser without its graphical user interface. It includes many web standards from WHATWG DOM and HTML.
 - Homepage: https://github.com/capricorn86/happy-dom
@@ -21499,7 +21521,7 @@ SOFTWARE.
 
 ---
 
-## jose@6.2.10, 6.2.12
+## jose@6.2.12
 
 > JWA, JWS, JWE, JWT, JWK, JWKS for Node.js, Browser, Cloudflare Workers, Deno, Bun, and other Web-interoperable runtimes
 - Homepage: https://github.com/panva/jose
@@ -26172,7 +26194,7 @@ SOFTWARE.
 
 ---
 
-## multer@2.4.0
+## multer@2.5.0
 
 > Middleware for handling `multipart/form-data`.
 - Homepage: https://github.com/expressjs/multer#readme
@@ -26629,7 +26651,7 @@ THE SOFTWARE.
 
 ---
 
-## nodemailer@10.0.13
+## nodemailer@10.2.1
 
 > Easy as cake e-mail sending from your Node.js applications
 - Homepage: https://nodemailer.com/
@@ -29352,7 +29374,7 @@ _No LICENSE file shipped in the package; refer to homepage above._
 
 ---
 
-## qs@6.16.0
+## qs@6.17.0
 
 > A querystring parser that supports nesting and arrays, with a depth limit
 - Homepage: https://github.com/ljharb/qs
@@ -31476,7 +31498,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## set-cookie-parser@3.1.2, 3.1.3
+## set-cookie-parser@3.1.3
 
 > Parses set-cookie headers into objects
 - Homepage: https://github.com/nfriedly/set-cookie-parser
@@ -34059,7 +34081,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## undici@6.29.0, 7.30.0
+## undici@6.29.1, 7.30.1
 
 > An HTTP/1.1 client, written from scratch for Node.js
 - Homepage: https://undici.nodejs.org

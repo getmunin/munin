@@ -37,7 +37,6 @@ type LinkContext = Parameters<typeof handleOAuthUserInfo>[0];
       account: {
         providerId,
         accountId,
-        issuer: providerId === 'github' ? 'https://github.com' : 'https://accounts.google.com',
       },
       disableSignUp: true,
     });

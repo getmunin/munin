@@ -608,6 +608,118 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect(await enrollment(id)).toMatchObject({ exitReason: 'replied' });
   });
 
+  it('writes to a signed-in visitor in the chat widget without review, and falls back to email when it goes unseen', async () => {
+    const [chat] = await db
+      .insert(schema.convChannels)
+      .values({ orgId, type: 'chat', vendor: 'munin', name: 'journey-chat', active: true, config: {} })
+      .returning();
+    const journeyId = await publish(
+      [
+        {
+          id: 'welcome',
+          type: 'message',
+          channel: 'chat',
+          approval: 'auto',
+          content: { body: 'Hei {{name|der}}! Du har en ny rapport klar.' },
+          seenTimeout: 'PT1H',
+          onUnseen: 'mail',
+          next: 'again',
+        },
+        {
+          id: 'again',
+          type: 'message',
+          channel: 'chat',
+          approval: 'auto',
+          content: { body: 'Si fra om du vil ha en gjennomgang.' },
+          next: 'done',
+        },
+        welcome({ id: 'mail', approval: 'auto', next: 'done' }),
+        done,
+      ],
+      { chatChannelId: chat!.id },
+    );
+    const signedIn = async (externalId: string) => {
+      const row = await contact();
+      await db.update(schema.endUsers).set({ externalId }).where(eq(schema.endUsers.id, row.endUserId!));
+      return row;
+    };
+    const ola = await signedIn(`user-${randomUUID()}`);
+    const kari = await signedIn(`user-${randomUUID()}`);
+    const anon = await signedIn(`anon:${randomUUID()}`);
+    const olaRun = await enroll(journeyId, ola.id);
+    const kariRun = await enroll(journeyId, kari.id);
+    const anonRun = await enroll(journeyId, anon.id);
+    await worker.tick();
+    await worker.tick();
+
+    const [olaChat] = (await proposalsFor(ola.id)).filter((p) => p.channelId === chat!.id);
+    expect(olaChat).toMatchObject({ kind: 'journey', status: 'sent' });
+    const [thread] = await db
+      .select()
+      .from(schema.convConversations)
+      .where(eq(schema.convConversations.id, olaChat!.conversationId!));
+    expect(thread).toMatchObject({ channelId: chat!.id, endUserId: ola.endUserId, outreachCampaignId: olaChat!.campaignId });
+    const [first] = await db
+      .select({ body: schema.convMessages.body, authorType: schema.convMessages.authorType })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.id, olaChat!.sentMessageId!));
+    expect(first).toEqual({ body: 'Hei Ola Nordmann! Du har en ny rapport klar.', authorType: 'agent' });
+    expect(await enrollment(olaRun)).toMatchObject({ currentNode: 'welcome', state: 'waiting' });
+    expect(await enrollment(anonRun)).toMatchObject({ exitReason: 'message_blocked' });
+
+    await asAgent(() =>
+      webhooks.emit({
+        type: 'conversation.message.read',
+        payload: {
+          conversationId: thread!.id,
+          messageId: olaChat!.sentMessageId,
+          endUserId: ola.endUserId,
+          readAt: new Date().toISOString(),
+        },
+      }),
+    );
+    await worker.tick();
+    await worker.tick();
+    const olaSent = (await proposalsFor(ola.id)).filter((p) => p.channelId === chat!.id && p.status === 'sent');
+    expect(olaSent).toHaveLength(2);
+    expect(new Set(olaSent.map((p) => p.conversationId))).toEqual(new Set([thread!.id]));
+    expect((await proposalsFor(ola.id)).filter((p) => p.channelId !== chat!.id)).toHaveLength(0);
+
+    const later = new Date(Date.now() + 2 * 3_600_000);
+    await worker.tick(later);
+    await worker.tick(later);
+    const kariMail = (await proposalsFor(kari.id)).filter((p) => p.channelId !== chat!.id);
+    expect(kariMail).toHaveLength(1);
+    expect(kariMail[0]).toMatchObject({ status: 'sent', draftSubject: 'Velkommen til Acme' });
+    const trace = await db
+      .select({ nodeId: schema.journeyStepRuns.nodeId, edge: schema.journeyStepRuns.edgeTaken })
+      .from(schema.journeyStepRuns)
+      .where(eq(schema.journeyStepRuns.enrollmentId, kariRun));
+    expect(trace).toContainEqual({ nodeId: 'welcome', edge: 'on_unseen' });
+  });
+
+  it('refuses chat steps without a chat channel, and seen edges on other channels', async () => {
+    const journey = await asAgent(() =>
+      journeys.create({
+        name: `J ${randomUUID()}`,
+        outreachCampaignId: campaignId,
+        spec: {
+          entry: { trigger: { type: 'manual' } },
+          goal: { event: 'subscription.started', windowDays: 30 },
+          settings: {},
+          start: 'nudge',
+          nodes: [
+            { id: 'nudge', type: 'message', channel: 'chat', content: { body: 'Hei!', subject: 'Nei' }, next: 'done' },
+            welcome({ id: 'mail', onUnseen: 'done' }),
+            done,
+          ],
+        },
+      }),
+    );
+    const codes = (await asAgent(() => journeys.validate(journey.id))).errors.map((e) => e.code);
+    expect(codes).toEqual(expect.arrayContaining(['chat_channel', 'chat_content', 'unseen_edges']));
+  });
+
   it('pauses a step whose bounce rate breaks the guardrail, holds new arrivals there and releases them on resume', async () => {
     const journeyId = await publish(
       [welcome({ approval: 'auto', next: 'wait' }), { id: 'wait', type: 'wait', duration: 'P7D', next: 'done' }, done],

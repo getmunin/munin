@@ -614,6 +614,17 @@ export class JourneyRuntimeService {
         citations = draft.citations;
       }
     } else if (step.resumed) {
+      if (node.channel === 'chat' && previous.awaitingSeen) {
+        const seen = step.resumed.resolution === 'event';
+        const unseenTo = seen ? undefined : node.onUnseen;
+        return {
+          kind: 'advance',
+          edge: unseenTo ? 'on_unseen' : 'next',
+          to: unseenTo ?? node.next,
+          output: { ...previous, seen },
+          reason: seen ? 'chat message seen' : 'chat message not seen in time',
+        };
+      }
       if (node.channel === 'voice' && previous.awaitingOutcome) {
         const event = step.enrollment.context.lastEvent as { payload?: { outcome?: unknown } } | undefined;
         const reported = event?.payload?.outcome;
@@ -646,6 +657,7 @@ export class JourneyRuntimeService {
               reason: 'waiting for the call outcome',
             };
           }
+          if (node.channel === 'chat') return this.awaitChatSeen(step, node, previous, previous.proposalId);
           return { kind: 'advance', edge: 'next', to: node.next, reason: step.resumed.resolution };
         case 'proposal_withdrawn':
           return { kind: 'advance', edge: 'next', to: node.next, reason: step.resumed.resolution };
@@ -673,7 +685,13 @@ export class JourneyRuntimeService {
         campaignId: journey!.campaignId,
         channel: node.channel,
         channelId:
-          node.channel === 'sms' ? (settings.smsChannelId ?? null) : node.channel === 'voice' ? (settings.voiceChannelId ?? null) : null,
+          node.channel === 'sms'
+          ? (settings.smsChannelId ?? null)
+          : node.channel === 'voice'
+            ? (settings.voiceChannelId ?? null)
+            : node.channel === 'chat'
+              ? (settings.chatChannelId ?? null)
+              : null,
         contactId,
         enrollmentId: step.enrollment.id,
         stepRunId: step.stepRunId,
@@ -683,7 +701,7 @@ export class JourneyRuntimeService {
         templateId: node.content.templateId,
         templateHash: node.approval === 'auto' ? await this.pinnedTemplateHash(step, node.id) : null,
         preheader: node.content.preheader,
-        auto: !sms && node.approval === 'auto',
+        auto: (node.channel === 'email' || node.channel === 'chat') && node.approval === 'auto',
         policy: {
           channel: node.channel,
           class: node.class,
@@ -709,6 +727,7 @@ export class JourneyRuntimeService {
       .set({ proposalId: proposal.id })
       .where(eq(schema.journeyStepRuns.id, step.stepRunId));
     if (proposal.status === 'sent') {
+      if (node.channel === 'chat') return this.awaitChatSeen(step, node, previous, proposal.id);
       if (!sms) await this.rememberThread(step.enrollment.id, proposal.conversationId);
       return { kind: 'advance', edge: 'next', to: node.next, output: { ...previous, proposalId: proposal.id }, reason: 'sent' };
     }
@@ -1301,7 +1320,8 @@ export class JourneyRuntimeService {
       resolution === 'proposal_sent' &&
       typeof row.payload.conversationId === 'string' &&
       row.payload.channel !== 'sms' &&
-      row.payload.channel !== 'voice'
+      row.payload.channel !== 'voice' &&
+      row.payload.channel !== 'chat'
     ) {
       await this.rememberThread(wait.enrollmentId, row.payload.conversationId);
     }
@@ -1763,6 +1783,38 @@ export class JourneyRuntimeService {
       return { contactId: null, endUserId: conversation?.endUserId ?? null };
     }
     return { contactId: null, endUserId: null };
+  }
+
+  private async awaitChatSeen(
+    step: StepContext,
+    node: Extract<JourneyNode, { type: 'message' }>,
+    previous: Record<string, unknown>,
+    proposalId: unknown,
+  ): Promise<Outcome> {
+    const messageId = await this.proposalMessage(proposalId);
+    if (!messageId) return { kind: 'advance', edge: 'next', to: node.next, output: { ...previous, proposalId }, reason: 'sent' };
+    return {
+      kind: 'wait',
+      wait: {
+        kind: 'event',
+        eventKey: 'conversation.message.read',
+        match: { messageId },
+        timeoutAt: new Date(step.now.getTime() + (parseIsoDurationMs(node.seenTimeout ?? 'P3D') ?? 259_200_000)),
+      },
+      output: { ...previous, proposalId, messageId, awaitingSeen: true },
+      reason: 'waiting for the chat message to be seen',
+    };
+  }
+
+  private async proposalMessage(proposalId: unknown): Promise<string | null> {
+    if (typeof proposalId !== 'string') return null;
+    const ctx = getCurrentContext();
+    const [row] = await ctx.db
+      .select({ messageId: schema.outreachProposals.sentMessageId })
+      .from(schema.outreachProposals)
+      .where(eq(schema.outreachProposals.id, proposalId))
+      .limit(1);
+    return row?.messageId ?? null;
   }
 
   private async proposalConversation(proposalId: unknown): Promise<string | null> {
@@ -2232,6 +2284,7 @@ function edgeTarget(node: JourneyNode, edge: string): string | undefined {
       if (edge.startsWith('outcome_')) {
         return node.onOutcome?.[edge.slice('outcome_'.length) as keyof NonNullable<typeof node.onOutcome>] ?? node.next;
       }
+      if (edge === 'on_unseen') return node.onUnseen ?? node.next;
       return edge === 'on_reply' ? node.onReply : node.next;
     case 'wait_for':
       return edge === 'on_timeout' ? node.onTimeout : node.next;

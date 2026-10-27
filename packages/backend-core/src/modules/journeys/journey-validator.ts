@@ -1,5 +1,6 @@
 import {
   JOURNEY_CALL_OPENING_MAX_CHARS,
+  JOURNEY_CHAT_MAX_CHARS,
   JOURNEY_SMS_MAX_CHARS,
   JourneySpecSchema,
   journeyNodeEdges,
@@ -27,6 +28,7 @@ export interface JourneyReferences {
   webhookIds: ReadonlySet<string>;
   smsChannelIds?: ReadonlySet<string>;
   voiceChannelIds?: ReadonlySet<string>;
+  chatChannelIds?: ReadonlySet<string>;
   selfJourneyId?: string;
   journeys?: ReadonlyMap<string, { status: string; calls: readonly string[] }>;
   llmConfigured?: boolean;
@@ -136,6 +138,15 @@ export function validateJourneySpec(spec: JourneySpec, refs: JourneyReferences):
     }
   }
 
+  if (spec.nodes.some((n) => n.type === 'message' && n.channel === 'chat')) {
+    const channelId = spec.settings.chatChannelId;
+    if (!channelId) {
+      errors.push({ code: 'chat_channel', message: 'chat steps need settings.chatChannelId, a chat widget channel to write in' });
+    } else if (refs.chatChannelIds && !refs.chatChannelIds.has(channelId)) {
+      errors.push({ code: 'chat_channel', message: `"${channelId}" is not a chat widget channel in this organization` });
+    }
+  }
+
   if (spec.nodes.some((n) => n.type === 'message' && n.channel === 'voice')) {
     const channelId = spec.settings.voiceChannelId;
     if (!channelId) {
@@ -204,6 +215,13 @@ function checkNode(
 ): void {
   switch (node.type) {
     case 'message':
+      if (node.channel !== 'chat' && (node.onUnseen || node.seenTimeout)) {
+        errors.push({ code: 'unseen_edges', nodeId: node.id, message: 'onUnseen and seenTimeout apply to chat steps only' });
+      }
+      if (node.channel === 'chat') {
+        checkChatNode(node, errors);
+        break;
+      }
       if (node.channel === 'voice') {
         checkCallNode(node, errors);
         break;
@@ -444,4 +462,20 @@ function reachesJourney(
     stack.push(...(journeys?.get(id)?.calls ?? []));
   }
   return false;
+}
+
+function checkChatNode(node: Extract<JourneyNode, { type: 'message' }>, errors: JourneyIssue[]): void {
+  const fail = (code: string, message: string) => errors.push({ code, nodeId: node.id, message });
+  if (node.onOutcome || node.outcomeTimeout) {
+    fail('outcome_edges', 'onOutcome and outcomeTimeout apply to call steps only');
+  }
+  if (node.content.subject || node.content.preheader || node.content.templateId || node.content.format === 'mjml') {
+    fail('chat_content', 'a chat step has only content.body, in markdown: no subject, preheader, template or MJML');
+  }
+  if (node.content.body.length > JOURNEY_CHAT_MAX_CHARS) {
+    fail('chat_length', `the chat message is ${node.content.body.length} characters; the limit is ${JOURNEY_CHAT_MAX_CHARS}`);
+  }
+  if (node.draftBy === 'agent') {
+    fail('chat_agent_draft', 'agent-drafted chat messages are not available yet; write the text in content.body');
+  }
 }

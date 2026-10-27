@@ -180,6 +180,8 @@ export function PublishDialog({
                             ? t('assumeAgentFallback', { node: a.nodeId, edge: a.event ?? '' })
                             : a.code === 'call_reached'
                               ? t('assumeCallReached', { node: a.nodeId })
+                              : a.code === 'chat_seen'
+                              ? t('assumeChatSeen', { node: a.nodeId })
                               : a.code === 'approval_granted'
                                 ? t('assumeApprovalGranted', { node: a.nodeId })
                                 : a.code === 'sub_journey_passed'

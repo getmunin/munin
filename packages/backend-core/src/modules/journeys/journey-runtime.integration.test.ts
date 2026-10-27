@@ -75,6 +75,7 @@ const DAY = 86_400_000;
       'analytics_product_events',
       'crm_activities',
       'crm_contacts',
+      'crm_companies',
       'crm_segments',
       'conv_channels',
       'end_users',
@@ -120,11 +121,16 @@ const DAY = 86_400_000;
     });
   }
 
-  async function contact(name: string, tags: string[] = ['trial']) {
+  async function contact(name: string, tags: string[] = ['trial'], companyId?: string) {
     const [row] = await db
       .insert(schema.crmContacts)
-      .values({ orgId, name, email: `${name.toLowerCase().replace(/\W+/g, '.')}@acme.test`, tags, consentLawfulBasis: 'contract' })
+      .values({ orgId, name, email: `${name.toLowerCase().replace(/\W+/g, '.')}@acme.test`, tags, consentLawfulBasis: 'contract', companyId })
       .returning();
+    return row!;
+  }
+
+  async function company(name: string) {
+    const [row] = await db.insert(schema.crmCompanies).values({ orgId, name }).returning();
     return row!;
   }
 
@@ -521,6 +527,99 @@ const DAY = 86_400_000;
     await worker.tick(new Date(Date.now() + 6 * DAY));
     [run] = await enrollmentsOf(journeyId);
     expect(run!.state).toBe('done');
+  });
+
+  it('runs a company journey once per company, acting on the company and reading what any of its people did', async () => {
+    const journeyId = await publish({
+      entry: { trigger: { type: 'event', event: 'trial.started' }, subject: 'company' },
+      goal: { event: 'subscription.started', windowDays: 30 },
+      start: 'wait5',
+      nodes: [
+        { id: 'wait5', type: 'wait', duration: 'P5D', next: 'invited' },
+        {
+          id: 'invited',
+          type: 'branch',
+          rules: [{ if: { event: 'teammate.invited', since: 'entry' }, next: 'tag_active' }],
+          default: 'done',
+        },
+        { id: 'tag_active', type: 'action', action: 'crm.add_tag', params: { tag: 'team-active' }, next: 'done' },
+        { id: 'done', type: 'exit' },
+      ],
+    });
+    const acme = await company('Acme');
+    const kari = await contact('Kari', ['trial'], acme.id);
+    const ola = await contact('Ola', ['trial'], acme.id);
+    const loner = await contact('Per');
+    await record(kari.id, 'trial.started');
+    await record(ola.id, 'trial.started');
+    await record(loner.id, 'trial.started');
+    await worker.tick();
+
+    let rows = await enrollmentsOf(journeyId);
+    expect(rows.map((r) => [r.subjectKey, r.companyId, r.contactId])).toEqual([[`co:${acme.id}`, acme.id, null]]);
+
+    await record(ola.id, 'teammate.invited');
+    await worker.tick(new Date(Date.now() + 6 * DAY));
+    await worker.tick(new Date(Date.now() + 6 * DAY));
+    const [acmeAfter] = await db.select().from(schema.crmCompanies).where(eq(schema.crmCompanies.id, acme.id));
+    expect(acmeAfter!.tags).toContain('team-active');
+    const [kariAfter] = await db.select().from(schema.crmContacts).where(eq(schema.crmContacts.id, kari.id));
+    expect(kariAfter!.tags).not.toContain('team-active');
+    rows = await enrollmentsOf(journeyId);
+    expect(rows[0]).toMatchObject({ state: 'done', exitReason: 'reached_end' });
+
+    const listed = await asAgent(() => runtime.listEnrollments({ journeyId }));
+    expect(listed[0]).toMatchObject({ companyId: acme.id, companyName: 'Acme', contactId: null });
+  });
+
+  it('enrolls each company in a segment once, counts the goal from any of its people, and refuses person-only steps', async () => {
+    const journeyId = await publish(
+      {
+        entry: { trigger: { type: 'segment', segmentId, schedule: 'daily', at: '09:00' }, subject: 'company' },
+        goal: { event: 'subscription.started', windowDays: 30, exitOnGoal: true },
+        start: 'wait',
+        nodes: [
+          { id: 'wait', type: 'wait', duration: 'P30D', next: 'done' },
+          { id: 'done', type: 'exit' },
+        ],
+      },
+      { nextEntryAt: new Date(Date.now() - 1000) },
+    );
+    const acme = await company('Acme');
+    const globex = await company('Globex');
+    await contact('Kari', ['trial'], acme.id);
+    const ola = await contact('Ola', ['trial'], acme.id);
+    await contact('Per', ['trial'], globex.id);
+    await contact('Lise', ['customer'], globex.id);
+    await contact('Nils');
+    await worker.tick();
+    let rows = await enrollmentsOf(journeyId);
+    expect(rows.map((r) => r.companyId).sort()).toEqual([acme.id, globex.id].sort());
+
+    await record(ola.id, 'subscription.started');
+    await worker.tick();
+    rows = await enrollmentsOf(journeyId);
+    expect(rows.find((r) => r.companyId === acme.id)).toMatchObject({ state: 'done', exitReason: 'goal_reached' });
+    expect(rows.find((r) => r.companyId === globex.id)!.state).toBe('waiting');
+
+    const draft = await asAgent(() =>
+      journeys.create({
+        name: `J ${randomUUID()}`,
+        outreachCampaignId: campaignId,
+        spec: {
+          entry: { trigger: { type: 'manual' }, subject: 'company' },
+          goal: { event: 'subscription.started', windowDays: 30 },
+          start: 'mail',
+          nodes: [
+            { id: 'mail', type: 'message', channel: 'email', content: { subject: 'Hei', body: 'Hei!' }, next: 'rename' },
+            { id: 'rename', type: 'action', action: 'crm.update_contact', params: { fields: { title: 'CTO' } }, next: 'done' },
+            { id: 'done', type: 'exit' },
+          ],
+        },
+      }),
+    );
+    const codes = (await asAgent(() => journeys.validate(draft.id))).errors.map((e) => e.code);
+    expect(codes).toEqual(expect.arrayContaining(['company_message', 'company_action']));
   });
 
   it('enrolls segment members on schedule', async () => {

@@ -23,6 +23,7 @@ const TEXT_LIMIT = 2_000;
 export interface AgentSubject {
   contactId: string | null;
   endUserId: string | null;
+  companyId?: string | null;
   conversationId: string | null;
   context: Record<string, unknown>;
 }
@@ -59,16 +60,13 @@ export async function buildAgentInputs(
           : null;
         break;
       case 'company': {
-        const company = contact?.companyId
-          ? ((
-              await ctx.db
-                .select()
-                .from(schema.crmCompanies)
-                .where(eq(schema.crmCompanies.id, contact.companyId))
-                .limit(1)
-            )[0] ?? null)
+        const companyId = subject.companyId ?? contact?.companyId ?? null;
+        const company = companyId
+          ? ((await ctx.db.select().from(schema.crmCompanies).where(eq(schema.crmCompanies.id, companyId)).limit(1))[0] ?? null)
           : null;
-        out.company = company ? { name: company.name, domain: company.domain } : null;
+        out.company = company
+          ? { name: company.name, domain: company.domain, tags: company.tags, customFields: scrub(company.customFields) }
+          : null;
         break;
       }
       case 'events': {

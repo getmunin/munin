@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, readApiBaseUrl, WebhookDispatcher, withContext } from '@getmunin/core';
 import { createHash, randomUUID } from 'node:crypto';
 import {
@@ -49,6 +49,7 @@ type WaitRow = typeof schema.journeyWaits.$inferSelect;
 export interface Subject {
   contactId: string | null;
   endUserId: string | null;
+  companyId?: string | null;
 }
 
 export interface MoveEnrollmentsResult {
@@ -75,6 +76,8 @@ export interface EnrollmentDto {
   contactName?: string | null;
   contactEmail?: string | null;
   endUserId: string | null;
+  companyId: string | null;
+  companyName?: string | null;
   state: EnrollmentState;
   currentNode: string | null;
   holdout: boolean;
@@ -172,13 +175,20 @@ export class JourneyRuntimeService {
     }
 
     await this.assertSubjectExists(input.subject);
-    const subject = await this.completeSubject(input.subject);
+    const byCompany = spec.entry.subject === 'company';
+    const subject: Subject = byCompany
+      ? { contactId: null, endUserId: null, companyId: await this.subjectCompany(input.subject) }
+      : { ...(await this.completeSubject(input.subject)), companyId: null };
+    if (byCompany && !subject.companyId) return { status: 'skipped', reason: 'no_company' };
     const subjectKey = subjectKeyOf(subject);
     if (!subjectKey) return { status: 'skipped', reason: 'no_subject' };
 
     if (spec.entry.segmentId) {
-      if (!subject.contactId) return { status: 'skipped', reason: 'not_in_segment' };
-      const inSegment = await this.contactInSegment(subject.contactId, spec.entry.segmentId);
+      const inSegment = subject.companyId
+        ? await this.companyInSegment(subject.companyId, spec.entry.segmentId)
+        : subject.contactId
+          ? await this.contactInSegment(subject.contactId, spec.entry.segmentId)
+          : false;
       if (!inSegment) return { status: 'skipped', reason: 'not_in_segment' };
     }
 
@@ -237,6 +247,7 @@ export class JourneyRuntimeService {
         version: journey.liveVersion,
         contactId: subject.contactId,
         endUserId: subject.endUserId,
+        companyId: subject.companyId ?? null,
         subjectKey,
         entryKey,
         state: holdout ? 'done' : 'active',
@@ -286,22 +297,22 @@ export class JourneyRuntimeService {
         await ctx.db.update(j).set({ nextEntryAt: null }).where(eq(j.id, journey.id));
         continue;
       }
-      const contacts = await this.segmentContacts(trigger.segmentId, limit, {
-        journeyId: journey.id,
-        reentry: spec.entry.reentry,
-        since: journey.nextEntryAt,
-      });
-      for (const contactId of contacts) {
+      const exclude = { journeyId: journey.id, reentry: spec.entry.reentry, since: journey.nextEntryAt };
+      const byCompany = spec.entry.subject === 'company';
+      const subjects: Subject[] = byCompany
+        ? (await this.segmentCompanies(trigger.segmentId, limit, exclude)).map((companyId) => ({ contactId: null, endUserId: null, companyId }))
+        : (await this.segmentContacts(trigger.segmentId, limit, exclude)).map((contactId) => ({ contactId, endUserId: null }));
+      for (const subject of subjects) {
         const result = await this.inSavepoint(() =>
           this.enroll({
             journeyId: journey.id,
-            subject: { contactId, endUserId: null },
+            subject,
             source: { type: 'segment', segmentId: trigger.segmentId },
           }),
         ).catch((): EnrollResult => ({ status: 'skipped', reason: 'enroll_failed' }));
         if (result.status === 'enrolled') enrolled += 1;
       }
-      const more = contacts.length >= limit;
+      const more = subjects.length >= limit;
       await ctx.db
         .update(j)
         .set({
@@ -322,7 +333,7 @@ export class JourneyRuntimeService {
     const subject = await this.completeSubject(await this.subjectFromPayload(payload));
     const hop = row.hopCount + 1;
 
-    if (row.actorId !== JOURNEY_RUNTIME_ACTOR_ID && (subject.contactId || subject.endUserId)) {
+    if (row.actorId !== JOURNEY_RUNTIME_ACTOR_ID && (subject.contactId || subject.endUserId || subject.companyId)) {
       for (const journey of await this.liveJourneys()) {
         const spec = await this.spec(journey.id, journey.liveVersion!);
         const trigger = spec.entry.trigger;
@@ -804,6 +815,7 @@ export class JourneyRuntimeService {
     return {
       contactId: step.enrollment.contactId,
       endUserId: step.enrollment.endUserId,
+      companyId: step.enrollment.companyId,
       conversationId: step.enrollment.conversationId,
       context: step.enrollment.context,
     };
@@ -1450,13 +1462,49 @@ export class JourneyRuntimeService {
     }
   }
 
+  private async runCompanyAction(
+    step: StepContext,
+    node: Extract<JourneyNode, { type: 'action' }>,
+    companyId: string,
+  ): Promise<Record<string, unknown>> {
+    const params = node.params;
+    switch (node.action) {
+      case 'crm.add_tag':
+      case 'crm.remove_tag': {
+        const company = await this.crm.getCompany(companyId);
+        const tag = String(params.tag);
+        const tags =
+          node.action === 'crm.add_tag' ? Array.from(new Set([...company.tags, tag])) : company.tags.filter((t) => t !== tag);
+        if (tags.length !== company.tags.length) await this.crm.updateCompanyTags(companyId, tags);
+        return { tag, tags };
+      }
+      case 'crm.log_activity': {
+        const activity = await this.crm.logActivity({
+          type: 'note',
+          subject: String(params.subject),
+          body: typeof params.body === 'string' ? params.body : undefined,
+          companyId,
+          metadata: { journeyId: step.enrollment.journeyId, nodeId: step.node.id },
+        });
+        return { activityId: activity.id };
+      }
+      case 'webhook.post':
+        return this.runAction(step, node, true);
+      default:
+        throw new BadRequestException(`journeys_invalid: ${node.action} acts on a person and cannot run in a company journey`);
+    }
+  }
+
   private async runAction(
     step: StepContext,
     node: Extract<JourneyNode, { type: 'action' }>,
+    forCompany = false,
   ): Promise<Record<string, unknown>> {
     const ctx = getCurrentContext();
     const params = node.params;
     const contactId = step.enrollment.contactId;
+    const companyId = step.enrollment.companyId;
+    if (companyId && !contactId && !forCompany) return this.runCompanyAction(step, node, companyId);
     if (node.action !== 'webhook.post' && !contactId) {
       throw new BadRequestException('journeys_invalid: this enrollment has no CRM contact');
     }
@@ -1527,6 +1575,7 @@ export class JourneyRuntimeService {
               nodeId: step.node.id,
               contactId: step.enrollment.contactId,
               endUserId: step.enrollment.endUserId,
+              companyId: step.enrollment.companyId,
               data: (params.data ?? {}),
             },
           })
@@ -1552,13 +1601,24 @@ export class JourneyRuntimeService {
     if (input.state) filters.push(eq(e.state, input.state));
     if (input.contactId) filters.push(eq(e.contactId, input.contactId));
     const rows = await ctx.db
-      .select({ enrollment: e, name: schema.crmContacts.name, email: schema.crmContacts.email })
+      .select({
+        enrollment: e,
+        name: schema.crmContacts.name,
+        email: schema.crmContacts.email,
+        companyName: schema.crmCompanies.name,
+      })
       .from(e)
       .leftJoin(schema.crmContacts, eq(schema.crmContacts.id, e.contactId))
+      .leftJoin(schema.crmCompanies, eq(schema.crmCompanies.id, e.companyId))
       .where(and(...filters))
       .orderBy(desc(e.enteredAt))
       .limit(Math.min(Math.max(input.limit ?? 50, 1), 200));
-    return rows.map((r) => ({ ...toEnrollmentDto(r.enrollment), contactName: r.name, contactEmail: r.email }));
+    return rows.map((r) => ({
+      ...toEnrollmentDto(r.enrollment),
+      contactName: r.name,
+      contactEmail: r.email,
+      companyName: r.companyName,
+    }));
   }
 
   async getTrace(enrollmentId: string): Promise<TraceDto> {
@@ -1788,7 +1848,8 @@ export class JourneyRuntimeService {
   private async subjectFromPayload(payload: Record<string, unknown>): Promise<Subject> {
     const contactId = typeof payload.contactId === 'string' ? payload.contactId : null;
     const endUserId = typeof payload.endUserId === 'string' ? payload.endUserId : null;
-    if (contactId || endUserId) return { contactId, endUserId };
+    const companyId = typeof payload.companyId === 'string' ? payload.companyId : null;
+    if (contactId || endUserId || companyId) return { contactId, endUserId, companyId };
     if (typeof payload.conversationId === 'string') {
       const ctx = getCurrentContext();
       const [conversation] = await ctx.db
@@ -1880,12 +1941,90 @@ export class JourneyRuntimeService {
     }
   }
 
+  private async subjectCompany(subject: Subject): Promise<string | null> {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor!.orgId;
+    if (subject.companyId) {
+      const [row] = await ctx.db
+        .select({ id: schema.crmCompanies.id })
+        .from(schema.crmCompanies)
+        .where(and(eq(schema.crmCompanies.orgId, orgId), eq(schema.crmCompanies.id, subject.companyId)))
+        .limit(1);
+      if (!row) throw new NotFoundException(`journeys_not_found: company ${subject.companyId}`);
+      return row.id;
+    }
+    const person = await this.completeSubject(subject);
+    if (!person.contactId) return null;
+    const [contact] = await ctx.db
+      .select({ companyId: schema.crmContacts.companyId })
+      .from(schema.crmContacts)
+      .where(eq(schema.crmContacts.id, person.contactId))
+      .limit(1);
+    return contact?.companyId ?? null;
+  }
+
+  async companyInSegment(companyId: string, segmentId: string): Promise<boolean> {
+    const ctx = getCurrentContext();
+    const [segment] = await ctx.db
+      .select({ filter: schema.crmSegments.filterDefinition })
+      .from(schema.crmSegments)
+      .where(eq(schema.crmSegments.id, segmentId))
+      .limit(1);
+    if (!segment) return false;
+    const [row] = await ctx.db
+      .select({ id: schema.crmContacts.id })
+      .from(schema.crmContacts)
+      .where(and(eq(schema.crmContacts.companyId, companyId), ...OUTREACH_ELIGIBILITY_FLOOR, ...segmentMatchFilters(segment.filter)))
+      .limit(1);
+    return Boolean(row);
+  }
+
+  async segmentCompanies(
+    segmentId: string,
+    limit: number,
+    exclude?: { journeyId: string; reentry: string; since: Date | null },
+  ): Promise<string[]> {
+    const ctx = getCurrentContext();
+    const [segment] = await ctx.db
+      .select({ filter: schema.crmSegments.filterDefinition })
+      .from(schema.crmSegments)
+      .where(eq(schema.crmSegments.id, segmentId))
+      .limit(1);
+    if (!segment) return [];
+    const c = schema.crmContacts;
+    const rows = await ctx.db
+      .select({ companyId: c.companyId })
+      .from(c)
+      .where(
+        and(
+          eq(c.orgId, ctx.actor!.orgId),
+          isNotNull(c.companyId),
+          ...OUTREACH_ELIGIBILITY_FLOOR,
+          ...segmentMatchFilters(segment.filter),
+          ...(exclude ? [sql`NOT EXISTS (
+            SELECT 1 FROM journey_enrollments en
+             WHERE en.journey_id = ${exclude.journeyId}
+               AND en.subject_key = 'co:' || ${c.companyId}
+               AND (
+                 ${exclude.reentry === 'once'}
+                 OR en.state IN ('active', 'waiting')
+                 OR en.entered_at >= ${(exclude.since ?? new Date(0)).toISOString()}::timestamptz
+               )
+          )`] : []),
+        ),
+      )
+      .groupBy(c.companyId)
+      .orderBy(sql`min(${c.createdAt})`)
+      .limit(limit);
+    return rows.map((r) => r.companyId!).filter(Boolean);
+  }
+
   private async completeSubject(subject: Subject): Promise<Subject> {
     const ctx = getCurrentContext();
     const c = schema.crmContacts;
     if (subject.contactId && !subject.endUserId) {
       const [row] = await ctx.db.select({ endUserId: c.endUserId }).from(c).where(eq(c.id, subject.contactId)).limit(1);
-      return { contactId: subject.contactId, endUserId: row?.endUserId ?? null };
+      return { ...subject, endUserId: row?.endUserId ?? null };
     }
     if (!subject.contactId && subject.endUserId) {
       const [row] = await ctx.db
@@ -1894,7 +2033,7 @@ export class JourneyRuntimeService {
         .where(and(eq(c.orgId, ctx.actor!.orgId), eq(c.endUserId, subject.endUserId)))
         .orderBy(asc(c.createdAt))
         .limit(1);
-      return { contactId: row?.id ?? null, endUserId: subject.endUserId };
+      return { ...subject, contactId: row?.id ?? null };
     }
     return subject;
   }
@@ -1905,6 +2044,10 @@ export class JourneyRuntimeService {
     const matches: SQL[] = [];
     if (subject.contactId) matches.push(eq(e.contactId, subject.contactId));
     if (subject.endUserId) matches.push(eq(e.endUserId, subject.endUserId));
+    if (subject.companyId) matches.push(eq(e.companyId, subject.companyId));
+    if (subject.contactId) {
+      matches.push(sql`${e.companyId} = (SELECT company_id FROM crm_contacts WHERE id = ${subject.contactId})`);
+    }
     if (typeof payload.conversationId === 'string') {
       matches.push(eq(e.conversationId, payload.conversationId));
       matches.push(
@@ -1982,6 +2125,7 @@ export class JourneyRuntimeService {
       {
         contactId: step.enrollment.contactId,
         endUserId: step.enrollment.endUserId,
+        companyId: step.enrollment.companyId,
         context: step.enrollment.context,
         enteredAt: step.enrollment.enteredAt,
         now: step.now,
@@ -1995,6 +2139,7 @@ export class JourneyRuntimeService {
     enrollment: {
       contactId: string | null;
       endUserId: string | null;
+      companyId?: string | null;
       context: Record<string, unknown>;
       enteredAt: Date;
       now: Date;
@@ -2010,18 +2155,21 @@ export class JourneyRuntimeService {
           await ctx.db.select().from(schema.crmContacts).where(eq(schema.crmContacts.id, enrollment.contactId)).limit(1)
         )[0] ?? null)
       : null;
-    const company = contact?.companyId
-      ? ((
-          await ctx.db.select().from(schema.crmCompanies).where(eq(schema.crmCompanies.id, contact.companyId)).limit(1)
-        )[0] ?? null)
+    const companyId = enrollment.companyId ?? contact?.companyId ?? null;
+    const company = companyId
+      ? ((await ctx.db.select().from(schema.crmCompanies).where(eq(schema.crmCompanies.id, companyId)).limit(1))[0] ?? null)
       : null;
+    const wholeCompany = !enrollment.contactId && !enrollment.endUserId && !!enrollment.companyId;
 
     let events: { name: string; occurredAt: Date }[] = [];
-    if (needs.eventNames.size > 0 && (enrollment.contactId || enrollment.endUserId)) {
+    if (needs.eventNames.size > 0 && (enrollment.contactId || enrollment.endUserId || wholeCompany)) {
       const pe = schema.analyticsProductEvents;
       const who: SQL[] = [];
       if (enrollment.contactId) who.push(eq(pe.contactId, enrollment.contactId));
       if (enrollment.endUserId) who.push(eq(pe.endUserId, enrollment.endUserId));
+      if (wholeCompany) {
+        who.push(sql`${pe.contactId} IN (SELECT id FROM crm_contacts WHERE company_id = ${enrollment.companyId})`);
+      }
       events = await ctx.db
         .select({ name: pe.name, occurredAt: pe.occurredAt })
         .from(pe)
@@ -2029,16 +2177,19 @@ export class JourneyRuntimeService {
     }
 
     const segments = new Set<string>();
-    if (enrollment.contactId) {
-      for (const segmentId of needs.segmentIds) {
-        if (await this.contactInSegment(enrollment.contactId, segmentId)) segments.add(segmentId);
-      }
+    for (const segmentId of needs.segmentIds) {
+      const member = enrollment.contactId
+        ? await this.contactInSegment(enrollment.contactId, segmentId)
+        : wholeCompany
+          ? await this.companyInSegment(enrollment.companyId!, segmentId)
+          : false;
+      if (member) segments.add(segmentId);
     }
 
     return {
       contact: contact as Record<string, unknown> | null,
       company: company as Record<string, unknown> | null,
-      tags: contact?.tags ?? [],
+      tags: contact?.tags ?? (wholeCompany ? (company?.tags ?? []) : []),
       context: enrollment.context,
       events,
       segments,
@@ -2273,6 +2424,7 @@ export class JourneyRuntimeService {
 }
 
 function subjectKeyOf(subject: Subject): string | null {
+  if (subject.companyId && !subject.contactId && !subject.endUserId) return `co:${subject.companyId}`;
   if (subject.contactId) return `c:${subject.contactId}`;
   if (subject.endUserId) return `eu:${subject.endUserId}`;
   return null;
@@ -2378,6 +2530,7 @@ function toEnrollmentDto(row: EnrollmentRow): EnrollmentDto {
     version: row.version,
     contactId: row.contactId,
     endUserId: row.endUserId,
+    companyId: row.companyId,
     state: row.state as EnrollmentState,
     currentNode: row.currentNode,
     holdout: row.holdout,

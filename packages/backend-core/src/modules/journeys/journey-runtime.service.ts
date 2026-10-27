@@ -603,6 +603,7 @@ export class JourneyRuntimeService {
     step: StepContext,
     node: Extract<JourneyNode, { type: 'message' }>,
   ): Promise<Outcome> {
+    if (step.enrollment.companyId && !step.enrollment.contactId) return this.executeCompanyMessage(step, node);
     const previous = await this.stepOutput(step.stepRunId);
     let content: { subject: string | null; body: string; format: 'markdown' | 'mjml' } = {
       subject: node.content.subject ?? null,
@@ -764,6 +765,116 @@ export class JourneyRuntimeService {
       output: { ...previous, proposalId: proposal.id, status: proposal.status },
       reason: proposal.status === 'approved' ? 'scheduled' : 'awaiting review',
     };
+  }
+
+  private async executeCompanyMessage(
+    step: StepContext,
+    node: Extract<JourneyNode, { type: 'message' }>,
+  ): Promise<Outcome> {
+    if (step.resumed) return this.companyMessageOutcome(step, node, step.resumed.resolution);
+    if (node.approval === 'off') return { kind: 'advance', edge: 'next', to: node.next, reason: 'approval off' };
+    const recipients = await this.companyRecipients(step.enrollment.companyId!, node.recipients);
+    if (recipients.length === 0) return { kind: 'exit', reason: 'no_recipients' };
+    const ctx = getCurrentContext();
+    const [journey] = await ctx.db
+      .select({ campaignId: schema.journeys.outreachCampaignId })
+      .from(schema.journeys)
+      .where(eq(schema.journeys.id, step.enrollment.journeyId))
+      .limit(1);
+    const settings = step.spec.settings;
+    const templateHash = node.approval === 'auto' ? await this.pinnedTemplateHash(step, node.id) : null;
+    const proposalIds: string[] = [];
+    for (const contactId of recipients) {
+      const proposal = await this.outreach.proposeJourneyMessage(
+        {
+          campaignId: journey!.campaignId,
+          channel: node.channel,
+          channelId:
+            node.channel === 'sms' ? (settings.smsChannelId ?? null) : node.channel === 'chat' ? (settings.chatChannelId ?? null) : null,
+          contactId,
+          enrollmentId: step.enrollment.id,
+          stepRunId: step.stepRunId,
+          subject: node.content.subject ?? null,
+          body: node.content.body,
+          format: node.content.format,
+          templateId: node.content.templateId,
+          templateHash,
+          preheader: node.content.preheader,
+          auto: (node.channel === 'email' || node.channel === 'chat') && node.approval === 'auto',
+          policy: {
+            channel: node.channel,
+            class: node.class,
+            timezone: settings.timezone,
+            quietHours: settings.quietHours,
+            validDays: settings.validDays,
+            frequencyCapPerWeek: settings.frequencyCapPerWeek,
+            cooldownHoursAfterConversation: settings.cooldownHoursAfterConversation,
+          },
+          evidence: {
+            journeyId: step.enrollment.journeyId,
+            version: step.enrollment.version,
+            nodeId: node.id,
+            companyId: step.enrollment.companyId,
+          },
+        },
+        { publicBaseUrl: readApiBaseUrl() },
+      );
+      proposalIds.push(proposal.id);
+    }
+    await ctx.db
+      .update(schema.journeyStepRuns)
+      .set({ proposalId: proposalIds[0] ?? null })
+      .where(eq(schema.journeyStepRuns.id, step.stepRunId));
+    return this.companyMessageOutcome(step, node, null);
+  }
+
+  private async companyMessageOutcome(
+    step: StepContext,
+    node: Extract<JourneyNode, { type: 'message' }>,
+    resolution: string | null,
+  ): Promise<Outcome> {
+    const ctx = getCurrentContext();
+    const p = schema.outreachProposals;
+    const rows = await ctx.db
+      .select({ id: p.id, contactId: p.contactId, status: p.status, scheduledSendAt: p.scheduledSendAt })
+      .from(p)
+      .where(eq(p.journeyStepRunId, step.stepRunId));
+    const output = { proposals: rows.map((r) => ({ id: r.id, contactId: r.contactId, status: r.status })) };
+    const open = rows.filter((r) => r.status === 'pending' || r.status === 'approved');
+    const sent = rows.filter((r) => r.status === 'sent').length;
+    if (open.length > 0 && resolution !== 'timeout') {
+      const latest = Math.max(step.now.getTime(), ...open.map((r) => r.scheduledSendAt?.getTime() ?? 0));
+      return {
+        kind: 'wait',
+        wait: { kind: 'proposal', match: { stepRunId: step.stepRunId }, timeoutAt: new Date(latest + APPROVAL_TIMEOUT_MS) },
+        output,
+        reason: `${open.length} of ${rows.length} messages awaiting review or sending`,
+      };
+    }
+    if (sent > 0 || rows.some((r) => r.status === 'withdrawn')) {
+      return { kind: 'advance', edge: 'next', to: node.next, output, reason: `sent to ${sent} of ${rows.length}` };
+    }
+    if (open.length > 0) return { kind: 'exit', reason: 'approval_timeout', output };
+    if (rows.length > 0 && rows.every((r) => r.status === 'failed')) return { kind: 'exit', reason: 'message_blocked', output };
+    return { kind: 'exit', reason: 'proposal_dismissed', output };
+  }
+
+  async companyRecipients(
+    companyId: string,
+    filter: { tag?: string; titleContains?: string; max: number } | undefined,
+  ): Promise<string[]> {
+    const ctx = getCurrentContext();
+    const c = schema.crmContacts;
+    const where: SQL[] = [eq(c.companyId, companyId), eq(c.doNotContact, false)];
+    if (filter?.tag) where.push(sql`${c.tags} ? ${filter.tag}`);
+    if (filter?.titleContains) where.push(sql`${c.title} ILIKE ${`%${filter.titleContains.replace(/[\\%_]/g, (m) => `\\${m}`)}%`}`);
+    const rows = await ctx.db
+      .select({ id: c.id })
+      .from(c)
+      .where(and(...where))
+      .orderBy(sql`${c.lastContactedAt} DESC NULLS LAST`, asc(c.createdAt))
+      .limit(filter?.max ?? 3);
+    return rows.map((r) => r.id);
   }
 
   private async stepOutput(stepRunId: string): Promise<Record<string, unknown>> {
@@ -1343,7 +1454,10 @@ export class JourneyRuntimeService {
       .from(w)
       .where(and(eq(w.orgId, row.orgId), eq(w.kind, 'proposal'), isNull(w.resolvedAt), sql`${w.match}->>'proposalId' = ${proposalId}`))
       .limit(1);
-    if (!wait) return;
+    if (!wait) {
+      await this.handleCompanyProposalEvent(row.orgId, proposalId, resolution);
+      return;
+    }
     if (
       resolution === 'proposal_sent' &&
       typeof row.payload.conversationId === 'string' &&
@@ -1354,6 +1468,32 @@ export class JourneyRuntimeService {
       await this.rememberThread(wait.enrollmentId, row.payload.conversationId);
     }
     await this.resolveWait(wait, resolution);
+  }
+
+  private async handleCompanyProposalEvent(orgId: string, proposalId: string, resolution: string): Promise<void> {
+    const ctx = getCurrentContext();
+    const p = schema.outreachProposals;
+    const [proposal] = await ctx.db
+      .select({ stepRunId: p.journeyStepRunId })
+      .from(p)
+      .where(eq(p.id, proposalId))
+      .limit(1);
+    if (!proposal?.stepRunId) return;
+    const w = schema.journeyWaits;
+    const [wait] = await ctx.db
+      .select()
+      .from(w)
+      .where(
+        and(eq(w.orgId, orgId), eq(w.kind, 'proposal'), isNull(w.resolvedAt), sql`${w.match}->>'stepRunId' = ${proposal.stepRunId}`),
+      )
+      .limit(1);
+    if (!wait) return;
+    const [open] = await ctx.db
+      .select({ id: p.id })
+      .from(p)
+      .where(and(eq(p.journeyStepRunId, proposal.stepRunId), inArray(p.status, ['pending', 'approved'])))
+      .limit(1);
+    if (!open) await this.resolveWait(wait, resolution);
   }
 
   private async handleReply(row: InboxRow, enrollments: EnrollmentRow[]): Promise<void> {

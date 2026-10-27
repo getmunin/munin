@@ -376,26 +376,33 @@ export class JourneysTools {
 
   @McpTool({
     name: 'journeys_enroll',
-    title: 'Journeys: Enroll a person',
+    title: 'Journeys: Enroll a person or company',
     description:
-      'Put one contact or end user into a live journey now, as if its trigger fired. The entry segment, re-entry policy and holdout still apply; the result says whether they entered and, if not, why.',
+      'Put one contact, end user or company into a live journey now, as if its trigger fired. A company journey (entry.subject "company") takes a companyId, or a contact whose company it then follows. The entry segment, re-entry policy and holdout still apply; the result says whether they entered and, if not, why.',
     audiences: ['admin'],
     scopes: ['journeys:write'],
     input: JourneyIdInput.extend({
       contactId: Id.optional(),
       endUserId: Id.optional(),
+      companyId: Id.optional(),
       context: z.record(z.string(), z.unknown()).optional(),
     }),
     readOnlyHint: false,
     destructiveHint: true,
   })
-  enroll(args: { journeyId: string; contactId?: string; endUserId?: string; context?: Record<string, unknown> }) {
-    if (!args.contactId && !args.endUserId) {
-      throw new BadRequestException('journeys_invalid: pass contactId or endUserId');
+  enroll(args: {
+    journeyId: string;
+    contactId?: string;
+    endUserId?: string;
+    companyId?: string;
+    context?: Record<string, unknown>;
+  }) {
+    if (!args.contactId && !args.endUserId && !args.companyId) {
+      throw new BadRequestException('journeys_invalid: pass contactId, endUserId or companyId');
     }
     return this.runtime.enroll({
       journeyId: args.journeyId,
-      subject: { contactId: args.contactId ?? null, endUserId: args.endUserId ?? null },
+      subject: { contactId: args.contactId ?? null, endUserId: args.endUserId ?? null, companyId: args.companyId ?? null },
       source: { type: 'manual' },
       context: args.context,
     });

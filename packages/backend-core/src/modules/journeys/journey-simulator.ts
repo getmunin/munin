@@ -129,6 +129,7 @@ export class JourneySimulator {
     switch (node.type) {
       case 'message': {
         if (node.approval === 'off') return { edge: 'next', to: node.next };
+        if (contact.kind === 'company') return { exit: 'no_contact' };
         const settings = spec.settings;
         const decision = await checkSendPolicy({
           contactId: contact.id,
@@ -181,7 +182,9 @@ export class JourneySimulator {
         return node.onTimeout ? { edge: 'on_timeout', to: node.onTimeout } : { exit: 'wait_timeout' };
       case 'branch': {
         const facts = await this.runtime.conditionFacts(
-          { contactId: contact.id, endUserId: contact.endUserId, context: {}, enteredAt: now, now, spec },
+          contact.kind === 'company'
+            ? { contactId: null, endUserId: null, companyId: contact.id, context: {}, enteredAt: now, now, spec }
+            : { contactId: contact.id, endUserId: contact.endUserId, context: {}, enteredAt: now, now, spec },
           node.rules.map((r) => r.if),
         );
         const index = node.rules.findIndex((rule) => evaluateCondition(rule.if, facts));
@@ -189,7 +192,7 @@ export class JourneySimulator {
         return { edge: 'default', to: node.default };
       }
       case 'split': {
-        const bucket = stableBucket(`c:${contact.id}`, journeyId, node.id);
+        const bucket = stableBucket(sampleKey(contact), journeyId, node.id);
         let cumulative = 0;
         for (const path of node.paths) {
           cumulative += path.percent;
@@ -225,13 +228,13 @@ export class JourneySimulator {
   }
 
   private async entryBlock(journeyId: string, spec: JourneySpec, contact: SampleContact): Promise<string | null> {
-    if (spec.entry.segmentId && !(await this.runtime.contactInSegment(contact.id, spec.entry.segmentId))) {
-      return 'not_in_segment';
-    }
-    if (spec.entry.trigger.type === 'segment' && !(await this.runtime.contactInSegment(contact.id, spec.entry.trigger.segmentId))) {
-      return 'not_in_segment';
-    }
-    if (stableBucket(`c:${contact.id}`, journeyId) < spec.settings.holdoutPct) return 'holdout';
+    const member = (segmentId: string) =>
+      contact.kind === 'company'
+        ? this.runtime.companyInSegment(contact.id, segmentId)
+        : this.runtime.contactInSegment(contact.id, segmentId);
+    if (spec.entry.segmentId && !(await member(spec.entry.segmentId))) return 'not_in_segment';
+    if (spec.entry.trigger.type === 'segment' && !(await member(spec.entry.trigger.segmentId))) return 'not_in_segment';
+    if (stableBucket(sampleKey(contact), journeyId) < spec.settings.holdoutPct) return 'holdout';
     return null;
   }
 
@@ -240,6 +243,7 @@ export class JourneySimulator {
     limit: number,
   ): Promise<{ source: SimulationResult['sample']['source']; segmentId: string | null; contacts: SampleContact[] }> {
     const ctx = getCurrentContext();
+    if (input.spec.entry.subject === 'company') return this.pickCompanies(input, limit);
     const c = schema.crmContacts;
     const columns = { id: c.id, name: c.name, endUserId: c.endUserId };
     if (input.contactIds?.length) {
@@ -266,6 +270,40 @@ export class JourneySimulator {
       .orderBy(desc(c.updatedAt))
       .limit(limit);
     return { source: 'recent', segmentId: null, contacts: rows };
+  }
+
+  private async pickCompanies(
+    input: SimulationInput,
+    limit: number,
+  ): Promise<{ source: SimulationResult['sample']['source']; segmentId: string | null; contacts: SampleContact[] }> {
+    const ctx = getCurrentContext();
+    const co = schema.crmCompanies;
+    const load = async (ids: string[]) =>
+      ids.length
+        ? (await ctx.db.select({ id: co.id, name: co.name }).from(co).where(inArray(co.id, ids))).map(
+            (r): SampleContact => ({ id: r.id, name: r.name, endUserId: null, kind: 'company' }),
+          )
+        : [];
+    if (input.contactIds?.length) {
+      const rows = await ctx.db
+        .selectDistinct({ companyId: schema.crmContacts.companyId })
+        .from(schema.crmContacts)
+        .where(and(eq(schema.crmContacts.orgId, ctx.actor!.orgId), inArray(schema.crmContacts.id, input.contactIds.slice(0, limit))));
+      return { source: 'contacts', segmentId: null, contacts: await load(rows.map((r) => r.companyId).filter((id): id is string => !!id)) };
+    }
+    const trigger = input.spec.entry.trigger;
+    const segmentId =
+      input.segmentId ?? input.spec.entry.segmentId ?? (trigger.type === 'segment' ? trigger.segmentId : null);
+    if (segmentId) {
+      return { source: 'segment', segmentId, contacts: await load(await this.runtime.segmentCompanies(segmentId, limit)) };
+    }
+    const recent = await ctx.db
+      .select({ id: co.id })
+      .from(co)
+      .where(eq(co.orgId, ctx.actor!.orgId))
+      .orderBy(desc(co.updatedAt))
+      .limit(limit);
+    return { source: 'recent', segmentId: null, contacts: await load(recent.map((r) => r.id)) };
   }
 
   private async renderSample(node: Extract<JourneyNode, { type: 'message' }>, contact: SampleContact): Promise<string> {
@@ -301,6 +339,11 @@ interface SampleContact {
   id: string;
   name: string | null;
   endUserId: string | null;
+  kind?: 'company';
+}
+
+function sampleKey(subject: SampleContact): string {
+  return subject.kind === 'company' ? `co:${subject.id}` : `c:${subject.id}`;
 }
 
 function bump(map: Record<string, number>, key: string): void {

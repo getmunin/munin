@@ -945,6 +945,21 @@ export class CrmService {
         `crm_conflict: segment ${id} is referenced by ${referencingBroadcasts.length} outreach broadcast(s); delete those broadcasts first`,
       );
     }
+    const referencingJourneys = await ctx.db
+      .selectDistinct({ id: schema.journeys.id })
+      .from(schema.journeyVersions)
+      .innerJoin(schema.journeys, eq(schema.journeys.id, schema.journeyVersions.journeyId))
+      .where(
+        and(
+          ne(schema.journeys.status, 'archived'),
+          sql`position(${JSON.stringify(id)} in ${schema.journeyVersions.spec}::text) > 0`,
+        ),
+      );
+    if (referencingJourneys.length > 0) {
+      throw new ConflictException(
+        `crm_conflict: segment ${id} is referenced by ${referencingJourneys.length} journey(s); edit or archive those journeys first`,
+      );
+    }
     const result = await ctx.db
       .delete(schema.crmSegments)
       .where(eq(schema.crmSegments.id, id))

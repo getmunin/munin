@@ -1079,6 +1079,7 @@
         "crm": "Contacts",
         "cms": "Content",
         "outreach": "Outreach",
+        "journeys": "Journeys",
         "social": "Social",
         "analytics": "Analytics",
         "commerce": "Commerce",
@@ -1110,6 +1111,10 @@
         "outreach": {
           "readWrite": "Draft campaigns and send to consented contacts. Consent checks stay enforced.",
           "read": "Read outreach campaigns and proposals."
+        },
+        "journeys": {
+          "readWrite": "Build and edit customer journeys and pause or archive them. Publishing a journey always needs a person in the dashboard.",
+          "read": "Read customer journeys, their versions and validation results."
         },
         "social": {
           "readWrite": "Draft and publish posts to your connected social accounts.",

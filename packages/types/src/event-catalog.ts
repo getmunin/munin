@@ -94,6 +94,15 @@ export const SYSTEM_EVENT_TYPES = [
   'curator_job.pending',
 ] as const;
 
+export const JOURNEY_EVENT_TYPES = [
+  'journey.created',
+  'journey.version.publish_requested',
+  'journey.version.published',
+  'journey.paused',
+  'journey.resumed',
+  'journey.archived',
+] as const;
+
 export const ANALYTICS_EVENT_TYPES = ['analytics.product_event.recorded'] as const;
 
 export const EVENT_TYPES_BY_MODULE = {
@@ -106,6 +115,7 @@ export const EVENT_TYPES_BY_MODULE = {
   feedback: FEEDBACK_EVENT_TYPES,
   system: SYSTEM_EVENT_TYPES,
   analytics: ANALYTICS_EVENT_TYPES,
+  journeys: JOURNEY_EVENT_TYPES,
 } as const;
 
 export const KNOWN_EVENT_TYPES = [
@@ -118,6 +128,7 @@ export const KNOWN_EVENT_TYPES = [
   ...FEEDBACK_EVENT_TYPES,
   ...SYSTEM_EVENT_TYPES,
   ...ANALYTICS_EVENT_TYPES,
+  ...JOURNEY_EVENT_TYPES,
 ] as const;
 
 export type KnownEventType = (typeof KNOWN_EVENT_TYPES)[number];

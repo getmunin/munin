@@ -1336,6 +1336,7 @@
         "title": "Step trace",
         "loading": "Loading…",
         "attempt": "attempt {attempt}",
+        "agent": "agent job {status}, {tokens} tokens",
         "waiting": "Waiting ({kind}) until {until} · event {event}",
         "ended": "Ended: {reason}"
       },
@@ -1383,6 +1384,7 @@
         "email": "{node} · {decision}",
         "assumeApproved": "Assumes a reviewer approves \"{node}\".",
         "assumeNoReply": "Assumes nobody replies to \"{node}\".",
+        "assumeAgentFallback": "The agent at \"{node}\" is not run in a dry run; everyone follows its fallback \"{edge}\".",
         "assumeNoEvent": "Assumes {event} does not arrive within {timeout} at \"{node}\".",
         "sample": "Sample: {subject} — to {name}",
         "sampleFrame": "Rendered sample email",

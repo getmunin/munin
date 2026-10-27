@@ -208,6 +208,8 @@ function nodeTitle(node: JourneyNode): string {
       return node.reason;
     case 'goal':
       return node.name;
+    case 'agent':
+      return `${node.mode}: ${Object.keys(node.edges).join(' / ')}`;
     default:
       return node.id;
   }

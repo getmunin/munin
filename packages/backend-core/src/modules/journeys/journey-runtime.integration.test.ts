@@ -17,6 +17,7 @@ import { IdentityService } from '../identity/identity.service.ts';
 import { CrmService } from '../crm/crm.service.ts';
 import { AddressDeliverabilityService } from '../crm/address-deliverability.service.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
+import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to run journey runtime tests.';
@@ -49,7 +50,7 @@ const DAY = 86_400_000;
     webhooks.registerSink(new JourneyEventSink());
     crm = new CrmService(webhooks, new DefaultQuotasService(), new AddressDeliverabilityService());
     journeys = new JourneysService(webhooks);
-    runtime = new JourneyRuntimeService(webhooks, crm, {} as never);
+    runtime = new JourneyRuntimeService(webhooks, crm, {} as never, new CuratorJobsService(webhooks));
     worker = new JourneyRuntimeWorker(appDb, runtime);
     events = new ProductEventsService(webhooks, new IdentityService(webhooks));
   });

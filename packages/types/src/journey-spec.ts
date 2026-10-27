@@ -16,7 +16,11 @@ export const JOURNEY_NODE_TYPES = [
 ] as const;
 export type JourneyNodeType = (typeof JOURNEY_NODE_TYPES)[number];
 
-export const RESERVED_JOURNEY_NODE_TYPES = ['agent', 'approval', 'sub_journey'] as const;
+export const RESERVED_JOURNEY_NODE_TYPES = ['approval', 'sub_journey'] as const;
+
+export const AGENT_NODE_MODES = ['decide'] as const;
+export const AGENT_INPUTS = ['contact', 'company', 'reply', 'thread', 'events', 'context'] as const;
+export type AgentInput = (typeof AGENT_INPUTS)[number];
 
 export const JOURNEY_ACTIONS = [
   'crm.update_contact',
@@ -213,6 +217,21 @@ export const ExitNodeSchema = z.strictObject({
   reason: z.string().regex(REASON_PATTERN).default('reached_end'),
 });
 
+export const AgentNodeSchema = z.strictObject({
+  ...NodeBase,
+  type: z.literal('agent'),
+  mode: z.enum(AGENT_NODE_MODES),
+  instructions: z.string().min(1).max(2000),
+  edges: z
+    .record(z.string().regex(NODE_ID_PATTERN), NodeId)
+    .refine((edges) => Object.keys(edges).length >= 2 && Object.keys(edges).length <= 10, {
+      message: 'an agent node declares between 2 and 10 edges',
+    }),
+  fallback: z.string().regex(NODE_ID_PATTERN),
+  inputs: z.array(z.enum(AGENT_INPUTS)).min(1).max(AGENT_INPUTS.length),
+  timeout: IsoDuration.default('PT10M'),
+});
+
 export const ReservedNodeSchema = z.looseObject({
   ...NodeBase,
   type: z.enum(RESERVED_JOURNEY_NODE_TYPES),
@@ -228,6 +247,7 @@ export const JourneyNodeSchema = z.discriminatedUnion('type', [
   GoalNodeSchema,
   JumpNodeSchema,
   ExitNodeSchema,
+  AgentNodeSchema,
   ReservedNodeSchema,
 ]);
 
@@ -305,6 +325,7 @@ export type WaitNode = z.infer<typeof WaitNodeSchema>;
 export type WaitForNode = z.infer<typeof WaitForNodeSchema>;
 export type BranchNode = z.infer<typeof BranchNodeSchema>;
 export type SplitNode = z.infer<typeof SplitNodeSchema>;
+export type AgentNode = z.infer<typeof AgentNodeSchema>;
 
 export function parseIsoDurationMs(value: string): number | null {
   const m = ISO_DURATION_PATTERN.exec(value);
@@ -345,6 +366,9 @@ export function journeyNodeEdges(node: JourneyNode): { label: string; to: string
       break;
     case 'jump':
       add('jump', node.to);
+      break;
+    case 'agent':
+      for (const [label, to] of Object.entries(node.edges)) add(label, to);
       break;
     default:
       break;

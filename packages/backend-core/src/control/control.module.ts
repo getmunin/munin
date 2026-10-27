@@ -51,6 +51,7 @@ import { OutreachBroadcastsController } from './outreach-broadcasts.controller.t
 import { OutreachModule } from '../modules/outreach/outreach.module.ts';
 import { JourneysModule } from '../modules/journeys/journeys.module.ts';
 import { JourneysController } from './journeys.controller.ts';
+import { JourneyApprovalsController } from './journey-approvals.controller.ts';
 import { WebhooksModule } from '../modules/webhooks/webhooks.module.ts';
 import { PublicSkillsController } from './public-skills.controller.ts';
 import { PublicMcpToolsController } from './public-mcp-tools.controller.ts';
@@ -113,6 +114,7 @@ import { ReviewModule } from '../modules/review/review.module.ts';
     AnalyticsViewsController,
     ProductEventsController,
     JourneysController,
+    JourneyApprovalsController,
     AnalyticsTrackerController,
     AnalyticsTrackersController,
     InvitationsController,

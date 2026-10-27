@@ -13,6 +13,7 @@ const RELEVANT_PREFIXES: readonly string[] = [
   'crm.activity.',
   'outreach.proposal.',
   'outreach.outcome.',
+  'journey.exited',
 ];
 
 export function isJourneyRelevantEvent(type: string): boolean {

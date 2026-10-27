@@ -3146,6 +3146,86 @@
         ]
       }
     },
+    "/v1/journey-approvals": {
+      "get": {
+        "operationId": "JourneyApprovalsController_list",
+        "parameters": [
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "journeyId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "JourneyApprovals"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/journey-approvals/{id}/decide": {
+      "post": {
+        "operationId": "JourneyApprovalsController_decide",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideApprovalBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "JourneyApprovals"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/a/t/{key}.gif": {
       "get": {
         "operationId": "AnalyticsTrackerController_trackerPixel",
@@ -11155,6 +11235,25 @@
         },
         "required": [
           "fingerprint"
+        ]
+      },
+      "DecideApprovalBody": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "reject"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "decision"
         ]
       },
       "CreateAnalyticsTrackerBody": {

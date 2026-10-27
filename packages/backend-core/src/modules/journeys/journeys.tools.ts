@@ -5,7 +5,6 @@ import {
   JOURNEY_ACTIONS,
   JOURNEY_NODE_TYPES,
   JourneyNodeSchema,
-  RESERVED_JOURNEY_NODE_TYPES,
 } from '@getmunin/types';
 import { JOURNEY_STATUSES, JourneysService } from './journeys.service.ts';
 import { ENROLLMENT_STATES, JourneyRuntimeService, type EnrollmentState } from './journey-runtime.service.ts';
@@ -65,11 +64,16 @@ const NODE_TYPE_REFERENCE = [
     does: 'decide: a model reads only the declared inputs about this person (national ID numbers removed) and picks one declared edge, logging its reason. If it has not answered within the timeout — or no model is configured — the run takes the fallback edge. An edge named "stop" also ends every other journey the person is in (reason conversation_stop). For a reply intent step, put it behind a message onReply with inputs ["reply", "thread", "contact"], edges interested / question / not_now / stop, and fallback question.',
     fields: 'decide: { mode: "decide", instructions, edges: { name: nodeId, … } (2–10), fallback: one edge name, inputs: ["contact"|"company"|"reply"|"thread"|"events"|"context"], timeout?: "PT10M" } · enrich: { mode: "enrich", instructions, fields: [{ key, type: "string"|"number"|"boolean"|"date"|"enum", description, options? }], inputs, next, timeout? } — enrich writes the fields to the contact and to context.enriched',
   },
-  ...RESERVED_JOURNEY_NODE_TYPES.map((type) => ({
-    type,
-    does: 'Not available yet; validation rejects it.',
-    fields: '',
-  })),
+  {
+    type: 'approval',
+    does: 'Hold the run until a signed-in person approves or rejects it in the Munin dashboard. Agents and API keys cannot decide it.',
+    fields: '{ title, instructions?, timeout?: "P3D", next (approved), onReject?, onTimeout? } — without onReject or onTimeout the run exits with approval_rejected or approval_timeout',
+  },
+  {
+    type: 'sub_journey',
+    does: 'Enter the person into another live journey. With await: true the run waits until that journey ends and continues on onGoal when it reached its goal, otherwise on next. Journeys may not call each other in a loop, and nesting stops at 3 levels.',
+    fields: '{ journeyId, await?: false, timeout?: "P30D", next?, onGoal? }',
+  },
 ];
 
 const JourneyIdInput = z.object({ journeyId: Id });
@@ -627,6 +631,25 @@ export class JourneysTools {
   })
   restoreVersion(args: { journeyId: string; version: number }) {
     return this.journeys.restoreVersion(args.journeyId, args.version);
+  }
+
+  @McpTool({
+    name: 'journeys_list_approvals',
+    title: 'Journeys: List approval requests',
+    description:
+      'Approval steps waiting for, or decided by, a person: which journey and step, who it is about, what to check, and when it expires. Only a signed-in person decides them, in the Munin dashboard.',
+    audiences: ['admin'],
+    scopes: ['journeys:read'],
+    input: z.object({
+      status: z.enum(['pending', 'approved', 'rejected', 'expired']).optional(),
+      journeyId: Id.optional(),
+      limit: z.number().int().min(1).max(200).default(50),
+    }),
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  listApprovals(args: { status?: string; journeyId?: string; limit: number }) {
+    return this.runtime.listApprovals(args);
   }
 
   @McpTool({

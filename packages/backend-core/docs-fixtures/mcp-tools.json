@@ -11614,6 +11614,49 @@
     }
   },
   {
+    "name": "journeys_list_approvals",
+    "title": "Journeys: List approval requests",
+    "description": "Approval steps waiting for, or decided by, a person: which journey and step, who it is about, what to check, and when it expires. Only a signed-in person decides them, in the Munin dashboard.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "approved",
+            "rejected",
+            "expired"
+          ]
+        },
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "limit": {
+          "default": 50,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "required": [
+        "limit"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "journeys_get_split_results",
     "title": "Journeys: Get split results",
     "description": "Goal conversion per path of every split in the live version (or a given version): entered, converted, rate, lift against the control path and a two-proportion p-value once each path has 30 runs. Once a split with sampleSize is full, everyone goes to its control path and `winner` names the significantly better path, or the control when none is.",

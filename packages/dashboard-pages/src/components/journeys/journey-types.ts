@@ -132,6 +132,21 @@ export interface SimulationDto {
   assumptions: { code: string; nodeId: string; event?: string; timeout?: string }[];
 }
 
+export interface JourneyApprovalDto {
+  id: string;
+  journeyId: string;
+  journeyName: string;
+  enrollmentId: string;
+  nodeId: string;
+  contactId: string | null;
+  contactName: string | null;
+  title: string;
+  instructions: string | null;
+  status: 'pending' | 'approved' | 'rejected' | 'expired';
+  expiresAt: string;
+  createdAt: string;
+}
+
 export interface AgentNodeStatsDto {
   nodeId: string;
   kind: 'decide' | 'enrich' | 'draft';

@@ -256,7 +256,89 @@ const DAY = 86_400_000;
     expect(again).toMatchObject({ status: 'skipped', reason: 'already_active' });
   });
 
-    it('runs every step exactly once even when ticks repeat', async () => {
+    it('holds a run at an approval step until a signed-in person decides, and never lets an agent decide', async () => {
+    const asUser = <T>(fn: () => Promise<T>): Promise<T> =>
+      appDb.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
+        await tx.execute(sql`SELECT set_config('app.org_id', ${orgId}, true)`);
+        const actor = new ActorIdentity('user', 'usr_reviewer', orgId, ['*'], ['admin']);
+        return withContext({ db: tx, actor, correlationId: randomUUID() }, fn);
+      });
+    const journeyId = await publish({
+      entry: { trigger: { type: 'manual' } },
+      goal: { event: 'subscription.started', windowDays: 30 },
+      start: 'check',
+      nodes: [
+        { id: 'check', type: 'approval', title: 'Big account — ok to start?', timeout: 'P1D', next: 'tag', onReject: 'rejected' },
+        { id: 'tag', type: 'action', action: 'crm.add_tag', params: { tag: 'approved-start' }, next: 'done' },
+        { id: 'rejected', type: 'exit', reason: 'not_now' },
+        { id: 'done', type: 'exit' },
+      ],
+    });
+    const people = await Promise.all(['Kari', 'Ola', 'Per'].map((n) => contact(n)));
+    const runs = [];
+    for (const person of people) {
+      runs.push(
+        (await asAgent(() => runtime.enroll({ journeyId, subject: { contactId: person.id, endUserId: null }, source: { type: 'manual' } })))
+          .enrollmentId!,
+      );
+    }
+    await worker.tick();
+    const pending = await asAgent(() => runtime.listApprovals({ status: 'pending', journeyId }));
+    expect(pending).toHaveLength(3);
+    const byContact = new Map(pending.map((a) => [a.contactId, a]));
+    await expect(
+      asAgent(() => runtime.decideApproval({ approvalId: byContact.get(people[0]!.id)!.id, decision: 'approve' })),
+    ).rejects.toThrow(/signed-in person/);
+
+    await asUser(() => runtime.decideApproval({ approvalId: byContact.get(people[0]!.id)!.id, decision: 'approve' }));
+    await asUser(() => runtime.decideApproval({ approvalId: byContact.get(people[1]!.id)!.id, decision: 'reject', note: 'not now' }));
+    await expect(
+      asUser(() => runtime.decideApproval({ approvalId: byContact.get(people[1]!.id)!.id, decision: 'approve' })),
+    ).rejects.toThrow(/already rejected/);
+    await worker.tick();
+    await worker.tick(new Date(Date.now() + 2 * DAY));
+    await worker.tick(new Date(Date.now() + 2 * DAY));
+
+    const after = await enrollmentsOf(journeyId);
+    const reason = (id: string) => after.find((r) => r.id === id)!.exitReason;
+    expect([reason(runs[0]!), reason(runs[1]!), reason(runs[2]!)]).toEqual(['reached_end', 'not_now', 'approval_timeout']);
+    const [kari] = await db.select().from(schema.crmContacts).where(eq(schema.crmContacts.id, people[0]!.id));
+    expect(kari!.tags).toContain('approved-start');
+    const expired = await asAgent(() => runtime.listApprovals({ status: 'expired', journeyId }));
+    expect(expired.map((a) => a.contactId)).toEqual([people[2]!.id]);
+  });
+
+  it('enters another journey and follows onGoal once it reaches its goal there', async () => {
+    const trial = await publish({
+      entry: { trigger: { type: 'manual' } },
+      goal: { event: 'subscription.started', windowDays: 30 },
+      start: 'converted',
+      nodes: [{ id: 'converted', type: 'goal', name: 'converted', exitOnReach: true }],
+    });
+    const parent = await publish({
+      entry: { trigger: { type: 'manual' } },
+      goal: { event: 'subscription.started', windowDays: 30 },
+      start: 'run_trial',
+      nodes: [
+        { id: 'run_trial', type: 'sub_journey', journeyId: trial, await: true, next: 'plain', onGoal: 'won' },
+        { id: 'plain', type: 'exit', reason: 'plain' },
+        { id: 'won', type: 'exit', reason: 'won' },
+      ],
+    });
+    const kari = await contact('Kari');
+    const run = await asAgent(() =>
+      runtime.enroll({ journeyId: parent, subject: { contactId: kari.id, endUserId: null }, source: { type: 'manual' } }),
+    );
+    for (let i = 0; i < 4; i++) await worker.tick();
+    const [child] = await enrollmentsOf(trial);
+    expect(child).toMatchObject({ exitReason: 'goal_reached', source: { type: 'journey', journeyId: parent } });
+    expect(child!.context).toMatchObject({ journeyDepth: 1 });
+    const [parentRun] = (await enrollmentsOf(parent)).filter((r) => r.id === run.enrollmentId);
+    expect(parentRun).toMatchObject({ exitReason: 'won' });
+  });
+
+  it('runs every step exactly once even when ticks repeat', async () => {
     const journeyId = await publish(trialSpec());
     const kari = await contact('Kari');
     await record(kari.id, 'trial.started');

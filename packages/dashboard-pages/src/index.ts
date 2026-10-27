@@ -144,6 +144,7 @@ export { PrivacyPage } from './pages/privacy';
 export { IntegrationsPage } from './pages/integrations';
 export { CredentialEntryPage } from './pages/credential-entry';
 export { TrackersPage } from './pages/trackers';
+export { JourneysPage } from './pages/journeys';
 export { EndUsersPage } from './pages/end-users';
 export { DashboardPage } from './pages/overview';
 export { ConversationsPage } from './pages/conversations';

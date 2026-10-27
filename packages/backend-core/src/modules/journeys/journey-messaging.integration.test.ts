@@ -652,6 +652,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     await expect(asAgent(() => journeys.resumeNode(journeyId, 'wait'))).rejects.toThrow(/not paused/);
     const resumed = await asAgent(() => journeys.resumeNode(journeyId, 'welcome'));
     expect(resumed.released).toBe(1);
+    expect(await worker.runMonitor(new Date(), true)).toBe(0);
     await worker.tick();
     expect(await proposalsFor(late.id)).toHaveLength(1);
   });
@@ -711,6 +712,11 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       .where(and(eq(schema.curatorJobs.orgId, orgId), eq(schema.curatorJobs.jobUri, 'skill://outreach/extract-outcome')));
     expect(job).toBeDefined();
 
+    await asAgent(() =>
+      crm.updateContact({ id: ola.id, patch: { customFields: { outreachOutcome: 'refused', outreachOutcomeConversationId: 'ccv_some_other_call' } } }),
+    );
+    await worker.tick();
+    expect(await enrollment(olaRun)).toMatchObject({ state: 'waiting' });
     await asAgent(() =>
       crm.updateContact({ id: ola.id, patch: { customFields: { outreachOutcome: 'reached', outreachOutcomeConversationId: olaCall!.conversationId } } }),
     );

@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import { schema, type Db } from '@getmunin/db';
@@ -54,9 +54,9 @@ export class ShopifyOrderEventsService {
       );
       return { orgId: row.orgId, shopDomain: typeof row.config.shopDomain === 'string' ? row.config.shopDomain : '', secret: decrypted[0]?.pt ?? null };
     });
-    if (!connection?.secret) throw new NotFoundException('commerce_not_found: no Shopify order events here');
+    if (!connection?.secret) throw new UnauthorizedException('commerce_unauthorized: webhook not accepted');
     if (!input.rawBody || !verifyShopifyHmac(input.rawBody, connection.secret, input.hmac)) {
-      throw new UnauthorizedException('commerce_unauthorized: webhook signature does not match');
+      throw new UnauthorizedException('commerce_unauthorized: webhook not accepted');
     }
     if (!input.topic || !input.webhookId) return { status: 'ignored' };
     let body: Record<string, unknown>;

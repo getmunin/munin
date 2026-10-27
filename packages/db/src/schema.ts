@@ -2208,6 +2208,7 @@ export const journeys = pgTable(
     status: varchar('status', { length: 16 }).notNull().default('draft'),
     liveVersion: integer('live_version'),
     nextEntryAt: timestamp('next_entry_at', { withTimezone: true }),
+    guardrailResets: jsonb('guardrail_resets').$type<Record<string, string>>().notNull().default({}),
     pausedNodes: jsonb('paused_nodes')
       .$type<Record<string, { reason: string; pausedAt: string; by: string; metric?: string; rate?: number }>>()
       .notNull()
@@ -2324,6 +2325,7 @@ export const journeyStepRuns = pgTable(
       .references(() => journeyEnrollments.id, { onDelete: 'cascade' }),
     nodeId: varchar('node_id', { length: 48 }).notNull(),
     nodeType: varchar('node_type', { length: 16 }).notNull(),
+    version: integer('version'),
     visit: integer('visit').notNull(),
     attempt: integer('attempt').notNull().default(1),
     status: varchar('status', { length: 16 }).notNull(),

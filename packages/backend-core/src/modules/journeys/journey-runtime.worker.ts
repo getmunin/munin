@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
-import { and, asc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, lt, lte, ne, or, sql } from 'drizzle-orm';
 import { DEFAULT_TRACE_RETENTION_DAYS } from '@getmunin/types';
 import { randomUUID } from 'node:crypto';
 import {
@@ -278,7 +278,9 @@ export class JourneyRuntimeWorker implements OnModuleInit, OnModuleDestroy {
       ).map((r) => (r as { id: string }).id);
       if (due.length === 0) return 0;
       await tx.delete(schema.journeyWaits).where(inArray(schema.journeyWaits.enrollmentId, due));
-      await tx.delete(schema.journeyStepRuns).where(inArray(schema.journeyStepRuns.enrollmentId, due));
+      await tx
+        .delete(schema.journeyStepRuns)
+        .where(and(inArray(schema.journeyStepRuns.enrollmentId, due), ne(schema.journeyStepRuns.nodeType, 'split')));
       await tx
         .update(schema.journeyEnrollments)
         .set({ context: {}, updatedAt: new Date() })

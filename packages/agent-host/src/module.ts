@@ -1,5 +1,6 @@
 import {
   DynamicModule,
+  Global,
   Module,
   Provider,
   Type,
@@ -7,6 +8,7 @@ import {
   type ModuleMetadata,
   type OptionalFactoryDependency,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import {
   AgentRunnerSupportModule,
   AlertsService,
@@ -52,6 +54,22 @@ export interface AgentHostModuleAsyncOptions extends Pick<ModuleMetadata, 'impor
   defaultProviderModels?: readonly ProviderModelOffering[];
 }
 
+@Global()
+@Module({
+  providers: [
+    {
+      provide: LLM_AVAILABILITY,
+      useFactory: (refs: ModuleRef): LlmAvailability => ({
+        providerConfigured: async () =>
+          (await refs.get(AgentConfigService, { strict: false }).getForCurrentActor()).providerConfigured,
+      }),
+      inject: [ModuleRef],
+    },
+  ],
+  exports: [LLM_AVAILABILITY],
+})
+class LlmAvailabilityModule {}
+
 @Module({})
 export class AgentHostModule {
   static forRoot(options: AgentHostModuleOptions): DynamicModule {
@@ -94,8 +112,7 @@ function buildModule(args: {
   } = args;
   return {
     module: AgentHostModule,
-    global: true,
-    imports: [DbModule, McpModule, RealtimeModule, AgentRunnerSupportModule, ...extraImports],
+    imports: [DbModule, McpModule, RealtimeModule, AgentRunnerSupportModule, LlmAvailabilityModule, ...extraImports],
     providers: [
       { provide: AGENT_CONFIG_REPOSITORY, useClass: configRepository },
       { provide: AGENT_HOST_DB, useExisting: DB },
@@ -111,17 +128,9 @@ function buildModule(args: {
       AgentModelsService,
       AgentHealthService,
       AgentHostRunner,
-      {
-        provide: LLM_AVAILABILITY,
-        useFactory: (config: AgentConfigService): LlmAvailability => ({
-          providerConfigured: async () => (await config.getForCurrentActor()).providerConfigured,
-        }),
-        inject: [AgentConfigService],
-      },
     ],
     controllers: [AgentConfigController],
     exports: [
-      LLM_AVAILABILITY,
       AgentConfigService,
       AgentModelsService,
       AgentHealthService,

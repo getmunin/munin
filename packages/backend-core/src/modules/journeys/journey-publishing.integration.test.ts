@@ -381,6 +381,12 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect(b.pValue).toBeLessThan(0.05);
 
     const promoted = { ...splitSpec, start: 'done', nodes: [{ id: 'done', type: 'exit' }] };
+    await expect(
+      asAgent(() =>
+        publishing.proposeChange({ journeyId: journey.id, spec: { ...promoted, start: 'nowhere' }, hypothesis: 'h', rationale: 'r', evidence: {} }),
+      ),
+    ).rejects.toThrow(/no draft was opened/);
+    expect((await asAgent(() => journeys.get(journey.id))).draft).toBeNull();
     const proposal = await asAgent(() =>
       publishing.proposeChange({
         journeyId: journey.id,

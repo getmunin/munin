@@ -750,6 +750,7 @@ export class CrmService {
     for (const [k, v] of Object.entries(effectivePatch)) {
       if (v !== undefined) updates[k] = v;
     }
+    let previousCustom: Record<string, unknown> = {};
     if (effectivePatch.customFields !== undefined) {
       const incoming = effectivePatch.customFields as Record<string, unknown>;
       let existingCustom: Record<string, unknown> = {};
@@ -762,6 +763,7 @@ export class CrmService {
         if (!row) throw new NotFoundException(`crm_not_found: contact ${input.id}`);
         existingCustom = (row.customFields ?? {});
       }
+      previousCustom = existingCustom;
       updates.customFields = { ...existingCustom, ...incoming };
     }
     if (effectivePatch.doNotContact === false) {
@@ -782,9 +784,13 @@ export class CrmService {
         fields: Object.keys(effectivePatch),
       },
     });
-    const outcome = (effectivePatch.customFields as Record<string, unknown> | undefined)?.outreachOutcome;
-    if (typeof outcome === 'string') {
-      const written = effectivePatch.customFields as Record<string, unknown>;
+    const written = (effectivePatch.customFields ?? {}) as Record<string, unknown>;
+    const outcome = written.outreachOutcome;
+    const outcomeIsNew =
+      outcome !== previousCustom.outreachOutcome ||
+      written.outreachOutcomeConversationId !== previousCustom.outreachOutcomeConversationId ||
+      written.outreachOutcomeAt !== previousCustom.outreachOutcomeAt;
+    if (typeof outcome === 'string' && outcomeIsNew) {
       await this.webhooks.emit({
         type: 'outreach.outcome.recorded',
         payload: {

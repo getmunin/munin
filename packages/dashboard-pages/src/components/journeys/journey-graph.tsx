@@ -153,15 +153,25 @@ export function JourneyGraph({
                 markerEnd="url(#journey-arrow)"
                 className="stroke-ink-mute"
               />
-              {edge.label !== 'next' && (
-                <text
-                  x={edge.back ? from.x + NODE_W + 8 : (x1 + x2) / 2 + 4}
-                  y={edge.back ? from.y + NODE_H / 2 - 6 : (y1 + y2) / 2}
-                  className="fill-ink-mute font-mono text-[10px]"
-                >
-                  {edge.label}
-                </text>
-              )}
+              {edge.label !== 'next' && (() => {
+                const lx = edge.back ? from.x + NODE_W + 8 : (x1 + x2) / 2 - labelWidth(edge.label) / 2;
+                const ly = edge.back ? from.y + NODE_H / 2 - 6 : (y1 + y2) / 2 + 3;
+                return (
+                  <>
+                    <rect
+                      x={lx - 3}
+                      y={ly - 9}
+                      width={labelWidth(edge.label) + 6}
+                      height={12}
+                      rx={2}
+                      className="fill-paper dark:fill-card"
+                    />
+                    <text x={lx} y={ly} className="fill-ink-mute font-mono text-[10px]">
+                      {edge.label}
+                    </text>
+                  </>
+                );
+              })()}
             </g>
           );
         })}
@@ -258,3 +268,8 @@ function nodeTitle(node: JourneyNode): string {
 function truncate(value: string, max: number): string {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
+
+function labelWidth(label: string): number {
+  return label.length * 6;
+}
+

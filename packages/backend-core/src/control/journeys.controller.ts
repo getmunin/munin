@@ -23,6 +23,12 @@ import {
   type JourneyVersionDto,
   type JourneyVersionSummaryDto,
 } from '../modules/journeys/journeys.service.ts';
+import {
+  ENROLLMENT_STATES,
+  JourneyRuntimeService,
+  type EnrollmentDto,
+  type TraceDto,
+} from '../modules/journeys/journey-runtime.service.ts';
 import type { JourneyValidation } from '../modules/journeys/journey-validator.ts';
 
 const StatusSchema = z.enum(JOURNEY_STATUSES);
@@ -31,7 +37,40 @@ const StatusSchema = z.enum(JOURNEY_STATUSES);
 @UseGuards(AuthGuard, ControlPlaneGuard)
 @UseInterceptors(TenancyInterceptor, AuditInterceptor)
 export class JourneysController {
-  constructor(private readonly journeys: JourneysService) {}
+  constructor(
+    private readonly journeys: JourneysService,
+    private readonly runtime: JourneyRuntimeService,
+  ) {}
+
+  @Get('enrollments/:enrollmentId/trace')
+  trace(@Param('enrollmentId') enrollmentId: string): Promise<TraceDto> {
+    return this.runtime.getTrace(enrollmentId);
+  }
+
+  @Post('enrollments/:enrollmentId/eject')
+  @HttpCode(200)
+  eject(@Param('enrollmentId') enrollmentId: string): Promise<EnrollmentDto> {
+    return this.runtime.eject(enrollmentId, 'ejected');
+  }
+
+  @Get(':id/enrollments')
+  async listEnrollments(
+    @Param('id') id: string,
+    @Query('state') state?: string,
+    @Query('limit') limit?: string,
+  ): Promise<{ items: EnrollmentDto[] }> {
+    const parsed = state === undefined ? undefined : z.enum(ENROLLMENT_STATES).safeParse(state);
+    if (parsed && !parsed.success) {
+      throw new BadRequestException(`journeys_invalid: unknown state "${state}"`);
+    }
+    return {
+      items: await this.runtime.listEnrollments({
+        journeyId: id,
+        state: parsed?.data,
+        limit: limit ? Number.parseInt(limit, 10) : undefined,
+      }),
+    };
+  }
 
   @Get()
   async list(

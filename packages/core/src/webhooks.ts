@@ -14,6 +14,8 @@ export interface EmittedEvent {
   orgId: string;
   type: string;
   payload: Record<string, unknown>;
+  actorId?: string;
+  hopCount?: number;
 }
 
 export interface EventSink {
@@ -71,7 +73,14 @@ export class WebhookDispatcher {
     }
 
     for (const sink of this.sinks) {
-      await sink.onEvent({ eventId, orgId, type: input.type, payload: input.payload });
+      await sink.onEvent({
+        eventId,
+        orgId,
+        type: input.type,
+        payload: input.payload,
+        actorId: ctx.actor.id,
+        hopCount,
+      });
     }
 
     return eventId;

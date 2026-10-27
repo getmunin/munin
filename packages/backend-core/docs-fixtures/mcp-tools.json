@@ -10353,6 +10353,158 @@
     }
   },
   {
+    "name": "journeys_list_enrollments",
+    "title": "Journeys: List enrollments",
+    "description": "List the people in a journey, newest first: which version they entered, where they are now, whether they are in the holdout, and why they left if they did. Filter by state or contact.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "active",
+            "waiting",
+            "done",
+            "exited"
+          ]
+        },
+        "contactId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "required": [
+        "journeyId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_get_trace",
+    "title": "Journeys: Get an enrollment trace",
+    "description": "The full step log for one person in one journey: every node visited, the edge taken and why, action results, retries, and what the run is waiting for now.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "enrollmentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "enrollmentId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_enroll",
+    "title": "Journeys: Enroll a person",
+    "description": "Put one contact or end user into a live journey now, as if its trigger fired. The entry segment, re-entry policy and holdout still apply; the result says whether they entered and, if not, why.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "contactId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "endUserId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "context": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "journeyId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_eject",
+    "title": "Journeys: Eject a person from a journey",
+    "description": "End one person's run in a journey now. Their open waits are cancelled and the exit is logged with the reason.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "enrollmentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "reason": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,47}$"
+        }
+      },
+      "required": [
+        "enrollmentId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "journeys_list_node_types",
     "title": "Journeys: List node types",
     "description": "Reference for the journey spec: every node type with what it does and its fields, plus the entry, exit, goal and settings blocks. Read it before drafting or editing a journey.",

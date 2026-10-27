@@ -36,7 +36,7 @@ describe('Shopify order events', () => {
     expect(event).toEqual({
       id: 'shopify:wh_1',
       name: 'order.paid',
-      occurredAt: '2026-10-27T10:00:00Z',
+      occurredAt: '2026-10-27T10:00:00.000Z',
       identity: { email: 'ola@kunde.test' },
       properties: {
         source: 'shopify',

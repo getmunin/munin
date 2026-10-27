@@ -636,7 +636,10 @@ export class JourneyRuntimeService {
               wait: {
                 kind: 'event',
                 eventKey: 'outreach.outcome.recorded',
-                match: { contactId: step.enrollment.contactId ?? '' },
+                match: {
+                  contactId: step.enrollment.contactId ?? '',
+                  conversationId: (await this.proposalConversation(previous.proposalId)) ?? '',
+                },
                 timeoutAt: new Date(step.now.getTime() + (parseIsoDurationMs(node.outcomeTimeout ?? 'PT6H') ?? 21_600_000)),
               },
               output: { ...previous, awaitingOutcome: true },
@@ -1220,10 +1223,14 @@ export class JourneyRuntimeService {
       throw new ConflictException(`journeys_conflict: approval ${input.approvalId} is already ${approval.status}`);
     }
     const status = input.decision === 'approve' ? 'approved' : 'rejected';
-    await ctx.db
+    const [decided] = await ctx.db
       .update(a)
       .set({ status, decidedByActorId: actor.id, decidedAt: new Date(), note: input.note ?? null, updatedAt: new Date() })
-      .where(eq(a.id, approval.id));
+      .where(and(eq(a.id, approval.id), eq(a.status, 'pending')))
+      .returning({ id: a.id });
+    if (!decided) {
+      throw new ConflictException(`journeys_conflict: approval ${input.approvalId} was decided or expired meanwhile`);
+    }
     const w = schema.journeyWaits;
     const [wait] = await ctx.db
       .select()
@@ -1249,7 +1256,7 @@ export class JourneyRuntimeService {
       .where(
         and(
           eq(e.journeyId, step.enrollment.journeyId),
-          eq(e.version, step.enrollment.version),
+          eq(r.version, step.enrollment.version),
           eq(r.nodeId, nodeId),
           eq(r.status, 'completed'),
           sql`NOT (${r.output} ? 'sampleFull')`,
@@ -1654,13 +1661,27 @@ export class JourneyRuntimeService {
       throw new ConflictException('journeys_conflict: the runs to move changed since the preview; preview again and confirm the new fingerprint');
     }
     const now = new Date();
+    let moved = 0;
     for (const { enrollment, to, resumes } of plan) {
+      const [fresh] = await ctx.db.select().from(e).where(eq(e.id, enrollment.id)).limit(1).for('update');
+      if (
+        !fresh ||
+        fresh.version !== enrollment.version ||
+        fresh.currentNode !== enrollment.currentNode ||
+        !['active', 'waiting'].includes(fresh.state)
+      ) {
+        skipped.push({ enrollmentId: enrollment.id, node: enrollment.currentNode ?? '', reason: 'it moved on while the runs were being moved' });
+        continue;
+      }
+      enrollment.context = fresh.context;
+      enrollment.visits = fresh.visits;
       const movedFrom = { version: enrollment.version, node: enrollment.currentNode, at: now.toISOString() };
       if (resumes) {
         await ctx.db
           .update(e)
           .set({ version: input.toVersion, context: { ...enrollment.context, movedFrom }, updatedAt: now })
           .where(eq(e.id, enrollment.id));
+        moved += 1;
         continue;
       }
       await this.cancelWaits(enrollment.id);
@@ -1685,12 +1706,13 @@ export class JourneyRuntimeService {
           updatedAt: now,
         })
         .where(eq(e.id, enrollment.id));
+      moved += 1;
     }
     await this.webhooks.emit({
       type: 'journey.enrollments.moved',
-      payload: { journeyId: input.journeyId, toVersion: input.toVersion, moved: plan.length, skipped: skipped.length },
+      payload: { journeyId: input.journeyId, toVersion: input.toVersion, moved, skipped: skipped.length },
     });
-    return { ...result, moved: plan.length, applied: true };
+    return { ...result, skipped, moved, applied: true };
   }
 
   async eject(enrollmentId: string, reason = 'ejected'): Promise<EnrollmentDto> {
@@ -1741,6 +1763,17 @@ export class JourneyRuntimeService {
       return { contactId: null, endUserId: conversation?.endUserId ?? null };
     }
     return { contactId: null, endUserId: null };
+  }
+
+  private async proposalConversation(proposalId: unknown): Promise<string | null> {
+    if (typeof proposalId !== 'string') return null;
+    const ctx = getCurrentContext();
+    const [row] = await ctx.db
+      .select({ conversationId: schema.outreachProposals.conversationId })
+      .from(schema.outreachProposals)
+      .where(eq(schema.outreachProposals.id, proposalId))
+      .limit(1);
+    return row?.conversationId ?? null;
   }
 
   private async pinnedTemplateHash(step: StepContext, nodeId: string): Promise<string | null> {
@@ -1998,6 +2031,7 @@ export class JourneyRuntimeService {
         enrollmentId: enrollment.id,
         nodeId: node.id,
         nodeType: node.type,
+        version: enrollment.version,
         visit,
         status: 'running',
         input,

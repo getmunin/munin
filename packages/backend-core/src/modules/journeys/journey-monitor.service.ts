@@ -58,7 +58,12 @@ export class JourneyMonitorService {
     const journey = await this.journeys.get(journeyId);
     const parsed = JourneySpecSchema.safeParse((journey.live ?? journey.draft)?.spec);
     const thresholds = thresholdsOf(parsed.success ? parsed.data : null);
-    const rows = await this.nodeCounts(journeyId, journey.outreachCampaignId, thresholds.windowDays);
+    const [state] = await getCurrentContext()
+      .db.select({ resets: schema.journeys.guardrailResets })
+      .from(schema.journeys)
+      .where(eq(schema.journeys.id, journeyId))
+      .limit(1);
+    const rows = await this.nodeCounts(journeyId, journey.outreachCampaignId, thresholds.windowDays, state?.resets ?? {});
     const nodes = rows.map((r) => {
       const node = rate(r, thresholds);
       return { nodeId: r.node_id, ...node, paused: Boolean(journey.pausedNodes[r.node_id]) };
@@ -140,7 +145,13 @@ export class JourneyMonitorService {
     });
   }
 
-  private async nodeCounts(journeyId: string, campaignId: string, windowDays: number): Promise<CountRow[]> {
+  private async nodeCounts(
+    journeyId: string,
+    campaignId: string,
+    windowDays: number,
+    resets: Record<string, string>,
+  ): Promise<CountRow[]> {
+    const resetJson = JSON.stringify(resets);
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
     const result = await ctx.db.execute(sql`
@@ -158,6 +169,7 @@ export class JourneyMonitorService {
          WHERE en.journey_id = ${journeyId}
            AND p.status = 'sent'
            AND p.sent_at > now() - make_interval(days => ${windowDays})
+           AND p.sent_at > coalesce((${resetJson}::jsonb->>s.node_id)::timestamptz, (${resetJson}::jsonb->>'*')::timestamptz, '-infinity')
       ),
       sends AS (
         SELECT node_id,
@@ -190,6 +202,7 @@ export class JourneyMonitorService {
           JOIN journey_enrollments en ON en.id = s.enrollment_id
          WHERE en.journey_id = ${journeyId}
            AND s.finished_at > now() - make_interval(days => ${windowDays})
+           AND s.finished_at > coalesce((${resetJson}::jsonb->>s.node_id)::timestamptz, (${resetJson}::jsonb->>'*')::timestamptz, '-infinity')
          GROUP BY s.node_id
       )
       SELECT coalesce(sends.node_id, steps.node_id) AS node_id,

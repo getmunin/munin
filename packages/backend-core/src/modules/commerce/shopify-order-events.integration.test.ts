@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 import { createHmac } from 'node:crypto';
 import { encryptSecretSql, WebhookDispatcher } from '@getmunin/core';
 import { createDb, runMigrations, schema } from '@getmunin/db';
@@ -85,7 +85,7 @@ const SECRET = 'shpss_integration_signing_secret';
     ).rejects.toThrow(UnauthorizedException);
     await expect(
       service.receive({ connectionId: bareConnectionId, rawBody: order, hmac: hmac(order), topic: 'orders/paid', webhookId: 'wh_3' }),
-    ).rejects.toThrow(NotFoundException);
+    ).rejects.toThrow(UnauthorizedException);
     expect(
       await service.receive({ connectionId, rawBody: order, hmac: hmac(order), topic: 'products/update', webhookId: 'wh_4' }),
     ).toEqual({ status: 'ignored' });

@@ -331,6 +331,17 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       .from(schema.events)
       .where(and(eq(schema.events.orgId, orgId), eq(schema.events.type, 'outreach.outcome.recorded')));
     expect(event!.payload).toEqual({ contactId: contact.id, outcome: 'reached', conversationId: 'ccv_call', fields: ['budget'] });
+    await asAgent(() =>
+      crm.updateContact({
+        id: contact.id,
+        patch: { customFields: { outreachOutcome: 'reached', outreachOutcomeConversationId: 'ccv_call', budget: 'Q2' } },
+      }),
+    );
+    const outcomes = await db
+      .select({ id: schema.events.id })
+      .from(schema.events)
+      .where(and(eq(schema.events.orgId, orgId), eq(schema.events.type, 'outreach.outcome.recorded')));
+    expect(outcomes).toHaveLength(1);
   });
 
   it('keeps journeys invisible to other organizations', async () => {

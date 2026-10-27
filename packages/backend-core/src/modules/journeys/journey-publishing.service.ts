@@ -585,7 +585,7 @@ export class JourneyPublishingService {
             FROM journey_step_runs s
             JOIN journey_enrollments en ON en.id = s.enrollment_id
            WHERE en.journey_id = ${journeyId}
-             AND en.version = ${row.number}
+             AND s.version = ${row.number}
              AND s.node_id = ${node.id}
              AND s.status = 'completed'
              AND NOT (s.output ? 'sampleFull')
@@ -638,6 +638,7 @@ export class JourneyPublishingService {
     evidence: Record<string, unknown>;
   }): Promise<ChangeProposalDto> {
     const ctx = getCurrentContext();
+    await ctx.db.execute(sql`SELECT id FROM journeys WHERE id = ${input.journeyId} FOR UPDATE`);
     const journey = await this.journeys.get(input.journeyId);
     if (journey.status !== 'live' || !journey.live) {
       throw new ConflictException(`journeys_conflict: only a live journey takes proposed changes; ${input.journeyId} is ${journey.status}`);
@@ -645,6 +646,15 @@ export class JourneyPublishingService {
     if (journey.draft) {
       throw new ConflictException(
         `journeys_conflict: draft v${journey.draft.number} is still open; publish or restore it before proposing another change`,
+      );
+    }
+    const check = await this.journeys.validateSpec(input.spec, input.journeyId);
+    if (!check.valid) {
+      throw new BadRequestException(
+        `journeys_invalid: the proposed spec has ${check.errors.length} validation error(s), so no draft was opened: ${check.errors
+          .slice(0, 3)
+          .map((e) => e.message)
+          .join('; ')}`,
       );
     }
     const draft = await this.journeys.replaceDraft(input.journeyId, input.spec, `Proposed: ${input.hypothesis.slice(0, 200)}`);

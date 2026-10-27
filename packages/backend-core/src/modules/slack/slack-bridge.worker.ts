@@ -511,13 +511,13 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async journeyLabel(evidence: Record<string, unknown>): Promise<string | null> {
+  private async journeyLabel(orgId: string, evidence: Record<string, unknown>): Promise<string | null> {
     const journeyId = typeof evidence.journeyId === 'string' ? evidence.journeyId : null;
     if (!journeyId) return null;
     const [journey] = await this.db
       .select({ name: schema.journeys.name })
       .from(schema.journeys)
-      .where(eq(schema.journeys.id, journeyId))
+      .where(and(eq(schema.journeys.orgId, orgId), eq(schema.journeys.id, journeyId)))
       .limit(1);
     const node = typeof evidence.nodeId === 'string' ? ` · ${evidence.nodeId}` : '';
     return `${journey?.name ?? 'Journey'}${node}`;
@@ -1233,7 +1233,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
             .limit(1)
         : [];
       text = outreachProposalApprovalText({
-        journeyLabel: proposal?.kind === 'journey' ? await this.journeyLabel(proposal.evidence) : null,
+        journeyLabel: proposal?.kind === 'journey' ? await this.journeyLabel(proposal.orgId, proposal.evidence) : null,
         kind: proposal?.kind ?? 'draft',
         campaignName: campaign?.name ?? 'a campaign',
         contactLabel: proposal

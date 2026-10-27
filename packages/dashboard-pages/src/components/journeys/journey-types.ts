@@ -41,6 +41,7 @@ export interface JourneyDto {
   createdAt: string;
   updatedAt: string;
   archivedAt: string | null;
+  pausedNodes?: Record<string, { reason: string; pausedAt: string; by: string; metric?: string; rate?: number }>;
 }
 
 export interface JourneyDetailDto extends JourneyDto {

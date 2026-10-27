@@ -104,6 +104,8 @@ export const JOURNEY_EVENT_TYPES = [
   'journey.version.published',
   'journey.paused',
   'journey.resumed',
+  'journey.node.paused',
+  'journey.node.resumed',
   'journey.archived',
   'journey.enrolled',
   'journey.goal.reached',

@@ -1310,6 +1310,16 @@
       "pause": "Sett på pause",
       "resume": "Fortsett",
       "paused": "Kundereisen er satt på pause. Ingen ble fjernet.",
+      "nodePaused": "Steg pauset",
+      "nodePausedGuardrail": "{node} ble pauset av monitoren: {metric} nådde {rate} %. Løpene venter der til steget gjenopptas.",
+      "nodePausedManual": "{node} er pauset. Løpene venter der til steget gjenopptas.",
+      "resumeNode": "Gjenoppta steg",
+      "nodeResumed": "{node} er gjenopptatt.",
+      "guardrail": {
+        "bounce": "bounce-andelen",
+        "unsubscribe": "avmeldingsandelen",
+        "failed_step": "andelen feilede steg"
+      },
       "resumed": "Kundereisen kjører igjen.",
       "actionFailed": "Det gikk ikke. Prøv igjen.",
       "reviewPublish": "Se over og publiser v{version}",

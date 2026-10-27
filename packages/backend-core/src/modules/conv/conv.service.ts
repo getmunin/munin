@@ -456,9 +456,10 @@ export class ConvService {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
     let topicName: string | null = null;
+    let topicSlug: string | null = null;
     if (input.topicId !== null) {
       const topicRows = await ctx.db
-        .select({ id: schema.convTopics.id, name: schema.convTopics.name })
+        .select({ id: schema.convTopics.id, name: schema.convTopics.name, slug: schema.convTopics.slug })
         .from(schema.convTopics)
         .where(
           and(
@@ -471,6 +472,7 @@ export class ConvService {
         throw new NotFoundException(`conv_topic_not_found: ${input.topicId}`);
       }
       topicName = topicRows[0].name;
+      topicSlug = topicRows[0].slug;
     }
     const modeBefore = await this.effectiveAgentModeOf(input.conversationId);
     const [updated] = await ctx.db
@@ -480,6 +482,17 @@ export class ConvService {
       .returning();
     if (!updated) {
       throw new NotFoundException(`conv_not_found: conversation ${input.conversationId}`);
+    }
+    if (input.topicId !== null) {
+      await this.webhooks.emit({
+        type: 'conversation.topic_set',
+        payload: {
+          conversationId: input.conversationId,
+          topicId: input.topicId,
+          topicSlug,
+          endUserId: updated.endUserId,
+        },
+      });
     }
     const modeAfter = await this.effectiveAgentModeOf(input.conversationId);
     if (modeAfter && modeAfter !== modeBefore) {

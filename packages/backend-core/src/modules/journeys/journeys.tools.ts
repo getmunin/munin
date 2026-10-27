@@ -60,7 +60,7 @@ const NODE_TYPE_REFERENCE = [
   { type: 'exit', does: 'End the run with a reason code.', fields: '{ reason?: "reached_end" }' },
   {
     type: 'agent',
-    does: 'A model reads only the declared inputs about this person (national ID numbers removed) and picks one declared edge, logging its reason. If it has not answered within the timeout — or no model is configured — the run takes the fallback edge.',
+    does: 'A model reads only the declared inputs about this person (national ID numbers removed) and picks one declared edge, logging its reason. If it has not answered within the timeout — or no model is configured — the run takes the fallback edge. An edge named "stop" also ends every other journey the person is in (reason conversation_stop). For a reply intent step, put it behind a message onReply with inputs ["reply", "thread", "contact"], edges interested / question / not_now / stop, and fallback question.',
     fields: '{ mode: "decide", instructions, edges: { name: nodeId, … } (2–10), fallback: one edge name, inputs: ["contact"|"company"|"reply"|"thread"|"events"|"context"], timeout?: "PT10M" }',
   },
   ...RESERVED_JOURNEY_NODE_TYPES.map((type) => ({

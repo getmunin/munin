@@ -9,6 +9,7 @@ import {
 } from '@getmunin/types';
 import { JOURNEY_STATUSES, JourneysService } from './journeys.service.ts';
 import { ENROLLMENT_STATES, JourneyRuntimeService, type EnrollmentState } from './journey-runtime.service.ts';
+import { JourneyPublishingService } from './journey-publishing.service.ts';
 
 const Id = z.string().min(1).max(64);
 const NodeIdInput = z.string().regex(/^[a-z][a-z0-9_]{0,47}$/);
@@ -71,7 +72,66 @@ export class JourneysTools {
   constructor(
     @Inject(JourneysService) private readonly journeys: JourneysService,
     @Inject(JourneyRuntimeService) private readonly runtime: JourneyRuntimeService,
+    @Inject(JourneyPublishingService) private readonly publishing: JourneyPublishingService,
   ) {}
+
+  @McpTool({
+    name: 'journeys_simulate',
+    title: 'Journeys: Simulate a version',
+    description:
+      'Dry-run a journey version (the open draft by default) over sample contacts — given ids, a segment, the entry segment, or the most recently updated contacts — without writing or sending anything. Returns who would enter or be excluded and why, arrivals per node, edges taken, exits by reason, the send decision for each email (send, defer or skip with the reason) and rendered samples, plus the assumptions the dry run made (waits elapse, awaited events do not arrive, reviewers approve).',
+    audiences: ['admin'],
+    scopes: ['journeys:read'],
+    input: JourneyIdInput.extend({
+      version: z.number().int().min(1).optional(),
+      contactIds: z.array(Id).max(500).optional(),
+      segmentId: Id.optional(),
+      limit: z.number().int().min(1).max(500).optional(),
+      renderSamples: z.number().int().min(0).max(5).optional(),
+    }),
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  simulate(args: {
+    journeyId: string;
+    version?: number;
+    contactIds?: string[];
+    segmentId?: string;
+    limit?: number;
+    renderSamples?: number;
+  }) {
+    return this.publishing.simulate(args);
+  }
+
+  @McpTool({
+    name: 'journeys_request_publish',
+    title: 'Journeys: Request publish of a draft',
+    description:
+      'Ask for a draft version to go live. The draft must validate without errors. Returns the diff against the live version (with the emails that would send without review), the validation result, a simulation and the dashboard path where a signed-in person confirms it. Nothing goes live until that person confirms; editing the draft afterwards cancels the request.',
+    audiences: ['admin'],
+    scopes: ['journeys:write'],
+    input: JourneyIdInput.extend({ version: z.number().int().min(1).optional() }),
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  requestPublish(args: { journeyId: string; version?: number }) {
+    return this.publishing.requestPublish(args.journeyId, args.version);
+  }
+
+  @McpTool({
+    name: 'journeys_get_report',
+    title: 'Journeys: Get a journey report',
+    description:
+      'Results for a journey (the live version by default, or one version): enrollments by state and exit reason, goal conversion for the treated group against the holdout and the difference between them, arrivals, waiting counts and edge distribution per node, and the outcome of each email step.',
+    audiences: ['admin'],
+    scopes: ['journeys:read'],
+    input: JourneyIdInput.extend({ version: z.number().int().min(1).optional() }),
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getReport(args: { journeyId: string; version?: number }) {
+    return this.publishing.report(args.journeyId, args.version);
+  }
 
   @McpTool({
     name: 'journeys_list_enrollments',

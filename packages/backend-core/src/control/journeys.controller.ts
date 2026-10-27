@@ -39,6 +39,7 @@ import {
   type PublishRequestDto,
 } from '../modules/journeys/journey-publishing.service.ts';
 import type { SimulationResult } from '../modules/journeys/journey-simulator.ts';
+import { JourneyMonitorService, type GuardrailReportDto } from '../modules/journeys/journey-monitor.service.ts';
 import { createZodDto } from 'nestjs-zod';
 
 class ConfirmPublishBody extends createZodDto(z.object({ fingerprint: z.string().min(1).max(64) })) {}
@@ -61,6 +62,7 @@ export class JourneysController {
     private readonly journeys: JourneysService,
     private readonly runtime: JourneyRuntimeService,
     private readonly publishing: JourneyPublishingService,
+    private readonly monitor: JourneyMonitorService,
   ) {}
 
   @Get(':id/agent-stats')
@@ -186,6 +188,23 @@ export class JourneysController {
   @HttpCode(200)
   pause(@Param('id') id: string): Promise<JourneyDto> {
     return this.journeys.pause(id);
+  }
+
+  @Get(':id/guardrails')
+  guardrails(@Param('id') id: string): Promise<GuardrailReportDto> {
+    return this.monitor.report(id);
+  }
+
+  @Post(':id/nodes/:nodeId/pause')
+  @HttpCode(200)
+  pauseNode(@Param('id') id: string, @Param('nodeId') nodeId: string): Promise<JourneyDto> {
+    return this.journeys.pauseNode(id, nodeId);
+  }
+
+  @Post(':id/nodes/:nodeId/resume')
+  @HttpCode(200)
+  resumeNode(@Param('id') id: string, @Param('nodeId') nodeId: string): Promise<JourneyDto & { released: number }> {
+    return this.journeys.resumeNode(id, nodeId);
   }
 
   @Post(':id/resume')

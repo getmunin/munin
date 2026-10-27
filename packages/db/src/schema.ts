@@ -2208,6 +2208,10 @@ export const journeys = pgTable(
     status: varchar('status', { length: 16 }).notNull().default('draft'),
     liveVersion: integer('live_version'),
     nextEntryAt: timestamp('next_entry_at', { withTimezone: true }),
+    pausedNodes: jsonb('paused_nodes')
+      .$type<Record<string, { reason: string; pausedAt: string; by: string; metric?: string; rate?: number }>>()
+      .notNull()
+      .default({}),
     createdByActorType: varchar('created_by_actor_type', { length: 16 }).notNull(),
     createdByActorId: text('created_by_actor_id').notNull(),
     archivedAt: timestamp('archived_at', { withTimezone: true }),

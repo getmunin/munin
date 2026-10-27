@@ -13,6 +13,7 @@ import { JourneysService } from './journeys.service.ts';
 import { JourneyRuntimeService } from './journey-runtime.service.ts';
 import { JourneyRuntimeWorker } from './journey-runtime.worker.ts';
 import { JourneyEventSink } from './journey-event.sink.ts';
+import { JourneyMonitorService } from './journey-monitor.service.ts';
 import { OutreachService } from '../outreach/outreach.service.ts';
 import { CrmService } from '../crm/crm.service.ts';
 import { AddressDeliverabilityService } from '../crm/address-deliverability.service.ts';
@@ -39,6 +40,8 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
   let runtime: JourneyRuntimeService;
   let worker: JourneyRuntimeWorker;
   let outreach: OutreachService;
+  let monitor: JourneyMonitorService;
+  let alerts: AlertsService;
   let orgId: string;
   let userId: string;
   let agent: ActorIdentity;
@@ -86,7 +89,9 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     );
     journeys = new JourneysService(webhooks);
     runtime = new JourneyRuntimeService(webhooks, crm, outreach, new CuratorJobsService(webhooks));
-    worker = new JourneyRuntimeWorker(appDb, runtime);
+    alerts = new AlertsService(webhooks);
+    monitor = new JourneyMonitorService(journeys, alerts);
+    worker = new JourneyRuntimeWorker(appDb, runtime, monitor);
   });
 
   afterAll(async () => {
@@ -118,6 +123,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       'end_users',
       'events',
       'curator_jobs',
+      'org_alerts',
     ]) {
       await db.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE org_id = ${orgId}`);
     }
@@ -503,6 +509,54 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     await worker.tick(new Date(Date.now() + 5 * 60_000));
     await worker.tick(new Date(Date.now() + 5 * 60_000));
     expect(await enrollment(id)).toMatchObject({ exitReason: 'replied' });
+  });
+
+  it('pauses a step whose bounce rate breaks the guardrail, holds new arrivals there and releases them on resume', async () => {
+    const journeyId = await publish(
+      [welcome({ approval: 'auto', next: 'wait' }), { id: 'wait', type: 'wait', duration: 'P7D', next: 'done' }, done],
+      { guardrails: { minVolume: 10, bounceRatePct: 5 } },
+    );
+    const people = await Promise.all(Array.from({ length: 10 }, () => contact()));
+    for (const person of people) await enroll(journeyId, person.id);
+    await worker.tick();
+    await worker.tick();
+    const runs = await db.select().from(schema.journeyEnrollments).where(eq(schema.journeyEnrollments.journeyId, journeyId));
+    for (const run of runs.slice(0, 2)) {
+      await asAgent(() =>
+        webhooks.emit({
+          type: 'conversation.message.bounced',
+          payload: { conversationId: run.conversationId, address: 'gone@kunde.test', severity: 'hard' },
+        }),
+      );
+    }
+
+    const report = await asAgent(() => monitor.report(journeyId));
+    expect(report.nodes.find((n) => n.nodeId === 'welcome')).toMatchObject({
+      sends: 10,
+      bounces: 2,
+      bounceRatePct: 20,
+      breaches: ['bounce'],
+      paused: false,
+    });
+    expect(await worker.runMonitor(new Date(), true)).toBe(1);
+    const paused = await asAgent(() => journeys.get(journeyId));
+    expect(paused.status).toBe('live');
+    expect(paused.pausedNodes.welcome).toMatchObject({ reason: 'guardrail', metric: 'bounce', rate: 20 });
+    const [alert] = await db.select().from(schema.orgAlerts).where(eq(schema.orgAlerts.orgId, orgId));
+    expect(alert).toMatchObject({ source: 'journeys', subjectId: journeyId, severity: 'error' });
+    expect(await worker.runMonitor(new Date(), true)).toBe(0);
+
+    const late = await contact();
+    const lateRun = await enroll(journeyId, late.id);
+    await worker.tick();
+    expect(await proposalsFor(late.id)).toEqual([]);
+    expect(await enrollment(lateRun)).toMatchObject({ state: 'active', currentNode: 'welcome', nextRunAt: null });
+
+    await expect(asAgent(() => journeys.resumeNode(journeyId, 'wait'))).rejects.toThrow(/not paused/);
+    const resumed = await asAgent(() => journeys.resumeNode(journeyId, 'welcome'));
+    expect(resumed.released).toBe(1);
+    await worker.tick();
+    expect(await proposalsFor(late.id)).toHaveLength(1);
   });
 
   it('keeps legacy outreach off a journey-run campaign and journey emails out of exports', async () => {

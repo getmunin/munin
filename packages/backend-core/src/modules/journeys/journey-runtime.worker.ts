@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
 import { and, asc, eq, isNull, lt, lte, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
@@ -13,18 +13,21 @@ import {
 import { DB } from '../../common/db/db.module.ts';
 import { applyTenancyGUCs } from '../../common/tenancy/tenancy.interceptor.ts';
 import { JourneyRuntimeService } from './journey-runtime.service.ts';
+import { JourneyMonitorService } from './journey-monitor.service.ts';
 import { JOURNEY_RUNTIME_ACTOR_ID } from './journey-event.sink.ts';
 
 const DEFAULT_INTERVAL_MS = 5_000;
 const INBOX_BATCH = 200;
 const RUN_BATCH = 50;
 const INBOX_RETENTION_MS = 7 * 86_400_000;
+const DEFAULT_MONITOR_INTERVAL_MS = 15 * 60_000;
 
 export interface JourneyTickResult {
   events: number;
   waits: number;
   entries: number;
   runs: number;
+  guardrailActions: number;
 }
 
 @Injectable()
@@ -33,16 +36,23 @@ export class JourneyRuntimeWorker implements OnModuleInit, OnModuleDestroy {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private lastPurgeAt = 0;
+  private lastMonitorAt = 0;
   private readonly disabled =
     parseEnvDisableFlag('MUNIN_JOURNEYS_WORKER_DISABLED') || process.env.NODE_ENV === 'test';
   private readonly intervalMs = parseEnvInt({
     name: 'MUNIN_JOURNEYS_POLL_MS',
     default: DEFAULT_INTERVAL_MS,
   });
+  private readonly monitorIntervalMs = parseEnvInt({
+    name: 'MUNIN_JOURNEYS_MONITOR_MS',
+    default: DEFAULT_MONITOR_INTERVAL_MS,
+    min: 0,
+  });
 
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly runtime: JourneyRuntimeService,
+    @Optional() @Inject(JourneyMonitorService) private readonly monitor: Pick<JourneyMonitorService, 'enforce'> | null = null,
   ) {}
 
   onModuleInit(): void {
@@ -57,7 +67,7 @@ export class JourneyRuntimeWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   async tick(now = new Date()): Promise<JourneyTickResult> {
-    const result: JourneyTickResult = { events: 0, waits: 0, entries: 0, runs: 0 };
+    const result: JourneyTickResult = { events: 0, waits: 0, entries: 0, runs: 0, guardrailActions: 0 };
     if (this.running) return result;
     this.running = true;
     try {
@@ -65,6 +75,7 @@ export class JourneyRuntimeWorker implements OnModuleInit, OnModuleDestroy {
       result.waits = await this.phase('waits', () => this.wakeWaits(now), 0);
       result.entries = await this.phase('entries', () => this.runEntries(now), 0);
       result.runs = await this.phase('runs', () => this.runEnrollments(now), 0);
+      result.guardrailActions = await this.phase('monitor', () => this.runMonitor(now), 0);
       await this.phase('purge', () => this.purgeInbox(now), undefined);
     } finally {
       this.running = false;
@@ -199,6 +210,27 @@ export class JourneyRuntimeWorker implements OnModuleInit, OnModuleDestroy {
       }
     }
     return runs;
+  }
+
+  async runMonitor(now: Date, force = false): Promise<number> {
+    if (!this.monitor) return 0;
+    if (!force && now.getTime() - this.lastMonitorAt < this.monitorIntervalMs) return 0;
+    this.lastMonitorAt = now.getTime();
+    const orgs = await this.bypass((tx) =>
+      tx
+        .selectDistinct({ orgId: schema.journeys.orgId })
+        .from(schema.journeys)
+        .where(eq(schema.journeys.status, 'live')),
+    );
+    let actions = 0;
+    for (const { orgId } of orgs) {
+      try {
+        actions += (await this.inOrg(orgId, () => this.monitor!.enforce())).length;
+      } catch (err) {
+        this.logger.warn(`journey monitor for ${orgId} failed: ${describe(err)}`);
+      }
+    }
+    return actions;
   }
 
   private async purgeInbox(now: Date): Promise<void> {

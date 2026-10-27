@@ -11614,6 +11614,102 @@
     }
   },
   {
+    "name": "journeys_get_guardrails",
+    "title": "Journeys: Get guardrail status",
+    "description": "Bounce, unsubscribe and failed-step rates per step and for the whole journey over the guardrail window, against the thresholds that pause it (settings.guardrails, or the defaults: bounce 5%, unsubscribe 2%, failed steps 10%, from 50 sends or steps over 7 days). Shows which steps are paused.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "journeyId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_pause_node",
+    "title": "Journeys: Pause a node",
+    "description": "Pause one step of a journey. Runs that reach it wait there, nobody is exited, and the rest of the journey keeps running. The monitor does the same on a guardrail breach.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "nodeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48
+        }
+      },
+      "required": [
+        "journeyId",
+        "nodeId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_resume_node",
+    "title": "Journeys: Resume a paused node",
+    "description": "Resume a paused step. Runs held at it continue right away; the result says how many were released. Check journeys_get_guardrails first when the monitor paused it.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "nodeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48
+        }
+      },
+      "required": [
+        "journeyId",
+        "nodeId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "journeys_pause",
     "title": "Journeys: Pause a live journey",
     "description": "Pause a live journey. Nobody is exited: waits hold and resume in order when the journey is resumed.",

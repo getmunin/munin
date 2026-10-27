@@ -39,6 +39,10 @@ Check, in this order:
 
 If the trace stops at a step that never started and the run is `active` with no next run time, the step is paused — by a person or by the monitor on a guardrail breach. `journeys_get` lists `pausedNodes` with the reason; `journeys_get_guardrails` shows the rates behind a monitor pause. Resuming the step releases everyone held there at once.
 
+## The trace is empty
+
+Step traces of runs that ended are deleted after `settings.traceRetentionDays` (365 days unless the journey sets 30–3650). The run itself stays, with its exit reason and goal, so reports still count it; only the step-by-step log and the run's context are gone.
+
 ## What to do
 
 - A journey that behaves as designed but not as intended needs a new draft (`skill://journeys/build-journey`); people already in it finish on their version.

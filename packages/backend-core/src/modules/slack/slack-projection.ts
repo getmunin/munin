@@ -562,6 +562,7 @@ export function mergeProposalApprovalText(snap: MergeProposalApprovalSnapshot): 
 }
 
 export interface OutreachProposalApprovalSnapshot {
+  journeyLabel?: string | null;
   kind: string;
   campaignName: string;
   contactLabel: string;
@@ -591,7 +592,9 @@ function quotedBodyLines(body: string, budget: number): string[] {
 
 export function outreachProposalApprovalText(snap: OutreachProposalApprovalSnapshot): string {
   const header = [
-    `:outbox_tray: *Outreach draft awaiting approval* — ${escapeSlackText(snap.kind)} for *${escapeSlackText(snap.campaignName)}*`,
+    snap.journeyLabel
+      ? `:outbox_tray: *Journey step awaiting approval* — *${escapeSlackText(snap.journeyLabel)}*`
+      : `:outbox_tray: *Outreach draft awaiting approval* — ${escapeSlackText(snap.kind)} for *${escapeSlackText(snap.campaignName)}*`,
     `*To:* ${escapeSlackText(snap.contactLabel)}`,
   ];
   if (snap.draftSubject) header.push(`*Subject:* ${escapeSlackText(snap.draftSubject)}`);
@@ -656,6 +659,39 @@ export interface CmsEntryPublishedSnapshot {
   collectionSlug: string | null;
   locale: string | null;
   url: string | null;
+}
+
+export interface JourneyNoticeSnapshot {
+  journeyName: string;
+  nodeId: string | null;
+  metric: string | null;
+  rate: number | null;
+  approvalTitle: string | null;
+  dashboardUrl: string;
+}
+
+const GUARDRAIL_METRIC_LABEL: Record<string, string> = {
+  bounce: 'bounce rate',
+  unsubscribe: 'unsubscribe rate',
+  failed_step: 'failed-step rate',
+};
+
+export function journeyNoticeText(snap: JourneyNoticeSnapshot): string {
+  const journey = `*${escapeSlackText(snap.journeyName)}*`;
+  if (snap.approvalTitle) {
+    return [
+      `:raised_hand: *Journey approval needed* — ${journey}`,
+      escapeSlackText(snap.approvalTitle),
+      `<${snap.dashboardUrl}|Decide in Munin>`,
+    ].join('\n');
+  }
+  const where = snap.nodeId ? `step \`${escapeSlackText(snap.nodeId)}\` of ${journey}` : journey;
+  const metric = snap.metric ? (GUARDRAIL_METRIC_LABEL[snap.metric] ?? snap.metric) : 'a guardrail';
+  return [
+    `:octagonal_sign: *Journey paused by its guardrails* — ${where}`,
+    `${escapeSlackText(metric)} reached ${snap.rate ?? '?'}%. Nothing more is sent from it until someone resumes it.`,
+    `<${snap.dashboardUrl}|Review in Munin>`,
+  ].join('\n');
 }
 
 export function cmsEntryPublishedText(snap: CmsEntryPublishedSnapshot): string {

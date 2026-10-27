@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { announcementSubjectRef } from './slack.constants.ts';
 import {
   APPROVAL_DISMISS_ACTION_ID,
   approvalBlocks,
@@ -17,6 +18,7 @@ import {
   outreachCampaignParentMovedText,
   outreachCampaignParentText,
   outreachProposalApprovalText,
+  journeyNoticeText,
   parentStateLine,
   parseApprovalValue,
   speakerIdentity,
@@ -745,5 +747,49 @@ describe('workspace route prompt', () => {
     const updated = updateWorkspaceRoutePrompt(null, 'T1', 'Done.', true);
     expect(updated.map((b) => b.type)).toEqual(['section', 'section', 'actions']);
     expect(JSON.stringify(updated[2])).toContain('workspace:T1');
+  });
+
+  it('labels a journey proposal with its journey and step, and announces guardrail pauses and approvals', () => {
+    const card = outreachProposalApprovalText({
+      journeyLabel: 'Trial onboarding · welcome',
+      kind: 'journey',
+      campaignName: 'Trial',
+      contactLabel: 'Ola Nordmann',
+      draftSubject: 'Velkommen',
+      draftBody: 'Hei!',
+      dashboardUrl: 'https://app.example.com/dashboard/review/oprp_1',
+    });
+    expect(card).toContain('*Journey step awaiting approval* — *Trial onboarding · welcome*');
+    expect(card).not.toContain('Outreach draft');
+
+    const paused = journeyNoticeText({
+      journeyName: 'Trial onboarding',
+      nodeId: 'welcome',
+      metric: 'bounce',
+      rate: 12.5,
+      approvalTitle: null,
+      dashboardUrl: 'https://app.example.com/dashboard/journeys/jrn_1',
+    });
+    expect(paused).toContain('*Journey paused by its guardrails* — step `welcome` of *Trial onboarding*');
+    expect(paused).toContain('bounce rate reached 12.5%');
+    const approval = journeyNoticeText({
+      journeyName: 'Trial onboarding',
+      nodeId: null,
+      metric: null,
+      rate: null,
+      approvalTitle: 'Big account — ok to start?',
+      dashboardUrl: 'https://app.example.com/dashboard/journeys/jrn_1',
+    });
+    expect(approval).toContain('*Journey approval needed* — *Trial onboarding*');
+    expect(approval).toContain('|Decide in Munin>');
+    expect(announcementSubjectRef('journey.node.paused', { journeyId: 'jrn_1', nodeId: 'welcome', reason: 'guardrail' })).toEqual({
+      subjectType: 'journey_notice',
+      subjectId: 'jrn_1.welcome',
+    });
+    expect(announcementSubjectRef('journey.node.paused', { journeyId: 'jrn_1', nodeId: 'welcome', reason: 'manual' })).toBeNull();
+    expect(announcementSubjectRef('journey.approval.requested', { approvalId: 'japr_1' })).toEqual({
+      subjectType: 'journey_notice',
+      subjectId: 'japr_1',
+    });
   });
 });

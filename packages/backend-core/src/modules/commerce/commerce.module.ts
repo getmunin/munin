@@ -6,10 +6,14 @@ import { CommerceAdminTools } from './commerce.tools.ts';
 import { CommerceSelfServiceTools } from './commerce.self-service.tools.ts';
 import { ShopifyAdapter } from './shopify.adapter.ts';
 import { MagentoAdapter } from './magento.adapter.ts';
+import { AnalyticsModule } from '../analytics/analytics.module.ts';
+import { ShopifyOrderEventsService } from './shopify-order-events.service.ts';
+import { ShopifyWebhookController } from './shopify-webhook.controller.ts';
 
 @Module({
-  imports: [ConnectorsModule],
-  providers: [CommerceService, CommerceAdminTools, CommerceSelfServiceTools],
+  imports: [ConnectorsModule, AnalyticsModule],
+  controllers: [ShopifyWebhookController],
+  providers: [CommerceService, CommerceAdminTools, CommerceSelfServiceTools, ShopifyOrderEventsService],
   exports: [CommerceService],
 })
 export class CommerceModule {

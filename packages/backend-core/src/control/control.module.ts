@@ -17,6 +17,7 @@ import { SocialDraftsController } from './social-drafts.controller.ts';
 import { SocialAccountsController } from './social-accounts.controller.ts';
 import { SocialModule } from '../modules/social/social.module.ts';
 import { AnalyticsViewsController } from './analytics-views.controller.ts';
+import { ProductEventsController } from './product-events.controller.ts';
 import { AnalyticsTrackerController } from './analytics-tracker.controller.ts';
 import { AnalyticsTrackersController } from './analytics-trackers.controller.ts';
 import { AnalyticsModule } from '../modules/analytics/analytics.module.ts';
@@ -107,6 +108,7 @@ import { ReviewModule } from '../modules/review/review.module.ts';
     CmsTransferController,
     CmsDeliveryController,
     AnalyticsViewsController,
+    ProductEventsController,
     AnalyticsTrackerController,
     AnalyticsTrackersController,
     InvitationsController,

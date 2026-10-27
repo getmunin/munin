@@ -855,6 +855,13 @@
       "when": 1793133210267,
       "tag": "0121_better_auth_account_provider_key",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1793133270267,
+      "tag": "0122_analytics_product_events",
+      "breakpoints": true
     }
   ]
 }

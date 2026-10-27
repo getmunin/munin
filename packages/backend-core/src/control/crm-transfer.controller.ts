@@ -27,6 +27,17 @@ const SegmentFilterSchema = z.object({
   companyId: z.string().min(1).max(64).optional(),
   searchQuery: z.string().min(1).max(200).optional(),
   contactedSince: z.string().optional(),
+  events: z
+    .array(
+      z.object({
+        name: z.string().regex(/^[a-z0-9_.-]{1,64}$/),
+        occurred: z.boolean(),
+        withinDays: z.number().int().min(1).max(3650).optional(),
+        minCount: z.number().int().min(1).max(10_000).optional(),
+      }),
+    )
+    .max(5)
+    .optional(),
 });
 
 const TagsSchema = z.array(z.string().min(1).max(64)).max(32);

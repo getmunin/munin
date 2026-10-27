@@ -950,7 +950,7 @@ export class JourneyRuntimeService {
       .where(and(eq(e.orgId, ctx.actor!.orgId), or(...matches)));
   }
 
-  private async contactInSegment(contactId: string, segmentId: string): Promise<boolean> {
+  async contactInSegment(contactId: string, segmentId: string): Promise<boolean> {
     const ctx = getCurrentContext();
     const [segment] = await ctx.db
       .select({ filter: schema.crmSegments.filterDefinition })
@@ -972,7 +972,7 @@ export class JourneyRuntimeService {
     return Boolean(row);
   }
 
-  private async segmentContacts(segmentId: string, limit: number): Promise<string[]> {
+  async segmentContacts(segmentId: string, limit: number): Promise<string[]> {
     const ctx = getCurrentContext();
     const [segment] = await ctx.db
       .select({ filter: schema.crmSegments.filterDefinition })
@@ -996,10 +996,33 @@ export class JourneyRuntimeService {
   }
 
   private async loadFacts(step: StepContext, conditions: Parameters<typeof collectConditionNeeds>[0][]): Promise<ConditionFacts> {
+    return this.conditionFacts(
+      {
+        contactId: step.enrollment.contactId,
+        endUserId: step.enrollment.endUserId,
+        context: step.enrollment.context,
+        enteredAt: step.enrollment.enteredAt,
+        now: step.now,
+        spec: step.spec,
+      },
+      conditions,
+    );
+  }
+
+  async conditionFacts(
+    enrollment: {
+      contactId: string | null;
+      endUserId: string | null;
+      context: Record<string, unknown>;
+      enteredAt: Date;
+      now: Date;
+      spec: JourneySpec;
+    },
+    conditions: Parameters<typeof collectConditionNeeds>[0][],
+  ): Promise<ConditionFacts> {
     const ctx = getCurrentContext();
     const needs = { eventNames: new Set<string>(), segmentIds: new Set<string>() };
     for (const cond of conditions) collectConditionNeeds(cond, needs);
-    const { enrollment } = step;
     const contact = enrollment.contactId
       ? ((
           await ctx.db.select().from(schema.crmContacts).where(eq(schema.crmContacts.id, enrollment.contactId)).limit(1)
@@ -1038,8 +1061,8 @@ export class JourneyRuntimeService {
       events,
       segments,
       enteredAt: enrollment.enteredAt,
-      now: step.now,
-      timezone: await this.timezoneFor(step, contact?.customFields),
+      now: enrollment.now,
+      timezone: resolveTimezone(contact?.customFields, enrollment.spec),
     };
   }
 
@@ -1054,8 +1077,7 @@ export class JourneyRuntimeService {
         .limit(1);
       fields = row?.customFields;
     }
-    const candidate = typeof fields?.timezone === 'string' ? fields.timezone : step.spec.settings.timezone;
-    return candidate && isValidTimezone(candidate) ? candidate : 'UTC';
+    return resolveTimezone(fields, step.spec);
   }
 
   private async readDateField(step: StepContext, field: string): Promise<Date | null> {
@@ -1322,6 +1344,11 @@ function parseDate(value: unknown): Date | null {
   if (typeof value !== 'string') return null;
   const t = Date.parse(value);
   return Number.isNaN(t) ? null : new Date(t);
+}
+
+function resolveTimezone(fields: Record<string, unknown> | undefined, spec: JourneySpec): string {
+  const candidate = typeof fields?.timezone === 'string' ? fields.timezone : spec.settings.timezone;
+  return candidate && isValidTimezone(candidate) ? candidate : 'UTC';
 }
 
 function isValidTimezone(tz: string): boolean {

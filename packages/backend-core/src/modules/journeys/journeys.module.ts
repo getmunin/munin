@@ -7,11 +7,21 @@ import { JourneysTools } from './journeys.tools.ts';
 import { JourneyRuntimeService } from './journey-runtime.service.ts';
 import { JourneyRuntimeWorker } from './journey-runtime.worker.ts';
 import { JourneyEventSink } from './journey-event.sink.ts';
+import { JourneySimulator } from './journey-simulator.ts';
+import { JourneyPublishingService } from './journey-publishing.service.ts';
 
 @Module({
   imports: [CrmModule, OutreachModule],
-  providers: [JourneysService, JourneysTools, JourneyRuntimeService, JourneyRuntimeWorker, JourneyEventSink],
-  exports: [JourneysService, JourneyRuntimeService],
+  providers: [
+    JourneysService,
+    JourneysTools,
+    JourneyRuntimeService,
+    JourneyRuntimeWorker,
+    JourneyEventSink,
+    JourneySimulator,
+    JourneyPublishingService,
+  ],
+  exports: [JourneysService, JourneyRuntimeService, JourneyPublishingService],
 })
 export class JourneysModule implements OnModuleInit {
   constructor(

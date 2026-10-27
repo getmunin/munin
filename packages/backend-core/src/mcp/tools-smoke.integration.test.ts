@@ -51,7 +51,7 @@ const MIN_EXPECTED_PER_MODULE: Record<string, number> = {
   system: 4,
   webhooks: 7,
   slack: 5,
-  journeys: 19,
+  journeys: 22,
 };
 
 (skipReason ? describe.skip : describe)('MCP tools smoke: registry shape across all modules', () => {

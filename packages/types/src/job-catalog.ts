@@ -19,6 +19,8 @@ export const KNOWN_SKILL_URIS: ReadonlySet<string> = new Set([
   'skill://conv/set-topic-and-title',
   'skill://social/draft-companion-posts',
   'skill://journeys/decide-step',
+  'skill://journeys/draft-step',
+  'skill://journeys/enrich-step',
 ]);
 
 export const WEB_SCRAPE_SITE_TASK_URI = 'task://web/scrape-website';
@@ -29,6 +31,7 @@ const TIER_BY_URI: ReadonlyMap<string, ModelTier> = new Map([
   ['skill://conv/strip-email-signature', 'fast'],
   ['skill://conv/set-topic-and-title', 'fast'],
   ['skill://journeys/decide-step', 'fast'],
+  ['skill://journeys/enrich-step', 'fast'],
 ]);
 
 export function tierFor(uri: string): ModelTier {
@@ -45,6 +48,8 @@ export function priorityFor(uri: string): number {
 
 export const TOOLS_BY_URI: ReadonlyMap<string, readonly string[]> = new Map([
   ['skill://journeys/decide-step', ['journeys_submit_decision']],
+  ['skill://journeys/draft-step', ['journeys_submit_draft', 'kb_search', 'kb_get_document']],
+  ['skill://journeys/enrich-step', ['journeys_submit_fields']],
   [
     'skill://kb/review-content',
     [
@@ -133,6 +138,14 @@ export const PAYLOAD_BOUND_ARGS_BY_URI: ReadonlyMap<string, PinnedToolArgs> = ne
   [
     'skill://journeys/decide-step',
     { journeys_submit_decision: { stepRunId: 'stepRunId' } },
+  ],
+  [
+    'skill://journeys/draft-step',
+    { journeys_submit_draft: { stepRunId: 'stepRunId' } },
+  ],
+  [
+    'skill://journeys/enrich-step',
+    { journeys_submit_fields: { stepRunId: 'stepRunId' } },
   ],
 ]);
 

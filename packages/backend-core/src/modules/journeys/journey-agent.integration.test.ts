@@ -281,6 +281,74 @@ const NO_SYNTHETIC_FNR = '01819012365';
     expect(own).toMatchObject({ state: 'done', exitReason: 'reached_end' });
   });
 
+  it('fills declared fields on the contact and in the journey context, rejecting off-schema values', async () => {
+    const journey = await asAgent(() =>
+      journeys.create({
+        name: `Enrich ${randomUUID()}`,
+        outreachCampaignId: campaignId,
+        spec: {
+          entry: { trigger: { type: 'manual' } },
+          goal: { event: 'subscription.started', windowDays: 30 },
+          start: 'classify',
+          nodes: [
+            {
+              id: 'classify',
+              type: 'agent',
+              mode: 'enrich',
+              instructions: 'What do they use the product for?',
+              fields: [
+                { key: 'useCase', type: 'enum', description: 'Main use case', options: ['sales', 'support'] },
+                { key: 'teamSize', type: 'number', description: 'People on their team' },
+              ],
+              inputs: ['contact'],
+              next: 'route',
+            },
+            {
+              id: 'route',
+              type: 'branch',
+              rules: [{ if: { context: 'enriched.useCase', op: 'eq', value: 'sales' }, next: 'flag' }],
+              default: 'done',
+            },
+            { id: 'flag', type: 'action', action: 'crm.add_tag', params: { tag: 'sales-use' }, next: 'done' },
+            { id: 'done', type: 'exit' },
+          ],
+        },
+      }),
+    );
+    expect((await asAgent(() => journeys.validate(journey.id))).errors).toEqual([]);
+    await db
+      .update(schema.journeyVersions)
+      .set({ publishedAt: new Date(), publishedByActorId: 'usr_1' })
+      .where(eq(schema.journeyVersions.journeyId, journey.id));
+    await db.update(schema.journeys).set({ status: 'live', liveVersion: 1 }).where(eq(schema.journeys.id, journey.id));
+    const [ola] = await db
+      .insert(schema.crmContacts)
+      .values({ orgId, name: 'Ola', email: 'ola@kunde.test', consentLawfulBasis: 'contract' })
+      .returning();
+    const run = await asAgent(() =>
+      runtime.enroll({ journeyId: journey.id, subject: { contactId: ola!.id, endUserId: null }, source: { type: 'manual' } }),
+    );
+    await worker.tick();
+    const [step] = await db
+      .select()
+      .from(schema.journeyStepRuns)
+      .where(eq(schema.journeyStepRuns.enrollmentId, run.enrollmentId!));
+    await expect(
+      runAs(curator, () => runtime.submitFields({ stepRunId: step!.id, fields: { useCase: 'marketing' } })),
+    ).rejects.toThrow(BadRequestException);
+    await expect(
+      runAs(curator, () => runtime.submitFields({ stepRunId: step!.id, fields: { budget: 10 } })),
+    ).rejects.toThrow(BadRequestException);
+    const result = await runAs(curator, () =>
+      runtime.submitFields({ stepRunId: step!.id, fields: { useCase: 'sales', teamSize: 12 } }),
+    );
+    expect(result.written.sort()).toEqual(['teamSize', 'useCase']);
+    await worker.tick();
+    const [after] = await db.select().from(schema.crmContacts).where(eq(schema.crmContacts.id, ola!.id));
+    expect(after!.customFields).toMatchObject({ useCase: 'sales', teamSize: 12 });
+    expect(after!.tags).toContain('sales-use');
+  });
+
   it('simulates agent nodes along their fallback and says so', async () => {
     const { journeyId } = await liveJourneyWithKari();
     const parsed = (await asAgent(() => journeys.get(journeyId))).live!.spec;

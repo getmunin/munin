@@ -30,7 +30,7 @@ export interface SimulatedMessage {
 }
 
 export interface SimulationAssumption {
-  code: 'reviewer_approves' | 'no_reply' | 'event_missing' | 'agent_fallback';
+  code: 'reviewer_approves' | 'no_reply' | 'event_missing' | 'agent_fallback' | 'agent_draft';
   nodeId: string;
   event?: string;
   timeout?: string;
@@ -151,6 +151,9 @@ export class JourneySimulator {
         if (node.approval === 'draft_only') {
           assumptions.set(`approve:${node.id}`, { code: 'reviewer_approves', nodeId: node.id });
         }
+        if (node.draftBy === 'agent') {
+          assumptions.set(`draft:${node.id}`, { code: 'agent_draft', nodeId: node.id });
+        }
         if (decision.decision === 'skip') return { exit: 'message_blocked', message };
         if (node.onReply) assumptions.set(`reply:${node.id}`, { code: 'no_reply', nodeId: node.id });
         return { edge: 'next', to: node.next, message };
@@ -193,8 +196,12 @@ export class JourneySimulator {
       case 'action':
         return { edge: 'next', to: node.next };
       case 'agent':
+        if (node.mode === 'enrich') {
+          assumptions.set(`agent:${node.id}`, { code: 'agent_fallback', nodeId: node.id, event: 'next' });
+          return { edge: 'next', to: node.next };
+        }
         assumptions.set(`agent:${node.id}`, { code: 'agent_fallback', nodeId: node.id, event: node.fallback });
-        return { edge: node.fallback, to: node.edges[node.fallback] };
+        return { edge: node.fallback!, to: node.edges?.[node.fallback!] };
       default:
         return { exit: 'node_type_unavailable' };
     }

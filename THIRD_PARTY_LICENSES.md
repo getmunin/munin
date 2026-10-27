@@ -3806,9 +3806,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## @inquirer/ansi@2.0.9
+## @inquirer/ansi@2.0.10
 
-- Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/ansi/README.md
+- Homepage: https://github.com/SBoudrias/Inquirer.js/blob/HEAD/packages/ansi/README.md
 - Author: Simon Boudrias
 - License: MIT
 
@@ -3839,10 +3839,10 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/confirm@6.3.3
+## @inquirer/confirm@6.3.5
 
 > Inquirer confirm prompt
-- Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/confirm/README.md
+- Homepage: https://github.com/SBoudrias/Inquirer.js/blob/HEAD/packages/confirm/README.md
 - Author: Simon Boudrias
 - License: MIT
 
@@ -3873,10 +3873,10 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/core@12.0.4
+## @inquirer/core@12.0.6
 
 > Core Inquirer prompt API
-- Homepage: https://github.com/SBoudrias/Inquirer.js/blob/main/packages/core/README.md
+- Homepage: https://github.com/SBoudrias/Inquirer.js/blob/HEAD/packages/core/README.md
 - Author: Simon Boudrias
 - License: MIT
 
@@ -3907,7 +3907,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/figures@2.0.9
+## @inquirer/figures@2.0.10
 
 > Vendored version of figures, for CJS compatibility
 - Homepage: https://github.com/SBoudrias/Inquirer.js#readme
@@ -3941,7 +3941,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## @inquirer/type@4.2.0
+## @inquirer/type@4.2.1
 
 > Inquirer core TS types
 - Homepage: https://github.com/SBoudrias/Inquirer.js#readme
@@ -13930,7 +13930,7 @@ SOFTWARE.
 
 ---
 
-## body-parser@2.3.0
+## body-parser@2.3.0, 2.4.0
 
 > Node.js body parsing middleware
 - Homepage: https://github.com/expressjs/body-parser#readme
@@ -15651,7 +15651,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## content-disposition@1.1.0
+## content-disposition@1.1.0, 2.0.1
 
 > Create and parse Content-Disposition header
 - Homepage: https://github.com/jshttp/content-disposition#readme
@@ -18593,7 +18593,7 @@ Copyright 2024 Misha Kaletsky
 
 ---
 
-## express@5.2.1
+## express@5.2.1, 5.3.0
 
 > Fast, unopinionated, minimalist web framework
 - Homepage: https://expressjs.com/
@@ -18629,7 +18629,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## express-rate-limit@8.7.0
+## express-rate-limit@8.7.1
 
 > Basic IP rate-limiting middleware for Express. Use to limit repeated requests to public APIs and/or endpoints such as password reset.
 - Homepage: https://github.com/express-rate-limit/express-rate-limit
@@ -19937,7 +19937,7 @@ SOFTWARE.
 
 ---
 
-## hono@4.13.13
+## hono@4.13.14
 
 > Web framework built on Web Standards
 - Homepage: https://hono.dev
@@ -21499,7 +21499,7 @@ SOFTWARE.
 
 ---
 
-## jose@6.2.10, 6.2.12
+## jose@6.2.10, 6.2.12, 6.2.13
 
 > JWA, JWS, JWE, JWT, JWK, JWKS for Node.js, Browser, Cloudflare Workers, Deno, Bun, and other Web-interoperable runtimes
 - Homepage: https://github.com/panva/jose
@@ -26875,7 +26875,7 @@ SOFTWARE.
 
 ---
 
-## on-finished@2.4.1
+## on-finished@2.4.1, 2.4.2
 
 > Execute a callback when a request closes, finishes, or errors
 - Homepage: https://github.com/jshttp/on-finished#readme
@@ -29352,7 +29352,7 @@ _No LICENSE file shipped in the package; refer to homepage above._
 
 ---
 
-## qs@6.16.0
+## qs@6.16.0, 6.17.0
 
 > A querystring parser that supports nesting and arrays, with a depth limit
 - Homepage: https://github.com/ljharb/qs
@@ -31476,7 +31476,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---
 
-## set-cookie-parser@3.1.2, 3.1.3
+## set-cookie-parser@3.1.2, 3.2.1
 
 > Parses set-cookie headers into objects
 - Homepage: https://github.com/nfriedly/set-cookie-parser
@@ -33388,7 +33388,7 @@ SOFTWARE.
 
 ---
 
-## tldts@7.4.18
+## tldts@7.4.19
 
 > Library to work against complex domain names, subdomains and URIs.
 - Homepage: https://github.com/remusao/tldts#readme
@@ -33413,7 +33413,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTH
 
 ---
 
-## tldts-core@7.4.18
+## tldts-core@7.4.19
 
 > tldts core primitives (internal module)
 - Homepage: https://github.com/remusao/tldts#readme
@@ -34059,7 +34059,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---
 
-## undici@6.29.0, 7.30.0
+## undici@6.29.1, 7.30.1
 
 > An HTTP/1.1 client, written from scratch for Node.js
 - Homepage: https://undici.nodejs.org

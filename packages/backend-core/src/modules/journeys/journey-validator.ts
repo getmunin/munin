@@ -417,8 +417,8 @@ function checkSmsNode(node: Extract<JourneyNode, { type: 'message' }>, errors: J
   if (node.approval === 'auto') {
     fail('sms_auto', 'SMS steps are always approved by a person; use draft_only');
   }
-  if (node.draftBy === 'agent') {
-    fail('sms_agent_draft', 'agent-drafted SMS is not available yet; write the text in content.body');
+  if (node.draftBy === 'agent' && !node.brief) {
+    fail('agent_draft_brief', 'an agent-drafted message needs a brief');
   }
   if (node.content.subject || node.content.preheader || node.content.templateId || node.content.format === 'mjml') {
     fail('sms_content', 'an SMS step has only content.body: no subject, preheader, template or MJML');
@@ -433,8 +433,8 @@ function checkCallNode(node: Extract<JourneyNode, { type: 'message' }>, errors: 
   if (node.approval !== 'draft_only') {
     fail('voice_approval', 'a person approves every call; call steps use draft_only');
   }
-  if (node.draftBy === 'agent') {
-    fail('voice_agent_draft', 'agent-drafted call openings are not available yet; write the opening in content.body');
+  if (node.draftBy === 'agent' && !node.brief) {
+    fail('agent_draft_brief', 'an agent-drafted message needs a brief');
   }
   if (node.onReply) {
     fail('voice_reply', 'a call has no reply; branch on onOutcome instead');
@@ -475,7 +475,7 @@ function checkChatNode(node: Extract<JourneyNode, { type: 'message' }>, errors: 
   if (node.content.body.length > JOURNEY_CHAT_MAX_CHARS) {
     fail('chat_length', `the chat message is ${node.content.body.length} characters; the limit is ${JOURNEY_CHAT_MAX_CHARS}`);
   }
-  if (node.draftBy === 'agent') {
-    fail('chat_agent_draft', 'agent-drafted chat messages are not available yet; write the text in content.body');
+  if (node.draftBy === 'agent' && !node.brief) {
+    fail('agent_draft_brief', 'an agent-drafted message needs a brief');
   }
 }

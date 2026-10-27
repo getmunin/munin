@@ -161,7 +161,7 @@ export class JourneysTools {
     name: 'journeys_get_agent_stats',
     title: 'Journeys: Get agent step stats',
     description:
-      'How each agent step performed over the last N days (default 30): runs, how often it fell back, tokens used, the edges a decide step chose per day, and for agent-drafted emails how often reviewers edited or rejected the draft. Use it to tune briefs, edges and timeouts.',
+      'How each agent step performed over the last N days (default 30): runs, how often it fell back, tokens used, the edges a decide step chose per day, and for agent-drafted messages how often reviewers edited or rejected the draft. Use it to tune briefs, edges and timeouts.',
     audiences: ['admin'],
     scopes: ['journeys:read'],
     input: JourneyIdInput.extend({ days: z.number().int().min(1).max(90).default(30) }),
@@ -304,14 +304,14 @@ export class JourneysTools {
 
   @McpTool({
     name: 'journeys_submit_draft',
-    title: 'Journeys: Submit an agent email draft',
+    title: 'Journeys: Submit an agent message draft',
     description:
-      'Answer a waiting agent-drafted email step: the subject and markdown body written for this person, with the knowledge-base sources each factual claim rests on. The draft goes to the review inbox like any journey email. Used by the curator pass skill://journeys/draft-step; refused once the step was answered or timed out to the reference version.',
+      'Answer a waiting agent-drafted message step: the text written for this person, with the knowledge-base sources each factual claim rests on. An email takes a subject and markdown body; an SMS, chat message or call opening takes only the body, within that channel\'s length limit. The draft goes to the review inbox like any journey message. Used by the curator pass skill://journeys/draft-step; refused once the step was answered or timed out to the reference version.',
     audiences: ['admin'],
     scopes: ['journeys:write'],
     input: z.object({
       stepRunId: Id,
-      subject: z.string().min(1).max(300),
+      subject: z.string().min(1).max(300).optional(),
       body: z.string().min(1).max(20_000),
       citations: z
         .array(z.object({ title: z.string().min(1).max(200), source: z.string().min(1).max(500) }))
@@ -321,7 +321,7 @@ export class JourneysTools {
     readOnlyHint: false,
     destructiveHint: true,
   })
-  submitDraft(args: { stepRunId: string; subject: string; body: string; citations?: { title: string; source: string }[] }) {
+  submitDraft(args: { stepRunId: string; subject?: string; body: string; citations?: { title: string; source: string }[] }) {
     return this.runtime.submitDraft(args);
   }
 

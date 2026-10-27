@@ -2625,6 +2625,223 @@
         ]
       }
     },
+    "/v1/journeys/{id}/draft": {
+      "put": {
+        "operationId": "JourneysController_replaceDraft",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceDraftBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Journeys"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/journeys/{id}/draft/nodes": {
+      "post": {
+        "operationId": "JourneysController_addNode",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddNodeBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Journeys"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/journeys/{id}/draft/nodes/{nodeId}": {
+      "put": {
+        "operationId": "JourneysController_updateNode",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nodeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNodeBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Journeys"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "JourneysController_removeNode",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nodeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ifSpecHash",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Journeys"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/journeys/{id}/draft/settings": {
+      "patch": {
+        "operationId": "JourneysController_updateSettings",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSettingsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Journeys"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/journeys/enrollments/{enrollmentId}/trace": {
       "get": {
         "operationId": "JourneysController_trace",
@@ -11301,6 +11518,199 @@
         "required": [
           "fingerprint"
         ]
+      },
+      "ReplaceDraftBody": {
+        "type": "object",
+        "properties": {
+          "spec": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-self-required": true
+          },
+          "changeSummary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "ifSpecHash": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          }
+        },
+        "required": [
+          "spec"
+        ]
+      },
+      "AddNodeBody": {
+        "type": "object",
+        "properties": {
+          "node": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,47}$"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "message",
+                  "action",
+                  "wait",
+                  "wait_for",
+                  "branch",
+                  "split",
+                  "goal",
+                  "jump",
+                  "exit",
+                  "agent",
+                  "approval",
+                  "sub_journey"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "type"
+            ],
+            "additionalProperties": {},
+            "x-nestjs_zod-self-required": true
+          },
+          "after": {
+            "type": "object",
+            "properties": {
+              "nodeId": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,47}$"
+              },
+              "edge": {
+                "type": "string",
+                "enum": [
+                  "next",
+                  "onReply",
+                  "onTimeout",
+                  "default"
+                ]
+              }
+            },
+            "required": [
+              "nodeId"
+            ],
+            "x-nestjs_zod-self-required": false
+          },
+          "ifSpecHash": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "node"
+        ]
+      },
+      "UpdateNodeBody": {
+        "type": "object",
+        "properties": {
+          "node": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,47}$"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "message",
+                  "action",
+                  "wait",
+                  "wait_for",
+                  "branch",
+                  "split",
+                  "goal",
+                  "jump",
+                  "exit",
+                  "agent",
+                  "approval",
+                  "sub_journey"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "type"
+            ],
+            "additionalProperties": {},
+            "x-nestjs_zod-self-required": true
+          },
+          "ifSpecHash": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "node"
+        ]
+      },
+      "UpdateSettingsBody": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,47}$",
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          },
+          "entry": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-self-required": false
+          },
+          "exit": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-self-required": false
+          },
+          "goal": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-self-required": false
+          },
+          "settings": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {},
+            "x-nestjs_zod-uses-3-point-1-syntax": true,
+            "x-nestjs_zod-self-required": false
+          },
+          "ifSpecHash": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          }
+        }
       },
       "MoveEnrollmentsBody": {
         "type": "object",

@@ -2,11 +2,14 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
+  Put,
   Query,
   UseGuards,
   UseInterceptors,
@@ -43,6 +46,37 @@ import {
 import type { SimulationResult } from '../modules/journeys/journey-simulator.ts';
 import { JourneyMonitorService, type GuardrailReportDto } from '../modules/journeys/journey-monitor.service.ts';
 import { createZodDto } from 'nestjs-zod';
+import { JOURNEY_NODE_TYPES } from '@getmunin/types';
+
+const NodeId = z.string().regex(/^[a-z][a-z0-9_]{0,47}$/);
+const DraftNode = z.looseObject({ id: NodeId, type: z.enum(JOURNEY_NODE_TYPES) });
+const SpecHash = z.string().min(1).max(128);
+
+class ReplaceDraftBody extends createZodDto(
+  z.object({
+    spec: z.record(z.string(), z.unknown()),
+    changeSummary: z.string().min(1).max(500).optional(),
+    ifSpecHash: SpecHash.optional(),
+  }),
+) {}
+class AddNodeBody extends createZodDto(
+  z.object({
+    node: DraftNode,
+    after: z.object({ nodeId: NodeId, edge: z.enum(['next', 'onReply', 'onTimeout', 'default']).optional() }).optional(),
+    ifSpecHash: SpecHash.optional(),
+  }),
+) {}
+class UpdateNodeBody extends createZodDto(z.object({ node: DraftNode, ifSpecHash: SpecHash.optional() })) {}
+class UpdateSettingsBody extends createZodDto(
+  z.object({
+    start: NodeId.optional(),
+    entry: z.record(z.string(), z.unknown()).optional(),
+    exit: z.record(z.string(), z.unknown()).optional(),
+    goal: z.record(z.string(), z.unknown()).optional(),
+    settings: z.record(z.string(), z.unknown()).optional(),
+    ifSpecHash: SpecHash.optional(),
+  }),
+) {}
 
 class MoveEnrollmentsBody extends createZodDto(
   z.object({
@@ -118,6 +152,43 @@ export class JourneysController {
     @Body() body: ConfirmPublishBody,
   ): Promise<JourneyDetailDto> {
     return this.publishing.confirmPublish(id, number, body.fingerprint);
+  }
+
+  @Put(':id/draft')
+  replaceDraft(@Param('id') id: string, @Body() body: ReplaceDraftBody): Promise<JourneyVersionDto> {
+    return this.journeys.replaceDraft(id, body.spec, body.changeSummary, { ifSpecHash: body.ifSpecHash });
+  }
+
+  @Post(':id/draft/nodes')
+  addNode(@Param('id') id: string, @Body() body: AddNodeBody): Promise<JourneyVersionDto> {
+    return this.journeys.addNode(id, body.node, body.after, { ifSpecHash: body.ifSpecHash });
+  }
+
+  @Put(':id/draft/nodes/:nodeId')
+  updateNode(
+    @Param('id') id: string,
+    @Param('nodeId') nodeId: string,
+    @Body() body: UpdateNodeBody,
+  ): Promise<JourneyVersionDto> {
+    if (body.node.id !== nodeId) {
+      throw new BadRequestException(`journeys_invalid: the node in the body is "${body.node.id}", not "${nodeId}"`);
+    }
+    return this.journeys.updateNode(id, body.node, { ifSpecHash: body.ifSpecHash });
+  }
+
+  @Delete(':id/draft/nodes/:nodeId')
+  removeNode(
+    @Param('id') id: string,
+    @Param('nodeId') nodeId: string,
+    @Query('ifSpecHash') ifSpecHash?: string,
+  ): Promise<JourneyVersionDto> {
+    return this.journeys.removeNode(id, nodeId, { ifSpecHash });
+  }
+
+  @Patch(':id/draft/settings')
+  updateSettings(@Param('id') id: string, @Body() body: UpdateSettingsBody): Promise<JourneyVersionDto> {
+    const { ifSpecHash, ...patch } = body;
+    return this.journeys.updateSettings(id, patch, { ifSpecHash });
   }
 
   @Get('enrollments/:enrollmentId/trace')

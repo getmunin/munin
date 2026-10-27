@@ -180,6 +180,7 @@ const NO_SYNTHETIC_FNR = '01819012365';
     expect(job!.userPrompt).toContain('"title": "CTO"');
     expect(job!.userPrompt).not.toContain(NO_SYNTHETIC_FNR);
     expect(job!.userPrompt).not.toContain('kari@kunde.test');
+    expect(job!.userPrompt).toContain('<data kind="customer_inputs">');
     const pinned = pinnedToolArgsFor(DECIDE_STEP_JOB_URI, job!.sourceEventPayload);
     expect(pinned).toEqual({ ok: true, pinned: { journeys_submit_decision: { stepRunId: step.id } } });
   });

@@ -879,6 +879,7 @@ export class JourneyRuntimeService {
     if (!run || run.nodeType !== 'agent') {
       throw new NotFoundException(`journeys_not_found: agent step ${input.stepRunId}`);
     }
+    await ctx.db.execute(sql`SELECT id FROM journey_enrollments WHERE id = ${run.enrollmentId} FOR UPDATE`);
     const [wait] = await ctx.db
       .select()
       .from(schema.journeyWaits)
@@ -889,7 +890,8 @@ export class JourneyRuntimeService {
           isNull(schema.journeyWaits.resolvedAt),
         ),
       )
-      .limit(1);
+      .limit(1)
+      .for('update');
     if (!wait || run.status !== 'waiting') {
       throw new ConflictException(
         `journeys_conflict: step ${input.stepRunId} is no longer waiting for a decision (it was decided or timed out)`,
@@ -937,6 +939,7 @@ export class JourneyRuntimeService {
     if (!run || run.nodeType !== nodeType) {
       throw new NotFoundException(`journeys_not_found: agent step ${stepRunId}`);
     }
+    await ctx.db.execute(sql`SELECT id FROM journey_enrollments WHERE id = ${run.enrollmentId} FOR UPDATE`);
     const [wait] = await ctx.db
       .select()
       .from(schema.journeyWaits)
@@ -947,7 +950,8 @@ export class JourneyRuntimeService {
           isNull(schema.journeyWaits.resolvedAt),
         ),
       )
-      .limit(1);
+      .limit(1)
+      .for('update');
     if (!wait || run.status !== 'waiting') {
       throw new ConflictException(
         `journeys_conflict: step ${stepRunId} is no longer waiting for the agent (it was answered or timed out)`,
@@ -1002,6 +1006,7 @@ export class JourneyRuntimeService {
       if (value === undefined) {
         throw new BadRequestException(`journeys_invalid: "${field.key}" is not a valid ${field.type}`);
       }
+      if (value === null) continue;
       values[field.key] = value;
     }
     const unknown = Object.keys(input.fields).filter((k) => !(node.fields ?? []).some((f) => f.key === k));

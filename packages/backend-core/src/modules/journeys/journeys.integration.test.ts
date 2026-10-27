@@ -247,6 +247,20 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     const own = await asAgent(() => templates.get('our-trial', 'nb'));
     expect(JSON.stringify(own.spec)).toContain('{{param:segmentId}}');
     expect(JSON.stringify(own.spec)).not.toContain(segmentId);
+    const untouched = await asAgent(() =>
+      templates.saveAsTemplate({
+        journeyId: created.id,
+        slug: 'our-trial-copy',
+        locale: 'nb',
+        title: 'Kopi',
+        description: 'Kopi',
+        params: [{ key: 'days', description: 'Dager', required: false }],
+        replace: { '30': 'days', next: 'days' },
+      }),
+    );
+    expect(untouched.slug).toBe('our-trial-copy');
+    const copy = await asAgent(() => templates.get('our-trial-copy', 'nb'));
+    expect(JSON.stringify(copy.spec)).not.toContain('{{param:days}}');
     await expect(
       asAgent(() =>
         templates.saveAsTemplate({ journeyId: created.id, slug: 'trial-onboarding', locale: 'nb', title: 'x', description: 'x' }),

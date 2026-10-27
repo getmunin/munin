@@ -292,14 +292,20 @@ export class JourneyPublishingService {
     const live = journey.live ? JourneySpecSchema.parse(journey.live.spec) : null;
     const diff = diffSpecs(spec, live, journey.live?.number ?? null);
     const reviewStats = await this.nodeReviewStats(journeyId);
-    const notEarned = spec.nodes
-      .filter((n) => n.type === 'message' && n.draftBy === 'agent' && n.approval === 'auto')
-      .filter((n) => !reviewStats.find((s) => s.nodeId === n.id)?.readyForAuto);
+    const agentAuto = spec.nodes.filter(
+      (n): n is Extract<JourneyNode, { type: 'message' }> => n.type === 'message' && n.draftBy === 'agent' && n.approval === 'auto',
+    );
+    const earned = new Map<string, NodeReviewStatsDto>();
+    for (const node of agentAuto) {
+      const [stats] = await this.nodeReviewStats(journeyId, { nodeId: node.id, brief: node.brief ?? '' });
+      if (stats) earned.set(node.id, stats);
+    }
+    const notEarned = agentAuto.filter((n) => !earned.get(n.id)?.readyForAuto);
     if (notEarned.length > 0) {
       const detail = notEarned
         .map((n) => {
-          const stats = reviewStats.find((s) => s.nodeId === n.id);
-          return `"${n.id}" has ${stats?.reviewed ?? 0} reviewed drafts at ${Math.round((stats?.uneditedRate ?? 0) * 100)}% approved unedited`;
+          const stats = earned.get(n.id);
+          return `"${n.id}" has ${stats?.reviewed ?? 0} reviewed drafts from its current brief at ${Math.round((stats?.uneditedRate ?? 0) * 100)}% approved unedited`;
         })
         .join('; ');
       throw new BadRequestException(
@@ -515,7 +521,7 @@ export class JourneyPublishingService {
     };
   }
 
-  async nodeReviewStats(journeyId: string): Promise<NodeReviewStatsDto[]> {
+  async nodeReviewStats(journeyId: string, only?: { nodeId: string; brief: string }): Promise<NodeReviewStatsDto[]> {
     const ctx = getCurrentContext();
     await this.journeys.get(journeyId);
     const rows = rowsOf(
@@ -531,6 +537,7 @@ export class JourneyPublishingService {
           JOIN journey_enrollments en ON en.id = s.enrollment_id
          WHERE en.journey_id = ${journeyId}
            AND p.created_at > now() - make_interval(days => ${REVIEW_STATS_WINDOW_DAYS})
+           ${only ? sql`AND s.node_id = ${only.nodeId} AND p.evidence->>'draftedBy' = 'agent' AND p.evidence->>'brief' = ${only.brief}` : sql``}
          GROUP BY s.node_id
          ORDER BY s.node_id
       `),

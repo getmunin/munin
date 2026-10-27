@@ -1,5 +1,15 @@
 # @getmunin/dashboard-pages
 
+## 5.48.2
+
+### Patch Changes
+
+- 2fab9e3: Review: the next item's approve and dismiss buttons no longer stay disabled after a quick decision. The inbox tracked one shared "pending" flag that stayed on until the deciding action's own `/v1/inbox` refresh returned, while the realtime-triggered refresh had usually already removed the decided item and opened the next one. Pending is now tracked per item, so only the item being decided is locked. Inbox refreshes also ignore a response that arrives after a newer one, so an out-of-order reply can no longer bring back an item that was already decided.
+- b7c5291: Upgrade dependencies with published security advisories: `@modelcontextprotocol/server` and `@modelcontextprotocol/client` to 2.3.0 (cross-client message delivery on shared transports, request-validation memory exhaustion, bearer tokens accepted across audiences, credentials re-sent on cross-origin redirects) and `zod` to 4.6.6 (memory exhaustion on oversized constrained collections). Transitive `ip-address`, `follow-redirects`, `launch-editor`, `shell-quote` and `vite` are pinned past their advisories too.
+- Updated dependencies [b7c5291]
+  - @getmunin/types@5.48.2
+  - @getmunin/ui@5.48.2
+
 ## 5.48.1
 
 ### Patch Changes

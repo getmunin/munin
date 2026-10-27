@@ -1,4 +1,5 @@
 import {
+  JOURNEY_CALL_OPENING_MAX_CHARS,
   JOURNEY_SMS_MAX_CHARS,
   JourneySpecSchema,
   RESERVED_JOURNEY_NODE_TYPES,
@@ -26,6 +27,7 @@ export interface JourneyReferences {
   emailTemplateIds: ReadonlySet<string>;
   webhookIds: ReadonlySet<string>;
   smsChannelIds?: ReadonlySet<string>;
+  voiceChannelIds?: ReadonlySet<string>;
   llmConfigured?: boolean;
 }
 
@@ -140,6 +142,15 @@ export function validateJourneySpec(spec: JourneySpec, refs: JourneyReferences):
     }
   }
 
+  if (spec.nodes.some((n) => n.type === 'message' && n.channel === 'voice')) {
+    const channelId = spec.settings.voiceChannelId;
+    if (!channelId) {
+      errors.push({ code: 'voice_channel', message: 'call steps need settings.voiceChannelId, a voice channel to call from' });
+    } else if (refs.voiceChannelIds && !refs.voiceChannelIds.has(channelId)) {
+      errors.push({ code: 'voice_channel', message: `"${channelId}" is not a voice channel in this organization` });
+    }
+  }
+
   if (spec.entry.reentry === 'concurrent') {
     if (spec.entry.trigger.type !== 'event') {
       errors.push({
@@ -177,6 +188,13 @@ function checkNode(
 ): void {
   switch (node.type) {
     case 'message':
+      if (node.channel === 'voice') {
+        checkCallNode(node, errors);
+        break;
+      }
+      if (node.onOutcome || node.outcomeTimeout) {
+        errors.push({ code: 'outcome_edges', nodeId: node.id, message: 'onOutcome and outcomeTimeout apply to call steps only' });
+      }
       if (node.channel === 'sms') {
         checkSmsNode(node, errors);
         break;
@@ -370,5 +388,24 @@ function checkSmsNode(node: Extract<JourneyNode, { type: 'message' }>, errors: J
   }
   if (node.content.body.length > JOURNEY_SMS_MAX_CHARS) {
     fail('sms_length', `SMS text is ${node.content.body.length} characters; the limit is ${JOURNEY_SMS_MAX_CHARS}`);
+  }
+}
+
+function checkCallNode(node: Extract<JourneyNode, { type: 'message' }>, errors: JourneyIssue[]): void {
+  const fail = (code: string, message: string) => errors.push({ code, nodeId: node.id, message });
+  if (node.approval !== 'draft_only') {
+    fail('voice_approval', 'a person approves every call; call steps use draft_only');
+  }
+  if (node.draftBy === 'agent') {
+    fail('voice_agent_draft', 'agent-drafted call openings are not available yet; write the opening in content.body');
+  }
+  if (node.onReply) {
+    fail('voice_reply', 'a call has no reply; branch on onOutcome instead');
+  }
+  if (node.content.subject || node.content.preheader || node.content.templateId || node.content.format === 'mjml') {
+    fail('voice_content', 'a call step has only content.body, the opening the voice agent uses');
+  }
+  if (node.content.body.length > JOURNEY_CALL_OPENING_MAX_CHARS) {
+    fail('voice_length', `the call opening is ${node.content.body.length} characters; the limit is ${JOURNEY_CALL_OPENING_MAX_CHARS}`);
   }
 }

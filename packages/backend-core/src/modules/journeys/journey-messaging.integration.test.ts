@@ -28,6 +28,8 @@ import { ConversationClaimsService } from '../conv/conv.claims.service.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { EmailService } from '../conv/email/email.service.ts';
 import { stubAttachmentGateway } from '../conv/attachments/conv-attachments.test-stub.ts';
+import { OutreachOutcomeSink } from '../outreach/outreach-outcome.sink.ts';
+import type { OutreachVoiceCaller } from '../conv/channels/outreach-voice.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to run journey messaging tests.';
@@ -46,8 +48,19 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
   let userId: string;
   let agent: ActorIdentity;
   let person: ActorIdentity;
+  let crm: CrmService;
   let campaignId: string;
   let segmentId: string;
+
+  const placedCalls: { toNumber: string; opening: string }[] = [];
+  const stubCaller: OutreachVoiceCaller = {
+    vendor: 'stub-voice',
+    callIdMetadataKey: 'vapiCallId',
+    placeOutreachCall: (input) => {
+      placedCalls.push({ toNumber: input.toNumber, opening: input.opening });
+      return Promise.resolve({ callId: `call_${placedCalls.length}`, status: 'queued' });
+    },
+  };
 
   beforeAll(async () => {
     process.env.MUNIN_KEY_PEPPER ??= 'test-pepper';
@@ -70,7 +83,8 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
 
     webhooks = new WebhookDispatcher();
     webhooks.registerSink(new JourneyEventSink());
-    const crm = new CrmService(webhooks, new DefaultQuotasService(), new AddressDeliverabilityService());
+    webhooks.registerSink(new OutreachOutcomeSink(new CuratorJobsService(webhooks)));
+    crm = new CrmService(webhooks, new DefaultQuotasService(), new AddressDeliverabilityService());
     const conv = new ConvService(
       webhooks,
       new ConversationClaimsService(webhooks),
@@ -83,7 +97,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       conv,
       crm,
       new EmailService(new StubMailer()),
-      [new VapiOutreachCaller(new VapiClientService(db)), new ThrellOutreachCaller(new ThrellClientService(db))],
+      [new VapiOutreachCaller(new VapiClientService(db)), new ThrellOutreachCaller(new ThrellClientService(db)), stubCaller],
       appDb,
       new CuratorJobsService(webhooks),
     );
@@ -557,6 +571,76 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect(resumed.released).toBe(1);
     await worker.tick();
     expect(await proposalsFor(late.id)).toHaveLength(1);
+  });
+
+  it('places a call only after a person approves it and branches on the outcome the call produced', async () => {
+    const [voice] = await db
+      .insert(schema.convChannels)
+      .values({ orgId, type: 'voice', vendor: 'stub-voice', name: 'journey-voice', active: true, config: {} })
+      .returning();
+    const journeyId = await publish(
+      [
+        {
+          id: 'welcome',
+          type: 'message',
+          channel: 'voice',
+          content: { body: 'Hei, jeg ringer om prøveperioden din.' },
+          next: 'done',
+          onOutcome: { reached: 'won', refused: 'lost' },
+          outcomeTimeout: 'PT2H',
+        },
+        { id: 'won', type: 'exit', reason: 'reached_by_phone' },
+        { id: 'lost', type: 'exit', reason: 'refused_by_phone' },
+        done,
+      ],
+      { voiceChannelId: voice!.id },
+    );
+    const ola = await contact({ phone: '+4712345678' });
+    const kari = await contact({ phone: '+4712345679' });
+    const olaRun = await enroll(journeyId, ola.id);
+    const kariRun = await enroll(journeyId, kari.id);
+    await worker.tick();
+
+    for (const callee of [ola, kari]) {
+      const [call] = await proposalsFor(callee.id);
+      expect(call).toMatchObject({ kind: 'journey', status: 'pending', channelId: voice!.id });
+      const pending = await asAgent(() => outreach.getProposal(call!.id));
+      expect(pending.delivery).toMatchObject({ channelType: 'voice', destination: callee.phone });
+      await expect(
+        asAgent(() => outreach.approveProposal(call!.id, { fingerprint: pending.draftFingerprint, publicBaseUrl: 'https://api.acme.test' })),
+      ).rejects.toThrow(/signed-in person/);
+      await runAs(person, () =>
+        outreach.approveProposal(call!.id, { fingerprint: pending.draftFingerprint, publicBaseUrl: 'https://api.acme.test' }),
+      );
+    }
+    expect(placedCalls.map((c) => c.toNumber)).toEqual(['+4712345678', '+4712345679']);
+    await worker.tick();
+    expect(await enrollment(olaRun)).toMatchObject({ state: 'waiting', currentNode: 'welcome' });
+    const [olaCall] = await proposalsFor(ola.id);
+    expect((await enrollment(olaRun)).conversationId).toBeNull();
+
+    await asAgent(() =>
+      webhooks.emit({ type: 'conversation.voice.call_ended', payload: { conversationId: olaCall!.conversationId, endedReason: 'customer-ended-call' } }),
+    );
+    const [job] = await db
+      .select()
+      .from(schema.curatorJobs)
+      .where(and(eq(schema.curatorJobs.orgId, orgId), eq(schema.curatorJobs.jobUri, 'skill://outreach/extract-outcome')));
+    expect(job).toBeDefined();
+
+    await asAgent(() =>
+      crm.updateContact({ id: ola.id, patch: { customFields: { outreachOutcome: 'reached', outreachOutcomeConversationId: olaCall!.conversationId } } }),
+    );
+    await worker.tick();
+    await worker.tick();
+    expect(await enrollment(olaRun)).toMatchObject({ state: 'exited', exitReason: 'reached_by_phone' });
+
+    const later = new Date(Date.now() + 3 * 3_600_000);
+    await worker.tick(later);
+    await worker.tick(later);
+    expect(await enrollment(kariRun)).toMatchObject({ state: 'done', exitReason: 'reached_end' });
+    const trace = await asAgent(() => runtime.getTrace(kariRun));
+    expect(trace.steps[0]).toMatchObject({ nodeId: 'welcome', edgeTaken: 'next', reason: 'no call outcome in time' });
   });
 
   it('keeps legacy outreach off a journey-run campaign and journey emails out of exports', async () => {

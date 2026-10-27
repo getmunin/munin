@@ -621,8 +621,16 @@ function VersionList({
               </Button>
             )}
           </div>
-          {v.changeSummary && (
-            <p className="mt-2 whitespace-pre-line font-mono text-[11px] text-ink-mute">{v.changeSummary}</p>
+          {v.proposal?.hypothesis ? (
+            <div className="mt-2 space-y-1 text-sm">
+              <Pill tone="review">{t('proposed')}</Pill>
+              <p className="text-ink dark:text-foreground">{v.proposal.hypothesis}</p>
+              {v.proposal.rationale && <p className="whitespace-pre-line text-xs text-ink-mute">{v.proposal.rationale}</p>}
+            </div>
+          ) : (
+            v.changeSummary && (
+              <p className="mt-2 whitespace-pre-line font-mono text-[11px] text-ink-mute">{v.changeSummary}</p>
+            )
           )}
         </li>
       ))}

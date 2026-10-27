@@ -630,6 +630,47 @@ export class JourneysTools {
   }
 
   @McpTool({
+    name: 'journeys_get_split_results',
+    title: 'Journeys: Get split results',
+    description:
+      'Goal conversion per path of every split in the live version (or a given version): entered, converted, rate, lift against the control path and a two-proportion p-value once each path has 30 runs. Once a split with sampleSize is full, everyone goes to its control path and `winner` names the significantly better path, or the control when none is.',
+    audiences: ['admin'],
+    scopes: ['journeys:read'],
+    input: JourneyIdInput.extend({ version: z.number().int().min(1).optional() }),
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getSplitResults(args: { journeyId: string; version?: number }) {
+    return this.publishing.splitResults(args.journeyId, args.version);
+  }
+
+  @McpTool({
+    name: 'journeys_propose_change',
+    title: 'Journeys: Propose a change to a live journey',
+    description:
+      'Open a new draft version of a live journey from a full spec, with the hypothesis it tests, the rationale and the evidence behind it (report, agent and split numbers). The draft is validated and dry-run, and the result returns the diff against live and the simulation summary. It never publishes: a signed-in person reviews the proposal and publishes it. Refused while another unpublished draft is open.',
+    audiences: ['admin'],
+    scopes: ['journeys:write'],
+    input: JourneyIdInput.extend({
+      spec: z.record(z.string(), z.unknown()),
+      hypothesis: z.string().min(1).max(500),
+      rationale: z.string().min(1).max(4000),
+      evidence: z.record(z.string(), z.unknown()).default({}),
+    }),
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  proposeChange(args: {
+    journeyId: string;
+    spec: Record<string, unknown>;
+    hypothesis: string;
+    rationale: string;
+    evidence: Record<string, unknown>;
+  }) {
+    return this.publishing.proposeChange(args);
+  }
+
+  @McpTool({
     name: 'journeys_get_guardrails',
     title: 'Journeys: Get guardrail status',
     description:

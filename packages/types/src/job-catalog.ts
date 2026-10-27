@@ -21,6 +21,7 @@ export const KNOWN_SKILL_URIS: ReadonlySet<string> = new Set([
   'skill://journeys/decide-step',
   'skill://journeys/draft-step',
   'skill://journeys/enrich-step',
+  'skill://journeys/optimise-journey',
 ]);
 
 export const WEB_SCRAPE_SITE_TASK_URI = 'task://web/scrape-website';
@@ -50,6 +51,20 @@ export const TOOLS_BY_URI: ReadonlyMap<string, readonly string[]> = new Map([
   ['skill://journeys/decide-step', ['journeys_submit_decision']],
   ['skill://journeys/draft-step', ['journeys_submit_draft', 'kb_search', 'kb_get_document']],
   ['skill://journeys/enrich-step', ['journeys_submit_fields']],
+  [
+    'skill://journeys/optimise-journey',
+    [
+      'journeys_list',
+      'journeys_get',
+      'journeys_get_report',
+      'journeys_get_agent_stats',
+      'journeys_get_split_results',
+      'journeys_get_guardrails',
+      'journeys_get_node_review_stats',
+      'journeys_simulate',
+      'journeys_propose_change',
+    ],
+  ],
   [
     'skill://kb/review-content',
     [

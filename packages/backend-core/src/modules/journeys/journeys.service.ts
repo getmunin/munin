@@ -49,6 +49,7 @@ export interface JourneyVersionDto {
   publishRequestedAt: string | null;
   publishedAt: string | null;
   publishedByActorId: string | null;
+  proposal: Record<string, unknown> | null;
   createdAt: string;
 }
 
@@ -561,6 +562,7 @@ function toVersionDto(row: VersionRow): JourneyVersionDto {
     createdBy: { type: row.createdByActorType, id: row.createdByActorId },
     publishRequestedAt: row.publishRequestedAt?.toISOString() ?? null,
     publishedAt: row.publishedAt?.toISOString() ?? null,
+    proposal: row.proposal ?? null,
     publishedByActorId: row.publishedByActorId,
     createdAt: row.createdAt.toISOString(),
   };

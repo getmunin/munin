@@ -33,6 +33,35 @@ export const ASSUMED_USD_PER_MILLION_TOKENS = { fast: 1, smart: 5 } as const;
 
 export type AgentStepKind = 'decide' | 'enrich' | 'draft';
 
+export const SPLIT_MIN_PER_PATH = 30;
+export const SPLIT_SIGNIFICANCE = 0.05;
+
+export interface SplitPathResultDto {
+  path: string;
+  entered: number;
+  converted: number;
+  rate: number | null;
+  liftVsControl: number | null;
+  pValue: number | null;
+}
+
+export interface SplitResultDto {
+  nodeId: string;
+  version: number;
+  control: string | null;
+  sampleSize: number | null;
+  sampleFull: boolean;
+  paths: SplitPathResultDto[];
+  winner: string | null;
+}
+
+export interface ChangeProposalDto {
+  version: number;
+  diff: JourneyDiff;
+  validation: JourneyValidation;
+  simulation: { entered: number; exits: Record<string, number>; edges: Record<string, number>; estimatedAgentUsd: number } | null;
+}
+
 export interface AgentNodeStatsDto {
   nodeId: string;
   kind: AgentStepKind;
@@ -515,6 +544,118 @@ export class JourneyPublishingService {
     });
   }
 
+  async splitResults(journeyId: string, version?: number): Promise<SplitResultDto[]> {
+    const ctx = getCurrentContext();
+    const journey = await this.journeys.get(journeyId);
+    const row = version ? await this.journeys.getVersion(journeyId, version) : journey.live;
+    if (!row) throw new NotFoundException(`journeys_not_found: journey ${journeyId} has no live version`);
+    const parsed = JourneySpecSchema.safeParse(row.spec);
+    if (!parsed.success) return [];
+    const results: SplitResultDto[] = [];
+    for (const node of parsed.data.nodes) {
+      if (node.type !== 'split') continue;
+      const counts = rowsOf(
+        await ctx.db.execute(sql`
+          SELECT s.edge_taken AS path,
+                 count(*)::int AS entered,
+                 count(*) FILTER (WHERE en.goal_reached_at IS NOT NULL)::int AS converted
+            FROM journey_step_runs s
+            JOIN journey_enrollments en ON en.id = s.enrollment_id
+           WHERE en.journey_id = ${journeyId}
+             AND en.version = ${row.number}
+             AND s.node_id = ${node.id}
+             AND s.status = 'completed'
+             AND NOT (s.output ? 'sampleFull')
+           GROUP BY s.edge_taken
+        `),
+      ) as { path: string; entered: number; converted: number }[];
+      const byPath = new Map(counts.map((c) => [c.path, c]));
+      const control = node.control ? byPath.get(node.control) : undefined;
+      const paths = node.paths.map((p): SplitPathResultDto => {
+        const c = byPath.get(p.name) ?? { entered: 0, converted: 0 };
+        const rate = c.entered > 0 ? c.converted / c.entered : null;
+        const isControl = p.name === node.control;
+        const comparable = !isControl && control && c.entered >= SPLIT_MIN_PER_PATH && control.entered >= SPLIT_MIN_PER_PATH;
+        return {
+          path: p.name,
+          entered: c.entered,
+          converted: c.converted,
+          rate,
+          liftVsControl:
+            comparable && control.converted > 0 && rate !== null
+              ? rate / (control.converted / control.entered) - 1
+              : null,
+          pValue: comparable ? twoProportionPValue(c.converted, c.entered, control.converted, control.entered) : null,
+        };
+      });
+      const controlRate = control && control.entered > 0 ? control.converted / control.entered : 0;
+      const total = counts.reduce((sum, c) => sum + c.entered, 0);
+      const sampleFull = Boolean(node.sampleSize && total >= node.sampleSize);
+      const significant = paths
+        .filter((p) => p.pValue !== null && p.pValue < SPLIT_SIGNIFICANCE && (p.rate ?? 0) > controlRate)
+        .sort((a, b) => (b.rate ?? 0) - (a.rate ?? 0));
+      results.push({
+        nodeId: node.id,
+        version: row.number,
+        control: node.control ?? null,
+        sampleSize: node.sampleSize ?? null,
+        sampleFull,
+        paths,
+        winner: sampleFull ? (significant[0]?.path ?? node.control ?? null) : null,
+      });
+    }
+    return results;
+  }
+
+  async proposeChange(input: {
+    journeyId: string;
+    spec: Record<string, unknown>;
+    rationale: string;
+    hypothesis: string;
+    evidence: Record<string, unknown>;
+  }): Promise<ChangeProposalDto> {
+    const ctx = getCurrentContext();
+    const journey = await this.journeys.get(input.journeyId);
+    if (journey.status !== 'live' || !journey.live) {
+      throw new ConflictException(`journeys_conflict: only a live journey takes proposed changes; ${input.journeyId} is ${journey.status}`);
+    }
+    if (journey.draft) {
+      throw new ConflictException(
+        `journeys_conflict: draft v${journey.draft.number} is still open; publish or restore it before proposing another change`,
+      );
+    }
+    const draft = await this.journeys.replaceDraft(input.journeyId, input.spec, `Proposed: ${input.hypothesis.slice(0, 200)}`);
+    const validation = await this.journeys.validate(input.journeyId, draft.number);
+    let simulation: ChangeProposalDto['simulation'] = null;
+    let diff: JourneyDiff = { againstVersion: journey.live.number, addedNodes: [], removedNodes: [], changedNodes: [], changedBlocks: [], autoNodes: [] };
+    const parsed = JourneySpecSchema.safeParse(draft.spec);
+    if (parsed.success) {
+      diff = diffSpecs(parsed.data, JourneySpecSchema.parse(journey.live.spec), journey.live.number);
+      if (validation.valid) {
+        const sim = await this.simulate({ journeyId: input.journeyId, version: draft.number, limit: 200, renderSamples: 0 });
+        simulation = { entered: sim.entered, exits: sim.exits, edges: sim.edges, estimatedAgentUsd: sim.agentCost.estimatedUsd };
+      }
+    }
+    await ctx.db
+      .update(schema.journeyVersions)
+      .set({
+        proposal: {
+          rationale: input.rationale,
+          hypothesis: input.hypothesis,
+          evidence: input.evidence,
+          simulation,
+          proposedBy: { type: ctx.actor!.type, id: ctx.actor!.id },
+          proposedAt: new Date().toISOString(),
+        },
+      })
+      .where(and(eq(schema.journeyVersions.journeyId, input.journeyId), eq(schema.journeyVersions.number, draft.number)));
+    await this.webhooks.emit({
+      type: 'journey.change.proposed',
+      payload: { journeyId: input.journeyId, version: draft.number, hypothesis: input.hypothesis },
+    });
+    return { version: draft.number, diff, validation, simulation };
+  }
+
   private async parsedVersion(journeyId: string, number?: number): Promise<{ version: number; spec: JourneySpec }> {
     const journey = await this.journeys.get(journeyId);
     const row = number
@@ -578,4 +719,19 @@ function agentKindOf(node: JourneyNode): AgentStepKind | null {
   if (node.type === 'agent') return node.mode === 'enrich' ? 'enrich' : 'decide';
   if (node.type === 'message' && node.draftBy === 'agent') return 'draft';
   return null;
+}
+
+function twoProportionPValue(x1: number, n1: number, x2: number, n2: number): number {
+  const pooled = (x1 + x2) / (n1 + n2);
+  const se = Math.sqrt(pooled * (1 - pooled) * (1 / n1 + 1 / n2));
+  if (se === 0) return 1;
+  const z = Math.abs(x1 / n1 - x2 / n2) / se;
+  return Math.min(1, 2 * (1 - normalCdf(z)));
+}
+
+function normalCdf(z: number): number {
+  const t = 1 / (1 + 0.2316419 * z);
+  const d = 0.3989423 * Math.exp((-z * z) / 2);
+  const tail = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+  return 1 - tail;
 }

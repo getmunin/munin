@@ -226,6 +226,12 @@ function checkNode(
       break;
     case 'split': {
       const total = node.paths.reduce((sum, p) => sum + p.percent, 0);
+      if (node.control && !node.paths.some((p) => p.name === node.control)) {
+        errors.push({ code: 'split_control', nodeId: node.id, message: `control "${node.control}" is not one of the split's paths` });
+      }
+      if (node.sampleSize && !node.control) {
+        errors.push({ code: 'split_control', nodeId: node.id, message: 'a split with sampleSize needs a control path to send everyone to once the sample is full' });
+      }
       if (total !== 100) {
         errors.push({ code: 'split_total', nodeId: node.id, message: `split percentages add up to ${total}, not 100` });
       }

@@ -2242,6 +2242,7 @@ export const journeyVersions = pgTable(
     specHash: varchar('spec_hash', { length: 64 }).notNull(),
     parentVersion: integer('parent_version'),
     changeSummary: text('change_summary'),
+    proposal: jsonb('proposal').$type<Record<string, unknown>>(),
     validation: jsonb('validation').$type<Record<string, unknown>>(),
     createdByActorType: varchar('created_by_actor_type', { length: 16 }).notNull(),
     createdByActorId: text('created_by_actor_id').notNull(),

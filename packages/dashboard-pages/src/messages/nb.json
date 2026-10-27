@@ -1383,6 +1383,7 @@
         "awaiting": "Venter på publisering",
         "draft": "Utkast",
         "errors": "{count, plural, one {# feil} other {# feil}}",
+        "proposed": "Foreslått av optimizeren",
         "review": "Se over og publiser"
       },
       "publish": {

@@ -2944,6 +2944,37 @@
         ]
       }
     },
+    "/v1/journeys/{id}/split-results": {
+      "get": {
+        "operationId": "JourneysController_splitResults",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Journeys"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/journeys/{id}/guardrails": {
       "get": {
         "operationId": "JourneysController_guardrails",

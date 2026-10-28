@@ -83,3 +83,27 @@ CREATE POLICY tenant_isolation ON journey_approvals
     OR (org_id = app_org_id() AND app_end_user_id() = '')
   )
   WITH CHECK (app_bypass_rls() OR org_id = app_org_id());
+
+-- ───────────────────────── event sink check ─────────────────────────────────
+-- The journey event sink runs inside every emitting transaction, end-user
+-- requests included, and those cannot read `journeys`. It only needs to know
+-- whether the caller's own org has a live or paused journey, so this answers
+-- that one boolean for app_org_id() without exposing any row. Bypass is set
+-- from the body and the caller's value put back, for the reasons spelled out
+-- above conv_next_display_id in conv.sql.
+CREATE OR REPLACE FUNCTION journeys_org_running() RETURNS boolean
+  LANGUAGE plpgsql STABLE SECURITY DEFINER
+  SET search_path = pg_catalog, public
+  AS $$
+  DECLARE
+    v_caller_bypass text := COALESCE(current_setting('app.bypass_rls', true), 'off');
+    v_running boolean;
+  BEGIN
+    PERFORM set_config('app.bypass_rls', 'on', true);
+    SELECT EXISTS (
+      SELECT 1 FROM journeys WHERE org_id = app_org_id() AND status IN ('live', 'paused')
+    ) INTO v_running;
+    PERFORM set_config('app.bypass_rls', v_caller_bypass, true);
+    RETURN v_running;
+  END;
+  $$;

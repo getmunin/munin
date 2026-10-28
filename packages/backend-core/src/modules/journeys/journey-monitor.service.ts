@@ -197,7 +197,7 @@ export class JourneyMonitorService {
       steps AS (
         SELECT s.node_id,
                count(*)::int AS steps,
-               count(*) FILTER (WHERE s.reason IN ('action_failed', 'message_failed'))::int AS failed_steps
+               count(*) FILTER (WHERE s.reason IN ('action_failed', 'message_failed', 'step_failed'))::int AS failed_steps
           FROM journey_step_runs s
           JOIN journey_enrollments en ON en.id = s.enrollment_id
          WHERE en.journey_id = ${journeyId}

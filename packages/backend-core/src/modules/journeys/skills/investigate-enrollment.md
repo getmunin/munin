@@ -21,7 +21,8 @@ Every node visit is one step, in order. Each step has the node, the edge taken a
 - **split** steps record the bucket (0–99) the person hashed into; the same person always lands in the same path.
 - **wait** and **wait_for** steps with status `waiting` are where the person is now. `openWaits` shows when a timer fires or which event the run is waiting for and when it times out.
 - **action** steps show the result, or `failed: …` with the error. A step with status `retrying` will try again; permanent errors (unknown contact, missing webhook) do not retry and follow the node's `onFail`.
-- The enrollment's `exitReason` says how the run ended: `reached_end`, `goal_reached`, `matched_exit`, `idle_timeout`, `loop_detected`, `wait_timeout`, `action_failed`, `holdout`, `ejected`, or `node_missing`.
+- A step that throws an unexpected error (not an action's own failure) rolls back on its own, keeps the steps before it, and runs again after 1, 5, 15 and 60 minutes. The enrollment's `stepErrors` counts the attempts and `lastError` holds the message; after five in a row the run ends with `step_failed` and the step shows status `failed`. Steps a run was in when it ended show status `cancelled`.
+- The enrollment's `exitReason` says how the run ended: `reached_end`, `goal_reached`, `matched_exit`, `idle_timeout`, `loop_detected`, `wait_timeout`, `action_failed`, `step_failed`, `journey_archived`, `holdout`, `ejected`, or `node_missing`. `idle_timeout` means the run made no progress for `exit.idleDays` — the deadline moves forward every time it advances.
 
 `context.trigger` holds the event that started the run; `context.lastEvent` holds the last event a `wait_for` received.
 
@@ -37,7 +38,7 @@ Check, in this order:
 
 ## Someone is stuck on a step
 
-If the trace stops at a step that never started and the run is `active` with no next run time, the step is paused — by a person or by the monitor on a guardrail breach. `journeys_get` lists `pausedNodes` with the reason; `journeys_get_guardrails` shows the rates behind a monitor pause. Resuming the step releases everyone held there at once.
+If the trace stops at a step that never started and the run is `active` with no next run time, the step is paused — by a person or by the monitor on a guardrail breach. `journeys_get` lists `pausedNodes` with the reason; `journeys_get_guardrails` shows the rates behind a monitor pause. Resuming the step releases everyone held there at once. Messages from that step that were already approved are held too, not failed: they stay approved and are checked again every 15 minutes, as they are while the whole journey is paused.
 
 ## The trace is empty
 

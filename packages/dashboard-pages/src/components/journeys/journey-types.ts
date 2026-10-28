@@ -184,6 +184,7 @@ export interface TemplateChangesDto {
   heldMessages: number;
   fingerprint: string | null;
   reviewPath: string;
+  reviewUrl?: string;
   released?: number;
 }
 
@@ -204,4 +205,5 @@ export interface PublishRequestDto {
   reviewStats: NodeReviewStatsDto[];
   autoMessages?: { nodeId: string; channel: string; class: string; subject: string | null; preview: string; draftBy: string | null }[];
   reviewPath: string;
+  reviewUrl?: string;
 }

@@ -222,6 +222,15 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect(versions[0]!.changeSummary).toContain('Updated node welcome');
   });
 
+  it('refuses a node that does not fit its type, whichever surface sends it', async () => {
+    const journey = await asAgent(() => svc.create({ name: `Shape ${randomUUID()}`, outreachCampaignId: emailCampaignId }));
+    await expect(asAgent(() => svc.addNode(journey.id, { id: 'wait', type: 'wait', duration: 'five days' }))).rejects.toThrow(
+      /journeys_invalid: duration/,
+    );
+    await asAgent(() => svc.addNode(journey.id, { id: 'wait', type: 'wait', duration: 'P5D' }));
+    await expect(asAgent(() => svc.updateNode(journey.id, { id: 'wait', type: 'wait', duration: 5 }))).rejects.toThrow(/journeys_invalid/);
+  });
+
   it('refuses an edit made against a draft that changed since it was loaded, with codes the dashboard can translate', async () => {
     const journey = await asAgent(() =>
       svc.create({ name: 'Trial onboarding', outreachCampaignId: emailCampaignId, spec: validSpec() }),
@@ -347,7 +356,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     ).rejects.toThrow(ConflictException);
   });
 
-  it('converts a campaign sequence into a draft journey that runs the campaign from then on', async () => {
+  it('converts a campaign sequence into a draft journey that takes the campaign over once published', async () => {
     await db
       .update(schema.outreachCampaigns)
       .set({ sequenceSteps: [{ waitDays: 4, brief: 'Follow up with the case study' }] })

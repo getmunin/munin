@@ -1,6 +1,7 @@
 'use client';
 
 import { journeyNodeEdges, JourneySpecSchema, type JourneyNode } from '@getmunin/types';
+import { useTranslations } from 'next-intl';
 import { cn } from '@getmunin/ui';
 
 const NODE_W = 168;
@@ -113,6 +114,18 @@ export function JourneyGraph({
   onSelect?: (nodeId: string) => void;
   errorIds?: ReadonlySet<string>;
 }) {
+  const t = useTranslations('dashboard.journeys.graph');
+  const labels: GraphLabels = {
+    type: (type) => (t.has(`type.${type}`) ? t(`type.${type}` as never) : type.replace('_', ' ')),
+    sms: t('sms'),
+    chat: t('chat'),
+    call: t('call'),
+    decide: (edges) => t('decide', { edges }),
+    enrich: (fields) => t('enrich', { fields }),
+    approve: (title) => t('approve', { title }),
+    run: (journey) => t('run', { journey }),
+    enter: (journey) => t('enter', { journey }),
+  };
   const layout = layoutJourney(spec);
   if (!layout) {
     return <p className="font-mono text-xs text-ink-mute">{emptyLabel}</p>;
@@ -214,10 +227,10 @@ export function JourneyGraph({
                 )}
               />
               <text x={10} y={18} className="fill-ink-label font-mono text-[10px] uppercase tracking-eyebrow">
-                {node.type.replace('_', ' ')}
+                {labels.type(node.type)}
               </text>
               <text x={10} y={36} className="fill-ink font-mono text-[11px] dark:fill-foreground">
-                {truncate(node.label ?? nodeTitle(node), 22)}
+                {truncate(node.label ?? nodeTitle(node, labels), 22)}
               </text>
               {count !== undefined && (
                 <text x={NODE_W - 10} y={18} textAnchor="end" className="fill-cobalt font-mono text-[10px]">
@@ -232,13 +245,26 @@ export function JourneyGraph({
   );
 }
 
-function nodeTitle(node: JourneyNode): string {
+interface GraphLabels {
+  type: (type: string) => string;
+  sms: string;
+  chat: string;
+  call: string;
+  decide: (edges: string) => string;
+  enrich: (fields: string) => string;
+  approve: (title: string) => string;
+  run: (journey: string) => string;
+  enter: (journey: string) => string;
+}
+
+function nodeTitle(node: JourneyNode, labels: GraphLabels): string {
   switch (node.type) {
     case 'message': {
       const mark = node.draftBy === 'agent' ? '✎ ' : '';
-      if (node.channel === 'sms') return `${mark}SMS · ${node.content.body.length > 40 ? `${node.content.body.slice(0, 39)}…` : node.content.body}`;
-      if (node.channel === 'chat') return `${mark}Chat · ${node.content.body.length > 40 ? `${node.content.body.slice(0, 39)}…` : node.content.body}`;
-      if (node.channel === 'voice') return `${mark}Call · ${node.content.body.length > 40 ? `${node.content.body.slice(0, 39)}…` : node.content.body}`;
+      const body = node.content.body.length > 40 ? `${node.content.body.slice(0, 39)}…` : node.content.body;
+      if (node.channel === 'sms') return `${mark}${labels.sms} · ${body}`;
+      if (node.channel === 'chat') return `${mark}${labels.chat} · ${body}`;
+      if (node.channel === 'voice') return `${mark}${labels.call} · ${body}`;
       const subject = node.content.subject ?? node.id;
       return node.draftBy === 'agent' ? `✎ ${subject}` : subject;
     }
@@ -254,12 +280,12 @@ function nodeTitle(node: JourneyNode): string {
       return node.name;
     case 'agent':
       return node.mode === 'decide'
-        ? `decide: ${Object.keys(node.edges ?? {}).join(' / ')}`
-        : `enrich: ${(node.fields ?? []).map((f) => f.key).join(', ')}`;
+        ? labels.decide(Object.keys(node.edges ?? {}).join(' / '))
+        : labels.enrich((node.fields ?? []).map((f) => f.key).join(', '));
     case 'approval':
-      return `approve: ${node.title}`;
+      return labels.approve(node.title);
     case 'sub_journey':
-      return `${node.await ? 'run' : 'enter'} ${node.journeyId}`;
+      return node.await ? labels.run(node.journeyId) : labels.enter(node.journeyId);
     default:
       return node.id;
   }

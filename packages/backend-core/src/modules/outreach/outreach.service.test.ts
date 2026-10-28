@@ -1205,561 +1205,75 @@ const skipReason = TEST_URL
     });
   });
 
-  describe('sequences', () => {
-    const STEPS = [
-      { waitDays: 3, brief: 'gentle bump' },
-      { waitDays: 4, brief: 'share a relevant case study' },
-    ];
-
-    function createSeqCampaign(
-      name: string,
-      steps = STEPS,
-      extras: {
-        enabled?: boolean;
-        cadenceRules?: {
-          maxPerWeekPerContact?: number;
-          quietHoursStart?: string;
-          quietHoursEnd?: string;
-          blackoutDates?: string[];
-        };
-      } = {},
-    ) {
-      return run(() =>
-        svc.createCampaign({
-          name,
-          brief: 'Sequence test campaign.',
-          segmentId,
-          channelId,
-          sequenceSteps: steps,
-          cadenceRules: extras.cadenceRules,
-          enabled: extras.enabled ?? true,
-        }),
-      );
-    }
-
+  describe('retired sequences', () => {
     async function sendInitial(campaignId: string) {
       const p = await run(() =>
-        svc.proposeInitial({
-          campaignId,
-          contactId,
-          draftSubject: 'Hi Jane',
-          draftBody: 'Initial pitch.',
-        }),
+        svc.proposeInitial({ campaignId, contactId, draftSubject: 'Hi Jane', draftBody: 'Initial pitch.' }),
       );
       return run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint }));
     }
 
-    async function backdateSent(proposalId: string, days: number) {
-      await db.execute(
-        sql`UPDATE outreach_proposals SET sent_at = now() - make_interval(days => ${days}) WHERE id = ${proposalId}`,
-      );
+    async function leftoverFollowup(campaignId: string, conversationId: string) {
+      const [row] = await db
+        .insert(schema.outreachProposals)
+        .values({
+          orgId,
+          campaignId,
+          contactId,
+          conversationId,
+          kind: 'followup',
+          sequenceStep: 1,
+          draftBody: 'Circling back on my last note.',
+          status: 'pending',
+          proposedByActorType: 'admin_agent',
+          proposedByActorId: 'agt_legacy',
+        })
+        .returning();
+      return run(() => svc.getProposal(row!.id));
     }
 
-    async function insertInbound(conversationId: string, metadata: Record<string, unknown> = {}) {
+    it('refuses new follow-up steps on create and update, pointing at journeys', async () => {
+      await expect(
+        run(() =>
+          svc.createCampaign({ name: 'seq-retired', brief: 'b', segmentId, channelId, sequenceSteps: [{ waitDays: 3, brief: 'bump' }] }),
+        ),
+      ).rejects.toThrow(/outreach_sequences_retired/);
+      const c = await run(() => svc.createCampaign({ name: 'seq-retired-update', brief: 'b', segmentId, channelId }));
+      expect(c.sequenceSteps).toEqual([]);
+      await expect(
+        run(() => svc.updateCampaign({ id: c.id, patch: { sequenceSteps: [{ waitDays: 3, brief: 'bump' }] } })),
+      ).rejects.toThrow(/outreach_sequences_retired/);
+      await expect(run(() => svc.updateCampaign({ id: c.id, patch: { sequenceSteps: [] } }))).resolves.toMatchObject({ sequenceSteps: [] });
+    });
+
+    it('still sends a follow-up drafted before sequences were retired, verbatim on its conversation', async () => {
+      const c = await run(() => svc.createCampaign({ name: 'seq-leftover', brief: 'b', segmentId, channelId, enabled: true }));
+      const sent = await sendInitial(c.id);
+      const pending = await leftoverFollowup(c.id, sent.conversationId!);
+      const approved = await run(() =>
+        svc.approveProposal(pending.id, { publicBaseUrl: 'https://test.local', fingerprint: pending.draftFingerprint }),
+      );
+      expect(approved).toMatchObject({ status: 'sent', conversationId: sent.conversationId, sequenceStep: 1 });
+      const rows = await db.execute<{ body: string }>(sql`SELECT body FROM conv_messages WHERE id = ${approved.sentMessageId!}`);
+      expect(rows[0]!.body).toBe('Circling back on my last note.');
+    });
+
+    it('refuses a leftover follow-up once the prospect has replied', async () => {
+      const c = await run(() => svc.createCampaign({ name: 'seq-leftover-replied', brief: 'b', segmentId, channelId, enabled: true }));
+      const sent = await sendInitial(c.id);
+      const pending = await leftoverFollowup(c.id, sent.conversationId!);
       await db.insert(schema.convMessages).values({
         orgId,
-        conversationId,
+        conversationId: sent.conversationId!,
         authorType: 'end_user',
         authorId: 'prospect',
         body: 'Thanks, tell me more!',
-        metadata,
+        metadata: {},
       });
-    }
-
-    it('createCampaign stores sequenceSteps and defaults to an empty array', async () => {
-      const withSteps = await createSeqCampaign('seq-create');
-      expect(withSteps.sequenceSteps).toEqual(STEPS);
-      const without = await run(() =>
-        svc.createCampaign({ name: 'seq-none', brief: 'b', segmentId, channelId }),
-      );
-      expect(without.sequenceSteps).toEqual([]);
-    });
-
-    it('rejects sequenceSteps on a voice channel (create and update)', async () => {
-      const [voice] = await db
-        .insert(schema.convChannels)
-        .values({ orgId, type: 'voice', vendor: 'vapi', name: 'seq-voice', active: true, config: {} })
-        .returning();
       await expect(
-        run(() =>
-          svc.createCampaign({
-            name: 'seq-voice-create',
-            brief: 'b',
-            segmentId,
-            channelId: voice!.id,
-            sequenceSteps: STEPS,
-          }),
-        ),
-      ).rejects.toThrow(OutreachInvalidError);
-
-      const voiceCampaign = await run(() =>
-        svc.createCampaign({ name: 'seq-voice-update', brief: 'b', segmentId, channelId: voice!.id }),
-      );
-      await expect(
-        run(() => svc.updateCampaign({ id: voiceCampaign.id, patch: { sequenceSteps: STEPS } })),
-      ).rejects.toThrow(OutreachInvalidError);
-
-      const emailCampaign = await createSeqCampaign('seq-email-to-voice');
-      await expect(
-        run(() => svc.updateCampaign({ id: emailCampaign.id, patch: { channelId: voice!.id } })),
-      ).rejects.toThrow(OutreachInvalidError);
-    });
-
-    it('updateCampaign replaces the whole steps array', async () => {
-      const c = await createSeqCampaign('seq-update');
-      const updated = await run(() =>
-        svc.updateCampaign({ id: c.id, patch: { sequenceSteps: [{ waitDays: 7, brief: 'breakup email' }] } }),
-      );
-      expect(updated.sequenceSteps).toEqual([{ waitDays: 7, brief: 'breakup email' }]);
-    });
-
-    it('proposeFollowup files step 1 once the wait elapsed with no reply', async () => {
-      const c = await createSeqCampaign('seq-happy');
-      const sent = await sendInitial(c.id);
-      await backdateSent(sent.id, 4);
-      const p = await run(() =>
-        svc.proposeFollowup({
-          conversationId: sent.conversationId!,
-          step: 1,
-          draftBody: 'Just floating this back up.',
-          evidence: { stepBrief: 'gentle bump' },
-        }),
-      );
-      expect(p.kind).toBe('followup');
-      expect(p.sequenceStep).toBe(1);
-      expect(p.status).toBe('pending');
-      expect(p.conversationId).toBe(sent.conversationId);
-      expect(p.draftSubject).toBeNull();
-      expect(p.contactId).toBe(contactId);
-    });
-
-    it('proposeFollowup rejects before the wait period elapsed', async () => {
-      const c = await createSeqCampaign('seq-early');
-      const sent = await sendInitial(c.id);
-      await backdateSent(sent.id, 1);
-      await expect(
-        run(() =>
-          svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'x' }),
-        ),
-      ).rejects.toThrow(/not due until/);
-    });
-
-    it('proposeFollowup rejects out-of-order and out-of-range steps', async () => {
-      const c = await createSeqCampaign('seq-order');
-      const sent = await sendInitial(c.id);
-      await backdateSent(sent.id, 10);
-      await expect(
-        run(() =>
-          svc.proposeFollowup({ conversationId: sent.conversationId!, step: 2, draftBody: 'x' }),
-        ),
-      ).rejects.toThrow(/out of order/);
-
-      const short = await createSeqCampaign('seq-range', [{ waitDays: 1, brief: 'only step' }]);
-      const sent2 = await sendInitial(short.id);
-      await backdateSent(sent2.id, 5);
-      const p1 = await run(() =>
-        svc.proposeFollowup({ conversationId: sent2.conversationId!, step: 1, draftBody: 'bump' }),
-      );
-      const approved = await run(() =>
-        svc.approveProposal(p1.id, { publicBaseUrl: 'https://test.local', fingerprint: p1.draftFingerprint }),
-      );
-      await backdateSent(approved.id, 2);
-      await expect(
-        run(() =>
-          svc.proposeFollowup({ conversationId: sent2.conversationId!, step: 2, draftBody: 'x' }),
-        ),
-      ).rejects.toThrow(/no sequence step/);
-    });
-
-    it('proposeFollowup rejects once the prospect replied (stop-on-reply)', async () => {
-      const c = await createSeqCampaign('seq-replied');
-      const sent = await sendInitial(c.id);
-      await backdateSent(sent.id, 4);
-      await insertInbound(sent.conversationId!);
-      await expect(
-        run(() =>
-          svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'x' }),
-        ),
-      ).rejects.toThrow(ConflictException);
-    });
-
-    it('a dismissed follow-up permanently blocks that step', async () => {
-      const c = await createSeqCampaign('seq-dismissed');
-      const sent = await sendInitial(c.id);
-      await backdateSent(sent.id, 4);
-      const p = await run(() =>
-        svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'bump' }),
-      );
-      await run(() => svc.dismissProposal({ id: p.id, reason: 'stop chasing' }));
-      await expect(
-        run(() =>
-          svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'again' }),
-        ),
-      ).rejects.toThrow(ConflictException);
-    });
-
-    it('a withdrawn follow-up leaves the step re-proposable', async () => {
-      const c = await createSeqCampaign('seq-withdrawn');
-      const sent = await sendInitial(c.id);
-      await backdateSent(sent.id, 4);
-      const p = await run(() =>
-        svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'bump' }),
-      );
-      await run(() => svc.withdrawProposal({ id: p.id, reason: 'duplicate draft' }));
-      const refiled = await run(() =>
-        svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'better bump' }),
-      );
-      expect(refiled.status).toBe('pending');
-      expect(refiled.sequenceStep).toBe(1);
-    });
-
-    it('proposeFollowup rejects while another follow-up or reply is pending', async () => {
-      const c = await createSeqCampaign('seq-queued');
-      const sent = await sendInitial(c.id);
-      await backdateSent(sent.id, 4);
-      await run(() =>
-        svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'bump' }),
-      );
-      await expect(
-        run(() =>
-          svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'dup' }),
-        ),
-      ).rejects.toThrow(ConflictException);
-
-      const c2 = await createSeqCampaign('seq-queued-reply');
-      const sent2 = await sendInitial(c2.id);
-      await backdateSent(sent2.id, 4);
-      await run(() =>
-        svc.proposeReply({ conversationId: sent2.conversationId!, draftBody: 'manual reply draft' }),
-      );
-      await expect(
-        run(() =>
-          svc.proposeFollowup({ conversationId: sent2.conversationId!, step: 1, draftBody: 'x' }),
-        ),
-      ).rejects.toThrow(ConflictException);
-    });
-
-    it('proposeFollowup rejects a suppressed contact', async () => {
-      const c = await createSeqCampaign('seq-suppressed');
-      const sent = await sendInitial(c.id);
-      await backdateSent(sent.id, 4);
-      await db
-        .update(schema.crmContacts)
-        .set({ doNotContact: true })
-        .where(eq(schema.crmContacts.id, contactId));
-      await expect(
-        run(() =>
-          svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'x' }),
-        ),
-      ).rejects.toThrow(OutreachInvalidError);
-    });
-
-    it('approveFollowup sends verbatim on the same conversation and bumps lastContactedAt', async () => {
-      const c = await createSeqCampaign('seq-approve');
-      const sent = await sendInitial(c.id);
-      await backdateSent(sent.id, 4);
-      await db
-        .update(schema.crmContacts)
-        .set({ lastContactedAt: null })
-        .where(eq(schema.crmContacts.id, contactId));
-      const p = await run(() =>
-        svc.proposeFollowup({
-          conversationId: sent.conversationId!,
-          step: 1,
-          draftBody: 'Circling back on my last note.',
-        }),
-      );
-      const approved = await run(() =>
-        svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint }),
-      );
-      expect(approved.status).toBe('sent');
-      expect(approved.conversationId).toBe(sent.conversationId);
-      expect(approved.sequenceStep).toBe(1);
-      const msgRows = await db.execute<{ body: string }>(
-        sql`SELECT body FROM conv_messages WHERE id = ${approved.sentMessageId!}`,
-      );
-      expect(msgRows[0]!.body).toBe('Circling back on my last note.');
-      expect(msgRows[0]!.body).not.toContain('Unsubscribe');
-      const contactRows = await db.execute<{ last_contacted_at: Date | null }>(
-        sql`SELECT last_contacted_at FROM crm_contacts WHERE id = ${contactId}`,
-      );
-      expect(contactRows[0]!.last_contacted_at).not.toBeNull();
-    });
-
-    it('approveFollowup refuses when a reply landed after drafting; proposal stays pending', async () => {
-      const c = await createSeqCampaign('seq-approve-race');
-      const sent = await sendInitial(c.id);
-      await backdateSent(sent.id, 4);
-      const p = await run(() =>
-        svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'bump' }),
-      );
-      await insertInbound(sent.conversationId!);
-      await expect(
-        run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint })),
+        run(() => svc.approveProposal(pending.id, { publicBaseUrl: 'https://test.local', fingerprint: pending.draftFingerprint })),
       ).rejects.toThrow(/replied after this follow-up was drafted/);
-      const rows = await db.execute<{ status: string }>(
-        sql`SELECT status FROM outreach_proposals WHERE id = ${p.id}`,
-      );
-      expect(rows[0]!.status).toBe('pending');
-    });
-
-    it('approveFollowup refuses on a disabled campaign or suppressed contact', async () => {
-      const c = await createSeqCampaign('seq-approve-disabled');
-      const sent = await sendInitial(c.id);
-      await backdateSent(sent.id, 4);
-      const p = await run(() =>
-        svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'bump' }),
-      );
-      await run(() => svc.updateCampaign({ id: c.id, patch: { enabled: false } }));
-      await expect(
-        run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint })),
-      ).rejects.toThrow(/disabled/);
-
-      await run(() => svc.updateCampaign({ id: c.id, patch: { enabled: true } }));
-      await db
-        .update(schema.crmContacts)
-        .set({ unsubscribedAt: new Date() })
-        .where(eq(schema.crmContacts.id, contactId));
-      await expect(
-        run(() => svc.approveProposal(p.id, { publicBaseUrl: 'https://test.local', fingerprint: p.draftFingerprint })),
-      ).rejects.toThrow(/no longer eligible/);
-    });
-
-    it('approves and sends even though every outreach conversation is draft_only by construction', async () => {
-      const c = await createSeqCampaign('seq-draft-only-exempt');
-      const sent = await sendInitial(c.id);
-      await backdateSent(sent.id, 10);
-
-      const [conv] = await db
-        .select({ agentMode: schema.convConversations.agentMode })
-        .from(schema.convConversations)
-        .where(eq(schema.convConversations.id, sent.conversationId!));
-      expect(conv!.agentMode).toBe('draft_only');
-
-      const proposal = await run(() =>
-        svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'bump' }),
-      );
-      const delivered = await run(() =>
-        svc.approveProposal(proposal.id, {
-          publicBaseUrl: 'https://test.local',
-          fingerprint: proposal.draftFingerprint,
-        }),
-      );
-      expect(delivered.status).toBe('sent');
-
-      const messages = await db
-        .select({ body: schema.convMessages.body, internal: schema.convMessages.internal })
-        .from(schema.convMessages)
-        .where(eq(schema.convMessages.conversationId, sent.conversationId!));
-      expect(messages.some((m) => m.body.includes('bump') && !m.internal)).toBe(true);
-    });
-
-    it('step 2 anchors on the sent step-1 follow-up', async () => {
-      const c = await createSeqCampaign('seq-chain');
-      const sent = await sendInitial(c.id);
-      await backdateSent(sent.id, 10);
-      const p1 = await run(() =>
-        svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'bump' }),
-      );
-      const f1 = await run(() =>
-        svc.approveProposal(p1.id, { publicBaseUrl: 'https://test.local', fingerprint: p1.draftFingerprint }),
-      );
-      await expect(
-        run(() =>
-          svc.proposeFollowup({ conversationId: sent.conversationId!, step: 2, draftBody: 'case study' }),
-        ),
-      ).rejects.toThrow(/not due until/);
-      await backdateSent(f1.id, 5);
-      const p2 = await run(() =>
-        svc.proposeFollowup({ conversationId: sent.conversationId!, step: 2, draftBody: 'case study' }),
-      );
-      expect(p2.sequenceStep).toBe(2);
-    });
-
-    describe('listDueFollowups', () => {
-      it('returns a due row with the next step and its brief', async () => {
-        const c = await createSeqCampaign('due-basic');
-        const sent = await sendInitial(c.id);
-        await backdateSent(sent.id, 4);
-        const due = await run(() => svc.listDueFollowups({}));
-        expect(due).toHaveLength(1);
-        expect(due[0]).toMatchObject({
-          campaignId: c.id,
-          campaignName: 'due-basic',
-          contactId,
-          conversationId: sent.conversationId,
-          nextStep: 1,
-          stepBrief: 'gentle bump',
-          waitDays: 3,
-        });
-      });
-
-      it('excludes rows that are not yet due', async () => {
-        const c = await createSeqCampaign('due-early');
-        const sent = await sendInitial(c.id);
-        await backdateSent(sent.id, 2);
-        expect(await run(() => svc.listDueFollowups({}))).toEqual([]);
-      });
-
-      it('excludes replied conversations', async () => {
-        const c = await createSeqCampaign('due-replied');
-        const sent = await sendInitial(c.id);
-        await backdateSent(sent.id, 4);
-        await insertInbound(sent.conversationId!);
-        expect(await run(() => svc.listDueFollowups({}))).toEqual([]);
-      });
-
-      it('keeps a step due when the only inbound message is an out-of-office auto-reply', async () => {
-        const c = await createSeqCampaign('due-auto-reply');
-        const sent = await sendInitial(c.id);
-        await backdateSent(sent.id, 4);
-        await insertInbound(sent.conversationId!, { suppressed: 'auto_reply' });
-        const due = await run(() => svc.listDueFollowups({}));
-        expect(due.map((d) => d.nextStep)).toEqual([1]);
-      });
-
-      it('excludes pairs with a pending follow-up or reply draft', async () => {
-        const c = await createSeqCampaign('due-pending');
-        const sent = await sendInitial(c.id);
-        await backdateSent(sent.id, 4);
-        await run(() =>
-          svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'bump' }),
-        );
-        expect(await run(() => svc.listDueFollowups({}))).toEqual([]);
-      });
-
-      it('excludes sequences stopped by a dismissed step', async () => {
-        const c = await createSeqCampaign('due-dismissed');
-        const sent = await sendInitial(c.id);
-        await backdateSent(sent.id, 4);
-        const p = await run(() =>
-          svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'bump' }),
-        );
-        await run(() => svc.dismissProposal({ id: p.id }));
-        expect(await run(() => svc.listDueFollowups({}))).toEqual([]);
-      });
-
-      it('keeps a step due after the agent withdraws its own follow-up draft', async () => {
-        const c = await createSeqCampaign('due-withdrawn');
-        const sent = await sendInitial(c.id);
-        await backdateSent(sent.id, 4);
-        const p = await run(() =>
-          svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'bump' }),
-        );
-        await run(() => svc.withdrawProposal({ id: p.id, reason: 'wrong case study' }));
-        const due = await run(() => svc.listDueFollowups({}));
-        expect(due.map((d) => d.nextStep)).toEqual([1]);
-      });
-
-      it('excludes disabled campaigns, exhausted sequences, and campaigns without steps', async () => {
-        const c = await createSeqCampaign('due-disabled');
-        const sent = await sendInitial(c.id);
-        await backdateSent(sent.id, 4);
-        await run(() => svc.updateCampaign({ id: c.id, patch: { enabled: false } }));
-        expect(await run(() => svc.listDueFollowups({}))).toEqual([]);
-
-        await run(() => svc.updateCampaign({ id: c.id, patch: { enabled: true, sequenceSteps: [] } }));
-        expect(await run(() => svc.listDueFollowups({}))).toEqual([]);
-      });
-
-      it('excludes suppressed contacts and closed conversations', async () => {
-        const c = await createSeqCampaign('due-floor');
-        const sent = await sendInitial(c.id);
-        await backdateSent(sent.id, 4);
-        await db
-          .update(schema.crmContacts)
-          .set({ doNotContact: true })
-          .where(eq(schema.crmContacts.id, contactId));
-        expect(await run(() => svc.listDueFollowups({}))).toEqual([]);
-
-        await db
-          .update(schema.crmContacts)
-          .set({ doNotContact: false })
-          .where(eq(schema.crmContacts.id, contactId));
-        await db.execute(
-          sql`UPDATE conv_conversations SET status = 'closed' WHERE id = ${sent.conversationId!}`,
-        );
-        expect(await run(() => svc.listDueFollowups({}))).toEqual([]);
-      });
-
-      it('anchors step 2 on the sent step-1 follow-up and surfaces its brief', async () => {
-        const c = await createSeqCampaign('due-chain');
-        const sent = await sendInitial(c.id);
-        await backdateSent(sent.id, 8);
-        const p1 = await run(() =>
-          svc.proposeFollowup({ conversationId: sent.conversationId!, step: 1, draftBody: 'bump' }),
-        );
-        const f1 = await run(() =>
-          svc.approveProposal(p1.id, { publicBaseUrl: 'https://test.local', fingerprint: p1.draftFingerprint }),
-        );
-        await backdateSent(f1.id, 5);
-        const due = await run(() => svc.listDueFollowups({}));
-        expect(due).toHaveLength(1);
-        expect(due[0]).toMatchObject({
-          nextStep: 2,
-          stepBrief: 'share a relevant case study',
-          waitDays: 4,
-        });
-      });
-
-      it('holds back contacts at their maxPerWeekPerContact budget until the window clears', async () => {
-        const c = await createSeqCampaign('due-weekly-cap', STEPS, {
-          cadenceRules: { maxPerWeekPerContact: 1 },
-        });
-        const sent = await sendInitial(c.id);
-        await backdateSent(sent.id, 4);
-        expect(await run(() => svc.listDueFollowups({}))).toEqual([]);
-
-        await backdateSent(sent.id, 8);
-        const due = await run(() => svc.listDueFollowups({}));
-        expect(due).toHaveLength(1);
-        expect(due[0]!.nextStep).toBe(1);
-      });
-
-      it('allows a follow-up when the weekly budget has headroom', async () => {
-        const c = await createSeqCampaign('due-weekly-headroom', STEPS, {
-          cadenceRules: { maxPerWeekPerContact: 2 },
-        });
-        const sent = await sendInitial(c.id);
-        await backdateSent(sent.id, 4);
-        expect(await run(() => svc.listDueFollowups({}))).toHaveLength(1);
-      });
-
-      it('excludes everything on a blackout date; other dates do not gate', async () => {
-        const todayRows = await db.execute<{ today: string }>(
-          sql`SELECT to_char(now(), 'YYYY-MM-DD') AS today`,
-        );
-        const today = todayRows[0]!.today;
-
-        const c = await createSeqCampaign('due-blackout', STEPS, {
-          cadenceRules: { blackoutDates: [today] },
-        });
-        const sent = await sendInitial(c.id);
-        await backdateSent(sent.id, 4);
-        expect(await run(() => svc.listDueFollowups({}))).toEqual([]);
-
-        await run(() =>
-          svc.updateCampaign({ id: c.id, patch: { cadenceRules: { blackoutDates: ['2020-01-01'] } } }),
-        );
-        expect(await run(() => svc.listDueFollowups({}))).toHaveLength(1);
-      });
-
-      it('quiet hours do not gate the due-scan (drafting is not sending)', async () => {
-        const c = await createSeqCampaign('due-quiet-hours', STEPS, {
-          cadenceRules: { quietHoursStart: '00:00', quietHoursEnd: '23:59' },
-        });
-        const sent = await sendInitial(c.id);
-        await backdateSent(sent.id, 4);
-        expect(await run(() => svc.listDueFollowups({}))).toHaveLength(1);
-      });
-
-      it('filters by campaignId', async () => {
-        const c = await createSeqCampaign('due-filter');
-        const sent = await sendInitial(c.id);
-        await backdateSent(sent.id, 4);
-        expect(await run(() => svc.listDueFollowups({ campaignId: c.id }))).toHaveLength(1);
-        expect(await run(() => svc.listDueFollowups({ campaignId: 'ocmp_nonexistent' }))).toEqual([]);
-      });
+      expect((await run(() => svc.getProposal(pending.id))).status).toBe('pending');
     });
   });
 
@@ -2447,19 +1961,6 @@ const skipReason = TEST_URL
       expect(messages[0]!.body).toBe('Kort melding.');
     });
 
-    it('rejects sequence steps on an sms campaign', async () => {
-      await expect(
-        run(() =>
-          svc.createCampaign({
-            name: 'sms-with-steps',
-            brief: 'b',
-            segmentId,
-            channelId: smsChannelId,
-            sequenceSteps: [{ waitDays: 3, brief: 'bump' }],
-          }),
-        ),
-      ).rejects.toBeInstanceOf(OutreachInvalidError);
-    });
   });
 
   describe('extractionSchema', () => {

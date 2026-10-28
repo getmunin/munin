@@ -6,7 +6,7 @@ audiences: [admin]
 
 # Review pending outreach proposals
 
-Every outbound message in Munin ships through a human-approved gate: curators file drafts as **pending proposals** (`skill://outreach/draft-first-touch-email`, `skill://outreach/draft-first-touch-sms`, `skill://outreach/draft-first-touch-call`, `skill://outreach/draft-reply-email`, `skill://outreach/draft-followup-email`), and nothing leaves the org until an operator — or an admin agent acting on their explicit instruction — decides each one. This skill is that decision pass.
+Every outbound message in Munin ships through a human-approved gate: curators file drafts as **pending proposals** (`skill://outreach/draft-first-touch-email`, `skill://outreach/draft-first-touch-sms`, `skill://outreach/draft-first-touch-call`, `skill://outreach/draft-reply-email`), and nothing leaves the org until an operator — or an admin agent acting on their explicit instruction — decides each one. This skill is that decision pass.
 
 **Calls and text messages are approved in the dashboard, never here.** A proposal whose campaign runs on a voice or SMS channel can only be approved by a signed-in person in the Munin dashboard. `outreach_approve_proposal` refuses every other caller — an agent, an admin API key, the Slack button — with `outreach_invalid: … approved by a signed-in person in the Munin dashboard`. That is the safety floor for outbound calling, not a configuration you can route around: don't retry, don't look for another tool, and don't ask for a credential that would work. Present the draft, say it is waiting for someone to place the call from the dashboard inbox, and stop. You can still `outreach_update_proposal`, `outreach_withdraw_proposal`, and `outreach_dismiss_proposal` on these — none of them send anything.
 
@@ -14,14 +14,14 @@ Every outbound message in Munin ships through a human-approved gate: curators fi
 
 **Approval is bound to the draft, not to the id.** Every proposal carries a `draftFingerprint` — a digest of the campaign, the recipient, the subject, the body and the proposed send time — and `outreach_approve_proposal` requires it: `{ "id": "...", "fingerprint": "..." }`. Pass the fingerprint that came with the draft you actually read. If the draft moved since then — anyone's revision, yours included — the fingerprint no longer matches, the call fails with `outreach_conflict`, nothing is sent and the proposal stays pending. Don't re-fetch the proposal and retry with the new fingerprint: that is precisely the "approve whatever runs next" failure the check exists to stop. Re-read the current draft, present it, and get the operator's word on *that* text.
 
-**Dismissing a follow-up stops the sequence.** A dismissed `followup` permanently ends the campaign's follow-up sequence for that contact — no later step will be drafted. That makes dismiss the right call for "stop chasing this person" and the wrong call for "reword this". For wording, revise the draft in place (below) or edit it in the dashboard review drawer, then approve the edited version.
+**Follow-ups left over from campaign sequences.** Campaigns no longer run follow-up sequences — those are journeys now — so nothing drafts a new `followup`. One drafted before that can still be approved, revised or dismissed like any other proposal. For wording, revise the draft in place (below) or edit it in the dashboard review drawer, then approve the edited version.
 
 ## Five verbs, five different meanings
 
 | Tool | Who it's for | What it means |
 |---|---|---|
 | `outreach_approve_proposal` | operator | Send it — now, or at a named time. Email only — voice and SMS are dashboard-only. |
-| `outreach_dismiss_proposal` | operator | *Rejected.* A judgement about this draft; on a `followup` it also stops the sequence. |
+| `outreach_dismiss_proposal` | operator | *Rejected.* A judgement about this draft. |
 | `outreach_cancel_scheduled_send` | operator | *Not at that time after all.* Pulls an approved send back to `pending`; nothing was sent. |
 | `outreach_update_proposal` | agent | Same proposal, better text. Recipient and campaign are fixed. |
 | `outreach_withdraw_proposal` | agent | *Never mind* — the draft should not have been filed. Neutral. |
@@ -67,7 +67,7 @@ That flag is the point. **Never revise a draft an operator is mid-review on and 
 
 `outreach_withdraw_proposal({ "id": "...", "reason": "..." })` retracts a pending proposal you should not have filed: you drafted the same person twice, the prospect turned out not to qualify, the address bounced, the campaign premise no longer holds. Nothing is sent and `reason` is required.
 
-Withdrawal is deliberately neutral. It does **not** suppress the contact, does **not** touch their consent, and does **not** stop a campaign sequence — a withdrawn `followup` leaves that step eligible again, unlike a dismissed one. If the contact genuinely should never be contacted again, that is a suppression decision: `crm_set_contact_consent` / the do-not-contact flag, not a withdrawal.
+Withdrawal is deliberately neutral. It does **not** suppress the contact and does **not** touch their consent. If the contact genuinely should never be contacted again, that is a suppression decision: `crm_set_contact_consent` / the do-not-contact flag, not a withdrawal.
 
 Because withdrawal clears the pending slot for that (campaign, contact, kind), you can withdraw a bad draft and file a corrected one. Prefer `outreach_update_proposal` when the recipient is right and only the text is wrong — withdraw-and-refile loses the review history.
 

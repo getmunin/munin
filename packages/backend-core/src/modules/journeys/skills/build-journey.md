@@ -17,7 +17,7 @@ A journey is a versioned graph that moves each contact through triggers, waits, 
    - Product events the org's backend sends: `analytics_list_product_event_names`. Only names listed there will ever arrive; ask the operator before relying on one that is not.
    - Saved audiences: `crm_list_segments`. Segment filters can include behaviour, for example "did not trigger `teammate.invited` within 5 days".
    - Email layouts: `outreach_list_email_templates`.
-3. Pick the email channel to send from with `conv_list_channels` (type `email`). If the operator already runs an outreach campaign with a first touch and follow-up steps for this goal, `journeys_create_from_campaign` turns it into a draft journey (agent-drafted emails, waits, a reply ends the sequence) to adapt instead of starting from scratch; the campaign keeps sending its own emails until the journey is published, then the journey takes over.
+3. Pick the email channel to send from with `conv_list_channels` (type `email`). If the operator already runs an outreach campaign with a first touch and follow-up steps for this goal, `journeys_create_from_campaign` turns it into a draft journey (agent-drafted emails, waits, a reply ends the sequence) to adapt instead of starting from scratch; the campaign keeps sending its own first touches until the journey is published, then the journey takes over. Campaigns no longer run follow-up steps themselves, so a campaign that still lists `sequenceSteps` needs this conversion to follow anyone up.
 
 ## Draft it
 

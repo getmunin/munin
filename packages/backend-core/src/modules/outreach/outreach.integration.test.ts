@@ -168,11 +168,9 @@ const skipReason = TEST_URL
           'outreach_get_send_rules',
           'outreach_import',
           'outreach_list_campaigns',
-          'outreach_list_due_followups',
           'outreach_list_email_templates',
           'outreach_list_proposals',
           'outreach_preview_email_template',
-          'outreach_propose_followup',
           'outreach_propose_first_touch',
           'outreach_propose_reply',
           'outreach_update_proposal',
@@ -977,113 +975,6 @@ const skipReason = TEST_URL
         arguments: { id: 'op_doesnotexist', fingerprint: 'whatever' },
       });
       expect(missing.isError).toBe(true);
-    });
-  });
-
-  it('sequence flow: create campaign with steps → send initial → list due → propose follow-up → approve sends message #2', async () => {
-    const [seqContact] = await db
-      .insert(schema.crmContacts)
-      .values({
-        orgId,
-        name: 'Seq Prospect',
-        email: 'seq@acme.com',
-        consentLawfulBasis: 'legitimate_interest',
-        consentGivenAt: new Date(),
-        consentSource: 'imported-test',
-        tags: ['priority'],
-      })
-      .returning();
-
-    await withClient(adminKey, async (c) => {
-      const campaign = firstJson(
-        (await c.callTool({
-          name: 'outreach_create_campaign',
-          arguments: {
-            name: 'seq-e2e',
-            brief: 'Sequence end-to-end.',
-            segmentId,
-            channelId,
-            enabled: true,
-            sequenceSteps: [{ waitDays: 3, brief: 'gentle bump' }],
-          },
-        })),
-      ) as { id: string; sequenceSteps: Array<{ waitDays: number; brief: string }> };
-      expect(campaign.sequenceSteps).toEqual([{ waitDays: 3, brief: 'gentle bump' }]);
-
-      const initial = firstJson(
-        (await c.callTool({
-          name: 'outreach_propose_first_touch',
-          arguments: {
-            campaignId: campaign.id,
-            contactId: seqContact!.id,
-            draftSubject: 'Hi there',
-            draftBody: 'Initial pitch.',
-          },
-        })),
-      ) as { id: string; draftFingerprint: string };
-
-      const sent = firstJson(
-        (await c.callTool({
-          name: 'outreach_approve_proposal',
-          arguments: { id: initial.id, fingerprint: initial.draftFingerprint },
-        })),
-      ) as { id: string; conversationId: string };
-
-      const notDue = firstJson(
-        (await c.callTool({ name: 'outreach_list_due_followups', arguments: {} })),
-      ) as unknown[];
-      expect(notDue).toEqual([]);
-
-      await db
-        .update(schema.outreachProposals)
-        .set({ sentAt: sql`now() - interval '4 days'` })
-        .where(sql`id = ${sent.id}`);
-
-      const due = firstJson(
-        (await c.callTool({
-          name: 'outreach_list_due_followups',
-          arguments: { campaignId: campaign.id },
-        })),
-      ) as Array<{ conversationId: string; nextStep: number; stepBrief: string }>;
-      expect(due).toHaveLength(1);
-      expect(due[0]!.conversationId).toBe(sent.conversationId);
-      expect(due[0]!.nextStep).toBe(1);
-      expect(due[0]!.stepBrief).toBe('gentle bump');
-
-      const followup = firstJson(
-        (await c.callTool({
-          name: 'outreach_propose_followup',
-          arguments: {
-            conversationId: sent.conversationId,
-            step: 1,
-            draftBody: 'Just floating this back up.',
-          },
-        })),
-      ) as { id: string; kind: string; sequenceStep: number; draftFingerprint: string };
-      expect(followup.kind).toBe('followup');
-      expect(followup.sequenceStep).toBe(1);
-
-      const approved = firstJson(
-        (await c.callTool({
-          name: 'outreach_approve_proposal',
-          arguments: { id: followup.id, fingerprint: followup.draftFingerprint },
-        })),
-      ) as { status: string; conversationId: string; sentMessageId: string };
-      expect(approved.status).toBe('sent');
-      expect(approved.conversationId).toBe(sent.conversationId);
-
-      const msgs = await db.execute<{ count: number }>(
-        sql`SELECT COUNT(*)::int AS count FROM conv_messages WHERE conversation_id = ${sent.conversationId}`,
-      );
-      expect(msgs[0]!.count).toBe(2);
-
-      const drained = firstJson(
-        (await c.callTool({
-          name: 'outreach_list_due_followups',
-          arguments: { campaignId: campaign.id },
-        })),
-      ) as unknown[];
-      expect(drained).toEqual([]);
     });
   });
 

@@ -412,7 +412,7 @@ export class JourneyOutboxService implements ProposalKindHandler {
       unsubscribeRequired: delivery.policy.class === 'marketing',
     });
     const messageMetadata = { journeyStepRunId: proposal.journeyStepRunId };
-    const threadId = await this.channelThread(proposal.contactId, channelId);
+    const threadId = await this.channelThread(proposal.contactId, channelId, { phone: contact.phone });
     let conversationId: string;
     let messageId: string | null;
     if (threadId) {
@@ -494,7 +494,7 @@ export class JourneyOutboxService implements ProposalKindHandler {
     const body = personalizeSms(proposal.draftBody, contact.name);
     const messageMetadata = { journeyStepRunId: proposal.journeyStepRunId };
     const approvedOutreachProposalId = proposal.decidedByActorType === 'user' ? proposal.id : undefined;
-    const threadId = await this.channelThread(proposal.contactId, channelId);
+    const threadId = await this.channelThread(proposal.contactId, channelId, { endUserId: contact.endUserId });
     let conversationId: string;
     let messageId: string | null;
     if (threadId) {
@@ -560,12 +560,19 @@ export class JourneyOutboxService implements ProposalKindHandler {
     return this.outreach.getProposal(proposal.id);
   }
 
-  private async channelThread(contactId: string, channelId: string): Promise<string | null> {
+  private async channelThread(
+    contactId: string,
+    channelId: string,
+    recipient: { phone: string } | { endUserId: string },
+  ): Promise<string | null> {
     const ctx = getCurrentContext();
     const p = schema.outreachProposals;
+    const c = schema.convConversations;
     const [row] = await ctx.db
-      .select({ conversationId: p.conversationId })
+      .select({ conversationId: p.conversationId, endUserId: c.endUserId, phone: schema.convContacts.phone })
       .from(p)
+      .innerJoin(c, eq(c.id, p.conversationId))
+      .leftJoin(schema.convContacts, eq(schema.convContacts.id, c.contactId))
       .where(
         and(
           eq(p.contactId, contactId),
@@ -577,8 +584,11 @@ export class JourneyOutboxService implements ProposalKindHandler {
       )
       .orderBy(desc(p.sentAt))
       .limit(1);
-    return row?.conversationId ?? null;
+    if (!row?.conversationId) return null;
+    const same = 'phone' in recipient ? row.phone === recipient.phone : row.endUserId === recipient.endUserId;
+    return same ? row.conversationId : null;
   }
+
 
   private async emailThread(enrollmentId: string, contactId: string): Promise<string | null> {
     const ctx = getCurrentContext();

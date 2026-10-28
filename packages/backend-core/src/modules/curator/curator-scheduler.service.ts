@@ -24,8 +24,6 @@ const CRM_HYGIENE_PROMPT =
   'Run a CRM hygiene pass. Follow the skill. First fetch dismissed pairs via crm_list_merge_proposals so you do not refile rejected pairs. Then list contacts, build suspect pairs, judge each, and file high-confidence pairs as structured proposals via crm_propose_merge. Stop when there are no more new pairs to propose.';
 const OUTREACH_FIRST_TOUCH_PROMPT =
   'Run an outreach first-touch drafting pass. Follow skill://outreach/draft-first-touch-email exactly. List enabled campaigns, materialise each segment via crm_list_contacts_in_segment, dedupe via outreach_list_proposals, ground each draft in kb_search results, and file every new draft via outreach_propose_first_touch. Do NOT approve or send anything — drafts go to the operator review queue.';
-const OUTREACH_DRAFT_FOLLOWUP_PROMPT =
-  'Run an outreach follow-up pass. Follow skill://outreach/draft-followup-email exactly. List due follow-ups via outreach_list_due_followups, read each thread via conv_get_conversation, draft per the step brief, and file each via outreach_propose_followup. Do NOT approve or send anything — drafts go to the operator review queue.';
 
 interface SweepDef {
   name: string;
@@ -87,16 +85,6 @@ export class CuratorSchedulerService implements OnModuleInit {
         jobUri: 'skill://outreach/draft-first-touch-email',
         userPrompt: OUTREACH_FIRST_TOUCH_PROMPT,
         dedupeKey: 'outreach-first-touch:scheduled',
-      },
-      {
-        name: 'curator-outreach-draft-followup',
-        cron: parseEnvCron({
-          name: 'MUNIN_CURATOR_OUTREACH_FOLLOWUP_CRON',
-          default: CronExpression.EVERY_DAY_AT_MIDNIGHT,
-        }),
-        jobUri: 'skill://outreach/draft-followup-email',
-        userPrompt: OUTREACH_DRAFT_FOLLOWUP_PROMPT,
-        dedupeKey: 'outreach-draft-followup:scheduled',
       },
       {
         name: 'curator-journeys-optimise',

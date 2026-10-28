@@ -130,7 +130,7 @@ If the campaign declares an `extractionSchema`, every inbound reply also trigger
 - `skill://outreach/draft-first-touch-sms` — the same pass on an SMS campaign, capped at 480 characters of plain text.
 - `skill://outreach/draft-first-touch-call` — the same pass on a voice campaign, where you draft what an AI agent says when the call connects.
 
-- `skill://outreach/draft-followup-email` — drafts the next sequence step when an initial filed by this pass sits unanswered past a campaign's `sequenceSteps` wait period.
+- `skill://journeys/build-journey` — a follow-up sequence after the first touch is a journey: waits, follow-up emails and a reply that ends it. Campaigns no longer run follow-up sequences of their own.
 - `skill://kb/review-content` — symmetric pattern (per-conversation curator that proposes, human approves) for KB instead of outreach.
 - `skill://crm/clean-contact-data` — population-level dedup that catches duplicates this and other curators create.
 - `skill://crm/extract-contact-from-message` — auto-applied (NOT propose-and-review) per-conversation contact creation. The asymmetry vs this skill: extracting what the user typed is faithful transcription; drafting outreach is generative — different risk profiles.

@@ -165,7 +165,7 @@ export function ReviewOutreachPane({
               {kindLabel}
             </Pill>
             <span className="ml-auto font-mono text-[10px] font-medium uppercase tracking-meta text-ink-mute">
-              {proposal.campaign?.name ?? t('campaignUnknown')} · {age(item.createdAt)}
+              {(proposal.journey?.name ?? proposal.campaign?.name) ?? t('campaignUnknown')} · {age(item.createdAt)}
             </span>
           </div>
           <h2 className="font-serif text-[26px] font-normal leading-[1.1] tracking-tight text-ink md:text-[29px] dark:text-foreground">

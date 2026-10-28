@@ -1547,6 +1547,25 @@ export class ConvService {
     return { deleted: true, id: conversationId };
   }
 
+  private async isApprovedOutboxSend(proposalId: string, conversationId: string): Promise<boolean> {
+    const ctx = getCurrentContext();
+    const p = schema.outreachProposals;
+    const [row] = await ctx.db
+      .select({ id: p.id })
+      .from(p)
+      .where(
+        and(
+          eq(p.orgId, ctx.actor!.orgId),
+          eq(p.id, proposalId),
+          inArray(p.status, ['pending', 'approved']),
+          isNotNull(p.decidedAt),
+          or(isNull(p.conversationId), eq(p.conversationId, conversationId)),
+        ),
+      )
+      .limit(1);
+    return Boolean(row);
+  }
+
   async sendMessage(input: {
     conversationId: string;
     body: string;
@@ -1561,6 +1580,7 @@ export class ConvService {
     fromDraftId?: string;
     approvalBody?: string;
     approvedOutreachProposalId?: string;
+    outboxProposalId?: string;
     attachmentIds?: string[];
     bodyHtml?: string;
     messageMetadata?: Record<string, unknown>;
@@ -1610,7 +1630,9 @@ export class ConvService {
       }
     }
 
-    const reviewedElsewhere = Boolean(input.fromDraftId || conv.outreachCampaignId);
+    const reviewedElsewhere =
+      Boolean(input.fromDraftId || conv.outreachCampaignId) ||
+      (input.outboxProposalId ? await this.isApprovedOutboxSend(input.outboxProposalId, input.conversationId) : false);
     if (isPublicAgentReply && !reviewedElsewhere) {
       const mode = await this.effectiveAgentModeOf(input.conversationId);
       if (mode === 'draft_only') throw new AgentSendNotAutoError(input.conversationId);

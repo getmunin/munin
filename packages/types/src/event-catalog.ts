@@ -102,6 +102,7 @@ export const JOURNEY_EVENT_TYPES = [
   'journey.created',
   'journey.version.publish_requested',
   'journey.version.published',
+  'journey.sender.changed',
   'journey.change.proposed',
   'journey.approval.requested',
   'journey.approval.decided',

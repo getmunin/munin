@@ -681,28 +681,36 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     pendingCount: number;
   } | null> {
     const [proposal] = await this.db
-      .select({ campaignId: schema.outreachProposals.campaignId })
+      .select({ campaignId: schema.outreachProposals.campaignId, journeyId: schema.outreachProposals.journeyId })
       .from(schema.outreachProposals)
       .where(eq(schema.outreachProposals.id, proposalId))
       .limit(1);
     if (!proposal) return null;
-    const [campaign] = await this.db
-      .select({ name: schema.outreachCampaigns.name })
-      .from(schema.outreachCampaigns)
-      .where(eq(schema.outreachCampaigns.id, proposal.campaignId))
-      .limit(1);
+    const p = schema.outreachProposals;
+    const group = proposal.campaignId
+      ? { id: proposal.campaignId, filter: eq(p.campaignId, proposal.campaignId) }
+      : proposal.journeyId
+        ? { id: proposal.journeyId, filter: and(eq(p.journeyId, proposal.journeyId), isNull(p.campaignId)) }
+        : null;
+    if (!group) return null;
+    const [named] = proposal.campaignId
+      ? await this.db
+          .select({ name: schema.outreachCampaigns.name })
+          .from(schema.outreachCampaigns)
+          .where(eq(schema.outreachCampaigns.id, proposal.campaignId))
+          .limit(1)
+      : await this.db
+          .select({ name: schema.journeys.name })
+          .from(schema.journeys)
+          .where(eq(schema.journeys.id, proposal.journeyId!))
+          .limit(1);
     const [pending] = await this.db
       .select({ count: sql<number>`count(*)::int` })
-      .from(schema.outreachProposals)
-      .where(
-        and(
-          eq(schema.outreachProposals.campaignId, proposal.campaignId),
-          eq(schema.outreachProposals.status, 'pending'),
-        ),
-      );
+      .from(p)
+      .where(and(group.filter, eq(p.status, 'pending')));
     return {
-      campaignId: proposal.campaignId,
-      campaignName: campaign?.name ?? 'a campaign',
+      campaignId: group.id,
+      campaignName: named?.name ?? (proposal.campaignId ? 'a campaign' : 'a journey'),
       pendingCount: pending?.count ?? 0,
     };
   }
@@ -1225,7 +1233,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
         .where(eq(schema.outreachProposals.id, subject.subjectId))
         .limit(1);
       if (!proposal && !outcome) throw new TerminalDeliveryError('subject_missing');
-      const [campaign] = proposal
+      const [campaign] = proposal?.campaignId
         ? await this.db
             .select({ name: schema.outreachCampaigns.name })
             .from(schema.outreachCampaigns)

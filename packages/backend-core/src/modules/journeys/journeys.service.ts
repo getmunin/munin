@@ -7,7 +7,6 @@ import {
   Optional,
 } from '@nestjs/common';
 import { LLM_AVAILABILITY, type LlmAvailability } from './llm-availability.ts';
-import { OutreachService } from '../outreach/outreach.service.ts';
 import { createHash } from 'node:crypto';
 import { schema } from '@getmunin/db';
 import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
@@ -31,7 +30,8 @@ export interface JourneyDto {
   id: string;
   name: string;
   description: string | null;
-  outreachCampaignId: string;
+  outreachCampaignId: string | null;
+  senderChannelId: string | null;
   status: JourneyStatus;
   liveVersion: number | null;
   draftVersion: number | null;
@@ -73,16 +73,11 @@ const EMPTY_SPEC: RawSpec = {
   nodes: [{ id: 'done', type: 'exit', reason: 'reached_end' }],
 };
 
-interface JourneyCampaignCreator {
-  createJourneyCampaign(input: { name: string; brief: string; channelId: string }): Promise<{ id: string }>;
-}
-
 @Injectable()
 export class JourneysService {
   constructor(
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Optional() @Inject(LLM_AVAILABILITY) private readonly llm: LlmAvailability | null = null,
-    @Optional() @Inject(OutreachService) private readonly campaigns: JourneyCampaignCreator | null = null,
   ) {}
 
   async list(input: { status?: JourneyStatus; limit?: number } = {}): Promise<JourneyDto[]> {
@@ -153,15 +148,17 @@ export class JourneysService {
       .limit(1);
     if (taken) throw new ConflictException(`journeys_conflict: a journey named "${input.name}" already exists`);
 
-    const outreachCampaignId = input.outreachCampaignId
+    const sender = input.outreachCampaignId
       ? await this.assertCampaignAvailable(orgId, input.outreachCampaignId)
-      : await this.createSenderCampaign(orgId, input.name, input.description, input.senderChannelId!);
+      : { campaignId: null, channelId: await this.assertSenderChannel(orgId, input.senderChannelId!) };
+    const outreachCampaignId = sender.campaignId;
 
     const [journey] = await ctx.db
       .insert(schema.journeys)
       .values({
         orgId,
         outreachCampaignId,
+        senderChannelId: sender.channelId,
         name: input.name,
         description: input.description ?? null,
         createdByActorType: actor.type,
@@ -176,10 +173,54 @@ export class JourneysService {
     return this.get(journey!.id);
   }
 
-  private async assertCampaignAvailable(orgId: string, campaignId: string): Promise<string> {
+  async updateSender(id: string, channelId: string): Promise<JourneyDto> {
+    await this.lockRow(id);
+    const row = await this.load(id);
+    if (row.status === 'archived') throw new ConflictException(`journeys_conflict: journey ${id} is archived`);
+    if (row.outreachCampaignId) {
+      throw new ConflictException(
+        `journeys_conflict: journey ${id} sends through outreach campaign ${row.outreachCampaignId}; change the sender there while the journey is not live`,
+      );
+    }
+    const senderChannelId = await this.assertSenderChannel(row.orgId, channelId);
+    const ctx = getCurrentContext();
+    const [updated] = await ctx.db
+      .update(schema.journeys)
+      .set({ senderChannelId, updatedAt: new Date() })
+      .where(eq(schema.journeys.id, id))
+      .returning();
+    await ctx.db.execute(sql`
+      UPDATE outreach_proposals
+         SET channel_id = ${senderChannelId}, updated_at = now()
+       WHERE journey_id = ${id}
+         AND status IN ('pending', 'approved')
+         AND journey_delivery->>'channel' = 'email'
+    `);
+    await this.webhooks.emit({ type: 'journey.sender.changed', payload: { journeyId: id, senderChannelId } });
+    const drafts = await this.draftNumbers([id]);
+    return toJourneyDto(updated!, drafts.get(id) ?? null);
+  }
+
+  private async assertSenderChannel(orgId: string, channelId: string): Promise<string> {
+    const ctx = getCurrentContext();
+    const [channel] = await ctx.db
+      .select({ id: schema.convChannels.id, type: schema.convChannels.type })
+      .from(schema.convChannels)
+      .where(and(eq(schema.convChannels.orgId, orgId), eq(schema.convChannels.id, channelId)))
+      .limit(1);
+    if (!channel) throw new NotFoundException(`journeys_not_found: channel ${channelId}`);
+    if (channel.type !== 'email') {
+      throw new BadRequestException(
+        `journeys_invalid: journeys send from an email channel for now; channel ${channelId} is ${channel.type}`,
+      );
+    }
+    return channel.id;
+  }
+
+  private async assertCampaignAvailable(orgId: string, campaignId: string): Promise<{ campaignId: string; channelId: string }> {
     const ctx = getCurrentContext();
     const [campaign] = await ctx.db
-      .select({ id: schema.outreachCampaigns.id, channelType: schema.convChannels.type })
+      .select({ id: schema.outreachCampaigns.id, channelId: schema.outreachCampaigns.channelId, channelType: schema.convChannels.type })
       .from(schema.outreachCampaigns)
       .innerJoin(schema.convChannels, eq(schema.convChannels.id, schema.outreachCampaigns.channelId))
       .where(and(eq(schema.outreachCampaigns.orgId, orgId), eq(schema.outreachCampaigns.id, campaignId)))
@@ -196,45 +237,7 @@ export class JourneysService {
       .where(and(eq(schema.journeys.outreachCampaignId, campaignId), ne(schema.journeys.status, 'archived')))
       .limit(1);
     if (running) throw new ConflictException(`journeys_conflict: campaign ${campaignId} already has journey ${running.id}`);
-    return campaign.id;
-  }
-
-  private async createSenderCampaign(
-    orgId: string,
-    name: string,
-    description: string | undefined,
-    channelId: string,
-  ): Promise<string> {
-    if (!this.campaigns) throw new Error('journeys: no outreach service to create the sending campaign');
-    const ctx = getCurrentContext();
-    const [channel] = await ctx.db
-      .select({ id: schema.convChannels.id, type: schema.convChannels.type })
-      .from(schema.convChannels)
-      .where(and(eq(schema.convChannels.orgId, orgId), eq(schema.convChannels.id, channelId)))
-      .limit(1);
-    if (!channel) throw new NotFoundException(`journeys_not_found: channel ${channelId}`);
-    if (channel.type !== 'email') {
-      throw new BadRequestException(
-        `journeys_invalid: journeys send from an email channel for now; channel ${channelId} is ${channel.type}`,
-      );
-    }
-    const campaignName = `${name} (journey)`;
-    const [clash] = await ctx.db
-      .select({ id: schema.outreachCampaigns.id })
-      .from(schema.outreachCampaigns)
-      .where(and(eq(schema.outreachCampaigns.orgId, orgId), eq(schema.outreachCampaigns.name, campaignName)))
-      .limit(1);
-    if (clash) {
-      throw new ConflictException(
-        `journeys_conflict: outreach campaign ${clash.id} is already named "${campaignName}"; pick another journey name`,
-      );
-    }
-    const campaign = await this.campaigns.createJourneyCampaign({
-      name: campaignName,
-      brief: description?.trim() || `Sends the emails of the journey "${name}".`,
-      channelId,
-    });
-    return campaign.id;
+    return { campaignId: campaign.id, channelId: campaign.channelId };
   }
 
   async replaceDraft(id: string, spec: RawSpec, changeSummary?: string, guard?: DraftGuard): Promise<JourneyVersionDto> {
@@ -667,6 +670,7 @@ function toJourneyDto(row: JourneyRow, draftVersion: number | null): JourneyDto 
     name: row.name,
     description: row.description,
     outreachCampaignId: row.outreachCampaignId,
+    senderChannelId: row.senderChannelId,
     status: row.status as JourneyStatus,
     liveVersion: row.liveVersion,
     draftVersion,

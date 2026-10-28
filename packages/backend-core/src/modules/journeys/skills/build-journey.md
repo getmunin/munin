@@ -6,7 +6,7 @@ audiences: [admin]
 
 # Build a journey
 
-A journey is a versioned graph that moves each contact through triggers, waits, branches, emails and actions towards one goal. It sends from one email channel. Behind the scenes it gets its own outreach campaign, which carries the sending channel and outcome-extraction fields; the journey supplies everything else, and outreach tools cannot reconfigure that campaign while the journey exists.
+A journey is a versioned graph that moves each contact through triggers, waits, branches, emails and actions towards one goal. It sends from one email channel, its `senderChannelId`; `journeys_update_sender` points it at another. Its messages still go through the outreach outbox — consent, unsubscribe, send rules and the review inbox — but a journey needs no outreach campaign. One converted from a campaign keeps that link: the campaign stops proposing while the journey runs, and outreach tools cannot reconfigure it.
 
 **You draft; a person publishes.** Every edit lands in the journey's open draft version. Published versions never change. Nothing reaches a customer until someone signed in to the Munin dashboard publishes the draft, so when the draft validates cleanly, say it is ready for review and stop.
 

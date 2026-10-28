@@ -2121,9 +2121,8 @@ export const outreachProposals = pgTable(
     orgId: text('org_id')
       .notNull()
       .references(() => orgs.id, { onDelete: 'cascade' }),
-    campaignId: text('campaign_id')
-      .notNull()
-      .references(() => outreachCampaigns.id, { onDelete: 'cascade' }),
+    campaignId: text('campaign_id').references(() => outreachCampaigns.id, { onDelete: 'cascade' }),
+    journeyId: text('journey_id').references((): AnyPgColumn => journeys.id, { onDelete: 'cascade' }),
     contactId: text('contact_id')
       .notNull()
       .references(() => crmContacts.id, { onDelete: 'cascade' }),
@@ -2173,6 +2172,7 @@ export const outreachProposals = pgTable(
   (t) => ({
     orgStatusIdx: index('outreach_proposals_org_status_idx').on(t.orgId, t.status),
     campaignIdx: index('outreach_proposals_campaign_idx').on(t.campaignId),
+    journeyIdx: index('outreach_proposals_journey_idx').on(t.journeyId),
     contactIdx: index('outreach_proposals_contact_idx').on(t.contactId),
     conversationIdx: index('outreach_proposals_conversation_idx').on(t.conversationId),
     scheduledSendIdx: index('outreach_proposals_scheduled_send_idx')
@@ -2199,9 +2199,8 @@ export const journeys = pgTable(
     orgId: text('org_id')
       .notNull()
       .references(() => orgs.id, { onDelete: 'cascade' }),
-    outreachCampaignId: text('outreach_campaign_id')
-      .notNull()
-      .references(() => outreachCampaigns.id, { onDelete: 'restrict' }),
+    outreachCampaignId: text('outreach_campaign_id').references(() => outreachCampaigns.id, { onDelete: 'restrict' }),
+    senderChannelId: text('sender_channel_id').references(() => convChannels.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
     description: text('description'),
     status: varchar('status', { length: 16 }).notNull().default('draft'),

@@ -13,6 +13,7 @@ import {
 import { DB } from '../../common/db/db.module.ts';
 
 const BROADCAST_ID_PREFIX = 'obc_';
+const JOURNEY_ID_PREFIX = 'jrn_';
 
 export type UnsubscribeState = 'invalid' | 'not_found' | 'subscribed' | 'unsubscribed';
 
@@ -77,6 +78,7 @@ export class OutreachUnsubscribeService {
         ),
       );
     const fromBroadcast = payload.campaignId.startsWith(BROADCAST_ID_PREFIX);
+    const fromJourney = payload.campaignId.startsWith(JOURNEY_ID_PREFIX);
     if (fromBroadcast) {
       await this.db
         .update(schema.outreachBroadcastRecipients)
@@ -93,7 +95,7 @@ export class OutreachUnsubscribeService {
       orgId: payload.orgId,
       type: 'note',
       subject: 'Unsubscribed',
-      body: `Unsubscribed via outreach link for ${fromBroadcast ? 'broadcast' : 'campaign'} ${payload.campaignId}`,
+      body: `Unsubscribed via outreach link for ${fromBroadcast ? 'broadcast' : fromJourney ? 'journey' : 'campaign'} ${payload.campaignId}`,
       contactId: payload.contactId,
       actorType: 'agent',
       actorId: 'outreach-unsubscribe',
@@ -110,7 +112,11 @@ export class OutreachUnsubscribeService {
           type: 'crm.contact.unsubscribed',
           payload: {
             contactId: payload.contactId,
-            ...(fromBroadcast ? { broadcastId: payload.campaignId } : { campaignId: payload.campaignId }),
+            ...(fromBroadcast
+              ? { broadcastId: payload.campaignId }
+              : fromJourney
+                ? { journeyId: payload.campaignId }
+                : { campaignId: payload.campaignId }),
             method,
           },
         }),

@@ -17,6 +17,7 @@ import { JourneyMonitorService } from './journey-monitor.service.ts';
 import { JourneyPublishingService } from './journey-publishing.service.ts';
 import { JourneySimulator } from './journey-simulator.ts';
 import { OutreachService } from '../outreach/outreach.service.ts';
+import { JourneyOutboxService } from '../outreach/journey-outbox.service.ts';
 import { CrmService } from '../crm/crm.service.ts';
 import { AddressDeliverabilityService } from '../crm/address-deliverability.service.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
@@ -97,17 +98,18 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       new AlertsService(webhooks),
       stubAttachmentGateway(),
     );
+    const email = new EmailService(new StubMailer());
     outreach = new OutreachService(
       webhooks,
       conv,
       crm,
-      new EmailService(new StubMailer()),
+      email,
       [new VapiOutreachCaller(new VapiClientService(db)), new ThrellOutreachCaller(new ThrellClientService(db)), stubCaller],
       appDb,
       new CuratorJobsService(webhooks),
     );
     journeys = new JourneysService(webhooks, null, outreach);
-    runtime = new JourneyRuntimeService(webhooks, crm, outreach, new CuratorJobsService(webhooks), conv);
+    runtime = new JourneyRuntimeService(webhooks, crm, new JourneyOutboxService(outreach, webhooks, conv, crm, email), new CuratorJobsService(webhooks), conv);
     alerts = new AlertsService(webhooks);
     publishing = new JourneyPublishingService(webhooks, journeys, new JourneySimulator(runtime));
     monitor = new JourneyMonitorService(journeys, alerts);
@@ -216,7 +218,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     settings: Record<string, unknown> = {},
     entry: Record<string, unknown> = { trigger: { type: 'manual' } },
   ) {
-    const [channel] = await db.select().from(schema.convChannels).where(eq(schema.convChannels.orgId, orgId)).limit(1);
+    const [channel] = await db.select().from(schema.convChannels).where(and(eq(schema.convChannels.orgId, orgId), eq(schema.convChannels.type, 'email'))).limit(1);
     const [campaign] = await db
       .insert(schema.outreachCampaigns)
       .values({
@@ -369,10 +371,42 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
 
   it('allows two open journey emails to the same person on one campaign', async () => {
     const ola = await contact();
-    const base = { orgId, campaignId, contactId: ola.id, kind: 'journey', draftBody: 'Hei', status: 'pending', proposedByActorType: 'system', proposedByActorId: 'journey-runtime' };
+    const base = { orgId, campaignId, contactId: ola.id, kind: 'journey', journeyDelivery: { channel: 'email', format: 'markdown', templateId: null, templateHash: null, preheader: null, policy: { class: 'marketing', cooldownHoursAfterConversation: 24 }, auto: false }, draftBody: 'Hei', status: 'pending', proposedByActorType: 'system', proposedByActorId: 'journey-runtime' };
     await db.insert(schema.outreachProposals).values({ ...base, journeyStepRunId: `jsr_${randomUUID()}` });
     await db.insert(schema.outreachProposals).values({ ...base, journeyStepRunId: `jsr_${randomUUID()}` });
     expect(await proposalsFor(ola.id)).toHaveLength(2);
+  });
+
+  it('allows delivery settings on journey proposals only', async () => {
+    const ola = await contact();
+    const base = { orgId, campaignId, contactId: ola.id, draftBody: 'Hei', status: 'pending', proposedByActorType: 'system', proposedByActorId: 'journey-runtime' };
+    const violation = { cause: { code: '23514', constraint_name: 'outreach_proposals_journey_delivery_ck' } };
+    await expect(
+      db.insert(schema.outreachProposals).values({ ...base, kind: 'journey', journeyStepRunId: `jsr_${randomUUID()}` }),
+    ).rejects.toMatchObject(violation);
+    await expect(
+      db.insert(schema.outreachProposals).values({ ...base, kind: 'initial', journeyDelivery: { channel: 'email', format: 'markdown', templateId: null, templateHash: null, preheader: null, policy: { class: 'marketing', cooldownHoursAfterConversation: 24 }, auto: false } }),
+    ).rejects.toMatchObject(violation);
+  });
+
+  it('keeps delivery settings out of the evidence and refuses to send when they are malformed', async () => {
+    const journeyId = await publish([welcome(), done]);
+    const ola = await contact();
+    await enroll(journeyId, ola.id);
+    await worker.tick();
+    const [proposal] = await proposalsFor(ola.id);
+    expect(proposal!.journeyDelivery).toMatchObject({ channel: 'email', auto: false, policy: { class: 'marketing' } });
+    expect(proposal!.evidence).not.toHaveProperty('journeyMessage');
+
+    const pending = await asAgent(() => outreach.getProposal(proposal!.id));
+    await db
+      .update(schema.outreachProposals)
+      .set({ journeyDelivery: { channel: 'fax' } })
+      .where(eq(schema.outreachProposals.id, proposal!.id));
+    await expect(
+      runAs(person, () => outreach.approveProposal(proposal!.id, { fingerprint: pending.draftFingerprint, publicBaseUrl: 'https://api.acme.test' })),
+    ).rejects.toThrow(/outreach_journey_invalid/);
+    expect((await asAgent(() => outreach.getProposal(proposal!.id))).status).toBe('pending');
   });
 
   it('skips journey proposals on import', async () => {
@@ -722,7 +756,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
   });
 
   it('refuses recipients on a person journey and calls or agent drafts in a company journey', async () => {
-    const [channel] = await db.select().from(schema.convChannels).where(eq(schema.convChannels.orgId, orgId)).limit(1);
+    const [channel] = await db.select().from(schema.convChannels).where(and(eq(schema.convChannels.orgId, orgId), eq(schema.convChannels.type, 'email'))).limit(1);
     const create = async (entry: Record<string, unknown>, node: Record<string, unknown>) => {
       const [campaign] = await db
         .insert(schema.outreachCampaigns)

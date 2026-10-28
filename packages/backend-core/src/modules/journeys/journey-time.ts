@@ -1,30 +1,7 @@
 import type { Weekday } from '@getmunin/types';
-import { inTimeWindow, localClock } from './journey-conditions.ts';
+import { localClock, nextValidTime } from '../../common/send-window.ts';
 
-const STEP_MS = 15 * 60_000;
-const SEARCH_LIMIT_MS = 8 * 86_400_000;
-
-export function nextValidTime(
-  from: Date,
-  timezone: string,
-  validDays?: readonly Weekday[],
-  validHours?: string,
-): Date {
-  if (!validDays && !validHours) return from;
-  const fits = (at: Date) => {
-    const clock = localClock(at, timezone);
-    if (validDays && !validDays.includes(clock.weekday)) return false;
-    if (validHours && !inTimeWindow(clock.minutes, validHours)) return false;
-    return true;
-  };
-  if (fits(from)) return from;
-  const start = Math.ceil(from.getTime() / STEP_MS) * STEP_MS;
-  for (let t = start; t - from.getTime() <= SEARCH_LIMIT_MS; t += STEP_MS) {
-    const at = new Date(t);
-    if (fits(at)) return at;
-  }
-  return from;
-}
+export { nextValidTime };
 
 export function stableBucket(...parts: string[]): number {
   let hash = 2166136261;

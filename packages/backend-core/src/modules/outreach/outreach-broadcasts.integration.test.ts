@@ -21,6 +21,7 @@ import { OutreachBroadcastReplySink } from './outreach-broadcast-reply.sink.ts';
 import { OutreachEmailTemplatesService } from './outreach-email-templates.service.ts';
 import { OutreachUnsubscribeService } from './outreach-unsubscribe.service.ts';
 import { OutreachInvalidError } from './outreach.service.ts';
+import { OutreachSendRulesService } from './send-rules.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 const skipReason = TEST_URL
@@ -101,6 +102,7 @@ class StubSender implements BulkEmailSender {
     ]) {
       await db.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE org_id = ${orgId}`);
     }
+    await db.execute(sql`UPDATE orgs SET settings = '{}'::jsonb WHERE id = ${orgId}`);
     sender = new StubSender();
     svc = new OutreachBroadcastsService(new WebhookDispatcher(), sender);
 
@@ -361,6 +363,49 @@ class StubSender implements BulkEmailSender {
       .where(eq(schema.crmContacts.id, kari.id));
     expect(kariAfter!.lastContactedAt).not.toBeNull();
     expect(third.id).toBeTruthy();
+  });
+
+  it('holds back recipients in their quiet hours and skips those over the weekly cap', async () => {
+    const { kari, per } = await seedAudience();
+    const first = await createBroadcast({ name: 'September changelog' });
+    await asPerson(async () =>
+      svc.approveBroadcast({ id: first.id, fingerprint: (await svc.getBroadcast(first.id)).contentFingerprint }),
+    );
+    const worker = new OutreachBroadcastWorker(db, svc, sender);
+    for (let i = 0; i < 3; i += 1) await worker.tick();
+    expect((await asAgent(() => svc.getBroadcast(first.id))).counts.sent).toBe(2);
+
+    const ola = await contact({ name: 'Ola Nordmann', email: 'ola@example.com' });
+    const eva = await contact({ name: 'Eva Nordmann', email: 'eva@example.com', customFields: { timezone: 'Pacific/Kiritimati' } });
+    const now = Date.now();
+    const hhmm = (at: number) => new Date(at).toISOString().slice(11, 16);
+    await asAgent(() =>
+      new OutreachSendRulesService().configure({
+        timezone: 'UTC',
+        quietHours: `${hhmm(now - 60 * 60_000)}-${hhmm(now + 120 * 60_000)}`,
+        validDays: null,
+        weeklyCap: 1,
+        cooldownHoursAfterConversation: 0,
+      }),
+    );
+    const second = await createBroadcast({ name: 'October changelog' });
+    await asPerson(async () =>
+      svc.approveBroadcast({ id: second.id, fingerprint: (await svc.getBroadcast(second.id)).contentFingerprint }),
+    );
+    for (let i = 0; i < 3; i += 1) await worker.tick();
+
+    const recipients = await asAgent(() => svc.listRecipients({ broadcastId: second.id }));
+    const byContact = new Map(recipients.items.map((r) => [r.contactId, r]));
+    expect(byContact.get(kari.id)).toMatchObject({ status: 'skipped', skipReason: 'frequency_cap' });
+    expect(byContact.get(per.id)).toMatchObject({ status: 'skipped', skipReason: 'frequency_cap' });
+    expect(byContact.get(eva.id)).toMatchObject({ status: 'sent' });
+    expect(byContact.get(ola.id)).toMatchObject({ status: 'queued' });
+    const [held] = await db
+      .select({ notBefore: schema.outreachBroadcastRecipients.notBefore })
+      .from(schema.outreachBroadcastRecipients)
+      .where(eq(schema.outreachBroadcastRecipients.id, byContact.get(ola.id)!.id));
+    expect(held!.notBefore!.getTime()).toBeGreaterThan(now);
+    expect((await asAgent(() => svc.getBroadcast(second.id))).status).toBe('sending');
   });
 
   it('honours a future send time and an hourly limit', async () => {

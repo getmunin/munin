@@ -974,6 +974,13 @@
       "when": 1793134230267,
       "tag": "0138_journey_managed_campaigns",
       "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1793134290267,
+      "tag": "0139_broadcast_recipient_not_before",
+      "breakpoints": true
     }
   ]
 }

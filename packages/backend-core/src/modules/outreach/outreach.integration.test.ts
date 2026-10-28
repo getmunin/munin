@@ -139,7 +139,7 @@ const skipReason = TEST_URL
     return null;
   }
 
-  it('discovers all 32 outreach tools on tools/list', async () => {
+  it('discovers all 34 outreach tools on tools/list', async () => {
     await withClient(adminKey, async (c) => {
       const { tools } = await c.listTools();
       const names = tools.map((t) => t.name).filter((n) => n.startsWith('outreach_')).sort();
@@ -156,6 +156,7 @@ const skipReason = TEST_URL
           'outreach_send_broadcast_test',
           'outreach_update_broadcast',
           'outreach_cancel_scheduled_send',
+          'outreach_configure_send_rules',
           'outreach_create_campaign',
           'outreach_create_email_template',
           'outreach_delete_email_template',
@@ -164,6 +165,7 @@ const skipReason = TEST_URL
           'outreach_get_campaign',
           'outreach_get_email_template',
           'outreach_get_proposal',
+          'outreach_get_send_rules',
           'outreach_import',
           'outreach_list_campaigns',
           'outreach_list_due_followups',

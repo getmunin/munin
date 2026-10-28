@@ -2568,6 +2568,7 @@ export const outreachBroadcastRecipients = pgTable(
     }),
     repliedAt: timestamp('replied_at', { withTimezone: true }),
     unsubscribedAt: timestamp('unsubscribed_at', { withTimezone: true }),
+    notBefore: timestamp('not_before', { withTimezone: true }),
     createdAt,
     updatedAt,
   },

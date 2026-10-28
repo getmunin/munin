@@ -35,6 +35,7 @@ const BUCKETS = {
   ai_tokens_day: 'day',
   ai_tokens_month: 'month',
   ai_generates_min: 'minute',
+  product_events_min: 'minute',
 } as const satisfies Record<string, Granularity>;
 
 export type Bucket = keyof typeof BUCKETS;

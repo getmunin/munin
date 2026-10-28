@@ -76,6 +76,8 @@ const NO_SYNTHETIC_FNR = '01819012365';
       'journeys',
       'outreach_campaigns',
       'curator_jobs',
+      'rate_limit_counters',
+      'crm_activities',
       'crm_contacts',
       'crm_segments',
       'conv_channels',
@@ -283,6 +285,51 @@ const NO_SYNTHETIC_FNR = '01819012365';
     expect(other).toMatchObject({ state: 'exited', exitReason: 'conversation_stop' });
     const [own] = await db.select().from(schema.journeyEnrollments).where(eq(schema.journeyEnrollments.id, enrollmentId));
     expect(own).toMatchObject({ state: 'done', exitReason: 'reached_end' });
+    const [stopped] = await db.select().from(schema.crmContacts).where(eq(schema.crmContacts.id, kari.id));
+    expect(stopped!.unsubscribedAt).not.toBeNull();
+    expect(stopped!.doNotContact).toBe(false);
+    const [note] = await db.select().from(schema.crmActivities).where(eq(schema.crmActivities.contactId, kari.id));
+    expect(note).toMatchObject({ subject: 'Unsubscribed', metadata: { optOut: { via: 'journey_stop', enrollmentId } } });
+  });
+
+  it('refuses an edge name that is only a property every object has', async () => {
+    const { step } = await liveJourneyWithKari();
+    for (const edge of ['toString', 'constructor', '__proto__']) {
+      await expect(runAs(curator, () => runtime.submitDecision({ stepRunId: step.id, edge, reason: 'x' }))).rejects.toThrow(
+        BadRequestException,
+      );
+    }
+  });
+
+  it('takes the fallback without asking the agent once the journey has used its agent steps for the day', async () => {
+    const journey = await asAgent(() =>
+      journeys.create({ name: `Budget ${randomUUID()}`, outreachCampaignId: campaignId, spec: { ...spec, settings: { agentStepsPerDay: 1 } } }),
+    );
+    await db
+      .update(schema.journeyVersions)
+      .set({ publishedAt: new Date(), publishedByActorId: 'usr_1' })
+      .where(eq(schema.journeyVersions.journeyId, journey.id));
+    await db.update(schema.journeys).set({ status: 'live', liveVersion: 1 }).where(eq(schema.journeys.id, journey.id));
+    const people = await db
+      .insert(schema.crmContacts)
+      .values([
+        { orgId, name: 'Kari', email: 'kari@kunde.test', consentLawfulBasis: 'contract' },
+        { orgId, name: 'Ola', email: 'ola@kunde.test', consentLawfulBasis: 'contract' },
+      ])
+      .returning();
+    for (const person of people) {
+      await asAgent(() => runtime.enroll({ journeyId: journey.id, subject: { contactId: person.id, endUserId: null }, source: { type: 'manual' } }));
+    }
+    await worker.tick();
+    await worker.tick();
+    expect(await db.select().from(schema.curatorJobs).where(eq(schema.curatorJobs.orgId, orgId))).toHaveLength(1);
+    const steps = await db
+      .select()
+      .from(schema.journeyStepRuns)
+      .innerJoin(schema.journeyEnrollments, eq(schema.journeyEnrollments.id, schema.journeyStepRuns.enrollmentId))
+      .where(and(eq(schema.journeyEnrollments.journeyId, journey.id), eq(schema.journeyStepRuns.nodeId, 'triage')));
+    const budgeted = steps.map((r) => r.journey_step_runs).find((r) => r.output.agentBudgetReached === true);
+    expect(budgeted).toMatchObject({ status: 'completed', edgeTaken: 'unlikely' });
   });
 
   it('fills declared fields on the contact and in the journey context, rejecting off-schema values', async () => {
@@ -343,6 +390,9 @@ const NO_SYNTHETIC_FNR = '01819012365';
     await expect(
       runAs(curator, () => runtime.submitFields({ stepRunId: step!.id, fields: { budget: 10 } })),
     ).rejects.toThrow(BadRequestException);
+    await expect(
+      runAs(curator, () => runtime.submitFields({ stepRunId: step!.id, fields: { timezone: 'Etc/GMT+12' } })),
+    ).rejects.toThrow(/cannot be filled by an agent/);
     const result = await runAs(curator, () =>
       runtime.submitFields({ stepRunId: step!.id, fields: { useCase: 'sales', teamSize: 12 } }),
     );

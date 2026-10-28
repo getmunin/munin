@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { ProductEventInput } from '../analytics/product-events.service.ts';
 
 export const SHOPIFY_ORDER_TOPICS: Readonly<Record<string, string>> = {
@@ -7,6 +7,8 @@ export const SHOPIFY_ORDER_TOPICS: Readonly<Record<string, string>> = {
   'orders/fulfilled': 'order.fulfilled',
   'orders/cancelled': 'order.cancelled',
 };
+
+export const SHOPIFY_EVENT_MAX_AGE_MS = 3 * 86_400_000;
 
 export function verifyShopifyHmac(rawBody: Buffer, secret: string, header: string | undefined): boolean {
   if (!header) return false;
@@ -22,9 +24,10 @@ export function verifyShopifyHmac(rawBody: Buffer, secret: string, header: strin
 
 export function shopifyOrderEvent(input: {
   topic: string;
-  webhookId: string;
   shopDomain: string;
+  rawBody: Buffer;
   body: Record<string, unknown>;
+  now?: Date;
 }): ProductEventInput | null {
   const name = SHOPIFY_ORDER_TOPICS[input.topic];
   if (!name) return null;
@@ -42,12 +45,18 @@ export function shopifyOrderEvent(input: {
     date(input.topic === 'orders/paid' ? body.processed_at : null) ??
     date(body.updated_at) ??
     date(body.created_at);
+  const changedAt = date(body.updated_at) ?? date(body.created_at);
+  if (changedAt && (input.now ?? new Date()).getTime() - Date.parse(changedAt) > SHOPIFY_EVENT_MAX_AGE_MS) return null;
+  const customer = isRecord(body.customer) ? body.customer : null;
+  const verified =
+    customer?.verified_email === true && typeof customer.email === 'string' && customer.email.toLowerCase() === email.toLowerCase();
+  const bodyHash = createHash('sha256').update(input.rawBody).digest('hex').slice(0, 40);
   const lineItems = Array.isArray(body.line_items) ? body.line_items.length : null;
   return {
-    id: `shopify:${input.webhookId}`,
+    id: `shopify:${input.topic}:${bodyHash}`,
     name,
     ...(occurredAt ? { occurredAt } : {}),
-    identity: { email },
+    identity: { email, ...(verified ? {} : { verified: false }) },
     properties: {
       source: 'shopify',
       shop: input.shopDomain,

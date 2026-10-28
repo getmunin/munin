@@ -181,6 +181,7 @@
     "agents": "Agenter",
     "apiKeys": "API-nøkler",
     "channels": "Kanaler",
+    "sending": "Senderegler",
     "privacy": "Personvern",
     "needsAttention": "Trenger oppmerksomhet",
     "trackers": "Sporing",
@@ -2234,6 +2235,47 @@
         "save": "Klarte ikke å lagre personverninnstillingene."
       },
       "sectionMeta": "Fjerning · {count} av {total} typer"
+    },
+    "sendRules": {
+      "eyebrow": "Arbeidsområde · Senderegler",
+      "title": "Når markedsføring <em>sendes</em>",
+      "subtitle": "Husregler for all markedsføring Munin sender ut — kampanjer, utsendelser og kundereiser.",
+      "unconfiguredNote": "Ingen regler er satt ennå, så markedsføring går ut så snart den er godkjent eller forfaller — når som helst på døgnet, og så ofte det dukker opp.",
+      "useRecommended": "Bruk de anbefalte reglene",
+      "timingTitle": "Tidspunkt",
+      "timingHint": "En melding som ville brutt reglene, venter til neste tillatte tidspunkt i mottakerens egen tidssone.",
+      "timezoneLabel": "Tidssone",
+      "timezoneHint": "Brukes for kontakter uten egen tidssone. En kundereise kan ha sin egen.",
+      "quietTitle": "Ingen markedsføring i stilletiden",
+      "quietHint": "Ingenting sendes mellom disse klokkeslettene; meldingen venter til stilletiden er over.",
+      "quietFrom": "Fra",
+      "quietTo": "Til",
+      "daysTitle": "Send bare på bestemte ukedager",
+      "daysHint": "Markedsføring som forfaller en annen dag, venter til neste dag du har valgt.",
+      "days": {
+        "mon": "man",
+        "tue": "tir",
+        "wed": "ons",
+        "thu": "tor",
+        "fri": "fre",
+        "sat": "lør",
+        "sun": "søn"
+      },
+      "frequencyTitle": "Hyppighet",
+      "frequencyHint": "Teller alt en kontakt mottar: kampanje-e-post, utsendelser og meldinger fra kundereiser.",
+      "capTitle": "Begrens markedsføring per kontakt",
+      "capHint": "Over grensen venter meldinger fra kundereiser og kampanjer til den eldste er en uke gammel. Mottakere av en utsendelse som er over grensen, hoppes over.",
+      "capLabel": "Meldinger per 7 dager",
+      "cooldownLabel": "Pause etter en samtale (timer)",
+      "cooldownHint": "Hvor lenge det skal gå etter at kontakten sist skrev til dere. Markedsføring venter også så lenge en kollega er tildelt en av kontaktens åpne samtaler.",
+      "scopeNote": "Transaksjonelle meldinger, som bookingbekreftelser, og svar på noe kontakten selv har skrevet, holdes aldri tilbake. En kundereise eller kampanje kan være strengere enn dette, aldri mildere.",
+      "errors": {
+        "quietSame": "Stilletiden må ha ulikt start- og sluttidspunkt.",
+        "noDays": "Velg minst én ukedag, eller slå av regelen om ukedager.",
+        "capRange": "Grensen må være et helt tall fra 1 til 50.",
+        "cooldownRange": "Pausen må være et helt antall timer fra 0 til 720.",
+        "save": "Kunne ikke lagre reglene. Prøv igjen."
+      }
     },
     "outsideOrg": {
       "eyebrow": "Arbeidsområde · ingen tilgang",

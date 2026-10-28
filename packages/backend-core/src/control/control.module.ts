@@ -29,6 +29,7 @@ import { CuratorModule } from '../modules/curator/curator.module.ts';
 import { CuratorJobsController } from './curator-jobs.controller.ts';
 import { ConvChannelsController } from './conv-channels.controller.ts';
 import { ConvRedactionController } from './conv-redaction.controller.ts';
+import { OutreachSendRulesController } from './outreach-send-rules.controller.ts';
 import { KbCandidatesController, KbCurationDecisionsController, KbSpacesController,
   KbDocumentsController,
 } from './kb-candidates.controller.ts';
@@ -127,6 +128,7 @@ import { ReviewModule } from '../modules/review/review.module.ts';
     ConnectorJwksController,
     ConvChannelsController,
     ConvRedactionController,
+    OutreachSendRulesController,
     ConversationsController,
     ActivityController,
     EndUserConversationsController,

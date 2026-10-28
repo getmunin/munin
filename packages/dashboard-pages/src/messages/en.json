@@ -181,6 +181,7 @@
     "agents": "Agents",
     "apiKeys": "API keys",
     "channels": "Channels",
+    "sending": "Sending",
     "privacy": "Privacy",
     "needsAttention": "Needs attention",
     "trackers": "Trackers",
@@ -2234,6 +2235,47 @@
         "save": "Could not save the privacy settings."
       },
       "sectionMeta": "Redaction · {count} of {total} types"
+    },
+    "sendRules": {
+      "eyebrow": "Workspace · Sending",
+      "title": "When marketing <em>goes out</em>",
+      "subtitle": "House rules for every marketing message Munin sends — campaigns, broadcasts and journeys alike.",
+      "unconfiguredNote": "No send rules yet, so marketing goes out as soon as it is approved or due, at any hour and as often as it comes up.",
+      "useRecommended": "Fill in the recommended rules",
+      "timingTitle": "Timing",
+      "timingHint": "A message that would break these waits for the next allowed time in the contact's own time zone.",
+      "timezoneLabel": "Time zone",
+      "timezoneHint": "Used for contacts without their own time zone. A journey can set its own.",
+      "quietTitle": "Hold marketing during quiet hours",
+      "quietHint": "Nothing goes out between these times; it waits until the window opens.",
+      "quietFrom": "From",
+      "quietTo": "To",
+      "daysTitle": "Only send on certain weekdays",
+      "daysHint": "Marketing due on any other day waits for the next one you pick.",
+      "days": {
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat",
+        "sun": "Sun"
+      },
+      "frequencyTitle": "Frequency",
+      "frequencyHint": "Counted across everything a contact receives: campaign emails, broadcasts and journey messages.",
+      "capTitle": "Cap marketing per contact",
+      "capHint": "Over the cap, journey and campaign messages wait until the oldest one is a week old. Broadcast recipients over the cap are skipped.",
+      "capLabel": "Messages per 7 days",
+      "cooldownLabel": "Pause after a conversation (hours)",
+      "cooldownHint": "How long to wait after a contact last wrote to your team. Marketing also waits while a teammate is assigned to one of their open conversations.",
+      "scopeNote": "Transactional messages, such as booking confirmations, and replies to a contact's own message are never held back. A journey or campaign can be stricter than this, never looser.",
+      "errors": {
+        "quietSame": "Quiet hours need a start and an end that differ.",
+        "noDays": "Pick at least one weekday, or turn the weekday rule off.",
+        "capRange": "The cap must be a whole number from 1 to 50.",
+        "cooldownRange": "The pause must be a whole number of hours from 0 to 720.",
+        "save": "Couldn't save the send rules. Try again."
+      }
     },
     "outsideOrg": {
       "eyebrow": "Workspace · no access",

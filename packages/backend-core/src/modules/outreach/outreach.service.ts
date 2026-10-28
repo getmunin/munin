@@ -1160,17 +1160,15 @@ export class OutreachService {
     }
     this.assertHumanApprovalAllowed(proposal, actor);
     let sendAt = resolveAuthorizedSendAt(proposal, opts.sendAt);
-    if (proposal.kind === 'journey') {
-      await this.assertJourneyRunOpen(proposal);
-      const decision = await this.journeySendDecision(proposal, sendAt ?? new Date());
-      if (decision.decision === 'skip') {
-        throw new OutreachInvalidError(
-          `this journey email cannot be sent: ${decision.reason}`,
-          'outreach_journey_blocked',
-        );
-      }
-      if (decision.decision === 'defer' && (!sendAt || decision.until > sendAt)) sendAt = decision.until;
+    if (proposal.kind === 'journey') await this.assertJourneyRunOpen(proposal);
+    const decision = await this.sendDecision(proposal, sendAt ?? new Date());
+    if (decision?.decision === 'skip' && proposal.kind === 'journey') {
+      throw new OutreachInvalidError(
+        `this journey email cannot be sent: ${decision.reason}`,
+        'outreach_journey_blocked',
+      );
     }
+    if (decision?.decision === 'defer' && (!sendAt || decision.until > sendAt)) sendAt = decision.until;
     if (!sendAt) {
       await this.assertSendWindowOpen(proposal);
       const decided = await this.stampApproval(proposal, actor, null);
@@ -1210,26 +1208,26 @@ export class OutreachService {
       if (proposal.decidedByActorType !== 'user' && (await this.journeyTemplateDrifted(proposal))) {
         return { outcome: 'skipped', proposal: await this.backToReview(proposal) };
       }
-      const decision = await this.journeySendDecision(proposal, new Date());
-      if (decision.decision === 'skip') {
-        throw new OutreachInvalidError(
-          `this journey email cannot be sent: ${decision.reason}`,
-          'outreach_journey_blocked',
-        );
-      }
-      if (decision.decision === 'defer') {
-        const ctx = getCurrentContext();
-        const [deferred] = await ctx.db
-          .update(schema.outreachProposals)
-          .set({ scheduledSendAt: decision.until, updatedAt: new Date() })
-          .where(eq(schema.outreachProposals.id, proposal.id))
-          .returning();
-        return {
-          outcome: 'deferred',
-          proposal: toProposalDto(deferred!, proposal.contact, proposal.campaign, proposal.delivery),
-          reason: decision.reason,
-        };
-      }
+    }
+    const decision = await this.sendDecision(proposal, new Date());
+    if (decision?.decision === 'skip' && proposal.kind === 'journey') {
+      throw new OutreachInvalidError(
+        `this journey email cannot be sent: ${decision.reason}`,
+        'outreach_journey_blocked',
+      );
+    }
+    if (decision?.decision === 'defer') {
+      const ctx = getCurrentContext();
+      const [deferred] = await ctx.db
+        .update(schema.outreachProposals)
+        .set({ scheduledSendAt: decision.until, updatedAt: new Date() })
+        .where(eq(schema.outreachProposals.id, proposal.id))
+        .returning();
+      return {
+        outcome: 'deferred',
+        proposal: toProposalDto(deferred!, proposal.contact, proposal.campaign, proposal.delivery),
+        reason: decision.reason,
+      };
     }
     const sent = await this.deliverProposal(
       proposal,
@@ -2045,6 +2043,24 @@ export class OutreachService {
   private async journeySendDecision(proposal: ProposalDto, at: Date): Promise<SendDecision> {
     const meta = journeyMessageMeta(proposal);
     return checkSendPolicy({ contactId: proposal.contactId, policy: meta.policy, now: at });
+  }
+
+  private async sendDecision(proposal: ProposalDto, at: Date): Promise<SendDecision | null> {
+    if (proposal.kind === 'journey') return this.journeySendDecision(proposal, at);
+    if (proposal.kind === 'reply') return null;
+    const campaign = await this.getCampaign(proposal.campaignId);
+    const channelType = proposal.delivery?.channelType;
+    return checkSendPolicy({
+      contactId: proposal.contactId,
+      now: at,
+      policy: {
+        channel: channelType === 'sms' || channelType === 'voice' ? channelType : 'email',
+        class: 'marketing',
+        timezone: campaign.cadenceRules.quietHoursTimezone,
+        frequencyCapPerWeek: campaign.cadenceRules.maxPerWeekPerContact,
+        cooldownHoursAfterConversation: 0,
+      },
+    });
   }
 
   private async assertNotJourneyManaged(campaignId: string): Promise<void> {

@@ -23,7 +23,7 @@ Monorepo on pnpm + Turborepo.
 | `conv` | `conv_*` | Email / SMS / voice / widget channels via the channel-adapter contract (`packages/backend-core/src/modules/conv/CLAUDE.md`). |
 | `crm` | `crm_*` | Contacts, companies, deals, pipelines, segments, merge proposals. |
 | `cms` | `cms_*` | Collections, entries, locales, assets, scheduled publishing, public delivery API. |
-| `outreach` | `outreach_*` | Propose-only outbound campaigns. Never auto-sends, except journey emails a person set to `auto` when publishing the journey. |
+| `outreach` | `outreach_*` | Propose-only outbound campaigns. Never auto-sends, except journey emails a person set to `auto` when publishing the journey. The org's send rules (`send-rules.ts`, `orgs.settings['outreach.sendRules']`) are the timing floor for every marketing send — campaigns, broadcasts and journeys; journeys and campaigns may only tighten them, replies and transactional messages are exempt. |
 | `journeys` | `journeys_*` | Versioned journey graphs that send from one email channel through a campaign the journey owns; outreach tools can't reconfigure it, and replies on a journey's threads belong to the journey. Agents draft and validate; publishing needs a signed-in person. |
 | `slack` | `slack_*` | Operator bridge: mirrors conversations into Slack threads via a `WebhookDispatcher` sink + `slack_deliveries` queue. Not a `ChannelAdapter`. |
 | `connectors` | `connectors_*` | Plumbing trunk for customer-facing data connectors: encrypted connection storage, vendor-adapter registry, credential testing. Domain modules register adapters here and own the typed read surfaces; live reads only, no vendor data persisted. |

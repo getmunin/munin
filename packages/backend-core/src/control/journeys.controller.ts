@@ -45,6 +45,10 @@ import {
 } from '../modules/journeys/journey-publishing.service.ts';
 import type { SimulationResult } from '../modules/journeys/journey-simulator.ts';
 import { JourneyMonitorService, type GuardrailReportDto } from '../modules/journeys/journey-monitor.service.ts';
+import {
+  JourneyTemplateChangesService,
+  type TemplateChangesDto,
+} from '../modules/journeys/journey-template-changes.service.ts';
 import { createZodDto } from 'nestjs-zod';
 import { JOURNEY_NODE_TYPES } from '@getmunin/types';
 
@@ -87,6 +91,7 @@ class MoveEnrollmentsBody extends createZodDto(
   }),
 ) {}
 class ConfirmPublishBody extends createZodDto(z.object({ fingerprint: z.string().min(1).max(64) })) {}
+class ReapproveTemplatesBody extends createZodDto(z.object({ fingerprint: z.string().length(32) })) {}
 class SimulateBody extends createZodDto(
   z.object({
     contactIds: z.array(z.string().min(1).max(64)).max(500).optional(),
@@ -107,6 +112,7 @@ export class JourneysController {
     private readonly runtime: JourneyRuntimeService,
     private readonly publishing: JourneyPublishingService,
     private readonly monitor: JourneyMonitorService,
+    private readonly templateChanges: JourneyTemplateChangesService,
   ) {}
 
   @Get(':id/agent-stats')
@@ -285,6 +291,17 @@ export class JourneysController {
   @Get(':id/guardrails')
   guardrails(@Param('id') id: string): Promise<GuardrailReportDto> {
     return this.monitor.report(id);
+  }
+
+  @Get(':id/template-changes')
+  listTemplateChanges(@Param('id') id: string): Promise<TemplateChangesDto> {
+    return this.templateChanges.list(id);
+  }
+
+  @Post(':id/template-changes/reapprove')
+  @HttpCode(200)
+  reapproveTemplates(@Param('id') id: string, @Body() body: ReapproveTemplatesBody): Promise<TemplateChangesDto> {
+    return this.templateChanges.reapprove(id, body.fingerprint);
   }
 
   @Post(':id/nodes/:nodeId/pause')

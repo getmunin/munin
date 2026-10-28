@@ -11948,6 +11948,34 @@
     }
   },
   {
+    "name": "journeys_get_template_changes",
+    "title": "Journeys: Get changed email templates",
+    "description": "Steps that send without review whose email template changed after the version was published, and how many of their emails are held because of it. Held emails stay approved and send once a signed-in person re-approves the journey with the new templates in the dashboard (reviewPath); a deleted template needs a new version instead.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "journeyId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "journeys_pause_node",
     "title": "Journeys: Pause a node",
     "description": "Pause one step of a journey. Runs that reach it wait there, nobody is exited, and the rest of the journey keeps running. The monitor does the same on a guardrail breach.",

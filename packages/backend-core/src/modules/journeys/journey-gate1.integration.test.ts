@@ -107,7 +107,7 @@ function playbookSpec(segmentId: string): Record<string, unknown> {
       new CuratorJobsService(webhooks),
     );
     journeys = new JourneysService(webhooks);
-    runtime = new JourneyRuntimeService(webhooks, crm, new JourneyOutboxService(outreach, webhooks, conv, crm, email), new CuratorJobsService(webhooks), { requestHandover: () => Promise.resolve(null) });
+    runtime = new JourneyRuntimeService(webhooks, crm, new JourneyOutboxService(outreach, webhooks, conv, crm, email, new AlertsService(webhooks)), new CuratorJobsService(webhooks), { requestHandover: () => Promise.resolve(null) });
     worker = new JourneyRuntimeWorker(appDb, runtime);
     publishing = new JourneyPublishingService(webhooks, journeys, new JourneySimulator(runtime));
     events = new ProductEventsService(webhooks, new IdentityService(webhooks));
@@ -168,7 +168,7 @@ function playbookSpec(segmentId: string): Record<string, unknown> {
     return pending.length;
   }
 
-  it('runs the published playbook journey end to end (quiet hours lifted so the run does not depend on the clock) with no duplicate sends and a full trace for everyone', async () => {
+  it('runs the published playbook journey end to end without a review per email (quiet hours lifted so the run does not depend on the clock) with no duplicate sends and a full trace for everyone', async () => {
     const [segment] = await db
       .insert(schema.crmSegments)
       .values({ orgId, name: 'Trialists', filterDefinition: { tagsAny: ['trial'] }, createdByActorType: 'user', createdByActorId: userId })
@@ -232,7 +232,7 @@ function playbookSpec(segmentId: string): Record<string, unknown> {
     for (const p of people) await record(p.id, 'trial.started');
     await worker.tick();
     await worker.tick();
-    expect(await approveAllPending()).toBeGreaterThan(0);
+    expect(await approveAllPending()).toBe(0);
     await worker.tick();
     await worker.tick();
 
@@ -241,7 +241,7 @@ function playbookSpec(segmentId: string): Record<string, unknown> {
 
     const later = new Date(Date.now() + 8 * DAY);
     for (let i = 0; i < 4; i++) await worker.tick(later);
-    await approveAllPending();
+    expect(await approveAllPending()).toBe(0);
     for (let i = 0; i < 3; i++) await worker.tick(later);
 
     const report = await asAgent(() => publishing.report(journey.id));
@@ -274,9 +274,11 @@ function playbookSpec(segmentId: string): Record<string, unknown> {
     }
 
     const sent = await db
-      .select({ stepRunId: schema.outreachProposals.journeyStepRunId })
+      .select({ stepRunId: schema.outreachProposals.journeyStepRunId, decidedBy: schema.outreachProposals.decidedByActorType })
       .from(schema.outreachProposals)
       .where(sql`${schema.outreachProposals.orgId} = ${orgId} AND ${schema.outreachProposals.status} = 'sent'`);
+    expect(sent.length).toBeGreaterThan(0);
+    expect(sent.every((s) => s.decidedBy === 'system')).toBe(true);
     expect(new Set(sent.map((s) => s.stepRunId)).size).toBe(sent.length);
   });
 });

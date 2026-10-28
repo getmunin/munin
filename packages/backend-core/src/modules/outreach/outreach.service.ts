@@ -111,10 +111,9 @@ export interface ProposalSender {
   id: string;
 }
 
-export type ProposalGate = SendDecision | { decision: 'review'; proposal: ProposalDto };
-
 export interface ProposalKindHandler {
-  gate(proposal: ProposalDto, at: Date, stage: 'approve' | 'scheduled'): Promise<ProposalGate>;
+  gate(proposal: ProposalDto, at: Date, stage: 'approve' | 'scheduled'): Promise<SendDecision>;
+  allowsAutomaticApproval(proposal: ProposalDto): boolean;
   deliver(proposal: ProposalDto, sender: ProposalSender, publicBaseUrl: string): Promise<ProposalDto>;
 }
 
@@ -345,7 +344,7 @@ export class OutreachService {
     return handler;
   }
 
-  private gate(proposal: ProposalDto, at: Date, stage: 'approve' | 'scheduled'): Promise<ProposalGate | null> {
+  private gate(proposal: ProposalDto, at: Date, stage: 'approve' | 'scheduled'): Promise<SendDecision | null> {
     const handler = this.kindHandler(proposal.kind);
     return handler ? handler.gate(proposal, at, stage) : this.sendDecision(proposal, at);
   }
@@ -1183,7 +1182,6 @@ export class OutreachService {
     this.assertHumanApprovalAllowed(proposal, actor);
     let sendAt = resolveAuthorizedSendAt(proposal, opts.sendAt);
     const decision = await this.gate(proposal, sendAt ?? new Date(), 'approve');
-    if (decision?.decision === 'review') return decision.proposal;
     if (decision?.decision === 'defer' && (!sendAt || decision.until > sendAt)) sendAt = decision.until;
     if (!sendAt) {
       await this.assertSendWindowOpen(proposal);
@@ -1216,11 +1214,16 @@ export class OutreachService {
       throw new OutreachInvalidError(`proposal ${proposal.id} is ${proposal.status}, not pending`);
     }
     const channelType = proposal.delivery?.channelType ?? 'email';
-    if (CHANNELS_REQUIRING_HUMAN_APPROVAL.includes(channelType)) {
-      throw new OutreachInvalidError(`${channelType} proposals are approved by a signed-in person, never automatically`);
+    const handler = this.kindHandler(proposal.kind);
+    const automatic = handler
+      ? channelType !== 'voice' && handler.allowsAutomaticApproval(proposal)
+      : !CHANNELS_REQUIRING_HUMAN_APPROVAL.includes(channelType);
+    if (!automatic) {
+      throw new OutreachInvalidError(`${channelType} proposal ${proposal.id} is approved by a signed-in person, never automatically`);
     }
-    if (opts.sendAt) {
-      const scheduled = await this.stampApproval(proposal, actor, opts.sendAt);
+    const sendAt = opts.sendAt ?? ((await this.sendWindowClosedReason(proposal)) ? new Date() : null);
+    if (sendAt) {
+      const scheduled = await this.stampApproval(proposal, actor, sendAt);
       await this.webhooks.emit({
         type: 'outreach.proposal.scheduled',
         payload: {
@@ -1228,7 +1231,7 @@ export class OutreachService {
           campaignId: proposal.campaignId,
           contactId: proposal.contactId,
           kind: proposal.kind,
-          scheduledSendAt: opts.sendAt.toISOString(),
+          scheduledSendAt: sendAt.toISOString(),
           autoApproved: true,
         },
       });
@@ -1251,7 +1254,6 @@ export class OutreachService {
       return { outcome: 'deferred', proposal, reason: closed };
     }
     const decision = await this.gate(proposal, new Date(), 'scheduled');
-    if (decision?.decision === 'review') return { outcome: 'skipped', proposal: decision.proposal };
     if (decision?.decision === 'defer') {
       const ctx = getCurrentContext();
       const [deferred] = await ctx.db

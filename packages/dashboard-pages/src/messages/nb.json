@@ -1327,6 +1327,23 @@
       "nodePausedManual": "{node} er pauset. Løpene venter der til steget gjenopptas.",
       "resumeNode": "Gjenoppta steg",
       "nodeResumed": "{node} er gjenopptatt.",
+      "templateChanges": {
+        "pill": "Holder igjen e-post",
+        "banner": "E-postmalen til {nodes} er endret etter publisering. {count, plural, =0 {Ingenting holdes igjen ennå; nye e-poster venter} one {# e-post venter} other {# e-poster venter}} til noen godkjenner den nye malen.",
+        "review": "Se over malen",
+        "title": "Godkjenn den endrede e-postmalen",
+        "description": "{count, plural, =0 {Ingen e-poster holdes igjen ennå.} one {# e-post holdes igjen.} other {# e-poster holdes igjen.}} Godkjenner du, sender disse stegene med malen nedenfor uten at hver e-post gjennomgås.",
+        "step": "{node} · versjon {version} · {template}",
+        "builtIn": "standardmal",
+        "deleted": "Malen er slettet. Publiser en versjon som bruker en annen mal.",
+        "previewFrame": "Forhåndsvisning av {node} med den nye malen",
+        "loadingPreview": "Lager forhåndsvisning …",
+        "noPreview": "Ingen forhåndsvisning tilgjengelig.",
+        "cancel": "Avbryt",
+        "confirm": "Godkjenn og send",
+        "approved": "Godkjent. {count, plural, =0 {Ingen e-poster å slippe ut.} one {# e-post er på vei.} other {# e-poster er på vei.}}",
+        "approveFailed": "Kunne ikke godkjenne malen."
+      },
       "guardrail": {
         "bounce": "bounce-andelen",
         "unsubscribe": "avmeldingsandelen",
@@ -1413,10 +1430,11 @@
         "removed": "Fjernet: {nodes}",
         "blocks": "Endrede innstillinger: {blocks}",
         "autoTitle": "Sendes uten gjennomgang",
-        "autoBody": "Disse meldingene sendes uten at noen leser hver enkelt: {nodes}. Bekrefter du, publiseres de slik.",
+        "autoBody": "Disse meldingene går til hver mottaker uten at noen leser dem først: {nodes}. Det du ser her, er det som sendes. Sendereglene gjelder fortsatt, og endres e-postmalen, holdes meldingene tilbake til noen godkjenner den nye.",
         "autoMessageMeta": "{node} · {channel, select, sms {SMS} chat {chat} voice {samtale} other {e-post}} · {kind, select, transactional {transaksjonell — når også avmeldte} other {markedsføring}} · {author, select, agent {skrevet av agenten per person} other {fast tekst}}",
         "autoEvidence": "{node}: {reviewed} gjennomgåtte utkast, {rate} godkjent uendret",
         "warnings": "Advarsler",
+        "noLawfulBasis": "{count} av {size} personer i utvalget når {node} uten registrert behandlingsgrunnlag. Markedsføringsmeldingen hopper over dem til samtykket er registrert.",
         "simulation": "Prøvekjøring",
         "simulationSummary": "{entered} av {size} eksempelkontakter ville startet.",
         "excluded": "holdt utenfor · {reason}",
@@ -1451,6 +1469,11 @@
         "body": "Tekst",
         "referenceBody": "Referansetekst (sendes hvis agenten ikke svarer)",
         "brief": "Brief til agenten",
+        "messageClass": "Meldingstype",
+        "classMode": {
+          "marketing": "Markedsføring",
+          "transactional": "Transaksjonell – når også avmeldte"
+        },
         "approval": "Godkjenning",
         "approvalMode": {
           "draft_only": "En person går gjennom hver melding",

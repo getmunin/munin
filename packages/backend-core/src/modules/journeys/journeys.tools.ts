@@ -11,6 +11,7 @@ import { ENROLLMENT_STATES, JourneyRuntimeService, type EnrollmentState } from '
 import { JourneyPublishingService } from './journey-publishing.service.ts';
 import { JourneyTemplatesService } from './journey-templates.service.ts';
 import { JourneyMonitorService } from './journey-monitor.service.ts';
+import { JourneyTemplateChangesService } from './journey-template-changes.service.ts';
 
 const Id = z.string().min(1).max(64);
 const NodeIdInput = z.string().regex(/^[a-z][a-z0-9_]{0,47}$/);
@@ -24,7 +25,7 @@ const SpecInput = z
 const NODE_TYPE_REFERENCE = [
   {
     type: 'message',
-    does: 'Send the contact an email, an SMS, a chat message in the widget or a phone call. approval: draft_only (default, filed for human review), auto (email and chat only: sends without review once a person publishes the version) or off (skipped). SMS and calls are always approved by a person.',
+    does: 'Send the contact an email, an SMS, a chat message in the widget or a phone call. approval: draft_only (default, filed for human review), auto (email, chat and transactional SMS: sends without review once a person publishes the version; agent-drafted steps only after they earn it) or off (skipped). Marketing SMS and calls are always approved by a person.',
     fields: '{ channel: "email"|"sms"|"chat"|"voice", class?: "marketing"|"transactional", content: { subject (email only), body, format?: "markdown"|"mjml", preheader?, templateId? }, approval?, next?, onReply?, onOutcome? (voice: reached, no_contact, refused, wrong_contact, timeout), outcomeTimeout?, onUnseen? + seenTimeout? (chat), recipients?: { tag?, titleContains?, max? } (company journeys only), draftBy?: "agent", brief?, grounding?: [kb space slugs], locale?, draftInputs?, draftTimeout?: "PT30M" } — sms needs settings.smsChannelId (body ≤ 480), chat settings.chatChannelId (body ≤ 2000, signed-in widget visitors only), voice settings.voiceChannelId (body is the opening, ≤ 1000); with draftBy "agent" a model rewrites the message for each person from the brief (content is the reference version and the fallback)',
   },
   {
@@ -86,6 +87,7 @@ export class JourneysTools {
     @Inject(JourneyPublishingService) private readonly publishing: JourneyPublishingService,
     @Inject(JourneyTemplatesService) private readonly templates: JourneyTemplatesService,
     @Inject(JourneyMonitorService) private readonly monitor: JourneyMonitorService,
+    @Inject(JourneyTemplateChangesService) private readonly templateChanges: JourneyTemplateChangesService,
   ) {}
 
   @McpTool({
@@ -739,6 +741,21 @@ export class JourneysTools {
   })
   getGuardrails(args: z.infer<typeof JourneyIdInput>) {
     return this.monitor.report(args.journeyId);
+  }
+
+  @McpTool({
+    name: 'journeys_get_template_changes',
+    title: 'Journeys: Get changed email templates',
+    description:
+      'Steps that send without review whose email template changed after the version was published, and how many of their emails are held because of it. Held emails stay approved and send once a signed-in person re-approves the journey with the new templates in the dashboard (reviewPath); a deleted template needs a new version instead.',
+    audiences: ['admin'],
+    scopes: ['journeys:read'],
+    input: JourneyIdInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getTemplateChanges(args: z.infer<typeof JourneyIdInput>) {
+    return this.templateChanges.list(args.journeyId);
   }
 
   @McpTool({

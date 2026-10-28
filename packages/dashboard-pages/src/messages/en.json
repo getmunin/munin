@@ -1328,6 +1328,23 @@
       "nodePausedManual": "{node} is paused. Runs wait there until it is resumed.",
       "resumeNode": "Resume step",
       "nodeResumed": "{node} resumed.",
+      "templateChanges": {
+        "pill": "Holding emails",
+        "banner": "The email template for {nodes} changed after publishing. {count, plural, =0 {Nothing is held yet; new emails wait} one {# email is waiting} other {# emails are waiting}} until someone approves the new template.",
+        "review": "Review template",
+        "title": "Approve the changed email template",
+        "description": "{count, plural, =0 {No emails are held yet.} one {# email is held.} other {# emails are held.}} Approving lets these steps send with the template shown below, without a review per person.",
+        "step": "{node} · version {version} · {template}",
+        "builtIn": "default template",
+        "deleted": "This template was deleted. Publish a version that uses another template.",
+        "previewFrame": "Preview of {node} with the new template",
+        "loadingPreview": "Rendering preview…",
+        "noPreview": "No preview available.",
+        "cancel": "Cancel",
+        "confirm": "Approve and send",
+        "approved": "Approved. {count, plural, =0 {No held emails to release.} one {# held email is on its way.} other {# held emails are on their way.}}",
+        "approveFailed": "Could not approve the template."
+      },
       "guardrail": {
         "bounce": "bounce rate",
         "unsubscribe": "unsubscribe rate",
@@ -1413,10 +1430,11 @@
         "removed": "Removed: {nodes}",
         "blocks": "Settings changed: {blocks}",
         "autoTitle": "Sends without review",
-        "autoBody": "These messages go out without anyone reading each one: {nodes}. Confirming publishes them that way.",
+        "autoBody": "These messages go to each person without anyone reading them first: {nodes}. What you see here is what goes out. Send rules still apply, and if their email template changes they are held until someone approves the new one.",
         "autoMessageMeta": "{node} · {channel, select, sms {SMS} chat {chat} voice {call} other {email}} · {kind, select, transactional {transactional — reaches unsubscribed contacts} other {marketing}} · {author, select, agent {written by the agent per person} other {fixed text}}",
         "autoEvidence": "{node}: {reviewed} reviewed drafts, {rate} approved as is",
         "warnings": "Warnings",
+        "noLawfulBasis": "{count} of {size} people in the sample reach {node} without a recorded lawful basis. This marketing message skips them until their consent is recorded.",
         "simulation": "Dry run",
         "simulationSummary": "{entered} of {size} sample contacts would enter.",
         "excluded": "excluded · {reason}",
@@ -1451,6 +1469,11 @@
         "body": "Text",
         "referenceBody": "Reference text (sent if the agent does not answer)",
         "brief": "Brief for the agent",
+        "messageClass": "Message type",
+        "classMode": {
+          "marketing": "Marketing",
+          "transactional": "Transactional — reaches unsubscribed contacts"
+        },
         "approval": "Approval",
         "approvalMode": {
           "draft_only": "A person reviews each message",

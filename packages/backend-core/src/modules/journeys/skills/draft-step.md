@@ -31,4 +31,4 @@ A journey wants to send one person a message, and its author asked for it to be 
 
 Call `journeys_submit_draft` once with `body` and `citations` — one `{ title, source }` per document a claim rests on (the document title and its id or URL). Add `subject` for an email and only for an email: the tool refuses a subject on other channels and a body over the channel's limit. The step run id is already bound to this job. If the tool refuses because the step was answered or timed out, stop.
 
-The draft goes to the review inbox; a person reads it before it is sent. Write it so they can approve it without editing — that record is what lets an email or chat step earn sending without review later. SMS and calls are always approved by a person.
+The draft goes to the review inbox; a person reads it before it is sent. Write it so they can approve it without editing — that record is what lets an email, chat or transactional SMS step earn sending without review later. Marketing SMS and calls are always approved by a person.

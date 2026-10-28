@@ -2207,6 +2207,7 @@ export const journeys = pgTable(
     status: varchar('status', { length: 16 }).notNull().default('draft'),
     liveVersion: integer('live_version'),
     nextEntryAt: timestamp('next_entry_at', { withTimezone: true }),
+    entryCursor: text('entry_cursor'),
     guardrailResets: jsonb('guardrail_resets').$type<Record<string, string>>().notNull().default({}),
     pausedNodes: jsonb('paused_nodes')
       .$type<Record<string, { reason: string; pausedAt: string; by: string; metric?: string; rate?: number }>>()
@@ -2296,6 +2297,8 @@ export const journeyEnrollments = pgTable(
     goalReachedAt: timestamp('goal_reached_at', { withTimezone: true }),
     exitedAt: timestamp('exited_at', { withTimezone: true }),
     exitReason: varchar('exit_reason', { length: 48 }),
+    stepErrors: integer('step_errors').notNull().default(0),
+    lastError: text('last_error'),
     createdAt,
     updatedAt,
   },

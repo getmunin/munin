@@ -450,6 +450,37 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect((await enrollment(id)).state).toBe('done');
   });
 
+  it('holds an approved email while its step or journey is paused instead of failing it, and sends it once resumed', async () => {
+    const journeyId = await publish([welcome(), done]);
+    const ola = await contact();
+    await enroll(journeyId, ola.id);
+    await worker.tick();
+    const [proposal] = await proposalsFor(ola.id);
+    const pending = await asAgent(() => outreach.getProposal(proposal!.id));
+    await asAgent(() => journeys.pauseNode(journeyId, 'welcome'));
+    const before = Date.now();
+    const approved = await runAs(person, () =>
+      outreach.approveProposal(proposal!.id, { fingerprint: pending.draftFingerprint, publicBaseUrl: 'https://api.acme.test' }),
+    );
+    expect(approved).toMatchObject({ status: 'approved', sentAt: null });
+    expect(new Date(approved.scheduledSendAt!).getTime()).toBeGreaterThan(before + 10 * 60_000);
+    await expect(asAgent(() => outreach.sendScheduledProposal(proposal!.id, { publicBaseUrl: 'https://api.acme.test' }))).resolves.toMatchObject({
+      outcome: 'deferred',
+      reason: 'step_paused',
+    });
+
+    await asAgent(() => journeys.resumeNode(journeyId, 'welcome'));
+    await asAgent(() => journeys.pause(journeyId));
+    await expect(asAgent(() => outreach.sendScheduledProposal(proposal!.id, { publicBaseUrl: 'https://api.acme.test' }))).resolves.toMatchObject({
+      outcome: 'deferred',
+      reason: 'journey_paused',
+    });
+    await asAgent(() => journeys.resume(journeyId));
+    await expect(asAgent(() => outreach.sendScheduledProposal(proposal!.id, { publicBaseUrl: 'https://api.acme.test' }))).resolves.toMatchObject({
+      outcome: 'sent',
+    });
+  });
+
   it('allows two open journey emails to the same person on one campaign', async () => {
     const ola = await contact();
     const base = { orgId, campaignId, contactId: ola.id, kind: 'journey', journeyDelivery: { channel: 'email', format: 'markdown', templateId: null, templateHash: null, preheader: null, policy: { class: 'marketing', cooldownHoursAfterConversation: 24 }, auto: false }, draftBody: 'Hei', status: 'pending', proposedByActorType: 'system', proposedByActorId: 'journey-runtime' };
@@ -613,6 +644,39 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     await worker.tick(new Date(Date.now() + 5 * 60_000));
     await worker.tick(new Date(Date.now() + 5 * 60_000));
     expect(await enrollment(olaRun)).toMatchObject({ state: 'done', exitReason: 'reached_end' });
+  });
+
+  it('closes the step a reply interrupts and leaves an ended run alone', async () => {
+    const journeyId = await publish([
+      welcome({ approval: 'auto', next: 'wait', onReply: 'replied' }),
+      { id: 'wait', type: 'wait', duration: 'P7D', next: 'done' },
+      { id: 'replied', type: 'exit', reason: 'replied' },
+      done,
+    ]);
+    const kari = await contact();
+    const kariRun = await enroll(journeyId, kari.id);
+    await worker.tick();
+    const run = await enrollment(kariRun);
+    expect(run).toMatchObject({ state: 'waiting', currentNode: 'wait' });
+    const reply = () =>
+      asAgent(() =>
+        webhooks.emit({
+          type: 'conversation.message.received',
+          payload: { conversationId: run.conversationId, messageId: randomUUID(), authorType: 'end_user' },
+        }),
+      );
+    await reply();
+    await worker.tick();
+    await worker.tick();
+    const after = await enrollment(kariRun);
+    expect(after).toMatchObject({ state: 'exited', exitReason: 'replied', currentNode: null });
+    const steps = await db.select().from(schema.journeyStepRuns).where(eq(schema.journeyStepRuns.enrollmentId, kariRun));
+    expect(steps.find((s) => s.nodeId === 'wait')).toMatchObject({ status: 'cancelled', reason: 'the contact replied' });
+    expect(steps.some((s) => ['running', 'waiting', 'retrying'].includes(s.status))).toBe(false);
+
+    await reply();
+    await worker.tick();
+    expect(await enrollment(kariRun)).toMatchObject({ state: 'exited', exitReason: 'replied', updatedAt: after.updatedAt });
   });
 
   it('leaves a reply to a journey email to the journey, and hands a held reply to the team', async () => {

@@ -1379,7 +1379,8 @@
         "attempt": "forsøk {attempt}",
         "agent": "agentjobb {status}, {tokens} tokens",
         "waiting": "Venter ({kind}) til {until} · hendelse {event}",
-        "ended": "Avsluttet: {reason}"
+        "ended": "Avsluttet: {reason}",
+        "lastError": "Siste feil ({count, plural, one {# gang} other {# ganger}}): {error}"
       },
       "report": {
         "goal": "Måloppnåelse",
@@ -1550,7 +1551,9 @@
         "conversation_stop": "ba om å slutte",
         "node_missing": "steget mangler",
         "node_type_unavailable": "stegtypen er ikke tilgjengelig",
-        "wait_timeout": "hendelsen kom aldri"
+        "wait_timeout": "hendelsen kom aldri",
+        "step_failed": "et steg feilet gang på gang",
+        "journey_archived": "kundereisen ble arkivert"
       }
     },
     "endUsers": {

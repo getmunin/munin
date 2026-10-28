@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { schema } from '@getmunin/db';
-import { and, count, eq, sql } from 'drizzle-orm';
+import { and, count, eq, isNull, sql } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { JourneySpecSchema, tierFor, type JourneyNode, type JourneySpec } from '@getmunin/types';
 import { JourneysService, hashSpec } from './journeys.service.ts';
@@ -272,6 +272,7 @@ export class JourneyPublishingService {
   async requestPublish(journeyId: string, number?: number): Promise<PublishRequestDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
+    await ctx.db.execute(sql`SELECT id FROM journeys WHERE id = ${journeyId} FOR UPDATE`);
     const journey = await this.journeys.get(journeyId);
     if (journey.status === 'archived') throw new ConflictException(`journeys_conflict: journey ${journeyId} is archived`);
     const draft = number ? await this.journeys.getVersion(journeyId, number) : journey.draft;
@@ -315,7 +316,7 @@ export class JourneyPublishingService {
     const simulation = await this.simulator.simulate({ journeyId, spec, limit: 50, renderSamples: 2 });
     const pinnedTemplates = await autoTemplateHashes(spec);
     const fingerprint = publishFingerprint(journeyId, draft.number, draft.specHash, diff.autoNodes, pinnedTemplates);
-    await ctx.db
+    const [requested] = await ctx.db
       .update(schema.journeyVersions)
       .set({
         publishFingerprint: fingerprint,
@@ -325,7 +326,18 @@ export class JourneyPublishingService {
         publishRequestedByActorId: actor.id,
         updatedAt: new Date(),
       })
-      .where(and(eq(schema.journeyVersions.journeyId, journeyId), eq(schema.journeyVersions.number, draft.number)));
+      .where(
+        and(
+          eq(schema.journeyVersions.journeyId, journeyId),
+          eq(schema.journeyVersions.number, draft.number),
+          eq(schema.journeyVersions.specHash, draft.specHash),
+          isNull(schema.journeyVersions.publishedAt),
+        ),
+      )
+      .returning({ id: schema.journeyVersions.id });
+    if (!requested) {
+      throw new ConflictException(`journeys_conflict: version ${draft.number} changed while its publish review was being prepared — request publish again`);
+    }
     await this.webhooks.emit({
       type: 'journey.version.publish_requested',
       payload: { journeyId, version: draft.number, fingerprint, autoNodes: diff.autoNodes },
@@ -351,6 +363,7 @@ export class JourneyPublishingService {
         'journeys_forbidden: only a person signed in to the Munin dashboard can publish a journey',
       );
     }
+    await ctx.db.execute(sql`SELECT id FROM journeys WHERE id = ${journeyId} FOR UPDATE`);
     const journey = await this.journeys.get(journeyId);
     if (journey.status === 'archived') throw new ConflictException(`journeys_conflict: journey ${journeyId} is archived`);
     const [row] = await ctx.db
@@ -373,10 +386,23 @@ export class JourneyPublishingService {
       );
     }
     const now = new Date();
-    await ctx.db
+    const [published] = await ctx.db
       .update(schema.journeyVersions)
       .set({ publishedAt: now, publishedByActorId: actor.id, updatedAt: now })
-      .where(eq(schema.journeyVersions.id, row.id));
+      .where(
+        and(
+          eq(schema.journeyVersions.id, row.id),
+          isNull(schema.journeyVersions.publishedAt),
+          eq(schema.journeyVersions.publishFingerprint, fingerprint),
+          eq(schema.journeyVersions.specHash, row.specHash),
+        ),
+      )
+      .returning({ id: schema.journeyVersions.id });
+    if (!published) {
+      throw new ConflictException(
+        `journeys_conflict: version ${number} changed after its publish review was prepared — request publish again and review the new diff`,
+      );
+    }
     await ctx.db
       .update(schema.journeys)
       .set({
@@ -388,6 +414,7 @@ export class JourneyPublishingService {
               ? now
               : nextScheduledEntry(spec.entry.trigger, now, spec.settings.timezone)
             : null,
+        entryCursor: null,
         updatedAt: now,
       })
       .where(eq(schema.journeys.id, journeyId));

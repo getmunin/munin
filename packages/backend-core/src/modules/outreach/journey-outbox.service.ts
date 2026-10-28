@@ -42,6 +42,7 @@ export type JourneyOutboxHost = Pick<
 type JourneyConversations = Pick<ConvService, 'sendMessage' | 'createConversation' | 'startWidgetConversation'>;
 
 export const TEMPLATE_HOLD_RECHECK_MS = 60 * 60_000;
+export const PAUSE_HOLD_RECHECK_MS = 15 * 60_000;
 
 export function journeyTemplateAlertSubject(journeyId: string): string {
   return `${journeyId}:email_template`;
@@ -172,7 +173,8 @@ export class JourneyOutboxService implements ProposalKindHandler {
   }
 
   async gate(proposal: ProposalDto, at: Date, stage: 'approve' | 'scheduled'): Promise<SendDecision> {
-    await this.assertRunOpen(proposal);
+    const held = await this.runHold(proposal);
+    if (held) return { decision: 'defer', until: new Date(at.getTime() + PAUSE_HOLD_RECHECK_MS), reason: held };
     const delivery = parseJourneyDelivery(proposal.id, proposal.journeyDelivery);
     if (stage === 'scheduled' && proposal.decidedByActorType !== 'user' && (await this.templateDrifted(delivery))) {
       await this.alertTemplateChanged(proposal);
@@ -231,22 +233,34 @@ export class JourneyOutboxService implements ProposalKindHandler {
     }
   }
 
-  private async assertRunOpen(proposal: ProposalDto): Promise<void> {
+  private async runHold(proposal: ProposalDto): Promise<'journey_paused' | 'step_paused' | null> {
     const ctx = getCurrentContext();
     const [run] = proposal.journeyEnrollmentId
       ? await ctx.db
-          .select({ state: schema.journeyEnrollments.state, journeyStatus: schema.journeys.status })
+          .select({
+            state: schema.journeyEnrollments.state,
+            journeyStatus: schema.journeys.status,
+            pausedNodes: schema.journeys.pausedNodes,
+          })
           .from(schema.journeyEnrollments)
           .innerJoin(schema.journeys, eq(schema.journeys.id, schema.journeyEnrollments.journeyId))
           .where(eq(schema.journeyEnrollments.id, proposal.journeyEnrollmentId))
           .limit(1)
       : [];
-    if (!run || !['active', 'waiting'].includes(run.state) || run.journeyStatus !== 'live') {
+    if (!run || !['active', 'waiting'].includes(run.state) || !['live', 'paused'].includes(run.journeyStatus)) {
       throw new OutreachInvalidError(
         `proposal ${proposal.id} belongs to a journey run that is no longer running, so it cannot be sent`,
         'outreach_journey_ended',
       );
     }
+    if (run.journeyStatus === 'paused') return 'journey_paused';
+    if (!proposal.journeyStepRunId) return null;
+    const [step] = await ctx.db
+      .select({ nodeId: schema.journeyStepRuns.nodeId })
+      .from(schema.journeyStepRuns)
+      .where(eq(schema.journeyStepRuns.id, proposal.journeyStepRunId))
+      .limit(1);
+    return step && run.pausedNodes[step.nodeId] ? 'step_paused' : null;
   }
 
   private async templateDrifted(delivery: JourneyDelivery): Promise<boolean> {

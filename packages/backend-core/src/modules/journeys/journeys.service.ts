@@ -357,6 +357,7 @@ export class JourneysService {
     nodeId: string,
     reason: { reason: string; metric?: string; rate?: number } = { reason: 'manual' },
   ): Promise<JourneyDto> {
+    await this.lockRow(id);
     const row = await this.load(id);
     if (row.status === 'archived') throw new ConflictException(`journeys_conflict: journey ${id} is archived`);
     if (row.pausedNodes[nodeId]) {
@@ -378,6 +379,7 @@ export class JourneysService {
   }
 
   async resumeNode(id: string, nodeId: string): Promise<JourneyDto & { released: number }> {
+    await this.lockRow(id);
     const row = await this.load(id);
     if (!row.pausedNodes[nodeId]) {
       throw new ConflictException(`journeys_conflict: node ${nodeId} is not paused`);
@@ -404,6 +406,7 @@ export class JourneysService {
   }
 
   async resume(id: string): Promise<JourneyDto> {
+    await this.lockRow(id);
     const row = await this.load(id);
     await getCurrentContext()
       .db.update(schema.journeys)
@@ -423,6 +426,7 @@ export class JourneysService {
     eventType: string,
     reason?: Record<string, unknown>,
   ): Promise<JourneyDto> {
+    await this.lockRow(id);
     const row = await this.load(id);
     if (!from.includes(row.status as JourneyStatus)) {
       throw new ConflictException(
@@ -447,7 +451,7 @@ export class JourneysService {
     summary: string,
     guard?: DraftGuard,
   ): Promise<JourneyVersionDto> {
-    await getCurrentContext().db.execute(sql`SELECT id FROM journeys WHERE id = ${id} FOR UPDATE`);
+    await this.lockRow(id);
     const journey = await this.load(id);
     if (journey.status === 'archived') {
       throw new ConflictException(`journeys_conflict: journey ${id} is archived`);
@@ -475,9 +479,10 @@ export class JourneysService {
           publishRequestedByActorId: null,
           updatedAt: new Date(),
         })
-        .where(eq(schema.journeyVersions.id, latest.id))
+        .where(and(eq(schema.journeyVersions.id, latest.id), isNull(schema.journeyVersions.publishedAt)))
         .returning();
-      return toVersionDto(row!);
+      if (!row) throw new ConflictException(`journeys_conflict: version ${latest.number} was published meanwhile; apply your edit again`);
+      return toVersionDto(row);
     }
     const base = latest?.spec ?? EMPTY_SPEC;
     const row = await this.insertVersion(id, (latest?.number ?? 0) + 1, edit(base), latest?.number ?? null, summary);
@@ -508,6 +513,10 @@ export class JourneysService {
       })
       .returning();
     return row!;
+  }
+
+  private async lockRow(id: string): Promise<void> {
+    await getCurrentContext().db.execute(sql`SELECT id FROM journeys WHERE id = ${id} FOR UPDATE`);
   }
 
   private async load(id: string) {

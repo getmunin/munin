@@ -619,6 +619,11 @@ function TraceSheet({ enrollmentId, onClose }: { enrollmentId: string | null; on
                 })}
               </li>
             ))}
+            {trace.enrollment.lastError && (
+              <li className="border-l-2 border-destructive pl-3 text-xs text-destructive">
+                {t('lastError', { count: trace.enrollment.stepErrors ?? 1, error: trace.enrollment.lastError })}
+              </li>
+            )}
             {trace.enrollment.exitReason && (
               <li className="pl-3 font-mono text-xs text-ink dark:text-foreground">
                 {t('ended', { reason: labels.reason(trace.enrollment.exitReason) })}

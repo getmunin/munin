@@ -47,7 +47,7 @@ export class OutreachOutcomeSink implements EventSink {
       )
       .where(eq(schema.convConversations.id, conversationId))
       .limit(1);
-    if (!conversation?.outreachCampaignId) return;
+    if (!conversation) return;
 
     if (event.type === MESSAGE_RECEIVED) {
       if (!REPLY_CHANNEL_TYPES.includes(conversation.channelType)) return;
@@ -55,20 +55,23 @@ export class OutreachOutcomeSink implements EventSink {
       return;
     }
 
-    const [campaign] = await ctx.db
-      .select({ extractionSchema: schema.outreachCampaigns.extractionSchema })
-      .from(schema.outreachCampaigns)
-      .where(eq(schema.outreachCampaigns.id, conversation.outreachCampaignId))
-      .limit(1);
+    const [campaign] = conversation.outreachCampaignId
+      ? await ctx.db
+          .select({ extractionSchema: schema.outreachCampaigns.extractionSchema })
+          .from(schema.outreachCampaigns)
+          .where(eq(schema.outreachCampaigns.id, conversation.outreachCampaignId))
+          .limit(1)
+      : [];
     const extractionSchema = campaign?.extractionSchema ?? [];
 
+    const p = schema.outreachProposals;
     const [proposal] = await ctx.db
-      .select({ contactId: schema.outreachProposals.contactId, kind: schema.outreachProposals.kind })
-      .from(schema.outreachProposals)
+      .select({ contactId: p.contactId, kind: p.kind, journeyId: p.journeyId })
+      .from(p)
       .where(
         and(
-          eq(schema.outreachProposals.conversationId, conversationId),
-          eq(schema.outreachProposals.campaignId, conversation.outreachCampaignId),
+          eq(p.conversationId, conversationId),
+          conversation.outreachCampaignId ? eq(p.campaignId, conversation.outreachCampaignId) : eq(p.kind, 'journey'),
         ),
       )
       .limit(1);
@@ -86,6 +89,7 @@ export class OutreachOutcomeSink implements EventSink {
       userPrompt: buildOutcomePrompt({
         conversationId,
         campaignId: conversation.outreachCampaignId,
+        journeyId: proposal.journeyId,
         contactId: proposal.contactId,
         channelType: conversation.channelType,
         extractionSchema,

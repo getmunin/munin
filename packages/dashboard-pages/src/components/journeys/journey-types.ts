@@ -35,7 +35,8 @@ export interface JourneyDto {
   id: string;
   name: string;
   description: string | null;
-  outreachCampaignId: string;
+  outreachCampaignId: string | null;
+  senderChannelId?: string | null;
   status: JourneyStatus;
   liveVersion: number | null;
   draftVersion: number | null;

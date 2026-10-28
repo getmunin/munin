@@ -150,7 +150,8 @@ export interface BroadcastRecipientDto {
 
 export interface OutreachProposalDto {
   id: string;
-  campaignId: string;
+  campaignId: string | null;
+  journeyId?: string | null;
   contactId: string;
   conversationId: string | null;
   kind: 'initial' | 'reply' | 'followup' | 'journey';
@@ -160,6 +161,7 @@ export interface OutreachProposalDto {
   originalDraftBody?: string | null;
   draftFingerprint: string;
   campaign?: { name: string; ctaUrl?: string | null } | null;
+  journey?: { id: string; name: string } | null;
   contact?: {
     name: string | null;
     email: string | null;

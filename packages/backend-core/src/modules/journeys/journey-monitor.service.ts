@@ -147,7 +147,7 @@ export class JourneyMonitorService {
 
   private async nodeCounts(
     journeyId: string,
-    campaignId: string,
+    campaignId: string | null,
     windowDays: number,
     resets: Record<string, string>,
   ): Promise<CountRow[]> {
@@ -187,7 +187,7 @@ export class JourneyMonitorService {
                   WHERE ev.org_id = ${orgId}
                     AND ev.type = 'crm.contact.unsubscribed'
                     AND ev.payload->>'contactId' = sent.contact_id
-                    AND ev.payload->>'campaignId' = ${campaignId}
+                    AND (ev.payload->>'journeyId' = ${journeyId} OR ev.payload->>'campaignId' = ${campaignId ?? ''})
                     AND ev.created_at >= sent.sent_at
                     AND (sent.next_sent_at IS NULL OR ev.created_at < sent.next_sent_at)
                ))::int AS unsubscribes

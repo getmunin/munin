@@ -789,7 +789,7 @@ export class JourneyRuntimeService {
     if (!contactId) return { kind: 'exit', reason: 'no_contact' };
     const ctx = getCurrentContext();
     const [journey] = await ctx.db
-      .select({ campaignId: schema.journeys.outreachCampaignId })
+      .select({ senderChannelId: schema.journeys.senderChannelId })
       .from(schema.journeys)
       .where(eq(schema.journeys.id, step.enrollment.journeyId))
       .limit(1);
@@ -797,7 +797,7 @@ export class JourneyRuntimeService {
     const sms = node.channel !== 'email';
     const proposal = await this.outbox.propose(
       {
-        campaignId: journey!.campaignId,
+        journeyId: step.enrollment.journeyId,
         channel: node.channel,
         channelId:
           node.channel === 'sms'
@@ -806,7 +806,7 @@ export class JourneyRuntimeService {
             ? (settings.voiceChannelId ?? null)
             : node.channel === 'chat'
               ? (settings.chatChannelId ?? null)
-              : null,
+              : (journey?.senderChannelId ?? null),
         contactId,
         enrollmentId: step.enrollment.id,
         stepRunId: step.stepRunId,
@@ -876,7 +876,7 @@ export class JourneyRuntimeService {
     if (recipients.length === 0) return { kind: 'exit', reason: 'no_recipients' };
     const ctx = getCurrentContext();
     const [journey] = await ctx.db
-      .select({ campaignId: schema.journeys.outreachCampaignId })
+      .select({ senderChannelId: schema.journeys.senderChannelId })
       .from(schema.journeys)
       .where(eq(schema.journeys.id, step.enrollment.journeyId))
       .limit(1);
@@ -886,10 +886,14 @@ export class JourneyRuntimeService {
     for (const contactId of recipients) {
       const proposal = await this.outbox.propose(
         {
-          campaignId: journey!.campaignId,
+          journeyId: step.enrollment.journeyId,
           channel: node.channel,
           channelId:
-            node.channel === 'sms' ? (settings.smsChannelId ?? null) : node.channel === 'chat' ? (settings.chatChannelId ?? null) : null,
+            node.channel === 'sms'
+              ? (settings.smsChannelId ?? null)
+              : node.channel === 'chat'
+                ? (settings.chatChannelId ?? null)
+                : (journey?.senderChannelId ?? null),
           contactId,
           enrollmentId: step.enrollment.id,
           stepRunId: step.stepRunId,
@@ -1165,7 +1169,7 @@ export class JourneyRuntimeService {
       .returning({ id: c.id });
     if (!stopped) return;
     const [journey] = await ctx.db
-      .select({ name: schema.journeys.name, campaignId: schema.journeys.outreachCampaignId })
+      .select({ name: schema.journeys.name })
       .from(schema.journeys)
       .where(eq(schema.journeys.id, enrollment.journeyId))
       .limit(1);
@@ -1181,7 +1185,7 @@ export class JourneyRuntimeService {
     });
     await this.webhooks.emit({
       type: 'crm.contact.unsubscribed',
-      payload: { contactId: enrollment.contactId, campaignId: journey?.campaignId ?? null, method: 'journey_stop' },
+      payload: { contactId: enrollment.contactId, journeyId: enrollment.journeyId, method: 'journey_stop' },
     });
   }
 

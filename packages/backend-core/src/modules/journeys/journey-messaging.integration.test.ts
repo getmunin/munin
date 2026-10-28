@@ -33,6 +33,7 @@ import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { EmailService } from '../conv/email/email.service.ts';
 import { stubAttachmentGateway } from '../conv/attachments/conv-attachments.test-stub.ts';
 import { OutreachOutcomeSink } from '../outreach/outreach-outcome.sink.ts';
+import { OutreachUnsubscribeService } from '../outreach/outreach-unsubscribe.service.ts';
 import { emailTemplateHash } from '../outreach/email-template-hash.ts';
 import type { OutreachVoiceCaller } from '../conv/channels/outreach-voice.ts';
 
@@ -111,7 +112,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       appDb,
       new CuratorJobsService(webhooks),
     );
-    journeys = new JourneysService(webhooks, null, outreach);
+    journeys = new JourneysService(webhooks, null);
     alerts = new AlertsService(webhooks);
     runtime = new JourneyRuntimeService(webhooks, crm, new JourneyOutboxService(outreach, webhooks, conv, crm, email, alerts), new CuratorJobsService(webhooks), conv);
     publishing = new JourneyPublishingService(webhooks, journeys, new JourneySimulator(runtime));
@@ -520,6 +521,31 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect(new Set(texts.map((p) => p.conversationId)).size).toBe(2);
   });
 
+  it('sends a journey email without an outreach campaign and counts an unsubscribe from it against the journey', async () => {
+    const journeyId = await publish([welcome({ approval: 'auto' }), done]);
+    const ola = await contact();
+    await enroll(journeyId, ola.id);
+    await worker.tick();
+    const [sent] = await proposalsFor(ola.id);
+    const [journeyRow] = await db.select().from(schema.journeys).where(eq(schema.journeys.id, journeyId));
+    expect(sent).toMatchObject({ status: 'sent', campaignId: null, journeyId, channelId: journeyRow!.senderChannelId });
+    const [conversation] = await db.select().from(schema.convConversations).where(eq(schema.convConversations.id, sent!.conversationId!));
+    expect(conversation!.outreachCampaignId).toBeNull();
+    const [message] = await db.select().from(schema.convMessages).where(eq(schema.convMessages.conversationId, sent!.conversationId!));
+    const token = new URL(String(message!.metadata.listUnsubscribeUrl)).searchParams.get('token') ?? undefined;
+    const reviewed = await asAgent(() => outreach.getProposal(sent!.id));
+    expect(reviewed.journey).toMatchObject({ id: journeyId });
+
+    await expect(new OutreachUnsubscribeService(db, webhooks).unsubscribe(token, 'one_click')).resolves.toMatchObject({ state: 'unsubscribed' });
+    const [event] = await db
+      .select()
+      .from(schema.events)
+      .where(and(eq(schema.events.orgId, orgId), eq(schema.events.type, 'crm.contact.unsubscribed')));
+    expect(event!.payload).toMatchObject({ contactId: ola.id, journeyId });
+    const report = await asAgent(() => monitor.report(journeyId));
+    expect(report.nodes.find((n) => n.nodeId === 'welcome')).toMatchObject({ sends: 1, unsubscribes: 1 });
+  });
+
   it('allows two open journey emails to the same person on one campaign', async () => {
     const ola = await contact();
     const base = { orgId, campaignId, contactId: ola.id, kind: 'journey', journeyDelivery: { channel: 'email', format: 'markdown', templateId: null, templateHash: null, preheader: null, policy: { class: 'marketing', cooldownHoursAfterConversation: 24 }, auto: false }, draftBody: 'Hei', status: 'pending', proposedByActorType: 'system', proposedByActorId: 'journey-runtime' };
@@ -718,7 +744,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect(await enrollment(kariRun)).toMatchObject({ state: 'exited', exitReason: 'replied', updatedAt: after.updatedAt });
   });
 
-  it('leaves a reply to a journey email to the journey, and hands a held reply to the team', async () => {
+  it('leaves a reply to a journey email to the journey, and hands a held reply to the team to answer in Conversations', async () => {
     const withReply = await publish([
       welcome({ approval: 'auto', next: 'wait', onReply: 'replied' }),
       { id: 'wait', type: 'wait', duration: 'P7D', next: 'done' },
@@ -765,7 +791,10 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     });
     await expect(
       asAgent(() => outreach.proposeReply({ conversationId: olaThread, draftBody: 'Hei Ola, det koster 99 kr i måneden.' })),
-    ).resolves.toMatchObject({ kind: 'reply', status: 'pending' });
+    ).rejects.toThrow(/not outreach-originated/);
+    await expect(
+      runAs(person, () => conv.sendMessage({ conversationId: olaThread, body: 'Hei Ola, det koster 99 kr i måneden.', authorType: 'user', authorId: person.id })),
+    ).resolves.toMatchObject({ body: 'Hei Ola, det koster 99 kr i måneden.' });
   });
 
   it('files an agent-written draft with its sources for review, or the reference version if the agent is silent', async () => {

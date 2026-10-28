@@ -125,7 +125,7 @@ export function OutreachQueuePane({
   const handle =
     delivery?.destination ??
     item.raw.contact?.email ??
-    item.raw.campaign?.name ??
+    (item.raw.journey?.name ?? item.raw.campaign?.name) ??
     t('handleFallback');
   const revisionCount = item.raw.revisionCount ?? 0;
   const stamp = (d: Date) =>

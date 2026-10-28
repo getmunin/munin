@@ -49,7 +49,7 @@ export function journeyTemplateAlertSubject(journeyId: string): string {
 }
 
 export interface JourneyMessageDraft {
-  campaignId: string;
+  journeyId: string;
   channel: JourneyDeliveryChannel;
   channelId: string | null;
   contactId: string;
@@ -104,8 +104,9 @@ export class JourneyOutboxService implements ProposalKindHandler {
       .insert(p)
       .values({
         orgId: actor.orgId,
-        campaignId: input.campaignId,
-        channelId: input.channel === 'email' ? null : input.channelId,
+        campaignId: null,
+        journeyId: input.journeyId,
+        channelId: input.channelId,
         contactId: input.contactId,
         kind: 'journey',
         journeyEnrollmentId: input.enrollmentId,
@@ -123,7 +124,7 @@ export class JourneyOutboxService implements ProposalKindHandler {
       type: 'outreach.proposal.created',
       payload: {
         proposalId: row!.id,
-        campaignId: row!.campaignId,
+        journeyId: input.journeyId,
         contactId: row!.contactId,
         kind: 'journey',
         channel: input.channel,
@@ -162,11 +163,11 @@ export class JourneyOutboxService implements ProposalKindHandler {
       .update(p)
       .set({ status: 'withdrawn', withdrawReason: reason, scheduledSendAt: null, updatedAt: new Date() })
       .where(and(eq(p.journeyEnrollmentId, enrollmentId), inArray(p.status, ['pending', 'approved'])))
-      .returning({ id: p.id, campaignId: p.campaignId, contactId: p.contactId });
+      .returning({ id: p.id, campaignId: p.campaignId, journeyId: p.journeyId, contactId: p.contactId });
     for (const row of rows) {
       await this.webhooks.emit({
         type: 'outreach.proposal.withdrawn',
-        payload: { proposalId: row.id, campaignId: row.campaignId, contactId: row.contactId, kind: 'journey', reason },
+        payload: { proposalId: row.id, campaignId: row.campaignId, journeyId: row.journeyId, contactId: row.contactId, kind: 'journey', reason },
       });
     }
     return rows.length;
@@ -199,7 +200,10 @@ export class JourneyOutboxService implements ProposalKindHandler {
   }
 
   private async assertDraftable(input: JourneyMessageDraft): Promise<void> {
-    if (input.channel === 'email') return;
+    if (input.channel === 'email') {
+      if (!input.channelId) throw new OutreachInvalidError('the journey has no email channel to send from');
+      return;
+    }
     if (input.channel === 'chat') {
       if (!input.channelId) throw new OutreachInvalidError('a journey chat step needs a chat widget channel');
       const ctx = getCurrentContext();
@@ -300,12 +304,11 @@ export class JourneyOutboxService implements ProposalKindHandler {
   ): Promise<ProposalDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    const campaign = await this.outreach.getCampaign(proposal.campaignId);
-    const channel = await this.outreach.loadOutreachChannel(campaign.channelId);
+    const channelId = proposal.delivery?.channelId;
+    if (!channelId) throw new OutreachInvalidError(`proposal ${proposal.id} has no email channel to send from`);
+    const channel = await this.outreach.loadOutreachChannel(channelId);
     if (channel.type !== 'email') {
-      throw new OutreachInvalidError(
-        `journey emails need an email channel; campaign ${campaign.id} uses ${channel.type}`,
-      );
+      throw new OutreachInvalidError(`journey emails need an email channel; channel ${channel.id} is ${channel.type}`);
     }
     const contact = await this.crm.getContact(proposal.contactId);
     assertEligible(contact, { class: delivery.policy.class, channelType: 'email' });
@@ -318,7 +321,7 @@ export class JourneyOutboxService implements ProposalKindHandler {
       publicBaseUrl,
       orgId: actor.orgId,
       contactId: contact.id,
-      campaignId: campaign.id,
+      campaignId: proposal.campaignId ?? proposal.journeyId!,
     });
     const { renderEmail, BUILT_IN_EMAIL_TEMPLATE } = await import('./email-template-render.ts');
     const mjml = await this.templateMjml(delivery.templateId, BUILT_IN_EMAIL_TEMPLATE);
@@ -356,6 +359,7 @@ export class JourneyOutboxService implements ProposalKindHandler {
         bodyHtml: rendered.html,
         messageMetadata,
         approvedOutreachProposalId: approvedByPerson,
+        outboxProposalId: proposal.id,
         authorType: 'agent',
         authorId: sender.id,
       });
@@ -366,13 +370,13 @@ export class JourneyOutboxService implements ProposalKindHandler {
         this.email.findOrCreateContactByEmail(tx, actor.orgId, contact.email!, contact.name ?? undefined),
       );
       const conversation = await this.conv.createConversation({
-        channelId: campaign.channelId,
+        channelId: channel.id,
         body: rendered.text,
         bodyHtml: rendered.html,
         subject: proposal.draftSubject ?? undefined,
         contactId: convContact.id,
         endUserId: contact.endUserId ?? undefined,
-        outreachCampaignId: campaign.id,
+        outreachCampaignId: proposal.campaignId ?? undefined,
         messageMetadata,
         approvedOutreachProposalId: approvedByPerson,
         agentMode: 'draft_only',
@@ -421,6 +425,7 @@ export class JourneyOutboxService implements ProposalKindHandler {
         body,
         messageMetadata,
         approvedOutreachProposalId: proposal.id,
+        outboxProposalId: proposal.id,
         authorType: 'agent',
         authorId: sender.id,
       });
@@ -443,7 +448,7 @@ export class JourneyOutboxService implements ProposalKindHandler {
         body,
         contactId: convContact.id,
         endUserId: contact.endUserId ?? undefined,
-        outreachCampaignId: proposal.campaignId,
+        outreachCampaignId: proposal.campaignId ?? undefined,
         messageMetadata,
         approvedOutreachProposalId: proposal.id,
         agentMode: 'draft_only',
@@ -503,6 +508,7 @@ export class JourneyOutboxService implements ProposalKindHandler {
         body,
         messageMetadata,
         approvedOutreachProposalId,
+        outboxProposalId: proposal.id,
         authorType: 'agent',
         authorId: sender.id,
       });
@@ -513,7 +519,7 @@ export class JourneyOutboxService implements ProposalKindHandler {
         channelId,
         endUserId: contact.endUserId,
         body,
-        outreachCampaignId: proposal.campaignId,
+        outreachCampaignId: proposal.campaignId ?? undefined,
         approvedOutreachProposalId,
         messageMetadata,
         authorType: 'agent',
@@ -550,6 +556,7 @@ export class JourneyOutboxService implements ProposalKindHandler {
       payload: {
         proposalId: proposal.id,
         campaignId: proposal.campaignId,
+        journeyId: proposal.journeyId,
         contactId,
         conversationId,
         messageId,

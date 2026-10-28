@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 
 export interface FingerprintableDraft {
-  campaignId: string;
+  campaignId: string | null;
+  journeyId?: string | null;
   contactId: string;
   kind: string;
   draftSubject: string | null;
@@ -15,7 +16,7 @@ export function draftFingerprint(draft: FingerprintableDraft): string {
       ? draft.proposedSendAt.toISOString()
       : (draft.proposedSendAt ?? null);
   const canonical = JSON.stringify([
-    draft.campaignId,
+    draft.campaignId ?? draft.journeyId ?? null,
     draft.contactId,
     draft.kind,
     draft.draftSubject,

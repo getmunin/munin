@@ -3,7 +3,7 @@ import type { schema } from '@getmunin/db';
 export const OUTREACH_VOICE_CALLERS = Symbol('OUTREACH_VOICE_CALLERS');
 
 export interface OutreachCallContext {
-  outreachCampaignId: string;
+  outreachCampaignId: string | null;
   outreachProposalId: string;
   contactId: string;
 }

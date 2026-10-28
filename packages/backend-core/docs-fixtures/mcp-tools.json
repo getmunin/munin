@@ -8325,7 +8325,7 @@
   {
     "name": "outreach_list_campaigns",
     "title": "Outreach: List campaigns",
-    "description": "List outbound-campaign definitions for this org. Each row carries the brief, the targeted CRM segment, the email channel used to send, cadence rules, `sequenceSteps` (follow-up steps defined before campaign sequences were retired; nothing drafts them any more, and a journey created from the campaign carries them over), `extractionSchema` (the fields an outcome pass writes to each contact after a call on this campaign ends or a prospect replies; empty means no extraction runs), CTA URL, the enabled flag, and the automation flags: `autoDraftFirstTouch` (the weekly curator drafts first-touch emails only when true), `autoDraftReplies` (replies to inbound prospect messages are auto-drafted only when true), and `autoCurateEdits` (a human editing a draft before approving it feeds a KB curation pass only when true). The weekly first-touch curator only drafts proposals for `enabled = true` campaigns with `autoDraftFirstTouch = true`. `journeyId` names the journey that sends through a campaign; such a campaign has no segment of its own when the journey created it, and its own first touches stop while the journey is published.",
+    "description": "List outbound-campaign definitions for this org. Each row carries the brief, the targeted CRM segment, the email channel used to send, cadence rules, `sequenceSteps` (follow-up steps defined before campaign sequences were retired; nothing drafts them any more, and a journey created from the campaign carries them over), `extractionSchema` (the fields an outcome pass writes to each contact after a call on this campaign ends or a prospect replies; empty means no extraction runs), CTA URL, the enabled flag, and the automation flags: `autoDraftFirstTouch` (the weekly curator drafts first-touch emails only when true), `autoDraftReplies` (replies to inbound prospect messages are auto-drafted only when true), and `autoCurateEdits` (a human editing a draft before approving it feeds a KB curation pass only when true). The weekly first-touch curator only drafts proposals for `enabled = true` campaigns with `autoDraftFirstTouch = true`. `journeyId` names the journey a campaign was converted into; the campaign's own first touches stop while that journey is published.",
     "audiences": [
       "admin"
     ],
@@ -11276,6 +11276,40 @@
       },
       "required": [
         "name",
+        "senderChannelId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_update_sender",
+    "title": "Journeys: Update the sending channel",
+    "description": "Point a journey at another email channel to send from. It applies to every email the journey sends from now on, including ones already approved and waiting. A journey converted from an outreach campaign sends through that campaign instead, and is refused.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "senderChannelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "journeyId",
         "senderChannelId"
       ],
       "additionalProperties": false

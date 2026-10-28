@@ -315,7 +315,7 @@ function OutreachContent({ proposal }: { proposal: OutreachProposalDto }) {
   return (
     <DecidedSection
       label={t('outreachLabel')}
-      note={proposal.campaign?.name ?? tOutreach('campaignUnknown')}
+      note={(proposal.journey?.name ?? proposal.campaign?.name) ?? tOutreach('campaignUnknown')}
     >
       <Frame>
         <div className="grid grid-cols-[54px_minmax(0,1fr)] gap-x-3 gap-y-1 border-b border-rule-soft bg-paper-deep px-4 py-3 dark:border-rule-on-dark dark:bg-secondary">

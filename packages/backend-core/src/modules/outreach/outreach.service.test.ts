@@ -615,7 +615,7 @@ const skipReason = TEST_URL
 
     it('listProposals reports hasEvidence false when the draft was filed without evidence', async () => {
       const p = await pending('rev-no-evidence');
-      const rows = await run(() => svc.listProposals({ campaignId: p.campaignId }));
+      const rows = await run(() => svc.listProposals({ campaignId: p.campaignId! }));
       expect(rows).toHaveLength(1);
       expect(rows[0]!.hasEvidence).toBe(false);
       expect(rows[0]!).not.toHaveProperty('evidence');
@@ -821,7 +821,7 @@ const skipReason = TEST_URL
       expect(revised.draftFingerprint).not.toBe(p.draftFingerprint);
       const fetched = await run(() => svc.getProposal(p.id));
       expect(fetched.draftFingerprint).toBe(revised.draftFingerprint);
-      const [listed] = await run(() => svc.listProposals({ campaignId: p.campaignId }));
+      const [listed] = await run(() => svc.listProposals({ campaignId: p.campaignId! }));
       expect(listed!.draftFingerprint).toBe(revised.draftFingerprint);
     });
 
@@ -892,7 +892,7 @@ const skipReason = TEST_URL
       await run(() => svc.withdrawProposal({ id: p.id, reason: 'wrong angle' }));
       const fresh = await run(() =>
         svc.proposeInitial({
-          campaignId: p.campaignId,
+          campaignId: p.campaignId!,
           contactId,
           draftSubject: 's2',
           draftBody: 'corrected',

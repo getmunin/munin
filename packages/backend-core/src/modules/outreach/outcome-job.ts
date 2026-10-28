@@ -20,14 +20,16 @@ function describeTrigger(channelType: string): string {
 
 export function buildOutcomePrompt(input: {
   conversationId: string;
-  campaignId: string;
+  campaignId: string | null;
+  journeyId?: string | null;
   contactId: string;
   channelType: string;
   extractionSchema: ExtractionField[];
 }): string {
+  const source = input.campaignId ? `campaign ${input.campaignId}` : `journey ${input.journeyId ?? 'unknown'}`;
   return (
     `Run an outreach outcome-extraction pass for conversation ${input.conversationId} ` +
-    `(campaign ${input.campaignId}, contact ${input.contactId}, channel ${input.channelType}). ` +
+    `(${source}, contact ${input.contactId}, channel ${input.channelType}). ` +
     `${describeTrigger(input.channelType)} ` +
     `Follow skill://outreach/extract-outcome exactly. ` +
     `Read the conversation with conv_get_conversation(${input.conversationId}), then write what the ` +

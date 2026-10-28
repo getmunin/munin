@@ -190,6 +190,11 @@ export interface ProposalContactSummary {
   companyName: string | null;
 }
 
+export interface ProposalJourneySummary {
+  id: string;
+  name: string;
+}
+
 export interface ProposalCampaignSummary {
   id: string;
   name: string;
@@ -216,7 +221,8 @@ export interface ProposalDelivery {
 
 export interface ProposalDto {
   id: string;
-  campaignId: string;
+  campaignId: string | null;
+  journeyId: string | null;
   contactId: string;
   conversationId: string | null;
   kind: ProposalKind;
@@ -256,6 +262,7 @@ export interface ProposalDto {
   updatedAt: string;
   contact: ProposalContactSummary | null;
   campaign: ProposalCampaignSummary | null;
+  journey: ProposalJourneySummary | null;
   delivery: ProposalDelivery | null;
 }
 
@@ -358,36 +365,6 @@ export class OutreachService {
     if (!rows[0]) throw new NotFoundException(`outreach_not_found: campaign ${id}`);
     const journeys = await this.campaignJourneys([id]);
     return toCampaignDto(rows[0], journeys.get(id)?.id ?? null);
-  }
-
-  async createJourneyCampaign(input: { name: string; brief: string; channelId: string }): Promise<CampaignDto> {
-    const ctx = getCurrentContext();
-    const actor = ctx.actor!;
-    const channel = await this.loadOutreachChannel(input.channelId);
-    if (channel.type !== 'email') {
-      throw new OutreachInvalidError(
-        `journeys send from an email channel for now; channel ${input.channelId} is ${channel.type}`,
-      );
-    }
-    await this.assertCampaignNameFree(input.name);
-    const [row] = await ctx.db
-      .insert(schema.outreachCampaigns)
-      .values({
-        orgId: actor.orgId,
-        name: input.name,
-        brief: input.brief,
-        segmentId: null,
-        channelId: input.channelId,
-        enabled: false,
-        autoDraftFirstTouch: false,
-        autoDraftReplies: false,
-        autoCurateEdits: false,
-        unsubscribeRequired: true,
-        createdByActorType: actor.type,
-        createdByActorId: actor.id,
-      })
-      .returning();
-    return toCampaignDto(row!, null);
   }
 
   async createCampaign(input: {
@@ -498,7 +475,7 @@ export class OutreachService {
       .select({ id: schema.journeys.id, status: schema.journeys.status, campaignId: schema.journeys.outreachCampaignId })
       .from(schema.journeys)
       .where(and(inArray(schema.journeys.outreachCampaignId, campaignIds), ne(schema.journeys.status, 'archived')));
-    return new Map(rows.map((r) => [r.campaignId, { id: r.id, status: r.status }]));
+    return new Map(rows.flatMap((r) => (r.campaignId ? [[r.campaignId, { id: r.id, status: r.status }] as const] : [])));
   }
 
   private async assertJourneyCampaignPatch(
@@ -654,6 +631,7 @@ export class OutreachService {
           ctaUrl: schema.outreachCampaigns.ctaUrl,
           unsubscribeRequired: schema.outreachCampaigns.unsubscribeRequired,
         },
+        journey: { id: schema.journeys.id, name: schema.journeys.name },
         channel: {
           id: schema.convChannels.id,
           type: schema.convChannels.type,
@@ -673,6 +651,7 @@ export class OutreachService {
         schema.outreachCampaigns,
         eq(schema.outreachCampaigns.id, schema.outreachProposals.campaignId),
       )
+      .leftJoin(schema.journeys, eq(schema.journeys.id, schema.outreachProposals.journeyId))
       .leftJoin(
         schema.convChannels,
         eq(schema.convChannels.id, sql`coalesce(${schema.outreachProposals.channelId}, ${schema.outreachCampaigns.channelId})`),
@@ -699,6 +678,7 @@ export class OutreachService {
         r.channel,
         toProposalDeliverability(r.deliverability),
       ),
+      journeySummary(r.journey),
     );
   }
 
@@ -721,6 +701,7 @@ export class OutreachService {
           ctaUrl: schema.outreachCampaigns.ctaUrl,
           unsubscribeRequired: schema.outreachCampaigns.unsubscribeRequired,
         },
+        journey: { id: schema.journeys.id, name: schema.journeys.name },
         channel: {
           id: schema.convChannels.id,
           type: schema.convChannels.type,
@@ -740,6 +721,7 @@ export class OutreachService {
         schema.outreachCampaigns,
         eq(schema.outreachCampaigns.id, schema.outreachProposals.campaignId),
       )
+      .leftJoin(schema.journeys, eq(schema.journeys.id, schema.outreachProposals.journeyId))
       .leftJoin(
         schema.convChannels,
         eq(schema.convChannels.id, sql`coalesce(${schema.outreachProposals.channelId}, ${schema.outreachCampaigns.channelId})`),
@@ -757,6 +739,7 @@ export class OutreachService {
       rows[0].contact,
       rows[0].campaign,
       toProposalDelivery(rows[0].contact, rows[0].campaign, rows[0].channel, toProposalDeliverability(rows[0].deliverability)),
+      journeySummary(rows[0].journey),
     );
   }
 
@@ -873,16 +856,16 @@ export class OutreachService {
     const actor = ctx.actor!;
     if (!input.draftBody.trim()) throw new OutreachInvalidError('draftBody must be non-empty');
     const conv = await this.conv.getConversation(input.conversationId);
-    if (!conv.outreachCampaignId) {
-      throw new OutreachInvalidError(
-        `conversation ${input.conversationId} is not outreach-originated (no campaign attached)`,
-      );
-    }
     const journeyRun = await this.journeyReplyOwner(conv.id);
     if (journeyRun) {
       throw new OutreachInvalidError(
         `conversation ${conv.id} is answered by journey run ${journeyRun}, which follows the reply itself`,
         'outreach_journey_managed',
+      );
+    }
+    if (!conv.outreachCampaignId) {
+      throw new OutreachInvalidError(
+        `conversation ${input.conversationId} is not outreach-originated (no campaign attached)`,
       );
     }
     const replyCampaign = await this.getCampaign(conv.outreachCampaignId);
@@ -1076,7 +1059,7 @@ export class OutreachService {
         .returning();
       return {
         outcome: 'deferred',
-        proposal: toProposalDto(deferred!, proposal.contact, proposal.campaign, proposal.delivery),
+        proposal: toProposalDto(deferred!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey),
         reason: decision.reason,
       };
     }
@@ -1125,7 +1108,7 @@ export class OutreachService {
         },
       });
     }
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
   }
 
   async cancelScheduledSend(input: { id: string; reason: string }): Promise<ProposalDto> {
@@ -1165,7 +1148,7 @@ export class OutreachService {
         reason: input.reason,
       },
     });
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
   }
 
   private async stampApproval(
@@ -1186,13 +1169,14 @@ export class OutreachService {
       })
       .where(eq(schema.outreachProposals.id, proposal.id))
       .returning();
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
   }
 
   private async enqueueEditCuration(sent: ProposalDto): Promise<void> {
     const originalDraftBody = sent.originalDraftBody;
     if (originalDraftBody === null) return;
     if (sameAfterNormalizing(originalDraftBody, sent.draftBody)) return;
+    if (!sent.campaignId) return;
     const campaign = await this.getCampaign(sent.campaignId);
     if (!campaign.autoCurateEdits) return;
     await this.curatorJobs.enqueue({
@@ -1234,7 +1218,7 @@ export class OutreachService {
   ): Promise<ProposalDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    const campaign = await this.getCampaign(proposal.campaignId);
+    const campaign = await this.campaignOf(proposal);
     if (!campaign.enabled) {
       throw new OutreachInvalidError(`campaign ${campaign.id} is disabled`);
     }
@@ -1319,7 +1303,7 @@ export class OutreachService {
       },
     });
 
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
   }
 
   private async deliverInitialSms(
@@ -1394,7 +1378,7 @@ export class OutreachService {
       },
     });
 
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
   }
 
   async deliverVoiceCall(
@@ -1403,14 +1387,19 @@ export class OutreachService {
     channelId: string,
     sentPayload: Record<string, unknown>,
   ): Promise<ProposalDto> {
-    const campaign = await this.getCampaign(proposal.campaignId);
+    const campaign = proposal.campaignId ? await this.getCampaign(proposal.campaignId) : null;
     const channel = await this.loadOutreachChannel(channelId);
     return this.deliverInitialVoice(proposal, campaign, contact, channel, sentPayload);
   }
 
+  private async campaignOf(proposal: ProposalDto): Promise<CampaignDto> {
+    if (!proposal.campaignId) throw new OutreachInvalidError(`proposal ${proposal.id} belongs to no campaign`);
+    return this.getCampaign(proposal.campaignId);
+  }
+
   private async deliverInitialVoice(
     proposal: ProposalDto,
-    campaign: CampaignDto,
+    campaign: Pick<CampaignDto, 'id'> | null,
     contact: { id: string; name: string | null; phone: string | null },
     channel: typeof schema.convChannels.$inferSelect,
     sentPayload: Record<string, unknown> = {},
@@ -1428,7 +1417,7 @@ export class OutreachService {
         customerName: contact.name ?? undefined,
         opening: proposal.draftBody,
         context: {
-          outreachCampaignId: campaign.id,
+          outreachCampaignId: campaign?.id ?? null,
           outreachProposalId: proposal.id,
           contactId: contact.id,
         },
@@ -1475,7 +1464,7 @@ export class OutreachService {
       type: 'outreach.proposal.sent',
       payload: {
         proposalId: proposal.id,
-        campaignId: campaign.id,
+        campaignId: campaign?.id ?? null,
         contactId: contact.id,
         conversationId: conv.id,
         messageId: null,
@@ -1484,7 +1473,7 @@ export class OutreachService {
       },
     });
 
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
   }
 
   private async createVoiceStubConversation(args: {
@@ -1492,7 +1481,7 @@ export class OutreachService {
     channel: typeof schema.convChannels.$inferSelect;
     contact: { id: string; name: string | null; phone: string };
     proposal: ProposalDto;
-    campaign: CampaignDto;
+    campaign: Pick<CampaignDto, 'id'> | null;
     callIdKey: string;
     callId: string;
   }): Promise<{ id: string }> {
@@ -1532,7 +1521,7 @@ export class OutreachService {
         const stubMetadata = {
           [args.callIdKey]: args.callId,
           outreachProposalId: args.proposal.id,
-          outreachCampaignId: args.campaign.id,
+          ...(args.campaign ? { outreachCampaignId: args.campaign.id } : {}),
           crmContactId: args.contact.id,
         };
         const newId = makeId('ccv');
@@ -1542,7 +1531,7 @@ export class OutreachService {
              outreach_campaign_id, agent_mode, last_message_at, metadata)
           VALUES
             (${newId}, ${args.orgId}, ${displayId}, ${args.channel.id}, ${convContactId},
-             'open', NULL, ${args.campaign.id}, 'off',
+             'open', NULL, ${args.campaign?.id ?? null}, 'off',
              ${new Date().toISOString()}, ${JSON.stringify(stubMetadata)}::jsonb)
           ON CONFLICT (org_id, channel_id, ((metadata ->> ${sql.raw(`'${args.callIdKey}'`)})))
             WHERE (metadata ->> ${sql.raw(`'${args.callIdKey}'`)}) IS NOT NULL
@@ -1568,7 +1557,7 @@ export class OutreachService {
         await tx
           .update(schema.convConversations)
           .set({
-            outreachCampaignId: args.campaign.id,
+            outreachCampaignId: args.campaign?.id ?? null,
             metadata: { ...(existing[0].metadata), ...stubMetadata },
             updatedAt: new Date(),
           })
@@ -1623,7 +1612,7 @@ export class OutreachService {
       },
     });
 
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
   }
 
   private async deliverFollowup(
@@ -1636,7 +1625,7 @@ export class OutreachService {
         `follow-up proposal ${proposal.id} has no conversationId — cannot send`,
       );
     }
-    const campaign = await this.getCampaign(proposal.campaignId);
+    const campaign = await this.campaignOf(proposal);
     if (!campaign.enabled) {
       throw new OutreachInvalidError(`campaign ${campaign.id} is disabled`);
     }
@@ -1694,12 +1683,12 @@ export class OutreachService {
       },
     });
 
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
   }
 
   private async sendDecision(proposal: ProposalDto, at: Date): Promise<SendDecision | null> {
     if (proposal.kind === 'reply') return null;
-    const campaign = await this.getCampaign(proposal.campaignId);
+    const campaign = await this.campaignOf(proposal);
     const channelType = proposal.delivery?.channelType;
     return checkSendPolicy({
       contactId: proposal.contactId,
@@ -1749,7 +1738,7 @@ export class OutreachService {
       )
       .returning();
     if (!updated) return this.getProposal(id);
-    return toProposalDto(updated, proposal.contact, proposal.campaign, proposal.delivery);
+    return toProposalDto(updated, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
   }
 
   async updateProposal(input: {
@@ -1840,7 +1829,7 @@ export class OutreachService {
         revisedAfterReview,
       },
     });
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
   }
 
   async withdrawProposal(input: { id: string; reason: string }): Promise<ProposalDto> {
@@ -1874,7 +1863,7 @@ export class OutreachService {
         reason: input.reason,
       },
     });
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
   }
 
   async dismissProposal(input: { id: string; reason?: string }): Promise<ProposalDto> {
@@ -1905,7 +1894,7 @@ export class OutreachService {
         reason: input.reason ?? null,
       },
     });
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery, proposal.journey);
   }
 
   private requireVoiceCaller(vendor: string): OutreachVoiceCaller {
@@ -1932,8 +1921,8 @@ export class OutreachService {
 
   private async sendWindowClosedReason(proposal: ProposalDto): Promise<string | null> {
     const channelType = proposal.delivery?.channelType ?? 'email';
-    if (!CHANNELS_REQUIRING_HUMAN_APPROVAL.includes(channelType)) return null;
-    const campaign = await this.getCampaign(proposal.campaignId);
+    if (!CHANNELS_REQUIRING_HUMAN_APPROVAL.includes(channelType) || !proposal.campaignId) return null;
+    const campaign = await this.campaignOf(proposal);
     const blocked = outsideCallingWindow(campaign.cadenceRules, new Date());
     if (!blocked) return null;
     return `campaign ${campaign.id} does not ${channelType === 'voice' ? 'call' : 'message'} ${blocked}`;
@@ -2029,7 +2018,7 @@ export class OutreachService {
         autoCurateEdits: c.autoCurateEdits,
         unsubscribeRequired: c.unsubscribeRequired,
       })),
-      proposals: proposals.map((p) => ({
+      proposals: proposals.flatMap((p) => (p.campaignId ? [{ ...p, campaignId: p.campaignId }] : [])).map((p) => ({
         id: p.id,
         campaignId: p.campaignId,
         contactId: p.contactId,
@@ -2320,10 +2309,12 @@ function toProposalDto(
     unsubscribeRequired?: boolean | null;
   } | null = null,
   delivery: ProposalDelivery | null = null,
+  journey: ProposalJourneySummary | null = null,
 ): ProposalDto {
   return {
     id: row.id,
     campaignId: row.campaignId,
+    journeyId: row.journeyId,
     contactId: row.contactId,
     conversationId: row.conversationId,
     kind: row.kind as ProposalKind,
@@ -2376,6 +2367,7 @@ function toProposalDto(
       campaign && campaign.id
         ? { id: campaign.id, name: campaign.name ?? '', ctaUrl: campaign.ctaUrl ?? null }
         : null,
+    journey,
     delivery,
   };
 }
@@ -2386,12 +2378,14 @@ function toProposalSummaryDto(
   contact: Parameters<typeof toProposalDto>[1],
   campaign: Parameters<typeof toProposalDto>[2],
   delivery: ProposalDelivery | null,
+  journey: ProposalJourneySummary | null = null,
 ): ProposalSummaryDto {
   const { evidence: _evidence, ...summary } = toProposalDto(
     { ...row, evidence: {} },
     contact,
     campaign,
     delivery,
+    journey,
   );
   return { ...summary, hasEvidence };
 }
@@ -2609,4 +2603,8 @@ function sequencesRetired(): OutreachInvalidError {
     'campaign follow-up sequences are retired; build the sequence as a journey instead (journeys_create_from_campaign converts an existing one)',
     'outreach_sequences_retired',
   );
+}
+
+function journeySummary(row: { id: string | null; name: string | null } | null): ProposalJourneySummary | null {
+  return row?.id && row.name ? { id: row.id, name: row.name } : null;
 }

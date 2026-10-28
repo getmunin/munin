@@ -76,4 +76,17 @@ describe('DraftEditor', () => {
       after: { nodeId: 'welcome', edge: 'next' },
     });
   });
+
+  it('lets a person open the steps of a draft that cannot be drawn, and refuses to save an incomplete step', async () => {
+    const broken = version(3, 'hash-3');
+    broken.spec = { ...broken.spec, nodes: [...(broken.spec.nodes as unknown[]), { id: 'later', type: 'wait', duration: 'soon' }] };
+    const edit = vi.fn((_change: DraftEdit, _hash: string) => Promise.resolve(broken));
+    renderWithProviders(<DraftEditor version={broken} edit={edit} validate={() => Promise.resolve(valid)} onStale={() => undefined} />);
+    expect(screen.getByText(/The draft cannot be drawn yet/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'welcome' }));
+    fireEvent.change(screen.getByDisplayValue('Hi {{name}}'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save step' }));
+    expect((await screen.findByRole('alert')).textContent).toContain("This step isn't complete yet");
+    expect(edit).not.toHaveBeenCalled();
+  });
 });

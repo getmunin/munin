@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
-import { schema, type Db } from '@getmunin/db';
+import { schema, type Db, type Tx } from '@getmunin/db';
 import { and, asc, eq, inArray, isNull, lt, lte, ne, or, sql } from 'drizzle-orm';
 import { DEFAULT_TRACE_RETENTION_DAYS } from '@getmunin/types';
 import { randomUUID } from 'node:crypto';
@@ -328,10 +328,10 @@ export class JourneyRuntimeWorker implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  private bypass<T>(fn: (tx: Db) => Promise<T>): Promise<T> {
+  private bypass<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
     return this.db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
-      return fn(tx as unknown as Db);
+      return fn(tx);
     });
   }
 

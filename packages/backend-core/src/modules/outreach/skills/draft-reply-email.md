@@ -24,6 +24,8 @@ Replies must answer what the prospect actually said. If they asked a question, a
 6. **Draft** a 30–120-word reply that addresses the inbound. Plain prose, no headings, no JSON-escaping. **No unsubscribe footer** — replies thread inside the existing email chain which already carries the original link.
 7. **File** with `outreach_propose_reply({ conversationId, draftBody, evidence })`. The proposal lands `pending`; the operator approves on `/dashboard/review`. Approving sends via `conv_send_message`.
 
+This pass never fires on a conversation a journey started: the journey answers on its `onReply` path, or flags the thread for the team. If an operator asks you to draft one there anyway, `outreach_propose_reply` refuses with `outreach_journey_managed` while the journey is following the reply; once the run is waiting for the thread to close, or has ended, file it as usual.
+
 ## Step 1 — read the conversation
 
 ```jsonc

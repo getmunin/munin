@@ -24,7 +24,7 @@ Monorepo on pnpm + Turborepo.
 | `crm` | `crm_*` | Contacts, companies, deals, pipelines, segments, merge proposals. |
 | `cms` | `cms_*` | Collections, entries, locales, assets, scheduled publishing, public delivery API. |
 | `outreach` | `outreach_*` | Propose-only outbound campaigns. Never auto-sends, except journey emails a person set to `auto` when publishing the journey. |
-| `journeys` | `journeys_*` | Versioned journey graphs wrapping one email outreach campaign. Agents draft and validate; publishing needs a signed-in person. |
+| `journeys` | `journeys_*` | Versioned journey graphs that send from one email channel through a campaign the journey owns; outreach tools can't reconfigure it, and replies on a journey's threads belong to the journey. Agents draft and validate; publishing needs a signed-in person. |
 | `slack` | `slack_*` | Operator bridge: mirrors conversations into Slack threads via a `WebhookDispatcher` sink + `slack_deliveries` queue. Not a `ChannelAdapter`. |
 | `connectors` | `connectors_*` | Plumbing trunk for customer-facing data connectors: encrypted connection storage, vendor-adapter registry, credential testing. Domain modules register adapters here and own the typed read surfaces; live reads only, no vendor data persisted. |
 | `commerce` | `commerce_*` | Connector-backed order lookups (Shopify, Magento 2): admin tools take an email; self-service tools bind to the calling end-user's email server-side. |

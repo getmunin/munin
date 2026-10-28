@@ -33,6 +33,7 @@ const email = (id: string, copy: Copy, extra: Record<string, unknown> = {}) => (
   type: 'message',
   channel: 'email',
   content: { subject: copy[id]!.subject, body: copy[id]!.body },
+  approval: 'auto',
   ...extra,
 });
 

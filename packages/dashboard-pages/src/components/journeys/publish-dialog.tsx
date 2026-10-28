@@ -85,20 +85,6 @@ export function PublishDialog({
         {!review && !error && <p className="mt-4 font-mono text-xs text-ink-mute">{t('preparing')}</p>}
         {review && diff && sim && (
           <div className="mt-4 max-h-[60vh] space-y-5 overflow-y-auto pr-1 text-sm">
-            <section>
-              <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('changes')}</h3>
-              <p className="mt-1 text-ink dark:text-foreground">
-                {diff.againstVersion === null
-                  ? t('firstVersion')
-                  : t('againstVersion', { version: diff.againstVersion })}
-              </p>
-              <ul className="mt-1 space-y-0.5 font-mono text-xs text-ink-mute">
-                {diff.addedNodes.length > 0 && <li>{t('added', { nodes: diff.addedNodes.join(', ') })}</li>}
-                {diff.changedNodes.length > 0 && <li>{t('changed', { nodes: diff.changedNodes.join(', ') })}</li>}
-                {diff.removedNodes.length > 0 && <li>{t('removed', { nodes: diff.removedNodes.join(', ') })}</li>}
-                {diff.changedBlocks.length > 0 && <li>{t('blocks', { blocks: diff.changedBlocks.join(', ') })}</li>}
-              </ul>
-            </section>
             {diff.autoNodes.length > 0 && (
               <section className="rounded-card border-[1px] border-cobalt/50 bg-cobalt/5 p-3">
                 <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-cobalt">{t('autoTitle')}</h3>
@@ -127,10 +113,29 @@ export function PublishDialog({
                   ))}
               </section>
             )}
-            {review.validation.warnings.length > 0 && (
+            <section>
+              <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('changes')}</h3>
+              <p className="mt-1 text-ink dark:text-foreground">
+                {diff.againstVersion === null
+                  ? t('firstVersion')
+                  : t('againstVersion', { version: diff.againstVersion })}
+              </p>
+              <ul className="mt-1 space-y-0.5 font-mono text-xs text-ink-mute">
+                {diff.addedNodes.length > 0 && <li>{t('added', { nodes: diff.addedNodes.join(', ') })}</li>}
+                {diff.changedNodes.length > 0 && <li>{t('changed', { nodes: diff.changedNodes.join(', ') })}</li>}
+                {diff.removedNodes.length > 0 && <li>{t('removed', { nodes: diff.removedNodes.join(', ') })}</li>}
+                {diff.changedBlocks.length > 0 && <li>{t('blocks', { blocks: diff.changedBlocks.join(', ') })}</li>}
+              </ul>
+            </section>
+            {(review.validation.warnings.length > 0 || (sim.warnings ?? []).length > 0) && (
               <section>
                 <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('warnings')}</h3>
                 <ul className="mt-1 list-disc space-y-0.5 pl-5 text-ink-mute">
+                  {(sim.warnings ?? []).map((w) => (
+                    <li key={`${w.code}-${w.nodeId}`}>
+                      {t('noLawfulBasis', { count: w.count, size: sim.sample.size, node: w.nodeId })}
+                    </li>
+                  ))}
                   {review.validation.warnings.map((w, i) => (
                     <li key={`${w.code}-${i}`}>
                       {w.nodeId ? <code>{w.nodeId}</code> : null} {w.message}

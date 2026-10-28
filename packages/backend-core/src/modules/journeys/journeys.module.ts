@@ -13,6 +13,7 @@ import { JourneySimulator } from './journey-simulator.ts';
 import { JourneyPublishingService } from './journey-publishing.service.ts';
 import { JourneyTemplatesService } from './journey-templates.service.ts';
 import { JourneyMonitorService } from './journey-monitor.service.ts';
+import { JourneyTemplateChangesService } from './journey-template-changes.service.ts';
 
 @Module({
   imports: [ConvModule, CrmModule, OutreachModule, CuratorModule],
@@ -26,8 +27,15 @@ import { JourneyMonitorService } from './journey-monitor.service.ts';
     JourneyPublishingService,
     JourneyTemplatesService,
     JourneyMonitorService,
+    JourneyTemplateChangesService,
   ],
-  exports: [JourneysService, JourneyRuntimeService, JourneyPublishingService, JourneyMonitorService],
+  exports: [
+    JourneysService,
+    JourneyRuntimeService,
+    JourneyPublishingService,
+    JourneyMonitorService,
+    JourneyTemplateChangesService,
+  ],
 })
 export class JourneysModule implements OnModuleInit {
   constructor(

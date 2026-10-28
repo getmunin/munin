@@ -38,6 +38,13 @@ export interface SimulationAssumption {
   timeout?: string;
 }
 
+export interface SimulationWarning {
+  code: 'no_lawful_basis';
+  nodeId: string;
+  count: number;
+  message: string;
+}
+
 export interface SimulationResult {
   sample: { source: 'contacts' | 'segment' | 'recent'; segmentId: string | null; size: number };
   entered: number;
@@ -48,6 +55,7 @@ export interface SimulationResult {
   messages: SimulatedMessage[];
   messageDecisions: Record<string, Record<string, number>>;
   assumptions: SimulationAssumption[];
+  warnings: SimulationWarning[];
 }
 
 @Injectable()
@@ -68,8 +76,10 @@ export class JourneySimulator {
       messages: [],
       messageDecisions: {},
       assumptions: [],
+      warnings: [],
     };
     const assumptions = new Map<string, SimulationAssumption>();
+    const withoutLawfulBasis = new Map<string, Set<string>>();
     const now = new Date();
     let rendered = 0;
 
@@ -99,6 +109,10 @@ export class JourneySimulator {
         if (step.message) {
           const decisions = (result.messageDecisions[node.id] ??= {});
           bump(decisions, step.message.decision);
+          if (step.message.reason === 'no_lawful_basis') {
+            const people = withoutLawfulBasis.get(node.id) ?? new Set<string>();
+            withoutLawfulBasis.set(node.id, people.add(contact.id));
+          }
           if (node.type === 'message' && node.channel === 'email' && rendered < (input.renderSamples ?? 3) && step.message.decision !== 'skip') {
             step.message.html = await this.renderSample(node, contact);
             rendered += 1;
@@ -115,6 +129,12 @@ export class JourneySimulator {
       bump(result.exits, exit ?? 'reached_end');
     }
     result.assumptions = [...assumptions.values()];
+    result.warnings = [...withoutLawfulBasis].map(([nodeId, people]) => ({
+      code: 'no_lawful_basis',
+      nodeId,
+      count: people.size,
+      message: `${people.size} of the ${result.sample.size} people in the sample reach "${nodeId}" without a recorded lawful basis, so this marketing message skips them until their consent is recorded.`,
+    }));
     return result;
   }
 

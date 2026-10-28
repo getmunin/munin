@@ -11,6 +11,7 @@ import {
   JourneySpecSchema,
   MAX_CONCURRENT_ENROLLMENTS,
   MAX_SUB_JOURNEY_DEPTH,
+  canSendWithoutReview,
   parseIsoDurationMs,
   type JourneyNode,
   type JourneySpec,
@@ -725,7 +726,7 @@ export class JourneyRuntimeService {
         templateId: node.content.templateId,
         templateHash: node.approval === 'auto' ? await this.pinnedTemplateHash(step, node.id) : null,
         preheader: node.content.preheader,
-        auto: (node.channel === 'email' || node.channel === 'chat') && node.approval === 'auto',
+        auto: node.approval === 'auto' && canSendWithoutReview(node.channel, node.class),
         policy: {
           channel: node.channel,
           class: node.class,
@@ -808,7 +809,7 @@ export class JourneyRuntimeService {
           templateId: node.content.templateId,
           templateHash,
           preheader: node.content.preheader,
-          auto: (node.channel === 'email' || node.channel === 'chat') && node.approval === 'auto',
+          auto: node.approval === 'auto' && canSendWithoutReview(node.channel, node.class),
           policy: {
             channel: node.channel,
             class: node.class,

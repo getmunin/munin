@@ -6,8 +6,10 @@ import {
   insertAfter,
   nodesWithErrors,
   parseNodeJson,
+  autoAllowed,
   setContent,
   setField,
+  setMessageClass,
   skeletonNode,
   suggestNodeId,
 } from './draft-edit';
@@ -17,6 +19,18 @@ describe('draft editing helpers', () => {
     for (const kind of NEW_STEP_KINDS) {
       expect(JourneyNodeSchema.safeParse(skeletonNode(kind, 'step')).success, kind).toBe(true);
     }
+  });
+
+  it('starts fixed-text email and chat steps on auto, and keeps marketing SMS and calls with a person', () => {
+    expect(skeletonNode('email', 'a').approval).toBe('auto');
+    expect(skeletonNode('chat', 'a').approval).toBe('auto');
+    expect(skeletonNode('sms', 'a').approval).toBeUndefined();
+    expect(autoAllowed(skeletonNode('sms', 'a'))).toBe(false);
+    expect(autoAllowed(skeletonNode('voice', 'a'))).toBe(false);
+    const receipt = setMessageClass(skeletonNode('sms', 'a'), 'transactional');
+    expect(receipt.class).toBe('transactional');
+    expect(autoAllowed(receipt)).toBe(true);
+    expect(setMessageClass({ ...receipt, approval: 'auto' }, 'marketing')).toEqual({ ...skeletonNode('sms', 'a'), approval: 'draft_only' });
   });
 
   it('offers only the edges that step and channel can take', () => {

@@ -1,7 +1,8 @@
 import { schema } from '@getmunin/db';
 import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
-import type { MESSAGE_CLASSES, Weekday } from '@getmunin/types';
+import { z } from 'zod';
+import { MESSAGE_CLASSES, TimeWindow, WEEKDAYS, type Weekday } from '@getmunin/types';
 import { nextSendableTime } from '../../common/send-window.ts';
 import { readSendRules, type SendRules } from './send-rules.ts';
 
@@ -16,6 +17,16 @@ export interface SendPolicy {
   frequencyCapPerWeek?: number;
   cooldownHoursAfterConversation: number;
 }
+
+export const SendPolicySchema = z.object({
+  channel: z.enum(['email', 'sms', 'voice', 'chat']).optional(),
+  class: z.enum(MESSAGE_CLASSES),
+  timezone: z.string().min(1).optional(),
+  quietHours: TimeWindow.optional(),
+  validDays: z.array(z.enum(WEEKDAYS)).optional(),
+  frequencyCapPerWeek: z.number().int().min(0).optional(),
+  cooldownHoursAfterConversation: z.number().min(0),
+}) satisfies z.ZodType<SendPolicy>;
 
 export type SendDecision =
   | { decision: 'send' }
@@ -193,7 +204,7 @@ async function marketingSendTimes(contactIds: string[], since: Date): Promise<Ma
     SELECT contact_id, sent_at FROM outreach_proposals
      WHERE contact_id IN (${list(contactIds)}) AND status = 'sent' AND sent_at >= ${since.toISOString()}::timestamptz
        AND (kind IN ('initial', 'followup')
-            OR (kind = 'journey' AND coalesce(evidence -> 'journeyMessage' -> 'policy' ->> 'class', 'marketing') = 'marketing'))
+            OR (kind = 'journey' AND coalesce(journey_delivery -> 'policy' ->> 'class', 'marketing') = 'marketing'))
     UNION ALL
     SELECT contact_id, sent_at FROM outreach_broadcast_recipients
      WHERE contact_id IN (${list(contactIds)}) AND status = 'sent' AND sent_at >= ${since.toISOString()}::timestamptz

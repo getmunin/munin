@@ -4,6 +4,7 @@ import { ConvModule } from '../conv/conv.module.ts';
 import { CrmModule } from '../crm/crm.module.ts';
 import { CuratorModule } from '../curator/curator.module.ts';
 import { OutreachService } from './outreach.service.ts';
+import { JourneyOutboxService } from './journey-outbox.service.ts';
 import { OutreachUnsubscribeService } from './outreach-unsubscribe.service.ts';
 import { OutreachEmailTemplatesService } from './outreach-email-templates.service.ts';
 import { OutreachEmailTemplateTools } from './outreach-email-templates.tools.ts';
@@ -21,6 +22,7 @@ import { OutreachSendRulesTools } from './outreach-send-rules.tools.ts';
   imports: [ConvModule, CrmModule, CuratorModule],
   providers: [
     OutreachService,
+    JourneyOutboxService,
     OutreachUnsubscribeService,
     OutreachEmailTemplatesService,
     OutreachBroadcastsService,
@@ -36,6 +38,7 @@ import { OutreachSendRulesTools } from './outreach-send-rules.tools.ts';
   ],
   exports: [
     OutreachService,
+    JourneyOutboxService,
     OutreachUnsubscribeService,
     OutreachEmailTemplatesService,
     OutreachBroadcastsService,

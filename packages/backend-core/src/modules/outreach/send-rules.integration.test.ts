@@ -251,7 +251,10 @@ function quietAroundNow(): string {
       draftBody: 'Hei',
       status: 'sent',
       sentAt: new Date(Date.now() - 60 * 60_000),
-      evidence: cls ? { journeyMessage: { policy: { class: cls } } } : {},
+      journeyDelivery:
+        kind === 'journey'
+          ? { channel: 'email', format: 'markdown', templateId: null, templateHash: null, preheader: null, policy: { class: cls ?? 'marketing', cooldownHoursAfterConversation: 0 }, auto: false }
+          : null,
       proposedByActorType: 'admin_agent',
       proposedByActorId: 'agt_send_rules_test',
     });

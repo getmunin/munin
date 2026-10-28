@@ -20,6 +20,7 @@ import { JourneyPublishingService } from './journey-publishing.service.ts';
 import { ProductEventsService } from '../analytics/product-events.service.ts';
 import { IdentityService } from '../identity/identity.service.ts';
 import { OutreachService } from '../outreach/outreach.service.ts';
+import { JourneyOutboxService } from '../outreach/journey-outbox.service.ts';
 import { CrmService } from '../crm/crm.service.ts';
 import { AddressDeliverabilityService } from '../crm/address-deliverability.service.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
@@ -95,17 +96,18 @@ function playbookSpec(segmentId: string): Record<string, unknown> {
       new AlertsService(webhooks),
       stubAttachmentGateway(),
     );
+    const email = new EmailService(new StubMailer());
     outreach = new OutreachService(
       webhooks,
       conv,
       crm,
-      new EmailService(new StubMailer()),
+      email,
       [new VapiOutreachCaller(new VapiClientService(db)), new ThrellOutreachCaller(new ThrellClientService(db))],
       appDb,
       new CuratorJobsService(webhooks),
     );
     journeys = new JourneysService(webhooks);
-    runtime = new JourneyRuntimeService(webhooks, crm, outreach, new CuratorJobsService(webhooks), { requestHandover: () => Promise.resolve(null) });
+    runtime = new JourneyRuntimeService(webhooks, crm, new JourneyOutboxService(outreach, webhooks, conv, crm, email), new CuratorJobsService(webhooks), { requestHandover: () => Promise.resolve(null) });
     worker = new JourneyRuntimeWorker(appDb, runtime);
     publishing = new JourneyPublishingService(webhooks, journeys, new JourneySimulator(runtime));
     events = new ProductEventsService(webhooks, new IdentityService(webhooks));

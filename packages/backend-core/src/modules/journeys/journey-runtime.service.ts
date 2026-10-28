@@ -16,7 +16,7 @@ import {
   type JourneySpec,
 } from '@getmunin/types';
 import { CrmService } from '../crm/crm.service.ts';
-import { OutreachService } from '../outreach/outreach.service.ts';
+import { JourneyOutboxService } from '../outreach/journey-outbox.service.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { ConvService } from '../conv/conv.service.ts';
 import { buildAgentInputs, buildDecidePrompt, buildDraftPrompt, buildEnrichPrompt } from './journey-agent-inputs.ts';
@@ -138,6 +138,8 @@ interface StepContext {
   hop: number;
 }
 
+type JourneyMessageOutbox = Pick<JourneyOutboxService, 'propose' | 'withdrawRun'>;
+
 interface JourneyReplyHandover {
   requestHandover(input: { conversationId: string; reason?: string }): Promise<unknown>;
 }
@@ -149,7 +151,7 @@ export class JourneyRuntimeService {
   constructor(
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(CrmService) private readonly crm: CrmService,
-    @Inject(OutreachService) private readonly outreach: OutreachService,
+    @Inject(JourneyOutboxService) private readonly outbox: JourneyMessageOutbox,
     @Inject(CuratorJobsService) private readonly curatorJobs: Pick<CuratorJobsService, 'enqueue'>,
     @Inject(ConvService) private readonly conv: JourneyReplyHandover,
   ) {}
@@ -702,7 +704,7 @@ export class JourneyRuntimeService {
       .limit(1);
     const settings = step.spec.settings;
     const sms = node.channel !== 'email';
-    const proposal = await this.outreach.proposeJourneyMessage(
+    const proposal = await this.outbox.propose(
       {
         campaignId: journey!.campaignId,
         channel: node.channel,
@@ -791,7 +793,7 @@ export class JourneyRuntimeService {
     const templateHash = node.approval === 'auto' ? await this.pinnedTemplateHash(step, node.id) : null;
     const proposalIds: string[] = [];
     for (const contactId of recipients) {
-      const proposal = await this.outreach.proposeJourneyMessage(
+      const proposal = await this.outbox.propose(
         {
           campaignId: journey!.campaignId,
           channel: node.channel,
@@ -1517,7 +1519,7 @@ export class JourneyRuntimeService {
       const reply = { conversationId, messageId: row.payload.messageId ?? null, eventId: row.eventId };
       if (node?.type === 'message' && node.onReply) {
         await this.cancelWaits(enrollment.id);
-        await this.outreach.withdrawJourneyProposals(enrollment.id, 'the contact replied');
+        await this.outbox.withdrawRun(enrollment.id, 'the contact replied');
         const visits = { ...enrollment.visits, [node.onReply]: (enrollment.visits[node.onReply] ?? 0) + 1 };
         await ctx.db
           .update(schema.journeyEnrollments)
@@ -2547,7 +2549,7 @@ export class JourneyRuntimeService {
       .update(schema.journeyWaits)
       .set({ resolvedAt: now, resolution: 'cancelled' })
       .where(and(eq(schema.journeyWaits.enrollmentId, enrollment.id), isNull(schema.journeyWaits.resolvedAt)));
-    await this.outreach.withdrawJourneyProposals(enrollment.id, `the journey run ended (${reason})`);
+    await this.outbox.withdrawRun(enrollment.id, `the journey run ended (${reason})`);
     await this.webhooks.emit({
       type: 'journey.exited',
       payload: {

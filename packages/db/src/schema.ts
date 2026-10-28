@@ -2135,6 +2135,7 @@ export const outreachProposals = pgTable(
     sequenceStep: integer('sequence_step'),
     journeyEnrollmentId: text('journey_enrollment_id'),
     journeyStepRunId: text('journey_step_run_id'),
+    journeyDelivery: jsonb('journey_delivery').$type<Record<string, unknown>>(),
     channelId: text('channel_id').references(() => convChannels.id, { onDelete: 'set null' }),
     draftSubject: text('draft_subject'),
     draftBody: text('draft_body').notNull(),

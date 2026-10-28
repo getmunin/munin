@@ -121,20 +121,20 @@ export class JourneysTools {
     name: 'journeys_instantiate_template',
     title: 'Journeys: Create a journey from a template',
     description:
-      'Create a draft journey on an email outreach campaign from a template, filling its parameters (for example segmentId). Returns the journey and its validation result; edit the draft afterwards like any other.',
+      'Create a draft journey from a template, filling its parameters (for example segmentId). `senderChannelId` is the email channel the journey sends from. Returns the journey and its validation result; edit the draft afterwards like any other.',
     audiences: ['admin'],
     scopes: ['journeys:write'],
     input: z.object({
       slug: z.string().min(1).max(64),
       locale: z.string().min(2).max(10),
       name: z.string().min(1).max(120),
-      outreachCampaignId: Id,
+      senderChannelId: Id,
       params: z.record(z.string(), z.string().max(200)).default({}),
     }),
     readOnlyHint: false,
     destructiveHint: true,
   })
-  instantiateTemplate(args: { slug: string; locale: string; name: string; outreachCampaignId: string; params: Record<string, string> }) {
+  instantiateTemplate(args: { slug: string; locale: string; name: string; senderChannelId: string; params: Record<string, string> }) {
     return this.templates.instantiate(args);
   }
 
@@ -142,7 +142,7 @@ export class JourneysTools {
     name: 'journeys_create_from_campaign',
     title: 'Journeys: Create a journey from a campaign sequence',
     description:
-      'Convert an email outreach campaign\'s first touch and sequence steps into a draft journey: an agent-drafted email per step, a wait between them, and a reply ends the sequence. Give the goal event that counts as success. From then on the campaign\'s own first touches and follow-ups stop, because the journey runs it; archive the journey to hand them back.',
+      'Convert an email outreach campaign\'s first touch and sequence steps into a draft journey: an agent-drafted email per step, a wait between them, and a reply ends the sequence. Give the goal event that counts as success. The campaign keeps sending its own first touches and follow-ups while the journey is a draft; once the journey is published they stop and the journey sends instead. Archive the journey to hand the campaign back.',
     audiences: ['admin'],
     scopes: ['journeys:write'],
     input: z.object({
@@ -515,19 +515,19 @@ export class JourneysTools {
     name: 'journeys_create',
     title: 'Journeys: Create a journey',
     description:
-      'Create a journey on an existing email outreach campaign (one journey per campaign). The campaign keeps the sending channel, brief, cadence rules and extraction schema. Starts draft version 1 from `spec`, or from an empty spec when omitted.',
+      'Create a journey that sends from the email channel `senderChannelId`. Starts draft version 1 from `spec`, or from an empty spec when omitted.',
     audiences: ['admin'],
     scopes: ['journeys:write'],
     input: z.object({
       name: z.string().min(1).max(120),
       description: z.string().max(1000).optional(),
-      outreachCampaignId: Id,
+      senderChannelId: Id,
       spec: SpecInput.optional(),
     }),
     readOnlyHint: false,
     destructiveHint: true,
   })
-  create(args: { name: string; description?: string; outreachCampaignId: string; spec?: Record<string, unknown> }) {
+  create(args: { name: string; description?: string; senderChannelId: string; spec?: Record<string, unknown> }) {
     return this.journeys.create(args);
   }
 

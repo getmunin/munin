@@ -105,7 +105,7 @@ function playbookSpec(segmentId: string): Record<string, unknown> {
       new CuratorJobsService(webhooks),
     );
     journeys = new JourneysService(webhooks);
-    runtime = new JourneyRuntimeService(webhooks, crm, outreach, new CuratorJobsService(webhooks));
+    runtime = new JourneyRuntimeService(webhooks, crm, outreach, new CuratorJobsService(webhooks), { requestHandover: () => Promise.resolve(null) });
     worker = new JourneyRuntimeWorker(appDb, runtime);
     publishing = new JourneyPublishingService(webhooks, journeys, new JourneySimulator(runtime));
     events = new ProductEventsService(webhooks, new IdentityService(webhooks));

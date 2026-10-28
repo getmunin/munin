@@ -57,7 +57,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     webhooks.registerSink(new JourneyEventSink());
     const crm = new CrmService(webhooks, new DefaultQuotasService(), new AddressDeliverabilityService());
     journeys = new JourneysService(webhooks);
-    runtime = new JourneyRuntimeService(webhooks, crm, { withdrawJourneyProposals: () => Promise.resolve(0) } as never, new CuratorJobsService(webhooks));
+    runtime = new JourneyRuntimeService(webhooks, crm, { withdrawJourneyProposals: () => Promise.resolve(0) } as never, new CuratorJobsService(webhooks), { requestHandover: () => Promise.resolve(null) });
     worker = new JourneyRuntimeWorker(appDb, runtime);
     publishing = new JourneyPublishingService(webhooks, journeys, new JourneySimulator(runtime));
   });

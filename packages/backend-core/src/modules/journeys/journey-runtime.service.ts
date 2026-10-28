@@ -18,6 +18,7 @@ import {
 import { CrmService } from '../crm/crm.service.ts';
 import { OutreachService } from '../outreach/outreach.service.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
+import { ConvService } from '../conv/conv.service.ts';
 import { buildAgentInputs, buildDecidePrompt, buildDraftPrompt, buildEnrichPrompt } from './journey-agent-inputs.ts';
 import { OUTREACH_ELIGIBILITY_FLOOR, segmentMatchFilters } from '../crm/segment-filter.ts';
 import { collectConditionNeeds, evaluateCondition, type ConditionFacts } from './journey-conditions.ts';
@@ -137,6 +138,10 @@ interface StepContext {
   hop: number;
 }
 
+interface JourneyReplyHandover {
+  requestHandover(input: { conversationId: string; reason?: string }): Promise<unknown>;
+}
+
 @Injectable()
 export class JourneyRuntimeService {
   private readonly specCache = new Map<string, JourneySpec>();
@@ -146,6 +151,7 @@ export class JourneyRuntimeService {
     @Inject(CrmService) private readonly crm: CrmService,
     @Inject(OutreachService) private readonly outreach: OutreachService,
     @Inject(CuratorJobsService) private readonly curatorJobs: Pick<CuratorJobsService, 'enqueue'>,
+    @Inject(ConvService) private readonly conv: JourneyReplyHandover,
   ) {}
 
 
@@ -1546,6 +1552,10 @@ export class JourneyRuntimeService {
         eventKey: 'conversation.status_changed',
         match: { conversationId, status: 'closed' },
         timeoutAt: new Date(Date.now() + REPLY_HOLD_MS),
+      });
+      await this.conv.requestHandover({
+        conversationId,
+        reason: 'the contact replied to a journey message; the journey waits until this conversation is closed',
       });
       await ctx.db
         .update(schema.journeyEnrollments)

@@ -68,6 +68,8 @@ export interface EnrollmentDto {
   goalReachedAt: string | null;
   exitedAt: string | null;
   exitReason: string | null;
+  stepErrors?: number;
+  lastError?: string | null;
 }
 
 export interface StepRunDto {

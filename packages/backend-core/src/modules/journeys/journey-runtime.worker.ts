@@ -28,6 +28,7 @@ export interface JourneyTickResult {
   events: number;
   waits: number;
   entries: number;
+  ended: number;
   runs: number;
   guardrailActions: number;
 }
@@ -70,13 +71,14 @@ export class JourneyRuntimeWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   async tick(now = new Date()): Promise<JourneyTickResult> {
-    const result: JourneyTickResult = { events: 0, waits: 0, entries: 0, runs: 0, guardrailActions: 0 };
+    const result: JourneyTickResult = { events: 0, waits: 0, entries: 0, ended: 0, runs: 0, guardrailActions: 0 };
     if (this.running) return result;
     this.running = true;
     try {
       result.events = await this.phase('inbox', () => this.drainInbox(), 0);
       result.waits = await this.phase('waits', () => this.wakeWaits(now), 0);
       result.entries = await this.phase('entries', () => this.runEntries(now), 0);
+      result.ended = await this.phase('archived', () => this.endArchived(), 0);
       result.runs = await this.phase('runs', () => this.runEnrollments(now), 0);
       result.guardrailActions = await this.phase('monitor', () => this.runMonitor(now), 0);
       await this.phase('purge', () => this.purgeInbox(now), undefined);
@@ -195,6 +197,28 @@ export class JourneyRuntimeWorker implements OnModuleInit, OnModuleDestroy {
     return enrolled;
   }
 
+  async endArchived(): Promise<number> {
+    const orgs = await this.bypass(async (tx) =>
+      rowsOf(
+        await tx.execute(sql`
+          SELECT DISTINCT en.org_id
+            FROM journey_enrollments en
+            JOIN journeys j ON j.id = en.journey_id
+           WHERE j.status = 'archived' AND en.state IN ('active', 'waiting')
+        `),
+      ).map((r) => (r as { org_id: string }).org_id),
+    );
+    let ended = 0;
+    for (const orgId of orgs) {
+      try {
+        ended += await this.inOrg(orgId, () => this.runtime.endArchivedRuns());
+      } catch (err) {
+        this.logger.warn(`ending archived journey runs for ${orgId} failed: ${describe(err)}`);
+      }
+    }
+    return ended;
+  }
+
   private async runEnrollments(tickAt: Date): Promise<number> {
     const now = new Date(Math.max(tickAt.getTime(), Date.now()));
     const due = await this.bypass((tx) =>
@@ -261,7 +285,17 @@ export class JourneyRuntimeWorker implements OnModuleInit, OnModuleDestroy {
     );
   }
 
-  async purgeTraces(now: Date, batch = 1000): Promise<number> {
+  async purgeTraces(now: Date, batch = 1000, maxBatches = 50): Promise<number> {
+    let purged = 0;
+    for (let i = 0; i < maxBatches; i++) {
+      const n = await this.purgeTraceBatch(now, batch);
+      purged += n;
+      if (n < batch) break;
+    }
+    return purged;
+  }
+
+  private purgeTraceBatch(now: Date, batch: number): Promise<number> {
     const at = now.toISOString();
     return this.bypass(async (tx) => {
       const due = rowsOf(
@@ -272,7 +306,12 @@ export class JourneyRuntimeWorker implements OnModuleInit, OnModuleDestroy {
             LEFT JOIN journey_versions v ON v.journey_id = j.id AND v.number = coalesce(j.live_version, en.version)
            WHERE en.state IN ('done', 'exited')
              AND en.exited_at < ${at}::timestamptz - make_interval(days => coalesce((v.spec->'settings'->>'traceRetentionDays')::int, ${DEFAULT_TRACE_RETENTION_DAYS}))
-             AND (en.context <> '{}'::jsonb OR EXISTS (SELECT 1 FROM journey_step_runs s WHERE s.enrollment_id = en.id))
+             AND (
+               en.context <> '{}'::jsonb
+               OR EXISTS (SELECT 1 FROM journey_step_runs s WHERE s.enrollment_id = en.id AND s.node_type <> 'split')
+               OR EXISTS (SELECT 1 FROM journey_waits w WHERE w.enrollment_id = en.id)
+             )
+           ORDER BY en.exited_at
            LIMIT ${batch}
         `),
       ).map((r) => (r as { id: string }).id);
@@ -283,7 +322,7 @@ export class JourneyRuntimeWorker implements OnModuleInit, OnModuleDestroy {
         .where(and(inArray(schema.journeyStepRuns.enrollmentId, due), ne(schema.journeyStepRuns.nodeType, 'split')));
       await tx
         .update(schema.journeyEnrollments)
-        .set({ context: {}, updatedAt: new Date() })
+        .set({ context: {}, lastError: null, updatedAt: new Date() })
         .where(inArray(schema.journeyEnrollments.id, due));
       return due.length;
     });

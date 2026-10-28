@@ -65,11 +65,11 @@ describe('journey conditions', () => {
     expect(inTimeWindow(12 * 60, '20:00-08:00')).toBe(false);
   });
 
-  it('collects the events and segments a condition needs loaded', () => {
+  it('collects the events and segments a condition needs loaded, with the most occurrences any rule counts', () => {
     const needs = collectConditionNeeds({
-      any: [{ event: 'trial.started' }, { not: { segment: 'seg_vip' } }, { tag: 'x' }],
+      any: [{ event: 'trial.started' }, { event: 'trial.started', minCount: 3 }, { not: { segment: 'seg_vip' } }, { tag: 'x' }],
     });
-    expect([...needs.eventNames]).toEqual(['trial.started']);
+    expect([...needs.events]).toEqual([['trial.started', 3]]);
     expect([...needs.segmentIds]).toEqual(['seg_vip']);
   });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import {
   ActorIdentity,
   WebhookDispatcher,
@@ -9,7 +9,7 @@ import { createDb, runMigrations, schema } from '@getmunin/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { JourneysService } from './journeys.service.ts';
-import { JourneyRuntimeService } from './journey-runtime.service.ts';
+import { JourneyRuntimeService, MAX_STEP_ERRORS } from './journey-runtime.service.ts';
 import { JourneyRuntimeWorker } from './journey-runtime.worker.ts';
 import { JourneyEventSink } from './journey-event.sink.ts';
 import { ProductEventsService } from '../analytics/product-events.service.ts';
@@ -66,6 +66,7 @@ const DAY = 86_400_000;
   async function cleanup() {
     for (const table of [
       'journey_event_inbox',
+      'journey_approvals',
       'journey_waits',
       'journey_step_runs',
       'journey_enrollments',
@@ -344,6 +345,36 @@ const DAY = 86_400_000;
     expect(parentRun).toMatchObject({ exitReason: 'won' });
   });
 
+  it('lets a person journey wait for a company journey to end', async () => {
+    const acme = await company('Acme');
+    const account = await publish({
+      entry: { trigger: { type: 'manual' }, subject: 'company' },
+      goal: { event: 'subscription.started', windowDays: 30 },
+      start: 'done',
+      nodes: [{ id: 'done', type: 'exit', reason: 'account_done' }],
+    });
+    const parent = await publish({
+      entry: { trigger: { type: 'manual' } },
+      goal: { event: 'subscription.started', windowDays: 30 },
+      start: 'run_account',
+      nodes: [
+        { id: 'run_account', type: 'sub_journey', journeyId: account, await: true, next: 'plain' },
+        { id: 'plain', type: 'exit', reason: 'plain' },
+      ],
+    });
+    const kari = await contact('Kari', ['trial'], acme.id);
+    const run = await asAgent(() =>
+      runtime.enroll({ journeyId: parent, subject: { contactId: kari.id, endUserId: null }, source: { type: 'manual' } }),
+    );
+    for (let i = 0; i < 4; i++) await worker.tick();
+    const [child] = await enrollmentsOf(account);
+    expect(child).toMatchObject({ companyId: acme.id, exitReason: 'account_done' });
+    const [parentRun] = (await enrollmentsOf(parent)).filter((r) => r.id === run.enrollmentId);
+    expect(parentRun).toMatchObject({ exitReason: 'plain' });
+    const trace = await asAgent(() => runtime.getTrace(run.enrollmentId!));
+    expect(trace.steps.find((s) => s.nodeId === 'run_account')!.reason).toMatch(/other journey ended/);
+  });
+
   it('moves open runs onto a new version by node, with a preview fingerprint, keeping waits on unchanged steps', async () => {
     const v1 = {
       entry: { trigger: { type: 'manual' } },
@@ -435,6 +466,150 @@ const DAY = 86_400_000;
     const after = await enrollmentsOf(journeyId);
     expect(after.find((r) => r.id === old!.id)).toMatchObject({ state: 'done', context: {} });
     expect(after.find((r) => r.id === recent!.id)!.context).toMatchObject({ note: 'x' });
+  });
+
+  it('keeps finished steps when a later one throws, retries with backoff and ends the run after repeated errors', async () => {
+    const journeyId = await publish({
+      entry: { trigger: { type: 'manual' } },
+      goal: { event: 'subscription.started', windowDays: 30 },
+      start: 'tag',
+      nodes: [
+        { id: 'tag', type: 'action', action: 'crm.add_tag', params: { tag: 'seen' }, next: 'check' },
+        { id: 'check', type: 'branch', rules: [{ if: { event: 'teammate.invited' }, next: 'done' }], default: 'done' },
+        { id: 'done', type: 'exit' },
+      ],
+    });
+    const kari = await contact('Kari');
+    const run = await asAgent(() =>
+      runtime.enroll({ journeyId, subject: { contactId: kari.id, endUserId: null }, source: { type: 'manual' } }),
+    );
+    const facts = vi.spyOn(runtime, 'conditionFacts').mockRejectedValue(new Error('facts unavailable'));
+    try {
+      await worker.tick();
+      const [first] = await enrollmentsOf(journeyId);
+      expect(first).toMatchObject({ state: 'active', currentNode: 'check', stepErrors: 1, lastError: 'facts unavailable' });
+      expect(first!.nextRunAt!.getTime()).toBeGreaterThan(Date.now() + 30_000);
+      const [tagged] = await db.select().from(schema.crmContacts).where(eq(schema.crmContacts.id, kari.id));
+      expect(tagged!.tags).toContain('seen');
+
+      for (let i = 1; i < MAX_STEP_ERRORS; i++) await worker.tick(new Date(Date.now() + i * DAY));
+      const [ended] = await enrollmentsOf(journeyId);
+      expect(ended).toMatchObject({ state: 'exited', exitReason: 'step_failed', stepErrors: MAX_STEP_ERRORS, currentNode: null });
+      const steps = await db.select().from(schema.journeyStepRuns).where(eq(schema.journeyStepRuns.enrollmentId, run.enrollmentId!));
+      expect(steps.map((s) => [s.nodeId, s.status, s.reason])).toEqual(
+        expect.arrayContaining([
+          ['tag', 'completed', null],
+          ['check', 'failed', 'step_failed'],
+        ]),
+      );
+      const trace = await asAgent(() => runtime.getTrace(run.enrollmentId!));
+      expect(trace.enrollment).toMatchObject({ exitReason: 'step_failed', lastError: 'facts unavailable' });
+    } finally {
+      facts.mockRestore();
+    }
+  });
+
+  it('clears the error count once a step succeeds again', async () => {
+    const journeyId = await publish({
+      entry: { trigger: { type: 'manual' } },
+      goal: { event: 'subscription.started', windowDays: 30 },
+      start: 'check',
+      nodes: [
+        { id: 'check', type: 'branch', rules: [{ if: { event: 'teammate.invited' }, next: 'done' }], default: 'done' },
+        { id: 'done', type: 'exit' },
+      ],
+    });
+    const kari = await contact('Kari');
+    await asAgent(() => runtime.enroll({ journeyId, subject: { contactId: kari.id, endUserId: null }, source: { type: 'manual' } }));
+    const facts = vi.spyOn(runtime, 'conditionFacts').mockRejectedValueOnce(new Error('facts unavailable'));
+    try {
+      await worker.tick();
+      expect((await enrollmentsOf(journeyId))[0]).toMatchObject({ stepErrors: 1 });
+      await worker.tick(new Date(Date.now() + DAY));
+      expect((await enrollmentsOf(journeyId))[0]).toMatchObject({ state: 'done', stepErrors: 0, lastError: null });
+    } finally {
+      facts.mockRestore();
+    }
+  });
+
+  it('ends open runs, their waits and their approvals once the journey is archived', async () => {
+    const journeyId = await publish({
+      entry: { trigger: { type: 'manual' } },
+      goal: { event: 'subscription.started', windowDays: 30 },
+      start: 'ok',
+      nodes: [
+        { id: 'ok', type: 'approval', title: 'Check this one', next: 'wait' },
+        { id: 'wait', type: 'wait', duration: 'P7D', next: 'done' },
+        { id: 'done', type: 'exit' },
+      ],
+    });
+    const kari = await contact('Kari');
+    const run = await asAgent(() => runtime.enroll({ journeyId, subject: { contactId: kari.id, endUserId: null }, source: { type: 'manual' } }));
+    await worker.tick();
+    await asAgent(() => journeys.archive(journeyId));
+    expect(await worker.endArchived()).toBe(1);
+    const [ended] = await enrollmentsOf(journeyId);
+    expect(ended).toMatchObject({ state: 'exited', exitReason: 'journey_archived', currentNode: null });
+    const waits = await db.select().from(schema.journeyWaits).where(eq(schema.journeyWaits.enrollmentId, run.enrollmentId!));
+    expect(waits.every((w) => w.resolution === 'cancelled')).toBe(true);
+    const approvals = await db.select().from(schema.journeyApprovals).where(eq(schema.journeyApprovals.enrollmentId, run.enrollmentId!));
+    expect(approvals.map((a) => a.status)).toEqual(['expired']);
+    const [step] = await db.select().from(schema.journeyStepRuns).where(eq(schema.journeyStepRuns.enrollmentId, run.enrollmentId!));
+    expect(step).toMatchObject({ nodeId: 'ok', status: 'cancelled' });
+    expect(await worker.endArchived()).toBe(0);
+  });
+
+  it('moves the idle deadline forward each time a run advances', async () => {
+    const journeyId = await publish({
+      entry: { trigger: { type: 'manual' } },
+      goal: { event: 'subscription.started', windowDays: 30 },
+      exit: { idleDays: 3 },
+      start: 'wait2',
+      nodes: [
+        { id: 'wait2', type: 'wait', duration: 'P2D', next: 'wait2b' },
+        { id: 'wait2b', type: 'wait', duration: 'P2D', next: 'done' },
+        { id: 'done', type: 'exit' },
+      ],
+    });
+    const kari = await contact('Kari');
+    await asAgent(() => runtime.enroll({ journeyId, subject: { contactId: kari.id, endUserId: null }, source: { type: 'manual' } }));
+    await worker.tick();
+    const later = new Date(Date.now() + 2 * DAY + 60_000);
+    await worker.tick(later);
+    await worker.tick(later);
+    const [run] = await enrollmentsOf(journeyId);
+    expect(run).toMatchObject({ state: 'waiting', currentNode: 'wait2b' });
+    expect(run!.idleDeadlineAt!.getTime()).toBeGreaterThan(later.getTime() + 2 * DAY);
+  });
+
+  it('drains old traces in batches and does not keep reselecting runs whose split records are kept', async () => {
+    const journeyId = await publish({
+      entry: { trigger: { type: 'manual' } },
+      goal: { event: 'subscription.started', windowDays: 30 },
+      settings: { traceRetentionDays: 30 },
+      start: 'ab',
+      nodes: [
+        { id: 'ab', type: 'split', paths: [{ name: 'a', percent: 50, next: 'done' }, { name: 'b', percent: 50, next: 'done' }] },
+        { id: 'done', type: 'exit' },
+      ],
+    });
+    for (const name of ['Kari', 'Ola', 'Per']) {
+      const person = await contact(name);
+      await asAgent(() => runtime.enroll({ journeyId, subject: { contactId: person.id, endUserId: null }, source: { type: 'manual' } }));
+    }
+    await worker.tick();
+    await db
+      .update(schema.journeyEnrollments)
+      .set({ exitedAt: new Date(Date.now() - 40 * DAY) })
+      .where(eq(schema.journeyEnrollments.journeyId, journeyId));
+    expect(await worker.purgeTraces(new Date(), 1)).toBe(3);
+    expect(await worker.purgeTraces(new Date(), 1)).toBe(0);
+    const kept = await db
+      .select({ nodeId: schema.journeyStepRuns.nodeId })
+      .from(schema.journeyStepRuns)
+      .innerJoin(schema.journeyEnrollments, eq(schema.journeyEnrollments.id, schema.journeyStepRuns.enrollmentId))
+      .where(eq(schema.journeyEnrollments.journeyId, journeyId));
+    expect(kept.map((k) => k.nodeId)).toEqual(['ab', 'ab', 'ab']);
   });
 
   it('runs every step exactly once even when ticks repeat', async () => {
@@ -667,6 +842,41 @@ const DAY = 86_400_000;
     expect(journey!.nextEntryAt).toBeNull();
   });
 
+  it('pages past segment members it skips instead of selecting them on every pass', async () => {
+    const journeyId = await publish(
+      {
+        entry: { trigger: { type: 'segment', segmentId, schedule: 'once' } },
+        goal: { event: 'subscription.started', windowDays: 30 },
+        start: 'done',
+        nodes: [{ id: 'done', type: 'exit' }],
+      },
+      { nextEntryAt: new Date(Date.now() - 1000) },
+    );
+    for (const name of ['Kari', 'Ola', 'Per', 'Anne', 'Lars']) await contact(name);
+    const enroll = vi.spyOn(runtime, 'enroll').mockResolvedValue({ status: 'skipped', reason: 'concurrency_cap' });
+    const seen: string[] = [];
+    const segmentContacts = vi.spyOn(runtime, 'segmentContacts');
+    try {
+      const runEntries = () =>
+        appDb.transaction(async (tx) => {
+          await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
+          await tx.execute(sql`SELECT set_config('app.org_id', ${orgId}, true)`);
+          return withContext({ db: tx, actor: agent, correlationId: randomUUID() }, () => runtime.runScheduledEntries(new Date(), 2));
+        });
+      for (let i = 0; i < 3; i++) {
+        await runEntries();
+        seen.push(...(await segmentContacts.mock.results.at(-1)!.value as string[]));
+      }
+    } finally {
+      enroll.mockRestore();
+      segmentContacts.mockRestore();
+    }
+    expect(seen).toHaveLength(5);
+    expect(new Set(seen).size).toBe(5);
+    const [journey] = await db.select().from(schema.journeys).where(eq(schema.journeys.id, journeyId));
+    expect(journey).toMatchObject({ nextEntryAt: null, entryCursor: null });
+  });
+
   it('does not count the triggering event as the goal, and 404s an unknown contact', async () => {
     const journeyId = await publish({
       entry: { trigger: { type: 'event', event: 'order.placed' }, segmentId },
@@ -715,9 +925,9 @@ const DAY = 86_400_000;
     expect(after!.nextAttemptAt!.getTime()).toBeGreaterThan(Date.now());
   });
 
-  it('accepts events emitted inside an end-user request', async () => {
+  it('accepts events emitted inside an end-user request, and skips the inbox for an org with no running journey', async () => {
     const [endUser] = await db.insert(schema.endUsers).values({ orgId, externalId: 'kari' }).returning();
-    await appDb.transaction(async (tx) => {
+    const emit = () => appDb.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.bypass_rls', 'off', true)`);
       await tx.execute(sql`SELECT set_config('app.org_id', ${orgId}, true)`);
       await tx.execute(sql`SELECT set_config('app.end_user_id', ${endUser!.id}, true)`);
@@ -728,6 +938,12 @@ const DAY = 86_400_000;
         webhooks.emit({ type: 'conversation.handover_requested', payload: { endUserId: endUser!.id } }),
       );
     });
+    const inboxRows = () =>
+      db.select().from(schema.journeyEventInbox).where(eq(schema.journeyEventInbox.orgId, orgId));
+    await emit();
+    expect(await inboxRows()).toEqual([]);
+    await publish(trialSpec());
+    await emit();
     const inbox = await db
       .select()
       .from(schema.journeyEventInbox)

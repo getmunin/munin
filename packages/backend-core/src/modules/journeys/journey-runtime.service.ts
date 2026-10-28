@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, readApiBaseUrl, WebhookDispatcher, withContext } from '@getmunin/core';
 import { createHash, randomUUID } from 'node:crypto';
 import {
@@ -30,6 +30,7 @@ export const ENROLLMENT_STATES = ['active', 'waiting', 'done', 'exited'] as cons
 export type EnrollmentState = (typeof ENROLLMENT_STATES)[number];
 
 const MAX_NODES_PER_RUN = 50;
+export const MAX_STEP_ERRORS = 5;
 const COMPLETED_REASONS: ReadonlySet<string> = new Set(['reached_end', 'goal_reached']);
 const APPROVAL_TIMEOUT_MS = 7 * 86_400_000;
 export const DECIDE_STEP_JOB_URI = 'skill://journeys/decide-step';
@@ -88,6 +89,8 @@ export interface EnrollmentDto {
   goalReachedAt: string | null;
   exitedAt: string | null;
   exitReason: string | null;
+  stepErrors: number;
+  lastError: string | null;
 }
 
 export interface StepRunDto {
@@ -306,11 +309,14 @@ export class JourneyRuntimeService {
         await ctx.db.update(j).set({ nextEntryAt: null }).where(eq(j.id, journey.id));
         continue;
       }
-      const exclude = { journeyId: journey.id, reentry: spec.entry.reentry, since: journey.nextEntryAt };
+      const exclude = { journeyId: journey.id, reentry: spec.entry.reentry, since: journey.nextEntryAt, after: journey.entryCursor };
       const byCompany = spec.entry.subject === 'company';
-      const subjects: Subject[] = byCompany
-        ? (await this.segmentCompanies(trigger.segmentId, limit, exclude)).map((companyId) => ({ contactId: null, endUserId: null, companyId }))
-        : (await this.segmentContacts(trigger.segmentId, limit, exclude)).map((contactId) => ({ contactId, endUserId: null }));
+      const ids = byCompany
+        ? await this.segmentCompanies(trigger.segmentId, limit, exclude)
+        : await this.segmentContacts(trigger.segmentId, limit, exclude);
+      const subjects: Subject[] = ids.map((id) =>
+        byCompany ? { contactId: null, endUserId: null, companyId: id } : { contactId: id, endUserId: null },
+      );
       for (const subject of subjects) {
         const result = await this.inSavepoint(() =>
           this.enroll({
@@ -321,11 +327,12 @@ export class JourneyRuntimeService {
         ).catch((): EnrollResult => ({ status: 'skipped', reason: 'enroll_failed' }));
         if (result.status === 'enrolled') enrolled += 1;
       }
-      const more = subjects.length >= limit;
+      const more = ids.length >= limit;
       await ctx.db
         .update(j)
         .set({
           nextEntryAt: more ? journey.nextEntryAt : nextScheduledEntry(trigger, now, spec.settings.timezone),
+          entryCursor: more ? ids[ids.length - 1]! : null,
           updatedAt: new Date(),
         })
         .where(eq(j.id, journey.id));
@@ -333,6 +340,19 @@ export class JourneyRuntimeService {
     return enrolled;
   }
 
+
+  async endArchivedRuns(limit = 200): Promise<number> {
+    const ctx = getCurrentContext();
+    const e = schema.journeyEnrollments;
+    const rows = await ctx.db
+      .select({ enrollment: e })
+      .from(e)
+      .innerJoin(schema.journeys, eq(schema.journeys.id, e.journeyId))
+      .where(and(eq(e.orgId, ctx.actor!.orgId), inArray(e.state, ['active', 'waiting']), eq(schema.journeys.status, 'archived')))
+      .limit(limit);
+    for (const { enrollment } of rows) await this.finish(enrollment, 'journey_archived', 1);
+    return rows.length;
+  }
 
   async processInboxRow(row: InboxRow): Promise<void> {
     const ctx = getCurrentContext();
@@ -449,93 +469,158 @@ export class JourneyRuntimeService {
     if (rowsOf(locked).length === 0) return;
 
     for (let i = 0; i < MAX_NODES_PER_RUN; i++) {
-      const [enrollment] = await ctx.db.select().from(e).where(eq(e.id, enrollmentId)).limit(1);
-      if (!enrollment || enrollment.state !== 'active' || !enrollment.currentNode) return;
-      const [journey] = await ctx.db
-        .select({ status: schema.journeys.status, pausedNodes: schema.journeys.pausedNodes })
-        .from(schema.journeys)
-        .where(eq(schema.journeys.id, enrollment.journeyId))
-        .limit(1);
-      if (journey?.status !== 'live') return;
-
-      const spec = await this.spec(enrollment.journeyId, enrollment.version);
-      const node = spec.nodes.find((n) => n.id === enrollment.currentNode);
-      if (!node) {
-        await this.finish(enrollment, 'node_missing', 1);
+      let more: boolean;
+      try {
+        more = await this.inSavepoint(() => this.runNode(enrollmentId, now));
+      } catch (err) {
+        await this.recordStepError(enrollmentId, err, now);
         return;
       }
-      const visit = enrollment.visits[node.id] ?? 1;
-      if (visit > spec.settings.maxVisitsPerNode) {
-        await this.finish(enrollment, 'loop_detected', 1);
-        return;
-      }
-
-      const sr = schema.journeyStepRuns;
-      const [existing] = await ctx.db
-        .select()
-        .from(sr)
-        .where(and(eq(sr.enrollmentId, enrollment.id), eq(sr.nodeId, node.id), eq(sr.visit, visit)))
-        .limit(1);
-
-      if (!existing && journey.pausedNodes[node.id]) {
-        await ctx.db.update(e).set({ nextRunAt: null, updatedAt: new Date() }).where(eq(e.id, enrollment.id));
-        return;
-      }
-
-      let outcome: Outcome;
-      let stepRunId: string;
-      if (existing?.status === 'completed') {
-        outcome = existing.edgeTaken
-          ? { kind: 'advance', edge: existing.edgeTaken, to: edgeTarget(node, existing.edgeTaken) }
-          : { kind: 'exit', reason: existing.reason ?? 'reached_end' };
-        stepRunId = existing.id;
-      } else {
-        const resumed = existing?.status === 'waiting' ? await this.latestWait(existing.id) : null;
-        const attempt = existing?.status === 'retrying' ? existing.attempt + 1 : 1;
-        stepRunId =
-          existing?.id ??
-          (await this.insertStepRun(enrollment, node, visit, { enteredAt: now.toISOString() }));
-        outcome = await this.execute({ stepRunId, enrollment, spec, node, visit, attempt, resumed, now, hop: 1 });
-        if (outcome.kind === 'retry') {
-          await this.updateStepRun(stepRunId, { status: 'retrying', attempt, reason: outcome.reason });
-          await ctx.db.update(e).set({ nextRunAt: outcome.at, updatedAt: new Date() }).where(eq(e.id, enrollment.id));
-          return;
-        }
-        if (outcome.kind === 'wait') {
-          await this.updateStepRun(stepRunId, {
-            status: 'waiting',
-            attempt,
-            output: outcome.output,
-            reason: outcome.reason,
-          });
-          await this.openWait(enrollment, stepRunId, outcome.wait);
-          return;
-        }
-        await this.updateStepRun(stepRunId, {
-          status: 'completed',
-          attempt,
-          output: outcome.output,
-          edgeTaken: outcome.kind === 'advance' ? outcome.edge : null,
-          reason: outcome.kind === 'exit' ? outcome.reason : (outcome.reason ?? null),
-          finished: true,
-        });
-      }
-
-      if (outcome.kind === 'exit') {
-        await this.finish(enrollment, outcome.reason, 1);
-        return;
-      }
-      if (outcome.kind !== 'advance') return;
-      if (!outcome.to) {
-        await this.finish(enrollment, 'reached_end', 1);
-        return;
-      }
-      const visits = { ...enrollment.visits, [outcome.to]: (enrollment.visits[outcome.to] ?? 0) + 1 };
       await ctx.db
         .update(e)
-        .set({ currentNode: outcome.to, visits, nextRunAt: now, updatedAt: new Date() })
-        .where(eq(e.id, enrollment.id));
+        .set({ stepErrors: 0, lastError: null })
+        .where(and(eq(e.id, enrollmentId), sql`${e.stepErrors} > 0`));
+      if (!more) return;
     }
+  }
+
+  private async recordStepError(enrollmentId: string, err: unknown, now: Date): Promise<void> {
+    const ctx = getCurrentContext();
+    const e = schema.journeyEnrollments;
+    const message = (err instanceof Error ? err.message : String(err)).slice(0, 1000);
+    const [enrollment] = await ctx.db
+      .update(e)
+      .set({ stepErrors: sql`${e.stepErrors} + 1`, lastError: message, updatedAt: new Date() })
+      .where(and(eq(e.id, enrollmentId), eq(e.state, 'active')))
+      .returning();
+    if (!enrollment) return;
+    const delay = enrollment.stepErrors < MAX_STEP_ERRORS ? retryDelayMs(enrollment.stepErrors) : null;
+    if (delay !== null) {
+      await ctx.db.update(e).set({ nextRunAt: new Date(now.getTime() + delay) }).where(eq(e.id, enrollmentId));
+      return;
+    }
+    if (enrollment.currentNode) {
+      const spec = await this.spec(enrollment.journeyId, enrollment.version);
+      const node = spec.nodes.find((n) => n.id === enrollment.currentNode);
+      await ctx.db
+        .insert(schema.journeyStepRuns)
+        .values({
+          orgId: enrollment.orgId,
+          enrollmentId,
+          nodeId: enrollment.currentNode,
+          nodeType: node?.type ?? 'unknown',
+          version: enrollment.version,
+          visit: enrollment.visits[enrollment.currentNode] ?? 1,
+          attempt: enrollment.stepErrors,
+          status: 'failed',
+          reason: 'step_failed',
+          output: { error: message },
+          finishedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [schema.journeyStepRuns.enrollmentId, schema.journeyStepRuns.nodeId, schema.journeyStepRuns.visit],
+          set: { status: 'failed', reason: 'step_failed', attempt: enrollment.stepErrors, finishedAt: new Date() },
+        });
+    }
+    await this.finish(enrollment, 'step_failed', 1);
+  }
+
+  private async runNode(enrollmentId: string, now: Date): Promise<boolean> {
+    const ctx = getCurrentContext();
+    const e = schema.journeyEnrollments;
+    const [enrollment] = await ctx.db.select().from(e).where(eq(e.id, enrollmentId)).limit(1);
+    if (!enrollment || enrollment.state !== 'active' || !enrollment.currentNode) return false;
+    const [journey] = await ctx.db
+      .select({ status: schema.journeys.status, pausedNodes: schema.journeys.pausedNodes })
+      .from(schema.journeys)
+      .where(eq(schema.journeys.id, enrollment.journeyId))
+      .limit(1);
+    if (journey?.status !== 'live') return false;
+
+    const spec = await this.spec(enrollment.journeyId, enrollment.version);
+    const node = spec.nodes.find((n) => n.id === enrollment.currentNode);
+    if (!node) {
+      await this.finish(enrollment, 'node_missing', 1);
+      return false;
+    }
+    const visit = enrollment.visits[node.id] ?? 1;
+    if (visit > spec.settings.maxVisitsPerNode) {
+      await this.finish(enrollment, 'loop_detected', 1);
+      return false;
+    }
+
+    const sr = schema.journeyStepRuns;
+    const [existing] = await ctx.db
+      .select()
+      .from(sr)
+      .where(and(eq(sr.enrollmentId, enrollment.id), eq(sr.nodeId, node.id), eq(sr.visit, visit)))
+      .limit(1);
+
+    if (!existing && journey.pausedNodes[node.id]) {
+      await ctx.db.update(e).set({ nextRunAt: null, updatedAt: new Date() }).where(eq(e.id, enrollment.id));
+      return false;
+    }
+
+    let outcome: Outcome;
+    let stepRunId: string;
+    if (existing?.status === 'completed') {
+      outcome = existing.edgeTaken
+        ? { kind: 'advance', edge: existing.edgeTaken, to: edgeTarget(node, existing.edgeTaken) }
+        : { kind: 'exit', reason: existing.reason ?? 'reached_end' };
+      stepRunId = existing.id;
+    } else {
+      const resumed = existing?.status === 'waiting' ? await this.latestWait(existing.id) : null;
+      const attempt = existing?.status === 'retrying' ? existing.attempt + 1 : 1;
+      stepRunId =
+        existing?.id ??
+        (await this.insertStepRun(enrollment, node, visit, { enteredAt: now.toISOString() }));
+      outcome = await this.execute({ stepRunId, enrollment, spec, node, visit, attempt, resumed, now, hop: 1 });
+      if (outcome.kind === 'retry') {
+        await this.updateStepRun(stepRunId, { status: 'retrying', attempt, reason: outcome.reason });
+        await ctx.db.update(e).set({ nextRunAt: outcome.at, updatedAt: new Date() }).where(eq(e.id, enrollment.id));
+        return false;
+      }
+      if (outcome.kind === 'wait') {
+        await this.updateStepRun(stepRunId, {
+          status: 'waiting',
+          attempt,
+          output: outcome.output,
+          reason: outcome.reason,
+        });
+        await this.openWait(enrollment, stepRunId, outcome.wait);
+        return false;
+      }
+      await this.updateStepRun(stepRunId, {
+        status: 'completed',
+        attempt,
+        output: outcome.output,
+        edgeTaken: outcome.kind === 'advance' ? outcome.edge : null,
+        reason: outcome.kind === 'exit' ? outcome.reason : (outcome.reason ?? null),
+        finished: true,
+      });
+    }
+
+    if (outcome.kind === 'exit') {
+      await this.finish(enrollment, outcome.reason, 1);
+      return false;
+    }
+    if (outcome.kind !== 'advance') return false;
+    if (!outcome.to) {
+      await this.finish(enrollment, 'reached_end', 1);
+      return false;
+    }
+    const visits = { ...enrollment.visits, [outcome.to]: (enrollment.visits[outcome.to] ?? 0) + 1 };
+    await ctx.db
+      .update(e)
+      .set({
+        currentNode: outcome.to,
+        visits,
+        nextRunAt: now,
+        ...(spec.exit.idleDays ? { idleDeadlineAt: new Date(now.getTime() + spec.exit.idleDays * 86_400_000) } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(e.id, enrollment.id));
+    return true;
   }
 
   private async execute(step: StepContext): Promise<Outcome> {
@@ -1309,13 +1394,15 @@ export class JourneyRuntimeService {
     if (node.journeyId === step.enrollment.journeyId) {
       return { kind: 'advance', edge: 'next', to: node.next, reason: 'a journey cannot enter itself' };
     }
-    const result = await this.enroll({
-      journeyId: node.journeyId,
-      subject: { contactId: step.enrollment.contactId, endUserId: step.enrollment.endUserId },
-      source: { type: 'journey', journeyId: step.enrollment.journeyId, enrollmentId: step.enrollment.id, nodeId: node.id },
-      context: { journeyDepth: depth, parent: { journeyId: step.enrollment.journeyId, enrollmentId: step.enrollment.id } },
-      hop: step.hop,
-    }).catch((err: unknown): EnrollResult => ({ status: 'skipped', reason: err instanceof Error ? err.message : 'enroll_failed' }));
+    const result = await this.inSavepoint(() =>
+      this.enroll({
+        journeyId: node.journeyId,
+        subject: { contactId: step.enrollment.contactId, endUserId: step.enrollment.endUserId },
+        source: { type: 'journey', journeyId: step.enrollment.journeyId, enrollmentId: step.enrollment.id, nodeId: node.id },
+        context: { journeyDepth: depth, parent: { journeyId: step.enrollment.journeyId, enrollmentId: step.enrollment.id } },
+        hop: step.hop,
+      }),
+    ).catch((err: unknown): EnrollResult => ({ status: 'skipped', reason: err instanceof Error ? err.message : 'enroll_failed' }));
     const output = { childJourneyId: node.journeyId, childEnrollmentId: result.enrollmentId ?? null, childStatus: result.status };
     if (result.status !== 'enrolled' || !node.await) {
       return {
@@ -1510,8 +1597,12 @@ export class JourneyRuntimeService {
     if (typeof conversationId !== 'string' || row.payload.authorType !== 'end_user') return;
     if (row.payload.autoReply === true) return;
     const ctx = getCurrentContext();
-    for (const enrollment of enrollments) {
-      if (!isOpen(enrollment.state)) continue;
+    const e = schema.journeyEnrollments;
+    for (const candidate of enrollments) {
+      if (!isOpen(candidate.state)) continue;
+      await ctx.db.execute(sql`SELECT id FROM journey_enrollments WHERE id = ${candidate.id} FOR UPDATE`);
+      const [enrollment] = await ctx.db.select().from(e).where(eq(e.id, candidate.id)).limit(1);
+      if (!enrollment || !isOpen(enrollment.state)) continue;
       if (enrollment.conversationId !== conversationId && !(await this.isSmsThread(enrollment.id, conversationId))) continue;
       const spec = await this.spec(enrollment.journeyId, enrollment.version);
       const lastMessage = await this.repliedStep(enrollment.id, conversationId);
@@ -1519,11 +1610,11 @@ export class JourneyRuntimeService {
       const node = spec.nodes.find((n) => n.id === lastMessage.nodeId);
       const reply = { conversationId, messageId: row.payload.messageId ?? null, eventId: row.eventId };
       if (node?.type === 'message' && node.onReply) {
-        await this.cancelWaits(enrollment.id);
+        await this.closeOpenSteps(enrollment.id, 'the contact replied');
         await this.outbox.withdrawRun(enrollment.id, 'the contact replied');
         const visits = { ...enrollment.visits, [node.onReply]: (enrollment.visits[node.onReply] ?? 0) + 1 };
         await ctx.db
-          .update(schema.journeyEnrollments)
+          .update(e)
           .set({
             state: 'active',
             currentNode: node.onReply,
@@ -1532,7 +1623,7 @@ export class JourneyRuntimeService {
             context: { ...enrollment.context, lastReply: reply },
             updatedAt: new Date(),
           })
-          .where(eq(schema.journeyEnrollments.id, enrollment.id));
+          .where(and(eq(e.id, enrollment.id), inArray(e.state, ['active', 'waiting'])));
         continue;
       }
       const [held] = await ctx.db
@@ -1561,14 +1652,14 @@ export class JourneyRuntimeService {
         reason: 'the contact replied to a journey message; the journey waits until this conversation is closed',
       });
       await ctx.db
-        .update(schema.journeyEnrollments)
+        .update(e)
         .set({
           state: 'waiting',
           nextRunAt: null,
           context: { ...enrollment.context, lastReply: reply },
           updatedAt: new Date(),
         })
-        .where(eq(schema.journeyEnrollments.id, enrollment.id));
+        .where(and(eq(e.id, enrollment.id), inArray(e.state, ['active', 'waiting'])));
     }
   }
 
@@ -2135,7 +2226,7 @@ export class JourneyRuntimeService {
   async segmentCompanies(
     segmentId: string,
     limit: number,
-    exclude?: { journeyId: string; reentry: string; since: Date | null },
+    exclude?: { journeyId: string; reentry: string; since: Date | null; after?: string | null },
   ): Promise<string[]> {
     const ctx = getCurrentContext();
     const [segment] = await ctx.db
@@ -2152,6 +2243,7 @@ export class JourneyRuntimeService {
         and(
           eq(c.orgId, ctx.actor!.orgId),
           isNotNull(c.companyId),
+          ...(exclude?.after ? [gt(c.companyId, exclude.after)] : []),
           ...OUTREACH_ELIGIBILITY_FLOOR,
           ...segmentMatchFilters(segment.filter),
           ...(exclude ? [sql`NOT EXISTS (
@@ -2167,7 +2259,7 @@ export class JourneyRuntimeService {
         ),
       )
       .groupBy(c.companyId)
-      .orderBy(sql`min(${c.createdAt})`)
+      .orderBy(asc(c.companyId))
       .limit(limit);
     return rows.map((r) => r.companyId!).filter(Boolean);
   }
@@ -2201,6 +2293,7 @@ export class JourneyRuntimeService {
     if (subject.contactId) {
       matches.push(sql`${e.companyId} = (SELECT company_id FROM crm_contacts WHERE id = ${subject.contactId})`);
     }
+    if (typeof payload.parentEnrollmentId === 'string') matches.push(eq(e.id, payload.parentEnrollmentId));
     if (typeof payload.conversationId === 'string') {
       matches.push(eq(e.conversationId, payload.conversationId));
       matches.push(
@@ -2239,7 +2332,7 @@ export class JourneyRuntimeService {
   async segmentContacts(
     segmentId: string,
     limit: number,
-    exclude?: { journeyId: string; reentry: string; since: Date | null },
+    exclude?: { journeyId: string; reentry: string; since: Date | null; after?: string | null },
   ): Promise<string[]> {
     const ctx = getCurrentContext();
     const [segment] = await ctx.db
@@ -2254,6 +2347,7 @@ export class JourneyRuntimeService {
       .where(
         and(
           eq(schema.crmContacts.orgId, ctx.actor!.orgId),
+          ...(exclude?.after ? [gt(schema.crmContacts.id, exclude.after)] : []),
           ...OUTREACH_ELIGIBILITY_FLOOR,
           ...segmentMatchFilters(segment.filter),
           ...(exclude ? [sql`NOT EXISTS (
@@ -2268,7 +2362,7 @@ export class JourneyRuntimeService {
           )`] : []),
         ),
       )
-      .orderBy(asc(schema.crmContacts.createdAt))
+      .orderBy(asc(schema.crmContacts.id))
       .limit(limit);
     return rows.map((r) => r.id);
   }
@@ -2301,7 +2395,7 @@ export class JourneyRuntimeService {
     conditions: Parameters<typeof collectConditionNeeds>[0][],
   ): Promise<ConditionFacts> {
     const ctx = getCurrentContext();
-    const needs = { eventNames: new Set<string>(), segmentIds: new Set<string>() };
+    const needs = { events: new Map<string, number>(), segmentIds: new Set<string>() };
     for (const cond of conditions) collectConditionNeeds(cond, needs);
     const contact = enrollment.contactId
       ? ((
@@ -2314,8 +2408,8 @@ export class JourneyRuntimeService {
       : null;
     const wholeCompany = !enrollment.contactId && !enrollment.endUserId && !!enrollment.companyId;
 
-    let events: { name: string; occurredAt: Date }[] = [];
-    if (needs.eventNames.size > 0 && (enrollment.contactId || enrollment.endUserId || wholeCompany)) {
+    const events: { name: string; occurredAt: Date }[] = [];
+    if (needs.events.size > 0 && (enrollment.contactId || enrollment.endUserId || wholeCompany)) {
       const pe = schema.analyticsProductEvents;
       const who: SQL[] = [];
       if (enrollment.contactId) who.push(eq(pe.contactId, enrollment.contactId));
@@ -2323,10 +2417,15 @@ export class JourneyRuntimeService {
       if (wholeCompany) {
         who.push(sql`${pe.contactId} IN (SELECT id FROM crm_contacts WHERE company_id = ${enrollment.companyId})`);
       }
-      events = await ctx.db
-        .select({ name: pe.name, occurredAt: pe.occurredAt })
-        .from(pe)
-        .where(and(eq(pe.orgId, ctx.actor!.orgId), inArray(pe.name, [...needs.eventNames]), or(...who)));
+      for (const [name, count] of needs.events) {
+        const rows = await ctx.db
+          .select({ name: pe.name, occurredAt: pe.occurredAt })
+          .from(pe)
+          .where(and(eq(pe.orgId, ctx.actor!.orgId), eq(pe.name, name), or(...who)))
+          .orderBy(desc(pe.occurredAt))
+          .limit(count);
+        events.push(...rows);
+      }
     }
 
     const segments = new Set<string>();
@@ -2535,6 +2634,7 @@ export class JourneyRuntimeService {
         state: COMPLETED_REASONS.has(reason) ? 'done' : 'exited',
         exitReason: reason,
         exitedAt: now,
+        currentNode: null,
         nextRunAt: null,
         updatedAt: now,
       })
@@ -2544,24 +2644,46 @@ export class JourneyRuntimeService {
           inArray(schema.journeyEnrollments.state, ['active', 'waiting']),
         ),
       )
-      .returning({ id: schema.journeyEnrollments.id });
+      .returning();
     if (!updated) return;
-    await ctx.db
-      .update(schema.journeyWaits)
-      .set({ resolvedAt: now, resolution: 'cancelled' })
-      .where(and(eq(schema.journeyWaits.enrollmentId, enrollment.id), isNull(schema.journeyWaits.resolvedAt)));
+    await this.closeOpenSteps(enrollment.id, `the journey run ended (${reason})`);
     await this.outbox.withdrawRun(enrollment.id, `the journey run ended (${reason})`);
+    const parent = updated.context.parent as { enrollmentId?: unknown } | undefined;
     await this.webhooks.emit({
       type: 'journey.exited',
       payload: {
-        journeyId: enrollment.journeyId,
-        enrollmentId: enrollment.id,
+        journeyId: updated.journeyId,
+        enrollmentId: updated.id,
         reason,
-        contactId: enrollment.contactId,
-        endUserId: enrollment.endUserId,
+        contactId: updated.contactId,
+        endUserId: updated.endUserId,
+        companyId: updated.companyId,
+        ...(typeof parent?.enrollmentId === 'string' ? { parentEnrollmentId: parent.enrollmentId } : {}),
       },
       hopCount: hop,
     });
+  }
+
+  private async closeOpenSteps(enrollmentId: string, reason: string): Promise<void> {
+    const ctx = getCurrentContext();
+    const now = new Date();
+    await ctx.db
+      .update(schema.journeyWaits)
+      .set({ resolvedAt: now, resolution: 'cancelled' })
+      .where(and(eq(schema.journeyWaits.enrollmentId, enrollmentId), isNull(schema.journeyWaits.resolvedAt)));
+    await ctx.db
+      .update(schema.journeyApprovals)
+      .set({ status: 'expired', updatedAt: now })
+      .where(and(eq(schema.journeyApprovals.enrollmentId, enrollmentId), eq(schema.journeyApprovals.status, 'pending')));
+    await ctx.db
+      .update(schema.journeyStepRuns)
+      .set({ status: 'cancelled', reason, finishedAt: now })
+      .where(
+        and(
+          eq(schema.journeyStepRuns.enrollmentId, enrollmentId),
+          inArray(schema.journeyStepRuns.status, ['running', 'waiting', 'retrying']),
+        ),
+      );
   }
 
   private async loadEnrollment(id: string): Promise<EnrollmentRow> {
@@ -2692,6 +2814,8 @@ function toEnrollmentDto(row: EnrollmentRow): EnrollmentDto {
     goalReachedAt: row.goalReachedAt?.toISOString() ?? null,
     exitedAt: row.exitedAt?.toISOString() ?? null,
     exitReason: row.exitReason,
+    stepErrors: row.stepErrors,
+    lastError: row.lastError,
   };
 }
 

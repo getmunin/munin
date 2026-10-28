@@ -1380,7 +1380,8 @@
         "attempt": "attempt {attempt}",
         "agent": "agent job {status}, {tokens} tokens",
         "waiting": "Waiting ({kind}) until {until} · event {event}",
-        "ended": "Ended: {reason}"
+        "ended": "Ended: {reason}",
+        "lastError": "Last error ({count, plural, one {# time} other {# times}}): {error}"
       },
       "report": {
         "goal": "Goal conversion",
@@ -1551,7 +1552,9 @@
         "conversation_stop": "asked to stop",
         "node_missing": "step missing",
         "node_type_unavailable": "step type unavailable",
-        "wait_timeout": "event never came"
+        "wait_timeout": "event never came",
+        "step_failed": "a step kept failing",
+        "journey_archived": "journey archived"
       }
     },
     "endUsers": {

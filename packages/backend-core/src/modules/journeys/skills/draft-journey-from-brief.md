@@ -35,6 +35,6 @@ Use agent steps where judgement is needed and rules would be brittle — qualify
 
 ## 5. Hand it over
 
-`journeys_request_publish`, then give the operator, in this order: the goal; who enters and when; each path with its rationale; every email subject; the simulation counts and assumptions; your open questions; and the `reviewPath` where they confirm. You never publish it yourself.
+`journeys_request_publish`, then give the operator, in this order: the goal; who enters and when; each path with its rationale; every email subject; the simulation counts and assumptions; your open questions; and the `reviewUrl` where they confirm. You never publish it yourself.
 
 If the operator wants to reuse the result, `journeys_save_as_template` with the segment id and other org-specific values turned into parameters.

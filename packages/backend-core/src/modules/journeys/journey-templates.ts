@@ -61,17 +61,17 @@ const DEFS: TemplateDef[] = [
       en: {
         title: 'Inbound lead',
         description: 'A new contact from a form or the chat widget: an agent qualifies them from what they told you, qualified leads are flagged for sales, the rest get a helpful follow-up.',
-        copy: { nurture: { subject: 'Thanks for getting in touch', body: 'Hi {{name}}, thanks for reaching out. Here is where most teams start — reply if you would like a hand.' } },
+        copy: { nurture: { subject: 'Thanks for getting in touch', body: 'Hi {{name}}, thanks for reaching out. Reply with what you are working on and we will point you to the best place to start.' } },
       },
       nb: {
         title: 'Innkommende lead',
         description: 'En ny kontakt fra skjema eller chat: en agent kvalifiserer ut fra det de har fortalt, kvalifiserte flagges til salg, resten får en nyttig oppfølging.',
-        copy: { nurture: { subject: 'Takk for at du tok kontakt', body: 'Hei {{name}}, takk for at du tok kontakt. Her starter de fleste team — svar gjerne om du vil ha hjelp.' } },
+        copy: { nurture: { subject: 'Takk for at du tok kontakt', body: 'Hei {{name}}, takk for at du tok kontakt. Svar med hva du jobber med, så viser vi deg hvor det lønner seg å begynne.' } },
       },
       sv: {
         title: 'Inkommande lead',
         description: 'En ny kontakt från formulär eller chatt: en agent kvalificerar utifrån vad de berättat, kvalificerade flaggas till sälj, övriga får en hjälpsam uppföljning.',
-        copy: { nurture: { subject: 'Tack för att du hörde av dig', body: 'Hej {{name}}, tack för att du hörde av dig. Här brukar de flesta team börja — svara gärna om du vill ha hjälp.' } },
+        copy: { nurture: { subject: 'Tack för att du hörde av dig', body: 'Hej {{name}}, tack för att du hörde av dig. Svara med vad du jobbar med, så visar vi var det lönar sig att börja.' } },
       },
     },
     spec: (copy, locale) => ({

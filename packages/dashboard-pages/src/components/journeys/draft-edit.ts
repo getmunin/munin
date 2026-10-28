@@ -79,16 +79,34 @@ export function suggestNodeId(kind: NewStepKind, taken: readonly string[]): stri
   }
 }
 
-export function skeletonNode(kind: NewStepKind, id: string): JourneyNodeRecord {
+export interface SkeletonCopy {
+  subject: string;
+  emailBody: string;
+  smsBody: string;
+  chatBody: string;
+  voiceBody: string;
+  approvalTitle: string;
+}
+
+export const DEFAULT_SKELETON_COPY: SkeletonCopy = {
+  subject: 'Subject',
+  emailBody: 'Hi {{name}},',
+  smsBody: 'Hi {{name|there}},',
+  chatBody: 'Hi {{name|there}}!',
+  voiceBody: 'Hi, this is a quick call about…',
+  approvalTitle: 'Approve before continuing',
+};
+
+export function skeletonNode(kind: NewStepKind, id: string, copy: SkeletonCopy = DEFAULT_SKELETON_COPY): JourneyNodeRecord {
   switch (kind) {
     case 'email':
-      return { id, type: 'message', channel: 'email', content: { subject: 'Subject', body: 'Hi {{name}},' }, approval: 'auto' };
+      return { id, type: 'message', channel: 'email', content: { subject: copy.subject, body: copy.emailBody }, approval: 'auto' };
     case 'sms':
-      return { id, type: 'message', channel: 'sms', content: { body: 'Hi {{name|there}},' } };
+      return { id, type: 'message', channel: 'sms', content: { body: copy.smsBody } };
     case 'chat':
-      return { id, type: 'message', channel: 'chat', content: { body: 'Hi {{name|there}}!' }, approval: 'auto' };
+      return { id, type: 'message', channel: 'chat', content: { body: copy.chatBody }, approval: 'auto' };
     case 'voice':
-      return { id, type: 'message', channel: 'voice', content: { body: 'Hi, this is a quick call about…' } };
+      return { id, type: 'message', channel: 'voice', content: { body: copy.voiceBody } };
     case 'wait':
       return { id, type: 'wait', duration: 'P1D' };
     case 'wait_for':
@@ -98,7 +116,7 @@ export function skeletonNode(kind: NewStepKind, id: string): JourneyNodeRecord {
     case 'goal':
       return { id, type: 'goal', name: 'converted' };
     case 'approval':
-      return { id, type: 'approval', title: 'Approve before continuing' };
+      return { id, type: 'approval', title: copy.approvalTitle };
     case 'exit':
       return { id, type: 'exit' };
   }

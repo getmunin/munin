@@ -1,11 +1,7 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { McpTool } from '@getmunin/mcp-toolkit';
-import {
-  JOURNEY_ACTIONS,
-  JOURNEY_NODE_TYPES,
-  JourneyNodeSchema,
-} from '@getmunin/types';
+import { JOURNEY_ACTIONS, JOURNEY_NODE_TYPES } from '@getmunin/types';
 import { JOURNEY_STATUSES, JourneysService } from './journeys.service.ts';
 import { ENROLLMENT_STATES, JourneyRuntimeService, type EnrollmentState } from './journey-runtime.service.ts';
 import { JourneyPublishingService } from './journey-publishing.service.ts';
@@ -17,7 +13,13 @@ const Id = z.string().min(1).max(64);
 const NodeIdInput = z.string().regex(/^[a-z][a-z0-9_]{0,47}$/);
 const NodeInput = z
   .looseObject({ id: NodeIdInput, type: z.enum(JOURNEY_NODE_TYPES) })
-  .describe('One node, shaped as listed by journeys_list_node_types.');
+  .describe('One node: its id, its type and the fields of that type.');
+const IfSpecHash = z
+  .string()
+  .min(1)
+  .max(128)
+  .optional()
+  .describe('specHash of the draft the edit is based on; the edit is refused with journeys_draft_changed if the draft changed since.');
 const SpecInput = z
   .record(z.string(), z.unknown())
   .describe('Whole journey spec: { entry, exit, goal, settings, start, nodes }.');
@@ -144,7 +146,7 @@ export class JourneysTools {
     name: 'journeys_create_from_campaign',
     title: 'Journeys: Create a journey from a campaign sequence',
     description:
-      'Convert an email outreach campaign\'s first touch and sequence steps into a draft journey: an agent-drafted email per step, a wait between them, and a reply ends the sequence. Give the goal event that counts as success. The campaign keeps sending its own first touches and follow-ups while the journey is a draft; once the journey is published they stop and the journey sends instead. Archive the journey to hand the campaign back.',
+      'Convert an email outreach campaign\'s first touch and sequence steps into a draft journey: an agent-drafted email per step, a wait between them, and a reply ends the sequence. Give the goal event that counts as success. The campaign keeps sending its own first touches and follow-ups while the journey is a draft; while the journey is live or paused the campaign proposes nothing and the journey sends instead. Its audience, sender and sequence are locked until the journey is archived, which hands the campaign back.',
     audiences: ['admin'],
     scopes: ['journeys:write'],
     input: z.object({
@@ -431,7 +433,7 @@ export class JourneysTools {
     name: 'journeys_list_node_types',
     title: 'Journeys: List node types',
     description:
-      'Reference for the journey spec: every node type with what it does and its fields, plus the entry, exit, goal and settings blocks. Read it before drafting or editing a journey.',
+      'Reference for the journey spec: every node type with what it does and its fields, plus the entry, exit, goal and settings blocks.',
     audiences: ['admin'],
     scopes: ['journeys:read'],
     input: z.object({}),
@@ -447,7 +449,7 @@ export class JourneysTools {
         exit: '{ idleDays?, on?: [{ event, where? }] }',
         goal: '{ event, where?, windowDays, exitOnGoal? } — required before publishing',
         settings:
-          '{ timezone?, quietHours?: "20:00-08:00", validDays?, holdoutPct?, frequencyCapPerWeek?, cooldownHoursAfterConversation?, maxVisitsPerNode? }',
+          '{ timezone?, quietHours?: "20:00-08:00" (SMS and calls default to 21:00-08:00; "00:00-00:00" for none), validDays?, holdoutPct?, frequencyCapPerWeek?, cooldownHoursAfterConversation?, maxVisitsPerNode?, smsChannelId?, voiceChannelId?, chatChannelId?, agentStepsPerDay? (default 1000), traceRetentionDays?, guardrails? }',
         start: 'id of the first node',
       },
     };
@@ -504,10 +506,10 @@ export class JourneysTools {
     description:
       'Check a journey version (the open draft by default) for schema errors, missing or unreachable nodes, dangling edges, loops without a wait, unknown segments, templates or webhooks, and a missing goal. Errors block publishing; warnings do not.',
     audiences: ['admin'],
-    scopes: ['journeys:write'],
+    scopes: ['journeys:read'],
     input: JourneyIdInput.extend({ version: z.number().int().min(1).optional() }),
-    readOnlyHint: false,
-    destructiveHint: true,
+    readOnlyHint: true,
+    destructiveHint: false,
   })
   validate(args: { journeyId: string; version?: number }) {
     return this.journeys.validate(args.journeyId, args.version);
@@ -540,12 +542,12 @@ export class JourneysTools {
       'Replace the whole spec of the journey\'s open draft version, creating a new draft from the live version first when none is open. Published versions never change.',
     audiences: ['admin'],
     scopes: ['journeys:write'],
-    input: JourneyIdInput.extend({ spec: SpecInput, changeSummary: z.string().max(300).optional() }),
+    input: JourneyIdInput.extend({ spec: SpecInput, changeSummary: z.string().max(300).optional(), ifSpecHash: IfSpecHash }),
     readOnlyHint: false,
     destructiveHint: true,
   })
-  replaceDraft(args: { journeyId: string; spec: Record<string, unknown>; changeSummary?: string }) {
-    return this.journeys.replaceDraft(args.journeyId, args.spec, args.changeSummary);
+  replaceDraft(args: { journeyId: string; spec: Record<string, unknown>; changeSummary?: string; ifSpecHash?: string }) {
+    return this.journeys.replaceDraft(args.journeyId, args.spec, args.changeSummary, { ifSpecHash: args.ifSpecHash });
   }
 
   @McpTool({
@@ -558,13 +560,18 @@ export class JourneysTools {
     input: JourneyIdInput.extend({
       node: NodeInput,
       after: z.object({ nodeId: NodeIdInput, edge: z.enum(['next', 'onReply', 'onTimeout', 'default']).optional() }).optional(),
+      ifSpecHash: IfSpecHash,
     }),
     readOnlyHint: false,
     destructiveHint: true,
   })
-  addNode(args: { journeyId: string; node: Record<string, unknown> & { id: string }; after?: { nodeId: string; edge?: string } }) {
-    assertNodeShape(args.node);
-    return this.journeys.addNode(args.journeyId, args.node, args.after);
+  addNode(args: {
+    journeyId: string;
+    node: Record<string, unknown> & { id: string };
+    after?: { nodeId: string; edge?: string };
+    ifSpecHash?: string;
+  }) {
+    return this.journeys.addNode(args.journeyId, args.node, args.after, { ifSpecHash: args.ifSpecHash });
   }
 
   @McpTool({
@@ -573,27 +580,26 @@ export class JourneysTools {
     description: 'Replace the node with the same id in the open draft, including its edges.',
     audiences: ['admin'],
     scopes: ['journeys:write'],
-    input: JourneyIdInput.extend({ node: NodeInput }),
+    input: JourneyIdInput.extend({ node: NodeInput, ifSpecHash: IfSpecHash }),
     readOnlyHint: false,
     destructiveHint: true,
   })
-  updateNode(args: { journeyId: string; node: Record<string, unknown> & { id: string } }) {
-    assertNodeShape(args.node);
-    return this.journeys.updateNode(args.journeyId, args.node);
+  updateNode(args: { journeyId: string; node: Record<string, unknown> & { id: string }; ifSpecHash?: string }) {
+    return this.journeys.updateNode(args.journeyId, args.node, { ifSpecHash: args.ifSpecHash });
   }
 
   @McpTool({
     name: 'journeys_remove_node',
     title: 'Journeys: Remove a node from the draft',
-    description: 'Remove a node from the open draft. Edges that pointed at it are left for you to rewire; journeys_validate lists them.',
+    description: 'Remove a node from the open draft. Edges that pointed at it are left dangling until they are rewired, and validation reports them.',
     audiences: ['admin'],
     scopes: ['journeys:write'],
-    input: JourneyIdInput.extend({ nodeId: NodeIdInput }),
+    input: JourneyIdInput.extend({ nodeId: NodeIdInput, ifSpecHash: IfSpecHash }),
     readOnlyHint: false,
     destructiveHint: true,
   })
-  removeNode(args: { journeyId: string; nodeId: string }) {
-    return this.journeys.removeNode(args.journeyId, args.nodeId);
+  removeNode(args: { journeyId: string; nodeId: string; ifSpecHash?: string }) {
+    return this.journeys.removeNode(args.journeyId, args.nodeId, { ifSpecHash: args.ifSpecHash });
   }
 
   @McpTool({
@@ -609,6 +615,7 @@ export class JourneysTools {
       exit: z.record(z.string(), z.unknown()).optional(),
       goal: z.record(z.string(), z.unknown()).optional(),
       settings: z.record(z.string(), z.unknown()).optional(),
+      ifSpecHash: IfSpecHash,
     }),
     readOnlyHint: false,
     destructiveHint: true,
@@ -620,12 +627,13 @@ export class JourneysTools {
     exit?: Record<string, unknown>;
     goal?: Record<string, unknown>;
     settings?: Record<string, unknown>;
+    ifSpecHash?: string;
   }) {
-    const { journeyId, ...patch } = args;
+    const { journeyId, ifSpecHash, ...patch } = args;
     if (Object.keys(patch).length === 0) {
       throw new BadRequestException('journeys_invalid: pass at least one of start, entry, exit, goal, settings');
     }
-    return this.journeys.updateSettings(journeyId, patch);
+    return this.journeys.updateSettings(journeyId, patch, { ifSpecHash });
   }
 
   @McpTool({
@@ -643,17 +651,36 @@ export class JourneysTools {
   }
 
   @McpTool({
+    name: 'journeys_preview_move_enrollments',
+    title: 'Journeys: Preview moving enrollments to another version',
+    description:
+      'Preview moving open runs from older versions onto a published version: how many runs would move from which node and to where, which would be skipped and why, and a fingerprint for journeys_move_enrollments. Each run continues at the node with the same id, or where nodeMap sends it ({ "old_node": "new_node" }). Changes nothing.',
+    audiences: ['admin'],
+    scopes: ['journeys:read'],
+    input: JourneyIdInput.extend({
+      toVersion: z.number().int().min(1),
+      nodeMap: z.record(z.string().min(1).max(48), z.string().min(1).max(48)).optional(),
+      fromVersions: z.array(z.number().int().min(1)).max(50).optional(),
+    }),
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  previewMoveEnrollments(args: { journeyId: string; toVersion: number; nodeMap?: Record<string, string>; fromVersions?: number[] }) {
+    return this.runtime.moveEnrollments(args);
+  }
+
+  @McpTool({
     name: 'journeys_move_enrollments',
     title: 'Journeys: Move enrollments to another version',
     description:
-      'Move open runs from older versions onto a published version. Each run continues at the node with the same id, or where nodeMap sends it ({ "old_node": "new_node" }). Call it first without fingerprint for a preview — how many runs move from which node, and which are skipped and why — then again with the preview fingerprint to move them. A run that stays on the same step keeps its wait; one that moves to another step starts that step fresh. Runs waiting on a proposal, an agent or an approval only move when they stay on the same step.',
+      'Move open runs from older versions onto a published version, as previewed with the same toVersion, nodeMap and fromVersions; the fingerprint must match the preview or nothing moves. A run that stays on the same step keeps its wait; one that moves to another step starts that step fresh. Runs waiting on a proposal, an agent or an approval only move when they stay on the same step.',
     audiences: ['admin'],
     scopes: ['journeys:write'],
     input: JourneyIdInput.extend({
       toVersion: z.number().int().min(1),
       nodeMap: z.record(z.string().min(1).max(48), z.string().min(1).max(48)).optional(),
       fromVersions: z.array(z.number().int().min(1)).max(50).optional(),
-      fingerprint: z.string().length(32).optional(),
+      fingerprint: z.string().length(32),
     }),
     readOnlyHint: false,
     destructiveHint: true,
@@ -663,7 +690,7 @@ export class JourneysTools {
     toVersion: number;
     nodeMap?: Record<string, string>;
     fromVersions?: number[];
-    fingerprint?: string;
+    fingerprint: string;
   }) {
     return this.runtime.moveEnrollments(args);
   }
@@ -777,7 +804,7 @@ export class JourneysTools {
     name: 'journeys_resume_node',
     title: 'Journeys: Resume a paused node',
     description:
-      'Resume a paused step. Runs held at it continue right away; the result says how many were released. Check journeys_get_guardrails first when the monitor paused it.',
+      'Resume a paused step. Runs held at it continue right away; the result says how many were released.',
     audiences: ['admin'],
     scopes: ['journeys:write'],
     input: JourneyIdInput.extend({ nodeId: z.string().min(1).max(48) }),
@@ -828,16 +855,5 @@ export class JourneysTools {
   })
   archive(args: z.infer<typeof JourneyIdInput>) {
     return this.journeys.archive(args.journeyId);
-  }
-}
-
-function assertNodeShape(node: unknown): void {
-  const parsed = JourneyNodeSchema.safeParse(node);
-  if (!parsed.success) {
-    const detail = parsed.error.issues
-      .slice(0, 5)
-      .map((i) => `${i.path.join('.') || 'node'}: ${i.message}`)
-      .join('; ');
-    throw new BadRequestException(`journeys_invalid: ${detail}`);
   }
 }

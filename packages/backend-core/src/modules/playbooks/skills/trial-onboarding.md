@@ -15,7 +15,7 @@ This is a **playbook** — it composes per-module skills rather than reproducing
 1. Make sure the product sends `trial.started`, `teammate.invited` and `subscription.started` to `POST /v1/events`.
 2. Pick the email channel to send from and create a "Trialists" segment.
 3. Build the journey below with the `journeys_*` tools, validate and simulate it.
-4. `journeys_request_publish` and hand the `reviewPath` to the operator. They confirm in the dashboard.
+4. `journeys_request_publish` and hand the `reviewUrl` link to the operator. They confirm in the dashboard.
 5. Watch `journeys_get_report` daily for the first two weeks; the launch gate is met when integrity stays at zero.
 
 ## Step 1 — the events
@@ -74,7 +74,7 @@ Then `journeys_validate` (no errors) and `journeys_simulate` over the segment. R
 
 ## Step 4 — publish
 
-`journeys_request_publish`, then give the operator the `reviewPath`. A signed-in person confirms in the dashboard; you cannot, and editing the draft afterwards voids the request.
+`journeys_request_publish`, then give the operator the `reviewUrl` link. A signed-in person confirms in the dashboard; you cannot, and editing the draft afterwards voids the request.
 
 ## Step 5 — watch it until the launch gate is met
 

@@ -1354,7 +1354,7 @@
       "reviewPublish": "Review and publish v{version}",
       "showLive": "Live v{version}",
       "showDraft": "Draft v{version}",
-      "graphInvalid": "This version can't be drawn until its spec is valid.",
+      "graphInvalid": "This version can't be drawn until it is valid.",
       "noVersionTitle": "Nothing to show",
       "noVersionBody": "This journey has no version yet.",
       "tabs": {
@@ -1462,7 +1462,7 @@
       "editDraft": "Edit draft",
       "doneEditing": "Done editing",
       "editor": {
-        "graphInvalid": "The draft cannot be drawn yet. Fix it in the advanced editor or ask the agent.",
+        "graphInvalid": "The draft cannot be drawn yet. Pick a step below and fix it in the advanced editor, or ask the agent.",
         "valid": "The draft is valid. Publish it from the Versions tab.",
         "pickStep": "Select a step in the graph to edit it.",
         "label": "Label",
@@ -1524,7 +1524,17 @@
           "goal": "Goal",
           "approval": "Approval by a person",
           "exit": "Exit"
-        }
+        },
+        "skeleton": {
+          "subject": "Subject",
+          "emailBody": "Hi {name},",
+          "smsBody": "Hi {name},",
+          "chatBody": "Hi {name}!",
+          "voiceBody": "Hi, this is a quick call about…",
+          "approvalTitle": "Approve before continuing",
+          "fallbackName": "there"
+        },
+        "formInvalid": "This step isn't complete yet: {detail}"
       },
       "runState": {
         "active": "running",
@@ -1554,6 +1564,30 @@
         "wait_timeout": "event never came",
         "step_failed": "a step kept failing",
         "journey_archived": "journey archived"
+      },
+      "graph": {
+        "type": {
+          "message": "message",
+          "wait": "wait",
+          "wait_for": "wait for",
+          "branch": "branch",
+          "split": "split",
+          "goal": "goal",
+          "jump": "jump",
+          "exit": "exit",
+          "action": "action",
+          "agent": "agent",
+          "approval": "approval",
+          "sub_journey": "sub-journey"
+        },
+        "sms": "SMS",
+        "chat": "Chat",
+        "call": "Call",
+        "decide": "decide: {edges}",
+        "enrich": "enrich: {fields}",
+        "approve": "approve: {title}",
+        "run": "run {journey}",
+        "enter": "enter {journey}"
       }
     },
     "endUsers": {

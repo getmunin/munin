@@ -65,7 +65,7 @@ export class ShopifyOrderEventsService {
     } catch {
       return { status: 'ignored' };
     }
-    const event = shopifyOrderEvent({ topic: input.topic, webhookId: input.webhookId, shopDomain: connection.shopDomain, body });
+    const event = shopifyOrderEvent({ topic: input.topic, shopDomain: connection.shopDomain, rawBody: input.rawBody, body });
     if (!event) return { status: 'ignored' };
     const actor = new ActorIdentity('system', SHOPIFY_WEBHOOK_ACTOR_ID, connection.orgId, ['*'], ['admin']);
     const [result] = await this.db.transaction(async (tx) => {

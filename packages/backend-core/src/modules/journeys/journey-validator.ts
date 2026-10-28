@@ -1,8 +1,10 @@
 import {
+  DEFAULT_PHONE_QUIET_HOURS,
   JOURNEY_CALL_OPENING_MAX_CHARS,
   JOURNEY_CHAT_MAX_CHARS,
   JOURNEY_SMS_MAX_CHARS,
   JourneySpecSchema,
+  isReservedEnrichKey,
   journeyNodeEdges,
   type JourneyNode,
   type JourneySpec,
@@ -38,8 +40,6 @@ export interface ParsedJourneySpec {
   spec: JourneySpec | null;
   validation: JourneyValidation;
 }
-
-const RESERVED_FIELD_KEYS: ReadonlySet<string> = new Set(['timezone', 'locale', 'language']);
 
 const WAITING_NODE_TYPES: ReadonlySet<string> = new Set(['wait', 'wait_for', 'message', 'agent', 'approval', 'sub_journey']);
 
@@ -154,6 +154,13 @@ export function validateJourneySpec(spec: JourneySpec, refs: JourneyReferences):
     } else if (refs.chatChannelIds && !refs.chatChannelIds.has(channelId)) {
       errors.push({ code: 'chat_channel', message: `"${channelId}" is not a chat widget channel in this organization` });
     }
+  }
+
+  if (!spec.settings.quietHours && spec.nodes.some((n) => n.type === 'message' && (n.channel === 'sms' || n.channel === 'voice'))) {
+    warnings.push({
+      code: 'phone_quiet_hours',
+      message: `settings.quietHours is not set, so text messages and calls wait out ${DEFAULT_PHONE_QUIET_HOURS} in each person's timezone; set it to choose another window, or 00:00-00:00 for none`,
+    });
   }
 
   if (spec.nodes.some((n) => n.type === 'message' && n.channel === 'voice')) {
@@ -325,7 +332,7 @@ function checkNode(
           errors.push({ code: 'agent_mode_fields', nodeId: node.id, message: 'an enrich step uses fields and next, not edges' });
         }
         for (const field of node.fields ?? []) {
-          if (RESERVED_FIELD_KEYS.has(field.key) || field.key.startsWith('outreachOutcome')) {
+          if (isReservedEnrichKey(field.key)) {
             errors.push({ code: 'agent_fields', nodeId: node.id, message: `"${field.key}" is set by Munin itself; choose another key` });
           }
           if (field.type === 'enum' && !field.options?.length) {

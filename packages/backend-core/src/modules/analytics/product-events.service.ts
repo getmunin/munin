@@ -8,6 +8,7 @@ import { KNOWN_EVENT_TYPES } from '@getmunin/types';
 
 export const PRODUCT_EVENT_NAME_PATTERN = /^[a-z0-9_.-]{1,64}$/;
 export const PRODUCT_EVENT_MAX_BATCH = 100;
+export const PRODUCT_EVENT_MAX_FUTURE_SKEW_MS = 5 * 60_000;
 export const RESERVED_EVENT_PREFIXES: readonly string[] = [
   ...new Set(KNOWN_EVENT_TYPES.map((type) => `${type.slice(0, type.indexOf('.'))}.`)),
 ];
@@ -18,6 +19,7 @@ export interface ProductEventIdentity {
   externalId?: string;
   email?: string;
   phone?: string;
+  verified?: boolean;
 }
 
 export interface ProductEventInput {
@@ -96,6 +98,11 @@ export class ProductEventsService {
     if (Number.isNaN(occurredAt.valueOf())) {
       throw new BadRequestException(`analytics_invalid: occurredAt must be an ISO timestamp`);
     }
+    if (occurredAt.getTime() > Date.now() + PRODUCT_EVENT_MAX_FUTURE_SKEW_MS) {
+      throw new BadRequestException(
+        `analytics_invalid: occurredAt ${occurredAt.toISOString()} is in the future; send the time the event happened`,
+      );
+    }
     const properties = event.properties ?? {};
     if (Buffer.byteLength(JSON.stringify(properties)) > PRODUCT_EVENT_MAX_PROPERTIES_BYTES) {
       throw new BadRequestException(
@@ -119,7 +126,8 @@ export class ProductEventsService {
       };
     }
 
-    const { contactId, endUserId } = await this.resolveSubject(event.identity);
+    const verified = event.identity.verified !== false;
+    const { contactId, endUserId } = verified ? await this.resolveSubject(event.identity) : { contactId: null, endUserId: null };
     const [row] = await ctx.db
       .insert(t)
       .values({
@@ -147,6 +155,7 @@ export class ProductEventsService {
         endUserId,
         occurredAt: occurredAt.toISOString(),
         properties,
+        ...(verified ? {} : { identityVerified: false }),
       },
     });
     return { id: event.id, status: 'recorded', eventId: row.id, contactId, endUserId };

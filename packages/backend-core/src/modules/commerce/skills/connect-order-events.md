@@ -26,7 +26,7 @@ The secret goes into the connection's `webhookSecret` field through the credenti
 
 ## 4. Check it works
 
-Ask the operator to place or mark a test order, then `analytics_list_product_event_names` should show `order.paid` (or the topic they chose). Orders without a customer email are skipped, since there is no one to attach them to.
+Ask the operator to place or mark a test order, then `analytics_list_product_event_names` should show `order.paid` (or the topic they chose). Orders without a customer email are skipped, since there is no one to attach them to. A guest checkout's email is whatever the shopper typed, so its event is tied to a contact only when Shopify has verified that customer's email; otherwise it is recorded on nobody and enters no journey. Each event is keyed on the signed body, so a replayed webhook is a duplicate, and an order last changed more than three days before it arrives is ignored.
 
 ## Using the events
 

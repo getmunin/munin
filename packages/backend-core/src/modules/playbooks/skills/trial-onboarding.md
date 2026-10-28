@@ -28,7 +28,7 @@ This is a **playbook** — it composes per-module skills rather than reproducing
 | `teammate.invited` | The trial user invites a colleague | Branch: did they invite anyone since entering? |
 | `subscription.started` | The account starts paying | Goal |
 
-If any is missing, tell the operator which event their developers must send. The request is `POST /v1/events` with an admin API key that has only the `analytics:write` scope, a body `{ "events": [{ "id", "name", "occurredAt", "identity": { "email" | "externalId" | "contactId" }, "properties" }] }`, and the caller's own unique `id` per event so retries never count twice. Do not build the journey on events that never arrive.
+If any is missing, tell the operator which event their developers must send. The request is `POST /v1/events` with an admin API key that has only the `analytics:write` scope, a body `{ "events": [{ "id", "name", "occurredAt", "identity": { "email" | "externalId" | "contactId" }, "properties" }] }`, and the caller's own unique `id` per event so retries never count twice. `occurredAt` may not be more than five minutes in the future, and an organization can send at most 3000 events a minute (more answers `429` with `retryAfterSeconds`). Do not build the journey on events that never arrive.
 
 ## Step 2 — audience and sender
 

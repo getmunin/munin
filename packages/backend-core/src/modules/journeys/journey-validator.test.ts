@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseIsoDurationMs } from '@getmunin/types';
+import { DEFAULT_PHONE_QUIET_HOURS, journeyQuietHours, parseIsoDurationMs } from '@getmunin/types';
 import { parseJourneySpec, validateJourneySpec, type JourneyReferences } from './journey-validator.ts';
 
 const refs: JourneyReferences = {
@@ -174,6 +174,48 @@ describe('journey validator', () => {
     expect(codes({ id: 'sms', type: 'message', channel: 'email', content: { body: 'Hei!' }, next: 'done' })).toEqual([
       'missing_subject',
     ]);
+  });
+
+  it('warns that texts and calls wait out the night unless the journey sets its own quiet hours', () => {
+    const spec = (settings: Record<string, unknown>) =>
+      parseJourneySpec({
+        entry: { trigger: { type: 'manual' } },
+        goal: { event: 'subscription.started', windowDays: 30 },
+        settings: { smsChannelId: 'ch_sms', ...settings },
+        start: 'sms',
+        nodes: [{ id: 'sms', type: 'message', channel: 'sms', content: { body: 'Hei!' }, next: 'done' }, { id: 'done', type: 'exit' }],
+      }).spec!;
+    const warnings = (settings: Record<string, unknown>) => validateJourneySpec(spec(settings), refs).warnings.map((w) => w.code);
+    expect(warnings({})).toContain('phone_quiet_hours');
+    expect(warnings({ quietHours: '22:00-07:00' })).not.toContain('phone_quiet_hours');
+    expect(journeyQuietHours('sms', undefined)).toBe(DEFAULT_PHONE_QUIET_HOURS);
+    expect(journeyQuietHours('voice', '00:00-00:00')).toBe('00:00-00:00');
+    expect(journeyQuietHours('email', undefined)).toBeUndefined();
+  });
+
+  it('refuses enrich fields Munin sets itself', () => {
+    const enrich = (key: string) =>
+      parseJourneySpec({
+        entry: { trigger: { type: 'manual' } },
+        goal: { event: 'subscription.started', windowDays: 30 },
+        start: 'fill',
+        nodes: [
+          {
+            id: 'fill',
+            type: 'agent',
+            mode: 'enrich',
+            instructions: 'Fill it',
+            fields: [{ key, type: 'string', description: 'x' }],
+            inputs: ['contact'],
+            next: 'done',
+          },
+          { id: 'done', type: 'exit' },
+        ],
+      }).spec!;
+    for (const key of ['timezone', 'consentLawfulBasis', 'mergedInto', 'outreachOutcomeLast']) {
+      expect(validateJourneySpec(enrich(key), refs).errors.map((e) => e.code)).toContain('agent_fields');
+    }
+    expect(validateJourneySpec(enrich('useCase'), refs).errors.map((e) => e.code)).not.toContain('agent_fields');
   });
 
   it('allows concurrent runs only for event-triggered journeys that send nothing', () => {

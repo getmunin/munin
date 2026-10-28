@@ -1,10 +1,11 @@
-import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, readApiBaseUrl, WebhookDispatcher, withContext } from '@getmunin/core';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   CALL_OUTCOMES,
+  DEFAULT_AGENT_STEPS_PER_DAY,
   JOURNEY_CALL_OPENING_MAX_CHARS,
   JOURNEY_CHAT_MAX_CHARS,
   JOURNEY_SMS_MAX_CHARS,
@@ -12,6 +13,8 @@ import {
   MAX_CONCURRENT_ENROLLMENTS,
   MAX_SUB_JOURNEY_DEPTH,
   canSendWithoutReview,
+  journeyQuietHours,
+  isReservedEnrichKey,
   parseIsoDurationMs,
   type JourneyNode,
   type JourneySpec,
@@ -20,6 +23,7 @@ import { CrmService } from '../crm/crm.service.ts';
 import { JourneyOutboxService } from '../outreach/journey-outbox.service.ts';
 import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { ConvService } from '../conv/conv.service.ts';
+import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { buildAgentInputs, buildDecidePrompt, buildDraftPrompt, buildEnrichPrompt } from './journey-agent-inputs.ts';
 import { OUTREACH_ELIGIBILITY_FLOOR, segmentMatchFilters } from '../crm/segment-filter.ts';
 import { collectConditionNeeds, evaluateCondition, type ConditionFacts } from './journey-conditions.ts';
@@ -158,6 +162,7 @@ export class JourneyRuntimeService {
     @Inject(JourneyOutboxService) private readonly outbox: JourneyMessageOutbox,
     @Inject(CuratorJobsService) private readonly curatorJobs: Pick<CuratorJobsService, 'enqueue'>,
     @Inject(ConvService) private readonly conv: JourneyReplyHandover,
+    @Optional() @Inject(AlertsService) private readonly alerts: Pick<AlertsService, 'openAlert'> | null = null,
   ) {}
 
 
@@ -816,7 +821,7 @@ export class JourneyRuntimeService {
           channel: node.channel,
           class: node.class,
           timezone: settings.timezone,
-          quietHours: settings.quietHours,
+          quietHours: journeyQuietHours(node.channel, settings.quietHours),
           validDays: settings.validDays,
           frequencyCapPerWeek: settings.frequencyCapPerWeek,
           cooldownHoursAfterConversation: settings.cooldownHoursAfterConversation,
@@ -899,7 +904,7 @@ export class JourneyRuntimeService {
             channel: node.channel,
             class: node.class,
             timezone: settings.timezone,
-            quietHours: settings.quietHours,
+            quietHours: journeyQuietHours(node.channel, settings.quietHours),
             validDays: settings.validDays,
             frequencyCapPerWeek: settings.frequencyCapPerWeek,
             cooldownHoursAfterConversation: settings.cooldownHoursAfterConversation,
@@ -985,6 +990,14 @@ export class JourneyRuntimeService {
     step: StepContext,
     input: { jobUri: string; prompt: string; timeout: string; output: Record<string, unknown>; reason: string },
   ): Promise<Outcome> {
+    if (!(await this.withinAgentBudget(step))) {
+      return {
+        kind: 'wait',
+        wait: { kind: 'agent', timeoutAt: step.now },
+        output: { ...input.output, agentBudgetReached: true },
+        reason: 'the journey reached its daily limit of agent steps; taking the fallback',
+      };
+    }
     const job = await this.curatorJobs.enqueue({
       jobUri: input.jobUri,
       userPrompt: input.prompt,
@@ -1006,6 +1019,37 @@ export class JourneyRuntimeService {
     };
   }
 
+  private async withinAgentBudget(step: StepContext): Promise<boolean> {
+    const ctx = getCurrentContext();
+    const limit = step.spec.settings.agentStepsPerDay ?? DEFAULT_AGENT_STEPS_PER_DAY;
+    const day = new Date(Date.UTC(step.now.getUTCFullYear(), step.now.getUTCMonth(), step.now.getUTCDate()));
+    const rows = rowsOf(
+      await ctx.db.execute(sql`
+        INSERT INTO rate_limit_counters (org_id, bucket, window_start, count)
+        VALUES (${step.enrollment.orgId}, ${`journey_agent:${step.enrollment.journeyId}`}, ${day.toISOString()}::timestamptz, 1)
+        ON CONFLICT (org_id, bucket, window_start) DO UPDATE SET count = rate_limit_counters.count + 1
+        RETURNING count
+      `),
+    );
+    const used = Number((rows[0] as { count?: unknown } | undefined)?.count ?? 0);
+    if (used <= limit) return true;
+    if (used === limit + 1 && this.alerts) {
+      const name = await this.journeyName(step.enrollment.journeyId);
+      await this.alerts.openAlert({
+        source: 'journeys',
+        subjectId: `${step.enrollment.journeyId}:agent_budget`,
+        severity: 'warning',
+        title: `Journey "${name}" reached its daily limit of ${limit} agent steps`,
+        detail:
+          'Agent steps take their fallback for the rest of the day (UTC): decide steps follow the fallback edge, ' +
+          'drafted messages use the reference text and enrich steps fill nothing. Raise settings.agentStepsPerDay to allow more.',
+        metadata: { journeyId: step.enrollment.journeyId, kind: 'agent_budget', limit },
+        ctaHref: `/dashboard/journeys/${step.enrollment.journeyId}`,
+      });
+    }
+    return false;
+  }
+
   private async journeyName(journeyId: string): Promise<string> {
     const ctx = getCurrentContext();
     const [journey] = await ctx.db
@@ -1017,11 +1061,12 @@ export class JourneyRuntimeService {
   }
 
   private agentSubject(step: StepContext) {
+    const lastReply = step.enrollment.context.lastReply as { conversationId?: unknown } | undefined;
     return {
       contactId: step.enrollment.contactId,
       endUserId: step.enrollment.endUserId,
       companyId: step.enrollment.companyId,
-      conversationId: step.enrollment.conversationId,
+      conversationId: typeof lastReply?.conversationId === 'string' ? lastReply.conversationId : step.enrollment.conversationId,
       context: step.enrollment.context,
     };
   }
@@ -1055,8 +1100,11 @@ export class JourneyRuntimeService {
     const fallback = node.fallback ?? Object.keys(edges)[0]!;
     if (step.resumed) {
       const decision = previous.decision as { edge?: string; reason?: string } | undefined;
-      if (step.resumed.resolution === 'agent_decided' && decision?.edge && decision.edge in edges) {
-        if (decision.edge === STOP_EDGE) await this.exitOtherJourneys(step.enrollment, 'conversation_stop');
+      if (step.resumed.resolution === 'agent_decided' && decision?.edge && Object.hasOwn(edges, decision.edge)) {
+        if (decision.edge === STOP_EDGE) {
+          await this.exitOtherJourneys(step.enrollment, 'conversation_stop');
+          await this.stopMarketing(step.enrollment, decision.reason ?? null);
+        }
         return {
           kind: 'advance',
           edge: decision.edge,
@@ -1105,6 +1153,38 @@ export class JourneyRuntimeService {
     return others.length;
   }
 
+  private async stopMarketing(enrollment: EnrollmentRow, reason: string | null): Promise<void> {
+    if (!enrollment.contactId) return;
+    const ctx = getCurrentContext();
+    const c = schema.crmContacts;
+    const now = new Date();
+    const [stopped] = await ctx.db
+      .update(c)
+      .set({ unsubscribedAt: now, updatedAt: now })
+      .where(and(eq(c.id, enrollment.contactId), isNull(c.unsubscribedAt)))
+      .returning({ id: c.id });
+    if (!stopped) return;
+    const [journey] = await ctx.db
+      .select({ name: schema.journeys.name, campaignId: schema.journeys.outreachCampaignId })
+      .from(schema.journeys)
+      .where(eq(schema.journeys.id, enrollment.journeyId))
+      .limit(1);
+    await ctx.db.insert(schema.crmActivities).values({
+      orgId: enrollment.orgId,
+      type: 'note',
+      subject: 'Unsubscribed',
+      body: `Asked to stop in a conversation; the journey "${journey?.name ?? enrollment.journeyId}" stopped marketing to them${reason ? `: ${reason}` : ''}`,
+      contactId: enrollment.contactId,
+      actorType: 'system',
+      actorId: JOURNEY_RUNTIME_ACTOR_ID,
+      metadata: { optOut: { journeyId: enrollment.journeyId, enrollmentId: enrollment.id, via: 'journey_stop' } },
+    });
+    await this.webhooks.emit({
+      type: 'crm.contact.unsubscribed',
+      payload: { contactId: enrollment.contactId, campaignId: journey?.campaignId ?? null, method: 'journey_stop' },
+    });
+  }
+
   async submitDecision(input: {
     stepRunId: string;
     edge: string;
@@ -1146,7 +1226,7 @@ export class JourneyRuntimeService {
     if (node?.type !== 'agent' || node.mode !== 'decide') {
       throw new NotFoundException(`journeys_not_found: agent decide node ${run.nodeId}`);
     }
-    const nextNode = node.edges?.[input.edge];
+    const nextNode = node.edges && Object.hasOwn(node.edges, input.edge) ? node.edges[input.edge] : undefined;
     if (!nextNode) {
       throw new BadRequestException(
         `journeys_invalid: "${input.edge}" is not an edge of this step; choose one of ${Object.keys(node.edges ?? {}).join(', ')}`,
@@ -1255,6 +1335,10 @@ export class JourneyRuntimeService {
       throw new NotFoundException(`journeys_not_found: agent enrich step ${input.stepRunId}`);
     }
     const values: Record<string, unknown> = {};
+    const reserved = Object.keys(input.fields).filter(isReservedEnrichKey);
+    if (reserved.length) {
+      throw new BadRequestException(`journeys_invalid: ${reserved.join(', ')} cannot be filled by an agent`);
+    }
     for (const field of node.fields ?? []) {
       if (!(field.key in input.fields)) continue;
       const value = coerceField(field, input.fields[field.key]);

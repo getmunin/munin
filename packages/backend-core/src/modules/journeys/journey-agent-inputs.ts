@@ -1,5 +1,5 @@
 import { schema } from '@getmunin/db';
-import { and, asc, desc, eq, gte, or, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, or, type SQL } from 'drizzle-orm';
 import {
   NATIONAL_ID_DETECTORS,
   findNationalIds,
@@ -101,15 +101,15 @@ export async function buildAgentInputs(
           .select({ authorType: m.authorType, body: m.body, createdAt: m.createdAt })
           .from(m)
           .where(and(eq(m.conversationId, subject.conversationId), eq(m.internal, false)))
-          .orderBy(input === 'reply' ? desc(m.createdAt) : asc(m.createdAt))
+          .orderBy(desc(m.createdAt))
           .limit(input === 'reply' ? 20 : THREAD_LIMIT);
         if (input === 'reply') {
           const latest = rows.find((r) => r.authorType === 'end_user');
-          out.reply = latest ? { body: redact(latest.body), at: latest.createdAt.toISOString() } : null;
+          out.reply = latest ? { body: scrubText(latest.body), at: latest.createdAt.toISOString() } : null;
         } else {
-          out.thread = rows.map((r) => ({
+          out.thread = rows.reverse().map((r) => ({
             from: r.authorType === 'end_user' ? 'customer' : 'us',
-            body: redact(r.body),
+            body: scrubText(r.body),
             at: r.createdAt.toISOString(),
           }));
         }
@@ -221,6 +221,10 @@ function redact(text: string): string {
   const clipped = text.length > TEXT_LIMIT ? `${text.slice(0, TEXT_LIMIT)}…` : text;
   const matches = findNationalIds(clipped, NATIONAL_ID_DETECTORS, { minConfidence: 'medium' });
   return redactNationalIds(clipped, matches, 'mask');
+}
+
+function scrubText(text: string): string {
+  return scrubContactDetails(redact(text)) as string;
 }
 
 function scrub(value: unknown): unknown {

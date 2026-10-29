@@ -58,6 +58,8 @@ export interface EnrollmentDto {
   contactName?: string | null;
   contactEmail?: string | null;
   endUserId: string | null;
+  companyId?: string | null;
+  companyName?: string | null;
   state: EnrollmentState;
   currentNode: string | null;
   holdout: boolean;

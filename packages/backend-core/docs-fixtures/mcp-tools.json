@@ -11037,8 +11037,8 @@
   },
   {
     "name": "journeys_enroll",
-    "title": "Journeys: Enroll a person",
-    "description": "Put one contact or end user into a live journey now, as if its trigger fired. The entry segment, re-entry policy and holdout still apply; the result says whether they entered and, if not, why.",
+    "title": "Journeys: Enroll a person or company",
+    "description": "Put one contact, end user or company into a live journey now, as if its trigger fired. A company journey (entry.subject \"company\") takes a companyId, or a contact whose company it then follows. The entry segment, re-entry policy and holdout still apply; the result says whether they entered and, if not, why.",
     "audiences": [
       "admin"
     ],
@@ -11062,6 +11062,11 @@
           "maxLength": 64
         },
         "endUserId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "companyId": {
           "type": "string",
           "minLength": 1,
           "maxLength": 64

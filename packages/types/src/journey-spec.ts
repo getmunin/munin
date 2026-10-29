@@ -329,8 +329,11 @@ export const JourneyTriggerSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('manual') }),
 ]);
 
+export const JOURNEY_SUBJECTS = ['contact', 'company'] as const;
+
 export const JourneyEntrySchema = z.strictObject({
   trigger: JourneyTriggerSchema,
+  subject: z.enum(JOURNEY_SUBJECTS).default('contact'),
   segmentId: z.string().min(1).max(64).optional(),
   reentry: z.enum(REENTRY_POLICIES).default('once_at_a_time'),
   lateEventWindowHours: z.number().int().min(0).max(168).default(6),

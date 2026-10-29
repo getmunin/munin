@@ -138,6 +138,8 @@ export function validateJourneySpec(spec: JourneySpec, refs: JourneyReferences):
     }
   }
 
+  if (spec.entry.subject === 'company') checkCompanyJourney(spec, errors);
+
   if (spec.nodes.some((n) => n.type === 'message' && n.channel === 'chat')) {
     const channelId = spec.settings.chatChannelId;
     if (!channelId) {
@@ -479,3 +481,21 @@ function checkChatNode(node: Extract<JourneyNode, { type: 'message' }>, errors: 
     fail('agent_draft_brief', 'an agent-drafted message needs a brief');
   }
 }
+
+const PERSON_ACTIONS: ReadonlySet<string> = new Set(['crm.update_contact']);
+
+function checkCompanyJourney(spec: JourneySpec, errors: JourneyIssue[]): void {
+  for (const node of spec.nodes) {
+    const fail = (code: string, message: string) => errors.push({ code, nodeId: node.id, message });
+    if (node.type === 'message') {
+      fail('company_message', 'a company journey cannot send messages yet; tag the company, log an activity or post a webhook');
+    }
+    if (node.type === 'action' && PERSON_ACTIONS.has(node.action)) {
+      fail('company_action', `${node.action} changes one person; a company journey can tag the company, log an activity or post a webhook`);
+    }
+    if (node.type === 'wait' && node.untilField?.field.startsWith('contact.')) {
+      fail('company_wait', 'a company journey has no single contact to read a date from; use a context field');
+    }
+  }
+}
+

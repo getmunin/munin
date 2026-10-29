@@ -2279,6 +2279,7 @@ export const journeyEnrollments = pgTable(
     version: integer('version').notNull(),
     contactId: text('contact_id').references(() => crmContacts.id, { onDelete: 'set null' }),
     endUserId: text('end_user_id').references(() => endUsers.id, { onDelete: 'set null' }),
+    companyId: text('company_id').references(() => crmCompanies.id, { onDelete: 'set null' }),
     subjectKey: varchar('subject_key', { length: 80 }).notNull(),
     entryKey: text('entry_key').notNull().default(''),
     state: varchar('state', { length: 16 }).notNull().default('active'),
@@ -2307,6 +2308,7 @@ export const journeyEnrollments = pgTable(
     journeyIdx: index('journey_enrollments_journey_idx').on(t.journeyId, t.state),
     contactIdx: index('journey_enrollments_contact_idx').on(t.contactId),
     endUserIdx: index('journey_enrollments_end_user_idx').on(t.endUserId),
+    companyIdx: index('journey_enrollments_company_idx').on(t.companyId),
   }),
 );
 

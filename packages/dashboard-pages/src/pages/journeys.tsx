@@ -487,7 +487,7 @@ function EnrollmentTable({ enrollments, onOpen }: { enrollments: EnrollmentDto[]
               onClick={() => onOpen(e.id)}
             >
               <td className="py-3 pr-4 font-mono text-xs text-ink dark:text-foreground">
-                {e.contactName ?? e.contactEmail ?? e.contactId ?? e.endUserId}
+                {e.contactName ?? e.contactEmail ?? e.companyName ?? e.contactId ?? e.companyId ?? e.endUserId}
                 {e.holdout && <span className="ml-2 text-ink-mute">{t('holdout')}</span>}
               </td>
               <td className="py-3 pr-4 font-mono text-xs text-ink-mute">{e.state}</td>

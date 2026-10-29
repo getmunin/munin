@@ -1396,6 +1396,7 @@
         "assumeNoEvent": "Assumes {event} does not arrive within {timeout} at \"{node}\".",
         "sample": "Sample: {subject} — to {name}",
         "sampleFrame": "Rendered sample email",
+        "smsSample": "SMS sample — to {name}",
         "cancel": "Cancel",
         "confirm": "Publish v{version}",
         "published": "Version {version} is live.",

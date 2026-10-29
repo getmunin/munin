@@ -1,4 +1,5 @@
 import {
+  JOURNEY_SMS_MAX_CHARS,
   JourneySpecSchema,
   RESERVED_JOURNEY_NODE_TYPES,
   journeyNodeEdges,
@@ -24,6 +25,7 @@ export interface JourneyReferences {
   segmentIds: ReadonlySet<string>;
   emailTemplateIds: ReadonlySet<string>;
   webhookIds: ReadonlySet<string>;
+  smsChannelIds?: ReadonlySet<string>;
   llmConfigured?: boolean;
 }
 
@@ -129,6 +131,15 @@ export function validateJourneySpec(spec: JourneySpec, refs: JourneyReferences):
     }
   }
 
+  if (spec.nodes.some((n) => n.type === 'message' && n.channel === 'sms')) {
+    const channelId = spec.settings.smsChannelId;
+    if (!channelId) {
+      errors.push({ code: 'sms_channel', message: 'SMS steps need settings.smsChannelId, an SMS channel to send from' });
+    } else if (refs.smsChannelIds && !refs.smsChannelIds.has(channelId)) {
+      errors.push({ code: 'sms_channel', message: `"${channelId}" is not an SMS channel in this organization` });
+    }
+  }
+
   if (!spec.goal) {
     errors.push({ code: 'missing_goal', message: 'every journey needs a goal event and attribution window' });
   }
@@ -150,6 +161,13 @@ function checkNode(
 ): void {
   switch (node.type) {
     case 'message':
+      if (node.channel === 'sms') {
+        checkSmsNode(node, errors);
+        break;
+      }
+      if (!node.content.subject) {
+        errors.push({ code: 'missing_subject', nodeId: node.id, message: 'an email step needs a subject' });
+      }
       if (node.draftBy === 'agent') {
         if (!node.brief) {
           errors.push({ code: 'agent_draft_brief', nodeId: node.id, message: 'an agent-drafted email needs a brief' });
@@ -315,4 +333,20 @@ function tightCycles(byId: Map<string, JourneyNode>): string[][] {
   };
   for (const id of byId.keys()) visit(id);
   return cycles;
+}
+
+function checkSmsNode(node: Extract<JourneyNode, { type: 'message' }>, errors: JourneyIssue[]): void {
+  const fail = (code: string, message: string) => errors.push({ code, nodeId: node.id, message });
+  if (node.approval === 'auto') {
+    fail('sms_auto', 'SMS steps are always approved by a person; use draft_only');
+  }
+  if (node.draftBy === 'agent') {
+    fail('sms_agent_draft', 'agent-drafted SMS is not available yet; write the text in content.body');
+  }
+  if (node.content.subject || node.content.preheader || node.content.templateId || node.content.format === 'mjml') {
+    fail('sms_content', 'an SMS step has only content.body: no subject, preheader, template or MJML');
+  }
+  if (node.content.body.length > JOURNEY_SMS_MAX_CHARS) {
+    fail('sms_length', `SMS text is ${node.content.body.length} characters; the limit is ${JOURNEY_SMS_MAX_CHARS}`);
+  }
 }

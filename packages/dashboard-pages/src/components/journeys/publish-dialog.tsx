@@ -72,6 +72,7 @@ export function PublishDialog({
   const diff = review?.diff;
   const sim = review?.simulation;
   const sample = sim?.messages.find((m) => m.html);
+  const smsSample = sim?.messages.find((m) => m.channel === 'sms' && m.body);
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : undefined)}>
@@ -165,10 +166,20 @@ export function PublishDialog({
                 </ul>
               )}
             </section>
+            {smsSample?.body && (
+              <section>
+                <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">
+                  {t('smsSample', { name: smsSample.contactName ?? '—' })}
+                </h3>
+                <p className="mt-2 whitespace-pre-wrap rounded-card border-[1px] border-rule-soft p-3 text-sm dark:border-rule-on-dark">
+                  {smsSample.body}
+                </p>
+              </section>
+            )}
             {sample?.html && (
               <section>
                 <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">
-                  {t('sample', { subject: sample.subject, name: sample.contactName ?? '—' })}
+                  {t('sample', { subject: sample.subject ?? '', name: sample.contactName ?? '—' })}
                 </h3>
                 <iframe
                   title={t('sampleFrame')}

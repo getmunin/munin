@@ -50,7 +50,7 @@ const DAY = 86_400_000;
     webhooks.registerSink(new JourneyEventSink());
     crm = new CrmService(webhooks, new DefaultQuotasService(), new AddressDeliverabilityService());
     journeys = new JourneysService(webhooks);
-    runtime = new JourneyRuntimeService(webhooks, crm, { withdrawJourneyProposals: () => Promise.resolve(0) } as never, new CuratorJobsService(webhooks));
+    runtime = new JourneyRuntimeService(webhooks, crm, { withdrawJourneyProposals: () => Promise.resolve(0) } as never, new CuratorJobsService(webhooks), { requestHandover: () => Promise.resolve(null) });
     worker = new JourneyRuntimeWorker(appDb, runtime);
     events = new ProductEventsService(webhooks, new IdentityService(webhooks));
   });

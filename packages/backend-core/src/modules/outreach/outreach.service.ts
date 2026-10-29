@@ -178,7 +178,7 @@ export interface CampaignDto {
   id: string;
   name: string;
   brief: string;
-  segmentId: string;
+  segmentId: string | null;
   channelId: string;
   cadenceRules: CadenceRules;
   sequenceSteps: SequenceStep[];
@@ -189,9 +189,12 @@ export interface CampaignDto {
   autoDraftReplies: boolean;
   autoCurateEdits: boolean;
   unsubscribeRequired: boolean;
+  journeyId: string | null;
   createdAt: string;
   updatedAt: string;
 }
+
+const JOURNEY_CAMPAIGN_EDITABLE: readonly string[] = ['name', 'extractionSchema', 'channelId'];
 
 export interface ProposalContactSummary {
   id: string;
@@ -331,7 +334,8 @@ export class OutreachService {
       .select()
       .from(schema.outreachCampaigns)
       .orderBy(desc(schema.outreachCampaigns.updatedAt));
-    return rows.map(toCampaignDto);
+    const journeys = await this.campaignJourneys(rows.map((r) => r.id));
+    return rows.map((r) => toCampaignDto(r, journeys.get(r.id)?.id ?? null));
   }
 
   async getCampaign(id: string): Promise<CampaignDto> {
@@ -342,7 +346,38 @@ export class OutreachService {
       .where(eq(schema.outreachCampaigns.id, id))
       .limit(1);
     if (!rows[0]) throw new NotFoundException(`outreach_not_found: campaign ${id}`);
-    return toCampaignDto(rows[0]);
+    const journeys = await this.campaignJourneys([id]);
+    return toCampaignDto(rows[0], journeys.get(id)?.id ?? null);
+  }
+
+  async createJourneyCampaign(input: { name: string; brief: string; channelId: string }): Promise<CampaignDto> {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    const channel = await this.loadOutreachChannel(input.channelId);
+    if (channel.type !== 'email') {
+      throw new OutreachInvalidError(
+        `journeys send from an email channel for now; channel ${input.channelId} is ${channel.type}`,
+      );
+    }
+    await this.assertCampaignNameFree(input.name);
+    const [row] = await ctx.db
+      .insert(schema.outreachCampaigns)
+      .values({
+        orgId: actor.orgId,
+        name: input.name,
+        brief: input.brief,
+        segmentId: null,
+        channelId: input.channelId,
+        enabled: false,
+        autoDraftFirstTouch: false,
+        autoDraftReplies: false,
+        autoCurateEdits: false,
+        unsubscribeRequired: true,
+        createdByActorType: actor.type,
+        createdByActorId: actor.id,
+      })
+      .returning();
+    return toCampaignDto(row!, null);
   }
 
   async createCampaign(input: {
@@ -397,7 +432,7 @@ export class OutreachService {
           createdByActorId: actor.id,
         })
         .returning();
-      return toCampaignDto(row!);
+      return toCampaignDto(row!, null);
     } catch (err) {
       if (isUniqueViolation(err, 'outreach_campaigns_org_name_uq')) {
         throw new ConflictException(`outreach_conflict: campaign with name "${input.name}" already exists`);
@@ -425,6 +460,8 @@ export class OutreachService {
     }>;
   }): Promise<CampaignDto> {
     const ctx = getCurrentContext();
+    const journey = (await this.campaignJourneys([input.id])).get(input.id);
+    if (journey) await this.assertJourneyCampaignPatch(input.id, journey, input.patch);
     if (input.patch.segmentId) await this.assertSegmentExists(input.patch.segmentId);
     if (input.patch.channelId) await this.loadOutreachChannel(input.patch.channelId);
     if (input.patch.extractionSchema?.length) {
@@ -456,7 +493,67 @@ export class OutreachService {
       .where(eq(schema.outreachCampaigns.id, input.id))
       .returning();
     if (!result[0]) throw new NotFoundException(`outreach_not_found: campaign ${input.id}`);
-    return toCampaignDto(result[0]);
+    return toCampaignDto(result[0], journey?.id ?? null);
+  }
+
+  private async campaignJourneys(campaignIds: string[]): Promise<Map<string, { id: string; status: string }>> {
+    if (campaignIds.length === 0) return new Map();
+    const ctx = getCurrentContext();
+    const rows = await ctx.db
+      .select({ id: schema.journeys.id, status: schema.journeys.status, campaignId: schema.journeys.outreachCampaignId })
+      .from(schema.journeys)
+      .where(and(inArray(schema.journeys.outreachCampaignId, campaignIds), ne(schema.journeys.status, 'archived')));
+    return new Map(rows.map((r) => [r.campaignId, { id: r.id, status: r.status }]));
+  }
+
+  private async assertJourneyCampaignPatch(
+    campaignId: string,
+    journey: { id: string; status: string },
+    patch: Record<string, unknown>,
+  ): Promise<void> {
+    const changed = Object.keys(patch).filter((k) => patch[k] !== undefined);
+    const locked = changed.filter((k) => !JOURNEY_CAMPAIGN_EDITABLE.includes(k));
+    if (locked.length) {
+      throw new OutreachInvalidError(
+        `campaign ${campaignId} is run by journey ${journey.id}, which ignores ${locked.join(', ')}; change the journey instead`,
+        'outreach_journey_managed',
+      );
+    }
+    if (typeof patch.channelId !== 'string') return;
+    if (journey.status === 'live') {
+      throw new OutreachInvalidError(
+        `campaign ${campaignId} is the sending channel of live journey ${journey.id}; pause the journey before changing it`,
+        'outreach_journey_managed',
+      );
+    }
+    const channel = await this.loadOutreachChannel(patch.channelId);
+    if (channel.type !== 'email') {
+      throw new OutreachInvalidError(
+        `journey ${journey.id} sends from an email channel; channel ${patch.channelId} is ${channel.type}`,
+        'outreach_journey_managed',
+      );
+    }
+  }
+
+  async journeyReplyOwner(conversationId: string): Promise<string | null> {
+    const ctx = getCurrentContext();
+    const e = schema.journeyEnrollments;
+    const [row] = await ctx.db
+      .select({ id: e.id })
+      .from(e)
+      .where(
+        and(
+          inArray(e.state, ['active', 'waiting']),
+          sql`(${e.conversationId} = ${conversationId} OR EXISTS (
+            SELECT 1 FROM outreach_proposals p
+             WHERE p.journey_enrollment_id = ${e.id} AND p.conversation_id = ${conversationId}))`,
+          sql`NOT EXISTS (
+            SELECT 1 FROM journey_waits w
+             WHERE w.enrollment_id = ${e.id} AND w.kind = 'conversation_close' AND w.resolved_at IS NULL)`,
+        ),
+      )
+      .limit(1);
+    return row?.id ?? null;
   }
 
   async listProposals(input: {
@@ -784,6 +881,13 @@ export class OutreachService {
     if (!conv.outreachCampaignId) {
       throw new OutreachInvalidError(
         `conversation ${input.conversationId} is not outreach-originated (no campaign attached)`,
+      );
+    }
+    const journeyRun = await this.journeyReplyOwner(conv.id);
+    if (journeyRun) {
+      throw new OutreachInvalidError(
+        `conversation ${conv.id} is answered by journey run ${journeyRun}, which follows the reply itself`,
+        'outreach_journey_managed',
       );
     }
     const replyCampaign = await this.getCampaign(conv.outreachCampaignId);
@@ -2750,7 +2854,11 @@ export class OutreachService {
   async exportOutreach(): Promise<OutreachExportData> {
     const ctx = getCurrentContext();
     const [campaigns, proposals] = await Promise.all([
-      ctx.db.select().from(schema.outreachCampaigns).orderBy(asc(schema.outreachCampaigns.createdAt)),
+      ctx.db
+        .select()
+        .from(schema.outreachCampaigns)
+        .where(isNotNull(schema.outreachCampaigns.segmentId))
+        .orderBy(asc(schema.outreachCampaigns.createdAt)),
       ctx.db
         .select()
         .from(schema.outreachProposals)
@@ -2762,7 +2870,7 @@ export class OutreachService {
         id: c.id,
         name: c.name,
         brief: c.brief,
-        segmentId: c.segmentId,
+        segmentId: c.segmentId!,
         channelId: c.channelId,
         cadenceRules: c.cadenceRules,
         sequenceSteps: c.sequenceSteps,
@@ -3017,7 +3125,7 @@ function assertValidExtractionSchema(fields: ExtractionField[]): void {
   }
 }
 
-function toCampaignDto(row: typeof schema.outreachCampaigns.$inferSelect): CampaignDto {
+function toCampaignDto(row: typeof schema.outreachCampaigns.$inferSelect, journeyId: string | null): CampaignDto {
   return {
     id: row.id,
     name: row.name,
@@ -3033,6 +3141,7 @@ function toCampaignDto(row: typeof schema.outreachCampaigns.$inferSelect): Campa
     autoDraftReplies: row.autoDraftReplies,
     autoCurateEdits: row.autoCurateEdits,
     unsubscribeRequired: row.unsubscribeRequired,
+    journeyId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

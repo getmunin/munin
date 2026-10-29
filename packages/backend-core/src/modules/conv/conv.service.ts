@@ -1798,7 +1798,19 @@ export class ConvService {
           .from(schema.outreachCampaigns)
           .where(eq(schema.outreachCampaigns.id, conv.outreachCampaignId))
           .limit(1);
-        if (campaign?.autoDraftReplies) {
+        const [journeyThread] = campaign?.autoDraftReplies
+          ? await ctx.db
+              .select({ id: schema.outreachProposals.id })
+              .from(schema.outreachProposals)
+              .where(
+                and(
+                  eq(schema.outreachProposals.conversationId, input.conversationId),
+                  eq(schema.outreachProposals.kind, 'journey'),
+                ),
+              )
+              .limit(1)
+          : [];
+        if (campaign?.autoDraftReplies && !journeyThread) {
           await this.curatorJobs.enqueue({
             jobUri: 'skill://outreach/draft-reply-email',
             userPrompt:

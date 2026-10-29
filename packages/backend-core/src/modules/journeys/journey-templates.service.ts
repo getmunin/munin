@@ -38,7 +38,7 @@ export class JourneyTemplatesService {
     slug: string;
     locale: string;
     name: string;
-    outreachCampaignId: string;
+    senderChannelId: string;
     params: Record<string, string>;
   }): Promise<JourneyDetailDto & { validation: JourneyValidation }> {
     const template = await this.get(input.slug, input.locale);
@@ -54,7 +54,7 @@ export class JourneyTemplatesService {
     const journey = await this.journeys.create({
       name: input.name,
       description: template.description,
-      outreachCampaignId: input.outreachCampaignId,
+      senderChannelId: input.senderChannelId,
       spec,
     });
     const validation = await this.journeys.validate(journey.id);
@@ -80,7 +80,12 @@ export class JourneyTemplatesService {
       .where(and(eq(c.orgId, ctx.actor!.orgId), eq(c.id, input.campaignId)))
       .limit(1);
     if (!campaign) throw new NotFoundException(`journeys_not_found: outreach campaign ${input.campaignId}`);
-    const { spec, notes } = specFromCampaign(campaign, input.goal);
+    if (!campaign.segmentId) {
+      throw new BadRequestException(
+        `journeys_invalid: campaign ${input.campaignId} has no audience segment, so there is no sequence to convert`,
+      );
+    }
+    const { spec, notes } = specFromCampaign({ ...campaign, segmentId: campaign.segmentId }, input.goal);
     const journey = await this.journeys.create({
       name: input.name ?? campaign.name,
       description: `Converted from the outreach campaign "${campaign.name}"`,

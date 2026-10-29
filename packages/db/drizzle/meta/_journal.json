@@ -967,6 +967,13 @@
       "when": 1793134170267,
       "tag": "0137_journey_company_recipients",
       "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1793134230267,
+      "tag": "0138_journey_managed_campaigns",
+      "breakpoints": true
     }
   ]
 }

@@ -40,7 +40,7 @@
         "email": {
           "type": "string",
           "format": "email",
-          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
         },
         "phone": {
           "type": "string",
@@ -4165,7 +4165,7 @@
                 "fromAddress": {
                   "type": "string",
                   "format": "email",
-                  "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                 },
                 "fromName": {
                   "type": "string",
@@ -4406,7 +4406,7 @@
         "to": {
           "type": "string",
           "format": "email",
-          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
         }
       },
       "required": [
@@ -4975,7 +4975,7 @@
         "email": {
           "type": "string",
           "format": "email",
-          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
         },
         "phone": {
           "type": "string"
@@ -5008,7 +5008,7 @@
         "email": {
           "type": "string",
           "format": "email",
-          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
         },
         "phone": {
           "type": "string",
@@ -5078,7 +5078,7 @@
             "email": {
               "type": "string",
               "format": "email",
-              "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
             },
             "phone": {
               "type": "string",
@@ -5171,7 +5171,7 @@
           "type": "string",
           "maxLength": 320,
           "format": "email",
-          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
         },
         "phone": {
           "type": "string",
@@ -5220,7 +5220,7 @@
               "email": {
                 "type": "string",
                 "format": "email",
-                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
               },
               "phone": {
                 "type": "string",
@@ -6321,7 +6321,7 @@
         "address": {
           "type": "string",
           "format": "email",
-          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
         },
         "state": {
           "type": "string",
@@ -8325,7 +8325,7 @@
   {
     "name": "outreach_list_campaigns",
     "title": "Outreach: List campaigns",
-    "description": "List outbound-campaign definitions for this org. Each row carries the brief, the targeted CRM segment, the email channel used to send, cadence rules, `sequenceSteps` (ordered follow-up steps drafted by the daily curator when the campaign is enabled; empty means no sequence), `extractionSchema` (the fields an outcome pass writes to each contact after a call on this campaign ends or a prospect replies; empty means no extraction runs), CTA URL, the enabled flag, and the automation flags: `autoDraftFirstTouch` (the weekly curator drafts first-touch emails only when true), `autoDraftReplies` (replies to inbound prospect messages are auto-drafted only when true), and `autoCurateEdits` (a human editing a draft before approving it feeds a KB curation pass only when true). The weekly first-touch curator only drafts proposals for `enabled = true` campaigns with `autoDraftFirstTouch = true`.",
+    "description": "List outbound-campaign definitions for this org. Each row carries the brief, the targeted CRM segment, the email channel used to send, cadence rules, `sequenceSteps` (ordered follow-up steps drafted by the daily curator when the campaign is enabled; empty means no sequence), `extractionSchema` (the fields an outcome pass writes to each contact after a call on this campaign ends or a prospect replies; empty means no extraction runs), CTA URL, the enabled flag, and the automation flags: `autoDraftFirstTouch` (the weekly curator drafts first-touch emails only when true), `autoDraftReplies` (replies to inbound prospect messages are auto-drafted only when true), and `autoCurateEdits` (a human editing a draft before approving it feeds a KB curation pass only when true). The weekly first-touch curator only drafts proposals for `enabled = true` campaigns with `autoDraftFirstTouch = true`. `journeyId` names the journey that sends through a campaign; such a campaign has no segment of its own when the journey created it, and its own first touches and follow-ups stop while the journey is published.",
     "audiences": [
       "admin"
     ],
@@ -8896,7 +8896,7 @@
   {
     "name": "outreach_update_campaign",
     "title": "Outreach: Update campaign",
-    "description": "Patch fields on a campaign — rename, swap segment, adjust cadence, toggle enabled, toggle the automation flags `autoDraftFirstTouch` (weekly first-touch drafting), `autoDraftReplies` (auto-drafting replies to inbound prospect messages) and `autoCurateEdits` (KB curation over what a human changed before approving a draft), or replace `sequenceSteps` (the follow-up sequence; pass the full array, email campaigns only, empty array removes the sequence) or `extractionSchema` (the fields extracted from replies and finished calls; pass the full array, empty array turns extraction off). Replacing `extractionSchema` does not rewrite fields already extracted onto contacts — dropping a field here stops it being collected, it does not clear it.",
+    "description": "Patch fields on a campaign — rename, swap segment, adjust cadence, toggle enabled, toggle the automation flags `autoDraftFirstTouch` (weekly first-touch drafting), `autoDraftReplies` (auto-drafting replies to inbound prospect messages) and `autoCurateEdits` (KB curation over what a human changed before approving a draft), or replace `sequenceSteps` (the follow-up sequence; pass the full array, email campaigns only, empty array removes the sequence) or `extractionSchema` (the fields extracted from replies and finished calls; pass the full array, empty array turns extraction off). Replacing `extractionSchema` does not rewrite fields already extracted onto contacts — dropping a field here stops it being collected, it does not clear it. A campaign with a `journeyId` only accepts `name`, `extractionSchema` and `channelId` (another email channel, and only while the journey is not live); everything else is refused with `outreach_journey_managed` because the journey ignores it.",
     "audiences": [
       "admin"
     ],
@@ -9451,7 +9451,7 @@
   {
     "name": "outreach_propose_reply",
     "title": "Outreach: Propose reply",
-    "description": "File a drafted reply to an inbound message on an outreach-originated conversation, for human approval. The conversation must have an `outreachCampaignId` set (it's an outreach conversation) and a CRM contact resolvable by email. Idempotent: re-proposing while a pending reply exists for the same conversation throws — the operator should approve or dismiss the existing one first. Reply approvals send via `conv_send_message` on the existing conversation; no unsubscribe footer is appended (replies thread inside the existing email chain that already carries the unsubscribe link).",
+    "description": "File a drafted reply to an inbound message on an outreach-originated conversation, for human approval. The conversation must have an `outreachCampaignId` set (it's an outreach conversation) and a CRM contact resolvable by email. Idempotent: re-proposing while a pending reply exists for the same conversation throws — the operator should approve or dismiss the existing one first. Reply approvals send via `conv_send_message` on the existing conversation; no unsubscribe footer is appended (replies thread inside the existing email chain that already carries the unsubscribe link). On a conversation a journey started, it is refused with `outreach_journey_managed` while the journey run is following the reply; once the run waits for the thread to close, or has ended, a reply can be filed.",
     "audiences": [
       "admin"
     ],
@@ -10231,7 +10231,7 @@
           "type": "string",
           "maxLength": 320,
           "format": "email",
-          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
         }
       },
       "required": [
@@ -10416,7 +10416,7 @@
   {
     "name": "journeys_instantiate_template",
     "title": "Journeys: Create a journey from a template",
-    "description": "Create a draft journey on an email outreach campaign from a template, filling its parameters (for example segmentId). Returns the journey and its validation result; edit the draft afterwards like any other.",
+    "description": "Create a draft journey from a template, filling its parameters (for example segmentId). `senderChannelId` is the email channel the journey sends from. Returns the journey and its validation result; edit the draft afterwards like any other.",
     "audiences": [
       "admin"
     ],
@@ -10444,7 +10444,7 @@
           "minLength": 1,
           "maxLength": 120
         },
-        "outreachCampaignId": {
+        "senderChannelId": {
           "type": "string",
           "minLength": 1,
           "maxLength": 64
@@ -10465,7 +10465,7 @@
         "slug",
         "locale",
         "name",
-        "outreachCampaignId",
+        "senderChannelId",
         "params"
       ],
       "additionalProperties": false
@@ -10474,7 +10474,7 @@
   {
     "name": "journeys_create_from_campaign",
     "title": "Journeys: Create a journey from a campaign sequence",
-    "description": "Convert an email outreach campaign's first touch and sequence steps into a draft journey: an agent-drafted email per step, a wait between them, and a reply ends the sequence. Give the goal event that counts as success. From then on the campaign's own first touches and follow-ups stop, because the journey runs it; archive the journey to hand them back.",
+    "description": "Convert an email outreach campaign's first touch and sequence steps into a draft journey: an agent-drafted email per step, a wait between them, and a reply ends the sequence. Give the goal event that counts as success. The campaign keeps sending its own first touches and follow-ups while the journey is a draft; once the journey is published they stop and the journey sends instead. Archive the journey to hand the campaign back.",
     "audiences": [
       "admin"
     ],
@@ -11262,7 +11262,7 @@
   {
     "name": "journeys_create",
     "title": "Journeys: Create a journey",
-    "description": "Create a journey on an existing email outreach campaign (one journey per campaign). The campaign keeps the sending channel, brief, cadence rules and extraction schema. Starts draft version 1 from `spec`, or from an empty spec when omitted.",
+    "description": "Create a journey that sends from the email channel `senderChannelId`. Starts draft version 1 from `spec`, or from an empty spec when omitted.",
     "audiences": [
       "admin"
     ],
@@ -11284,7 +11284,7 @@
           "type": "string",
           "maxLength": 1000
         },
-        "outreachCampaignId": {
+        "senderChannelId": {
           "type": "string",
           "minLength": 1,
           "maxLength": 64
@@ -11300,7 +11300,7 @@
       },
       "required": [
         "name",
-        "outreachCampaignId"
+        "senderChannelId"
       ],
       "additionalProperties": false
     }
@@ -13180,7 +13180,7 @@
         "email": {
           "type": "string",
           "format": "email",
-          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
         },
         "connectionId": {
           "type": "string",
@@ -13219,7 +13219,7 @@
         "email": {
           "type": "string",
           "format": "email",
-          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
         },
         "connectionId": {
           "type": "string",
@@ -13403,7 +13403,7 @@
         "email": {
           "type": "string",
           "format": "email",
-          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
         },
         "connectionId": {
           "type": "string",
@@ -13442,7 +13442,7 @@
         "email": {
           "type": "string",
           "format": "email",
-          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
         },
         "connectionId": {
           "type": "string",
@@ -13527,7 +13527,7 @@
         "email": {
           "type": "string",
           "format": "email",
-          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
         },
         "date": {
           "type": "string",
@@ -13781,7 +13781,7 @@
           "type": "string",
           "maxLength": 254,
           "format": "email",
-          "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
         },
         "note": {
           "type": "string",

@@ -309,7 +309,7 @@ interface ReviewResponse {
 
     const broadcastBase = {
       orgId,
-      segmentId: campaign!.segmentId,
+      segmentId: campaign!.segmentId!,
       channelId: campaign!.channelId,
       subject: 'What is new',
       contentFormat: 'markdown',

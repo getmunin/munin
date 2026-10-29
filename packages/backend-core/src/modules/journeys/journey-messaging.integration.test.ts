@@ -18,6 +18,7 @@ import { JourneyPublishingService } from './journey-publishing.service.ts';
 import { JourneySimulator } from './journey-simulator.ts';
 import { OutreachService } from '../outreach/outreach.service.ts';
 import { JourneyOutboxService } from '../outreach/journey-outbox.service.ts';
+import { JourneyTemplateChangesService } from './journey-template-changes.service.ts';
 import { CrmService } from '../crm/crm.service.ts';
 import { AddressDeliverabilityService } from '../crm/address-deliverability.service.ts';
 import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
@@ -50,6 +51,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
   let monitor: JourneyMonitorService;
   let publishing: JourneyPublishingService;
   let alerts: AlertsService;
+  let templateChanges: JourneyTemplateChangesService;
   let orgId: string;
   let userId: string;
   let agent: ActorIdentity;
@@ -109,10 +111,11 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       new CuratorJobsService(webhooks),
     );
     journeys = new JourneysService(webhooks, null, outreach);
-    runtime = new JourneyRuntimeService(webhooks, crm, new JourneyOutboxService(outreach, webhooks, conv, crm, email), new CuratorJobsService(webhooks), conv);
     alerts = new AlertsService(webhooks);
+    runtime = new JourneyRuntimeService(webhooks, crm, new JourneyOutboxService(outreach, webhooks, conv, crm, email, alerts), new CuratorJobsService(webhooks), conv);
     publishing = new JourneyPublishingService(webhooks, journeys, new JourneySimulator(runtime));
     monitor = new JourneyMonitorService(journeys, alerts);
+    templateChanges = new JourneyTemplateChangesService(webhooks, journeys, alerts);
     worker = new JourneyRuntimeWorker(appDb, runtime, monitor);
   });
 
@@ -343,7 +346,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     ).rejects.toThrow(/not pending|no longer running/);
   });
 
-  it('holds an auto email for review when its template changed after publishing', async () => {
+  it('holds auto emails when their template changes, raises one alert, and sends them once a person re-approves', async () => {
     const [template] = await db
       .insert(schema.outreachEmailTemplates)
       .values({
@@ -363,10 +366,88 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       .set({ mjml: template!.mjml.replace('{{content}}', '{{content}} Extra') })
       .where(eq(schema.outreachEmailTemplates.id, template!.id));
     const ola = await contact();
+    const kari = await contact({ name: 'Kari Nordmann' });
     await enroll(journeyId, ola.id);
+    await enroll(journeyId, kari.id);
+    const before = Date.now();
     await worker.tick();
-    const [proposal] = await proposalsFor(ola.id);
-    expect(proposal).toMatchObject({ status: 'pending', decidedByActorType: null });
+
+    const held = [...(await proposalsFor(ola.id)), ...(await proposalsFor(kari.id))];
+    expect(held).toHaveLength(2);
+    for (const p of held) {
+      expect(p).toMatchObject({ status: 'approved', sentAt: null });
+      expect(p.scheduledSendAt!.getTime()).toBeGreaterThan(before + 50 * 60_000);
+    }
+    const alertRows = () =>
+      db
+        .select()
+        .from(schema.orgAlerts)
+        .where(and(eq(schema.orgAlerts.orgId, orgId), eq(schema.orgAlerts.subjectId, `${journeyId}:email_template`)));
+    expect(await alertRows()).toEqual([expect.objectContaining({ source: 'journeys', resolvedAt: null, occurrenceCount: 2 })]);
+
+    const changes = await asAgent(() => templateChanges.list(journeyId));
+    expect(changes).toMatchObject({
+      changes: [{ version: 1, nodeId: 'welcome', templateId: template!.id, templateName: template!.name, deleted: false }],
+      heldMessages: 2,
+    });
+    await expect(asAgent(() => templateChanges.reapprove(journeyId, changes.fingerprint!))).rejects.toThrow(/signed in/);
+    await expect(runAs(person, () => templateChanges.reapprove(journeyId, 'f'.repeat(32)))).rejects.toThrow(/changed again/);
+
+    await expect(runAs(person, () => templateChanges.reapprove(journeyId, changes.fingerprint!))).resolves.toMatchObject({
+      changes: [],
+      released: 2,
+    });
+    const newHash = await asAgent(() => emailTemplateHash(template!.id));
+    const [version] = await db.select().from(schema.journeyVersions).where(eq(schema.journeyVersions.journeyId, journeyId));
+    expect(version!.pinnedTemplates).toEqual({ welcome: newHash });
+    expect((await alertRows())[0]!.resolvedAt).not.toBeNull();
+    for (const p of held) {
+      const sent = await asAgent(() => outreach.sendScheduledProposal(p.id, { publicBaseUrl: 'https://api.acme.test' }));
+      expect(sent).toMatchObject({ outcome: 'sent', proposal: { status: 'sent' } });
+    }
+    await expect(asAgent(() => templateChanges.list(journeyId))).resolves.toMatchObject({ changes: [], heldMessages: 0, fingerprint: null });
+  });
+
+  it('sends a transactional SMS without review, with no opt-out line', async () => {
+    const [sms] = await db
+      .insert(schema.convChannels)
+      .values({
+        orgId,
+        type: 'sms',
+        vendor: 'twilio',
+        name: 'journey-sms-receipts',
+        active: true,
+        config: { accountSid: 'AC_test', encryptedAuthToken: 'fake', fromNumber: '+15550001112' },
+      })
+      .returning();
+    const journeyId = await publish(
+      [
+        {
+          id: 'welcome',
+          type: 'message',
+          channel: 'sms',
+          class: 'transactional',
+          approval: 'auto',
+          content: { body: 'Hei {{name|der}}, bordet ditt er bekreftet.' },
+          next: 'done',
+        },
+        done,
+      ],
+      { smsChannelId: sms!.id },
+    );
+    const ola = await contact({ phone: '+4712345671', unsubscribedAt: new Date() });
+    const id = await enroll(journeyId, ola.id);
+    await worker.tick();
+    await worker.tick();
+
+    const [text] = await proposalsFor(ola.id);
+    expect(text).toMatchObject({ kind: 'journey', status: 'sent', decidedByActorType: 'system' });
+    const [message] = await db
+      .select({ body: schema.convMessages.body })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.conversationId, text!.conversationId!));
+    expect(message!.body).toBe('Hei Ola Nordmann, bordet ditt er bekreftet.');
+    expect((await enrollment(id)).state).toBe('done');
   });
 
   it('allows two open journey emails to the same person on one campaign', async () => {

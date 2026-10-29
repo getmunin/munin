@@ -10,10 +10,12 @@ export default async function JourneyDetailPage({
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const raw = Array.isArray(sp.publish) ? sp.publish[0] : sp.publish;
   const publishVersion = raw ? Number.parseInt(raw, 10) : undefined;
+  const templates = Array.isArray(sp.templates) ? sp.templates[0] : sp.templates;
   return (
     <JourneysPage
       selectedId={id}
       publishVersion={publishVersion && publishVersion > 0 ? publishVersion : undefined}
+      reviewTemplates={templates === 'review'}
     />
   );
 }

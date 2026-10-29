@@ -2,11 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { schema } from '@getmunin/db';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
-import { JOURNEY_CHAT_MAX_CHARS } from '@getmunin/types';
+import { JOURNEY_CHAT_MAX_CHARS, canSendWithoutReview } from '@getmunin/types';
 import { ConvService } from '../conv/conv.service.ts';
 import { CrmService } from '../crm/crm.service.ts';
 import { EmailService } from '../conv/email/email.service.ts';
 import { findOrCreateContactByPhone } from '../conv/contact-by-phone.ts';
+import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import {
   OutreachService,
   SMS_DRAFT_MAX_CHARS,
@@ -14,14 +15,13 @@ import {
   composeSmsOutreachBody,
   personalizeSms,
   type ProposalDto,
-  type ProposalGate,
   type ProposalKindHandler,
   type ProposalSender,
 } from './outreach.service.ts';
 import { OutreachInvalidError } from './outreach-errors.ts';
 import { assertEligible } from './eligibility.ts';
 import { emailTemplateHash } from './email-template-hash.ts';
-import { checkSendPolicy, type SendPolicy } from './send-policy.ts';
+import { checkSendPolicy, type SendDecision, type SendPolicy } from './send-policy.ts';
 import {
   parseJourneyDelivery,
   type JourneyDelivery,
@@ -40,6 +40,12 @@ export type JourneyOutboxHost = Pick<
 >;
 
 type JourneyConversations = Pick<ConvService, 'sendMessage' | 'createConversation' | 'startWidgetConversation'>;
+
+export const TEMPLATE_HOLD_RECHECK_MS = 60 * 60_000;
+
+export function journeyTemplateAlertSubject(journeyId: string): string {
+  return `${journeyId}:email_template`;
+}
 
 export interface JourneyMessageDraft {
   campaignId: string;
@@ -67,6 +73,7 @@ export class JourneyOutboxService implements ProposalKindHandler {
     @Inject(ConvService) private readonly conv: JourneyConversations,
     @Inject(CrmService) private readonly crm: Pick<CrmService, 'getContact'>,
     @Inject(EmailService) private readonly email: Pick<EmailService, 'findOrCreateContactByEmail'>,
+    @Inject(AlertsService) private readonly alerts: Pick<AlertsService, 'openAlert'>,
   ) {
     outreach.registerKindHandler('journey', this);
   }
@@ -125,18 +132,26 @@ export class JourneyOutboxService implements ProposalKindHandler {
     });
     const proposal = await this.outreach.getProposal(row!.id);
     if (!input.auto) return proposal;
-    if (await this.templateDrifted(delivery)) return proposal;
 
-    const decision = await checkSendPolicy({ contactId: proposal.contactId, policy: delivery.policy, now: new Date() });
+    const now = new Date();
+    const decision = await checkSendPolicy({ contactId: proposal.contactId, policy: delivery.policy, now });
     if (decision.decision === 'skip') {
-      return this.outreach.recordScheduledSendFailure(proposal.id, `journey email blocked: ${decision.reason}`, {
+      return this.outreach.recordScheduledSendFailure(proposal.id, `journey ${input.channel} blocked: ${decision.reason}`, {
         terminal: true,
       });
     }
-    return this.outreach.approveAutomatically(proposal, {
-      sendAt: decision.decision === 'defer' ? decision.until : null,
-      publicBaseUrl: opts.publicBaseUrl,
-    });
+    let sendAt = decision.decision === 'defer' ? decision.until : null;
+    if (await this.templateDrifted(delivery)) {
+      await this.alertTemplateChanged(proposal);
+      const held = new Date(now.getTime() + TEMPLATE_HOLD_RECHECK_MS);
+      if (!sendAt || sendAt < held) sendAt = held;
+    }
+    return this.outreach.approveAutomatically(proposal, { sendAt, publicBaseUrl: opts.publicBaseUrl });
+  }
+
+  allowsAutomaticApproval(proposal: ProposalDto): boolean {
+    const delivery = parseJourneyDelivery(proposal.id, proposal.journeyDelivery);
+    return delivery.auto && canSendWithoutReview(delivery.channel, delivery.policy.class);
   }
 
   async withdrawRun(enrollmentId: string, reason: string): Promise<number> {
@@ -156,11 +171,12 @@ export class JourneyOutboxService implements ProposalKindHandler {
     return rows.length;
   }
 
-  async gate(proposal: ProposalDto, at: Date, stage: 'approve' | 'scheduled'): Promise<ProposalGate> {
+  async gate(proposal: ProposalDto, at: Date, stage: 'approve' | 'scheduled'): Promise<SendDecision> {
     await this.assertRunOpen(proposal);
     const delivery = parseJourneyDelivery(proposal.id, proposal.journeyDelivery);
     if (stage === 'scheduled' && proposal.decidedByActorType !== 'user' && (await this.templateDrifted(delivery))) {
-      return { decision: 'review', proposal: await this.backToReview(proposal) };
+      await this.alertTemplateChanged(proposal);
+      return { decision: 'defer', until: new Date(at.getTime() + TEMPLATE_HOLD_RECHECK_MS), reason: 'template_changed' };
     }
     const decision = await checkSendPolicy({ contactId: proposal.contactId, policy: delivery.policy, now: at });
     if (decision.decision === 'skip') {
@@ -198,8 +214,12 @@ export class JourneyOutboxService implements ProposalKindHandler {
       }
       return;
     }
-    if (input.auto) {
-      throw new OutreachInvalidError(`journey ${input.channel} steps are always approved by a person; they cannot run automatically`);
+    if (input.auto && !canSendWithoutReview(input.channel, input.policy.class)) {
+      throw new OutreachInvalidError(
+        input.channel === 'sms'
+          ? 'journey marketing SMS is approved by a person; only transactional SMS can run automatically'
+          : `journey ${input.channel} steps are always approved by a person; they cannot run automatically`,
+      );
     }
     if (!input.channelId) throw new OutreachInvalidError(`a journey ${input.channel} step needs a ${input.channel} channel`);
     const channel = await this.outreach.loadOutreachChannel(input.channelId);
@@ -235,24 +255,27 @@ export class JourneyOutboxService implements ProposalKindHandler {
     return (await emailTemplateHash(delivery.templateId)) !== delivery.templateHash;
   }
 
-  private async backToReview(proposal: ProposalDto): Promise<ProposalDto> {
+  private async alertTemplateChanged(proposal: ProposalDto): Promise<void> {
+    if (!proposal.journeyEnrollmentId) return;
     const ctx = getCurrentContext();
-    await ctx.db
-      .update(schema.outreachProposals)
-      .set({
-        status: 'pending',
-        decidedAt: null,
-        decidedByActorId: null,
-        decidedByActorType: null,
-        scheduledSendAt: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.outreachProposals.id, proposal.id));
-    await this.webhooks.emit({
-      type: 'outreach.proposal.updated',
-      payload: { proposalId: proposal.id, campaignId: proposal.campaignId, contactId: proposal.contactId, kind: 'journey', reason: 'template_changed' },
+    const [journey] = await ctx.db
+      .select({ id: schema.journeys.id, name: schema.journeys.name })
+      .from(schema.journeyEnrollments)
+      .innerJoin(schema.journeys, eq(schema.journeys.id, schema.journeyEnrollments.journeyId))
+      .where(eq(schema.journeyEnrollments.id, proposal.journeyEnrollmentId))
+      .limit(1);
+    if (!journey) return;
+    await this.alerts.openAlert({
+      source: 'journeys',
+      subjectId: journeyTemplateAlertSubject(journey.id),
+      severity: 'warning',
+      title: `Journey "${journey.name}" is holding emails: an email template changed`,
+      detail:
+        'A step that sends without review uses an email template that changed after the journey was published. ' +
+        'Its emails wait until a person re-approves the journey with the new template.',
+      metadata: { journeyId: journey.id, kind: 'template_changed' },
+      ctaHref: `/dashboard/journeys/${journey.id}?templates=review`,
     });
-    return this.outreach.getProposal(proposal.id);
   }
 
   private async deliverEmail(
@@ -358,8 +381,8 @@ export class JourneyOutboxService implements ProposalKindHandler {
   ): Promise<ProposalDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
-    if (proposal.decidedByActorType !== 'user') {
-      throw new OutreachInvalidError('journey SMS is sent only after a person approves it');
+    if (proposal.decidedByActorType !== 'user' && !(delivery.auto && canSendWithoutReview('sms', delivery.policy.class))) {
+      throw new OutreachInvalidError('journey marketing SMS is sent only after a person approves it');
     }
     const channelId = proposal.delivery?.channelId;
     if (!channelId || proposal.delivery?.channelType !== 'sms') {

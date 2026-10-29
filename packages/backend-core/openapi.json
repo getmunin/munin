@@ -3264,6 +3264,78 @@
         ]
       }
     },
+    "/v1/journeys/{id}/template-changes": {
+      "get": {
+        "operationId": "JourneysController_listTemplateChanges",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Journeys"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/v1/journeys/{id}/template-changes/reapprove": {
+      "post": {
+        "operationId": "JourneysController_reapproveTemplates",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReapproveTemplatesBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Journeys"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/journeys/{id}/nodes/{nodeId}/pause": {
       "post": {
         "operationId": "JourneysController_pauseNode",
@@ -11807,6 +11879,19 @@
         },
         "required": [
           "toVersion"
+        ]
+      },
+      "ReapproveTemplatesBody": {
+        "type": "object",
+        "properties": {
+          "fingerprint": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 32
+          }
+        },
+        "required": [
+          "fingerprint"
         ]
       },
       "DecideApprovalBody": {

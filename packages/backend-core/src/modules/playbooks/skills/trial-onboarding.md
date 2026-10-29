@@ -6,7 +6,7 @@ audiences: [admin]
 
 # Trial onboarding journey (Journeys + Analytics + Outreach)
 
-Cross-module workflow: the product's own backend reports trial sign-ups and invitations; a journey turns those signals into a welcome email, a sales flag for decision-makers and a help email for people who stall. It is the reference journey for a first launch, because it touches every part of the engine: an event trigger, a timed wait on working days, behaviour and field branches, an action, emails in both review modes, a reply path and a goal.
+Cross-module workflow: the product's own backend reports trial sign-ups and invitations; a journey turns those signals into a welcome email, a sales flag for decision-makers and a help email for people who stall. It is the reference journey for a first launch, because it touches every part of the engine: an event trigger, a timed wait on working days, behaviour and field branches, an action, fixed-text emails that send without a review per person, a reply path and a goal.
 
 This is a **playbook** — it composes per-module skills rather than reproducing them. Read `skill://journeys/build-journey` before executing.
 
@@ -33,6 +33,7 @@ If any is missing, tell the operator which event their developers must send. The
 ## Step 2 — audience and sender
 
 - A segment of people who may receive onboarding email, for example `tagsAny: ["trial"]` (`crm_create_segment`). Segment members must have a recorded lawful basis; contacts without one never enter.
+- A lawful basis for every trial user. A product event identifies the person but never records consent, so a contact created from `trial.started` has none until someone sets it. A trial sign-up is usually `contract` (they asked for the trial); record it with `crm_set_contact_consent` (`lawfulBasis: "contract"`, `source: "trial-signup"`). Until it is recorded the welcome email skips them, and `journeys_simulate` warns with `no_lawful_basis` and how many people in its sample are affected. If the product signs up more people than you can record by hand, tell the operator: the sign-up sync has to record the basis too, or nobody it creates gets these emails.
 - An active email channel to send from (`conv_list_channels`, type `email`). It becomes the journey's `senderChannelId`.
 
 ## Step 3 — the journey
@@ -49,7 +50,7 @@ Create it with `journeys_create`, the email channel as `senderChannelId` and thi
   "nodes": [
     { "id": "welcome", "type": "message", "channel": "email",
       "content": { "subject": "Welcome to the trial", "body": "Hi {{name}}, here are three things to try today." },
-      "next": "wait5" },
+      "approval": "auto", "next": "wait5" },
     { "id": "wait5", "type": "wait", "duration": "P5D", "validDays": ["mon","tue","wed","thu","fri"], "validHours": "09:00-16:00", "next": "invited" },
     { "id": "invited", "type": "branch",
       "rules": [{ "if": { "event": "teammate.invited", "since": "entry" }, "next": "done" }],
@@ -60,14 +61,14 @@ Create it with `journeys_create`, the email channel as `senderChannelId` and thi
     { "id": "flag_sales", "type": "action", "action": "crm.add_tag", "params": { "tag": "trial-sales-lead" }, "next": "done" },
     { "id": "offer_help", "type": "message", "channel": "email",
       "content": { "subject": "Can we help you get started?", "body": "Hi {{name}}, most teams get more out of a trial once a colleague joins. Want a hand setting it up?" },
-      "next": "done", "onReply": "replied" },
+      "approval": "auto", "next": "done", "onReply": "replied" },
     { "id": "replied", "type": "action", "action": "crm.log_activity", "params": { "subject": "Replied to trial help email" }, "next": "done" },
     { "id": "done", "type": "exit" }
   ]
 }
 ```
 
-Both emails start as `draft_only`, so each lands in the review inbox. For the first live week keep it that way: every welcome email gets a human read. The operator may later publish a version where `welcome` uses `auto`; never switch `offer_help` to `auto` without their explicit say.
+Both emails are fixed text, so they use `auto`: the operator reads them once in the publish review, and after that they go out to each trial user without a review per person. They still obey the send rules — consent, unsubscribe, quiet hours and the weekly cap. Switch a step to `draft_only` only when the operator wants to read it for every person, and never change a step's approval mode without their say.
 
 Then `journeys_validate` (no errors) and `journeys_simulate` over the segment. Report the counts, the email decisions and the assumptions to the operator; ask about anything surprising before you go on.
 
@@ -84,6 +85,7 @@ For the first two weeks, once a day:
    - `integrity.enrollmentsWithoutTrace` must be **0** — everyone who entered has a logged step.
    - `enrollments.exitReasons` should be mostly `reached_end` and `goal_reached`. Investigate `message_blocked`, `message_failed`, `proposal_dismissed`, `approval_timeout` or `loop_detected` with `skill://journeys/investigate-enrollment`.
    - `messages` shows how many emails were sent, are pending review or were dismissed per step. A growing `pending` count means reviews are falling behind.
+   - `system_alerts_list` for a `journeys` alert saying the journey is holding emails. That happens when an email template an `auto` step uses changes after publish: its emails wait, nothing goes out with the unreviewed template, and a signed-in person re-approves the journey with the new template from its dashboard page. Tell the operator; you cannot re-approve it.
 2. `outreach_list_proposals` for journey emails waiting on review, if the operator wants a nudge.
 3. Report goal conversion for the journey against the holdout once both groups have a few dozen people; before that the difference is noise.
 

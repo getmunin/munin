@@ -28,6 +28,7 @@ import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
 import { notify } from '../lib/notify';
 import { JourneyGraph } from '../components/journeys/journey-graph';
 import { PublishDialog } from '../components/journeys/publish-dialog';
+import { TemplateChangesDialog } from '../components/journeys/template-changes-dialog';
 import { DraftEditor } from '../components/journeys/draft-editor';
 import type { DraftEdit } from '../components/journeys/draft-edit';
 import { useConfirm } from '../components/confirm-dialog';
@@ -43,11 +44,24 @@ import type {
   AgentNodeStatsDto,
   JourneyApprovalDto,
   NodeReviewStatsDto,
+  TemplateChangesDto,
   TraceDto,
 } from '../components/journeys/journey-types';
 
-export function JourneysPage({ selectedId, publishVersion }: { selectedId?: string; publishVersion?: number }) {
-  return selectedId ? <JourneyDetail id={selectedId} publishVersion={publishVersion} /> : <JourneyList />;
+export function JourneysPage({
+  selectedId,
+  publishVersion,
+  reviewTemplates,
+}: {
+  selectedId?: string;
+  publishVersion?: number;
+  reviewTemplates?: boolean;
+}) {
+  return selectedId ? (
+    <JourneyDetail id={selectedId} publishVersion={publishVersion} reviewTemplates={reviewTemplates} />
+  ) : (
+    <JourneyList />
+  );
 }
 
 function JourneyList() {
@@ -132,7 +146,15 @@ function JourneyList() {
   );
 }
 
-function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: number }) {
+function JourneyDetail({
+  id,
+  publishVersion,
+  reviewTemplates,
+}: {
+  id: string;
+  publishVersion?: number;
+  reviewTemplates?: boolean;
+}) {
   const t = useTranslations('dashboard.journeys');
   const translate = useTranslateError();
   const [journey, setJourney] = useState<JourneyDetailDto | null>(null);
@@ -142,6 +164,8 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
   const [reviewStats, setReviewStats] = useState<NodeReviewStatsDto[]>([]);
   const [agentStats, setAgentStats] = useState<AgentNodeStatsDto[]>([]);
   const [approvals, setApprovals] = useState<JourneyApprovalDto[]>([]);
+  const [templateChanges, setTemplateChanges] = useState<TemplateChangesDto | null>(null);
+  const [reviewingTemplates, setReviewingTemplates] = useState(reviewTemplates ?? false);
   const [graphOf, setGraphOf] = useState<'live' | 'draft'>('live');
   const [publishing, setPublishing] = useState<number | null>(publishVersion ?? null);
   const [traceId, setTraceId] = useState<string | null>(null);
@@ -150,7 +174,7 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
   const confirm = useConfirm();
 
   const load = useCallback(async () => {
-    const [detail, versionList, people, results, stats, agents, pendingApprovals] = await Promise.all([
+    const [detail, versionList, people, results, stats, agents, pendingApprovals, changedTemplates] = await Promise.all([
       api<JourneyDetailDto>(`/v1/journeys/${id}`),
       api<{ items: JourneyVersionSummaryDto[] }>(`/v1/journeys/${id}/versions`),
       api<{ items: EnrollmentDto[] }>(`/v1/journeys/${id}/enrollments?limit=100`),
@@ -158,8 +182,10 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
       api<{ items: NodeReviewStatsDto[] }>(`/v1/journeys/${id}/review-stats`),
       api<{ items: AgentNodeStatsDto[] }>(`/v1/journeys/${id}/agent-stats`),
       api<{ items: JourneyApprovalDto[] }>(`/v1/journey-approvals?status=pending&journeyId=${encodeURIComponent(id)}`),
+      api<TemplateChangesDto>(`/v1/journeys/${id}/template-changes`),
     ]);
     setApprovals(pendingApprovals.items);
+    setTemplateChanges(changedTemplates);
     setReviewStats(stats.items);
     setAgentStats(agents.items);
     setJourney(detail);
@@ -339,6 +365,21 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
         </div>
       ))}
 
+      {templateChanges && templateChanges.changes.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-card border-[1px] border-rule-soft px-4 py-3 text-sm dark:border-rule-on-dark">
+          <Pill tone="review">{t('templateChanges.pill')}</Pill>
+          <span className="min-w-0 flex-1 text-ink dark:text-foreground">
+            {t('templateChanges.banner', {
+              nodes: [...new Set(templateChanges.changes.map((c) => c.nodeId))].join(', '),
+              count: templateChanges.heldMessages,
+            })}
+          </span>
+          <Button variant="outline" size="sm" onClick={() => setReviewingTemplates(true)}>
+            {t('templateChanges.review')}
+          </Button>
+        </div>
+      )}
+
       {Object.entries(journey.pausedNodes ?? {}).map(([nodeId, info]) => (
         <div
           key={nodeId}
@@ -454,6 +495,19 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
           onClose={() => setPublishing(null)}
           onPublished={() => {
             setPublishing(null);
+            void load();
+          }}
+        />
+      )}
+      {templateChanges && templateChanges.changes.length > 0 && (
+        <TemplateChangesDialog
+          journeyId={id}
+          changes={templateChanges}
+          nodes={previewNodes(journey.live?.spec)}
+          open={reviewingTemplates}
+          onClose={() => setReviewingTemplates(false)}
+          onApproved={() => {
+            setReviewingTemplates(false);
             void load();
           }}
         />
@@ -831,4 +885,20 @@ function Th({ children, className }: { children?: ReactNode; className?: string 
       {children}
     </th>
   );
+}
+
+function previewNodes(spec: Record<string, unknown> | undefined) {
+  const nodes = Array.isArray(spec?.nodes) ? (spec.nodes as Record<string, unknown>[]) : [];
+  return nodes.flatMap((node) => {
+    const content = node.content as { subject?: unknown; body?: unknown; format?: unknown } | undefined;
+    if (node.type !== 'message' || typeof node.id !== 'string' || typeof content?.body !== 'string') return [];
+    return [
+      {
+        nodeId: node.id,
+        subject: typeof content.subject === 'string' ? content.subject : null,
+        body: content.body,
+        format: content.format === 'mjml' ? ('mjml' as const) : ('markdown' as const),
+      },
+    ];
+  });
 }

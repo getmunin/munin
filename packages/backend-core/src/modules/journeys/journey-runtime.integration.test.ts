@@ -401,6 +401,36 @@ const DAY = 86_400_000;
     expect((await enrollmentsOf(journeyId)).find((r) => r.id === olaRun.id)).toMatchObject({ state: 'done' });
   });
 
+  it('purges step traces of runs that ended before the retention window, keeping the runs themselves', async () => {
+    const journeyId = await publish({
+      entry: { trigger: { type: 'manual' } },
+      goal: { event: 'subscription.started', windowDays: 30 },
+      settings: { traceRetentionDays: 30 },
+      start: 'done',
+      nodes: [{ id: 'done', type: 'exit' }],
+    });
+    for (const name of ['Kari', 'Ola']) {
+      const person = await contact(name);
+      await asAgent(() =>
+        runtime.enroll({ journeyId, subject: { contactId: person.id, endUserId: null }, source: { type: 'manual' }, context: { note: 'x' } }),
+      );
+    }
+    await worker.tick();
+    const [old, recent] = await enrollmentsOf(journeyId);
+    await db
+      .update(schema.journeyEnrollments)
+      .set({ exitedAt: new Date(Date.now() - 40 * DAY) })
+      .where(eq(schema.journeyEnrollments.id, old!.id));
+
+    expect(await worker.purgeTraces(new Date())).toBe(1);
+    expect(await worker.purgeTraces(new Date())).toBe(0);
+    const steps = await db.select().from(schema.journeyStepRuns).where(sql`${schema.journeyStepRuns.enrollmentId} IN (${old!.id}, ${recent!.id})`);
+    expect(steps.map((s) => s.enrollmentId)).toEqual([recent!.id]);
+    const after = await enrollmentsOf(journeyId);
+    expect(after.find((r) => r.id === old!.id)).toMatchObject({ state: 'done', context: {} });
+    expect(after.find((r) => r.id === recent!.id)!.context).toMatchObject({ note: 'x' });
+  });
+
   it('runs every step exactly once even when ticks repeat', async () => {
     const journeyId = await publish(trialSpec());
     const kari = await contact('Kari');

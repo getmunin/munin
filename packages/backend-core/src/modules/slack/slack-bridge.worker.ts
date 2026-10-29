@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, isNull, lt, lte, sql } from 'drizzle-orm';
 import { schema, type Db } from '@getmunin/db';
 import { describeError, parseEnvDisableFlag, parseEnvInt, readApiBaseUrl } from '@getmunin/core';
 import { DB } from '../../common/db/db.module.ts';
+import { dashboardUrl } from '../../common/web-url.ts';
 import { formatPhoneNumber } from '../../common/format-phone.ts';
 import { withSchedulerLock } from '../../common/scheduler-lock/index.ts';
 import { SlackApiClient, SlackApiError } from './slack-api.client.ts';
@@ -14,6 +15,7 @@ import {
   assignedText,
   cmsDraftApprovalText,
   cmsEntryPublishedText,
+  journeyNoticeText,
   cmsGroupParentText,
   encodeApprovalValue,
   escalationAlertText,
@@ -427,6 +429,32 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
     const str = (v: unknown): string | null =>
       typeof v === 'string' && v.length > 0 ? v : null;
 
+    const journeyId = str(payload.journeyId);
+    if (journeyId) {
+      const [journey] = await this.db
+        .select({ name: schema.journeys.name })
+        .from(schema.journeys)
+        .where(and(eq(schema.journeys.orgId, integration.orgId), eq(schema.journeys.id, journeyId)))
+        .limit(1);
+      const text = journeyNoticeText({
+        journeyName: journey?.name ?? 'a journey',
+        nodeId: str(payload.nodeId),
+        metric: str(payload.metric),
+        rate: typeof payload.rate === 'number' ? payload.rate : null,
+        approvalTitle: str(payload.approvalId) ? (str(payload.title) ?? 'A step needs approval') : null,
+        dashboardUrl: dashboardUrl(integration.orgId, `/journeys/${journeyId}`),
+      });
+      try {
+        await this.api.postMessage(await this.labeledForChannel(integration, { token, channel: route.slackChannelId, text }));
+      } catch (err) {
+        if (err instanceof SlackApiError && err.apiError === 'not_in_channel') {
+          throw new TerminalDeliveryError('bot_not_in_channel');
+        }
+        throw err;
+      }
+      return;
+    }
+
     const entryId = str(payload.entryId);
     if (entryId && (await this.cardAlreadySays(integration.id, entryId, route.slackChannelId))) {
       return;
@@ -481,6 +509,18 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
           set: { slackChannelId: posted.channel, slackTs: posted.ts },
         });
     }
+  }
+
+  private async journeyLabel(evidence: Record<string, unknown>): Promise<string | null> {
+    const journeyId = typeof evidence.journeyId === 'string' ? evidence.journeyId : null;
+    if (!journeyId) return null;
+    const [journey] = await this.db
+      .select({ name: schema.journeys.name })
+      .from(schema.journeys)
+      .where(eq(schema.journeys.id, journeyId))
+      .limit(1);
+    const node = typeof evidence.nodeId === 'string' ? ` · ${evidence.nodeId}` : '';
+    return `${journey?.name ?? 'Journey'}${node}`;
   }
 
   private async translationGroupLink(
@@ -1193,6 +1233,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
             .limit(1)
         : [];
       text = outreachProposalApprovalText({
+        journeyLabel: proposal?.kind === 'journey' ? await this.journeyLabel(proposal.evidence) : null,
         kind: proposal?.kind ?? 'draft',
         campaignName: campaign?.name ?? 'a campaign',
         contactLabel: proposal

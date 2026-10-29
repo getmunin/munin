@@ -9,7 +9,6 @@ import {
   getTableColumns,
   inArray,
   isNotNull,
-  isNull,
   ne,
   sql,
   type SQL,
@@ -49,7 +48,7 @@ import {
 } from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
 import { ConvService } from '../conv/conv.service.ts';
-import { CrmService, CrmInvalidError, type ContactDto } from '../crm/crm.service.ts';
+import { CrmService, CrmInvalidError } from '../crm/crm.service.ts';
 import type {
   AddressDeliverabilityDto,
   AddressDeliverabilityState,
@@ -62,31 +61,20 @@ import {
   type OutreachVoiceCaller,
 } from '../conv/channels/outreach-voice.ts';
 import { draftFingerprint } from './proposal-fingerprint.ts';
-import { emailTemplateHash } from './email-template-hash.ts';
-import { checkSendPolicy, type SendDecision, type SendPolicy } from './send-policy.ts';
+import { checkSendPolicy, type SendDecision } from './send-policy.ts';
+import { OutreachInvalidError } from './outreach-errors.ts';
+import { assertDeliverable, assertEligible } from './eligibility.ts';
 import { buildProposalDeltaCurationPrompt } from './curation-job.ts';
 import {
   CuratorJobsService,
   type EnqueueInput,
   type EnqueueResult,
 } from '../curator/curator-jobs.service.ts';
-import { JOURNEY_CHAT_MAX_CHARS, stripTrailingSlashes } from '@getmunin/types';
+import { stripTrailingSlashes } from '@getmunin/types';
 
 export { draftFingerprint } from './proposal-fingerprint.ts';
 
-export class OutreachInvalidError extends Error {
-  readonly code: string;
-  constructor(message: string, code = 'outreach_invalid') {
-    super(`${code}: ${message}`);
-    this.code = code;
-  }
-}
-
-export class OutreachUndeliverableError extends OutreachInvalidError {
-  constructor(message: string) {
-    super(message, 'outreach_undeliverable');
-  }
-}
+export { OutreachInvalidError, OutreachUndeliverableError } from './outreach-errors.ts';
 
 export interface CuratorJobEnqueuer {
   enqueue(input: EnqueueInput): Promise<EnqueueResult>;
@@ -122,6 +110,15 @@ export interface ProposalSender {
   type: string;
   id: string;
 }
+
+export type ProposalGate = SendDecision | { decision: 'review'; proposal: ProposalDto };
+
+export interface ProposalKindHandler {
+  gate(proposal: ProposalDto, at: Date, stage: 'approve' | 'scheduled'): Promise<ProposalGate>;
+  deliver(proposal: ProposalDto, sender: ProposalSender, publicBaseUrl: string): Promise<ProposalDto>;
+}
+
+const BUILT_IN_PROPOSAL_KINDS: readonly ProposalKind[] = ['initial', 'reply', 'followup'];
 
 export type ScheduledSendOutcome = 'sent' | 'deferred' | 'skipped';
 
@@ -241,6 +238,9 @@ export interface ProposalDto {
   originalDraftBody: string | null;
   draftFingerprint: string;
   evidence: Record<string, unknown>;
+  journeyEnrollmentId: string | null;
+  journeyStepRunId: string | null;
+  journeyDelivery: Record<string, unknown> | null;
   proposedSendAt: string | null;
   scheduledSendAt: string | null;
   sendAttempts: number;
@@ -327,6 +327,28 @@ export class OutreachService {
   }
 
   private readonly voiceCallers: Map<string, OutreachVoiceCaller>;
+  private readonly kindHandlers = new Map<ProposalKind, ProposalKindHandler>();
+
+  registerKindHandler(kind: ProposalKind, handler: ProposalKindHandler): void {
+    if (BUILT_IN_PROPOSAL_KINDS.includes(kind)) {
+      throw new Error(`${kind} proposals are sent by the outreach service itself`);
+    }
+    this.kindHandlers.set(kind, handler);
+  }
+
+  private kindHandler(kind: ProposalKind): ProposalKindHandler | null {
+    if (BUILT_IN_PROPOSAL_KINDS.includes(kind)) return null;
+    const handler = this.kindHandlers.get(kind);
+    if (!handler) {
+      throw new OutreachInvalidError(`${kind} proposals cannot be sent here: nothing that sends them is running`);
+    }
+    return handler;
+  }
+
+  private gate(proposal: ProposalDto, at: Date, stage: 'approve' | 'scheduled'): Promise<ProposalGate | null> {
+    const handler = this.kindHandler(proposal.kind);
+    return handler ? handler.gate(proposal, at, stage) : this.sendDecision(proposal, at);
+  }
 
   async listCampaigns(): Promise<CampaignDto[]> {
     const ctx = getCurrentContext();
@@ -1160,14 +1182,8 @@ export class OutreachService {
     }
     this.assertHumanApprovalAllowed(proposal, actor);
     let sendAt = resolveAuthorizedSendAt(proposal, opts.sendAt);
-    if (proposal.kind === 'journey') await this.assertJourneyRunOpen(proposal);
-    const decision = await this.sendDecision(proposal, sendAt ?? new Date());
-    if (decision?.decision === 'skip' && proposal.kind === 'journey') {
-      throw new OutreachInvalidError(
-        `this journey email cannot be sent: ${decision.reason}`,
-        'outreach_journey_blocked',
-      );
-    }
+    const decision = await this.gate(proposal, sendAt ?? new Date(), 'approve');
+    if (decision?.decision === 'review') return decision.proposal;
     if (decision?.decision === 'defer' && (!sendAt || decision.until > sendAt)) sendAt = decision.until;
     if (!sendAt) {
       await this.assertSendWindowOpen(proposal);
@@ -1191,6 +1207,37 @@ export class OutreachService {
     return scheduled;
   }
 
+  async approveAutomatically(
+    proposal: ProposalDto,
+    opts: { sendAt: Date | null; publicBaseUrl: string },
+  ): Promise<ProposalDto> {
+    const actor = getCurrentContext().actor!;
+    if (proposal.status !== 'pending') {
+      throw new OutreachInvalidError(`proposal ${proposal.id} is ${proposal.status}, not pending`);
+    }
+    const channelType = proposal.delivery?.channelType ?? 'email';
+    if (CHANNELS_REQUIRING_HUMAN_APPROVAL.includes(channelType)) {
+      throw new OutreachInvalidError(`${channelType} proposals are approved by a signed-in person, never automatically`);
+    }
+    if (opts.sendAt) {
+      const scheduled = await this.stampApproval(proposal, actor, opts.sendAt);
+      await this.webhooks.emit({
+        type: 'outreach.proposal.scheduled',
+        payload: {
+          proposalId: proposal.id,
+          campaignId: proposal.campaignId,
+          contactId: proposal.contactId,
+          kind: proposal.kind,
+          scheduledSendAt: opts.sendAt.toISOString(),
+          autoApproved: true,
+        },
+      });
+      return scheduled;
+    }
+    const decided = await this.stampApproval(proposal, actor, null);
+    return this.deliverProposal(decided, senderFor(actor), opts.publicBaseUrl);
+  }
+
   async sendScheduledProposal(
     id: string,
     opts: { publicBaseUrl: string },
@@ -1203,19 +1250,8 @@ export class OutreachService {
     if (closed) {
       return { outcome: 'deferred', proposal, reason: closed };
     }
-    if (proposal.kind === 'journey') {
-      await this.assertJourneyRunOpen(proposal);
-      if (proposal.decidedByActorType !== 'user' && (await this.journeyTemplateDrifted(proposal))) {
-        return { outcome: 'skipped', proposal: await this.backToReview(proposal) };
-      }
-    }
-    const decision = await this.sendDecision(proposal, new Date());
-    if (decision?.decision === 'skip' && proposal.kind === 'journey') {
-      throw new OutreachInvalidError(
-        `this journey email cannot be sent: ${decision.reason}`,
-        'outreach_journey_blocked',
-      );
-    }
+    const decision = await this.gate(proposal, new Date(), 'scheduled');
+    if (decision?.decision === 'review') return { outcome: 'skipped', proposal: decision.proposal };
     if (decision?.decision === 'defer') {
       const ctx = getCurrentContext();
       const [deferred] = await ctx.db
@@ -1371,9 +1407,8 @@ export class OutreachService {
     if (proposal.kind === 'followup') {
       return this.deliverFollowup(proposal, sender);
     }
-    if (proposal.kind === 'journey') {
-      return this.deliverJourneyMessage(proposal, sender, publicBaseUrl);
-    }
+    const handler = this.kindHandler(proposal.kind);
+    if (handler) return handler.deliver(proposal, sender, publicBaseUrl);
     return this.deliverReply(proposal, sender);
   }
 
@@ -1392,12 +1427,7 @@ export class OutreachService {
     const channel = await this.loadOutreachChannel(campaign.channelId);
 
     const contact = await this.crm.getContact(proposal.contactId);
-    if (contact.doNotContact || contact.unsubscribedAt || !contact.consentLawfulBasis) {
-      throw new OutreachInvalidError(
-        `contact ${contact.id} is no longer eligible (suppression or consent withdrawn)`,
-      );
-    }
-    assertDeliverable(contact, channel.type);
+    assertEligible(contact, { class: 'marketing', channelType: channel.type });
 
     if (channel.type === 'voice') {
       return this.deliverInitialVoice(proposal, campaign, contact, channel);
@@ -1552,11 +1582,23 @@ export class OutreachService {
     return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
   }
 
+  async deliverVoiceCall(
+    proposal: ProposalDto,
+    contact: { id: string; name: string | null; phone: string | null },
+    channelId: string,
+    sentPayload: Record<string, unknown>,
+  ): Promise<ProposalDto> {
+    const campaign = await this.getCampaign(proposal.campaignId);
+    const channel = await this.loadOutreachChannel(channelId);
+    return this.deliverInitialVoice(proposal, campaign, contact, channel, sentPayload);
+  }
+
   private async deliverInitialVoice(
     proposal: ProposalDto,
     campaign: CampaignDto,
     contact: { id: string; name: string | null; phone: string | null },
     channel: typeof schema.convChannels.$inferSelect,
+    sentPayload: Record<string, unknown> = {},
   ): Promise<ProposalDto> {
     const ctx = getCurrentContext();
     const actor = ctx.actor!;
@@ -1623,9 +1665,7 @@ export class OutreachService {
         conversationId: conv.id,
         messageId: null,
         callId: callRes.callId,
-        ...(proposal.kind === 'journey'
-          ? { kind: 'journey', channel: 'voice', journeyEnrollmentId: proposal.evidence.enrollmentId ?? null }
-          : {}),
+        ...sentPayload,
       },
     });
 
@@ -1786,13 +1826,8 @@ export class OutreachService {
       throw new OutreachInvalidError(`campaign ${campaign.id} is disabled`);
     }
     const contact = await this.crm.getContact(proposal.contactId);
-    if (contact.doNotContact || contact.unsubscribedAt || !contact.consentLawfulBasis) {
-      throw new OutreachInvalidError(
-        `contact ${contact.id} is no longer eligible (suppression or consent withdrawn)`,
-      );
-    }
     const followupChannel = await this.loadOutreachChannel(campaign.channelId);
-    assertDeliverable(contact, followupChannel.type);
+    assertEligible(contact, { class: 'marketing', channelType: followupChannel.type });
     const [inbound] = await ctx.db
       .select({ id: schema.convMessages.id })
       .from(schema.convMessages)
@@ -1847,206 +1882,7 @@ export class OutreachService {
     return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
   }
 
-  async proposeJourneyMessage(
-    input: {
-      campaignId: string;
-      channel: 'email' | 'sms' | 'voice' | 'chat';
-      channelId: string | null;
-      contactId: string;
-      enrollmentId: string;
-      stepRunId: string;
-      subject: string | null;
-      body: string;
-      format: 'markdown' | 'mjml';
-      templateId?: string;
-      templateHash?: string | null;
-      preheader?: string;
-      policy: SendPolicy;
-      auto: boolean;
-      evidence: Record<string, unknown>;
-    },
-    opts: { publicBaseUrl: string },
-  ): Promise<ProposalDto> {
-    const ctx = getCurrentContext();
-    const actor = ctx.actor!;
-    const p = schema.outreachProposals;
-    const [existing] = await ctx.db
-      .select({ id: p.id })
-      .from(p)
-      .where(and(eq(p.journeyStepRunId, input.stepRunId), eq(p.contactId, input.contactId)))
-      .limit(1);
-    if (existing) return this.getProposal(existing.id);
-    const sms = input.channel !== 'email';
-    if (input.channel === 'chat') {
-      if (!input.channelId) throw new OutreachInvalidError('a journey chat step needs a chat widget channel');
-      const [channel] = await ctx.db
-        .select({ type: schema.convChannels.type })
-        .from(schema.convChannels)
-        .where(eq(schema.convChannels.id, input.channelId))
-        .limit(1);
-      if (channel?.type !== 'chat') {
-        throw new OutreachInvalidError(`channel ${input.channelId} is not a chat widget channel`);
-      }
-      if (input.body.length > JOURNEY_CHAT_MAX_CHARS) {
-        throw new OutreachInvalidError(`the chat message is ${input.body.length} characters; the limit is ${JOURNEY_CHAT_MAX_CHARS}`);
-      }
-    } else if (sms) {
-      if (input.auto) {
-        throw new OutreachInvalidError(`journey ${input.channel} steps are always approved by a person; they cannot run automatically`);
-      }
-      if (!input.channelId) throw new OutreachInvalidError(`a journey ${input.channel} step needs a ${input.channel} channel`);
-      const channel = await this.loadOutreachChannel(input.channelId);
-      if (channel.type !== input.channel) {
-        throw new OutreachInvalidError(`channel ${input.channelId} is ${channel.type}, not ${input.channel}`);
-      }
-      if (input.channel === 'sms' && input.body.length > SMS_DRAFT_MAX_CHARS) {
-        throw new OutreachInvalidError(`SMS text is ${input.body.length} characters; the limit is ${SMS_DRAFT_MAX_CHARS}`);
-      }
-    }
-
-    const [row] = await ctx.db
-      .insert(p)
-      .values({
-        orgId: actor.orgId,
-        campaignId: input.campaignId,
-        channelId: sms ? input.channelId : null,
-        contactId: input.contactId,
-        kind: 'journey',
-        journeyEnrollmentId: input.enrollmentId,
-        journeyStepRunId: input.stepRunId,
-        draftSubject: input.subject,
-        draftBody: input.body,
-        evidence: {
-          ...input.evidence,
-          enrollmentId: input.enrollmentId,
-          stepRunId: input.stepRunId,
-          journeyMessage: {
-            channel: input.channel,
-            format: input.format,
-            templateId: input.templateId ?? null,
-            templateHash: input.templateHash ?? null,
-            preheader: input.preheader ?? null,
-            policy: input.policy,
-            auto: input.auto,
-          },
-        },
-        status: 'pending',
-        proposedByActorType: actor.type,
-        proposedByActorId: actor.id,
-      })
-      .returning();
-    await this.webhooks.emit({
-      type: 'outreach.proposal.created',
-      payload: {
-        proposalId: row!.id,
-        campaignId: row!.campaignId,
-        contactId: row!.contactId,
-        kind: 'journey',
-        channel: input.channel,
-        journeyEnrollmentId: input.enrollmentId,
-        ...(input.auto ? { autoApproved: true } : {}),
-      },
-    });
-    const proposal = await this.getProposal(row!.id);
-    if (!input.auto) return proposal;
-    if (await this.journeyTemplateDrifted(proposal)) return proposal;
-
-    const decision = await this.journeySendDecision(proposal, new Date());
-    if (decision.decision === 'skip') {
-      return this.recordScheduledSendFailure(proposal.id, `journey email blocked: ${decision.reason}`, {
-        terminal: true,
-      });
-    }
-    if (decision.decision === 'defer') {
-      const scheduled = await this.stampApproval(proposal, actor, decision.until);
-      await this.webhooks.emit({
-        type: 'outreach.proposal.scheduled',
-        payload: {
-          proposalId: proposal.id,
-          campaignId: proposal.campaignId,
-          contactId: proposal.contactId,
-          kind: 'journey',
-          scheduledSendAt: decision.until.toISOString(),
-          autoApproved: true,
-        },
-      });
-      return scheduled;
-    }
-    const decided = await this.stampApproval(proposal, actor, null);
-    return this.deliverProposal(decided, senderFor(actor), opts.publicBaseUrl);
-  }
-
-  async withdrawJourneyProposals(enrollmentId: string, reason: string): Promise<number> {
-    const ctx = getCurrentContext();
-    const p = schema.outreachProposals;
-    const rows = await ctx.db
-      .update(p)
-      .set({ status: 'withdrawn', withdrawReason: reason, scheduledSendAt: null, updatedAt: new Date() })
-      .where(and(eq(p.journeyEnrollmentId, enrollmentId), inArray(p.status, ['pending', 'approved'])))
-      .returning({ id: p.id, campaignId: p.campaignId, contactId: p.contactId });
-    for (const row of rows) {
-      await this.webhooks.emit({
-        type: 'outreach.proposal.withdrawn',
-        payload: { proposalId: row.id, campaignId: row.campaignId, contactId: row.contactId, kind: 'journey', reason },
-      });
-    }
-    return rows.length;
-  }
-
-  private async assertJourneyRunOpen(proposal: ProposalDto): Promise<void> {
-    const enrollmentId = typeof proposal.evidence.enrollmentId === 'string' ? proposal.evidence.enrollmentId : null;
-    const ctx = getCurrentContext();
-    const [run] = enrollmentId
-      ? await ctx.db
-          .select({ state: schema.journeyEnrollments.state, journeyStatus: schema.journeys.status })
-          .from(schema.journeyEnrollments)
-          .innerJoin(schema.journeys, eq(schema.journeys.id, schema.journeyEnrollments.journeyId))
-          .where(eq(schema.journeyEnrollments.id, enrollmentId))
-          .limit(1)
-      : [];
-    if (!run || !['active', 'waiting'].includes(run.state) || run.journeyStatus !== 'live') {
-      throw new OutreachInvalidError(
-        `proposal ${proposal.id} belongs to a journey run that is no longer running, so it cannot be sent`,
-        'outreach_journey_ended',
-      );
-    }
-  }
-
-  private async journeyTemplateDrifted(proposal: ProposalDto): Promise<boolean> {
-    const meta = journeyMessageMeta(proposal);
-    if (meta.channel !== 'email') return false;
-    const pinned = (proposal.evidence.journeyMessage as { templateHash?: unknown } | undefined)?.templateHash;
-    if (typeof pinned !== 'string') return true;
-    return (await emailTemplateHash(meta.templateId)) !== pinned;
-  }
-
-  private async backToReview(proposal: ProposalDto): Promise<ProposalDto> {
-    const ctx = getCurrentContext();
-    await ctx.db
-      .update(schema.outreachProposals)
-      .set({
-        status: 'pending',
-        decidedAt: null,
-        decidedByActorId: null,
-        decidedByActorType: null,
-        scheduledSendAt: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.outreachProposals.id, proposal.id));
-    await this.webhooks.emit({
-      type: 'outreach.proposal.updated',
-      payload: { proposalId: proposal.id, campaignId: proposal.campaignId, contactId: proposal.contactId, kind: 'journey', reason: 'template_changed' },
-    });
-    return this.getProposal(proposal.id);
-  }
-
-  private async journeySendDecision(proposal: ProposalDto, at: Date): Promise<SendDecision> {
-    const meta = journeyMessageMeta(proposal);
-    return checkSendPolicy({ contactId: proposal.contactId, policy: meta.policy, now: at });
-  }
-
   private async sendDecision(proposal: ProposalDto, at: Date): Promise<SendDecision | null> {
-    if (proposal.kind === 'journey') return this.journeySendDecision(proposal, at);
     if (proposal.kind === 'reply') return null;
     const campaign = await this.getCampaign(proposal.campaignId);
     const channelType = proposal.delivery?.channelType;
@@ -2076,390 +1912,6 @@ export class OutreachService {
         'outreach_journey_managed',
       );
     }
-  }
-
-  private async deliverJourneyMessage(
-    proposal: ProposalDto,
-    sender: ProposalSender,
-    publicBaseUrl: string,
-  ): Promise<ProposalDto> {
-    const ctx = getCurrentContext();
-    const actor = ctx.actor!;
-    const meta = journeyMessageMeta(proposal);
-    if (meta.channel === 'sms') return this.deliverJourneySms(proposal, meta, sender);
-    if (meta.channel === 'voice') return this.deliverJourneyCall(proposal, meta);
-    if (meta.channel === 'chat') return this.deliverJourneyChat(proposal, meta, sender);
-    const campaign = await this.getCampaign(proposal.campaignId);
-    const channel = await this.loadOutreachChannel(campaign.channelId);
-    if (channel.type !== 'email') {
-      throw new OutreachInvalidError(
-        `journey emails need an email channel; campaign ${campaign.id} uses ${channel.type}`,
-      );
-    }
-    const contact = await this.crm.getContact(proposal.contactId);
-    const marketing = meta.policy.class === 'marketing';
-    if (contact.doNotContact || (marketing && (contact.unsubscribedAt || !contact.consentLawfulBasis))) {
-      throw new OutreachInvalidError(
-        `contact ${contact.id} is no longer eligible (suppression or consent withdrawn)`,
-      );
-    }
-    assertDeliverable(contact, 'email');
-    if (!contact.email) {
-      throw new OutreachInvalidError(`contact ${contact.id} has no email — cannot send`);
-    }
-
-    const unsubscribeUrl = buildUnsubscribeUrl({
-      publicBaseUrl,
-      orgId: actor.orgId,
-      contactId: contact.id,
-      campaignId: campaign.id,
-    });
-    const { renderEmail, BUILT_IN_EMAIL_TEMPLATE } = await import('./email-template-render.ts');
-    const mjml = await this.journeyTemplateMjml(meta.templateId, BUILT_IN_EMAIL_TEMPLATE);
-    const [org] = await ctx.db
-      .select({ name: schema.orgs.name })
-      .from(schema.orgs)
-      .where(eq(schema.orgs.id, actor.orgId))
-      .limit(1);
-    const rendered = await renderEmail(
-      mjml,
-      { format: meta.format, body: proposal.draftBody },
-      {
-        subject: proposal.draftSubject,
-        preheader: meta.preheader,
-        orgName: org?.name ?? null,
-        name: contact.name,
-        unsubscribeUrl,
-      },
-    );
-    const enrollmentId = (proposal.evidence.enrollmentId as string | undefined) ?? null;
-    const messageMetadata = {
-      journeyStepRunId: (proposal.evidence.stepRunId as string | undefined) ?? null,
-      ...(marketing ? { listUnsubscribeUrl: unsubscribeUrl } : {}),
-    };
-    const approvedByPerson = proposal.decidedByActorType === 'user' ? proposal.id : undefined;
-
-    const threadId = enrollmentId ? await this.journeyThread(enrollmentId, proposal.contactId) : null;
-    let conversationId: string;
-    let messageId: string | null;
-    if (threadId) {
-      const sent = await this.conv.sendMessage({
-        conversationId: threadId,
-        body: rendered.text,
-        bodyHtml: rendered.html,
-        messageMetadata,
-        approvedOutreachProposalId: approvedByPerson,
-        authorType: 'agent',
-        authorId: sender.id,
-      });
-      conversationId = threadId;
-      messageId = sent.id;
-    } else {
-      const convContact = await ctx.db.transaction(async (tx) =>
-        this.email.findOrCreateContactByEmail(tx, actor.orgId, contact.email!, contact.name ?? undefined),
-      );
-      const conversation = await this.conv.createConversation({
-        channelId: campaign.channelId,
-        body: rendered.text,
-        bodyHtml: rendered.html,
-        subject: proposal.draftSubject ?? undefined,
-        contactId: convContact.id,
-        endUserId: contact.endUserId ?? undefined,
-        outreachCampaignId: campaign.id,
-        messageMetadata,
-        approvedOutreachProposalId: approvedByPerson,
-        agentMode: 'draft_only',
-        authorType: 'agent',
-        authorId: sender.id,
-      });
-      conversationId = conversation.id;
-      messageId = conversation.messages[0]?.id ?? null;
-    }
-
-    const [updated] = await ctx.db
-      .update(schema.outreachProposals)
-      .set({
-        status: 'sent',
-        conversationId,
-        sentMessageId: messageId,
-        sentAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.outreachProposals.id, proposal.id))
-      .returning();
-    await ctx.db
-      .update(schema.crmContacts)
-      .set({ lastContactedAt: new Date(), updatedAt: new Date() })
-      .where(eq(schema.crmContacts.id, contact.id));
-    await this.webhooks.emit({
-      type: 'outreach.proposal.sent',
-      payload: {
-        proposalId: proposal.id,
-        campaignId: campaign.id,
-        contactId: contact.id,
-        conversationId,
-        messageId,
-        kind: 'journey',
-        journeyEnrollmentId: enrollmentId,
-        ...(meta.auto ? { autoApproved: true } : {}),
-      },
-    });
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
-  }
-
-  private async deliverJourneySms(
-    proposal: ProposalDto,
-    meta: JourneyMessageMeta,
-    sender: ProposalSender,
-  ): Promise<ProposalDto> {
-    const ctx = getCurrentContext();
-    const actor = ctx.actor!;
-    if (proposal.decidedByActorType !== 'user') {
-      throw new OutreachInvalidError('journey SMS is sent only after a person approves it');
-    }
-    const channelId = proposal.delivery?.channelId;
-    if (!channelId || proposal.delivery?.channelType !== 'sms') {
-      throw new OutreachInvalidError(`proposal ${proposal.id} has no SMS channel to send from`);
-    }
-    const contact = await this.crm.getContact(proposal.contactId);
-    const marketing = meta.policy.class === 'marketing';
-    if (contact.doNotContact || (marketing && (contact.unsubscribedAt || !contact.consentLawfulBasis))) {
-      throw new OutreachInvalidError(
-        `contact ${contact.id} is no longer eligible (suppression or consent withdrawn)`,
-      );
-    }
-    assertDeliverable(contact, 'sms');
-    if (!contact.phone) throw new OutreachInvalidError(`contact ${contact.id} has no phone — cannot send`);
-
-    const body = composeSmsOutreachBody({
-      draftBody: personalizeSms(proposal.draftBody, contact.name),
-      ctaUrl: null,
-      unsubscribeRequired: marketing,
-    });
-    const enrollmentId = (proposal.evidence.enrollmentId as string | undefined) ?? null;
-    const messageMetadata = { journeyStepRunId: (proposal.evidence.stepRunId as string | undefined) ?? null };
-    const threadId = await this.journeySmsThread(proposal.contactId, channelId);
-    let conversationId: string;
-    let messageId: string | null;
-    if (threadId) {
-      const sent = await this.conv.sendMessage({
-        conversationId: threadId,
-        body,
-        messageMetadata,
-        approvedOutreachProposalId: proposal.id,
-        authorType: 'agent',
-        authorId: sender.id,
-      });
-      conversationId = threadId;
-      messageId = sent.id;
-    } else {
-      const convContact = await ctx.db.transaction(async (tx) => {
-        const found = await findOrCreateContactByPhone(
-          tx,
-          actor.orgId,
-          contact.phone!,
-          contact.name ?? undefined,
-          'outreach-sms',
-        );
-        if (!found) throw new OutreachInvalidError(`could not resolve a contact for ${contact.phone}`);
-        return found;
-      });
-      const conversation = await this.conv.createConversation({
-        channelId,
-        body,
-        contactId: convContact.id,
-        endUserId: contact.endUserId ?? undefined,
-        outreachCampaignId: proposal.campaignId,
-        messageMetadata,
-        approvedOutreachProposalId: proposal.id,
-        agentMode: 'draft_only',
-        authorType: 'agent',
-        authorId: sender.id,
-      });
-      conversationId = conversation.id;
-      messageId = conversation.messages[0]?.id ?? null;
-    }
-
-    const [updated] = await ctx.db
-      .update(schema.outreachProposals)
-      .set({ status: 'sent', conversationId, sentMessageId: messageId, sentAt: new Date(), updatedAt: new Date() })
-      .where(eq(schema.outreachProposals.id, proposal.id))
-      .returning();
-    await ctx.db
-      .update(schema.crmContacts)
-      .set({ lastContactedAt: new Date(), updatedAt: new Date() })
-      .where(eq(schema.crmContacts.id, contact.id));
-    await this.webhooks.emit({
-      type: 'outreach.proposal.sent',
-      payload: {
-        proposalId: proposal.id,
-        campaignId: proposal.campaignId,
-        contactId: contact.id,
-        conversationId,
-        messageId,
-        kind: 'journey',
-        channel: 'sms',
-        journeyEnrollmentId: enrollmentId,
-      },
-    });
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
-  }
-
-  private async deliverJourneyCall(proposal: ProposalDto, meta: JourneyMessageMeta): Promise<ProposalDto> {
-    if (proposal.decidedByActorType !== 'user') {
-      throw new OutreachInvalidError('a journey call is placed only after a person approves it');
-    }
-    const channelId = proposal.delivery?.channelId;
-    if (!channelId || proposal.delivery?.channelType !== 'voice') {
-      throw new OutreachInvalidError(`proposal ${proposal.id} has no voice channel to call from`);
-    }
-    const contact = await this.crm.getContact(proposal.contactId);
-    const marketing = meta.policy.class === 'marketing';
-    if (contact.doNotContact || (marketing && (contact.unsubscribedAt || !contact.consentLawfulBasis))) {
-      throw new OutreachInvalidError(
-        `contact ${contact.id} is no longer eligible (suppression or consent withdrawn)`,
-      );
-    }
-    const campaign = await this.getCampaign(proposal.campaignId);
-    const channel = await this.loadOutreachChannel(channelId);
-    return this.deliverInitialVoice(proposal, campaign, contact, channel);
-  }
-
-  private async deliverJourneyChat(
-    proposal: ProposalDto,
-    meta: JourneyMessageMeta,
-    sender: ProposalSender,
-  ): Promise<ProposalDto> {
-    const ctx = getCurrentContext();
-    const channelId = proposal.delivery?.channelId;
-    if (!channelId || proposal.delivery?.channelType !== 'chat') {
-      throw new OutreachInvalidError(`proposal ${proposal.id} has no chat channel to write in`);
-    }
-    const contact = await this.crm.getContact(proposal.contactId);
-    const marketing = meta.policy.class === 'marketing';
-    if (contact.doNotContact || (marketing && (contact.unsubscribedAt || !contact.consentLawfulBasis))) {
-      throw new OutreachInvalidError(
-        `contact ${contact.id} is no longer eligible (suppression or consent withdrawn)`,
-      );
-    }
-    if (!contact.endUserId) {
-      throw new OutreachInvalidError(`contact ${contact.id} has no signed-in widget identity to write to`);
-    }
-
-    const body = personalizeSms(proposal.draftBody, contact.name);
-    const enrollmentId = (proposal.evidence.enrollmentId as string | undefined) ?? null;
-    const messageMetadata = { journeyStepRunId: (proposal.evidence.stepRunId as string | undefined) ?? null };
-    const approvedOutreachProposalId = proposal.decidedByActorType === 'user' ? proposal.id : undefined;
-    const threadId = await this.journeySmsThread(proposal.contactId, channelId);
-    let conversationId: string;
-    let messageId: string | null;
-    if (threadId) {
-      const sent = await this.conv.sendMessage({
-        conversationId: threadId,
-        body,
-        messageMetadata,
-        approvedOutreachProposalId,
-        authorType: 'agent',
-        authorId: sender.id,
-      });
-      conversationId = threadId;
-      messageId = sent.id;
-    } else {
-      const conversation = await this.conv.startWidgetConversation({
-        channelId,
-        endUserId: contact.endUserId,
-        body,
-        outreachCampaignId: proposal.campaignId,
-        approvedOutreachProposalId,
-        messageMetadata,
-        authorType: 'agent',
-        authorId: sender.id,
-      });
-      conversationId = conversation.id;
-      messageId = conversation.messages[0]?.id ?? null;
-    }
-
-    const [updated] = await ctx.db
-      .update(schema.outreachProposals)
-      .set({ status: 'sent', conversationId, sentMessageId: messageId, sentAt: new Date(), updatedAt: new Date() })
-      .where(eq(schema.outreachProposals.id, proposal.id))
-      .returning();
-    await ctx.db
-      .update(schema.crmContacts)
-      .set({ lastContactedAt: new Date(), updatedAt: new Date() })
-      .where(eq(schema.crmContacts.id, contact.id));
-    await this.webhooks.emit({
-      type: 'outreach.proposal.sent',
-      payload: {
-        proposalId: proposal.id,
-        campaignId: proposal.campaignId,
-        contactId: contact.id,
-        conversationId,
-        messageId,
-        kind: 'journey',
-        channel: 'chat',
-        journeyEnrollmentId: enrollmentId,
-      },
-    });
-    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
-  }
-
-  private async journeySmsThread(contactId: string, channelId: string): Promise<string | null> {
-    const ctx = getCurrentContext();
-    const p = schema.outreachProposals;
-    const [row] = await ctx.db
-      .select({ conversationId: p.conversationId })
-      .from(p)
-      .where(
-        and(
-          eq(p.contactId, contactId),
-          eq(p.kind, 'journey'),
-          eq(p.channelId, channelId),
-          eq(p.status, 'sent'),
-          isNotNull(p.conversationId),
-        ),
-      )
-      .orderBy(desc(p.sentAt))
-      .limit(1);
-    return row?.conversationId ?? null;
-  }
-
-  private async journeyThread(enrollmentId: string, contactId: string): Promise<string | null> {
-    const ctx = getCurrentContext();
-    const [row] = await ctx.db
-      .select({ conversationId: schema.journeyEnrollments.conversationId, contactId: schema.journeyEnrollments.contactId })
-      .from(schema.journeyEnrollments)
-      .where(eq(schema.journeyEnrollments.id, enrollmentId))
-      .limit(1);
-    if (row?.contactId) return row.conversationId ?? null;
-    const p = schema.outreachProposals;
-    const [sent] = await ctx.db
-      .select({ conversationId: p.conversationId })
-      .from(p)
-      .where(
-        and(
-          eq(p.journeyEnrollmentId, enrollmentId),
-          eq(p.contactId, contactId),
-          isNull(p.channelId),
-          eq(p.status, 'sent'),
-          isNotNull(p.conversationId),
-        ),
-      )
-      .orderBy(desc(p.sentAt))
-      .limit(1);
-    return sent?.conversationId ?? null;
-  }
-
-  private async journeyTemplateMjml(templateId: string | null, builtIn: string): Promise<string> {
-    const ctx = getCurrentContext();
-    const t = schema.outreachEmailTemplates;
-    const [row] = await ctx.db
-      .select({ mjml: t.mjml })
-      .from(t)
-      .where(templateId ? eq(t.id, templateId) : eq(t.isDefault, true))
-      .limit(1);
-    if (templateId && !row) throw new OutreachInvalidError(`email template ${templateId} no longer exists`);
-    return row?.mjml ?? builtIn;
   }
 
   async markProposalViewed(id: string): Promise<ProposalDto> {
@@ -2843,7 +2295,7 @@ export class OutreachService {
     }
   }
 
-  private async loadOutreachChannel(
+  async loadOutreachChannel(
     channelId: string,
   ): Promise<typeof schema.convChannels.$inferSelect> {
     const ctx = getCurrentContext();
@@ -3193,6 +2645,9 @@ function toProposalDto(
     originalDraftBody: row.originalDraftBody,
     draftFingerprint: draftFingerprint(row),
     evidence: row.evidence,
+    journeyEnrollmentId: row.journeyEnrollmentId,
+    journeyStepRunId: row.journeyStepRunId,
+    journeyDelivery: row.journeyDelivery,
     proposedSendAt: row.proposedSendAt?.toISOString() ?? null,
     scheduledSendAt: row.scheduledSendAt?.toISOString() ?? null,
     sendAttempts: row.sendAttempts,
@@ -3253,7 +2708,7 @@ function toProposalSummaryDto(
   return { ...summary, hasEvidence };
 }
 
-function senderFor(actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>): ProposalSender {
+export function senderFor(actor: NonNullable<ReturnType<typeof getCurrentContext>['actor']>): ProposalSender {
   return { type: actor.type, id: actor.id };
 }
 
@@ -3412,7 +2867,7 @@ function clampLimit(value: number | undefined, fallback: number, max: number): n
   return Math.min(value, max);
 }
 
-function buildUnsubscribeUrl(input: {
+export function buildUnsubscribeUrl(input: {
   publicBaseUrl: string;
   orgId: string;
   contactId: string;
@@ -3427,7 +2882,7 @@ function buildUnsubscribeUrl(input: {
   return `${base}/v1/outreach/unsubscribe?token=${encodeURIComponent(token)}`;
 }
 
-function composeSmsOutreachBody(input: {
+export function composeSmsOutreachBody(input: {
   draftBody: string;
   ctaUrl: string | null;
   unsubscribeRequired: boolean;
@@ -3454,38 +2909,7 @@ function composeOutreachBody(input: {
   return body;
 }
 
-function assertDeliverable(contact: ContactDto, channelType: string): void {
-  if (channelType !== 'email') return;
-  const state = contact.deliverability;
-  if (!state || state.state !== 'undeliverable') return;
-  throw new OutreachUndeliverableError(
-    `mail cannot reach ${state.address} (${state.reason ?? 'no reason recorded'}, since ${state.stateChangedAt}) — ` +
-      `correct contact ${contact.id}'s address, or clear the address's deliverability state if it works again`,
-  );
-}
-
-interface JourneyMessageMeta {
-  channel: 'email' | 'sms' | 'voice' | 'chat';
-  format: 'markdown' | 'mjml';
-  templateId: string | null;
-  preheader: string | null;
-  policy: SendPolicy;
-  auto: boolean;
-}
-
-function journeyMessageMeta(proposal: ProposalDto): JourneyMessageMeta {
-  const meta = proposal.evidence.journeyMessage as Partial<JourneyMessageMeta> | undefined;
-  return {
-    channel: meta?.channel === 'sms' || meta?.channel === 'voice' || meta?.channel === 'chat' ? meta.channel : 'email',
-    format: meta?.format === 'mjml' ? 'mjml' : 'markdown',
-    templateId: meta?.templateId ?? null,
-    preheader: meta?.preheader ?? null,
-    policy: meta?.policy ?? { class: 'marketing', cooldownHoursAfterConversation: 24 },
-    auto: meta?.auto === true,
-  };
-}
-
-function personalizeSms(text: string, name: string | null): string {
+export function personalizeSms(text: string, name: string | null): string {
   return text.replace(/\{\{\s*([^{}|\s]+)\s*(?:\|([^{}]*))?\}\}/g, (_match, field: string, fallback?: string) => {
     const value = field === 'name' ? name?.trim() : '';
     return value || (fallback ?? '').trim();

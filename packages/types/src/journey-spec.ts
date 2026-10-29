@@ -41,6 +41,14 @@ export const MESSAGE_CHANNELS = ['email', 'sms'] as const;
 export const JOURNEY_SMS_MAX_CHARS = 480;
 export const REENTRY_POLICIES = ['once', 'once_at_a_time', 'concurrent'] as const;
 export const MAX_CONCURRENT_ENROLLMENTS = 20;
+export const DEFAULT_JOURNEY_GUARDRAILS = {
+  enabled: true,
+  bounceRatePct: 5,
+  unsubscribeRatePct: 2,
+  failedStepRatePct: 10,
+  minVolume: 50,
+  windowDays: 7,
+} as const;
 export const CONDITION_OPERATORS = [
   'eq',
   'neq',
@@ -318,6 +326,16 @@ export const JourneySettingsSchema = z.strictObject({
   cooldownHoursAfterConversation: z.number().int().min(0).max(720).default(24),
   maxVisitsPerNode: z.number().int().min(1).max(20).default(3),
   smsChannelId: z.string().min(1).max(64).optional(),
+  guardrails: z
+    .strictObject({
+      enabled: z.boolean().optional(),
+      bounceRatePct: z.number().min(0.1).max(100).optional(),
+      unsubscribeRatePct: z.number().min(0.1).max(100).optional(),
+      failedStepRatePct: z.number().min(0.1).max(100).optional(),
+      minVolume: z.number().int().min(10).max(100_000).optional(),
+      windowDays: z.number().int().min(1).max(90).optional(),
+    })
+    .optional(),
 });
 
 export const JourneySpecSchema = z.strictObject({

@@ -904,6 +904,20 @@
       "when": 1793133630267,
       "tag": "0128_journey_concurrent_entry",
       "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1793133690267,
+      "tag": "0129_journey_paused_nodes",
+      "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1793133750267,
+      "tag": "0130_org_alerts_journeys_source",
+      "breakpoints": true
     }
   ]
 }

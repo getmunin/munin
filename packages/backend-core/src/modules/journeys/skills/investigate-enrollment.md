@@ -35,6 +35,10 @@ Check, in this order:
 4. Re-entry: with `once` a person enters at most once; with `once_at_a_time` not while a run is open.
 5. The holdout: an enrollment with `holdout: true` entered on purpose and was held back to measure lift.
 
+## Someone is stuck on a step
+
+If the trace stops at a step that never started and the run is `active` with no next run time, the step is paused — by a person or by the monitor on a guardrail breach. `journeys_get` lists `pausedNodes` with the reason; `journeys_get_guardrails` shows the rates behind a monitor pause. Resuming the step releases everyone held there at once.
+
 ## What to do
 
 - A journey that behaves as designed but not as intended needs a new draft (`skill://journeys/build-journey`); people already in it finish on their version.

@@ -35,6 +35,7 @@ export interface JourneyDto {
   createdAt: string;
   updatedAt: string;
   archivedAt: string | null;
+  pausedNodes: Record<string, { reason: string; pausedAt: string; by: string; metric?: string; rate?: number }>;
 }
 
 export interface JourneyVersionDto {
@@ -279,8 +280,59 @@ export class JourneysService {
     return validateJourneySpec(parsed.spec, await this.loadReferences());
   }
 
-  async pause(id: string): Promise<JourneyDto> {
-    return this.transition(id, ['live'], 'paused', 'journey.paused');
+  async pause(id: string, reason?: Record<string, unknown>): Promise<JourneyDto> {
+    return this.transition(id, ['live'], 'paused', 'journey.paused', reason);
+  }
+
+  async pauseNode(
+    id: string,
+    nodeId: string,
+    reason: { reason: string; metric?: string; rate?: number } = { reason: 'manual' },
+  ): Promise<JourneyDto> {
+    const row = await this.load(id);
+    if (row.status === 'archived') throw new ConflictException(`journeys_conflict: journey ${id} is archived`);
+    if (row.pausedNodes[nodeId]) {
+      throw new ConflictException(`journeys_conflict: node ${nodeId} is already paused`);
+    }
+    const ctx = getCurrentContext();
+    const pausedNodes = {
+      ...row.pausedNodes,
+      [nodeId]: { ...reason, pausedAt: new Date().toISOString(), by: ctx.actor!.id },
+    };
+    const [updated] = await ctx.db
+      .update(schema.journeys)
+      .set({ pausedNodes, updatedAt: new Date() })
+      .where(eq(schema.journeys.id, id))
+      .returning();
+    await this.webhooks.emit({ type: 'journey.node.paused', payload: { journeyId: id, nodeId, ...reason } });
+    const drafts = await this.draftNumbers([id]);
+    return toJourneyDto(updated!, drafts.get(id) ?? null);
+  }
+
+  async resumeNode(id: string, nodeId: string): Promise<JourneyDto & { released: number }> {
+    const row = await this.load(id);
+    if (!row.pausedNodes[nodeId]) {
+      throw new ConflictException(`journeys_conflict: node ${nodeId} is not paused`);
+    }
+    const ctx = getCurrentContext();
+    const { [nodeId]: _resumed, ...pausedNodes } = row.pausedNodes;
+    const [updated] = await ctx.db
+      .update(schema.journeys)
+      .set({ pausedNodes, updatedAt: new Date() })
+      .where(eq(schema.journeys.id, id))
+      .returning();
+    const e = schema.journeyEnrollments;
+    const released = await ctx.db
+      .update(e)
+      .set({ nextRunAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(e.journeyId, id), eq(e.state, 'active'), eq(e.currentNode, nodeId), isNull(e.nextRunAt)))
+      .returning({ id: e.id });
+    await this.webhooks.emit({
+      type: 'journey.node.resumed',
+      payload: { journeyId: id, nodeId, released: released.length },
+    });
+    const drafts = await this.draftNumbers([id]);
+    return { ...toJourneyDto(updated!, drafts.get(id) ?? null), released: released.length };
   }
 
   async resume(id: string): Promise<JourneyDto> {
@@ -296,6 +348,7 @@ export class JourneysService {
     from: readonly JourneyStatus[],
     to: JourneyStatus,
     eventType: string,
+    reason?: Record<string, unknown>,
   ): Promise<JourneyDto> {
     const row = await this.load(id);
     if (!from.includes(row.status as JourneyStatus)) {
@@ -310,7 +363,7 @@ export class JourneysService {
       .set({ status: to, updatedAt: now, ...(to === 'archived' ? { archivedAt: now } : {}) })
       .where(eq(schema.journeys.id, id))
       .returning();
-    await this.webhooks.emit({ type: eventType, payload: { journeyId: id, from: row.status, to } });
+    await this.webhooks.emit({ type: eventType, payload: { journeyId: id, from: row.status, to, ...reason } });
     const drafts = await this.draftNumbers([id]);
     return toJourneyDto(updated!, drafts.get(id) ?? null);
   }
@@ -493,6 +546,7 @@ function toJourneyDto(row: JourneyRow, draftVersion: number | null): JourneyDto 
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     archivedAt: row.archivedAt?.toISOString() ?? null,
+    pausedNodes: row.pausedNodes,
   };
 }
 

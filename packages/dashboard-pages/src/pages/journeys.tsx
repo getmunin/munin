@@ -176,6 +176,19 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
     }
   }
 
+  async function resumeNode(nodeId: string) {
+    setBusy(true);
+    try {
+      await api(`/v1/journeys/${id}/nodes/${encodeURIComponent(nodeId)}/resume`, { method: 'POST' });
+      notify.success(t('nodeResumed', { node: nodeId }));
+      await load();
+    } catch (err) {
+      notify.error(translate(err) || t('actionFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loadError && !hasLoadedOnce) {
     return (
       <div className="flex min-h-[70vh] items-center justify-center px-4 py-12 md:px-10">
@@ -225,6 +238,23 @@ function JourneyDetail({ id, publishVersion }: { id: string; publishVersion?: nu
           )}
         </div>
       </div>
+
+      {Object.entries(journey.pausedNodes ?? {}).map(([nodeId, info]) => (
+        <div
+          key={nodeId}
+          className="mb-4 flex flex-wrap items-center gap-3 rounded-card border-[1px] border-rule-soft px-4 py-3 text-sm dark:border-rule-on-dark"
+        >
+          <Pill tone="review">{t('nodePaused')}</Pill>
+          <span className="text-ink dark:text-foreground">
+            {info.reason === 'guardrail' && info.metric
+              ? t('nodePausedGuardrail', { node: nodeId, metric: t(`guardrail.${info.metric}`), rate: info.rate ?? 0 })
+              : t('nodePausedManual', { node: nodeId })}
+          </span>
+          <Button className="ml-auto" variant="outline" size="sm" pending={busy} onClick={() => void resumeNode(nodeId)}>
+            {t('resumeNode')}
+          </Button>
+        </div>
+      ))}
 
       <Tabs defaultValue="graph">
         <TabsList>

@@ -11,6 +11,7 @@ import { JOURNEY_STATUSES, JourneysService } from './journeys.service.ts';
 import { ENROLLMENT_STATES, JourneyRuntimeService, type EnrollmentState } from './journey-runtime.service.ts';
 import { JourneyPublishingService } from './journey-publishing.service.ts';
 import { JourneyTemplatesService } from './journey-templates.service.ts';
+import { JourneyMonitorService } from './journey-monitor.service.ts';
 
 const Id = z.string().min(1).max(64);
 const NodeIdInput = z.string().regex(/^[a-z][a-z0-9_]{0,47}$/);
@@ -80,6 +81,7 @@ export class JourneysTools {
     @Inject(JourneyRuntimeService) private readonly runtime: JourneyRuntimeService,
     @Inject(JourneyPublishingService) private readonly publishing: JourneyPublishingService,
     @Inject(JourneyTemplatesService) private readonly templates: JourneyTemplatesService,
+    @Inject(JourneyMonitorService) private readonly monitor: JourneyMonitorService,
   ) {}
 
   @McpTool({
@@ -625,6 +627,51 @@ export class JourneysTools {
   })
   restoreVersion(args: { journeyId: string; version: number }) {
     return this.journeys.restoreVersion(args.journeyId, args.version);
+  }
+
+  @McpTool({
+    name: 'journeys_get_guardrails',
+    title: 'Journeys: Get guardrail status',
+    description:
+      'Bounce, unsubscribe and failed-step rates per step and for the whole journey over the guardrail window, against the thresholds that pause it (settings.guardrails, or the defaults: bounce 5%, unsubscribe 2%, failed steps 10%, from 50 sends or steps over 7 days). Shows which steps are paused.',
+    audiences: ['admin'],
+    scopes: ['journeys:read'],
+    input: JourneyIdInput,
+    readOnlyHint: true,
+    destructiveHint: false,
+  })
+  getGuardrails(args: z.infer<typeof JourneyIdInput>) {
+    return this.monitor.report(args.journeyId);
+  }
+
+  @McpTool({
+    name: 'journeys_pause_node',
+    title: 'Journeys: Pause a node',
+    description:
+      'Pause one step of a journey. Runs that reach it wait there, nobody is exited, and the rest of the journey keeps running. The monitor does the same on a guardrail breach.',
+    audiences: ['admin'],
+    scopes: ['journeys:write'],
+    input: JourneyIdInput.extend({ nodeId: z.string().min(1).max(48) }),
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  pauseNode(args: { journeyId: string; nodeId: string }) {
+    return this.journeys.pauseNode(args.journeyId, args.nodeId);
+  }
+
+  @McpTool({
+    name: 'journeys_resume_node',
+    title: 'Journeys: Resume a paused node',
+    description:
+      'Resume a paused step. Runs held at it continue right away; the result says how many were released. Check journeys_get_guardrails first when the monitor paused it.',
+    audiences: ['admin'],
+    scopes: ['journeys:write'],
+    input: JourneyIdInput.extend({ nodeId: z.string().min(1).max(48) }),
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  resumeNode(args: { journeyId: string; nodeId: string }) {
+    return this.journeys.resumeNode(args.journeyId, args.nodeId);
   }
 
   @McpTool({

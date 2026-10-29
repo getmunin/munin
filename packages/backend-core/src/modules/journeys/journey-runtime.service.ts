@@ -382,7 +382,7 @@ export class JourneyRuntimeService {
       const [enrollment] = await ctx.db.select().from(e).where(eq(e.id, enrollmentId)).limit(1);
       if (!enrollment || enrollment.state !== 'active' || !enrollment.currentNode) return;
       const [journey] = await ctx.db
-        .select({ status: schema.journeys.status })
+        .select({ status: schema.journeys.status, pausedNodes: schema.journeys.pausedNodes })
         .from(schema.journeys)
         .where(eq(schema.journeys.id, enrollment.journeyId))
         .limit(1);
@@ -406,6 +406,11 @@ export class JourneyRuntimeService {
         .from(sr)
         .where(and(eq(sr.enrollmentId, enrollment.id), eq(sr.nodeId, node.id), eq(sr.visit, visit)))
         .limit(1);
+
+      if (!existing && journey.pausedNodes[node.id]) {
+        await ctx.db.update(e).set({ nextRunAt: null, updatedAt: new Date() }).where(eq(e.id, enrollment.id));
+        return;
+      }
 
       let outcome: Outcome;
       let stepRunId: string;

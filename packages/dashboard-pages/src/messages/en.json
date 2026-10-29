@@ -1311,6 +1311,16 @@
       "resume": "Resume",
       "paused": "Journey paused. Nobody was removed.",
       "resumed": "Journey resumed.",
+      "nodePaused": "Step paused",
+      "nodePausedGuardrail": "{node} was paused by the monitor: {metric} reached {rate} %. Runs wait there until it is resumed.",
+      "nodePausedManual": "{node} is paused. Runs wait there until it is resumed.",
+      "resumeNode": "Resume step",
+      "nodeResumed": "{node} resumed.",
+      "guardrail": {
+        "bounce": "bounce rate",
+        "unsubscribe": "unsubscribe rate",
+        "failed_step": "failed-step rate"
+      },
       "actionFailed": "That didn't work. Try again.",
       "reviewPublish": "Review and publish v{version}",
       "showLive": "Live v{version}",

@@ -14498,7 +14498,8 @@
                       "enum": [
                         "initial",
                         "reply",
-                        "followup"
+                        "followup",
+                        "journey"
                       ]
                     },
                     "sequenceStep": {

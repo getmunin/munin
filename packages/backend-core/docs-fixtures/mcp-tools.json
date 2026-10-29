@@ -1153,6 +1153,2129 @@
     }
   },
   {
+    "name": "crm_list_contacts",
+    "title": "CRM: List contacts",
+    "description": "List contacts in your org, newest-updated first. Filter by company or tag.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "companyId": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_get_contact",
+    "title": "CRM: Read contact",
+    "description": "Read one contact, including AI fields, tags, custom fields, and compliance flags. `deliverability` reports whether mail can physically reach the contact's email address, which is separate from consent — it is null while the address is fine.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_lookup_contact",
+    "title": "CRM: Look up contact by email or phone",
+    "description": "Find an existing contact by email and/or phone before creating a new one. Returns null if no match.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        },
+        "phone": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_create_contact",
+    "title": "CRM: Create contact",
+    "description": "Create a new contact. Search with crm_lookup_contact first to avoid duplicates.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "address": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "companyId": {
+          "type": "string"
+        },
+        "endUserId": {
+          "type": "string"
+        },
+        "tags": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "customFields": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_update_contact",
+    "title": "CRM: Update contact",
+    "description": "Update fields on a contact. Only keys present in `patch` are touched; omitted keys are preserved. `customFields` is a partial patch — keys you send replace the corresponding keys; keys you omit are preserved (send `key: null` to clear a single custom field). Setting `doNotContact: true` also stamps `unsubscribedAt`; setting it false clears it. Pass `mode: 'fill-null'` from automated/curator contexts to refuse overwriting existing non-null values (only null/empty fields are filled). Default `mode: 'overwrite'` applies the patch as-is and is appropriate for human-driven edits.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "patch": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "email": {
+              "type": "string",
+              "format": "email",
+              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+            },
+            "phone": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "address": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "companyId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "ownerUserId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tags": {
+              "maxItems": 32,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            },
+            "customFields": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            "doNotContact": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "mode": {
+          "description": "When 'fill-null', only applies patch keys whose existing value on the contact is null or empty — non-null fields are left untouched. Default 'overwrite' applies the patch as-is. Curator skills that backfill automated data should pass 'fill-null'; human-driven dashboard edits should use the default.",
+          "type": "string",
+          "enum": [
+            "fill-null",
+            "overwrite"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "patch"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_apply_conversation_identity",
+    "title": "CRM: Apply conversation identity",
+    "description": "Record identity details an end-user volunteered in one conversation (name, email, phone, title) onto that conversation's own CRM contact. The contact is resolved server-side: the one already linked to the conversation's end-user, else an unlinked contact matching an email or phone the conversation has proven (a channel- or org-attested identity whose messages neither failed DMARC nor arrived forwarded), else a new contact linked to the end-user and tagged `from-chat`. Only empty fields are filled; existing values, tags, owner, custom fields and do-not-contact status are never changed. An email or phone the conversation has not proven is dropped when another contact already holds it. Mailing-list, auto-reply and bounce senders are skipped, and a role-account sender records its email only. Returns the action taken, the contact id, and the fields written.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 320,
+          "format": "email",
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 40,
+          "pattern": "^\\+?[0-9 ().-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        }
+      },
+      "required": [
+        "conversationId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_bulk_create_contacts",
+    "title": "CRM: Bulk-create contacts",
+    "description": "Bulk-create contacts with dedupe + compliance checks: rows whose email or phone already match a do_not_contact contact are skipped, as are rows that would duplicate an existing contact.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "contacts": {
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "email": {
+                "type": "string",
+                "format": "email",
+                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              "phone": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "address": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "companyId": {
+                "type": "string"
+              },
+              "endUserId": {
+                "type": "string"
+              },
+              "tags": {
+                "maxItems": 32,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "customFields": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "contacts"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_search_contacts",
+    "title": "CRM: Search contacts",
+    "description": "Substring search across name, email, phone, and title. Returns contacts ordered newest-updated first.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_list_companies",
+    "title": "CRM: List companies",
+    "description": "List companies in your org.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_create_company",
+    "title": "CRM: Create company",
+    "description": "Create a new company.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "domain": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "tags": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "customFields": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_list_pipelines",
+    "title": "CRM: List sales pipelines",
+    "description": "List sales pipelines for your org with their stages in position order.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_create_pipeline",
+    "title": "CRM: Create sales pipeline",
+    "description": "Create a new sales pipeline with at least one stage. Stages are inserted in array order; mark a stage `winLoss: \"won\"` or `\"lost\"` to record terminal outcomes.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "slug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "stages": {
+          "minItems": 1,
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "winLoss": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "won",
+                  "lost"
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "name",
+        "slug",
+        "stages"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_list_deals",
+    "title": "CRM: List deals",
+    "description": "List deals, optionally filtered by pipeline or stage.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "pipelineId": {
+          "type": "string"
+        },
+        "stageId": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_create_deal",
+    "title": "CRM: Create deal",
+    "description": "Create a new deal in a pipeline. If `stageId` is omitted, the deal lands in the pipeline's first stage by position.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "pipelineId": {
+          "type": "string"
+        },
+        "stageId": {
+          "type": "string"
+        },
+        "amountCents": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "currency": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 8
+        },
+        "primaryContactId": {
+          "type": "string"
+        },
+        "companyId": {
+          "type": "string"
+        },
+        "expectedCloseAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "name",
+        "pipelineId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_change_deal_stage",
+    "title": "CRM: Change deal stage",
+    "description": "Move a deal to a new stage. If the destination stage is a won/lost terminal, `closedAt` is stamped automatically.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "dealId": {
+          "type": "string"
+        },
+        "stageId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "dealId",
+        "stageId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_log_activity",
+    "title": "CRM: Log activity",
+    "description": "Record an activity (note / call / email / meeting / task) against a contact, company, or deal. If `contactId` is set, the contact's `lastContactedAt` is also bumped.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "note",
+            "call",
+            "email",
+            "meeting",
+            "task"
+          ]
+        },
+        "subject": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 50000
+        },
+        "contactId": {
+          "type": "string"
+        },
+        "companyId": {
+          "type": "string"
+        },
+        "dealId": {
+          "type": "string"
+        },
+        "dueAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "metadata": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_list_activities",
+    "title": "CRM: List activities",
+    "description": "List CRM activities filtered by contact, deal, or company.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "contactId": {
+          "type": "string"
+        },
+        "dealId": {
+          "type": "string"
+        },
+        "companyId": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_set_ai_summary",
+    "title": "CRM: Set AI summary or next action",
+    "description": "Set the AI-generated summary and/or next-action for a contact, company, or deal. These live in dedicated columns so agents do not pollute the human-edited description.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "entityType": {
+          "type": "string",
+          "enum": [
+            "contact",
+            "company",
+            "deal"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nextAction": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "entityType",
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_propose_merge",
+    "title": "CRM: Propose a merge candidate",
+    "description": "File a structured proposal that two contacts are the same person. Pass `confidence` (\"high\" | \"medium\"), `evidence` (the matched signals — same email, same phone, similar name, etc.), `recommendedKeeperId` (which row to keep), and optionally `recommendedPatch` (fields to copy onto the keeper from the duplicate). Idempotent on the (contactA, contactB) pair while a pending proposal exists — calling again upserts the existing pending row. Rejects with a conflict when the pair has already been merged: either side carrying `customFields.mergedInto`, or an `applied` proposal already on record for the pair. The CRM clean-contact-data curator runs this on a periodic cadence; see `skill://crm/clean-contact-data`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "contactAId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "contactBId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "confidence": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium"
+          ]
+        },
+        "evidence": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "recommendedKeeperId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "recommendedPatch": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "contactAId",
+        "contactBId",
+        "confidence",
+        "evidence",
+        "recommendedKeeperId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_list_merge_proposals",
+    "title": "CRM: List merge proposals",
+    "description": "List CRM merge proposals, defaulting to `status: \"pending\"` (the operator review queue). Returns each proposal with both contacts embedded as summaries — no extra `crm_get_contact` calls needed. Pass `status: \"dismissed\"` once per curator pass to skip pairs the operator has already rejected. In hosts that support MCP Apps this renders an interactive review panel with side-by-side contact comparison and per-proposal apply/dismiss actions.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "applied",
+            "dismissed"
+          ]
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_apply_merge_proposal",
+    "title": "CRM: Apply a merge proposal",
+    "description": "Atomically apply a pending merge proposal: copies `recommendedPatch` fields onto the keeper, reassigns the duplicate's activities, deals and relationships onto the keeper, archives the duplicate (adds `dedup-archived-YYYY-MM` tag, sets `customFields.mergedInto = <keeperId>`, sets `doNotContact: true`), dismisses any other pending proposals that reference the duplicate, and marks the proposal `applied`. The apply is bound to the proposal it was given: `fingerprint` must match the current `mergeFingerprint`, so a proposal whose keeper, patch or confidence changed since it was read is refused with a conflict and stays pending. Throws if the proposal is not in `pending` status.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "fingerprint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "The `mergeFingerprint` carried by the proposal as it was read, binding this apply to that exact keeper and patch."
+        }
+      },
+      "required": [
+        "id",
+        "fingerprint"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_dismiss_merge_proposal",
+    "title": "CRM: Dismiss a merge proposal",
+    "description": "Mark a pending merge proposal as dismissed (the operator decided these are not the same person). The next CRM hygiene curator pass queries dismissed proposals and skips refiling the same pair. Optional `reason` is stored for audit. Throws if the proposal is not in `pending` status.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_list_segments",
+    "title": "CRM: List segments",
+    "description": "List saved contact segments. A segment is a named CRM filter — used as the audience for outreach campaigns and other targeting workflows. Returns each segment with its filter definition.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_get_segment",
+    "title": "CRM: Read segment",
+    "description": "Read one segment, including its filter definition.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_create_segment",
+    "title": "CRM: Create segment",
+    "description": "Create a saved contact segment. `filter` supports tagsAny (any-of match), tagsAll (all-of match), companyId, searchQuery (substring over name/email/title), contactedSince (ISO-8601 — narrows to contacts NOT contacted since that timestamp), and events (up to 5 behaviour filters on product events sent to POST /v1/events: `{ name, occurred, withinDays?, minCount? }` keeps contacts who did — or, with occurred:false, did not — trigger that event, optionally within the last N days and at least minCount times; list names with analytics_list_product_event_names). Combine fields and they AND together.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "filter": {
+          "type": "object",
+          "properties": {
+            "tagsAny": {
+              "maxItems": 32,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            },
+            "tagsAll": {
+              "maxItems": 32,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            },
+            "companyId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "searchQuery": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "contactedSince": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            "events": {
+              "maxItems": 5,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9_.-]{1,64}$"
+                  },
+                  "occurred": {
+                    "type": "boolean"
+                  },
+                  "withinDays": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 3650
+                  },
+                  "minCount": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10000
+                  }
+                },
+                "required": [
+                  "name",
+                  "occurred"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "name",
+        "filter"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_update_segment",
+    "title": "CRM: Update segment",
+    "description": "Patch a segment: rename, edit description, or replace the filter.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "patch": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "filter": {
+              "type": "object",
+              "properties": {
+                "tagsAny": {
+                  "maxItems": 32,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "tagsAll": {
+                  "maxItems": 32,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "companyId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "searchQuery": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "contactedSince": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "events": {
+                  "maxItems": 5,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9_.-]{1,64}$"
+                      },
+                      "occurred": {
+                        "type": "boolean"
+                      },
+                      "withinDays": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 3650
+                      },
+                      "minCount": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10000
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "occurred"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "patch"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_delete_segment",
+    "title": "CRM: Delete segment",
+    "description": "Delete a segment. Outreach campaigns referencing it will fail until reassigned.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_list_contacts_in_segment",
+    "title": "CRM: List contacts in segment",
+    "description": "Resolve a segment to its current contacts. ALWAYS excludes suppressed contacts (do_not_contact OR unsubscribed) AND contacts without a recorded lawful basis (consent_lawful_basis IS NULL). Use this — not crm_list_contacts — to materialize an outreach audience: the suppression and consent floors are non-overridable here.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 500
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_set_contact_consent",
+    "title": "CRM: Set contact consent",
+    "description": "Record the lawful basis and source for contacting this person. Required before they can appear in any outreach segment. `lawfulBasis` is one of `consent`, `legitimate_interest`, or `contract`. `source` is a short label (e.g. \"imported-2026-q2\", \"web-form-trial-signup\", \"event-attendee-summit-2025\"). Logs a CRM activity for audit.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "contactId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "lawfulBasis": {
+          "type": "string",
+          "enum": [
+            "consent",
+            "legitimate_interest",
+            "contract"
+          ]
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "evidence": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "givenAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "contactId",
+        "lawfulBasis",
+        "source"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_list_address_deliverability",
+    "title": "CRM: List address deliverability",
+    "description": "List email addresses this org can no longer reach, newest state change first. Deliverability is separate from consent: `undeliverable` means mail bounces or is rejected, not that the person opted out. Each row carries the state (`valid`, `soft_failing`, `undeliverable`), the rule that set it (`hard_bounce`, `smtp_rejected`, `delivery_dead`, `no_reply_notice`, `repeated_soft_failure`, `manual`), the evidence, and how many failures have been seen. Defaults to everything that is not `valid`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "valid",
+            "soft_failing",
+            "undeliverable"
+          ]
+        },
+        "limit": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_set_address_deliverability",
+    "title": "CRM: Set address deliverability",
+    "description": "Record whether mail can reach an email address. `state: \"undeliverable\"` stops outreach sending to it — use when a bounce, a mailbox-closed notice, or the person's colleague tells you the address is dead. `state: \"valid\"` reopens it and zeroes the failure count — use once the address is corrected or the mailbox is confirmed working. This is a statement about the address, not about permission: it neither records an opt-out nor suppresses the contact on other channels, and consent is unchanged either way. `note` is short prose saying what you saw.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "address": {
+          "type": "string",
+          "format": "email",
+          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "valid",
+            "undeliverable"
+          ]
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "address",
+        "state"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_export",
+    "title": "CRM: Export data",
+    "description": "Export this org's CRM (pipelines and stages, segments, companies, contacts, deals, activities, and relationships) as a portable JSON payload. Pair with `crm_import` on another Munin server to move a CRM between self-hosted and cloud. Feed the returned `records` straight into `crm_import`.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_import",
+    "title": "CRM: Import data",
+    "description": "Import CRM `records` produced by `crm_export` (typically from another Munin server). Records are imported in dependency order (pipelines → segments → companies → contacts → deals → activities → relationships). Pipelines are upserted by slug, segments by name, companies by domain (else name), and contacts by email — so re-running is idempotent. Deals, activities, and relationships get fresh ids each run with their parents resolved through the `idMap`. Returns counts and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "records": {
+          "type": "object",
+          "properties": {
+            "pipelines": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "slug": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "stages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        },
+                        "position": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "winLoss": {
+                          "type": "string",
+                          "enum": [
+                            "open",
+                            "won",
+                            "lost"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "position",
+                        "winLoss"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "slug",
+                  "stages"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "segments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "filterDefinition": {
+                    "type": "object",
+                    "properties": {
+                      "tagsAny": {
+                        "maxItems": 32,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        }
+                      },
+                      "tagsAll": {
+                        "maxItems": 32,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        }
+                      },
+                      "companyId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "searchQuery": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "contactedSince": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      "events": {
+                        "maxItems": 5,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9_.-]{1,64}$"
+                            },
+                            "occurred": {
+                              "type": "boolean"
+                            },
+                            "withinDays": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 3650
+                            },
+                            "minCount": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10000
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "occurred"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "filterDefinition"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "companies": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "domain": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "tags": {
+                    "maxItems": 32,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  },
+                  "customFields": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "tags",
+                  "customFields"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "contacts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "companyId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "email": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "phone": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "title": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "address": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "tags": {
+                    "maxItems": 32,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  },
+                  "customFields": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "id",
+                  "tags",
+                  "customFields"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "deals": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "pipelineId": {
+                    "type": "string"
+                  },
+                  "stageId": {
+                    "type": "string"
+                  },
+                  "amountCents": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "currency": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 8
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "primaryContactId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "companyId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "expectedCloseAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "pipelineId",
+                  "stageId"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "activities": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "note",
+                      "call",
+                      "email",
+                      "meeting",
+                      "task"
+                    ]
+                  },
+                  "subject": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "body": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "contactId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "companyId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "dealId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "dueAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "completedAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "metadata"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "relationships": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "fromType": {
+                    "type": "string",
+                    "enum": [
+                      "contact",
+                      "company",
+                      "deal"
+                    ]
+                  },
+                  "fromId": {
+                    "type": "string"
+                  },
+                  "toType": {
+                    "type": "string",
+                    "enum": [
+                      "contact",
+                      "company",
+                      "deal"
+                    ]
+                  },
+                  "toId": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "startedAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "endedAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "id",
+                  "fromType",
+                  "fromId",
+                  "toType",
+                  "toId",
+                  "role",
+                  "metadata"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "pipelines",
+            "segments",
+            "companies",
+            "contacts",
+            "deals",
+            "activities",
+            "relationships"
+          ],
+          "additionalProperties": false
+        },
+        "idMap": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "records"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_get_my_contact",
+    "title": "CRM: Read my contact",
+    "description": "Read the CRM contact linked to the calling end-user. RLS restricts visibility to that single row. Refused when the end-user's identity was self-reported in chat, when the contact is keyed on an email or phone the end-user has not proven, or, on an email conversation, when the latest customer message failed DMARC or was forwarded.",
+    "audiences": [
+      "self_service"
+    ],
+    "scopes": [
+      "crm:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_update_my_contact",
+    "title": "CRM: Update my contact",
+    "description": "Update the calling end-user's own contact record. Only basic personal fields (name, phone, address) are editable from this surface — tags, ownership, custom fields, and AI fields are admin-only. Refused when the end-user's identity was self-reported in chat, when the contact is keyed on an email or phone the end-user has not proven, or, on an email conversation, when the latest customer message failed DMARC or was forwarded.",
+    "audiences": [
+      "self_service"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "address": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "crm_log_my_activity",
+    "title": "CRM: Log my activity",
+    "description": "Record an activity attributed to the calling end-user agent (e.g. a voice agent logging \"spoke with customer for 4m, follow-up needed\"). Auto-scoped to the end-user's own CRM contact when one exists.",
+    "audiences": [
+      "self_service"
+    ],
+    "scopes": [
+      "crm:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "note",
+            "call",
+            "email",
+            "meeting",
+            "task"
+          ]
+        },
+        "subject": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 50000
+        },
+        "metadata": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "cms_list_collections",
     "title": "CMS: List collections",
     "description": "List CMS collections (content types) defined for your org. Scaffolding a frontend from Lovable/Bolt/v0/Replit/Cursor and need to render CMS content? Read `skill://playbooks/frontend-integration` — the delivery API is anonymous and intentionally has no CORS, so the fetch must run server-side.",
@@ -4895,2129 +7018,6 @@
       },
       "required": [
         "channelId"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_list_contacts",
-    "title": "CRM: List contacts",
-    "description": "List contacts in your org, newest-updated first. Filter by company or tag.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:read"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "companyId": {
-          "type": "string"
-        },
-        "tag": {
-          "type": "string"
-        },
-        "limit": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 200
-        }
-      },
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_get_contact",
-    "title": "CRM: Read contact",
-    "description": "Read one contact, including AI fields, tags, custom fields, and compliance flags. `deliverability` reports whether mail can physically reach the contact's email address, which is separate from consent — it is null while the address is fine.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:read"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_lookup_contact",
-    "title": "CRM: Look up contact by email or phone",
-    "description": "Find an existing contact by email and/or phone before creating a new one. Returns null if no match.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:read"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "email": {
-          "type": "string",
-          "format": "email",
-          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
-        },
-        "phone": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_create_contact",
-    "title": "CRM: Create contact",
-    "description": "Create a new contact. Search with crm_lookup_contact first to avoid duplicates.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 200
-        },
-        "email": {
-          "type": "string",
-          "format": "email",
-          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
-        },
-        "phone": {
-          "type": "string",
-          "maxLength": 40
-        },
-        "title": {
-          "type": "string",
-          "maxLength": 120
-        },
-        "address": {
-          "type": "string",
-          "maxLength": 500
-        },
-        "companyId": {
-          "type": "string"
-        },
-        "endUserId": {
-          "type": "string"
-        },
-        "tags": {
-          "maxItems": 32,
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 64
-          }
-        },
-        "customFields": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
-        }
-      },
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_update_contact",
-    "title": "CRM: Update contact",
-    "description": "Update fields on a contact. Only keys present in `patch` are touched; omitted keys are preserved. `customFields` is a partial patch — keys you send replace the corresponding keys; keys you omit are preserved (send `key: null` to clear a single custom field). Setting `doNotContact: true` also stamps `unsubscribedAt`; setting it false clears it. Pass `mode: 'fill-null'` from automated/curator contexts to refuse overwriting existing non-null values (only null/empty fields are filled). Default `mode: 'overwrite'` applies the patch as-is and is appropriate for human-driven edits.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "patch": {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            },
-            "email": {
-              "type": "string",
-              "format": "email",
-              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
-            },
-            "phone": {
-              "type": "string",
-              "maxLength": 40
-            },
-            "title": {
-              "type": "string",
-              "maxLength": 120
-            },
-            "address": {
-              "type": "string",
-              "maxLength": 500
-            },
-            "companyId": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "ownerUserId": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "tags": {
-              "maxItems": 32,
-              "type": "array",
-              "items": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 64
-              }
-            },
-            "customFields": {
-              "type": "object",
-              "propertyNames": {
-                "type": "string"
-              },
-              "additionalProperties": {}
-            },
-            "doNotContact": {
-              "type": "boolean"
-            }
-          },
-          "additionalProperties": false
-        },
-        "mode": {
-          "description": "When 'fill-null', only applies patch keys whose existing value on the contact is null or empty — non-null fields are left untouched. Default 'overwrite' applies the patch as-is. Curator skills that backfill automated data should pass 'fill-null'; human-driven dashboard edits should use the default.",
-          "type": "string",
-          "enum": [
-            "fill-null",
-            "overwrite"
-          ]
-        }
-      },
-      "required": [
-        "id",
-        "patch"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_apply_conversation_identity",
-    "title": "CRM: Apply conversation identity",
-    "description": "Record identity details an end-user volunteered in one conversation (name, email, phone, title) onto that conversation's own CRM contact. The contact is resolved server-side: the one already linked to the conversation's end-user, else an unlinked contact matching an email or phone the conversation has proven (a channel- or org-attested identity whose messages neither failed DMARC nor arrived forwarded), else a new contact linked to the end-user and tagged `from-chat`. Only empty fields are filled; existing values, tags, owner, custom fields and do-not-contact status are never changed. An email or phone the conversation has not proven is dropped when another contact already holds it. Mailing-list, auto-reply and bounce senders are skipped, and a role-account sender records its email only. Returns the action taken, the contact id, and the fields written.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "conversationId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 200
-        },
-        "email": {
-          "type": "string",
-          "maxLength": 320,
-          "format": "email",
-          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
-        },
-        "phone": {
-          "type": "string",
-          "maxLength": 40,
-          "pattern": "^\\+?[0-9 ().-]+$"
-        },
-        "title": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120
-        }
-      },
-      "required": [
-        "conversationId"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_bulk_create_contacts",
-    "title": "CRM: Bulk-create contacts",
-    "description": "Bulk-create contacts with dedupe + compliance checks: rows whose email or phone already match a do_not_contact contact are skipped, as are rows that would duplicate an existing contact.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "contacts": {
-          "maxItems": 500,
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 200
-              },
-              "email": {
-                "type": "string",
-                "format": "email",
-                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
-              },
-              "phone": {
-                "type": "string",
-                "maxLength": 40
-              },
-              "title": {
-                "type": "string",
-                "maxLength": 120
-              },
-              "address": {
-                "type": "string",
-                "maxLength": 500
-              },
-              "companyId": {
-                "type": "string"
-              },
-              "endUserId": {
-                "type": "string"
-              },
-              "tags": {
-                "maxItems": 32,
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 64
-                }
-              },
-              "customFields": {
-                "type": "object",
-                "propertyNames": {
-                  "type": "string"
-                },
-                "additionalProperties": {}
-              }
-            },
-            "additionalProperties": false
-          }
-        }
-      },
-      "required": [
-        "contacts"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_search_contacts",
-    "title": "CRM: Search contacts",
-    "description": "Substring search across name, email, phone, and title. Returns contacts ordered newest-updated first.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:read"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "query": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 200
-        },
-        "limit": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 100
-        }
-      },
-      "required": [
-        "query"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_list_companies",
-    "title": "CRM: List companies",
-    "description": "List companies in your org.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:read"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "limit": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 200
-        }
-      },
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_create_company",
-    "title": "CRM: Create company",
-    "description": "Create a new company.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 200
-        },
-        "domain": {
-          "type": "string",
-          "maxLength": 200
-        },
-        "tags": {
-          "maxItems": 32,
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 64
-          }
-        },
-        "customFields": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
-        }
-      },
-      "required": [
-        "name"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_list_pipelines",
-    "title": "CRM: List sales pipelines",
-    "description": "List sales pipelines for your org with their stages in position order.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:read"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_create_pipeline",
-    "title": "CRM: Create sales pipeline",
-    "description": "Create a new sales pipeline with at least one stage. Stages are inserted in array order; mark a stage `winLoss: \"won\"` or `\"lost\"` to record terminal outcomes.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120
-        },
-        "slug": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 64
-        },
-        "stages": {
-          "minItems": 1,
-          "maxItems": 20,
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 120
-              },
-              "winLoss": {
-                "type": "string",
-                "enum": [
-                  "open",
-                  "won",
-                  "lost"
-                ]
-              }
-            },
-            "required": [
-              "name"
-            ],
-            "additionalProperties": false
-          }
-        }
-      },
-      "required": [
-        "name",
-        "slug",
-        "stages"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_list_deals",
-    "title": "CRM: List deals",
-    "description": "List deals, optionally filtered by pipeline or stage.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:read"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "pipelineId": {
-          "type": "string"
-        },
-        "stageId": {
-          "type": "string"
-        },
-        "limit": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 200
-        }
-      },
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_create_deal",
-    "title": "CRM: Create deal",
-    "description": "Create a new deal in a pipeline. If `stageId` is omitted, the deal lands in the pipeline's first stage by position.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 200
-        },
-        "pipelineId": {
-          "type": "string"
-        },
-        "stageId": {
-          "type": "string"
-        },
-        "amountCents": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
-        },
-        "currency": {
-          "type": "string",
-          "minLength": 3,
-          "maxLength": 8
-        },
-        "primaryContactId": {
-          "type": "string"
-        },
-        "companyId": {
-          "type": "string"
-        },
-        "expectedCloseAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-        }
-      },
-      "required": [
-        "name",
-        "pipelineId"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_change_deal_stage",
-    "title": "CRM: Change deal stage",
-    "description": "Move a deal to a new stage. If the destination stage is a won/lost terminal, `closedAt` is stamped automatically.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "dealId": {
-          "type": "string"
-        },
-        "stageId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "dealId",
-        "stageId"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_log_activity",
-    "title": "CRM: Log activity",
-    "description": "Record an activity (note / call / email / meeting / task) against a contact, company, or deal. If `contactId` is set, the contact's `lastContactedAt` is also bumped.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "type": {
-          "type": "string",
-          "enum": [
-            "note",
-            "call",
-            "email",
-            "meeting",
-            "task"
-          ]
-        },
-        "subject": {
-          "type": "string",
-          "maxLength": 300
-        },
-        "body": {
-          "type": "string",
-          "maxLength": 50000
-        },
-        "contactId": {
-          "type": "string"
-        },
-        "companyId": {
-          "type": "string"
-        },
-        "dealId": {
-          "type": "string"
-        },
-        "dueAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-        },
-        "completedAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-        },
-        "metadata": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
-        }
-      },
-      "required": [
-        "type"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_list_activities",
-    "title": "CRM: List activities",
-    "description": "List CRM activities filtered by contact, deal, or company.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:read"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "contactId": {
-          "type": "string"
-        },
-        "dealId": {
-          "type": "string"
-        },
-        "companyId": {
-          "type": "string"
-        },
-        "limit": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 200
-        }
-      },
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_set_ai_summary",
-    "title": "CRM: Set AI summary or next action",
-    "description": "Set the AI-generated summary and/or next-action for a contact, company, or deal. These live in dedicated columns so agents do not pollute the human-edited description.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "entityType": {
-          "type": "string",
-          "enum": [
-            "contact",
-            "company",
-            "deal"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "summary": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "nextAction": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "entityType",
-        "id"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_propose_merge",
-    "title": "CRM: Propose a merge candidate",
-    "description": "File a structured proposal that two contacts are the same person. Pass `confidence` (\"high\" | \"medium\"), `evidence` (the matched signals — same email, same phone, similar name, etc.), `recommendedKeeperId` (which row to keep), and optionally `recommendedPatch` (fields to copy onto the keeper from the duplicate). Idempotent on the (contactA, contactB) pair while a pending proposal exists — calling again upserts the existing pending row. Rejects with a conflict when the pair has already been merged: either side carrying `customFields.mergedInto`, or an `applied` proposal already on record for the pair. The CRM clean-contact-data curator runs this on a periodic cadence; see `skill://crm/clean-contact-data`.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "contactAId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 64
-        },
-        "contactBId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 64
-        },
-        "confidence": {
-          "type": "string",
-          "enum": [
-            "high",
-            "medium"
-          ]
-        },
-        "evidence": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
-        },
-        "recommendedKeeperId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 64
-        },
-        "recommendedPatch": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
-        }
-      },
-      "required": [
-        "contactAId",
-        "contactBId",
-        "confidence",
-        "evidence",
-        "recommendedKeeperId"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_list_merge_proposals",
-    "title": "CRM: List merge proposals",
-    "description": "List CRM merge proposals, defaulting to `status: \"pending\"` (the operator review queue). Returns each proposal with both contacts embedded as summaries — no extra `crm_get_contact` calls needed. Pass `status: \"dismissed\"` once per curator pass to skip pairs the operator has already rejected. In hosts that support MCP Apps this renders an interactive review panel with side-by-side contact comparison and per-proposal apply/dismiss actions.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:read"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "status": {
-          "type": "string",
-          "enum": [
-            "pending",
-            "applied",
-            "dismissed"
-          ]
-        },
-        "limit": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 200
-        }
-      },
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_apply_merge_proposal",
-    "title": "CRM: Apply a merge proposal",
-    "description": "Atomically apply a pending merge proposal: copies `recommendedPatch` fields onto the keeper, reassigns the duplicate's activities, deals and relationships onto the keeper, archives the duplicate (adds `dedup-archived-YYYY-MM` tag, sets `customFields.mergedInto = <keeperId>`, sets `doNotContact: true`), dismisses any other pending proposals that reference the duplicate, and marks the proposal `applied`. The apply is bound to the proposal it was given: `fingerprint` must match the current `mergeFingerprint`, so a proposal whose keeper, patch or confidence changed since it was read is refused with a conflict and stays pending. Throws if the proposal is not in `pending` status.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 64
-        },
-        "fingerprint": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 64,
-          "description": "The `mergeFingerprint` carried by the proposal as it was read, binding this apply to that exact keeper and patch."
-        }
-      },
-      "required": [
-        "id",
-        "fingerprint"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_dismiss_merge_proposal",
-    "title": "CRM: Dismiss a merge proposal",
-    "description": "Mark a pending merge proposal as dismissed (the operator decided these are not the same person). The next CRM hygiene curator pass queries dismissed proposals and skips refiling the same pair. Optional `reason` is stored for audit. Throws if the proposal is not in `pending` status.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 64
-        },
-        "reason": {
-          "type": "string",
-          "maxLength": 500
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_list_segments",
-    "title": "CRM: List segments",
-    "description": "List saved contact segments. A segment is a named CRM filter — used as the audience for outreach campaigns and other targeting workflows. Returns each segment with its filter definition.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:read"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_get_segment",
-    "title": "CRM: Read segment",
-    "description": "Read one segment, including its filter definition.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:read"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 64
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_create_segment",
-    "title": "CRM: Create segment",
-    "description": "Create a saved contact segment. `filter` supports tagsAny (any-of match), tagsAll (all-of match), companyId, searchQuery (substring over name/email/title), contactedSince (ISO-8601 — narrows to contacts NOT contacted since that timestamp), and events (up to 5 behaviour filters on product events sent to POST /v1/events: `{ name, occurred, withinDays?, minCount? }` keeps contacts who did — or, with occurred:false, did not — trigger that event, optionally within the last N days and at least minCount times; list names with analytics_list_product_event_names). Combine fields and they AND together.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120
-        },
-        "description": {
-          "type": "string",
-          "maxLength": 1000
-        },
-        "filter": {
-          "type": "object",
-          "properties": {
-            "tagsAny": {
-              "maxItems": 32,
-              "type": "array",
-              "items": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 64
-              }
-            },
-            "tagsAll": {
-              "maxItems": 32,
-              "type": "array",
-              "items": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 64
-              }
-            },
-            "companyId": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 64
-            },
-            "searchQuery": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
-            },
-            "contactedSince": {
-              "type": "string",
-              "format": "date-time",
-              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-            },
-            "events": {
-              "maxItems": 5,
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "pattern": "^[a-z0-9_.-]{1,64}$"
-                  },
-                  "occurred": {
-                    "type": "boolean"
-                  },
-                  "withinDays": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 3650
-                  },
-                  "minCount": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 10000
-                  }
-                },
-                "required": [
-                  "name",
-                  "occurred"
-                ],
-                "additionalProperties": false
-              }
-            }
-          },
-          "additionalProperties": false
-        }
-      },
-      "required": [
-        "name",
-        "filter"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_update_segment",
-    "title": "CRM: Update segment",
-    "description": "Patch a segment: rename, edit description, or replace the filter.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 64
-        },
-        "patch": {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 120
-            },
-            "description": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "maxLength": 1000
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "filter": {
-              "type": "object",
-              "properties": {
-                "tagsAny": {
-                  "maxItems": 32,
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 64
-                  }
-                },
-                "tagsAll": {
-                  "maxItems": 32,
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 64
-                  }
-                },
-                "companyId": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 64
-                },
-                "searchQuery": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
-                },
-                "contactedSince": {
-                  "type": "string",
-                  "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                },
-                "events": {
-                  "maxItems": 5,
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "name": {
-                        "type": "string",
-                        "pattern": "^[a-z0-9_.-]{1,64}$"
-                      },
-                      "occurred": {
-                        "type": "boolean"
-                      },
-                      "withinDays": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 3650
-                      },
-                      "minCount": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 10000
-                      }
-                    },
-                    "required": [
-                      "name",
-                      "occurred"
-                    ],
-                    "additionalProperties": false
-                  }
-                }
-              },
-              "additionalProperties": false
-            }
-          },
-          "additionalProperties": false
-        }
-      },
-      "required": [
-        "id",
-        "patch"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_delete_segment",
-    "title": "CRM: Delete segment",
-    "description": "Delete a segment. Outreach campaigns referencing it will fail until reassigned.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 64
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_list_contacts_in_segment",
-    "title": "CRM: List contacts in segment",
-    "description": "Resolve a segment to its current contacts. ALWAYS excludes suppressed contacts (do_not_contact OR unsubscribed) AND contacts without a recorded lawful basis (consent_lawful_basis IS NULL). Use this — not crm_list_contacts — to materialize an outreach audience: the suppression and consent floors are non-overridable here.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:read"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 64
-        },
-        "limit": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 500
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_set_contact_consent",
-    "title": "CRM: Set contact consent",
-    "description": "Record the lawful basis and source for contacting this person. Required before they can appear in any outreach segment. `lawfulBasis` is one of `consent`, `legitimate_interest`, or `contract`. `source` is a short label (e.g. \"imported-2026-q2\", \"web-form-trial-signup\", \"event-attendee-summit-2025\"). Logs a CRM activity for audit.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "contactId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 64
-        },
-        "lawfulBasis": {
-          "type": "string",
-          "enum": [
-            "consent",
-            "legitimate_interest",
-            "contract"
-          ]
-        },
-        "source": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120
-        },
-        "evidence": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
-        },
-        "givenAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-        }
-      },
-      "required": [
-        "contactId",
-        "lawfulBasis",
-        "source"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_list_address_deliverability",
-    "title": "CRM: List address deliverability",
-    "description": "List email addresses this org can no longer reach, newest state change first. Deliverability is separate from consent: `undeliverable` means mail bounces or is rejected, not that the person opted out. Each row carries the state (`valid`, `soft_failing`, `undeliverable`), the rule that set it (`hard_bounce`, `smtp_rejected`, `delivery_dead`, `no_reply_notice`, `repeated_soft_failure`, `manual`), the evidence, and how many failures have been seen. Defaults to everything that is not `valid`.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:read"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "state": {
-          "type": "string",
-          "enum": [
-            "valid",
-            "soft_failing",
-            "undeliverable"
-          ]
-        },
-        "limit": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 200
-        }
-      },
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_set_address_deliverability",
-    "title": "CRM: Set address deliverability",
-    "description": "Record whether mail can reach an email address. `state: \"undeliverable\"` stops outreach sending to it — use when a bounce, a mailbox-closed notice, or the person's colleague tells you the address is dead. `state: \"valid\"` reopens it and zeroes the failure count — use once the address is corrected or the mailbox is confirmed working. This is a statement about the address, not about permission: it neither records an opt-out nor suppresses the contact on other channels, and consent is unchanged either way. `note` is short prose saying what you saw.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "address": {
-          "type": "string",
-          "format": "email",
-          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
-        },
-        "state": {
-          "type": "string",
-          "enum": [
-            "valid",
-            "undeliverable"
-          ]
-        },
-        "note": {
-          "type": "string",
-          "maxLength": 500
-        }
-      },
-      "required": [
-        "address",
-        "state"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_export",
-    "title": "CRM: Export data",
-    "description": "Export this org's CRM (pipelines and stages, segments, companies, contacts, deals, activities, and relationships) as a portable JSON payload. Pair with `crm_import` on another Munin server to move a CRM between self-hosted and cloud. Feed the returned `records` straight into `crm_import`.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:read"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_import",
-    "title": "CRM: Import data",
-    "description": "Import CRM `records` produced by `crm_export` (typically from another Munin server). Records are imported in dependency order (pipelines → segments → companies → contacts → deals → activities → relationships). Pipelines are upserted by slug, segments by name, companies by domain (else name), and contacts by email — so re-running is idempotent. Deals, activities, and relationships get fresh ids each run with their parents resolved through the `idMap`. Returns counts and an `idMap` (source id → id on this server); pass that `idMap` back into later imports so dependent records resolve their parents.",
-    "audiences": [
-      "admin"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "records": {
-          "type": "object",
-          "properties": {
-            "pipelines": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 120
-                  },
-                  "slug": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 64
-                  },
-                  "stages": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string"
-                        },
-                        "name": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 120
-                        },
-                        "position": {
-                          "type": "integer",
-                          "minimum": 0,
-                          "maximum": 9007199254740991
-                        },
-                        "winLoss": {
-                          "type": "string",
-                          "enum": [
-                            "open",
-                            "won",
-                            "lost"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "name",
-                        "position",
-                        "winLoss"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
-                },
-                "required": [
-                  "id",
-                  "name",
-                  "slug",
-                  "stages"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "segments": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 120
-                  },
-                  "description": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "filterDefinition": {
-                    "type": "object",
-                    "properties": {
-                      "tagsAny": {
-                        "maxItems": 32,
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 64
-                        }
-                      },
-                      "tagsAll": {
-                        "maxItems": 32,
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 64
-                        }
-                      },
-                      "companyId": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 64
-                      },
-                      "searchQuery": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 200
-                      },
-                      "contactedSince": {
-                        "type": "string",
-                        "format": "date-time",
-                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                      },
-                      "events": {
-                        "maxItems": 5,
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "name": {
-                              "type": "string",
-                              "pattern": "^[a-z0-9_.-]{1,64}$"
-                            },
-                            "occurred": {
-                              "type": "boolean"
-                            },
-                            "withinDays": {
-                              "type": "integer",
-                              "minimum": 1,
-                              "maximum": 3650
-                            },
-                            "minCount": {
-                              "type": "integer",
-                              "minimum": 1,
-                              "maximum": 10000
-                            }
-                          },
-                          "required": [
-                            "name",
-                            "occurred"
-                          ],
-                          "additionalProperties": false
-                        }
-                      }
-                    },
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "id",
-                  "name",
-                  "filterDefinition"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "companies": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  },
-                  "domain": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "maxLength": 200
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "tags": {
-                    "maxItems": 32,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 64
-                    }
-                  },
-                  "customFields": {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string"
-                    },
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "id",
-                  "name",
-                  "tags",
-                  "customFields"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "contacts": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "companyId": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "name": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "maxLength": 200
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "email": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "phone": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "maxLength": 40
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "title": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "maxLength": 120
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "address": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "maxLength": 500
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "tags": {
-                    "maxItems": 32,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 64
-                    }
-                  },
-                  "customFields": {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string"
-                    },
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "id",
-                  "tags",
-                  "customFields"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "deals": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 200
-                  },
-                  "pipelineId": {
-                    "type": "string"
-                  },
-                  "stageId": {
-                    "type": "string"
-                  },
-                  "amountCents": {
-                    "anyOf": [
-                      {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "currency": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "maxLength": 8
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "primaryContactId": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "companyId": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "expectedCloseAt": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  }
-                },
-                "required": [
-                  "id",
-                  "name",
-                  "pipelineId",
-                  "stageId"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "activities": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "note",
-                      "call",
-                      "email",
-                      "meeting",
-                      "task"
-                    ]
-                  },
-                  "subject": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "body": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "contactId": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "companyId": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "dealId": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "dueAt": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "completedAt": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "metadata": {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string"
-                    },
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "id",
-                  "type",
-                  "metadata"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "relationships": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "fromType": {
-                    "type": "string",
-                    "enum": [
-                      "contact",
-                      "company",
-                      "deal"
-                    ]
-                  },
-                  "fromId": {
-                    "type": "string"
-                  },
-                  "toType": {
-                    "type": "string",
-                    "enum": [
-                      "contact",
-                      "company",
-                      "deal"
-                    ]
-                  },
-                  "toId": {
-                    "type": "string"
-                  },
-                  "role": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 64
-                  },
-                  "startedAt": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "endedAt": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "metadata": {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string"
-                    },
-                    "additionalProperties": {}
-                  }
-                },
-                "required": [
-                  "id",
-                  "fromType",
-                  "fromId",
-                  "toType",
-                  "toId",
-                  "role",
-                  "metadata"
-                ],
-                "additionalProperties": false
-              }
-            }
-          },
-          "required": [
-            "pipelines",
-            "segments",
-            "companies",
-            "contacts",
-            "deals",
-            "activities",
-            "relationships"
-          ],
-          "additionalProperties": false
-        },
-        "idMap": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {
-            "type": "string"
-          }
-        }
-      },
-      "required": [
-        "records"
-      ],
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_get_my_contact",
-    "title": "CRM: Read my contact",
-    "description": "Read the CRM contact linked to the calling end-user. RLS restricts visibility to that single row. Refused when the end-user's identity was self-reported in chat, when the contact is keyed on an email or phone the end-user has not proven, or, on an email conversation, when the latest customer message failed DMARC or was forwarded.",
-    "audiences": [
-      "self_service"
-    ],
-    "scopes": [
-      "crm:read"
-    ],
-    "danger": null,
-    "readOnly": true,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_update_my_contact",
-    "title": "CRM: Update my contact",
-    "description": "Update the calling end-user's own contact record. Only basic personal fields (name, phone, address) are editable from this surface — tags, ownership, custom fields, and AI fields are admin-only. Refused when the end-user's identity was self-reported in chat, when the contact is keyed on an email or phone the end-user has not proven, or, on an email conversation, when the latest customer message failed DMARC or was forwarded.",
-    "audiences": [
-      "self_service"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 200
-        },
-        "phone": {
-          "type": "string",
-          "maxLength": 40
-        },
-        "address": {
-          "type": "string",
-          "maxLength": 500
-        }
-      },
-      "additionalProperties": false
-    }
-  },
-  {
-    "name": "crm_log_my_activity",
-    "title": "CRM: Log my activity",
-    "description": "Record an activity attributed to the calling end-user agent (e.g. a voice agent logging \"spoke with customer for 4m, follow-up needed\"). Auto-scoped to the end-user's own CRM contact when one exists.",
-    "audiences": [
-      "self_service"
-    ],
-    "scopes": [
-      "crm:write"
-    ],
-    "danger": "destructive",
-    "readOnly": false,
-    "inputSchema": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "type": {
-          "type": "string",
-          "enum": [
-            "note",
-            "call",
-            "email",
-            "meeting",
-            "task"
-          ]
-        },
-        "subject": {
-          "type": "string",
-          "maxLength": 300
-        },
-        "body": {
-          "type": "string",
-          "maxLength": 50000
-        },
-        "metadata": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {}
-        }
-      },
-      "required": [
-        "type"
       ],
       "additionalProperties": false
     }

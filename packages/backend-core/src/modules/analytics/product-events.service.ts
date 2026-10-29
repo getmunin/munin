@@ -1,8 +1,9 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { and, count, desc, eq, gte, max, sql } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { IdentityService } from '../identity/identity.service.ts';
+import { CONSENT_LAWFUL_BASES, CrmService, type ConsentLawfulBasis } from '../crm/crm.service.ts';
 import { normalizeIdentityEmail } from './visitor-identity.ts';
 import { KNOWN_EVENT_TYPES } from '@getmunin/types';
 
@@ -13,6 +14,7 @@ export const RESERVED_EVENT_PREFIXES: readonly string[] = [
   ...new Set(KNOWN_EVENT_TYPES.map((type) => `${type.slice(0, type.indexOf('.'))}.`)),
 ];
 export const PRODUCT_EVENT_MAX_PROPERTIES_BYTES = 8_192;
+export const PRODUCT_EVENT_CONSENT_SCOPE = 'crm:write';
 
 export interface ProductEventIdentity {
   contactId?: string;
@@ -22,12 +24,20 @@ export interface ProductEventIdentity {
   verified?: boolean;
 }
 
+export interface ProductEventConsent {
+  lawfulBasis: ConsentLawfulBasis;
+  source: string;
+  givenAt?: string;
+  evidence?: Record<string, unknown>;
+}
+
 export interface ProductEventInput {
   id: string;
   name: string;
   occurredAt?: string;
   identity: ProductEventIdentity;
   properties?: Record<string, unknown>;
+  consent?: ProductEventConsent;
 }
 
 export interface ProductEventResult {
@@ -36,6 +46,7 @@ export interface ProductEventResult {
   eventId: string | null;
   contactId: string | null;
   endUserId: string | null;
+  consent?: 'recorded' | 'kept';
 }
 
 export interface ProductEventNameDto {
@@ -49,6 +60,7 @@ export class ProductEventsService {
   constructor(
     @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
     @Inject(IdentityService) private readonly identity: IdentityService,
+    @Inject(CrmService) private readonly crm: Pick<CrmService, 'createContact' | 'setContactConsent'>,
   ) {}
 
   async record(events: readonly ProductEventInput[]): Promise<ProductEventResult[]> {
@@ -57,6 +69,7 @@ export class ProductEventsService {
         `analytics_invalid: at most ${PRODUCT_EVENT_MAX_BATCH} events per request`,
       );
     }
+    if (events.some((e) => e.consent)) assertMayRecordConsent();
     const results: ProductEventResult[] = [];
     for (const event of events) results.push(await this.recordOne(event));
     return results;
@@ -109,6 +122,7 @@ export class ProductEventsService {
         `analytics_invalid: properties must be at most ${PRODUCT_EVENT_MAX_PROPERTIES_BYTES} bytes`,
       );
     }
+    const consent = event.consent ? validConsent(event, occurredAt) : null;
 
     const t = schema.analyticsProductEvents;
     const [existing] = await ctx.db
@@ -127,7 +141,20 @@ export class ProductEventsService {
     }
 
     const verified = event.identity.verified !== false;
-    const { contactId, endUserId } = verified ? await this.resolveSubject(event.identity) : { contactId: null, endUserId: null };
+    if (consent && !verified) {
+      throw new BadRequestException(
+        `analytics_invalid: event ${event.id} records consent for an identity that is not verified`,
+      );
+    }
+    const subject = verified ? await this.resolveSubject(event.identity) : { contactId: null, endUserId: null };
+    const endUserId = subject.endUserId;
+    let contactId = subject.contactId;
+    let consentResult: 'recorded' | 'kept' | undefined;
+    if (consent) {
+      const applied = await this.applyConsent(event, consent, contactId, endUserId);
+      contactId = applied.contactId;
+      consentResult = applied.result;
+    }
     const [row] = await ctx.db
       .insert(t)
       .values({
@@ -158,7 +185,52 @@ export class ProductEventsService {
         ...(verified ? {} : { identityVerified: false }),
       },
     });
-    return { id: event.id, status: 'recorded', eventId: row.id, contactId, endUserId };
+    return {
+      id: event.id,
+      status: 'recorded',
+      eventId: row.id,
+      contactId,
+      endUserId,
+      ...(consentResult ? { consent: consentResult } : {}),
+    };
+  }
+
+  private async applyConsent(
+    event: ProductEventInput,
+    consent: ValidConsent,
+    contactId: string | null,
+    endUserId: string | null,
+  ): Promise<{ contactId: string; result: 'recorded' | 'kept' }> {
+    const ctx = getCurrentContext();
+    let id = contactId;
+    if (!id) {
+      const email = normalizeIdentityEmail(event.identity.email);
+      if (!email) {
+        throw new BadRequestException(
+          `analytics_invalid: event ${event.id} records consent, but its identity matches no contact and has no email to create one with`,
+        );
+      }
+      const created = await this.crm.createContact({
+        email,
+        ...(event.identity.phone?.trim() ? { phone: event.identity.phone.trim() } : {}),
+        ...(endUserId ? { endUserId } : {}),
+      });
+      id = created.id;
+    }
+    const [current] = await ctx.db
+      .select({ basis: schema.crmContacts.consentLawfulBasis })
+      .from(schema.crmContacts)
+      .where(eq(schema.crmContacts.id, id))
+      .limit(1);
+    if (current?.basis) return { contactId: id, result: 'kept' };
+    await this.crm.setContactConsent({
+      contactId: id,
+      lawfulBasis: consent.lawfulBasis,
+      source: consent.source,
+      givenAt: consent.givenAt,
+      evidence: { ...consent.evidence, productEvent: { id: event.id, name: event.name.trim() } },
+    });
+    return { contactId: id, result: 'recorded' };
   }
 
   private async resolveSubject(
@@ -221,4 +293,47 @@ export class ProductEventsService {
     }
     return { contactId, endUserId };
   }
+}
+
+interface ValidConsent {
+  lawfulBasis: ConsentLawfulBasis;
+  source: string;
+  givenAt: string;
+  evidence: Record<string, unknown>;
+}
+
+function assertMayRecordConsent(): void {
+  const actor = getCurrentContext().actor!;
+  if (actor.type === 'user' || actor.type === 'system') return;
+  if (actor.hasScope(PRODUCT_EVENT_CONSENT_SCOPE)) return;
+  throw new ForbiddenException(
+    `analytics_forbidden: recording consent with an event needs a key with the ${PRODUCT_EVENT_CONSENT_SCOPE} scope as well as analytics:write`,
+  );
+}
+
+function validConsent(event: ProductEventInput, occurredAt: Date): ValidConsent {
+  const consent = event.consent!;
+  if (!CONSENT_LAWFUL_BASES.includes(consent.lawfulBasis)) {
+    throw new BadRequestException(
+      `analytics_invalid: consent.lawfulBasis must be one of ${CONSENT_LAWFUL_BASES.join(', ')}`,
+    );
+  }
+  const source = consent.source.trim();
+  if (!source) throw new BadRequestException('analytics_invalid: consent.source must not be empty');
+  const givenAt = consent.givenAt ? new Date(consent.givenAt) : occurredAt;
+  if (Number.isNaN(givenAt.valueOf())) {
+    throw new BadRequestException('analytics_invalid: consent.givenAt must be an ISO timestamp');
+  }
+  if (givenAt.getTime() > Date.now() + PRODUCT_EVENT_MAX_FUTURE_SKEW_MS) {
+    throw new BadRequestException(
+      `analytics_invalid: consent.givenAt ${givenAt.toISOString()} is in the future; send the time the person agreed`,
+    );
+  }
+  const evidence = consent.evidence ?? {};
+  if (Buffer.byteLength(JSON.stringify(evidence)) > PRODUCT_EVENT_MAX_PROPERTIES_BYTES) {
+    throw new BadRequestException(
+      `analytics_invalid: consent.evidence must be at most ${PRODUCT_EVENT_MAX_PROPERTIES_BYTES} bytes`,
+    );
+  }
+  return { lawfulBasis: consent.lawfulBasis, source, givenAt: givenAt.toISOString(), evidence };
 }

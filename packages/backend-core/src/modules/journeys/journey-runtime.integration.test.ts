@@ -52,7 +52,7 @@ const DAY = 86_400_000;
     journeys = new JourneysService(webhooks);
     runtime = new JourneyRuntimeService(webhooks, crm, { withdrawRun: () => Promise.resolve(0) } as never, new CuratorJobsService(webhooks), { requestHandover: () => Promise.resolve(null) });
     worker = new JourneyRuntimeWorker(appDb, runtime);
-    events = new ProductEventsService(webhooks, new IdentityService(webhooks));
+    events = new ProductEventsService(webhooks, new IdentityService(webhooks), crm);
   });
 
   afterAll(async () => {

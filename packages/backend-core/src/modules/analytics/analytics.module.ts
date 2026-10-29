@@ -3,8 +3,10 @@ import { AnalyticsService } from './analytics.service.ts';
 import { AnalyticsAdminTools } from './analytics.tools.ts';
 import { GeoIpService } from './geoip.service.ts';
 import { ProductEventsService } from './product-events.service.ts';
+import { CrmModule } from '../crm/crm.module.ts';
 
 @Module({
+  imports: [CrmModule],
   providers: [AnalyticsService, AnalyticsAdminTools, GeoIpService, ProductEventsService],
   exports: [AnalyticsService, AnalyticsAdminTools, GeoIpService, ProductEventsService],
 })

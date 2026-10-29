@@ -10355,6 +10355,129 @@
     }
   },
   {
+    "name": "journeys_simulate",
+    "title": "Journeys: Simulate a version",
+    "description": "Dry-run a journey version (the open draft by default) over sample contacts — given ids, a segment, the entry segment, or the most recently updated contacts — without writing or sending anything. Returns who would enter or be excluded and why, arrivals per node, edges taken, exits by reason, the send decision for each email (send, defer or skip with the reason) and rendered samples, plus the assumptions the dry run made (waits elapse, awaited events do not arrive, reviewers approve).",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "contactIds": {
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "segmentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "renderSamples": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        }
+      },
+      "required": [
+        "journeyId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_request_publish",
+    "title": "Journeys: Request publish of a draft",
+    "description": "Ask for a draft version to go live. The draft must validate without errors. Returns the diff against the live version (with the emails that would send without review), the validation result, a simulation and the dashboard path where a signed-in person confirms it. Nothing goes live until that person confirms; editing the draft afterwards cancels the request.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "journeyId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_get_report",
+    "title": "Journeys: Get a journey report",
+    "description": "Results for a journey (the live version by default, or one version): enrollments by state and exit reason, goal conversion for the treated group against the holdout and the difference between them, arrivals, waiting counts and edge distribution per node, and the outcome of each email step.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "journeyId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "journeys_list_enrollments",
     "title": "Journeys: List enrollments",
     "description": "List the people in a journey, newest first: which version they entered, where they are now, whether they are in the holdout, and why they left if they did. Filter by state or contact.",

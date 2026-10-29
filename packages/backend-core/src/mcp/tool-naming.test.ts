@@ -73,6 +73,7 @@ const TITLE_WORDS_BY_VERB: Record<string, readonly string[]> = {
   search: ['search'],
   send: ['send'],
   set: ['set'],
+  simulate: ['simulate'],
   strip: ['strip'],
   submit: ['submit'],
   test: ['test'],

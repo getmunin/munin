@@ -1,6 +1,6 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
-import { and, asc, desc, eq, gt, gte, inArray, isNotNull, lt, ne, notInArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, notInArray, or, sql } from 'drizzle-orm';
 import { schema, type Tx } from '@getmunin/db';
 import {
   getCurrentContext,
@@ -21,6 +21,7 @@ import {
   type EmailContentFormat,
 } from './email-template-render.ts';
 import { OutreachInvalidError } from './outreach.service.ts';
+import { checkSendPolicyBatch } from './send-policy.ts';
 import {
   decidedBefore,
   toDecidedActor,
@@ -629,7 +630,13 @@ export class OutreachBroadcastsService {
     const queued = await ctx.db
       .select()
       .from(r)
-      .where(and(eq(r.broadcastId, id), eq(r.status, 'queued')))
+      .where(
+        and(
+          eq(r.broadcastId, id),
+          eq(r.status, 'queued'),
+          or(isNull(r.notBefore), lte(r.notBefore, new Date())),
+        ),
+      )
       .orderBy(asc(r.id))
       .limit(allowance)
       .for('update', { skipLocked: true });
@@ -676,10 +683,23 @@ export class OutreachBroadcastsService {
 
     const orgName = await this.orgName();
     const now = new Date();
+    const timing = await checkSendPolicyBatch({
+      contactIds: queued.map((q) => q.contactId).filter((c): c is string => c !== null && contacts.has(c)),
+      policy: { channel: 'email', class: 'marketing', cooldownHoursAfterConversation: 0 },
+      now,
+    });
     const messages: BulkEmail[] = [];
     let skipped = 0;
     for (const recipient of queued) {
       const contact = recipient.contactId ? contacts.get(recipient.contactId) : undefined;
+      const decision = recipient.contactId ? timing.get(recipient.contactId) : undefined;
+      if (decision?.decision === 'defer' && decision.reason !== 'frequency_cap') {
+        await ctx.db
+          .update(r)
+          .set({ notBefore: decision.until, updatedAt: now })
+          .where(eq(r.id, recipient.id));
+        continue;
+      }
       const skipReason = !contact
         ? 'contact_removed'
         : contact.unsubscribedAt
@@ -690,7 +710,11 @@ export class OutreachBroadcastsService {
               ? 'no_lawful_basis'
               : undeliverable.has(recipient.address)
                 ? 'undeliverable'
-                : null;
+                : decision?.decision === 'defer'
+                  ? 'frequency_cap'
+                  : decision?.decision === 'skip'
+                    ? decision.reason
+                    : null;
       if (skipReason) {
         skipped += 1;
         await ctx.db

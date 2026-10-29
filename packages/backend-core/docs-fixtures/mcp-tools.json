@@ -10355,6 +10355,114 @@
     }
   },
   {
+    "name": "outreach_get_send_rules",
+    "title": "Outreach: Read send rules",
+    "description": "Read the org's send rules for marketing: default time zone, quiet hours, weekdays, weekly cap per contact and the cool-down after a contact last wrote to the team. They apply to every marketing send — campaign first touches and follow-ups, broadcasts and journey messages; a journey or a campaign can only make them stricter. Replies to a contact's own message are exempt. `configured: false` means the org has not set them yet and none of them apply; `recommended` holds suggested values.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "outreach:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "outreach_configure_send_rules",
+    "title": "Outreach: Configure send rules",
+    "description": "Replace the org's send rules for marketing. A send that would break them waits for the next allowed time in the contact's own time zone (`customFields.timezone`, else the journey's, else this `timezone`); a broadcast recipient already over the weekly cap is skipped with `frequency_cap`. These org rules never hold back transactional messages or replies.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "outreach:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "timezone": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Time zone for contacts whose own `customFields.timezone` is not set."
+        },
+        "quietHours": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d-([01]\\d|2[0-3]):[0-5]\\d$"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "When marketing must not go out, e.g. \"20:00-08:00\"; null for none."
+        },
+        "validDays": {
+          "anyOf": [
+            {
+              "minItems": 1,
+              "maxItems": 7,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "mon",
+                  "tue",
+                  "wed",
+                  "thu",
+                  "fri",
+                  "sat",
+                  "sun"
+                ]
+              }
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Weekdays marketing may go out on; null for every day."
+        },
+        "weeklyCap": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Most marketing messages one contact receives in any 7 days; null for no cap."
+        },
+        "cooldownHoursAfterConversation": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 720,
+          "description": "Hours to wait after a contact last wrote to the team before marketing reaches them again."
+        }
+      },
+      "required": [
+        "timezone",
+        "quietHours",
+        "validDays",
+        "weeklyCap",
+        "cooldownHoursAfterConversation"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "journeys_list_templates",
     "title": "Journeys: List templates",
     "description": "Starter journey templates (inbound lead, trial onboarding, webinar, win-back, satisfaction after a conversation, sunset unengaged — each in nb, sv and en) and the org's own saved templates, with the parameters each needs. Filter by locale.",

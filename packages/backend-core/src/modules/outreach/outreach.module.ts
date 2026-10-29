@@ -14,6 +14,8 @@ import { OutreachBroadcastReplySink } from './outreach-broadcast-reply.sink.ts';
 import { OutreachAdminTools } from './outreach.tools.ts';
 import { OutreachSendWorker } from './outreach.send.worker.ts';
 import { OutreachOutcomeSink } from './outreach-outcome.sink.ts';
+import { OutreachSendRulesService } from './send-rules.ts';
+import { OutreachSendRulesTools } from './outreach-send-rules.tools.ts';
 
 @Module({
   imports: [ConvModule, CrmModule, CuratorModule],
@@ -29,12 +31,15 @@ import { OutreachOutcomeSink } from './outreach-outcome.sink.ts';
     OutreachBroadcastReplySink,
     OutreachSendWorker,
     OutreachOutcomeSink,
+    OutreachSendRulesService,
+    OutreachSendRulesTools,
   ],
   exports: [
     OutreachService,
     OutreachUnsubscribeService,
     OutreachEmailTemplatesService,
     OutreachBroadcastsService,
+    OutreachSendRulesService,
   ],
 })
 export class OutreachModule implements OnModuleInit {

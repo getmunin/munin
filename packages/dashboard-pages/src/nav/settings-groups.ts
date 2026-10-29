@@ -19,6 +19,7 @@ export const OSS_SETTINGS_GROUPS: SettingsSubNavGroup[] = [
       { href: '/dashboard/settings/team', labelKey: 'team' },
       { href: '/dashboard/settings/ai', labelKey: 'ai' },
       { href: '/dashboard/settings/channels', labelKey: 'channels' },
+      { href: '/dashboard/settings/sending', labelKey: 'sending' },
       { href: '/dashboard/settings/integrations', labelKey: 'integrations' },
       { href: '/dashboard/settings/trackers', labelKey: 'trackers' },
       { href: '/dashboard/settings/privacy', labelKey: 'privacy', alertSource: 'data_protection' },

@@ -1383,7 +1383,8 @@
         "awaiting": "Awaiting publish",
         "draft": "Draft",
         "errors": "{count, plural, one {# error} other {# errors}}",
-        "review": "Review and publish"
+        "review": "Review and publish",
+        "proposed": "Proposed by the optimiser"
       },
       "publish": {
         "title": "Publish version {version}",

@@ -501,6 +501,10 @@ export class JourneyRuntimeService {
       }
       case 'split': {
         const bucket = stableBucket(step.enrollment.subjectKey, step.enrollment.journeyId, node.id);
+        const control = node.control ? node.paths.find((p) => p.name === node.control) : undefined;
+        if (control && node.sampleSize && (await this.splitArrivals(step, node.id)) >= node.sampleSize) {
+          return { kind: 'advance', edge: control.name, to: control.next, output: { bucket, sampleFull: true } };
+        }
         let cumulative = 0;
         for (const path of node.paths) {
           cumulative += path.percent;
@@ -965,6 +969,26 @@ export class JourneyRuntimeService {
       .orderBy(desc(r.startedAt))
       .limit(1);
     return latest ?? null;
+  }
+
+  private async splitArrivals(step: StepContext, nodeId: string): Promise<number> {
+    const ctx = getCurrentContext();
+    const r = schema.journeyStepRuns;
+    const e = schema.journeyEnrollments;
+    const [row] = await ctx.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(r)
+      .innerJoin(e, eq(e.id, r.enrollmentId))
+      .where(
+        and(
+          eq(e.journeyId, step.enrollment.journeyId),
+          eq(e.version, step.enrollment.version),
+          eq(r.nodeId, nodeId),
+          eq(r.status, 'completed'),
+          sql`NOT (${r.output} ? 'sampleFull')`,
+        ),
+      );
+    return row?.n ?? 0;
   }
 
   private async isSmsThread(enrollmentId: string, conversationId: string): Promise<boolean> {

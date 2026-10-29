@@ -25,6 +25,7 @@ export interface JourneyVersionDto {
   publishRequestedAt: string | null;
   publishedAt: string | null;
   publishedByActorId: string | null;
+  proposal?: { hypothesis?: string; rationale?: string } | null;
   createdAt: string;
 }
 

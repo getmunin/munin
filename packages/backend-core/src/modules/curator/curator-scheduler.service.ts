@@ -16,6 +16,8 @@ import { DB } from '../../common/db/db.module.ts';
 import { withSchedulerLock } from '../../common/scheduler-lock/index.ts';
 import { CuratorJobsService } from './curator-jobs.service.ts';
 
+const JOURNEYS_OPTIMISE_PROMPT =
+  'Weekly journey optimisation pass. For each live journey with settings.optimiser set to "weekly", follow skill://journeys/optimise-journey: read its results and propose at most one change as a new draft version for a person to review.';
 const KB_SWEEP_PROMPT =
   'Run a KB curation pass over the last 7 days of resolved-handover conversations. Follow the procedure in the skill exactly. First fetch prior decisions via kb_list_curation_decisions so you do not redraft sources an operator already dismissed or published. Scope the pass with conv_list_conversations({ handover: "resolved", since: <7 days ago> }) — do not widen it. Skip duplicates and one-off answers. File each candidate via kb_propose_curation_candidate. Stop when there are no more candidates to file.';
 const CRM_HYGIENE_PROMPT =
@@ -31,6 +33,7 @@ interface SweepDef {
   jobUri: string;
   userPrompt: string;
   dedupeKey: string;
+  orgs?: () => Promise<{ id: string }[]>;
 }
 
 const SWEEP_SPREAD_SECONDS_PER_ORG = 60;
@@ -95,6 +98,17 @@ export class CuratorSchedulerService implements OnModuleInit {
         userPrompt: OUTREACH_DRAFT_FOLLOWUP_PROMPT,
         dedupeKey: 'outreach-draft-followup:scheduled',
       },
+      {
+        name: 'curator-journeys-optimise',
+        cron: parseEnvCron({
+          name: 'MUNIN_CURATOR_JOURNEYS_OPTIMISE_CRON',
+          default: CronExpression.EVERY_WEEK,
+        }),
+        jobUri: 'skill://journeys/optimise-journey',
+        userPrompt: JOURNEYS_OPTIMISE_PROMPT,
+        dedupeKey: 'journeys-optimise:scheduled',
+        orgs: () => this.orgsWithOptimiser(),
+      },
     ];
 
     for (const sweep of sweeps) {
@@ -114,9 +128,9 @@ export class CuratorSchedulerService implements OnModuleInit {
   }
 
   private async runSweep(sweep: SweepDef): Promise<void> {
-    const orgs = await this.db
-      .select({ id: schema.orgs.id })
-      .from(schema.orgs);
+    const orgs = sweep.orgs
+      ? await sweep.orgs()
+      : await this.db.select({ id: schema.orgs.id }).from(schema.orgs);
     if (orgs.length === 0) return;
 
     const spreadSeconds = sweepSpreadSeconds(orgs.length);
@@ -135,6 +149,21 @@ export class CuratorSchedulerService implements OnModuleInit {
         );
       }
     }
+  }
+
+  private async orgsWithOptimiser(): Promise<{ id: string }[]> {
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.bypass_rls', 'on', true)`);
+      const result = await tx.execute(sql`
+        SELECT DISTINCT j.org_id AS id
+          FROM journeys j
+          JOIN journey_versions v ON v.journey_id = j.id AND v.number = j.live_version
+         WHERE j.status = 'live'
+           AND v.spec->'settings'->>'optimiser' = 'weekly'
+      `);
+      const rows = Array.isArray(result) ? result : ((result as { rows?: unknown[] }).rows ?? []);
+      return rows as { id: string }[];
+    });
   }
 
   private async enqueueAsOrg(

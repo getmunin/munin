@@ -332,4 +332,69 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect(report.goal.lift).toBeNull();
     expect(report.integrity).toEqual({ duplicateSends: 0, enrollmentsWithoutTrace: 0 });
   });
+
+  it('stops a split at its sample, names the winner, and lets the optimiser propose but not publish a change', async () => {
+    const splitSpec = spec({
+      start: 'ab',
+      nodes: [
+        {
+          id: 'ab',
+          type: 'split',
+          paths: [
+            { name: 'a', percent: 50, next: 'done' },
+            { name: 'b', percent: 50, next: 'done' },
+          ],
+          control: 'a',
+          sampleSize: 100,
+        },
+        { id: 'done', type: 'exit' },
+      ],
+    });
+    const journey = await asAgent(() => journeys.create({ name: 'Split', outreachCampaignId: campaignId, spec: splitSpec }));
+    const request = await asAgent(() => publishing.requestPublish(journey.id));
+    await asPerson(() => publishing.confirmPublish(journey.id, 1, request.fingerprint));
+    for (let i = 0; i < 110; i++) {
+      const c = await contact(`Person${i}`, ['trial']);
+      await asAgent(() => runtime.enroll({ journeyId: journey.id, subject: { contactId: c.id, endUserId: null }, source: { type: 'manual' } }));
+    }
+    for (let i = 0; i < 4; i++) await worker.tick();
+
+    const steps = await db
+      .select({ enrollmentId: schema.journeyStepRuns.enrollmentId, edge: schema.journeyStepRuns.edgeTaken, output: schema.journeyStepRuns.output })
+      .from(schema.journeyStepRuns)
+      .where(eq(schema.journeyStepRuns.nodeId, 'ab'));
+    const sampled = steps.filter((s) => !s.output.sampleFull);
+    expect(sampled).toHaveLength(100);
+    expect(steps.filter((s) => s.output.sampleFull).every((s) => s.edge === 'a')).toBe(true);
+    for (const s of sampled.filter((x) => x.edge === 'b')) {
+      await db.update(schema.journeyEnrollments).set({ goalReachedAt: new Date() }).where(eq(schema.journeyEnrollments.id, s.enrollmentId));
+    }
+
+    const [result] = await asAgent(() => publishing.splitResults(journey.id));
+    expect(result).toMatchObject({ nodeId: 'ab', control: 'a', sampleSize: 100, sampleFull: true, winner: 'b' });
+    const b = result!.paths.find((p) => p.path === 'b')!;
+    expect(b.rate).toBe(1);
+    expect(b.pValue).toBeLessThan(0.05);
+
+    const promoted = { ...splitSpec, start: 'done', nodes: [{ id: 'done', type: 'exit' }] };
+    const proposal = await asAgent(() =>
+      publishing.proposeChange({
+        journeyId: journey.id,
+        spec: promoted,
+        hypothesis: 'Path b converts better for everyone',
+        rationale: 'b converted every run, a none',
+        evidence: { split: result },
+      }),
+    );
+    expect(proposal).toMatchObject({ version: 2, diff: { againstVersion: 1, removedNodes: ['ab'] }, validation: { valid: true } });
+    expect(proposal.simulation).not.toBeNull();
+    const detail = await asAgent(() => journeys.get(journey.id));
+    expect(detail.live!.number).toBe(1);
+    expect(detail.draft).toMatchObject({ number: 2, proposal: { hypothesis: 'Path b converts better for everyone' } });
+    await expect(
+      asAgent(() =>
+        publishing.proposeChange({ journeyId: journey.id, spec: promoted, hypothesis: 'again', rationale: 'again', evidence: {} }),
+      ),
+    ).rejects.toThrow(/still open/);
+  });
 });

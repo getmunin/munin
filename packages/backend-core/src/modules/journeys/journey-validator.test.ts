@@ -240,4 +240,25 @@ describe('journey validator', () => {
       validateJourneySpec(spec, { ...refs, selfJourneyId: 'jrn_a', journeys: new Map() }).errors.map((e) => e.code),
     ).toEqual(['unknown_journey']);
   });
+
+  it('refuses enrich fields that Munin reads itself', () => {
+    const spec = parseJourneySpec({
+      entry: { trigger: { type: 'manual' } },
+      goal: { event: 'subscription.started', windowDays: 30 },
+      start: 'enrich',
+      nodes: [
+        {
+          id: 'enrich',
+          type: 'agent',
+          mode: 'enrich',
+          instructions: 'Work out where they are',
+          inputs: ['contact'],
+          fields: [{ key: 'timezone', type: 'string', description: 'IANA zone' }],
+          next: 'done',
+        },
+        { id: 'done', type: 'exit' },
+      ],
+    }).spec!;
+    expect(validateJourneySpec(spec, refs).errors.map((e) => e.code)).toEqual(['agent_fields']);
+  });
 });

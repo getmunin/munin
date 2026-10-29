@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
-import { and, asc, desc, eq, inArray, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
-import { getCurrentContext, readApiBaseUrl, WebhookDispatcher } from '@getmunin/core';
+import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
+import { getCurrentContext, readApiBaseUrl, WebhookDispatcher, withContext } from '@getmunin/core';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   CALL_OUTCOMES,
@@ -19,7 +19,7 @@ import { buildAgentInputs, buildDecidePrompt, buildDraftPrompt, buildEnrichPromp
 import { OUTREACH_ELIGIBILITY_FLOOR, segmentMatchFilters } from '../crm/segment-filter.ts';
 import { collectConditionNeeds, evaluateCondition, type ConditionFacts } from './journey-conditions.ts';
 import { JOURNEY_RUNTIME_ACTOR_ID, journeyEventKey } from './journey-event.sink.ts';
-import { MAX_ACTION_ATTEMPTS, nextValidTime, retryDelayMs, stableBucket } from './journey-time.ts';
+import { MAX_ACTION_ATTEMPTS, nextLocalOccurrence, nextValidTime, retryDelayMs, stableBucket } from './journey-time.ts';
 
 export const ENROLLMENT_STATES = ['active', 'waiting', 'done', 'exited'] as const;
 export type EnrollmentState = (typeof ENROLLMENT_STATES)[number];
@@ -168,6 +168,7 @@ export class JourneyRuntimeService {
       return { status: 'skipped', reason: 'entry_closed' };
     }
 
+    await this.assertSubjectExists(input.subject);
     const subject = await this.completeSubject(input.subject);
     const subjectKey = subjectKeyOf(subject);
     if (!subjectKey) return { status: 'skipped', reason: 'no_subject' };
@@ -197,6 +198,29 @@ export class JourneyRuntimeService {
     const entryKey = concurrent ? (typeof eventId === 'string' ? eventId : randomUUID()) : '';
     const same = open.find((o) => o.entryKey === entryKey);
     if (same) return { status: 'skipped', reason: 'already_active', enrollmentId: same.id };
+    if (concurrent) {
+      const [seen] = await ctx.db
+        .select({ id: e.id })
+        .from(e)
+        .where(and(eq(e.journeyId, journey.id), eq(e.subjectKey, subjectKey), eq(e.entryKey, entryKey)))
+        .limit(1);
+      if (seen) return { status: 'skipped', reason: 'already_enrolled', enrollmentId: seen.id };
+    }
+    if (spec.goal && !concurrent) {
+      const [heldOut] = await ctx.db
+        .select({ id: e.id })
+        .from(e)
+        .where(
+          and(
+            eq(e.journeyId, journey.id),
+            eq(e.subjectKey, subjectKey),
+            eq(e.holdout, true),
+            gte(e.enteredAt, new Date(now.getTime() - spec.goal.windowDays * 86_400_000)),
+          ),
+        )
+        .limit(1);
+      if (heldOut) return { status: 'skipped', reason: 'in_holdout', enrollmentId: heldOut.id };
+    }
     if (!concurrent && open[0]) return { status: 'skipped', reason: 'already_active', enrollmentId: open[0].id };
     if (open.length >= MAX_CONCURRENT_ENROLLMENTS) return { status: 'skipped', reason: 'concurrency_cap' };
 
@@ -259,18 +283,28 @@ export class JourneyRuntimeService {
         await ctx.db.update(j).set({ nextEntryAt: null }).where(eq(j.id, journey.id));
         continue;
       }
-      const contacts = await this.segmentContacts(trigger.segmentId, limit);
+      const contacts = await this.segmentContacts(trigger.segmentId, limit, {
+        journeyId: journey.id,
+        reentry: spec.entry.reentry,
+        since: journey.nextEntryAt,
+      });
       for (const contactId of contacts) {
-        const result = await this.enroll({
-          journeyId: journey.id,
-          subject: { contactId, endUserId: null },
-          source: { type: 'segment', segmentId: trigger.segmentId },
-        });
+        const result = await this.inSavepoint(() =>
+          this.enroll({
+            journeyId: journey.id,
+            subject: { contactId, endUserId: null },
+            source: { type: 'segment', segmentId: trigger.segmentId },
+          }),
+        ).catch((): EnrollResult => ({ status: 'skipped', reason: 'enroll_failed' }));
         if (result.status === 'enrolled') enrolled += 1;
       }
+      const more = contacts.length >= limit;
       await ctx.db
         .update(j)
-        .set({ nextEntryAt: nextScheduledEntry(trigger, now), updatedAt: new Date() })
+        .set({
+          nextEntryAt: more ? journey.nextEntryAt : nextScheduledEntry(trigger, now, spec.settings.timezone),
+          updatedAt: new Date(),
+        })
         .where(eq(j.id, journey.id));
     }
     return enrolled;
@@ -328,6 +362,7 @@ export class JourneyRuntimeService {
 
     for (const enrollment of enrollments) {
       const spec = await this.spec(enrollment.journeyId, enrollment.version);
+      if (enrollment.source.eventId === row.eventId || occurredAt.getTime() < enrollment.enteredAt.getTime()) continue;
       if (spec.goal && !enrollment.goalReachedAt && spec.goal.event === key && payloadMatches(payload, spec.goal.where)) {
         const windowEnd = enrollment.enteredAt.getTime() + spec.goal.windowDays * 86_400_000;
         if (occurredAt.getTime() <= windowEnd) {
@@ -601,7 +636,10 @@ export class JourneyRuntimeService {
               wait: {
                 kind: 'event',
                 eventKey: 'outreach.outcome.recorded',
-                match: { contactId: step.enrollment.contactId ?? '' },
+                match: {
+                  contactId: step.enrollment.contactId ?? '',
+                  conversationId: (await this.proposalConversation(previous.proposalId)) ?? '',
+                },
                 timeoutAt: new Date(step.now.getTime() + (parseIsoDurationMs(node.outcomeTimeout ?? 'PT6H') ?? 21_600_000)),
               },
               output: { ...previous, awaitingOutcome: true },
@@ -643,6 +681,7 @@ export class JourneyRuntimeService {
         body: content.body,
         format: content.format,
         templateId: node.content.templateId,
+        templateHash: node.approval === 'auto' ? await this.pinnedTemplateHash(step, node.id) : null,
         preheader: node.content.preheader,
         auto: !sms && node.approval === 'auto',
         policy: {
@@ -843,6 +882,7 @@ export class JourneyRuntimeService {
     if (!run || run.nodeType !== 'agent') {
       throw new NotFoundException(`journeys_not_found: agent step ${input.stepRunId}`);
     }
+    await ctx.db.execute(sql`SELECT id FROM journey_enrollments WHERE id = ${run.enrollmentId} FOR UPDATE`);
     const [wait] = await ctx.db
       .select()
       .from(schema.journeyWaits)
@@ -853,7 +893,8 @@ export class JourneyRuntimeService {
           isNull(schema.journeyWaits.resolvedAt),
         ),
       )
-      .limit(1);
+      .limit(1)
+      .for('update');
     if (!wait || run.status !== 'waiting') {
       throw new ConflictException(
         `journeys_conflict: step ${input.stepRunId} is no longer waiting for a decision (it was decided or timed out)`,
@@ -901,6 +942,7 @@ export class JourneyRuntimeService {
     if (!run || run.nodeType !== nodeType) {
       throw new NotFoundException(`journeys_not_found: agent step ${stepRunId}`);
     }
+    await ctx.db.execute(sql`SELECT id FROM journey_enrollments WHERE id = ${run.enrollmentId} FOR UPDATE`);
     const [wait] = await ctx.db
       .select()
       .from(schema.journeyWaits)
@@ -911,7 +953,8 @@ export class JourneyRuntimeService {
           isNull(schema.journeyWaits.resolvedAt),
         ),
       )
-      .limit(1);
+      .limit(1)
+      .for('update');
     if (!wait || run.status !== 'waiting') {
       throw new ConflictException(
         `journeys_conflict: step ${stepRunId} is no longer waiting for the agent (it was answered or timed out)`,
@@ -966,6 +1009,7 @@ export class JourneyRuntimeService {
       if (value === undefined) {
         throw new BadRequestException(`journeys_invalid: "${field.key}" is not a valid ${field.type}`);
       }
+      if (value === null) continue;
       values[field.key] = value;
     }
     const unknown = Object.keys(input.fields).filter((k) => !(node.fields ?? []).some((f) => f.key === k));
@@ -1179,10 +1223,14 @@ export class JourneyRuntimeService {
       throw new ConflictException(`journeys_conflict: approval ${input.approvalId} is already ${approval.status}`);
     }
     const status = input.decision === 'approve' ? 'approved' : 'rejected';
-    await ctx.db
+    const [decided] = await ctx.db
       .update(a)
       .set({ status, decidedByActorId: actor.id, decidedAt: new Date(), note: input.note ?? null, updatedAt: new Date() })
-      .where(eq(a.id, approval.id));
+      .where(and(eq(a.id, approval.id), eq(a.status, 'pending')))
+      .returning({ id: a.id });
+    if (!decided) {
+      throw new ConflictException(`journeys_conflict: approval ${input.approvalId} was decided or expired meanwhile`);
+    }
     const w = schema.journeyWaits;
     const [wait] = await ctx.db
       .select()
@@ -1208,7 +1256,7 @@ export class JourneyRuntimeService {
       .where(
         and(
           eq(e.journeyId, step.enrollment.journeyId),
-          eq(e.version, step.enrollment.version),
+          eq(r.version, step.enrollment.version),
           eq(r.nodeId, nodeId),
           eq(r.status, 'completed'),
           sql`NOT (${r.output} ? 'sampleFull')`,
@@ -1275,6 +1323,7 @@ export class JourneyRuntimeService {
       const reply = { conversationId, messageId: row.payload.messageId ?? null, eventId: row.eventId };
       if (node?.type === 'message' && node.onReply) {
         await this.cancelWaits(enrollment.id);
+        await this.outreach.withdrawJourneyProposals(enrollment.id, 'the contact replied');
         const visits = { ...enrollment.visits, [node.onReply]: (enrollment.visits[node.onReply] ?? 0) + 1 };
         await ctx.db
           .update(schema.journeyEnrollments)
@@ -1351,7 +1400,7 @@ export class JourneyRuntimeService {
 
   private async executeAction(step: StepContext, node: Extract<JourneyNode, { type: 'action' }>): Promise<Outcome> {
     try {
-      const output = await this.runAction(step, node);
+      const output = await this.inSavepoint(() => this.runAction(step, node));
       return { kind: 'advance', edge: 'next', to: node.next, output };
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
@@ -1612,13 +1661,27 @@ export class JourneyRuntimeService {
       throw new ConflictException('journeys_conflict: the runs to move changed since the preview; preview again and confirm the new fingerprint');
     }
     const now = new Date();
+    let moved = 0;
     for (const { enrollment, to, resumes } of plan) {
+      const [fresh] = await ctx.db.select().from(e).where(eq(e.id, enrollment.id)).limit(1).for('update');
+      if (
+        !fresh ||
+        fresh.version !== enrollment.version ||
+        fresh.currentNode !== enrollment.currentNode ||
+        !['active', 'waiting'].includes(fresh.state)
+      ) {
+        skipped.push({ enrollmentId: enrollment.id, node: enrollment.currentNode ?? '', reason: 'it moved on while the runs were being moved' });
+        continue;
+      }
+      enrollment.context = fresh.context;
+      enrollment.visits = fresh.visits;
       const movedFrom = { version: enrollment.version, node: enrollment.currentNode, at: now.toISOString() };
       if (resumes) {
         await ctx.db
           .update(e)
           .set({ version: input.toVersion, context: { ...enrollment.context, movedFrom }, updatedAt: now })
           .where(eq(e.id, enrollment.id));
+        moved += 1;
         continue;
       }
       await this.cancelWaits(enrollment.id);
@@ -1643,12 +1706,13 @@ export class JourneyRuntimeService {
           updatedAt: now,
         })
         .where(eq(e.id, enrollment.id));
+      moved += 1;
     }
     await this.webhooks.emit({
       type: 'journey.enrollments.moved',
-      payload: { journeyId: input.journeyId, toVersion: input.toVersion, moved: plan.length, skipped: skipped.length },
+      payload: { journeyId: input.journeyId, toVersion: input.toVersion, moved, skipped: skipped.length },
     });
-    return { ...result, moved: plan.length, applied: true };
+    return { ...result, skipped, moved, applied: true };
   }
 
   async eject(enrollmentId: string, reason = 'ejected'): Promise<EnrollmentDto> {
@@ -1699,6 +1763,53 @@ export class JourneyRuntimeService {
       return { contactId: null, endUserId: conversation?.endUserId ?? null };
     }
     return { contactId: null, endUserId: null };
+  }
+
+  private async proposalConversation(proposalId: unknown): Promise<string | null> {
+    if (typeof proposalId !== 'string') return null;
+    const ctx = getCurrentContext();
+    const [row] = await ctx.db
+      .select({ conversationId: schema.outreachProposals.conversationId })
+      .from(schema.outreachProposals)
+      .where(eq(schema.outreachProposals.id, proposalId))
+      .limit(1);
+    return row?.conversationId ?? null;
+  }
+
+  private async pinnedTemplateHash(step: StepContext, nodeId: string): Promise<string | null> {
+    const ctx = getCurrentContext();
+    const [row] = await ctx.db
+      .select({ pinned: schema.journeyVersions.pinnedTemplates })
+      .from(schema.journeyVersions)
+      .where(and(eq(schema.journeyVersions.journeyId, step.enrollment.journeyId), eq(schema.journeyVersions.number, step.enrollment.version)))
+      .limit(1);
+    return row?.pinned[nodeId] ?? null;
+  }
+
+  private inSavepoint<T>(fn: () => Promise<T>): Promise<T> {
+    const ctx = getCurrentContext();
+    return ctx.db.transaction((tx) => withContext({ ...ctx, db: tx }, fn));
+  }
+
+  private async assertSubjectExists(subject: Subject): Promise<void> {
+    const ctx = getCurrentContext();
+    const orgId = ctx.actor!.orgId;
+    if (subject.contactId) {
+      const [row] = await ctx.db
+        .select({ id: schema.crmContacts.id })
+        .from(schema.crmContacts)
+        .where(and(eq(schema.crmContacts.orgId, orgId), eq(schema.crmContacts.id, subject.contactId)))
+        .limit(1);
+      if (!row) throw new NotFoundException(`journeys_not_found: contact ${subject.contactId}`);
+    }
+    if (subject.endUserId) {
+      const [row] = await ctx.db
+        .select({ id: schema.endUsers.id })
+        .from(schema.endUsers)
+        .where(and(eq(schema.endUsers.orgId, orgId), eq(schema.endUsers.id, subject.endUserId)))
+        .limit(1);
+      if (!row) throw new NotFoundException(`journeys_not_found: end user ${subject.endUserId}`);
+    }
   }
 
   private async completeSubject(subject: Subject): Promise<Subject> {
@@ -1761,7 +1872,11 @@ export class JourneyRuntimeService {
     return Boolean(row);
   }
 
-  async segmentContacts(segmentId: string, limit: number): Promise<string[]> {
+  async segmentContacts(
+    segmentId: string,
+    limit: number,
+    exclude?: { journeyId: string; reentry: string; since: Date | null },
+  ): Promise<string[]> {
     const ctx = getCurrentContext();
     const [segment] = await ctx.db
       .select({ filter: schema.crmSegments.filterDefinition })
@@ -1777,6 +1892,16 @@ export class JourneyRuntimeService {
           eq(schema.crmContacts.orgId, ctx.actor!.orgId),
           ...OUTREACH_ELIGIBILITY_FLOOR,
           ...segmentMatchFilters(segment.filter),
+          ...(exclude ? [sql`NOT EXISTS (
+            SELECT 1 FROM journey_enrollments en
+             WHERE en.journey_id = ${exclude.journeyId}
+               AND en.subject_key = 'c:' || ${schema.crmContacts.id}
+               AND (
+                 ${exclude.reentry === 'once'}
+                 OR en.state IN ('active', 'waiting')
+                 OR en.entered_at >= ${(exclude.since ?? new Date(0)).toISOString()}::timestamptz
+               )
+          )`] : []),
         ),
       )
       .orderBy(asc(schema.crmContacts.createdAt))
@@ -1906,6 +2031,7 @@ export class JourneyRuntimeService {
         enrollmentId: enrollment.id,
         nodeId: node.id,
         nodeType: node.type,
+        version: enrollment.version,
         visit,
         status: 'running',
         input,
@@ -1960,6 +2086,7 @@ export class JourneyRuntimeService {
 
   private async resolveWait(wait: WaitRow, resolution: string, context?: Record<string, unknown>): Promise<void> {
     const ctx = getCurrentContext();
+    await ctx.db.execute(sql`SELECT id FROM journey_enrollments WHERE id = ${wait.enrollmentId} FOR UPDATE`);
     const [resolved] = await ctx.db
       .update(schema.journeyWaits)
       .set({ resolvedAt: new Date(), resolution })
@@ -1992,7 +2119,7 @@ export class JourneyRuntimeService {
         ...(context ? { context: { ...enrollment.context, ...context } } : {}),
         updatedAt: new Date(),
       })
-      .where(eq(e.id, enrollment.id));
+      .where(and(eq(e.id, enrollment.id), eq(e.state, 'waiting')));
   }
 
   private async latestWait(stepRunId: string): Promise<WaitRow | null> {
@@ -2051,6 +2178,7 @@ export class JourneyRuntimeService {
       .update(schema.journeyWaits)
       .set({ resolvedAt: now, resolution: 'cancelled' })
       .where(and(eq(schema.journeyWaits.enrollmentId, enrollment.id), isNull(schema.journeyWaits.resolvedAt)));
+    await this.outreach.withdrawJourneyProposals(enrollment.id, `the journey run ended (${reason})`);
     await this.webhooks.emit({
       type: 'journey.exited',
       payload: {
@@ -2127,13 +2255,13 @@ function edgeTarget(node: JourneyNode, edge: string): string | undefined {
   }
 }
 
-function nextScheduledEntry(
+export function nextScheduledEntry(
   trigger: Extract<JourneySpec['entry']['trigger'], { type: 'segment' }>,
   now: Date,
+  fallbackTimezone?: string,
 ): Date | null {
   if (trigger.schedule === 'once') return null;
-  const days = trigger.schedule === 'daily' ? 1 : 7;
-  return new Date(now.getTime() + days * 86_400_000);
+  return nextLocalOccurrence(now, trigger.at, trigger.timezone ?? fallbackTimezone ?? 'UTC', trigger.schedule === 'weekly' ? (trigger.weekday ?? 'mon') : null);
 }
 
 function parseDate(value: unknown): Date | null {

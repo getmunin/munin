@@ -58,7 +58,12 @@ export class JourneyMonitorService {
     const journey = await this.journeys.get(journeyId);
     const parsed = JourneySpecSchema.safeParse((journey.live ?? journey.draft)?.spec);
     const thresholds = thresholdsOf(parsed.success ? parsed.data : null);
-    const rows = await this.nodeCounts(journeyId, journey.outreachCampaignId, thresholds.windowDays);
+    const [state] = await getCurrentContext()
+      .db.select({ resets: schema.journeys.guardrailResets })
+      .from(schema.journeys)
+      .where(eq(schema.journeys.id, journeyId))
+      .limit(1);
+    const rows = await this.nodeCounts(journeyId, journey.outreachCampaignId, thresholds.windowDays, state?.resets ?? {});
     const nodes = rows.map((r) => {
       const node = rate(r, thresholds);
       return { nodeId: r.node_id, ...node, paused: Boolean(journey.pausedNodes[r.node_id]) };
@@ -140,22 +145,31 @@ export class JourneyMonitorService {
     });
   }
 
-  private async nodeCounts(journeyId: string, campaignId: string, windowDays: number): Promise<CountRow[]> {
+  private async nodeCounts(
+    journeyId: string,
+    campaignId: string,
+    windowDays: number,
+    resets: Record<string, string>,
+  ): Promise<CountRow[]> {
+    const resetJson = JSON.stringify(resets);
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
     const result = await ctx.db.execute(sql`
       WITH sent AS (
         SELECT p.contact_id,
                p.conversation_id,
+               lower(btrim(c.email)) AS email,
                p.sent_at,
                s.node_id,
                lead(p.sent_at) OVER (PARTITION BY p.contact_id ORDER BY p.sent_at) AS next_sent_at
           FROM outreach_proposals p
+          LEFT JOIN crm_contacts c ON c.id = p.contact_id
           JOIN journey_step_runs s ON s.id = p.journey_step_run_id
           JOIN journey_enrollments en ON en.id = s.enrollment_id
          WHERE en.journey_id = ${journeyId}
            AND p.status = 'sent'
            AND p.sent_at > now() - make_interval(days => ${windowDays})
+           AND p.sent_at > coalesce((${resetJson}::jsonb->>s.node_id)::timestamptz, (${resetJson}::jsonb->>'*')::timestamptz, '-infinity')
       ),
       sends AS (
         SELECT node_id,
@@ -164,7 +178,7 @@ export class JourneyMonitorService {
                  SELECT 1 FROM events ev
                   WHERE ev.org_id = ${orgId}
                     AND ev.type = 'conversation.message.bounced'
-                    AND ev.payload->>'conversationId' = sent.conversation_id
+                    AND (ev.payload->>'conversationId' = sent.conversation_id OR ev.payload->>'address' = sent.email)
                     AND ev.created_at >= sent.sent_at
                     AND (sent.next_sent_at IS NULL OR ev.created_at < sent.next_sent_at)
                ))::int AS bounces,
@@ -188,6 +202,7 @@ export class JourneyMonitorService {
           JOIN journey_enrollments en ON en.id = s.enrollment_id
          WHERE en.journey_id = ${journeyId}
            AND s.finished_at > now() - make_interval(days => ${windowDays})
+           AND s.finished_at > coalesce((${resetJson}::jsonb->>s.node_id)::timestamptz, (${resetJson}::jsonb->>'*')::timestamptz, '-infinity')
          GROUP BY s.node_id
       )
       SELECT coalesce(sends.node_id, steps.node_id) AS node_id,

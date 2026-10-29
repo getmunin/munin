@@ -4,9 +4,13 @@ import { and, count, desc, eq, gte, max, sql } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { IdentityService } from '../identity/identity.service.ts';
 import { normalizeIdentityEmail } from './visitor-identity.ts';
+import { KNOWN_EVENT_TYPES } from '@getmunin/types';
 
 export const PRODUCT_EVENT_NAME_PATTERN = /^[a-z0-9_.-]{1,64}$/;
 export const PRODUCT_EVENT_MAX_BATCH = 100;
+export const RESERVED_EVENT_PREFIXES: readonly string[] = [
+  ...new Set(KNOWN_EVENT_TYPES.map((type) => `${type.slice(0, type.indexOf('.'))}.`)),
+];
 export const PRODUCT_EVENT_MAX_PROPERTIES_BYTES = 8_192;
 
 export interface ProductEventIdentity {
@@ -78,6 +82,11 @@ export class ProductEventsService {
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
     const name = event.name.trim();
+    if (RESERVED_EVENT_PREFIXES.some((prefix) => name.startsWith(prefix))) {
+      throw new BadRequestException(
+        `analytics_invalid: event name "${name}" uses a prefix reserved for Munin's own events (${RESERVED_EVENT_PREFIXES.join(', ')}); name it after what happened in your product`,
+      );
+    }
     if (!PRODUCT_EVENT_NAME_PATTERN.test(name)) {
       throw new BadRequestException(
         `analytics_invalid: event name "${event.name}" must match ${PRODUCT_EVENT_NAME_PATTERN.source}`,

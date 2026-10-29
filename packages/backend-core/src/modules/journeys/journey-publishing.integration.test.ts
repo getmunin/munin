@@ -57,7 +57,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     webhooks.registerSink(new JourneyEventSink());
     const crm = new CrmService(webhooks, new DefaultQuotasService(), new AddressDeliverabilityService());
     journeys = new JourneysService(webhooks);
-    runtime = new JourneyRuntimeService(webhooks, crm, {} as never, new CuratorJobsService(webhooks));
+    runtime = new JourneyRuntimeService(webhooks, crm, { withdrawJourneyProposals: () => Promise.resolve(0) } as never, new CuratorJobsService(webhooks));
     worker = new JourneyRuntimeWorker(appDb, runtime);
     publishing = new JourneyPublishingService(webhooks, journeys, new JourneySimulator(runtime));
   });
@@ -275,6 +275,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
           draftSubject: 'Velkommen',
           draftBody: 'Hei!',
           originalDraftBody: edited ? 'Hei der!' : null,
+          evidence: { draftedBy: 'agent', brief: 'Welcome them' },
           status: 'sent',
           decidedByActorType: 'user',
           decidedByActorId: userId,
@@ -294,6 +295,9 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     await reviewed(1, false);
     stats = await asAgent(() => publishing.nodeReviewStats(journey.id));
     expect(stats[0]).toMatchObject({ reviewed: 30, approvedUnedited: 28, readyForAuto: true });
+    await asAgent(() => journeys.updateNode(journey.id, { ...draftedWelcome('auto'), brief: 'Sell them the pro plan' }));
+    await expect(asAgent(() => publishing.requestPublish(journey.id))).rejects.toThrow(/from its current brief/);
+    await asAgent(() => journeys.updateNode(journey.id, draftedWelcome('auto')));
     const request = await asAgent(() => publishing.requestPublish(journey.id));
     expect(request.diff.autoNodes).toEqual(['welcome']);
     expect(request.reviewStats[0]!.readyForAuto).toBe(true);
@@ -377,6 +381,12 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect(b.pValue).toBeLessThan(0.05);
 
     const promoted = { ...splitSpec, start: 'done', nodes: [{ id: 'done', type: 'exit' }] };
+    await expect(
+      asAgent(() =>
+        publishing.proposeChange({ journeyId: journey.id, spec: { ...promoted, start: 'nowhere' }, hypothesis: 'h', rationale: 'r', evidence: {} }),
+      ),
+    ).rejects.toThrow(/no draft was opened/);
+    expect((await asAgent(() => journeys.get(journey.id))).draft).toBeNull();
     const proposal = await asAgent(() =>
       publishing.proposeChange({
         journeyId: journey.id,

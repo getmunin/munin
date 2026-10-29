@@ -1412,6 +1412,7 @@
         "blocks": "Endrede innstillinger: {blocks}",
         "autoTitle": "Sendes uten gjennomgang",
         "autoBody": "Disse e-postene sendes uten at noen leser hver enkelt: {nodes}. Bekrefter du, publiseres de slik.",
+        "autoMessageMeta": "{node} · {kind, select, transactional {transaksjonell — når også avmeldte} other {markedsføring}} · {author, select, agent {skrevet av agenten per person} other {fast tekst}}",
         "autoEvidence": "{node}: {reviewed} gjennomgåtte utkast, {rate} godkjent uendret",
         "warnings": "Advarsler",
         "simulation": "Prøvekjøring",

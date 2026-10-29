@@ -105,6 +105,15 @@ export function PublishDialog({
                 <p className="mt-1 text-ink dark:text-foreground">
                   {t('autoBody', { nodes: diff.autoNodes.join(', ') })}
                 </p>
+                {(review.autoMessages ?? []).map((m) => (
+                  <div key={m.nodeId} className="mt-2 rounded-card border-[1px] border-rule-soft p-2 text-xs dark:border-rule-on-dark">
+                    <p className="font-mono text-ink-mute">
+                      {t('autoMessageMeta', { node: m.nodeId, kind: m.class, author: m.draftBy === 'agent' ? 'agent' : 'fixed' })}
+                    </p>
+                    {m.subject && <p className="mt-1 font-medium text-ink dark:text-foreground">{m.subject}</p>}
+                    <p className="mt-1 whitespace-pre-line text-ink-mute">{m.preview}</p>
+                  </div>
+                ))}
                 {review.reviewStats
                   .filter((s) => diff.autoNodes.includes(s.nodeId))
                   .map((s) => (

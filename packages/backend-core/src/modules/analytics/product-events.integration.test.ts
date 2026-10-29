@@ -149,6 +149,12 @@ const skipReason = TEST_URL
     ).rejects.toThrow(BadRequestException);
   });
 
+  it('refuses event names that would impersonate Munin events', async () => {
+    await expect(
+      asAgent(() => svc.record([{ id: 'x1', name: 'conversation.message.received', identity: { email: 'ola@kunde.test' } }])),
+    ).rejects.toThrow(/reserved/);
+  });
+
   it('lists event names with counts', async () => {
     const kari = await contact({ name: 'Kari Nordmann', email: 'kari@acme.test' });
     await asAgent(() =>

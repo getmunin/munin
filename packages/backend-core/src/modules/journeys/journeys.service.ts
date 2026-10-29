@@ -10,7 +10,7 @@ import { LLM_AVAILABILITY, type LlmAvailability } from './llm-availability.ts';
 import { createHash } from 'node:crypto';
 import { schema } from '@getmunin/db';
 import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
-import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
+import { getCurrentContext, WebhookDispatcher, withContext } from '@getmunin/core';
 import {
   parseJourneySpec,
   validateJourneySpec,
@@ -319,7 +319,7 @@ export class JourneysService {
     const { [nodeId]: _resumed, ...pausedNodes } = row.pausedNodes;
     const [updated] = await ctx.db
       .update(schema.journeys)
-      .set({ pausedNodes, updatedAt: new Date() })
+      .set({ pausedNodes, guardrailResets: { ...row.guardrailResets, [nodeId]: new Date().toISOString() }, updatedAt: new Date() })
       .where(eq(schema.journeys.id, id))
       .returning();
     const e = schema.journeyEnrollments;
@@ -337,6 +337,11 @@ export class JourneysService {
   }
 
   async resume(id: string): Promise<JourneyDto> {
+    const row = await this.load(id);
+    await getCurrentContext()
+      .db.update(schema.journeys)
+      .set({ guardrailResets: { ...row.guardrailResets, '*': new Date().toISOString() } })
+      .where(eq(schema.journeys.id, id));
     return this.transition(id, ['paused'], 'live', 'journey.resumed');
   }
 
@@ -374,6 +379,7 @@ export class JourneysService {
     edit: (spec: RawSpec) => RawSpec,
     summary: string,
   ): Promise<JourneyVersionDto> {
+    await getCurrentContext().db.execute(sql`SELECT id FROM journeys WHERE id = ${id} FOR UPDATE`);
     const journey = await this.load(id);
     if (journey.status === 'archived') {
       throw new ConflictException(`journeys_conflict: journey ${id} is archived`);
@@ -482,6 +488,15 @@ export class JourneysService {
     return new Map(rows.map((r) => [r.journeyId, r.number]));
   }
 
+  private async llmConfigured(): Promise<boolean | undefined> {
+    const llm = this.llm;
+    if (!llm) return undefined;
+    const ctx = getCurrentContext();
+    return ctx.db
+      .transaction((tx) => withContext({ ...ctx, db: tx }, () => llm.providerConfigured()))
+      .catch(() => undefined);
+  }
+
   private async loadReferences(): Promise<JourneyReferences> {
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
@@ -521,7 +536,7 @@ export class JourneysService {
       journeys: new Map(
         journeyRows.map((r) => [r.id, { status: r.status, calls: subJourneyTargets(r.spec) }] as const),
       ),
-      llmConfigured: this.llm ? await this.llm.providerConfigured().catch(() => undefined) : undefined,
+      llmConfigured: await this.llmConfigured(),
     };
   }
 }

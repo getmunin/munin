@@ -29,6 +29,7 @@ import { CuratorJobsService } from '../curator/curator-jobs.service.ts';
 import { EmailService } from '../conv/email/email.service.ts';
 import { stubAttachmentGateway } from '../conv/attachments/conv-attachments.test-stub.ts';
 import { OutreachOutcomeSink } from '../outreach/outreach-outcome.sink.ts';
+import { emailTemplateHash } from '../outreach/email-template-hash.ts';
 import type { OutreachVoiceCaller } from '../conv/channels/outreach-voice.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
@@ -233,9 +234,15 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       }),
     );
     expect((await asAgent(() => journeys.validate(journey.id))).errors).toEqual([]);
+    const pinnedTemplates: Record<string, string> = {};
+    for (const node of nodes as { id: string; type: string; channel?: string; approval?: string; content?: { templateId?: string } }[]) {
+      if (node.type === 'message' && (node.channel ?? 'email') === 'email' && node.approval === 'auto') {
+        pinnedTemplates[node.id] = (await asAgent(() => emailTemplateHash(node.content?.templateId ?? null)))!;
+      }
+    }
     await db
       .update(schema.journeyVersions)
-      .set({ publishedAt: new Date(), publishedByActorId: userId })
+      .set({ publishedAt: new Date(), publishedByActorId: userId, pinnedTemplates })
       .where(eq(schema.journeyVersions.journeyId, journey.id));
     await db.update(schema.journeys).set({ status: 'live', liveVersion: 1 }).where(eq(schema.journeys.id, journey.id));
     return journey.id;
@@ -308,6 +315,82 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect(proposals).toHaveLength(1);
     expect(proposals[0]).toMatchObject({ status: 'sent', decidedByActorType: 'system' });
     expect((await enrollment(id)).state).toBe('done');
+  });
+
+  it('withdraws a run\'s open emails when it ends, and refuses to send one for an ended run', async () => {
+    const journeyId = await publish([welcome(), done]);
+    const ola = await contact();
+    const id = await enroll(journeyId, ola.id);
+    await worker.tick();
+    const [proposal] = await proposalsFor(ola.id);
+    const pending = await asAgent(() => outreach.getProposal(proposal!.id));
+    await asAgent(() => runtime.eject(id));
+    expect((await asAgent(() => outreach.getProposal(proposal!.id))).status).toBe('withdrawn');
+    await expect(
+      runAs(person, () => outreach.approveProposal(proposal!.id, { fingerprint: pending.draftFingerprint, publicBaseUrl: 'https://api.acme.test' })),
+    ).rejects.toThrow(/not pending|no longer running/);
+  });
+
+  it('holds an auto email for review when its template changed after publishing', async () => {
+    const [template] = await db
+      .insert(schema.outreachEmailTemplates)
+      .values({
+        orgId,
+        name: `Brand ${randomUUID()}`,
+        mjml: '<mjml><mj-body><mj-section><mj-column><mj-text>{{content}} <a href="{{unsubscribe_url}}">Unsubscribe</a></mj-text></mj-column></mj-section></mj-body></mjml>',
+        createdByActorType: 'user',
+        createdByActorId: userId,
+      })
+      .returning();
+    const journeyId = await publish([
+      welcome({ approval: 'auto', content: { subject: 'Hei', body: 'Hei!', templateId: template!.id } }),
+      done,
+    ]);
+    await db
+      .update(schema.outreachEmailTemplates)
+      .set({ mjml: template!.mjml.replace('{{content}}', '{{content}} Extra') })
+      .where(eq(schema.outreachEmailTemplates.id, template!.id));
+    const ola = await contact();
+    await enroll(journeyId, ola.id);
+    await worker.tick();
+    const [proposal] = await proposalsFor(ola.id);
+    expect(proposal).toMatchObject({ status: 'pending', decidedByActorType: null });
+  });
+
+  it('allows two open journey emails to the same person on one campaign', async () => {
+    const ola = await contact();
+    const base = { orgId, campaignId, contactId: ola.id, kind: 'journey', draftBody: 'Hei', status: 'pending', proposedByActorType: 'system', proposedByActorId: 'journey-runtime' };
+    await db.insert(schema.outreachProposals).values({ ...base, journeyStepRunId: `jsr_${randomUUID()}` });
+    await db.insert(schema.outreachProposals).values({ ...base, journeyStepRunId: `jsr_${randomUUID()}` });
+    expect(await proposalsFor(ola.id)).toHaveLength(2);
+  });
+
+  it('skips journey proposals on import', async () => {
+    const ola = await contact();
+    const result = await asAgent(() =>
+      outreach.importOutreach({
+        version: 1,
+        campaigns: [],
+        emailTemplates: [],
+        proposals: [
+          {
+            id: 'oprp_src',
+            campaignId,
+            contactId: ola.id,
+            conversationId: null,
+            kind: 'journey',
+            sequenceStep: null,
+            draftSubject: 'Hei',
+            draftBody: 'Hei',
+            evidence: { journeyMessage: { policy: { class: 'transactional' } } },
+            proposedSendAt: null,
+            status: 'pending',
+          },
+        ],
+      } as never),
+    );
+    expect(result.skipped).toBeGreaterThanOrEqual(1);
+    expect(await proposalsFor(ola.id)).toEqual([]);
   });
 
   it('ends the run when a reviewer dismisses the email', async () => {
@@ -479,7 +562,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       ],
       { smsChannelId: sms!.id },
     );
-    const ola = await contact({ phone: '+4791234567' });
+    const ola = await contact({ phone: '+4712345670' });
     const id = await enroll(journeyId, ola.id);
     await worker.tick();
     await worker.tick();
@@ -488,7 +571,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     const text = proposals.find((p) => p.channelId === sms!.id)!;
     expect(text).toMatchObject({ kind: 'journey', status: 'pending', draftSubject: null });
     const pending = await asAgent(() => outreach.getProposal(text.id));
-    expect(pending.delivery).toMatchObject({ channelType: 'sms', destination: '+4791234567' });
+    expect(pending.delivery).toMatchObject({ channelType: 'sms', destination: '+4712345670' });
     await expect(
       asAgent(() =>
         outreach.approveProposal(text.id, { fingerprint: pending.draftFingerprint, publicBaseUrl: 'https://api.acme.test' }),
@@ -569,6 +652,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     await expect(asAgent(() => journeys.resumeNode(journeyId, 'wait'))).rejects.toThrow(/not paused/);
     const resumed = await asAgent(() => journeys.resumeNode(journeyId, 'welcome'));
     expect(resumed.released).toBe(1);
+    expect(await worker.runMonitor(new Date(), true)).toBe(0);
     await worker.tick();
     expect(await proposalsFor(late.id)).toHaveLength(1);
   });
@@ -628,6 +712,11 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       .where(and(eq(schema.curatorJobs.orgId, orgId), eq(schema.curatorJobs.jobUri, 'skill://outreach/extract-outcome')));
     expect(job).toBeDefined();
 
+    await asAgent(() =>
+      crm.updateContact({ id: ola.id, patch: { customFields: { outreachOutcome: 'refused', outreachOutcomeConversationId: 'ccv_some_other_call' } } }),
+    );
+    await worker.tick();
+    expect(await enrollment(olaRun)).toMatchObject({ state: 'waiting' });
     await asAgent(() =>
       crm.updateContact({ id: ola.id, patch: { customFields: { outreachOutcome: 'reached', outreachOutcomeConversationId: olaCall!.conversationId } } }),
     );

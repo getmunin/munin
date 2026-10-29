@@ -2181,7 +2181,7 @@ export const outreachProposals = pgTable(
       .where(sql`status = 'approved'`),
     openPairUq: uniqueIndex('outreach_proposals_open_pair_uq')
       .on(t.campaignId, t.contactId, t.kind)
-      .where(sql`status IN ('pending', 'approved')`),
+      .where(sql`status IN ('pending', 'approved') AND kind <> 'journey'`),
     journeyStepUq: uniqueIndex('outreach_proposals_journey_step_uq')
       .on(t.journeyStepRunId)
       .where(sql`journey_step_run_id IS NOT NULL`),
@@ -2208,6 +2208,7 @@ export const journeys = pgTable(
     status: varchar('status', { length: 16 }).notNull().default('draft'),
     liveVersion: integer('live_version'),
     nextEntryAt: timestamp('next_entry_at', { withTimezone: true }),
+    guardrailResets: jsonb('guardrail_resets').$type<Record<string, string>>().notNull().default({}),
     pausedNodes: jsonb('paused_nodes')
       .$type<Record<string, { reason: string; pausedAt: string; by: string; metric?: string; rate?: number }>>()
       .notNull()
@@ -2243,6 +2244,7 @@ export const journeyVersions = pgTable(
     parentVersion: integer('parent_version'),
     changeSummary: text('change_summary'),
     proposal: jsonb('proposal').$type<Record<string, unknown>>(),
+    pinnedTemplates: jsonb('pinned_templates').$type<Record<string, string>>().notNull().default({}),
     validation: jsonb('validation').$type<Record<string, unknown>>(),
     createdByActorType: varchar('created_by_actor_type', { length: 16 }).notNull(),
     createdByActorId: text('created_by_actor_id').notNull(),
@@ -2323,6 +2325,7 @@ export const journeyStepRuns = pgTable(
       .references(() => journeyEnrollments.id, { onDelete: 'cascade' }),
     nodeId: varchar('node_id', { length: 48 }).notNull(),
     nodeType: varchar('node_type', { length: 16 }).notNull(),
+    version: integer('version'),
     visit: integer('visit').notNull(),
     attempt: integer('attempt').notNull().default(1),
     status: varchar('status', { length: 16 }).notNull(),
@@ -2393,6 +2396,9 @@ export const journeyEventInbox = pgTable(
     hopCount: integer('hop_count').notNull().default(0),
     payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
     processedAt: timestamp('processed_at', { withTimezone: true }),
+    attempts: integer('attempts').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+    lastError: text('last_error'),
     createdAt,
   },
   (t) => ({

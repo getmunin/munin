@@ -1,5 +1,24 @@
 # @getmunin/agent-runtime
 
+## 5.48.4
+
+### Patch Changes
+
+- 0b22014: Close or snooze a conversation from the audit pass only once the reply has actually been sent.
+
+  The audit ran its `close_conversation` / `snooze_conversation` actions before the reply went out. When the same turn assigned a topic whose automation is still draft-only, the send was refused and the reply was parked for review — but the conversation had already been closed, leaving a pending draft and a handover inside a resolved thread with no reply to the customer. Those two actions are now held until the send succeeds and dropped when the reply ends up parked, the same way a turn that starts in draft-only mode already withholds them.
+
+- 0e9445b: Stop a late widget greeting from swallowing the agent's answer to the visitor's first message.
+
+  When a visitor typed before the opening greeting was stored, the greet run was aborted but still posted: it was inside the audit pass, which ignores the abort signal, and nothing re-checked the signal before posting. The greeting then landed after the visitor's message, and the reply run's post was rejected as `agent_reply_race`, a terminal skip, so the question went unanswered with no handover.
+
+  - Greet runs skip the audit pass, and every run re-checks its abort signal after the audit and before the greet fallback post.
+  - Greetings are posted with `greeting: true` and stored with `metadata.kind = 'greeting'`. The server rejects a greeting with `greet_superseded` once the end user has written, and the runner treats that code as a terminal skip.
+  - The `agent_reply_race` check ignores greetings, so a greeting can never block the reply to the message it raced.
+
+- @getmunin/core@5.48.4
+  - @getmunin/types@5.48.4
+
 ## 5.48.3
 
 ### Patch Changes

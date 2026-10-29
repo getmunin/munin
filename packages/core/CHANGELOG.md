@@ -1,5 +1,12 @@
 # @getmunin/core
 
+## 5.48.4
+
+### Patch Changes
+
+- @getmunin/db@5.48.4
+  - @getmunin/types@5.48.4
+
 ## 5.48.3
 
 ### Patch Changes

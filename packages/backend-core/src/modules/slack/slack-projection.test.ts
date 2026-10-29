@@ -188,6 +188,27 @@ describe('messageBodyText', () => {
     ).toContain('> _No speech transcribed_');
   });
 
+  it('renders a caller turn still transcribing as an ellipsis, not the empty body', () => {
+    expect(
+      messageBodyText({
+        authorKind: 'end_user',
+        authorName: '+47 88 88 88 88',
+        internal: false,
+        body: '',
+        pending: true,
+      }),
+    ).toBe('…');
+    expect(
+      messageText({
+        authorKind: 'end_user',
+        authorName: '+47 88 88 88 88',
+        internal: false,
+        body: '',
+        pending: true,
+      }),
+    ).toContain('> …');
+  });
+
   it('renders an agent reply written in markdown as Slack mrkdwn', () => {
     const text = messageBodyText({
       authorKind: 'agent',

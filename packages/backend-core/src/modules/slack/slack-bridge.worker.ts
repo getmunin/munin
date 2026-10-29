@@ -328,6 +328,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       internal: message.internal,
       body: message.body,
       noSpeech: message.metadata.voiceNoSpeech === true,
+      pending: message.metadata.voicePending === true,
       attachments: parseMessageAttachments(message.attachments),
     };
     const identity = speakerIdentity(authorKind, authorName);
@@ -397,6 +398,7 @@ export class SlackBridgeWorker implements OnModuleInit, OnModuleDestroy {
       internal: message.internal,
       body: message.body,
       noSpeech: message.metadata.voiceNoSpeech === true,
+      pending: message.metadata.voicePending === true,
       attachments: parseMessageAttachments(message.attachments),
     };
     try {

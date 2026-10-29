@@ -255,11 +255,12 @@ export class ThrellAdapter implements ChannelAdapter {
   }
 
   private async handleTranscript(channel: ChannelRow, event: ThrellEvent): Promise<void> {
-    if (event.data?.isFinal !== true) return;
+    const isFinal = event.data?.isFinal === true;
     const callId = event.data?.callId;
     const text = event.data?.text?.trim() ?? '';
     const role = mapRole(event.data?.role);
     if (!callId || !role) return;
+    if (!isFinal && role !== 'user') return;
     if (!text && role !== 'user') return;
 
     await this.runAsSystem(channel, async (tx) => {
@@ -272,6 +273,7 @@ export class ThrellAdapter implements ChannelAdapter {
       await this.insertVoiceMessage(tx, channel, conversation, {
         role,
         text,
+        isFinal,
         callId,
         voiceTurnIndex: turnIndex,
         occurredAt,
@@ -320,6 +322,7 @@ export class ThrellAdapter implements ChannelAdapter {
     args: {
       role: 'user' | 'assistant';
       text: string;
+      isFinal: boolean;
       callId: string;
       voiceTurnIndex: number;
       occurredAt: Date;
@@ -331,10 +334,11 @@ export class ThrellAdapter implements ChannelAdapter {
       threllCallId: args.callId,
       threllRole: args.role,
       voiceTurnIndex: args.voiceTurnIndex,
-      ...(args.text ? {} : { voiceNoSpeech: true }),
+      ...(args.isFinal ? {} : { voicePending: true }),
+      ...(args.isFinal && !args.text ? { voiceNoSpeech: true } : {}),
     };
     const newId = makeId('cvm');
-    const inserted = await tx.execute<{ id: string }>(sql`
+    const upserted = await tx.execute<{ id: string; inserted: boolean }>(sql`
       INSERT INTO conv_messages
         (id, org_id, conversation_id, author_type, author_id, body, internal, created_at, metadata)
       VALUES
@@ -342,18 +346,22 @@ export class ThrellAdapter implements ChannelAdapter {
          ${args.occurredAt.toISOString()}, ${JSON.stringify(metadata)}::jsonb)
       ON CONFLICT (conversation_id, ((metadata ->> 'threllCallId')), ((metadata ->> 'voiceTurnIndex')), ((metadata ->> 'threllRole')))
         WHERE (metadata ->> 'threllCallId') IS NOT NULL
-      DO NOTHING
-      RETURNING id
+      DO UPDATE SET
+        body = EXCLUDED.body,
+        metadata = EXCLUDED.metadata
+        WHERE conv_messages.metadata ->> 'voicePending' = 'true'
+      RETURNING id, (xmax = 0) AS inserted
     `);
-    const storedId = inserted[0]?.id;
+    const storedId = upserted[0]?.id;
     if (!storedId) return;
+    const wasInsert = upserted[0]!.inserted;
     await tx
       .update(schema.convConversations)
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
       .where(eq(schema.convConversations.id, conversation.id));
     if (authorType === 'end_user') await markConversationEngaged(tx, conversation.id);
     await this.webhooks.emit({
-      type: 'conversation.message.received',
+      type: wasInsert ? 'conversation.message.received' : 'conversation.message.body_revised',
       payload: {
         conversationId: conversation.id,
         messageId: storedId,

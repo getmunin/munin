@@ -397,6 +397,7 @@
         "handleFallback": "—",
         "anonymousVisitor": "Anonym",
         "noSpeech": "Ingen tale oppfattet",
+        "voicePending": "…",
         "autoReply": "Autosvar",
         "bounceNotice": "Returmelding",
         "noReplyAddress": "Ingen svaradresse",

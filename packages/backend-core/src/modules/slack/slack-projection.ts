@@ -26,6 +26,7 @@ export interface MessageSnapshot {
   internal: boolean;
   body: string;
   noSpeech?: boolean;
+  pending?: boolean;
   attachments?: MessageAttachment[];
 }
 
@@ -95,8 +96,10 @@ export function threadParentText(conv: ConversationSnapshot): string {
 }
 
 const NO_SPEECH_TEXT = '_No speech transcribed_';
+const PENDING_TEXT = '…';
 
 function renderedBody(msg: MessageSnapshot): string {
+  if (msg.pending) return PENDING_TEXT;
   if (msg.noSpeech) return NO_SPEECH_TEXT;
   return truncate(markdownToMrkdwn(msg.body));
 }

@@ -1514,6 +1514,9 @@ export class OutreachService {
         conversationId: conv.id,
         messageId: null,
         callId: callRes.callId,
+        ...(proposal.kind === 'journey'
+          ? { kind: 'journey', channel: 'voice', journeyEnrollmentId: proposal.evidence.enrollmentId ?? null }
+          : {}),
       },
     });
 
@@ -1738,7 +1741,7 @@ export class OutreachService {
   async proposeJourneyMessage(
     input: {
       campaignId: string;
-      channel: 'email' | 'sms';
+      channel: 'email' | 'sms' | 'voice';
       channelId: string | null;
       contactId: string;
       enrollmentId: string;
@@ -1763,17 +1766,17 @@ export class OutreachService {
       .where(eq(p.journeyStepRunId, input.stepRunId))
       .limit(1);
     if (existing) return this.getProposal(existing.id);
-    const sms = input.channel === 'sms';
+    const sms = input.channel !== 'email';
     if (sms) {
       if (input.auto) {
-        throw new OutreachInvalidError('journey SMS is always approved by a person; it cannot be sent automatically');
+        throw new OutreachInvalidError(`journey ${input.channel} steps are always approved by a person; they cannot run automatically`);
       }
-      if (!input.channelId) throw new OutreachInvalidError('a journey SMS step needs an SMS channel');
+      if (!input.channelId) throw new OutreachInvalidError(`a journey ${input.channel} step needs a ${input.channel} channel`);
       const channel = await this.loadOutreachChannel(input.channelId);
-      if (channel.type !== 'sms') {
-        throw new OutreachInvalidError(`channel ${input.channelId} is ${channel.type}, not sms`);
+      if (channel.type !== input.channel) {
+        throw new OutreachInvalidError(`channel ${input.channelId} is ${channel.type}, not ${input.channel}`);
       }
-      if (input.body.length > SMS_DRAFT_MAX_CHARS) {
+      if (input.channel === 'sms' && input.body.length > SMS_DRAFT_MAX_CHARS) {
         throw new OutreachInvalidError(`SMS text is ${input.body.length} characters; the limit is ${SMS_DRAFT_MAX_CHARS}`);
       }
     }
@@ -1877,6 +1880,7 @@ export class OutreachService {
     const actor = ctx.actor!;
     const meta = journeyMessageMeta(proposal);
     if (meta.channel === 'sms') return this.deliverJourneySms(proposal, meta, sender);
+    if (meta.channel === 'voice') return this.deliverJourneyCall(proposal, meta);
     const campaign = await this.getCampaign(proposal.campaignId);
     const channel = await this.loadOutreachChannel(campaign.channelId);
     if (channel.type !== 'email') {
@@ -2093,6 +2097,26 @@ export class OutreachService {
       },
     });
     return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
+  }
+
+  private async deliverJourneyCall(proposal: ProposalDto, meta: JourneyMessageMeta): Promise<ProposalDto> {
+    if (proposal.decidedByActorType !== 'user') {
+      throw new OutreachInvalidError('a journey call is placed only after a person approves it');
+    }
+    const channelId = proposal.delivery?.channelId;
+    if (!channelId || proposal.delivery?.channelType !== 'voice') {
+      throw new OutreachInvalidError(`proposal ${proposal.id} has no voice channel to call from`);
+    }
+    const contact = await this.crm.getContact(proposal.contactId);
+    const marketing = meta.policy.class === 'marketing';
+    if (contact.doNotContact || (marketing && (contact.unsubscribedAt || !contact.consentLawfulBasis))) {
+      throw new OutreachInvalidError(
+        `contact ${contact.id} is no longer eligible (suppression or consent withdrawn)`,
+      );
+    }
+    const campaign = await this.getCampaign(proposal.campaignId);
+    const channel = await this.loadOutreachChannel(channelId);
+    return this.deliverInitialVoice(proposal, campaign, contact, channel);
   }
 
   private async journeySmsThread(enrollmentId: string, channelId: string): Promise<string | null> {
@@ -3129,7 +3153,7 @@ function assertDeliverable(contact: ContactDto, channelType: string): void {
 }
 
 interface JourneyMessageMeta {
-  channel: 'email' | 'sms';
+  channel: 'email' | 'sms' | 'voice';
   format: 'markdown' | 'mjml';
   templateId: string | null;
   preheader: string | null;
@@ -3140,7 +3164,7 @@ interface JourneyMessageMeta {
 function journeyMessageMeta(proposal: ProposalDto): JourneyMessageMeta {
   const meta = proposal.evidence.journeyMessage as Partial<JourneyMessageMeta> | undefined;
   return {
-    channel: meta?.channel === 'sms' ? 'sms' : 'email',
+    channel: meta?.channel === 'sms' || meta?.channel === 'voice' ? meta.channel : 'email',
     format: meta?.format === 'mjml' ? 'mjml' : 'markdown',
     templateId: meta?.templateId ?? null,
     preheader: meta?.preheader ?? null,

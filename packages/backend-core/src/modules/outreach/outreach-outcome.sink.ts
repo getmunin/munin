@@ -61,10 +61,9 @@ export class OutreachOutcomeSink implements EventSink {
       .where(eq(schema.outreachCampaigns.id, conversation.outreachCampaignId))
       .limit(1);
     const extractionSchema = campaign?.extractionSchema ?? [];
-    if (extractionSchema.length === 0) return;
 
     const [proposal] = await ctx.db
-      .select({ contactId: schema.outreachProposals.contactId })
+      .select({ contactId: schema.outreachProposals.contactId, kind: schema.outreachProposals.kind })
       .from(schema.outreachProposals)
       .where(
         and(
@@ -74,6 +73,8 @@ export class OutreachOutcomeSink implements EventSink {
       )
       .limit(1);
     if (!proposal) return;
+    const journeyCall = proposal.kind === 'journey' && event.type === VOICE_CALL_ENDED;
+    if (extractionSchema.length === 0 && !journeyCall) return;
 
     const messageId =
       event.type === MESSAGE_RECEIVED && typeof event.payload.messageId === 'string'

@@ -4,6 +4,7 @@ import { and, asc, desc, eq, inArray, isNull, lte, ne, or, sql, type SQL } from 
 import { getCurrentContext, readApiBaseUrl, WebhookDispatcher } from '@getmunin/core';
 import { randomUUID } from 'node:crypto';
 import {
+  CALL_OUTCOMES,
   JourneySpecSchema,
   MAX_CONCURRENT_ENROLLMENTS,
   parseIsoDurationMs,
@@ -563,8 +564,36 @@ export class JourneyRuntimeService {
         citations = draft.citations;
       }
     } else if (step.resumed) {
+      if (node.channel === 'voice' && previous.awaitingOutcome) {
+        const event = step.enrollment.context.lastEvent as { payload?: { outcome?: unknown } } | undefined;
+        const reported = event?.payload?.outcome;
+        const outcome = step.resumed.resolution !== 'event' ? 'timeout' : typeof reported === 'string' ? reported : '';
+        const known = (CALL_OUTCOMES as readonly string[]).includes(outcome) || outcome === 'timeout';
+        const mapped = known ? node.onOutcome?.[outcome as keyof NonNullable<typeof node.onOutcome>] : undefined;
+        return {
+          kind: 'advance',
+          edge: mapped ? `outcome_${outcome}` : 'next',
+          to: mapped ?? node.next,
+          output: { ...previous, outcome },
+          reason: outcome === 'timeout' ? 'no call outcome in time' : `call outcome: ${outcome}`,
+        };
+      }
       switch (step.resumed.resolution) {
         case 'proposal_sent':
+          if (node.channel === 'voice') {
+            return {
+              kind: 'wait',
+              wait: {
+                kind: 'event',
+                eventKey: 'outreach.outcome.recorded',
+                match: { contactId: step.enrollment.contactId ?? '' },
+                timeoutAt: new Date(step.now.getTime() + (parseIsoDurationMs(node.outcomeTimeout ?? 'PT6H') ?? 21_600_000)),
+              },
+              output: { ...previous, awaitingOutcome: true },
+              reason: 'waiting for the call outcome',
+            };
+          }
+          return { kind: 'advance', edge: 'next', to: node.next, reason: step.resumed.resolution };
         case 'proposal_withdrawn':
           return { kind: 'advance', edge: 'next', to: node.next, reason: step.resumed.resolution };
         case 'proposal_dismissed':
@@ -585,12 +614,13 @@ export class JourneyRuntimeService {
       .where(eq(schema.journeys.id, step.enrollment.journeyId))
       .limit(1);
     const settings = step.spec.settings;
-    const sms = node.channel === 'sms';
+    const sms = node.channel !== 'email';
     const proposal = await this.outreach.proposeJourneyMessage(
       {
         campaignId: journey!.campaignId,
         channel: node.channel,
-        channelId: sms ? (settings.smsChannelId ?? null) : null,
+        channelId:
+          node.channel === 'sms' ? (settings.smsChannelId ?? null) : node.channel === 'voice' ? (settings.voiceChannelId ?? null) : null,
         contactId,
         enrollmentId: step.enrollment.id,
         stepRunId: step.stepRunId,
@@ -1023,7 +1053,12 @@ export class JourneyRuntimeService {
       .where(and(eq(w.orgId, row.orgId), eq(w.kind, 'proposal'), isNull(w.resolvedAt), sql`${w.match}->>'proposalId' = ${proposalId}`))
       .limit(1);
     if (!wait) return;
-    if (resolution === 'proposal_sent' && typeof row.payload.conversationId === 'string' && row.payload.channel !== 'sms') {
+    if (
+      resolution === 'proposal_sent' &&
+      typeof row.payload.conversationId === 'string' &&
+      row.payload.channel !== 'sms' &&
+      row.payload.channel !== 'voice'
+    ) {
       await this.rememberThread(wait.enrollmentId, row.payload.conversationId);
     }
     await this.resolveWait(wait, resolution);
@@ -1755,6 +1790,9 @@ function payloadMatches(
 function edgeTarget(node: JourneyNode, edge: string): string | undefined {
   switch (node.type) {
     case 'message':
+      if (edge.startsWith('outcome_')) {
+        return node.onOutcome?.[edge.slice('outcome_'.length) as keyof NonNullable<typeof node.onOutcome>] ?? node.next;
+      }
       return edge === 'on_reply' ? node.onReply : node.next;
     case 'wait_for':
       return edge === 'on_timeout' ? node.onTimeout : node.next;

@@ -24,7 +24,7 @@ const NODE_TYPE_REFERENCE = [
   {
     type: 'message',
     does: 'Send an email to the contact. approval: draft_only (default, filed for human review), auto (sends without review once a person publishes the version) or off (skipped).',
-    fields: '{ channel: "email", class?: "marketing"|"transactional", content: { subject, body, format?: "markdown"|"mjml", preheader?, templateId? }, approval?, next?, onReply? }',
+    fields: '{ channel: "email", class?: "marketing"|"transactional", content: { subject, body, format?: "markdown"|"mjml", preheader?, templateId? }, approval?, next?, onReply?, draftBy?: "agent", brief?, grounding?: [kb space slugs], locale?, draftInputs?, draftTimeout?: "PT30M" } — with draftBy "agent" a model rewrites the email for each person from the brief (content is the reference version and the fallback) and it always goes to review',
   },
   {
     type: 'action',
@@ -60,8 +60,8 @@ const NODE_TYPE_REFERENCE = [
   { type: 'exit', does: 'End the run with a reason code.', fields: '{ reason?: "reached_end" }' },
   {
     type: 'agent',
-    does: 'A model reads only the declared inputs about this person (national ID numbers removed) and picks one declared edge, logging its reason. If it has not answered within the timeout — or no model is configured — the run takes the fallback edge. An edge named "stop" also ends every other journey the person is in (reason conversation_stop). For a reply intent step, put it behind a message onReply with inputs ["reply", "thread", "contact"], edges interested / question / not_now / stop, and fallback question.',
-    fields: '{ mode: "decide", instructions, edges: { name: nodeId, … } (2–10), fallback: one edge name, inputs: ["contact"|"company"|"reply"|"thread"|"events"|"context"], timeout?: "PT10M" }',
+    does: 'decide: a model reads only the declared inputs about this person (national ID numbers removed) and picks one declared edge, logging its reason. If it has not answered within the timeout — or no model is configured — the run takes the fallback edge. An edge named "stop" also ends every other journey the person is in (reason conversation_stop). For a reply intent step, put it behind a message onReply with inputs ["reply", "thread", "contact"], edges interested / question / not_now / stop, and fallback question.',
+    fields: 'decide: { mode: "decide", instructions, edges: { name: nodeId, … } (2–10), fallback: one edge name, inputs: ["contact"|"company"|"reply"|"thread"|"events"|"context"], timeout?: "PT10M" } · enrich: { mode: "enrich", instructions, fields: [{ key, type: "string"|"number"|"boolean"|"date"|"enum", description, options? }], inputs, next, timeout? } — enrich writes the fields to the contact and to context.enriched',
   },
   ...RESERVED_JOURNEY_NODE_TYPES.map((type) => ({
     type,
@@ -156,6 +156,44 @@ export class JourneysTools {
   })
   submitDecision(args: { stepRunId: string; edge: string; reason: string; confidence?: 'high' | 'medium' | 'low' }) {
     return this.runtime.submitDecision(args);
+  }
+
+  @McpTool({
+    name: 'journeys_submit_draft',
+    title: 'Journeys: Submit an agent email draft',
+    description:
+      'Answer a waiting agent-drafted email step: the subject and markdown body written for this person, with the knowledge-base sources each factual claim rests on. The draft goes to the review inbox like any journey email. Used by the curator pass skill://journeys/draft-step; refused once the step was answered or timed out to the reference version.',
+    audiences: ['admin'],
+    scopes: ['journeys:write'],
+    input: z.object({
+      stepRunId: Id,
+      subject: z.string().min(1).max(300),
+      body: z.string().min(1).max(20_000),
+      citations: z
+        .array(z.object({ title: z.string().min(1).max(200), source: z.string().min(1).max(500) }))
+        .max(20)
+        .optional(),
+    }),
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  submitDraft(args: { stepRunId: string; subject: string; body: string; citations?: { title: string; source: string }[] }) {
+    return this.runtime.submitDraft(args);
+  }
+
+  @McpTool({
+    name: 'journeys_submit_fields',
+    title: 'Journeys: Submit agent-filled fields',
+    description:
+      'Answer a waiting agent enrich step: values for the step\'s declared fields, written to the contact\'s custom fields and the journey context so later branches can use them. Leave out fields the facts do not support. Used by the curator pass skill://journeys/enrich-step.',
+    audiences: ['admin'],
+    scopes: ['journeys:write'],
+    input: z.object({ stepRunId: Id, fields: z.record(z.string(), z.unknown()) }),
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  submitFields(args: { stepRunId: string; fields: Record<string, unknown> }) {
+    return this.runtime.submitFields(args);
   }
 
   @McpTool({

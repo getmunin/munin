@@ -1384,6 +1384,7 @@
         "email": "{node} · {decision}",
         "assumeApproved": "Antar at en person godkjenner «{node}».",
         "assumeNoReply": "Antar at ingen svarer på «{node}».",
+        "assumeAgentDraft": "Agenten skriver «{node}» om for hver person; eksempelet viser referanseversjonen.",
         "assumeAgentFallback": "Agenten i «{node}» kjøres ikke i prøvekjøringen; alle følger reserveveien «{edge}».",
         "assumeNoEvent": "Antar at {event} ikke kommer innen {timeout} ved «{node}».",
         "sample": "Eksempel: {subject} — til {name}",

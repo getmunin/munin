@@ -1,3 +1,4 @@
+import { inboxUnread, markInboxSeen, nextInboxNotice } from './inbox.ts';
 import { parseConfig, type WidgetConfig } from './config.ts';
 import {
   adoptSessionOwner,
@@ -177,6 +178,9 @@ export function start(config: WidgetConfig): void {
 
   let historyLoaded = false;
   let nudgeDue = false;
+  let inboxCount = 0;
+  let inboxTarget: ConversationSummary | null = null;
+  let inboxRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
   function scheduleNudge(): void {
     if (config.nudge === null) return;
@@ -216,7 +220,7 @@ export function start(config: WidgetConfig): void {
       if (locallyRead.has(m.id)) continue;
       n += 1;
     }
-    ui.setLauncherUnread(n);
+    ui.setLauncherUnread(n + inboxCount);
   }
 
   async function backfill(): Promise<void> {
@@ -273,11 +277,17 @@ export function start(config: WidgetConfig): void {
   }
 
   async function refreshPastConversations(): Promise<void> {
-    if (!config.showHistory) return;
     try {
       const recent = getRecentSessionIds(config.channelId, config.cookieDomain);
       const convs = await api.listConversations(recent);
-      ui.setPastConversations(convs);
+      if (config.showHistory) ui.setPastConversations(convs);
+      inboxCount = inboxUnread(convs, sessionId);
+      refreshUnreadBadge();
+      const notice = ui.isOpen() ? null : nextInboxNotice(convs, sessionId);
+      if (notice && notice.id !== inboxTarget?.id) {
+        inboxTarget = notice;
+        ui.showNudge(notice.preview || strings.nudgeDefault);
+      }
     } catch (err) {
       if (err instanceof WidgetApiError && err.status === 404) return;
       console.warn('[munin-widget] list conversations failed:', err);
@@ -328,6 +338,16 @@ export function start(config: WidgetConfig): void {
         console.warn('[munin-widget] start conversation failed:', err);
       }
     });
+  }
+
+  function openInbox(): void {
+    const target = inboxTarget;
+    if (!target) return;
+    inboxTarget = null;
+    markInboxSeen(target);
+    openConversation(target);
+    ui.setView('chat');
+    void refreshPastConversations();
   }
 
   function openConversation(summary: ConversationSummary): void {
@@ -548,12 +568,26 @@ export function start(config: WidgetConfig): void {
     },
     onOpen() {
       nudgeDue = false;
+      if (inboxTarget) {
+        openInbox();
+        return;
+      }
       if (config.nudge !== null) snoozeNudge(config.channelId);
     },
     onNudgeSend(text) {
+      if (inboxTarget) {
+        openInbox();
+        void sendMessage(text, []);
+        return;
+      }
       sendFromNudge(text);
     },
     onNudgeDismiss() {
+      if (inboxTarget) {
+        markInboxSeen(inboxTarget);
+        inboxTarget = null;
+        return;
+      }
       snoozeNudge(config.channelId);
     },
   });
@@ -646,6 +680,11 @@ export function start(config: WidgetConfig): void {
 
   realtime.onEvent(() => {
     void backfill();
+    if (inboxRefreshTimer) clearTimeout(inboxRefreshTimer);
+    inboxRefreshTimer = setTimeout(() => {
+      inboxRefreshTimer = null;
+      void refreshPastConversations();
+    }, 300);
   });
 
   realtime.onTyping((msg: IncomingTyping) => {

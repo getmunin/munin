@@ -84,6 +84,8 @@ const TYPING_MIN_INTERVAL_MS = 1500;
 const TYPING_AUTO_CLEAR_MS = 5000;
 const WS_MAX_PAYLOAD_BYTES = 64 * 1024;
 
+
+const CROSS_SESSION_EVENT_TYPES: ReadonlySet<string> = new Set(['conversation.created', 'conversation.message.sent']);
 @Injectable()
 export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(RealtimeGateway.name);
@@ -344,14 +346,19 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
       if (event.org_id !== actor.orgId) return;
       const outgoing = eventForAccess(access, event);
       if (!outgoing) return;
+      if (isWidget) {
+        void (async () => {
+          for (const channel of subscriptions) {
+            if (await this.matchWidgetEvent(channel, event, conversationMetaCache, widgetCtx)) {
+              ws.send(JSON.stringify({ type: 'event', channel, event: outgoing }));
+              return;
+            }
+          }
+        })();
+        return;
+      }
       for (const channel of subscriptions) {
-        if (isWidget) {
-          void this.matchWidgetEvent(channel, event, conversationMetaCache, widgetCtx).then(
-            (matched) => {
-              if (matched) ws.send(JSON.stringify({ type: 'event', channel, event: outgoing }));
-            },
-          );
-        } else if (channelMatches(channel, event)) {
+        if (channelMatches(channel, event)) {
           ws.send(JSON.stringify({ type: 'event', channel, event: outgoing }));
         }
       }
@@ -718,7 +725,13 @@ export class RealtimeGateway implements OnApplicationBootstrap, OnModuleDestroy 
     const meta = cached.meta;
     if (!meta) return false;
     if (meta.channelId !== subChannelId) return false;
-    if (meta.sessionId !== subSessionId) return false;
+    if (meta.sessionId !== subSessionId) {
+      return (
+        CROSS_SESSION_EVENT_TYPES.has(event.type) &&
+        !!widgetCtx.verifiedExternalId &&
+        meta.contactExternalId === widgetCtx.verifiedExternalId
+      );
+    }
     return identityOwnsContact(meta.contactExternalId, widgetCtx.verifiedExternalId);
   }
 

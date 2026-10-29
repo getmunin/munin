@@ -2063,6 +2063,90 @@ describe('createConversationHandler', () => {
     expect(draftSpy).not.toHaveBeenCalled();
   });
 
+  it('closes the conversation only after the reply was sent', async () => {
+    const rest = buildRest();
+    const order: string[] = [];
+    rest.postAgentMessage = vi.fn(() => {
+      order.push('send');
+      return Promise.resolve();
+    });
+    rest.changeStatus = vi.fn((_conversationId: string, status: string) => {
+      order.push(`status:${status}`);
+      return Promise.resolve();
+    });
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([
+        assistantStop('We open at 10am.'),
+        assistantStop('{"actions":[{"type":"close_conversation","reason":"resolved"}]}'),
+      ]),
+    });
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    expect(order).toEqual(['send', 'status:closed']);
+  });
+
+  it('keeps the conversation open when the audit closes it but the topic turns draft_only mid-turn', async () => {
+    const rest = buildRest({
+      getConversation: vi.fn(() => Promise.resolve(buildConversation({ channelType: 'email' }))),
+    });
+    const postSpy = vi.fn(() =>
+      Promise.reject(
+        Object.assign(
+          new Error(
+            'agent_send_not_auto: conversation conv_1 resolves to draft_only, so an agent reply must be parked for review instead of sent',
+          ),
+          { code: 'agent_send_not_auto' },
+        ),
+      ),
+    );
+    const statusSpy = vi.fn(() => Promise.resolve());
+    const topicSpy = vi.fn(() => Promise.resolve());
+    const draftSpy = vi.fn(() => Promise.resolve());
+    const handoverSpy = vi.fn(() => Promise.resolve());
+    rest.postAgentMessage = postSpy;
+    rest.changeStatus = statusSpy;
+    rest.setTopic = topicSpy;
+    rest.setDraftReply = draftSpy;
+    rest.requestHandover = handoverSpy;
+    rest.listTopics = vi.fn(() =>
+      Promise.resolve([{ id: 'top_1', slug: 'partnerships', name: 'Partnerships' }]),
+    );
+    const handler = createConversationHandler({
+      config: baseConfig,
+      rest,
+      prompts: buildPrompts(),
+      openMcp: () => Promise.resolve(buildMcp()),
+      logger: silentLogger,
+      scheduler: noDelayScheduler,
+      provider: sequenceProvider([
+        assistantStop('Thanks for reaching out, we are not hiring contractors right now.'),
+        assistantStop(
+          '{"actions":[{"type":"set_topic","topicSlug":"partnerships","reason":"contract offer"},{"type":"close_conversation","reason":"declined"}]}',
+        ),
+      ]),
+    });
+
+    handler.handle({ conversationId: 'conv_1', authorType: 'end_user' });
+    await handler.flush();
+
+    expect(topicSpy).toHaveBeenCalledWith('conv_1', 'top_1');
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    expect(statusSpy).not.toHaveBeenCalled();
+    expect(draftSpy).toHaveBeenCalledTimes(1);
+    expect(handoverSpy).toHaveBeenCalledWith('conv_1', {
+      reason: 'draft reply ready for review',
+      postSystemNote: false,
+    });
+  });
+
   it('still withholds the reply when parking the withheld draft fails', async () => {
     const rest = buildRest();
     const postSpy = vi.fn(() => Promise.resolve());

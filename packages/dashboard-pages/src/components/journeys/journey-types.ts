@@ -121,7 +121,27 @@ export interface SimulationDto {
     html?: string;
   }[];
   messageDecisions: Record<string, Record<string, number>>;
+  agentCost?: {
+    runs: number;
+    estimatedTokens: number;
+    estimatedUsd: number;
+    byNode: { nodeId: string; kind: string; tier: string; runs: number; tokensPerRun: number; basis: 'history' | 'default' }[];
+  };
   assumptions: { code: string; nodeId: string; event?: string; timeout?: string }[];
+}
+
+export interface AgentNodeStatsDto {
+  nodeId: string;
+  kind: 'decide' | 'enrich' | 'draft';
+  tier: 'fast' | 'smart';
+  runs: number;
+  fallbacks: number;
+  fallbackRate: number | null;
+  totalTokens: number;
+  avgTokens: number | null;
+  edges: Record<string, number>;
+  daily: { day: string; runs: number; fallbacks: number; edges: Record<string, number> }[];
+  review: { reviewed: number; editRate: number | null; rejectionRate: number | null } | null;
 }
 
 export interface NodeReviewStatsDto {

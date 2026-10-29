@@ -148,6 +148,15 @@ export function PublishDialog({
                   )),
                 )}
               </dl>
+              {sim.agentCost && sim.agentCost.runs > 0 && (
+                <p className="mt-2 text-xs text-ink-mute">
+                  {t('agentCost', {
+                    runs: sim.agentCost.runs,
+                    tokens: sim.agentCost.estimatedTokens.toLocaleString(),
+                    usd: sim.agentCost.estimatedUsd.toFixed(2),
+                  })}
+                </p>
+              )}
               {sim.assumptions.length > 0 && (
                 <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-ink-mute">
                   {sim.assumptions.map((a) => (

@@ -1359,7 +1359,13 @@
         "edited": "Redigert",
         "dismissed": "Avvist",
         "uneditedRate": "Andel uendret",
-        "readyForAuto": "Klar for auto"
+        "readyForAuto": "Klar for auto",
+        "agents": "Agentsteg · siste 30 dager",
+        "agentRuns": "Kjøringer",
+        "fallbackRate": "Reservevei",
+        "avgTokens": "Tokens per kjøring",
+        "agentOutcome": "Veier eller gjennomgang",
+        "draftOutcome": "redigert {edited} · avvist {rejected}"
       },
       "versions": {
         "published": "Publisert {at}",
@@ -1397,6 +1403,7 @@
         "sample": "Eksempel: {subject} — til {name}",
         "sampleFrame": "Rendret eksempel-e-post",
         "smsSample": "SMS-eksempel — til {name}",
+        "agentCost": "Agentstegene ville kjørt {runs} ganger i dette utvalget: omtrent {tokens} tokens, rundt ${usd} etter listepris.",
         "cancel": "Avbryt",
         "confirm": "Publiser v{version}",
         "published": "Versjon {version} er aktiv.",

@@ -1359,7 +1359,13 @@
         "edited": "Edited",
         "dismissed": "Dismissed",
         "uneditedRate": "As-is share",
-        "readyForAuto": "Ready for auto"
+        "readyForAuto": "Ready for auto",
+        "agents": "Agent steps · last 30 days",
+        "agentRuns": "Runs",
+        "fallbackRate": "Fell back",
+        "avgTokens": "Tokens per run",
+        "agentOutcome": "Paths or review",
+        "draftOutcome": "edited {edited} · rejected {rejected}"
       },
       "versions": {
         "published": "Published {at}",
@@ -1397,6 +1403,7 @@
         "sample": "Sample: {subject} — to {name}",
         "sampleFrame": "Rendered sample email",
         "smsSample": "SMS sample — to {name}",
+        "agentCost": "Agent steps would run {runs} times in this sample: about {tokens} tokens, roughly ${usd} at list prices.",
         "cancel": "Cancel",
         "confirm": "Publish v{version}",
         "published": "Version {version} is live.",

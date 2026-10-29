@@ -173,4 +173,21 @@ describe('journey validator', () => {
       'missing_subject',
     ]);
   });
+
+  it('allows concurrent runs only for event-triggered journeys that send nothing', () => {
+    const base = (trigger: Record<string, unknown>, nodes: unknown[]) =>
+      parseJourneySpec({
+        entry: { trigger, reentry: 'concurrent' },
+        goal: { event: 'order.completed', windowDays: 7 },
+        start: nodes.length > 1 ? 'tag' : 'done',
+        nodes,
+      }).spec!;
+    const tag = { id: 'tag', type: 'action', action: 'crm.add_tag', params: { tag: 'cart' }, next: 'done' };
+    const mail = { id: 'tag', type: 'message', channel: 'email', content: { subject: 'Hei', body: 'Hei' }, next: 'done' };
+    const done = { id: 'done', type: 'exit' };
+    const codes = (spec: ReturnType<typeof base>) => validateJourneySpec(spec, refs).errors.map((e) => e.code);
+    expect(codes(base({ type: 'event', event: 'cart.abandoned' }, [tag, done]))).toEqual([]);
+    expect(codes(base({ type: 'manual' }, [tag, done]))).toEqual(['concurrent_trigger']);
+    expect(codes(base({ type: 'event', event: 'cart.abandoned' }, [mail, done]))).toEqual(['concurrent_messages']);
+  });
 });

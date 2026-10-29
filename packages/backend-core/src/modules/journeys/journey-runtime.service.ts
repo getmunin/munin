@@ -2,8 +2,10 @@ import { BadRequestException, ConflictException, Inject, Injectable, NotFoundExc
 import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, inArray, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, readApiBaseUrl, WebhookDispatcher } from '@getmunin/core';
+import { randomUUID } from 'node:crypto';
 import {
   JourneySpecSchema,
+  MAX_CONCURRENT_ENROLLMENTS,
   parseIsoDurationMs,
   type JourneyNode,
   type JourneySpec,
@@ -173,12 +175,18 @@ export class JourneyRuntimeService {
     if (spec.entry.reentry === 'once' && prior.length > 0) {
       return { status: 'skipped', reason: 'already_enrolled' };
     }
-    const [open] = await ctx.db
-      .select({ id: e.id })
+    const concurrent = spec.entry.reentry === 'concurrent';
+    const open = await ctx.db
+      .select({ id: e.id, entryKey: e.entryKey })
       .from(e)
       .where(and(eq(e.journeyId, journey.id), eq(e.subjectKey, subjectKey), inArray(e.state, ['active', 'waiting'])))
-      .limit(1);
-    if (open) return { status: 'skipped', reason: 'already_active', enrollmentId: open.id };
+      .limit(MAX_CONCURRENT_ENROLLMENTS);
+    const eventId = input.source.eventId;
+    const entryKey = concurrent ? (typeof eventId === 'string' ? eventId : randomUUID()) : '';
+    const same = open.find((o) => o.entryKey === entryKey);
+    if (same) return { status: 'skipped', reason: 'already_active', enrollmentId: same.id };
+    if (!concurrent && open[0]) return { status: 'skipped', reason: 'already_active', enrollmentId: open[0].id };
+    if (open.length >= MAX_CONCURRENT_ENROLLMENTS) return { status: 'skipped', reason: 'concurrency_cap' };
 
     const holdout = stableBucket(subjectKey, journey.id) < spec.settings.holdoutPct;
     const idleDeadlineAt = spec.exit.idleDays ? new Date(now.getTime() + spec.exit.idleDays * 86_400_000) : null;
@@ -191,6 +199,7 @@ export class JourneyRuntimeService {
         contactId: subject.contactId,
         endUserId: subject.endUserId,
         subjectKey,
+        entryKey,
         state: holdout ? 'done' : 'active',
         currentNode: holdout ? null : spec.start,
         visits: holdout ? {} : { [spec.start]: 1 },

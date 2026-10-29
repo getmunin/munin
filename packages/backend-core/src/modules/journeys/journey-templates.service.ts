@@ -4,6 +4,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { getCurrentContext } from '@getmunin/core';
 import { JourneysService, type JourneyDetailDto } from './journeys.service.ts';
 import type { JourneyValidation } from './journey-validator.ts';
+import { specFromCampaign } from './journey-campaign-conversion.ts';
 import {
   BUILT_IN_TEMPLATES,
   fillTemplate,
@@ -57,6 +58,36 @@ export class JourneyTemplatesService {
     });
     const validation = await this.journeys.validate(journey.id);
     return { ...(await this.journeys.get(journey.id)), validation };
+  }
+
+  async createFromCampaign(input: {
+    campaignId: string;
+    name?: string;
+    goal: { event: string; windowDays: number };
+  }): Promise<JourneyDetailDto & { validation: JourneyValidation; notes: string[] }> {
+    const ctx = getCurrentContext();
+    const c = schema.outreachCampaigns;
+    const [campaign] = await ctx.db
+      .select({
+        name: c.name,
+        brief: c.brief,
+        segmentId: c.segmentId,
+        cadenceRules: c.cadenceRules,
+        sequenceSteps: c.sequenceSteps,
+      })
+      .from(c)
+      .where(and(eq(c.orgId, ctx.actor!.orgId), eq(c.id, input.campaignId)))
+      .limit(1);
+    if (!campaign) throw new NotFoundException(`journeys_not_found: outreach campaign ${input.campaignId}`);
+    const { spec, notes } = specFromCampaign(campaign, input.goal);
+    const journey = await this.journeys.create({
+      name: input.name ?? campaign.name,
+      description: `Converted from the outreach campaign "${campaign.name}"`,
+      outreachCampaignId: input.campaignId,
+      spec: spec,
+    });
+    const validation = await this.journeys.validate(journey.id);
+    return { ...(await this.journeys.get(journey.id)), validation, notes };
   }
 
   async saveAsTemplate(input: {

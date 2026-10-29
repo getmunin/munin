@@ -10261,6 +10261,30 @@
         ]
       }
     },
+    "/v1/commerce/shopify/webhooks/{connectionId}": {
+      "post": {
+        "operationId": "ShopifyWebhookController_receive",
+        "parameters": [
+          {
+            "name": "connectionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ShopifyWebhook"
+        ],
+        "security": []
+      }
+    },
     "/v1/feedback": {
       "post": {
         "operationId": "FeedbackController_create",

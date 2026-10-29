@@ -76,9 +76,17 @@ interface AuditOutcome {
   handoverReason: string | null;
   spam: boolean;
   rationale: string | null;
+  heldUntilSent: AuditAction['type'][];
+  settleAfterSend: () => Promise<void>;
 }
 
-const NO_AUDIT_ACTIONS: AuditOutcome = { handoverReason: null, spam: false, rationale: null };
+const NO_AUDIT_ACTIONS: AuditOutcome = {
+  handoverReason: null,
+  spam: false,
+  rationale: null,
+  heldUntilSent: [],
+  settleAfterSend: () => Promise.resolve(),
+};
 
 const AUDIT_THREAD_MESSAGES = 10;
 
@@ -570,12 +578,18 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
           } catch (err) {
             if (!(err instanceof Error) || errorCode(err) !== 'agent_send_not_auto') throw err;
             log.info(`${conversationId} turned draft_only mid-turn; parking the reply for review`);
+            for (const type of audit.heldUntilSent) {
+              log.info(
+                `${conversationId} audit → ${type} withheld: nothing was sent, draft awaits review`,
+              );
+            }
             await parkForReview();
             return;
           }
           log.info(
             `${conversationId} replied (model=${reply.model}, tools=${reply.toolCalls.length}, tokens=${reply.usage.totalTokens})`,
           );
+          await audit.settleAfterSend();
           if (handoverThisTurn) {
             const noteBody = handoverReason
               ? `Agent requested handover: ${handoverReason}`
@@ -717,6 +731,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
     const candidates = verdict.actions.filter(
       (action) => !(action.type === 'request_handover' && agentCalledHandover),
     );
+    const heldUntilSent: AuditAction[] = [];
     const dispatched = candidates.filter((action) => {
       if (args.mode === 'draft-request' && action.type === 'request_handover') {
         args.log.info(
@@ -724,15 +739,17 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
         );
         return false;
       }
-      if (args.delivery === 'send') return true;
       const closesThread =
         action.type === 'close_conversation' || action.type === 'snooze_conversation';
-      if (closesThread) {
-        args.log.info(
-          `${args.conversationId} audit → ${action.type} withheld: nothing was sent, draft awaits review`,
-        );
+      if (!closesThread) return true;
+      if (args.delivery === 'send') {
+        heldUntilSent.push(action);
+        return false;
       }
-      return !closesThread;
+      args.log.info(
+        `${args.conversationId} audit → ${action.type} withheld: nothing was sent, draft awaits review`,
+      );
+      return false;
     });
     for (const action of dispatched) {
       await dispatchAuditAction(args.conversationId, action, args.mcp, topics, args.log);
@@ -741,6 +758,12 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       handoverReason: dispatched.find((a) => a.type === 'request_handover')?.reason ?? null,
       spam: dispatched.some((a) => a.type === 'mark_spam'),
       rationale: verdict.rationale,
+      heldUntilSent: heldUntilSent.map((a) => a.type),
+      settleAfterSend: async () => {
+        for (const action of heldUntilSent) {
+          await dispatchAuditAction(args.conversationId, action, args.mcp, topics, args.log);
+        }
+      },
     };
   }
 

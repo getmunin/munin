@@ -40,7 +40,7 @@ export const GUIDES: GuideMeta[] = [
     slug: 'connect-chatgpt',
     category: 'clients',
     title: 'Connect ChatGPT',
-    kicker: 'Add Munin as a custom connector in ChatGPT.',
+    kicker: 'Add Munin as a custom MCP server in ChatGPT.',
     minutes: 3,
     updated: 'today',
     tags: ['mcp', 'chatgpt'],

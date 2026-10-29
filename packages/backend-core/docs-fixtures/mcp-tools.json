@@ -12831,7 +12831,8 @@
             "delivery",
             "quota",
             "social",
-            "data_protection"
+            "data_protection",
+            "journeys"
           ]
         },
         "subjectId": {

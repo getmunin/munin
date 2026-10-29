@@ -919,6 +919,15 @@ export class EmailAdapter implements ChannelAdapter {
           reason: 'hard_bounce',
           evidence,
         });
+        await this.webhooks.emit({
+          type: 'conversation.message.bounced',
+          payload: {
+            conversationId: input.threaded ? input.conversationId : null,
+            noticeMessageId: input.messageId,
+            address: address.toLowerCase(),
+            severity: 'hard',
+          },
+        });
       }
       return;
     }

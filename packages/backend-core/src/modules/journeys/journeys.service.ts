@@ -4,7 +4,9 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { LLM_AVAILABILITY, type LlmAvailability } from './llm-availability.ts';
 import { createHash } from 'node:crypto';
 import { schema } from '@getmunin/db';
 import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
@@ -64,7 +66,10 @@ const EMPTY_SPEC: RawSpec = {
 
 @Injectable()
 export class JourneysService {
-  constructor(@Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher) {}
+  constructor(
+    @Inject(WebhookDispatcher) private readonly webhooks: WebhookDispatcher,
+    @Optional() @Inject(LLM_AVAILABILITY) private readonly llm: LlmAvailability | null = null,
+  ) {}
 
   async list(input: { status?: JourneyStatus; limit?: number } = {}): Promise<JourneyDto[]> {
     const ctx = getCurrentContext();
@@ -443,6 +448,7 @@ export class JourneysService {
       emailTemplateIds: new Set(templates.map((r) => r.id)),
       webhookIds: new Set(webhooks.map((r) => r.id)),
       smsChannelIds: new Set(smsChannels.map((r) => r.id)),
+      llmConfigured: this.llm ? await this.llm.providerConfigured().catch(() => undefined) : undefined,
     };
   }
 }

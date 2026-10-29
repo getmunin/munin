@@ -218,7 +218,8 @@
       "channelOutboundFailing": "Svar kommer ikke ut på «{name}»",
       "openChannelSettings": "Åpne kanalinnstillinger →",
       "openSocialSettings": "Koble til på nytt",
-      "openPrivacySettings": "Åpne personverninnstillinger"
+      "openPrivacySettings": "Åpne personverninnstillinger",
+      "openJourneys": "Åpne journeys"
     },
     "loadFailed": {
       "eyebrow": "Tilkobling · feilet",

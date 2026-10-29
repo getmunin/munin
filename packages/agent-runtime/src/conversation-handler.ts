@@ -36,7 +36,7 @@ export interface HandlerConfig {
 
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
-const TERMINAL_SKIP_CODES = new Set(['handover_active', 'agent_reply_race']);
+const TERMINAL_SKIP_CODES = new Set(['handover_active', 'agent_reply_race', 'greet_superseded']);
 
 function errorCode(err: Error): string | null {
   const code = (err as { code?: unknown }).code;
@@ -396,10 +396,12 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
       const fallbackLocale = pickFallback(detail.endUserLocale);
 
       if (mode === 'greet') {
+        if (signal.aborted) return;
         log.warn(`${conversationId} greet fallback (${fallbackLocale}): ${reason}`);
         await deps.rest
           .postAgentMessage(conversationId, FALLBACK_GREET[fallbackLocale], {
             sinceMessageId,
+            greeting: true,
           })
           .catch((err) => {
             log.error(
@@ -505,19 +507,23 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
           const llmHandoverArgs = reply.toolCalls.find((t) => t.name === HANDOVER_TOOL_NAME)
             ?.args as { reason?: string } | undefined;
           const llmHandoverReason = llmHandoverArgs?.reason;
-          const audit = await runAuditPass({
-            conversationId,
-            reply,
-            history,
-            subject: emailSubject(detail),
-            mcp,
-            log,
-            delivery,
-            mode,
-            ...(mode === 'draft-request' && draft.language
-              ? { draftLanguage: draft.language }
-              : {}),
-          });
+          const audit =
+            mode === 'greet'
+              ? NO_AUDIT_ACTIONS
+              : await runAuditPass({
+                  conversationId,
+                  reply,
+                  history,
+                  subject: emailSubject(detail),
+                  mcp,
+                  log,
+                  delivery,
+                  mode,
+                  ...(mode === 'draft-request' && draft.language
+                    ? { draftLanguage: draft.language }
+                    : {}),
+                });
+          if (signal.aborted) return;
           if (audit.spam) {
             log.warn(`${conversationId} spam verdict: withholding reply, parking draft`);
             await deps.rest
@@ -564,6 +570,7 @@ export function createConversationHandler(deps: ConversationHandlerDeps): Conver
           try {
             await deps.rest.postAgentMessage(conversationId, reply.body, {
               sinceMessageId,
+              ...(mode === 'greet' ? { greeting: true } : {}),
               totalTokens: reply.usage.totalTokens,
               components: deriveMessageComponents(reply.toolCalls),
             });

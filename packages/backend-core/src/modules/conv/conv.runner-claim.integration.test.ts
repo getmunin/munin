@@ -20,6 +20,9 @@ const skipReason = TEST_URL
   let orgId: string;
   let adminKey: string;
   let convId: string;
+  let channelId: string;
+  let contactId: string;
+  let endUserId: string;
 
   beforeAll(async () => {
     process.env.MUNIN_AUTH_SECRET ??= 'test-secret-do-not-use-in-prod';
@@ -85,6 +88,9 @@ const skipReason = TEST_URL
       })
       .returning();
     convId = conv!.id;
+    channelId = channel!.id;
+    contactId = contact!.id;
+    endUserId = eu!.id;
 
     app = await NestFactory.create(AppModule, { logger: false });
     await app.listen(0, '127.0.0.1');
@@ -256,5 +262,76 @@ const skipReason = TEST_URL
     });
     expect(racePost.status).toBe(409);
     expect(JSON.stringify(racePost.body)).toContain('agent_reply_race');
+  });
+
+  async function freshConversation(displayId: number): Promise<string> {
+    const [conv] = await db
+      .insert(schema.convConversations)
+      .values({ orgId, channelId, contactId, endUserId, displayId, status: 'open' })
+      .returning();
+    return conv!.id;
+  }
+
+  async function insertMessage(
+    conversationId: string,
+    authorType: 'end_user' | 'agent',
+    body: string,
+  ): Promise<string> {
+    const [row] = await db
+      .insert(schema.convMessages)
+      .values({
+        orgId,
+        conversationId,
+        authorType,
+        authorId: authorType === 'end_user' ? 'eu-1' : 'agent-1',
+        body,
+        internal: false,
+      })
+      .returning();
+    return row!.id;
+  }
+
+  it('greeting posted before the end user writes is stored with kind=greeting', async () => {
+    const id = await freshConversation(101);
+    const res = await call(`/v1/conversations/${id}/messages`, {
+      method: 'POST',
+      body: { body: 'Hi! How can I help?', greeting: true },
+    });
+    expect(res.status).toBe(201);
+    const [row] = await db
+      .select({ metadata: schema.convMessages.metadata })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.conversationId, id));
+    expect((row?.metadata as { kind?: string } | null)?.kind).toBe('greeting');
+  });
+
+  it('greeting is rejected once the end user has written', async () => {
+    const id = await freshConversation(102);
+    await insertMessage(id, 'end_user', 'do you take card?');
+    const res = await call(`/v1/conversations/${id}/messages`, {
+      method: 'POST',
+      body: { body: 'Hi! How can I help?', greeting: true },
+    });
+    expect(res.status).toBe(409);
+    expect(JSON.stringify(res.body)).toContain('greet_superseded');
+  });
+
+  it('a greeting that lands after the question does not block the reply to it', async () => {
+    const id = await freshConversation(103);
+    const questionId = await insertMessage(id, 'end_user', 'do you take card?');
+    await db.insert(schema.convMessages).values({
+      orgId,
+      conversationId: id,
+      authorType: 'agent',
+      authorId: 'agent-1',
+      body: 'Hi! How can I help?',
+      internal: false,
+      metadata: { kind: 'greeting' },
+    });
+    const res = await call(`/v1/conversations/${id}/messages`, {
+      method: 'POST',
+      body: { body: 'Yes, we take card.', sinceMessageId: questionId },
+    });
+    expect(res.status).toBe(201);
   });
 });

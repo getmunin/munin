@@ -22,7 +22,7 @@ import { buildAgentInputs, buildDecidePrompt, buildDraftPrompt, buildEnrichPromp
 import { OUTREACH_ELIGIBILITY_FLOOR, segmentMatchFilters } from '../crm/segment-filter.ts';
 import { collectConditionNeeds, evaluateCondition, type ConditionFacts } from './journey-conditions.ts';
 import { JOURNEY_RUNTIME_ACTOR_ID, journeyEventKey } from './journey-event.sink.ts';
-import { MAX_ACTION_ATTEMPTS, nextLocalOccurrence, nextValidTime, retryDelayMs, stableBucket } from './journey-time.ts';
+import { MAX_ACTION_ATTEMPTS, nextLocalOccurrence, nextValidTime, parseZonedDate, retryDelayMs, stableBucket } from './journey-time.ts';
 
 export const ENROLLMENT_STATES = ['active', 'waiting', 'done', 'exited'] as const;
 export type EnrollmentState = (typeof ENROLLMENT_STATES)[number];
@@ -1422,7 +1422,7 @@ export class JourneyRuntimeService {
     if (node.duration) wakeAt = new Date(step.now.getTime() + (parseIsoDurationMs(node.duration) ?? 0));
     else if (node.until) wakeAt = new Date(node.until);
     else if (node.untilField) {
-      const base = await this.readDateField(step, node.untilField.field);
+      const base = await this.readDateField(step, node.untilField.field, timezone);
       if (!base) return { kind: 'advance', edge: 'next', to: node.next, reason: `${node.untilField.field} is empty` };
       const offset = node.untilField.offset ?? 'P0D';
       const negative = offset.startsWith('-');
@@ -2062,7 +2062,7 @@ export class JourneyRuntimeService {
     return resolveTimezone(fields, step.spec);
   }
 
-  private async readDateField(step: StepContext, field: string): Promise<Date | null> {
+  private async readDateField(step: StepContext, field: string, timezone: string): Promise<Date | null> {
     const [root, ...rest] = field.split('.');
     let source: Record<string, unknown> | null = null;
     if (root === 'context') source = step.enrollment.context;
@@ -2082,7 +2082,7 @@ export class JourneyRuntimeService {
     }
     let value: unknown = source;
     for (const key of rest) value = value && typeof value === 'object' ? (value as Record<string, unknown>)[key] : undefined;
-    return parseDate(value);
+    return parseZonedDate(value, timezone);
   }
 
   private async insertStepRun(

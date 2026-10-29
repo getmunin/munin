@@ -1352,7 +1352,8 @@
         "state": "Tilstand",
         "where": "Nå / avslutning",
         "entered": "Startet",
-        "holdout": "kontrollgruppe"
+        "holdout": "kontrollgruppe",
+        "company": "Selskap"
       },
       "trace": {
         "title": "Steglogg",
@@ -1411,8 +1412,8 @@
         "removed": "Fjernet: {nodes}",
         "blocks": "Endrede innstillinger: {blocks}",
         "autoTitle": "Sendes uten gjennomgang",
-        "autoBody": "Disse e-postene sendes uten at noen leser hver enkelt: {nodes}. Bekrefter du, publiseres de slik.",
-        "autoMessageMeta": "{node} · {kind, select, transactional {transaksjonell — når også avmeldte} other {markedsføring}} · {author, select, agent {skrevet av agenten per person} other {fast tekst}}",
+        "autoBody": "Disse meldingene sendes uten at noen leser hver enkelt: {nodes}. Bekrefter du, publiseres de slik.",
+        "autoMessageMeta": "{node} · {channel, select, sms {SMS} chat {chat} voice {samtale} other {e-post}} · {kind, select, transactional {transaksjonell — når også avmeldte} other {markedsføring}} · {author, select, agent {skrevet av agenten per person} other {fast tekst}}",
         "autoEvidence": "{node}: {reviewed} gjennomgåtte utkast, {rate} godkjent uendret",
         "warnings": "Advarsler",
         "simulation": "Prøvekjøring",
@@ -1499,6 +1500,33 @@
           "approval": "Godkjenning av en person",
           "exit": "Avslutt"
         }
+      },
+      "runState": {
+        "active": "kjører",
+        "waiting": "venter",
+        "done": "fullført",
+        "exited": "avsluttet"
+      },
+      "exitReason": {
+        "reached_end": "nådde slutten",
+        "goal_reached": "nådde målet",
+        "matched_exit": "avslutningshendelse",
+        "idle_timeout": "inaktiv for lenge",
+        "ejected": "tatt ut",
+        "holdout": "kontrollgruppe",
+        "loop_detected": "løkke stoppet",
+        "message_blocked": "melding stoppet av sendereglene",
+        "message_failed": "melding feilet",
+        "proposal_dismissed": "melding avvist",
+        "approval_timeout": "ikke gjennomgått i tide",
+        "approval_rejected": "avvist av en person",
+        "action_failed": "handling feilet",
+        "no_contact": "ingen kontakt",
+        "no_recipients": "ingen å skrive til i selskapet",
+        "conversation_stop": "ba om å slutte",
+        "node_missing": "steget mangler",
+        "node_type_unavailable": "stegtypen er ikke tilgjengelig",
+        "wait_timeout": "hendelsen kom aldri"
       }
     },
     "endUsers": {

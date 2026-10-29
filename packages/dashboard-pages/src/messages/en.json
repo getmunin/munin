@@ -1352,7 +1352,8 @@
         "state": "State",
         "where": "Now / exit",
         "entered": "Entered",
-        "holdout": "holdout"
+        "holdout": "holdout",
+        "company": "Company"
       },
       "trace": {
         "title": "Step trace",
@@ -1411,8 +1412,8 @@
         "removed": "Removed: {nodes}",
         "blocks": "Settings changed: {blocks}",
         "autoTitle": "Sends without review",
-        "autoBody": "These emails go out without anyone reading each one: {nodes}. Confirming publishes them that way.",
-        "autoMessageMeta": "{node} · {kind, select, transactional {transactional — reaches unsubscribed contacts} other {marketing}} · {author, select, agent {written by the agent per person} other {fixed text}}",
+        "autoBody": "These messages go out without anyone reading each one: {nodes}. Confirming publishes them that way.",
+        "autoMessageMeta": "{node} · {channel, select, sms {SMS} chat {chat} voice {call} other {email}} · {kind, select, transactional {transactional — reaches unsubscribed contacts} other {marketing}} · {author, select, agent {written by the agent per person} other {fixed text}}",
         "autoEvidence": "{node}: {reviewed} reviewed drafts, {rate} approved as is",
         "warnings": "Warnings",
         "simulation": "Dry run",
@@ -1499,6 +1500,33 @@
           "approval": "Approval by a person",
           "exit": "Exit"
         }
+      },
+      "runState": {
+        "active": "running",
+        "waiting": "waiting",
+        "done": "finished",
+        "exited": "exited"
+      },
+      "exitReason": {
+        "reached_end": "reached the end",
+        "goal_reached": "goal reached",
+        "matched_exit": "exit event",
+        "idle_timeout": "inactive too long",
+        "ejected": "taken out",
+        "holdout": "control group",
+        "loop_detected": "loop stopped",
+        "message_blocked": "message blocked by send rules",
+        "message_failed": "message failed",
+        "proposal_dismissed": "message dismissed",
+        "approval_timeout": "not reviewed in time",
+        "approval_rejected": "rejected by a person",
+        "action_failed": "action failed",
+        "no_contact": "no contact",
+        "no_recipients": "nobody at the company to write to",
+        "conversation_stop": "asked to stop",
+        "node_missing": "step missing",
+        "node_type_unavailable": "step type unavailable",
+        "wait_timeout": "event never came"
       }
     },
     "endUsers": {

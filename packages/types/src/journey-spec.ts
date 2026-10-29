@@ -40,6 +40,7 @@ export const MESSAGE_APPROVAL_MODES = ['draft_only', 'auto', 'off'] as const;
 export const MESSAGE_CLASSES = ['marketing', 'transactional'] as const;
 export const MESSAGE_CHANNELS = ['email', 'sms', 'voice', 'chat'] as const;
 export const JOURNEY_CHAT_MAX_CHARS = 2000;
+export const MAX_COMPANY_RECIPIENTS = 10;
 export const JOURNEY_SMS_MAX_CHARS = 480;
 export const JOURNEY_CALL_OPENING_MAX_CHARS = 1000;
 export const CALL_OUTCOMES = ['reached', 'no_contact', 'refused', 'wrong_contact'] as const;
@@ -168,6 +169,13 @@ export const MessageNodeSchema = z.strictObject({
   outcomeTimeout: IsoDuration.optional(),
   onUnseen: NodeId.optional(),
   seenTimeout: IsoDuration.optional(),
+  recipients: z
+    .strictObject({
+      tag: z.string().min(1).max(64).optional(),
+      titleContains: z.string().min(1).max(64).optional(),
+      max: z.number().int().min(1).max(MAX_COMPANY_RECIPIENTS).default(3),
+    })
+    .optional(),
 });
 
 export const ActionNodeSchema = z.strictObject({

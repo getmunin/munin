@@ -137,6 +137,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       'outreach_proposals',
       'outreach_campaigns',
       'crm_contacts',
+      'crm_companies',
       'crm_segments',
       'conv_channels',
       'end_users',
@@ -209,7 +210,11 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     return row!;
   }
 
-  async function publish(nodes: unknown[], settings: Record<string, unknown> = {}) {
+  async function publish(
+    nodes: unknown[],
+    settings: Record<string, unknown> = {},
+    entry: Record<string, unknown> = { trigger: { type: 'manual' } },
+  ) {
     const [channel] = await db.select().from(schema.convChannels).where(eq(schema.convChannels.orgId, orgId)).limit(1);
     const [campaign] = await db
       .insert(schema.outreachCampaigns)
@@ -229,7 +234,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
         name: `J ${randomUUID()}`,
         outreachCampaignId: campaignId,
         spec: {
-          entry: { trigger: { type: 'manual' } },
+          entry,
           goal: { event: 'subscription.started', windowDays: 30 },
           settings,
           start: 'welcome',
@@ -626,6 +631,77 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       nodes: [{ ...node, approval: 'auto' }, done],
     }));
     await expect(asAgent(() => publishing.requestPublish(journeyId))).rejects.toThrow(/only after 30 reviewed drafts/);
+  });
+
+  it('writes one message to each chosen person at a company and moves on once every one is decided', async () => {
+    const journeyId = await publish(
+      [welcome({ recipients: { tag: 'buyer', max: 3 } }), done],
+      {},
+      { trigger: { type: 'manual' }, subject: 'company' },
+    );
+    const [acme] = await db.insert(schema.crmCompanies).values({ orgId, name: 'Acme' }).returning();
+    const kari = await contact({ name: 'Kari Nordmann', companyId: acme!.id, tags: ['buyer'] });
+    const ola = await contact({ name: 'Ola Nordmann', companyId: acme!.id, tags: ['buyer'] });
+    const per = await contact({ name: 'Per Hansen', companyId: acme!.id });
+    const result = await asAgent(() =>
+      runtime.enroll({ journeyId, subject: { contactId: null, endUserId: null, companyId: acme!.id }, source: { type: 'manual' } }),
+    );
+    await worker.tick();
+
+    const proposals = await db.select().from(schema.outreachProposals).where(eq(schema.outreachProposals.journeyEnrollmentId, result.enrollmentId!));
+    expect(proposals.map((p) => p.contactId).sort()).toEqual([kari.id, ola.id].sort());
+    expect(proposals.every((p) => p.status === 'pending' && p.journeyStepRunId === proposals[0]!.journeyStepRunId)).toBe(true);
+    expect(await proposalsFor(per.id)).toEqual([]);
+
+    const toKari = proposals.find((p) => p.contactId === kari.id)!;
+    const pending = await asAgent(() => outreach.getProposal(toKari.id));
+    await runAs(person, () =>
+      outreach.approveProposal(toKari.id, { fingerprint: pending.draftFingerprint, publicBaseUrl: 'https://api.acme.test' }),
+    );
+    await worker.tick();
+    expect(await enrollment(result.enrollmentId!)).toMatchObject({ state: 'waiting', currentNode: 'welcome' });
+
+    await runAs(person, () => outreach.dismissProposal({ id: proposals.find((p) => p.contactId === ola.id)!.id, reason: 'not now' }));
+    await worker.tick();
+    await worker.tick();
+    expect(await enrollment(result.enrollmentId!)).toMatchObject({ state: 'done', exitReason: 'reached_end' });
+    const [sentToKari] = await proposalsFor(kari.id);
+    expect(sentToKari).toMatchObject({ status: 'sent' });
+    expect(sentToKari!.conversationId).toBeTruthy();
+  });
+
+  it('refuses recipients on a person journey and calls or agent drafts in a company journey', async () => {
+    const [channel] = await db.select().from(schema.convChannels).where(eq(schema.convChannels.orgId, orgId)).limit(1);
+    const create = async (entry: Record<string, unknown>, node: Record<string, unknown>) => {
+      const [campaign] = await db
+        .insert(schema.outreachCampaigns)
+        .values({
+          orgId,
+          name: `Campaign ${randomUUID()}`,
+          brief: 'Accounts',
+          segmentId,
+          channelId: channel!.id,
+          createdByActorType: 'admin_agent',
+          createdByActorId: 'agt_messaging_test',
+        })
+        .returning();
+      return asAgent(() =>
+        journeys.create({
+          name: `J ${randomUUID()}`,
+          outreachCampaignId: campaign!.id,
+          spec: { entry, goal: { event: 'subscription.started', windowDays: 30 }, start: 'welcome', nodes: [node, done] },
+        }),
+      );
+    };
+    const person = await create({ trigger: { type: 'manual' } }, welcome({ recipients: { tag: 'buyer' } }));
+    expect((await asAgent(() => journeys.validate(person.id))).errors.map((e) => e.code)).toEqual(['recipients_company_only']);
+    const company = await create(
+      { trigger: { type: 'manual' }, subject: 'company' },
+      welcome({ draftBy: 'agent', brief: 'Say hello' }),
+    );
+    expect((await asAgent(() => journeys.validate(company.id))).errors.map((e) => e.code).sort()).toEqual(
+      ['company_agent_draft', 'company_recipients'],
+    );
   });
 
   it('mixes email and SMS in one journey, with every SMS approved by a person and replies followed on its own thread', async () => {

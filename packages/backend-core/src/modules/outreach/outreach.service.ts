@@ -9,6 +9,7 @@ import {
   getTableColumns,
   inArray,
   isNotNull,
+  isNull,
   ne,
   sql,
   type SQL,
@@ -1770,7 +1771,7 @@ export class OutreachService {
     const [existing] = await ctx.db
       .select({ id: p.id })
       .from(p)
-      .where(eq(p.journeyStepRunId, input.stepRunId))
+      .where(and(eq(p.journeyStepRunId, input.stepRunId), eq(p.contactId, input.contactId)))
       .limit(1);
     if (existing) return this.getProposal(existing.id);
     const sms = input.channel !== 'email';
@@ -2018,7 +2019,7 @@ export class OutreachService {
     };
     const approvedByPerson = proposal.decidedByActorType === 'user' ? proposal.id : undefined;
 
-    const threadId = enrollmentId ? await this.journeyThread(enrollmentId) : null;
+    const threadId = enrollmentId ? await this.journeyThread(enrollmentId, proposal.contactId) : null;
     let conversationId: string;
     let messageId: string | null;
     if (threadId) {
@@ -2303,14 +2304,30 @@ export class OutreachService {
     return row?.conversationId ?? null;
   }
 
-  private async journeyThread(enrollmentId: string): Promise<string | null> {
+  private async journeyThread(enrollmentId: string, contactId: string): Promise<string | null> {
     const ctx = getCurrentContext();
     const [row] = await ctx.db
-      .select({ conversationId: schema.journeyEnrollments.conversationId })
+      .select({ conversationId: schema.journeyEnrollments.conversationId, contactId: schema.journeyEnrollments.contactId })
       .from(schema.journeyEnrollments)
       .where(eq(schema.journeyEnrollments.id, enrollmentId))
       .limit(1);
-    return row?.conversationId ?? null;
+    if (row?.contactId) return row.conversationId ?? null;
+    const p = schema.outreachProposals;
+    const [sent] = await ctx.db
+      .select({ conversationId: p.conversationId })
+      .from(p)
+      .where(
+        and(
+          eq(p.journeyEnrollmentId, enrollmentId),
+          eq(p.contactId, contactId),
+          isNull(p.channelId),
+          eq(p.status, 'sent'),
+          isNotNull(p.conversationId),
+        ),
+      )
+      .orderBy(desc(p.sentAt))
+      .limit(1);
+    return sent?.conversationId ?? null;
   }
 
   private async journeyTemplateMjml(templateId: string | null, builtIn: string): Promise<string> {

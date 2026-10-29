@@ -139,6 +139,13 @@ export function validateJourneySpec(spec: JourneySpec, refs: JourneyReferences):
   }
 
   if (spec.entry.subject === 'company') checkCompanyJourney(spec, errors);
+  else {
+    for (const node of spec.nodes) {
+      if (node.type === 'message' && node.recipients) {
+        errors.push({ code: 'recipients_company_only', nodeId: node.id, message: 'recipients apply to company journeys only; a person journey writes to its person' });
+      }
+    }
+  }
 
   if (spec.nodes.some((n) => n.type === 'message' && n.channel === 'chat')) {
     const channelId = spec.settings.chatChannelId;
@@ -488,7 +495,10 @@ function checkCompanyJourney(spec: JourneySpec, errors: JourneyIssue[]): void {
   for (const node of spec.nodes) {
     const fail = (code: string, message: string) => errors.push({ code, nodeId: node.id, message });
     if (node.type === 'message') {
-      fail('company_message', 'a company journey cannot send messages yet; tag the company, log an activity or post a webhook');
+      if (!node.recipients) fail('company_recipients', 'a message in a company journey needs recipients: who at the company receives it');
+      if (node.channel === 'voice') fail('company_voice', 'a company journey cannot place calls; call steps follow one person');
+      if (node.draftBy === 'agent') fail('company_agent_draft', 'a company journey sends one fixed text to each recipient; agent drafts follow one person');
+      if (node.onUnseen || node.seenTimeout) fail('company_unseen', 'a company journey does not wait for a chat message to be seen');
     }
     if (node.type === 'action' && PERSON_ACTIONS.has(node.action)) {
       fail('company_action', `${node.action} changes one person; a company journey can tag the company, log an activity or post a webhook`);

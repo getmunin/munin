@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, inArray, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, readApiBaseUrl, WebhookDispatcher } from '@getmunin/core';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   CALL_OUTCOMES,
   JourneySpecSchema,
@@ -46,6 +46,16 @@ type WaitRow = typeof schema.journeyWaits.$inferSelect;
 export interface Subject {
   contactId: string | null;
   endUserId: string | null;
+}
+
+export interface MoveEnrollmentsResult {
+  toVersion: number;
+  fingerprint: string;
+  moved: number;
+  movable: number;
+  byNode: Record<string, { to: string; count: number; resumes: boolean }>;
+  skipped: { enrollmentId: string; node: string; reason: string }[];
+  applied: boolean;
 }
 
 export interface EnrollResult {
@@ -1525,6 +1535,120 @@ export class JourneyRuntimeService {
         timeoutAt: w.timeoutAt?.toISOString() ?? null,
       })),
     };
+  }
+
+  async moveEnrollments(input: {
+    journeyId: string;
+    toVersion: number;
+    nodeMap?: Record<string, string>;
+    fromVersions?: number[];
+    fingerprint?: string;
+  }): Promise<MoveEnrollmentsResult> {
+    const ctx = getCurrentContext();
+    const [journey] = await ctx.db
+      .select({ id: schema.journeys.id, status: schema.journeys.status })
+      .from(schema.journeys)
+      .where(and(eq(schema.journeys.orgId, ctx.actor!.orgId), eq(schema.journeys.id, input.journeyId)))
+      .limit(1);
+    if (!journey) throw new NotFoundException(`journeys_not_found: journey ${input.journeyId}`);
+    const [target] = await ctx.db
+      .select({ publishedAt: schema.journeyVersions.publishedAt })
+      .from(schema.journeyVersions)
+      .where(and(eq(schema.journeyVersions.journeyId, input.journeyId), eq(schema.journeyVersions.number, input.toVersion)))
+      .limit(1);
+    if (!target?.publishedAt) {
+      throw new BadRequestException(`journeys_invalid: version ${input.toVersion} is not published; runs can only move to a published version`);
+    }
+    const toSpec = await this.spec(input.journeyId, input.toVersion);
+    const toNodes = new Map(toSpec.nodes.map((n) => [n.id, n]));
+    const e = schema.journeyEnrollments;
+    const filters = [eq(e.journeyId, input.journeyId), inArray(e.state, ['active', 'waiting']), ne(e.version, input.toVersion)];
+    if (input.fromVersions?.length) filters.push(inArray(e.version, input.fromVersions));
+    const open = await ctx.db.select().from(e).where(and(...filters)).orderBy(asc(e.id));
+
+    const byNode: MoveEnrollmentsResult['byNode'] = {};
+    const skipped: MoveEnrollmentsResult['skipped'] = [];
+    const plan: { enrollment: EnrollmentRow; to: string; resumes: boolean }[] = [];
+    for (const enrollment of open) {
+      const from = enrollment.currentNode;
+      if (!from) continue;
+      const fromSpec = await this.spec(input.journeyId, enrollment.version);
+      const fromNode = fromSpec.nodes.find((n) => n.id === from);
+      const to = input.nodeMap?.[from] ?? (toNodes.has(from) ? from : null);
+      const toNode = to ? toNodes.get(to) : undefined;
+      if (!to || !toNode) {
+        skipped.push({ enrollmentId: enrollment.id, node: from, reason: to ? `node ${to} is not in version ${input.toVersion}` : 'no matching node; map it in nodeMap' });
+        continue;
+      }
+      const resumes = to === from && toNode.type === fromNode?.type;
+      if (!resumes && enrollment.state === 'waiting') {
+        const [held] = await ctx.db
+          .select({ kind: schema.journeyWaits.kind })
+          .from(schema.journeyWaits)
+          .where(
+            and(
+              eq(schema.journeyWaits.enrollmentId, enrollment.id),
+              isNull(schema.journeyWaits.resolvedAt),
+              inArray(schema.journeyWaits.kind, ['proposal', 'agent', 'approval']),
+            ),
+          )
+          .limit(1);
+        if (held) {
+          skipped.push({ enrollmentId: enrollment.id, node: from, reason: `waiting on a ${held.kind} at ${from}; it can only stay on the same step` });
+          continue;
+        }
+      }
+      plan.push({ enrollment, to, resumes });
+      const key = `v${enrollment.version}:${from}`;
+      byNode[key] = { to, resumes, count: (byNode[key]?.count ?? 0) + 1 };
+    }
+    const fingerprint = createHash('sha256')
+      .update(JSON.stringify([input.journeyId, input.toVersion, plan.map((p) => [p.enrollment.id, p.to])]), 'utf8')
+      .digest('hex')
+      .slice(0, 32);
+    const result = { toVersion: input.toVersion, fingerprint, movable: plan.length, byNode, skipped, moved: 0, applied: false };
+    if (!input.fingerprint) return result;
+    if (input.fingerprint !== fingerprint) {
+      throw new ConflictException('journeys_conflict: the runs to move changed since the preview; preview again and confirm the new fingerprint');
+    }
+    const now = new Date();
+    for (const { enrollment, to, resumes } of plan) {
+      const movedFrom = { version: enrollment.version, node: enrollment.currentNode, at: now.toISOString() };
+      if (resumes) {
+        await ctx.db
+          .update(e)
+          .set({ version: input.toVersion, context: { ...enrollment.context, movedFrom }, updatedAt: now })
+          .where(eq(e.id, enrollment.id));
+        continue;
+      }
+      await this.cancelWaits(enrollment.id);
+      await ctx.db
+        .update(schema.journeyStepRuns)
+        .set({ status: 'completed', reason: `moved to v${input.toVersion}`, finishedAt: now })
+        .where(
+          and(
+            eq(schema.journeyStepRuns.enrollmentId, enrollment.id),
+            inArray(schema.journeyStepRuns.status, ['running', 'waiting', 'retrying']),
+          ),
+        );
+      await ctx.db
+        .update(e)
+        .set({
+          version: input.toVersion,
+          state: 'active',
+          currentNode: to,
+          visits: { ...enrollment.visits, [to]: (enrollment.visits[to] ?? 0) + 1 },
+          nextRunAt: now,
+          context: { ...enrollment.context, movedFrom },
+          updatedAt: now,
+        })
+        .where(eq(e.id, enrollment.id));
+    }
+    await this.webhooks.emit({
+      type: 'journey.enrollments.moved',
+      payload: { journeyId: input.journeyId, toVersion: input.toVersion, moved: plan.length, skipped: skipped.length },
+    });
+    return { ...result, moved: plan.length, applied: true };
   }
 
   async eject(enrollmentId: string, reason = 'ejected'): Promise<EnrollmentDto> {

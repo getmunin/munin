@@ -11614,6 +11614,67 @@
     }
   },
   {
+    "name": "journeys_move_enrollments",
+    "title": "Journeys: Move enrollments to another version",
+    "description": "Move open runs from older versions onto a published version. Each run continues at the node with the same id, or where nodeMap sends it ({ \"old_node\": \"new_node\" }). Call it first without fingerprint for a preview — how many runs move from which node, and which are skipped and why — then again with the preview fingerprint to move them. A run that stays on the same step keeps its wait; one that moves to another step starts that step fresh. Runs waiting on a proposal, an agent or an approval only move when they stay on the same step.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "toVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "nodeMap": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 48
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 48
+          }
+        },
+        "fromVersions": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "fingerprint": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 32
+        }
+      },
+      "required": [
+        "journeyId",
+        "toVersion"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "journeys_list_approvals",
     "title": "Journeys: List approval requests",
     "description": "Approval steps waiting for, or decided by, a person: which journey and step, who it is about, what to check, and when it expires. Only a signed-in person decides them, in the Munin dashboard.",

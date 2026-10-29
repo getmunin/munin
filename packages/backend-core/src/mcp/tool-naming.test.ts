@@ -49,6 +49,7 @@ const TITLE_WORDS_BY_VERB: Record<string, readonly string[]> = {
   get: ['get', 'read'],
   import: ['import'],
   inspect: ['inspect'],
+  move: ['move'],
   instantiate: ['create'],
   link: ['link'],
   list: ['list'],

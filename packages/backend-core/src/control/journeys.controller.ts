@@ -28,6 +28,7 @@ import {
   ENROLLMENT_STATES,
   JourneyRuntimeService,
   type EnrollmentDto,
+  type MoveEnrollmentsResult,
   type TraceDto,
 } from '../modules/journeys/journey-runtime.service.ts';
 import type { JourneyValidation } from '../modules/journeys/journey-validator.ts';
@@ -43,6 +44,14 @@ import type { SimulationResult } from '../modules/journeys/journey-simulator.ts'
 import { JourneyMonitorService, type GuardrailReportDto } from '../modules/journeys/journey-monitor.service.ts';
 import { createZodDto } from 'nestjs-zod';
 
+class MoveEnrollmentsBody extends createZodDto(
+  z.object({
+    toVersion: z.number().int().min(1),
+    nodeMap: z.record(z.string().min(1).max(48), z.string().min(1).max(48)).optional(),
+    fromVersions: z.array(z.number().int().min(1)).max(50).optional(),
+    fingerprint: z.string().length(32).optional(),
+  }),
+) {}
 class ConfirmPublishBody extends createZodDto(z.object({ fingerprint: z.string().min(1).max(64) })) {}
 class SimulateBody extends createZodDto(
   z.object({
@@ -189,6 +198,12 @@ export class JourneysController {
   @HttpCode(200)
   pause(@Param('id') id: string): Promise<JourneyDto> {
     return this.journeys.pause(id);
+  }
+
+  @Post(':id/move-enrollments')
+  @HttpCode(200)
+  moveEnrollments(@Param('id') id: string, @Body() body: MoveEnrollmentsBody): Promise<MoveEnrollmentsResult> {
+    return this.runtime.moveEnrollments({ journeyId: id, ...body });
   }
 
   @Get(':id/split-results')

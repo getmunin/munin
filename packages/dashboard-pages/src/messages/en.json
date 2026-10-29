@@ -1316,6 +1316,12 @@
       "reject": "Reject",
       "approvalApproved": "Approved. The run continues.",
       "approvalRejected": "Rejected.",
+      "moveTitle": "Move runs to v{version}?",
+      "moveBody": "{count, plural, one {# open run moves} other {# open runs move}} to this version and continue at the matching step. {skipped, plural, =0 {} one {# run stays where it is.} other {# runs stay where they are.}}",
+      "moveConfirm": "Move runs",
+      "moveCancel": "Cancel",
+      "moveNothing": "No open runs on older versions can move here.",
+      "moved": "{count, plural, one {# run} other {# runs}} moved to v{version}.",
       "nodePaused": "Step paused",
       "nodePausedGuardrail": "{node} was paused by the monitor: {metric} reached {rate} %. Runs wait there until it is resumed.",
       "nodePausedManual": "{node} is paused. Runs wait there until it is resumed.",
@@ -1389,7 +1395,8 @@
         "draft": "Draft",
         "errors": "{count, plural, one {# error} other {# errors}}",
         "review": "Review and publish",
-        "proposed": "Proposed by the optimiser"
+        "proposed": "Proposed by the optimiser",
+        "moveHere": "Move older runs here"
       },
       "publish": {
         "title": "Publish version {version}",

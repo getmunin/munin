@@ -338,6 +338,69 @@ const DAY = 86_400_000;
     expect(parentRun).toMatchObject({ exitReason: 'won' });
   });
 
+  it('moves open runs onto a new version by node, with a preview fingerprint, keeping waits on unchanged steps', async () => {
+    const v1 = {
+      entry: { trigger: { type: 'manual' } },
+      goal: { event: 'subscription.started', windowDays: 30 },
+      start: 'gate',
+      nodes: [
+        { id: 'gate', type: 'branch', rules: [{ if: { tag: 'vip' }, next: 'hold' }], default: 'wait5' },
+        { id: 'hold', type: 'wait', duration: 'P10D', next: 'done' },
+        { id: 'wait5', type: 'wait', duration: 'P5D', next: 'done' },
+        { id: 'done', type: 'exit' },
+      ],
+    };
+    const journeyId = await publish(v1);
+    const kari = await contact('Kari', ['trial', 'vip']);
+    const ola = await contact('Ola');
+    for (const person of [kari, ola]) {
+      await asAgent(() => runtime.enroll({ journeyId, subject: { contactId: person.id, endUserId: null }, source: { type: 'manual' } }));
+    }
+    await worker.tick();
+
+    const v2 = {
+      ...v1,
+      nodes: [
+        { id: 'gate', type: 'branch', rules: [{ if: { tag: 'vip' }, next: 'hold' }], default: 'wait3' },
+        { id: 'hold', type: 'wait', duration: 'P10D', next: 'done' },
+        { id: 'wait3', type: 'wait', duration: 'P3D', next: 'done' },
+        { id: 'done', type: 'exit' },
+      ],
+    };
+    await asAgent(() => journeys.replaceDraft(journeyId, v2));
+    await db
+      .update(schema.journeyVersions)
+      .set({ publishedAt: new Date(), publishedByActorId: 'usr_1' })
+      .where(and(eq(schema.journeyVersions.journeyId, journeyId), eq(schema.journeyVersions.number, 2)));
+    await db.update(schema.journeys).set({ liveVersion: 2 }).where(eq(schema.journeys.id, journeyId));
+
+    const unmapped = await asAgent(() => runtime.moveEnrollments({ journeyId, toVersion: 2 }));
+    expect(unmapped).toMatchObject({ movable: 1, applied: false, byNode: { 'v1:hold': { to: 'hold', resumes: true, count: 1 } } });
+    expect(unmapped.skipped.map((s) => s.node)).toEqual(['wait5']);
+
+    const preview = await asAgent(() => runtime.moveEnrollments({ journeyId, toVersion: 2, nodeMap: { wait5: 'wait3' } }));
+    expect(preview.movable).toBe(2);
+    await expect(
+      asAgent(() => runtime.moveEnrollments({ journeyId, toVersion: 2, nodeMap: { wait5: 'wait3' }, fingerprint: unmapped.fingerprint })),
+    ).rejects.toThrow(/changed since the preview/);
+    const done = await asAgent(() =>
+      runtime.moveEnrollments({ journeyId, toVersion: 2, nodeMap: { wait5: 'wait3' }, fingerprint: preview.fingerprint }),
+    );
+    expect(done).toMatchObject({ moved: 2, applied: true });
+    await worker.tick();
+
+    const rows = await enrollmentsOf(journeyId);
+    const kariRun = rows.find((r) => r.contactId === kari.id)!;
+    const olaRun = rows.find((r) => r.contactId === ola.id)!;
+    expect(kariRun).toMatchObject({ version: 2, state: 'waiting', currentNode: 'hold', context: { movedFrom: { version: 1, node: 'hold' } } });
+    expect(olaRun).toMatchObject({ version: 2, state: 'waiting', currentNode: 'wait3' });
+    const olaWaits = await db.select().from(schema.journeyWaits).where(eq(schema.journeyWaits.enrollmentId, olaRun.id));
+    expect(olaWaits.map((w) => w.resolution).sort()).toEqual(['cancelled', null].sort());
+    await worker.tick(new Date(Date.now() + 4 * DAY));
+    await worker.tick(new Date(Date.now() + 4 * DAY));
+    expect((await enrollmentsOf(journeyId)).find((r) => r.id === olaRun.id)).toMatchObject({ state: 'done' });
+  });
+
   it('runs every step exactly once even when ticks repeat', async () => {
     const journeyId = await publish(trialSpec());
     const kari = await contact('Kari');

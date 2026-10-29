@@ -1336,6 +1336,7 @@
         "title": "Steglogg",
         "loading": "Laster …",
         "attempt": "forsøk {attempt}",
+        "agent": "agentjobb {status}, {tokens} tokens",
         "waiting": "Venter ({kind}) til {until} · hendelse {event}",
         "ended": "Avsluttet: {reason}"
       },
@@ -1383,6 +1384,7 @@
         "email": "{node} · {decision}",
         "assumeApproved": "Antar at en person godkjenner «{node}».",
         "assumeNoReply": "Antar at ingen svarer på «{node}».",
+        "assumeAgentFallback": "Agenten i «{node}» kjøres ikke i prøvekjøringen; alle følger reserveveien «{edge}».",
         "assumeNoEvent": "Antar at {event} ikke kommer innen {timeout} ved «{node}».",
         "sample": "Eksempel: {subject} — til {name}",
         "sampleFrame": "Rendret eksempel-e-post",

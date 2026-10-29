@@ -85,7 +85,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
       new CuratorJobsService(webhooks),
     );
     journeys = new JourneysService(webhooks);
-    runtime = new JourneyRuntimeService(webhooks, crm, outreach);
+    runtime = new JourneyRuntimeService(webhooks, crm, outreach, new CuratorJobsService(webhooks));
     worker = new JourneyRuntimeWorker(appDb, runtime);
   });
 

@@ -30,7 +30,7 @@ export interface SimulatedMessage {
 }
 
 export interface SimulationAssumption {
-  code: 'reviewer_approves' | 'no_reply' | 'event_missing';
+  code: 'reviewer_approves' | 'no_reply' | 'event_missing' | 'agent_fallback';
   nodeId: string;
   event?: string;
   timeout?: string;
@@ -192,6 +192,9 @@ export class JourneySimulator {
         return { exit: node.reason };
       case 'action':
         return { edge: 'next', to: node.next };
+      case 'agent':
+        assumptions.set(`agent:${node.id}`, { code: 'agent_fallback', nodeId: node.id, event: node.fallback });
+        return { edge: node.fallback, to: node.edges[node.fallback] };
       default:
         return { exit: 'node_type_unavailable' };
     }

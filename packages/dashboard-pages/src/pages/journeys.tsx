@@ -376,6 +376,7 @@ function TraceSheet({ enrollmentId, onClose }: { enrollmentId: string | null; on
                   {s.edgeTaken && ` → ${s.edgeTaken}`}
                   {s.reason && ` · ${s.reason}`}
                   {s.attempt > 1 && ` · ${t('attempt', { attempt: s.attempt })}`}
+                  {s.agent && ` · ${t('agent', { status: s.agent.status, tokens: s.agent.totalTokens ?? '—' })}`}
                 </div>
               </li>
             ))}

@@ -5,7 +5,7 @@ import { stripTrailingSlashes } from '@getmunin/types';
 
 export const metadata = {
   title: 'Munin · Connect ChatGPT over MCP',
-  description: 'Add Munin as a custom MCP app in ChatGPT.',
+  description: 'Add Munin as a custom MCP server in ChatGPT.',
 };
 
 export default function ConnectChatGPT() {
@@ -26,10 +26,10 @@ export default function ConnectChatGPT() {
             Wire <em>ChatGPT</em> to Munin.
           </h1>
           <p className="lede">
-            ChatGPT&rsquo;s custom MCP apps (previously called Connectors) let you point it at any
-            remote MCP server. Add Munin and the assistant can search the KB, look up contacts,
-            read deals, draft replies, and publish CMS entries — gated by the scopes on the key
-            you mint.
+            ChatGPT can install any remote MCP server as a plugin. Add Munin, sign in with your
+            Munin account, and the assistant can search the KB, look up contacts, read deals,
+            draft replies, and publish CMS entries — whatever your role allows. There is no API
+            key to mint or paste.
           </p>
         </header>
 
@@ -37,82 +37,72 @@ export default function ConnectChatGPT() {
           Availability
         </h2>
         <p className="tag-blurb">
-          Custom MCP apps require <strong>Developer Mode</strong>, which ships on ChatGPT{' '}
-          <strong>Plus</strong>, <strong>Pro</strong>, <strong>Business</strong>,{' '}
-          <strong>Enterprise</strong>, and <strong>Edu</strong>. Plus and Pro accounts get
-          read/fetch tools only; write-capable tools require Business, Enterprise, or Edu.
-        </p>
-
-        <h2 className="tag-h" id="key" style={{ marginTop: 56 }}>
-          1 · Mint an API key
-        </h2>
-        <p className="tag-blurb">
-          From the dashboard, go to{' '}
-          <DashboardLink href="/dashboard/settings/api-keys">Settings → API keys</DashboardLink> and create one.
-          Scope it to what ChatGPT should be allowed to do. The token starts with{' '}
-          <code>mn_admin_</code> and is shown once.
-        </p>
-
-        <h2 className="tag-h" id="developer-mode" style={{ marginTop: 56 }}>
-          2 · Enable Developer Mode
-        </h2>
-        <p className="tag-blurb">
-          Open <em>Settings → Connectors → Advanced</em> (workspace admins use{' '}
-          <em>Workspace Settings → Permissions &amp; Roles</em>) and turn <strong>Developer Mode</strong>{' '}
-          on. The option to add a custom MCP app only appears after this is enabled.
+          Custom MCP servers are added from ChatGPT on the web. Which plans can add them has
+          changed with OpenAI&rsquo;s rollouts, so check your plan if you don&rsquo;t see the
+          option; in Business, Enterprise, and Edu workspaces, admins control who may add them.
+          The separate <strong>Developer Mode</strong> toggle older guides mention is gone.
         </p>
 
         <h2 className="tag-h" id="add" style={{ marginTop: 56 }}>
-          3 · Add the custom app
+          1 · Add the custom MCP server
         </h2>
         <p className="tag-blurb">
-          Back in <em>Settings → Connectors</em>, click <em>Create</em>. Fill in:
+          Open <em>Plugins</em> on chatgpt.com, click <strong>+</strong>, and choose{' '}
+          <em>Add custom MCP server</em>. Fill in:
         </p>
         <dl className="docs-attrs">
           <dt>Name</dt>
           <dd>Munin (or anything you want to see in the tool picker).</dd>
           <dt>Description</dt>
           <dd>Optional. Helps your team disambiguate if you operate multiple Munin orgs.</dd>
-          <dt>MCP server URL</dt>
+          <dt>Server URL</dt>
           <dd>
             <code>{mcpUrl}</code>
           </dd>
           <dt>Authentication</dt>
           <dd>
-            No authentication is the default for the form, but Munin requires a bearer token. Pick{' '}
-            <em>Custom</em> and add an <code>Authorization</code> header with value{' '}
-            <code>Bearer mn_admin_…</code>.
-          </dd>
-          <dt>I trust this application</dt>
-          <dd>
-            ChatGPT requires explicit confirmation before letting you save a custom app. Tick the
-            box once you&rsquo;ve verified the URL is correct.
+            <em>OAuth</em>. Leave the client credentials empty — Munin supports dynamic client
+            registration, so ChatGPT registers itself. ChatGPT has no option to send a static
+            bearer token, so an <code>mn_admin_…</code> API key can&rsquo;t be used here.
           </dd>
         </dl>
         <p className="tag-blurb">
-          Save. ChatGPT runs the MCP handshake immediately and lists the tools it discovered. If
-          the handshake fails it surfaces the error verbatim — usually a 401 (wrong token), a 404
-          (wrong path — it&rsquo;s <code>/mcp</code>, not <code>/v1/mcp</code>), or a TLS
-          issue.
+          Confirm the risk warning with <em>I understand and want to continue</em>, then choose{' '}
+          <em>Create as a plugin</em> and install it.
+        </p>
+
+        <h2 className="tag-h" id="sign-in" style={{ marginTop: 56 }}>
+          2 · Sign in and approve
+        </h2>
+        <p className="tag-blurb">
+          ChatGPT sends you to Munin: sign in, review the modules and scopes it is asking for,
+          and click <em>Authorize</em>. The connection acts as you — it inherits your role and
+          can&rsquo;t exceed it, and it can&rsquo;t manage the team, billing, or API keys, or
+          delete the org. It binds to the organization you have open in the dashboard when you
+          approve, so switch first if you belong to more than one. If the sign-in fails ChatGPT
+          shows the error verbatim — usually a 404 (wrong path — it&rsquo;s <code>/mcp</code>,
+          not <code>/v1/mcp</code>) or a TLS issue.
         </p>
 
         <h2 className="tag-h" id="enable" style={{ marginTop: 56 }}>
-          4 · Enable per conversation
+          3 · Use it in a conversation
         </h2>
         <p className="tag-blurb">
-          Adding the app doesn&rsquo;t auto-attach it to every chat. In the composer, open the
-          tools menu and toggle <em>Munin</em>{' '}
-          on. ChatGPT will then call Munin tools when it decides they&rsquo;re relevant — or you can
-          name a tool directly in the prompt.
+          Type <code>@</code> in the composer and pick <em>Munin</em>. ChatGPT will then call
+          Munin tools when it decides they&rsquo;re relevant — or you can name a tool directly in
+          the prompt. Tools that write ask for confirmation first by default.
         </p>
 
-        <h2 className="tag-h" id="scope" style={{ marginTop: 56 }}>
-          5 · Tighten scope
+        <h2 className="tag-h" id="access" style={{ marginTop: 56 }}>
+          4 · Manage access
         </h2>
         <p className="tag-blurb">
-          Issue a separate Munin key per ChatGPT user or workspace, with the smallest scope that
-          gets the job done. Revocations take effect on the next request — no need to remove the
-          app on the ChatGPT side.
+          Access lasts 90 days and refreshes automatically while ChatGPT keeps using it. Revoke it
+          at any time from{' '}
+          <DashboardLink href="/dashboard/settings/agents">Settings → Agents</DashboardLink> — no
+          need to remove the plugin on the ChatGPT side. To keep ChatGPT away from tools you
+          don&rsquo;t want it calling, turn them off on the plugin&rsquo;s details page in
+          ChatGPT&rsquo;s settings.
         </p>
       </div>
     </main>

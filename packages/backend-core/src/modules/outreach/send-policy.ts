@@ -7,7 +7,7 @@ import { nextValidTime } from '../journeys/journey-time.ts';
 export type MessageClass = (typeof MESSAGE_CLASSES)[number];
 
 export interface SendPolicy {
-  channel?: 'email' | 'sms' | 'voice';
+  channel?: 'email' | 'sms' | 'voice' | 'chat';
   class: MessageClass;
   timezone?: string;
   quietHours?: string;
@@ -51,13 +51,18 @@ export async function checkSendPolicy(input: {
   if (!contact) return { decision: 'skip', reason: 'contact_missing' };
   if (contact.doNotContact) return { decision: 'skip', reason: 'do_not_contact' };
   const sms = policy.channel === 'sms' || policy.channel === 'voice';
-  if (sms ? !contact.phone : !contact.email) return { decision: 'skip', reason: sms ? 'no_phone' : 'no_email' };
+  const chat = policy.channel === 'chat';
+  if (chat) {
+    if (!(await hasChatIdentity(contact.endUserId))) return { decision: 'skip', reason: 'no_chat_identity' };
+  } else if (sms ? !contact.phone : !contact.email) {
+    return { decision: 'skip', reason: sms ? 'no_phone' : 'no_email' };
+  }
   if (policy.class === 'marketing') {
     if (contact.unsubscribedAt) return { decision: 'skip', reason: 'unsubscribed' };
     if (!contact.consentLawfulBasis) return { decision: 'skip', reason: 'no_lawful_basis' };
   }
 
-  if (contact.email && !sms) {
+  if (contact.email && !sms && !chat) {
     const [deliverability] = await ctx.db
       .select({ state: schema.crmAddressDeliverability.state })
       .from(schema.crmAddressDeliverability)
@@ -79,7 +84,7 @@ export async function checkSendPolicy(input: {
   }
 
   const timezone = resolveTimezone(contact.customFields?.timezone, policy.timezone);
-  const window = nextValidTime(now, timezone, policy.validDays, invertQuietHours(policy.quietHours));
+  const window = nextValidTime(now, timezone, policy.validDays, chat ? undefined : invertQuietHours(policy.quietHours));
   if (window.getTime() > now.getTime()) return { decision: 'defer', until: window, reason: 'quiet_hours' };
   return { decision: 'send' };
 }
@@ -160,4 +165,15 @@ function invertQuietHours(quiet: string | undefined): string | undefined {
   if (!quiet) return undefined;
   const [from, to] = quiet.split('-');
   return `${to}-${from}`;
+}
+
+async function hasChatIdentity(endUserId: string | null): Promise<boolean> {
+  if (!endUserId) return false;
+  const ctx = getCurrentContext();
+  const [row] = await ctx.db
+    .select({ externalId: schema.endUsers.externalId })
+    .from(schema.endUsers)
+    .where(eq(schema.endUsers.id, endUserId))
+    .limit(1);
+  return !!row?.externalId && !row.externalId.startsWith('anon:');
 }

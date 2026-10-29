@@ -10445,6 +10445,34 @@
     }
   },
   {
+    "name": "journeys_get_node_review_stats",
+    "title": "Journeys: Get email review stats per step",
+    "description": "How reviewers treated each email step of a journey over the last 30 days: approved unedited, edited, dismissed, still pending and sent without review, the unedited share, and whether the step has earned sending without review (30 reviewed drafts at 90% or more approved unedited). Only a person can then publish a version with that step set to auto.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "journeyId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "journeys_get_report",
     "title": "Journeys: Get a journey report",
     "description": "Results for a journey (the live version by default, or one version): enrollments by state and exit reason, goal conversion for the treated group against the holdout and the difference between them, arrivals, waiting counts and edge distribution per node, and the outcome of each email step, plus run integrity: steps that sent more than one email and people with no logged step (both should stay at zero).",

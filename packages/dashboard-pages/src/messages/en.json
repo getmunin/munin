@@ -1353,7 +1353,13 @@
         "edges": "Paths and emails",
         "integrity": "Run integrity",
         "duplicateSends": "Steps that sent twice",
-        "untraced": "People with no step logged"
+        "untraced": "People with no step logged",
+        "reviews": "Email reviews · last 30 days",
+        "unedited": "Approved as is",
+        "edited": "Edited",
+        "dismissed": "Dismissed",
+        "uneditedRate": "As-is share",
+        "readyForAuto": "Ready for auto"
       },
       "versions": {
         "published": "Published {at}",
@@ -1376,6 +1382,7 @@
         "blocks": "Settings changed: {blocks}",
         "autoTitle": "Sends without review",
         "autoBody": "These emails go out without anyone reading each one: {nodes}. Confirming publishes them that way.",
+        "autoEvidence": "{node}: {reviewed} reviewed drafts, {rate} approved as is",
         "warnings": "Warnings",
         "simulation": "Dry run",
         "simulationSummary": "{entered} of {size} sample contacts would enter.",

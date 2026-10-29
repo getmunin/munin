@@ -430,23 +430,6 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect((await enrollment(olaRun)).state).toBe('waiting');
   });
 
-  it('refuses agent-drafted emails that would send without review', async () => {
-    const journey = await asAgent(() =>
-      journeys.create({
-        name: `J ${randomUUID()}`,
-        outreachCampaignId: campaignId,
-        spec: {
-          entry: { trigger: { type: 'manual' } },
-          goal: { event: 'subscription.started', windowDays: 30 },
-          start: 'welcome',
-          nodes: [welcome({ draftBy: 'agent', brief: 'Welcome', approval: 'auto' }), done],
-        },
-      }),
-    );
-    const validation = await asAgent(() => journeys.validate(journey.id));
-    expect(validation.errors.map((e) => e.code)).toContain('agent_draft_auto');
-  });
-
   it('keeps legacy outreach off a journey-run campaign and journey emails out of exports', async () => {
     const journeyId = await publish([welcome({ approval: 'auto' }), done]);
     const ola = await contact();

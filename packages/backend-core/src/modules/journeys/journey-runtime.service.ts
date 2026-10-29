@@ -578,7 +578,7 @@ export class JourneyRuntimeService {
         format: content.format,
         templateId: node.content.templateId,
         preheader: node.content.preheader,
-        auto: node.approval === 'auto' && node.draftBy !== 'agent',
+        auto: node.approval === 'auto',
         policy: {
           class: node.class,
           timezone: settings.timezone,

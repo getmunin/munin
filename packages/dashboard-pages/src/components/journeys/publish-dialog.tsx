@@ -104,6 +104,17 @@ export function PublishDialog({
                 <p className="mt-1 text-ink dark:text-foreground">
                   {t('autoBody', { nodes: diff.autoNodes.join(', ') })}
                 </p>
+                {review.reviewStats
+                  .filter((s) => diff.autoNodes.includes(s.nodeId))
+                  .map((s) => (
+                    <p key={s.nodeId} className="mt-1 font-mono text-xs text-ink-mute">
+                      {t('autoEvidence', {
+                        node: s.nodeId,
+                        reviewed: s.reviewed,
+                        rate: s.uneditedRate === null ? '—' : `${Math.round(s.uneditedRate * 100)} %`,
+                      })}
+                    </p>
+                  ))}
               </section>
             )}
             {review.validation.warnings.length > 0 && (

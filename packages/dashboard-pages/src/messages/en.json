@@ -191,6 +191,7 @@
     "activity": "Activity",
     "skills": "Skills",
     "partner": "Partner",
+    "journeys": "Journeys",
     "automation": "Automation",
     "review": "Review",
     "openMenu": "Open menu",
@@ -1280,6 +1281,110 @@
         "remove": "Could not remove member.",
         "changeRole": "Could not change role.",
         "rename": "Could not save name."
+      }
+    },
+    "journeys": {
+      "eyebrow": "Journeys",
+      "title": "Every customer, <em>one path at a time</em>",
+      "subtitle": "Journeys move each person through waits, branches and emails towards one goal. Agents build them over MCP; publishing always needs you.",
+      "detailSubtitle": "A versioned journey built over MCP. Review drafts and publish them here.",
+      "listTitle": "Journeys",
+      "emptyTitle": "No journeys yet",
+      "emptyBody": "Ask your agent to build one with the <code>build-journey</code> skill. Drafts appear here for review.",
+      "table": {
+        "name": "Journey",
+        "status": "Status",
+        "versions": "Versions",
+        "updated": "Updated"
+      },
+      "status": {
+        "draft": "Draft",
+        "live": "Live",
+        "paused": "Paused",
+        "archived": "Archived"
+      },
+      "liveVersion": "live v{version}",
+      "draftVersion": "draft v{version}",
+      "back": "← All journeys",
+      "pause": "Pause",
+      "resume": "Resume",
+      "paused": "Journey paused. Nobody was removed.",
+      "resumed": "Journey resumed.",
+      "actionFailed": "That didn't work. Try again.",
+      "reviewPublish": "Review and publish v{version}",
+      "showLive": "Live v{version}",
+      "showDraft": "Draft v{version}",
+      "graphInvalid": "This version can't be drawn until its spec is valid.",
+      "noVersionTitle": "Nothing to show",
+      "noVersionBody": "This journey has no version yet.",
+      "tabs": {
+        "graph": "Graph",
+        "people": "People",
+        "report": "Report",
+        "versions": "Versions"
+      },
+      "people": {
+        "emptyTitle": "Nobody has entered yet",
+        "emptyBody": "People appear here once the journey is live and its trigger fires.",
+        "person": "Person",
+        "state": "State",
+        "where": "Now / exit",
+        "entered": "Entered",
+        "holdout": "holdout"
+      },
+      "trace": {
+        "title": "Step trace",
+        "loading": "Loading…",
+        "attempt": "attempt {attempt}",
+        "waiting": "Waiting ({kind}) until {until} · event {event}",
+        "ended": "Ended: {reason}"
+      },
+      "report": {
+        "goal": "Goal conversion",
+        "treated": "In journey",
+        "holdout": "Holdout",
+        "lift": "Lift",
+        "enrollments": "{total} people · exits",
+        "nodes": "Per step",
+        "node": "Step",
+        "arrived": "Arrived",
+        "waiting": "Waiting",
+        "edges": "Paths and emails"
+      },
+      "versions": {
+        "published": "Published {at}",
+        "awaiting": "Awaiting publish",
+        "draft": "Draft",
+        "errors": "{count, plural, one {# error} other {# errors}}",
+        "review": "Review and publish"
+      },
+      "publish": {
+        "title": "Publish version {version}",
+        "description": "Check what changes, who it reaches and what it sends. Nothing goes live until you confirm.",
+        "preparing": "Validating and simulating…",
+        "loadFailed": "Couldn't prepare this version for publishing.",
+        "changes": "Changes",
+        "firstVersion": "First version of this journey.",
+        "againstVersion": "Compared with live v{version}.",
+        "added": "Added: {nodes}",
+        "changed": "Changed: {nodes}",
+        "removed": "Removed: {nodes}",
+        "blocks": "Settings changed: {blocks}",
+        "autoTitle": "Sends without review",
+        "autoBody": "These emails go out without anyone reading each one: {nodes}. Confirming publishes them that way.",
+        "warnings": "Warnings",
+        "simulation": "Dry run",
+        "simulationSummary": "{entered} of {size} sample contacts would enter.",
+        "excluded": "excluded · {reason}",
+        "exit": "exit · {reason}",
+        "email": "{node} · {decision}",
+        "assumes": "Assumption: {assumption}.",
+        "sample": "Sample: {subject} — to {name}",
+        "sampleFrame": "Rendered sample email",
+        "cancel": "Cancel",
+        "confirm": "Publish v{version}",
+        "published": "Version {version} is live.",
+        "publishFailed": "Publishing failed."
       }
     },
     "endUsers": {

@@ -191,6 +191,7 @@
     "activity": "Aktivitet",
     "skills": "Ferdigheter",
     "partner": "Partner",
+    "journeys": "Kundereiser",
     "automation": "Automatisering",
     "review": "Godkjenning",
     "openMenu": "Åpne meny",
@@ -1280,6 +1281,110 @@
         "remove": "Kunne ikke fjerne medlem.",
         "changeRole": "Kunne ikke endre rolle.",
         "rename": "Kunne ikke lagre navn."
+      }
+    },
+    "journeys": {
+      "eyebrow": "Kundereiser",
+      "title": "Hver kunde, <em>én vei om gangen</em>",
+      "subtitle": "Kundereiser fører hver person gjennom ventetid, forgreninger og e-poster mot ett mål. Agenter bygger dem over MCP; publisering krever alltid deg.",
+      "detailSubtitle": "En versjonert kundereise bygget over MCP. Se over utkast og publiser dem her.",
+      "listTitle": "Kundereiser",
+      "emptyTitle": "Ingen kundereiser ennå",
+      "emptyBody": "Be agenten bygge en med skillen <code>build-journey</code>. Utkast dukker opp her for gjennomgang.",
+      "table": {
+        "name": "Kundereise",
+        "status": "Status",
+        "versions": "Versjoner",
+        "updated": "Oppdatert"
+      },
+      "status": {
+        "draft": "Utkast",
+        "live": "Aktiv",
+        "paused": "Pause",
+        "archived": "Arkivert"
+      },
+      "liveVersion": "aktiv v{version}",
+      "draftVersion": "utkast v{version}",
+      "back": "← Alle kundereiser",
+      "pause": "Sett på pause",
+      "resume": "Fortsett",
+      "paused": "Kundereisen er satt på pause. Ingen ble fjernet.",
+      "resumed": "Kundereisen kjører igjen.",
+      "actionFailed": "Det gikk ikke. Prøv igjen.",
+      "reviewPublish": "Se over og publiser v{version}",
+      "showLive": "Aktiv v{version}",
+      "showDraft": "Utkast v{version}",
+      "graphInvalid": "Denne versjonen kan ikke tegnes før specen er gyldig.",
+      "noVersionTitle": "Ingenting å vise",
+      "noVersionBody": "Denne kundereisen har ingen versjon ennå.",
+      "tabs": {
+        "graph": "Graf",
+        "people": "Personer",
+        "report": "Rapport",
+        "versions": "Versjoner"
+      },
+      "people": {
+        "emptyTitle": "Ingen har kommet inn ennå",
+        "emptyBody": "Personer vises her når kundereisen er aktiv og utløseren slår til.",
+        "person": "Person",
+        "state": "Tilstand",
+        "where": "Nå / avslutning",
+        "entered": "Startet",
+        "holdout": "kontrollgruppe"
+      },
+      "trace": {
+        "title": "Steglogg",
+        "loading": "Laster …",
+        "attempt": "forsøk {attempt}",
+        "waiting": "Venter ({kind}) til {until} · hendelse {event}",
+        "ended": "Avsluttet: {reason}"
+      },
+      "report": {
+        "goal": "Måloppnåelse",
+        "treated": "I kundereisen",
+        "holdout": "Kontrollgruppe",
+        "lift": "Effekt",
+        "enrollments": "{total} personer · avslutninger",
+        "nodes": "Per steg",
+        "node": "Steg",
+        "arrived": "Ankommet",
+        "waiting": "Venter",
+        "edges": "Veier og e-poster"
+      },
+      "versions": {
+        "published": "Publisert {at}",
+        "awaiting": "Venter på publisering",
+        "draft": "Utkast",
+        "errors": "{count, plural, one {# feil} other {# feil}}",
+        "review": "Se over og publiser"
+      },
+      "publish": {
+        "title": "Publiser versjon {version}",
+        "description": "Sjekk hva som endres, hvem den når og hva den sender. Ingenting blir aktivt før du bekrefter.",
+        "preparing": "Validerer og simulerer …",
+        "loadFailed": "Klarte ikke å klargjøre versjonen for publisering.",
+        "changes": "Endringer",
+        "firstVersion": "Første versjon av kundereisen.",
+        "againstVersion": "Sammenlignet med aktiv v{version}.",
+        "added": "Lagt til: {nodes}",
+        "changed": "Endret: {nodes}",
+        "removed": "Fjernet: {nodes}",
+        "blocks": "Endrede innstillinger: {blocks}",
+        "autoTitle": "Sendes uten gjennomgang",
+        "autoBody": "Disse e-postene sendes uten at noen leser hver enkelt: {nodes}. Bekrefter du, publiseres de slik.",
+        "warnings": "Advarsler",
+        "simulation": "Prøvekjøring",
+        "simulationSummary": "{entered} av {size} eksempelkontakter ville startet.",
+        "excluded": "holdt utenfor · {reason}",
+        "exit": "avslutning · {reason}",
+        "email": "{node} · {decision}",
+        "assumes": "Forutsetning: {assumption}.",
+        "sample": "Eksempel: {subject} — til {name}",
+        "sampleFrame": "Rendret eksempel-e-post",
+        "cancel": "Avbryt",
+        "confirm": "Publiser v{version}",
+        "published": "Versjon {version} er aktiv.",
+        "publishFailed": "Publiseringen feilet."
       }
     },
     "endUsers": {

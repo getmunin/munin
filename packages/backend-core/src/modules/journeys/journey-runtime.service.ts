@@ -49,6 +49,8 @@ export interface EnrollmentDto {
   journeyId: string;
   version: number;
   contactId: string | null;
+  contactName?: string | null;
+  contactEmail?: string | null;
   endUserId: string | null;
   state: EnrollmentState;
   currentNode: string | null;
@@ -821,12 +823,13 @@ export class JourneyRuntimeService {
     if (input.state) filters.push(eq(e.state, input.state));
     if (input.contactId) filters.push(eq(e.contactId, input.contactId));
     const rows = await ctx.db
-      .select()
+      .select({ enrollment: e, name: schema.crmContacts.name, email: schema.crmContacts.email })
       .from(e)
+      .leftJoin(schema.crmContacts, eq(schema.crmContacts.id, e.contactId))
       .where(and(...filters))
       .orderBy(desc(e.enteredAt))
       .limit(Math.min(Math.max(input.limit ?? 50, 1), 200));
-    return rows.map(toEnrollmentDto);
+    return rows.map((r) => ({ ...toEnrollmentDto(r.enrollment), contactName: r.name, contactEmail: r.email }));
   }
 
   async getTrace(enrollmentId: string): Promise<TraceDto> {

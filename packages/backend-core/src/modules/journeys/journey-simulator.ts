@@ -236,6 +236,11 @@ export class JourneySimulator {
       .from(t)
       .where(node.content.templateId ? eq(t.id, node.content.templateId) : and(eq(t.orgId, ctx.actor!.orgId), eq(t.isDefault, true)))
       .limit(1);
+    const [org] = await ctx.db
+      .select({ name: schema.orgs.name })
+      .from(schema.orgs)
+      .where(eq(schema.orgs.id, ctx.actor!.orgId))
+      .limit(1);
     const rendered = await renderEmail(
       template?.mjml ?? BUILT_IN_EMAIL_TEMPLATE,
       { format: node.content.format, body: node.content.body },
@@ -243,6 +248,7 @@ export class JourneySimulator {
         subject: node.content.subject,
         preheader: node.content.preheader ?? null,
         name: contact.name,
+        orgName: org?.name ?? null,
         unsubscribeUrl: node.class === 'marketing' ? 'https://example.invalid/unsubscribe' : null,
       },
     );

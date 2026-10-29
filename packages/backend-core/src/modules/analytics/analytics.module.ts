@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service.ts';
 import { AnalyticsAdminTools } from './analytics.tools.ts';
 import { GeoIpService } from './geoip.service.ts';
+import { ProductEventsService } from './product-events.service.ts';
 
 @Module({
-  providers: [AnalyticsService, AnalyticsAdminTools, GeoIpService],
-  exports: [AnalyticsService, AnalyticsAdminTools, GeoIpService],
+  providers: [AnalyticsService, AnalyticsAdminTools, GeoIpService, ProductEventsService],
+  exports: [AnalyticsService, AnalyticsAdminTools, GeoIpService, ProductEventsService],
 })
 export class AnalyticsModule {}

@@ -3,7 +3,11 @@ import type { Reflector } from '@nestjs/core';
 import type { Db } from '@getmunin/db';
 import { describe, expect, it, vi } from 'vitest';
 import type { ResolvedCredential } from '@getmunin/core';
-import { ControlPlaneGuard, MEMBER_FORBIDDEN_CODE } from './control-plane.guard.ts';
+import {
+  CONTROL_PLANE_SCOPE,
+  ControlPlaneGuard,
+  MEMBER_FORBIDDEN_CODE,
+} from './control-plane.guard.ts';
 
 function makeCtx(credential?: ResolvedCredential) {
   return {
@@ -13,8 +17,11 @@ function makeCtx(credential?: ResolvedCredential) {
   } as never;
 }
 
-function reflector(allowMember = false): Reflector {
-  return { getAllAndOverride: () => allowMember } as unknown as Reflector;
+function reflector(allowMember = false, admittedScope?: string): Reflector {
+  return {
+    getAllAndOverride: (key: string) =>
+      key === CONTROL_PLANE_SCOPE ? admittedScope : allowMember,
+  } as unknown as Reflector;
 }
 
 function unusedDb(): Db {
@@ -65,8 +72,13 @@ function actor(
   } as never;
 }
 
-function guard(opts: { allowMember?: boolean; db?: Db } = {}): ControlPlaneGuard {
-  return new ControlPlaneGuard(reflector(opts.allowMember ?? false), opts.db ?? unusedDb());
+function guard(
+  opts: { allowMember?: boolean; db?: Db; admittedScope?: string } = {},
+): ControlPlaneGuard {
+  return new ControlPlaneGuard(
+    reflector(opts.allowMember ?? false, opts.admittedScope),
+    opts.db ?? unusedDb(),
+  );
 }
 
 describe('ControlPlaneGuard', () => {
@@ -152,6 +164,37 @@ describe('ControlPlaneGuard', () => {
       actor: actor({ type: 'admin_agent', scopes: ['kb:read'], audiences: ['admin'] }),
     } as ResolvedCredential;
     await expect(guard().canActivate(makeCtx(cred))).rejects.toThrow(ForbiddenException);
+  });
+
+  it('admits a scoped admin key on a route that declares that scope', async () => {
+    const cred = {
+      actor: actor({ type: 'admin_agent', scopes: ['analytics:write'], audiences: ['admin'] }),
+    } as ResolvedCredential;
+    await expect(
+      guard({ admittedScope: 'analytics:write' }).canActivate(makeCtx(cred)),
+    ).resolves.toBe(true);
+  });
+
+  it('still rejects a scoped admin key that lacks the declared scope', async () => {
+    const cred = {
+      actor: actor({ type: 'admin_agent', scopes: ['analytics:read'], audiences: ['admin'] }),
+    } as ResolvedCredential;
+    await expect(
+      guard({ admittedScope: 'analytics:write' }).canActivate(makeCtx(cred)),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('does not let a declared scope admit a key without admin audience', async () => {
+    const cred = {
+      actor: actor({
+        type: 'admin_agent',
+        scopes: ['analytics:write'],
+        audiences: ['self_service'],
+      }),
+    } as ResolvedCredential;
+    await expect(
+      guard({ admittedScope: 'analytics:write' }).canActivate(makeCtx(cred)),
+    ).rejects.toThrow(ForbiddenException);
   });
 
   it('admits a system actor', async () => {

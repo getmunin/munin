@@ -8,7 +8,17 @@ export interface SegmentMatchDefinition {
   companyId?: string;
   searchQuery?: string;
   contactedSince?: string;
+  events?: SegmentEventFilter[];
 }
+
+export interface SegmentEventFilter {
+  name: string;
+  occurred: boolean;
+  withinDays?: number;
+  minCount?: number;
+}
+
+export const SEGMENT_EVENT_FILTER_MAX = 5;
 
 export const OUTREACH_ELIGIBILITY_FLOOR: readonly SQL[] = [
   eq(schema.crmContacts.doNotContact, false),
@@ -47,5 +57,25 @@ export function segmentMatchFilters(f: SegmentMatchDefinition): SQL[] {
       )!,
     );
   }
+  for (const e of f.events ?? []) filters.push(productEventFilter(e));
   return filters;
+}
+
+function productEventFilter(e: SegmentEventFilter): SQL {
+  const pe = schema.analyticsProductEvents;
+  const c = schema.crmContacts;
+  const conditions: SQL[] = [
+    sql`${pe.orgId} = ${c.orgId}`,
+    sql`${pe.name} = ${e.name}`,
+    sql`(${pe.contactId} = ${c.id} OR (${c.endUserId} IS NOT NULL AND ${pe.endUserId} = ${c.endUserId}))`,
+  ];
+  if (e.withinDays !== undefined) {
+    conditions.push(sql`${pe.occurredAt} >= now() - make_interval(days => ${e.withinDays})`);
+  }
+  const minCount = Math.max(1, e.minCount ?? 1);
+  const matched =
+    minCount === 1
+      ? sql`EXISTS (SELECT 1 FROM ${pe} WHERE ${sql.join(conditions, sql` AND `)})`
+      : sql`(SELECT count(*) FROM ${pe} WHERE ${sql.join(conditions, sql` AND `)}) >= ${minCount}`;
+  return e.occurred ? matched : sql`NOT ${matched}`;
 }

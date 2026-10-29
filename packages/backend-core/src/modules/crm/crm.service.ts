@@ -36,7 +36,12 @@ import {
 import type { IdMap, ImportResult } from '../../common/transfer/transfer.types.ts';
 import { mergeFingerprint } from './merge-fingerprint.ts';
 import { CrmInvalidError } from './crm.errors.ts';
-import { OUTREACH_ELIGIBILITY_FLOOR, segmentMatchFilters } from './segment-filter.ts';
+import {
+  OUTREACH_ELIGIBILITY_FLOOR,
+  SEGMENT_EVENT_FILTER_MAX,
+  segmentMatchFilters,
+  type SegmentEventFilter,
+} from './segment-filter.ts';
 import { judgeOwnContact } from './own-contact.ts';
 import {
   isSelfReportedIdentity,
@@ -106,6 +111,7 @@ export interface SegmentFilter {
   companyId?: string;
   searchQuery?: string;
   contactedSince?: string;
+  events?: SegmentEventFilter[];
 }
 
 export interface SegmentDto {
@@ -485,12 +491,21 @@ export class CrmService {
     if (title && !sender.roleAccount) candidate.title = title;
 
     if (target) {
+      const linked = target.endUserId ? [] : ['endUserId'];
+      if (!target.endUserId) {
+        await getCurrentContext()
+          .db.update(schema.crmContacts)
+          .set({ endUserId, updatedAt: new Date() })
+          .where(eq(schema.crmContacts.id, target.id));
+      }
       const fill = computeBackfillPatch(target, candidate).apply;
-      const fields = Object.keys(fill);
+      const fields = [...linked, ...Object.keys(fill)];
       if (fields.length === 0) {
         return { action: 'unchanged', contactId: target.id, fields: [] };
       }
-      await this.updateContact({ id: target.id, patch: fill, mode: 'fill-null' });
+      if (Object.keys(fill).length > 0) {
+        await this.updateContact({ id: target.id, patch: fill, mode: 'fill-null' });
+      }
       return { action: 'filled', contactId: target.id, fields };
     }
 
@@ -919,6 +934,15 @@ export class CrmService {
     if (referencingCampaigns.length > 0) {
       throw new ConflictException(
         `crm_conflict: segment ${id} is referenced by ${referencingCampaigns.length} outreach campaign(s); delete or repoint those campaigns first`,
+      );
+    }
+    const referencingBroadcasts = await ctx.db
+      .select({ id: schema.outreachBroadcasts.id })
+      .from(schema.outreachBroadcasts)
+      .where(eq(schema.outreachBroadcasts.segmentId, id));
+    if (referencingBroadcasts.length > 0) {
+      throw new ConflictException(
+        `crm_conflict: segment ${id} is referenced by ${referencingBroadcasts.length} outreach broadcast(s); delete those broadcasts first`,
       );
     }
     const result = await ctx.db
@@ -2607,6 +2631,17 @@ function normaliseFilter(input: SegmentFilter): SegmentFilter {
   if (input.companyId) out.companyId = input.companyId;
   if (input.searchQuery && input.searchQuery.trim()) out.searchQuery = input.searchQuery.trim();
   if (input.contactedSince) out.contactedSince = input.contactedSince;
+  if (input.events && input.events.length > 0) {
+    if (input.events.length > SEGMENT_EVENT_FILTER_MAX) {
+      throw new CrmInvalidError(`filter.events accepts at most ${SEGMENT_EVENT_FILTER_MAX} entries`);
+    }
+    out.events = input.events.map((e) => ({
+      name: e.name,
+      occurred: e.occurred,
+      ...(e.withinDays !== undefined ? { withinDays: e.withinDays } : {}),
+      ...(e.minCount !== undefined ? { minCount: e.minCount } : {}),
+    }));
+  }
   return out;
 }
 

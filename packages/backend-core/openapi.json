@@ -2347,6 +2347,38 @@
         "security": []
       }
     },
+    "/v1/events": {
+      "post": {
+        "operationId": "ProductEventsController_record",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordProductEventsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ProductEvents"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/v1/a/t/{key}.gif": {
       "get": {
         "operationId": "AnalyticsTrackerController_trackerPixel",
@@ -10245,6 +10277,77 @@
           "records"
         ]
       },
+      "RecordProductEventsBody": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "name": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9_.-]{1,64}$"
+                },
+                "occurredAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "identity": {
+                  "type": "object",
+                  "properties": {
+                    "contactId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "externalId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "email": {
+                      "type": "string",
+                      "maxLength": 320,
+                      "format": "email",
+                      "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                    },
+                    "phone": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 32
+                    }
+                  }
+                },
+                "properties": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "identity"
+              ]
+            },
+            "x-nestjs_zod-uses-3-point-1-syntax": true
+          }
+        },
+        "required": [
+          "events"
+        ]
+      },
       "CreateAnalyticsTrackerBody": {
         "type": "object",
         "properties": {
@@ -11796,6 +11899,36 @@
                 "type": "string",
                 "format": "date-time",
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "events": {
+                "maxItems": 5,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9_.-]{1,64}$"
+                    },
+                    "occurred": {
+                      "type": "boolean"
+                    },
+                    "withinDays": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 3650
+                    },
+                    "minCount": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 10000
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "occurred"
+                  ]
+                }
               }
             },
             "x-nestjs_zod-self-required": true
@@ -11863,6 +11996,36 @@
                 "type": "string",
                 "format": "date-time",
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "events": {
+                "maxItems": 5,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9_.-]{1,64}$"
+                    },
+                    "occurred": {
+                      "type": "boolean"
+                    },
+                    "withinDays": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 3650
+                    },
+                    "minCount": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 10000
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "occurred"
+                  ]
+                }
               }
             },
             "x-nestjs_zod-uses-3-point-1-syntax": true,
@@ -12893,6 +13056,36 @@
                         },
                         "contactedSince": {
                           "type": "string"
+                        },
+                        "events": {
+                          "maxItems": 5,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9_.-]{1,64}$"
+                              },
+                              "occurred": {
+                                "type": "boolean"
+                              },
+                              "withinDays": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 3650
+                              },
+                              "minCount": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 10000
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "occurred"
+                            ]
+                          }
                         }
                       }
                     }

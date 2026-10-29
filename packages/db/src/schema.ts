@@ -1362,6 +1362,7 @@ export const crmSegments = pgTable(
         companyId?: string;
         searchQuery?: string;
         contactedSince?: string;
+        events?: { name: string; occurred: boolean; withinDays?: number; minCount?: number }[];
       }>()
       .notNull()
       .default({}),
@@ -1961,6 +1962,33 @@ export const analyticsVisitorIdentities = pgTable(
   (t) => ({
     visitorUq: uniqueIndex('analytics_visitor_identities_visitor_uq').on(t.orgId, t.visitorId),
     endUserIdx: index('analytics_visitor_identities_end_user_idx').on(t.orgId, t.endUserId),
+  }),
+);
+
+// Server-side product events (`trial.started`, `teammate.invited`, …) sent
+// by the org's own backend through `POST /v1/events`. Unlike view/search
+// events they are trusted (admin key), idempotent on the caller's event id,
+// and emitted onto the event stream so segments and journeys can react.
+export const analyticsProductEvents = pgTable(
+  'analytics_product_events',
+  {
+    id: id('ape'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    externalEventId: varchar('external_event_id', { length: 128 }).notNull(),
+    name: varchar('name', { length: 64 }).notNull(),
+    endUserId: text('end_user_id').references(() => endUsers.id, { onDelete: 'set null' }),
+    contactId: text('contact_id').references(() => crmContacts.id, { onDelete: 'set null' }),
+    properties: jsonb('properties').$type<Record<string, unknown>>().notNull().default({}),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    externalUq: uniqueIndex('analytics_product_events_external_uq').on(t.orgId, t.externalEventId),
+    nameIdx: index('analytics_product_events_name_idx').on(t.orgId, t.name, t.occurredAt),
+    contactIdx: index('analytics_product_events_contact_idx').on(t.contactId, t.name, t.occurredAt),
+    endUserIdx: index('analytics_product_events_end_user_idx').on(t.endUserId, t.name, t.occurredAt),
   }),
 );
 

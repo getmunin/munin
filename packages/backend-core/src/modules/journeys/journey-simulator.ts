@@ -29,6 +29,13 @@ export interface SimulatedMessage {
   html?: string;
 }
 
+export interface SimulationAssumption {
+  code: 'reviewer_approves' | 'no_reply' | 'event_missing';
+  nodeId: string;
+  event?: string;
+  timeout?: string;
+}
+
 export interface SimulationResult {
   sample: { source: 'contacts' | 'segment' | 'recent'; segmentId: string | null; size: number };
   entered: number;
@@ -38,7 +45,7 @@ export interface SimulationResult {
   exits: Record<string, number>;
   messages: SimulatedMessage[];
   messageDecisions: Record<string, Record<string, number>>;
-  assumptions: string[];
+  assumptions: SimulationAssumption[];
 }
 
 @Injectable()
@@ -60,7 +67,7 @@ export class JourneySimulator {
       messageDecisions: {},
       assumptions: [],
     };
-    const assumptions = new Set<string>();
+    const assumptions = new Map<string, SimulationAssumption>();
     const now = new Date();
     let rendered = 0;
 
@@ -105,7 +112,7 @@ export class JourneySimulator {
       }
       bump(result.exits, exit ?? 'reached_end');
     }
-    result.assumptions = [...assumptions];
+    result.assumptions = [...assumptions.values()];
     return result;
   }
 
@@ -115,7 +122,7 @@ export class JourneySimulator {
     journeyId: string,
     contact: SampleContact,
     now: Date,
-    assumptions: Set<string>,
+    assumptions: Map<string, SimulationAssumption>,
   ): Promise<{ edge?: string; to?: string; exit?: string; message?: SimulatedMessage }> {
     switch (node.type) {
       case 'message': {
@@ -141,15 +148,22 @@ export class JourneySimulator {
           decision: decision.decision,
           reason: decision.decision === 'send' ? null : decision.reason,
         };
-        if (node.approval === 'draft_only') assumptions.add(`"${node.id}" is approved by a reviewer`);
+        if (node.approval === 'draft_only') {
+          assumptions.set(`approve:${node.id}`, { code: 'reviewer_approves', nodeId: node.id });
+        }
         if (decision.decision === 'skip') return { exit: 'message_blocked', message };
-        if (node.onReply) assumptions.add(`nobody replies to "${node.id}"`);
+        if (node.onReply) assumptions.set(`reply:${node.id}`, { code: 'no_reply', nodeId: node.id });
         return { edge: 'next', to: node.next, message };
       }
       case 'wait':
         return { edge: 'next', to: node.next };
       case 'wait_for':
-        assumptions.add(`"${node.event}" does not arrive within ${node.timeout} at "${node.id}"`);
+        assumptions.set(`event:${node.id}`, {
+          code: 'event_missing',
+          nodeId: node.id,
+          event: node.event,
+          timeout: node.timeout,
+        });
         return node.onTimeout ? { edge: 'on_timeout', to: node.onTimeout } : { exit: 'wait_timeout' };
       case 'branch': {
         const facts = await this.runtime.conditionFacts(

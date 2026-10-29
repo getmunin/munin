@@ -1349,7 +1349,10 @@
         "node": "Step",
         "arrived": "Arrived",
         "waiting": "Waiting",
-        "edges": "Paths and emails"
+        "edges": "Paths and emails",
+        "integrity": "Run integrity",
+        "duplicateSends": "Steps that sent twice",
+        "untraced": "People with no step logged"
       },
       "versions": {
         "published": "Published {at}",
@@ -1378,7 +1381,9 @@
         "excluded": "excluded · {reason}",
         "exit": "exit · {reason}",
         "email": "{node} · {decision}",
-        "assumes": "Assumption: {assumption}.",
+        "assumeApproved": "Assumes a reviewer approves \"{node}\".",
+        "assumeNoReply": "Assumes nobody replies to \"{node}\".",
+        "assumeNoEvent": "Assumes {event} does not arrive within {timeout} at \"{node}\".",
         "sample": "Sample: {subject} — to {name}",
         "sampleFrame": "Rendered sample email",
         "cancel": "Cancel",

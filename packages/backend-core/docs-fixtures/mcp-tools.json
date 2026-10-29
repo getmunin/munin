@@ -10353,6 +10353,590 @@
     }
   },
   {
+    "name": "journeys_list_node_types",
+    "title": "Journeys: List node types",
+    "description": "Reference for the journey spec: every node type with what it does and its fields, plus the entry, exit, goal and settings blocks. Read it before drafting or editing a journey.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_list",
+    "title": "Journeys: List journeys",
+    "description": "List journeys with their status, live version and open draft version. Archived journeys are left out unless status is \"archived\".",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "live",
+            "paused",
+            "archived"
+          ]
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_get",
+    "title": "Journeys: Get a journey",
+    "description": "Get one journey with the spec of its open draft version and of its live version.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "journeyId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_list_versions",
+    "title": "Journeys: List versions",
+    "description": "List every version of a journey, newest first, with its change summary, validation result and publish state.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "journeyId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_validate",
+    "title": "Journeys: Validate a version",
+    "description": "Check a journey version (the open draft by default) for schema errors, missing or unreachable nodes, dangling edges, loops without a wait, unknown segments, templates or webhooks, and a missing goal. Errors block publishing; warnings do not.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "journeyId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_create",
+    "title": "Journeys: Create a journey",
+    "description": "Create a journey on an existing email outreach campaign (one journey per campaign). The campaign keeps the sending channel, brief, cadence rules and extraction schema. Starts draft version 1 from `spec`, or from an empty spec when omitted.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "outreachCampaignId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "spec": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {},
+          "description": "Whole journey spec: { entry, exit, goal, settings, start, nodes }."
+        }
+      },
+      "required": [
+        "name",
+        "outreachCampaignId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_replace_draft",
+    "title": "Journeys: Replace the draft spec",
+    "description": "Replace the whole spec of the journey's open draft version, creating a new draft from the live version first when none is open. Published versions never change.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "spec": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {},
+          "description": "Whole journey spec: { entry, exit, goal, settings, start, nodes }."
+        },
+        "changeSummary": {
+          "type": "string",
+          "maxLength": 300
+        }
+      },
+      "required": [
+        "journeyId",
+        "spec"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_add_node",
+    "title": "Journeys: Add a node to the draft",
+    "description": "Add one node to the open draft. With `after`, also points that node's edge (default `next`) at the new node.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "node": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{0,47}$"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "message",
+                "action",
+                "wait",
+                "wait_for",
+                "branch",
+                "split",
+                "goal",
+                "jump",
+                "exit",
+                "agent",
+                "approval",
+                "sub_journey"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "type"
+          ],
+          "additionalProperties": {},
+          "description": "One node, shaped as listed by journeys_list_node_types."
+        },
+        "after": {
+          "type": "object",
+          "properties": {
+            "nodeId": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{0,47}$"
+            },
+            "edge": {
+              "type": "string",
+              "enum": [
+                "next",
+                "onReply",
+                "onTimeout",
+                "default"
+              ]
+            }
+          },
+          "required": [
+            "nodeId"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "journeyId",
+        "node"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_update_node",
+    "title": "Journeys: Update a node in the draft",
+    "description": "Replace the node with the same id in the open draft, including its edges.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "node": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{0,47}$"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "message",
+                "action",
+                "wait",
+                "wait_for",
+                "branch",
+                "split",
+                "goal",
+                "jump",
+                "exit",
+                "agent",
+                "approval",
+                "sub_journey"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "type"
+          ],
+          "additionalProperties": {},
+          "description": "One node, shaped as listed by journeys_list_node_types."
+        }
+      },
+      "required": [
+        "journeyId",
+        "node"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_remove_node",
+    "title": "Journeys: Remove a node from the draft",
+    "description": "Remove a node from the open draft. Edges that pointed at it are left for you to rewire; journeys_validate lists them.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "nodeId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,47}$"
+        }
+      },
+      "required": [
+        "journeyId",
+        "nodeId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_update_settings",
+    "title": "Journeys: Update entry, exit, goal or settings",
+    "description": "Replace any of the draft's start node, entry block, exit block, goal or settings block. Fields left out are kept.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "start": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,47}$"
+        },
+        "entry": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "exit": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "goal": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "settings": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "journeyId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_restore_version",
+    "title": "Journeys: Restore a version as the draft",
+    "description": "Copy an earlier version's spec into the open draft. It goes live only after it is published again.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "journeyId",
+        "version"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_pause",
+    "title": "Journeys: Pause a live journey",
+    "description": "Pause a live journey. Nobody is exited: waits hold and resume in order when the journey is resumed.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "journeyId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_resume",
+    "title": "Journeys: Resume a paused journey",
+    "description": "Resume a paused journey.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "journeyId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "journeys_archive",
+    "title": "Journeys: Archive a journey",
+    "description": "Archive a journey so it no longer runs or accepts edits. Its versions stay readable.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:write"
+    ],
+    "danger": "destructive",
+    "readOnly": false,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "journeyId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "webhooks_list",
     "title": "Webhooks: List",
     "description": "List all webhook subscriptions for your org. Secrets are not returned — they are only shown once at creation. Use webhooks_rotate_secret if you lost it.",

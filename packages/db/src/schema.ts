@@ -2182,6 +2182,74 @@ export const outreachProposals = pgTable(
   }),
 );
 
+// Journeys: a versioned graph (triggers, waits, branches, messages, goals)
+// that wraps one outreach campaign. The campaign keeps the channel, brief,
+// cadence and extraction schema; `journey_versions.spec` holds the graph.
+// A version is a draft until a signed-in person confirms publish, after
+// which its spec never changes — edits always start a new draft version.
+export const journeys = pgTable(
+  'journeys',
+  {
+    id: id('jrn'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    outreachCampaignId: text('outreach_campaign_id')
+      .notNull()
+      .references(() => outreachCampaigns.id, { onDelete: 'restrict' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    status: varchar('status', { length: 16 }).notNull().default('draft'),
+    liveVersion: integer('live_version'),
+    nextEntryAt: timestamp('next_entry_at', { withTimezone: true }),
+    createdByActorType: varchar('created_by_actor_type', { length: 16 }).notNull(),
+    createdByActorId: text('created_by_actor_id').notNull(),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    nameUq: uniqueIndex('journeys_org_name_uq').on(t.orgId, t.name),
+    campaignUq: uniqueIndex('journeys_campaign_uq').on(t.outreachCampaignId),
+    nextEntryIdx: index('journeys_next_entry_idx')
+      .on(t.nextEntryAt)
+      .where(sql`status = 'live'`),
+  }),
+);
+
+export const journeyVersions = pgTable(
+  'journey_versions',
+  {
+    id: id('jrv'),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    journeyId: text('journey_id')
+      .notNull()
+      .references(() => journeys.id, { onDelete: 'cascade' }),
+    number: integer('number').notNull(),
+    spec: jsonb('spec').$type<Record<string, unknown>>().notNull(),
+    specHash: varchar('spec_hash', { length: 64 }).notNull(),
+    parentVersion: integer('parent_version'),
+    changeSummary: text('change_summary'),
+    validation: jsonb('validation').$type<Record<string, unknown>>(),
+    createdByActorType: varchar('created_by_actor_type', { length: 16 }).notNull(),
+    createdByActorId: text('created_by_actor_id').notNull(),
+    publishFingerprint: varchar('publish_fingerprint', { length: 64 }),
+    publishRequestedAt: timestamp('publish_requested_at', { withTimezone: true }),
+    publishRequestedByActorType: varchar('publish_requested_by_actor_type', { length: 16 }),
+    publishRequestedByActorId: text('publish_requested_by_actor_id'),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    publishedByActorId: text('published_by_actor_id'),
+    createdAt,
+    updatedAt,
+  },
+  (t) => ({
+    numberUq: uniqueIndex('journey_versions_number_uq').on(t.journeyId, t.number),
+    orgIdx: index('journey_versions_org_idx').on(t.orgId),
+  }),
+);
+
 export const outreachEmailTemplates = pgTable(
   'outreach_email_templates',
   {

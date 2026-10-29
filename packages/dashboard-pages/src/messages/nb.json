@@ -1079,6 +1079,7 @@
         "crm": "Kontakter",
         "cms": "Innhold",
         "outreach": "Kampanjer",
+        "journeys": "Kundereiser",
         "social": "Sosiale medier",
         "analytics": "Analyse",
         "commerce": "Nettbutikk",
@@ -1110,6 +1111,10 @@
         "outreach": {
           "readWrite": "Lag utkast til kampanjer og send dem til kontakter som har samtykket. Samtykke sjekkes alltid før sending.",
           "read": "Les kampanjer og meldingsforslag."
+        },
+        "journeys": {
+          "readWrite": "Bygg og rediger kundereiser, og sett dem på pause eller arkiver dem. Publisering krever alltid en person i dashbordet.",
+          "read": "Les kundereiser, versjonene deres og valideringsresultater."
         },
         "social": {
           "readWrite": "Lag utkast og publiser innlegg på de sosiale kontoene dere har koblet til.",

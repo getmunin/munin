@@ -1437,6 +1437,68 @@
         "confirm": "Publiser v{version}",
         "published": "Versjon {version} er aktiv.",
         "publishFailed": "Publiseringen feilet."
+      },
+      "editDraft": "Rediger utkast",
+      "doneEditing": "Ferdig",
+      "editor": {
+        "graphInvalid": "Utkastet kan ikke tegnes ennå. Rett det i den avanserte editoren eller be agenten.",
+        "valid": "Utkastet er gyldig. Publiser det fra fanen Versjoner.",
+        "pickStep": "Velg et steg i grafen for å redigere det.",
+        "label": "Etikett",
+        "subject": "Emne",
+        "body": "Tekst",
+        "referenceBody": "Referansetekst (sendes hvis agenten ikke svarer)",
+        "brief": "Brief til agenten",
+        "approval": "Godkjenning",
+        "approvalMode": {
+          "draft_only": "En person går gjennom hver melding",
+          "auto": "Send uten gjennomgang når den er publisert",
+          "off": "Hopp over steget"
+        },
+        "duration": "Vent i (ISO-varighet, f.eks. P2D)",
+        "event": "Hendelse",
+        "timeout": "Gi opp etter (ISO-varighet)",
+        "edge": {
+          "next": "Gå deretter til",
+          "onReply": "Ved svar, gå til",
+          "onUnseen": "Hvis ikke sett, gå til",
+          "onTimeout": "Ved tidsavbrudd, gå til",
+          "onReject": "Hvis avvist, gå til",
+          "onGoal": "Hvis målet nås, gå til",
+          "default": "Ellers gå til",
+          "to": "Hopp til"
+        },
+        "noEdge": "— ingen —",
+        "save": "Lagre steg",
+        "remove": "Fjern steg",
+        "cancel": "Avbryt",
+        "removeTitle": "Fjerne steget «{id}»?",
+        "removeBody": "Kanter som pekte hit blir hengende til du peker dem et annet sted.",
+        "advanced": "Avansert (JSON)",
+        "saveJson": "Lagre JSON",
+        "jsonError": {
+          "json": "Det er ikke gyldig JSON.",
+          "shape": "JSON-en må være ett steg med id og type.",
+          "id": "Behold id-en til steget; legg til et nytt steg for å bruke en annen id."
+        },
+        "addAfter": "Legg til et steg etter «{id}»",
+        "addLoose": "Legg til et steg",
+        "stepKind": "Type steg",
+        "newId": "Steg-id",
+        "badId": "En steg-id starter med liten bokstav og bruker bare a–z, 0–9 og _.",
+        "add": "Legg til steg",
+        "kind": {
+          "email": "E-post",
+          "sms": "SMS",
+          "chat": "Chatmelding",
+          "voice": "Telefonsamtale",
+          "wait": "Vent",
+          "wait_for": "Vent på hendelse",
+          "action": "Handling",
+          "goal": "Mål",
+          "approval": "Godkjenning av en person",
+          "exit": "Avslutt"
+        }
       }
     },
     "endUsers": {

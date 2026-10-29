@@ -6,6 +6,9 @@ import { createDb, runMigrations, schema } from '@getmunin/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { ProductEventsService } from '../analytics/product-events.service.ts';
 import { IdentityService } from '../identity/identity.service.ts';
+import { CrmService } from '../crm/crm.service.ts';
+import { AddressDeliverabilityService } from '../crm/address-deliverability.service.ts';
+import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
 import { ShopifyOrderEventsService } from './shopify-order-events.service.ts';
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
@@ -46,7 +49,7 @@ const SECRET = 'shpss_integration_signing_secret';
     await db.insert(schema.crmContacts).values({ orgId, name: 'Ola Nordmann', email: 'ola@kunde.test', consentLawfulBasis: 'contract' });
     const appUrl = TEST_URL!.replace(/(postgres(?:ql)?:\/\/)[^:@]+:[^@]+@/, '$1munin_app:munin_app@');
     const webhooks = new WebhookDispatcher();
-    service = new ShopifyOrderEventsService(createDb(appUrl), new ProductEventsService(webhooks, new IdentityService(webhooks)));
+    service = new ShopifyOrderEventsService(createDb(appUrl), new ProductEventsService(webhooks, new IdentityService(webhooks), new CrmService(webhooks, new DefaultQuotasService(), new AddressDeliverabilityService())));
   });
 
   afterAll(async () => {

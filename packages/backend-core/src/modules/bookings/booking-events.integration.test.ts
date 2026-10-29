@@ -5,6 +5,9 @@ import { createDb, runMigrations, schema } from '@getmunin/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { ProductEventsService } from '../analytics/product-events.service.ts';
 import { IdentityService } from '../identity/identity.service.ts';
+import { CrmService } from '../crm/crm.service.ts';
+import { AddressDeliverabilityService } from '../crm/address-deliverability.service.ts';
+import { DefaultQuotasService } from '../../common/quotas/quotas.service.ts';
 import { JourneyEventSink } from '../journeys/journey-event.sink.ts';
 import { BookingEventsService } from './booking-events.service.ts';
 
@@ -49,7 +52,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     appDb = createDb(TEST_URL!.replace(/(postgres(?:ql)?:\/\/)[^:@]+:[^@]+@/, '$1munin_app:munin_app@'));
     const webhooks = new WebhookDispatcher();
     webhooks.registerSink(new JourneyEventSink());
-    service = new BookingEventsService(appDb, new ProductEventsService(webhooks, new IdentityService(webhooks)));
+    service = new BookingEventsService(appDb, new ProductEventsService(webhooks, new IdentityService(webhooks), new CrmService(webhooks, new DefaultQuotasService(), new AddressDeliverabilityService())));
   });
 
   afterAll(async () => {

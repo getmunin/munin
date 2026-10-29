@@ -216,6 +216,10 @@ function nodeTitle(node: JourneyNode): string {
       return node.mode === 'decide'
         ? `decide: ${Object.keys(node.edges ?? {}).join(' / ')}`
         : `enrich: ${(node.fields ?? []).map((f) => f.key).join(', ')}`;
+    case 'approval':
+      return `approve: ${node.title}`;
+    case 'sub_journey':
+      return `${node.await ? 'run' : 'enter'} ${node.journeyId}`;
     default:
       return node.id;
   }

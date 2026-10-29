@@ -32,7 +32,7 @@ export interface SimulatedMessage {
 }
 
 export interface SimulationAssumption {
-  code: 'reviewer_approves' | 'no_reply' | 'event_missing' | 'agent_fallback' | 'agent_draft' | 'call_reached';
+  code: 'reviewer_approves' | 'no_reply' | 'event_missing' | 'agent_fallback' | 'agent_draft' | 'call_reached' | 'approval_granted' | 'sub_journey_passed';
   nodeId: string;
   event?: string;
   timeout?: string;
@@ -212,6 +212,12 @@ export class JourneySimulator {
         }
         assumptions.set(`agent:${node.id}`, { code: 'agent_fallback', nodeId: node.id, event: node.fallback });
         return { edge: node.fallback!, to: node.edges?.[node.fallback!] };
+      case 'approval':
+        assumptions.set(`approval:${node.id}`, { code: 'approval_granted', nodeId: node.id });
+        return { edge: 'next', to: node.next };
+      case 'sub_journey':
+        assumptions.set(`sub:${node.id}`, { code: 'sub_journey_passed', nodeId: node.id, event: node.journeyId });
+        return { edge: 'next', to: node.next };
       default:
         return { exit: 'node_type_unavailable' };
     }

@@ -168,7 +168,8 @@ describe('journey validator', () => {
     expect(codes(sms({ approval: 'auto' }), 'ch_sms')).toEqual(['sms_auto']);
     expect(codes(sms({ content: { subject: 'Hei', body: 'Hei!' } }), 'ch_sms')).toEqual(['sms_content']);
     expect(codes(sms({ content: { body: 'x'.repeat(481) } }), 'ch_sms')).toEqual(['sms_length']);
-    expect(codes(sms({ draftBy: 'agent', brief: 'remind' }), 'ch_sms')).toEqual(['sms_agent_draft']);
+    expect(codes(sms({ draftBy: 'agent', brief: 'remind' }), 'ch_sms')).toEqual([]);
+    expect(codes(sms({ draftBy: 'agent' }), 'ch_sms')).toEqual(['agent_draft_brief']);
     expect(codes({ id: 'sms', type: 'message', channel: 'email', content: { body: 'Hei!' }, next: 'done' })).toEqual([
       'missing_subject',
     ]);

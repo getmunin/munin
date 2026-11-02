@@ -400,8 +400,10 @@ function JourneyDetail({
             <TabsTrigger value="report" className="px-0">{t('tabs.report')}</TabsTrigger>
             <TabsTrigger value="versions" className="px-0">{t('tabs.versions')}</TabsTrigger>
           </TabsList>
-          {tab === 'graph' && (
-            <div className="flex flex-wrap items-center gap-2 pb-2">
+          <div
+            aria-hidden={tab !== 'graph'}
+            className={cn('flex flex-wrap items-center gap-2 pb-2', tab !== 'graph' && 'invisible')}
+          >
               {!editing && journey.live && journey.draft && (
                 <>
                   {(['live', 'draft'] as const).map((which) => (
@@ -431,8 +433,7 @@ function JourneyDetail({
                   {t(editing ? 'doneEditing' : 'editDraft')}
                 </Button>
               )}
-            </div>
-          )}
+          </div>
         </div>
 
         <TabsPanel value="graph">

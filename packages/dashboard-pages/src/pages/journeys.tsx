@@ -649,140 +649,252 @@ function ReportView({
   const labels = useRunLabels();
   const t = useTranslations('dashboard.journeys.report');
   const pct = (v: number | null) => (v === null ? '—' : `${(v * 100).toFixed(1)} %`);
+  const { treated, holdout, lift } = report.goal;
+  const waiting = report.nodes.reduce((sum, n) => sum + n.waitingNow, 0);
+  const terminal = (type: string) => (type === 'exit' || type === 'goal' ? 1 : 0);
+  const steps = [...report.nodes].sort((a, b) => terminal(a.nodeType) - terminal(b.nodeType) || b.arrived - a.arrived);
+  const maxArrived = Math.max(1, ...steps.map((n) => n.arrived));
+  const exits = Object.entries(report.enrollments.exitReasons).sort((a, b) => b[1] - a[1]);
+  const maxExit = Math.max(1, ...exits.map(([, n]) => n));
+  const integrityIssues = report.integrity.duplicateSends + report.integrity.enrollmentsWithoutTrace;
+  const pathsOf = (edges: Record<string, number>) =>
+    Object.entries(edges)
+      .map(([edge, n]) => `${edge} ${n}`)
+      .join(' · ');
+
   return (
-    <div className="grid gap-8 md:grid-cols-2">
+    <div className="space-y-12">
+      <div className="grid grid-cols-2 border-l-[1px] border-t-[1px] border-rule-soft lg:grid-cols-4 dark:border-rule-on-dark">
+        <ReportTile label={t('people')} value={String(report.enrollments.total)} note={t('waitingNow', { count: waiting })} />
+        <ReportTile
+          label={t('goal')}
+          value={pct(treated.rate)}
+          note={t('converted', { converted: treated.converted, entered: treated.entered })}
+        />
+        <ReportTile
+          label={t('holdout')}
+          value={holdout.entered > 0 ? pct(holdout.rate) : '—'}
+          note={
+            holdout.entered > 0
+              ? t('converted', { converted: holdout.converted, entered: holdout.entered })
+              : t('noHoldout')
+          }
+        />
+        <ReportTile
+          label={t('lift')}
+          value={lift === null ? '—' : `${lift > 0 ? '+' : ''}${(lift * 100).toFixed(1)} %`}
+          note={lift === null ? t('liftNeedsHoldout') : t('liftNote')}
+          accent={lift !== null && lift > 0}
+        />
+      </div>
+
       <section>
-        <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('goal')}</h3>
-        <dl className="mt-2 grid grid-cols-2 gap-y-1 text-sm">
-          <dt className="text-ink-mute">{t('treated')}</dt>
-          <dd className="text-right font-mono">
-            {pct(report.goal.treated.rate)} · {report.goal.treated.converted}/{report.goal.treated.entered}
-          </dd>
-          <dt className="text-ink-mute">{t('holdout')}</dt>
-          <dd className="text-right font-mono">
-            {pct(report.goal.holdout.rate)} · {report.goal.holdout.converted}/{report.goal.holdout.entered}
-          </dd>
-          <dt className="text-ink-mute">{t('lift')}</dt>
-          <dd className="text-right font-mono">{pct(report.goal.lift)}</dd>
-        </dl>
+        <ReportHead title={t('nodes')} />
+        <ReportTable>
+          <thead>
+            <tr className="border-b-[1px] border-ink text-left dark:border-rule-on-dark">
+              <Th className="w-[34%]">{t('node')}</Th>
+              <Th className="w-[26%]">{t('arrived')}</Th>
+              <Th className="w-24 text-right">{t('waiting')}</Th>
+              <Th className="pl-6">{t('edges')}</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {steps.map((n) => {
+              const paths = [pathsOf(n.edges), report.messages[n.nodeId] ? pathsOf(report.messages[n.nodeId]!) : '']
+                .filter(Boolean)
+                .join(' · ');
+              return (
+                <tr key={n.nodeId} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
+                  <StepCell id={n.nodeId} kind={n.nodeType} />
+                  <td className="py-3.5 pr-4">
+                    <CountBar value={n.arrived} max={maxArrived} />
+                  </td>
+                  <NumCell value={n.waitingNow} />
+                  <td className="py-3.5 pl-6 pr-4 font-mono text-xs text-ink-mute">{paths || '—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </ReportTable>
       </section>
-      <section>
-        <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('integrity')}</h3>
-        <dl className="mt-2 grid grid-cols-2 gap-y-1 text-sm">
-          <StatRow label={t('duplicateSends')} value={report.integrity.duplicateSends} />
-          <StatRow label={t('untraced')} value={report.integrity.enrollmentsWithoutTrace} />
-        </dl>
-      </section>
-      <section>
-        <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">
-          {t('enrollments', { total: report.enrollments.total })}
-        </h3>
-        <dl className="mt-2 grid grid-cols-2 gap-y-1 text-sm">
-          {Object.entries(report.enrollments.exitReasons).map(([reason, n]) => (
-            <StatRow key={reason} label={labels.reason(reason)} value={n} />
-          ))}
-        </dl>
-      </section>
+
       {agentStats.length > 0 && (
-        <section className="md:col-span-2">
-          <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('agents')}</h3>
-          <table className="mt-2 w-full text-sm">
+        <section>
+          <ReportHead title={t('agents')} range={t('range')} />
+          <ReportTable>
             <thead>
-              <tr className="border-b-[1px] border-rule-soft text-left dark:border-rule-on-dark">
-                <Th>{t('node')}</Th>
-                <Th className="text-right">{t('agentRuns')}</Th>
-                <Th className="text-right">{t('fallbackRate')}</Th>
-                <Th className="text-right">{t('avgTokens')}</Th>
-                <Th>{t('agentOutcome')}</Th>
+              <tr className="border-b-[1px] border-ink text-left dark:border-rule-on-dark">
+                <Th className="w-[34%]">{t('node')}</Th>
+                <Th className="w-24 text-right">{t('agentRuns')}</Th>
+                <Th className="w-28 text-right">{t('fallbackRate')}</Th>
+                <Th className="w-32 text-right">{t('avgTokens')}</Th>
+                <Th className="pl-6">{t('agentOutcome')}</Th>
               </tr>
             </thead>
             <tbody>
               {agentStats.map((s) => (
                 <tr key={s.nodeId} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
-                  <td className="py-2 pr-4 font-mono text-xs">
-                    {s.nodeId} <span className="text-ink-label">{s.kind}</span>
-                  </td>
-                  <td className="py-2 pr-4 text-right font-mono text-xs">{s.runs}</td>
-                  <td className="py-2 pr-4 text-right font-mono text-xs">{pct(s.fallbackRate)}</td>
-                  <td className="py-2 pr-4 text-right font-mono text-xs">{s.avgTokens ?? '—'}</td>
-                  <td className="py-2 pr-4 font-mono text-xs text-ink-mute">
+                  <StepCell id={s.nodeId} kind={s.kind} />
+                  <NumCell value={s.runs} />
+                  <NumCell value={pct(s.fallbackRate)} />
+                  <NumCell value={s.avgTokens ?? '—'} />
+                  <td className="py-3.5 pl-6 pr-4 font-mono text-xs text-ink-mute">
                     {s.review
                       ? t('draftOutcome', { edited: pct(s.review.editRate), rejected: pct(s.review.rejectionRate) })
-                      : Object.entries(s.edges)
-                          .map(([edge, n]) => `${edge} ${n}`)
-                          .join(' · ')}
+                      : pathsOf(s.edges) || '—'}
                   </td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </ReportTable>
         </section>
       )}
+
       {reviewStats.length > 0 && (
-        <section className="md:col-span-2">
-          <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('reviews')}</h3>
-          <table className="mt-2 w-full text-sm">
+        <section>
+          <ReportHead title={t('reviews')} range={t('range')} />
+          <ReportTable>
             <thead>
-              <tr className="border-b-[1px] border-rule-soft text-left dark:border-rule-on-dark">
-                <Th>{t('node')}</Th>
-                <Th className="text-right">{t('unedited')}</Th>
-                <Th className="text-right">{t('edited')}</Th>
-                <Th className="text-right">{t('dismissed')}</Th>
-                <Th className="text-right">{t('uneditedRate')}</Th>
+              <tr className="border-b-[1px] border-ink text-left dark:border-rule-on-dark">
+                <Th className="w-[34%]">{t('node')}</Th>
+                <Th className="w-32 text-right">{t('unedited')}</Th>
+                <Th className="w-24 text-right">{t('edited')}</Th>
+                <Th className="w-28 text-right">{t('dismissed')}</Th>
+                <Th className="w-28 text-right">{t('uneditedRate')}</Th>
                 <Th />
               </tr>
             </thead>
             <tbody>
               {reviewStats.map((s) => (
                 <tr key={s.nodeId} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
-                  <td className="py-2 pr-4 font-mono text-xs">{s.nodeId}</td>
-                  <td className="py-2 pr-4 text-right font-mono text-xs">{s.approvedUnedited}</td>
-                  <td className="py-2 pr-4 text-right font-mono text-xs">{s.edited}</td>
-                  <td className="py-2 pr-4 text-right font-mono text-xs">{s.dismissed}</td>
-                  <td className="py-2 pr-4 text-right font-mono text-xs">{pct(s.uneditedRate)}</td>
-                  <td className="py-2 pr-4 text-right">
+                  <StepCell id={s.nodeId} />
+                  <NumCell value={s.approvedUnedited} />
+                  <NumCell value={s.edited} />
+                  <NumCell value={s.dismissed} />
+                  <NumCell value={pct(s.uneditedRate)} />
+                  <td className="py-3.5 pr-4 text-right">
                     {s.readyForAuto && <Pill tone="live">{t('readyForAuto')}</Pill>}
                   </td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </ReportTable>
         </section>
       )}
-      <section className="md:col-span-2">
-        <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('nodes')}</h3>
-        <table className="mt-2 w-full text-sm">
-          <thead>
-            <tr className="border-b-[1px] border-rule-soft text-left dark:border-rule-on-dark">
-              <Th>{t('node')}</Th>
-              <Th className="text-right">{t('arrived')}</Th>
-              <Th className="text-right">{t('waiting')}</Th>
-              <Th>{t('edges')}</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {report.nodes.map((n) => (
-              <tr key={n.nodeId} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
-                <td className="py-2 pr-4 font-mono text-xs">
-                  {n.nodeId} <span className="text-ink-label">{n.nodeType}</span>
-                </td>
-                <td className="py-2 pr-4 text-right font-mono text-xs">{n.arrived}</td>
-                <td className="py-2 pr-4 text-right font-mono text-xs">{n.waitingNow}</td>
-                <td className="py-2 pr-4 font-mono text-xs text-ink-mute">
-                  {Object.entries(n.edges)
-                    .map(([edge, count]) => `${edge} ${count}`)
-                    .join(' · ') || '—'}
-                  {report.messages[n.nodeId] &&
-                    ` · ${Object.entries(report.messages[n.nodeId]!)
-                      .map(([status, count]) => `${status} ${count}`)
-                      .join(' · ')}`}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+
+      <div className="grid gap-12 md:grid-cols-2">
+        <section>
+          <ReportHead title={t('exits')} />
+          {exits.length === 0 ? (
+            <p className="text-sm text-ink-mute">{t('noExits')}</p>
+          ) : (
+            <dl className="border-t-[1px] border-ink dark:border-rule-on-dark">
+              {exits.map(([reason, n]) => (
+                <div
+                  key={reason}
+                  className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] items-center gap-4 border-b-[1px] border-rule-soft py-3 dark:border-rule-on-dark"
+                >
+                  <dt className="truncate text-sm text-ink dark:text-foreground">{labels.reason(reason)}</dt>
+                  <dd>
+                    <CountBar value={n} max={maxExit} />
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </section>
+        <section>
+          <ReportHead title={t('integrity')} />
+          {integrityIssues === 0 ? (
+            <p className="flex items-center gap-2.5 border-b-[1px] border-t-[1px] border-b-rule-soft border-t-ink py-3 text-sm text-ink-soft dark:border-rule-on-dark dark:text-foreground/80">
+              <span aria-hidden className="size-2 shrink-0 rounded-full bg-cobalt dark:bg-cobalt-soft" />
+              {t('integrityOk')}
+            </p>
+          ) : (
+            <dl className="border-t-[1px] border-ink dark:border-rule-on-dark">
+              {(
+                [
+                  ['duplicateSends', report.integrity.duplicateSends],
+                  ['untraced', report.integrity.enrollmentsWithoutTrace],
+                ] as const
+              ).map(([key, n]) => (
+                <div
+                  key={key}
+                  className="flex items-center justify-between gap-4 border-b-[1px] border-rule-soft py-3 dark:border-rule-on-dark"
+                >
+                  <dt className="text-sm text-ink dark:text-foreground">{t(key)}</dt>
+                  <dd className={cn('font-mono text-sm', n > 0 ? 'text-destructive' : 'text-ink-mute')}>{n}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </section>
+      </div>
     </div>
+  );
+}
+
+function ReportTile({ label, value, note, accent }: { label: string; value: string; note: string; accent?: boolean }) {
+  return (
+    <div className="flex min-h-[132px] flex-col gap-3 border-b-[1px] border-r-[1px] border-rule-soft p-5 dark:border-rule-on-dark">
+      <p className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">{label}</p>
+      <p
+        className={cn(
+          'font-serif text-4xl font-normal leading-none tracking-tight',
+          accent ? 'text-cobalt dark:text-cobalt-soft' : 'text-ink dark:text-foreground',
+        )}
+      >
+        {value}
+      </p>
+      <p className="mt-auto text-xs text-ink-mute">{note}</p>
+    </div>
+  );
+}
+
+function ReportHead({ title, range }: { title: string; range?: string }) {
+  return (
+    <h3 className="mb-4 font-serif text-xl font-normal leading-tight tracking-tight text-ink dark:text-foreground">
+      {title}
+      {range && <span className="text-ink-mute"> · {range}</span>}
+    </h3>
+  );
+}
+
+function ReportTable({ children }: { children: ReactNode }) {
+  return (
+    <div className="-mx-5 overflow-x-auto px-5 md:mx-0 md:px-0">
+      <table className="w-full min-w-[640px] table-fixed text-sm">{children}</table>
+    </div>
+  );
+}
+
+function StepCell({ id, kind }: { id: string; kind?: string }) {
+  return (
+    <td className="truncate py-3.5 pr-4">
+      <span className="font-mono text-xs text-ink dark:text-foreground">{id}</span>
+      {kind && (
+        <span className="ml-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{kind}</span>
+      )}
+    </td>
+  );
+}
+
+function NumCell({ value }: { value: ReactNode }) {
+  return <td className="py-3.5 pr-4 text-right font-mono text-xs tabular-nums text-ink dark:text-foreground">{value}</td>;
+}
+
+function CountBar({ value, max }: { value: number; max: number }) {
+  return (
+    <span className="flex items-center gap-3">
+      <span className="w-8 shrink-0 text-right font-mono text-xs tabular-nums text-ink dark:text-foreground">{value}</span>
+      <span aria-hidden className="h-1.5 flex-1 bg-ink/10 dark:bg-foreground/10">
+        <span
+          className="block h-full bg-cobalt dark:bg-cobalt-soft"
+          style={{ width: `${Math.round((value / max) * 100)}%` }}
+        />
+      </span>
+    </span>
   );
 }
 
@@ -937,15 +1049,6 @@ function versionLabel(
   if (live) parts.push(t('liveVersion', { version: live }));
   if (draft) parts.push(t('draftVersion', { version: draft }));
   return parts.join(' · ') || '—';
-}
-
-function StatRow({ label, value }: { label: string; value: number }) {
-  return (
-    <>
-      <dt className="font-mono text-xs text-ink-mute">{label}</dt>
-      <dd className="text-right font-mono text-xs">{value}</dd>
-    </>
-  );
 }
 
 function Th({ children, className }: { children?: ReactNode; className?: string }) {

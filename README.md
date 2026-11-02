@@ -15,7 +15,7 @@
   <a href="https://registry.modelcontextprotocol.io"><b>MCP Registry</b></a>
 </p>
 
-CRM, conversations, outreach, CMS, knowledge base, and analytics on one Postgres schema — exposed as MCP tools your agents drive, not screens you click through. Headless the way a headless CMS is: the dashboard owns settings, auth, and the human half of the work — an inbox where a person takes over a conversation, and a review queue where they approve what the agent proposed — but there is no admin UI to click your way through the data itself. Every action runs through MCP tools, callable from any MCP-compatible client (Claude, Cursor, ChatGPT, custom runners) — same tools, same permissions, same audit log, whether a human or an agent is driving. Munin even ships its own: an in-process, per-org agent runner that answers live conversations and works the curation queue against an LLM provider you configure — so the platform runs out of the box, with external MCP clients optional.
+CRM, conversations, outreach, journeys, CMS, knowledge base, and analytics on one Postgres schema — exposed as MCP tools your agents drive, not screens you click through. Headless the way a headless CMS is: the dashboard owns settings, auth, and the human half of the work — an inbox where a person takes over a conversation, and a review queue where they approve what the agent proposed — but there is no admin UI to click your way through the data itself. Every action runs through MCP tools, callable from any MCP-compatible client (Claude, Cursor, ChatGPT, custom runners) — same tools, same permissions, same audit log, whether a human or an agent is driving. Munin even ships its own: an in-process, per-org agent runner that answers live conversations and works the curation queue against an LLM provider you configure — so the platform runs out of the box, with external MCP clients optional.
 
 <p align="center">
   <img src=".github/assets/dashboard.png" alt="The Munin console — the inbox where a person takes over a conversation" width="100%"><br>
@@ -40,10 +40,11 @@ CRM, conversations, outreach, CMS, knowledge base, and analytics on one Postgres
 | Conversations | `conv_*` | channels, messages, handover |
 | CRM | `crm_*` | contacts, companies, deals |
 | CMS | `cms_*` | collections, entries, assets |
-| Outreach | `outreach_*`, `journeys_*` | campaigns, broadcasts, multi-step journeys, propose-only |
+| Outreach | `outreach_*` | campaigns, broadcasts, drafts, send rules |
+| Journeys | `journeys_*` | multi-step journeys: triggers, waits, branches, agent steps, goals |
 | Analytics | `analytics_*` | page-view + search events |
 
-These six modules aren't separate products — they share one Postgres schema, one permission model, and one audit log. Together with integrations and platform plumbing they add up to 307 MCP tools and 75 skills. Watch how they tie together:
+These seven modules aren't separate products — they share one Postgres schema, one permission model, and one audit log. Together with integrations and platform plumbing they add up to 307 MCP tools and 75 skills. Watch how they tie together:
 
 <p align="center">
   <a href="https://vimeo.com/1202399440?autoplay=0&utm_source=github&utm_medium=readme&utm_campaign=promo-video">
@@ -85,13 +86,21 @@ These six modules aren't separate products — they share one Postgres schema, o
 #### Outreach
 - Propose-only outbound across email, SMS, and voice calls — campaigns, segments, and drafts for both first touches and replies.
 - Broadcasts: one approved message to a segment, with the audience frozen at approval and a test send to check it beforehand.
-- Journeys for anything multi-step: versioned graphs of waits, branches, A/B splits, emails, texts, chat messages and calls, entered from a segment, a product event (`POST /v1/events`) or by hand, and measured against a goal with a holdout group.
-- Agent steps inside a journey decide which path a person takes, fill in fields on the contact, or write a message for that one person from a brief.
-- Org-wide send rules — quiet hours in the contact's timezone, a weekly cap, a cool-down after a conversation — apply to every marketing send; journeys and campaigns can only tighten them.
+- Org-wide send rules — quiet hours in the contact's timezone, a weekly cap, a cool-down after a conversation — apply to every marketing send, whether it comes from a campaign, a broadcast or a journey.
 - Every proposal reports the exact address or number an approval would reach, and an approved send can be scheduled rather than fired immediately.
 - Outcomes extracted from replies and from finished calls, written back onto the record.
 - Recipients are drawn only from contacts who have recorded consent (see CRM).
-- A person approves every message, with one exception they choose: a journey step with fixed text can be set to send without per-message review, and only a signed-in person can publish that journey after reading every such email in the publish review. Agent-written steps earn that only after 30 reviewed drafts at 90% approved unedited; marketing texts and calls always wait for a person.
+- A person approves every message. The one exception is a journey step a person chose to let send on its own (see Journeys).
+- Multi-step follow-up lives in Journeys; campaigns carry the first touch.
+
+#### Journeys
+- Versioned graphs of waits, branches, A/B splits and actions that move each person towards one goal, measured against a holdout group.
+- People enter from a segment, from an event in your product (`POST /v1/events`) or a store order, or by hand; company journeys run once per company and message chosen people there.
+- Steps send email, SMS, chat messages to signed-in widget visitors, and calls, update the CRM record, call your webhooks, or hand a person into another journey.
+- Agent steps decide which path a person takes, fill in fields on the contact, or write a message for that one person from a brief and your knowledge base.
+- Every message goes out through Outreach, so consent, unsubscribe, send rules and the review queue apply.
+- Agents draft, validate and dry-run a journey; only a signed-in person publishes it, after a review that lists every email that would send without per-message approval. Fixed text can be set to send that way; agent-written steps earn it only after 30 reviewed drafts at 90% approved unedited; marketing texts and calls always wait for a person.
+- Live journeys report goal conversion and split results, and a monitor pauses a step when its bounce, unsubscribe or failure rate crosses a threshold.
 
 #### Analytics
 - Captures page views and on-site searches across anything you want to measure, one row per view with read depth, reported per tracker.

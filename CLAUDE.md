@@ -1,6 +1,6 @@
 # Munin — agent guide
 
-MCP-first customer platform made for the agentic era (KB, Conversations, CRM, CMS, Outreach). The agent is the primary UI: agents act through MCP tools served at `/mcp`. The dashboard at `apps/web` is a thin shell over the `/v1/*` control plane; `/v1` controllers and MCP tools must both stay thin wrappers over the same service methods — logic lives in the service, never in a controller or tool handler.
+MCP-first customer platform made for the agentic era (KB, Conversations, CRM, CMS, Outreach, Journeys). The agent is the primary UI: agents act through MCP tools served at `/mcp`. The dashboard at `apps/web` is a thin shell over the `/v1/*` control plane; `/v1` controllers and MCP tools must both stay thin wrappers over the same service methods — logic lives in the service, never in a controller or tool handler.
 
 ## Repository layout
 

@@ -1308,7 +1308,7 @@
       },
       "liveVersion": "aktiv v{version}",
       "draftVersion": "utkast v{version}",
-      "back": "← Alle kundereiser",
+      "back": "Alle kundereiser",
       "pause": "Sett på pause",
       "resume": "Fortsett",
       "paused": "Kundereisen er satt på pause. Ingen ble fjernet.",

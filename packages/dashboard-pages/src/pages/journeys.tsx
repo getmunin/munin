@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useFormatter, useNow, useTranslations } from 'next-intl';
+import { ArrowLeft } from 'lucide-react';
 import {
   Button,
   Pill,
@@ -21,7 +22,7 @@ import { ConsoleHero } from '../components/console-hero';
 import { Link } from '../i18n-navigation';
 import { useTranslateError } from '../i18n/translate-error';
 import { LoadFailed } from '../components/load-failed';
-import { TableSkeleton } from '../components/skeleton';
+import { Skeleton } from '../components/skeleton';
 import { EmptyCallout } from '../components/empty-callout';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
@@ -92,16 +93,7 @@ function JourneyList() {
       <ConsoleHero eyebrow={t('eyebrow')} title={t.rich('title', { em: (c) => <em>{c}</em> })} lede={t('subtitle')} />
       <section className="flex-1 space-y-4 px-5 pb-10 pt-1 md:px-8">
         <SectionHead title={t('listTitle')} divider={false} />
-        {items === null ? (
-          <TableSkeleton
-            columns={[
-              { grow: 4, bar: 'w-2/3' },
-              { grow: 2, bar: 'w-1/2' },
-              { grow: 2, bar: 'w-1/2' },
-              { grow: 2, bar: 'w-3/4' },
-            ]}
-          />
-        ) : items.length === 0 ? (
+        {items !== null && items.length === 0 ? (
           <EmptyCallout title={t('emptyTitle')} body={t.rich('emptyBody', { code: (c) => <code>{c}</code> })} />
         ) : (
           <div className="-mx-5 overflow-x-auto px-5 md:mx-0 md:px-0">
@@ -114,8 +106,9 @@ function JourneyList() {
                   <Th>{t('table.updated')}</Th>
                 </tr>
               </thead>
-              <tbody>
-                {items.map((j) => (
+              <tbody aria-busy={items === null}>
+                {items === null && <JourneyRowsSkeleton />}
+                {items?.map((j) => (
                   <tr key={j.id} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
                     <td className="py-4 pr-4">
                       <Link
@@ -170,6 +163,7 @@ function JourneyDetail({
   const [publishing, setPublishing] = useState<number | null>(publishVersion ?? null);
   const [traceId, setTraceId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [tab, setTab] = useState('graph');
   const [busy, setBusy] = useState(false);
   const confirm = useConfirm();
 
@@ -301,48 +295,49 @@ function JourneyDetail({
       </div>
     );
   }
-  if (!journey) {
-    return <TableSkeleton columns={[{ grow: 4, bar: 'w-2/3' }, { grow: 2, bar: 'w-1/2' }]} />;
-  }
+  if (!journey) return <JourneyDetailSkeleton />;
 
   const shown = graphOf === 'live' ? journey.live : journey.draft;
   const counts = report ? Object.fromEntries(report.nodes.map((n) => [n.nodeId, n.arrived])) : undefined;
+  const editable = journey.status !== 'archived' ? (journey.draft ?? journey.live) : null;
 
   return (
     <div className="flex min-h-full flex-col">
       <ConsoleHero
-        eyebrow={
-          <Link href="/dashboard/journeys" className="hover:text-cobalt">
-            {t('back')}
-          </Link>
-        }
+        eyebrow={<BackToJourneys label={t('back')} />}
         title={journey.name}
-        lede={journey.description ?? t('detailSubtitle')}
+        lede={
+          <>
+            {journey.description ?? t('detailSubtitle')}
+            <span className="mt-3 flex flex-wrap items-center gap-2.5">
+              <StatusPill status={journey.status} />
+              <span className="font-mono text-[11px] text-ink-mute">
+                {versionLabel(t, journey.liveVersion, journey.draftVersion)}
+              </span>
+            </span>
+          </>
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-2 md:justify-end">
+            {journey.status === 'live' && (
+              <Button variant="outline" size="sm" pending={busy} onClick={() => void lifecycle('pause')}>
+                {t('pause')}
+              </Button>
+            )}
+            {journey.status === 'paused' && (
+              <Button variant="outline" size="sm" pending={busy} onClick={() => void lifecycle('resume')}>
+                {t('resume')}
+              </Button>
+            )}
+            {journey.draft && journey.status !== 'archived' && (
+              <Button variant="accent" size="sm" onClick={() => setPublishing(journey.draft!.number)}>
+                {t('reviewPublish', { version: journey.draft.number })}
+              </Button>
+            )}
+          </div>
+        }
       />
       <div className="flex-1 px-5 pb-10 pt-1 md:px-8">
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <StatusPill status={journey.status} />
-        <span className="font-mono text-xs text-ink-mute">
-          {versionLabel(t, journey.liveVersion, journey.draftVersion)}
-        </span>
-        <div className="ml-auto flex gap-2">
-          {journey.status === 'live' && (
-            <Button variant="outline" size="sm" pending={busy} onClick={() => void lifecycle('pause')}>
-              {t('pause')}
-            </Button>
-          )}
-          {journey.status === 'paused' && (
-            <Button variant="outline" size="sm" pending={busy} onClick={() => void lifecycle('resume')}>
-              {t('resume')}
-            </Button>
-          )}
-          {journey.draft && journey.status !== 'archived' && (
-            <Button variant="accent" size="sm" onClick={() => setPublishing(journey.draft!.number)}>
-              {t('reviewPublish', { version: journey.draft.number })}
-            </Button>
-          )}
-        </div>
-      </div>
 
       {approvals.map((approval) => (
         <div
@@ -397,54 +392,59 @@ function JourneyDetail({
         </div>
       ))}
 
-      <Tabs defaultValue="graph">
-        <TabsList>
-          <TabsTrigger value="graph">{t('tabs.graph')}</TabsTrigger>
-          <TabsTrigger value="people">{t('tabs.people')}</TabsTrigger>
-          <TabsTrigger value="report">{t('tabs.report')}</TabsTrigger>
-          <TabsTrigger value="versions">{t('tabs.versions')}</TabsTrigger>
-        </TabsList>
-
-        <TabsPanel value="graph">
-          {journey.status !== 'archived' && (journey.draft ?? journey.live) && (
-            <div className="mb-3 flex justify-end">
-              <Button
-                size="sm"
-                variant={editing ? 'accent' : 'outline'}
-                onClick={() => {
-                  if (editing) void load();
-                  setEditing(!editing);
-                }}
-              >
-                {t(editing ? 'doneEditing' : 'editDraft')}
-              </Button>
+      <Tabs value={tab} onValueChange={(next) => setTab(String(next))}>
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b-[1px] border-rule-soft dark:border-rule-on-dark">
+          <TabsList className="-mb-px gap-5 border-b-0">
+            <TabsTrigger value="graph" className="px-0">{t('tabs.graph')}</TabsTrigger>
+            <TabsTrigger value="people" className="px-0">{t('tabs.people')}</TabsTrigger>
+            <TabsTrigger value="report" className="px-0">{t('tabs.report')}</TabsTrigger>
+            <TabsTrigger value="versions" className="px-0">{t('tabs.versions')}</TabsTrigger>
+          </TabsList>
+          {tab === 'graph' && (
+            <div className="flex flex-wrap items-center gap-2 pb-2">
+              {!editing && journey.live && journey.draft && (
+                <>
+                  {(['live', 'draft'] as const).map((which) => (
+                    <Button
+                      key={which}
+                      size="sm"
+                      variant={graphOf === which ? 'secondary' : 'ghost'}
+                      onClick={() => setGraphOf(which)}
+                    >
+                      {t(which === 'live' ? 'showLive' : 'showDraft', {
+                        version: which === 'live' ? journey.live!.number : journey.draft!.number,
+                      })}
+                    </Button>
+                  ))}
+                  {editable && <span aria-hidden className="mx-1 h-4 w-px bg-rule-soft dark:bg-rule-on-dark" />}
+                </>
+              )}
+              {editable && (
+                <Button
+                  size="sm"
+                  variant={editing ? 'accent' : 'ghost'}
+                  onClick={() => {
+                    if (editing) void load();
+                    setEditing(!editing);
+                  }}
+                >
+                  {t(editing ? 'doneEditing' : 'editDraft')}
+                </Button>
+              )}
             </div>
           )}
-          {editing && (journey.draft ?? journey.live) ? (
+        </div>
+
+        <TabsPanel value="graph">
+          {editing && editable ? (
             <DraftEditor
-              version={(journey.draft ?? journey.live)!}
+              version={editable}
               edit={editDraft}
               validate={validateVersion}
               onStale={() => void load()}
             />
           ) : (
           <>
-          {journey.live && journey.draft && (
-            <div className="mb-3 flex gap-2">
-              {(['live', 'draft'] as const).map((which) => (
-                <Button
-                  key={which}
-                  size="sm"
-                  variant={graphOf === which ? 'accent' : 'outline'}
-                  onClick={() => setGraphOf(which)}
-                >
-                  {t(which === 'live' ? 'showLive' : 'showDraft', {
-                    version: which === 'live' ? journey.live!.number : journey.draft!.number,
-                  })}
-                </Button>
-              ))}
-            </div>
-          )}
           {shown ? (
             <JourneyGraph
               spec={shown.spec}
@@ -848,6 +848,74 @@ function useRunLabels() {
     state: (state: string) => (t.has(`runState.${state}`) ? t(`runState.${state}` as never) : state),
     reason: (reason: string) => (t.has(`exitReason.${reason}`) ? t(`exitReason.${reason}` as never) : reason),
   };
+}
+
+function BackToJourneys({ label }: { label: string }) {
+  return (
+    <Link
+      href="/dashboard/journeys"
+      className="group inline-flex items-center gap-2.5 text-[10px] text-ink-soft transition-colors duration-fast ease-munin hover:text-cobalt dark:text-foreground/80 dark:hover:text-cobalt-soft"
+    >
+      <ArrowLeft
+        aria-hidden
+        className="relative -top-px size-[15px] transition-transform duration-base ease-munin group-hover:-translate-x-0.5"
+      />
+      <span>{label}</span>
+    </Link>
+  );
+}
+
+function JourneyRowsSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <tr key={i} aria-hidden className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
+          <td className="py-4 pr-4">
+            <Skeleton className={cn('h-3.5', i % 2 === 0 ? 'w-48' : 'w-36')} />
+            <Skeleton className={cn('mt-2 h-3', i % 2 === 0 ? 'w-64' : 'w-52')} />
+          </td>
+          <td className="py-4 pr-4">
+            <Skeleton className="h-5 w-14" />
+          </td>
+          <td className="hidden py-4 pr-4 md:table-cell">
+            <Skeleton className="h-3 w-20" />
+          </td>
+          <td className="py-4 pr-4">
+            <Skeleton className="h-3 w-16" />
+          </td>
+        </tr>
+      ))}
+    </>
+  );
+}
+
+function JourneyDetailSkeleton() {
+  const t = useTranslations('common');
+  const tJourneys = useTranslations('dashboard.journeys');
+  return (
+    <div role="status" aria-busy="true" className="flex min-h-full flex-col">
+      <span className="sr-only">{t('loading')}</span>
+      <header className="flex flex-col justify-between gap-6 px-5 pb-5 pt-8 md:flex-row md:items-end md:px-8">
+        <div className="min-w-0 flex-1 space-y-2.5">
+          <div className="font-mono text-[11px] font-medium uppercase tracking-eyebrow">
+            <BackToJourneys label={tJourneys('back')} />
+          </div>
+          <Skeleton className="h-9 w-2/3" />
+          <Skeleton className="h-3 w-1/2" />
+          <Skeleton className="mt-3 h-5 w-32" />
+        </div>
+        <Skeleton className="h-7 w-20 shrink-0" />
+      </header>
+      <div className="flex-1 px-5 pb-10 pt-1 md:px-8">
+        <div aria-hidden className="flex gap-5 border-b-[1px] border-rule-soft py-3 dark:border-rule-on-dark">
+          {[12, 14, 14, 16].map((w, i) => (
+            <Skeleton key={i} className="h-2.5" style={{ width: `${w * 4}px` }} />
+          ))}
+        </div>
+        <Skeleton className="mt-6 h-[420px] w-full" />
+      </div>
+    </div>
+  );
 }
 
 function StatusPill({ status }: { status: JourneyStatus }) {

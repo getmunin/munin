@@ -1308,7 +1308,7 @@
       },
       "liveVersion": "live v{version}",
       "draftVersion": "draft v{version}",
-      "back": "← All journeys",
+      "back": "All journeys",
       "pause": "Pause",
       "resume": "Resume",
       "paused": "Journey paused. Nobody was removed.",

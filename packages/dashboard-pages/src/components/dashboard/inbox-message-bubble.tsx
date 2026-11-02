@@ -132,6 +132,7 @@ export function MessageBubble({
   const role = messageRole(message, viewerUserId);
   const isOutbound = message.authorType === 'user' || message.authorType === 'agent';
   const noSpeech = message.metadata.voiceNoSpeech === true;
+  const pending = message.metadata.voicePending === true;
   const quoted = readQuotedTurns(message.metadata);
   const draftNote = sentDraftNote(message);
 
@@ -217,7 +218,9 @@ export function MessageBubble({
               }
         }
       >
-        {noSpeech ? (
+        {pending ? (
+          <p className="italic opacity-60">{t('voicePending')}</p>
+        ) : noSpeech ? (
           <p className="italic opacity-60">{t('noSpeech')}</p>
         ) : (
           <MessageMarkdown body={displayBody ?? message.body} />

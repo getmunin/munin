@@ -919,13 +919,15 @@ const skipReason = TEST_URL
     expect(convs.length).toBe(0);
   });
 
-  it('skips non-final transcripts', async () => {
-    const callId = 'call_threll_partial';
-    await postEvent({
+  it('stores a pending placeholder for a non-final caller turn, then fills it in on the final', async () => {
+    const callId = 'call_threll_interim';
+    const r1 = await postEvent({
       type: 'call.transcript',
-      data: { callId, role: 'user', text: 'I want to ch—', isFinal: false },
+      data: { callId, role: 'user', text: '', isFinal: false, turnIndex: 0 },
     });
-    const convs = await db
+    expect(r1.status).toBe(204);
+
+    const [conv] = await db
       .select({ id: schema.convConversations.id })
       .from(schema.convConversations)
       .where(
@@ -933,8 +935,85 @@ const skipReason = TEST_URL
           eq(schema.convConversations.orgId, orgId),
           sql`${schema.convConversations.metadata}->>'threllCallId' = ${callId}`,
         ),
-      );
-    expect(convs.length).toBe(0);
+      )
+      .limit(1);
+    expect(conv).toBeDefined();
+
+    const pending = await db
+      .select({
+        id: schema.convMessages.id,
+        body: schema.convMessages.body,
+        metadata: schema.convMessages.metadata,
+      })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.conversationId, conv!.id));
+    expect(pending.length).toBe(1);
+    expect(pending[0]!.body).toBe('');
+    expect(pending[0]!.metadata.voicePending).toBe(true);
+    expect(pending[0]!.metadata.voiceNoSpeech).toBeUndefined();
+
+    const r2 = await postEvent({
+      type: 'call.transcript',
+      data: { callId, role: 'user', text: 'I want to check my order.', isFinal: true, turnIndex: 0 },
+    });
+    expect(r2.status).toBe(204);
+
+    const resolved = await db
+      .select({
+        id: schema.convMessages.id,
+        body: schema.convMessages.body,
+        metadata: schema.convMessages.metadata,
+      })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.conversationId, conv!.id));
+    expect(resolved.length).toBe(1);
+    expect(resolved[0]!.id).toBe(pending[0]!.id);
+    expect(resolved[0]!.body).toBe('I want to check my order.');
+    expect(resolved[0]!.metadata.voicePending).toBeUndefined();
+
+    const events = await db
+      .select({ type: schema.events.type })
+      .from(schema.events)
+      .where(
+        and(
+          eq(schema.events.orgId, orgId),
+          sql`${schema.events.payload}->>'messageId' = ${pending[0]!.id}`,
+        ),
+      )
+      .orderBy(schema.events.createdAt);
+    expect(events.map((e) => e.type)).toEqual([
+      'conversation.message.received',
+      'conversation.message.body_revised',
+    ]);
+  });
+
+  it('ignores a duplicate final for a turn that already resolved', async () => {
+    const callId = 'call_threll_dup_final';
+    await postEvent({
+      type: 'call.transcript',
+      data: { callId, role: 'user', text: 'First version.', isFinal: true, turnIndex: 0 },
+    });
+    const r2 = await postEvent({
+      type: 'call.transcript',
+      data: { callId, role: 'user', text: 'Second version.', isFinal: true, turnIndex: 0 },
+    });
+    expect(r2.status).toBe(204);
+
+    const [conv] = await db
+      .select({ id: schema.convConversations.id })
+      .from(schema.convConversations)
+      .where(
+        and(
+          eq(schema.convConversations.orgId, orgId),
+          sql`${schema.convConversations.metadata}->>'threllCallId' = ${callId}`,
+        ),
+      )
+      .limit(1);
+    const msgs = await db
+      .select({ body: schema.convMessages.body })
+      .from(schema.convMessages)
+      .where(eq(schema.convMessages.conversationId, conv!.id));
+    expect(msgs.map((m) => m.body)).toEqual(['First version.']);
   });
 
   it('closes the conversation and stores artifact metadata on call.ended', async () => {

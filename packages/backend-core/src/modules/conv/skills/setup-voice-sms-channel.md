@@ -60,6 +60,8 @@ Suppressed contacts drop out of `crm_list_contacts_in_segment`, so they stop app
 
 A caller turn whose audio produced no words is kept as a turn with an **empty body** and `metadata.voiceNoSpeech: true` — the caller spoke or was cut off, and speech recognition returned nothing. It is kept because dropping it makes the transcript read as if the assistant answered a question nobody asked. Report it as "nothing was transcribed", never as something the caller said, and never treat the silence as agreement. The dashboard renders it as a placeholder line and the chat widget hides it.
 
+A call read while still in progress can also show a caller turn with an **empty body** and `metadata.voicePending: true` instead — this is a different thing: the turn has started but speech recognition hasn't resolved it yet, not that nothing was heard. Report it as "still transcribing", never as "nothing was transcribed", and expect the body to fill in on a later read. A finished call never carries this flag.
+
 ## Verify
 
 - `conv_test_voice_sms_channel { channelId }` — vendor-shaped credential check (Twilio account fetch, MessageBird balance, etc.), no message sent.

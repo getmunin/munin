@@ -397,6 +397,7 @@
         "handleFallback": "—",
         "anonymousVisitor": "Anonymous",
         "noSpeech": "No speech transcribed",
+        "voicePending": "…",
         "autoReply": "Auto-reply",
         "bounceNotice": "Bounced",
         "noReplyAddress": "No-reply address",

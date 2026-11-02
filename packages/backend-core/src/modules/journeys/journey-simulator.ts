@@ -257,5 +257,6 @@ interface SampleContact {
 }
 
 function bump(map: Record<string, number>, key: string): void {
-  map[key] = (map[key] ?? 0) + 1;
+  const value = (Object.hasOwn(map, key) ? map[key]! : 0) + 1;
+  Object.defineProperty(map, key, { value, enumerable: true, writable: true, configurable: true });
 }

@@ -24,7 +24,7 @@ CRM, conversations, outreach, CMS, knowledge base, and analytics on one Postgres
 
 <p align="center">
   <img src=".github/assets/review-queue.png" alt="The Munin review queue — an outreach email drafted by an agent, waiting for a human to approve it" width="100%"><br>
-  <sub><b>The review queue</b> — outbound never sends itself. An agent drafts, files the evidence behind the draft, and waits; approving is the human's keystroke.</sub>
+  <sub><b>The review queue</b> — an agent drafts, files the evidence behind the draft, and waits; approving is the human's keystroke.</sub>
 </p>
 
 <p align="center">
@@ -40,10 +40,10 @@ CRM, conversations, outreach, CMS, knowledge base, and analytics on one Postgres
 | Conversations | `conv_*` | channels, messages, handover |
 | CRM | `crm_*` | contacts, companies, deals |
 | CMS | `cms_*` | collections, entries, assets |
-| Outreach | `outreach_*` | campaigns, drafts, propose-only |
+| Outreach | `outreach_*`, `journeys_*` | campaigns, broadcasts, multi-step journeys, propose-only |
 | Analytics | `analytics_*` | page-view + search events |
 
-These six modules aren't separate products — they share one Postgres schema, one permission model, and one audit log. Together with integrations and platform plumbing they add up to 223 MCP tools and 58 skills. Watch how they tie together:
+These six modules aren't separate products — they share one Postgres schema, one permission model, and one audit log. Together with integrations and platform plumbing they add up to 307 MCP tools and 75 skills. Watch how they tie together:
 
 <p align="center">
   <a href="https://vimeo.com/1202399440?autoplay=0&utm_source=github&utm_medium=readme&utm_campaign=promo-video">
@@ -84,11 +84,14 @@ These six modules aren't separate products — they share one Postgres schema, o
 
 #### Outreach
 - Propose-only outbound across email, SMS, and voice calls — campaigns, segments, and drafts for both first touches and replies.
-- Multi-step sequences with cadence rules that stop the moment someone replies.
+- Broadcasts: one approved message to a segment, with the audience frozen at approval and a test send to check it beforehand.
+- Journeys for anything multi-step: versioned graphs of waits, branches, A/B splits, emails, texts, chat messages and calls, entered from a segment, a product event (`POST /v1/events`) or by hand, and measured against a goal with a holdout group.
+- Agent steps inside a journey decide which path a person takes, fill in fields on the contact, or write a message for that one person from a brief.
+- Org-wide send rules — quiet hours in the contact's timezone, a weekly cap, a cool-down after a conversation — apply to every marketing send; journeys and campaigns can only tighten them.
 - Every proposal reports the exact address or number an approval would reach, and an approved send can be scheduled rather than fired immediately.
 - Outcomes extracted from replies and from finished calls, written back onto the record.
 - Recipients are drawn only from contacts who have recorded consent (see CRM).
-- Every message waits for human approval; nothing is ever sent automatically.
+- A person approves every message, with one exception they choose: a journey step with fixed text can be set to send without per-message review, and only a signed-in person can publish that journey after reading every such email in the publish review. Agent-written steps earn that only after 30 reviewed drafts at 90% approved unedited; marketing texts and calls always wait for a person.
 
 #### Analytics
 - Captures page views and on-site searches across anything you want to measure, one row per view with read depth, reported per tracker.
@@ -241,7 +244,7 @@ Hosts that support MCP Apps get more than text back: proposals, curation candida
 
 The same `/mcp` endpoint serves two distinct callers, audience-aware:
 
-- **Admin agents** (Claude Desktop, Cursor, internal automation) — OAuth-authorized by you. Full tool surface, scope-gated per `kb:*`, `conv:*`, `crm:*`, `cms:*`, `outreach:*`, `analytics:*`, `commerce:read`, `bookings:*`, `seo:*`, `connectors:*`, `identity:read`, `slack:*`, `webhooks:*`.
+- **Admin agents** (Claude Desktop, Cursor, internal automation) — OAuth-authorized by you. Full tool surface, scope-gated per `kb:*`, `conv:*`, `crm:*`, `cms:*`, `outreach:*`, `journeys:*`, `analytics:*`, `commerce:read`, `bookings:*`, `seo:*`, `connectors:*`, `identity:read`, `slack:*`, `webhooks:*`.
 - **End-user agents** (your voice AI, web chatbot, mobile app helper) — short-lived delegated tokens minted server-side from your backend, scoped to one of your end-users. Only self-service tools: read your own contact, send a message in your own conversation, look up your own order, make your own booking.
 
 See `packages/backend-core/src/control/delegated-token.controller.ts` for the token-mint API. The `@getmunin/sdk` Node client wraps it.

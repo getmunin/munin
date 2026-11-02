@@ -367,6 +367,10 @@ export class JourneysService {
     await this.lockRow(id);
     const row = await this.load(id);
     if (row.status === 'archived') throw new ConflictException(`journeys_conflict: journey ${id} is archived`);
+    const versions = await this.versionRows(id);
+    if (!versions.some((v) => specNodes(v.spec).some((n) => n.id === nodeId))) {
+      throw new NotFoundException(`journeys_not_found: node "${nodeId}" is not in any version of journey ${id}`);
+    }
     if (row.pausedNodes[nodeId]) {
       throw new ConflictException(`journeys_conflict: node ${nodeId} is already paused`);
     }

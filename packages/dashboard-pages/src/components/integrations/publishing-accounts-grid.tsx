@@ -26,6 +26,12 @@ import { CardGrid, CardMenu, StatusLine } from '../card-kit';
 import { IntegrationCard } from './integration-card';
 import { dialogLabelClass } from '../../lib/dialog-style';
 import { useCopy } from '../../lib/use-copy';
+import {
+  PLATFORM_NAMES,
+  startSocialConnect,
+  useSocialConnectOutcome,
+  withSocialOutcome,
+} from '../../lib/social-connect';
 
 interface SocialAccountDto {
   id: string;
@@ -58,8 +64,6 @@ interface SocialPlatformAppDto {
   clientSecretSetAt: string | null;
 }
 
-export const PLATFORM_NAMES: Record<string, string> = { linkedin: 'LinkedIn', facebook: 'Facebook' };
-
 const PLATFORM_DEVELOPER_PORTALS: Record<string, string> = {
   linkedin: 'https://www.linkedin.com/developers/apps',
   facebook: 'https://developers.facebook.com/apps',
@@ -80,7 +84,11 @@ export function PublishingAccountsSection() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busyPlatform, setBusyPlatform] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState<SocialPlatformAppDto | null>(null);
-  const [choosing, setChoosing] = useState<{ pendingId: string; platform: string } | null>(null);
+  const [choosing, setChoosing] = useState<{
+    pendingId: string;
+    platform: string;
+    returnTo: string | null;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -100,38 +108,13 @@ export function PublishingAccountsSection() {
     void refresh();
   }, [refresh]);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const outcome = params.get('social');
-    if (!outcome) return;
-    const reason = params.get('reason');
-    const pending = params.get('pending');
-    if (outcome === 'choose_target' && pending) {
-      setChoosing({ pendingId: pending, platform: params.get('platform') ?? '' });
-    } else if (outcome === 'connected') notify.success(t('connected'));
-    else if (outcome === 'denied') notify.error(t('denied'));
-    else notify.error(reason ? t('failedWithReason', { reason }) : t('failed'));
-    params.delete('social');
-    params.delete('platform');
-    params.delete('pending');
-    params.delete('reason');
-    const query = params.toString();
-    window.history.replaceState(
-      null,
-      '',
-      `${window.location.pathname}${query ? `?${query}` : ''}`,
-    );
-  }, [t]);
+  useSocialConnectOutcome(setChoosing);
 
   function connect(platform: string) {
     setBusyPlatform(platform);
     void (async () => {
       try {
-        const res = await api<{ url: string }>('/v1/social/accounts/authorize-url', {
-          method: 'POST',
-          body: JSON.stringify({ platform }),
-        });
-        window.location.assign(res.url);
+        await startSocialConnect(platform);
       } catch (err) {
         notify.error(translate(err));
         setBusyPlatform(null);
@@ -281,6 +264,10 @@ export function PublishingAccountsSection() {
           platform={choosing.platform}
           onClose={() => setChoosing(null)}
           onConnected={() => {
+            if (choosing.returnTo) {
+              window.location.assign(withSocialOutcome(choosing.returnTo, choosing.platform));
+              return;
+            }
             setChoosing(null);
             notify.success(t('chooseTargetConnected'));
             void refresh();

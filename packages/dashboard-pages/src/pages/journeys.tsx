@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useFormatter, useNow, useTranslations } from 'next-intl';
+import { ArrowLeft } from 'lucide-react';
 import {
   Button,
   Pill,
@@ -21,7 +22,7 @@ import { ConsoleHero } from '../components/console-hero';
 import { Link } from '../i18n-navigation';
 import { useTranslateError } from '../i18n/translate-error';
 import { LoadFailed } from '../components/load-failed';
-import { TableSkeleton } from '../components/skeleton';
+import { Skeleton } from '../components/skeleton';
 import { EmptyCallout } from '../components/empty-callout';
 import { useLoadGate } from '../lib/use-load-gate';
 import { useSettingsLoadFailedProps } from '../lib/use-load-failed-props';
@@ -92,16 +93,7 @@ function JourneyList() {
       <ConsoleHero eyebrow={t('eyebrow')} title={t.rich('title', { em: (c) => <em>{c}</em> })} lede={t('subtitle')} />
       <section className="flex-1 space-y-4 px-5 pb-10 pt-1 md:px-8">
         <SectionHead title={t('listTitle')} divider={false} />
-        {items === null ? (
-          <TableSkeleton
-            columns={[
-              { grow: 4, bar: 'w-2/3' },
-              { grow: 2, bar: 'w-1/2' },
-              { grow: 2, bar: 'w-1/2' },
-              { grow: 2, bar: 'w-3/4' },
-            ]}
-          />
-        ) : items.length === 0 ? (
+        {items !== null && items.length === 0 ? (
           <EmptyCallout title={t('emptyTitle')} body={t.rich('emptyBody', { code: (c) => <code>{c}</code> })} />
         ) : (
           <div className="-mx-5 overflow-x-auto px-5 md:mx-0 md:px-0">
@@ -114,8 +106,9 @@ function JourneyList() {
                   <Th>{t('table.updated')}</Th>
                 </tr>
               </thead>
-              <tbody>
-                {items.map((j) => (
+              <tbody aria-busy={items === null}>
+                {items === null && <JourneyRowsSkeleton />}
+                {items?.map((j) => (
                   <tr key={j.id} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
                     <td className="py-4 pr-4">
                       <Link
@@ -170,6 +163,7 @@ function JourneyDetail({
   const [publishing, setPublishing] = useState<number | null>(publishVersion ?? null);
   const [traceId, setTraceId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [tab, setTab] = useState('graph');
   const [busy, setBusy] = useState(false);
   const confirm = useConfirm();
 
@@ -301,48 +295,49 @@ function JourneyDetail({
       </div>
     );
   }
-  if (!journey) {
-    return <TableSkeleton columns={[{ grow: 4, bar: 'w-2/3' }, { grow: 2, bar: 'w-1/2' }]} />;
-  }
+  if (!journey) return <JourneyDetailSkeleton />;
 
   const shown = graphOf === 'live' ? journey.live : journey.draft;
   const counts = report ? Object.fromEntries(report.nodes.map((n) => [n.nodeId, n.arrived])) : undefined;
+  const editable = journey.status !== 'archived' ? (journey.draft ?? journey.live) : null;
 
   return (
     <div className="flex min-h-full flex-col">
       <ConsoleHero
-        eyebrow={
-          <Link href="/dashboard/journeys" className="hover:text-cobalt">
-            {t('back')}
-          </Link>
-        }
+        eyebrow={<BackToJourneys label={t('back')} />}
         title={journey.name}
-        lede={journey.description ?? t('detailSubtitle')}
+        lede={
+          <>
+            {journey.description ?? t('detailSubtitle')}
+            <span className="mt-3 flex flex-wrap items-center gap-2.5">
+              <StatusPill status={journey.status} />
+              <span className="font-mono text-[11px] text-ink-mute">
+                {versionLabel(t, journey.liveVersion, journey.draftVersion)}
+              </span>
+            </span>
+          </>
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-2 md:justify-end">
+            {journey.status === 'live' && (
+              <Button variant="outline" size="sm" pending={busy} onClick={() => void lifecycle('pause')}>
+                {t('pause')}
+              </Button>
+            )}
+            {journey.status === 'paused' && (
+              <Button variant="outline" size="sm" pending={busy} onClick={() => void lifecycle('resume')}>
+                {t('resume')}
+              </Button>
+            )}
+            {journey.draft && journey.status !== 'archived' && (
+              <Button variant="accent" size="sm" onClick={() => setPublishing(journey.draft!.number)}>
+                {t('reviewPublish', { version: journey.draft.number })}
+              </Button>
+            )}
+          </div>
+        }
       />
       <div className="flex-1 px-5 pb-10 pt-1 md:px-8">
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <StatusPill status={journey.status} />
-        <span className="font-mono text-xs text-ink-mute">
-          {versionLabel(t, journey.liveVersion, journey.draftVersion)}
-        </span>
-        <div className="ml-auto flex gap-2">
-          {journey.status === 'live' && (
-            <Button variant="outline" size="sm" pending={busy} onClick={() => void lifecycle('pause')}>
-              {t('pause')}
-            </Button>
-          )}
-          {journey.status === 'paused' && (
-            <Button variant="outline" size="sm" pending={busy} onClick={() => void lifecycle('resume')}>
-              {t('resume')}
-            </Button>
-          )}
-          {journey.draft && journey.status !== 'archived' && (
-            <Button variant="accent" size="sm" onClick={() => setPublishing(journey.draft!.number)}>
-              {t('reviewPublish', { version: journey.draft.number })}
-            </Button>
-          )}
-        </div>
-      </div>
 
       {approvals.map((approval) => (
         <div
@@ -397,54 +392,60 @@ function JourneyDetail({
         </div>
       ))}
 
-      <Tabs defaultValue="graph">
-        <TabsList>
-          <TabsTrigger value="graph">{t('tabs.graph')}</TabsTrigger>
-          <TabsTrigger value="people">{t('tabs.people')}</TabsTrigger>
-          <TabsTrigger value="report">{t('tabs.report')}</TabsTrigger>
-          <TabsTrigger value="versions">{t('tabs.versions')}</TabsTrigger>
-        </TabsList>
+      <Tabs value={tab} onValueChange={(next) => setTab(String(next))}>
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b-[1px] border-rule-soft dark:border-rule-on-dark">
+          <TabsList className="-mb-px gap-5 border-b-0">
+            <TabsTrigger value="graph" className="px-0">{t('tabs.graph')}</TabsTrigger>
+            <TabsTrigger value="people" className="px-0">{t('tabs.people')}</TabsTrigger>
+            <TabsTrigger value="report" className="px-0">{t('tabs.report')}</TabsTrigger>
+            <TabsTrigger value="versions" className="px-0">{t('tabs.versions')}</TabsTrigger>
+          </TabsList>
+          <div
+            aria-hidden={tab !== 'graph'}
+            className={cn('flex flex-wrap items-center gap-2 pb-2', tab !== 'graph' && 'invisible')}
+          >
+              {!editing && journey.live && journey.draft && (
+                <>
+                  {(['live', 'draft'] as const).map((which) => (
+                    <Button
+                      key={which}
+                      size="sm"
+                      variant={graphOf === which ? 'secondary' : 'ghost'}
+                      onClick={() => setGraphOf(which)}
+                    >
+                      {t(which === 'live' ? 'showLive' : 'showDraft', {
+                        version: which === 'live' ? journey.live!.number : journey.draft!.number,
+                      })}
+                    </Button>
+                  ))}
+                  {editable && <span aria-hidden className="mx-1 h-4 w-px bg-rule-soft dark:bg-rule-on-dark" />}
+                </>
+              )}
+              {editable && (
+                <Button
+                  size="sm"
+                  variant={editing ? 'accent' : 'ghost'}
+                  onClick={() => {
+                    if (editing) void load();
+                    setEditing(!editing);
+                  }}
+                >
+                  {t(editing ? 'doneEditing' : 'editDraft')}
+                </Button>
+              )}
+          </div>
+        </div>
 
         <TabsPanel value="graph">
-          {journey.status !== 'archived' && (journey.draft ?? journey.live) && (
-            <div className="mb-3 flex justify-end">
-              <Button
-                size="sm"
-                variant={editing ? 'accent' : 'outline'}
-                onClick={() => {
-                  if (editing) void load();
-                  setEditing(!editing);
-                }}
-              >
-                {t(editing ? 'doneEditing' : 'editDraft')}
-              </Button>
-            </div>
-          )}
-          {editing && (journey.draft ?? journey.live) ? (
+          {editing && editable ? (
             <DraftEditor
-              version={(journey.draft ?? journey.live)!}
+              version={editable}
               edit={editDraft}
               validate={validateVersion}
               onStale={() => void load()}
             />
           ) : (
           <>
-          {journey.live && journey.draft && (
-            <div className="mb-3 flex gap-2">
-              {(['live', 'draft'] as const).map((which) => (
-                <Button
-                  key={which}
-                  size="sm"
-                  variant={graphOf === which ? 'accent' : 'outline'}
-                  onClick={() => setGraphOf(which)}
-                >
-                  {t(which === 'live' ? 'showLive' : 'showDraft', {
-                    version: which === 'live' ? journey.live!.number : journey.draft!.number,
-                  })}
-                </Button>
-              ))}
-            </div>
-          )}
           {shown ? (
             <JourneyGraph
               spec={shown.spec}
@@ -648,140 +649,252 @@ function ReportView({
   const labels = useRunLabels();
   const t = useTranslations('dashboard.journeys.report');
   const pct = (v: number | null) => (v === null ? '—' : `${(v * 100).toFixed(1)} %`);
+  const { treated, holdout, lift } = report.goal;
+  const waiting = report.nodes.reduce((sum, n) => sum + n.waitingNow, 0);
+  const terminal = (type: string) => (type === 'exit' || type === 'goal' ? 1 : 0);
+  const steps = [...report.nodes].sort((a, b) => terminal(a.nodeType) - terminal(b.nodeType) || b.arrived - a.arrived);
+  const maxArrived = Math.max(1, ...steps.map((n) => n.arrived));
+  const exits = Object.entries(report.enrollments.exitReasons).sort((a, b) => b[1] - a[1]);
+  const maxExit = Math.max(1, ...exits.map(([, n]) => n));
+  const integrityIssues = report.integrity.duplicateSends + report.integrity.enrollmentsWithoutTrace;
+  const pathsOf = (edges: Record<string, number>) =>
+    Object.entries(edges)
+      .map(([edge, n]) => `${edge} ${n}`)
+      .join(' · ');
+
   return (
-    <div className="grid gap-8 md:grid-cols-2">
+    <div className="space-y-12">
+      <div className="grid grid-cols-2 border-l-[1px] border-t-[1px] border-rule-soft lg:grid-cols-4 dark:border-rule-on-dark">
+        <ReportTile label={t('people')} value={String(report.enrollments.total)} note={t('waitingNow', { count: waiting })} />
+        <ReportTile
+          label={t('goal')}
+          value={pct(treated.rate)}
+          note={t('converted', { converted: treated.converted, entered: treated.entered })}
+        />
+        <ReportTile
+          label={t('holdout')}
+          value={holdout.entered > 0 ? pct(holdout.rate) : '—'}
+          note={
+            holdout.entered > 0
+              ? t('converted', { converted: holdout.converted, entered: holdout.entered })
+              : t('noHoldout')
+          }
+        />
+        <ReportTile
+          label={t('lift')}
+          value={lift === null ? '—' : `${lift > 0 ? '+' : ''}${(lift * 100).toFixed(1)} %`}
+          note={lift === null ? t('liftNeedsHoldout') : t('liftNote')}
+          accent={lift !== null && lift > 0}
+        />
+      </div>
+
       <section>
-        <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('goal')}</h3>
-        <dl className="mt-2 grid grid-cols-2 gap-y-1 text-sm">
-          <dt className="text-ink-mute">{t('treated')}</dt>
-          <dd className="text-right font-mono">
-            {pct(report.goal.treated.rate)} · {report.goal.treated.converted}/{report.goal.treated.entered}
-          </dd>
-          <dt className="text-ink-mute">{t('holdout')}</dt>
-          <dd className="text-right font-mono">
-            {pct(report.goal.holdout.rate)} · {report.goal.holdout.converted}/{report.goal.holdout.entered}
-          </dd>
-          <dt className="text-ink-mute">{t('lift')}</dt>
-          <dd className="text-right font-mono">{pct(report.goal.lift)}</dd>
-        </dl>
+        <ReportHead title={t('nodes')} />
+        <ReportTable>
+          <thead>
+            <tr className="border-b-[1px] border-ink text-left dark:border-rule-on-dark">
+              <Th className="w-[34%]">{t('node')}</Th>
+              <Th className="w-[26%]">{t('arrived')}</Th>
+              <Th className="w-24 text-right">{t('waiting')}</Th>
+              <Th className="pl-6">{t('edges')}</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {steps.map((n) => {
+              const paths = [pathsOf(n.edges), report.messages[n.nodeId] ? pathsOf(report.messages[n.nodeId]!) : '']
+                .filter(Boolean)
+                .join(' · ');
+              return (
+                <tr key={n.nodeId} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
+                  <StepCell id={n.nodeId} kind={n.nodeType} />
+                  <td className="py-3.5 pr-4">
+                    <CountBar value={n.arrived} max={maxArrived} />
+                  </td>
+                  <NumCell value={n.waitingNow} />
+                  <td className="py-3.5 pl-6 pr-4 font-mono text-xs text-ink-mute">{paths || '—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </ReportTable>
       </section>
-      <section>
-        <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('integrity')}</h3>
-        <dl className="mt-2 grid grid-cols-2 gap-y-1 text-sm">
-          <StatRow label={t('duplicateSends')} value={report.integrity.duplicateSends} />
-          <StatRow label={t('untraced')} value={report.integrity.enrollmentsWithoutTrace} />
-        </dl>
-      </section>
-      <section>
-        <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">
-          {t('enrollments', { total: report.enrollments.total })}
-        </h3>
-        <dl className="mt-2 grid grid-cols-2 gap-y-1 text-sm">
-          {Object.entries(report.enrollments.exitReasons).map(([reason, n]) => (
-            <StatRow key={reason} label={labels.reason(reason)} value={n} />
-          ))}
-        </dl>
-      </section>
+
       {agentStats.length > 0 && (
-        <section className="md:col-span-2">
-          <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('agents')}</h3>
-          <table className="mt-2 w-full text-sm">
+        <section>
+          <ReportHead title={t('agents')} range={t('range')} />
+          <ReportTable>
             <thead>
-              <tr className="border-b-[1px] border-rule-soft text-left dark:border-rule-on-dark">
-                <Th>{t('node')}</Th>
-                <Th className="text-right">{t('agentRuns')}</Th>
-                <Th className="text-right">{t('fallbackRate')}</Th>
-                <Th className="text-right">{t('avgTokens')}</Th>
-                <Th>{t('agentOutcome')}</Th>
+              <tr className="border-b-[1px] border-ink text-left dark:border-rule-on-dark">
+                <Th className="w-[34%]">{t('node')}</Th>
+                <Th className="w-24 text-right">{t('agentRuns')}</Th>
+                <Th className="w-28 text-right">{t('fallbackRate')}</Th>
+                <Th className="w-32 text-right">{t('avgTokens')}</Th>
+                <Th className="pl-6">{t('agentOutcome')}</Th>
               </tr>
             </thead>
             <tbody>
               {agentStats.map((s) => (
                 <tr key={s.nodeId} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
-                  <td className="py-2 pr-4 font-mono text-xs">
-                    {s.nodeId} <span className="text-ink-label">{s.kind}</span>
-                  </td>
-                  <td className="py-2 pr-4 text-right font-mono text-xs">{s.runs}</td>
-                  <td className="py-2 pr-4 text-right font-mono text-xs">{pct(s.fallbackRate)}</td>
-                  <td className="py-2 pr-4 text-right font-mono text-xs">{s.avgTokens ?? '—'}</td>
-                  <td className="py-2 pr-4 font-mono text-xs text-ink-mute">
+                  <StepCell id={s.nodeId} kind={s.kind} />
+                  <NumCell value={s.runs} />
+                  <NumCell value={pct(s.fallbackRate)} />
+                  <NumCell value={s.avgTokens ?? '—'} />
+                  <td className="py-3.5 pl-6 pr-4 font-mono text-xs text-ink-mute">
                     {s.review
                       ? t('draftOutcome', { edited: pct(s.review.editRate), rejected: pct(s.review.rejectionRate) })
-                      : Object.entries(s.edges)
-                          .map(([edge, n]) => `${edge} ${n}`)
-                          .join(' · ')}
+                      : pathsOf(s.edges) || '—'}
                   </td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </ReportTable>
         </section>
       )}
+
       {reviewStats.length > 0 && (
-        <section className="md:col-span-2">
-          <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('reviews')}</h3>
-          <table className="mt-2 w-full text-sm">
+        <section>
+          <ReportHead title={t('reviews')} range={t('range')} />
+          <ReportTable>
             <thead>
-              <tr className="border-b-[1px] border-rule-soft text-left dark:border-rule-on-dark">
-                <Th>{t('node')}</Th>
-                <Th className="text-right">{t('unedited')}</Th>
-                <Th className="text-right">{t('edited')}</Th>
-                <Th className="text-right">{t('dismissed')}</Th>
-                <Th className="text-right">{t('uneditedRate')}</Th>
+              <tr className="border-b-[1px] border-ink text-left dark:border-rule-on-dark">
+                <Th className="w-[34%]">{t('node')}</Th>
+                <Th className="w-32 text-right">{t('unedited')}</Th>
+                <Th className="w-24 text-right">{t('edited')}</Th>
+                <Th className="w-28 text-right">{t('dismissed')}</Th>
+                <Th className="w-28 text-right">{t('uneditedRate')}</Th>
                 <Th />
               </tr>
             </thead>
             <tbody>
               {reviewStats.map((s) => (
                 <tr key={s.nodeId} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
-                  <td className="py-2 pr-4 font-mono text-xs">{s.nodeId}</td>
-                  <td className="py-2 pr-4 text-right font-mono text-xs">{s.approvedUnedited}</td>
-                  <td className="py-2 pr-4 text-right font-mono text-xs">{s.edited}</td>
-                  <td className="py-2 pr-4 text-right font-mono text-xs">{s.dismissed}</td>
-                  <td className="py-2 pr-4 text-right font-mono text-xs">{pct(s.uneditedRate)}</td>
-                  <td className="py-2 pr-4 text-right">
+                  <StepCell id={s.nodeId} />
+                  <NumCell value={s.approvedUnedited} />
+                  <NumCell value={s.edited} />
+                  <NumCell value={s.dismissed} />
+                  <NumCell value={pct(s.uneditedRate)} />
+                  <td className="py-3.5 pr-4 text-right">
                     {s.readyForAuto && <Pill tone="live">{t('readyForAuto')}</Pill>}
                   </td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </ReportTable>
         </section>
       )}
-      <section className="md:col-span-2">
-        <h3 className="font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{t('nodes')}</h3>
-        <table className="mt-2 w-full text-sm">
-          <thead>
-            <tr className="border-b-[1px] border-rule-soft text-left dark:border-rule-on-dark">
-              <Th>{t('node')}</Th>
-              <Th className="text-right">{t('arrived')}</Th>
-              <Th className="text-right">{t('waiting')}</Th>
-              <Th>{t('edges')}</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {report.nodes.map((n) => (
-              <tr key={n.nodeId} className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
-                <td className="py-2 pr-4 font-mono text-xs">
-                  {n.nodeId} <span className="text-ink-label">{n.nodeType}</span>
-                </td>
-                <td className="py-2 pr-4 text-right font-mono text-xs">{n.arrived}</td>
-                <td className="py-2 pr-4 text-right font-mono text-xs">{n.waitingNow}</td>
-                <td className="py-2 pr-4 font-mono text-xs text-ink-mute">
-                  {Object.entries(n.edges)
-                    .map(([edge, count]) => `${edge} ${count}`)
-                    .join(' · ') || '—'}
-                  {report.messages[n.nodeId] &&
-                    ` · ${Object.entries(report.messages[n.nodeId]!)
-                      .map(([status, count]) => `${status} ${count}`)
-                      .join(' · ')}`}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+
+      <div className="grid gap-12 md:grid-cols-2">
+        <section>
+          <ReportHead title={t('exits')} />
+          {exits.length === 0 ? (
+            <p className="text-sm text-ink-mute">{t('noExits')}</p>
+          ) : (
+            <dl className="border-t-[1px] border-ink dark:border-rule-on-dark">
+              {exits.map(([reason, n]) => (
+                <div
+                  key={reason}
+                  className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] items-center gap-4 border-b-[1px] border-rule-soft py-3 dark:border-rule-on-dark"
+                >
+                  <dt className="truncate text-sm text-ink dark:text-foreground">{labels.reason(reason)}</dt>
+                  <dd>
+                    <CountBar value={n} max={maxExit} />
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </section>
+        <section>
+          <ReportHead title={t('integrity')} />
+          {integrityIssues === 0 ? (
+            <p className="flex items-center gap-2.5 border-b-[1px] border-t-[1px] border-b-rule-soft border-t-ink py-3 text-sm text-ink-soft dark:border-rule-on-dark dark:text-foreground/80">
+              <span aria-hidden className="size-2 shrink-0 rounded-full bg-cobalt dark:bg-cobalt-soft" />
+              {t('integrityOk')}
+            </p>
+          ) : (
+            <dl className="border-t-[1px] border-ink dark:border-rule-on-dark">
+              {(
+                [
+                  ['duplicateSends', report.integrity.duplicateSends],
+                  ['untraced', report.integrity.enrollmentsWithoutTrace],
+                ] as const
+              ).map(([key, n]) => (
+                <div
+                  key={key}
+                  className="flex items-center justify-between gap-4 border-b-[1px] border-rule-soft py-3 dark:border-rule-on-dark"
+                >
+                  <dt className="text-sm text-ink dark:text-foreground">{t(key)}</dt>
+                  <dd className={cn('font-mono text-sm', n > 0 ? 'text-destructive' : 'text-ink-mute')}>{n}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </section>
+      </div>
     </div>
+  );
+}
+
+function ReportTile({ label, value, note, accent }: { label: string; value: string; note: string; accent?: boolean }) {
+  return (
+    <div className="flex min-h-[132px] flex-col gap-3 border-b-[1px] border-r-[1px] border-rule-soft p-5 dark:border-rule-on-dark">
+      <p className="font-mono text-[10px] font-medium uppercase tracking-eyebrow text-ink-label">{label}</p>
+      <p
+        className={cn(
+          'font-serif text-4xl font-normal leading-none tracking-tight',
+          accent ? 'text-cobalt dark:text-cobalt-soft' : 'text-ink dark:text-foreground',
+        )}
+      >
+        {value}
+      </p>
+      <p className="mt-auto text-xs text-ink-mute">{note}</p>
+    </div>
+  );
+}
+
+function ReportHead({ title, range }: { title: string; range?: string }) {
+  return (
+    <h3 className="mb-4 font-serif text-xl font-normal leading-tight tracking-tight text-ink dark:text-foreground">
+      {title}
+      {range && <span className="text-ink-mute"> · {range}</span>}
+    </h3>
+  );
+}
+
+function ReportTable({ children }: { children: ReactNode }) {
+  return (
+    <div className="-mx-5 overflow-x-auto px-5 md:mx-0 md:px-0">
+      <table className="w-full min-w-[640px] table-fixed text-sm">{children}</table>
+    </div>
+  );
+}
+
+function StepCell({ id, kind }: { id: string; kind?: string }) {
+  return (
+    <td className="truncate py-3.5 pr-4">
+      <span className="font-mono text-xs text-ink dark:text-foreground">{id}</span>
+      {kind && (
+        <span className="ml-2 font-mono text-[10px] uppercase tracking-eyebrow text-ink-label">{kind}</span>
+      )}
+    </td>
+  );
+}
+
+function NumCell({ value }: { value: ReactNode }) {
+  return <td className="py-3.5 pr-4 text-right font-mono text-xs tabular-nums text-ink dark:text-foreground">{value}</td>;
+}
+
+function CountBar({ value, max }: { value: number; max: number }) {
+  return (
+    <span className="flex items-center gap-3">
+      <span className="w-8 shrink-0 text-right font-mono text-xs tabular-nums text-ink dark:text-foreground">{value}</span>
+      <span aria-hidden className="h-1.5 flex-1 bg-ink/10 dark:bg-foreground/10">
+        <span
+          className="block h-full bg-cobalt dark:bg-cobalt-soft"
+          style={{ width: `${Math.round((value / max) * 100)}%` }}
+        />
+      </span>
+    </span>
   );
 }
 
@@ -850,6 +963,74 @@ function useRunLabels() {
   };
 }
 
+function BackToJourneys({ label }: { label: string }) {
+  return (
+    <Link
+      href="/dashboard/journeys"
+      className="group inline-flex items-center gap-2.5 text-[10px] text-ink-soft transition-colors duration-fast ease-munin hover:text-cobalt dark:text-foreground/80 dark:hover:text-cobalt-soft"
+    >
+      <ArrowLeft
+        aria-hidden
+        className="relative -top-px size-[15px] transition-transform duration-base ease-munin group-hover:-translate-x-0.5"
+      />
+      <span>{label}</span>
+    </Link>
+  );
+}
+
+function JourneyRowsSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <tr key={i} aria-hidden className="border-b-[1px] border-rule-soft dark:border-rule-on-dark">
+          <td className="py-4 pr-4">
+            <Skeleton className={cn('h-3.5', i % 2 === 0 ? 'w-48' : 'w-36')} />
+            <Skeleton className={cn('mt-2 h-3', i % 2 === 0 ? 'w-64' : 'w-52')} />
+          </td>
+          <td className="py-4 pr-4">
+            <Skeleton className="h-5 w-14" />
+          </td>
+          <td className="hidden py-4 pr-4 md:table-cell">
+            <Skeleton className="h-3 w-20" />
+          </td>
+          <td className="py-4 pr-4">
+            <Skeleton className="h-3 w-16" />
+          </td>
+        </tr>
+      ))}
+    </>
+  );
+}
+
+function JourneyDetailSkeleton() {
+  const t = useTranslations('common');
+  const tJourneys = useTranslations('dashboard.journeys');
+  return (
+    <div role="status" aria-busy="true" className="flex min-h-full flex-col">
+      <span className="sr-only">{t('loading')}</span>
+      <header className="flex flex-col justify-between gap-6 px-5 pb-5 pt-8 md:flex-row md:items-end md:px-8">
+        <div className="min-w-0 flex-1 space-y-2.5">
+          <div className="font-mono text-[11px] font-medium uppercase tracking-eyebrow">
+            <BackToJourneys label={tJourneys('back')} />
+          </div>
+          <Skeleton className="h-9 w-2/3" />
+          <Skeleton className="h-3 w-1/2" />
+          <Skeleton className="mt-3 h-5 w-32" />
+        </div>
+        <Skeleton className="h-7 w-20 shrink-0" />
+      </header>
+      <div className="flex-1 px-5 pb-10 pt-1 md:px-8">
+        <div aria-hidden className="flex gap-5 border-b-[1px] border-rule-soft py-3 dark:border-rule-on-dark">
+          {[12, 14, 14, 16].map((w, i) => (
+            <Skeleton key={i} className="h-2.5" style={{ width: `${w * 4}px` }} />
+          ))}
+        </div>
+        <Skeleton className="mt-6 h-[420px] w-full" />
+      </div>
+    </div>
+  );
+}
+
 function StatusPill({ status }: { status: JourneyStatus }) {
   const t = useTranslations('dashboard.journeys.status');
   return (
@@ -868,15 +1049,6 @@ function versionLabel(
   if (live) parts.push(t('liveVersion', { version: live }));
   if (draft) parts.push(t('draftVersion', { version: draft }));
   return parts.join(' · ') || '—';
-}
-
-function StatRow({ label, value }: { label: string; value: number }) {
-  return (
-    <>
-      <dt className="font-mono text-xs text-ink-mute">{label}</dt>
-      <dd className="text-right font-mono text-xs">{value}</dd>
-    </>
-  );
 }
 
 function Th({ children, className }: { children?: ReactNode; className?: string }) {

@@ -23,7 +23,7 @@ export interface SimulatedMessage {
   nodeId: string;
   contactId: string;
   contactName: string | null;
-  channel: 'email' | 'sms';
+  channel: 'email' | 'sms' | 'voice';
   subject: string | null;
   body?: string;
   decision: string;
@@ -32,7 +32,7 @@ export interface SimulatedMessage {
 }
 
 export interface SimulationAssumption {
-  code: 'reviewer_approves' | 'no_reply' | 'event_missing' | 'agent_fallback' | 'agent_draft';
+  code: 'reviewer_approves' | 'no_reply' | 'event_missing' | 'agent_fallback' | 'agent_draft' | 'call_reached';
   nodeId: string;
   event?: string;
   timeout?: string;
@@ -160,6 +160,11 @@ export class JourneySimulator {
           assumptions.set(`draft:${node.id}`, { code: 'agent_draft', nodeId: node.id });
         }
         if (decision.decision === 'skip') return { exit: 'message_blocked', message };
+        if (node.channel === 'voice') {
+          assumptions.set(`call:${node.id}`, { code: 'call_reached', nodeId: node.id });
+          const reached = node.onOutcome?.reached;
+          return reached ? { edge: 'outcome_reached', to: reached, message } : { edge: 'next', to: node.next, message };
+        }
         if (node.onReply) assumptions.set(`reply:${node.id}`, { code: 'no_reply', nodeId: node.id });
         return { edge: 'next', to: node.next, message };
       }

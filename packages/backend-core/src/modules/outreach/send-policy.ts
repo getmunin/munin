@@ -7,7 +7,7 @@ import { nextValidTime } from '../journeys/journey-time.ts';
 export type MessageClass = (typeof MESSAGE_CLASSES)[number];
 
 export interface SendPolicy {
-  channel?: 'email' | 'sms';
+  channel?: 'email' | 'sms' | 'voice';
   class: MessageClass;
   timezone?: string;
   quietHours?: string;
@@ -50,7 +50,7 @@ export async function checkSendPolicy(input: {
     .limit(1);
   if (!contact) return { decision: 'skip', reason: 'contact_missing' };
   if (contact.doNotContact) return { decision: 'skip', reason: 'do_not_contact' };
-  const sms = policy.channel === 'sms';
+  const sms = policy.channel === 'sms' || policy.channel === 'voice';
   if (sms ? !contact.phone : !contact.email) return { decision: 'skip', reason: sms ? 'no_phone' : 'no_email' };
   if (policy.class === 'marketing') {
     if (contact.unsubscribedAt) return { decision: 'skip', reason: 'unsubscribed' };

@@ -37,8 +37,10 @@ export type Weekday = (typeof WEEKDAYS)[number];
 
 export const MESSAGE_APPROVAL_MODES = ['draft_only', 'auto', 'off'] as const;
 export const MESSAGE_CLASSES = ['marketing', 'transactional'] as const;
-export const MESSAGE_CHANNELS = ['email', 'sms'] as const;
+export const MESSAGE_CHANNELS = ['email', 'sms', 'voice'] as const;
 export const JOURNEY_SMS_MAX_CHARS = 480;
+export const JOURNEY_CALL_OPENING_MAX_CHARS = 1000;
+export const CALL_OUTCOMES = ['reached', 'no_contact', 'refused', 'wrong_contact'] as const;
 export const REENTRY_POLICIES = ['once', 'once_at_a_time', 'concurrent'] as const;
 export const MAX_CONCURRENT_ENROLLMENTS = 20;
 export const DEFAULT_JOURNEY_GUARDRAILS = {
@@ -152,6 +154,16 @@ export const MessageNodeSchema = z.strictObject({
   draftTimeout: IsoDuration.default('PT30M'),
   next: NodeId.optional(),
   onReply: NodeId.optional(),
+  onOutcome: z
+    .strictObject({
+      reached: NodeId.optional(),
+      no_contact: NodeId.optional(),
+      refused: NodeId.optional(),
+      wrong_contact: NodeId.optional(),
+      timeout: NodeId.optional(),
+    })
+    .optional(),
+  outcomeTimeout: IsoDuration.optional(),
 });
 
 export const ActionNodeSchema = z.strictObject({
@@ -328,6 +340,7 @@ export const JourneySettingsSchema = z.strictObject({
   cooldownHoursAfterConversation: z.number().int().min(0).max(720).default(24),
   maxVisitsPerNode: z.number().int().min(1).max(20).default(3),
   smsChannelId: z.string().min(1).max(64).optional(),
+  voiceChannelId: z.string().min(1).max(64).optional(),
   optimiser: z.enum(['off', 'weekly']).optional(),
   guardrails: z
     .strictObject({
@@ -387,6 +400,7 @@ export function journeyNodeEdges(node: JourneyNode): { label: string; to: string
     case 'message':
       add('next', node.next);
       add('on_reply', node.onReply);
+      for (const [outcome, to] of Object.entries(node.onOutcome ?? {})) add(`outcome_${outcome}`, to);
       break;
     case 'action':
     case 'wait':

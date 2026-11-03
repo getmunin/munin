@@ -190,4 +190,28 @@ describe('journey validator', () => {
     expect(codes(base({ type: 'manual' }, [tag, done]))).toEqual(['concurrent_trigger']);
     expect(codes(base({ type: 'event', event: 'cart.abandoned' }, [mail, done]))).toEqual(['concurrent_messages']);
   });
+
+  it('keeps call steps person-approved, opening-only and on a voice channel, with outcome edges for calls alone', () => {
+    const call = (extra: Record<string, unknown> = {}) =>
+      ({ id: 'call', type: 'message', channel: 'voice', content: { body: 'Hei!' }, next: 'done', onOutcome: { reached: 'done' }, ...extra });
+    const codes = (node: Record<string, unknown>, voiceChannelId?: string) =>
+      validateJourneySpec(
+        parseJourneySpec({
+          entry: { trigger: { type: 'manual' } },
+          goal: { event: 'subscription.started', windowDays: 30 },
+          settings: voiceChannelId ? { voiceChannelId } : {},
+          start: 'call',
+          nodes: [node, { id: 'done', type: 'exit' }],
+        }).spec!,
+        { ...refs, voiceChannelIds: new Set(['ch_voice']) },
+      ).errors.map((e) => e.code);
+    expect(codes(call(), 'ch_voice')).toEqual([]);
+    expect(codes(call())).toEqual(['voice_channel']);
+    expect(codes(call({ approval: 'auto' }), 'ch_voice')).toEqual(['voice_approval']);
+    expect(codes(call({ onReply: 'done' }), 'ch_voice')).toEqual(['voice_reply']);
+    expect(codes(call({ content: { body: 'x'.repeat(1001) } }), 'ch_voice')).toEqual(['voice_length']);
+    expect(
+      codes({ id: 'call', type: 'message', channel: 'email', content: { subject: 'Hei', body: 'Hei' }, next: 'done', onOutcome: { reached: 'done' } }),
+    ).toEqual(['outcome_edges']);
+  });
 });

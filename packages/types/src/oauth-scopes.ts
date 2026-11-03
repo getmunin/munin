@@ -31,6 +31,8 @@ export const SUPPORTED_SCOPES = [
   'slack:write',
   'social:read',
   'social:write',
+  'journeys:read',
+  'journeys:write',
 ] as const;
 
 export type SupportedScope = (typeof SUPPORTED_SCOPES)[number];

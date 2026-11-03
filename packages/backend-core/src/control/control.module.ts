@@ -49,6 +49,8 @@ import { OutreachProposalsController } from './outreach-proposals.controller.ts'
 import { OutreachEmailTemplatesController } from './outreach-email-templates.controller.ts';
 import { OutreachBroadcastsController } from './outreach-broadcasts.controller.ts';
 import { OutreachModule } from '../modules/outreach/outreach.module.ts';
+import { JourneysModule } from '../modules/journeys/journeys.module.ts';
+import { JourneysController } from './journeys.controller.ts';
 import { WebhooksModule } from '../modules/webhooks/webhooks.module.ts';
 import { PublicSkillsController } from './public-skills.controller.ts';
 import { PublicMcpToolsController } from './public-mcp-tools.controller.ts';
@@ -83,6 +85,7 @@ import { ReviewModule } from '../modules/review/review.module.ts';
     KbModule,
     McpModule,
     OutreachModule,
+    JourneysModule,
     RealtimeModule,
     WebhooksModule,
     SlackModule,
@@ -109,6 +112,7 @@ import { ReviewModule } from '../modules/review/review.module.ts';
     CmsDeliveryController,
     AnalyticsViewsController,
     ProductEventsController,
+    JourneysController,
     AnalyticsTrackerController,
     AnalyticsTrackersController,
     InvitationsController,

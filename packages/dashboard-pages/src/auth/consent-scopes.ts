@@ -14,6 +14,7 @@ export const CONSENT_MODULE_ORDER = [
   'crm',
   'cms',
   'outreach',
+  'journeys',
   'social',
   'analytics',
   'commerce',

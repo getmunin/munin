@@ -11,6 +11,7 @@ import { JourneyEventSink } from './journey-event.sink.ts';
 import { JourneySimulator } from './journey-simulator.ts';
 import { JourneyPublishingService } from './journey-publishing.service.ts';
 import { JourneyTemplatesService } from './journey-templates.service.ts';
+import { JourneyMonitorService } from './journey-monitor.service.ts';
 
 @Module({
   imports: [CrmModule, OutreachModule, CuratorModule],
@@ -23,8 +24,9 @@ import { JourneyTemplatesService } from './journey-templates.service.ts';
     JourneySimulator,
     JourneyPublishingService,
     JourneyTemplatesService,
+    JourneyMonitorService,
   ],
-  exports: [JourneysService, JourneyRuntimeService, JourneyPublishingService],
+  exports: [JourneysService, JourneyRuntimeService, JourneyPublishingService, JourneyMonitorService],
 })
 export class JourneysModule implements OnModuleInit {
   constructor(

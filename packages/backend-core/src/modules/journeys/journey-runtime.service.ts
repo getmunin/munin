@@ -24,6 +24,7 @@ const MAX_NODES_PER_RUN = 50;
 const COMPLETED_REASONS: ReadonlySet<string> = new Set(['reached_end', 'goal_reached']);
 const APPROVAL_TIMEOUT_MS = 7 * 86_400_000;
 export const DECIDE_STEP_JOB_URI = 'skill://journeys/decide-step';
+export const STOP_EDGE = 'stop';
 const REPLY_HOLD_MS = 14 * 86_400_000;
 const PROPOSAL_RESOLUTIONS: Record<string, string> = {
   'outreach.proposal.sent': 'proposal_sent',
@@ -606,6 +607,7 @@ export class JourneyRuntimeService {
     if (step.resumed) {
       const decision = previous.decision as { edge?: string; reason?: string } | undefined;
       if (step.resumed.resolution === 'agent_decided' && decision?.edge && decision.edge in node.edges) {
+        if (decision.edge === STOP_EDGE) await this.exitOtherJourneys(step.enrollment, 'conversation_stop');
         return {
           kind: 'advance',
           edge: decision.edge,
@@ -652,6 +654,28 @@ export class JourneyRuntimeService {
       output: { curatorJobId: job.job.id, inputs: node.inputs },
       reason: 'waiting for the agent to decide',
     };
+  }
+
+  private async exitOtherJourneys(enrollment: EnrollmentRow, reason: string): Promise<number> {
+    const ctx = getCurrentContext();
+    const e = schema.journeyEnrollments;
+    const who: SQL[] = [];
+    if (enrollment.contactId) who.push(eq(e.contactId, enrollment.contactId));
+    if (enrollment.endUserId) who.push(eq(e.endUserId, enrollment.endUserId));
+    if (who.length === 0) return 0;
+    const others = await ctx.db
+      .select()
+      .from(e)
+      .where(
+        and(
+          eq(e.orgId, enrollment.orgId),
+          inArray(e.state, ['active', 'waiting']),
+          ne(e.id, enrollment.id),
+          or(...who),
+        ),
+      );
+    for (const other of others) await this.finish(other, reason, 1);
+    return others.length;
   }
 
   async submitDecision(input: {

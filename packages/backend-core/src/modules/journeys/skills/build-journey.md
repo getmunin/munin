@@ -32,6 +32,8 @@ Rules that keep a journey safe and readable:
 - **Mark transactional email honestly.** `class: "transactional"` reaches unsubscribed contacts, so use it only for messages the contact needs to use the product (receipts, password or account notices), never for promotion.
 - **Give every `wait_for` an `onTimeout`.** Without it, contacts whose event never comes simply leave.
 - **Use `onReply` on emails that invite an answer.** A reply always pauses the contact's run; Conversations answers it, and the journey continues on `onReply`, or at the same point once the thread closes.
+- **Read replies with an intent step.** Point the email's `onReply` at an `agent` node in `decide` mode with `inputs: ["reply", "thread", "contact"]`, edges such as `interested`, `question`, `not_now` and `stop`, and `fallback: "question"` — the safe path where a person or the support agent answers and the journey waits. Choosing `stop` also ends every other journey the person is in.
+- **Start from a conversation topic** with an event trigger on `conversation.topic_set` and `where: { "topicSlug": "pricing" }`; list topics with `conv_list_topics`.
 - **Loops need a wait.** A `jump` back must pass through a `wait`, `wait_for` or `message`; each node also has a per-contact visit cap (`settings.maxVisitsPerNode`).
 - **Respect quiet time.** Set `settings.quietHours` and `settings.timezone` for the market you are writing to.
 

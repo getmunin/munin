@@ -57,7 +57,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     webhooks.registerSink(new JourneyEventSink());
     const crm = new CrmService(webhooks, new DefaultQuotasService(), new AddressDeliverabilityService());
     journeys = new JourneysService(webhooks);
-    runtime = new JourneyRuntimeService(webhooks, crm, { withdrawJourneyProposals: () => Promise.resolve(0) } as never, new CuratorJobsService(webhooks), { requestHandover: () => Promise.resolve(null) });
+    runtime = new JourneyRuntimeService(webhooks, crm, { withdrawRun: () => Promise.resolve(0) } as never, new CuratorJobsService(webhooks), { requestHandover: () => Promise.resolve(null) });
     worker = new JourneyRuntimeWorker(appDb, runtime);
     publishing = new JourneyPublishingService(webhooks, journeys, new JourneySimulator(runtime));
   });
@@ -272,6 +272,7 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
           kind: 'journey',
           journeyEnrollmentId: run!.id,
           journeyStepRunId: step!.id,
+          journeyDelivery: { channel: 'email', format: 'markdown', templateId: null, templateHash: null, preheader: null, policy: { class: 'marketing', cooldownHoursAfterConversation: 24 }, auto: false },
           draftSubject: 'Velkommen',
           draftBody: 'Hei!',
           originalDraftBody: edited ? 'Hei der!' : null,

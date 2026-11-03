@@ -981,6 +981,13 @@
       "when": 1793134290267,
       "tag": "0139_broadcast_recipient_not_before",
       "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1793134350267,
+      "tag": "0140_proposal_journey_delivery",
+      "breakpoints": true
     }
   ]
 }

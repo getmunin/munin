@@ -1,5 +1,23 @@
 # @getmunin/backend-core
 
+## 5.50.0
+
+### Minor Changes
+
+- 7e18952: Email templates now know where they are used. `outreach_get_email_template` returns a `usage` block listing the broadcasts, the journey email steps (in the live version, the open draft, or an older version people are still running through) and the queued journey emails that render with the template; for the default template, `viaDefault` marks the ones that name no template of their own. `outreach_delete_email_template` refuses while any of those name the template, not only broadcasts, so deleting a template can no longer break a live journey's sends. Deleting the default stays allowed: its users fall back to the built-in layout, which journey steps that send without review treat as a template change, so their emails hold until the journey is re-approved.
+
+  The empty journeys page now says plainly that an agent sets journeys up over MCP.
+
+### Patch Changes
+
+- @getmunin/inspector-app@5.50.0
+  - @getmunin/agent-runtime@5.50.0
+  - @getmunin/core@5.50.0
+  - @getmunin/db@5.50.0
+  - @getmunin/emails@5.50.0
+  - @getmunin/mcp-toolkit@5.50.0
+  - @getmunin/types@5.50.0
+
 ## 5.49.0
 
 ### Minor Changes

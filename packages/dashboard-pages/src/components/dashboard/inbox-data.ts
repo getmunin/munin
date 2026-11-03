@@ -80,11 +80,11 @@ function useQueueBuilder() {
             {
               kind: 'outreach',
               id: item.id,
-              title: o.draftSubject ?? o.campaign?.name ?? tQueue('outreachDraftFallback'),
+              title: o.draftSubject ?? (o.journey?.name ?? o.campaign?.name) ?? tQueue('outreachDraftFallback'),
               snippet:
                 o.delivery?.destination ??
                 o.contact?.email ??
-                o.campaign?.name ??
+                (o.journey?.name ?? o.campaign?.name) ??
                 tQueue('outreachDraftFallback'),
               createdAt: item.at,
               raw: o,
@@ -168,7 +168,7 @@ function useScheduledBuilder() {
             {
               kind: 'outreach',
               id: item.id,
-              title: o.draftSubject ?? o.campaign?.name ?? tSched('outreachUntitled'),
+              title: o.draftSubject ?? (o.journey?.name ?? o.campaign?.name) ?? tSched('outreachUntitled'),
               snippet:
                 o.delivery?.destination ?? o.contact?.email ?? tSched('unknownDestination'),
               at: item.at,

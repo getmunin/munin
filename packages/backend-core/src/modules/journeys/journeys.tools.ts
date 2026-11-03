@@ -536,6 +536,21 @@ export class JourneysTools {
   }
 
   @McpTool({
+    name: 'journeys_update_sender',
+    title: 'Journeys: Update the sending channel',
+    description:
+      'Point a journey at another email channel to send from. It applies to every email the journey sends from now on, including ones already approved and waiting. A journey converted from an outreach campaign sends through that campaign instead, and is refused.',
+    audiences: ['admin'],
+    scopes: ['journeys:write'],
+    input: JourneyIdInput.extend({ senderChannelId: Id }),
+    readOnlyHint: false,
+    destructiveHint: true,
+  })
+  updateSender(args: { journeyId: string; senderChannelId: string }) {
+    return this.journeys.updateSender(args.journeyId, args.senderChannelId);
+  }
+
+  @McpTool({
     name: 'journeys_replace_draft',
     title: 'Journeys: Replace the draft spec',
     description:

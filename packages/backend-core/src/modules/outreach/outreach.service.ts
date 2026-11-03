@@ -69,7 +69,7 @@ import {
   type EnqueueInput,
   type EnqueueResult,
 } from '../curator/curator-jobs.service.ts';
-import { stripTrailingSlashes } from '@getmunin/types';
+import { JOURNEY_CHAT_MAX_CHARS, stripTrailingSlashes } from '@getmunin/types';
 
 export { draftFingerprint } from './proposal-fingerprint.ts';
 
@@ -1747,7 +1747,7 @@ export class OutreachService {
   async proposeJourneyMessage(
     input: {
       campaignId: string;
-      channel: 'email' | 'sms' | 'voice';
+      channel: 'email' | 'sms' | 'voice' | 'chat';
       channelId: string | null;
       contactId: string;
       enrollmentId: string;
@@ -1774,7 +1774,20 @@ export class OutreachService {
       .limit(1);
     if (existing) return this.getProposal(existing.id);
     const sms = input.channel !== 'email';
-    if (sms) {
+    if (input.channel === 'chat') {
+      if (!input.channelId) throw new OutreachInvalidError('a journey chat step needs a chat widget channel');
+      const [channel] = await ctx.db
+        .select({ type: schema.convChannels.type })
+        .from(schema.convChannels)
+        .where(eq(schema.convChannels.id, input.channelId))
+        .limit(1);
+      if (channel?.type !== 'chat') {
+        throw new OutreachInvalidError(`channel ${input.channelId} is not a chat widget channel`);
+      }
+      if (input.body.length > JOURNEY_CHAT_MAX_CHARS) {
+        throw new OutreachInvalidError(`the chat message is ${input.body.length} characters; the limit is ${JOURNEY_CHAT_MAX_CHARS}`);
+      }
+    } else if (sms) {
       if (input.auto) {
         throw new OutreachInvalidError(`journey ${input.channel} steps are always approved by a person; they cannot run automatically`);
       }
@@ -1954,6 +1967,7 @@ export class OutreachService {
     const meta = journeyMessageMeta(proposal);
     if (meta.channel === 'sms') return this.deliverJourneySms(proposal, meta, sender);
     if (meta.channel === 'voice') return this.deliverJourneyCall(proposal, meta);
+    if (meta.channel === 'chat') return this.deliverJourneyChat(proposal, meta, sender);
     const campaign = await this.getCampaign(proposal.campaignId);
     const channel = await this.loadOutreachChannel(campaign.channelId);
     if (channel.type !== 'email') {
@@ -2188,6 +2202,85 @@ export class OutreachService {
     const campaign = await this.getCampaign(proposal.campaignId);
     const channel = await this.loadOutreachChannel(channelId);
     return this.deliverInitialVoice(proposal, campaign, contact, channel);
+  }
+
+  private async deliverJourneyChat(
+    proposal: ProposalDto,
+    meta: JourneyMessageMeta,
+    sender: ProposalSender,
+  ): Promise<ProposalDto> {
+    const ctx = getCurrentContext();
+    const channelId = proposal.delivery?.channelId;
+    if (!channelId || proposal.delivery?.channelType !== 'chat') {
+      throw new OutreachInvalidError(`proposal ${proposal.id} has no chat channel to write in`);
+    }
+    const contact = await this.crm.getContact(proposal.contactId);
+    const marketing = meta.policy.class === 'marketing';
+    if (contact.doNotContact || (marketing && (contact.unsubscribedAt || !contact.consentLawfulBasis))) {
+      throw new OutreachInvalidError(
+        `contact ${contact.id} is no longer eligible (suppression or consent withdrawn)`,
+      );
+    }
+    if (!contact.endUserId) {
+      throw new OutreachInvalidError(`contact ${contact.id} has no signed-in widget identity to write to`);
+    }
+
+    const body = personalizeSms(proposal.draftBody, contact.name);
+    const enrollmentId = (proposal.evidence.enrollmentId as string | undefined) ?? null;
+    const messageMetadata = { journeyStepRunId: (proposal.evidence.stepRunId as string | undefined) ?? null };
+    const approvedOutreachProposalId = proposal.decidedByActorType === 'user' ? proposal.id : undefined;
+    const threadId = await this.journeySmsThread(proposal.contactId, channelId);
+    let conversationId: string;
+    let messageId: string | null;
+    if (threadId) {
+      const sent = await this.conv.sendMessage({
+        conversationId: threadId,
+        body,
+        messageMetadata,
+        approvedOutreachProposalId,
+        authorType: 'agent',
+        authorId: sender.id,
+      });
+      conversationId = threadId;
+      messageId = sent.id;
+    } else {
+      const conversation = await this.conv.startWidgetConversation({
+        channelId,
+        endUserId: contact.endUserId,
+        body,
+        outreachCampaignId: proposal.campaignId,
+        approvedOutreachProposalId,
+        messageMetadata,
+        authorType: 'agent',
+        authorId: sender.id,
+      });
+      conversationId = conversation.id;
+      messageId = conversation.messages[0]?.id ?? null;
+    }
+
+    const [updated] = await ctx.db
+      .update(schema.outreachProposals)
+      .set({ status: 'sent', conversationId, sentMessageId: messageId, sentAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.outreachProposals.id, proposal.id))
+      .returning();
+    await ctx.db
+      .update(schema.crmContacts)
+      .set({ lastContactedAt: new Date(), updatedAt: new Date() })
+      .where(eq(schema.crmContacts.id, contact.id));
+    await this.webhooks.emit({
+      type: 'outreach.proposal.sent',
+      payload: {
+        proposalId: proposal.id,
+        campaignId: proposal.campaignId,
+        contactId: contact.id,
+        conversationId,
+        messageId,
+        kind: 'journey',
+        channel: 'chat',
+        journeyEnrollmentId: enrollmentId,
+      },
+    });
+    return toProposalDto(updated!, proposal.contact, proposal.campaign, proposal.delivery);
   }
 
   private async journeySmsThread(contactId: string, channelId: string): Promise<string | null> {
@@ -3114,7 +3207,7 @@ function toProposalDelivery(
     channelId: channel.id,
     channelType: channel.type,
     vendor: channel.vendor ?? '',
-    destination: (isEmail ? contact?.email : contact?.phone) ?? null,
+    destination: (isEmail ? contact?.email : channel.type === 'chat' ? null : contact?.phone) ?? null,
     destinationDeliverability: isEmail ? deliverability : null,
     sender: sender.address,
     senderName: sender.name,
@@ -3230,7 +3323,7 @@ function assertDeliverable(contact: ContactDto, channelType: string): void {
 }
 
 interface JourneyMessageMeta {
-  channel: 'email' | 'sms' | 'voice';
+  channel: 'email' | 'sms' | 'voice' | 'chat';
   format: 'markdown' | 'mjml';
   templateId: string | null;
   preheader: string | null;
@@ -3241,7 +3334,7 @@ interface JourneyMessageMeta {
 function journeyMessageMeta(proposal: ProposalDto): JourneyMessageMeta {
   const meta = proposal.evidence.journeyMessage as Partial<JourneyMessageMeta> | undefined;
   return {
-    channel: meta?.channel === 'sms' || meta?.channel === 'voice' ? meta.channel : 'email',
+    channel: meta?.channel === 'sms' || meta?.channel === 'voice' || meta?.channel === 'chat' ? meta.channel : 'email',
     format: meta?.format === 'mjml' ? 'mjml' : 'markdown',
     templateId: meta?.templateId ?? null,
     preheader: meta?.preheader ?? null,

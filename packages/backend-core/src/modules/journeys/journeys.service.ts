@@ -500,7 +500,7 @@ export class JourneysService {
   private async loadReferences(): Promise<JourneyReferences> {
     const ctx = getCurrentContext();
     const orgId = ctx.actor!.orgId;
-    const [segments, templates, webhooks, smsChannels, voiceChannels, journeyRows] = await Promise.all([
+    const [segments, templates, webhooks, smsChannels, voiceChannels, journeyRows, chatChannels] = await Promise.all([
       ctx.db.select({ id: schema.crmSegments.id }).from(schema.crmSegments).where(eq(schema.crmSegments.orgId, orgId)),
       ctx.db
         .select({ id: schema.outreachEmailTemplates.id })
@@ -526,6 +526,10 @@ export class JourneysService {
           ),
         )
         .where(eq(schema.journeys.orgId, orgId)),
+      ctx.db
+        .select({ id: schema.convChannels.id })
+        .from(schema.convChannels)
+        .where(and(eq(schema.convChannels.orgId, orgId), eq(schema.convChannels.type, 'chat'))),
     ]);
     return {
       segmentIds: new Set(segments.map((r) => r.id)),
@@ -533,6 +537,7 @@ export class JourneysService {
       webhookIds: new Set(webhooks.map((r) => r.id)),
       smsChannelIds: new Set(smsChannels.map((r) => r.id)),
       voiceChannelIds: new Set(voiceChannels.map((r) => r.id)),
+      chatChannelIds: new Set(chatChannels.map((r) => r.id)),
       journeys: new Map(
         journeyRows.map((r) => [r.id, { status: r.status, calls: subJourneyTargets(r.spec) }] as const),
       ),

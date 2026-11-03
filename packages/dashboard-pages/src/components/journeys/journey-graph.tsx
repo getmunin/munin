@@ -198,6 +198,7 @@ function nodeTitle(node: JourneyNode): string {
   switch (node.type) {
     case 'message': {
       if (node.channel === 'sms') return `SMS · ${node.content.body.length > 40 ? `${node.content.body.slice(0, 39)}…` : node.content.body}`;
+      if (node.channel === 'chat') return `Chat · ${node.content.body.length > 40 ? `${node.content.body.slice(0, 39)}…` : node.content.body}`;
       if (node.channel === 'voice') return `Call · ${node.content.body.length > 40 ? `${node.content.body.slice(0, 39)}…` : node.content.body}`;
       const subject = node.content.subject ?? node.id;
       return node.draftBy === 'agent' ? `✎ ${subject}` : subject;

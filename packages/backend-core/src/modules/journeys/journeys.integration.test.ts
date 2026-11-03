@@ -257,6 +257,17 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect(await asAgent(() => svc.list({ status: 'archived' }))).toHaveLength(1);
   });
 
+  it('refuses to pause a node that no version of the journey has, and stores nothing', async () => {
+    const journey = await asAgent(() =>
+      svc.create({ name: 'Trial onboarding', outreachCampaignId: emailCampaignId, spec: validSpec() }),
+    );
+    await expect(asAgent(() => svc.pauseNode(journey.id, 'ghost'))).rejects.toThrow(NotFoundException);
+    const [row] = await db.select().from(schema.journeys).where(eq(schema.journeys.id, journey.id));
+    expect(row!.pausedNodes).toEqual({});
+    const paused = await asAgent(() => svc.pauseNode(journey.id, 'welcome'));
+    expect(paused.pausedNodes).toHaveProperty('welcome');
+  });
+
   it('blocks deleting a segment that a journey spec uses, until the journey is archived', async () => {
     const [entrySegment] = await db
       .insert(schema.crmSegments)

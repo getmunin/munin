@@ -1,5 +1,49 @@
 # @getmunin/core
 
+## 5.49.0
+
+### Minor Changes
+
+- b775772: Journeys can now run. A background worker moves each person through a live journey: event triggers enroll people within the late-event window, segment triggers enroll a segment's eligible contacts on a daily, weekly or one-off schedule, and `journeys_enroll` puts someone in by hand. Waits honour valid days and hours in the contact's time zone, `wait_for` continues on the awaited event or takes its timeout path, branches evaluate contact fields, tags, product events and segments, splits and holdouts use a stable per-person bucket, and CRM and webhook actions retry with back-off before following their on-fail rule.
+
+  Every node visit is recorded once, so a repeated or crashed tick never acts twice; `journeys_get_trace` shows the full step log with the edge taken and why, and `journeys_list_enrollments` and `journeys_eject` manage who is in a journey. Goal events are tracked for everyone, holdout included, and can end the run. Events caused by a journey's own actions never enroll anyone, which keeps journeys from triggering themselves. Event sinks now receive the emitting actor and hop count. Email steps run once sending lands in the next release.
+
+### Patch Changes
+
+- Updated dependencies [f854002]
+- Updated dependencies [1ea7795]
+- Updated dependencies [ffdfdf2]
+- Updated dependencies [e9e172b]
+- Updated dependencies [0510ace]
+- Updated dependencies [0dad486]
+- Updated dependencies [ea4a2c8]
+- Updated dependencies [7fcea45]
+- Updated dependencies [109a97f]
+- Updated dependencies [9bb0e17]
+- Updated dependencies [8d5a43c]
+- Updated dependencies [69e88f8]
+- Updated dependencies [c07c18a]
+- Updated dependencies [9b266c6]
+- Updated dependencies [7714bc9]
+- Updated dependencies [6a2de58]
+- Updated dependencies [3af36fe]
+- Updated dependencies [853391a]
+- Updated dependencies [853391a]
+- Updated dependencies [853391a]
+- Updated dependencies [18b266f]
+- Updated dependencies [b775772]
+- Updated dependencies [82430d1]
+- Updated dependencies [e32a230]
+- Updated dependencies [910e921]
+- Updated dependencies [8f3e2b5]
+- Updated dependencies [ca5f1c7]
+- Updated dependencies [1abd29e]
+- Updated dependencies [5331110]
+- Updated dependencies [f8732c6]
+- Updated dependencies [e8a1b2f]
+  - @getmunin/db@5.49.0
+  - @getmunin/types@5.49.0
+
 ## 5.48.4
 
 ### Patch Changes

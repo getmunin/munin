@@ -1,5 +1,7 @@
 # @getmunin/analytics-tracker
 
+## 5.49.0
+
 ## 5.48.4
 
 ## 5.48.3

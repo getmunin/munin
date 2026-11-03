@@ -1,5 +1,68 @@
 # @getmunin/agent-host
 
+## 5.49.0
+
+### Minor Changes
+
+- 82430d1: New events for journeys and webhooks: `crm.contact.unsubscribed` when a contact follows an outreach or broadcast unsubscribe link, `conversation.message.bounced` when a hard bounce notice arrives, and `outreach.outcome.recorded` when outcome extraction writes `outreachOutcome` to a contact. System alerts gain a `journeys` source. Journey validation now warns about agent steps when the org has no LLM provider configured: agent-host provides an `LLM_AVAILABILITY` port that backend-core reads without depending on agent-host, and `AgentHostModule` is now global so the port reaches feature modules.
+
+### Patch Changes
+
+- 853391a: Journey fixes from review of the closed loop: `outreach.outcome.recorded` fires only when the outcome is new, and a call step waits for the outcome of its own call; resuming a step or journey the monitor paused restarts its guardrail measurement instead of re-pausing on the same data; step runs record their version so moving runs or deleting old traces no longer distorts split samples and results, and retention keeps split steps; moving runs re-checks each run under a lock; an approval is decided once; `journeys_propose_change` refuses an invalid spec without opening a draft and serialises with other proposals; the LLM availability port comes from a small global module instead of making all of agent-host global, and runs in a savepoint; Slack journey labels stay inside the org; the Shopify webhook answers unknown and unsigned calls the same way and ignores unreadable dates.
+- Updated dependencies [188f43b]
+- Updated dependencies [f854002]
+- Updated dependencies [1ea7795]
+- Updated dependencies [ffdfdf2]
+- Updated dependencies [e9e172b]
+- Updated dependencies [0510ace]
+- Updated dependencies [131c31e]
+- Updated dependencies [0dad486]
+- Updated dependencies [17ee11f]
+- Updated dependencies [ea4a2c8]
+- Updated dependencies [7fcea45]
+- Updated dependencies [109a97f]
+- Updated dependencies [9bb0e17]
+- Updated dependencies [07b8cec]
+- Updated dependencies [d67a2db]
+- Updated dependencies [7b6a351]
+- Updated dependencies [8d5a43c]
+- Updated dependencies [2e84199]
+- Updated dependencies [008a9a3]
+- Updated dependencies [69e88f8]
+- Updated dependencies [c07c18a]
+- Updated dependencies [9b266c6]
+- Updated dependencies [7714bc9]
+- Updated dependencies [6a2de58]
+- Updated dependencies [3af36fe]
+- Updated dependencies [2309f29]
+- Updated dependencies [819a5c7]
+- Updated dependencies [188f43b]
+- Updated dependencies [853391a]
+- Updated dependencies [853391a]
+- Updated dependencies [853391a]
+- Updated dependencies [853391a]
+- Updated dependencies [18b266f]
+- Updated dependencies [b775772]
+- Updated dependencies [dddac05]
+- Updated dependencies [82430d1]
+- Updated dependencies [e32a230]
+- Updated dependencies [910e921]
+- Updated dependencies [8f3e2b5]
+- Updated dependencies [bccea5a]
+- Updated dependencies [ca5f1c7]
+- Updated dependencies [1abd29e]
+- Updated dependencies [4152b48]
+- Updated dependencies [5331110]
+- Updated dependencies [82d0987]
+- Updated dependencies [f8732c6]
+- Updated dependencies [e8a1b2f]
+- Updated dependencies [91d8afb]
+  - @getmunin/backend-core@5.49.0
+  - @getmunin/db@5.49.0
+  - @getmunin/types@5.49.0
+  - @getmunin/core@5.49.0
+  - @getmunin/agent-runtime@5.49.0
+
 ## 5.48.4
 
 ### Patch Changes

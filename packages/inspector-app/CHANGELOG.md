@@ -1,5 +1,57 @@
 # @getmunin/inspector-app
 
+## 5.49.0
+
+### Minor Changes
+
+- c07c18a: Journeys can now send email. A message step renders its subject and markdown or MJML body in the org's email template and files it as an outreach proposal of kind `journey`, so it appears in the review inbox labelled as a journey email. The run waits there: approval sends it and the journey continues; a dismissal ends that person's run; a withdrawal skips the step. Steps the publisher set to `auto` send without review and do not post a Slack approval card. The first email opens a conversation and later steps reply in the same thread, as HTML with a working unsubscribe link and List-Unsubscribe header.
+
+  Every journey email passes the send rules at drafting, at approval and again at send time. Marketing email never goes to unsubscribed, do-not-contact or undeliverable addresses or to contacts without a recorded lawful basis; transactional email reaches unsubscribed contacts but never do-not-contact ones. Quiet hours and valid days follow the contact's time zone, a weekly cap counts journey, campaign and broadcast emails together, and marketing email waits while the contact is talking to the team and for a cool-down after their last message. When a contact replies, the run follows the step's `onReply` path, or holds until the conversation closes.
+
+  A campaign run by a journey no longer accepts hand-filed first touches or follow-ups, its legacy follow-up sweep skips it, and journey proposals are left out of outreach exports.
+
+### Patch Changes
+
+- Updated dependencies [1ea7795]
+- Updated dependencies [ffdfdf2]
+- Updated dependencies [e9e172b]
+- Updated dependencies [0510ace]
+- Updated dependencies [131c31e]
+- Updated dependencies [0dad486]
+- Updated dependencies [ea4a2c8]
+- Updated dependencies [7fcea45]
+- Updated dependencies [109a97f]
+- Updated dependencies [9bb0e17]
+- Updated dependencies [109a97f]
+- Updated dependencies [07b8cec]
+- Updated dependencies [3141771]
+- Updated dependencies [7b6a351]
+- Updated dependencies [8d5a43c]
+- Updated dependencies [2e84199]
+- Updated dependencies [008a9a3]
+- Updated dependencies [69e88f8]
+- Updated dependencies [c07c18a]
+- Updated dependencies [9b266c6]
+- Updated dependencies [7714bc9]
+- Updated dependencies [6a2de58]
+- Updated dependencies [819a5c7]
+- Updated dependencies [853391a]
+- Updated dependencies [18b266f]
+- Updated dependencies [b775772]
+- Updated dependencies [82430d1]
+- Updated dependencies [e32a230]
+- Updated dependencies [910e921]
+- Updated dependencies [8f3e2b5]
+- Updated dependencies [bccea5a]
+- Updated dependencies [1abd29e]
+- Updated dependencies [4152b48]
+- Updated dependencies [5331110]
+- Updated dependencies [f8732c6]
+- Updated dependencies [e8a1b2f]
+  - @getmunin/dashboard-pages@5.49.0
+  - @getmunin/types@5.49.0
+  - @getmunin/ui@5.49.0
+
 ## 5.48.4
 
 ### Patch Changes

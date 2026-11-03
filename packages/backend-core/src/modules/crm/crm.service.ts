@@ -1027,6 +1027,17 @@ export class CrmService {
     return toCompanyDto(rows[0]);
   }
 
+  async updateCompanyTags(id: string, tags: string[]): Promise<CompanyDto> {
+    const ctx = getCurrentContext();
+    const [row] = await ctx.db
+      .update(schema.crmCompanies)
+      .set({ tags, updatedAt: new Date() })
+      .where(eq(schema.crmCompanies.id, id))
+      .returning();
+    if (!row) throw new NotFoundException(`crm_not_found: company ${id}`);
+    return toCompanyDto(row);
+  }
+
   async createCompany(input: {
     name: string;
     domain?: string;

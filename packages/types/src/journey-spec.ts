@@ -17,6 +17,7 @@ export const JOURNEY_NODE_TYPES = [
 export type JourneyNodeType = (typeof JOURNEY_NODE_TYPES)[number];
 
 export const MAX_SUB_JOURNEY_DEPTH = 3;
+export const DEFAULT_TRACE_RETENTION_DAYS = 365;
 
 export const AGENT_NODE_MODES = ['decide', 'enrich'] as const;
 export const ENRICH_FIELD_TYPES = ['string', 'number', 'boolean', 'date', 'enum'] as const;
@@ -359,6 +360,7 @@ export const JourneySettingsSchema = z.strictObject({
   smsChannelId: z.string().min(1).max(64).optional(),
   voiceChannelId: z.string().min(1).max(64).optional(),
   optimiser: z.enum(['off', 'weekly']).optional(),
+  traceRetentionDays: z.number().int().min(30).max(3650).optional(),
   guardrails: z
     .strictObject({
       enabled: z.boolean().optional(),

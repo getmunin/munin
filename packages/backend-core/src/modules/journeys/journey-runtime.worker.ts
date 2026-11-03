@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
-import { and, asc, eq, isNull, lt, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, lt, lte, sql } from 'drizzle-orm';
+import { DEFAULT_TRACE_RETENTION_DAYS } from '@getmunin/types';
 import { randomUUID } from 'node:crypto';
 import {
   ActorIdentity,
@@ -37,6 +38,7 @@ export class JourneyRuntimeWorker implements OnModuleInit, OnModuleDestroy {
   private running = false;
   private lastPurgeAt = 0;
   private lastMonitorAt = 0;
+  private lastTracePurgeAt = 0;
   private readonly disabled =
     parseEnvDisableFlag('MUNIN_JOURNEYS_WORKER_DISABLED') || process.env.NODE_ENV === 'test';
   private readonly intervalMs = parseEnvInt({
@@ -77,6 +79,10 @@ export class JourneyRuntimeWorker implements OnModuleInit, OnModuleDestroy {
       result.runs = await this.phase('runs', () => this.runEnrollments(now), 0);
       result.guardrailActions = await this.phase('monitor', () => this.runMonitor(now), 0);
       await this.phase('purge', () => this.purgeInbox(now), undefined);
+      if (now.getTime() - this.lastTracePurgeAt >= 86_400_000) {
+        this.lastTracePurgeAt = now.getTime();
+        await this.phase('traces', () => this.purgeTraces(now), 0);
+      }
     } finally {
       this.running = false;
     }
@@ -241,6 +247,32 @@ export class JourneyRuntimeWorker implements OnModuleInit, OnModuleDestroy {
         .delete(schema.journeyEventInbox)
         .where(lt(schema.journeyEventInbox.processedAt, new Date(now.getTime() - INBOX_RETENTION_MS))),
     );
+  }
+
+  async purgeTraces(now: Date, batch = 1000): Promise<number> {
+    const at = now.toISOString();
+    return this.bypass(async (tx) => {
+      const due = rowsOf(
+        await tx.execute(sql`
+          SELECT en.id
+            FROM journey_enrollments en
+            JOIN journeys j ON j.id = en.journey_id
+            LEFT JOIN journey_versions v ON v.journey_id = j.id AND v.number = coalesce(j.live_version, en.version)
+           WHERE en.state IN ('done', 'exited')
+             AND en.exited_at < ${at}::timestamptz - make_interval(days => coalesce((v.spec->'settings'->>'traceRetentionDays')::int, ${DEFAULT_TRACE_RETENTION_DAYS}))
+             AND (en.context <> '{}'::jsonb OR EXISTS (SELECT 1 FROM journey_step_runs s WHERE s.enrollment_id = en.id))
+           LIMIT ${batch}
+        `),
+      ).map((r) => (r as { id: string }).id);
+      if (due.length === 0) return 0;
+      await tx.delete(schema.journeyWaits).where(inArray(schema.journeyWaits.enrollmentId, due));
+      await tx.delete(schema.journeyStepRuns).where(inArray(schema.journeyStepRuns.enrollmentId, due));
+      await tx
+        .update(schema.journeyEnrollments)
+        .set({ context: {}, updatedAt: new Date() })
+        .where(inArray(schema.journeyEnrollments.id, due));
+      return due.length;
+    });
   }
 
   private bypass<T>(fn: (tx: Db) => Promise<T>): Promise<T> {

@@ -40,9 +40,14 @@ export const SLACK_APPROVAL_EVENT_TYPES: readonly string[] = [
   'cms.entry.deleted',
 ];
 
-export const SLACK_ANNOUNCEMENT_EVENT_TYPES: readonly string[] = ['cms.entry.published'];
+export const SLACK_ANNOUNCEMENT_EVENT_TYPES: readonly string[] = [
+  'cms.entry.published',
+  'journey.paused',
+  'journey.node.paused',
+  'journey.approval.requested',
+];
 
-export const SLACK_ANNOUNCEMENT_SUBJECT_TYPES: readonly string[] = ['cms_entry'];
+export const SLACK_ANNOUNCEMENT_SUBJECT_TYPES: readonly string[] = ['cms_entry', 'journey_notice'];
 
 export function subjectTypeOf(subjectKey: string | null): string | null {
   if (!subjectKey) return null;
@@ -54,10 +59,19 @@ export function announcementSubjectRef(
   eventType: string,
   payload: Record<string, unknown>,
 ): { subjectType: string; subjectId: string } | null {
+  const str = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null);
+  if (eventType === 'journey.approval.requested') {
+    const id = str(payload.approvalId);
+    return id ? { subjectType: 'journey_notice', subjectId: id } : null;
+  }
+  if (eventType === 'journey.paused' || eventType === 'journey.node.paused') {
+    const journeyId = str(payload.journeyId);
+    if (!journeyId || payload.reason !== 'guardrail') return null;
+    return { subjectType: 'journey_notice', subjectId: `${journeyId}.${str(payload.nodeId) ?? 'journey'}` };
+  }
   if (eventType !== 'cms.entry.published') return null;
   if (payload.previousStatus === 'published') return null;
-  const id =
-    typeof payload.entryId === 'string' && payload.entryId.length > 0 ? payload.entryId : null;
+  const id = str(payload.entryId);
   return id ? { subjectType: 'cms_entry', subjectId: id } : null;
 }
 

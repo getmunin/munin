@@ -197,7 +197,7 @@ export function JourneyGraph({
 function nodeTitle(node: JourneyNode): string {
   switch (node.type) {
     case 'message':
-      return node.content.subject;
+      return node.draftBy === 'agent' ? `✎ ${node.content.subject}` : node.content.subject;
     case 'action':
       return node.action;
     case 'wait':
@@ -209,7 +209,9 @@ function nodeTitle(node: JourneyNode): string {
     case 'goal':
       return node.name;
     case 'agent':
-      return `${node.mode}: ${Object.keys(node.edges).join(' / ')}`;
+      return node.mode === 'decide'
+        ? `decide: ${Object.keys(node.edges ?? {}).join(' / ')}`
+        : `enrich: ${(node.fields ?? []).map((f) => f.key).join(', ')}`;
     default:
       return node.id;
   }

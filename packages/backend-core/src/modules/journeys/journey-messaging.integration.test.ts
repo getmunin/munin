@@ -387,6 +387,66 @@ const skipReason = TEST_URL ? null : 'Set TEST_DATABASE_URL to a Postgres URL to
     expect(await enrollment(olaRun)).toMatchObject({ state: 'done', exitReason: 'reached_end' });
   });
 
+  it('files an agent-written draft with its sources for review, or the reference version if the agent is silent', async () => {
+    const drafted = welcome({
+      draftBy: 'agent',
+      brief: 'Welcome them and suggest the feature that fits their plan.',
+      grounding: ['product'],
+      draftInputs: ['contact'],
+    });
+    const journeyId = await publish([drafted, done]);
+    const kari = await contact({ name: 'Kari Nordmann' });
+    const ola = await contact({ name: 'Ola Nordmann' });
+    const kariRun = await enroll(journeyId, kari.id);
+    const olaRun = await enroll(journeyId, ola.id);
+    await worker.tick();
+
+    const jobs = await db.select().from(schema.curatorJobs).where(eq(schema.curatorJobs.orgId, orgId));
+    expect(jobs.map((j) => j.jobUri)).toEqual(['skill://journeys/draft-step', 'skill://journeys/draft-step']);
+    expect(jobs[0]!.userPrompt).toContain('Welcome them and suggest the feature that fits their plan.');
+    const [kariStep] = await db
+      .select()
+      .from(schema.journeyStepRuns)
+      .where(eq(schema.journeyStepRuns.enrollmentId, kariRun));
+    const curator = new ActorIdentity('admin_agent', 'curator-runner', orgId, ['*'], ['admin']);
+    await runAs(curator, () =>
+      runtime.submitDraft({
+        stepRunId: kariStep!.id,
+        subject: 'Kari, start with dashboards',
+        body: 'Hei Kari! Dashboards are included in Pro.',
+        citations: [{ title: 'Pro plan', source: 'kbd_pro' }],
+      }),
+    );
+    await worker.tick();
+    const [kariProposal] = await proposalsFor(kari.id);
+    expect(kariProposal).toMatchObject({ status: 'pending', draftSubject: 'Kari, start with dashboards' });
+    expect(kariProposal!.evidence).toMatchObject({ draftedBy: 'agent', citations: [{ title: 'Pro plan', source: 'kbd_pro' }] });
+
+    await worker.tick(new Date(Date.now() + 31 * 60_000));
+    await worker.tick(new Date(Date.now() + 31 * 60_000));
+    const [olaProposal] = await proposalsFor(ola.id);
+    expect(olaProposal).toMatchObject({ status: 'pending', draftSubject: 'Velkommen til Acme' });
+    expect(olaProposal!.evidence).toMatchObject({ draftedBy: 'fallback_content' });
+    expect((await enrollment(olaRun)).state).toBe('waiting');
+  });
+
+  it('refuses agent-drafted emails that would send without review', async () => {
+    const journey = await asAgent(() =>
+      journeys.create({
+        name: `J ${randomUUID()}`,
+        outreachCampaignId: campaignId,
+        spec: {
+          entry: { trigger: { type: 'manual' } },
+          goal: { event: 'subscription.started', windowDays: 30 },
+          start: 'welcome',
+          nodes: [welcome({ draftBy: 'agent', brief: 'Welcome', approval: 'auto' }), done],
+        },
+      }),
+    );
+    const validation = await asAgent(() => journeys.validate(journey.id));
+    expect(validation.errors.map((e) => e.code)).toContain('agent_draft_auto');
+  });
+
   it('keeps legacy outreach off a journey-run campaign and journey emails out of exports', async () => {
     const journeyId = await publish([welcome({ approval: 'auto' }), done]);
     const ola = await contact();

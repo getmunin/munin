@@ -92,7 +92,7 @@ export class OutreachEmailTemplateTools {
     name: 'outreach_get_email_template',
     title: 'Outreach: Read email template',
     description:
-      "Read one email template, including its MJML source and `warnings` from compiling it now (for example images without alt text, or a layout heavy enough that Gmail may clip it).",
+      "Read one email template, including its MJML source, `warnings` from compiling it now (for example images without alt text, or a layout heavy enough that Gmail may clip it), and `usage`: the broadcasts, journey email steps (live, draft, or a version people are still running through) and queued journey emails that render with it. For the default template, `viaDefault` marks the ones that name no template of their own.",
     audiences: ['admin'],
     scopes: ['outreach:read'],
     input: GetTemplateInput,
@@ -136,7 +136,8 @@ export class OutreachEmailTemplateTools {
   @McpTool({
     name: 'outreach_delete_email_template',
     title: 'Outreach: Delete email template',
-    description: 'Delete an email template permanently. Returns `{ deleted: true, id }`.',
+    description:
+      'Delete an email template permanently. Refused while a broadcast, a live, draft or running journey version, or a queued journey email names it; the error says which. Returns `{ deleted: true, id }`.',
     audiences: ['admin'],
     scopes: ['outreach:write'],
     input: DeleteTemplateInput,

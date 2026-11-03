@@ -1293,7 +1293,7 @@
       "detailSubtitle": "A versioned journey built over MCP. Review drafts and publish them here.",
       "listTitle": "Journeys",
       "emptyTitle": "No journeys yet",
-      "emptyBody": "Ask your agent to build one with the <code>build-journey</code> skill. Drafts appear here for review.",
+      "emptyBody": "An agent sets up journeys over MCP. Drafts show up here, ready for you to review.",
       "table": {
         "name": "Journey",
         "status": "Status",

@@ -251,7 +251,7 @@ class StubSender implements BulkEmailSender {
       (await createBroadcast({ name: 'Named', emailTemplateId: special.id })).preview.html,
     ).toContain('SPECIAL-FOOTER');
 
-    await expect(asAgent(() => templates.deleteTemplate(special.id))).rejects.toThrow(/used by broadcast "Named"/);
+    await expect(asAgent(() => templates.deleteTemplate(special.id))).rejects.toThrow(/used by 1 broadcast \(broadcast "Named"/);
     expect(house.isDefault).toBe(true);
   });
 

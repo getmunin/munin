@@ -57,6 +57,8 @@ const TEMPLATE = `<mjml>
 
   beforeEach(async () => {
     await db.execute(sql`SELECT set_config('app.bypass_rls', 'on', false)`);
+    await db.execute(sql`DELETE FROM journeys WHERE org_id IN (${orgId}, ${otherOrgId})`);
+    await db.execute(sql`DELETE FROM crm_contacts WHERE org_id IN (${orgId}, ${otherOrgId})`);
     await db.execute(
       sql`DELETE FROM outreach_email_templates WHERE org_id IN (${orgId}, ${otherOrgId})`,
     );
@@ -93,6 +95,111 @@ const TEMPLATE = `<mjml>
 
     expect(await run(() => svc.deleteTemplate(created.id))).toEqual({ deleted: true, id: created.id });
     await expect(run(() => svc.getTemplate(created.id))).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  const journeySpec = (templateId?: string) => ({
+    entry: { trigger: { type: 'event', event: 'trial.started' } },
+    goal: { event: 'subscription.started', windowDays: 30 },
+    start: 'welcome',
+    nodes: [
+      {
+        id: 'welcome',
+        type: 'message',
+        channel: 'email',
+        content: { subject: 'Velkommen', body: 'Hei!', ...(templateId ? { templateId } : {}) },
+        next: 'done',
+      },
+      { id: 'done', type: 'exit' },
+    ],
+  });
+
+  async function seedJourney(name: string, versions: { spec: Record<string, unknown>; published: boolean }[]) {
+    const [journey] = await db
+      .insert(schema.journeys)
+      .values({
+        orgId,
+        name,
+        status: 'live',
+        liveVersion: versions.filter((v) => v.published).length || null,
+        createdByActorType: 'admin_agent',
+        createdByActorId: actor.id,
+      })
+      .returning();
+    for (const [i, v] of versions.entries()) {
+      await db.insert(schema.journeyVersions).values({
+        orgId,
+        journeyId: journey!.id,
+        number: i + 1,
+        spec: v.spec,
+        specHash: `hash-${i + 1}`,
+        createdByActorType: 'admin_agent',
+        createdByActorId: actor.id,
+        publishedAt: v.published ? new Date() : null,
+      });
+    }
+    return journey!;
+  }
+
+  async function enroll(journeyId: string, version: number) {
+    const [contact] = await db
+      .insert(schema.crmContacts)
+      .values({ orgId, name: 'Ola Nordmann', email: `ola-${randomUUID()}@example.com`, consentLawfulBasis: 'contract' })
+      .returning();
+    const [enrollment] = await db
+      .insert(schema.journeyEnrollments)
+      .values({ orgId, journeyId, version, contactId: contact!.id, subjectKey: `contact:${contact!.id}`, state: 'waiting' })
+      .returning();
+    return { contact: contact!, enrollment: enrollment! };
+  }
+
+  it('lists the journey steps and queued journey emails that use a template, and refuses to delete it', async () => {
+    const welcome = await run(() => svc.createTemplate({ name: 'Welcome', mjml: TEMPLATE }));
+    const spare = await run(() => svc.createTemplate({ name: 'Spare', mjml: TEMPLATE }));
+
+    const onboarding = await seedJourney('Onboarding', [
+      { spec: journeySpec(welcome.id), published: true },
+      { spec: journeySpec(spare.id), published: true },
+      { spec: journeySpec(welcome.id), published: false },
+    ]);
+    await seedJourney('Retired', [{ spec: journeySpec(spare.id), published: true }, { spec: journeySpec(), published: true }]);
+    const { contact } = await enroll(onboarding.id, 1);
+    await db.insert(schema.outreachProposals).values({
+      orgId,
+      journeyId: onboarding.id,
+      contactId: contact.id,
+      kind: 'journey',
+      journeyDelivery: { channel: 'email', format: 'markdown', templateId: welcome.id, templateHash: 'h', preheader: null, policy: { class: 'marketing', cooldownHoursAfterConversation: 24 }, auto: true },
+      draftBody: 'Hei',
+      status: 'approved',
+      proposedByActorType: 'system',
+      proposedByActorId: 'journey-runtime',
+    });
+
+    const usage = (await run(() => svc.getTemplate(welcome.id))).usage;
+    expect(usage.journeySteps.map((s) => [s.journeyName, s.version, s.versionRole, s.nodeId, s.viaDefault])).toEqual([
+      ['Onboarding', 1, 'in_flight', 'welcome', false],
+      ['Onboarding', 3, 'draft', 'welcome', false],
+    ]);
+    expect(usage.queuedJourneyEmails).toBe(1);
+    expect(usage.broadcasts).toEqual([]);
+
+    expect((await run(() => svc.getTemplate(spare.id))).usage.journeySteps.map((s) => [s.journeyName, s.versionRole])).toEqual([
+      ['Onboarding', 'live'],
+    ]);
+
+    await expect(run(() => svc.deleteTemplate(welcome.id))).rejects.toThrow(
+      /still used by 2 journey steps, 1 queued journey email \(step "welcome" of journey "Onboarding"/,
+    );
+    await expect(run(() => svc.deleteTemplate(spare.id))).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('counts steps without a template against the default, without blocking its deletion', async () => {
+    const house = await run(() => svc.createTemplate({ name: 'House', mjml: TEMPLATE, isDefault: true }));
+    await seedJourney('Win-back', [{ spec: journeySpec(), published: true }]);
+
+    const usage = (await run(() => svc.getTemplate(house.id))).usage;
+    expect(usage.journeySteps).toMatchObject([{ journeyName: 'Win-back', versionRole: 'live', viaDefault: true }]);
+    expect(await run(() => svc.deleteTemplate(house.id))).toEqual({ deleted: true, id: house.id });
   });
 
   it('refuses invalid MJML on create and update without saving anything', async () => {

@@ -2,7 +2,6 @@ import {
   JOURNEY_CALL_OPENING_MAX_CHARS,
   JOURNEY_SMS_MAX_CHARS,
   JourneySpecSchema,
-  RESERVED_JOURNEY_NODE_TYPES,
   journeyNodeEdges,
   type JourneyNode,
   type JourneySpec,
@@ -28,6 +27,8 @@ export interface JourneyReferences {
   webhookIds: ReadonlySet<string>;
   smsChannelIds?: ReadonlySet<string>;
   voiceChannelIds?: ReadonlySet<string>;
+  selfJourneyId?: string;
+  journeys?: ReadonlyMap<string, { status: string; calls: readonly string[] }>;
   llmConfigured?: boolean;
 }
 
@@ -36,8 +37,7 @@ export interface ParsedJourneySpec {
   validation: JourneyValidation;
 }
 
-const WAITING_NODE_TYPES: ReadonlySet<string> = new Set(['wait', 'wait_for', 'message', 'agent']);
-const RESERVED: ReadonlySet<string> = new Set(RESERVED_JOURNEY_NODE_TYPES);
+const WAITING_NODE_TYPES: ReadonlySet<string> = new Set(['wait', 'wait_for', 'message', 'agent', 'approval', 'sub_journey']);
 
 export function parseJourneySpec(input: unknown): ParsedJourneySpec {
   const parsed = JourneySpecSchema.safeParse(input);
@@ -74,14 +74,6 @@ export function validateJourneySpec(spec: JourneySpec, refs: JourneyReferences):
   }
 
   for (const node of spec.nodes) {
-    if (RESERVED.has(node.type)) {
-      errors.push({
-        code: 'node_type_unavailable',
-        nodeId: node.id,
-        message: `"${node.type}" nodes are not available yet`,
-      });
-      continue;
-    }
     const edges = journeyNodeEdges(node);
     for (const edge of edges) {
       if (!byId.has(edge.to)) {
@@ -148,6 +140,28 @@ export function validateJourneySpec(spec: JourneySpec, refs: JourneyReferences):
       errors.push({ code: 'voice_channel', message: 'call steps need settings.voiceChannelId, a voice channel to call from' });
     } else if (refs.voiceChannelIds && !refs.voiceChannelIds.has(channelId)) {
       errors.push({ code: 'voice_channel', message: `"${channelId}" is not a voice channel in this organization` });
+    }
+  }
+
+  for (const node of spec.nodes) {
+    if (node.type !== 'sub_journey') continue;
+    const target = refs.journeys?.get(node.journeyId);
+    if (refs.journeys && !target) {
+      errors.push({ code: 'unknown_journey', nodeId: node.id, message: `journey "${node.journeyId}" does not exist` });
+      continue;
+    }
+    if (refs.selfJourneyId && reachesJourney(node.journeyId, refs.selfJourneyId, refs.journeys)) {
+      errors.push({
+        code: 'sub_journey_cycle',
+        nodeId: node.id,
+        message: `journey "${node.journeyId}" leads back into this journey, so a person could loop between them`,
+      });
+    } else if (target && target.status !== 'live') {
+      warnings.push({
+        code: 'sub_journey_not_live',
+        nodeId: node.id,
+        message: `journey "${node.journeyId}" is ${target.status}; until it is live, people pass this step without entering it`,
+      });
     }
   }
 
@@ -408,4 +422,21 @@ function checkCallNode(node: Extract<JourneyNode, { type: 'message' }>, errors: 
   if (node.content.body.length > JOURNEY_CALL_OPENING_MAX_CHARS) {
     fail('voice_length', `the call opening is ${node.content.body.length} characters; the limit is ${JOURNEY_CALL_OPENING_MAX_CHARS}`);
   }
+}
+
+function reachesJourney(
+  from: string,
+  target: string,
+  journeys: ReadonlyMap<string, { status: string; calls: readonly string[] }> | undefined,
+): boolean {
+  const seen = new Set<string>();
+  const stack = [from];
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    if (id === target) return true;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    stack.push(...(journeys?.get(id)?.calls ?? []));
+  }
+  return false;
 }

@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { schema } from '@getmunin/db';
 import { and, asc, desc, eq, inArray, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
 import { getCurrentContext, readApiBaseUrl, WebhookDispatcher } from '@getmunin/core';
@@ -7,6 +7,7 @@ import {
   CALL_OUTCOMES,
   JourneySpecSchema,
   MAX_CONCURRENT_ENROLLMENTS,
+  MAX_SUB_JOURNEY_DEPTH,
   parseIsoDurationMs,
   type JourneyNode,
   type JourneySpec,
@@ -101,7 +102,7 @@ type Outcome =
   | { kind: 'retry'; at: Date; reason: string };
 
 interface WaitSpec {
-  kind: 'timer' | 'event' | 'proposal' | 'conversation_close' | 'agent';
+  kind: 'timer' | 'event' | 'proposal' | 'conversation_close' | 'agent' | 'approval';
   wakeAt?: Date;
   eventKey?: string;
   match?: Record<string, unknown>;
@@ -530,6 +531,10 @@ export class JourneyRuntimeService {
         return this.executeMessage(step, node);
       case 'agent':
         return this.executeAgent(step, node);
+      case 'approval':
+        return this.executeApproval(step, node);
+      case 'sub_journey':
+        return this.executeSubJourney(step, node);
       default:
         return { kind: 'exit', reason: 'node_type_unavailable' };
     }
@@ -999,6 +1004,187 @@ export class JourneyRuntimeService {
       .orderBy(desc(r.startedAt))
       .limit(1);
     return latest ?? null;
+  }
+
+  private async executeApproval(step: StepContext, node: Extract<JourneyNode, { type: 'approval' }>): Promise<Outcome> {
+    const ctx = getCurrentContext();
+    const a = schema.journeyApprovals;
+    if (step.resumed) {
+      if (step.resumed.resolution === 'approved') return { kind: 'advance', edge: 'next', to: node.next, reason: 'approved' };
+      if (step.resumed.resolution === 'rejected') {
+        return node.onReject
+          ? { kind: 'advance', edge: 'on_reject', to: node.onReject, reason: 'rejected' }
+          : { kind: 'exit', reason: 'approval_rejected' };
+      }
+      await ctx.db
+        .update(a)
+        .set({ status: 'expired', updatedAt: new Date() })
+        .where(and(eq(a.stepRunId, step.stepRunId), eq(a.status, 'pending')));
+      return node.onTimeout
+        ? { kind: 'advance', edge: 'on_timeout', to: node.onTimeout, reason: 'approval timed out' }
+        : { kind: 'exit', reason: 'approval_timeout' };
+    }
+    const expiresAt = new Date(step.now.getTime() + (parseIsoDurationMs(node.timeout) ?? 3 * 86_400_000));
+    await ctx.db
+      .insert(a)
+      .values({
+        orgId: step.enrollment.orgId,
+        journeyId: step.enrollment.journeyId,
+        enrollmentId: step.enrollment.id,
+        stepRunId: step.stepRunId,
+        nodeId: node.id,
+        contactId: step.enrollment.contactId,
+        title: node.title,
+        instructions: node.instructions ?? null,
+        expiresAt,
+      })
+      .onConflictDoNothing();
+    const [approval] = await ctx.db.select({ id: a.id }).from(a).where(eq(a.stepRunId, step.stepRunId)).limit(1);
+    await this.webhooks.emit({
+      type: 'journey.approval.requested',
+      payload: {
+        approvalId: approval!.id,
+        journeyId: step.enrollment.journeyId,
+        enrollmentId: step.enrollment.id,
+        nodeId: node.id,
+        contactId: step.enrollment.contactId,
+        title: node.title,
+      },
+      hopCount: step.hop,
+    });
+    return {
+      kind: 'wait',
+      wait: { kind: 'approval', match: { approvalId: approval!.id }, timeoutAt: expiresAt },
+      output: { approvalId: approval!.id },
+      reason: 'waiting for a person to approve',
+    };
+  }
+
+  private async executeSubJourney(
+    step: StepContext,
+    node: Extract<JourneyNode, { type: 'sub_journey' }>,
+  ): Promise<Outcome> {
+    const previous = await this.stepOutput(step.stepRunId);
+    if (step.resumed) {
+      const childId = typeof previous.childEnrollmentId === 'string' ? previous.childEnrollmentId : null;
+      if (step.resumed.resolution === 'event' && childId) {
+        const ctx = getCurrentContext();
+        const [child] = await ctx.db
+          .select({ goalReachedAt: schema.journeyEnrollments.goalReachedAt, exitReason: schema.journeyEnrollments.exitReason })
+          .from(schema.journeyEnrollments)
+          .where(eq(schema.journeyEnrollments.id, childId))
+          .limit(1);
+        if (child?.goalReachedAt && node.onGoal) {
+          return { kind: 'advance', edge: 'on_goal', to: node.onGoal, output: previous, reason: 'the other journey reached its goal' };
+        }
+        return { kind: 'advance', edge: 'next', to: node.next, output: previous, reason: `the other journey ended: ${child?.exitReason ?? 'unknown'}` };
+      }
+      return { kind: 'advance', edge: 'next', to: node.next, output: previous, reason: 'the other journey did not end in time' };
+    }
+    const depth = (typeof step.enrollment.context.journeyDepth === 'number' ? step.enrollment.context.journeyDepth : 0) + 1;
+    if (depth > MAX_SUB_JOURNEY_DEPTH) {
+      return { kind: 'advance', edge: 'next', to: node.next, reason: `journeys nest at most ${MAX_SUB_JOURNEY_DEPTH} deep` };
+    }
+    if (node.journeyId === step.enrollment.journeyId) {
+      return { kind: 'advance', edge: 'next', to: node.next, reason: 'a journey cannot enter itself' };
+    }
+    const result = await this.enroll({
+      journeyId: node.journeyId,
+      subject: { contactId: step.enrollment.contactId, endUserId: step.enrollment.endUserId },
+      source: { type: 'journey', journeyId: step.enrollment.journeyId, enrollmentId: step.enrollment.id, nodeId: node.id },
+      context: { journeyDepth: depth, parent: { journeyId: step.enrollment.journeyId, enrollmentId: step.enrollment.id } },
+      hop: step.hop,
+    }).catch((err: unknown): EnrollResult => ({ status: 'skipped', reason: err instanceof Error ? err.message : 'enroll_failed' }));
+    const output = { childJourneyId: node.journeyId, childEnrollmentId: result.enrollmentId ?? null, childStatus: result.status };
+    if (result.status !== 'enrolled' || !node.await) {
+      return {
+        kind: 'advance',
+        edge: 'next',
+        to: node.next,
+        output,
+        reason: result.status === 'enrolled' ? 'entered the other journey' : `did not enter the other journey: ${result.reason}`,
+      };
+    }
+    return {
+      kind: 'wait',
+      wait: {
+        kind: 'event',
+        eventKey: 'journey.exited',
+        match: { enrollmentId: result.enrollmentId! },
+        timeoutAt: new Date(step.now.getTime() + (parseIsoDurationMs(node.timeout) ?? 30 * 86_400_000)),
+      },
+      output,
+      reason: 'waiting for the other journey to end',
+    };
+  }
+
+  async listApprovals(input: { status?: string; journeyId?: string; limit?: number } = {}) {
+    const ctx = getCurrentContext();
+    const a = schema.journeyApprovals;
+    const filters = [eq(a.orgId, ctx.actor!.orgId)];
+    if (input.status) filters.push(eq(a.status, input.status));
+    if (input.journeyId) filters.push(eq(a.journeyId, input.journeyId));
+    const rows = await ctx.db
+      .select({
+        id: a.id,
+        journeyId: a.journeyId,
+        journeyName: schema.journeys.name,
+        enrollmentId: a.enrollmentId,
+        nodeId: a.nodeId,
+        contactId: a.contactId,
+        contactName: schema.crmContacts.name,
+        title: a.title,
+        instructions: a.instructions,
+        status: a.status,
+        expiresAt: a.expiresAt,
+        decidedByActorId: a.decidedByActorId,
+        decidedAt: a.decidedAt,
+        note: a.note,
+        createdAt: a.createdAt,
+      })
+      .from(a)
+      .innerJoin(schema.journeys, eq(schema.journeys.id, a.journeyId))
+      .leftJoin(schema.crmContacts, eq(schema.crmContacts.id, a.contactId))
+      .where(and(...filters))
+      .orderBy(desc(a.createdAt))
+      .limit(Math.min(input.limit ?? 50, 200));
+    return rows.map((r) => ({
+      ...r,
+      expiresAt: r.expiresAt.toISOString(),
+      decidedAt: r.decidedAt?.toISOString() ?? null,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  }
+
+  async decideApproval(input: { approvalId: string; decision: 'approve' | 'reject'; note?: string }) {
+    const ctx = getCurrentContext();
+    const actor = ctx.actor!;
+    if (actor.type !== 'user') {
+      throw new ForbiddenException('journeys_forbidden: approval steps are decided by a signed-in person in the Munin dashboard');
+    }
+    const a = schema.journeyApprovals;
+    const [approval] = await ctx.db.select().from(a).where(and(eq(a.orgId, actor.orgId), eq(a.id, input.approvalId))).limit(1);
+    if (!approval) throw new NotFoundException(`journeys_not_found: approval ${input.approvalId}`);
+    if (approval.status !== 'pending') {
+      throw new ConflictException(`journeys_conflict: approval ${input.approvalId} is already ${approval.status}`);
+    }
+    const status = input.decision === 'approve' ? 'approved' : 'rejected';
+    await ctx.db
+      .update(a)
+      .set({ status, decidedByActorId: actor.id, decidedAt: new Date(), note: input.note ?? null, updatedAt: new Date() })
+      .where(eq(a.id, approval.id));
+    const w = schema.journeyWaits;
+    const [wait] = await ctx.db
+      .select()
+      .from(w)
+      .where(and(eq(w.kind, 'approval'), isNull(w.resolvedAt), sql`${w.match}->>'approvalId' = ${approval.id}`))
+      .limit(1);
+    if (wait) await this.resolveWait(wait, status);
+    await this.webhooks.emit({
+      type: 'journey.approval.decided',
+      payload: { approvalId: approval.id, journeyId: approval.journeyId, enrollmentId: approval.enrollmentId, decision: status },
+    });
+    return { id: approval.id, status };
   }
 
   private async splitArrivals(step: StepContext, nodeId: string): Promise<number> {
@@ -1599,6 +1785,7 @@ export class JourneyRuntimeService {
         visit,
         status: 'running',
         input,
+        startedAt: sql`clock_timestamp()`,
       })
       .returning({ id: schema.journeyStepRuns.id });
     return row!.id;
@@ -1803,6 +1990,10 @@ function edgeTarget(node: JourneyNode, edge: string): string | undefined {
       return node.paths.find((p) => p.name === edge)?.next;
     case 'jump':
       return node.to;
+    case 'approval':
+      return edge === 'on_reject' ? node.onReject : edge === 'on_timeout' ? node.onTimeout : node.next;
+    case 'sub_journey':
+      return edge === 'on_goal' ? node.onGoal : node.next;
     case 'action':
     case 'wait':
     case 'goal':

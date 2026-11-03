@@ -74,10 +74,10 @@ describe('journey validator', () => {
     expect(codes(trialSpec({ start: 'missing' }))).toContain('missing_start');
   });
 
-  it('rejects node types that are not available yet', () => {
+  it('rejects an approval step that does not say what to approve', () => {
     const spec = trialSpec();
     spec.nodes.splice(2, 1, { id: 'invited', type: 'approval', next: 'done' } as never);
-    expect(codes(spec)).toContain('node_type_unavailable');
+    expect(codes(spec)).toContain('schema');
   });
 
   it('rejects a loop that never waits but allows one that does', () => {
@@ -213,5 +213,31 @@ describe('journey validator', () => {
     expect(
       codes({ id: 'call', type: 'message', channel: 'email', content: { subject: 'Hei', body: 'Hei' }, next: 'done', onOutcome: { reached: 'done' } }),
     ).toEqual(['outcome_edges']);
+  });
+
+  it('refuses sub-journeys that would loop back and warns about ones that are not live', () => {
+    const spec = parseJourneySpec({
+      entry: { trigger: { type: 'manual' } },
+      goal: { event: 'subscription.started', windowDays: 30 },
+      start: 'sub',
+      nodes: [
+        { id: 'sub', type: 'sub_journey', journeyId: 'jrn_b', next: 'done' },
+        { id: 'done', type: 'exit' },
+      ],
+    }).spec!;
+    const journeys = (bCalls: string[], bStatus = 'live') =>
+      new Map([
+        ['jrn_a', { status: 'live', calls: ['jrn_b'] }],
+        ['jrn_b', { status: bStatus, calls: bCalls }],
+        ['jrn_c', { status: 'live', calls: ['jrn_a'] }],
+      ]);
+    const check = (bCalls: string[], bStatus?: string) =>
+      validateJourneySpec(spec, { ...refs, selfJourneyId: 'jrn_a', journeys: journeys(bCalls, bStatus) });
+    expect(check([]).errors).toEqual([]);
+    expect(check(['jrn_c']).errors.map((e) => e.code)).toEqual(['sub_journey_cycle']);
+    expect(check([], 'draft').warnings.map((w) => w.code)).toContain('sub_journey_not_live');
+    expect(
+      validateJourneySpec(spec, { ...refs, selfJourneyId: 'jrn_a', journeys: new Map() }).errors.map((e) => e.code),
+    ).toEqual(['unknown_journey']);
   });
 });

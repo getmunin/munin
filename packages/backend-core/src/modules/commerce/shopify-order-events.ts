@@ -33,11 +33,15 @@ export function shopifyOrderEvent(input: {
   const email = typeof body.email === 'string' && body.email ? body.email : typeof customerEmail === 'string' ? customerEmail : null;
   if (!email) return null;
   const str = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : typeof v === 'number' ? String(v) : null);
+  const date = (v: unknown): string | null => {
+    const text = str(v);
+    return text && !Number.isNaN(Date.parse(text)) ? new Date(text).toISOString() : null;
+  };
   const occurredAt =
-    str(input.topic === 'orders/cancelled' ? body.cancelled_at : null) ??
-    str(input.topic === 'orders/paid' ? body.processed_at : null) ??
-    str(body.updated_at) ??
-    str(body.created_at);
+    date(input.topic === 'orders/cancelled' ? body.cancelled_at : null) ??
+    date(input.topic === 'orders/paid' ? body.processed_at : null) ??
+    date(body.updated_at) ??
+    date(body.created_at);
   const lineItems = Array.isArray(body.line_items) ? body.line_items.length : null;
   return {
     id: `shopify:${input.webhookId}`,

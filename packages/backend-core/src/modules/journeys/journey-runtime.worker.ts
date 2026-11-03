@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { schema, type Db } from '@getmunin/db';
-import { and, asc, eq, inArray, isNull, lt, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, lt, lte, ne, or, sql } from 'drizzle-orm';
 import { DEFAULT_TRACE_RETENTION_DAYS } from '@getmunin/types';
 import { randomUUID } from 'node:crypto';
 import {
@@ -21,6 +21,7 @@ const DEFAULT_INTERVAL_MS = 5_000;
 const INBOX_BATCH = 200;
 const RUN_BATCH = 50;
 const INBOX_RETENTION_MS = 7 * 86_400_000;
+const INBOX_MAX_ATTEMPTS = 6;
 const DEFAULT_MONITOR_INTERVAL_MS = 15 * 60_000;
 
 export interface JourneyTickResult {
@@ -103,7 +104,12 @@ export class JourneyRuntimeWorker implements OnModuleInit, OnModuleDestroy {
       tx
         .select({ id: schema.journeyEventInbox.id, orgId: schema.journeyEventInbox.orgId })
         .from(schema.journeyEventInbox)
-        .where(isNull(schema.journeyEventInbox.processedAt))
+        .where(
+          and(
+            isNull(schema.journeyEventInbox.processedAt),
+            or(isNull(schema.journeyEventInbox.nextAttemptAt), lte(schema.journeyEventInbox.nextAttemptAt, new Date())),
+          ),
+        )
         .orderBy(asc(schema.journeyEventInbox.createdAt))
         .limit(INBOX_BATCH),
     );
@@ -131,12 +137,18 @@ export class JourneyRuntimeWorker implements OnModuleInit, OnModuleDestroy {
         if (done) processed += 1;
       } catch (err) {
         this.logger.warn(`journey inbox ${item.id} failed: ${describe(err)}`);
-        await this.inOrg(item.orgId, () =>
-          getCurrentContext()
-            .db.update(schema.journeyEventInbox)
-            .set({ processedAt: new Date() })
-            .where(eq(schema.journeyEventInbox.id, item.id)),
-        ).catch(() => undefined);
+        await this.inOrg(item.orgId, () => {
+          const i = schema.journeyEventInbox;
+          return getCurrentContext()
+            .db.update(i)
+            .set({
+              attempts: sql`${i.attempts} + 1`,
+              lastError: describe(err).slice(0, 1000),
+              nextAttemptAt: sql`now() + make_interval(secs => 30 * power(2, ${i.attempts}))`,
+              processedAt: sql`CASE WHEN ${i.attempts} + 1 >= ${INBOX_MAX_ATTEMPTS} THEN now() ELSE NULL END`,
+            })
+            .where(eq(i.id, item.id));
+        }).catch(() => undefined);
       }
     }
     return processed;
@@ -266,7 +278,9 @@ export class JourneyRuntimeWorker implements OnModuleInit, OnModuleDestroy {
       ).map((r) => (r as { id: string }).id);
       if (due.length === 0) return 0;
       await tx.delete(schema.journeyWaits).where(inArray(schema.journeyWaits.enrollmentId, due));
-      await tx.delete(schema.journeyStepRuns).where(inArray(schema.journeyStepRuns.enrollmentId, due));
+      await tx
+        .delete(schema.journeyStepRuns)
+        .where(and(inArray(schema.journeyStepRuns.enrollmentId, due), ne(schema.journeyStepRuns.nodeType, 'split')));
       await tx
         .update(schema.journeyEnrollments)
         .set({ context: {}, updatedAt: new Date() })

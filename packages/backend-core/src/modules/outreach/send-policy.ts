@@ -74,7 +74,7 @@ export async function checkSendPolicy(input: {
   if (policy.class === 'marketing') {
     const cap = await frequencyCapUntil(contact.id, policy.frequencyCapPerWeek, now);
     if (cap) return { decision: 'defer', until: cap, reason: 'frequency_cap' };
-    const talking = await talkingUntil(contact.endUserId, policy.cooldownHoursAfterConversation, now);
+    const talking = await talkingUntil(contact.id, contact.endUserId, policy.cooldownHoursAfterConversation, now);
     if (talking) return { decision: 'defer', until: talking.until, reason: talking.reason };
   }
 
@@ -114,17 +114,20 @@ async function frequencyCapUntil(contactId: string, cap: number | undefined, now
 }
 
 async function talkingUntil(
+  contactId: string,
   endUserId: string | null,
   cooldownHours: number,
   now: Date,
 ): Promise<{ until: Date; reason: string } | null> {
-  if (!endUserId) return null;
   const ctx = getCurrentContext();
   const cv = schema.convConversations;
+  const theirs = endUserId
+    ? sql`(${cv.endUserId} = ${endUserId} OR ${cv.id} IN (SELECT conversation_id FROM outreach_proposals WHERE contact_id = ${contactId} AND conversation_id IS NOT NULL))`
+    : sql`${cv.id} IN (SELECT conversation_id FROM outreach_proposals WHERE contact_id = ${contactId} AND conversation_id IS NOT NULL)`;
   const [assigned] = await ctx.db
     .select({ id: cv.id })
     .from(cv)
-    .where(and(eq(cv.endUserId, endUserId), eq(cv.status, 'open'), isNotNull(cv.assigneeUserId)))
+    .where(and(theirs, eq(cv.status, 'open'), isNotNull(cv.assigneeUserId)))
     .limit(1);
   if (assigned) return { until: new Date(now.getTime() + ASSIGNED_RECHECK_MS), reason: 'conversation_assigned' };
   if (cooldownHours <= 0) return null;
@@ -134,7 +137,7 @@ async function talkingUntil(
     .select({ at: sql<Date>`max(${m.createdAt})` })
     .from(m)
     .innerJoin(cv, eq(cv.id, m.conversationId))
-    .where(and(eq(cv.endUserId, endUserId), eq(m.authorType, 'end_user'), gte(m.createdAt, since)));
+    .where(and(theirs, eq(m.authorType, 'end_user'), gte(m.createdAt, since)));
   const at = latest?.at ? new Date(latest.at) : null;
   if (!at) return null;
   return { until: new Date(at.getTime() + cooldownHours * 3_600_000), reason: 'recent_conversation' };

@@ -6,7 +6,8 @@ import { Button, Input, Label } from '@getmunin/ui';
 import { NativeSelect } from '../native-select';
 import { useConfirm } from '../confirm-dialog';
 import { useTranslateError, getErrorCode } from '../../i18n/translate-error';
-import { JourneyGraph } from './journey-graph';
+import { JourneyNodeSchema } from '@getmunin/types';
+import { JourneyGraph, layoutJourney } from './journey-graph';
 import {
   NEW_STEP_KINDS,
   edgeFieldsFor,
@@ -89,6 +90,15 @@ export function DraftEditor({
 
   function saveForm() {
     if (!form) return;
+    const checked = JourneyNodeSchema.safeParse(form);
+    if (!checked.success) {
+      const detail = checked.error.issues
+        .slice(0, 3)
+        .map((i) => `${i.path.join('.') || form.id}: ${i.message}`)
+        .join('; ');
+      setError(t('formInvalid', { detail }));
+      return;
+    }
     void apply({ kind: 'updateNode', node: form }, form.id);
   }
 
@@ -119,11 +129,21 @@ export function DraftEditor({
       setError(t('badId'));
       return;
     }
-    const placed = insertAfter(selected, skeletonNode(newKind, newId));
+    const name = (fallback?: string) => `{{name${fallback ? `|${fallback}` : ''}}}`;
+    const copy = {
+      subject: t('skeleton.subject'),
+      emailBody: t('skeleton.emailBody', { name: name() }),
+      smsBody: t('skeleton.smsBody', { name: name(t('skeleton.fallbackName')) }),
+      chatBody: t('skeleton.chatBody', { name: name(t('skeleton.fallbackName')) }),
+      voiceBody: t('skeleton.voiceBody'),
+      approvalTitle: t('skeleton.approvalTitle'),
+    };
+    const placed = insertAfter(selected, skeletonNode(newKind, newId, copy));
     void apply({ kind: 'addNode', node: placed.node, after: placed.after }, newId);
   }
 
   const errorIds = nodesWithErrors(validation);
+  const drawable = layoutJourney(current.spec) !== null;
   const otherIds = nodes.map((n) => n.id).filter((id) => id !== selected?.id);
   const channel = typeof form?.channel === 'string' ? form.channel : 'email';
   const content = (form?.content as { subject?: string; body?: string } | undefined) ?? {};
@@ -131,13 +151,33 @@ export function DraftEditor({
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div>
-        <JourneyGraph
-          spec={current.spec}
-          highlight={selectedId}
-          errorIds={errorIds}
-          onSelect={setSelectedId}
-          emptyLabel={t('graphInvalid')}
-        />
+        {drawable ? (
+          <JourneyGraph
+            spec={current.spec}
+            highlight={selectedId}
+            errorIds={errorIds}
+            onSelect={setSelectedId}
+            emptyLabel={t('graphInvalid')}
+          />
+        ) : (
+          <div className="rounded-card border-[1px] border-rule-soft p-4 dark:border-rule-on-dark">
+            <p className="font-mono text-xs text-ink-mute">{t('graphInvalid')}</p>
+            <ul className="mt-3 flex flex-wrap gap-2">
+              {nodes.map((n) => (
+                <li key={n.id}>
+                  <Button
+                    size="sm"
+                    variant={n.id === selectedId ? 'accent' : 'outline'}
+                    aria-pressed={n.id === selectedId}
+                    onClick={() => setSelectedId(n.id)}
+                  >
+                    {n.id}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {validation && validation.errors.length > 0 && (
           <ul className="mt-3 list-disc space-y-0.5 pl-5 text-xs text-destructive">
             {validation.errors.map((e, i) => (

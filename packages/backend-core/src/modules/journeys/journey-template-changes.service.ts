@@ -6,6 +6,7 @@ import { getCurrentContext, WebhookDispatcher } from '@getmunin/core';
 import { JourneySpecSchema } from '@getmunin/types';
 import { AlertsService } from '../system-alerts/system-alerts.service.ts';
 import { emailTemplateHash } from '../outreach/email-template-hash.ts';
+import { dashboardPath, dashboardUrl } from '../../common/web-url.ts';
 import { parseJourneyDelivery, type JourneyDelivery } from '../outreach/journey-delivery.ts';
 import { journeyTemplateAlertSubject } from '../outreach/journey-outbox.service.ts';
 import { JourneysService } from './journeys.service.ts';
@@ -24,6 +25,7 @@ export interface TemplateChangesDto {
   heldMessages: number;
   fingerprint: string | null;
   reviewPath: string;
+  reviewUrl: string;
   released?: number;
 }
 
@@ -221,7 +223,8 @@ function toDto(journeyId: string, changes: PinnedChange[], heldMessages: number,
     })),
     heldMessages,
     fingerprint: changes.length > 0 ? changesFingerprint(journeyId, changes) : null,
-    reviewPath: `/dashboard/journeys/${journeyId}?templates=review`,
+    reviewPath: dashboardPath(getCurrentContext().actor!.orgId, `/journeys/${journeyId}?templates=review`),
+    reviewUrl: dashboardUrl(getCurrentContext().actor!.orgId, `/journeys/${journeyId}?templates=review`),
     ...(released === undefined ? {} : { released }),
   };
 }

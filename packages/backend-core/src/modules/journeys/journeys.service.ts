@@ -12,9 +12,11 @@ import { createHash } from 'node:crypto';
 import { schema } from '@getmunin/db';
 import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
 import { getCurrentContext, WebhookDispatcher, withContext } from '@getmunin/core';
+import { JourneyNodeSchema } from '@getmunin/types';
 import {
   parseJourneySpec,
   validateJourneySpec,
+  type JourneyIssue,
   type JourneyReferences,
   type JourneyValidation,
 } from './journey-validator.ts';
@@ -245,6 +247,7 @@ export class JourneysService {
     after?: { nodeId: string; edge?: string },
     guard?: DraftGuard,
   ): Promise<JourneyVersionDto> {
+    assertNodeShape(node);
     return this.editDraft(
       id,
       (spec) => {
@@ -273,6 +276,7 @@ export class JourneysService {
   }
 
   async updateNode(id: string, node: RawNode, guard?: DraftGuard): Promise<JourneyVersionDto> {
+    assertNodeShape(node);
     return this.editDraft(
       id,
       (spec) => {
@@ -336,7 +340,7 @@ export class JourneysService {
       const ctx = getCurrentContext();
       await ctx.db
         .update(schema.journeyVersions)
-        .set({ validation: validation as unknown as Record<string, unknown>, updatedAt: new Date() })
+        .set({ validation: { valid: validation.valid, errors: validation.errors, warnings: validation.warnings }, updatedAt: new Date() })
         .where(eq(schema.journeyVersions.id, row.id));
     }
     return { version: row.number, ...validation };
@@ -680,7 +684,7 @@ function toVersionDto(row: VersionRow): JourneyVersionDto {
     changeSummary: row.changeSummary,
     spec: row.spec,
     specHash: row.specHash,
-    validation: (row.validation as unknown as JourneyValidation | null) ?? null,
+    validation: storedValidation(row.validation),
     createdBy: { type: row.createdByActorType, id: row.createdByActorId },
     publishRequestedAt: row.publishRequestedAt?.toISOString() ?? null,
     publishedAt: row.publishedAt?.toISOString() ?? null,
@@ -698,4 +702,20 @@ function subJourneyTargets(spec: unknown): string[] {
       typeof n === 'object' && n !== null && (n as { type?: unknown }).type === 'sub_journey' && typeof (n as { journeyId?: unknown }).journeyId === 'string',
     )
     .map((n) => n.journeyId);
+}
+
+function storedValidation(raw: Record<string, unknown> | null): JourneyValidation | null {
+  if (!raw || typeof raw.valid !== 'boolean' || !Array.isArray(raw.errors) || !Array.isArray(raw.warnings)) return null;
+  return { valid: raw.valid, errors: raw.errors as JourneyIssue[], warnings: raw.warnings as JourneyIssue[] };
+}
+
+function assertNodeShape(node: unknown): void {
+  const parsed = JourneyNodeSchema.safeParse(node);
+  if (!parsed.success) {
+    const detail = parsed.error.issues
+      .slice(0, 5)
+      .map((i) => `${i.path.join('.') || 'node'}: ${i.message}`)
+      .join('; ');
+    throw new BadRequestException(`journeys_invalid: ${detail}`);
+  }
 }

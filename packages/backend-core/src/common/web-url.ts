@@ -18,6 +18,10 @@ function scoped(path: string, orgId: string): string {
   return orgScopedDashboard ? orgDashboardPath(path, orgId) : path;
 }
 
+export function dashboardPath(orgId: string, path = ''): string {
+  return scoped(`/dashboard${path}`, orgId);
+}
+
 export function dashboardUrl(orgId: string, path = ''): string {
   return `${readWebBaseUrl()}${scoped(`/dashboard${path}`, orgId)}`;
 }

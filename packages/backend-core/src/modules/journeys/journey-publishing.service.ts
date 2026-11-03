@@ -15,6 +15,7 @@ import { JourneysService, hashSpec } from './journeys.service.ts';
 import { DECIDE_STEP_JOB_URI, DRAFT_STEP_JOB_URI, ENRICH_STEP_JOB_URI, nextScheduledEntry } from './journey-runtime.service.ts';
 import { JourneySimulator, type SimulationResult } from './journey-simulator.ts';
 import { emailTemplateHash } from '../outreach/email-template-hash.ts';
+import { dashboardPath, dashboardUrl } from '../../common/web-url.ts';
 import type { JourneyValidation } from './journey-validator.ts';
 
 export interface JourneyDiff {
@@ -114,6 +115,7 @@ export interface PublishRequestDto {
   reviewStats: NodeReviewStatsDto[];
   autoMessages: { nodeId: string; channel: string; class: string; subject: string | null; preview: string; draftBy: string | null }[];
   reviewPath: string;
+  reviewUrl: string;
 }
 
 export interface JourneyReportDto {
@@ -351,7 +353,8 @@ export class JourneyPublishingService {
       simulation,
       reviewStats,
       autoMessages: autoMessagesOf(spec),
-      reviewPath: `/dashboard/journeys/${journeyId}?publish=${draft.number}`,
+      reviewPath: dashboardPath(actor.orgId, `/journeys/${journeyId}?publish=${draft.number}`),
+      reviewUrl: dashboardUrl(actor.orgId, `/journeys/${journeyId}?publish=${draft.number}`),
     };
   }
 

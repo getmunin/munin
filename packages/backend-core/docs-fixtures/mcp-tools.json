@@ -10582,7 +10582,7 @@
   {
     "name": "journeys_create_from_campaign",
     "title": "Journeys: Create a journey from a campaign sequence",
-    "description": "Convert an email outreach campaign's first touch and sequence steps into a draft journey: an agent-drafted email per step, a wait between them, and a reply ends the sequence. Give the goal event that counts as success. The campaign keeps sending its own first touches and follow-ups while the journey is a draft; once the journey is published they stop and the journey sends instead. Archive the journey to hand the campaign back.",
+    "description": "Convert an email outreach campaign's first touch and sequence steps into a draft journey: an agent-drafted email per step, a wait between them, and a reply ends the sequence. Give the goal event that counts as success. The campaign keeps sending its own first touches and follow-ups while the journey is a draft; while the journey is live or paused the campaign proposes nothing and the journey sends instead. Its audience, sender and sequence are locked until the journey is archived, which hands the campaign back.",
     "audiences": [
       "admin"
     ],
@@ -11228,7 +11228,7 @@
   {
     "name": "journeys_list_node_types",
     "title": "Journeys: List node types",
-    "description": "Reference for the journey spec: every node type with what it does and its fields, plus the entry, exit, goal and settings blocks. Read it before drafting or editing a journey.",
+    "description": "Reference for the journey spec: every node type with what it does and its fields, plus the entry, exit, goal and settings blocks.",
     "audiences": [
       "admin"
     ],
@@ -11342,10 +11342,10 @@
       "admin"
     ],
     "scopes": [
-      "journeys:write"
+      "journeys:read"
     ],
-    "danger": "destructive",
-    "readOnly": false,
+    "danger": null,
+    "readOnly": true,
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -11445,6 +11445,12 @@
         "changeSummary": {
           "type": "string",
           "maxLength": 300
+        },
+        "ifSpecHash": {
+          "description": "specHash of the draft the edit is based on; the edit is refused with journeys_draft_changed if the draft changed since.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
         }
       },
       "required": [
@@ -11505,7 +11511,7 @@
             "type"
           ],
           "additionalProperties": {},
-          "description": "One node, shaped as listed by journeys_list_node_types."
+          "description": "One node: its id, its type and the fields of that type."
         },
         "after": {
           "type": "object",
@@ -11528,6 +11534,12 @@
             "nodeId"
           ],
           "additionalProperties": false
+        },
+        "ifSpecHash": {
+          "description": "specHash of the draft the edit is based on; the edit is refused with journeys_draft_changed if the draft changed since.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
         }
       },
       "required": [
@@ -11588,7 +11600,13 @@
             "type"
           ],
           "additionalProperties": {},
-          "description": "One node, shaped as listed by journeys_list_node_types."
+          "description": "One node: its id, its type and the fields of that type."
+        },
+        "ifSpecHash": {
+          "description": "specHash of the draft the edit is based on; the edit is refused with journeys_draft_changed if the draft changed since.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
         }
       },
       "required": [
@@ -11601,7 +11619,7 @@
   {
     "name": "journeys_remove_node",
     "title": "Journeys: Remove a node from the draft",
-    "description": "Remove a node from the open draft. Edges that pointed at it are left for you to rewire; journeys_validate lists them.",
+    "description": "Remove a node from the open draft. Edges that pointed at it are left dangling until they are rewired, and validation reports them.",
     "audiences": [
       "admin"
     ],
@@ -11622,6 +11640,12 @@
         "nodeId": {
           "type": "string",
           "pattern": "^[a-z][a-z0-9_]{0,47}$"
+        },
+        "ifSpecHash": {
+          "description": "specHash of the draft the edit is based on; the edit is refused with journeys_draft_changed if the draft changed since.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
         }
       },
       "required": [
@@ -11683,6 +11707,12 @@
             "type": "string"
           },
           "additionalProperties": {}
+        },
+        "ifSpecHash": {
+          "description": "specHash of the draft the edit is based on; the edit is refused with journeys_draft_changed if the draft changed since.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
         }
       },
       "required": [
@@ -11726,9 +11756,65 @@
     }
   },
   {
+    "name": "journeys_preview_move_enrollments",
+    "title": "Journeys: Preview moving enrollments to another version",
+    "description": "Preview moving open runs from older versions onto a published version: how many runs would move from which node and to where, which would be skipped and why, and a fingerprint for journeys_move_enrollments. Each run continues at the node with the same id, or where nodeMap sends it ({ \"old_node\": \"new_node\" }). Changes nothing.",
+    "audiences": [
+      "admin"
+    ],
+    "scopes": [
+      "journeys:read"
+    ],
+    "danger": null,
+    "readOnly": true,
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "journeyId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "toVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "nodeMap": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 48
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 48
+          }
+        },
+        "fromVersions": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        }
+      },
+      "required": [
+        "journeyId",
+        "toVersion"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "journeys_move_enrollments",
     "title": "Journeys: Move enrollments to another version",
-    "description": "Move open runs from older versions onto a published version. Each run continues at the node with the same id, or where nodeMap sends it ({ \"old_node\": \"new_node\" }). Call it first without fingerprint for a preview — how many runs move from which node, and which are skipped and why — then again with the preview fingerprint to move them. A run that stays on the same step keeps its wait; one that moves to another step starts that step fresh. Runs waiting on a proposal, an agent or an approval only move when they stay on the same step.",
+    "description": "Move open runs from older versions onto a published version, as previewed with the same toVersion, nodeMap and fromVersions; the fingerprint must match the preview or nothing moves. A run that stays on the same step keeps its wait; one that moves to another step starts that step fresh. Runs waiting on a proposal, an agent or an approval only move when they stay on the same step.",
     "audiences": [
       "admin"
     ],
@@ -11781,7 +11867,8 @@
       },
       "required": [
         "journeyId",
-        "toVersion"
+        "toVersion",
+        "fingerprint"
       ],
       "additionalProperties": false
     }
@@ -12012,7 +12099,7 @@
   {
     "name": "journeys_resume_node",
     "title": "Journeys: Resume a paused node",
-    "description": "Resume a paused step. Runs held at it continue right away; the result says how many were released. Check journeys_get_guardrails first when the monitor paused it.",
+    "description": "Resume a paused step. Runs held at it continue right away; the result says how many were released.",
     "audiences": [
       "admin"
     ],

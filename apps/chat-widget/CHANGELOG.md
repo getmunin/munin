@@ -1,5 +1,37 @@
 # @getmunin/chat-widget
 
+## 5.49.0
+
+### Minor Changes
+
+- 91d8afb: The server can start a chat-widget conversation for a signed-in visitor: `ConvService.startWidgetConversation` finds the visitor's verified identity from their end user (anonymous visitors are refused), reuses or creates their contact, and opens a conversation they see in the widget. The realtime gateway now tells a verified visitor's open widget about a new conversation of theirs or a new message in it even when it belongs to another session, and widget conversation summaries carry `unreadCount`. The widget refreshes its conversations on those events, counts unread messages across conversations on the launcher badge, and shows the newest unread message in a bubble that opens that conversation; dismissing the bubble hides it until the conversation gets another message.
+
+### Patch Changes
+
+- Updated dependencies [1ea7795]
+- Updated dependencies [ffdfdf2]
+- Updated dependencies [e9e172b]
+- Updated dependencies [0510ace]
+- Updated dependencies [0dad486]
+- Updated dependencies [ea4a2c8]
+- Updated dependencies [7fcea45]
+- Updated dependencies [109a97f]
+- Updated dependencies [9bb0e17]
+- Updated dependencies [8d5a43c]
+- Updated dependencies [69e88f8]
+- Updated dependencies [9b266c6]
+- Updated dependencies [7714bc9]
+- Updated dependencies [6a2de58]
+- Updated dependencies [b775772]
+- Updated dependencies [82430d1]
+- Updated dependencies [e32a230]
+- Updated dependencies [910e921]
+- Updated dependencies [8f3e2b5]
+- Updated dependencies [1abd29e]
+- Updated dependencies [f8732c6]
+- Updated dependencies [e8a1b2f]
+  - @getmunin/types@5.49.0
+
 ## 5.48.4
 
 ### Patch Changes

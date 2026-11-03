@@ -1,5 +1,60 @@
 # @getmunin/docs-pages
 
+## 5.49.0
+
+### Patch Changes
+
+- Updated dependencies [188f43b]
+- Updated dependencies [f854002]
+- Updated dependencies [1ea7795]
+- Updated dependencies [ffdfdf2]
+- Updated dependencies [e9e172b]
+- Updated dependencies [0510ace]
+- Updated dependencies [131c31e]
+- Updated dependencies [0dad486]
+- Updated dependencies [17ee11f]
+- Updated dependencies [ea4a2c8]
+- Updated dependencies [7fcea45]
+- Updated dependencies [109a97f]
+- Updated dependencies [9bb0e17]
+- Updated dependencies [07b8cec]
+- Updated dependencies [d67a2db]
+- Updated dependencies [7b6a351]
+- Updated dependencies [8d5a43c]
+- Updated dependencies [2e84199]
+- Updated dependencies [008a9a3]
+- Updated dependencies [69e88f8]
+- Updated dependencies [c07c18a]
+- Updated dependencies [9b266c6]
+- Updated dependencies [7714bc9]
+- Updated dependencies [6a2de58]
+- Updated dependencies [3af36fe]
+- Updated dependencies [2309f29]
+- Updated dependencies [819a5c7]
+- Updated dependencies [188f43b]
+- Updated dependencies [853391a]
+- Updated dependencies [853391a]
+- Updated dependencies [853391a]
+- Updated dependencies [853391a]
+- Updated dependencies [18b266f]
+- Updated dependencies [b775772]
+- Updated dependencies [dddac05]
+- Updated dependencies [82430d1]
+- Updated dependencies [e32a230]
+- Updated dependencies [910e921]
+- Updated dependencies [8f3e2b5]
+- Updated dependencies [bccea5a]
+- Updated dependencies [ca5f1c7]
+- Updated dependencies [1abd29e]
+- Updated dependencies [4152b48]
+- Updated dependencies [5331110]
+- Updated dependencies [82d0987]
+- Updated dependencies [f8732c6]
+- Updated dependencies [e8a1b2f]
+- Updated dependencies [91d8afb]
+  - @getmunin/backend-core@5.49.0
+  - @getmunin/types@5.49.0
+
 ## 5.48.4
 
 ### Patch Changes

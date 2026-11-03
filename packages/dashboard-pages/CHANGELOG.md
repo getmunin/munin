@@ -1,5 +1,174 @@
 # @getmunin/dashboard-pages
 
+## 5.49.0
+
+### Minor Changes
+
+- ffdfdf2: Journey agent analytics and conversion: `journeys_get_agent_stats` (and `GET /v1/journeys/:id/agent-stats`) reports each agent step's runs, fallback rate, tokens, daily edge distribution and, for agent-drafted emails, edit and rejection rates; the report tab shows it. `journeys_simulate` now estimates agent runs, tokens and list-price cost. `entry.reentry: "concurrent"` starts one run per triggering event for event-triggered journeys without message steps. `journeys_create_from_campaign` converts an outreach campaign's first touch and sequence steps into a draft journey of agent-drafted emails.
+- e9e172b: Journeys gain agent decide steps. An `agent` node with `mode: "decide"` asks a model one question about a person — "is this trial user likely to buy?" — and continues on exactly one of its declared edges. The model sees only the inputs the node lists (contact, company, latest reply, thread, recent product events, journey context), with national ID numbers masked and contact email reduced to its domain. The decision runs as a fast-tier curator job (`skill://journeys/decide-step`) that can only call `journeys_submit_decision` for its own step; the reason, confidence, job status and token use appear in the step trace.
+
+  Every agent node declares a fallback edge, taken when no valid decision arrives within its timeout (ten minutes by default) — including when no model is configured — so nobody is left waiting. Simulations follow the fallback and say so in the publish dialog.
+
+- 0510ace: Journey emails can be written by an agent for each person. A message step with `draftBy: "agent"`, a `brief` and the knowledge-base spaces to ground it in files a curator job (`skill://journeys/draft-step`) that rewrites the author's reference email from the facts the step may see, cites the documents its claims rest on, and submits it with `journeys_submit_draft`. The draft always goes to the review inbox with its sources; if the agent does not answer in time, the reference version is filed instead. Agent-drafted steps cannot be set to send without review yet.
+
+  Agent steps gain an `enrich` mode: the agent fills declared fields (string, number, boolean, date or enum) through `journeys_submit_fields`, written to the contact's custom fields and to the journey context so later branches can route on them. Off-schema keys and values are refused.
+
+- 131c31e: The agent can write SMS, chat messages and call openings in journeys, not only email. A message step on any channel takes `draftBy: "agent"` with a `brief`; the curator prompt states the channel's shape and limit, and `journeys_submit_draft` makes `subject` optional, requires it only for email, refuses it elsewhere and checks the body against the channel's limit (480 characters for SMS, 2000 for chat, 1000 for a call opening). SMS and calls are still approved by a person whoever wrote them; an agent-written chat step can run `auto` only after it has earned it, like an agent-written email. The `draft-step` skill covers every channel, and the journey graph marks agent-written SMS, chat and call steps.
+- 0dad486: Journey steps with fixed text now run on their own once a person has read them at publish, and a changed email template holds sends instead of flooding the review inbox.
+
+  - **Approval defaults.** The built-in journey templates and new email and chat steps added in the dashboard start on `approval: "auto"`: the publish review is the read, and after that the message sends to each person without a review, still under consent, unsubscribe, quiet hours and the weekly cap. Agent-drafted steps stay `draft_only` until they earn `auto`, and a step without `approval` is still `draft_only`. The trial onboarding playbook and `skill://journeys/build-journey` explain when to pick which.
+  - **Template changes hold sends.** When an email template used by an `auto` step changes after publish, its emails stay approved and wait (re-checked hourly) instead of going back to review one by one, and one system alert per journey says it is holding emails. `journeys_get_template_changes` and `GET /v1/journeys/:id/template-changes` list the changed steps and how many emails are held; a signed-in person re-approves from the journey page, which shows the new template rendered with the step's text, re-pins the template and releases the held emails (`POST /v1/journeys/:id/template-changes/reapprove`, with the fingerprint from the list so a second change in between is refused). Emits `journey.templates.reapproved`.
+  - **Transactional SMS can run on `auto`.** A `class: "transactional"` SMS step — a booking confirmation, a reminder the contact asked for — may use `auto`. Marketing SMS and every call still need a person. The journey editor gains a message type select and offers `auto` only where it is allowed (`canSendWithoutReview` in `@getmunin/types`).
+  - **Consent shows up before publish.** `journeys_simulate` and the publish review warn (`no_lawful_basis`) when people in the sample would reach a marketing step without a recorded lawful basis, with how many. The trial onboarding playbook explains that product events never record consent, so the sign-up sync or an agent has to.
+  - The publish dialog lists the steps that send without review first.
+
+- 7fcea45: Journeys can write to people in the chat widget. A `message` step with `channel: "chat"` posts in the widget channel set in `settings.chatChannelId`, but only to a contact whose end user signed in with a verified widget identity; anyone else is skipped with `no_chat_identity`. A chat step carries markdown up to 2000 characters, can run `auto` when a person sets that while publishing, and keeps all of a person's journey chat messages on one channel in one server-started thread that the widget shows in any session. Consent, the weekly cap and quiet-while-talking apply; quiet hours do not.
+
+  After sending, the step waits for `conversation.message.read` on that message. `seenTimeout` (default three days) bounds the wait and `onUnseen` routes an unseen message elsewhere, so a journey can fall back to email when the visitor never comes back. The simulator assumes the message is seen, and the graph labels chat steps. Agent-drafted chat messages are not available yet.
+
+- 9bb0e17: Journeys can follow a company instead of a person. With `entry.subject: "company"` a journey runs once per company, keyed `co:<companyId>`:
+
+  - **Entry.** An event from any of the company's people, or an event that carries `companyId`, enters it. A segment trigger enters each company with at least one eligible contact in the segment. `journeys_enroll` takes a `companyId`, or a contact whose company it then follows.
+  - **Goals, exits, re-entry and holdout** are all counted per company.
+  - **Branches** read the company's fields and tags, and product events from any of its people.
+  - **Actions.** `crm.add_tag` and `crm.remove_tag` tag the company, and `crm.log_activity` logs on the company. Person-only steps (`crm.update_contact`, waits on contact date fields) are refused by validation. Message steps in company journeys follow in the next release.
+  - **Data.** Runs store their company in a new `journey_enrollments.company_id` column (migration 0135).
+  - **Where it shows.** Enrollment lists show the company name, and the simulator samples companies for company journeys.
+
+- 07b8cec: The dashboard has a Journeys page. The list shows each journey's status and its live and draft versions. A journey's page draws its graph (live or draft, with how many people reached each step), lists the people in it with their state and where they are or why they left, opens a step-by-step trace for each person, reports goal conversion against the holdout and per-step outcomes, and lists every version with its change log.
+
+  Publishing happens here: "Review and publish" validates and simulates the draft, then shows what changed against the live version, which emails would send without review, any warnings, the dry-run counts and assumptions, and a rendered sample email. Confirming publishes exactly that version; a journey can also be paused and resumed from the page. The link an agent returns from `journeys_request_publish` opens this dialog directly. Enrollment listings now include the contact's name and email.
+
+- 7b6a351: The dashboard can edit journey drafts. These endpoints wrap the same service methods as the `journeys_*` draft tools:
+
+  - `PUT /v1/journeys/:id/draft` replaces the spec.
+  - `POST /v1/journeys/:id/draft/nodes` adds a step.
+  - `PUT` and `DELETE /v1/journeys/:id/draft/nodes/:nodeId` change or remove a step.
+  - `PATCH /v1/journeys/:id/draft/settings` changes the settings.
+
+  Every edit takes an optional `ifSpecHash`. If an agent or another person changed the draft after it was loaded, the edit is refused with `journeys_draft_changed`, so their work is never overwritten. A step id that already exists is refused with `journeys_node_exists`. The dashboard translates both codes.
+
+  Publishing is unchanged: a person still confirms the fingerprint in the publish dialog. `journeys_list_node_types` now describes SMS, chat and call steps as well as email.
+
+- 8d5a43c: Journeys, first part: an agent can now draft a customer journey over MCP. A journey wraps one email outreach campaign and holds a versioned graph of entry triggers, waits, branches, splits, emails, CRM and webhook actions, goals and exits. Fifteen new `journeys_*` tools create a journey, edit its draft node by node, validate it (missing or unreachable nodes, dangling edges, loops that never wait, unknown segments, templates or webhooks, a missing goal), restore earlier versions, and pause, resume or archive it. Published versions never change; every edit opens a new draft.
+
+  New OAuth scopes `journeys:read` and `journeys:write` appear on the consent screen. Read-only dashboard routes live under `/v1/journeys`. Journeys do not run yet: publishing and the runtime engine arrive in later releases. A segment used by a journey can no longer be deleted until that journey is archived.
+
+- 2e84199: A new playbook, `skill://playbooks/trial-onboarding`, walks an agent through launching a trial onboarding journey: the product events it needs, a ready-to-use spec (welcome email, a five-working-day wait, an invitation check, a sales flag for decision-makers, a help email with a reply path, and a subscription goal), validation, simulation, the publish hand-off and a two-week watch until the first-journey gate is met.
+
+  Journey reports gain a run-integrity block — steps that sent more than one email and people with no logged step — shown on the report tab; both should stay at zero. Simulation assumptions are now structured (`code`, `nodeId`) and the publish dialog shows them in the viewer's language.
+
+- 008a9a3: A person can now edit a journey draft in the dashboard. "Edit draft" on the journey's graph tab opens the editor:
+
+  - **Select a step in the graph** to change its label, text, subject, brief, approval mode, wait duration or awaited event, and where each edge leads.
+  - **Advanced (JSON)** edits any field of the step.
+  - **Add a step** of any common kind after the selected step. It takes over the selected step's `next`, so it is inserted between the two steps.
+  - **Remove a step** after a confirmation.
+
+  Every save is checked against the version the editor last loaded. If an agent or another person changed the draft in the meantime, the save is refused with a translated message and the page reloads, so nobody's edits are overwritten. Steps with validation errors are outlined in the graph and listed under it.
+
+  The layout stays automatic, and publishing still goes through the publish dialog. The `build-journey` skill tells agents that people may edit the same draft.
+
+- c07c18a: Journeys can now send email. A message step renders its subject and markdown or MJML body in the org's email template and files it as an outreach proposal of kind `journey`, so it appears in the review inbox labelled as a journey email. The run waits there: approval sends it and the journey continues; a dismissal ends that person's run; a withdrawal skips the step. Steps the publisher set to `auto` send without review and do not post a Slack approval card. The first email opens a conversation and later steps reply in the same thread, as HTML with a working unsubscribe link and List-Unsubscribe header.
+
+  Every journey email passes the send rules at drafting, at approval and again at send time. Marketing email never goes to unsubscribed, do-not-contact or undeliverable addresses or to contacts without a recorded lawful basis; transactional email reaches unsubscribed contacts but never do-not-contact ones. Quiet hours and valid days follow the contact's time zone, a weekly cap counts journey, campaign and broadcast emails together, and marketing email waits while the contact is talking to the team and for a cool-down after their last message. When a contact replies, the run follows the step's `onReply` path, or holds until the conversation closes.
+
+  A campaign run by a journey no longer accepts hand-filed first touches or follow-ups, its legacy follow-up sweep skips it, and journey proposals are left out of outreach exports.
+
+- 9b266c6: Journey monitor: the journey worker checks every live journey every 15 minutes (`MUNIN_JOURNEYS_MONITOR_MS`) and pauses a step whose bounce, unsubscribe or failed-step rate goes above `settings.guardrails` (defaults 5%, 2% and 10%, once a step has 50 sends or runs within 7 days), or the whole journey when only the total breaches. A pause raises a `journeys` system alert and emits `journey.node.paused`; runs that reach a paused step wait there until someone resumes it. New tools `journeys_get_guardrails`, `journeys_pause_node` and `journeys_resume_node`, matching `/v1` routes, and a paused-step banner with a resume button on the journey page. Migration 0129 adds `journeys` to the `org_alerts` source check constraint.
+- 7714bc9: `journeys_move_enrollments` and `POST /v1/journeys/:id/move-enrollments` move open runs from older versions onto a published version. Each run continues at the step with the same id or where `nodeMap` sends it; a call without a fingerprint previews what would move and what is skipped, and the preview fingerprint confirms it. Runs that stay on the same step keep their wait; runs that move to another step start it fresh, and runs waiting on a proposal, agent or approval only move when they stay put. The live version on the journey page gets a "Move older runs here" action.
+- 6a2de58: Journey optimiser: a `split` can name a `control` path and a `sampleSize`; once the sample is full everyone goes to the control, and `journeys_get_split_results` reports goal conversion, lift and a two-proportion p-value per path with a winner when one significantly beats the control. `journeys_propose_change` opens a draft version of a live journey with its hypothesis, rationale and evidence, validates and dry-runs it, and never publishes; the dashboard marks such versions as proposed. A weekly curator sweep runs `skill://journeys/optimise-journey` only for orgs with a live journey that set `settings.optimiser: "weekly"`.
+- 819a5c7: Journey email steps now keep a review record: for the last 30 days, how many drafts reviewers approved as is, edited or dismissed, how many are pending and how many went out without review. `journeys_get_node_review_stats`, `GET /v1/journeys/:id/review-stats` and the report tab show it, with a "ready for auto" badge once a step has 30 reviewed drafts with at least 90% approved as is.
+
+  An agent-drafted step can only be published to send without review after it has earned that badge; publish requests are refused otherwise, and the publish dialog shows the evidence next to each step that would stop being reviewed. Only a person can make that switch.
+
+- 82430d1: New events for journeys and webhooks: `crm.contact.unsubscribed` when a contact follows an outreach or broadcast unsubscribe link, `conversation.message.bounced` when a hard bounce notice arrives, and `outreach.outcome.recorded` when outcome extraction writes `outreachOutcome` to a contact. System alerts gain a `journeys` source. Journey validation now warns about agent steps when the org has no LLM provider configured: agent-host provides an `LLM_AVAILABILITY` port that backend-core reads without depending on agent-host, and `AgentHostModule` is now global so the port reaches feature modules.
+- 910e921: Journey SMS steps: a `message` node can use `channel: "sms"` and send from `settings.smsChannelId`, so one journey mixes email and text messages. SMS steps carry only a body (480 characters, `{{name|fallback}}`), never send automatically and are approved by a signed-in person; replies on the SMS thread follow the step's `onReply`. Outreach proposals gain an optional `channel_id` that overrides the campaign's channel, and the review inbox shows them as SMS. A reply now resumes from the step whose message landed in the replied thread.
+- 8f3e2b5: Journey `approval` and `sub_journey` steps. An approval step holds the run until a signed-in person approves or rejects it on the journey page (`POST /v1/journey-approvals/:id/decide`; agents and API keys are refused), then follows `next`, `onReject` or `onTimeout`; `journeys_list_approvals` shows what is waiting. A sub-journey step enters the person into another live journey and, with `await: true`, continues on `onGoal` when that journey reached its goal. Validation refuses sub-journeys that loop back into the journey and the runtime stops nesting at three levels. Step runs are now stamped with clock time, so steps run in one transaction keep their order in the trace.
+- 1abd29e: Journey call steps: a `message` node with `channel: "voice"` files a call proposal on `settings.voiceChannelId`, which only a signed-in person can approve. Once the call is placed the step waits for the outcome pass to record `reached`, `no_contact`, `refused` or `wrong_contact` and follows `onOutcome`, continuing on `next` after `outcomeTimeout` (default 6 hours) or for an unmapped outcome. Outcome extraction now always runs for journey calls, even when the wrapped campaign declares no extraction fields, and the dry run assumes the call is answered.
+
+### Patch Changes
+
+- 1ea7795: Journeys no longer need an outreach campaign to send through.
+
+  - `journeys_create` with `senderChannelId` stores the journey's own email channel (`senderChannelId` on the journey) instead of creating a hidden campaign, and `journeys_update_sender` changes it, moving open emails along. A journey converted from a campaign keeps that link, and the campaign still stops proposing while the journey runs.
+  - Journey proposals carry `journeyId` and no `campaignId`, and send from the journey's channel. The review inbox, decided feed and Slack approvals name the journey (`journey` on the proposal DTO).
+  - Unsubscribe links in journey emails name the journey; `crm.contact.unsubscribed` carries `journeyId`, and the unsubscribe guardrail counts it against that journey. A stop decision is counted the same way.
+  - Call outcomes from journey calls are extracted without a campaign.
+  - A reply the journey hands to the team is answered in Conversations; outreach reply proposals stay for campaign threads.
+  - Migration `0143_journey_proposals_without_campaign` adds `journeys.sender_channel_id` (filled from each journey's campaign) and `outreach_proposals.journey_id` (filled for existing journey proposals). It makes both campaign references nullable and adds a check that a proposal belongs to a campaign or, for journeys, to a journey. Proposals filed before this keep their campaign.
+
+- 109a97f: Fixes in the journey pages of the dashboard:
+
+  - **Company journeys.** The runs table is headed "Company" instead of "Person" when the runs follow companies.
+  - **Run states and exit reasons** are translated wherever they appear in the dashboard: the runs table, the step log and the report. Custom reasons from an exit step are still shown as written.
+  - **Publish dialog.** It now speaks of messages instead of emails, and names each auto step's channel.
+  - **Graph.** Edge labels sit on a small background, so the edges no longer run through them.
+
+- 3141771: Journeys pages keep their header while loading and match the console layout: the list shows skeleton rows under the real table header, the detail page keeps its back link with skeletons for the title, tabs and graph. The detail header now uses the standard back arrow, shows status and version as a quiet line under the description, and keeps only Pause/Resume and Publish as actions; the graph toggle and Edit draft sit on the tabs row.
+
+  The Report tab is rebuilt on the console's layout: headline tiles for people, goal conversion, holdout and lift; a steps table with arrival bars, ordered by arrivals with exit and goal steps last; serif section heads with the 30-day window shown as a muted suffix; exits as bars; and run integrity collapses to one reassuring line unless something is off.
+
+- 853391a: Journey messaging fixes from review: outreach import never recreates journey proposals; when a journey run ends or the contact replies, its open proposals are withdrawn, and a journey proposal can no longer be approved or sent once its run has ended; auto email steps pin their email template's content at publish (it is part of the publish fingerprint), and an auto email whose template changed since is held for review instead of sent; two open journey emails to the same person on one campaign no longer collide on a unique index; the publish dialog shows each auto step's subject, text, marketing or transactional class and author; quiet-while-talking also covers contacts with no end user; transactional journey emails keep a working unsubscribe link; a person's journey texts share one SMS thread per channel; a failing event emit no longer turns a completed unsubscribe into an error; bounces count by address when the notice did not thread.
+- 18b266f: Journey runs recover from errors, races and pauses instead of spinning or sending at the wrong time.
+
+  - **Step errors end the run.** Each step runs in its own savepoint, so a step that throws rolls back alone and the steps before it stay done. The run retries after 1, 5, 15 and 60 minutes and ends with `step_failed` after five errors in a row, where it used to retry every minute forever. Enrollments carry `stepErrors` and `lastError`; the trace shows the last error, and the guardrail monitor counts `step_failed` as a failed step.
+  - **Scheduled segment entry pages by id.** Members that are skipped (at the concurrency cap, say) are passed over instead of selected again on every tick.
+  - **Publishing is race-free.** Requesting and confirming a publish lock the journey and only write a version that is still unpublished with the reviewed spec and fingerprint; editing a draft no longer writes into a version published meanwhile.
+  - **Pauses hold, never fail.** An approved journey message whose step or journey is paused is held and checked again every 15 minutes, where a paused journey used to fail it.
+  - **Archiving ends runs.** Open runs of an archived journey end with `journey_archived`, their unsent messages are withdrawn and their approvals expire. Every run that ends now expires its pending approvals, closes its open steps (`cancelled`) and clears its current step.
+  - **Replies are applied under a lock**, re-reading the run first, so a reply racing a step no longer moves an ended run, and the step it interrupts is closed.
+  - `exit.idleDays` now measures time without progress: the deadline moves on every step.
+  - A person journey waiting on a company journey now resumes when the company run ends (`journey.exited` carries `companyId` and `parentEnrollmentId`), and a sub-journey that fails to start no longer breaks the parent's step.
+  - Trace retention drains in ordered batches and stops reselecting runs whose split records it keeps.
+  - The journey event sink skips the inbox for orgs with no live or paused journey (`journeys_org_running()`, readable from end-user requests), and branch conditions read at most as many events per name as the rule counts.
+  - Migration `0141_journey_runtime_hardening` adds `journey_enrollments.step_errors`, `journey_enrollments.last_error` and `journeys.entry_cursor`.
+
+- bccea5a: Journey tools, the journey editor and their copy are tidied up.
+
+  - **`journeys_preview_move_enrollments`** (read-only, `journeys:read`) previews moving open runs to another version; `journeys_move_enrollments` now requires the preview's `fingerprint` and only moves.
+  - **`journeys_validate`** is read-only and needs only `journeys:read`.
+  - **Every draft edit tool takes `ifSpecHash`** (`journeys_replace_draft`, `journeys_add_node`, `journeys_update_node`, `journeys_remove_node`, `journeys_update_settings`), refusing with `journeys_draft_changed` when the draft changed since, as the dashboard already did.
+  - **Node shapes are checked in the service**, so `/v1` and MCP refuse the same malformed node with the same `journeys_invalid` message.
+  - **Review links are org-scoped.** `journeys_request_publish` and `journeys_get_template_changes` return `reviewPath` scoped to the organization where the dashboard is, plus an absolute `reviewUrl`.
+  - Tool descriptions no longer direct the agent to other tools, `journeys_list_node_types` lists every settings field, and `journeys_create_from_campaign` says the campaign is locked while the journey exists.
+  - **Editor.** A draft that can't be drawn lists its steps so a person can still open one in the advanced editor; a step form that would save an incomplete node says what is missing instead of sending it. New steps start with text in the dashboard's language, and the graph's step labels are translated.
+  - The inbound-lead template's follow-up email no longer ends on a sentence that points at nothing.
+  - Norwegian copy uses "kundereise" throughout and one word for runs, and a paused journey shows as "Pauset".
+
+- 4152b48: Fix Threll voice turns still mirroring to Slack out of order after a caller's final transcript resolves later than a turn that answered it.
+
+  The earlier fix (slack_deliveries ordered by a synthesized turn position) only reorders rows still sitting in the queue — once a later turn is posted to Slack's append-only thread, an earlier turn that resolves afterward can never be moved ahead of it. Threll actually tells us a turn's true position the moment it starts: an empty-text `isFinal: false` interim registers the turn immediately, before speech recognition resolves its text. Munin now acts on that interim — inserting a pending placeholder (shown as `…`) in true turn order — and fills it in via an update (`conversation.message.body_revised`, the same path already used for redaction edits) once the final arrives, instead of inserting a new row whenever the text resolves. The Slack post now always lands in the right slot; only its content fills in late.
+
+- 5331110: Org-wide send rules for marketing. A new Sending page under Settings, and `outreach_get_send_rules` / `outreach_configure_send_rules` (plus `GET`/`PUT /v1/outreach/send-rules`), set a default time zone, quiet hours, allowed weekdays, a weekly cap per contact and a pause after a contact last wrote to the team. They are the floor for every marketing send: campaign first touches and follow-ups, broadcasts and journey messages. A journey's settings or a campaign's cadence rules can only make them stricter. A send that would break them is scheduled for the next allowed time in the contact's own time zone. A broadcast recipient in quiet hours or a cool-down is held back and sent later, and one already over the weekly cap is skipped with `frequency_cap`. Transactional messages and replies to a contact's own message are never held back by these rules. Nothing changes until an org sets the rules; the page and `outreach_get_send_rules` offer recommended values (20:00–08:00, 3 a week, 24 hours).
+
+  The weekly cap now counts only marketing: transactional journey messages no longer use up a contact's allowance.
+
+- Updated dependencies [1ea7795]
+- Updated dependencies [ffdfdf2]
+- Updated dependencies [e9e172b]
+- Updated dependencies [0510ace]
+- Updated dependencies [0dad486]
+- Updated dependencies [ea4a2c8]
+- Updated dependencies [7fcea45]
+- Updated dependencies [109a97f]
+- Updated dependencies [9bb0e17]
+- Updated dependencies [8d5a43c]
+- Updated dependencies [69e88f8]
+- Updated dependencies [9b266c6]
+- Updated dependencies [7714bc9]
+- Updated dependencies [6a2de58]
+- Updated dependencies [b775772]
+- Updated dependencies [82430d1]
+- Updated dependencies [e32a230]
+- Updated dependencies [910e921]
+- Updated dependencies [8f3e2b5]
+- Updated dependencies [1abd29e]
+- Updated dependencies [f8732c6]
+- Updated dependencies [e8a1b2f]
+  - @getmunin/types@5.49.0
+  - @getmunin/ui@5.49.0
+
 ## 5.48.4
 
 ### Patch Changes
